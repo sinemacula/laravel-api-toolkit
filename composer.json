@@ -1,0 +1,41 @@
+{
+    "name": "sinemacula/laravel-api-toolkit",
+    "type": "library",
+    "description": "A comprehensive Laravel toolkit for streamlined development of RESTful APIs",
+    "keywords": [
+        "sine macula",
+        "laravel",
+        "restful",
+        "api",
+        "toolkit"
+    ],
+    "license": "Apache-2.0",
+    "authors": [
+        {
+            "name": "Ben Carey",
+            "email": "bdmc@sinemacula.co.uk"
+        }
+    ],
+    "require": {
+        "php": "^8.3",
+        "illuminate/support": "^11.0"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^11.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "SineMacula\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Tests\\": "tests/"
+        }
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true
+}
