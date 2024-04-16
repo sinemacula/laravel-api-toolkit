@@ -1,0 +1,44 @@
+name: Tests
+
+on:
+    push:
+
+permissions:
+    contents: read
+
+jobs:
+    tests:
+        runs-on: ubuntu-latest
+
+        strategy:
+            fail-fast: true
+            matrix:
+                php: [ 8.3 ]
+
+        name: PHP ${{ matrix.php }}
+
+        steps:
+            -   name: Checkout code
+                uses: actions/checkout@v3
+
+            -   name: Setup PHP
+                uses: shivammathur/setup-php@v2
+                with:
+                    php-version: ${{ matrix.php }}
+                    extensions: dom
+                    coverage: pcov
+
+            -   name: Install Composer dependencies
+                run: composer install --prefer-dist --no-interaction --no-progress
+
+            -   name: Run Tests & Generate Code Coverage Report
+                run: vendor/bin/phpunit --coverage-clover 'coverage.xml'
+
+            -   name: Publish Code Coverage
+                uses: paambaati/codeclimate-action@v3.2.0
+                if: ${{ github.ref == 'refs/heads/master' }}
+                env:
+                    CC_TEST_REPORTER_ID: ${{ secrets.CC_TEST_REPORTER_ID }}
+                with:
+                    coverageLocations: |
+                        ${{ github.workspace }}/coverage.xml:clover
