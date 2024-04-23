@@ -48,6 +48,46 @@ abstract class ApiResource extends JsonResource implements ApiResourceInterface
     }
 
     /**
+     * Get the resource type.
+     *
+     * @return string
+     */
+    public static function getResourceType(): string
+    {
+        if (!defined(static::class . '::RESOURCE_TYPE')) {
+            throw new LogicException('The RESOURCE_TYPE constant must be defined on the resource');
+        }
+
+        return static::RESOURCE_TYPE;
+    }
+
+    /**
+     * Overrides the default fields and any requested fields with a provided
+     * set.
+     *
+     * @param  array  $fields
+     * @return static
+     */
+    public function withFields(array $fields): static
+    {
+        $this->fields = $fields;
+
+        return $this;
+    }
+
+    /**
+     * Forces the response to include all available fields.
+     *
+     * @return static
+     */
+    public function withAll(): static
+    {
+        $this->all = true;
+
+        return $this;
+    }
+
+    /**
      * Create a new resource collection instance.
      *
      * @param  mixed  $resource
@@ -79,20 +119,6 @@ abstract class ApiResource extends JsonResource implements ApiResourceInterface
     }
 
     /**
-     * Get the resource type.
-     *
-     * @return string
-     */
-    public static function getResourceType(): string
-    {
-        if (!defined(static::class . '::RESOURCE_TYPE')) {
-            throw new LogicException('The RESOURCE_TYPE constant must be defined on the resource');
-        }
-
-        return static::RESOURCE_TYPE;
-    }
-
-    /**
      * Resolves and returns the fields based on the API query or defaults if no
      * specific fields are requested.
      *
@@ -111,31 +137,5 @@ abstract class ApiResource extends JsonResource implements ApiResourceInterface
     private function getFixedFields(): array
     {
         return array_merge(Config::get('api-toolkit.resources.fixed_fields'), $this->fixed);
-    }
-
-    /**
-     * Overrides the default fields and any requested fields with a provided
-     * set.
-     *
-     * @param  array  $fields
-     * @return static
-     */
-    public function withFields(array $fields): static
-    {
-        $this->fields = $fields;
-
-        return $this;
-    }
-
-    /**
-     * Forces the response to include all available fields.
-     *
-     * @return static
-     */
-    public function withAll(): static
-    {
-        $this->all = true;
-
-        return $this;
     }
 }
