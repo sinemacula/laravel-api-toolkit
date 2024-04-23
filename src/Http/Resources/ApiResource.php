@@ -3,6 +3,7 @@
 namespace SineMacula\ApiToolkit\Http\Resources;
 
 use Illuminate\Http\Resources\Json\JsonResource;
+use Illuminate\Support\Facades\Config;
 use LogicException;
 use SineMacula\ApiToolkit\Contracts\ApiResourceInterface;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
@@ -24,6 +25,9 @@ abstract class ApiResource extends JsonResource implements ApiResourceInterface
 
     /** @var array Explicit list of fields to be returned in the response */
     protected array $fields;
+
+    /** @var array Fixed fields to include in the response */
+    protected array $fixed = [];
 
     /** @var array Default fields to include in the response if no specific fields are requested */
     protected array $default = [];
@@ -100,7 +104,7 @@ abstract class ApiResource extends JsonResource implements ApiResourceInterface
      */
     private function getFields(): array
     {
-        return $this->fields ??= $this->resolveFields();
+        return $this->fields ??= array_merge($this->resolveFields(), $this->getFixedFields());
     }
 
     /**
@@ -112,5 +116,15 @@ abstract class ApiResource extends JsonResource implements ApiResourceInterface
     private function resolveFields(): array
     {
         return ApiQuery::getFields(self::getResourceType()) ?? $this->default;
+    }
+
+    /**
+     * Gets the fields that should always be included in the response.
+     *
+     * @return array
+     */
+    private function getFixedFields(): array
+    {
+        return array_merge(Config::get('api-toolkit.resources.fixed_fields'), $this->fixed);
     }
 }

@@ -43,6 +43,9 @@ return [
     | enhancing the API's ability to serialize and deserialize these relations
     | correctly.
     |
+    | `fixed_fields`: This array should contain all globally fixed fields i.e.
+    | the fields that should always be present in resource responses.
+    |
     */
 
     'resources' => [
@@ -52,7 +55,9 @@ return [
         'morph_map' => [
             // This should be filled with the application's morph map
             // e.g. \App\Models\User::class => \App\Http\Resources\UserResource::class
-        ]
+        ],
+
+        'fixed_fields' => ['id', '_type']
 
     ],
 
