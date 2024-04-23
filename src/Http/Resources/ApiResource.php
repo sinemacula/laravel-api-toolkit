@@ -37,53 +37,13 @@ abstract class ApiResource extends JsonResource implements ApiResourceInterface
      * @param  string  $key
      * @return mixed
      */
-    public function __get(string $key): mixed
+    public function __get($key): mixed
     {
         if (!$this->hasField($key)) {
             return new MissingValue;
         }
 
         return parent::__get($key);
-    }
-
-    /**
-     * Get the resource type.
-     *
-     * @return string
-     */
-    public static function getResourceType(): string
-    {
-        if (!defined(static::class . '::RESOURCE_TYPE')) {
-            throw new LogicException('The RESOURCE_TYPE constant must be defined on the resource');
-        }
-
-        return static::RESOURCE_TYPE;
-    }
-
-    /**
-     * Overrides the default fields and any requested fields with a provided
-     * set.
-     *
-     * @param  array  $fields
-     * @return static
-     */
-    public function withFields(array $fields): static
-    {
-        $this->fields = $fields;
-
-        return $this;
-    }
-
-    /**
-     * Forces the response to include all available fields.
-     *
-     * @return static
-     */
-    public function withAll(): static
-    {
-        $this->all = true;
-
-        return $this;
     }
 
     /**
@@ -119,6 +79,20 @@ abstract class ApiResource extends JsonResource implements ApiResourceInterface
     }
 
     /**
+     * Get the resource type.
+     *
+     * @return string
+     */
+    public static function getResourceType(): string
+    {
+        if (!defined(static::class . '::RESOURCE_TYPE')) {
+            throw new LogicException('The RESOURCE_TYPE constant must be defined on the resource');
+        }
+
+        return static::RESOURCE_TYPE;
+    }
+
+    /**
      * Resolves and returns the fields based on the API query or defaults if no
      * specific fields are requested.
      *
@@ -127,5 +101,31 @@ abstract class ApiResource extends JsonResource implements ApiResourceInterface
     private function resolveFields(): array
     {
         return ApiQuery::getFields(self::getResourceType()) ?? $this->default;
+    }
+
+    /**
+     * Overrides the default fields and any requested fields with a provided
+     * set.
+     *
+     * @param  array  $fields
+     * @return static
+     */
+    public function withFields(array $fields): static
+    {
+        $this->fields = $fields;
+
+        return $this;
+    }
+
+    /**
+     * Forces the response to include all available fields.
+     *
+     * @return static
+     */
+    public function withAll(): static
+    {
+        $this->all = true;
+
+        return $this;
     }
 }

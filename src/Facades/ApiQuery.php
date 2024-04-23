@@ -9,7 +9,7 @@ use Illuminate\Support\Facades\Facade;
 /**
  * API query facade.
  *
- * @method static array getFields(?string $resource = null)
+ * @method static array|null getFields(?string $resource = null)
  * @method static array|null getFilters()
  * @method static array getOrder()
  * @method static int getLimit()

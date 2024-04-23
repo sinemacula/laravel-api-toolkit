@@ -25,15 +25,29 @@ class ApiQueryParser
      *  - e.g. ?fields['user']=first_name,last_name
      *
      * @param  string|null  $resource
-     * @return array
+     * @return array|null
      */
-    public function getFields(?string $resource = null): array
+    public function getFields(?string $resource = null): ?array
+    {
+        $fields = $this->getParameters('fields', $resource);
+
+        return is_array($fields) ? array_map('trim', $fields) : $fields;
+    }
+
+    /**
+     * Extract the specified parameter.
+     *
+     * @param  string       $option
+     * @param  string|null  $resource
+     * @return mixed
+     */
+    private function getParameters(string $option, ?string $resource = null): mixed
     {
         if ($resource) {
-            return array_map('trim', $this->getParameters('fields', $resource) ?? []);
-        } else {
-            return $this->getParameters('fields') ?? [];
+            return $this->parameters[$option][$resource] ?? null;
         }
+
+        return $this->parameters[$option] ?? null;
     }
 
     /**
@@ -107,22 +121,6 @@ class ApiQueryParser
         if ($request->has('order')) {
             $this->parameters['order'] = $this->parseOrder($request->input('order'));
         }
-    }
-
-    /**
-     * Extract the specified parameter.
-     *
-     * @param  string  $option
-     * @param  string|null  $resource
-     * @return mixed
-     */
-    private function getParameters(string $option, ?string $resource = null): mixed
-    {
-        if ($resource) {
-            return $this->parameters[$option][$resource] ?? null;
-        }
-
-        return $this->parameters[$option] ?? null;
     }
 
     /**

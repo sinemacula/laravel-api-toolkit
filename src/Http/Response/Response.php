@@ -11,8 +11,8 @@ use Illuminate\Http\Resources\Json\ResourceCollection;
 /**
  * @deprecated
  *
- * @author      Ben Carey <ben.carey@verifast.com>
- * @copyright   2024 Verifast, Inc.
+ * @author      Ben Carey <bdmc@sinemacula.co.uk>
+ * @copyright   2024 Sine Macula Limited.
  */
 readonly class Response
 {
@@ -20,7 +20,7 @@ readonly class Response
      * Constructor.
      *
      * @param  \Illuminate\Contracts\Routing\ResponseFactory  $factory
-     * @param  bool  $pretty
+     * @param  bool                                           $pretty
      */
     public function __construct(
 
@@ -36,7 +36,7 @@ readonly class Response
      * Return a data response.
      *
      * @param  array  $data
-     * @param  int  $status_code
+     * @param  int    $status_code
      * @param  array  $headers
      * @return \Illuminate\Http\JsonResponse
      */
@@ -48,11 +48,26 @@ readonly class Response
     }
 
     /**
+     * Responds with json from a given array.
+     *
+     * @param  array  $data
+     * @param  int    $status_code
+     * @param  array  $headers
+     * @return \Illuminate\Http\JsonResponse
+     */
+    private function respond(array $data, int $status_code = 200, array $headers = []): JsonResponse
+    {
+        $options = $this->pretty ? JSON_PRETTY_PRINT : 0;
+
+        return $this->factory->json($data, $status_code, $headers, $options);
+    }
+
+    /**
      * Return a single resource item response.
      *
      * @param  \Illuminate\Http\Resources\Json\JsonResource  $item
-     * @param  int  $status_code
-     * @param  array  $headers
+     * @param  int                                           $status_code
+     * @param  array                                         $headers
      * @return \Illuminate\Http\JsonResponse
      */
     public function item(JsonResource $item, int $status_code = 200, array $headers = []): JsonResponse
@@ -64,8 +79,8 @@ readonly class Response
      * Return a paginated resource response.
      *
      * @param  \Illuminate\Http\Resources\Json\ResourceCollection  $items
-     * @param  int  $status_code
-     * @param  array  $headers
+     * @param  int                                                 $status_code
+     * @param  array                                               $headers
      * @return \Illuminate\Http\JsonResponse
      */
     public function paginate(ResourceCollection $items, int $status_code = 200, array $headers = []): JsonResponse
@@ -87,8 +102,8 @@ readonly class Response
      * Return collection of items response.
      *
      * @param  \Illuminate\Http\Resources\Json\ResourceCollection  $items
-     * @param  int  $status_code
-     * @param  array  $headers
+     * @param  int                                                 $status_code
+     * @param  array                                               $headers
      * @return \Illuminate\Http\JsonResponse
      */
     public function collection(ResourceCollection $items, int $status_code = 200, array $headers = []): JsonResponse
@@ -97,25 +112,10 @@ readonly class Response
     }
 
     /**
-     * Responds with json from a given array.
-     *
-     * @param  array  $data
-     * @param  int  $status_code
-     * @param  array  $headers
-     * @return \Illuminate\Http\JsonResponse
-     */
-    private function respond(array $data, int $status_code = 200, array $headers = []): JsonResponse
-    {
-        $options = $this->pretty ? JSON_PRETTY_PRINT : 0;
-
-        return $this->factory->json($data, $status_code, $headers, $options);
-    }
-
-    /**
      * Build the meta for the paginated response.
      *
      * @param  \Illuminate\Contracts\Pagination\LengthAwarePaginator  $paginator
-     * @param  array  $meta
+     * @param  array                                                  $meta
      * @return array
      */
     private function buildPaginationMeta(LengthAwarePaginator $paginator, array $meta): array
