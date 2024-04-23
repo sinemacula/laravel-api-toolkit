@@ -9,7 +9,7 @@ use SineMacula\ApiToolkit\Contracts\ApiResourceInterface;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
 
 /**
- * The base API model.
+ * The base API resource.
  *
  * This handles dynamic field filtering based on API query parameters. It
  * leverages a global query parser to determine which fields should be included
@@ -48,6 +48,37 @@ abstract class ApiResource extends JsonResource implements ApiResourceInterface
     }
 
     /**
+     * Create a new resource collection instance.
+     *
+     * @param  mixed  $resource
+     * @return \SineMacula\ApiToolkit\Http\Resources\ApiResourceCollection
+     */
+    protected static function newCollection($resource): ApiResourceCollection
+    {
+        return new ApiResourceCollection($resource, static::class);
+    }
+
+    /**
+     * Determines whether all fields should be included in the response.
+     *
+     * @return bool
+     */
+    private function shouldRespondWithAll(): bool
+    {
+        return $this->all || in_array(':all', ApiQuery::getFields(self::getResourceType()) ?? []);
+    }
+
+    /**
+     * Gets the fields that should be included in the response.
+     *
+     * @return array
+     */
+    private function getFields(): array
+    {
+        return $this->fields ??= array_merge($this->resolveFields(), $this->getFixedFields());
+    }
+
+    /**
      * Get the resource type.
      *
      * @return string
@@ -59,6 +90,27 @@ abstract class ApiResource extends JsonResource implements ApiResourceInterface
         }
 
         return static::RESOURCE_TYPE;
+    }
+
+    /**
+     * Resolves and returns the fields based on the API query or defaults if no
+     * specific fields are requested.
+     *
+     * @return array
+     */
+    private function resolveFields(): array
+    {
+        return ApiQuery::getFields(self::getResourceType()) ?? $this->default;
+    }
+
+    /**
+     * Gets the fields that should always be included in the response.
+     *
+     * @return array
+     */
+    private function getFixedFields(): array
+    {
+        return array_merge(Config::get('api-toolkit.resources.fixed_fields'), $this->fixed);
     }
 
     /**
@@ -85,46 +137,5 @@ abstract class ApiResource extends JsonResource implements ApiResourceInterface
         $this->all = true;
 
         return $this;
-    }
-
-    /**
-     * Determines whether all fields should be included in the response.
-     *
-     * @return bool
-     */
-    private function shouldRespondWithAll(): bool
-    {
-        return $this->all || in_array(':all', ApiQuery::getFields(self::getResourceType()) ?? []);
-    }
-
-    /**
-     * Gets the fields that should be included in the response.
-     *
-     * @return array
-     */
-    private function getFields(): array
-    {
-        return $this->fields ??= array_merge($this->resolveFields(), $this->getFixedFields());
-    }
-
-    /**
-     * Resolves and returns the fields based on the API query or defaults if no
-     * specific fields are requested.
-     *
-     * @return array
-     */
-    private function resolveFields(): array
-    {
-        return ApiQuery::getFields(self::getResourceType()) ?? $this->default;
-    }
-
-    /**
-     * Gets the fields that should always be included in the response.
-     *
-     * @return array
-     */
-    private function getFixedFields(): array
-    {
-        return array_merge(Config::get('api-toolkit.resources.fixed_fields'), $this->fixed);
     }
 }
