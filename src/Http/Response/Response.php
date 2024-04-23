@@ -11,8 +11,8 @@ use Illuminate\Http\Resources\Json\ResourceCollection;
 /**
  * @deprecated
  *
- * @author      Ben Carey <ben.carey@verifast.com>
- * @copyright   2024 Verifast, Inc.
+ * @author      Ben Carey <bdmc@sinemacula.co.uk>
+ * @copyright   2024 Sine Macula Limited.
  */
 readonly class Response
 {

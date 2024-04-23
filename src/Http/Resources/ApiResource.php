@@ -37,7 +37,7 @@ abstract class ApiResource extends JsonResource implements ApiResourceInterface
      * @param  string  $key
      * @return mixed
      */
-    public function __get(string $key): mixed
+    public function __get($key): mixed
     {
         if (!$this->hasField($key)) {
             return new MissingValue;

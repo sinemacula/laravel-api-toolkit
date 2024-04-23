@@ -60,4 +60,4 @@ the [Apache License, Version 2.0](https://www.apache.org/licenses/LICENSE-2.0).
 ## TODO
 
 - Make a decision on Exceptions
-- Refactor the APICriteria
+- Exception handler must handle validation exceptions...

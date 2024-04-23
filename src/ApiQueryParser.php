@@ -25,15 +25,13 @@ class ApiQueryParser
      *  - e.g. ?fields['user']=first_name,last_name
      *
      * @param  string|null  $resource
-     * @return array
+     * @return array|null
      */
-    public function getFields(?string $resource = null): array
+    public function getFields(?string $resource = null): ?array
     {
-        if ($resource) {
-            return array_map('trim', $this->getParameters('fields', $resource) ?? []);
-        } else {
-            return $this->getParameters('fields') ?? [];
-        }
+        $fields = $this->getParameters('fields', $resource);
+
+        return is_array($fields) ? array_map('trim', $fields) : $fields;
     }
 
     /**
