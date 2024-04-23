@@ -100,6 +100,7 @@ abstract class ApiResource extends JsonResource implements ApiResourceInterface
 
     /**
      * Determines whether all fields should be included in the response.
+
      *
      * @return bool
      */
@@ -128,4 +129,5 @@ abstract class ApiResource extends JsonResource implements ApiResourceInterface
     {
         return ApiQuery::getFields(self::getResourceType()) ?? $this->default;
     }
+
 }
