@@ -105,6 +105,7 @@ return [
                 'string',
                 'date',
                 'datetime',
+                'datetime:.*',
                 'immutable_date',
                 'immutable_datetime',
                 'decimal:.*',
