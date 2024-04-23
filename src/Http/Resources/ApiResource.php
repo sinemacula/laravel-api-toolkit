@@ -3,7 +3,6 @@
 namespace SineMacula\ApiToolkit\Http\Resources;
 
 use Illuminate\Http\Resources\Json\JsonResource;
-use Illuminate\Http\Resources\MissingValue;
 use LogicException;
 use SineMacula\ApiToolkit\Contracts\ApiResourceInterface;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
@@ -30,20 +29,18 @@ abstract class ApiResource extends JsonResource implements ApiResourceInterface
     protected array $default = [];
 
     /**
-     * Retrieves a value for a given key, filtering out the field if it's not
-     * included in the allowed list. We use MissingValue to exclude fields not
-     * present in the dynamic list from the serialized output.
+     * Resolve the resource to an array.
      *
-     * @param  string  $key
-     * @return mixed
+     * @param  \Illuminate\Http\Request|null  $request
+     * @return array
      */
-    public function __get($key): mixed
+    public function resolve($request = null): array
     {
-        if (!$this->hasField($key)) {
-            return new MissingValue;
-        }
+        $data = parent::resolve($request);
 
-        return parent::__get($key);
+        return $this->shouldRespondWithAll()
+            ? $data
+            : array_intersect_key($data, array_flip($this->getFields()));
     }
 
     /**
@@ -84,18 +81,6 @@ abstract class ApiResource extends JsonResource implements ApiResourceInterface
         $this->all = true;
 
         return $this;
-    }
-
-    /**
-     * Checks if a given field should be included in the response based on the
-     * dynamically requested fields.
-     *
-     * @param  string  $key
-     * @return bool
-     */
-    private function hasField(string $key): bool
-    {
-        return $this->shouldRespondWithAll() || in_array($key, $this->getFields());
     }
 
     /**
