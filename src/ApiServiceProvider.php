@@ -2,10 +2,11 @@
 
 namespace SineMacula\ApiToolkit;
 
+use Illuminate\Contracts\Http\Kernel;
 use Illuminate\Database\Eloquent\Relations\Relation;
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\ServiceProvider;
+use SineMacula\ApiToolkit\Http\Middleware\ParseApiQuery;
 
 /**
  * API service provider.
@@ -24,25 +25,12 @@ class ApiServiceProvider extends ServiceProvider
     {
         $this->offerPublishing();
         $this->registerMorphMap();
+        $this->registerMiddleware();
         // Api Exception (still need to decide)
 
         // To resource wrapping
         // TODO: Test to see if this is a good idea.
         //JsonResource::withoutWrapping();
-    }
-
-    /**
-     * Register any application services.
-     *
-     * @return void
-     */
-    public function register(): void
-    {
-        $this->mergeConfigFrom(
-            __DIR__ . '/../config/api-toolkit.php', 'api-toolkit'
-        );
-
-        $this->registerQueryParser();
     }
 
     /**
@@ -93,12 +81,38 @@ class ApiServiceProvider extends ServiceProvider
     }
 
     /**
+     * Register any relevant middleware.
+     *
+     * @return void
+     */
+    private function registerMiddleware(): void
+    {
+        if (Config::get('api-toolkit.parser.register_middleware', true)) {
+            $this->app->make(Kernel::class)->pushMiddleware(ParseApiQuery::class);
+        }
+    }
+
+    /**
+     * Register any application services.
+     *
+     * @return void
+     */
+    public function register(): void
+    {
+        $this->mergeConfigFrom(
+            __DIR__ . '/../config/api-toolkit.php', 'api-toolkit'
+        );
+
+        $this->registerQueryParser();
+    }
+
+    /**
      * Bind the API query parser to the service container.
      *
      * @return void
      */
     private function registerQueryParser(): void
     {
-        $this->app->bind(Config::get('api-toolkit.parser.alias'), fn ($app) => new ApiQueryParser($app->make(Request::class)));
+        $this->app->singleton(Config::get('api-toolkit.parser.alias'), fn ($app) => new ApiQueryParser);
     }
 }

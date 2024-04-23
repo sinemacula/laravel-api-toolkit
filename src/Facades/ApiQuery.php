@@ -2,6 +2,7 @@
 
 namespace SineMacula\ApiToolkit\Facades;
 
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Facade;
 
@@ -13,7 +14,7 @@ use Illuminate\Support\Facades\Facade;
  * @method static array getOrder()
  * @method static int getLimit()
  * @method static int|null getPage()
- * @method static void parse()
+ * @method static void parse(Request $request)
  *
  * @see         \SineMacula\ApiToolkit\ApiQueryParser
  *
