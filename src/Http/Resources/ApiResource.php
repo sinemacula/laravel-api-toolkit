@@ -55,7 +55,7 @@ abstract class ApiResource extends JsonResource implements ApiResourceInterface
      */
     private function hasField(string $key): bool
     {
-        return $this->shouldRespondWithAll() || isset($this->getFields()[$key]);
+        return $this->shouldRespondWithAll() || in_array($key, $this->getFields());
     }
 
     /**
@@ -65,7 +65,7 @@ abstract class ApiResource extends JsonResource implements ApiResourceInterface
      */
     private function shouldRespondWithAll(): bool
     {
-        return $this->all || in_array(':all', ApiQuery::getFields(self::getResourceType()));
+        return $this->all || in_array(':all', ApiQuery::getFields(self::getResourceType()) ?? []);
     }
 
     /**
