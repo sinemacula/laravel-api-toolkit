@@ -72,6 +72,8 @@ return [
 
         'alias' => 'api.query',
 
+        'register_middleware' => env('API_PARSER_REGISTER_MIDDLEWARE', true),
+
         'defaults' => [
             'limit' => env('API_PARSER_DEFAULT_LIMIT', 50)
         ]

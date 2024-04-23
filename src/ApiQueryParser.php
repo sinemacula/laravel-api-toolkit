@@ -21,18 +21,6 @@ class ApiQueryParser
     protected array $parameters = [];
 
     /**
-     * Constructor.
-     *
-     * @param  \Illuminate\Http\Request  $request
-     */
-    public function __construct(
-
-        /** The HTTP request */
-        protected readonly Request $request
-
-    ) {}
-
-    /**
      * Returns a list of fields set with the URL modifiers.
      *  - e.g. ?fields['user']=first_name,last_name
      *
@@ -99,24 +87,25 @@ class ApiQueryParser
     /**
      * Parse the given query string to obtain resource and value information.
      *
+     * @param  \Illuminate\Http\Request  $request
      * @return void
      */
-    public function parse(): void
+    public function parse(Request $request): void
     {
-        $this->validate($this->request->all());
+        $this->validate($request->all());
 
-        $this->parameters = array_map('trim', $this->request->only(['page', 'limit']));
+        $this->parameters = array_map('trim', $request->only(['page', 'limit']));
 
-        if ($this->request->has('fields')) {
-            $this->parameters['fields'] = $this->parseFields($this->request->input('fields'));
+        if ($request->has('fields')) {
+            $this->parameters['fields'] = $this->parseFields($request->input('fields'));
         }
 
-        if ($this->request->has('filters')) {
-            $this->parameters['filters'] = $this->parseFilters($this->request->input('filters'));
+        if ($request->has('filters')) {
+            $this->parameters['filters'] = $this->parseFilters($request->input('filters'));
         }
 
-        if ($this->request->has('order')) {
-            $this->parameters['order'] = $this->parseOrder($this->request->input('order'));
+        if ($request->has('order')) {
+            $this->parameters['order'] = $this->parseOrder($request->input('order'));
         }
     }
 
