@@ -35,22 +35,6 @@ class ApiQueryParser
     }
 
     /**
-     * Extract the specified parameter.
-     *
-     * @param  string       $option
-     * @param  string|null  $resource
-     * @return mixed
-     */
-    private function getParameters(string $option, ?string $resource = null): mixed
-    {
-        if ($resource) {
-            return $this->parameters[$option][$resource] ?? null;
-        }
-
-        return $this->parameters[$option] ?? null;
-    }
-
-    /**
      * Returns a list of filters set with the URL modifiers.
      *
      * @return array|null
@@ -121,6 +105,22 @@ class ApiQueryParser
         if ($request->has('order')) {
             $this->parameters['order'] = $this->parseOrder($request->input('order'));
         }
+    }
+
+    /**
+     * Extract the specified parameter.
+     *
+     * @param  string  $option
+     * @param  string|null  $resource
+     * @return mixed
+     */
+    private function getParameters(string $option, ?string $resource = null): mixed
+    {
+        if ($resource) {
+            return $this->parameters[$option][$resource] ?? null;
+        }
+
+        return $this->parameters[$option] ?? null;
     }
 
     /**
