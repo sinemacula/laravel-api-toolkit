@@ -34,6 +34,20 @@ class ApiServiceProvider extends ServiceProvider
     }
 
     /**
+     * Register any application services.
+     *
+     * @return void
+     */
+    public function register(): void
+    {
+        $this->mergeConfigFrom(
+            __DIR__ . '/../config/api-toolkit.php', 'api-toolkit'
+        );
+
+        $this->registerQueryParser();
+    }
+
+    /**
      * Publish any package specific configuration and assets.
      *
      * @return void
@@ -90,20 +104,6 @@ class ApiServiceProvider extends ServiceProvider
         if (Config::get('api-toolkit.parser.register_middleware', true)) {
             $this->app->make(Kernel::class)->pushMiddleware(ParseApiQuery::class);
         }
-    }
-
-    /**
-     * Register any application services.
-     *
-     * @return void
-     */
-    public function register(): void
-    {
-        $this->mergeConfigFrom(
-            __DIR__ . '/../config/api-toolkit.php', 'api-toolkit'
-        );
-
-        $this->registerQueryParser();
     }
 
     /**
