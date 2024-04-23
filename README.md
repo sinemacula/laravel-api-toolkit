@@ -56,3 +56,8 @@ If you discover any security related issues, please email instead of using the i
 
 The Laravel API Toolkit repository is open-sourced software licensed under
 the [Apache License, Version 2.0](https://www.apache.org/licenses/LICENSE-2.0).
+
+## TODO
+
+- Make a decision on Exceptions
+- Refactor the APICriteria
