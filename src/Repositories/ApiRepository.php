@@ -47,6 +47,7 @@ abstract class ApiRepository extends Repository
      *
      * @param  string  $method
      * @return mixed
+     *
      * @throws \Illuminate\Contracts\Container\BindingResolutionException
      */
     public function paginate(string $method = 'paginate'): mixed
@@ -67,7 +68,7 @@ abstract class ApiRepository extends Repository
      * Set the attributes for the given model.
      *
      * @param  \Illuminate\Database\Eloquent\Model  $model
-     * @param  array                                $attributes
+     * @param  array  $attributes
      * @return bool
      */
     public function setAttributes(Model $model, array $attributes): bool
@@ -106,19 +107,32 @@ abstract class ApiRepository extends Repository
     }
 
     /**
+     * Boot the repository instance.
+     *
+     * This is a useful method for setting immediate properties when extending
+     * the base repository class.
+     *
+     * @return void
+     */
+    protected function boot(): void
+    {
+        $this->resolveAttributeCasts();
+    }
+
+    /**
      * Resolve the cast type for the given attribute.
      *
      * The purpose of this method is to obtain either the native cast type from
      * the Laravel model cast, or to obtain the type of relation for the given
      * attribute. This ensures that each value can be saved safely on the model.
      *
-     * @param  string       $attribute
+     * @param  string  $attribute
      * @param  string|null  $cast
      * @return string|null
      */
     private function resolveCastForAttribute(string $attribute, ?string $cast = null): ?string
     {
-        $cast = $cast ?? $this->model()->getCasts()[$attribute] ?? null;
+        $cast ??= $this->model()->getCasts()[$attribute] ?? null;
 
         if (!$cast) {
             return $this->resolveCastForRelation($attribute);
@@ -141,9 +155,9 @@ abstract class ApiRepository extends Repository
      * Set the given attribute on the model.
      *
      * @param  \Illuminate\Database\Eloquent\Model  $model
-     * @param  string                               $attribute
-     * @param  string                               $cast
-     * @param  mixed                                $value
+     * @param  string  $attribute
+     * @param  string  $cast
+     * @param  mixed  $value
      * @return void
      */
     private function setAttribute(Model $model, string $attribute, string $cast, mixed $value): void
@@ -217,6 +231,7 @@ abstract class ApiRepository extends Repository
 
         if (str_contains($laravel_cast, '*')) {
             $pattern = '/^' . str_replace('*', '.*', $laravel_cast) . '$/';
+
             return preg_match($pattern, $cast);
         }
 
@@ -227,8 +242,8 @@ abstract class ApiRepository extends Repository
      * Set the attribute value for an integer.
      *
      * @param  \Illuminate\Database\Eloquent\Model  $model
-     * @param  string                               $attribute
-     * @param  mixed                                $value
+     * @param  string  $attribute
+     * @param  mixed  $value
      * @return void
      */
     private function setIntegerAttribute(Model $model, string $attribute, mixed $value): void
@@ -240,8 +255,8 @@ abstract class ApiRepository extends Repository
      * Set the attribute value for a boolean.
      *
      * @param  \Illuminate\Database\Eloquent\Model  $model
-     * @param  string                               $attribute
-     * @param  mixed                                $value
+     * @param  string  $attribute
+     * @param  mixed  $value
      * @return void
      */
     private function setBooleanAttribute(Model $model, string $attribute, mixed $value): void
@@ -253,8 +268,8 @@ abstract class ApiRepository extends Repository
      * Set the attribute value for an array.
      *
      * @param  \Illuminate\Database\Eloquent\Model  $model
-     * @param  string                               $attribute
-     * @param  mixed                                $value
+     * @param  string  $attribute
+     * @param  mixed  $value
      * @return void
      */
     private function setArrayAttribute(Model $model, string $attribute, mixed $value): void
@@ -266,8 +281,8 @@ abstract class ApiRepository extends Repository
      * Set the attribute value for an object.
      *
      * @param  \Illuminate\Database\Eloquent\Model  $model
-     * @param  string                               $attribute
-     * @param  mixed                                $value
+     * @param  string  $attribute
+     * @param  mixed  $value
      * @return void
      */
     private function setObjectAttribute(Model $model, string $attribute, mixed $value): void
@@ -279,8 +294,8 @@ abstract class ApiRepository extends Repository
      * Set the attribute value for an associative relationship.
      *
      * @param  \Illuminate\Database\Eloquent\Model  $model
-     * @param  string                               $attribute
-     * @param  mixed                                $value
+     * @param  string  $attribute
+     * @param  mixed  $value
      * @return void
      */
     private function setAssociateAttribute(Model $model, string $attribute, mixed $value): void
@@ -292,8 +307,8 @@ abstract class ApiRepository extends Repository
      * Set the attribute value for a synced relationship.
      *
      * @param  \Illuminate\Database\Eloquent\Model  $model
-     * @param  string                               $attribute
-     * @param  mixed                                $value
+     * @param  string  $attribute
+     * @param  mixed  $value
      * @return void
      */
     private function setSyncAttribute(Model $model, string $attribute, mixed $value): void
@@ -310,7 +325,7 @@ abstract class ApiRepository extends Repository
             $values = $value['values']->pluck('id');
         }
 
-        $values    ??= $value;
+        $values ??= $value;
         $detaching = $value['detaching'] ?? true;
 
         $model->{Str::camel($attribute)}()->sync($values, $detaching);
@@ -320,26 +335,13 @@ abstract class ApiRepository extends Repository
      * Set the attribute value for a string.
      *
      * @param  \Illuminate\Database\Eloquent\Model  $model
-     * @param  string                               $attribute
-     * @param  mixed                                $value
+     * @param  string  $attribute
+     * @param  mixed  $value
      * @return void
      */
     private function setStringAttribute(Model $model, string $attribute, mixed $value): void
     {
         $model->{$attribute} = $value ? (string) $value : null;
-    }
-
-    /**
-     * Boot the repository instance.
-     *
-     * This is a useful method for setting immediate properties when extending
-     * the base repository class.
-     *
-     * @return void
-     */
-    protected function boot(): void
-    {
-        $this->resolveAttributeCasts();
     }
 
     /**

@@ -16,9 +16,9 @@ class ApiException extends Exception
     /**
      * Constructor.
      *
-     * @param  array            $type
-     * @param  array|null       $meta
-     * @param  array|null       $headers
+     * @param  array  $type
+     * @param  array|null  $meta
+     * @param  array|null  $headers
      * @param  \Throwable|null  $previous
      *
      * @throws \Throwable

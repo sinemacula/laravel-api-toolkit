@@ -32,6 +32,20 @@ class ApiServiceProvider extends ServiceProvider
     }
 
     /**
+     * Register any application services.
+     *
+     * @return void
+     */
+    public function register(): void
+    {
+        $this->mergeConfigFrom(
+            __DIR__ . '/../config/api-toolkit.php', 'api-toolkit'
+        );
+
+        $this->registerQueryParser();
+    }
+
+    /**
      * Publish any package specific configuration and assets.
      *
      * @return void
@@ -76,20 +90,6 @@ class ApiServiceProvider extends ServiceProvider
             ->all();
 
         Relation::morphMap($map);
-    }
-
-    /**
-     * Register any application services.
-     *
-     * @return void
-     */
-    public function register(): void
-    {
-        $this->mergeConfigFrom(
-            __DIR__ . '/../config/api-toolkit.php', 'api-toolkit'
-        );
-
-        $this->registerQueryParser();
     }
 
     /**

@@ -89,6 +89,31 @@ class Handler extends ExceptionHandler
     }
 
     /**
+     * Render an exception into an HTTP response.
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @param  \Throwable  $exception
+     * @return \Symfony\Component\HttpFoundation\Response
+     */
+    public function render($request, Throwable $exception): SymfonyResponse
+    {
+        // Render the exception with ignition when in debug mode
+        if (!$request->expectsJson() && config('app.debug')) {
+            return $this->convertExceptionToResponse($exception);
+        }
+
+        // If the exception is not already an App Exception, then determine what
+        // it is and return the relevant custom exception. Any exceptions that
+        // are not matched will just be returned as a 'general error' i.e. an
+        // unhandled exception
+        if (!$exception instanceof ApiException) {
+            $exception = $this->prepareAppException($exception);
+        }
+
+        return $this->renderAppExceptionWithJson($request, $exception);
+    }
+
+    /**
      * Get the exception context.
      *
      * @return array
@@ -112,31 +137,6 @@ class Handler extends ExceptionHandler
         } catch (Throwable $exception) {
             return $context;
         }
-    }
-
-    /**
-     * Render an exception into an HTTP response.
-     *
-     * @param  \Illuminate\Http\Request  $request
-     * @param  \Throwable                $exception
-     * @return \Symfony\Component\HttpFoundation\Response
-     */
-    public function render($request, Throwable $exception): SymfonyResponse
-    {
-        // Render the exception with ignition when in debug mode
-        if (!$request->expectsJson() && config('app.debug')) {
-            return $this->convertExceptionToResponse($exception);
-        }
-
-        // If the exception is not already an App Exception, then determine what
-        // it is and return the relevant custom exception. Any exceptions that
-        // are not matched will just be returned as a 'general error' i.e. an
-        // unhandled exception
-        if (!$exception instanceof ApiException) {
-            $exception = $this->prepareAppException($exception);
-        }
-
-        return $this->renderAppExceptionWithJson($request, $exception);
     }
 
     /**
@@ -165,20 +165,6 @@ class Handler extends ExceptionHandler
     }
 
     /**
-     * Render an exception to a JSON object.
-     *
-     * @param  \Illuminate\Http\Request       $request
-     * @param  \Core\Exceptions\ApiException  $exception
-     * @return \Illuminate\Http\JsonResponse
-     */
-    private function renderAppExceptionWithJson(Request $request, ApiException $exception): JsonResponse
-    {
-        $options = $request->get('pretty') ? JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES : JSON_UNESCAPED_SLASHES;
-
-        return response()->json($this->convertAppExceptionToArray($exception), $exception->getStatusCode(), $exception->getHeaders(), $options);
-    }
-
-    /**
      * Convert the given app exception to an array.
      *
      * @param  \Core\Exceptions\ApiException  $exception
@@ -195,6 +181,32 @@ class Handler extends ExceptionHandler
                 'meta'   => $this->getAppExceptionMeta($exception)
             ])
         ];
+    }
+
+    /**
+     * Determine if the exception handler response should be JSON.
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @param  \Throwable  $exception
+     * @return bool
+     */
+    protected function shouldReturnJson($request, Throwable $exception): bool
+    {
+        return !config('app.debug') || (config('app.debug') && $request->expectsJson());
+    }
+
+    /**
+     * Render an exception to a JSON object.
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @param  \Core\Exceptions\ApiException  $exception
+     * @return \Illuminate\Http\JsonResponse
+     */
+    private function renderAppExceptionWithJson(Request $request, ApiException $exception): JsonResponse
+    {
+        $options = $request->get('pretty') ? JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES : JSON_UNESCAPED_SLASHES;
+
+        return response()->json($this->convertAppExceptionToArray($exception), $exception->getStatusCode(), $exception->getHeaders(), $options);
     }
 
     /**
@@ -215,17 +227,5 @@ class Handler extends ExceptionHandler
             'line'      => $previous->getLine(),
             'trace'     => collect($previous->getTrace())->map(fn ($trace) => Arr::except($trace, ['args']))->all()
         ]) : $exception->getCustomMeta();
-    }
-
-    /**
-     * Determine if the exception handler response should be JSON.
-     *
-     * @param  \Illuminate\Http\Request  $request
-     * @param  \Throwable                $exception
-     * @return bool
-     */
-    protected function shouldReturnJson($request, Throwable $exception): bool
-    {
-        return !config('app.debug') || (config('app.debug') && $request->expectsJson());
     }
 }

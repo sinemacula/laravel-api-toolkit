@@ -62,7 +62,7 @@ trait InteractsWithModelSchema
     /**
      * Store the columns in the cache for the given model.
      *
-     * @param  array                                $columns
+     * @param  array  $columns
      * @param  \Illuminate\Database\Eloquent\Model  $model
      * @return void
      */
