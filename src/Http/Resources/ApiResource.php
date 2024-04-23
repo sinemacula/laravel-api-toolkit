@@ -9,7 +9,7 @@ use SineMacula\ApiToolkit\Contracts\ApiResourceInterface;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
 
 /**
- * The base API model.
+ * The base API resource.
  *
  * This handles dynamic field filtering based on API query parameters. It
  * leverages a global query parser to determine which fields should be included
@@ -85,6 +85,17 @@ abstract class ApiResource extends JsonResource implements ApiResourceInterface
         $this->all = true;
 
         return $this;
+    }
+
+    /**
+     * Create a new resource collection instance.
+     *
+     * @param  mixed  $resource
+     * @return \SineMacula\ApiToolkit\Http\Resources\ApiResourceCollection
+     */
+    protected static function newCollection($resource): ApiResourceCollection
+    {
+        return new ApiResourceCollection($resource, static::class);
     }
 
     /**
