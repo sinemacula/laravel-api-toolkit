@@ -231,12 +231,12 @@ class ApiCriteria implements CriteriaInterface
      *
      * @param  \Illuminate\Contracts\Database\Eloquent\Builder  $query
      * @param  string  $operator
-     * @param  $value
+     * @param  mixed  $value
      * @param  string|null  $column
      * @param  string|null  $last_logical_operator
      * @return void
      */
-    private function handleCondition(Builder $query, string $operator, $value, ?string $column, ?string $last_logical_operator): void
+    private function handleCondition(Builder $query, string $operator, mixed $value, ?string $column, ?string $last_logical_operator): void
     {
         if (!$column || !in_array($column, $this->getSearchableColumns($query->getModel()))) {
             return;
@@ -277,11 +277,11 @@ class ApiCriteria implements CriteriaInterface
      *
      * @param  \Illuminate\Contracts\Database\Eloquent\Builder  $query
      * @param  string  $relation
-     * @param  $filters
+     * @param  array  $filters
      * @param  string|null  $last_logical_operator
      * @return void
      */
-    private function applyRelationFilter(Builder $query, string $relation, $filters, ?string $last_logical_operator): void
+    private function applyRelationFilter(Builder $query, string $relation, array $filters, ?string $last_logical_operator): void
     {
         $query->{$this->relationLogicalOperatorMap[$last_logical_operator ?? '$and']}($relation, function ($q) use ($filters) {
             foreach ($filters as $key => $value) {
