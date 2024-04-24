@@ -18,14 +18,14 @@ class JsonPrettyPrint
      * Handle an incoming request.
      *
      * @param  \Illuminate\Http\Request  $request
-     * @param  \Closure  $next
+     * @param  \Closure                  $next
      * @return \Symfony\Component\HttpFoundation\Response
      */
     public function handle(Request $request, Closure $next): Response
     {
         $response = $next($request);
 
-        if ($request->query('pretty')) {
+        if ($request->boolean('pretty')) {
             $response->setContent(json_encode(json_decode($response->getContent()), JSON_PRETTY_PRINT));
         }
 
