@@ -25,7 +25,7 @@ class JsonPrettyPrint
     {
         $response = $next($request);
 
-        if ($request->query('pretty')) {
+        if ($request->boolean('pretty')) {
             $response->setContent(json_encode(json_decode($response->getContent()), JSON_PRETTY_PRINT));
         }
 
