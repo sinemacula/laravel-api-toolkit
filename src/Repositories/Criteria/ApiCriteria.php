@@ -92,9 +92,9 @@ class ApiCriteria implements CriteriaInterface
      * This appends the supplied query with the requested filters.
      *
      * @param  \Illuminate\Database\Eloquent\Builder  $query
-     * @param  array|string|null  $filters
-     * @param  string|null  $field
-     * @param  string|null  $last_logical_operator
+     * @param  array|string|null                      $filters
+     * @param  string|null                            $field
+     * @param  string|null                            $last_logical_operator
      * @return \Illuminate\Database\Eloquent\Builder
      */
     protected function applyFilters(Builder $query, array|string|null $filters = null, ?string $field = null, ?string $last_logical_operator = null): Builder
@@ -121,12 +121,22 @@ class ApiCriteria implements CriteriaInterface
     }
 
     /**
+     * Get the filters to be applied to the query.
+     *
+     * @return array|null
+     */
+    private function getFilters(): ?array
+    {
+        return ApiQuery::getFilters();
+    }
+
+    /**
      * Apply limit.
      *
      * Append the query with a record limit.
      *
      * @param  \Illuminate\Contracts\Database\Eloquent\Builder  $query
-     * @param  int|null  $limit
+     * @param  int|null                                         $limit
      * @return \Illuminate\Contracts\Database\Eloquent\Builder
      */
     protected function applyLimit(Builder $query, ?int $limit = null): Builder
@@ -135,12 +145,22 @@ class ApiCriteria implements CriteriaInterface
     }
 
     /**
+     * Get the limit to be applied to the query.
+     *
+     * @return int
+     */
+    private function getLimit(): int
+    {
+        return ApiQuery::getLimit();
+    }
+
+    /**
      * Apply order.
      *
      * Append an order by statement to the query.
      *
      * @param  \Illuminate\Contracts\Database\Eloquent\Builder  $query
-     * @param  array  $order
+     * @param  array                                            $order
      * @return \Illuminate\Contracts\Database\Eloquent\Builder
      */
     protected function applyOrder(Builder $query, array $order): Builder
@@ -165,26 +185,6 @@ class ApiCriteria implements CriteriaInterface
     }
 
     /**
-     * Get the filters to be applied to the query.
-     *
-     * @return array|null
-     */
-    private function getFilters(): ?array
-    {
-        return ApiQuery::getFilters();
-    }
-
-    /**
-     * Get the limit to be applied to the query.
-     *
-     * @return int
-     */
-    private function getLimit(): int
-    {
-        return ApiQuery::getLimit();
-    }
-
-    /**
      * Get the order to be applied to the query.
      *
      * @return array
@@ -198,9 +198,9 @@ class ApiCriteria implements CriteriaInterface
      * Apply a simple filter to the query.
      *
      * @param  \Illuminate\Contracts\Database\Eloquent\Builder  $query
-     * @param  string|null  $column
-     * @param  string  $value
-     * @param  string  $logical_operator
+     * @param  string|null                                      $column
+     * @param  string                                           $value
+     * @param  string                                           $logical_operator
      * @return \Illuminate\Contracts\Database\Eloquent\Builder
      */
     private function applySimpleFilter(Builder $query, ?string $column, string $value, string $logical_operator): Builder
@@ -230,13 +230,13 @@ class ApiCriteria implements CriteriaInterface
      * Handle a condition based on its operator.
      *
      * @param  \Illuminate\Contracts\Database\Eloquent\Builder  $query
-     * @param  string  $operator
-     * @param  $value
-     * @param  string|null  $column
-     * @param  string|null  $last_logical_operator
+     * @param  string                                           $operator
+     * @param  mixed                                            $value
+     * @param  string|null                                      $column
+     * @param  string|null                                      $last_logical_operator
      * @return void
      */
-    private function handleCondition(Builder $query, string $operator, $value, ?string $column, ?string $last_logical_operator): void
+    private function handleCondition(Builder $query, string $operator, mixed $value, ?string $column, ?string $last_logical_operator): void
     {
         if (!$column || !in_array($column, $this->getSearchableColumns($query->getModel()))) {
             return;
@@ -263,7 +263,7 @@ class ApiCriteria implements CriteriaInterface
     /**
      * Determine if a given key is a relation on the given model.
      *
-     * @param  string  $key
+     * @param  string                               $key
      * @param  \Illuminate\Database\Eloquent\Model  $model
      * @return bool
      */
@@ -276,12 +276,12 @@ class ApiCriteria implements CriteriaInterface
      * Apply filters for relational queries.
      *
      * @param  \Illuminate\Contracts\Database\Eloquent\Builder  $query
-     * @param  string  $relation
-     * @param  $filters
-     * @param  string|null  $last_logical_operator
+     * @param  string                                           $relation
+     * @param  array                                            $filters
+     * @param  string|null                                      $last_logical_operator
      * @return void
      */
-    private function applyRelationFilter(Builder $query, string $relation, $filters, ?string $last_logical_operator): void
+    private function applyRelationFilter(Builder $query, string $relation, array $filters, ?string $last_logical_operator): void
     {
         $query->{$this->relationLogicalOperatorMap[$last_logical_operator ?? '$and']}($relation, function ($q) use ($filters) {
             foreach ($filters as $key => $value) {
@@ -304,7 +304,7 @@ class ApiCriteria implements CriteriaInterface
     /**
      * Format the value based on the specified operator.
      *
-     * @param  mixed  $value
+     * @param  mixed   $value
      * @param  string  $operator
      * @return string
      */
@@ -317,8 +317,8 @@ class ApiCriteria implements CriteriaInterface
      * Apply a 'between' condition if the value is appropriate.
      *
      * @param  \Illuminate\Contracts\Database\Eloquent\Builder  $query
-     * @param  string  $field
-     * @param  mixed  $value
+     * @param  string                                           $field
+     * @param  mixed                                            $value
      * @return void
      */
     private function applyBetween(Builder $query, string $field, mixed $value): void
