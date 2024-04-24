@@ -5,7 +5,6 @@
 [![StyleCI](https://github.styleci.io/repos/787362267/shield?style=flat&branch=master)](https://github.styleci.io/repos/787362267)
 [![Maintainability](https://api.codeclimate.com/v1/badges/f3221f27741afef43551/maintainability)](https://codeclimate.com/github/sinemacula/laravel-api-toolkit/maintainability)
 [![Test Coverage](https://api.codeclimate.com/v1/badges/f3221f27741afef43551/test_coverage)](https://codeclimate.com/github/sinemacula/laravel-api-toolkit/test_coverage)
-[![License](http://poser.pugx.org/sinemacula/laravel-api-toolkit/license)](https://packagist.org/packages/sinemacula/laravel-api-toolkit)
 [![Total Downloads](http://poser.pugx.org/sinemacula/laravel-api-toolkit/downloads)](https://packagist.org/packages/sinemacula/laravel-api-toolkit)
 
 The Laravel API Toolkit is a comprehensive package designed to simplify the development of RESTful APIs in Laravel. It
