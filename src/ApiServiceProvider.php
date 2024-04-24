@@ -6,6 +6,7 @@ use Illuminate\Contracts\Http\Kernel;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\ServiceProvider;
+use SineMacula\ApiToolkit\Http\Middleware\JsonPrettyPrint;
 use SineMacula\ApiToolkit\Http\Middleware\ParseApiQuery;
 
 /**
@@ -26,11 +27,6 @@ class ApiServiceProvider extends ServiceProvider
         $this->offerPublishing();
         $this->registerMorphMap();
         $this->registerMiddleware();
-        // Api Exception (still need to decide)
-
-        // To resource wrapping
-        // TODO: Test to see if this is a good idea.
-        //JsonResource::withoutWrapping();
     }
 
     /**
@@ -101,9 +97,13 @@ class ApiServiceProvider extends ServiceProvider
      */
     private function registerMiddleware(): void
     {
+        $kernel = $this->app->make(Kernel::class);
+
         if (Config::get('api-toolkit.parser.register_middleware', true)) {
-            $this->app->make(Kernel::class)->pushMiddleware(ParseApiQuery::class);
+            $kernel->pushMiddleware(ParseApiQuery::class);
         }
+
+        $kernel->pushMiddleware(JsonPrettyPrint::class);
     }
 
     /**

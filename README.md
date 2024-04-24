@@ -17,7 +17,7 @@ development faster and more reliable.
   security and customization.
 - **Data Repositories**: Abstracts database interactions into repositories to promote a cleaner and more maintainable
   codebase.
-- **Data Transformers**: Ensures consistent presentation of data across different API endpoints, simplifying client-side
+- **Data Resources**: Ensures consistent presentation of data across different API endpoints, simplifying client-side
   data integration.
 
 ## Installation
