@@ -35,6 +35,20 @@ class ApiServiceProvider extends ServiceProvider
     }
 
     /**
+     * Register any application services.
+     *
+     * @return void
+     */
+    public function register(): void
+    {
+        $this->mergeConfigFrom(
+            __DIR__ . '/../config/api-toolkit.php', 'api-toolkit'
+        );
+
+        $this->registerQueryParser();
+    }
+
+    /**
      * Publish any package specific configuration and assets.
      *
      * @return void
@@ -111,20 +125,6 @@ class ApiServiceProvider extends ServiceProvider
 
         Event::listen(NotificationSending::class, [NotificationListener::class, 'sending']);
         Event::listen(NotificationSent::class, [NotificationListener::class, 'sent']);
-    }
-
-    /**
-     * Register any application services.
-     *
-     * @return void
-     */
-    public function register(): void
-    {
-        $this->mergeConfigFrom(
-            __DIR__ . '/../config/api-toolkit.php', 'api-toolkit'
-        );
-
-        $this->registerQueryParser();
     }
 
     /**
