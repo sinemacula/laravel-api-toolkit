@@ -4,10 +4,14 @@ namespace SineMacula\ApiToolkit;
 
 use Illuminate\Contracts\Http\Kernel;
 use Illuminate\Database\Eloquent\Relations\Relation;
+use Illuminate\Notifications\Events\NotificationSending;
+use Illuminate\Notifications\Events\NotificationSent;
 use Illuminate\Support\Facades\Config;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
 use SineMacula\ApiToolkit\Http\Middleware\JsonPrettyPrint;
 use SineMacula\ApiToolkit\Http\Middleware\ParseApiQuery;
+use SineMacula\ApiToolkit\Listeners\NotificationListener;
 
 /**
  * API service provider.
@@ -27,20 +31,7 @@ class ApiServiceProvider extends ServiceProvider
         $this->offerPublishing();
         $this->registerMorphMap();
         $this->registerMiddleware();
-    }
-
-    /**
-     * Register any application services.
-     *
-     * @return void
-     */
-    public function register(): void
-    {
-        $this->mergeConfigFrom(
-            __DIR__ . '/../config/api-toolkit.php', 'api-toolkit'
-        );
-
-        $this->registerQueryParser();
+        $this->registerNotificationLogging();
     }
 
     /**
@@ -103,7 +94,37 @@ class ApiServiceProvider extends ServiceProvider
             $kernel->pushMiddleware(ParseApiQuery::class);
         }
 
+        // Global middleware
         $kernel->pushMiddleware(JsonPrettyPrint::class);
+    }
+
+    /**
+     * Register the notification logging functionality.
+     *
+     * @return void
+     */
+    private function registerNotificationLogging(): void
+    {
+        if (!Config::get('api-toolkit.notifications.enable_logging', true)) {
+            return;
+        }
+
+        Event::listen(NotificationSending::class, [NotificationListener::class, 'sending']);
+        Event::listen(NotificationSent::class, [NotificationListener::class, 'sent']);
+    }
+
+    /**
+     * Register any application services.
+     *
+     * @return void
+     */
+    public function register(): void
+    {
+        $this->mergeConfigFrom(
+            __DIR__ . '/../config/api-toolkit.php', 'api-toolkit'
+        );
+
+        $this->registerQueryParser();
     }
 
     /**
