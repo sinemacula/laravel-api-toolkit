@@ -4,6 +4,7 @@ namespace SineMacula\ApiToolkit;
 
 use Illuminate\Contracts\Http\Kernel;
 use Illuminate\Database\Eloquent\Relations\Relation;
+use Illuminate\Foundation\Http\Middleware\PreventRequestsDuringMaintenance as LaravelPreventRequestsDuringMaintenance;
 use Illuminate\Notifications\Events\NotificationSending;
 use Illuminate\Notifications\Events\NotificationSent;
 use Illuminate\Routing\Router;
@@ -12,6 +13,7 @@ use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
 use SineMacula\ApiToolkit\Http\Middleware\JsonPrettyPrint;
 use SineMacula\ApiToolkit\Http\Middleware\ParseApiQuery;
+use SineMacula\ApiToolkit\Http\Middleware\PreventRequestsDuringMaintenance;
 use SineMacula\ApiToolkit\Http\Middleware\ThrottleRequests;
 use SineMacula\ApiToolkit\Http\Middleware\ThrottleRequestsWithRedis;
 use SineMacula\ApiToolkit\Listeners\NotificationListener;
@@ -128,6 +130,10 @@ class ApiServiceProvider extends ServiceProvider
         if (Config::get('api-toolkit.parser.register_middleware', true)) {
             $kernel->pushMiddleware(ParseApiQuery::class);
         }
+
+        // Override any standard global middleware
+        //dd($kernel->getGlobalMiddleware());
+        $kernel->replaceMiddleware(LaravelPreventRequestsDuringMaintenance::class, PreventRequestsDuringMaintenance::class);
 
         // Global middleware
         $kernel->pushMiddleware(JsonPrettyPrint::class);

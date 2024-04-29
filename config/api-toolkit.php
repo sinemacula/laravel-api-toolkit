@@ -146,6 +146,26 @@ return [
 
         'enable_logging' => env('ENABLE_NOTIFICATION_LOGGING', true)
 
+    ],
+
+    /*
+    |---------------------------------------------------------------------------
+    | API Maintenance Mode Configuration
+    |---------------------------------------------------------------------------
+    |
+    | Here you may specify the URIs that should be accessible even when the API
+    | is in maintenance mode. This helps in keeping essential endpoints
+    | operational during downtime.
+    |
+    | The 'except' array lists the endpoints that will bypass the maintenance
+    | mode check. Add endpoints here to ensure they remain reachable.
+    |
+    */
+
+    'maintenance_mode' => [
+
+        'except' => []
+
     ]
 
 ];
