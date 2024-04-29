@@ -126,6 +126,26 @@ return [
         // tables e.g. users.password
         'searchable_exclusions' => ['password']
 
+    ],
+
+    /*
+    |---------------------------------------------------------------------------
+    | API Notification Configuration
+    |---------------------------------------------------------------------------
+    |
+    | Here you may specify the custom settings for API notifications. This
+    | includes options such as enabling or disabling logging for notification
+    | events.
+    |
+    | 'enable_logging' controls whether logging is enabled for notification
+    | events.
+    |
+    */
+
+    'notifications' => [
+
+        'enable_logging' => env('ENABLE_NOTIFICATION_LOGGING', true)
+
     ]
 
 ];

@@ -63,3 +63,5 @@ the [Apache License, Version 2.0](https://www.apache.org/licenses/LICENSE-2.0).
 
 - Make a decision on Exceptions
 - Exception handler must handle validation exceptions...
+- Look at policies
+- Middleware or service provider to dynamically set the default guard

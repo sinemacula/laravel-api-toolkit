@@ -4,10 +4,17 @@ namespace SineMacula\ApiToolkit;
 
 use Illuminate\Contracts\Http\Kernel;
 use Illuminate\Database\Eloquent\Relations\Relation;
+use Illuminate\Notifications\Events\NotificationSending;
+use Illuminate\Notifications\Events\NotificationSent;
+use Illuminate\Routing\Router;
 use Illuminate\Support\Facades\Config;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
 use SineMacula\ApiToolkit\Http\Middleware\JsonPrettyPrint;
 use SineMacula\ApiToolkit\Http\Middleware\ParseApiQuery;
+use SineMacula\ApiToolkit\Http\Middleware\ThrottleRequests;
+use SineMacula\ApiToolkit\Http\Middleware\ThrottleRequestsWithRedis;
+use SineMacula\ApiToolkit\Listeners\NotificationListener;
 
 /**
  * API service provider.
@@ -27,6 +34,7 @@ class ApiServiceProvider extends ServiceProvider
         $this->offerPublishing();
         $this->registerMorphMap();
         $this->registerMiddleware();
+        $this->registerNotificationLogging();
     }
 
     /**
@@ -98,12 +106,44 @@ class ApiServiceProvider extends ServiceProvider
     private function registerMiddleware(): void
     {
         $kernel = $this->app->make(Kernel::class);
+        $router = $this->app->make(Router::class);
 
         if (Config::get('api-toolkit.parser.register_middleware', true)) {
             $kernel->pushMiddleware(ParseApiQuery::class);
         }
 
+        // Global middleware
         $kernel->pushMiddleware(JsonPrettyPrint::class);
+
+        // Middleware aliases
+        $router->aliasMiddleware('throttle', $this->getThrottleMiddleware());
+    }
+
+    /**
+     * Return the throttle middleware that should be used.
+     *
+     * @return class-string
+     */
+    private function getThrottleMiddleware(): string
+    {
+        return Config::get('cache.default') !== 'redis'
+            ? ThrottleRequests::class
+            : ThrottleRequestsWithRedis::class;
+    }
+
+    /**
+     * Register the notification logging functionality.
+     *
+     * @return void
+     */
+    private function registerNotificationLogging(): void
+    {
+        if (!Config::get('api-toolkit.notifications.enable_logging', true)) {
+            return;
+        }
+
+        Event::listen(NotificationSending::class, [NotificationListener::class, 'sending']);
+        Event::listen(NotificationSent::class, [NotificationListener::class, 'sent']);
     }
 
     /**
