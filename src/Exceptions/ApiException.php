@@ -3,15 +3,16 @@
 namespace SineMacula\ApiToolkit\Exceptions;
 
 use Exception;
+use Illuminate\Support\Facades\Lang;
 use Throwable;
 
 /**
- * The API exception.
+ * The base API exception.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2024 Sine Macula Limited.
  */
-class ApiException extends Exception
+abstract class ApiException extends Exception
 {
     /**
      * Constructor.
@@ -20,8 +21,6 @@ class ApiException extends Exception
      * @param  array|null  $meta
      * @param  array|null  $headers
      * @param  \Throwable|null  $previous
-     *
-     * @throws \Throwable
      */
     public function __construct(
 
@@ -41,43 +40,43 @@ class ApiException extends Exception
     }
 
     /**
-     * Get custom Detail.
+     * Get the custom detail for the exception.
      *
      * @return string
      */
     public function getCustomDetail(): string
     {
-        return app('translator')->get('exceptions.' . $this->type['code'] . '.detail');
+        return Lang::get($this->getTranslationKey('detail'));
     }
 
     /**
-     * Get status Code.
+     * Get exception HTTP status code.
      *
      * @return int
      */
     public function getStatusCode(): int
     {
-        return $this->type['status'] ?? 400;
+        return (int) $this->type['status'] ?? 400;
     }
 
     /**
-     * Get custom Code.
+     * Get the internal error code
      *
      * @return int
      */
     public function getCustomCode(): int
     {
-        return $this->type['code'] ?? 0;
+        return (int) $this->type['code'] ?? 0;
     }
 
     /**
-     * Get custom Title.
+     * Get the custom title for the exception.
      *
      * @return string
      */
     public function getCustomTitle(): string
     {
-        return app('translator')->get('exceptions.' . $this->type['code'] . '.title');
+        return Lang::get($this->getTranslationKey('title'));
     }
 
     /**
@@ -97,6 +96,28 @@ class ApiException extends Exception
      */
     public function getHeaders(): ?array
     {
-        return (array) $this->headers;
+        return $this->headers;
+    }
+
+    /**
+     * Get the namespace of the current exception.
+     *
+     * @return string|null
+     */
+    abstract protected function getNamespace(): ?string;
+
+    /**
+     * Return the translation key for the given key.
+     *
+     * @param  string  $key
+     * @return string
+     */
+    private function getTranslationKey(string $key): string
+    {
+        $namespace = $this->getNamespace();
+
+        $prefix = $namespace ? $namespace . '::' : '';
+
+        return sprintf('%sexceptions.%s.%s', $prefix, $this->getCustomCode(), $key);
     }
 }
