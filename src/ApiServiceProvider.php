@@ -124,16 +124,24 @@ class ApiServiceProvider extends ServiceProvider
      */
     private function registerMiddleware(): void
     {
-        $kernel = $this->app->make(Kernel::class);
         $router = $this->app->make(Router::class);
+        $kernel = $this->app->make(Kernel::class);
 
         if (Config::get('api-toolkit.parser.register_middleware', true)) {
             $kernel->pushMiddleware(ParseApiQuery::class);
         }
 
-        // Override any standard global middleware
-        //dd($kernel->getGlobalMiddleware());
-        $kernel->replaceMiddleware(LaravelPreventRequestsDuringMaintenance::class, PreventRequestsDuringMaintenance::class);
+        // Replace the existing maintenance mode middleware with our custom
+        // implementation
+        $global_middleware = $kernel->getGlobalMiddleware();
+
+        foreach ($global_middleware as $key => $middleware) {
+            if ($middleware === LaravelPreventRequestsDuringMaintenance::class) {
+                $global_middleware[$key] = PreventRequestsDuringMaintenance::class;
+            }
+        }
+
+        $kernel->setGlobalMiddleware($global_middleware);
 
         // Global middleware
         $kernel->pushMiddleware(JsonPrettyPrint::class);
