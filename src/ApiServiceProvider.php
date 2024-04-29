@@ -31,6 +31,7 @@ class ApiServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        $this->loadTranslationFiles();
         $this->offerPublishing();
         $this->registerMorphMap();
         $this->registerMiddleware();
@@ -49,6 +50,22 @@ class ApiServiceProvider extends ServiceProvider
         );
 
         $this->registerQueryParser();
+    }
+
+    /**
+     * Load the package translation files.
+     *
+     * @return void
+     */
+    private function loadTranslationFiles(): void
+    {
+        $this->loadTranslationsFrom(
+            __DIR__ . '/../resources/lang', 'api-toolkit'
+        );
+
+        $this->publishes([
+            __DIR__ . '/../resources/lang' => resource_path('lang/vendor/api-toolkit')
+        ], 'translations');
     }
 
     /**

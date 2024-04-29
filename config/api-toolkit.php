@@ -17,7 +17,7 @@ return [
     */
 
     'cache' => [
-        'prefix' => 'sm-api-toolkit'
+        'prefix' => 'api-toolkit'
     ],
 
     /*

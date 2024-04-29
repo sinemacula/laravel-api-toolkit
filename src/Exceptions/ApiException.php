@@ -12,7 +12,7 @@ use Throwable;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2024 Sine Macula Limited.
  */
-abstract class ApiException extends Exception
+class ApiException extends Exception
 {
     /**
      * Constructor.
@@ -92,11 +92,11 @@ abstract class ApiException extends Exception
     /**
      * Get headers.
      *
-     * @return array|null
+     * @return array
      */
-    public function getHeaders(): ?array
+    public function getHeaders(): array
     {
-        return $this->headers;
+        return (array) $this->headers;
     }
 
     /**
@@ -104,7 +104,10 @@ abstract class ApiException extends Exception
      *
      * @return string|null
      */
-    abstract protected function getNamespace(): ?string;
+    protected function getNamespace(): ?string
+    {
+        return 'api-toolkit';
+    }
 
     /**
      * Return the translation key for the given key.
@@ -114,10 +117,6 @@ abstract class ApiException extends Exception
      */
     private function getTranslationKey(string $key): string
     {
-        $namespace = $this->getNamespace();
-
-        $prefix = $namespace ? $namespace . '::' : '';
-
-        return sprintf('%sexceptions.%s.%s', $prefix, $this->getCustomCode(), $key);
+        return sprintf('%s::exceptions.%s.%s', $this->getNamespace(), $this->getCustomCode(), $key);
     }
 }

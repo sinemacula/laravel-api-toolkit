@@ -29,8 +29,9 @@ class ApiExceptionType
     public const array FORBIDDEN         = ['code' => 10102, 'status' => 403];
     public const array NOT_FOUND         = ['code' => 10103, 'status' => 404];
     public const array NOT_ALLOWED       = ['code' => 10104, 'status' => 405];
-    public const array INVALID_INPUT     = ['code' => 10105, 'status' => 422];
-    public const array TOO_MANY_ATTEMPTS = ['code' => 10106, 'status' => 429];
+    const array        TOKEN_MISMATCH    = ['code' => 10105, 'status' => 419];
+    public const array INVALID_INPUT     = ['code' => 10106, 'status' => 422];
+    public const array TOO_MANY_ATTEMPTS = ['code' => 10107, 'status' => 429];
 
     /*
     |----------------------------------------------------------------------------
