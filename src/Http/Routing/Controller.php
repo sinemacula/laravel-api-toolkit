@@ -1,6 +1,6 @@
 <?php
 
-namespace SineMacula\ApiToolkit\Http\Controllers;
+namespace SineMacula\ApiToolkit\Http\Routing;
 
 use Illuminate\Foundation\Validation\ValidatesRequests;
 use Illuminate\Http\JsonResponse;
