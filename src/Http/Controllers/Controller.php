@@ -12,8 +12,8 @@ use Illuminate\Support\Facades\Response;
 /**
  * Base API controller.
  *
- * @author      Ben Carey <ben.carey@verifast.com>
- * @copyright   2024 Verifast, Inc.
+ * @author      Ben Carey <bdmc@sinemacula.co.uk>
+ * @copyright   2024 Sine Macula Limited.
  */
 abstract class Controller extends LaravelController
 {
