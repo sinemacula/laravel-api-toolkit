@@ -108,6 +108,7 @@ abstract class Service implements ServiceInterface
      * Prepare the service for execution.
      *
      * @return void
+     *
      * @throws \Exception
      */
     public function prepare(): void {}
