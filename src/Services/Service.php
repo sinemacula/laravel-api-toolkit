@@ -30,12 +30,12 @@ abstract class Service implements ServiceInterface
     /**
      * Constructor.
      *
-     * @param  array  $input
+     * @param  array  $payload
      */
     public function __construct(
 
-        /** The service input data */
-        protected array $input = []
+        /** The service input payload */
+        protected array $payload = []
 
     ) {}
 
