@@ -58,7 +58,7 @@ abstract class ApiResource extends JsonResource implements ApiResourceInterface
             throw new LogicException('The RESOURCE_TYPE constant must be defined on the resource');
         }
 
-        return static::RESOURCE_TYPE;
+        return strtolower(static::RESOURCE_TYPE);
     }
 
     /**
