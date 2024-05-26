@@ -1,6 +1,6 @@
 <?php
 
-use SineMacula\ApiToolkit\Exceptions\ApiExceptionType;
+use SineMacula\ApiToolkit\Enums\ErrorCode;
 
 return [
 
@@ -10,7 +10,7 @@ return [
     |---------------------------------------------------------------------------
     */
 
-    ApiExceptionType::GENERAL_ERROR['code'] => [
+    ErrorCode::UNHANDLED_ERROR->getCode() => [
         'title'  => 'Unknown Error',
         'detail' => 'Oh no! Something has gone wrong!'
     ],
@@ -21,43 +21,43 @@ return [
     |---------------------------------------------------------------------------
     */
 
-    ApiExceptionType::BAD_REQUEST['code'] => [
+    ErrorCode::BAD_REQUEST->getCode() => [
         'title'  => 'Bad Request',
         'detail' => 'There was an issue with the request, please try again'
     ],
 
-    ApiExceptionType::UNAUTHORIZED['code'] => [
+    ErrorCode::UNAUTHORIZED->getCode() => [
         'title'  => 'Unauthorized',
         'detail' => 'You are not authorized to view this resource'
     ],
 
-    ApiExceptionType::FORBIDDEN['code'] => [
+    ErrorCode::FORBIDDEN->getCode() => [
         'title'  => 'Forbidden',
         'detail' => 'You do not have the necessary privileges to perform this action'
     ],
 
-    ApiExceptionType::NOT_FOUND['code'] => [
+    ErrorCode::NOT_FOUND->getCode() => [
         'title'  => 'Not Found',
         'detail' => 'The requested resource could not be found'
     ],
 
-    ApiExceptionType::NOT_ALLOWED['code'] => [
+    ErrorCode::NOT_ALLOWED->getCode() => [
         'title'  => 'Not Allowed',
         'detail' => 'This request is not permitted'
     ],
 
-    ApiExceptionType::TOKEN_MISMATCH['code'] => [
+    ErrorCode::TOKEN_MISMATCH->getCode() => [
         'title'  => 'CSRF token mismatch',
         'detail' => 'The provided CSRF token is invalid or expired, and the request cannot be processed'
     ],
 
-    ApiExceptionType::INVALID_INPUT['code'] => [
+    ErrorCode::INVALID_INPUT->getCode() => [
         'title'  => 'Invalid Input',
         'detail' => 'The information supplied was invalid'
     ],
 
-    ApiExceptionType::TOO_MANY_ATTEMPTS['code'] => [
-        'title'  => 'Too Many Attempts',
+    ErrorCode::TOO_MANY_REQUESTS->getCode() => [
+        'title'  => 'Too Many Requests',
         'detail' => 'The resource was requested too frequently'
     ],
 
@@ -67,14 +67,9 @@ return [
     |---------------------------------------------------------------------------
     */
 
-    ApiExceptionType::MAINTENANCE_MODE['code'] => [
+    ErrorCode::MAINTENANCE_MODE->getCode() => [
         'title'  => 'Maintenance Mode',
         'detail' => config('app.name') . ' is currently in maintenance mode, please try again a little later'
-    ],
-
-    ApiExceptionType::MODEL_NOT_PARSEABLE['code'] => [
-        'title'  => 'Model not Parseable',
-        'detail' => 'The supplied model is not compatible with the API query parser'
     ],
 
     /*
@@ -83,12 +78,12 @@ return [
     |---------------------------------------------------------------------------
     */
 
-    ApiExceptionType::FILE_UPLOAD_ERROR['code'] => [
+    ErrorCode::FILE_UPLOAD_ERROR->getCode() => [
         'title'  => 'File Upload Error',
         'detail' => 'There was an error whilst uploading the file, please try again'
     ],
 
-    ApiExceptionType::INVALID_IMAGE['code'] => [
+    ErrorCode::INVALID_IMAGE->getCode() => [
         'title'  => 'Invalid Image Supplied',
         'detail' => 'The supplied image was not a valid image file'
     ],
@@ -99,12 +94,12 @@ return [
     |---------------------------------------------------------------------------
     */
 
-    ApiExceptionType::INVALID_NOTIFICATION['code'] => [
+    ErrorCode::INVALID_NOTIFICATION->getCode() => [
         'title'  => 'Invalid Notification',
         'detail' => 'The supplied notification is invalid'
     ],
 
-    ApiExceptionType::FAILED_TO_SEND_SMS['code'] => [
+    ErrorCode::FAILED_TO_SEND_SMS->getCode() => [
         'title'  => 'Failed to Send SMS',
         'detail' => 'There was a problem sending the SMS'
     ]

@@ -4,6 +4,9 @@ namespace SineMacula\ApiToolkit\Exceptions;
 
 use Exception;
 use Illuminate\Support\Facades\Lang;
+use LogicException;
+use SineMacula\ApiToolkit\Contracts\ErrorCodeInterface;
+use SineMacula\ApiToolkit\Enums\HttpStatus;
 use Throwable;
 
 /**
@@ -12,20 +15,16 @@ use Throwable;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2024 Sine Macula Limited.
  */
-class ApiException extends Exception
+abstract class ApiException extends Exception
 {
     /**
      * Constructor.
      *
-     * @param  array  $type
      * @param  array|null  $meta
      * @param  array|null  $headers
      * @param  \Throwable|null  $previous
      */
     public function __construct(
-
-        /** Exception type */
-        private readonly array $type,
 
         /** Exception meta */
         private readonly ?array $meta = null,
@@ -36,7 +35,7 @@ class ApiException extends Exception
         ?Throwable $previous = null
 
     ) {
-        parent::__construct($this->getCustomDetail(), $this->getStatusCode(), $previous);
+        parent::__construct($this->getCustomDetail(), $this->getHttpStatusCode(), $previous);
     }
 
     /**
@@ -50,23 +49,51 @@ class ApiException extends Exception
     }
 
     /**
-     * Get exception HTTP status code.
+     * Get internal error.
      *
-     * @return int
+     * @return \SineMacula\ApiToolkit\Contracts\ErrorCodeInterface
      */
-    public function getStatusCode(): int
+    private function getInternalError(): ErrorCodeInterface
     {
-        return (int) $this->type['status'] ?? 400;
+        if (!defined(static::class . '::CODE')) {
+            throw new LogicException('The CODE constant must be defined on the exception');
+        }
+
+        return static::CODE;
     }
 
     /**
-     * Get the internal error code
+     * Get internal error code.
      *
      * @return int
      */
-    public function getCustomCode(): int
+    public function getInternalErrorCode(): int
     {
-        return (int) $this->type['code'] ?? 0;
+        return $this->getInternalError()->getCode();
+    }
+
+    /**
+     * Get HTTP status.
+     *
+     * @return \SineMacula\ApiToolkit\Enums\HttpStatus
+     */
+    private function getHttpStatus(): HttpStatus
+    {
+        if (!defined(static::class . '::HTTP_STATUS')) {
+            throw new LogicException('The HTTP_STATUS constant must be defined on the exception');
+        }
+
+        return static::HTTP_STATUS;
+    }
+
+    /**
+     * Get HTTP status code.
+     *
+     * @return int
+     */
+    public function getHttpStatusCode(): int
+    {
+        return $this->getHttpStatus()->getCode();
     }
 
     /**
@@ -117,6 +144,6 @@ class ApiException extends Exception
      */
     private function getTranslationKey(string $key): string
     {
-        return sprintf('%s::exceptions.%s.%s', $this->getNamespace(), $this->getCustomCode(), $key);
+        return sprintf('%s::exceptions.%s.%s', $this->getNamespace(), $this->getInternalErrorCode(), $key);
     }
 }

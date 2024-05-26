@@ -6,8 +6,7 @@ use Closure;
 use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Foundation\Http\Middleware\PreventRequestsDuringMaintenance as Middleware;
 use Illuminate\Support\Facades\Config;
-use SineMacula\ApiToolkit\Exceptions\ApiException;
-use SineMacula\ApiToolkit\Exceptions\ApiExceptionType;
+use SineMacula\ApiToolkit\Exceptions\MaintenanceModeException;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 
 /**
@@ -45,7 +44,7 @@ class PreventRequestsDuringMaintenance extends Middleware
         try {
             return parent::handle($request, $next);
         } catch (HttpException $exception) {
-            throw new ApiException(ApiExceptionType::MAINTENANCE_MODE);
+            throw new MaintenanceModeException;
         }
     }
 }

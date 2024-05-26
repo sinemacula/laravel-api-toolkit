@@ -4,8 +4,7 @@ namespace SineMacula\ApiToolkit\Http;
 
 use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest as LaravelFormRequest;
-use SineMacula\ApiToolkit\Exceptions\ApiException;
-use SineMacula\ApiToolkit\Exceptions\ApiExceptionType;
+use SineMacula\ApiToolkit\Exceptions\InvalidInputException;
 
 /**
  * Base API form request.
@@ -25,6 +24,6 @@ abstract class FormRequest extends LaravelFormRequest
      */
     protected function failedValidation(Validator $validator): void
     {
-        throw new ApiException(ApiExceptionType::INVALID_INPUT, $validator->getMessageBag()->toArray());
+        throw new InvalidInputException($validator->getMessageBag()->toArray());
     }
 }
