@@ -45,51 +45,6 @@ abstract class Service implements ServiceInterface
     }
 
     /**
-     * Check if the service needs to be booted and if so, do it.
-     *
-     * @return void
-     */
-    protected function bootIfNotBooted(): void
-    {
-        if (!isset(static::$booted[static::class])) {
-            static::$booted[static::class] = true;
-            static::boot();
-        }
-    }
-
-    /**
-     * Bootstrap the service and its traits.
-     *
-     * @return void
-     */
-    protected static function boot(): void
-    {
-        static::bootTraits();
-    }
-
-    /**
-     * Boot each of the bootable traits on the service.
-     *
-     * @return void
-     */
-    protected static function bootTraits(): void
-    {
-        $class = static::class;
-
-        $booted = [];
-
-        foreach (class_uses_recursive($class) as $trait) {
-
-            $method = 'boot' . class_basename($trait);
-
-            if (method_exists($class, $method) && !in_array($method, $booted)) {
-                forward_static_call([$class, $method]);
-                $booted[] = $method;
-            }
-        }
-    }
-
-    /**
      * Get the service status.
      *
      * @return bool|null
@@ -216,6 +171,51 @@ abstract class Service implements ServiceInterface
         $this->success();
 
         return $this->status;
+    }
+
+    /**
+     * Check if the service needs to be booted and if so, do it.
+     *
+     * @return void
+     */
+    protected function bootIfNotBooted(): void
+    {
+        if (!isset(static::$booted[static::class])) {
+            static::$booted[static::class] = true;
+            static::boot();
+        }
+    }
+
+    /**
+     * Bootstrap the service and its traits.
+     *
+     * @return void
+     */
+    protected static function boot(): void
+    {
+        static::bootTraits();
+    }
+
+    /**
+     * Boot each of the bootable traits on the service.
+     *
+     * @return void
+     */
+    protected static function bootTraits(): void
+    {
+        $class = static::class;
+
+        $booted = [];
+
+        foreach (class_uses_recursive($class) as $trait) {
+
+            $method = 'boot' . class_basename($trait);
+
+            if (method_exists($class, $method) && !in_array($method, $booted)) {
+                forward_static_call([$class, $method]);
+                $booted[] = $method;
+            }
+        }
     }
 
     /**
