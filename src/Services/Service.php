@@ -37,7 +37,9 @@ abstract class Service implements ServiceInterface
         /** The service input payload */
         protected array $payload = []
 
-    ) {}
+    ) {
+        $this->initialize();
+    }
 
     /**
      * Get the service status.
@@ -166,6 +168,35 @@ abstract class Service implements ServiceInterface
         $this->success();
 
         return $this->status;
+    }
+
+    /**
+     * Initialize the service.
+     *
+     * @return void
+     */
+    protected function initialize(): void
+    {
+        $this->initializeTraits();
+    }
+
+    /**
+     * Initialize each of the initializable traits on the service.
+     *
+     * @return void
+     */
+    protected static function initializeTraits(): void
+    {
+        $class = static::class;
+
+        foreach (class_uses_recursive($class) as $trait) {
+
+            $method = 'initialize' . class_basename($trait);
+
+            if (method_exists($class, $method)) {
+                forward_static_call([$class, $method]);
+            }
+        }
     }
 
     /**
