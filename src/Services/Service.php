@@ -2,6 +2,7 @@
 
 namespace SineMacula\ApiToolkit\Services;
 
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
 use SineMacula\ApiToolkit\Services\Contracts\ServiceInterface;
@@ -30,14 +31,16 @@ abstract class Service implements ServiceInterface
     /**
      * Constructor.
      *
-     * @param  array  $payload
+     * @param  array|\Illuminate\Support\Collection  $payload
      */
     public function __construct(
 
         /** The service input payload */
-        protected array $payload = []
+        protected array|Collection $payload = []
 
     ) {
+        $this->payload = !$payload instanceof Collection ? collect($payload) : $payload;
+
         $this->initialize();
     }
 
