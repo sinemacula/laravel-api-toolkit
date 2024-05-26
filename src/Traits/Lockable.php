@@ -4,8 +4,7 @@ namespace SineMacula\ApiToolkit\Traits;
 
 use Illuminate\Contracts\Cache\Lock;
 use Illuminate\Support\Facades\Cache;
-use SineMacula\ApiToolkit\Exceptions\ApiException;
-use SineMacula\ApiToolkit\Exceptions\ApiExceptionType;
+use SineMacula\ApiToolkit\Exceptions\TooManyRequestsException;
 
 /**
  * The lockable trait.
@@ -39,10 +38,12 @@ trait Lockable
         $this->lock = Cache::lock($this->getLockKey(), $this->getLockExpiration());
 
         if (!$this->lock->get()) {
-            throw new ApiException(ApiExceptionType::TOO_MANY_ATTEMPTS, null, [
-                'X-RateLimit-Limit'     => 1,
-                'X-RateLimit-Remaining' => 0
-            ]);
+            throw new TooManyRequestsException(
+                meta: [
+                    'X-RateLimit-Limit'     => 1,
+                    'X-RateLimit-Remaining' => 0
+                ]
+            );
         }
 
         return $this->lock;

@@ -9,14 +9,14 @@ use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Exceptions\BackedEnumCaseNotFoundException;
-use Illuminate\Session\TokenMismatchException;
+use Illuminate\Session\TokenMismatchException as LaravelTokenMismatchException;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Request as RequestFacade;
 use Illuminate\Support\Facades\Response;
-use Illuminate\Validation\UnauthorizedException;
+use Illuminate\Validation\UnauthorizedException as LaravelUnauthorizedException;
 use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpFoundation\Exception\RequestExceptionInterface;
 use Symfony\Component\HttpFoundation\Exception\SuspiciousOperationException;
@@ -92,23 +92,23 @@ class ApiExceptionHandler
 
         $previous = is_a($exception, ValidationException::class) ? null : $exception;
 
-        $type = match (true) {
-            $exception instanceof NotFoundHttpException           => ApiExceptionType::NOT_FOUND,
-            $exception instanceof BackedEnumCaseNotFoundException => ApiExceptionType::NOT_FOUND,
-            $exception instanceof ModelNotFoundException          => ApiExceptionType::NOT_FOUND,
-            $exception instanceof SuspiciousOperationException    => ApiExceptionType::NOT_FOUND,
-            $exception instanceof RecordsNotFoundException        => ApiExceptionType::NOT_FOUND,
-            $exception instanceof MethodNotAllowedHttpException   => ApiExceptionType::NOT_ALLOWED,
-            $exception instanceof RequestExceptionInterface       => ApiExceptionType::BAD_REQUEST,
-            $exception instanceof UnauthorizedException           => ApiExceptionType::UNAUTHORIZED,
-            $exception instanceof AuthorizationException          => ApiExceptionType::UNAUTHORIZED,
-            $exception instanceof AccessDeniedHttpException       => ApiExceptionType::UNAUTHORIZED,
-            $exception instanceof TokenMismatchException          => ApiExceptionType::TOKEN_MISMATCH,
-            $exception instanceof ValidationException             => ApiExceptionType::INVALID_INPUT,
-            default                                               => ApiExceptionType::GENERAL_ERROR
+        $mapped = match (true) {
+            $exception instanceof NotFoundHttpException           => NotFoundException::class,
+            $exception instanceof BackedEnumCaseNotFoundException => NotFoundException::class,
+            $exception instanceof ModelNotFoundException          => NotFoundException::class,
+            $exception instanceof SuspiciousOperationException    => NotFoundException::class,
+            $exception instanceof RecordsNotFoundException        => NotFoundException::class,
+            $exception instanceof MethodNotAllowedHttpException   => NotAllowedException::class,
+            $exception instanceof RequestExceptionInterface       => BadRequestException::class,
+            $exception instanceof LaravelUnauthorizedException    => UnauthorizedException::class,
+            $exception instanceof AuthorizationException          => UnauthorizedException::class,
+            $exception instanceof AccessDeniedHttpException       => UnauthorizedException::class,
+            $exception instanceof LaravelTokenMismatchException   => TokenMismatchException::class,
+            $exception instanceof ValidationException             => InvalidInputException::class,
+            default                                               => UnhandledException::class
         };
 
-        return new ApiException($type, $meta, $headers, $previous);
+        return new $mapped($meta, $headers, $previous);
     }
 
     /**
@@ -122,7 +122,7 @@ class ApiExceptionHandler
     {
         $options = $request->get('pretty') ? JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES : JSON_UNESCAPED_SLASHES;
 
-        return Response::json(self::convertApiExceptionToArray($exception), $exception->getStatusCode(), $exception->getHeaders(), $options);
+        return Response::json(self::convertApiExceptionToArray($exception), $exception->getHttpStatusCode(), $exception->getHeaders(), $options);
     }
 
     /**
@@ -135,8 +135,8 @@ class ApiExceptionHandler
     {
         return [
             'error' => array_filter([
-                'status' => $exception->getStatusCode(),
-                'code'   => $exception->getCustomCode(),
+                'status' => $exception->getHttpStatusCode(),
+                'code'   => $exception->getInternalErrorCode(),
                 'title'  => $exception->getCustomTitle(),
                 'detail' => $exception->getCustomDetail(),
                 'meta'   => self::getApiExceptionMeta($exception)
