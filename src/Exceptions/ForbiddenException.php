@@ -2,8 +2,11 @@
 
 namespace SineMacula\ApiToolkit\Exceptions;
 
+use SineMacula\ApiToolkit\Contracts\ErrorCodeInterface;
 use SineMacula\ApiToolkit\Enums\ErrorCode;
 use SineMacula\ApiToolkit\Enums\HttpStatus;
+
+// @codingStandardsIgnoreLine
 
 /**
  * Forbidden exception.
