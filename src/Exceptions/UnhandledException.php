@@ -2,11 +2,9 @@
 
 namespace SineMacula\ApiToolkit\Exceptions;
 
-// @codingStandardsIgnoreStart
+use SineMacula\ApiToolkit\Contracts\ErrorCodeInterface;
 use SineMacula\ApiToolkit\Enums\ErrorCode;
 use SineMacula\ApiToolkit\Enums\HttpStatus;
-
-// @codingStandardsIgnoreEnd
 
 /**
  * Unhandled exception.
