@@ -49,20 +49,6 @@ abstract class ApiException extends Exception
     }
 
     /**
-     * Get internal error.
-     *
-     * @return \SineMacula\ApiToolkit\Contracts\ErrorCodeInterface
-     */
-    private function getInternalError(): ErrorCodeInterface
-    {
-        if (!defined(static::class . '::CODE')) {
-            throw new LogicException('The CODE constant must be defined on the exception');
-        }
-
-        return static::CODE;
-    }
-
-    /**
      * Get internal error code.
      *
      * @return int
@@ -70,20 +56,6 @@ abstract class ApiException extends Exception
     public function getInternalErrorCode(): int
     {
         return $this->getInternalError()->getCode();
-    }
-
-    /**
-     * Get HTTP status.
-     *
-     * @return \SineMacula\ApiToolkit\Enums\HttpStatus
-     */
-    private function getHttpStatus(): HttpStatus
-    {
-        if (!defined(static::class . '::HTTP_STATUS')) {
-            throw new LogicException('The HTTP_STATUS constant must be defined on the exception');
-        }
-
-        return static::HTTP_STATUS;
     }
 
     /**
@@ -134,6 +106,34 @@ abstract class ApiException extends Exception
     protected function getNamespace(): ?string
     {
         return 'api-toolkit';
+    }
+
+    /**
+     * Get internal error.
+     *
+     * @return \SineMacula\ApiToolkit\Contracts\ErrorCodeInterface
+     */
+    private function getInternalError(): ErrorCodeInterface
+    {
+        if (!defined(static::class . '::CODE')) {
+            throw new LogicException('The CODE constant must be defined on the exception');
+        }
+
+        return static::CODE;
+    }
+
+    /**
+     * Get HTTP status.
+     *
+     * @return \SineMacula\ApiToolkit\Enums\HttpStatus
+     */
+    private function getHttpStatus(): HttpStatus
+    {
+        if (!defined(static::class . '::HTTP_STATUS')) {
+            throw new LogicException('The HTTP_STATUS constant must be defined on the exception');
+        }
+
+        return static::HTTP_STATUS;
     }
 
     /**
