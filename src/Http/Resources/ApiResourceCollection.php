@@ -19,6 +19,9 @@ use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
  */
 class ApiResourceCollection extends AnonymousResourceCollection
 {
+    /** @var array Explicit list of fields to be returned in the collection */
+    protected array $fields;
+
     /**
      * Transform the resource collection into an array.
      *
@@ -27,7 +30,21 @@ class ApiResourceCollection extends AnonymousResourceCollection
      */
     public function toArray(Request $request): array
     {
-        return $this->collection->map(fn (ApiResource $item) => $item->resolve($request))->all();
+        return $this->collection->map(fn (ApiResource $item) => $item->withFields($this->fields ?? null)->resolve($request))->all();
+    }
+
+    /**
+     * Overrides the default fields and any requested fields with a provided
+     * set.
+     *
+     * @param  array|null  $fields
+     * @return static
+     */
+    public function withFields(?array $fields = null): static
+    {
+        $this->fields = empty($fields) ? null : $fields;
+
+        return $this;
     }
 
     /**
