@@ -65,12 +65,12 @@ abstract class ApiResource extends JsonResource implements ApiResourceInterface
      * Overrides the default fields and any requested fields with a provided
      * set.
      *
-     * @param  array  $fields
+     * @param  array|null  $fields
      * @return static
      */
-    public function withFields(array $fields): static
+    public function withFields(?array $fields = null): static
     {
-        $this->fields = $fields;
+        $this->fields = empty($fields) ? null : $fields;
 
         return $this;
     }
