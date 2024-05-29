@@ -156,11 +156,11 @@ abstract class ApiRepository extends Repository
      *
      * @param  \Illuminate\Database\Eloquent\Model  $model
      * @param  string  $attribute
-     * @param  string  $cast
      * @param  mixed  $value
+     * @param  string  $cast
      * @return void
      */
-    private function setAttribute(Model $model, string $attribute, string $cast, mixed $value): void
+    private function setAttribute(Model $model, string $attribute, mixed $value, string $cast): void
     {
         match ($cast) {
             'integer'   => $this->setIntegerAttribute($model, $attribute, $value),
