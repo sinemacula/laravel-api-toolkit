@@ -68,11 +68,13 @@ abstract class ApiRepository extends Repository
      * Set the attributes for the given model.
      *
      * @param  \Illuminate\Database\Eloquent\Model  $model
-     * @param  array  $attributes
+     * @param  \Illuminate\Support\Collection|array  $attributes
      * @return bool
      */
-    public function setAttributes(Model $model, array $attributes): bool
+    public function setAttributes(Model $model, Collection|array $attributes): bool
     {
+        $attributes = $attributes instanceof Collection ? $attributes->all() : $attributes;
+
         $sync_attributes = [];
 
         foreach ($attributes as $attribute => $value) {
