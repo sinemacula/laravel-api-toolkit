@@ -37,7 +37,7 @@ return [
     | runtime based on the configured resource classes, allowing for a flexible,
     | type-safe API design.
     |
-    | `morph_map`: This array should contain the mappings of model classes to
+    | `resource_map`: This array should contain the mappings of model classes to
     | their corresponding resource classes. This is used to define explicit
     | morph maps for Eloquent models when using polymorphic relationships,
     | enhancing the API's ability to serialize and deserialize these relations
@@ -52,8 +52,8 @@ return [
 
         'enable_dynamic_morph_mapping' => env('DYNAMIC_MORPH_MAPPING', true),
 
-        'morph_map' => [
-            // This should be filled with the application's morph map
+        'resource_map' => [
+            // This should be filled with the application's resource map
             // e.g. \App\Models\User::class => \App\Http\Resources\UserResource::class
         ],
 

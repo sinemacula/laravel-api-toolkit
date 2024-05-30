@@ -47,7 +47,7 @@ class PolymorphicResource extends JsonResource
      */
     private function mapResource(mixed $resource): ApiResourceInterface
     {
-        $map   = Config::get('api-toolkit.resources.morph_map', []);
+        $map   = Config::get('api-toolkit.resources.resource_map', []);
         $class = get_class($resource);
 
         if (isset($map[$class])) {
