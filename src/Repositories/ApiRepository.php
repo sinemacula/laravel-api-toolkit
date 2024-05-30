@@ -148,7 +148,7 @@ abstract class ApiRepository extends Repository
             }
         }
 
-        return 'string';
+        return enum_exists($cast) ? 'enum' : 'string';
     }
 
     /**
@@ -167,6 +167,7 @@ abstract class ApiRepository extends Repository
             'boolean'   => $this->setBooleanAttribute($model, $attribute, $value),
             'array'     => $this->setArrayAttribute($model, $attribute, $value),
             'object'    => $this->setObjectAttribute($model, $attribute, $value),
+            'enum'      => $this->setEnumAttribute($model, $attribute, $value),
             'associate' => $this->setAssociateAttribute($model, $attribute, $value),
             'sync'      => $this->setSyncAttribute($model, $attribute, $value),
             default     => $this->setStringAttribute($model, $attribute, $value),
@@ -291,6 +292,19 @@ abstract class ApiRepository extends Repository
     }
 
     /**
+     * Set the attribute value for an enum.
+     *
+     * @param  \Illuminate\Database\Eloquent\Model  $model
+     * @param  string  $attribute
+     * @param  mixed  $value
+     * @return void
+     */
+    private function setEnumAttribute(Model $model, string $attribute, mixed $value): void
+    {
+        $model->{$attribute} = $value;
+    }
+
+    /**
      * Set the attribute value for an associative relationship.
      *
      * @param  \Illuminate\Database\Eloquent\Model  $model
@@ -325,7 +339,7 @@ abstract class ApiRepository extends Repository
             $values = $value['values']->pluck('id');
         }
 
-        $values ??= $value;
+        $values    ??= $value;
         $detaching = $value['detaching'] ?? true;
 
         $model->{Str::camel($attribute)}()->sync($values, $detaching);
