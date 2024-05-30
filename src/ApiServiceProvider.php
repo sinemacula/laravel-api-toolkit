@@ -107,14 +107,14 @@ class ApiServiceProvider extends ServiceProvider
             ->mapWithKeys(function ($resource, $model) {
 
                 if (method_exists($resource, 'getResourceType')) {
-                    return [$model => $resource::getResourceType()];
+                    return [$resource::getResourceType() => $model];
                 }
 
                 return [];
             })
             ->all();
 
-        Relation::morphMap($map);
+        Relation::enforceMorphMap($map);
     }
 
     /**
