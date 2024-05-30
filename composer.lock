@@ -2910,12 +2910,12 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/sinemacula/laravel-repositories.git",
-                "reference": "09c47bdb493b514e5328b9071aba8d85d7f01acd"
+                "reference": "ca129b3929be745c9c7dbd47c5bbdbfce6438fa2"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/sinemacula/laravel-repositories/zipball/09c47bdb493b514e5328b9071aba8d85d7f01acd",
-                "reference": "09c47bdb493b514e5328b9071aba8d85d7f01acd",
+                "url": "https://api.github.com/repos/sinemacula/laravel-repositories/zipball/ca129b3929be745c9c7dbd47c5bbdbfce6438fa2",
+                "reference": "ca129b3929be745c9c7dbd47c5bbdbfce6438fa2",
                 "shasum": ""
             },
             "require": {
@@ -2960,7 +2960,7 @@
                 "issues": "https://github.com/sinemacula/laravel-repositories/issues",
                 "source": "https://github.com/sinemacula/laravel-repositories/tree/master"
             },
-            "time": "2024-05-28T23:49:13+00:00"
+            "time": "2024-05-30T14:53:26+00:00"
         },
         {
             "name": "symfony/clock",
