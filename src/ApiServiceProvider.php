@@ -97,7 +97,7 @@ class ApiServiceProvider extends ServiceProvider
      */
     private function registerMorphMap(): void
     {
-        $map = Config::get('api-toolkit.resources.morph_map', []);
+        $map = Config::get('api-toolkit.resources.resource_map', []);
 
         if (!Config::get('api-toolkit.resources.enable_dynamic_morph_mapping') || !is_array($map)) {
             return;
