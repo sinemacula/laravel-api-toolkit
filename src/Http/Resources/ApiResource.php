@@ -23,8 +23,8 @@ abstract class ApiResource extends JsonResource implements ApiResourceInterface
     /** @var bool Indicates whether to return all fields in the response */
     protected bool $all = false;
 
-    /** @var array Explicit list of fields to be returned in the response */
-    protected array $fields;
+    /** @var array|null Explicit list of fields to be returned in the response */
+    protected ?array $fields;
 
     /** @var array Fixed fields to include in the response */
     protected array $fixed = [];
@@ -70,7 +70,7 @@ abstract class ApiResource extends JsonResource implements ApiResourceInterface
      */
     public function withFields(?array $fields = null): static
     {
-        $this->fields = empty($fields) ? null : $fields;
+        $this->fields = $fields;
 
         return $this;
     }
@@ -115,7 +115,9 @@ abstract class ApiResource extends JsonResource implements ApiResourceInterface
      */
     private function getFields(): array
     {
-        return $this->fields ??= array_merge($this->resolveFields(), $this->getFixedFields());
+        $this->fields ??= $this->resolveFields();
+
+        return array_merge($this->fields, $this->getFixedFields());
     }
 
     /**
