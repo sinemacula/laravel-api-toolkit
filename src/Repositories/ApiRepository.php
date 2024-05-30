@@ -132,7 +132,7 @@ abstract class ApiRepository extends Repository
      */
     private function resolveCastForAttribute(string $attribute, ?string $cast = null): ?string
     {
-        $cast ??= $this->model()->getCasts()[$attribute] ?? null;
+        $cast ??= $this->model->getCasts()[$attribute] ?? null;
 
         if (!$cast) {
             return $this->resolveCastForRelation($attribute);
