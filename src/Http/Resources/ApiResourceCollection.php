@@ -19,8 +19,8 @@ use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
  */
 class ApiResourceCollection extends AnonymousResourceCollection
 {
-    /** @var array Explicit list of fields to be returned in the collection */
-    protected array $fields;
+    /** @var array|null Explicit list of fields to be returned in the collection */
+    protected ?array $fields;
 
     /**
      * Transform the resource collection into an array.
@@ -42,7 +42,7 @@ class ApiResourceCollection extends AnonymousResourceCollection
      */
     public function withFields(?array $fields = null): static
     {
-        $this->fields = empty($fields) ? null : $fields;
+        $this->fields = $fields;
 
         return $this;
     }
