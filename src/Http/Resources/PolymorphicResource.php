@@ -3,7 +3,6 @@
 namespace SineMacula\ApiToolkit\Http\Resources;
 
 use Illuminate\Http\Request;
-use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Facades\Config;
 use LogicException;
 use SineMacula\ApiToolkit\Contracts\ApiResourceInterface;
@@ -19,7 +18,7 @@ use SineMacula\ApiToolkit\Contracts\ApiResourceInterface;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2024 Sine Macula Limited.
  */
-class PolymorphicResource extends JsonResource
+class PolymorphicResource extends BaseResource
 {
     /**
      * Transform the resource into an array.
@@ -30,9 +29,17 @@ class PolymorphicResource extends JsonResource
     {
         $resource = $this->mapResource($this->resource);
 
+        if ($this->all) {
+            $resource->withAll();
+        }
+
+        if (isset($this->fields)) {
+            $resource->withFields($this->fields);
+        }
+
         return [
             '_type' => $resource::getResourceType(),
-            ...$resource->toArray($request)
+            ...$resource->resolve($request)
         ];
     }
 

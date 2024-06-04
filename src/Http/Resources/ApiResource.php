@@ -2,7 +2,6 @@
 
 namespace SineMacula\ApiToolkit\Http\Resources;
 
-use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Facades\Config;
 use LogicException;
 use SineMacula\ApiToolkit\Contracts\ApiResourceInterface;
@@ -18,14 +17,8 @@ use SineMacula\ApiToolkit\Facades\ApiQuery;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2024 Sine Macula Limited.
  */
-abstract class ApiResource extends JsonResource implements ApiResourceInterface
+abstract class ApiResource extends BaseResource implements ApiResourceInterface
 {
-    /** @var bool Indicates whether to return all fields in the response */
-    protected bool $all = false;
-
-    /** @var array|null Explicit list of fields to be returned in the response */
-    protected ?array $fields;
-
     /** @var array Fixed fields to include in the response */
     protected array $fixed = [];
 
@@ -59,32 +52,6 @@ abstract class ApiResource extends JsonResource implements ApiResourceInterface
         }
 
         return strtolower(static::RESOURCE_TYPE);
-    }
-
-    /**
-     * Overrides the default fields and any requested fields with a provided
-     * set.
-     *
-     * @param  array|null  $fields
-     * @return static
-     */
-    public function withFields(?array $fields = null): static
-    {
-        $this->fields = $fields;
-
-        return $this;
-    }
-
-    /**
-     * Forces the response to include all available fields.
-     *
-     * @return static
-     */
-    public function withAll(): static
-    {
-        $this->all = true;
-
-        return $this;
     }
 
     /**

@@ -41,8 +41,7 @@ enum ErrorCode: int implements ErrorCodeInterface
     | API Errors
     |---------------------------------------------------------------------------
     */
-    case MAINTENANCE_MODE    = 10200;
-    case MODEL_NOT_PARSEABLE = 10201;
+    case MAINTENANCE_MODE = 10200;
 
     /*
     |---------------------------------------------------------------------------
