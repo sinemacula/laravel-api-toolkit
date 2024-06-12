@@ -4,6 +4,7 @@ namespace SineMacula\ApiToolkit\Services;
 
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use RuntimeException;
 use SineMacula\ApiToolkit\Services\Contracts\ServiceInterface;
 use SineMacula\ApiToolkit\Traits\Lockable;
@@ -170,6 +171,9 @@ abstract class Service implements ServiceInterface
         // this point
         $this->success();
 
+        // Call any success callbacks defined on traits used by the service
+        $this->callTraitsSuccessCallbacks();
+
         return $this->status;
     }
 
@@ -227,5 +231,25 @@ abstract class Service implements ServiceInterface
     protected function getLockId(): string
     {
         return '';
+    }
+
+    /**
+     * Call any success callbacks that are defined on any traits used by the
+     * service.
+     *
+     * @return void
+     */
+    private function callTraitsSuccessCallbacks(): void
+    {
+        $traits = class_uses_recursive(static::class);
+
+        foreach ($traits as $trait) {
+
+            $method = Str::camel(class_basename($trait) . 'Success');
+
+            if (method_exists($this, $method)) {
+                $this->{$method}();
+            }
+        }
     }
 }
