@@ -178,26 +178,6 @@ abstract class Service implements ServiceInterface
     }
 
     /**
-     * Call any success callbacks that are defined on any traits used by the
-     * service.
-     *
-     * @return void
-     */
-    private function callTraitsSuccessCallbacks(): void
-    {
-        $traits = class_uses_recursive(static::class);
-
-        foreach ($traits as $trait) {
-
-            $method = Str::camel(class_basename($trait) . 'Success');
-
-            if (method_exists($this, $method)) {
-                $this->$method();
-            }
-        }
-    }
-
-    /**
      * Initialize the service.
      *
      * @return void
@@ -251,5 +231,25 @@ abstract class Service implements ServiceInterface
     protected function getLockId(): string
     {
         return '';
+    }
+
+    /**
+     * Call any success callbacks that are defined on any traits used by the
+     * service.
+     *
+     * @return void
+     */
+    private function callTraitsSuccessCallbacks(): void
+    {
+        $traits = class_uses_recursive(static::class);
+
+        foreach ($traits as $trait) {
+
+            $method = Str::camel(class_basename($trait) . 'Success');
+
+            if (method_exists($this, $method)) {
+                $this->{$method}();
+            }
+        }
     }
 }
