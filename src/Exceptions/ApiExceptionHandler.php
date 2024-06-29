@@ -3,6 +3,7 @@
 namespace SineMacula\ApiToolkit\Exceptions;
 
 use Illuminate\Auth\Access\AuthorizationException;
+use Illuminate\Auth\AuthenticationException;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Database\RecordsNotFoundException;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -100,9 +101,10 @@ class ApiExceptionHandler
             $exception instanceof RecordsNotFoundException        => NotFoundException::class,
             $exception instanceof MethodNotAllowedHttpException   => NotAllowedException::class,
             $exception instanceof RequestExceptionInterface       => BadRequestException::class,
-            $exception instanceof LaravelUnauthorizedException    => UnauthorizedException::class,
-            $exception instanceof AuthorizationException          => UnauthorizedException::class,
-            $exception instanceof AccessDeniedHttpException       => UnauthorizedException::class,
+            $exception instanceof LaravelUnauthorizedException    => ForbiddenException::class,
+            $exception instanceof AuthorizationException          => ForbiddenException::class,
+            $exception instanceof AccessDeniedHttpException       => ForbiddenException::class,
+            $exception instanceof AuthenticationException         => UnauthenticatedException::class,
             $exception instanceof LaravelTokenMismatchException   => TokenMismatchException::class,
             $exception instanceof ValidationException             => InvalidInputException::class,
             default                                               => UnhandledException::class

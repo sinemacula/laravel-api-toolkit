@@ -8,8 +8,8 @@ use SineMacula\ApiToolkit\Enums\Traits\ProvidesCode;
 /**
  * Error code enumeration.
  *
- * @author      Ben Carey <ben.carey@verifast.com>
- * @copyright   2024 Verifast, Inc.
+ * @author      Ben Carey <bdmc@sinemacula.co.uk>
+ * @copyright   2024 Sine Macula Limited.
  */
 enum ErrorCode: int implements ErrorCodeInterface
 {
@@ -28,7 +28,7 @@ enum ErrorCode: int implements ErrorCodeInterface
     |---------------------------------------------------------------------------
     */
     case BAD_REQUEST       = 10100;
-    case UNAUTHORIZED      = 10101;
+    case UNAUTHENTICATED   = 10101;
     case FORBIDDEN         = 10102;
     case NOT_FOUND         = 10103;
     case NOT_ALLOWED       = 10104;
