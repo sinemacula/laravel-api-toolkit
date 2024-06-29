@@ -26,9 +26,9 @@ return [
         'detail' => 'There was an issue with the request, please try again'
     ],
 
-    ErrorCode::UNAUTHORIZED->getCode() => [
-        'title'  => 'Unauthorized',
-        'detail' => 'You are not authorized to view this resource'
+    ErrorCode::UNAUTHENTICATED->getCode() => [
+        'title'  => 'Unauthenticated',
+        'detail' => 'This request requires authentication'
     ],
 
     ErrorCode::FORBIDDEN->getCode() => [
