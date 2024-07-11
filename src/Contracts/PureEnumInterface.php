@@ -13,8 +13,8 @@ interface PureEnumInterface
     /**
      * Maps a scalar to an enum instance or null.
      *
-     * @param  string  $value
+     * @param  mixed  $value
      * @return static|null
      */
-    public static function tryFrom(string $value): ?static;
+    public static function tryFrom(mixed $value): ?static;
 }
