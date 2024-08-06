@@ -79,6 +79,10 @@ class ApiCriteria implements CriteriaInterface
     {
         $query = $model instanceof Model ? $model->query() : $model;
 
+        // TODO: Need to pass resource in some way
+        // We can utilise get table columns to add what is needed
+        // Ideally we pass the fields for each relation too
+        $query = $this->applyFields($query, $this->getFields());
         $query = $this->applyFilters($query, $this->getFilters());
         $query = $this->applyLimit($query, $this->getLimit());
         $query = $this->applyOrder($query, $this->getOrder());
@@ -165,6 +169,16 @@ class ApiCriteria implements CriteriaInterface
     }
 
     /**
+     * Get the fields to be applied to the query.
+     *
+     * @return array|null
+     */
+    private function getFields(): ?array
+    {
+        return ApiQuery::getFields();
+    }
+
+    /**
      * Get the filters to be applied to the query.
      *
      * @return array|null
@@ -192,6 +206,16 @@ class ApiCriteria implements CriteriaInterface
     private function getOrder(): array
     {
         return ApiQuery::getOrder();
+    }
+
+    /**
+     * Get the search to be applied to the query.
+     *
+     * @return array
+     */
+    private function getSearch(): array
+    {
+        return ApiQuery::getSearch();
     }
 
     /**
