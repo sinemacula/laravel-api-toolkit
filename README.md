@@ -1,11 +1,11 @@
 # Laravel API Toolkit
 
-[![Latest Stable Version](http://poser.pugx.org/sinemacula/laravel-api-toolkit/v)](https://packagist.org/packages/sinemacula/laravel-api-toolkit)
+[![Latest Stable Version](https://img.shields.io/packagist/v/sinemacula/laravel-api-toolkit.svg)](https://packagist.org/packages/sinemacula/laravel-api-toolkit)
 [![Build Status](https://github.com/sinemacula/laravel-api-toolkit/actions/workflows/tests.yml/badge.svg?branch=master)](https://github.com/sinemacula/laravel-api-toolkit/actions/workflows/tests.yml)
 [![StyleCI](https://github.styleci.io/repos/787362267/shield?style=flat&branch=master)](https://github.styleci.io/repos/787362267)
 [![Maintainability](https://api.codeclimate.com/v1/badges/f3221f27741afef43551/maintainability)](https://codeclimate.com/github/sinemacula/laravel-api-toolkit/maintainability)
 [![Test Coverage](https://api.codeclimate.com/v1/badges/f3221f27741afef43551/test_coverage)](https://codeclimate.com/github/sinemacula/laravel-api-toolkit/test_coverage)
-[![Total Downloads](http://poser.pugx.org/sinemacula/laravel-api-toolkit/downloads)](https://packagist.org/packages/sinemacula/laravel-api-toolkit)
+[![Total Downloads](https://img.shields.io/packagist/dt/sinemacula/laravel-api-toolkit.svg)](https://packagist.org/packages/sinemacula/laravel-api-toolkit)
 
 The Laravel API Toolkit is a comprehensive package designed to simplify the development of RESTful APIs in Laravel. It
 provides tools to enhance API functionality, improve error handling, and ensure consistent data output, making API
