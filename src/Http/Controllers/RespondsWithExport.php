@@ -21,38 +21,6 @@ use SineMacula\Exporter\Facades\Exporter;
 trait RespondsWithExport
 {
     /**
-     * Determine if the request wants an export.
-     *
-     * @return bool
-     */
-    protected function wantsExport(): bool
-    {
-        return config('api-toolkit.exports.enabled') && ($this->wantsCsv() || $this->wantsXml());
-    }
-
-    /**
-     * Determine if the request wants a CSV export.
-     *
-     * @return bool
-     */
-    protected function wantsCsv(): bool
-    {
-        return strtolower(Request::header('Accept')) === 'text/csv'
-            && in_array('csv', config('api-toolkit.exports.supported_formats', []));
-    }
-
-    /**
-     * Determine if the request wants an XML export.
-     *
-     * @return bool
-     */
-    protected function wantsXml(): bool
-    {
-        return strtolower(Request::header('Accept')) === 'application/xml'
-            && in_array('xml', config('api-toolkit.exports.supported_formats', []));
-    }
-
-    /**
      * Export the given collection.
      *
      * @param  \Illuminate\Http\Resources\Json\ResourceCollection  $collection
@@ -146,6 +114,38 @@ trait RespondsWithExport
             ->exportItem($resource);
 
         return $this->createExportResponse($xml, 'application/xml', $download, 'export.xml');
+    }
+
+    /**
+     * Determine if the request wants an export.
+     *
+     * @return bool
+     */
+    protected function wantsExport(): bool
+    {
+        return config('api-toolkit.exports.enabled') && ($this->wantsCsv() || $this->wantsXml());
+    }
+
+    /**
+     * Determine if the request wants a CSV export.
+     *
+     * @return bool
+     */
+    protected function wantsCsv(): bool
+    {
+        return strtolower(Request::header('Accept')) === 'text/csv'
+            && in_array('csv', config('api-toolkit.exports.supported_formats', []));
+    }
+
+    /**
+     * Determine if the request wants an XML export.
+     *
+     * @return bool
+     */
+    protected function wantsXml(): bool
+    {
+        return strtolower(Request::header('Accept')) === 'application/xml'
+            && in_array('xml', config('api-toolkit.exports.supported_formats', []));
     }
 
     /**
