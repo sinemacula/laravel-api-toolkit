@@ -25,7 +25,7 @@
         "illuminate/support": "*",
         "illuminate/validation": "*",
         "sinemacula/laravel-repositories": "^1.0",
-        "sinemacula/laravel-resource-exporter": "dev-master"
+        "sinemacula/laravel-resource-exporter": "^1.0"
     },
     "require-dev": {
         "laravel/framework": "*",

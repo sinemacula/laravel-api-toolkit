@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "dde89312234f719b2b87433eba700866",
+    "content-hash": "bb7e412e4147b8eb2b3a3e62487cc9bb",
     "packages": [
         {
             "name": "brick/math",
@@ -2582,16 +2582,16 @@
         },
         {
             "name": "psr/log",
-            "version": "3.0.0",
+            "version": "3.0.1",
             "source": {
                 "type": "git",
                 "url": "https://github.com/php-fig/log.git",
-                "reference": "fe5ea303b0887d5caefd3d431c3e61ad47037001"
+                "reference": "79dff0b268932c640297f5208d6298f71855c03e"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/php-fig/log/zipball/fe5ea303b0887d5caefd3d431c3e61ad47037001",
-                "reference": "fe5ea303b0887d5caefd3d431c3e61ad47037001",
+                "url": "https://api.github.com/repos/php-fig/log/zipball/79dff0b268932c640297f5208d6298f71855c03e",
+                "reference": "79dff0b268932c640297f5208d6298f71855c03e",
                 "shasum": ""
             },
             "require": {
@@ -2626,9 +2626,9 @@
                 "psr-3"
             ],
             "support": {
-                "source": "https://github.com/php-fig/log/tree/3.0.0"
+                "source": "https://github.com/php-fig/log/tree/3.0.1"
             },
-            "time": "2021-07-14T16:46:02+00:00"
+            "time": "2024-08-21T13:31:24+00:00"
         },
         {
             "name": "psr/simple-cache",
@@ -2965,16 +2965,16 @@
         },
         {
             "name": "sinemacula/laravel-resource-exporter",
-            "version": "dev-master",
+            "version": "v1.0.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/sinemacula/laravel-resource-exporter.git",
-                "reference": "dcb1967062f35f4867dc674d4e1838e91c75165d"
+                "reference": "30882eb1ba518acb65722de78e685b7ba93b25a0"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/sinemacula/laravel-resource-exporter/zipball/dcb1967062f35f4867dc674d4e1838e91c75165d",
-                "reference": "dcb1967062f35f4867dc674d4e1838e91c75165d",
+                "url": "https://api.github.com/repos/sinemacula/laravel-resource-exporter/zipball/30882eb1ba518acb65722de78e685b7ba93b25a0",
+                "reference": "30882eb1ba518acb65722de78e685b7ba93b25a0",
                 "shasum": ""
             },
             "require": {
@@ -2988,7 +2988,6 @@
                 "laravel/framework": "*",
                 "phpunit/phpunit": "^11.0"
             },
-            "default-branch": true,
             "type": "library",
             "extra": {
                 "laravel": {
@@ -3022,9 +3021,9 @@
             ],
             "support": {
                 "issues": "https://github.com/sinemacula/laravel-resource-exporter/issues",
-                "source": "https://github.com/sinemacula/laravel-resource-exporter/tree/master"
+                "source": "https://github.com/sinemacula/laravel-resource-exporter/tree/v1.0.0"
             },
-            "time": "2024-08-20T23:14:17+00:00"
+            "time": "2024-08-21T18:44:45+00:00"
         },
         {
             "name": "symfony/clock",
@@ -7232,9 +7231,7 @@
     ],
     "aliases": [],
     "minimum-stability": "dev",
-    "stability-flags": {
-        "sinemacula/laravel-resource-exporter": 20
-    },
+    "stability-flags": [],
     "prefer-stable": true,
     "prefer-lowest": false,
     "platform": {
