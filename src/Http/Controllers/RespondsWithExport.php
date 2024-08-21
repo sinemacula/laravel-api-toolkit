@@ -30,9 +30,9 @@ trait RespondsWithExport
     public function exportFromCollection(ResourceCollection $collection, bool $download = true): HttpResponse
     {
         return match (true) {
-            $this->wantsCsv() => $this->exportCollectionToCsv($collection, $download),
-            $this->wantsXml() => $this->exportCollectionToXml($collection, $download),
-            default           => throw new InvalidArgumentException('Unsupported export format'),
+            self::wantsCsv() => $this->exportCollectionToCsv($collection, $download),
+            self::wantsXml() => $this->exportCollectionToXml($collection, $download),
+            default          => throw new InvalidArgumentException('Unsupported export format'),
         };
     }
 
@@ -78,9 +78,9 @@ trait RespondsWithExport
     public function exportFromItem(JsonResource $resource, bool $download = true): HttpResponse
     {
         return match (true) {
-            $this->wantsCsv() => $this->exportItemToCsv($resource, $download),
-            $this->wantsXml() => $this->exportItemToXml($resource, $download),
-            default           => throw new InvalidArgumentException('Unsupported export format'),
+            self::wantsCsv() => $this->exportItemToCsv($resource, $download),
+            self::wantsXml() => $this->exportItemToXml($resource, $download),
+            default          => throw new InvalidArgumentException('Unsupported export format'),
         };
     }
 
@@ -121,9 +121,9 @@ trait RespondsWithExport
      *
      * @return bool
      */
-    protected function wantsExport(): bool
+    public static function wantsExport(): bool
     {
-        return config('api-toolkit.exports.enabled') && ($this->wantsCsv() || $this->wantsXml());
+        return config('api-toolkit.exports.enabled') && (self::wantsCsv() || self::wantsXml());
     }
 
     /**
@@ -131,7 +131,7 @@ trait RespondsWithExport
      *
      * @return bool
      */
-    protected function wantsCsv(): bool
+    public static function wantsCsv(): bool
     {
         return strtolower(Request::header('Accept')) === 'text/csv'
             && in_array('csv', config('api-toolkit.exports.supported_formats', []));
@@ -142,7 +142,7 @@ trait RespondsWithExport
      *
      * @return bool
      */
-    protected function wantsXml(): bool
+    public static function wantsXml(): bool
     {
         return strtolower(Request::header('Accept')) === 'application/xml'
             && in_array('xml', config('api-toolkit.exports.supported_formats', []));
