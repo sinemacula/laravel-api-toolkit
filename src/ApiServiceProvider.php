@@ -10,6 +10,7 @@ use Illuminate\Notifications\Events\NotificationSent;
 use Illuminate\Routing\Router;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Request;
 use Illuminate\Support\ServiceProvider;
 use SineMacula\ApiToolkit\Http\Middleware\JsonPrettyPrint;
 use SineMacula\ApiToolkit\Http\Middleware\ParseApiQuery;
@@ -36,6 +37,7 @@ class ApiServiceProvider extends ServiceProvider
         $this->loadTranslationFiles();
         $this->offerPublishing();
         $this->registerMorphMap();
+        $this->registerExportMacros();
         $this->registerMiddleware();
         $this->registerNotificationLogging();
     }
@@ -115,6 +117,28 @@ class ApiServiceProvider extends ServiceProvider
             ->all();
 
         Relation::enforceMorphMap($map);
+    }
+
+    /**
+     * Register the export macros to the Request facade.
+     *
+     * @return void
+     */
+    private function registerExportMacros(): void
+    {
+        Request::macro('expectsExport', function () {
+            return config('api-toolkit.exports.enabled') && ($this->expectsCsv() || $this->expectsXml());
+        });
+
+        Request::macro('expectsCsv', function () {
+            return strtolower($this->header('Accept')) === 'text/csv'
+                && in_array('csv', config('api-toolkit.exports.supported_formats', []));
+        });
+
+        Request::macro('expectsXml', function () {
+            return strtolower($this->header('Accept')) === 'application/xml'
+                && in_array('xml', config('api-toolkit.exports.supported_formats', []));
+        });
     }
 
     /**
