@@ -63,6 +63,29 @@ return [
 
     /*
     |---------------------------------------------------------------------------
+    | Resource Export Configuration
+    |---------------------------------------------------------------------------
+    |
+    | This configuration controls the options for exporting resources in
+    | different formats. You can enable or disable resource exporting and
+    | specify the formats that are supported for export.
+    |
+    | Supported Formats: "csv", "xml"
+    |
+    */
+
+    'exports' => [
+
+        'enabled' => env('RESOURCE_EXPORT_ENABLED', true),
+
+        'supported_formats' => explode(',', env('RESOURCE_EXPORT_FORMATS', 'csv,xml')),
+
+        'ignored_fields' => ['_type', 'password', 'token', 'remember_token']
+
+    ],
+
+    /*
+    |---------------------------------------------------------------------------
     | API Query Parser Configuration
     |---------------------------------------------------------------------------
     |
