@@ -22,6 +22,45 @@ abstract class Controller extends LaravelController
     use ValidatesRequests;
 
     /**
+     * Respond with raw array data as a JSON response.
+     *
+     * @param  array  $data
+     * @param  \SineMacula\ApiToolkit\Enums\HttpStatus  $status
+     * @param  array  $headers
+     * @return \Illuminate\Http\JsonResponse
+     */
+    protected function respondWithData(array $data, HttpStatus $status = HttpStatus::OK, array $headers = []): JsonResponse
+    {
+        return Response::json(['data' => $data], $status->getCode(), $headers);
+    }
+
+    /**
+     * Respond with a JSON resource representing a single item.
+     *
+     * @param  \Illuminate\Http\Resources\Json\JsonResource  $resource
+     * @param  \SineMacula\ApiToolkit\Enums\HttpStatus  $status
+     * @param  array  $headers
+     * @return \Illuminate\Http\JsonResponse
+     */
+    protected function respondWithItem(JsonResource $resource, HttpStatus $status = HttpStatus::OK, array $headers = []): JsonResponse
+    {
+        return $resource->response()->setStatusCode($status->getCode())->withHeaders($headers);
+    }
+
+    /**
+     * Respond with a JSON resource collection.
+     *
+     * @param  \Illuminate\Http\Resources\Json\ResourceCollection  $collection
+     * @param  \SineMacula\ApiToolkit\Enums\HttpStatus  $status
+     * @param  array  $headers
+     * @return \Illuminate\Http\JsonResponse
+     */
+    protected function respondWithCollection(ResourceCollection $collection, HttpStatus $status = HttpStatus::OK, array $headers = []): JsonResponse
+    {
+        return $collection->response()->setStatusCode($status->getCode())->withHeaders($headers);
+    }
+
+    /**
      * Respond with an SSE event stream.
      *
      * @param  callable  $callback
@@ -73,44 +112,5 @@ abstract class Controller extends LaravelController
             }
 
         }, $status->getCode(), $headers);
-    }
-
-    /**
-     * Respond with raw array data as a JSON response.
-     *
-     * @param  array  $data
-     * @param  \SineMacula\ApiToolkit\Enums\HttpStatus  $status
-     * @param  array  $headers
-     * @return \Illuminate\Http\JsonResponse
-     */
-    protected function respondWithData(array $data, HttpStatus $status = HttpStatus::OK, array $headers = []): JsonResponse
-    {
-        return Response::json(['data' => $data], $status->getCode(), $headers);
-    }
-
-    /**
-     * Respond with a JSON resource representing a single item.
-     *
-     * @param  \Illuminate\Http\Resources\Json\JsonResource  $resource
-     * @param  \SineMacula\ApiToolkit\Enums\HttpStatus  $status
-     * @param  array  $headers
-     * @return \Illuminate\Http\JsonResponse
-     */
-    protected function respondWithItem(JsonResource $resource, HttpStatus $status = HttpStatus::OK, array $headers = []): JsonResponse
-    {
-        return $resource->response()->setStatusCode($status->getCode())->withHeaders($headers);
-    }
-
-    /**
-     * Respond with a JSON resource collection.
-     *
-     * @param  \Illuminate\Http\Resources\Json\ResourceCollection  $collection
-     * @param  \SineMacula\ApiToolkit\Enums\HttpStatus  $status
-     * @param  array  $headers
-     * @return \Illuminate\Http\JsonResponse
-     */
-    protected function respondWithCollection(ResourceCollection $collection, HttpStatus $status = HttpStatus::OK, array $headers = []): JsonResponse
-    {
-        return $collection->response()->setStatusCode($status->getCode())->withHeaders($headers);
     }
 }
