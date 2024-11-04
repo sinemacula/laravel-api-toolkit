@@ -30,7 +30,7 @@ abstract class Controller extends LaravelController
      * @param  array  $headers
      * @return \Symfony\Component\HttpFoundation\StreamedResponse
      */
-    public function stream(callable $callback, int $interval = 1, HttpStatus $status = HttpStatus::OK, array $headers = []): StreamedResponse
+    protected function stream(callable $callback, int $interval = 1, HttpStatus $status = HttpStatus::OK, array $headers = []): StreamedResponse
     {
         $headers = array_merge($headers, [
             'Cache-Control' => 'no-cache',
