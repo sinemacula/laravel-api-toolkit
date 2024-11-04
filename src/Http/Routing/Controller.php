@@ -9,6 +9,7 @@ use Illuminate\Http\Resources\Json\ResourceCollection;
 use Illuminate\Routing\Controller as LaravelController;
 use Illuminate\Support\Facades\Response;
 use SineMacula\ApiToolkit\Enums\HttpStatus;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
  * Base API controller.
@@ -57,5 +58,59 @@ abstract class Controller extends LaravelController
     protected function respondWithCollection(ResourceCollection $collection, HttpStatus $status = HttpStatus::OK, array $headers = []): JsonResponse
     {
         return $collection->response()->setStatusCode($status->getCode())->withHeaders($headers);
+    }
+
+    /**
+     * Respond with an SSE event stream.
+     *
+     * @param  callable  $callback
+     * @param  int  $interval
+     * @param  \SineMacula\ApiToolkit\Enums\HttpStatus  $status
+     * @param  array  $headers
+     * @return \Symfony\Component\HttpFoundation\StreamedResponse
+     */
+    protected function stream(callable $callback, int $interval = 1, HttpStatus $status = HttpStatus::OK, array $headers = []): StreamedResponse
+    {
+        $headers = array_merge($headers, [
+            'Cache-Control' => 'no-cache',
+            'Content-Type'  => 'text/event-stream'
+        ]);
+
+        return Response::stream(function () use ($callback, $interval) {
+
+            echo ":\n\n";
+            flush();
+
+            $heartbeat_interval  = 20;
+            $heartbeat_timestamp = now();
+
+            while (true) {
+
+                if (connection_aborted()) {
+                    break;
+                }
+
+                $callback();
+
+                if (ob_get_level() > 0) {
+                    ob_flush();
+                }
+
+                flush();
+
+                if ($heartbeat_timestamp->diffInSeconds(now()) >= $heartbeat_interval) {
+                    echo ":\n\n";
+                    flush();
+                    $heartbeat_timestamp = now();
+                }
+
+                if (connection_aborted()) {
+                    break;
+                }
+
+                sleep($interval);
+            }
+
+        }, $status->getCode(), $headers);
     }
 }
