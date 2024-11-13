@@ -2,6 +2,7 @@
 
 namespace SineMacula\ApiToolkit\Repositories;
 
+use Illuminate\Contracts\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -341,7 +342,7 @@ abstract class ApiRepository extends Repository
             $values = $value['values']->pluck('id');
         }
 
-        $values ??= $value;
+        $values    ??= $value;
         $detaching = $value['detaching'] ?? true;
 
         $model->{Str::camel($attribute)}()->sync($values, $detaching);
@@ -386,5 +387,19 @@ abstract class ApiRepository extends Repository
     private function resolveCastsFromCache(): array
     {
         return Cache::get(CacheKeys::REPOSITORY_MODEL_CASTS->resolveKey([$this->model()]), []);
+    }
+
+    /**
+     * Scopes the model by the given id.
+     *
+     * @param  int|string  $id
+     * @param  string  $column
+     * @return static
+     */
+    public function scopeById(int|string $id, string $column = 'id'): static
+    {
+        return $this->addScope(function (Builder $query) use ($column, $id) {
+            $query->where($column, $id);
+        });
     }
 }
