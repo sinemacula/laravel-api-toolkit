@@ -118,8 +118,20 @@ abstract class ApiRepository extends Repository
      */
     public function scopeById(int|string $id, string $column = 'id'): static
     {
-        return $this->addScope(function (Builder $query) use ($column, $id) {
-            $query->where($column, $id);
+        return $this->scopeByIds([$id], $column);
+    }
+
+    /**
+     * Scopes the model by the given ids.
+     *
+     * @param  array  $ids
+     * @param  string  $column
+     * @return static
+     */
+    public function scopeByIds(array $ids, string $column = 'id'): static
+    {
+        return $this->addScope(function (Builder $query) use ($column, $ids) {
+            $query->whereIn($column, $ids);
         });
     }
 
@@ -356,7 +368,7 @@ abstract class ApiRepository extends Repository
             $values = $value['values']->pluck('id');
         }
 
-        $values ??= $value;
+        $values    ??= $value;
         $detaching = $value['detaching'] ?? true;
 
         $model->{Str::camel($attribute)}()->sync($values, $detaching);
