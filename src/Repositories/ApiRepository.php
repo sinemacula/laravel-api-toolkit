@@ -304,7 +304,7 @@ abstract class ApiRepository extends Repository
      */
     private function setArrayAttribute(Model $model, string $attribute, mixed $value): void
     {
-        $model->{$attribute} = $value ?: null;
+        $model->{$attribute} = !is_null($value) ? $value : null;
     }
 
     /**
