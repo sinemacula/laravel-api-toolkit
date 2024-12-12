@@ -8,7 +8,7 @@ use SineMacula\ApiToolkit\Enums\Traits\ProvidesCode;
  * Provide an enum of HTTP status codes.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
- * @copyright   2024 Sine Macula Limited.
+ * @copyright   2025 Sine Macula Limited.
  */
 enum HttpStatus: int
 {

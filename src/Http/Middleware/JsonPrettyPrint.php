@@ -10,7 +10,7 @@ use Symfony\Component\HttpFoundation\Response;
  * Pretty print the JSON responses when requested.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
- * @copyright   2024 Sine Macula Limited.
+ * @copyright   2025 Sine Macula Limited.
  */
 class JsonPrettyPrint
 {

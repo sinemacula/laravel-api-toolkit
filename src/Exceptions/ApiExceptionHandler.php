@@ -33,7 +33,7 @@ use Throwable;
  * responses.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
- * @copyright   2024 Sine Macula Limited.
+ * @copyright   2025 Sine Macula Limited.
  */
 class ApiExceptionHandler
 {
