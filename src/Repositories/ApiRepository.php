@@ -24,7 +24,7 @@ use SineMacula\Repositories\Repository;
  * The base API repository.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
- * @copyright   2024 Sine Macula Limited.
+ * @copyright   2025 Sine Macula Limited.
  */
 abstract class ApiRepository extends Repository
 {
@@ -368,7 +368,7 @@ abstract class ApiRepository extends Repository
             $values = $value['values']->pluck('id');
         }
 
-        $values ??= $value;
+        $values    ??= $value;
         $detaching = $value['detaching'] ?? true;
 
         $model->{Str::camel($attribute)}()->sync($values, $detaching);
