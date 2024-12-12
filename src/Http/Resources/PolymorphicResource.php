@@ -16,7 +16,7 @@ use SineMacula\ApiToolkit\Contracts\ApiResourceInterface;
  * different types of models need to be returned in a uniform API structure.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
- * @copyright   2024 Sine Macula Limited.
+ * @copyright   2025 Sine Macula Limited.
  */
 class PolymorphicResource extends BaseResource
 {

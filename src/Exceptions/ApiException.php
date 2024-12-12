@@ -13,7 +13,7 @@ use Throwable;
  * The base API exception.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
- * @copyright   2024 Sine Macula Limited.
+ * @copyright   2025 Sine Macula Limited.
  */
 abstract class ApiException extends Exception
 {

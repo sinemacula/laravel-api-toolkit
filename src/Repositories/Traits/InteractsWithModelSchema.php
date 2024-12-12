@@ -11,7 +11,7 @@ use SineMacula\ApiToolkit\Enums\CacheKeys;
  * Provides utilities to interact with the database schema of Eloquent models.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
- * @copyright   2024 Sine Macula Limited.
+ * @copyright   2025 Sine Macula Limited.
  */
 trait InteractsWithModelSchema
 {

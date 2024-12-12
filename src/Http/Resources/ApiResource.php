@@ -15,7 +15,7 @@ use SineMacula\ApiToolkit\Facades\ApiQuery;
  * in the response.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
- * @copyright   2024 Sine Macula Limited.
+ * @copyright   2025 Sine Macula Limited.
  */
 abstract class ApiResource extends BaseResource implements ApiResourceInterface
 {
