@@ -28,15 +28,16 @@ class ApiCriteria implements CriteriaInterface
 
     /** @var array<string, string> */
     private array $conditionOperatorMap = [
-        '$le'      => '<=',
-        '$lt'      => '<',
-        '$ge'      => '>=',
-        '$gt'      => '>',
-        '$neq'     => '<>',
-        '$eq'      => '=',
-        '$like'    => 'like',
-        '$in'      => 'in',
-        '$between' => 'between'
+        '$le'       => '<=',
+        '$lt'       => '<',
+        '$ge'       => '>=',
+        '$gt'       => '>',
+        '$neq'      => '<>',
+        '$eq'       => '=',
+        '$like'     => 'like',
+        '$in'       => 'in',
+        '$between'  => 'between',
+        '$contains' => 'contains',
     ];
 
     /** @var array<string, string> */
@@ -243,9 +244,10 @@ class ApiCriteria implements CriteriaInterface
         }
 
         match ($operator) {
-            '$in'      => $query->whereIn($column, (array) $value),
-            '$between' => $this->applyBetween($query, $column, $value),
-            default    => $query->{$this->logicalOperatorMap[$last_logical_operator ?? '$and']}($column, $this->conditionOperatorMap[$operator], $this->formatValueBasedOnOperator($value, $operator))
+            '$in'       => $query->whereIn($column, (array) $value),
+            '$between'  => $this->applyBetween($query, $column, $value),
+            '$contains' => $query->whereJsonContains($column, $value),
+            default     => $query->{$this->logicalOperatorMap[$last_logical_operator ?? '$and']}($column, $this->conditionOperatorMap[$operator], $this->formatValueBasedOnOperator($value, $operator))
         };
     }
 
