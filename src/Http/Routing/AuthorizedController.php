@@ -20,7 +20,7 @@ abstract class AuthorizedController extends Controller
      */
     public function __construct()
     {
-        $this->authorizeResource($this->getResourceModel(), $this->getRouteParameter());
+        $this->authorizeResource($this->getResourceModel(), $this->getRouteParameter(), $this->getGuardExclusions());
     }
 
     /**
@@ -45,5 +45,15 @@ abstract class AuthorizedController extends Controller
     public static function getRouteParameter(): ?string
     {
         return defined(static::class . '::ROUTE_PARAMETER') ? constant(static::class . '::ROUTE_PARAMETER') : null;
+    }
+
+    /**
+     * Get the guard exclusions.
+     *
+     * @return array|null
+     */
+    private function getGuardExclusions(): ?array
+    {
+        return defined(static::class . '::GUARD_EXCLUSIONS') ? constant(static::class . '::GUARD_EXCLUSIONS') : null;
     }
 }
