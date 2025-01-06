@@ -20,7 +20,7 @@ abstract class AuthorizedController extends Controller
      */
     public function __construct()
     {
-        $this->authorizeResource($this->getResourceModel(), $this->getRouteParameter(), $this->getGuardExclusions());
+        $this->authorizeResource($this->getResourceModel(), $this->getRouteParameter(), ['except' => $this->getGuardExclusions()]);
     }
 
     /**
