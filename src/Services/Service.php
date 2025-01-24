@@ -8,6 +8,7 @@ use Illuminate\Support\Str;
 use RuntimeException;
 use SineMacula\ApiToolkit\Services\Contracts\ServiceInterface;
 use SineMacula\ApiToolkit\Traits\Lockable;
+use stdClass;
 use Throwable;
 
 /**
@@ -32,15 +33,15 @@ abstract class Service implements ServiceInterface
     /**
      * Constructor.
      *
-     * @param  array|\Illuminate\Support\Collection  $payload
+     * @param  array|\Illuminate\Support\Collection|\stdClass  $payload
      */
     public function __construct(
 
         /** The service input payload */
-        protected array|Collection $payload = []
+        protected array|Collection|stdClass $payload = []
 
     ) {
-        $this->payload = !$payload instanceof Collection ? collect($payload) : $payload;
+        $this->payload = (!$payload instanceof Collection && !$payload instanceof stdClass) ? collect($payload) : $payload;
 
         $this->initialize();
     }
