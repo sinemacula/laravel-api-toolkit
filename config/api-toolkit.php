@@ -119,6 +119,10 @@ return [
     | how various Laravel casts should be handled in the repository to ensure
     | data integrity and type safety before model-level casting is applied.
     |
+    | `repository_map`: This array should contain the mappings of alias to
+    | the corresponding repository class. This is used to dynamically resolve
+    | the repositories within the HasRepositories trait.
+    |
     */
 
     'repositories' => [
@@ -147,7 +151,12 @@ return [
 
         // This configuration allows both columns, and columns for specific
         // tables e.g. users.password
-        'searchable_exclusions' => ['password']
+        'searchable_exclusions' => ['password'],
+
+        'repository_map' => [
+            // This should be filled with the application's repository map
+            // e.g. 'users' => \App\Repositories\UserRepository::class
+        ]
 
     ],
 
