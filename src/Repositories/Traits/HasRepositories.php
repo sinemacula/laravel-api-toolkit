@@ -27,7 +27,7 @@ trait HasRepositories
      *
      * @throws \Exception
      */
-    public function __call(string $method, array $arguments)
+    public function __call($method, $arguments)
     {
         if (RepositoryResolver::has($method)) {
             return $this->resolveRepository($method);
