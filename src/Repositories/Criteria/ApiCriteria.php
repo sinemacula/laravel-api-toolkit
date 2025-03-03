@@ -111,32 +111,39 @@ class ApiCriteria implements CriteriaInterface
         }
 
         foreach ($filters as $key => $value) {
+
             if ($this->isConditionOperator($key)) {
                 if (in_array($key, ['$has', '$hasnt'])) {
                     $this->applyHasFilter($query, $value, $key, $last_logical_operator);
                 } else {
                     $this->handleCondition($query, $key, $value, $field, $last_logical_operator);
                 }
-            } elseif ($this->isLogicalOperator($key)) {
-                if ($last_logical_operator === '$and' && $key === '$or') {
-                    $query->where(function ($q) use ($value, $key) {
+                continue;
+            }
+
+            if ($this->isLogicalOperator($key)) {
+
+                if ($key === '$and') {
+                    $query->where(function ($q) use ($value) {
                         foreach ($value as $subKey => $subValue) {
-                            $this->applyFilters($q, $subValue, $subKey, $key);
+                            $this->applyFilters($q, $subValue, $subKey, '$and');
                         }
                     });
-                } else {
-                    $query->{$this->logicalOperatorMap[$key]}(function ($q) use ($value, $key) {
+                } elseif ($key === '$or') {
+                    $query->orWhere(function ($q) use ($value) {
                         foreach ($value as $subKey => $subValue) {
-                            $this->applyFilters($q, $subValue, $subKey, $key);
+                            $this->applyFilters($q, $subValue, $subKey, '$or');
                         }
                     });
                 }
+
+                continue;
+            }
+
+            if ($this->isRelation($key, $query->getModel())) {
+                $this->applyRelationFilter($query, $key, $value, $last_logical_operator);
             } else {
-                if ($this->isRelation($key, $query->getModel())) {
-                    $this->applyRelationFilter($query, $key, $value, $last_logical_operator);
-                } else {
-                    $this->applyFilters($query, $value, $key, $last_logical_operator);
-                }
+                $this->applyFilters($query, $value, $key, $last_logical_operator);
             }
         }
 
