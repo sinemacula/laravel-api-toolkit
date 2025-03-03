@@ -252,10 +252,10 @@ class ApiCriteria implements CriteriaInterface
     {
         $method = ($last_logical_operator === '$or') ? 'orWhereHas' : 'whereHas';
 
-        $query->{$method}($relation, function ($q) use ($filters, $last_logical_operator) {
-            if ($last_logical_operator === '$or') {
+        $query->{$method}($relation, function ($q) use ($filters) {
+            if (isset($filters['$or'])) {
                 $q->where(function ($nested) use ($filters) {
-                    foreach ($filters as $key => $value) {
+                    foreach ($filters['$or'] as $key => $value) {
                         $this->applyFilters($nested, $value, $key, '$or');
                     }
                 });
@@ -283,10 +283,11 @@ class ApiCriteria implements CriteriaInterface
             if (is_int($relation)) {
                 $query->{$method}($filters);
             } else {
-                $query->{$method}($relation, function ($q) use ($filters, $last_logical_operator) {
-                    if ($last_logical_operator === '$or') {
+                $query->{$method}($relation, function ($q) use ($filters) {
+                    if (isset($filters['$or'])) {
+                        // Ensure OR conditions are grouped correctly inside WHERE EXISTS
                         $q->where(function ($nested) use ($filters) {
-                            foreach ($filters as $key => $value) {
+                            foreach ($filters['$or'] as $key => $value) {
                                 $this->applyFilters($nested, $value, $key, '$or');
                             }
                         });
