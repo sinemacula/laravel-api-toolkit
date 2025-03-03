@@ -38,6 +38,8 @@ class ApiCriteria implements CriteriaInterface
         '$in'       => 'in',
         '$between'  => 'between',
         '$contains' => 'contains',
+        '$has'      => 'has',
+        '$hasnt'    => 'hasnt'
     ];
 
     /** @var array<string, string> */
@@ -106,9 +108,17 @@ class ApiCriteria implements CriteriaInterface
 
         foreach ($filters as $key => $value) {
             if ($this->isConditionOperator($key)) {
-                $this->handleCondition($query, $key, $value, $field, $last_logical_operator);
+                if (in_array($key, ['$has', '$hasnt'])) {
+                    $this->applyHasFilter($query, $value, $key);
+                } else {
+                    $this->handleCondition($query, $key, $value, $field, $last_logical_operator);
+                }
             } elseif ($this->isLogicalOperator($key)) {
-                $query->{$this->logicalOperatorMap[$key]}(fn ($q) => $this->applyFilters($q, $value));
+                $query->{$this->logicalOperatorMap[$key]}(function ($q) use ($value, $key) {
+                    foreach ($value as $subKey => $subValue) {
+                        $this->applyFilters($q, $subValue, $subKey, $key);
+                    }
+                });
             } else {
                 if ($this->isRelation($key, $query->getModel())) {
                     $this->applyRelationFilter($query, $key, $value, $last_logical_operator);
@@ -163,6 +173,31 @@ class ApiCriteria implements CriteriaInterface
         }
 
         return $query;
+    }
+
+    /**
+     * Apply a whereHas or whereDoesntHave filter.
+     *
+     * @param  \Illuminate\Contracts\Database\Eloquent\Builder  $query
+     * @param  array|string  $relations
+     * @param  string  $operator
+     * @return void
+     */
+    private function applyHasFilter(Builder $query, array|string $relations, string $operator): void
+    {
+        $method = $operator === '$has' ? 'whereHas' : 'whereDoesntHave';
+
+        foreach ((array) $relations as $relation => $filters) {
+            if (is_int($relation)) {
+                // Simple case: just checking existence
+                $query->{$method}($filters);
+            } else {
+                // If there are conditions, apply them inside whereHas
+                $query->{$method}($relation, function ($q) use ($filters) {
+                    $this->applyFilters($q, $filters);
+                });
+            }
+        }
     }
 
     /**
