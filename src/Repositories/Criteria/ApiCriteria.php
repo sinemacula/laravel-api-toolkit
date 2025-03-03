@@ -260,10 +260,8 @@ class ApiCriteria implements CriteriaInterface
 
         foreach ((array) $relations as $relation => $filters) {
             if (is_int($relation)) {
-                // Simple case: just checking existence
                 $query->{$method}($filters);
             } else {
-                // If there are conditions, apply them inside whereHas
                 $query->{$method}($relation, function ($q) use ($filters) {
                     $this->applyFilters($q, $filters);
                 });
