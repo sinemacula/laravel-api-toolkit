@@ -110,9 +110,17 @@ class ApiCriteria implements CriteriaInterface
 
         foreach ($filters as $key => $value) {
             if ($this->isConditionOperator($key)) {
-                $this->handleCondition($query, $key, $value, $field, $last_logical_operator);
+                if (in_array($key, ['$has', '$hasnt'])) {
+                    $this->applyHasFilter($query, $value, $key, $last_logical_operator);
+                } else {
+                    $this->handleCondition($query, $key, $value, $field, $last_logical_operator);
+                }
             } elseif ($this->isLogicalOperator($key)) {
-                $query->{$this->logicalOperatorMap[$key]}(fn ($q) => $this->applyFilters($q, $value));
+                $query->{$this->logicalOperatorMap[$key]}(function ($q) use ($value, $key) {
+                    foreach ($value as $subKey => $subValue) {
+                        $this->applyFilters($q, $subValue, $subKey, $key);
+                    }
+                });
             } else {
                 if ($this->isRelation($key, $query->getModel())) {
                     $this->applyRelationFilter($query, $key, $value, $last_logical_operator);
