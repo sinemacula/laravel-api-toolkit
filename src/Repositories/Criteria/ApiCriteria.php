@@ -250,11 +250,19 @@ class ApiCriteria implements CriteriaInterface
      */
     private function applyRelationFilter(Builder $query, string $relation, array $filters, ?string $last_logical_operator): void
     {
-        $method = $this->relationLogicalOperatorMap[$last_logical_operator ?? '$and'];
+        $method = ($last_logical_operator === '$or') ? 'orWhereHas' : 'whereHas';
 
-        $query->{$method}($relation, function ($q) use ($filters) {
-            foreach ($filters as $key => $value) {
-                $this->applyFilters($q, $value, $key);
+        $query->{$method}($relation, function ($q) use ($filters, $last_logical_operator) {
+            if ($last_logical_operator === '$or') {
+                $q->where(function ($nested) use ($filters) {
+                    foreach ($filters as $key => $value) {
+                        $this->applyFilters($nested, $value, $key, '$or');
+                    }
+                });
+            } else {
+                foreach ($filters as $key => $value) {
+                    $this->applyFilters($q, $value, $key);
+                }
             }
         });
     }
@@ -267,16 +275,26 @@ class ApiCriteria implements CriteriaInterface
      * @param  string  $operator
      * @return void
      */
-    private function applyHasFilter(Builder $query, array|string $relations, string $operator): void
+    private function applyHasFilter(Builder $query, array|string $relations, string $operator, ?string $last_logical_operator = null): void
     {
-        $method = $operator === '$has' ? 'whereHas' : 'whereDoesntHave';
+        $method = ($operator === '$hasnt') ? 'whereDoesntHave' : ($last_logical_operator === '$or' ? 'orWhereHas' : 'whereHas');
 
         foreach ((array) $relations as $relation => $filters) {
             if (is_int($relation)) {
                 $query->{$method}($filters);
             } else {
-                $query->{$method}($relation, function ($q) use ($filters) {
-                    $this->applyFilters($q, $filters);
+                $query->{$method}($relation, function ($q) use ($filters, $last_logical_operator) {
+                    if ($last_logical_operator === '$or') {
+                        $q->where(function ($nested) use ($filters) {
+                            foreach ($filters as $key => $value) {
+                                $this->applyFilters($nested, $value, $key, '$or');
+                            }
+                        });
+                    } else {
+                        foreach ($filters as $key => $value) {
+                            $this->applyFilters($q, $value, $key);
+                        }
+                    }
                 });
             }
         }
