@@ -42,6 +42,8 @@ class ApiCriteria implements CriteriaInterface
         '$in'       => 'in',
         '$between'  => 'between',
         '$contains' => 'contains',
+        '$has'      => 'has',
+        '$hasnt'    => 'hasnt'
     ];
 
     /** @var array<string, string> */
@@ -229,6 +231,49 @@ class ApiCriteria implements CriteriaInterface
     }
 
     /**
+     * Apply filters for relational queries.
+     *
+     * @param  \Illuminate\Contracts\Database\Eloquent\Builder  $query
+     * @param  string  $relation
+     * @param  array  $filters
+     * @param  string|null  $last_logical_operator
+     * @return void
+     */
+    private function applyRelationFilter(Builder $query, string $relation, array $filters, ?string $last_logical_operator): void
+    {
+        $method = $this->relationLogicalOperatorMap[$last_logical_operator ?? '$and'];
+
+        $query->{$method}($relation, function ($q) use ($filters) {
+            foreach ($filters as $key => $value) {
+                $this->applyFilters($q, $value, $key);
+            }
+        });
+    }
+
+    /**
+     * Apply a whereHas or whereDoesntHave filter.
+     *
+     * @param  \Illuminate\Contracts\Database\Eloquent\Builder  $query
+     * @param  array|string  $relations
+     * @param  string  $operator
+     * @return void
+     */
+    private function applyHasFilter(Builder $query, array|string $relations, string $operator): void
+    {
+        $method = $operator === '$has' ? 'whereHas' : 'whereDoesntHave';
+
+        foreach ((array) $relations as $relation => $filters) {
+            if (is_int($relation)) {
+                $query->{$method}($filters);
+            } else {
+                $query->{$method}($relation, function ($q) use ($filters) {
+                    $this->applyFilters($q, $filters);
+                });
+            }
+        }
+    }
+
+    /**
      * Determine if the given operator is conditional.
      *
      * @param  string|null  $operator
@@ -298,24 +343,6 @@ class ApiCriteria implements CriteriaInterface
                 return false;
             }
 
-        });
-    }
-
-    /**
-     * Apply filters for relational queries.
-     *
-     * @param  \Illuminate\Contracts\Database\Eloquent\Builder  $query
-     * @param  string  $relation
-     * @param  array  $filters
-     * @param  string|null  $last_logical_operator
-     * @return void
-     */
-    private function applyRelationFilter(Builder $query, string $relation, array $filters, ?string $last_logical_operator): void
-    {
-        $query->{$this->relationLogicalOperatorMap[$last_logical_operator ?? '$and']}($relation, function ($q) use ($filters) {
-            foreach ($filters as $key => $value) {
-                $this->applyFilters($q, $value, $key);
-            }
         });
     }
 
