@@ -118,11 +118,20 @@ class ApiCriteria implements CriteriaInterface
                     $this->handleCondition($query, $key, $value, $field, $last_logical_operator);
                 }
             } elseif ($this->isLogicalOperator($key)) {
-                $query->{$this->logicalOperatorMap[$key]}(function ($q) use ($value, $key) {
-                    foreach ($value as $subKey => $subValue) {
-                        $this->applyFilters($q, $subValue, $subKey, $key);
-                    }
-                });
+                if ($last_logical_operator === '$and' && $key === '$or') {
+                    // Wrap the OR condition in a closure so it's grouped properly inside AND
+                    $query->where(function ($q) use ($value, $key) {
+                        foreach ($value as $subKey => $subValue) {
+                            $this->applyFilters($q, $subValue, $subKey, $key);
+                        }
+                    });
+                } else {
+                    $query->{$this->logicalOperatorMap[$key]}(function ($q) use ($value, $key) {
+                        foreach ($value as $subKey => $subValue) {
+                            $this->applyFilters($q, $subValue, $subKey, $key);
+                        }
+                    });
+                }
             } else {
                 if ($this->isRelation($key, $query->getModel())) {
                     $this->applyRelationFilter($query, $key, $value, $last_logical_operator);
