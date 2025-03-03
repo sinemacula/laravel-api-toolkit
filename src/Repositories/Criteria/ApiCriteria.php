@@ -113,7 +113,7 @@ class ApiCriteria implements CriteriaInterface
         foreach ($filters as $key => $value) {
             if ($this->isConditionOperator($key)) {
                 if (in_array($key, ['$has', '$hasnt'])) {
-                    $this->applyHasFilter($query, $value, $key);
+                    $this->applyHasFilter($query, $value, $key, $last_logical_operator);
                 } else {
                     $this->handleCondition($query, $key, $value, $field, $last_logical_operator);
                 }
