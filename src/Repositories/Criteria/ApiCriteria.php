@@ -130,11 +130,21 @@ class ApiCriteria implements CriteriaInterface
                         }
                     });
                 } elseif ($key === '$or') {
-                    $query->orWhere(function ($q) use ($value) {
-                        foreach ($value as $subKey => $subValue) {
-                            $this->applyFilters($q, $subValue, $subKey, '$or');
-                        }
-                    });
+                    if ($last_logical_operator === '$and') {
+                        $query->where(function ($q) use ($value) {
+                            $q->orWhere(function ($orQ) use ($value) {
+                                foreach ($value as $subKey => $subValue) {
+                                    $this->applyFilters($orQ, $subValue, $subKey, '$or');
+                                }
+                            });
+                        });
+                    } else {]
+                        $query->orWhere(function ($q) use ($value) {
+                            foreach ($value as $subKey => $subValue) {
+                                $this->applyFilters($q, $subValue, $subKey, '$or');
+                            }
+                        });
+                    }
                 }
 
                 continue;
