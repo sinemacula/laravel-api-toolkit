@@ -176,31 +176,6 @@ class ApiCriteria implements CriteriaInterface
     }
 
     /**
-     * Apply a whereHas or whereDoesntHave filter.
-     *
-     * @param  \Illuminate\Contracts\Database\Eloquent\Builder  $query
-     * @param  array|string  $relations
-     * @param  string  $operator
-     * @return void
-     */
-    private function applyHasFilter(Builder $query, array|string $relations, string $operator): void
-    {
-        $method = $operator === '$has' ? 'whereHas' : 'whereDoesntHave';
-
-        foreach ((array) $relations as $relation => $filters) {
-            if (is_int($relation)) {
-                // Simple case: just checking existence
-                $query->{$method}($filters);
-            } else {
-                // If there are conditions, apply them inside whereHas
-                $query->{$method}($relation, function ($q) use ($filters) {
-                    $this->applyFilters($q, $filters);
-                });
-            }
-        }
-    }
-
-    /**
      * Get the filters to be applied to the query.
      *
      * @return array|null
@@ -249,6 +224,51 @@ class ApiCriteria implements CriteriaInterface
         }
 
         return $query;
+    }
+
+    /**
+     * Apply filters for relational queries.
+     *
+     * @param  \Illuminate\Contracts\Database\Eloquent\Builder  $query
+     * @param  string  $relation
+     * @param  array  $filters
+     * @param  string|null  $last_logical_operator
+     * @return void
+     */
+    private function applyRelationFilter(Builder $query, string $relation, array $filters, ?string $last_logical_operator): void
+    {
+        $method = $this->relationLogicalOperatorMap[$last_logical_operator ?? '$and'];
+
+        $query->{$method}($relation, function ($q) use ($filters) {
+            foreach ($filters as $key => $value) {
+                $this->applyFilters($q, $value, $key);
+            }
+        });
+    }
+
+    /**
+     * Apply a whereHas or whereDoesntHave filter.
+     *
+     * @param  \Illuminate\Contracts\Database\Eloquent\Builder  $query
+     * @param  array|string  $relations
+     * @param  string  $operator
+     * @return void
+     */
+    private function applyHasFilter(Builder $query, array|string $relations, string $operator): void
+    {
+        $method = $operator === '$has' ? 'whereHas' : 'whereDoesntHave';
+
+        foreach ((array) $relations as $relation => $filters) {
+            if (is_int($relation)) {
+                // Simple case: just checking existence
+                $query->{$method}($filters);
+            } else {
+                // If there are conditions, apply them inside whereHas
+                $query->{$method}($relation, function ($q) use ($filters) {
+                    $this->applyFilters($q, $filters);
+                });
+            }
+        }
     }
 
     /**
@@ -307,24 +327,6 @@ class ApiCriteria implements CriteriaInterface
     private function isRelation(string $key, Model $model): bool
     {
         return method_exists($model, $key) && is_callable([$model, $key]);
-    }
-
-    /**
-     * Apply filters for relational queries.
-     *
-     * @param  \Illuminate\Contracts\Database\Eloquent\Builder  $query
-     * @param  string  $relation
-     * @param  array  $filters
-     * @param  string|null  $last_logical_operator
-     * @return void
-     */
-    private function applyRelationFilter(Builder $query, string $relation, array $filters, ?string $last_logical_operator): void
-    {
-        $query->{$this->relationLogicalOperatorMap[$last_logical_operator ?? '$and']}($relation, function ($q) use ($filters) {
-            foreach ($filters as $key => $value) {
-                $this->applyFilters($q, $value, $key);
-            }
-        });
     }
 
     /**
