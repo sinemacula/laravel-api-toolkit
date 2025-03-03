@@ -119,7 +119,6 @@ class ApiCriteria implements CriteriaInterface
                 }
             } elseif ($this->isLogicalOperator($key)) {
                 if ($last_logical_operator === '$and' && $key === '$or') {
-                    // Wrap the OR condition in a closure so it's grouped properly inside AND
                     $query->where(function ($q) use ($value, $key) {
                         foreach ($value as $subKey => $subValue) {
                             $this->applyFilters($q, $subValue, $subKey, $key);
@@ -285,7 +284,6 @@ class ApiCriteria implements CriteriaInterface
             } else {
                 $query->{$method}($relation, function ($q) use ($filters) {
                     if (isset($filters['$or'])) {
-                        // Ensure OR conditions are grouped correctly inside WHERE EXISTS
                         $q->where(function ($nested) use ($filters) {
                             foreach ($filters['$or'] as $key => $value) {
                                 $this->applyFilters($nested, $value, $key, '$or');
