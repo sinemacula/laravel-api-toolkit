@@ -138,7 +138,7 @@ class ApiCriteria implements CriteriaInterface
                                 }
                             });
                         });
-                    } else {]
+                    } else {
                         $query->orWhere(function ($q) use ($value) {
                             foreach ($value as $subKey => $subValue) {
                                 $this->applyFilters($q, $subValue, $subKey, '$or');
