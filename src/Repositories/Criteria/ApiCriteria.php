@@ -4,11 +4,15 @@ namespace SineMacula\ApiToolkit\Repositories\Criteria;
 
 use Illuminate\Contracts\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Config;
+use SineMacula\ApiToolkit\Enums\CacheKeys;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
 use SineMacula\ApiToolkit\Repositories\Traits\InteractsWithModelSchema;
 use SineMacula\Repositories\Contracts\CriteriaInterface;
+use Throwable;
 
 /**
  * API criteria.
@@ -271,7 +275,22 @@ class ApiCriteria implements CriteriaInterface
      */
     private function isRelation(string $key, Model $model): bool
     {
-        return method_exists($model, $key) && is_callable([$model, $key]);
+        return Cache::rememberForever(CacheKeys::MODEL_RELATIONS->resolveKey([
+            get_class($model),
+            $key
+        ]), function () use ($key, $model) {
+
+            if (!method_exists($model, $key) || !is_callable([$model, $key])) {
+                return false;
+            }
+
+            try {
+                return $model->{$key}() instanceof Relation;
+            } catch (Throwable $e) {
+                return false;
+            }
+
+        });
     }
 
     /**

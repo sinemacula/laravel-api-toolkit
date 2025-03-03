@@ -18,6 +18,9 @@ enum CacheKeys: string
     // Store the columns associated with each model
     case MODEL_SCHEMA_COLUMNS = 'model-schema-columns:%s';
 
+    // Store the relations associated with each model
+    case MODEL_RELATIONS = 'model-relations:%s:%s';
+
     /**
      * Resolves the cache key with the necessary prefix and replaces any
      * placeholders.
@@ -29,7 +32,7 @@ enum CacheKeys: string
     {
         $prefix = Config::get('api-toolkit.cache.prefix', 'sm-api-toolkit');
 
-        $key = $prefix . '.' . $this->value;
+        $key = $prefix . ':' . $this->value;
 
         if (!empty($replacements)) {
             $key = vsprintf($key, $replacements);
