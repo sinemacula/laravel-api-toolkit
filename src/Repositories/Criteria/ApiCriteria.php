@@ -136,6 +136,49 @@ class ApiCriteria implements CriteriaInterface
     }
 
     /**
+     * Apply limit.
+     *
+     * Append the query with a record limit.
+     *
+     * @param  \Illuminate\Contracts\Database\Eloquent\Builder  $query
+     * @param  int|null  $limit
+     * @return \Illuminate\Contracts\Database\Eloquent\Builder
+     */
+    protected function applyLimit(Builder $query, ?int $limit = null): Builder
+    {
+        return is_null($limit) ? $query : $query->limit($limit);
+    }
+
+    /**
+     * Apply order.
+     *
+     * Append an order by statement to the query.
+     *
+     * @param  \Illuminate\Contracts\Database\Eloquent\Builder  $query
+     * @param  array  $order
+     * @return \Illuminate\Contracts\Database\Eloquent\Builder
+     */
+    protected function applyOrder(Builder $query, array $order): Builder
+    {
+        if (empty($order)) {
+            return $query;
+        }
+
+        foreach ($order as $column => $direction) {
+            if ($column === self::ORDER_BY_RANDOM) {
+                $query = $query->inRandomOrder();
+                continue;
+            }
+
+            if ($this->isColumnSearchable($query->getModel(), $column, $direction)) {
+                $query = $query->orderBy($column, $direction);
+            }
+        }
+
+        return $query;
+    }
+
+    /**
      * Apply a condition operator to the query.
      *
      * @param  \Illuminate\Contracts\Database\Eloquent\Builder  $query
@@ -195,49 +238,6 @@ class ApiCriteria implements CriteriaInterface
     }
 
     /**
-     * Apply limit.
-     *
-     * Append the query with a record limit.
-     *
-     * @param  \Illuminate\Contracts\Database\Eloquent\Builder  $query
-     * @param  int|null  $limit
-     * @return \Illuminate\Contracts\Database\Eloquent\Builder
-     */
-    protected function applyLimit(Builder $query, ?int $limit = null): Builder
-    {
-        return is_null($limit) ? $query : $query->limit($limit);
-    }
-
-    /**
-     * Apply order.
-     *
-     * Append an order by statement to the query.
-     *
-     * @param  \Illuminate\Contracts\Database\Eloquent\Builder  $query
-     * @param  array  $order
-     * @return \Illuminate\Contracts\Database\Eloquent\Builder
-     */
-    protected function applyOrder(Builder $query, array $order): Builder
-    {
-        if (empty($order)) {
-            return $query;
-        }
-
-        foreach ($order as $column => $direction) {
-            if ($column === self::ORDER_BY_RANDOM) {
-                $query = $query->inRandomOrder();
-                continue;
-            }
-
-            if ($this->isColumnSearchable($query->getModel(), $column, $direction)) {
-                $query = $query->orderBy($column, $direction);
-            }
-        }
-
-        return $query;
-    }
-
-    /**
      * Check if a column is searchable and direction is valid.
      *
      * @param  \Illuminate\Database\Eloquent\Model  $model
@@ -247,8 +247,8 @@ class ApiCriteria implements CriteriaInterface
      */
     private function isColumnSearchable(Model $model, string $column, string $direction): bool
     {
-        return in_array($column, $this->getSearchableColumns($model)) &&
-            in_array($direction, $this->directions);
+        return in_array($column, $this->getSearchableColumns($model))
+            && in_array($direction, $this->directions);
     }
 
     /**
