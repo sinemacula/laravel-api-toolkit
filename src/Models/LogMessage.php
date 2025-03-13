@@ -28,6 +28,16 @@ class LogMessage extends Model
     protected $fillable = ['level', 'message', 'context', 'created_at'];
 
     /**
+     * Get the prunable model query.
+     *
+     * @return \Illuminate\Database\Eloquent\Builder
+     */
+    public function prunable(): Builder
+    {
+        return static::where('created_at', '<=', now()->subDays(config('logging.channels.database.days')));
+    }
+
+    /**
      * Get the attributes that should be cast.
      *
      * @return array<string, string>
@@ -40,15 +50,5 @@ class LogMessage extends Model
             'context'    => AsArrayObject::class,
             'created_at' => 'immutable_datetime'
         ];
-    }
-
-    /**
-     * Get the prunable model query.
-     *
-     * @return \Illuminate\Database\Eloquent\Builder
-     */
-    public function prunable(): Builder
-    {
-        return static::where('created_at', '<=', now()->subDays(config('logging.channels.database.days')));
     }
 }
