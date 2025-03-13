@@ -17,6 +17,7 @@ use Illuminate\Support\Str;
 use ReflectionException;
 use ReflectionMethod;
 use SineMacula\ApiToolkit\Enums\CacheKeys;
+use SineMacula\ApiToolkit\Facades\ApiQuery;
 use SineMacula\ApiToolkit\Repositories\Criteria\ApiCriteria;
 use SineMacula\Repositories\Repository;
 
@@ -44,25 +45,42 @@ abstract class ApiRepository extends Repository
     }
 
     /**
-     * Return a paginated.
+     * Return a paginated collection.
      *
-     * @param  string  $method
      * @return mixed
      *
      * @throws \Illuminate\Contracts\Container\BindingResolutionException
      */
-    public function paginate(string $method = 'paginate'): mixed
+    public function paginate(): mixed
     {
         $this->applyCriteria();
         $this->applyScopes();
 
-        $parser = $this->app->make(Config::get('api-toolkit.parser.alias'));
+        $method = $this->resolvePaginationMethod();
 
-        $results = $this->model->{$method}($parser->getLimit(), '*', 'page', $parser->getPage());
+        if ($method === 'cursorPaginate') {
+            $results = $this->model->cursorPaginate(ApiQuery::getLimit(), '*', 'cursor', ApiQuery::getCursor());
+        } else {
+            $results = $this->model->paginate(ApiQuery::getLimit(), '*', 'page', ApiQuery::getPage());
+        }
 
         $results->appends(Request::query());
 
         return $this->resetAndReturn($results);
+    }
+
+    /**
+     * Resolve which pagination method to use.
+     *
+     * @return string
+     */
+    private function resolvePaginationMethod(): string
+    {
+        if (Request::query('pagination') === 'cursor' || Request::has('cursor')) {
+            return 'cursorPaginate';
+        }
+
+        return 'paginate';
     }
 
     /**
@@ -368,7 +386,7 @@ abstract class ApiRepository extends Repository
             $values = $value['values']->pluck('id');
         }
 
-        $values ??= $value;
+        $values    ??= $value;
         $detaching = $value['detaching'] ?? true;
 
         $model->{Str::camel($attribute)}()->sync($values, $detaching);

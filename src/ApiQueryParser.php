@@ -83,6 +83,17 @@ class ApiQueryParser
     }
 
     /**
+     * Returns the current page cursor.
+     *  - e.g. ?cursor=eyJpZCI6MTAwfQ==
+     *
+     * @return string|null
+     */
+    public function getCursor(): ?string
+    {
+        return (string) $this->getParameters('cursor');
+    }
+
+    /**
      * Parse the given query string to obtain resource and value information.
      *
      * @param  \Illuminate\Http\Request  $request
@@ -104,6 +115,10 @@ class ApiQueryParser
 
         if ($request->has('order')) {
             $this->parameters['order'] = $this->parseOrder($request->input('order'));
+        }
+
+        if ($request->has('cursor')) {
+            $this->parameters['cursor'] = $request->input('cursor');
         }
     }
 
@@ -202,7 +217,8 @@ class ApiQueryParser
             'filters' => 'json',
             'order'   => 'string',
             'page'    => 'integer|min:1',
-            'limit'   => 'integer|min:1'
+            'limit'   => 'integer|min:1',
+            'cursor'  => 'string'
         ];
 
         if (isset($parameters['fields']) && is_array($parameters['fields'])) {

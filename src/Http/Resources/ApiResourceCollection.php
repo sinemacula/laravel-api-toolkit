@@ -2,6 +2,7 @@
 
 namespace SineMacula\ApiToolkit\Http\Resources;
 
+use Illuminate\Contracts\Pagination\CursorPaginator;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -71,14 +72,21 @@ class ApiResourceCollection extends AnonymousResourceCollection
      */
     public function paginationInformation(Request $request, array $paginated, array $default): array
     {
-        if (!$this->resource instanceof LengthAwarePaginator) {
-            return [];
+        if ($this->resource instanceof LengthAwarePaginator) {
+            return [
+                'meta'  => $this->buildPaginationMeta($this->resource),
+                'links' => $this->buildPaginationLinks($this->resource)
+            ];
         }
 
-        return [
-            'meta'  => $this->buildPaginationMeta($this->resource),
-            'links' => $this->buildPaginationLinks($this->resource)
-        ];
+        if ($this->resource instanceof CursorPaginator) {
+            return [
+                'meta'  => $this->buildCursorPaginationMeta($this->resource),
+                'links' => $this->buildCursorPaginationLinks($this->resource)
+            ];
+        }
+
+        return [];
     }
 
     /**
@@ -110,6 +118,34 @@ class ApiResourceCollection extends AnonymousResourceCollection
             'prev'  => $paginator->previousPageUrl(),
             'next'  => $paginator->nextPageUrl(),
             'last'  => $paginator->url($paginator->lastPage())
+        ];
+    }
+
+    /**
+     * Build the meta for cursor-based pagination.
+     *
+     * @param  \Illuminate\Contracts\Pagination\CursorPaginator  $paginator
+     * @return array
+     */
+    private function buildCursorPaginationMeta(CursorPaginator $paginator): array
+    {
+        return [
+            'continue' => $paginator->hasMorePages()
+        ];
+    }
+
+    /**
+     * Build the links for cursor-based pagination.
+     *
+     * @param  \Illuminate\Contracts\Pagination\CursorPaginator  $paginator
+     * @return array
+     */
+    private function buildCursorPaginationLinks(CursorPaginator $paginator): array
+    {
+        return [
+            'self' => request()->fullUrl(),
+            'prev' => $paginator->previousPageUrl(),
+            'next' => $paginator->nextPageUrl(),
         ];
     }
 }
