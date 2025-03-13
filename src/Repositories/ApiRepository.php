@@ -70,20 +70,6 @@ abstract class ApiRepository extends Repository
     }
 
     /**
-     * Resolve which pagination method to use.
-     *
-     * @return string
-     */
-    private function resolvePaginationMethod(): string
-    {
-        if (Request::query('pagination') === 'cursor' || Request::has('cursor')) {
-            return 'cursorPaginate';
-        }
-
-        return 'paginate';
-    }
-
-    /**
      * Set the attributes for the given model.
      *
      * @param  \Illuminate\Database\Eloquent\Model  $model
@@ -164,6 +150,20 @@ abstract class ApiRepository extends Repository
     protected function boot(): void
     {
         $this->resolveAttributeCasts();
+    }
+
+    /**
+     * Resolve which pagination method to use.
+     *
+     * @return string
+     */
+    private function resolvePaginationMethod(): string
+    {
+        if (Request::query('pagination') === 'cursor' || Request::has('cursor')) {
+            return 'cursorPaginate';
+        }
+
+        return 'paginate';
     }
 
     /**
@@ -386,7 +386,7 @@ abstract class ApiRepository extends Repository
             $values = $value['values']->pluck('id');
         }
 
-        $values    ??= $value;
+        $values ??= $value;
         $detaching = $value['detaching'] ?? true;
 
         $model->{Str::camel($attribute)}()->sync($values, $detaching);
