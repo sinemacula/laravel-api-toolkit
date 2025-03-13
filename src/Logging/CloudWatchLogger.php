@@ -3,8 +3,8 @@
 namespace SineMacula\ApiToolkit\Logging;
 
 use Aws\CloudWatchLogs\CloudWatchLogsClient;
-use Maxbanton\Cwh\Handler\CloudWatch as CloudWatchHandler;
 use Monolog\Logger;
+use PhpNexus\Cwh\Handler\CloudWatch as CloudWatchHandler;
 
 /**
  * CloudWatch Logger.
@@ -18,7 +18,7 @@ class CloudWatchLogger
      * Create a custom Monolog instance.
      *
      * @param  array  $config
-     * @return Logger
+     * @return \Monolog\Logger
      */
     public function __invoke(array $config): Logger
     {
