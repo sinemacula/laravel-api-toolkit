@@ -14,6 +14,7 @@ use Illuminate\Support\Facades\Facade;
  * @method static array getOrder()
  * @method static int getLimit()
  * @method static int|null getPage()
+ * @method static string|null getCursor()
  * @method static void parse(Request $request)
  *
  * @see         \SineMacula\ApiToolkit\ApiQueryParser
