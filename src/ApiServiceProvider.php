@@ -90,6 +90,10 @@ class ApiServiceProvider extends ServiceProvider
         $this->publishes([
             __DIR__ . '/../config/api-toolkit.php' => config_path('api-toolkit.php')
         ], 'config');
+
+        $this->publishes([
+            __DIR__ . '/../stubs/logs-table.stub' => database_path('migrations/' . date('Y_m_d_His') . '_create_logs_table.php')
+        ], 'migrations');
     }
 
     /**
