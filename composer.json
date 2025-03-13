@@ -18,12 +18,14 @@
     ],
     "require": {
         "php": "^8.3",
+        "aws/aws-sdk-php": "^3.342",
         "illuminate/database": "*",
         "illuminate/http": "*",
         "illuminate/notifications": "*",
         "illuminate/routing": "*",
         "illuminate/support": "*",
         "illuminate/validation": "*",
+        "maxbanton/cwh": "^2.0",
         "sinemacula/laravel-repositories": "^1.0",
         "sinemacula/laravel-resource-exporter": "^1.0"
     },
