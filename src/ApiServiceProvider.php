@@ -143,6 +143,8 @@ class ApiServiceProvider extends ServiceProvider
             return strtolower($this->header('Accept')) === 'application/xml'
                 && in_array('xml', config('api-toolkit.exports.supported_formats', []));
         });
+
+        Request::macro('expectsPdf', fn () => strtolower($this->header('Accept')) === 'application/pdf');
     }
 
     /**

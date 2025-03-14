@@ -6,6 +6,7 @@ use Illuminate\Notifications\Events\NotificationSending;
 use Illuminate\Notifications\Events\NotificationSent;
 use Illuminate\Notifications\Notification;
 use Illuminate\Support\Facades\Log;
+use SineMacula\ApiToolkit\Logging\CloudWatchLogger;
 
 /**
  * Notification event listener.
@@ -56,5 +57,24 @@ class NotificationListener
             'notifiable'   => get_class($notifiable),
             'channel'      => $channel
         ]);
+
+        if (config('api-toolkit.logging.cloudwatch.enabled', false)) {
+            Log::build([
+                'driver'     => 'custom',
+                'via'        => CloudWatchLogger::class,
+                'aws'        => [
+                    'region'      => config('api-toolkit.logging.cloudwatch.region'),
+                    'credentials' => config('api-toolkit.logging.cloudwatch.credentials')
+                ],
+                'log_group'  => config('api-toolkit.logging.cloudwatch.log_group'),
+                'log_stream' => 'notifications',
+                'batch_size' => config('api-toolkit.logging.cloudwatch.batch_size'),
+                'retention'  => config('api-toolkit.logging.cloudwatch.retention')
+            ])->info($message, [
+                'notification' => get_class($notification),
+                'notifiable'   => get_class($notifiable),
+                'channel'      => $channel
+            ]);
+        }
     }
 }
