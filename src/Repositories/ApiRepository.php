@@ -282,10 +282,10 @@ abstract class ApiRepository extends Repository
         if (str_contains($laravel_cast, '*')) {
             $pattern = '/^' . str_replace('*', '.*', $laravel_cast) . '$/';
 
-            return preg_match($pattern, $base_cast);
+            return preg_match($pattern, $cast);
         }
 
-        return $base_cast === $laravel_cast;
+        return $cast === $laravel_cast;
     }
 
     /**
