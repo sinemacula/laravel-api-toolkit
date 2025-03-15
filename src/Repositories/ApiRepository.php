@@ -281,6 +281,7 @@ abstract class ApiRepository extends Repository
 
         if (str_contains($laravel_cast, '*')) {
             $pattern = '/^' . str_replace('*', '.*', $laravel_cast) . '$/';
+
             return preg_match($pattern, $cast);
         }
 
@@ -387,7 +388,7 @@ abstract class ApiRepository extends Repository
             $values = $value['values']->pluck('id');
         }
 
-        $values    ??= $value;
+        $values ??= $value;
         $detaching = $value['detaching'] ?? true;
 
         $model->{Str::camel($attribute)}()->sync($values, $detaching);
