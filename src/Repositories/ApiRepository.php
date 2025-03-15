@@ -273,17 +273,19 @@ abstract class ApiRepository extends Repository
      */
     private function castMatchesLaravelCast(string $cast, string $laravel_cast): bool
     {
-        if (class_exists($laravel_cast) && $cast === $laravel_cast) {
+        $base_cast = explode(':', $cast)[0];
+
+        if (class_exists($laravel_cast) && $base_cast === $laravel_cast) {
             return true;
         }
 
         if (str_contains($laravel_cast, '*')) {
             $pattern = '/^' . str_replace('*', '.*', $laravel_cast) . '$/';
 
-            return preg_match($pattern, $cast);
+            return preg_match($pattern, $base_cast);
         }
 
-        return $cast === $laravel_cast;
+        return $base_cast === $laravel_cast;
     }
 
     /**
