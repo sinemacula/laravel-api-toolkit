@@ -44,7 +44,7 @@ abstract class AuthorizedController extends Controller
      */
     public static function getRouteParameter(): ?string
     {
-        return defined(static::class . '::ROUTE_PARAMETER') ? constant(static::class . '::ROUTE_PARAMETER') : null;
+        return defined(static::class . '::ROUTE_PARAMETER') ? strtolower(constant(static::class . '::ROUTE_PARAMETER')) : null;
     }
 
     /**
