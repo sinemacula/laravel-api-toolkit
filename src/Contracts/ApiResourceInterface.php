@@ -16,4 +16,11 @@ interface ApiResourceInterface
      * @return string
      */
     public static function getResourceType(): string;
+
+    /**
+     * Gets the default fields that should be included in the response.
+     *
+     * @return array
+     */
+    public static function getDefaultFields(): array;
 }

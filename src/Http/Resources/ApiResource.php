@@ -20,7 +20,7 @@ use SineMacula\ApiToolkit\Facades\ApiQuery;
 abstract class ApiResource extends BaseResource implements ApiResourceInterface
 {
     /** @var array Default fields to include in the response if no specific fields are requested */
-    protected array $default = [];
+    protected static array $default = [];
 
     /** @var array Fixed fields to include in the response */
     protected array $fixed = [];
@@ -55,6 +55,16 @@ abstract class ApiResource extends BaseResource implements ApiResourceInterface
         }
 
         return strtolower(static::RESOURCE_TYPE);
+    }
+
+    /**
+     * Gets the default fields that should be included in the response.
+     *
+     * @return array
+     */
+    public static function getDefaultFields(): array
+    {
+        return static::$default;
     }
 
     /**
@@ -98,7 +108,7 @@ abstract class ApiResource extends BaseResource implements ApiResourceInterface
      */
     private function resolveFields(): array
     {
-        return ApiQuery::getFields(self::getResourceType()) ?? $this->default;
+        return ApiQuery::getFields(static::getResourceType()) ?? static::getDefaultFields();
     }
 
     /**

@@ -18,7 +18,6 @@ php:
         - method_chaining_indentation
         - multiline_comment_opening_closing
         - no_blank_lines_between_traits
-        - nullable_type_declarations
         - ordered_class_elements
         - php_unit_fqcn_annotation
         - php_unit_internal_class
