@@ -4,6 +4,7 @@ namespace SineMacula\ApiToolkit\Repositories\Criteria;
 
 use Illuminate\Contracts\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -147,45 +148,62 @@ class ApiCriteria implements CriteriaInterface
      */
     protected function applyEagerLoading(Builder $query): Builder
     {
-        $model = $query->getModel();
-
+        $model    = $query->getModel();
         $resource = $this->getResourceFromModel($model);
 
         if (!$resource) {
             return $query;
         }
 
-        $fields = ApiQuery::getFields($resource::getResourceType()) ?? $resource::getDefaultFields();
+        $resource_type = $resource::getResourceType();
+        $fields        = ApiQuery::getFields($resource_type) ?? $resource::getDefaultFields();
 
         if (empty($fields)) {
             return $query;
         }
 
-        $eager_load_structure = $this->getEagerLoadStructure($model, $fields);
-        $eager_loads          = $this->generateEagerLoads($eager_load_structure);
+        $morphTo_relations = [];
+        $regular_relations = [];
 
-        if (!empty($eager_loads)) {
-            $query->with($eager_loads);
+        foreach ($fields as $field) {
+
+            if (!$this->isRelation($field, $model)) {
+                continue;
+            }
+
+            try {
+                $relation = $model->{$field}();
+
+                if ($relation instanceof MorphTo) {
+                    $morphTo_relations[] = $field;
+                } else {
+                    $regular_relations[] = $field;
+                }
+
+            } catch (Throwable $e) {
+                continue;
+            }
+        }
+
+        if (!empty($regular_relations)) {
+
+            $eager_load_structure = $this->getEagerLoadStructure($model, $regular_relations);
+            $eager_loads          = $this->generateEagerLoads($eager_load_structure);
+
+            if (!empty($eager_loads)) {
+                $query->with($eager_loads);
+            }
+        }
+
+        if (!empty($morphTo_relations)) {
+            foreach ($morphTo_relations as $relation) {
+                $query->with([
+                    $relation => function ($q) {}
+                ]);
+            }
         }
 
         return $query;
-    }
-
-    /**
-     * Get the eager load structure for the given model and fields.
-     *
-     * @param  \Illuminate\Database\Eloquent\Model  $model
-     * @param  array  $fields
-     * @return array
-     */
-    protected function getEagerLoadStructure(Model $model, array $fields): array
-    {
-        return Cache::rememberForever(CacheKeys::MODEL_EAGER_LOADS->resolveKey([
-            get_class($model),
-            md5(implode(',', array_filter($fields)))
-        ]), function () use ($model, $fields) {
-            return $this->buildEagerLoadStructure($model, $fields);
-        });
     }
 
     /**
@@ -202,8 +220,20 @@ class ApiCriteria implements CriteriaInterface
             return [];
         }
 
-        $structure       = [];
-        $relation_fields = $this->filterRelationFields($model, $fields);
+        $structure = [];
+
+        $relation_fields = [];
+        foreach ($fields as $field) {
+            if ($this->isRelation($field, $model)) {
+                try {
+                    $relation = $model->{$field}();
+                    if (!($relation instanceof MorphTo)) {
+                        $relation_fields[] = $field;
+                    }
+                } catch (Throwable $e) {
+                }
+            }
+        }
 
         foreach ($relation_fields as $field) {
 
@@ -221,14 +251,27 @@ class ApiCriteria implements CriteriaInterface
                 continue;
             }
 
-            $related_fields = ApiQuery::getFields($resource::getResourceType()) ?? $resource::getDefaultFields();
+            $resource_type  = $resource::getResourceType();
+            $related_fields = ApiQuery::getFields($resource_type) ?? $resource::getDefaultFields();
 
             if (empty($related_fields)) {
                 $structure[] = $field;
                 continue;
             }
 
-            $nested_relation_fields = $this->filterRelationFields($related_model, $related_fields);
+            $nested_relation_fields = [];
+
+            foreach ($related_fields as $related_field) {
+                if ($this->isRelation($related_field, $related_model)) {
+                    try {
+                        $nested_relation = $related_model->{$related_field}();
+                        if (!($nested_relation instanceof MorphTo)) {
+                            $nested_relation_fields[] = $related_field;
+                        }
+                    } catch (Throwable $e) {
+                    }
+                }
+            }
 
             if (empty($nested_relation_fields)) {
                 $structure[] = $field;
@@ -255,9 +298,10 @@ class ApiCriteria implements CriteriaInterface
      * Generate eager loads with closures from the structure.
      *
      * @param  array  $structure
+     * @param  \Illuminate\Database\Eloquent\Model|null  $parent_model
      * @return array
      */
-    protected function generateEagerLoads(array $structure): array
+    protected function generateEagerLoads(array $structure, ?Model $parent_model = null): array
     {
         $eager_loads = [];
 
@@ -265,13 +309,35 @@ class ApiCriteria implements CriteriaInterface
             if (is_numeric($key)) {
                 $eager_loads[] = $value;
             } else {
-                $eager_loads[$key] = function ($query) use ($value) {
-                    $query->with($this->generateEagerLoads($value));
+
+                $related_model = $parent_model ? $this->getRelatedModel($parent_model, $key) : null;
+
+                $eager_loads[$key] = function ($query) use ($value, $related_model) {
+                    if (!empty($value)) {
+                        $query->with($this->generateEagerLoads($value, $related_model));
+                    }
                 };
             }
         }
 
         return $eager_loads;
+    }
+
+    /**
+     * Get the eager load structure for the given model and fields.
+     *
+     * @param  \Illuminate\Database\Eloquent\Model  $model
+     * @param  array  $fields
+     * @return array
+     */
+    protected function getEagerLoadStructure(Model $model, array $fields): array
+    {
+        return Cache::rememberForever(CacheKeys::MODEL_EAGER_LOADS->resolveKey([
+            get_class($model),
+            md5(implode(',', array_filter($fields)))
+        ]), function () use ($model, $fields) {
+            return $this->buildEagerLoadStructure($model, $fields);
+        });
     }
 
     /**
@@ -293,20 +359,6 @@ class ApiCriteria implements CriteriaInterface
             }
 
             return null;
-        });
-    }
-
-    /**
-     * Filter fields to only include those that are relations.
-     *
-     * @param  \Illuminate\Database\Eloquent\Model  $model
-     * @param  array  $fields
-     * @return array
-     */
-    protected function filterRelationFields(Model $model, array $fields): array
-    {
-        return array_filter($fields, function ($field) use ($model) {
-            return $this->isRelation($field, $model);
         });
     }
 
