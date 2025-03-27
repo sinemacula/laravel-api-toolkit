@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Config;
+use SineMacula\ApiToolkit\Contracts\ApiResourceInterface;
 use SineMacula\ApiToolkit\Enums\CacheKeys;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
 use SineMacula\ApiToolkit\Repositories\Traits\InteractsWithModelSchema;
@@ -43,7 +44,9 @@ class ApiCriteria implements CriteriaInterface
         '$between'  => 'between',
         '$contains' => 'contains',
         '$has'      => 'has',
-        '$hasnt'    => 'hasnt'
+        '$hasnt'    => 'hasnt',
+        '$null'     => 'null',
+        '$notNull'  => 'notNull'
     ];
 
     /** @var array<string, string> */
@@ -93,6 +96,7 @@ class ApiCriteria implements CriteriaInterface
         $query = $model instanceof Model ? $model->query() : $model;
 
         $query = $this->applyFilters($query, $this->getFilters());
+        $query = $this->applyEagerLoading($query);
         $query = $this->applyLimit($query, $this->getLimit());
         $query = $this->applyOrder($query, $this->getOrder());
 
@@ -133,6 +137,210 @@ class ApiCriteria implements CriteriaInterface
         }
 
         return $query;
+    }
+
+    /**
+     * Apply eager loading based on requested fields.
+     *
+     * @param  \Illuminate\Contracts\Database\Eloquent\Builder  $query
+     * @return \Illuminate\Contracts\Database\Eloquent\Builder
+     */
+    protected function applyEagerLoading(Builder $query): Builder
+    {
+        $model = $query->getModel();
+
+        $resource = $this->getResourceFromModel($model);
+
+        if (!$resource) {
+            return $query;
+        }
+
+        $fields = ApiQuery::getFields($resource::getResourceType()) ?? $resource::getDefaultFields();
+
+        if (empty($fields)) {
+            return $query;
+        }
+
+        $eager_load_structure = $this->getEagerLoadStructure($model, $fields);
+        $eager_loads          = $this->generateEagerLoads($eager_load_structure);
+
+        if (!empty($eager_loads)) {
+            $query->with($eager_loads);
+        }
+
+        return $query;
+    }
+
+    /**
+     * Get the eager load structure for the given model and fields.
+     *
+     * @param  \Illuminate\Database\Eloquent\Model  $model
+     * @param  array  $fields
+     * @return array
+     */
+    protected function getEagerLoadStructure(Model $model, array $fields): array
+    {
+        return Cache::rememberForever(CacheKeys::MODEL_EAGER_LOADS->resolveKey([
+            get_class($model),
+            md5(implode(',', array_filter($fields)))
+        ]), function () use ($model, $fields) {
+            return $this->buildEagerLoadStructure($model, $fields);
+        });
+    }
+
+    /**
+     * Build a serializable structure for eager loading.
+     *
+     * @param  \Illuminate\Database\Eloquent\Model  $model
+     * @param  array  $fields
+     * @param  int  $depth
+     * @return array
+     */
+    protected function buildEagerLoadStructure(Model $model, array $fields, int $depth = 0): array
+    {
+        if ($depth > 3) {
+            return [];
+        }
+
+        $structure       = [];
+        $relation_fields = $this->filterRelationFields($model, $fields);
+
+        foreach ($relation_fields as $field) {
+
+            $related_model = $this->getRelatedModel($model, $field);
+
+            if (!$related_model) {
+                $structure[] = $field;
+                continue;
+            }
+
+            $resource = $this->getResourceFromModel($related_model);
+
+            if (!$resource) {
+                $structure[] = $field;
+                continue;
+            }
+
+            $related_fields = ApiQuery::getFields($resource::getResourceType()) ?? $resource::getDefaultFields();
+
+            if (empty($related_fields)) {
+                $structure[] = $field;
+                continue;
+            }
+
+            $nested_relation_fields = $this->filterRelationFields($related_model, $related_fields);
+
+            if (empty($nested_relation_fields)) {
+                $structure[] = $field;
+                continue;
+            }
+
+            $nested_structure = $this->buildEagerLoadStructure(
+                $related_model,
+                $nested_relation_fields,
+                $depth + 1
+            );
+
+            if (empty($nested_structure)) {
+                $structure[] = $field;
+            } else {
+                $structure[$field] = $nested_structure;
+            }
+        }
+
+        return $structure;
+    }
+
+    /**
+     * Generate eager loads with closures from the structure.
+     *
+     * @param  array  $structure
+     * @return array
+     */
+    protected function generateEagerLoads(array $structure): array
+    {
+        $eager_loads = [];
+
+        foreach ($structure as $key => $value) {
+            if (is_numeric($key)) {
+                $eager_loads[] = $value;
+            } else {
+                $eager_loads[$key] = function ($query) use ($value) {
+                    $query->with($this->generateEagerLoads($value));
+                };
+            }
+        }
+
+        return $eager_loads;
+    }
+
+    /**
+     * Get the resource from the given model.
+     *
+     * @param  \Illuminate\Database\Eloquent\Model  $model
+     * @return string|null
+     */
+    protected function getResourceFromModel(Model $model): ?string
+    {
+        $class = get_class($model);
+
+        return Cache::rememberForever(CacheKeys::MODEL_RESOURCES->resolveKey([$class]), function () use ($class) {
+
+            $resource = Config::get('api-toolkit.resources.resource_map.' . $class);
+
+            if ($resource && class_exists($resource) && in_array(ApiResourceInterface::class, class_implements($resource) ?: [], true)) {
+                return $resource;
+            }
+
+            return null;
+        });
+    }
+
+    /**
+     * Filter fields to only include those that are relations.
+     *
+     * @param  \Illuminate\Database\Eloquent\Model  $model
+     * @param  array  $fields
+     * @return array
+     */
+    protected function filterRelationFields(Model $model, array $fields): array
+    {
+        return array_filter($fields, function ($field) use ($model) {
+            return $this->isRelation($field, $model);
+        });
+    }
+
+    /**
+     * Get the related model instance for a relation.
+     *
+     * @param  \Illuminate\Database\Eloquent\Model  $model
+     * @param  string  $relation
+     * @return \Illuminate\Database\Eloquent\Model|null
+     */
+    protected function getRelatedModel(Model $model, string $relation): ?Model
+    {
+        return Cache::rememberForever(CacheKeys::MODEL_RELATION_INSTANCES->resolveKey([
+            get_class($model),
+            $relation
+        ]), function () use ($model, $relation) {
+
+            try {
+
+                if (!method_exists($model, $relation)) {
+                    return null;
+                }
+
+                $relation_obj = $model->{$relation}();
+
+                if ($relation_obj instanceof Relation) {
+                    return $relation_obj->getRelated();
+                }
+
+            } catch (Throwable $exception) {
+            }
+
+            return null;
+        });
     }
 
     /**
@@ -210,14 +418,14 @@ class ApiCriteria implements CriteriaInterface
     {
         $method = $this->determineLogicalMethod($operator, $last_logical_operator);
 
-        $query->{$method}(function ($q) use ($value, $operator) {
+        $query->{$method}(function (Builder $query) use ($value, $operator) {
             foreach ($value as $subKey => $subValue) {
                 if ($this->isConditionOperator($subKey)) {
-                    $this->applyConditionOperator($q, $subKey, $subValue, null, $operator);
+                    $this->applyConditionOperator($query, $subKey, $subValue, null, $operator);
                 } elseif ($this->isLogicalOperator($subKey)) {
-                    $this->applyLogicalOperator($q, $subKey, $subValue, $operator);
+                    $this->applyLogicalOperator($query, $subKey, $subValue, $operator);
                 } else {
-                    $this->applyFilters($q, $subValue, $subKey, $operator);
+                    $this->applyFilters($query, $subValue, $subKey, $operator);
                 }
             }
         });
@@ -313,8 +521,8 @@ class ApiCriteria implements CriteriaInterface
     {
         $method = ($last_logical_operator === '$or') ? 'orWhereHas' : 'whereHas';
 
-        $query->{$method}($relation, function ($q) use ($filters) {
-            $this->processRelationFilters($q, $filters);
+        $query->{$method}($relation, function (Builder $query) use ($filters) {
+            $this->processRelationFilters($query, $filters);
         });
     }
 
@@ -356,11 +564,15 @@ class ApiCriteria implements CriteriaInterface
 
         foreach ((array) $relations as $relation => $filters) {
             if (is_int($relation)) {
-                $query->{$method}($filters);
+                if ($this->isRelation($filters, $query->getModel())) {
+                    $query->{$method}($filters);
+                }
             } else {
-                $query->{$method}($relation, function ($q) use ($filters) {
-                    $this->processRelationFilters($q, $filters);
-                });
+                if ($this->isRelation($relation, $query->getModel())) {
+                    $query->{$method}($relation, function (Builder $query) use ($filters) {
+                        $this->processRelationFilters($query, $filters);
+                    });
+                }
             }
         }
     }
@@ -395,9 +607,83 @@ class ApiCriteria implements CriteriaInterface
         match ($operator) {
             '$in'       => $query->whereIn($column, (array) $value),
             '$between'  => $this->applyBetween($query, $column, $value),
-            '$contains' => $query->whereJsonContains($column, $value),
+            '$contains' => $this->applyJsonContains($query, $column, $value),
+            '$null'     => $this->applyNullCondition($query, $column, true, $last_logical_operator),
+            '$notNull'  => $this->applyNullCondition($query, $column, false, $last_logical_operator),
             default     => $this->applyDefaultCondition($query, $column, $operator, $value, $last_logical_operator)
         };
+    }
+
+    /**
+     * Apply JSON contains condition if the value is valid JSON.
+     *
+     * @param  \Illuminate\Contracts\Database\Eloquent\Builder  $query
+     * @param  string  $column
+     * @param  mixed  $value
+     * @return void
+     */
+    private function applyJsonContains(Builder $query, string $column, mixed $value): void
+    {
+        if (is_array($value) || is_object($value) || $this->isValidJson($value)) {
+            $query->whereJsonContains($column, $value);
+            return;
+        }
+
+        if (is_string($value) && str_contains($value, ',')) {
+
+            $items = array_filter(array_map('trim', explode(',', $value)));
+
+            if (!empty($items)) {
+                $query->where(function (Builder $query) use ($column, $items) {
+                    foreach ($items as $index => $item) {
+                        $method = $index === 0 ? 'whereJsonContains' : 'orWhereJsonContains';
+                        $query->{$method}($column, $item);
+                    }
+                });
+            }
+
+            return;
+        }
+
+        try {
+            $query->whereJsonContains($column, $value);
+        } catch (Throwable $exception) {
+        }
+    }
+
+    /**
+     * Check if a string is valid JSON.
+     *
+     * @param  string|null  $string
+     * @return bool
+     */
+    private function isValidJson(string|null $string): bool
+    {
+        if (!is_string($string) || empty($string)) {
+            return false;
+        }
+
+        return json_validate($string);
+    }
+
+    /**
+     * Apply a null or not null condition to the query.
+     *
+     * @param  \Illuminate\Contracts\Database\Eloquent\Builder  $query
+     * @param  string  $column
+     * @param  bool  $isNull
+     * @param  string|null  $last_logical_operator
+     * @return void
+     */
+    private function applyNullCondition(Builder $query, string $column, bool $isNull, ?string $last_logical_operator): void
+    {
+        $method = $this->logicalOperatorMap[$last_logical_operator ?? '$and'];
+
+        if ($isNull) {
+            $query->{$method . 'Null'}($column);
+        } else {
+            $query->{$method . 'NotNull'}($column);
+        }
     }
 
     /**
@@ -523,6 +809,7 @@ class ApiCriteria implements CriteriaInterface
     {
         return collect(Config::get('api-toolkit.repositories.searchable_exclusions', []))
             ->reduce(function ($carry, $exclusion) use ($table) {
+
                 if (str_contains($exclusion, '.') && strtok($exclusion, '.') === $table) {
                     $carry[] = substr(strstr($exclusion, '.'), 1);
                 } else {

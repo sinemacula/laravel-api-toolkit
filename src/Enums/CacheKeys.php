@@ -21,6 +21,15 @@ enum CacheKeys: string
     // Store the relations associated with each model
     case MODEL_RELATIONS = 'model-relations:%s:%s';
 
+    // Store the resource associated with each model
+    case MODEL_RESOURCES = 'model-resources:%s';
+
+    // Store the eager loads associated with each model
+    case MODEL_EAGER_LOADS = 'model-eager-loads:%s:%s';
+
+    // Store the model relation instances associated with each model
+    case MODEL_RELATION_INSTANCES = 'model-relation-instances:%s:%s';
+
     /**
      * Resolves the cache key with the necessary prefix and replaces any
      * placeholders.
