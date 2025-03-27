@@ -97,7 +97,7 @@ class ApiCriteria implements CriteriaInterface
         $query = $model instanceof Model ? $model->query() : $model;
 
         $query = $this->applyFilters($query, $this->getFilters());
-        $query = $this->applyEagerLoading($query);
+        //$query = $this->applyEagerLoading($query);
         $query = $this->applyLimit($query, $this->getLimit());
         $query = $this->applyOrder($query, $this->getOrder());
 
