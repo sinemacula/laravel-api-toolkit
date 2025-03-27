@@ -58,6 +58,16 @@ abstract class ApiResource extends BaseResource implements ApiResourceInterface
     }
 
     /**
+     * Gets the default fields that should be included in the response.
+     *
+     * @return array
+     */
+    public static function getDefaultFields(): array
+    {
+        return static::$default;
+    }
+
+    /**
      * Create a new resource collection instance.
      *
      * @param  mixed  $resource
@@ -88,16 +98,6 @@ abstract class ApiResource extends BaseResource implements ApiResourceInterface
         $this->fields ??= $this->resolveFields();
 
         return array_merge($this->fields, $this->getFixedFields());
-    }
-
-    /**
-     * Gets the default fields that should be included in the response.
-     *
-     * @return array
-     */
-    public static function getDefaultFields(): array
-    {
-        return static::$default;
     }
 
     /**

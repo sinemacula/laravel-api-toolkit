@@ -626,6 +626,7 @@ class ApiCriteria implements CriteriaInterface
     {
         if (is_array($value) || is_object($value) || $this->isValidJson($value)) {
             $query->whereJsonContains($column, $value);
+
             return;
         }
 
@@ -657,7 +658,7 @@ class ApiCriteria implements CriteriaInterface
      * @param  string|null  $string
      * @return bool
      */
-    private function isValidJson(string|null $string): bool
+    private function isValidJson(?string $string): bool
     {
         if (!is_string($string) || empty($string)) {
             return false;
