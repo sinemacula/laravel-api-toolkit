@@ -27,6 +27,9 @@ class LogMessage extends Model
     /** @var array<int, string> The attributes that are mass assignable */
     protected $fillable = ['level', 'message', 'context', 'created_at'];
 
+    /** @var string The storage format of the model's date columns */
+    protected $dateFormat = 'Y-m-d H:i:s.u';
+
     /**
      * Get the prunable model query.
      *
