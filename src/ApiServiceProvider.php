@@ -156,8 +156,8 @@ class ApiServiceProvider extends ServiceProvider
     private function registerStreamMacros(): void
     {
         Request::macro('expectsStream', function () {
-            return $this->boolean('stream') ||
-                in_array(strtolower($this->header('X-Stream')), ['1', 'true', 'on'], true);
+            return $this->boolean('stream')
+                || in_array(strtolower($this->header('X-Stream')), ['1', 'true', 'on'], true);
         });
     }
 
