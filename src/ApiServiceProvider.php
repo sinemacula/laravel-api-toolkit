@@ -38,6 +38,7 @@ class ApiServiceProvider extends ServiceProvider
         $this->offerPublishing();
         $this->registerMorphMap();
         $this->registerExportMacros();
+        $this->registerStreamMacros();
         $this->registerMiddleware();
         $this->registerNotificationLogging();
     }
@@ -145,6 +146,19 @@ class ApiServiceProvider extends ServiceProvider
         });
 
         Request::macro('expectsPdf', fn () => strtolower($this->header('Accept')) === 'application/pdf');
+    }
+
+    /**
+     * Register the stream macros to the Request facade.
+     *
+     * @return void
+     */
+    private function registerStreamMacros(): void
+    {
+        Request::macro('expectsStream', function () {
+            return $this->boolean('stream') ||
+                in_array(strtolower($this->header('X-Stream')), ['1', 'true', 'on'], true);
+        });
     }
 
     /**
