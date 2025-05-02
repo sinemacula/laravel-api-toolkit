@@ -18,6 +18,9 @@ abstract class BaseResource extends JsonResource
     /** @var array|null Explicit list of fields to be returned in the response */
     protected ?array $fields;
 
+    /** @var array|null Explicit list of fields to be excluded in the response */
+    protected ?array $excludedFields;
+
     /**
      * Overrides the default fields and any requested fields with a provided
      * set.
@@ -28,6 +31,19 @@ abstract class BaseResource extends JsonResource
     public function withFields(?array $fields = null): static
     {
         $this->fields = $fields;
+
+        return $this;
+    }
+
+    /**
+     * Removes certain fields from the response.
+     *
+     * @param  array|null  $fields
+     * @return static
+     */
+    public function withoutFields(?array $fields = null): static
+    {
+        $this->excludedFields = $fields;
 
         return $this;
     }

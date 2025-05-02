@@ -23,6 +23,9 @@ class ApiResourceCollection extends AnonymousResourceCollection
     /** @var array|null Explicit list of fields to be returned in the collection */
     protected ?array $fields;
 
+    /** @var array|null Explicit list of fields to be excluded in the response */
+    protected ?array $excludedFields;
+
     /**
      * Transform the resource collection into an array.
      *
@@ -31,7 +34,11 @@ class ApiResourceCollection extends AnonymousResourceCollection
      */
     public function toArray(Request $request): array
     {
-        return $this->collection->map(fn (ApiResource $item) => $item->withFields($this->fields ?? null)->resolve($request))->all();
+        return $this->collection->map(function (ApiResource $item) use ($request) {
+            return $item->withFields($this->fields ?? null)
+                ->withoutFields($this->excludedFields ?? null)
+                ->resolve($request);
+        })->all();
     }
 
     /**
@@ -44,6 +51,19 @@ class ApiResourceCollection extends AnonymousResourceCollection
     public function withFields(?array $fields = null): static
     {
         $this->fields = $fields;
+
+        return $this;
+    }
+
+    /**
+     * Removes certain fields from the response.
+     *
+     * @param  array|null  $fields
+     * @return static
+     */
+    public function withoutFields(?array $fields = null): static
+    {
+        $this->excludedFields = $fields;
 
         return $this;
     }
