@@ -97,7 +97,9 @@ abstract class ApiResource extends BaseResource implements ApiResourceInterface
     {
         $this->fields ??= $this->resolveFields();
 
-        return array_merge($this->fields, $this->getFixedFields());
+        $fields = array_diff($this->fields, $this->excludedFields ?? []);
+
+        return array_merge($fields, $this->getFixedFields());
     }
 
     /**
