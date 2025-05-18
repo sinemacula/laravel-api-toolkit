@@ -25,6 +25,7 @@ use Symfony\Component\HttpFoundation\Exception\SuspiciousOperationException;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Component\HttpKernel\Exception\MethodNotAllowedHttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
+use Symfony\Component\HttpKernel\Exception\TooManyRequestsHttpException;
 use Throwable;
 
 /**
@@ -108,6 +109,7 @@ class ApiExceptionHandler
             $exception instanceof AuthenticationException         => UnauthenticatedException::class,
             $exception instanceof LaravelTokenMismatchException   => TokenMismatchException::class,
             $exception instanceof ValidationException             => InvalidInputException::class,
+            $exception instanceof TooManyRequestsHttpException    => TooManyRequestsException::class,
             default                                               => UnhandledException::class
         };
 
