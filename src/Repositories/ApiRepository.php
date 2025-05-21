@@ -32,6 +32,9 @@ abstract class ApiRepository extends Repository
     /** @var array<int, string> */
     protected array $casts = [];
 
+    /** @var array<string, array> */
+    protected array $buffer = [];
+
     /**
      * Apply the API criteria to the next request.
      *
@@ -48,8 +51,6 @@ abstract class ApiRepository extends Repository
      * Return a paginated collection.
      *
      * @return mixed
-     *
-     * @throws \Illuminate\Contracts\Container\BindingResolutionException
      */
     public function paginate(): mixed
     {
@@ -111,6 +112,101 @@ abstract class ApiRepository extends Repository
         $this->storeCastsInCache();
 
         return $saved;
+    }
+
+    /**
+     * Add a model to the buffer.
+     *
+     * @param  \Illuminate\Database\Eloquent\Model  $model
+     * @param  array  $sync
+     * @return void
+     */
+    private function buffer(Model $model, array $sync = []): void
+    {
+        $id = spl_object_id($model);
+
+        if (!isset($this->buffer[$id])) {
+            $this->buffer[$id] = [
+                'model' => $model,
+                'sync'  => $sync
+            ];
+        } else {
+            $this->buffer[$id]['sync'] = array_merge(
+                $this->buffer[$id]['sync'] ?? [],
+                $sync
+            );
+        }
+    }
+
+    /**
+     * Flush the model buffer.
+     *
+     * @return void
+     */
+    public function flush(): void
+    {
+        if (empty($this->buffer)) {
+            return;
+        }
+
+        $inserts = [];
+        $updates = [];
+
+        foreach ($this->buffer as ['model' => $model]) {
+            if (!$model->exists) {
+                $inserts[] = $model;
+            } elseif ($model->isDirty()) {
+                $updates[] = $model;
+            }
+        }
+
+        if (!empty($inserts)) {
+            $this->bulkInsert($inserts);
+        }
+
+        if (!empty($updates)) {
+            $this->bulkUpdate($inserts);
+        }
+
+        foreach ($this->buffer as ['model' => $model, 'sync' => $sync]) {
+            foreach ($sync as $relation => $value) {
+                $this->setAttribute($model, $relation, $value, 'sync');
+            }
+        }
+
+        $this->clear();
+    }
+
+    /**
+     * Clear the model buffer.
+     *
+     * @return void
+     */
+    public function clear(): void
+    {
+        $this->buffer = [];
+    }
+
+    /**
+     * Apply a bulk insert.
+     *
+     * @param  array  $data
+     * @return void
+     */
+    private function bulkInsert(array $data): void
+    {
+        //
+    }
+
+    /**
+     * Apply a bulk update.
+     *
+     * @param  array  $data
+     * @return void
+     */
+    private function bulkUpdate(array $data): void
+    {
+        //
     }
 
     /**
@@ -388,7 +484,7 @@ abstract class ApiRepository extends Repository
             $values = $value['values']->pluck('id');
         }
 
-        $values ??= $value;
+        $values    ??= $value;
         $detaching = $value['detaching'] ?? true;
 
         $model->{Str::camel($attribute)}()->sync($values, $detaching);
