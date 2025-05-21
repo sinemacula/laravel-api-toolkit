@@ -115,30 +115,6 @@ abstract class ApiRepository extends Repository
     }
 
     /**
-     * Add a model to the buffer.
-     *
-     * @param  \Illuminate\Database\Eloquent\Model  $model
-     * @param  array  $sync
-     * @return void
-     */
-    private function buffer(Model $model, array $sync = []): void
-    {
-        $id = spl_object_id($model);
-
-        if (!isset($this->buffer[$id])) {
-            $this->buffer[$id] = [
-                'model' => $model,
-                'sync'  => $sync
-            ];
-        } else {
-            $this->buffer[$id]['sync'] = array_merge(
-                $this->buffer[$id]['sync'] ?? [],
-                $sync
-            );
-        }
-    }
-
-    /**
      * Flush the model buffer.
      *
      * @return void
@@ -188,28 +164,6 @@ abstract class ApiRepository extends Repository
     }
 
     /**
-     * Apply a bulk insert.
-     *
-     * @param  array  $data
-     * @return void
-     */
-    private function bulkInsert(array $data): void
-    {
-        //
-    }
-
-    /**
-     * Apply a bulk update.
-     *
-     * @param  array  $data
-     * @return void
-     */
-    private function bulkUpdate(array $data): void
-    {
-        //
-    }
-
-    /**
      * Scopes the model by the given id.
      *
      * @param  int|string|null  $id
@@ -246,6 +200,52 @@ abstract class ApiRepository extends Repository
     protected function boot(): void
     {
         $this->resolveAttributeCasts();
+    }
+
+    /**
+     * Add a model to the buffer.
+     *
+     * @param  \Illuminate\Database\Eloquent\Model  $model
+     * @param  array  $sync
+     * @return void
+     */
+    private function buffer(Model $model, array $sync = []): void
+    {
+        $id = spl_object_id($model);
+
+        if (!isset($this->buffer[$id])) {
+            $this->buffer[$id] = [
+                'model' => $model,
+                'sync'  => $sync
+            ];
+        } else {
+            $this->buffer[$id]['sync'] = array_merge(
+                $this->buffer[$id]['sync'] ?? [],
+                $sync
+            );
+        }
+    }
+
+    /**
+     * Apply a bulk insert.
+     *
+     * @param  array  $data
+     * @return void
+     */
+    private function bulkInsert(array $data): void
+    {
+        //
+    }
+
+    /**
+     * Apply a bulk update.
+     *
+     * @param  array  $data
+     * @return void
+     */
+    private function bulkUpdate(array $data): void
+    {
+        //
     }
 
     /**
@@ -484,7 +484,7 @@ abstract class ApiRepository extends Repository
             $values = $value['values']->pluck('id');
         }
 
-        $values    ??= $value;
+        $values ??= $value;
         $detaching = $value['detaching'] ?? true;
 
         $model->{Str::camel($attribute)}()->sync($values, $detaching);
