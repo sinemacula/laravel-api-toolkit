@@ -6,7 +6,6 @@ use Illuminate\Notifications\Events\NotificationSending;
 use Illuminate\Notifications\Events\NotificationSent;
 use Illuminate\Notifications\Notification;
 use Illuminate\Support\Facades\Log;
-use SineMacula\ApiToolkit\Logging\CloudWatchLogger;
 
 /**
  * Notification event listener.
@@ -49,28 +48,14 @@ class NotificationListener
      */
     private function log(string $message, Notification $notification, mixed $notifiable, string $channel): void
     {
-        Log::build([
-            'driver' => 'daily',
-            'path'   => storage_path('logs/notifications.log')
-        ])->info($message, [
+        Log::channel('notifications')->info($message, [
             'notification' => get_class($notification),
             'notifiable'   => get_class($notifiable),
             'channel'      => $channel
         ]);
 
         if (config('api-toolkit.logging.cloudwatch.enabled', false)) {
-            Log::build([
-                'driver'     => 'custom',
-                'via'        => CloudWatchLogger::class,
-                'aws'        => [
-                    'region'      => config('api-toolkit.logging.cloudwatch.region'),
-                    'credentials' => config('api-toolkit.logging.cloudwatch.credentials')
-                ],
-                'log_group'  => config('api-toolkit.logging.cloudwatch.log_group'),
-                'log_stream' => 'notifications',
-                'batch_size' => config('api-toolkit.logging.cloudwatch.batch_size'),
-                'retention'  => config('api-toolkit.logging.cloudwatch.retention')
-            ])->info($message, [
+            Log::channel('cloudwatch-notifications')->info($message, [
                 'notification' => get_class($notification),
                 'notifiable'   => get_class($notifiable),
                 'channel'      => $channel

@@ -19,7 +19,6 @@ use Illuminate\Support\Facades\Request as RequestFacade;
 use Illuminate\Support\Facades\Response;
 use Illuminate\Validation\UnauthorizedException as LaravelUnauthorizedException;
 use Illuminate\Validation\ValidationException;
-use SineMacula\ApiToolkit\Logging\CloudWatchLogger;
 use Symfony\Component\HttpFoundation\Exception\RequestExceptionInterface;
 use Symfony\Component\HttpFoundation\Exception\SuspiciousOperationException;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
@@ -176,24 +175,10 @@ class ApiExceptionHandler
      */
     private static function logApiException(ApiException $exception): void
     {
-        Log::build([
-            'driver' => 'daily',
-            'path'   => storage_path('logs/api-exceptions.log')
-        ])->error(self::convertExceptionToString($exception), self::getContext());
+        Log::channel('api-exceptions')->error(self::convertExceptionToString($exception), self::getContext());
 
         if (config('api-toolkit.logging.cloudwatch.enabled', false)) {
-            Log::build([
-                'driver'     => 'custom',
-                'via'        => CloudWatchLogger::class,
-                'aws'        => [
-                    'region'      => config('api-toolkit.logging.cloudwatch.region'),
-                    'credentials' => config('api-toolkit.logging.cloudwatch.credentials')
-                ],
-                'log_group'  => config('api-toolkit.logging.cloudwatch.log_group'),
-                'log_stream' => 'api-exceptions',
-                'batch_size' => config('api-toolkit.logging.cloudwatch.batch_size'),
-                'retention'  => config('api-toolkit.logging.cloudwatch.retention')
-            ])->error(self::convertExceptionToString($exception), self::getContext());
+            Log::channel('cloudwatch-api-exceptions')->error(self::convertExceptionToString($exception), self::getContext());
         }
     }
 
