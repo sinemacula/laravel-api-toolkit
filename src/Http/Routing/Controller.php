@@ -72,8 +72,10 @@ abstract class Controller extends LaravelController
     protected function respondWithEventStream(callable $callback, int $interval = 1, HttpStatus $status = HttpStatus::OK, array $headers = []): StreamedResponse
     {
         $headers = array_merge($headers, [
-            'Cache-Control' => 'no-cache',
-            'Content-Type'  => 'text/event-stream'
+            'Content-Type'      => 'text/event-stream',
+            'Cache-Control'     => 'no-cache, no-transform',
+            'Connection'        => 'keep-alive',
+            'X-Accel-Buffering' => 'no'
         ]);
 
         return Response::stream(function () use ($callback, $interval) {
