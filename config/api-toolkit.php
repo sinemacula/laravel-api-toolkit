@@ -216,15 +216,7 @@ return [
     'logging' => [
 
         'cloudwatch' => [
-            'enabled'     => env('ENABLE_CLOUDWATCH_LOGGING', false),
-            'region'      => env('AWS_DEFAULT_REGION', 'us-east-1'),
-            'credentials' => [
-                'key'    => env('AWS_ACCESS_KEY_ID'),
-                'secret' => env('AWS_SECRET_ACCESS_KEY')
-            ],
-            'log_group'   => env('CLOUDWATCH_LOG_GROUP', 'laravel-logs'),
-            'batch_size'  => env('CLOUDWATCH_BATCH_SIZE', 1000),
-            'retention'   => env('CLOUDWATCH_RETENTION_DAYS', 365)
+            'enabled' => env('ENABLE_CLOUDWATCH_LOGGING', false)
         ]
 
     ]
