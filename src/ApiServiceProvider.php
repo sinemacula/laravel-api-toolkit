@@ -5,6 +5,7 @@ namespace SineMacula\ApiToolkit;
 use Illuminate\Contracts\Http\Kernel;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Foundation\Http\Middleware\PreventRequestsDuringMaintenance as LaravelPreventRequestsDuringMaintenance;
+use Illuminate\Log\LogManager;
 use Illuminate\Notifications\Events\NotificationSending;
 use Illuminate\Notifications\Events\NotificationSent;
 use Illuminate\Routing\Router;
@@ -18,6 +19,7 @@ use SineMacula\ApiToolkit\Http\Middleware\PreventRequestsDuringMaintenance;
 use SineMacula\ApiToolkit\Http\Middleware\ThrottleRequests;
 use SineMacula\ApiToolkit\Http\Middleware\ThrottleRequestsWithRedis;
 use SineMacula\ApiToolkit\Listeners\NotificationListener;
+use SineMacula\ApiToolkit\Logging\CloudWatchLogger;
 
 /**
  * API service provider.
@@ -40,6 +42,7 @@ class ApiServiceProvider extends ServiceProvider
         $this->registerExportMacros();
         $this->registerStreamMacros();
         $this->registerMiddleware();
+        $this->registerCloudwatchLogger();
         $this->registerNotificationLogging();
     }
 
@@ -52,6 +55,10 @@ class ApiServiceProvider extends ServiceProvider
     {
         $this->mergeConfigFrom(
             __DIR__ . '/../config/api-toolkit.php', 'api-toolkit'
+        );
+
+        $this->mergeConfigFrom(
+            __DIR__ . '/../config/logging.php', 'logging'
         );
 
         $this->registerQueryParser();
@@ -203,6 +210,16 @@ class ApiServiceProvider extends ServiceProvider
         return Config::get('cache.default') !== 'redis'
             ? ThrottleRequests::class
             : ThrottleRequestsWithRedis::class;
+    }
+
+    /**
+     * Register the Cloudwatch logger driver.
+     *
+     * @return void
+     */
+    private function registerCloudwatchLogger(): void
+    {
+        $this->app->make(LogManager::class)->extend('cloudwatch', fn ($app, array $config) => (new CloudWatchLogger)->__invoke($config));
     }
 
     /**
