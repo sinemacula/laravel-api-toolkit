@@ -146,6 +146,7 @@ abstract class ApiRepository extends Repository
 
         foreach ($this->buffer as ['model' => $model, 'sync' => $sync]) {
             foreach ($sync as $relation => $value) {
+                $model->{Str::camel($relation)}()->sync($values, $detaching);
                 $this->setAttribute($model, $relation, $value, 'sync');
             }
         }
@@ -161,6 +162,18 @@ abstract class ApiRepository extends Repository
     public function clear(): void
     {
         $this->buffer = [];
+    }
+
+    /**
+     * Save the given model with the given attributes.
+     *
+     * @param  \Illuminate\Database\Eloquent\Model  $model
+     * @param  \Illuminate\Support\Collection|array  $attributes
+     * @return bool
+     */
+    public function save(Model $model, Collection|array $attributes): bool
+    {
+        //
     }
 
     /**
@@ -484,7 +497,7 @@ abstract class ApiRepository extends Repository
             $values = $value['values']->pluck('id');
         }
 
-        $values ??= $value;
+        $values    ??= $value;
         $detaching = $value['detaching'] ?? true;
 
         $model->{Str::camel($attribute)}()->sync($values, $detaching);
