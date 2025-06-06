@@ -48,6 +48,20 @@ trait EncryptedCast
     }
 
     /**
+     * Get the serialized representation of the value.
+     *
+     * @param  \Illuminate\Database\Eloquent\Model  $model
+     * @param  string  $key
+     * @param  mixed  $value
+     * @param  array<string, mixed>  $attributes
+     * @return array|null
+     */
+    public function serialize(Model $model, string $key, mixed $value, array $attributes): ?array
+    {
+        return !is_null($value) ? $value->toArray() : null;
+    }
+
+    /**
      * Generate a unique cache key for the model attribute.
      *
      * @param  \Illuminate\Database\Eloquent\Model  $model
@@ -72,19 +86,5 @@ trait EncryptedCast
         return Cache::rememberForever($this->getCacheKey($model, $key), function () use ($value) {
             return json_decode(Crypt::decryptString($value), false);
         });
-    }
-
-    /**
-     * Get the serialized representation of the value.
-     *
-     * @param  \Illuminate\Database\Eloquent\Model  $model
-     * @param  string  $key
-     * @param  mixed  $value
-     * @param  array<string, mixed>  $attributes
-     * @return array|null
-     */
-    public function serialize(Model $model, string $key, mixed $value, array $attributes): ?array
-    {
-        return !is_null($value) ? $value->toArray() : null;
     }
 }
