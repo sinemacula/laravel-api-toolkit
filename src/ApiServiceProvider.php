@@ -57,7 +57,7 @@ class ApiServiceProvider extends ServiceProvider
             __DIR__ . '/../config/api-toolkit.php', 'api-toolkit'
         );
 
-        $this->mergeConfigFrom(
+        $this->replaceConfigRecursivelyFrom(
             __DIR__ . '/../config/logging.php', 'logging'
         );
 
