@@ -39,6 +39,7 @@ class ApiServiceProvider extends ServiceProvider
         $this->loadTranslationFiles();
         $this->offerPublishing();
         $this->registerMorphMap();
+        $this->registerTrashedMacros();
         $this->registerExportMacros();
         $this->registerStreamMacros();
         $this->registerMiddleware();
@@ -129,6 +130,22 @@ class ApiServiceProvider extends ServiceProvider
             ->all();
 
         Relation::enforceMorphMap($map);
+    }
+
+    /**
+     * Register the trashed macros to the Request facade.
+     *
+     * @return void
+     */
+    private function registerTrashedMacros(): void
+    {
+        Request::macro('includeTrashed', function () {
+            return $this->get('include_trashed', false) === 'true';
+        });
+
+        Request::macro('onlyTrashed', function () {
+            return $this->get('only_trashed', false) === 'true';
+        });
     }
 
     /**
