@@ -152,61 +152,103 @@ class ApiCriteria implements CriteriaInterface
      */
     protected function applyEagerLoading(Builder $query): Builder
     {
-        $model    = $query->getModel();
-        $resource = $this->getResourceFromModel($model);
-
-        if (!$resource) {
+        $model = $query->getModel();
+        $resource_class = $this->getResourceFromModel($model);
+        if (!$resource_class) {
             return $query;
         }
 
-        $resource_type = $resource::getResourceType();
-        $fields        = ApiQuery::getFields($resource_type) ?? $resource::getDefaultFields();
-
-        if (empty($fields)) {
+        // Get eager load config repo from container with fallback
+        try {
+            $config_repo = app(\SineMacula\ApiToolkit\Repositories\Contracts\EagerLoadConfigRepositoryInterface::class);
+            $relations = $config_repo->getRelationsFor($resource_class);
+        } catch (\Illuminate\Contracts\Container\BindingResolutionException $e) {
+            // Fallback configuration if provider is not loaded
+            $relations = $this->getFallbackEagerLoadConfig($resource_class);
+        }
+        
+        if (empty($relations)) {
             return $query;
         }
 
-        $morphTo_relations = [];
-        $regular_relations = [];
+        // Get resolvers from container
+        $resolvers = app('relation.resolvers', []);
+        $eloquent_relations = [];
 
-        foreach ($fields as $field) {
-
-            if (!$this->isRelation($field, $model)) {
-                continue;
-            }
-
-            try {
-                $relation = $model->{$field}();
-
-                if ($relation instanceof MorphTo) {
-                    $morphTo_relations[] = $field;
-                } else {
-                    $regular_relations[] = $field;
+        foreach ($relations as $relation) {
+            // Handle array config (like settings with 'with' relations)
+            if (is_array($relation)) {
+                $relation_name = $relation['relation'] ?? null;
+                if (!$relation_name) {
+                    continue;
                 }
 
-            } catch (Throwable $e) {
-                continue;
+                // Try to resolve via a registered resolver first
+                $resolved = false;
+                foreach ($resolvers as $resolver) {
+                    if ($resolver instanceof \SineMacula\ApiToolkit\Repositories\Contracts\RelationResolverInterface && $resolver->supports($relation_name, $model)) {
+                        $resolver->resolve($relation_name, $model);
+                        $resolved = true;
+                        break;
+                    }
+                }
+
+                // If not resolved by resolver, check if it's a standard Eloquent relation
+                if (!$resolved && method_exists($model, $relation_name)) {
+                    try {
+                        $eloquent_relation = $model->{$relation_name}();
+                        if ($eloquent_relation instanceof \Illuminate\Database\Eloquent\Relations\Relation) {
+                            // Handle MorphTo relations specially
+                            if ($eloquent_relation instanceof MorphTo) {
+                                // MorphTo relations need special handling - add without nested relations
+                                $eloquent_relations[] = $relation_name;
+                            } else {
+                                // Regular relation - can handle 'with' sub-relations
+                                $with_relations = $relation['with'] ?? [];
+                                if (!empty($with_relations)) {
+                                    $eloquent_relations[$relation_name] = function($query) use ($with_relations) {
+                                        $query->with($with_relations);
+                                    };
+                                } else {
+                                    $eloquent_relations[] = $relation_name;
+                                }
+                            }
+                        }
+                    } catch (\Throwable $e) {
+                        // Relation doesn't exist or has issues
+                    }
+                }
+            } else {
+                // Handle string relation
+                if (method_exists($model, $relation)) {
+                    try {
+                        $eloquent_relation = $model->{$relation}();
+                        if ($eloquent_relation instanceof \Illuminate\Database\Eloquent\Relations\Relation) {
+                            // Handle MorphTo relations specially
+                            if ($eloquent_relation instanceof MorphTo) {
+                                $eloquent_relations[] = $relation;
+                            } else {
+                                $eloquent_relations[] = $relation;
+                            }
+                        }
+                    } catch (\Throwable $e) {
+                        // Relation doesn't exist or has issues
+                    }
+                } else {
+                    // Try to resolve via a registered resolver
+                    foreach ($resolvers as $resolver) {
+                        if ($resolver instanceof \SineMacula\ApiToolkit\Repositories\Contracts\RelationResolverInterface && $resolver->supports($relation, $model)) {
+                            $resolver->resolve($relation, $model);
+                            break;
+                        }
+                    }
+                }
             }
         }
 
-        if (!empty($regular_relations)) {
-
-            $eager_load_structure = $this->getEagerLoadStructure($model, $regular_relations);
-            $eager_loads          = $this->generateEagerLoads($eager_load_structure);
-
-            if (!empty($eager_loads)) {
-                $query->with($eager_loads);
-            }
+        if (!empty($eloquent_relations)) {
+            $query->with($eloquent_relations);
         }
-
-        if (!empty($morphTo_relations)) {
-            foreach ($morphTo_relations as $relation) {
-                $query->with([
-                    $relation => function ($q) {}
-                ]);
-            }
-        }
-
         return $query;
     }
 
@@ -875,5 +917,49 @@ class ApiCriteria implements CriteriaInterface
 
                 return $carry;
             }, []);
+    }
+
+    /**
+     * Get fallback eager loading configuration when provider is not available.
+     *
+     * @param  string  $resource_class
+     * @return array
+     */
+    protected function getFallbackEagerLoadConfig(string $resource_class): array
+    {
+        // Fallback configuration focused on settings eager loading
+        $config = [
+            // ApplicationResource - Essential relations only
+            '\\Verifast\\Applications\\Http\\Resources\\ApplicationResource' => [
+                // Core relations that ApplicationResource actually uses
+                'workflow',
+                'organization',
+                'flags',
+                'portfolio',
+                // Settings eager loading - THE MAIN FOCUS
+                [
+                    'relation' => 'settings',
+                    'type' => 'all',
+                    'with' => ['values', 'option'],
+                ],
+            ],
+            
+            // WorkflowResource - Minimal config for settings
+            '\\Verifast\\Applications\\Http\\Resources\\Workflows\\WorkflowResource' => [
+                // Only essential relations that WorkflowResource uses
+                'organization',
+                'restrictions',
+                'steps',
+                'paths',
+                // Settings eager loading
+                [
+                    'relation' => 'settings',
+                    'type' => 'all',
+                    'with' => ['values', 'option'],
+                ],
+            ],
+        ];
+
+        return $config[$resource_class] ?? [];
     }
 }
