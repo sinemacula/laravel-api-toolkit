@@ -152,7 +152,7 @@ class ApiCriteria implements CriteriaInterface
      */
     protected function applyEagerLoading(Builder $query): Builder
     {
-        $model = $query->getModel();
+        $model          = $query->getModel();
         $resource_class = $this->getResourceFromModel($model);
         if (!$resource_class) {
             return $query;
@@ -161,18 +161,18 @@ class ApiCriteria implements CriteriaInterface
         // Get eager load config repo from container with fallback
         try {
             $config_repo = app(\SineMacula\ApiToolkit\Repositories\Contracts\EagerLoadConfigRepositoryInterface::class);
-            $relations = $config_repo->getRelationsFor($resource_class);
+            $relations   = $config_repo->getRelationsFor($resource_class);
         } catch (\Illuminate\Contracts\Container\BindingResolutionException $e) {
             // Fallback configuration if provider is not loaded
             $relations = $this->getFallbackEagerLoadConfig($resource_class);
         }
-        
+
         if (empty($relations)) {
             return $query;
         }
 
         // Get resolvers from container
-        $resolvers = app('relation.resolvers', []);
+        $resolvers          = app('relation.resolvers', []);
         $eloquent_relations = [];
 
         foreach ($relations as $relation) {
@@ -206,7 +206,7 @@ class ApiCriteria implements CriteriaInterface
                                 // Regular relation - can handle 'with' sub-relations
                                 $with_relations = $relation['with'] ?? [];
                                 if (!empty($with_relations)) {
-                                    $eloquent_relations[$relation_name] = function($query) use ($with_relations) {
+                                    $eloquent_relations[$relation_name] = function ($query) use ($with_relations) {
                                         $query->with($with_relations);
                                     };
                                 } else {
@@ -249,6 +249,7 @@ class ApiCriteria implements CriteriaInterface
         if (!empty($eloquent_relations)) {
             $query->with($eloquent_relations);
         }
+
         return $query;
     }
 
@@ -482,6 +483,50 @@ class ApiCriteria implements CriteriaInterface
         }
 
         return $query;
+    }
+
+    /**
+     * Get fallback eager loading configuration when provider is not available.
+     *
+     * @param  string  $resource_class
+     * @return array
+     */
+    protected function getFallbackEagerLoadConfig(string $resource_class): array
+    {
+        // Fallback configuration focused on settings eager loading
+        $config = [
+            // ApplicationResource - Essential relations only
+            '\\Verifast\\Applications\\Http\\Resources\\ApplicationResource' => [
+                // Core relations that ApplicationResource actually uses
+                'workflow',
+                'organization',
+                'flags',
+                'portfolio',
+                // Settings eager loading - THE MAIN FOCUS
+                [
+                    'relation' => 'settings',
+                    'type'     => 'all',
+                    'with'     => ['values', 'option'],
+                ],
+            ],
+
+            // WorkflowResource - Minimal config for settings
+            '\\Verifast\\Applications\\Http\\Resources\\Workflows\\WorkflowResource' => [
+                // Only essential relations that WorkflowResource uses
+                'organization',
+                'restrictions',
+                'steps',
+                'paths',
+                // Settings eager loading
+                [
+                    'relation' => 'settings',
+                    'type'     => 'all',
+                    'with'     => ['values', 'option'],
+                ],
+            ],
+        ];
+
+        return $config[$resource_class] ?? [];
     }
 
     /**
@@ -917,49 +962,5 @@ class ApiCriteria implements CriteriaInterface
 
                 return $carry;
             }, []);
-    }
-
-    /**
-     * Get fallback eager loading configuration when provider is not available.
-     *
-     * @param  string  $resource_class
-     * @return array
-     */
-    protected function getFallbackEagerLoadConfig(string $resource_class): array
-    {
-        // Fallback configuration focused on settings eager loading
-        $config = [
-            // ApplicationResource - Essential relations only
-            '\\Verifast\\Applications\\Http\\Resources\\ApplicationResource' => [
-                // Core relations that ApplicationResource actually uses
-                'workflow',
-                'organization',
-                'flags',
-                'portfolio',
-                // Settings eager loading - THE MAIN FOCUS
-                [
-                    'relation' => 'settings',
-                    'type' => 'all',
-                    'with' => ['values', 'option'],
-                ],
-            ],
-            
-            // WorkflowResource - Minimal config for settings
-            '\\Verifast\\Applications\\Http\\Resources\\Workflows\\WorkflowResource' => [
-                // Only essential relations that WorkflowResource uses
-                'organization',
-                'restrictions',
-                'steps',
-                'paths',
-                // Settings eager loading
-                [
-                    'relation' => 'settings',
-                    'type' => 'all',
-                    'with' => ['values', 'option'],
-                ],
-            ],
-        ];
-
-        return $config[$resource_class] ?? [];
     }
 }
