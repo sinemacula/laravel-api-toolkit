@@ -21,6 +21,54 @@ use SineMacula\Exporter\Facades\Exporter;
 trait RespondsWithExport
 {
     /**
+     * Export the given array.
+     *
+     * @param  array  $data
+     * @param  bool  $download
+     * @return \Illuminate\Http\Response
+     */
+    public function exportFromArray(array $data, bool $download = true): HttpResponse
+    {
+        return match (true) {
+            Request::expectsCsv() => $this->exportArrayToCsv($data, $download),
+            Request::expectsXml() => $this->exportArrayToXml($data, $download),
+            default               => throw new InvalidArgumentException('Unsupported export format'),
+        };
+    }
+
+    /**
+     * Export the given array to CSV.
+     *
+     * @param  array  $data
+     * @param  bool  $download
+     * @return \Illuminate\Http\Response
+     */
+    public function exportArrayToCsv(array $data, bool $download = true): HttpResponse
+    {
+        $csv = Exporter::format('csv')
+            ->withoutFields(config('api-toolkit.exports.ignored_fields', []))
+            ->exportArray($data);
+
+        return $this->createExportResponse($csv, 'text/csv', $download, 'export.csv');
+    }
+
+    /**
+     * Export the given array to XML.
+     *
+     * @param  array  $data
+     * @param  bool  $download
+     * @return \Illuminate\Http\Response
+     */
+    public function exportArrayToXml(array $data, bool $download = true): HttpResponse
+    {
+        $xml = Exporter::format('xml')
+            ->withoutFields(config('api-toolkit.exports.ignored_fields', []))
+            ->exportArray($data);
+
+        return $this->createExportResponse($xml, 'application/xml', $download, 'export.xml');
+    }
+
+    /**
      * Export the given collection.
      *
      * @param  \Illuminate\Http\Resources\Json\ResourceCollection  $collection
