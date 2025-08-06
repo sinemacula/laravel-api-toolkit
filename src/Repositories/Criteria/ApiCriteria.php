@@ -165,7 +165,7 @@ class ApiCriteria implements CriteriaInterface
 
         // Automatically detect additional relations used in toArray() but not in $default
         $additional_relations = $this->detectAdditionalRelations($resource, $model);
-        $fields = array_unique(array_merge($fields, $additional_relations));
+        $fields               = array_unique(array_merge($fields, $additional_relations));
 
         if (empty($fields)) {
             return $query;
@@ -265,7 +265,7 @@ class ApiCriteria implements CriteriaInterface
 
             // Automatically detect additional relations used in toArray() but not in $default
             $additional_relations = $this->detectAdditionalRelations($resource, $related_model);
-            $related_fields = array_unique(array_merge($related_fields, $additional_relations));
+            $related_fields       = array_unique(array_merge($related_fields, $additional_relations));
 
             if (empty($related_fields)) {
                 $structure[] = $field;
@@ -449,6 +449,75 @@ class ApiCriteria implements CriteriaInterface
         }
 
         return $query;
+    }
+
+    /**
+     * Detect additional relations used in resource toArray() method but not in $default fields.
+     *
+     * @param  string  $resource_class
+     * @param  \Illuminate\Database\Eloquent\Model  $model
+     * @return array
+     */
+    protected function detectAdditionalRelations(string $resource_class, Model $model): array
+    {
+        try {
+            $reflection = new \ReflectionClass($resource_class);
+
+            if (!$reflection->hasMethod('toArray')) {
+                return [];
+            }
+
+            $method     = $reflection->getMethod('toArray');
+            $filename   = $method->getFileName();
+            $start_line = $method->getStartLine();
+            $end_line   = $method->getEndLine();
+
+            if (!$filename || !$start_line || !$end_line) {
+                return [];
+            }
+
+            // Read the method source code
+            $file_lines    = file($filename);
+            $method_lines  = array_slice($file_lines, $start_line - 1, $end_line - $start_line + 1);
+            $method_source = implode('', $method_lines);
+
+            // Find all $this->relationName patterns
+            preg_match_all('/\$this->([a-zA-Z_][a-zA-Z0-9_]*)/', $method_source, $matches);
+
+            if (empty($matches[1])) {
+                return [];
+            }
+
+            $potential_relations = array_unique($matches[1]);
+            $actual_relations    = [];
+
+            // Validate that these are actual relations on the model
+            foreach ($potential_relations as $relation_name) {
+                if ($this->isRelation($relation_name, $model)) {
+                    $actual_relations[] = $relation_name;
+                }
+            }
+
+            // Get current default fields to avoid duplicates
+            $default_fields = $resource_class::getDefaultFields();
+
+            // Return only relations not already in default fields
+            $additional_relations = array_diff($actual_relations, $default_fields);
+
+            \Log::info('ApiCriteria: Detected additional relations', [
+                'resource_class'       => $resource_class,
+                'potential_relations'  => $potential_relations,
+                'actual_relations'     => $actual_relations,
+                'default_fields'       => $default_fields,
+                'additional_relations' => $additional_relations
+            ]);
+
+            return $additional_relations;
+
+        } catch (\Throwable $e) {
+            // If anything fails, return empty array to avoid breaking the system
+            return [];
+        }
     }
 
     /**
@@ -884,74 +953,5 @@ class ApiCriteria implements CriteriaInterface
 
                 return $carry;
             }, []);
-    }
-
-    /**
-     * Detect additional relations used in resource toArray() method but not in $default fields.
-     *
-     * @param  string  $resource_class
-     * @param  \Illuminate\Database\Eloquent\Model  $model
-     * @return array
-     */
-    protected function detectAdditionalRelations(string $resource_class, Model $model): array
-    {
-        try {
-            $reflection = new \ReflectionClass($resource_class);
-            
-            if (!$reflection->hasMethod('toArray')) {
-                return [];
-            }
-
-            $method = $reflection->getMethod('toArray');
-            $filename = $method->getFileName();
-            $start_line = $method->getStartLine();
-            $end_line = $method->getEndLine();
-
-            if (!$filename || !$start_line || !$end_line) {
-                return [];
-            }
-
-            // Read the method source code
-            $file_lines = file($filename);
-            $method_lines = array_slice($file_lines, $start_line - 1, $end_line - $start_line + 1);
-            $method_source = implode('', $method_lines);
-
-            // Find all $this->relationName patterns
-            preg_match_all('/\$this->([a-zA-Z_][a-zA-Z0-9_]*)/', $method_source, $matches);
-            
-            if (empty($matches[1])) {
-                return [];
-            }
-
-            $potential_relations = array_unique($matches[1]);
-            $actual_relations = [];
-
-            // Validate that these are actual relations on the model
-            foreach ($potential_relations as $relation_name) {
-                if ($this->isRelation($relation_name, $model)) {
-                    $actual_relations[] = $relation_name;
-                }
-            }
-
-            // Get current default fields to avoid duplicates
-            $default_fields = $resource_class::getDefaultFields();
-            
-            // Return only relations not already in default fields
-            $additional_relations = array_diff($actual_relations, $default_fields);
-            
-            \Log::info('ApiCriteria: Detected additional relations', [
-                'resource_class' => $resource_class,
-                'potential_relations' => $potential_relations,
-                'actual_relations' => $actual_relations,
-                'default_fields' => $default_fields,
-                'additional_relations' => $additional_relations
-            ]);
-            
-            return $additional_relations;
-            
-        } catch (\Throwable $e) {
-            // If anything fails, return empty array to avoid breaking the system
-            return [];
-        }
     }
 }
