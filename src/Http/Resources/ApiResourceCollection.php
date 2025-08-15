@@ -29,7 +29,8 @@ class ApiResourceCollection extends AnonymousResourceCollection
     /**
      * Transform the resource collection into an array.
      *
-     * @param  \Illuminate\Http\Request  $request
+     * @param \Illuminate\Http\Request $request
+     *
      * @return array
      */
     public function toArray(Request $request): array
@@ -43,7 +44,8 @@ class ApiResourceCollection extends AnonymousResourceCollection
      * Overrides the default fields and any requested fields with a provided
      * set.
      *
-     * @param  array|null  $fields
+     * @param array|null $fields
+     *
      * @return static
      */
     public function withFields(?array $fields = null): static
@@ -56,7 +58,8 @@ class ApiResourceCollection extends AnonymousResourceCollection
     /**
      * Removes certain fields from the response.
      *
-     * @param  array|null  $fields
+     * @param array|null $fields
+     *
      * @return static
      */
     public function withoutFields(?array $fields = null): static
@@ -69,8 +72,9 @@ class ApiResourceCollection extends AnonymousResourceCollection
     /**
      * Customize the response for a request.
      *
-     * @param  \Illuminate\Http\Request  $request
-     * @param  \Illuminate\Http\JsonResponse  $response
+     * @param \Illuminate\Http\Request      $request
+     * @param \Illuminate\Http\JsonResponse $response
+     *
      * @return void
      */
     public function withResponse(Request $request, JsonResponse $response): void
@@ -83,9 +87,10 @@ class ApiResourceCollection extends AnonymousResourceCollection
     /**
      * Customize the pagination information for the resource.
      *
-     * @param  \Illuminate\Http\Request  $request
-     * @param  array  $paginated
-     * @param  array  $default
+     * @param \Illuminate\Http\Request $request
+     * @param array                    $paginated
+     * @param array                    $default
+     *
      * @return array
      */
     public function paginationInformation(Request $request, array $paginated, array $default): array
@@ -93,14 +98,14 @@ class ApiResourceCollection extends AnonymousResourceCollection
         if ($this->resource instanceof LengthAwarePaginator) {
             return [
                 'meta'  => $this->buildPaginationMeta($this->resource),
-                'links' => $this->buildPaginationLinks($this->resource)
+                'links' => $this->buildPaginationLinks($this->resource),
             ];
         }
 
         if ($this->resource instanceof CursorPaginator) {
             return [
                 'meta'  => $this->buildCursorPaginationMeta($this->resource),
-                'links' => $this->buildCursorPaginationLinks($this->resource)
+                'links' => $this->buildCursorPaginationLinks($this->resource),
             ];
         }
 
@@ -110,7 +115,8 @@ class ApiResourceCollection extends AnonymousResourceCollection
     /**
      * Build the meta for the paginated response.
      *
-     * @param  \Illuminate\Contracts\Pagination\LengthAwarePaginator  $paginator
+     * @param \Illuminate\Contracts\Pagination\LengthAwarePaginator $paginator
+     *
      * @return array
      */
     private function buildPaginationMeta(LengthAwarePaginator $paginator): array
@@ -118,14 +124,15 @@ class ApiResourceCollection extends AnonymousResourceCollection
         return [
             'total'    => $paginator->total(),
             'count'    => count($paginator->items()),
-            'continue' => $paginator->hasMorePages()
+            'continue' => $paginator->hasMorePages(),
         ];
     }
 
     /**
      * Build the links for the paginated response.
      *
-     * @param  \Illuminate\Contracts\Pagination\LengthAwarePaginator  $paginator
+     * @param \Illuminate\Contracts\Pagination\LengthAwarePaginator $paginator
+     *
      * @return array
      */
     private function buildPaginationLinks(LengthAwarePaginator $paginator): array
@@ -135,27 +142,29 @@ class ApiResourceCollection extends AnonymousResourceCollection
             'first' => $paginator->url(1),
             'prev'  => $paginator->previousPageUrl(),
             'next'  => $paginator->nextPageUrl(),
-            'last'  => $paginator->url($paginator->lastPage())
+            'last'  => $paginator->url($paginator->lastPage()),
         ];
     }
 
     /**
      * Build the meta for cursor-based pagination.
      *
-     * @param  \Illuminate\Contracts\Pagination\CursorPaginator  $paginator
+     * @param \Illuminate\Contracts\Pagination\CursorPaginator $paginator
+     *
      * @return array
      */
     private function buildCursorPaginationMeta(CursorPaginator $paginator): array
     {
         return [
-            'continue' => $paginator->hasMorePages()
+            'continue' => $paginator->hasMorePages(),
         ];
     }
 
     /**
      * Build the links for cursor-based pagination.
      *
-     * @param  \Illuminate\Contracts\Pagination\CursorPaginator  $paginator
+     * @param \Illuminate\Contracts\Pagination\CursorPaginator $paginator
+     *
      * @return array
      */
     private function buildCursorPaginationLinks(CursorPaginator $paginator): array

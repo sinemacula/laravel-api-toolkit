@@ -24,7 +24,8 @@ class ApiQueryParser
      * Returns a list of fields set with the URL modifiers.
      *  - e.g. ?fields['user']=first_name,last_name.
      *
-     * @param  string|null  $resource
+     * @param string|null $resource
+     *
      * @return array|null
      */
     public function getFields(?string $resource = null): ?array
@@ -96,7 +97,8 @@ class ApiQueryParser
     /**
      * Parse the given query string to obtain resource and value information.
      *
-     * @param  \Illuminate\Http\Request  $request
+     * @param \Illuminate\Http\Request $request
+     *
      * @return void
      */
     public function parse(Request $request): void
@@ -125,8 +127,9 @@ class ApiQueryParser
     /**
      * Extract the specified parameter.
      *
-     * @param  string  $option
-     * @param  string|null  $resource
+     * @param string      $option
+     * @param string|null $resource
+     *
      * @return mixed
      */
     private function getParameters(string $option, ?string $resource = null): mixed
@@ -141,10 +144,11 @@ class ApiQueryParser
     /**
      * Validate the incoming request.
      *
-     * @param  array  $parameters
-     * @return void
+     * @param array $parameters
      *
      * @throws \Illuminate\Validation\ValidationException
+     *
+     * @return void
      */
     private function validate(array $parameters): void
     {
@@ -158,7 +162,8 @@ class ApiQueryParser
     /**
      * Extract the field parameters from the query string.
      *
-     * @param  array|string  $query
+     * @param array|string $query
+     *
      * @return array
      */
     private function parseFields(array|string $query): array
@@ -171,7 +176,8 @@ class ApiQueryParser
     /**
      * Extract the filter parameters from the query string.
      *
-     * @param  string  $query
+     * @param string $query
+     *
      * @return array
      */
     private function parseFilters(string $query): array
@@ -182,19 +188,20 @@ class ApiQueryParser
     /**
      * Extract the order parameters from the query string.
      *
-     * @param  string  $query
+     * @param string $query
+     *
      * @return array
      */
     private function parseOrder(string $query): array
     {
-        $order  = [];
+        $order = [];
         $fields = explode(',', $query);
 
         if (!empty(array_filter($fields))) {
             foreach ($fields as $field) {
-                $order_parts    = explode(':', $field, 2);
-                $column         = $order_parts[0];
-                $direction      = $order_parts[1] ?? 'asc';
+                $order_parts = explode(':', $field, 2);
+                $column = $order_parts[0];
+                $direction = $order_parts[1] ?? 'asc';
                 $order[$column] = $direction;
             }
         }
@@ -205,7 +212,8 @@ class ApiQueryParser
     /**
      * Build the validation rules from the given parameters.
      *
-     * @param  array  $parameters
+     * @param array $parameters
+     *
      * @return array
      */
     private function buildValidationRulesFromParameters(array $parameters): array
@@ -216,11 +224,11 @@ class ApiQueryParser
             'order'   => 'string',
             'page'    => 'integer|min:1',
             'limit'   => 'integer|min:1',
-            'cursor'  => 'string'
+            'cursor'  => 'string',
         ];
 
         if (isset($parameters['fields']) && is_array($parameters['fields'])) {
-            $rules['fields']   = 'array';
+            $rules['fields'] = 'array';
             $rules['fields.*'] = 'string';
         }
 

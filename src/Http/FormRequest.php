@@ -17,10 +17,11 @@ abstract class FormRequest extends LaravelFormRequest
     /**
      * Handle a failed validation attempt.
      *
-     * @param  \Illuminate\Contracts\Validation\Validator  $validator
-     * @return void
+     * @param \Illuminate\Contracts\Validation\Validator $validator
      *
      * @throws \SineMacula\ApiToolkit\Exceptions\ApiException
+     *
+     * @return void
      */
     protected function failedValidation(Validator $validator): void
     {

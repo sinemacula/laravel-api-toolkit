@@ -32,10 +32,11 @@ class RepositoryResolver
     /**
      * Resolve a repository instance dynamically.
      *
-     * @param  string  $name
-     * @return \SineMacula\Repositories\Contracts\RepositoryInterface
+     * @param string $name
      *
      * @throws RuntimeException
+     *
+     * @return \SineMacula\Repositories\Contracts\RepositoryInterface
      */
     public static function get(string $name): RepositoryInterface
     {
@@ -49,7 +50,8 @@ class RepositoryResolver
     /**
      * Check if a repository exists.
      *
-     * @param  string  $name
+     * @param string $name
+     *
      * @return bool
      */
     public static function has(string $name): bool
@@ -60,13 +62,14 @@ class RepositoryResolver
     /**
      * Register a new repository dynamically.
      *
-     * @param  string  $key
-     * @param  string  $class
+     * @param string $key
+     * @param string $class
+     *
      * @return void
      */
     public static function register(string $key, string $class): void
     {
-        config()->set('api-toolkit.repositories.repository_map.' . $key, $class);
+        config()->set('api-toolkit.repositories.repository_map.'.$key, $class);
 
         self::$map = config('api-toolkit.repositories.repository_map', []);
 

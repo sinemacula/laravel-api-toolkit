@@ -21,7 +21,8 @@ trait InteractsWithModelSchema
     /**
      * Get the database columns associated with the given model.
      *
-     * @param  \Illuminate\Database\Eloquent\Model  $model
+     * @param \Illuminate\Database\Eloquent\Model $model
+     *
      * @return array
      */
     private function getColumnsFromModel(Model $model): array
@@ -32,7 +33,8 @@ trait InteractsWithModelSchema
     /**
      * Resolve the columns associated with the given model.
      *
-     * @param  \Illuminate\Database\Eloquent\Model  $model
+     * @param \Illuminate\Database\Eloquent\Model $model
+     *
      * @return array
      */
     private function resolveColumnsFromModel(Model $model): array
@@ -51,7 +53,8 @@ trait InteractsWithModelSchema
     /**
      * Resolve the columns from the cache.
      *
-     * @param  \Illuminate\Database\Eloquent\Model  $model
+     * @param \Illuminate\Database\Eloquent\Model $model
+     *
      * @return array
      */
     private function resolveColumnsFromCacheForModel(Model $model): array
@@ -62,8 +65,9 @@ trait InteractsWithModelSchema
     /**
      * Store the columns in the cache for the given model.
      *
-     * @param  array  $columns
-     * @param  \Illuminate\Database\Eloquent\Model  $model
+     * @param array                               $columns
+     * @param \Illuminate\Database\Eloquent\Model $model
+     *
      * @return void
      */
     private function storeColumnsInCacheForModel(array $columns, Model $model): void

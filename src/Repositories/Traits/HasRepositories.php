@@ -22,11 +22,12 @@ trait HasRepositories
      * Magic method to dynamically call repository accessors while allowing
      * other `__call` methods to work.
      *
-     * @param  string  $method
-     * @param  array  $arguments
-     * @return mixed
+     * @param string $method
+     * @param array  $arguments
      *
      * @throws Exception
+     *
+     * @return mixed
      */
     public function __call(string $method, array $arguments): mixed
     {
@@ -50,10 +51,11 @@ trait HasRepositories
     /**
      * Resolve the repository dynamically based on the method name.
      *
-     * @param  string  $repository
-     * @return mixed
+     * @param string $repository
      *
      * @throws Exception
+     *
+     * @return mixed
      */
     protected function resolveRepository(string $repository): RepositoryInterface
     {

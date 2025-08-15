@@ -41,7 +41,8 @@ class ApiExceptionHandler
     /**
      * Convenience method to register the various exception handler controls.
      *
-     * @param  \Illuminate\Foundation\Configuration\Exceptions  $exceptions
+     * @param \Illuminate\Foundation\Configuration\Exceptions $exceptions
+     *
      * @return void
      */
     public static function handles(Exceptions $exceptions): void
@@ -56,8 +57,9 @@ class ApiExceptionHandler
     /**
      * Renders the given exception as an HTTP response.
      *
-     * @param  Throwable  $exception
-     * @param  \Illuminate\Http\Request  $request
+     * @param Throwable                $exception
+     * @param \Illuminate\Http\Request $request
+     *
      * @return \Symfony\Component\HttpFoundation\Response|null
      */
     private static function render(Throwable $exception, Request $request): ?JsonResponse
@@ -82,13 +84,14 @@ class ApiExceptionHandler
     /**
      * Maps standard exceptions to custom API exceptions.
      *
-     * @param  Throwable  $exception
+     * @param Throwable $exception
+     *
      * @return \SineMacula\ApiToolkit\Exceptions\ApiException
      */
     private static function mapApiException(Throwable $exception): ApiException
     {
         $headers = method_exists($exception, 'getHeaders') ? $exception->getHeaders() : [];
-        $meta    = method_exists($exception, 'errors') ? $exception->errors() : null;
+        $meta = method_exists($exception, 'errors') ? $exception->errors() : null;
 
         $previous = is_a($exception, ValidationException::class) ? null : $exception;
 
@@ -116,8 +119,9 @@ class ApiExceptionHandler
     /**
      * Renders an API exception as a JSON response.
      *
-     * @param  \Illuminate\Http\Request  $request
-     * @param  \SineMacula\ApiToolkit\Exceptions\ApiException  $exception
+     * @param \Illuminate\Http\Request                       $request
+     * @param \SineMacula\ApiToolkit\Exceptions\ApiException $exception
+     *
      * @return \Illuminate\Http\JsonResponse
      */
     private static function renderApiExceptionWithJson(Request $request, ApiException $exception): JsonResponse
@@ -130,7 +134,8 @@ class ApiExceptionHandler
     /**
      * Convert the given API exception to an array.
      *
-     * @param  \SineMacula\ApiToolkit\Exceptions\ApiException  $exception
+     * @param \SineMacula\ApiToolkit\Exceptions\ApiException $exception
+     *
      * @return array
      */
     private static function convertApiExceptionToArray(ApiException $exception): array
@@ -141,15 +146,16 @@ class ApiExceptionHandler
                 'code'   => $exception->getInternalErrorCode(),
                 'title'  => $exception->getCustomTitle(),
                 'detail' => $exception->getCustomDetail(),
-                'meta'   => self::getApiExceptionMeta($exception)
-            ])
+                'meta'   => self::getApiExceptionMeta($exception),
+            ]),
         ];
     }
 
     /**
      * Extracts meta information for an API exception.
      *
-     * @param  \SineMacula\ApiToolkit\Exceptions\ApiException  $exception
+     * @param \SineMacula\ApiToolkit\Exceptions\ApiException $exception
+     *
      * @return array|null
      */
     private static function getApiExceptionMeta(ApiException $exception): ?array
@@ -161,14 +167,15 @@ class ApiExceptionHandler
             'exception' => $previous::class,
             'file'      => $previous->getFile(),
             'line'      => $previous->getLine(),
-            'trace'     => collect($previous->getTrace())->map(fn ($trace) => Arr::except($trace, ['args']))->all()
+            'trace'     => collect($previous->getTrace())->map(fn ($trace) => Arr::except($trace, ['args']))->all(),
         ]) : $exception->getCustomMeta();
     }
 
     /**
      * Log the given API exception.
      *
-     * @param  \SineMacula\ApiToolkit\Exceptions\ApiException  $exception
+     * @param \SineMacula\ApiToolkit\Exceptions\ApiException $exception
+     *
      * @return void
      */
     private static function logApiException(ApiException $exception): void
@@ -183,7 +190,8 @@ class ApiExceptionHandler
     /**
      * Formats an exception into a string representation.
      *
-     * @param  Throwable  $exception
+     * @param Throwable $exception
+     *
      * @return string
      */
     private static function convertExceptionToString(Throwable $exception): string
@@ -207,13 +215,13 @@ class ApiExceptionHandler
         $context = [
             'method' => RequestFacade::method(),
             'path'   => RequestFacade::path(),
-            'data'   => RequestFacade::all()
+            'data'   => RequestFacade::all(),
         ];
 
         try {
             return array_filter(
                 array_merge($context, [
-                    'user_id' => Auth::id()
+                    'user_id' => Auth::id(),
                 ])
             );
         } catch (Throwable $exception) {

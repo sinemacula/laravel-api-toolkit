@@ -55,11 +55,13 @@ class ApiServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->mergeConfigFrom(
-            __DIR__ . '/../config/api-toolkit.php', 'api-toolkit'
+            __DIR__.'/../config/api-toolkit.php',
+            'api-toolkit'
         );
 
         $this->replaceConfigRecursivelyFrom(
-            __DIR__ . '/../config/logging.php', 'logging'
+            __DIR__.'/../config/logging.php',
+            'logging'
         );
 
         $this->registerQueryParser();
@@ -73,11 +75,12 @@ class ApiServiceProvider extends ServiceProvider
     private function loadTranslationFiles(): void
     {
         $this->loadTranslationsFrom(
-            __DIR__ . '/../resources/lang', 'api-toolkit'
+            __DIR__.'/../resources/lang',
+            'api-toolkit'
         );
 
         $this->publishes([
-            __DIR__ . '/../resources/lang' => resource_path('lang/vendor/api-toolkit')
+            __DIR__.'/../resources/lang' => resource_path('lang/vendor/api-toolkit'),
         ], 'translations');
     }
 
@@ -97,11 +100,11 @@ class ApiServiceProvider extends ServiceProvider
         }
 
         $this->publishes([
-            __DIR__ . '/../config/api-toolkit.php' => config_path('api-toolkit.php')
+            __DIR__.'/../config/api-toolkit.php' => config_path('api-toolkit.php'),
         ], 'config');
 
         $this->publishes([
-            __DIR__ . '/../stubs/logs-table.stub' => database_path('migrations/' . date('Y_m_d_His') . '_create_logs_table.php')
+            __DIR__.'/../stubs/logs-table.stub' => database_path('migrations/'.date('Y_m_d_His').'_create_logs_table.php'),
         ], 'migrations');
     }
 
@@ -120,7 +123,6 @@ class ApiServiceProvider extends ServiceProvider
 
         $map = collect($map)
             ->mapWithKeys(function ($resource, $model) {
-
                 if (method_exists($resource, 'getResourceType')) {
                     return [$resource::getResourceType() => $model];
                 }
@@ -224,7 +226,7 @@ class ApiServiceProvider extends ServiceProvider
      */
     private function registerCloudwatchLogger(): void
     {
-        $this->app->make(LogManager::class)->extend('cloudwatch', fn ($app, array $config) => (new CloudWatchLogger)->__invoke($config));
+        $this->app->make(LogManager::class)->extend('cloudwatch', fn ($app, array $config) => (new CloudWatchLogger())->__invoke($config));
     }
 
     /**
@@ -249,6 +251,6 @@ class ApiServiceProvider extends ServiceProvider
      */
     private function registerQueryParser(): void
     {
-        $this->app->singleton(Config::get('api-toolkit.parser.alias'), fn ($app) => new ApiQueryParser);
+        $this->app->singleton(Config::get('api-toolkit.parser.alias'), fn ($app) => new ApiQueryParser());
     }
 }

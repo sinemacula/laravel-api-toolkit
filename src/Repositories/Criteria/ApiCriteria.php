@@ -47,19 +47,19 @@ class ApiCriteria implements CriteriaInterface
         '$has'      => 'has',
         '$hasnt'    => 'hasnt',
         '$null'     => 'null',
-        '$notNull'  => 'notNull'
+        '$notNull'  => 'notNull',
     ];
 
     /** @var array<string, string> */
     private array $logicalOperatorMap = [
         '$or'  => 'orWhere',
-        '$and' => 'where'
+        '$and' => 'where',
     ];
 
     /** @var array<string, string> */
     private array $relationLogicalOperatorMap = [
         '$or'  => 'orWhereHas',
-        '$and' => 'whereHas'
+        '$and' => 'whereHas',
     ];
 
     /** @var array<int, string> */
@@ -71,25 +71,26 @@ class ApiCriteria implements CriteriaInterface
     /** @var array<string, string> */
     private array $relationalMethodMap = [
         '$has'   => 'whereHas',
-        '$hasnt' => 'whereDoesntHave'
+        '$hasnt' => 'whereDoesntHave',
     ];
 
     /**
      * Constructor.
      *
-     * @param  \Illuminate\Http\Request  $request
+     * @param \Illuminate\Http\Request $request
      */
     public function __construct(
 
         /** The HTTP request */
         protected Request $request
-
-    ) {}
+    ) {
+    }
 
     /**
      * Apply the criteria to the given model.
      *
-     * @param  \Illuminate\Contracts\Database\Eloquent\Builder|\Illuminate\Database\Eloquent\Model  $model
+     * @param \Illuminate\Contracts\Database\Eloquent\Builder|\Illuminate\Database\Eloquent\Model $model
+     *
      * @return \Illuminate\Contracts\Database\Eloquent\Builder
      */
     public function apply(Builder|Model $model): Builder
@@ -103,6 +104,7 @@ class ApiCriteria implements CriteriaInterface
         }
 
         $query = $this->applyLimit($query, $this->getLimit());
+
         return $this->applyOrder($query, $this->getOrder());
     }
 
@@ -111,10 +113,11 @@ class ApiCriteria implements CriteriaInterface
      *
      * This appends the supplied query with the requested filters.
      *
-     * @param  \Illuminate\Database\Eloquent\Builder  $query
-     * @param  array|string|null  $filters
-     * @param  string|null  $field
-     * @param  string|null  $last_logical_operator
+     * @param \Illuminate\Database\Eloquent\Builder $query
+     * @param array|string|null                     $filters
+     * @param string|null                           $field
+     * @param string|null                           $last_logical_operator
+     *
      * @return \Illuminate\Database\Eloquent\Builder
      */
     protected function applyFilters(Builder $query, array|string|null $filters = null, ?string $field = null, ?string $last_logical_operator = null): Builder
@@ -145,12 +148,13 @@ class ApiCriteria implements CriteriaInterface
     /**
      * Apply eager loading based on requested fields.
      *
-     * @param  \Illuminate\Contracts\Database\Eloquent\Builder  $query
+     * @param \Illuminate\Contracts\Database\Eloquent\Builder $query
+     *
      * @return \Illuminate\Contracts\Database\Eloquent\Builder
      */
     protected function applyEagerLoading(Builder $query): Builder
     {
-        $model    = $query->getModel();
+        $model = $query->getModel();
         $resource = $this->getResourceFromModel($model);
 
         if (!$resource) {
@@ -158,7 +162,7 @@ class ApiCriteria implements CriteriaInterface
         }
 
         $resource_type = $resource::getResourceType();
-        $fields        = ApiQuery::getFields($resource_type) ?? $resource::getDefaultFields();
+        $fields = ApiQuery::getFields($resource_type) ?? $resource::getDefaultFields();
 
         if (empty($fields)) {
             return $query;
@@ -168,7 +172,6 @@ class ApiCriteria implements CriteriaInterface
         $regular_relations = [];
 
         foreach ($fields as $field) {
-
             if (!$this->isRelation($field, $model)) {
                 continue;
             }
@@ -181,16 +184,14 @@ class ApiCriteria implements CriteriaInterface
                 } else {
                     $regular_relations[] = $field;
                 }
-
             } catch (Throwable $e) {
                 continue;
             }
         }
 
         if (!empty($regular_relations)) {
-
             $eager_load_structure = $this->getEagerLoadStructure($model, $regular_relations);
-            $eager_loads          = $this->generateEagerLoads($eager_load_structure);
+            $eager_loads = $this->generateEagerLoads($eager_load_structure);
 
             if (!empty($eager_loads)) {
                 $query->with($eager_loads);
@@ -200,7 +201,7 @@ class ApiCriteria implements CriteriaInterface
         if (!empty($morphTo_relations)) {
             foreach ($morphTo_relations as $relation) {
                 $query->with([
-                    $relation => function ($q): void {}
+                    $relation => function ($q): void {},
                 ]);
             }
         }
@@ -211,9 +212,10 @@ class ApiCriteria implements CriteriaInterface
     /**
      * Build a serializable structure for eager loading.
      *
-     * @param  \Illuminate\Database\Eloquent\Model  $model
-     * @param  array  $fields
-     * @param  int  $depth
+     * @param \Illuminate\Database\Eloquent\Model $model
+     * @param array                               $fields
+     * @param int                                 $depth
+     *
      * @return array
      */
     protected function buildEagerLoadStructure(Model $model, array $fields, int $depth = 0): array
@@ -240,7 +242,6 @@ class ApiCriteria implements CriteriaInterface
         }
 
         foreach ($relation_fields as $field) {
-
             $related_model = $this->getRelatedModel($model, $field);
 
             if (!$related_model) {
@@ -255,7 +256,7 @@ class ApiCriteria implements CriteriaInterface
                 continue;
             }
 
-            $resource_type  = $resource::getResourceType();
+            $resource_type = $resource::getResourceType();
             $related_fields = ApiQuery::getFields($resource_type) ?? $resource::getDefaultFields();
 
             if (empty($related_fields)) {
@@ -302,8 +303,9 @@ class ApiCriteria implements CriteriaInterface
     /**
      * Generate eager loads with closures from the structure.
      *
-     * @param  array  $structure
-     * @param  \Illuminate\Database\Eloquent\Model|null  $parent_model
+     * @param array                                    $structure
+     * @param \Illuminate\Database\Eloquent\Model|null $parent_model
+     *
      * @return array
      */
     protected function generateEagerLoads(array $structure, ?Model $parent_model = null): array
@@ -314,7 +316,6 @@ class ApiCriteria implements CriteriaInterface
             if (is_numeric($key)) {
                 $eager_loads[] = $value;
             } else {
-
                 $related_model = $parent_model ? $this->getRelatedModel($parent_model, $key) : null;
 
                 $eager_loads[$key] = function ($query) use ($value, $related_model): void {
@@ -331,22 +332,24 @@ class ApiCriteria implements CriteriaInterface
     /**
      * Get the eager load structure for the given model and fields.
      *
-     * @param  \Illuminate\Database\Eloquent\Model  $model
-     * @param  array  $fields
+     * @param \Illuminate\Database\Eloquent\Model $model
+     * @param array                               $fields
+     *
      * @return array
      */
     protected function getEagerLoadStructure(Model $model, array $fields): array
     {
         return Cache::rememberForever(CacheKeys::MODEL_EAGER_LOADS->resolveKey([
             $model::class,
-            md5(implode(',', array_filter($fields)))
+            md5(implode(',', array_filter($fields))),
         ]), fn () => $this->buildEagerLoadStructure($model, $fields));
     }
 
     /**
      * Get the resource from the given model.
      *
-     * @param  \Illuminate\Database\Eloquent\Model  $model
+     * @param \Illuminate\Database\Eloquent\Model $model
+     *
      * @return string|null
      */
     protected function getResourceFromModel(Model $model): ?string
@@ -354,32 +357,29 @@ class ApiCriteria implements CriteriaInterface
         $class = $model::class;
 
         return Cache::rememberForever(CacheKeys::MODEL_RESOURCES->resolveKey([$class]), function () use ($class) {
-
-            $resource = Config::get('api-toolkit.resources.resource_map.' . $class);
+            $resource = Config::get('api-toolkit.resources.resource_map.'.$class);
 
             if ($resource && class_exists($resource) && in_array(ApiResourceInterface::class, class_implements($resource) ?: [], true)) {
                 return $resource;
             }
-
         });
     }
 
     /**
      * Get the related model instance for a relation.
      *
-     * @param  \Illuminate\Database\Eloquent\Model  $model
-     * @param  string  $relation
+     * @param \Illuminate\Database\Eloquent\Model $model
+     * @param string                              $relation
+     *
      * @return \Illuminate\Database\Eloquent\Model|null
      */
     protected function getRelatedModel(Model $model, string $relation): ?Model
     {
         return Cache::rememberForever(CacheKeys::MODEL_RELATION_INSTANCES->resolveKey([
             $model::class,
-            $relation
+            $relation,
         ]), function () use ($model, $relation) {
-
             try {
-
                 if (!method_exists($model, $relation)) {
                     return;
                 }
@@ -389,10 +389,8 @@ class ApiCriteria implements CriteriaInterface
                 if ($relation_obj instanceof Relation) {
                     return $relation_obj->getRelated();
                 }
-
             } catch (Throwable $exception) {
             }
-
         });
     }
 
@@ -401,8 +399,9 @@ class ApiCriteria implements CriteriaInterface
      *
      * Append the query with a record limit.
      *
-     * @param  \Illuminate\Contracts\Database\Eloquent\Builder  $query
-     * @param  int|null  $limit
+     * @param \Illuminate\Contracts\Database\Eloquent\Builder $query
+     * @param int|null                                        $limit
+     *
      * @return \Illuminate\Contracts\Database\Eloquent\Builder
      */
     protected function applyLimit(Builder $query, ?int $limit = null): Builder
@@ -415,8 +414,9 @@ class ApiCriteria implements CriteriaInterface
      *
      * Append an order by statement to the query.
      *
-     * @param  \Illuminate\Contracts\Database\Eloquent\Builder  $query
-     * @param  array  $order
+     * @param \Illuminate\Contracts\Database\Eloquent\Builder $query
+     * @param array                                           $order
+     *
      * @return \Illuminate\Contracts\Database\Eloquent\Builder
      */
     protected function applyOrder(Builder $query, array $order): Builder
@@ -442,11 +442,12 @@ class ApiCriteria implements CriteriaInterface
     /**
      * Apply a condition operator to the query.
      *
-     * @param  \Illuminate\Contracts\Database\Eloquent\Builder  $query
-     * @param  string  $operator
-     * @param  mixed  $value
-     * @param  string|null  $field
-     * @param  string|null  $last_logical_operator
+     * @param \Illuminate\Contracts\Database\Eloquent\Builder $query
+     * @param string                                          $operator
+     * @param mixed                                           $value
+     * @param string|null                                     $field
+     * @param string|null                                     $last_logical_operator
+     *
      * @return void
      */
     private function applyConditionOperator(Builder $query, string $operator, mixed $value, ?string $field, ?string $last_logical_operator): void
@@ -461,10 +462,11 @@ class ApiCriteria implements CriteriaInterface
     /**
      * Apply a logical operator to the query.
      *
-     * @param  \Illuminate\Contracts\Database\Eloquent\Builder  $query
-     * @param  string  $operator
-     * @param  array  $value
-     * @param  string|null  $last_logical_operator
+     * @param \Illuminate\Contracts\Database\Eloquent\Builder $query
+     * @param string                                          $operator
+     * @param array                                           $value
+     * @param string|null                                     $last_logical_operator
+     *
      * @return void
      */
     private function applyLogicalOperator(Builder $query, string $operator, array $value, ?string $last_logical_operator): void
@@ -487,8 +489,9 @@ class ApiCriteria implements CriteriaInterface
     /**
      * Determine the method to use for logical operators.
      *
-     * @param  string  $operator
-     * @param  string|null  $last_logical_operator
+     * @param string      $operator
+     * @param string|null $last_logical_operator
+     *
      * @return string
      */
     private function determineLogicalMethod(string $operator, ?string $last_logical_operator): string
@@ -501,9 +504,10 @@ class ApiCriteria implements CriteriaInterface
     /**
      * Check if a column is searchable and direction is valid.
      *
-     * @param  \Illuminate\Database\Eloquent\Model  $model
-     * @param  string  $column
-     * @param  string  $direction
+     * @param \Illuminate\Database\Eloquent\Model $model
+     * @param string                              $column
+     * @param string                              $direction
+     *
      * @return bool
      */
     private function isColumnSearchable(Model $model, string $column, string $direction): bool
@@ -545,10 +549,11 @@ class ApiCriteria implements CriteriaInterface
     /**
      * Apply a simple filter to the query.
      *
-     * @param  \Illuminate\Contracts\Database\Eloquent\Builder  $query
-     * @param  string|null  $column
-     * @param  string  $value
-     * @param  string  $logical_operator
+     * @param \Illuminate\Contracts\Database\Eloquent\Builder $query
+     * @param string|null                                     $column
+     * @param string                                          $value
+     * @param string                                          $logical_operator
+     *
      * @return \Illuminate\Contracts\Database\Eloquent\Builder
      */
     private function applySimpleFilter(Builder $query, ?string $column, string $value, string $logical_operator): Builder
@@ -564,10 +569,11 @@ class ApiCriteria implements CriteriaInterface
     /**
      * Apply filters for relational queries.
      *
-     * @param  \Illuminate\Contracts\Database\Eloquent\Builder  $query
-     * @param  string  $relation
-     * @param  array  $filters
-     * @param  string|null  $last_logical_operator
+     * @param \Illuminate\Contracts\Database\Eloquent\Builder $query
+     * @param string                                          $relation
+     * @param array                                           $filters
+     * @param string|null                                     $last_logical_operator
+     *
      * @return void
      */
     private function applyRelationFilter(Builder $query, string $relation, array $filters, ?string $last_logical_operator): void
@@ -582,8 +588,9 @@ class ApiCriteria implements CriteriaInterface
     /**
      * Process relation filters.
      *
-     * @param  \Illuminate\Contracts\Database\Eloquent\Builder  $query
-     * @param  array  $filters
+     * @param \Illuminate\Contracts\Database\Eloquent\Builder $query
+     * @param array                                           $filters
+     *
      * @return void
      */
     private function processRelationFilters(Builder $query, array $filters): void
@@ -604,16 +611,17 @@ class ApiCriteria implements CriteriaInterface
     /**
      * Apply a whereHas or whereDoesntHave filter.
      *
-     * @param  \Illuminate\Contracts\Database\Eloquent\Builder  $query
-     * @param  array|string  $relations
-     * @param  string  $operator
-     * @param  string|null  $last_logical_operator
+     * @param \Illuminate\Contracts\Database\Eloquent\Builder $query
+     * @param array|string                                    $relations
+     * @param string                                          $operator
+     * @param string|null                                     $last_logical_operator
+     *
      * @return void
      */
     private function applyHasFilter(Builder $query, array|string $relations, string $operator, ?string $last_logical_operator = null): void
     {
         $base_method = $this->relationalMethodMap[$operator];
-        $method      = ($last_logical_operator === '$or' && $operator === '$has') ? 'orWhereHas' : $base_method;
+        $method = ($last_logical_operator === '$or' && $operator === '$has') ? 'orWhereHas' : $base_method;
 
         foreach ((array) $relations as $relation => $filters) {
             if (is_int($relation)) {
@@ -633,7 +641,8 @@ class ApiCriteria implements CriteriaInterface
     /**
      * Determine if the given operator is conditional.
      *
-     * @param  string|null  $operator
+     * @param string|null $operator
+     *
      * @return bool
      */
     private function isConditionOperator(?string $operator = null): bool
@@ -644,11 +653,12 @@ class ApiCriteria implements CriteriaInterface
     /**
      * Handle a condition based on its operator.
      *
-     * @param  \Illuminate\Contracts\Database\Eloquent\Builder  $query
-     * @param  string  $operator
-     * @param  mixed  $value
-     * @param  string|null  $column
-     * @param  string|null  $last_logical_operator
+     * @param \Illuminate\Contracts\Database\Eloquent\Builder $query
+     * @param string                                          $operator
+     * @param mixed                                           $value
+     * @param string|null                                     $column
+     * @param string|null                                     $last_logical_operator
+     *
      * @return void
      */
     private function handleCondition(Builder $query, string $operator, mixed $value, ?string $column, ?string $last_logical_operator): void
@@ -670,9 +680,10 @@ class ApiCriteria implements CriteriaInterface
     /**
      * Apply JSON contains condition if the value is valid JSON.
      *
-     * @param  \Illuminate\Contracts\Database\Eloquent\Builder  $query
-     * @param  string  $column
-     * @param  mixed  $value
+     * @param \Illuminate\Contracts\Database\Eloquent\Builder $query
+     * @param string                                          $column
+     * @param mixed                                           $value
+     *
      * @return void
      */
     private function applyJsonContains(Builder $query, string $column, mixed $value): void
@@ -684,7 +695,6 @@ class ApiCriteria implements CriteriaInterface
         }
 
         if (is_string($value) && str_contains($value, ',')) {
-
             $items = array_filter(array_map('trim', explode(',', $value)));
 
             if (!empty($items)) {
@@ -708,7 +718,8 @@ class ApiCriteria implements CriteriaInterface
     /**
      * Check if a string is valid JSON.
      *
-     * @param  string|null  $string
+     * @param string|null $string
+     *
      * @return bool
      */
     private function isValidJson(?string $string): bool
@@ -723,10 +734,11 @@ class ApiCriteria implements CriteriaInterface
     /**
      * Apply a null or not null condition to the query.
      *
-     * @param  \Illuminate\Contracts\Database\Eloquent\Builder  $query
-     * @param  string  $column
-     * @param  bool  $isNull
-     * @param  string|null  $last_logical_operator
+     * @param \Illuminate\Contracts\Database\Eloquent\Builder $query
+     * @param string                                          $column
+     * @param bool                                            $isNull
+     * @param string|null                                     $last_logical_operator
+     *
      * @return void
      */
     private function applyNullCondition(Builder $query, string $column, bool $isNull, ?string $last_logical_operator): void
@@ -734,26 +746,27 @@ class ApiCriteria implements CriteriaInterface
         $method = $this->logicalOperatorMap[$last_logical_operator ?? '$and'];
 
         if ($isNull) {
-            $query->{$method . 'Null'}($column);
+            $query->{$method.'Null'}($column);
         } else {
-            $query->{$method . 'NotNull'}($column);
+            $query->{$method.'NotNull'}($column);
         }
     }
 
     /**
      * Apply a default condition to the query.
      *
-     * @param  \Illuminate\Contracts\Database\Eloquent\Builder  $query
-     * @param  string  $column
-     * @param  string  $operator
-     * @param  mixed  $value
-     * @param  string|null  $last_logical_operator
+     * @param \Illuminate\Contracts\Database\Eloquent\Builder $query
+     * @param string                                          $column
+     * @param string                                          $operator
+     * @param mixed                                           $value
+     * @param string|null                                     $last_logical_operator
+     *
      * @return void
      */
     private function applyDefaultCondition(Builder $query, string $column, string $operator, mixed $value, ?string $last_logical_operator): void
     {
-        $method          = $this->logicalOperatorMap[$last_logical_operator ?? '$and'];
-        $sql_operator    = $this->conditionOperatorMap[$operator];
+        $method = $this->logicalOperatorMap[$last_logical_operator ?? '$and'];
+        $sql_operator = $this->conditionOperatorMap[$operator];
         $formatted_value = $this->formatValueBasedOnOperator($value, $operator);
 
         $query->{$method}($column, $sql_operator, $formatted_value);
@@ -762,7 +775,8 @@ class ApiCriteria implements CriteriaInterface
     /**
      * Determine if the given operator is logical.
      *
-     * @param  string|null  $operator
+     * @param string|null $operator
+     *
      * @return bool
      */
     private function isLogicalOperator(?string $operator = null): bool
@@ -773,15 +787,16 @@ class ApiCriteria implements CriteriaInterface
     /**
      * Determine if a given key is a relation on the given model.
      *
-     * @param  string  $key
-     * @param  \Illuminate\Database\Eloquent\Model  $model
+     * @param string                              $key
+     * @param \Illuminate\Database\Eloquent\Model $model
+     *
      * @return bool
      */
     private function isRelation(string $key, Model $model): bool
     {
         return Cache::rememberForever(CacheKeys::MODEL_RELATIONS->resolveKey([
             $model::class,
-            $key
+            $key,
         ]), function () use ($key, $model) {
             if (!method_exists($model, $key) || !is_callable([$model, $key])) {
                 return false;
@@ -798,7 +813,8 @@ class ApiCriteria implements CriteriaInterface
     /**
      * Get the searchable columns for the given model.
      *
-     * @param  \Illuminate\Database\Eloquent\Model  $model
+     * @param \Illuminate\Database\Eloquent\Model $model
+     *
      * @return array
      */
     private function getSearchableColumns(Model $model): array
@@ -815,8 +831,9 @@ class ApiCriteria implements CriteriaInterface
     /**
      * Format the value based on the specified operator.
      *
-     * @param  mixed  $value
-     * @param  string  $operator
+     * @param mixed  $value
+     * @param string $operator
+     *
      * @return string
      */
     private function formatValueBasedOnOperator(mixed $value, string $operator): mixed
@@ -827,9 +844,10 @@ class ApiCriteria implements CriteriaInterface
     /**
      * Apply a 'between' condition if the value is appropriate.
      *
-     * @param  \Illuminate\Contracts\Database\Eloquent\Builder  $query
-     * @param  string  $field
-     * @param  mixed  $value
+     * @param \Illuminate\Contracts\Database\Eloquent\Builder $query
+     * @param string                                          $field
+     * @param mixed                                           $value
+     *
      * @return void
      */
     private function applyBetween(Builder $query, string $field, mixed $value): void
@@ -842,12 +860,13 @@ class ApiCriteria implements CriteriaInterface
     /**
      * Resolve the searchable columns for the given model.
      *
-     * @param  \Illuminate\Database\Eloquent\Model  $model
+     * @param \Illuminate\Database\Eloquent\Model $model
+     *
      * @return array
      */
     private function resolveSearchableColumns(Model $model): array
     {
-        $table      = $model->getTable();
+        $table = $model->getTable();
         $exclusions = $this->getColumnExclusions($table);
 
         return array_diff($this->getColumnsFromModel($model), $exclusions);
@@ -856,14 +875,14 @@ class ApiCriteria implements CriteriaInterface
     /**
      * Get column exclusions for the given table.
      *
-     * @param  string  $table
+     * @param string $table
+     *
      * @return array
      */
     private function getColumnExclusions(string $table): array
     {
         return collect(Config::get('api-toolkit.repositories.searchable_exclusions', []))
             ->reduce(function ($carry, $exclusion) use ($table) {
-
                 if (str_contains($exclusion, '.') && strtok($exclusion, '.') === $table) {
                     $carry[] = substr(strstr($exclusion, '.'), 1);
                 } else {

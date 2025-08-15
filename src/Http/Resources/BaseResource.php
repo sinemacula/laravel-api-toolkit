@@ -25,7 +25,8 @@ abstract class BaseResource extends JsonResource
      * Overrides the default fields and any requested fields with a provided
      * set.
      *
-     * @param  array|null  $fields
+     * @param array|null $fields
+     *
      * @return static
      */
     public function withFields(?array $fields = null): static
@@ -38,7 +39,8 @@ abstract class BaseResource extends JsonResource
     /**
      * Removes certain fields from the response.
      *
-     * @param  array|null  $fields
+     * @param array|null $fields
+     *
      * @return static
      */
     public function withoutFields(?array $fields = null): static

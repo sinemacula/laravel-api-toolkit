@@ -23,8 +23,9 @@ trait RespondsWithExport
     /**
      * Export the given array.
      *
-     * @param  array  $data
-     * @param  bool  $download
+     * @param array $data
+     * @param bool  $download
+     *
      * @return \Illuminate\Http\Response
      */
     public function exportFromArray(array $data, bool $download = true): HttpResponse
@@ -39,8 +40,9 @@ trait RespondsWithExport
     /**
      * Export the given array to CSV.
      *
-     * @param  array  $data
-     * @param  bool  $download
+     * @param array $data
+     * @param bool  $download
+     *
      * @return \Illuminate\Http\Response
      */
     public function exportArrayToCsv(array $data, bool $download = true): HttpResponse
@@ -55,8 +57,9 @@ trait RespondsWithExport
     /**
      * Export the given array to XML.
      *
-     * @param  array  $data
-     * @param  bool  $download
+     * @param array $data
+     * @param bool  $download
+     *
      * @return \Illuminate\Http\Response
      */
     public function exportArrayToXml(array $data, bool $download = true): HttpResponse
@@ -71,8 +74,9 @@ trait RespondsWithExport
     /**
      * Export the given collection.
      *
-     * @param  \Illuminate\Http\Resources\Json\ResourceCollection  $collection
-     * @param  bool  $download
+     * @param \Illuminate\Http\Resources\Json\ResourceCollection $collection
+     * @param bool                                               $download
+     *
      * @return \Illuminate\Http\Response
      */
     public function exportFromCollection(ResourceCollection $collection, bool $download = true): HttpResponse
@@ -87,8 +91,9 @@ trait RespondsWithExport
     /**
      * Export the given collection to CSV.
      *
-     * @param  \Illuminate\Http\Resources\Json\ResourceCollection  $collection
-     * @param  bool  $download
+     * @param \Illuminate\Http\Resources\Json\ResourceCollection $collection
+     * @param bool                                               $download
+     *
      * @return \Illuminate\Http\Response
      */
     public function exportCollectionToCsv(ResourceCollection $collection, bool $download = true): HttpResponse
@@ -103,8 +108,9 @@ trait RespondsWithExport
     /**
      * Export the given collection to XML.
      *
-     * @param  \Illuminate\Http\Resources\Json\ResourceCollection  $collection
-     * @param  bool  $download
+     * @param \Illuminate\Http\Resources\Json\ResourceCollection $collection
+     * @param bool                                               $download
+     *
      * @return \Illuminate\Http\Response
      */
     public function exportCollectionToXml(ResourceCollection $collection, bool $download = true): HttpResponse
@@ -119,8 +125,9 @@ trait RespondsWithExport
     /**
      * Export the given resource.
      *
-     * @param  \Illuminate\Http\Resources\Json\JsonResource  $resource
-     * @param  bool  $download
+     * @param \Illuminate\Http\Resources\Json\JsonResource $resource
+     * @param bool                                         $download
+     *
      * @return \Illuminate\Http\Response
      */
     public function exportFromItem(JsonResource $resource, bool $download = true): HttpResponse
@@ -135,8 +142,9 @@ trait RespondsWithExport
     /**
      * Export the given item to CSV.
      *
-     * @param  \Illuminate\Http\Resources\Json\JsonResource  $resource
-     * @param  bool  $download
+     * @param \Illuminate\Http\Resources\Json\JsonResource $resource
+     * @param bool                                         $download
+     *
      * @return \Illuminate\Http\Response
      */
     public function exportItemToCsv(JsonResource $resource, bool $download = true): HttpResponse
@@ -151,8 +159,9 @@ trait RespondsWithExport
     /**
      * Export the given item to XML.
      *
-     * @param  \Illuminate\Http\Resources\Json\JsonResource  $resource
-     * @param  bool  $download
+     * @param \Illuminate\Http\Resources\Json\JsonResource $resource
+     * @param bool                                         $download
+     *
      * @return \Illuminate\Http\Response
      */
     public function exportItemToXml(JsonResource $resource, bool $download = true): HttpResponse
@@ -167,10 +176,11 @@ trait RespondsWithExport
     /**
      * Create a response for the exported data.
      *
-     * @param  string  $data
-     * @param  string  $content_type
-     * @param  bool  $download
-     * @param  string  $filename
+     * @param string $data
+     * @param string $content_type
+     * @param bool   $download
+     * @param string $filename
+     *
      * @return \Illuminate\Http\Response
      */
     protected function createExportResponse(string $data, string $content_type, bool $download, string $filename): HttpResponse
@@ -180,7 +190,7 @@ trait RespondsWithExport
             ->header('Content-Length', strlen($data));
 
         if ($download) {
-            $response->header('Content-Disposition', 'attachment; filename="' . $filename . '"');
+            $response->header('Content-Disposition', 'attachment; filename="'.$filename.'"');
         }
 
         return $response;

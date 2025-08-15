@@ -16,10 +16,11 @@ trait ThrottleRequestsTrait
     /**
      * Resolve request signature.
      *
-     * @param  \Illuminate\Http\Request  $request
-     * @return string
+     * @param \Illuminate\Http\Request $request
      *
      * @throws RuntimeException
+     *
+     * @return string
      */
     protected function resolveRequestSignature(Request $request): string
     {
@@ -29,9 +30,9 @@ trait ThrottleRequestsTrait
 
         return sha1(
             $request->method()
-            . '|' . $request->server('SERVER_NAME')
-            . '|' . $request->path()
-            . '|' . $request->user()?->getAuthIdentifier() ?? $request->ip()
+            .'|'.$request->server('SERVER_NAME')
+            .'|'.$request->path()
+            .'|'.$request->user()?->getAuthIdentifier() ?? $request->ip()
         );
     }
 }

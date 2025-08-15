@@ -34,13 +34,12 @@ abstract class Service implements ServiceInterface
     /**
      * Constructor.
      *
-     * @param  array|\Illuminate\Support\Collection|stdClass  $payload
+     * @param array|\Illuminate\Support\Collection|stdClass $payload
      */
     public function __construct(
 
         /** The service input payload */
         protected array|Collection|stdClass $payload = []
-
     ) {
         $this->payload = (!$payload instanceof Collection && !$payload instanceof stdClass) ? collect($payload) : $payload;
 
@@ -115,33 +114,40 @@ abstract class Service implements ServiceInterface
     /**
      * Prepare the service for execution.
      *
-     * @return void
-     *
      * @throws Exception
+     *
+     * @return void
      */
-    public function prepare(): void {}
+    public function prepare(): void
+    {
+    }
 
     /**
      * Method is triggered if the handle method ran successfully.
      *
      * @return void
      */
-    public function success(): void {}
+    public function success(): void
+    {
+    }
 
     /**
      * Method is triggered if the handle method failed.
      *
-     * @param  Throwable  $exception
+     * @param Throwable $exception
+     *
      * @return void
      */
-    public function failed(Throwable $exception): void {}
+    public function failed(Throwable $exception): void
+    {
+    }
 
     /**
      * Run the service.
      *
-     * @return bool
-     *
      * @throws Throwable
+     *
+     * @return bool
      */
     public function run(): bool
     {
@@ -150,7 +156,6 @@ abstract class Service implements ServiceInterface
         }
 
         try {
-
             // Prepare the service for execution
             $this->prepare();
 
@@ -158,9 +163,9 @@ abstract class Service implements ServiceInterface
             $this->status = $this->useTransaction
                 ? DB::transaction(fn () => $this->handle(), 3)
                 : $this->handle();
-
         } catch (Throwable $exception) {
             $this->failed($exception);
+
             throw $exception;
         } finally {
             $this->unlock();
@@ -199,8 +204,7 @@ abstract class Service implements ServiceInterface
         $class = static::class;
 
         foreach (class_uses_recursive($class) as $trait) {
-
-            $method = 'initialize' . class_basename($trait);
+            $method = 'initialize'.class_basename($trait);
 
             if (method_exists($class, $method)) {
                 forward_static_call([$class, $method]);
@@ -222,7 +226,7 @@ abstract class Service implements ServiceInterface
      */
     protected function generateLockKey(): string
     {
-        return sha1(static::class . '|' . $this->getLockId());
+        return sha1(static::class.'|'.$this->getLockId());
     }
 
     /**
@@ -246,8 +250,7 @@ abstract class Service implements ServiceInterface
         $traits = class_uses_recursive(static::class);
 
         foreach ($traits as $trait) {
-
-            $method = Str::camel(class_basename($trait) . 'Success');
+            $method = Str::camel(class_basename($trait).'Success');
 
             if (method_exists($this, $method)) {
                 $this->{$method}();

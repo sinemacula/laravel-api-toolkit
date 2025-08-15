@@ -18,7 +18,8 @@ class NotificationListener
     /**
      * Handle the notification 'sending' event.
      *
-     * @param  \Illuminate\Notifications\Events\NotificationSending  $event
+     * @param \Illuminate\Notifications\Events\NotificationSending $event
+     *
      * @return void
      */
     public function sending(NotificationSending $event): void
@@ -29,7 +30,8 @@ class NotificationListener
     /**
      * Handle the notification 'sent' event.
      *
-     * @param  \Illuminate\Notifications\Events\NotificationSent  $event
+     * @param \Illuminate\Notifications\Events\NotificationSent $event
+     *
      * @return void
      */
     public function sent(NotificationSent $event): void
@@ -40,10 +42,11 @@ class NotificationListener
     /**
      * Log the notification event.
      *
-     * @param  string  $message
-     * @param  \Illuminate\Notifications\Notification  $notification
-     * @param  mixed  $notifiable
-     * @param  string  $channel
+     * @param string                                 $message
+     * @param \Illuminate\Notifications\Notification $notification
+     * @param mixed                                  $notifiable
+     * @param string                                 $channel
+     *
      * @return void
      */
     private function log(string $message, Notification $notification, mixed $notifiable, string $channel): void
@@ -51,14 +54,14 @@ class NotificationListener
         Log::channel('notifications')->info($message, [
             'notification' => $notification::class,
             'notifiable'   => $notifiable::class,
-            'channel'      => $channel
+            'channel'      => $channel,
         ]);
 
         if (config('api-toolkit.logging.cloudwatch.enabled', false)) {
             Log::channel('cloudwatch-notifications')->info($message, [
                 'notification' => $notification::class,
                 'notifiable'   => $notifiable::class,
-                'channel'      => $channel
+                'channel'      => $channel,
             ]);
         }
     }

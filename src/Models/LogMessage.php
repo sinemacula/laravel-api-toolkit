@@ -16,7 +16,8 @@ use Illuminate\Database\Eloquent\Model;
  */
 class LogMessage extends Model
 {
-    use HasUuids, MassPrunable;
+    use HasUuids;
+    use MassPrunable;
 
     /** @var bool Indicates if the model should be timestamped */
     public $timestamps = false;
@@ -51,7 +52,7 @@ class LogMessage extends Model
             'level'      => 'string',
             'message'    => 'string',
             'context'    => AsArrayObject::class,
-            'created_at' => 'immutable_datetime'
+            'created_at' => 'immutable_datetime',
         ];
     }
 }

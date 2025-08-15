@@ -20,9 +20,9 @@ abstract class ApiException extends Exception
     /**
      * Constructor.
      *
-     * @param  array|null  $meta
-     * @param  array|null  $headers
-     * @param  Throwable|null  $previous
+     * @param array|null     $meta
+     * @param array|null     $headers
+     * @param Throwable|null $previous
      */
     public function __construct(
 
@@ -31,9 +31,7 @@ abstract class ApiException extends Exception
 
         /** Exception headers */
         private readonly ?array $headers = null,
-
         ?Throwable $previous = null
-
     ) {
         parent::__construct($this->getCustomDetail(), $this->getHttpStatusCode(), $previous);
     }
@@ -115,7 +113,7 @@ abstract class ApiException extends Exception
      */
     private static function getInternalError(): ErrorCodeInterface
     {
-        if (!defined(static::class . '::CODE')) {
+        if (!defined(static::class.'::CODE')) {
             throw new LogicException('The CODE constant must be defined on the exception');
         }
 
@@ -129,7 +127,7 @@ abstract class ApiException extends Exception
      */
     private static function getHttpStatus(): HttpStatus
     {
-        if (!defined(static::class . '::HTTP_STATUS')) {
+        if (!defined(static::class.'::HTTP_STATUS')) {
             throw new LogicException('The HTTP_STATUS constant must be defined on the exception');
         }
 
@@ -139,7 +137,8 @@ abstract class ApiException extends Exception
     /**
      * Return the translation key for the given key.
      *
-     * @param  string  $key
+     * @param string $key
+     *
      * @return string
      */
     private function getTranslationKey(string $key): string

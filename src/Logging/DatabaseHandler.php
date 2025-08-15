@@ -25,7 +25,8 @@ class DatabaseHandler extends AbstractProcessingHandler
     /**
      * Write a log record to the database.
      *
-     * @param  \Monolog\LogRecord  $record
+     * @param \Monolog\LogRecord $record
+     *
      * @return void
      */
     protected function write(LogRecord $record): void
@@ -56,7 +57,8 @@ class DatabaseHandler extends AbstractProcessingHandler
     /**
      * Check if the log record meets the minimum level threshold.
      *
-     * @param  \Monolog\LogRecord  $record
+     * @param \Monolog\LogRecord $record
+     *
      * @return bool
      */
     private function shouldLog(LogRecord $record): bool
@@ -69,8 +71,9 @@ class DatabaseHandler extends AbstractProcessingHandler
     /**
      * Log to fallback channels in case of database logging failure.
      *
-     * @param  \Monolog\LogRecord  $record
-     * @param  Exception  $exception
+     * @param \Monolog\LogRecord $record
+     * @param Exception          $exception
+     *
      * @return void
      */
     private function logToFallback(LogRecord $record, Exception $exception): void

@@ -21,7 +21,8 @@ class PreventRequestsDuringMaintenance extends Middleware
     /**
      * Create a new middleware instance.
      *
-     * @param  \Illuminate\Contracts\Foundation\Application  $app
+     * @param \Illuminate\Contracts\Foundation\Application $app
+     *
      * @return void
      */
     public function __construct(Application $app)
@@ -34,18 +35,19 @@ class PreventRequestsDuringMaintenance extends Middleware
     /**
      * Handle an incoming request.
      *
-     * @param  \Illuminate\Http\Request  $request
-     * @param  Closure  $next
-     * @return mixed
+     * @param \Illuminate\Http\Request $request
+     * @param Closure                  $next
      *
      * @throws \SineMacula\ApiToolkit\Exceptions\ApiException
+     *
+     * @return mixed
      */
     public function handle(Request $request, Closure $next): mixed
     {
         try {
             return parent::handle($request, $next);
         } catch (HttpException $exception) {
-            throw new MaintenanceModeException;
+            throw new MaintenanceModeException();
         }
     }
 }

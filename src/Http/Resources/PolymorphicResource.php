@@ -23,7 +23,8 @@ class PolymorphicResource extends BaseResource
     /**
      * Transform the resource into an array.
      *
-     * @param  Request  $request
+     * @param Request $request
+     *
      * @return array<string, mixed>
      */
     public function toArray(Request $request): array
@@ -40,7 +41,7 @@ class PolymorphicResource extends BaseResource
 
         return [
             '_type' => $resource::getResourceType(),
-            ...$resource->resolve($request)
+            ...$resource->resolve($request),
         ];
     }
 
@@ -48,14 +49,15 @@ class PolymorphicResource extends BaseResource
      * Map the given resource to its corresponding resource class based on a
      * configuration map.
      *
-     * @param  mixed  $resource
-     * @return \SineMacula\ApiToolkit\Contracts\ApiResourceInterface
+     * @param mixed $resource
      *
      * @throws LogicException
+     *
+     * @return \SineMacula\ApiToolkit\Contracts\ApiResourceInterface
      */
     private function mapResource(mixed $resource): ApiResourceInterface
     {
-        $map   = Config::get('api-toolkit.resources.resource_map', []);
+        $map = Config::get('api-toolkit.resources.resource_map', []);
         $class = $resource::class;
 
         if (isset($map[$class])) {

@@ -17,7 +17,7 @@ return [
     */
 
     'cache' => [
-        'prefix' => 'api-toolkit'
+        'prefix' => 'api-toolkit',
     ],
 
     /*
@@ -57,7 +57,7 @@ return [
             // e.g. \App\Models\User::class => \App\Http\Resources\UserResource::class
         ],
 
-        'fixed_fields' => ['id', '_type']
+        'fixed_fields' => ['id', '_type'],
 
     ],
 
@@ -80,7 +80,7 @@ return [
 
         'supported_formats' => explode(',', env('RESOURCE_EXPORT_FORMATS', 'csv,xml')),
 
-        'ignored_fields' => ['_type', 'password', 'token', 'remember_token']
+        'ignored_fields' => ['_type', 'password', 'token', 'remember_token'],
 
     ],
 
@@ -103,10 +103,10 @@ return [
         'register_middleware' => env('API_PARSER_REGISTER_MIDDLEWARE', true),
 
         'defaults' => [
-            'limit' => env('API_PARSER_DEFAULT_LIMIT', 50)
+            'limit' => env('API_PARSER_DEFAULT_LIMIT', 50),
         ],
 
-        'enable_eager_loading' => env('API_PARSER_ENABLE_EAGER_LOADING', true)
+        'enable_eager_loading' => env('API_PARSER_ENABLE_EAGER_LOADING', true),
 
     ],
 
@@ -143,12 +143,12 @@ return [
                 'float',
                 'real',
                 'hashed',
-                AsStringable::class
+                AsStringable::class,
             ],
             'integer' => ['integer', 'int'],
             'boolean' => ['boolean', 'bool'],
             'array'   => ['array', 'collection', 'encrypted:array', 'encrypted:collection'],
-            'object'  => ['object', 'encrypted:object']
+            'object'  => ['object', 'encrypted:object'],
         ],
 
         // This configuration allows both columns, and columns for specific
@@ -158,7 +158,7 @@ return [
         'repository_map' => [
             // This should be filled with the application's repository map
             // e.g. 'users' => \App\Repositories\UserRepository::class
-        ]
+        ],
 
     ],
 
@@ -178,7 +178,7 @@ return [
 
     'notifications' => [
 
-        'enable_logging' => env('ENABLE_NOTIFICATION_LOGGING', true)
+        'enable_logging' => env('ENABLE_NOTIFICATION_LOGGING', true),
 
     ],
 
@@ -198,7 +198,7 @@ return [
 
     'maintenance_mode' => [
 
-        'except' => []
+        'except' => [],
 
     ],
 
@@ -216,9 +216,9 @@ return [
     'logging' => [
 
         'cloudwatch' => [
-            'enabled' => env('ENABLE_CLOUDWATCH_LOGGING', false)
-        ]
+            'enabled' => env('ENABLE_CLOUDWATCH_LOGGING', false),
+        ],
 
-    ]
+    ],
 
 ];

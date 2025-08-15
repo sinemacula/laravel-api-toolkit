@@ -30,7 +30,7 @@ abstract class AuthorizedController extends Controller
      */
     public static function getResourceModel(): string
     {
-        if (!defined(static::class . '::RESOURCE_MODEL')) {
+        if (!defined(static::class.'::RESOURCE_MODEL')) {
             throw new LogicException('The RESOURCE_MODEL constant must be defined on the authorized controller');
         }
 
@@ -44,7 +44,7 @@ abstract class AuthorizedController extends Controller
      */
     public static function getRouteParameter(): ?string
     {
-        return defined(static::class . '::ROUTE_PARAMETER') ? strtolower(constant(static::class . '::ROUTE_PARAMETER')) : null;
+        return defined(static::class.'::ROUTE_PARAMETER') ? strtolower(constant(static::class.'::ROUTE_PARAMETER')) : null;
     }
 
     /**
@@ -54,6 +54,6 @@ abstract class AuthorizedController extends Controller
      */
     private function getGuardExclusions(): ?array
     {
-        return defined(static::class . '::GUARD_EXCLUSIONS') ? constant(static::class . '::GUARD_EXCLUSIONS') : null;
+        return defined(static::class.'::GUARD_EXCLUSIONS') ? constant(static::class.'::GUARD_EXCLUSIONS') : null;
     }
 }

@@ -29,9 +29,9 @@ trait Lockable
     /**
      * Lock the task execution.
      *
-     * @return \Illuminate\Contracts\Cache\Lock
-     *
      * @throws \SineMacula\ApiToolkit\Exceptions\ApiException
+     *
+     * @return \Illuminate\Contracts\Cache\Lock
      */
     protected function lock(): Lock
     {

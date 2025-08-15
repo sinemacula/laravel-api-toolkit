@@ -29,14 +29,15 @@ abstract class ApiResource extends BaseResource implements ApiResourceInterface
     /**
      * Resolve the resource to an array.
      *
-     * @param  \Illuminate\Http\Request|null  $request
+     * @param \Illuminate\Http\Request|null $request
+     *
      * @return array
      */
     public function resolve(?Request $request = null): array
     {
         $data = [
             '_type' => $this->getResourceType(),
-            ...parent::resolve($request)
+            ...parent::resolve($request),
         ];
 
         return $this->shouldRespondWithAll()
@@ -51,7 +52,7 @@ abstract class ApiResource extends BaseResource implements ApiResourceInterface
      */
     public static function getResourceType(): string
     {
-        if (!defined(static::class . '::RESOURCE_TYPE')) {
+        if (!defined(static::class.'::RESOURCE_TYPE')) {
             throw new LogicException('The RESOURCE_TYPE constant must be defined on the resource');
         }
 
@@ -71,7 +72,8 @@ abstract class ApiResource extends BaseResource implements ApiResourceInterface
     /**
      * Create a new resource collection instance.
      *
-     * @param  mixed  $resource
+     * @param mixed $resource
+     *
      * @return \SineMacula\ApiToolkit\Http\Resources\ApiResourceCollection
      */
     protected static function newCollection(mixed $resource): ApiResourceCollection

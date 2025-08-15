@@ -24,9 +24,10 @@ abstract class Controller extends LaravelController
     /**
      * Respond with raw array data as a JSON response.
      *
-     * @param  array  $data
-     * @param  \SineMacula\ApiToolkit\Enums\HttpStatus  $status
-     * @param  array  $headers
+     * @param array                                   $data
+     * @param \SineMacula\ApiToolkit\Enums\HttpStatus $status
+     * @param array                                   $headers
+     *
      * @return \Illuminate\Http\JsonResponse
      */
     protected function respondWithData(array $data, HttpStatus $status = HttpStatus::OK, array $headers = []): JsonResponse
@@ -37,9 +38,10 @@ abstract class Controller extends LaravelController
     /**
      * Respond with a JSON resource representing a single item.
      *
-     * @param  \Illuminate\Http\Resources\Json\JsonResource  $resource
-     * @param  \SineMacula\ApiToolkit\Enums\HttpStatus  $status
-     * @param  array  $headers
+     * @param \Illuminate\Http\Resources\Json\JsonResource $resource
+     * @param \SineMacula\ApiToolkit\Enums\HttpStatus      $status
+     * @param array                                        $headers
+     *
      * @return \Illuminate\Http\JsonResponse
      */
     protected function respondWithItem(JsonResource $resource, HttpStatus $status = HttpStatus::OK, array $headers = []): JsonResponse
@@ -50,9 +52,10 @@ abstract class Controller extends LaravelController
     /**
      * Respond with a JSON resource collection.
      *
-     * @param  \Illuminate\Http\Resources\Json\ResourceCollection  $collection
-     * @param  \SineMacula\ApiToolkit\Enums\HttpStatus  $status
-     * @param  array  $headers
+     * @param \Illuminate\Http\Resources\Json\ResourceCollection $collection
+     * @param \SineMacula\ApiToolkit\Enums\HttpStatus            $status
+     * @param array                                              $headers
+     *
      * @return \Illuminate\Http\JsonResponse
      */
     protected function respondWithCollection(ResourceCollection $collection, HttpStatus $status = HttpStatus::OK, array $headers = []): JsonResponse
@@ -63,10 +66,11 @@ abstract class Controller extends LaravelController
     /**
      * Respond with an SSE event stream.
      *
-     * @param  callable  $callback
-     * @param  int  $interval
-     * @param  \SineMacula\ApiToolkit\Enums\HttpStatus  $status
-     * @param  array  $headers
+     * @param callable                                $callback
+     * @param int                                     $interval
+     * @param \SineMacula\ApiToolkit\Enums\HttpStatus $status
+     * @param array                                   $headers
+     *
      * @return \Symfony\Component\HttpFoundation\StreamedResponse
      */
     protected function respondWithEventStream(callable $callback, int $interval = 1, HttpStatus $status = HttpStatus::OK, array $headers = []): StreamedResponse
@@ -75,19 +79,17 @@ abstract class Controller extends LaravelController
             'Content-Type'      => 'text/event-stream',
             'Cache-Control'     => 'no-cache, no-transform',
             'Connection'        => 'keep-alive',
-            'X-Accel-Buffering' => 'no'
+            'X-Accel-Buffering' => 'no',
         ]);
 
         return Response::stream(function () use ($callback, $interval): void {
-
             echo ":\n\n";
             flush();
 
-            $heartbeat_interval  = 20;
+            $heartbeat_interval = 20;
             $heartbeat_timestamp = now();
 
             while (true) {
-
                 if (connection_aborted()) {
                     break;
                 }
@@ -112,7 +114,6 @@ abstract class Controller extends LaravelController
 
                 sleep($interval);
             }
-
         }, $status->getCode(), $headers);
     }
 }

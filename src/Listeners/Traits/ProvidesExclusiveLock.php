@@ -15,9 +15,10 @@ trait ProvidesExclusiveLock
     /**
      * Executes the given callback under an exclusive lock.
      *
-     * @param  string  $id
-     * @param  callable  $callback
-     * @param  string  $prefix
+     * @param string   $id
+     * @param callable $callback
+     * @param string   $prefix
+     *
      * @return void
      */
     protected function handleWithLock(string $id, callable $callback, string $prefix = 'LISTENER_LOCK'): void
