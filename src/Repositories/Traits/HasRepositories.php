@@ -3,6 +3,7 @@
 namespace SineMacula\ApiToolkit\Repositories\Traits;
 
 use BadMethodCallException;
+use Exception;
 use SineMacula\ApiToolkit\Repositories\RepositoryResolver;
 use SineMacula\Repositories\Contracts\RepositoryInterface;
 
@@ -25,9 +26,9 @@ trait HasRepositories
      * @param  array  $arguments
      * @return mixed
      *
-     * @throws \Exception
+     * @throws Exception
      */
-    public function __call($method, $arguments)
+    public function __call(string $method, array $arguments): mixed
     {
         if (RepositoryResolver::has($method)) {
             return $this->resolveRepository($method);
@@ -52,7 +53,7 @@ trait HasRepositories
      * @param  string  $repository
      * @return mixed
      *
-     * @throws \Exception
+     * @throws Exception
      */
     protected function resolveRepository(string $repository): RepositoryInterface
     {

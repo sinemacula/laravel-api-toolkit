@@ -1,0 +1,81 @@
+<?xml version="1.0"?>
+<ruleset name="VerifastApi">
+
+    <!-- TODO: Enable this once Qlty Cloud allows composer install -->
+    <!--<arg name="bootstrap" value="vendor/autoload.php"/>-->
+
+    <!-- TODO: Enable this once Qlty Cloud allows composer install -->
+    <!--<config name="installed_paths" value="vendor/slevomat/coding-standard"/>-->
+
+    <!-- Ignore blade templates -->
+    <exclude-pattern>*.blade.php</exclude-pattern>
+
+    <!-- Base PSR-12 standard -->
+    <rule ref="PSR12"/>
+
+    <!-- Exclude specific sniffs -->
+    <rule ref="Generic.Files.LineLength">
+        <properties>
+            <property name="lineLimit" value="180"/>
+            <property name="absoluteLineLimit" value="0"/>
+            <property name="ignoreComments" value="false"/>
+        </properties>
+    </rule>
+
+    <rule ref="Squiz.Commenting.VariableComment">
+        <exclude name="Squiz.Commenting.VariableComment.IncorrectVarType"/>
+    </rule>
+
+    <rule ref="Squiz.Commenting.FunctionComment">
+        <exclude name="Squiz.Commenting.FunctionComment.MissingParamComment"/>
+        <exclude name="Squiz.Commenting.FunctionComment.SpacingAfterParamType"/>
+        <exclude name="Squiz.Commenting.FunctionComment.EmptyThrows"/>
+        <exclude name="Squiz.Commenting.FunctionComment.IncorrectParamVarName"/>
+        <exclude name="Squiz.Commenting.FunctionComment.InvalidReturn"/>
+        <exclude name="Squiz.Commenting.FunctionComment.IncorrectTypeHint"/>
+    </rule>
+
+    <rule ref="PSR12.Traits.UseDeclaration">
+        <exclude name="PSR12.Traits.UseDeclaration.MultipleImport"/>
+    </rule>
+
+    <rule ref="PSR12.Classes.ClassInstantiation">
+        <exclude name="PSR12.Classes.ClassInstantiation.MissingParentheses"/>
+    </rule>
+
+    <rule ref="Squiz.Functions.MultiLineFunctionDeclaration">
+        <exclude name="Squiz.Functions.MultiLineFunctionDeclaration.EmptyLine"/>
+        <exclude name="Squiz.Functions.MultiLineFunctionDeclaration.BraceOnSameLine"/>
+    </rule>
+
+    <rule ref="Squiz.WhiteSpace.ControlStructureSpacing">
+        <exclude name="Squiz.WhiteSpace.ControlStructureSpacing.SpacingAfterOpen"/>
+    </rule>
+
+    <rule ref="Squiz.WhiteSpace.ScopeClosingBrace">
+        <exclude name="Squiz.WhiteSpace.ScopeClosingBrace.ContentBefore"/>
+    </rule>
+
+    <rule ref="PSR2.Classes.ClassDeclaration">
+        <exclude name="PSR2.Classes.ClassDeclaration.OpenBraceNewLine"/>
+    </rule>
+
+    <rule ref="PSR12.Operators.OperatorSpacing">
+        <exclude name="PSR12.Operators.OperatorSpacing.NoSpaceBefore"/>
+        <exclude name="PSR12.Operators.OperatorSpacing.NoSpaceAfter"/>
+    </rule>
+
+    <rule ref="PSR12.Files.FileHeader">
+        <exclude name="PSR12.Files.FileHeader.IncorrectOrder"/>
+        <exclude name="PSR12.Files.FileHeader.SpacingAfterBlock"/>
+    </rule>
+
+    <!-- TODO: Enable this once Qlty Cloud allows composer install -->
+    <!--<rule ref="SlevomatCodingStandard.Namespaces.FullyQualifiedClassNameInAnnotation"/>-->
+
+    <!-- File paths to lint -->
+    <file>config</file>
+    <file>src</file>
+    <file>tests</file>
+
+</ruleset>

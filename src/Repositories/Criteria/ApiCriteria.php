@@ -89,10 +89,10 @@ class ApiCriteria implements CriteriaInterface
     /**
      * Apply the criteria to the given model.
      *
-     * @param  \Illuminate\Database\Eloquent\Model|\Illuminate\Contracts\Database\Eloquent\Builder  $model
+     * @param  \Illuminate\Contracts\Database\Eloquent\Builder|\Illuminate\Database\Eloquent\Model  $model
      * @return \Illuminate\Contracts\Database\Eloquent\Builder
      */
-    public function apply(Model|Builder $model): Builder
+    public function apply(Builder|Model $model): Builder
     {
         $query = $model instanceof Model ? $model->query() : $model;
 
@@ -103,9 +103,7 @@ class ApiCriteria implements CriteriaInterface
         }
 
         $query = $this->applyLimit($query, $this->getLimit());
-        $query = $this->applyOrder($query, $this->getOrder());
-
-        return $query;
+        return $this->applyOrder($query, $this->getOrder());
     }
 
     /**
@@ -202,7 +200,7 @@ class ApiCriteria implements CriteriaInterface
         if (!empty($morphTo_relations)) {
             foreach ($morphTo_relations as $relation) {
                 $query->with([
-                    $relation => function ($q) {}
+                    $relation => function ($q): void {}
                 ]);
             }
         }
@@ -227,10 +225,12 @@ class ApiCriteria implements CriteriaInterface
         $structure = [];
 
         $relation_fields = [];
+
         foreach ($fields as $field) {
             if ($this->isRelation($field, $model)) {
                 try {
                     $relation = $model->{$field}();
+
                     if (!($relation instanceof MorphTo)) {
                         $relation_fields[] = $field;
                     }
@@ -269,6 +269,7 @@ class ApiCriteria implements CriteriaInterface
                 if ($this->isRelation($related_field, $related_model)) {
                     try {
                         $nested_relation = $related_model->{$related_field}();
+
                         if (!($nested_relation instanceof MorphTo)) {
                             $nested_relation_fields[] = $related_field;
                         }
@@ -316,7 +317,7 @@ class ApiCriteria implements CriteriaInterface
 
                 $related_model = $parent_model ? $this->getRelatedModel($parent_model, $key) : null;
 
-                $eager_loads[$key] = function ($query) use ($value, $related_model) {
+                $eager_loads[$key] = function ($query) use ($value, $related_model): void {
                     if (!empty($value)) {
                         $query->with($this->generateEagerLoads($value, $related_model));
                     }
@@ -337,11 +338,9 @@ class ApiCriteria implements CriteriaInterface
     protected function getEagerLoadStructure(Model $model, array $fields): array
     {
         return Cache::rememberForever(CacheKeys::MODEL_EAGER_LOADS->resolveKey([
-            get_class($model),
+            $model::class,
             md5(implode(',', array_filter($fields)))
-        ]), function () use ($model, $fields) {
-            return $this->buildEagerLoadStructure($model, $fields);
-        });
+        ]), fn () => $this->buildEagerLoadStructure($model, $fields));
     }
 
     /**
@@ -352,7 +351,7 @@ class ApiCriteria implements CriteriaInterface
      */
     protected function getResourceFromModel(Model $model): ?string
     {
-        $class = get_class($model);
+        $class = $model::class;
 
         return Cache::rememberForever(CacheKeys::MODEL_RESOURCES->resolveKey([$class]), function () use ($class) {
 
@@ -362,7 +361,6 @@ class ApiCriteria implements CriteriaInterface
                 return $resource;
             }
 
-            return null;
         });
     }
 
@@ -376,14 +374,14 @@ class ApiCriteria implements CriteriaInterface
     protected function getRelatedModel(Model $model, string $relation): ?Model
     {
         return Cache::rememberForever(CacheKeys::MODEL_RELATION_INSTANCES->resolveKey([
-            get_class($model),
+            $model::class,
             $relation
         ]), function () use ($model, $relation) {
 
             try {
 
                 if (!method_exists($model, $relation)) {
-                    return null;
+                    return;
                 }
 
                 $relation_obj = $model->{$relation}();
@@ -395,7 +393,6 @@ class ApiCriteria implements CriteriaInterface
             } catch (Throwable $exception) {
             }
 
-            return null;
         });
     }
 
@@ -454,7 +451,7 @@ class ApiCriteria implements CriteriaInterface
      */
     private function applyConditionOperator(Builder $query, string $operator, mixed $value, ?string $field, ?string $last_logical_operator): void
     {
-        if (in_array($operator, ['$has', '$hasnt'])) {
+        if (in_array($operator, ['$has', '$hasnt'], true)) {
             $this->applyHasFilter($query, $value, $operator, $last_logical_operator);
         } else {
             $this->handleCondition($query, $operator, $value, $field, $last_logical_operator);
@@ -474,7 +471,7 @@ class ApiCriteria implements CriteriaInterface
     {
         $method = $this->determineLogicalMethod($operator, $last_logical_operator);
 
-        $query->{$method}(function (Builder $query) use ($value, $operator) {
+        $query->{$method}(function (Builder $query) use ($value, $operator): void {
             foreach ($value as $subKey => $subValue) {
                 if ($this->isConditionOperator($subKey)) {
                     $this->applyConditionOperator($query, $subKey, $subValue, null, $operator);
@@ -511,8 +508,8 @@ class ApiCriteria implements CriteriaInterface
      */
     private function isColumnSearchable(Model $model, string $column, string $direction): bool
     {
-        return in_array($column, $this->getSearchableColumns($model))
-            && in_array($direction, $this->directions);
+        return in_array($column, $this->getSearchableColumns($model), true)
+            && in_array($direction, $this->directions, true);
     }
 
     /**
@@ -556,7 +553,7 @@ class ApiCriteria implements CriteriaInterface
      */
     private function applySimpleFilter(Builder $query, ?string $column, string $value, string $logical_operator): Builder
     {
-        if ($column && in_array($column, $this->getSearchableColumns($query->getModel()))) {
+        if ($column && in_array($column, $this->getSearchableColumns($query->getModel()), true)) {
             $value = $this->formatValueBasedOnOperator($value, $logical_operator);
             $query->{$this->logicalOperatorMap[$logical_operator]}($column, $value);
         }
@@ -577,7 +574,7 @@ class ApiCriteria implements CriteriaInterface
     {
         $method = ($last_logical_operator === '$or') ? 'orWhereHas' : 'whereHas';
 
-        $query->{$method}($relation, function (Builder $query) use ($filters) {
+        $query->{$method}($relation, function (Builder $query) use ($filters): void {
             $this->processRelationFilters($query, $filters);
         });
     }
@@ -592,7 +589,7 @@ class ApiCriteria implements CriteriaInterface
     private function processRelationFilters(Builder $query, array $filters): void
     {
         if (isset($filters['$or'])) {
-            $query->where(function ($nested) use ($filters) {
+            $query->where(function ($nested) use ($filters): void {
                 foreach ($filters['$or'] as $key => $value) {
                     $this->applyFilters($nested, $value, $key, '$or');
                 }
@@ -625,7 +622,7 @@ class ApiCriteria implements CriteriaInterface
                 }
             } else {
                 if ($this->isRelation($relation, $query->getModel())) {
-                    $query->{$method}($relation, function (Builder $query) use ($filters) {
+                    $query->{$method}($relation, function (Builder $query) use ($filters): void {
                         $this->processRelationFilters($query, $filters);
                     });
                 }
@@ -656,7 +653,7 @@ class ApiCriteria implements CriteriaInterface
      */
     private function handleCondition(Builder $query, string $operator, mixed $value, ?string $column, ?string $last_logical_operator): void
     {
-        if (!$column || !in_array($column, $this->getSearchableColumns($query->getModel()))) {
+        if (!$column || !in_array($column, $this->getSearchableColumns($query->getModel()), true)) {
             return;
         }
 
@@ -691,7 +688,7 @@ class ApiCriteria implements CriteriaInterface
             $items = array_filter(array_map('trim', explode(',', $value)));
 
             if (!empty($items)) {
-                $query->where(function (Builder $query) use ($column, $items) {
+                $query->where(function (Builder $query) use ($column, $items): void {
                     foreach ($items as $index => $item) {
                         $method = $index === 0 ? 'whereJsonContains' : 'orWhereJsonContains';
                         $query->{$method}($column, $item);
@@ -783,7 +780,7 @@ class ApiCriteria implements CriteriaInterface
     private function isRelation(string $key, Model $model): bool
     {
         return Cache::rememberForever(CacheKeys::MODEL_RELATIONS->resolveKey([
-            get_class($model),
+            $model::class,
             $key
         ]), function () use ($key, $model) {
             if (!method_exists($model, $key) || !is_callable([$model, $key])) {
@@ -806,7 +803,7 @@ class ApiCriteria implements CriteriaInterface
      */
     private function getSearchableColumns(Model $model): array
     {
-        $class = get_class($model);
+        $class = $model::class;
 
         if (!isset($this->searchable[$class])) {
             $this->searchable[$class] = $this->resolveSearchableColumns($model);

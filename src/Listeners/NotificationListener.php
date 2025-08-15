@@ -49,15 +49,15 @@ class NotificationListener
     private function log(string $message, Notification $notification, mixed $notifiable, string $channel): void
     {
         Log::channel('notifications')->info($message, [
-            'notification' => get_class($notification),
-            'notifiable'   => get_class($notifiable),
+            'notification' => $notification::class,
+            'notifiable'   => $notifiable::class,
             'channel'      => $channel
         ]);
 
         if (config('api-toolkit.logging.cloudwatch.enabled', false)) {
             Log::channel('cloudwatch-notifications')->info($message, [
-                'notification' => get_class($notification),
-                'notifiable'   => get_class($notifiable),
+                'notification' => $notification::class,
+                'notifiable'   => $notifiable::class,
                 'channel'      => $channel
             ]);
         }

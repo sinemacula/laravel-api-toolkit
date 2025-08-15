@@ -73,10 +73,10 @@ abstract class ApiRepository extends Repository
      * Set the attributes for the given model.
      *
      * @param  \Illuminate\Database\Eloquent\Model  $model
-     * @param  \Illuminate\Support\Collection|array  $attributes
+     * @param  array|\Illuminate\Support\Collection  $attributes
      * @return bool
      */
-    public function setAttributes(Model $model, Collection|array $attributes): bool
+    public function setAttributes(Model $model, array|Collection $attributes): bool
     {
         $attributes = $attributes instanceof Collection ? $attributes->all() : $attributes;
 
@@ -134,7 +134,7 @@ abstract class ApiRepository extends Repository
      */
     public function scopeByIds(array $ids, string $column = 'id'): static
     {
-        return $this->addScope(function (Builder $query) use ($column, $ids) {
+        return $this->addScope(function (Builder $query) use ($column, $ids): void {
             $query->whereIn($column, array_unique($ids));
         });
     }

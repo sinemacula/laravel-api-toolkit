@@ -46,19 +46,17 @@ class ApiExceptionHandler
      */
     public static function handles(Exceptions $exceptions): void
     {
-        $exceptions->report(function (ApiException $exception) {
+        $exceptions->report(function (ApiException $exception): void {
             self::logApiException($exception);
         })->stop();
 
-        $exceptions->render(function (Throwable $exception, Request $request) {
-            return self::render($exception, $request);
-        });
+        $exceptions->render(fn (Throwable $exception, Request $request) => self::render($exception, $request));
     }
 
     /**
      * Renders the given exception as an HTTP response.
      *
-     * @param  \Throwable  $exception
+     * @param  Throwable  $exception
      * @param  \Illuminate\Http\Request  $request
      * @return \Symfony\Component\HttpFoundation\Response|null
      */
@@ -84,7 +82,7 @@ class ApiExceptionHandler
     /**
      * Maps standard exceptions to custom API exceptions.
      *
-     * @param  \Throwable  $exception
+     * @param  Throwable  $exception
      * @return \SineMacula\ApiToolkit\Exceptions\ApiException
      */
     private static function mapApiException(Throwable $exception): ApiException
@@ -160,7 +158,7 @@ class ApiExceptionHandler
 
         return Config::get('app.debug') && $previous ? array_merge($exception->getCustomMeta() ?? [], [
             'message'   => $previous->getMessage(),
-            'exception' => get_class($previous),
+            'exception' => $previous::class,
             'file'      => $previous->getFile(),
             'line'      => $previous->getLine(),
             'trace'     => collect($previous->getTrace())->map(fn ($trace) => Arr::except($trace, ['args']))->all()
@@ -185,7 +183,7 @@ class ApiExceptionHandler
     /**
      * Formats an exception into a string representation.
      *
-     * @param  \Throwable  $exception
+     * @param  Throwable  $exception
      * @return string
      */
     private static function convertExceptionToString(Throwable $exception): string

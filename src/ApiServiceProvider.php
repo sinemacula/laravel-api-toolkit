@@ -139,13 +139,9 @@ class ApiServiceProvider extends ServiceProvider
      */
     private function registerTrashedMacros(): void
     {
-        Request::macro('includeTrashed', function () {
-            return $this->get('include_trashed', false) === 'true';
-        });
+        Request::macro('includeTrashed', fn () => $this->get('include_trashed', false) === 'true');
 
-        Request::macro('onlyTrashed', function () {
-            return $this->get('only_trashed', false) === 'true';
-        });
+        Request::macro('onlyTrashed', fn () => $this->get('only_trashed', false) === 'true');
     }
 
     /**
@@ -155,19 +151,13 @@ class ApiServiceProvider extends ServiceProvider
      */
     private function registerExportMacros(): void
     {
-        Request::macro('expectsExport', function () {
-            return config('api-toolkit.exports.enabled') && ($this->expectsCsv() || $this->expectsXml());
-        });
+        Request::macro('expectsExport', fn () => config('api-toolkit.exports.enabled') && ($this->expectsCsv() || $this->expectsXml()));
 
-        Request::macro('expectsCsv', function () {
-            return strtolower($this->header('Accept')) === 'text/csv'
-                && in_array('csv', config('api-toolkit.exports.supported_formats', []));
-        });
+        Request::macro('expectsCsv', fn () => strtolower($this->header('Accept')) === 'text/csv'
+                && in_array('csv', config('api-toolkit.exports.supported_formats', []), true));
 
-        Request::macro('expectsXml', function () {
-            return strtolower($this->header('Accept')) === 'application/xml'
-                && in_array('xml', config('api-toolkit.exports.supported_formats', []));
-        });
+        Request::macro('expectsXml', fn () => strtolower($this->header('Accept')) === 'application/xml'
+                && in_array('xml', config('api-toolkit.exports.supported_formats', []), true));
 
         Request::macro('expectsPdf', fn () => strtolower($this->header('Accept')) === 'application/pdf');
     }
@@ -179,9 +169,7 @@ class ApiServiceProvider extends ServiceProvider
      */
     private function registerStreamMacros(): void
     {
-        Request::macro('expectsStream', function () {
-            return strtolower($this->header('Accept')) === 'text/event-stream';
-        });
+        Request::macro('expectsStream', fn () => strtolower($this->header('Accept')) === 'text/event-stream');
     }
 
     /**
