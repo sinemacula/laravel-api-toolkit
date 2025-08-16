@@ -70,7 +70,7 @@ class DatabaseHandler extends AbstractProcessingHandler
      * Log to fallback channels in case of database logging failure.
      *
      * @param  \Monolog\LogRecord  $record
-     * @param  \Exception  $exception
+     * @param  Exception  $exception
      * @return void
      */
     private function logToFallback(LogRecord $record, Exception $exception): void

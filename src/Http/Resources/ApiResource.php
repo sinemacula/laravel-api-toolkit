@@ -2,6 +2,7 @@
 
 namespace SineMacula\ApiToolkit\Http\Resources;
 
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Config;
 use LogicException;
 use SineMacula\ApiToolkit\Contracts\ApiResourceInterface;
@@ -31,7 +32,7 @@ abstract class ApiResource extends BaseResource implements ApiResourceInterface
      * @param  \Illuminate\Http\Request|null  $request
      * @return array
      */
-    public function resolve($request = null): array
+    public function resolve(?Request $request = null): array
     {
         $data = [
             '_type' => $this->getResourceType(),
@@ -73,7 +74,7 @@ abstract class ApiResource extends BaseResource implements ApiResourceInterface
      * @param  mixed  $resource
      * @return \SineMacula\ApiToolkit\Http\Resources\ApiResourceCollection
      */
-    protected static function newCollection($resource): ApiResourceCollection
+    protected static function newCollection(mixed $resource): ApiResourceCollection
     {
         return new ApiResourceCollection($resource, static::class);
     }
@@ -85,7 +86,7 @@ abstract class ApiResource extends BaseResource implements ApiResourceInterface
      */
     private function shouldRespondWithAll(): bool
     {
-        return $this->all || in_array(':all', ApiQuery::getFields(self::getResourceType()) ?? []);
+        return $this->all || in_array(':all', ApiQuery::getFields(self::getResourceType()) ?? [], true);
     }
 
     /**

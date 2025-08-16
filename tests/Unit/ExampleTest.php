@@ -2,6 +2,7 @@
 
 namespace Tests\Unit;
 
+use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -11,9 +12,8 @@ use PHPUnit\Framework\TestCase;
  * @copyright   2025 Sine Macula Limited.
  *
  * @internal
- *
- * @coversNothing
  */
+#[CoversNothing]
 class ExampleTest extends TestCase
 {
     /**
@@ -21,8 +21,8 @@ class ExampleTest extends TestCase
      *
      * @return void
      */
-    public function test_that_true_is_true()
+    public function testThatTrueIsTrue(): void
     {
-        self::assertTrue(true);
+        static::assertTrue(true);
     }
 }

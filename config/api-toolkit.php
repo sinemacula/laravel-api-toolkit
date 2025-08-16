@@ -129,8 +129,8 @@ return [
 
     'repositories' => [
 
-        'cast_map'              => [
-            'string'  => [
+        'cast_map' => [
+            'string' => [
                 'string',
                 'date',
                 'datetime',
