@@ -2,6 +2,7 @@
 
 namespace SineMacula\ApiToolkit\Http\Middleware\Traits;
 
+use Illuminate\Http\Request;
 use RuntimeException;
 
 /**
@@ -18,19 +19,19 @@ trait ThrottleRequestsTrait
      * @param  \Illuminate\Http\Request  $request
      * @return string
      *
-     * @throws \RuntimeException
+     * @throws RuntimeException
      */
-    protected function resolveRequestSignature($request): string
+    protected function resolveRequestSignature(Request $request): string
     {
         if (!$request->route()) {
             throw new RuntimeException('Unable to generate the request signature. Route unavailable.');
         }
 
         return sha1(
-            $request->method() .
-            '|' . $request->server('SERVER_NAME') .
-            '|' . $request->path() .
-            '|' . $request->user()?->getAuthIdentifier() ?? $request->ip()
+            $request->method()
+            . '|' . $request->server('SERVER_NAME')
+            . '|' . $request->path()
+            . '|' . $request->user()?->getAuthIdentifier() ?? $request->ip()
         );
     }
 }

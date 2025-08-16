@@ -34,11 +34,9 @@ class ApiResourceCollection extends AnonymousResourceCollection
      */
     public function toArray(Request $request): array
     {
-        return $this->collection->map(function (ApiResource $item) use ($request) {
-            return $item->withFields($this->fields ?? null)
-                ->withoutFields($this->excludedFields ?? null)
-                ->resolve($request);
-        })->all();
+        return $this->collection->map(fn (ApiResource $item) => $item->withFields($this->fields ?? null)
+            ->withoutFields($this->excludedFields ?? null)
+            ->resolve($request))->all();
     }
 
     /**

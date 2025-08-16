@@ -35,7 +35,7 @@ class RepositoryResolver
      * @param  string  $name
      * @return \SineMacula\Repositories\Contracts\RepositoryInterface
      *
-     * @throws \RuntimeException
+     * @throws RuntimeException
      */
     public static function get(string $name): RepositoryInterface
     {

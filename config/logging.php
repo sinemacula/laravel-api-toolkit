@@ -1,9 +1,9 @@
 <?php
 
 $base = [
-    'driver'     => 'cloudwatch',
-    'level'      => env('LOG_LEVEL', 'debug'),
-    'aws'        => [
+    'driver' => 'cloudwatch',
+    'level'  => env('LOG_LEVEL', 'debug'),
+    'aws'    => [
         'region'      => env('AWS_REGION', 'us-east-1'),
         'credentials' => [
             'key'    => env('AWS_ACCESS_KEY_ID'),

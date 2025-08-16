@@ -22,7 +22,7 @@ abstract class ApiException extends Exception
      *
      * @param  array|null  $meta
      * @param  array|null  $headers
-     * @param  \Throwable|null  $previous
+     * @param  Throwable|null  $previous
      */
     public function __construct(
 
