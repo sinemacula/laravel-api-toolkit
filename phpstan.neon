@@ -1,0 +1,18 @@
+includes:
+    - vendor/larastan/larastan/extension.neon
+
+parameters:
+
+    level: 5
+
+    paths:
+        - config
+        - src
+        - tests
+
+    checkMissingCallableSignature: false
+    checkUninitializedProperties: true
+    inferPrivatePropertyTypeFromConstructor: true
+
+    ignoreErrors:
+        - '#Call to an undefined method Illuminate\\.+#'
