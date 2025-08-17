@@ -7,6 +7,7 @@ use Illuminate\Http\Resources\MissingValue;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Config;
 use LogicException;
+use SensitiveParameter;
 use SineMacula\ApiToolkit\Contracts\ApiResourceInterface;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
 
@@ -56,11 +57,14 @@ abstract class ApiResource extends BaseResource implements ApiResourceInterface
     /**
      * Resolve the resource to an array.
      *
-     * @param  \Illuminate\Http\Request|null  $request
+     * phpcs:disable Squiz.Commenting.FunctionComment.ScalarTypeHintMissing
+     *
+     * @param  mixed  $request
      * @return array<string, mixed>
      */
-    public function resolve(?Request $request = null): array
+    public function resolve(#[SensitiveParameter] $request = null): array
     {
+        // phpcs:enable
         $data   = ['_type' => static::getResourceType()];
         $fields = $this->getFields();
 
@@ -181,11 +185,14 @@ abstract class ApiResource extends BaseResource implements ApiResourceInterface
     /**
      * Create a new resource collection instance.
      *
+     * phpcs:disable Squiz.Commenting.FunctionComment.ScalarTypeHintMissing
+     *
      * @param  mixed  $resource
      * @return \SineMacula\ApiToolkit\Http\Resources\ApiResourceCollection
      */
-    protected static function newCollection(mixed $resource): ApiResourceCollection
+    protected static function newCollection(#[SensitiveParameter] $resource): ApiResourceCollection
     {
+        // phpcs:enable
         return new ApiResourceCollection($resource, static::class);
     }
 
