@@ -5,8 +5,8 @@ namespace SineMacula\ApiToolkit\Http\Middleware;
 use Closure;
 use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Foundation\Http\Middleware\PreventRequestsDuringMaintenance as Middleware;
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Config;
+use SensitiveParameter;
 use SineMacula\ApiToolkit\Exceptions\MaintenanceModeException;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 
@@ -34,14 +34,17 @@ class PreventRequestsDuringMaintenance extends Middleware
     /**
      * Handle an incoming request.
      *
+     * phpcs:disable Squiz.Commenting.FunctionComment.ScalarTypeHintMissing
+     *
      * @param  \Illuminate\Http\Request  $request
      * @param  Closure  $next
      * @return mixed
      *
      * @throws \SineMacula\ApiToolkit\Exceptions\ApiException
      */
-    public function handle(Request $request, Closure $next): mixed
+    public function handle(#[SensitiveParameter] $request, Closure $next): mixed
     {
+        // phpcs:enable
         try {
             return parent::handle($request, $next);
         } catch (HttpException $exception) {
