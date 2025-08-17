@@ -103,6 +103,7 @@ class ApiCriteria implements CriteriaInterface
         }
 
         $query = $this->applyLimit($query, $this->getLimit());
+
         return $this->applyOrder($query, $this->getOrder());
     }
 
@@ -360,7 +361,6 @@ class ApiCriteria implements CriteriaInterface
             if ($resource && class_exists($resource) && in_array(ApiResourceInterface::class, class_implements($resource) ?: [], true)) {
                 return $resource;
             }
-
         });
     }
 
@@ -392,7 +392,6 @@ class ApiCriteria implements CriteriaInterface
 
             } catch (Throwable $exception) {
             }
-
         });
     }
 
@@ -861,7 +860,7 @@ class ApiCriteria implements CriteriaInterface
      */
     private function getColumnExclusions(string $table): array
     {
-        return collect(Config::get('api-toolkit.repositories.searchable_exclusions', []))
+        return (array) collect(Config::get('api-toolkit.repositories.searchable_exclusions', []))
             ->reduce(function ($carry, $exclusion) use ($table) {
 
                 if (str_contains($exclusion, '.') && strtok($exclusion, '.') === $table) {

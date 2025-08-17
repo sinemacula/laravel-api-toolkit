@@ -163,7 +163,7 @@ class ApiResourceCollection extends AnonymousResourceCollection
         return [
             'self' => request()->fullUrl(),
             'prev' => $paginator->previousPageUrl(),
-            'next' => $paginator->nextPageUrl(),
+            'next' => $paginator->nextPageUrl()
         ];
     }
 }
