@@ -25,11 +25,11 @@ abstract class ApiResource extends BaseResource implements ApiResourceInterface
     /** @var array Default fields to include if no specific fields are requested */
     protected static array $default = [];
 
-    /** @var array<class-string, array<string, array>> Compiled schema cache keyed by resource class */
-    private static array $schemaCache = [];
-
     /** @var array Fixed fields to include in the response */
     protected array $fixed = [];
+
+    /** @var array<class-string, array<string, array>> Compiled schema cache keyed by resource class */
+    private static array $schemaCache = [];
 
     /**
      * Create a new resource instance.
@@ -147,6 +147,17 @@ abstract class ApiResource extends BaseResource implements ApiResourceInterface
      * @return array<string, array>
      */
     abstract public static function schema(): array;
+
+    /**
+     * Transform the resource into an array.
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @return array<string, mixed>
+     */
+    public function toArray(Request $request): array
+    {
+        return $this->resolve($request);
+    }
 
     /**
      * Get the compiled schema for this resource class.
