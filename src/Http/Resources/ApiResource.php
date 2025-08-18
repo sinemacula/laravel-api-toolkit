@@ -35,10 +35,20 @@ abstract class ApiResource extends BaseResource implements ApiResourceInterface
      * Create a new resource instance.
      *
      * @param  mixed  $resource
+     * @param  mixed  $included
+     * @param  array|null  $excluded
      */
-    public function __construct(mixed $resource)
+    public function __construct(mixed $resource, mixed $included = null, ?array $excluded = null)
     {
         parent::__construct($resource);
+
+        if (is_array($included)) {
+            $this->withFields($included);
+        }
+
+        if ($excluded !== null) {
+            $this->withoutFields($excluded);
+        }
 
         if (is_object($resource) && method_exists($resource, 'loadMissing')) {
 
@@ -77,40 +87,21 @@ abstract class ApiResource extends BaseResource implements ApiResourceInterface
             }
         }
 
-        $priority = ['_type' => 0, 'id' => 1];
-
-        uksort(
-            $data,
-            static fn (string $a, string $b): int => ($priority[$a] ?? 2) <=> ($priority[$b] ?? 2) ?: strcmp($a, $b)
-        );
-
-        return $data;
+        return $this->orderResolvedFields($data);
     }
 
     /**
-     * Get relation paths to eager load based on the provided fields.
+     * Get relation paths to eager load for the provided fields, recursively.
      *
      * @param  array<int, string>  $fields
      * @return array<int, string>
      */
     public static function relationsFor(array $fields): array
     {
-        $schema = static::getCompiledSchema();
-        $paths  = [];
+        $paths   = [];
+        $visited = [];
 
-        foreach ($fields as $field) {
-
-            $definition = $schema[$field] ?? null;
-
-            if ($definition === null) {
-                continue;
-            }
-
-            $relations = isset($definition['relation']) ? (array) $definition['relation'] : [];
-            $extras    = is_array($definition['extras'] ?? null) ? $definition['extras'] : [];
-
-            $paths = array_merge($paths, $relations, $extras);
-        }
+        static::walkRelations(static::class, $fields, '', $paths, $visited);
 
         $paths = array_filter($paths, static fn ($path) => is_string($path) && $path !== '');
 
@@ -157,6 +148,46 @@ abstract class ApiResource extends BaseResource implements ApiResourceInterface
     public function toArray(Request $request): array
     {
         return $this->resolve($request);
+    }
+
+    /**
+     * Order resolved fields into a predictable output structure.
+     *
+     * Rules:
+     *  - "_type" always first
+     *  - "id" always second
+     *  - any timestamps (*_at) always last
+     *  - everything else alphabetized in between
+     *
+     * @param  array<string, mixed>  $data
+     * @return array<string, mixed>
+     */
+    protected function orderResolvedFields(array $data): array
+    {
+        $weight = static function (string $key): array {
+
+            if ($key === '_type') {
+                return [0, ''];
+            }
+
+            if ($key === 'id') {
+                return [1, ''];
+            }
+
+            $is_timestamp = str_ends_with($key, '_at');
+
+            return [$is_timestamp ? 3 : 2, $key];
+        };
+
+        uksort($data, static function (string $a, string $b) use ($weight): int {
+
+            [$wa, $ka] = $weight($a);
+            [$wb, $kb] = $weight($b);
+
+            return $wa <=> $wb ?: strcmp($ka, $kb);
+        });
+
+        return $data;
     }
 
     /**
@@ -227,11 +258,11 @@ abstract class ApiResource extends BaseResource implements ApiResourceInterface
         }
 
         $value = match (true) {
-            $definition === null                      => $this->resolveSimpleProperty($field),
-            array_key_exists('compute', $definition)  => $this->resolveComputedValue($definition['compute'], $request),
-            array_key_exists('relation', $definition) => $this->resolveRelationValue($definition, $request),
-            array_key_exists('accessor', $definition) => $this->resolveAccessorValue($definition['accessor'], $request),
-            default                                   => new MissingValue
+            $definition === null || $definition === [] => $this->resolveSimpleProperty($field),
+            array_key_exists('compute', $definition)   => $this->resolveComputedValue($definition['compute'], $request),
+            array_key_exists('relation', $definition)  => $this->resolveRelationValue($definition, $request),
+            array_key_exists('accessor', $definition)  => $this->resolveAccessorValue($definition['accessor'], $request),
+            default                                    => new MissingValue
         };
 
         if (!($value instanceof MissingValue) && !empty($definition['transformers'])) {
@@ -308,9 +339,225 @@ abstract class ApiResource extends BaseResource implements ApiResourceInterface
             return data_get($related, $definition['accessor']);
         }
 
-        $child = $this->getRelationResourceClass($definition);
+        $child        = $this->getRelationResourceClass($definition);
+        $child_fields = $this->getRelationFields($definition);
 
-        return $child === null ? $related : $this->wrapRelatedWithResource($related, $child);
+        return $child === null ? $related : $this->wrapRelatedWithResource($related, $child, $child_fields);
+    }
+
+    /**
+     * Get explicit child fields from a relation definition, if provided.
+     *
+     * @param  array<string, mixed>  $definition
+     * @return array<int, string>|null
+     */
+    private function getRelationFields(array $definition): ?array
+    {
+        $fields = $definition['fields'] ?? null;
+
+        if (!is_array($fields)) {
+            return null;
+        }
+
+        $fields = array_values(array_filter($fields, static fn ($field) => is_string($field) && $field !== ''));
+
+        return $fields === [] ? [] : $fields;
+    }
+
+    /**
+     * Orchestrate relation traversal for a resource class.
+     *
+     * @param  class-string  $resource
+     * @param  array<int, string>  $fields
+     * @param  string  $prefix
+     * @param  array<int, string>  $paths
+     * @param  array<string, bool>  $visited
+     * @return void
+     */
+    private static function walkRelations(string $resource, array $fields, string $prefix, array &$paths, array &$visited): void
+    {
+        $schema = $resource::getCompiledSchema();
+
+        foreach ($fields as $field) {
+
+            $definition = static::findDefinition($schema, $field);
+
+            if ($definition === null) {
+                continue;
+            }
+
+            $relations   = static::extractRelations($definition);
+            $extra_paths = static::extractExtraPaths($definition);
+
+            foreach ($relations as $relation) {
+
+                $full_path = static::makePrefixedPath($prefix, $relation);
+
+                if (static::wasVisited($visited, $resource, $full_path)) {
+                    continue;
+                }
+
+                static::markVisited($visited, $resource, $full_path);
+                static::addPath($paths, $full_path);
+                static::addExtras($paths, $prefix, $extra_paths);
+
+                if (!static::shouldRecurseIntoChild($definition)) {
+                    continue;
+                }
+
+                $child_resource = $definition['resource'];
+                $child_fields   = static::resolveChildFields($definition, $child_resource);
+
+                if ($child_fields !== []) {
+                    static::walkRelations($child_resource, $child_fields, $full_path, $paths, $visited);
+                }
+            }
+        }
+    }
+
+    /**
+     * Find a field definition in a schema.
+     *
+     * @param  array<string, array<string, mixed>>  $schema
+     * @param  string  $field
+     * @return array<string, mixed>|null
+     */
+    private static function findDefinition(array $schema, string $field): ?array
+    {
+        $definition = $schema[$field] ?? null;
+
+        return is_array($definition) ? $definition : null;
+    }
+
+    /**
+     * Extract declared relation names from a definition.
+     *
+     * @param  array<string, mixed>  $definition
+     * @return array<int, string>
+     */
+    private static function extractRelations(array $definition): array
+    {
+        $relations = isset($definition['relation']) ? (array) $definition['relation'] : [];
+
+        return array_values(
+            array_filter($relations, static fn ($relation) => is_string($relation) && $relation !== '')
+        );
+    }
+
+    /**
+     * Extract extra eager-load paths from a definition.
+     *
+     * @param  array<string, mixed>  $definition
+     * @return array<int, string>
+     */
+    private static function extractExtraPaths(array $definition): array
+    {
+        $extras = is_array($definition['extras'] ?? null) ? $definition['extras'] : [];
+
+        return array_values(
+            array_filter($extras, static fn ($path) => is_string($path) && $path !== '')
+        );
+    }
+
+    /**
+     * Build a dot-prefixed path.
+     *
+     * @param  string  $prefix
+     * @param  string  $suffix
+     * @return string
+     */
+    private static function makePrefixedPath(string $prefix, string $suffix): string
+    {
+        return $prefix === '' ? $suffix : $prefix . '.' . $suffix;
+    }
+
+    /**
+     * Check if a (resource_class, path) pair has been visited.
+     *
+     * @param  array<string, bool>  $visited
+     * @param  string  $resource
+     * @param  string  $path
+     * @return bool
+     */
+    private static function wasVisited(array $visited, string $resource, string $path): bool
+    {
+        return isset($visited[$resource . '|' . $path]);
+    }
+
+    /**
+     * Mark a (resource_class, path) pair as visited.
+     *
+     * @param  array<string, bool>  $visited
+     * @param  string  $resource
+     * @param  string  $path
+     * @return void
+     */
+    private static function markVisited(array &$visited, string $resource, string $path): void
+    {
+        $visited[$resource . '|' . $path] = true;
+    }
+
+    /**
+     * Add a path to the accumulation list.
+     *
+     * @param  array<int, string>  $paths
+     * @param  string  $path
+     * @return void
+     */
+    private static function addPath(array &$paths, string $path): void
+    {
+        $paths[] = $path;
+    }
+
+    /**
+     * Add any extra eager-load paths, respecting the current prefix.
+     *
+     * @param  array<int, string>  $paths
+     * @param  string  $prefix
+     * @param  array<int, string>  $extras
+     * @return void
+     */
+    private static function addExtras(array &$paths, string $prefix, array $extras): void
+    {
+        foreach ($extras as $extra) {
+            $paths[] = static::makePrefixedPath($prefix, $extra);
+        }
+    }
+
+    /**
+     * Decide whether to recurse into a child resource.
+     *
+     * @param  array<string, mixed>  $definition
+     * @return bool
+     */
+    private static function shouldRecurseIntoChild(array $definition): bool
+    {
+        return isset($definition['resource'])
+            && is_string($definition['resource'])
+            && $definition['resource'] !== ''
+            && is_subclass_of($definition['resource'], self::class);
+    }
+
+    /**
+     * Resolve the child fields to traverse (relation override or child defaults / schema).
+     *
+     * @param  array<string, mixed>  $definition
+     * @param  class-string  $resource
+     * @return array<int, string>
+     */
+    private static function resolveChildFields(array $definition, string $resource): array
+    {
+        if (!empty($definition['fields']) && is_array($definition['fields'])) {
+            return array_values(array_filter($definition['fields'], static fn ($field) => is_string($field) && $field !== ''));
+        }
+
+        $defaults = $resource::getDefaultFields();
+
+        if (!empty($defaults)) {
+            return $defaults;
+        }
+
+        return array_keys($resource::getCompiledSchema());
     }
 
     /**
@@ -358,13 +605,23 @@ abstract class ApiResource extends BaseResource implements ApiResourceInterface
      *
      * @param  mixed  $related
      * @param  class-string  $resource
+     * @param  ?array  $fields
      * @return mixed
      */
-    private function wrapRelatedWithResource(mixed $related, string $resource): mixed
+    private function wrapRelatedWithResource(mixed $related, string $resource, ?array $fields = null): mixed
     {
-        return $related instanceof Collection
-            ? $resource::collection($related)
-            : new $resource($related);
+        if ($related instanceof Collection) {
+
+            $wrapped = $resource::collection($related);
+
+            if ($fields !== null && method_exists($wrapped, 'withFields')) {
+                $wrapped->withFields($fields);
+            }
+
+            return $wrapped;
+        }
+
+        return new $resource($related, $fields);
     }
 
     /**

@@ -26,6 +26,9 @@ final class Relation extends BaseDefinition implements Arrayable
     /** @var array<int, string> Extra eager-load paths */
     private array $extras = [];
 
+    /** @var array<int, string>|null Child field projection for eager-load planning */
+    private ?array $fields = null;
+
     /**
      * Prevent direct instantiation.
      *
@@ -92,6 +95,19 @@ final class Relation extends BaseDefinition implements Arrayable
     }
 
     /**
+     * Specify the child fields to be considered when planning nested eager loads.
+     *
+     * @param  array<int, string>  $fields
+     * @return self
+     */
+    public function fields(array $fields): self
+    {
+        $this->fields = array_values(array_unique($fields));
+
+        return $this;
+    }
+
+    /**
      * Convert this definition to a normalized array.
      *
      * @return array<string, array<string, mixed>>
@@ -106,6 +122,7 @@ final class Relation extends BaseDefinition implements Arrayable
                 'resource'     => $this->resource,
                 'accessor'     => $this->accessor,
                 'extras'       => $this->extras ?: null,
+                'fields'       => $this->fields,
                 'guards'       => $this->getGuards() ?: null,
                 'transformers' => $this->getTransformers() ?: null,
             ], static fn ($value) => $value !== null && $value !== [])
