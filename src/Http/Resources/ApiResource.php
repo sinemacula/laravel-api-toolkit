@@ -3,6 +3,7 @@
 namespace SineMacula\ApiToolkit\Http\Resources;
 
 use Illuminate\Http\Request;
+use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Http\Resources\MissingValue;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Config;
@@ -25,11 +26,11 @@ abstract class ApiResource extends BaseResource implements ApiResourceInterface
     /** @var array Default fields to include if no specific fields are requested */
     protected static array $default = [];
 
-    /** @var array Fixed fields to include in the response */
-    protected array $fixed = [];
-
     /** @var array<class-string, array<string, array>> Compiled schema cache keyed by resource class */
     private static array $schemaCache = [];
+
+    /** @var array Fixed fields to include in the response */
+    protected array $fixed = [];
 
     /**
      * Create a new resource instance.
@@ -333,7 +334,8 @@ abstract class ApiResource extends BaseResource implements ApiResourceInterface
             return new MissingValue;
         }
 
-        $related = $this->resource->getRelation($name);
+        $owner   = $this->unwrapResource($this->resource);
+        $related = $owner->getRelation($name);
 
         if (is_string($definition['accessor'] ?? null)) {
             return data_get($related, $definition['accessor']);
@@ -575,16 +577,33 @@ abstract class ApiResource extends BaseResource implements ApiResourceInterface
     }
 
     /**
-     * Check whether a relation is already loaded on the model.
+     * Unwrap nested JsonResource layers to the underlying model/collection.
+     *
+     * @param  mixed  $value
+     * @return mixed
+     */
+    private function unwrapResource(mixed $value): mixed
+    {
+        while ($value instanceof JsonResource) {
+            $value = $value->resource;
+        }
+
+        return $value;
+    }
+
+    /**
+     * Check whether a relation is already loaded on the *model* that owns it.
      *
      * @param  string  $name
      * @return bool
      */
     private function isRelationLoaded(string $name): bool
     {
-        return is_object($this->resource)
-            && method_exists($this->resource, 'relationLoaded')
-            && $this->resource->relationLoaded($name);
+        $owner = $this->unwrapResource($this->resource);
+
+        return is_object($owner)
+            && method_exists($owner, 'relationLoaded')
+            && $owner->relationLoaded($name);
     }
 
     /**

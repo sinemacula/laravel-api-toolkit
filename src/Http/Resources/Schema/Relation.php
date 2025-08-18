@@ -29,6 +29,9 @@ final class Relation extends BaseDefinition implements Arrayable
     /** @var array<int, string>|null Child field projection for eager-load planning */
     private ?array $fields = null;
 
+    /** @var callable|null Eager-load constraint callback */
+    private mixed $constraint = null;
+
     /**
      * Prevent direct instantiation.
      *
@@ -108,6 +111,21 @@ final class Relation extends BaseDefinition implements Arrayable
     }
 
     /**
+     * Apply an eager-load constraint callback to this relation.
+     *
+     * The callback receives the relation's query builder.
+     *
+     * @param  callable  $constraint
+     * @return self
+     */
+    public function constrain(callable $constraint): self
+    {
+        $this->constraint = $constraint;
+
+        return $this;
+    }
+
+    /**
      * Convert this definition to a normalized array.
      *
      * @return array<string, array<string, mixed>>
@@ -123,6 +141,7 @@ final class Relation extends BaseDefinition implements Arrayable
                 'accessor'     => $this->accessor,
                 'extras'       => $this->extras ?: null,
                 'fields'       => $this->fields,
+                'constraint'   => $this->constraint,
                 'guards'       => $this->getGuards() ?: null,
                 'transformers' => $this->getTransformers() ?: null,
             ], static fn ($value) => $value !== null && $value !== [])
