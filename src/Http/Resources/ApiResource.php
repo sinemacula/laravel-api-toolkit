@@ -2,6 +2,10 @@
 
 namespace SineMacula\ApiToolkit\Http\Resources;
 
+use Closure;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Relations\MorphTo;
+use Illuminate\Database\Eloquent\Relations\Relation as EloquentRelation;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Http\Resources\MissingValue;
@@ -57,10 +61,10 @@ abstract class ApiResource extends BaseResource implements ApiResourceInterface
                 ? array_keys(static::getCompiledSchema())
                 : $this->resolveFields();
 
-            $relations = static::relationsFor($fields);
+            $with = static::eagerLoadMapFor($fields);
 
-            if (!empty($relations)) {
-                $resource->loadMissing($relations);
+            if (!empty($with)) {
+                $resource->loadMissing($with);
             }
         }
     }
@@ -92,21 +96,27 @@ abstract class ApiResource extends BaseResource implements ApiResourceInterface
     }
 
     /**
-     * Get relation paths to eager load for the provided fields, recursively.
+     * Build a with()-ready eager-load map for the provided fields, including constrained relations.
+     *
+     * - Numeric entries are plain eager-loads: ['user', 'user.roles']
+     * - Associative entries are scoped with a closure: ['bindings' => fn ($q) => ...]
      *
      * @param  array<int, string>  $fields
-     * @return array<int, string>
+     * @return array<int|string, mixed>
      */
-    public static function relationsFor(array $fields): array
+    public static function eagerLoadMapFor(array $fields): array
     {
-        $paths   = [];
+        $plain   = [];
+        $scoped  = [];
         $visited = [];
 
-        static::walkRelations(static::class, $fields, '', $paths, $visited);
+        static::walkRelationsWith(static::class, $fields, '', $plain, $scoped, $visited);
 
-        $paths = array_filter($paths, static fn ($path) => is_string($path) && $path !== '');
+        if ($plain === [] && $scoped === []) {
+            return [];
+        }
 
-        return array_values(array_unique($paths));
+        return array_merge($plain, $scoped);
     }
 
     /**
@@ -367,16 +377,21 @@ abstract class ApiResource extends BaseResource implements ApiResourceInterface
     }
 
     /**
-     * Orchestrate relation traversal for a resource class.
+     * Orchestrate relation traversal for a resource class (constrained map mode).
+     *
+     * Builds both:
+     *  - $plain   (numeric list of paths without constraints)
+     *  - $scoped  (assoc: path => closure(EloquentBuilder): void)
      *
      * @param  class-string  $resource
      * @param  array<int, string>  $fields
      * @param  string  $prefix
-     * @param  array<int, string>  $paths
+     * @param  array<int, string>  $plain
+     * @param  array<string, mixed>  $scoped
      * @param  array<string, bool>  $visited
      * @return void
      */
-    private static function walkRelations(string $resource, array $fields, string $prefix, array &$paths, array &$visited): void
+    private static function walkRelationsWith(string $resource, array $fields, string $prefix, array &$plain, array &$scoped, array &$visited): void
     {
         $schema = $resource::getCompiledSchema();
 
@@ -390,6 +405,7 @@ abstract class ApiResource extends BaseResource implements ApiResourceInterface
 
             $relations   = static::extractRelations($definition);
             $extra_paths = static::extractExtraPaths($definition);
+            $constraint  = static::extractConstraint($definition);
 
             foreach ($relations as $relation) {
 
@@ -400,8 +416,28 @@ abstract class ApiResource extends BaseResource implements ApiResourceInterface
                 }
 
                 static::markVisited($visited, $resource, $full_path);
-                static::addPath($paths, $full_path);
-                static::addExtras($paths, $prefix, $extra_paths);
+
+                if ($constraint instanceof Closure) {
+                    $scoped[$full_path] = static function ($query) use ($constraint): void {
+
+                        if ($query instanceof MorphTo) {
+                            $constraint($query);
+                            return;
+                        }
+
+                        $builder = $query instanceof EloquentRelation ? $query->getQuery() : $query;
+
+                        if ($builder instanceof Builder) {
+                            $constraint($builder);
+                        }
+                    };
+                } else {
+                    $plain[] = $full_path;
+                }
+
+                foreach ($extra_paths as $extra) {
+                    $plain[] = static::makePrefixedPath($prefix, $extra);
+                }
 
                 if (!static::shouldRecurseIntoChild($definition)) {
                     continue;
@@ -411,7 +447,7 @@ abstract class ApiResource extends BaseResource implements ApiResourceInterface
                 $child_fields   = static::resolveChildFields($definition, $child_resource);
 
                 if ($child_fields !== []) {
-                    static::walkRelations($child_resource, $child_fields, $full_path, $paths, $visited);
+                    static::walkRelationsWith($child_resource, $child_fields, $full_path, $plain, $scoped, $visited);
                 }
             }
         }
@@ -459,6 +495,20 @@ abstract class ApiResource extends BaseResource implements ApiResourceInterface
         return array_values(
             array_filter($extras, static fn ($path) => is_string($path) && $path !== '')
         );
+    }
+
+    /**
+     * Extract a scoped eager-load constraint from a relation definition, if
+     * present.
+     *
+     * @param  array<string, mixed>  $definition
+     * @return Closure|null
+     */
+    private static function extractConstraint(array $definition): ?Closure
+    {
+        $constraint = $definition['constraint'] ?? null;
+
+        return $constraint instanceof Closure ? $constraint : null;
     }
 
     /**
