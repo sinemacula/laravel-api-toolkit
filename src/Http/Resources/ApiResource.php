@@ -407,6 +407,10 @@ abstract class ApiResource extends BaseResource implements ApiResourceInterface
             $extra_paths = static::extractExtraPaths($definition);
             $constraint  = static::extractConstraint($definition);
 
+            foreach ($extra_paths as $extra) {
+                $plain[] = static::makePrefixedPath($prefix, $extra);
+            }
+
             foreach ($relations as $relation) {
 
                 $full_path = static::makePrefixedPath($prefix, $relation);
@@ -433,10 +437,6 @@ abstract class ApiResource extends BaseResource implements ApiResourceInterface
                     };
                 } else {
                     $plain[] = $full_path;
-                }
-
-                foreach ($extra_paths as $extra) {
-                    $plain[] = static::makePrefixedPath($prefix, $extra);
                 }
 
                 if (!static::shouldRecurseIntoChild($definition)) {
