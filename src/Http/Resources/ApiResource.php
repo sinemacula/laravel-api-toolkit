@@ -600,7 +600,27 @@ abstract class ApiResource extends BaseResource implements ApiResourceInterface
     private static function resolveChildFields(array $definition, string $resource): array
     {
         if (!empty($definition['fields']) && is_array($definition['fields'])) {
-            return array_values(array_filter($definition['fields'], static fn ($field) => is_string($field) && $field !== ''));
+            return array_values(
+                array_filter(
+                    $definition['fields'],
+                    static fn ($f) => is_string($f) && $f !== ''
+                )
+            );
+        }
+
+        if (is_subclass_of($resource, self::class) && method_exists($resource, 'getResourceType')) {
+
+            $childType = $resource::getResourceType();
+            $requested = ApiQuery::getFields($childType);
+
+            if (is_array($requested) && !empty($requested)) {
+                return array_values(
+                    array_filter(
+                        $requested,
+                        static fn ($f) => is_string($f) && $f !== ''
+                    )
+                );
+            }
         }
 
         $defaults = $resource::getDefaultFields();
