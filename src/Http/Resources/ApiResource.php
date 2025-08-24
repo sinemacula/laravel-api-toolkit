@@ -40,6 +40,7 @@ abstract class ApiResource extends BaseResource implements ApiResourceInterface
      * Create a new resource instance.
      *
      * @param  mixed  $resource
+     * @param  mixed  $load_missing
      * @param  mixed  $included
      * @param  array|null  $excluded
      */
@@ -58,8 +59,8 @@ abstract class ApiResource extends BaseResource implements ApiResourceInterface
         if ($load_missing === true && is_object($resource) && method_exists($resource, 'loadMissing')) {
 
             $fields = $this->shouldRespondWithAll()
-                ? array_keys(static::getCompiledSchema())
-                : $this->resolveFields();
+                ? static::getAllFields()
+                : static::resolveFields();
 
             $with = static::eagerLoadMapFor($fields);
 
@@ -141,6 +142,16 @@ abstract class ApiResource extends BaseResource implements ApiResourceInterface
     public static function getDefaultFields(): array
     {
         return static::$default;
+    }
+
+    /**
+     * Get the default fields for this resource.
+     *
+     * @return array<int, string>
+     */
+    public static function getAllFields(): array
+    {
+        return array_keys(static::getCompiledSchema());
     }
 
     /**
@@ -226,8 +237,8 @@ abstract class ApiResource extends BaseResource implements ApiResourceInterface
     protected function getFields(): array
     {
         $this->fields ??= $this->shouldRespondWithAll()
-            ? array_keys(static::getCompiledSchema())
-            : $this->resolveFields();
+            ? static::getAllFields()
+            : static::resolveFields();
 
         $resolved = array_diff($this->fields, $this->excludedFields ?? []);
         $merged   = array_merge($resolved, $this->getFixedFields());
@@ -629,7 +640,7 @@ abstract class ApiResource extends BaseResource implements ApiResourceInterface
             return $defaults;
         }
 
-        return array_keys($resource::getCompiledSchema());
+        return $resource::getAllFields();
     }
 
     /**
@@ -736,7 +747,7 @@ abstract class ApiResource extends BaseResource implements ApiResourceInterface
      *
      * @return array<int, string>
      */
-    private function resolveFields(): array
+    public static function resolveFields(): array
     {
         return ApiQuery::getFields(static::getResourceType()) ?? static::getDefaultFields();
     }

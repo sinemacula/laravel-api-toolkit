@@ -154,9 +154,9 @@ class ApiCriteria implements CriteriaInterface
             return $query;
         }
 
-        $resource_type = $resource::getResourceType();
-
-        $fields = ApiQuery::getFields($resource_type) ?? $resource::getDefaultFields();
+        $fields = in_array(':all', ApiQuery::getFields($resource::getResourceType()) ?? [], true)
+            ? $resource::getAllFields()
+            : $resource::resolveFields();
 
         if (empty($fields)) {
             return $query;
