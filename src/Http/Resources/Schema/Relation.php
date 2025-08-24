@@ -23,9 +23,6 @@ final class Relation extends BaseDefinition implements Arrayable
     /** @var string|null */
     private ?string $accessor = null;
 
-    /** @var array<int, string> Extra eager-load paths */
-    private array $extras = [];
-
     /** @var array<int, string>|null Child field projection for eager-load planning */
     private ?array $fields = null;
 
@@ -80,19 +77,6 @@ final class Relation extends BaseDefinition implements Arrayable
     public function alias(string $alias): self
     {
         $this->alias = $alias;
-
-        return $this;
-    }
-
-    /**
-     * Provide additional eager-load paths required by this field.
-     *
-     * @param  string  ...$paths
-     * @return self
-     */
-    public function extras(string ...$paths): self
-    {
-        $this->extras = array_values(array_unique([...$this->extras, ...$paths]));
 
         return $this;
     }

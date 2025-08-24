@@ -20,6 +20,9 @@ abstract class BaseDefinition implements Arrayable
     /** @var array<int, callable(ApiResource, mixed): mixed> Transformers for modifying resolved values */
     protected array $transformers = [];
 
+    /** @var array<int, string> Extra eager-load paths */
+    protected array $extras = [];
+
     /**
      * Add a guard condition — return false to suppress the field.
      *
@@ -64,6 +67,19 @@ abstract class BaseDefinition implements Arrayable
     public function getTransformers(): array
     {
         return $this->transformers;
+    }
+
+    /**
+     * Provide additional eager-load paths required by this field.
+     *
+     * @param  string  ...$paths
+     * @return self
+     */
+    public function extras(string ...$paths): self
+    {
+        $this->extras = array_values(array_unique([...$this->extras, ...$paths]));
+
+        return $this;
     }
 
     /**

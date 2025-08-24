@@ -85,6 +85,7 @@ final class Field extends BaseDefinition
         return [
             $key => array_filter([
                 'accessor'     => $this->accessor,
+                'extras'       => $this->extras ?: null,
                 'guards'       => $this->getGuards() ?: null,
                 'transformers' => $this->getTransformers() ?: null,
             ], static fn ($value) => $value !== null && $value !== []),

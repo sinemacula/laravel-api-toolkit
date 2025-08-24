@@ -36,7 +36,7 @@ class ApiResourceCollection extends AnonymousResourceCollection
     {
         $resource_class = $this->collects ?? ApiResource::class;
 
-        return collect($this->collection)->map(fn ($model) => (new $resource_class($model, $this->fields ?? null, $this->excludedFields ?? null))
+        return collect($this->collection)->map(fn ($model) => (new $resource_class($model, false, $this->fields ?? null, $this->excludedFields ?? null))
             ->resolve($request))->all();
     }
 

@@ -43,7 +43,7 @@ abstract class ApiResource extends BaseResource implements ApiResourceInterface
      * @param  mixed  $included
      * @param  array|null  $excluded
      */
-    public function __construct(mixed $resource, mixed $included = null, ?array $excluded = null)
+    public function __construct(mixed $resource, mixed $load_missing = false, ?array $included = null, ?array $excluded = null)
     {
         parent::__construct($resource);
 
@@ -55,7 +55,7 @@ abstract class ApiResource extends BaseResource implements ApiResourceInterface
             $this->withoutFields($excluded);
         }
 
-        if (is_object($resource) && method_exists($resource, 'loadMissing')) {
+        if ($load_missing === true && is_object($resource) && method_exists($resource, 'loadMissing')) {
 
             $fields = $this->shouldRespondWithAll()
                 ? array_keys(static::getCompiledSchema())
@@ -710,7 +710,7 @@ abstract class ApiResource extends BaseResource implements ApiResourceInterface
             return $wrapped;
         }
 
-        return new $resource($related, $fields);
+        return new $resource($related, false, $fields);
     }
 
     /**
