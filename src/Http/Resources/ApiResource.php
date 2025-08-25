@@ -41,12 +41,16 @@ abstract class ApiResource extends BaseResource implements ApiResourceInterface
      *
      * @param  mixed  $resource
      * @param  mixed  $load_missing
-     * @param  mixed  $included
+     * @param  array|string|null  $included
      * @param  array|null  $excluded
      */
-    public function __construct(mixed $resource, mixed $load_missing = false, ?array $included = null, ?array $excluded = null)
+    public function __construct(mixed $resource, mixed $load_missing = false, array|string|null $included = null, ?array $excluded = null)
     {
         parent::__construct($resource);
+
+        if ($included === ':all') {
+            $this->withAll();
+        }
 
         if (is_array($included)) {
             $this->withFields($included);
@@ -170,6 +174,16 @@ abstract class ApiResource extends BaseResource implements ApiResourceInterface
     public function toArray(Request $request): array
     {
         return $this->resolve($request);
+    }
+
+    /**
+     * Resolves and returns the fields based on the API query or defaults.
+     *
+     * @return array<int, string>
+     */
+    public static function resolveFields(): array
+    {
+        return ApiQuery::getFields(static::getResourceType()) ?? static::getDefaultFields();
     }
 
     /**
@@ -737,16 +751,6 @@ abstract class ApiResource extends BaseResource implements ApiResourceInterface
         }
 
         return $value;
-    }
-
-    /**
-     * Resolves and returns the fields based on the API query or defaults.
-     *
-     * @return array<int, string>
-     */
-    public static function resolveFields(): array
-    {
-        return ApiQuery::getFields(static::getResourceType()) ?? static::getDefaultFields();
     }
 
     /**

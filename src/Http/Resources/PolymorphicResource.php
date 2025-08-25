@@ -31,6 +31,7 @@ class PolymorphicResource extends BaseResource
         if (!$this->resource) {
             return null;
         }
+
         $resource = $this->mapResource($this->resource);
 
         if ($this->all) {
