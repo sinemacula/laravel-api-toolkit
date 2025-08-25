@@ -88,7 +88,7 @@ final class Field extends BaseDefinition
                 'extras'       => $this->extras ?: null,
                 'guards'       => $this->getGuards() ?: null,
                 'transformers' => $this->getTransformers() ?: null,
-            ], static fn ($value) => $value !== null && $value !== []),
+            ], static fn ($value) => $value !== null),
         ];
     }
 

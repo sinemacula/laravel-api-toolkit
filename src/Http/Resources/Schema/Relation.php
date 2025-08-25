@@ -128,7 +128,7 @@ final class Relation extends BaseDefinition implements Arrayable
                 'constraint'   => $this->constraint,
                 'guards'       => $this->getGuards() ?: null,
                 'transformers' => $this->getTransformers() ?: null,
-            ], static fn ($value) => $value !== null && $value !== [])
+            ], static fn ($value) => $value !== null)
         ];
     }
 }
