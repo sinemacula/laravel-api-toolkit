@@ -710,18 +710,15 @@ abstract class ApiResource extends BaseResource implements ApiResourceInterface
      */
     private function wrapRelatedWithResource(mixed $related, string $resource, ?array $fields = null): mixed
     {
-        if ($related instanceof Collection) {
+        $wrapped = $related instanceof Collection
+            ? $resource::collection($related)
+            : new $resource($related, false, $fields);
 
-            $wrapped = $resource::collection($related);
-
-            if ($fields !== null && method_exists($wrapped, 'withFields')) {
-                $wrapped->withFields($fields);
-            }
-
-            return $wrapped;
+        if ($fields !== null && method_exists($wrapped, 'withFields')) {
+            $wrapped->withFields($fields);
         }
 
-        return new $resource($related, false, $fields);
+        return $wrapped;
     }
 
     /**

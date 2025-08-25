@@ -34,10 +34,6 @@ class PolymorphicResource extends BaseResource
             $resource->withAll();
         }
 
-        if (isset($this->fields)) {
-            $resource->withFields($this->fields);
-        }
-
         return [
             '_type' => $resource::getResourceType(),
             ...$resource->resolve($request)
@@ -59,7 +55,7 @@ class PolymorphicResource extends BaseResource
         $class = $resource::class;
 
         if (isset($map[$class])) {
-            return new $map[$class]($resource);
+            return new $map[$class]($resource, false, $this->fields ?? null);
         }
 
         throw new LogicException("Resource not found for: {$class}");
