@@ -15,6 +15,9 @@ use Illuminate\Contracts\Support\Arrayable;
  */
 final class Field extends BaseDefinition
 {
+    /** @var mixed Compute callable for dynamic field values */
+    private mixed $compute = null;
+
     /**
      * Prevent direct instantiation.
      *
@@ -61,6 +64,22 @@ final class Field extends BaseDefinition
     }
 
     /**
+     * Define a computed field by name.
+     *
+     * @param  string  $field
+     * @param  callable|string  $compute
+     * @param  string|null  $alias
+     * @return self
+     */
+    public static function compute(string $field, callable|string $compute, ?string $alias = null): self
+    {
+        $instance          = new self($field, null, $alias);
+        $instance->compute = $compute;
+
+        return $instance;
+    }
+
+    /**
      * Set or change the alias for this field.
      *
      * @param  string  $alias
@@ -85,10 +104,11 @@ final class Field extends BaseDefinition
         return [
             $key => array_filter([
                 'accessor'     => $this->accessor,
+                'compute'      => $this->compute,
                 'extras'       => $this->extras ?: null,
                 'guards'       => $this->getGuards() ?: null,
                 'transformers' => $this->getTransformers() ?: null,
-            ], static fn ($value) => $value !== null),
+            ], static fn ($value) => $value !== null && $value !== []),
         ];
     }
 
