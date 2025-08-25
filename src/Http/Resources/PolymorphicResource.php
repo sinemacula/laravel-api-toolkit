@@ -24,10 +24,13 @@ class PolymorphicResource extends BaseResource
      * Transform the resource into an array.
      *
      * @param  Request  $request
-     * @return array<string, mixed>
+     * @return array|null
      */
-    public function toArray(Request $request): array
+    public function toArray(Request $request): ?array
     {
+        if (!$this->resource) {
+            return null;
+        }
         $resource = $this->mapResource($this->resource);
 
         if ($this->all) {
