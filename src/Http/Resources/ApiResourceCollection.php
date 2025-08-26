@@ -36,8 +36,24 @@ class ApiResourceCollection extends AnonymousResourceCollection
     {
         $resource_class = $this->collects ?? ApiResource::class;
 
-        return collect($this->collection)->map(fn ($model) => (new $resource_class($model, false, $this->fields ?? null, $this->excludedFields ?? null))
-            ->resolve($request))->all();
+        return collect($this->collection)->map(function ($item) use ($resource_class, $request) {
+
+            if ($item instanceof ApiResource) {
+
+                if (isset($this->fields)) {
+                    $item->withFields($this->fields);
+                }
+
+                if (isset($this->excludedFields)) {
+                    $item->withoutFields($this->excludedFields);
+                }
+
+                return $item->resolve($request);
+            }
+
+            return (new $resource_class($item, false, $this->fields ?? null, $this->excludedFields ?? null))->resolve($request);
+
+        })->all();
     }
 
     /**
