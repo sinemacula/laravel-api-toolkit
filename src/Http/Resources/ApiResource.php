@@ -315,10 +315,28 @@ abstract class ApiResource extends BaseResource implements ApiResourceInterface
      */
     protected function resolveSimpleProperty(string $field): mixed
     {
-        return is_object($this->resource)
-        && (property_exists($this->resource, $field) || isset($this->resource->{$field}))
-            ? $this->resource->{$field}
-            : new MissingValue;
+        if (!is_object($this->resource)) {
+            return new MissingValue;
+        }
+
+        if (property_exists($this->resource, $field)) {
+            return $this->resource->{$field};
+        }
+
+        if (method_exists($this->resource, 'getAttributes')) {
+
+            $attributes = $this->resource->getAttributes();
+
+            if (array_key_exists($field, $attributes)) {
+                return $this->resource->{$field};
+            }
+        }
+
+        if (method_exists($this->resource, '__isset') && $this->resource->__isset($field)) {
+            return $this->resource->{$field};
+        }
+
+        return new MissingValue;
     }
 
     /**
