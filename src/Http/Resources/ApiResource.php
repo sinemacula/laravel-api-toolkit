@@ -294,11 +294,10 @@ abstract class ApiResource extends BaseResource implements ApiResourceInterface
         }
 
         $value = match (true) {
-            $definition === null || $definition === [] => $this->resolveSimpleProperty($field),
-            array_key_exists('compute', $definition)   => $this->resolveComputedValue($definition['compute'], $request),
-            array_key_exists('relation', $definition)  => $this->resolveRelationValue($definition, $request),
-            array_key_exists('accessor', $definition)  => $this->resolveAccessorValue($definition['accessor'], $request),
-            default                                    => new MissingValue
+            array_key_exists('compute', $definition ?? [])  => $this->resolveComputedValue($definition['compute'], $request),
+            array_key_exists('relation', $definition ?? []) => $this->resolveRelationValue($definition, $request),
+            array_key_exists('accessor', $definition ?? []) => $this->resolveAccessorValue($definition['accessor'], $request),
+            default                                         => $this->resolveSimpleProperty($field)
         };
 
         if (!($value instanceof MissingValue) && !empty($definition['transformers'])) {
