@@ -401,6 +401,10 @@ abstract class ApiResource extends BaseResource implements ApiResourceInterface
         $owner   = $this->unwrapResource($this->resource);
         $related = $owner->getRelation($name);
 
+        if ($related === null) {
+            return null;
+        }
+
         if (is_string($definition['accessor'] ?? null)) {
             return data_get($related, $definition['accessor']);
         }
