@@ -4,6 +4,7 @@ namespace SineMacula\ApiToolkit\Http\Resources;
 
 use Closure;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Illuminate\Database\Eloquent\Relations\Relation as EloquentRelation;
 use Illuminate\Http\Request;
@@ -12,6 +13,7 @@ use Illuminate\Http\Resources\MissingValue;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Config;
 use LogicException;
+use ReflectionMethod;
 use SensitiveParameter;
 use SineMacula\ApiToolkit\Contracts\ApiResourceInterface;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
@@ -327,8 +329,18 @@ abstract class ApiResource extends BaseResource implements ApiResourceInterface
 
             $attributes = $this->resource->getAttributes();
 
-            if (array_key_exists($field, $attributes)) {
+            if (array_key_exists($field, $attributes) || (property_exists($this->resource, 'appends') && in_array($field, $this->resource->appends ?? [], true))) {
                 return $this->resource->{$field};
+            }
+
+            if (method_exists($this->resource, $field)) {
+
+                $method      = new ReflectionMethod($this->resource, $field);
+                $return_type = $method->getReturnType();
+
+                if ($return_type && $return_type->getName() === Attribute::class) {
+                    return $this->resource->{$field};
+                }
             }
         }
 
