@@ -2,8 +2,8 @@
 
 namespace SineMacula\ApiToolkit\Http\Middleware\Traits;
 
-use Illuminate\Http\Request;
 use RuntimeException;
+use SensitiveParameter;
 
 /**
  * Throttle requests trait.
@@ -16,13 +16,16 @@ trait ThrottleRequestsTrait
     /**
      * Resolve request signature.
      *
+     * phpcs:disable Squiz.Commenting.FunctionComment.ScalarTypeHintMissing
+     *
      * @param  \Illuminate\Http\Request  $request
      * @return string
      *
      * @throws RuntimeException
      */
-    protected function resolveRequestSignature(Request $request): string
+    protected function resolveRequestSignature(#[SensitiveParameter] $request): string
     {
+        // phpcs:enable
         if (!$request->route()) {
             throw new RuntimeException('Unable to generate the request signature. Route unavailable.');
         }

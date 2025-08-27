@@ -4,7 +4,6 @@ namespace SineMacula\ApiToolkit\Repositories\Criteria;
 
 use Illuminate\Contracts\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -12,6 +11,7 @@ use Illuminate\Support\Facades\Config;
 use SineMacula\ApiToolkit\Contracts\ApiResourceInterface;
 use SineMacula\ApiToolkit\Enums\CacheKeys;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
+use SineMacula\ApiToolkit\Http\Resources\ApiResource;
 use SineMacula\ApiToolkit\Repositories\Traits\InteractsWithModelSchema;
 use SineMacula\Repositories\Contracts\CriteriaInterface;
 use Throwable;
@@ -97,12 +97,9 @@ class ApiCriteria implements CriteriaInterface
         $query = $model instanceof Model ? $model->query() : $model;
 
         $query = $this->applyFilters($query, $this->getFilters());
-
-        if (config('api-toolkit.parser.enable_eager_loading')) {
-            $query = $this->applyEagerLoading($query);
-        }
-
+        $query = $this->applyEagerLoading($query);
         $query = $this->applyLimit($query, $this->getLimit());
+
         return $this->applyOrder($query, $this->getOrder());
     }
 
@@ -143,7 +140,7 @@ class ApiCriteria implements CriteriaInterface
     }
 
     /**
-     * Apply eager loading based on requested fields.
+     * Apply eager loading based on the mapped ApiResource schema.
      *
      * @param  \Illuminate\Contracts\Database\Eloquent\Builder  $query
      * @return \Illuminate\Contracts\Database\Eloquent\Builder
@@ -153,194 +150,28 @@ class ApiCriteria implements CriteriaInterface
         $model    = $query->getModel();
         $resource = $this->getResourceFromModel($model);
 
-        if (!$resource) {
+        if (!$resource || !is_subclass_of($resource, ApiResource::class)) {
             return $query;
         }
 
-        $resource_type = $resource::getResourceType();
-        $fields        = ApiQuery::getFields($resource_type) ?? $resource::getDefaultFields();
+        $fields = in_array(':all', ApiQuery::getFields($resource::getResourceType()) ?? [], true)
+            ? $resource::getAllFields()
+            : $resource::resolveFields();
 
         if (empty($fields)) {
             return $query;
         }
 
-        $morphTo_relations = [];
-        $regular_relations = [];
+        if (method_exists($resource, 'eagerLoadMapFor')) {
 
-        foreach ($fields as $field) {
+            $with = $resource::eagerLoadMapFor($fields);
 
-            if (!$this->isRelation($field, $model)) {
-                continue;
-            }
-
-            try {
-                $relation = $model->{$field}();
-
-                if ($relation instanceof MorphTo) {
-                    $morphTo_relations[] = $field;
-                } else {
-                    $regular_relations[] = $field;
-                }
-
-            } catch (Throwable $e) {
-                continue;
-            }
-        }
-
-        if (!empty($regular_relations)) {
-
-            $eager_load_structure = $this->getEagerLoadStructure($model, $regular_relations);
-            $eager_loads          = $this->generateEagerLoads($eager_load_structure);
-
-            if (!empty($eager_loads)) {
-                $query->with($eager_loads);
-            }
-        }
-
-        if (!empty($morphTo_relations)) {
-            foreach ($morphTo_relations as $relation) {
-                $query->with([
-                    $relation => function ($q): void {}
-                ]);
+            if (!empty($with)) {
+                $query->with($with);
             }
         }
 
         return $query;
-    }
-
-    /**
-     * Build a serializable structure for eager loading.
-     *
-     * @param  \Illuminate\Database\Eloquent\Model  $model
-     * @param  array  $fields
-     * @param  int  $depth
-     * @return array
-     */
-    protected function buildEagerLoadStructure(Model $model, array $fields, int $depth = 0): array
-    {
-        if ($depth > 3) {
-            return [];
-        }
-
-        $structure = [];
-
-        $relation_fields = [];
-
-        foreach ($fields as $field) {
-            if ($this->isRelation($field, $model)) {
-                try {
-                    $relation = $model->{$field}();
-
-                    if (!($relation instanceof MorphTo)) {
-                        $relation_fields[] = $field;
-                    }
-                } catch (Throwable $e) {
-                }
-            }
-        }
-
-        foreach ($relation_fields as $field) {
-
-            $related_model = $this->getRelatedModel($model, $field);
-
-            if (!$related_model) {
-                $structure[] = $field;
-                continue;
-            }
-
-            $resource = $this->getResourceFromModel($related_model);
-
-            if (!$resource) {
-                $structure[] = $field;
-                continue;
-            }
-
-            $resource_type  = $resource::getResourceType();
-            $related_fields = ApiQuery::getFields($resource_type) ?? $resource::getDefaultFields();
-
-            if (empty($related_fields)) {
-                $structure[] = $field;
-                continue;
-            }
-
-            $nested_relation_fields = [];
-
-            foreach ($related_fields as $related_field) {
-                if ($this->isRelation($related_field, $related_model)) {
-                    try {
-                        $nested_relation = $related_model->{$related_field}();
-
-                        if (!($nested_relation instanceof MorphTo)) {
-                            $nested_relation_fields[] = $related_field;
-                        }
-                    } catch (Throwable $e) {
-                    }
-                }
-            }
-
-            if (empty($nested_relation_fields)) {
-                $structure[] = $field;
-                continue;
-            }
-
-            $nested_structure = $this->buildEagerLoadStructure(
-                $related_model,
-                $nested_relation_fields,
-                $depth + 1
-            );
-
-            if (empty($nested_structure)) {
-                $structure[] = $field;
-            } else {
-                $structure[$field] = $nested_structure;
-            }
-        }
-
-        return $structure;
-    }
-
-    /**
-     * Generate eager loads with closures from the structure.
-     *
-     * @param  array  $structure
-     * @param  \Illuminate\Database\Eloquent\Model|null  $parent_model
-     * @return array
-     */
-    protected function generateEagerLoads(array $structure, ?Model $parent_model = null): array
-    {
-        $eager_loads = [];
-
-        foreach ($structure as $key => $value) {
-            if (is_numeric($key)) {
-                $eager_loads[] = $value;
-            } else {
-
-                $related_model = $parent_model ? $this->getRelatedModel($parent_model, $key) : null;
-
-                $eager_loads[$key] = function ($query) use ($value, $related_model): void {
-                    if (!empty($value)) {
-                        $query->with($this->generateEagerLoads($value, $related_model));
-                    }
-                };
-            }
-        }
-
-        return $eager_loads;
-    }
-
-    /**
-     * Get the eager load structure for the given model and fields.
-     *
-     * @param  \Illuminate\Database\Eloquent\Model  $model
-     * @param  array  $fields
-     * @return array
-     */
-    protected function getEagerLoadStructure(Model $model, array $fields): array
-    {
-        return Cache::rememberForever(CacheKeys::MODEL_EAGER_LOADS->resolveKey([
-            $model::class,
-            md5(implode(',', array_filter($fields)))
-        ]), fn () => $this->buildEagerLoadStructure($model, $fields));
     }
 
     /**
@@ -360,39 +191,6 @@ class ApiCriteria implements CriteriaInterface
             if ($resource && class_exists($resource) && in_array(ApiResourceInterface::class, class_implements($resource) ?: [], true)) {
                 return $resource;
             }
-
-        });
-    }
-
-    /**
-     * Get the related model instance for a relation.
-     *
-     * @param  \Illuminate\Database\Eloquent\Model  $model
-     * @param  string  $relation
-     * @return \Illuminate\Database\Eloquent\Model|null
-     */
-    protected function getRelatedModel(Model $model, string $relation): ?Model
-    {
-        return Cache::rememberForever(CacheKeys::MODEL_RELATION_INSTANCES->resolveKey([
-            $model::class,
-            $relation
-        ]), function () use ($model, $relation) {
-
-            try {
-
-                if (!method_exists($model, $relation)) {
-                    return;
-                }
-
-                $relation_obj = $model->{$relation}();
-
-                if ($relation_obj instanceof Relation) {
-                    return $relation_obj->getRelated();
-                }
-
-            } catch (Throwable $exception) {
-            }
-
         });
     }
 
@@ -861,7 +659,7 @@ class ApiCriteria implements CriteriaInterface
      */
     private function getColumnExclusions(string $table): array
     {
-        return collect(Config::get('api-toolkit.repositories.searchable_exclusions', []))
+        return (array) collect(Config::get('api-toolkit.repositories.searchable_exclusions', []))
             ->reduce(function ($carry, $exclusion) use ($table) {
 
                 if (str_contains($exclusion, '.') && strtok($exclusion, '.') === $table) {

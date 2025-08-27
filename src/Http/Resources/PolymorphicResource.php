@@ -24,18 +24,18 @@ class PolymorphicResource extends BaseResource
      * Transform the resource into an array.
      *
      * @param  Request  $request
-     * @return array<string, mixed>
+     * @return array|null
      */
-    public function toArray(Request $request): array
+    public function toArray(Request $request): ?array
     {
+        if (!$this->resource) {
+            return null;
+        }
+
         $resource = $this->mapResource($this->resource);
 
         if ($this->all) {
             $resource->withAll();
-        }
-
-        if (isset($this->fields)) {
-            $resource->withFields($this->fields);
         }
 
         return [
@@ -59,7 +59,7 @@ class PolymorphicResource extends BaseResource
         $class = $resource::class;
 
         if (isset($map[$class])) {
-            return new $map[$class]($resource);
+            return new $map[$class]($resource, false, $this->fields ?? null);
         }
 
         throw new LogicException("Resource not found for: {$class}");
