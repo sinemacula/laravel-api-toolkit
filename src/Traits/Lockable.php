@@ -38,12 +38,7 @@ trait Lockable
         $this->lock = Cache::lock($this->getLockKey(), $this->getLockExpiration());
 
         if (!$this->lock->get()) {
-            throw new TooManyRequestsException(
-                meta: [
-                    'X-RateLimit-Limit'     => 1,
-                    'X-RateLimit-Remaining' => 0
-                ]
-            );
+            throw new TooManyRequestsException(meta: ['X-RateLimit-Limit' => 1, 'X-RateLimit-Remaining' => 0]);
         }
 
         return $this->lock;

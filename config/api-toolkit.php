@@ -104,9 +104,7 @@ return [
 
         'defaults' => [
             'limit' => env('API_PARSER_DEFAULT_LIMIT', 50)
-        ],
-
-        'enable_eager_loading' => env('API_PARSER_ENABLE_EAGER_LOADING', true)
+        ]
 
     ],
 

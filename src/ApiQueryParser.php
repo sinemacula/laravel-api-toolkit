@@ -22,7 +22,7 @@ class ApiQueryParser
 
     /**
      * Returns a list of fields set with the URL modifiers.
-     *  - e.g. ?fields['user']=first_name,last_name
+     *  - e.g. ?fields['user']=first_name,last_name.
      *
      * @param  string|null  $resource
      * @return array|null
@@ -47,7 +47,7 @@ class ApiQueryParser
     /**
      * Returns the desired order set with the URL modifiers.
      *  - e.g. ?order=first_name,last_name:desc
-     *  - e.g. ?order=random
+     *  - e.g. ?order=random.
      *
      * @return array
      */
@@ -58,7 +58,7 @@ class ApiQueryParser
 
     /**
      * Returns the desired limit set with the URL modifiers.
-     *  - e.g. ?limit=x
+     *  - e.g. ?limit=x.
      *
      * @return int
      */
@@ -71,7 +71,7 @@ class ApiQueryParser
 
     /**
      * Returns the current page set with the URL modifiers.
-     *  - e.g. ?page=4
+     *  - e.g. ?page=4.
      *
      * @return int|null
      */
@@ -84,7 +84,7 @@ class ApiQueryParser
 
     /**
      * Returns the current page cursor.
-     *  - e.g. ?cursor=eyJpZCI6MTAwfQ==
+     *  - e.g. ?cursor=eyJpZCI6MTAwfQ==.
      *
      * @return string|null
      */
@@ -158,15 +158,13 @@ class ApiQueryParser
     /**
      * Extract the field parameters from the query string.
      *
-     * @param  string|array  $query
+     * @param  array|string  $query
      * @return array
      */
-    private function parseFields(string|array $query): array
+    private function parseFields(array|string $query): array
     {
-        return is_array($query) ?
-            array_map(function ($value) {
-                return array_map('trim', explode(',', $value));
-            }, $query)
+        return is_array($query)
+            ? array_map(fn ($value) => array_map('trim', explode(',', $value)), $query)
             : array_map('trim', explode(',', $query));
     }
 

@@ -2,6 +2,7 @@
 
 namespace SineMacula\ApiToolkit\Services;
 
+use Exception;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -33,7 +34,7 @@ abstract class Service implements ServiceInterface
     /**
      * Constructor.
      *
-     * @param  array|\Illuminate\Support\Collection|\stdClass  $payload
+     * @param  array|\Illuminate\Support\Collection|stdClass  $payload
      */
     public function __construct(
 
@@ -116,7 +117,7 @@ abstract class Service implements ServiceInterface
      *
      * @return void
      *
-     * @throws \Exception
+     * @throws Exception
      */
     public function prepare(): void {}
 
@@ -130,7 +131,7 @@ abstract class Service implements ServiceInterface
     /**
      * Method is triggered if the handle method failed.
      *
-     * @param  \Throwable  $exception
+     * @param  Throwable  $exception
      * @return void
      */
     public function failed(Throwable $exception): void {}
@@ -140,7 +141,7 @@ abstract class Service implements ServiceInterface
      *
      * @return bool
      *
-     * @throws \Throwable
+     * @throws Throwable
      */
     public function run(): bool
     {
@@ -221,7 +222,7 @@ abstract class Service implements ServiceInterface
      */
     protected function generateLockKey(): string
     {
-        return sha1(get_class($this) . '|' . $this->getLockId());
+        return sha1(static::class . '|' . $this->getLockId());
     }
 
     /**

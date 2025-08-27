@@ -78,7 +78,7 @@ abstract class Controller extends LaravelController
             'X-Accel-Buffering' => 'no'
         ]);
 
-        return Response::stream(function () use ($callback, $interval) {
+        return Response::stream(function () use ($callback, $interval): void {
 
             echo ":\n\n";
             flush();

@@ -34,10 +34,25 @@ class ApiResourceCollection extends AnonymousResourceCollection
      */
     public function toArray(Request $request): array
     {
-        return $this->collection->map(function (ApiResource $item) use ($request) {
-            return $item->withFields($this->fields ?? null)
-                ->withoutFields($this->excludedFields ?? null)
-                ->resolve($request);
+        $resource_class = $this->collects ?? ApiResource::class;
+
+        return collect($this->collection)->map(function ($item) use ($resource_class, $request) {
+
+            if ($item instanceof ApiResource) {
+
+                if (isset($this->fields)) {
+                    $item->withFields($this->fields);
+                }
+
+                if (isset($this->excludedFields)) {
+                    $item->withoutFields($this->excludedFields);
+                }
+
+                return $item->resolve($request);
+            }
+
+            return (new $resource_class($item, false, $this->fields ?? null, $this->excludedFields ?? null))->resolve($request);
+
         })->all();
     }
 
@@ -165,7 +180,7 @@ class ApiResourceCollection extends AnonymousResourceCollection
         return [
             'self' => request()->fullUrl(),
             'prev' => $paginator->previousPageUrl(),
-            'next' => $paginator->nextPageUrl(),
+            'next' => $paginator->nextPageUrl()
         ];
     }
 }

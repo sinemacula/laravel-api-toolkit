@@ -23,18 +23,19 @@ class PolymorphicResource extends BaseResource
     /**
      * Transform the resource into an array.
      *
-     * @return array<string, mixed>
+     * @param  Request  $request
+     * @return array|null
      */
-    public function toArray(Request $request): array
+    public function toArray(Request $request): ?array
     {
+        if (!$this->resource) {
+            return null;
+        }
+
         $resource = $this->mapResource($this->resource);
 
         if ($this->all) {
             $resource->withAll();
-        }
-
-        if (isset($this->fields)) {
-            $resource->withFields($this->fields);
         }
 
         return [
@@ -50,15 +51,15 @@ class PolymorphicResource extends BaseResource
      * @param  mixed  $resource
      * @return \SineMacula\ApiToolkit\Contracts\ApiResourceInterface
      *
-     * @throws \LogicException
+     * @throws LogicException
      */
     private function mapResource(mixed $resource): ApiResourceInterface
     {
         $map   = Config::get('api-toolkit.resources.resource_map', []);
-        $class = get_class($resource);
+        $class = $resource::class;
 
         if (isset($map[$class])) {
-            return new $map[$class]($resource);
+            return new $map[$class]($resource, false, $this->fields ?? null);
         }
 
         throw new LogicException("Resource not found for: {$class}");

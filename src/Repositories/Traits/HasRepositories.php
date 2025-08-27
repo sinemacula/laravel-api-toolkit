@@ -3,6 +3,8 @@
 namespace SineMacula\ApiToolkit\Repositories\Traits;
 
 use BadMethodCallException;
+use Exception;
+use SensitiveParameter;
 use SineMacula\ApiToolkit\Repositories\RepositoryResolver;
 use SineMacula\Repositories\Contracts\RepositoryInterface;
 
@@ -21,14 +23,17 @@ trait HasRepositories
      * Magic method to dynamically call repository accessors while allowing
      * other `__call` methods to work.
      *
+     * phpcs:disable Squiz.Commenting.FunctionComment.ScalarTypeHintMissing
+     *
      * @param  string  $method
      * @param  array  $arguments
      * @return mixed
      *
-     * @throws \Exception
+     * @throws Exception
      */
-    public function __call($method, $arguments)
+    public function __call(#[SensitiveParameter] $method, #[SensitiveParameter] $arguments): mixed
     {
+        // phpcs:enable
         if (RepositoryResolver::has($method)) {
             return $this->resolveRepository($method);
         }
@@ -52,7 +57,7 @@ trait HasRepositories
      * @param  string  $repository
      * @return mixed
      *
-     * @throws \Exception
+     * @throws Exception
      */
     protected function resolveRepository(string $repository): RepositoryInterface
     {
