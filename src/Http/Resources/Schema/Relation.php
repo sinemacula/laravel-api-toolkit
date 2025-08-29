@@ -2,6 +2,7 @@
 
 namespace SineMacula\ApiToolkit\Http\Resources\Schema;
 
+use Closure;
 use Illuminate\Contracts\Support\Arrayable;
 
 /**
@@ -20,8 +21,8 @@ final class Relation extends BaseDefinition implements Arrayable
     /** @var class-string|null Child ApiResource class */
     private ?string $resource = null;
 
-    /** @var string|null */
-    private ?string $accessor = null;
+    /** @var string|\Closure|null */
+    private string|Closure|null $accessor = null;
 
     /** @var array<int, string>|null Child field projection for eager-load planning */
     private ?array $fields = null;
@@ -33,7 +34,7 @@ final class Relation extends BaseDefinition implements Arrayable
      * Prevent direct instantiation.
      *
      * @param  string  $name
-     * @param  string  $resource_or_accessor
+     * @param  string|callable  $resource_or_accessor
      * @param  string|null  $alias
      */
     private function __construct(
@@ -42,13 +43,13 @@ final class Relation extends BaseDefinition implements Arrayable
         private readonly string $name,
 
         // Child ApiResource class or relation-local accessor (e.g. "name")
-        string $resource_or_accessor,
+        string|callable $resource_or_accessor,
 
         /** Optional alias to expose this field under */
         private ?string $alias = null
 
     ) {
-        if (class_exists($resource_or_accessor)) {
+        if (is_string($resource_or_accessor) && class_exists($resource_or_accessor)) {
             $this->resource = $resource_or_accessor;
         } else {
             $this->accessor = $resource_or_accessor;
@@ -59,11 +60,11 @@ final class Relation extends BaseDefinition implements Arrayable
      * Create a relation definition for the given relation name.
      *
      * @param  string  $name
-     * @param  string|null  $resource_or_accessor
+     * @param  string|callable  $resource_or_accessor
      * @param  string|null  $alias
      * @return self
      */
-    public static function to(string $name, ?string $resource_or_accessor = null, ?string $alias = null): self
+    public static function to(string $name, string|callable $resource_or_accessor, ?string $alias = null): self
     {
         return new self($name, $resource_or_accessor, $alias);
     }
