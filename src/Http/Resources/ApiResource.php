@@ -405,8 +405,12 @@ abstract class ApiResource extends BaseResource implements ApiResourceInterface
             return null;
         }
 
-        if (is_string($definition['accessor'] ?? null)) {
-            return data_get($related, $definition['accessor']);
+        if ($accessor = $definition['accessor'] ?? null) {
+            return match (true) {
+                is_string($accessor)   => data_get($related, $accessor),
+                is_callable($accessor) => $accessor($this, $request),
+                default                => null
+            };
         }
 
         $child        = $this->getRelationResourceClass($definition);
