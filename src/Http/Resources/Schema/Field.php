@@ -3,6 +3,7 @@
 namespace SineMacula\ApiToolkit\Http\Resources\Schema;
 
 use Illuminate\Contracts\Support\Arrayable;
+use Illuminate\Http\Resources\Json\JsonResource;
 
 /**
  * Field schema helpers for scalar and accessor fields.
@@ -72,7 +73,7 @@ final class Field extends BaseDefinition
      */
     public static function timestamp(string $field, ?string $alias = null): self
     {
-        return self::accessor($field, static fn (self $resource) => $resource->{$field}?->toIso8601String(), $alias);
+        return self::accessor($field, static fn (JsonResource $resource) => $resource->{$field}?->toIso8601String(), $alias);
     }
 
     /**
@@ -84,7 +85,7 @@ final class Field extends BaseDefinition
      */
     public static function date(string $field, ?string $alias = null): self
     {
-        return self::accessor($field, static fn (self $resource) => $resource->{$field}?->toDateString(), $alias);
+        return self::accessor($field, static fn (JsonResource $resource) => $resource->{$field}?->toDateString(), $alias);
     }
 
     /**
