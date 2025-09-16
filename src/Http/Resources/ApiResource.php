@@ -32,11 +32,11 @@ abstract class ApiResource extends BaseResource implements ApiResourceInterface
     /** @var array Default fields to include if no specific fields are requested */
     protected static array $default = [];
 
-    /** @var array<class-string, array<string, array>> Compiled schema cache keyed by resource class */
-    private static array $schemaCache = [];
-
     /** @var array Fixed fields to include in the response */
     protected array $fixed = [];
+
+    /** @var array<class-string, array<string, array>> Compiled schema cache keyed by resource class */
+    private static array $schemaCache = [];
 
     /**
      * Create a new resource instance.
@@ -62,16 +62,29 @@ abstract class ApiResource extends BaseResource implements ApiResourceInterface
             $this->withoutFields($excluded);
         }
 
-        if ($load_missing === true && is_object($resource) && method_exists($resource, 'loadMissing')) {
+        if ($load_missing === true && is_object($resource)) {
 
-            $fields = $this->shouldRespondWithAll()
-                ? static::getAllFields()
-                : static::resolveFields();
+            if (method_exists($resource, 'loadMissing')) {
 
-            $with = static::eagerLoadMapFor($fields);
+                $fields = $this->shouldRespondWithAll()
+                    ? static::getAllFields()
+                    : static::resolveFields();
 
-            if (!empty($with)) {
-                $resource->loadMissing($with);
+                $with = static::eagerLoadMapFor($fields);
+
+                if (!empty($with)) {
+                    $resource->loadMissing($with);
+                }
+            }
+
+            if (method_exists($resource, 'loadCount')) {
+
+                $requested_counts = ApiQuery::getCounts(static::getResourceType()) ?? [];
+                $with_counts      = static::eagerLoadCountsFor($requested_counts);
+
+                if (!empty($with_counts)) {
+                    $resource->loadCount($with_counts);
+                }
             }
         }
     }
@@ -99,11 +112,47 @@ abstract class ApiResource extends BaseResource implements ApiResourceInterface
             }
         }
 
+        $counts = $this->resolveCountsPayload();
+
+        if ($counts !== []) {
+            $data['counts'] = $counts;
+        }
+
         return $this->orderResolvedFields($data);
     }
 
     /**
-     * Build a with()-ready eager-load map for the provided fields, including constrained relations.
+     * Build a withCount-ready array for this resource.
+     *
+     * @param  array<int, string>|null  $requested_aliases
+     * @return array<int, string>|array<string, callable>
+     */
+    public static function eagerLoadCountsFor(?array $requested_aliases = null): array
+    {
+        $with = [];
+
+        foreach (static::countDefinitions() as $present_key => $definition) {
+
+            if (!static::shouldIncludeCount($present_key, $requested_aliases, $definition)) {
+                continue;
+            }
+
+            $relation   = (string) $definition['relation'];
+            $constraint = $definition['constraint'] ?? null;
+
+            if ($constraint instanceof Closure) {
+                $with[$relation] = $constraint;
+            } else {
+                $with[] = $relation;
+            }
+        }
+
+        return $with;
+    }
+
+    /**
+     * Build a with()-ready eager-load map for the provided fields, including
+     * constrained relations.
      *
      * - Numeric entries are plain eager-loads: ['user', 'user.roles']
      * - Associative entries are scoped with a closure: ['bindings' => fn ($q) => ...]
@@ -157,7 +206,9 @@ abstract class ApiResource extends BaseResource implements ApiResourceInterface
      */
     public static function getAllFields(): array
     {
-        return array_keys(static::getCompiledSchema());
+        $schema = static::getCompiledSchema();
+
+        return array_values(array_filter(array_keys($schema), static fn (string $key): bool => ($schema[$key]['metric'] ?? null) === null));
     }
 
     /**
@@ -186,6 +237,39 @@ abstract class ApiResource extends BaseResource implements ApiResourceInterface
     public static function resolveFields(): array
     {
         return ApiQuery::getFields(static::getResourceType()) ?? static::getDefaultFields();
+    }
+
+    /**
+     * Resolve "counts" payload using already-loaded "{$relation}_count" attributes.
+     *
+     * @return array<string, int>
+     */
+    protected function resolveCountsPayload(): array
+    {
+        $owner = $this->unwrapResource($this->resource);
+
+        if (!is_object($owner)) {
+            return [];
+        }
+
+        $requested = ApiQuery::getCounts(static::getResourceType()) ?? [];
+        $result    = [];
+
+        foreach (static::countDefinitions() as $present_key => $definition) {
+
+            if (!static::shouldIncludeCount($present_key, $requested, $definition)) {
+                continue;
+            }
+
+            $attribute = $definition['relation'] . '_count';
+            $val       = $this->getAttributeIfLoaded($owner, $attribute);
+
+            if ($val !== null) {
+                $result[$present_key] = (int) $val;
+            }
+        }
+
+        return $result;
     }
 
     /**
@@ -286,6 +370,10 @@ abstract class ApiResource extends BaseResource implements ApiResourceInterface
     protected function resolveFieldValue(string $field, ?Request $request): mixed
     {
         $definition = static::getCompiledSchema()[$field] ?? null;
+
+        if (($definition['metric'] ?? null) !== null) {
+            return new MissingValue;
+        }
 
         if ($definition !== null && !empty($definition['guards'])) {
             foreach ($definition['guards'] as $guard) {
@@ -420,6 +508,74 @@ abstract class ApiResource extends BaseResource implements ApiResourceInterface
     }
 
     /**
+     * Collect count definitions (presentation key => normalized def).
+     *
+     * @return array<string, array{relation:string,constraint?:Closure,default?:bool}>
+     */
+    private static function countDefinitions(): array
+    {
+        $out = [];
+
+        foreach (static::getCompiledSchema() as $present_key => $definition) {
+
+            if (($definition['metric'] ?? null) !== 'count') {
+                continue;
+            }
+
+            $relation          = (string) ($definition['relation'] ?? $present_key);
+            $out[$present_key] = [
+                'relation'   => $relation,
+                'constraint' => $definition['constraint'] ?? null,
+                'default'    => (bool) ($definition['default'] ?? false)
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
+     * Decide if a count should be included based on request or default flag.
+     *
+     * @param  string  $present_key
+     * @param  array<int, string>|null  $requested
+     * @param  array  $definition
+     * @return bool
+     */
+    private static function shouldIncludeCount(string $present_key, ?array $requested, array $definition): bool
+    {
+        if (is_array($requested) && $requested !== []) {
+            return in_array($present_key, $requested, true);
+        }
+
+        return (bool) ($definition['default'] ?? false);
+    }
+
+    /**
+     * Safely read an attribute without triggering lazy loads.
+     *
+     * @param  object  $owner
+     * @param  string  $attr
+     * @return mixed
+     */
+    private function getAttributeIfLoaded(object $owner, string $attr): mixed
+    {
+        if (method_exists($owner, 'getAttributes')) {
+
+            $attrs = $owner->getAttributes();
+
+            if (array_key_exists($attr, $attrs)) {
+                return $owner->{$attr};
+            }
+        }
+
+        if (method_exists($owner, '__isset') && $owner->__isset($attr)) {
+            return $owner->{$attr};
+        }
+
+        return null;
+    }
+
+    /**
      * Get explicit child fields from a relation definition, if provided.
      *
      * @param  array<string, mixed>  $definition
@@ -462,6 +618,10 @@ abstract class ApiResource extends BaseResource implements ApiResourceInterface
             $definition = static::findDefinition($schema, $field);
 
             if ($definition === null) {
+                continue;
+            }
+
+            if (($definition['metric'] ?? null) !== null) {
                 continue;
             }
 
