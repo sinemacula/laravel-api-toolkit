@@ -171,6 +171,16 @@ class ApiCriteria implements CriteriaInterface
             }
         }
 
+        if (method_exists($resource, 'eagerLoadCountsFor')) {
+
+            $requested_counts = ApiQuery::getCounts($resource::getResourceType()) ?? [];
+            $with_counts      = $resource::eagerLoadCountsFor($requested_counts);
+
+            if (!empty($with_counts)) {
+                $query->withCount($with_counts);
+            }
+        }
+
         return $query;
     }
 

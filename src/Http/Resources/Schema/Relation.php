@@ -21,8 +21,8 @@ final class Relation extends BaseDefinition implements Arrayable
     /** @var class-string|null Child ApiResource class */
     private ?string $resource = null;
 
-    /** @var string|\Closure|null */
-    private string|Closure|null $accessor = null;
+    /** @var Closure|string|null */
+    private Closure|string|null $accessor = null;
 
     /** @var array<int, string>|null Child field projection for eager-load planning */
     private ?array $fields = null;
@@ -34,7 +34,7 @@ final class Relation extends BaseDefinition implements Arrayable
      * Prevent direct instantiation.
      *
      * @param  string  $name
-     * @param  string|callable  $resource_or_accessor
+     * @param  callable|string  $resource_or_accessor
      * @param  string|null  $alias
      */
     private function __construct(
@@ -43,7 +43,7 @@ final class Relation extends BaseDefinition implements Arrayable
         private readonly string $name,
 
         // Child ApiResource class or relation-local accessor (e.g. "name")
-        string|callable $resource_or_accessor,
+        callable|string $resource_or_accessor,
 
         /** Optional alias to expose this field under */
         private ?string $alias = null
@@ -60,11 +60,11 @@ final class Relation extends BaseDefinition implements Arrayable
      * Create a relation definition for the given relation name.
      *
      * @param  string  $name
-     * @param  string|callable  $resource_or_accessor
+     * @param  callable|string  $resource_or_accessor
      * @param  string|null  $alias
      * @return self
      */
-    public static function to(string $name, string|callable $resource_or_accessor, ?string $alias = null): self
+    public static function to(string $name, callable|string $resource_or_accessor, ?string $alias = null): self
     {
         return new self($name, $resource_or_accessor, $alias);
     }
