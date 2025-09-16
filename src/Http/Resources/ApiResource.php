@@ -206,7 +206,9 @@ abstract class ApiResource extends BaseResource implements ApiResourceInterface
      */
     public static function getAllFields(): array
     {
-        return array_keys(static::getCompiledSchema());
+        $schema = static::getCompiledSchema();
+
+        return array_values(array_filter(array_keys($schema), static fn (string $key): bool => ($schema[$key]['metric'] ?? null) === null));
     }
 
     /**
@@ -368,6 +370,10 @@ abstract class ApiResource extends BaseResource implements ApiResourceInterface
     protected function resolveFieldValue(string $field, ?Request $request): mixed
     {
         $definition = static::getCompiledSchema()[$field] ?? null;
+
+        if (($definition['metric'] ?? null) !== null) {
+            return new MissingValue;
+        }
 
         if ($definition !== null && !empty($definition['guards'])) {
             foreach ($definition['guards'] as $guard) {
@@ -612,6 +618,10 @@ abstract class ApiResource extends BaseResource implements ApiResourceInterface
             $definition = static::findDefinition($schema, $field);
 
             if ($definition === null) {
+                continue;
+            }
+
+            if (($definition['metric'] ?? null) !== null) {
                 continue;
             }
 
