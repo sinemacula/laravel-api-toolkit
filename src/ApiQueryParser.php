@@ -6,6 +6,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\ValidationException;
+use SineMacula\ApiToolkit\Exceptions\InvalidInputException;
+use Throwable;
 
 /**
  * API query parser.
@@ -32,6 +34,44 @@ class ApiQueryParser
         $fields = $this->getParameters('fields', $resource);
 
         return is_array($fields) ? array_map('trim', $fields) : $fields;
+    }
+
+    /**
+     * Returns a list of relation counts set with the URL modifiers.
+     * - e.g. ?counts['user']=memberships.
+     *
+     * @param  string|null  $resource
+     * @return array|null
+     */
+    public function getCounts(?string $resource = null): ?array
+    {
+        $counts = $this->getParameters('counts', $resource);
+
+        return is_array($counts) ? array_map('trim', $counts) : $counts;
+    }
+
+    /**
+     * Returns a list of relation sums set with the URL modifiers.
+     * - e.g. ?sums['account'][transaction]=amount.
+     *
+     * @param  string|null  $resource
+     * @return array|null
+     */
+    public function getSums(?string $resource = null): ?array
+    {
+        return $this->getParameters('sums', $resource);
+    }
+
+    /**
+     * Returns a list of relation averages set with the URL modifiers.
+     * - e.g. ?averages['account'][transaction]=amount.
+     *
+     * @param  string|null  $resource
+     * @return array|null
+     */
+    public function getAverages(?string $resource = null): ?array
+    {
+        return $this->getParameters('averages', $resource);
     }
 
     /**
@@ -103,23 +143,38 @@ class ApiQueryParser
     {
         $this->validate($request->all());
 
-        $this->parameters = array_map('trim', $request->only(['page', 'limit']));
+        $this->parameters = $this->extractParameters($request);
+    }
 
-        if ($request->has('fields')) {
-            $this->parameters['fields'] = $this->parseFields($request->input('fields'));
+    /**
+     * Extract and parse all parameters from the request.
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @return array
+     */
+    private function extractParameters(Request $request): array
+    {
+        $parameters = [];
+
+        $parsers = [
+            'page'     => fn ($value) => trim($value),
+            'limit'    => fn ($value) => trim($value),
+            'cursor'   => fn ($value) => $value,
+            'fields'   => fn ($value) => $this->parseFields($value),
+            'counts'   => fn ($value) => $this->parseCounts($value),
+            'sums'     => fn ($value) => $this->parseSums($value),
+            'averages' => fn ($value) => $this->parseAverages($value),
+            'filters'  => fn ($value) => $this->parseFilters($value),
+            'order'    => fn ($value) => $this->parseOrder($value)
+        ];
+
+        foreach ($parsers as $key => $parser) {
+            if ($request->has($key)) {
+                $parameters[$key] = $parser($request->input($key));
+            }
         }
 
-        if ($request->has('filters')) {
-            $this->parameters['filters'] = $this->parseFilters($request->input('filters'));
-        }
-
-        if ($request->has('order')) {
-            $this->parameters['order'] = $this->parseOrder($request->input('order'));
-        }
-
-        if ($request->has('cursor')) {
-            $this->parameters['cursor'] = $request->input('cursor');
-        }
+        return $parameters;
     }
 
     /**
@@ -163,9 +218,117 @@ class ApiQueryParser
      */
     private function parseFields(array|string $query): array
     {
-        return is_array($query)
-            ? array_map(fn ($value) => array_map('trim', explode(',', $value)), $query)
-            : array_map('trim', explode(',', $query));
+        return $this->parseCommaSeparatedValues($query);
+    }
+
+    /**
+     * Extract the count parameters from the query string.
+     *
+     * @param  array|string  $query
+     * @return array<int, string>
+     */
+    private function parseCounts(array|string $query): array
+    {
+        return $this->parseCommaSeparatedValues($query);
+    }
+
+    /**
+     * Parse comma-separated values from query parameters.
+     *
+     * @param  array|string  $query
+     * @return array
+     */
+    private function parseCommaSeparatedValues(array|string $query): array
+    {
+        if (!is_array($query)) {
+            return $this->splitAndTrim($query);
+        }
+
+        return array_map(fn ($value) => $this->splitAndTrim($value), $query);
+    }
+
+    /**
+     * Split a string by comma and trim each value.
+     *
+     * @param  string  $value
+     * @return array
+     */
+    private function splitAndTrim(string $value): array
+    {
+        return array_map('trim', explode(',', $value));
+    }
+
+    /**
+     * Extract the sum parameters from the query string.
+     *
+     * @param  array  $query
+     * @return array
+     */
+    private function parseSums(array $query): array
+    {
+        return $this->parseAggregations($query);
+    }
+
+    /**
+     * Extract the average parameters from the query string.
+     *
+     * @param  array  $query
+     * @return array
+     */
+    private function parseAverages(array $query): array
+    {
+        return $this->parseAggregations($query);
+    }
+
+    /**
+     * Parse aggregation parameters (sums, averages) from the query string.
+     *
+     * @param  array  $query
+     * @return array
+     */
+    private function parseAggregations(array $query): array
+    {
+        $aggregations = [];
+
+        foreach ($query as $resource => $relations) {
+            if (!is_array($relations)) {
+                continue;
+            }
+
+            $aggregations[$resource] = $this->parseRelationFields($relations);
+        }
+
+        return $aggregations;
+    }
+
+    /**
+     * Parse relation fields for aggregations.
+     *
+     * @param  array  $relations
+     * @return array
+     */
+    private function parseRelationFields(array $relations): array
+    {
+        return array_map(fn ($fields) => $this->normalizeFields($fields), $relations);
+    }
+
+    /**
+     * Normalize field values into an array format.
+     *
+     * @param  mixed  $fields
+     * @return array
+     */
+    private function normalizeFields(mixed $fields): array
+    {
+        if (is_string($fields)) {
+            return $this->splitAndTrim($fields);
+        }
+
+        if (is_array($fields)) {
+            return $fields;
+        }
+
+        return [$fields];
     }
 
     /**
@@ -173,10 +336,16 @@ class ApiQueryParser
      *
      * @param  string  $query
      * @return array
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\InvalidInputException
      */
     private function parseFilters(string $query): array
     {
-        return json_decode($query, true) ?? [];
+        try {
+            return json_decode($query, true) ?? [];
+        } catch (Throwable $exception) {
+            throw new InvalidInputException;
+        }
     }
 
     /**
@@ -210,7 +379,30 @@ class ApiQueryParser
      */
     private function buildValidationRulesFromParameters(array $parameters): array
     {
-        $rules = [
+        $rules = $this->getBaseValidationRules();
+
+        $this->applyArrayValidationRules($rules, $parameters, 'fields', ['fields.*' => 'string']);
+        $this->applyArrayValidationRules($rules, $parameters, 'counts', ['counts.*' => 'string']);
+        $this->applyArrayValidationRules($rules, $parameters, 'sums', [
+            'sums.*'   => 'array',
+            'sums.*.*' => 'string'
+        ]);
+        $this->applyArrayValidationRules($rules, $parameters, 'averages', [
+            'averages.*'   => 'array',
+            'averages.*.*' => 'string'
+        ]);
+
+        return $rules;
+    }
+
+    /**
+     * Get the base validation rules for all parameters.
+     *
+     * @return array
+     */
+    private function getBaseValidationRules(): array
+    {
+        return [
             'fields'  => 'string',
             'filters' => 'json',
             'order'   => 'string',
@@ -218,12 +410,27 @@ class ApiQueryParser
             'limit'   => 'integer|min:1',
             'cursor'  => 'string'
         ];
+    }
 
-        if (isset($parameters['fields']) && is_array($parameters['fields'])) {
-            $rules['fields']   = 'array';
-            $rules['fields.*'] = 'string';
+    /**
+     * Apply validation rules for array parameters.
+     *
+     * @param  array  $rules
+     * @param  array  $parameters
+     * @param  string  $key
+     * @param  array  $array_rules
+     * @return void
+     */
+    private function applyArrayValidationRules(array &$rules, array $parameters, string $key, array $array_rules): void
+    {
+        if (!isset($parameters[$key]) || !is_array($parameters[$key])) {
+            return;
         }
 
-        return $rules;
+        $rules[$key] = 'array';
+
+        foreach ($array_rules as $rule_key => $rule_value) {
+            $rules[$rule_key] = $rule_value;
+        }
     }
 }
