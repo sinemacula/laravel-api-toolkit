@@ -93,10 +93,12 @@ final class Count extends BaseDefinition implements Arrayable
      */
     public function toArray(): array
     {
-        $key = $this->alias ?? $this->name;
+        $present = $this->alias ?? $this->name;
+        $key     = '__count__:' . $present;
 
         return [
             $key => array_filter([
+                'key'          => $present,
                 'metric'       => 'count',
                 'relation'     => $this->name,
                 'constraint'   => $this->constraint,
