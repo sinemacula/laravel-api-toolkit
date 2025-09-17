@@ -77,7 +77,7 @@ abstract class ApiResource extends BaseResource implements ApiResourceInterface
                 }
             }
 
-            if (method_exists($resource, 'loadCount')) {
+            if (method_exists($resource, 'loadCount') && $this->shouldIncludeCountsField()) {
 
                 $requested_counts = ApiQuery::getCounts(static::getResourceType()) ?? [];
                 $with_counts      = static::eagerLoadCountsFor($requested_counts);
@@ -112,10 +112,13 @@ abstract class ApiResource extends BaseResource implements ApiResourceInterface
             }
         }
 
-        $counts = $this->resolveCountsPayload();
+        if ($this->shouldIncludeCountsField()) {
 
-        if ($counts !== []) {
-            $data['counts'] = $counts;
+            $counts = $this->resolveCountsPayload();
+
+            if ($counts !== []) {
+                $data['counts'] = $counts;
+            }
         }
 
         return $this->orderResolvedFields($data);
@@ -968,5 +971,26 @@ abstract class ApiResource extends BaseResource implements ApiResourceInterface
     private function getFixedFields(): array
     {
         return array_merge(Config::get('api-toolkit.resources.fixed_fields', []), $this->fixed);
+    }
+
+    /**
+     * Determine if the counts fields should be included in the resource.
+     *
+     * @return bool
+     */
+    private function shouldIncludeCountsField(): bool
+    {
+        $requested_fields = ApiQuery::getFields(static::getResourceType());
+        $excluded_fields  = $this->excludedFields ?? [];
+
+        if (is_array($requested_fields) && in_array('counts', $requested_fields, true)) {
+            return !in_array('counts', $excluded_fields, true);
+        }
+
+        if ($this->shouldRespondWithAll() || (is_array($requested_fields) && in_array(':all', $requested_fields, true))) {
+            return !in_array('counts', $excluded_fields, true);
+        }
+
+        return in_array('counts', static::getDefaultFields(), true) && !in_array('counts', $excluded_fields, true);
     }
 }
