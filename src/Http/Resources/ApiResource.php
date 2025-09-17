@@ -260,15 +260,15 @@ abstract class ApiResource extends BaseResource implements ApiResourceInterface
 
         foreach (static::countDefinitions() as $present_key => $definition) {
 
-            if (!static::shouldIncludeCount($present_key, $requested, $definition)) {
+            if (!static::shouldIncludeCount($present_key, $requested, $definition) || !$this->passesGuards($definition, null)) {
                 continue;
             }
 
             $attribute = $definition['relation'] . '_count';
-            $val       = $this->getAttributeIfLoaded($owner, $attribute);
+            $value     = $this->getAttributeIfLoaded($owner, $attribute);
 
-            if ($val !== null) {
-                $result[$present_key] = (int) $val;
+            if ($value !== null) {
+                $result[$present_key] = (int) $value;
             }
         }
 
@@ -378,12 +378,8 @@ abstract class ApiResource extends BaseResource implements ApiResourceInterface
             return new MissingValue;
         }
 
-        if ($definition !== null && !empty($definition['guards'])) {
-            foreach ($definition['guards'] as $guard) {
-                if (is_callable($guard) && $guard($this, $request) === false) {
-                    return new MissingValue;
-                }
-            }
+        if (!$this->passesGuards($definition, $request)) {
+            return new MissingValue;
         }
 
         $value = match (true) {
@@ -511,6 +507,26 @@ abstract class ApiResource extends BaseResource implements ApiResourceInterface
     }
 
     /**
+     * Do all guards on this definition pass?
+     *
+     * @param  array<string, mixed>  $definition
+     * @param  \Illuminate\Http\Request|null  $request
+     * @return bool
+     */
+    protected function passesGuards(?array $definition = null, ?Request $request = null): bool
+    {
+        $guards = $definition['guards'] ?? [];
+
+        foreach ($guards as $guard) {
+            if (is_callable($guard) && $guard($this, $request) === false) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
      * Collect count definitions (presentation key => normalized def).
      *
      * @return array<string, array{relation:string,constraint?:Closure,default?:bool}>
@@ -519,17 +535,21 @@ abstract class ApiResource extends BaseResource implements ApiResourceInterface
     {
         $out = [];
 
-        foreach (static::getCompiledSchema() as $present_key => $definition) {
+        foreach (static::getCompiledSchema() as $schema_key => $definition) {
 
             if (($definition['metric'] ?? null) !== 'count') {
                 continue;
             }
 
+            $present_key = $definition['key']
+                ?? (str_starts_with($schema_key, '__count__:') ? substr($schema_key, 10) : $schema_key);
+
             $relation          = (string) ($definition['relation'] ?? $present_key);
             $out[$present_key] = [
                 'relation'   => $relation,
                 'constraint' => $definition['constraint'] ?? null,
-                'default'    => (bool) ($definition['default'] ?? false)
+                'default'    => (bool) ($definition['default'] ?? false),
+                'guards'     => $definition['guards'] ?? []
             ];
         }
 
