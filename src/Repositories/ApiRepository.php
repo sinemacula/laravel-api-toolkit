@@ -57,11 +57,12 @@ abstract class ApiRepository extends Repository
         $this->applyScopes();
 
         $method = $this->resolvePaginationMethod();
+        $limit  = ApiQuery::getLimit() ?? Config::get('api-toolkit.parser.defaults.limit');
 
         if ($method === 'cursorPaginate') {
-            $results = $this->model->cursorPaginate(ApiQuery::getLimit(), '*', 'cursor', ApiQuery::getCursor());
+            $results = $this->model->cursorPaginate($limit, '*', 'cursor', ApiQuery::getCursor());
         } else {
-            $results = $this->model->paginate(ApiQuery::getLimit(), '*', 'page', ApiQuery::getPage());
+            $results = $this->model->paginate($limit, '*', 'page', ApiQuery::getPage());
         }
 
         $results->appends(Request::query());
