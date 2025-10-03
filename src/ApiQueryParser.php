@@ -3,7 +3,6 @@
 namespace SineMacula\ApiToolkit;
 
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\ValidationException;
 use SineMacula\ApiToolkit\Exceptions\InvalidInputException;
@@ -100,13 +99,13 @@ class ApiQueryParser
      * Returns the desired limit set with the URL modifiers.
      *  - e.g. ?limit=x.
      *
-     * @return int
+     * @return int|null
      */
-    public function getLimit(): int
+    public function getLimit(): ?int
     {
         $limit = (int) $this->getParameters('limit');
 
-        return $limit > 0 ? $limit : Config::get('api-toolkit.parser.defaults.limit');
+        return $limit > 0 ? $limit : null;
     }
 
     /**
