@@ -15,7 +15,7 @@ use Illuminate\Support\Facades\Facade;
  * @method static array|null getAverages(?string $resource = null)
  * @method static array|null getFilters()
  * @method static array getOrder()
- * @method static int getLimit()
+ * @method static int|null getLimit()
  * @method static int|null getPage()
  * @method static string|null getCursor()
  * @method static void parse(Request $request)

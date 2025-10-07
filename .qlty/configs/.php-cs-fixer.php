@@ -6,9 +6,9 @@ use PhpCsFixer\Runner\Parallel\ParallelConfigFactory;
 
 $finder = Finder::create()
     ->in([
-        __DIR__ . '/config',
-        __DIR__ . '/src',
-        __DIR__ . '/tests'
+        dirname(__DIR__, 2) . '/config',
+        dirname(__DIR__, 2) . '/src',
+        dirname(__DIR__, 2) . '/tests'
     ])
     ->name('*.php')
     ->notName('*.blade.php')

@@ -333,9 +333,9 @@ class ApiCriteria implements CriteriaInterface
     /**
      * Get the limit to be applied to the query.
      *
-     * @return int
+     * @return int|null
      */
-    private function getLimit(): int
+    private function getLimit(): ?int
     {
         return ApiQuery::getLimit();
     }
