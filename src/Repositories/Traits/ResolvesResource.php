@@ -22,6 +22,7 @@ trait ResolvesResource
     public function usingResource(?string $resource_class): static
     {
         $this->customResourceClass = $resource_class;
+
         return $this;
     }
 
@@ -33,7 +34,6 @@ trait ResolvesResource
      */
     protected function resolveResource(Model $model): ?string
     {
-        // Use custom resource if set, otherwise fall back to config lookup
         return $this->customResourceClass ?? $this->getResourceFromModel($model);
     }
 
