@@ -13,8 +13,19 @@ trait OrdersFields
      */
     protected FieldOrderingStrategy $fieldOrderingStrategy = FieldOrderingStrategy::DEFAULT;
 
+    /**
+     * Resolves and returns the fields based on the API query or defaults.
+     *
+     * @return array<int, string>
+     */
     abstract public static function resolveFields(): array;
 
+    /**
+     * Order the resolved fields based on the configured strategy.
+     *
+     * @param array $data
+     * @return array
+     */
     protected function orderResolvedFields(array $data): array
     {
         return match ($this->fieldOrderingStrategy) {
@@ -63,6 +74,12 @@ trait OrdersFields
         return $data;
     }
 
+    /**
+     * Order resolved fields in the order they were requested.
+     *
+     * @param array $data
+     * @return array
+     */
     protected function orderByRequestedFields(array $data): array
     {
         $requestedFields = static::resolveFields();
