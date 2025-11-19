@@ -20,6 +20,13 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
  */
 trait RespondsWithStream
 {
+    /**
+     * Stream a repository's data as a CSV file.
+     *
+     * @param ApiRepository $repository
+     * @param int $chunk_size
+     * @return StreamedResponse
+     */
     public function streamRepositoryToCsv(ApiRepository $repository, int $chunk_size = 1500): StreamedResponse
     {
         $limit = ApiQuery::getLimit();
@@ -92,6 +99,8 @@ trait RespondsWithStream
     }
 
     /**
+     * Create a streamed response.
+     *
      * @param  callable  $callback
      * @param  string  $content_type
      * @param  string  $filename
