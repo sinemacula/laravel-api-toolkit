@@ -17,6 +17,7 @@ use ReflectionMethod;
 use SensitiveParameter;
 use SineMacula\ApiToolkit\Contracts\ApiResourceInterface;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
+use SineMacula\ApiToolkit\Traits\OrdersFields;
 
 /**
  * The base API resource.
@@ -29,6 +30,8 @@ use SineMacula\ApiToolkit\Facades\ApiQuery;
  */
 abstract class ApiResource extends BaseResource implements ApiResourceInterface
 {
+    use OrdersFields;
+
     /** @var array Default fields to include if no specific fields are requested */
     protected static array $default = [];
 
@@ -273,46 +276,6 @@ abstract class ApiResource extends BaseResource implements ApiResourceInterface
         }
 
         return $result;
-    }
-
-    /**
-     * Order resolved fields into a predictable output structure.
-     *
-     * Rules:
-     *  - "_type" always first
-     *  - "id" always second
-     *  - any timestamps (*_at) always last
-     *  - everything else alphabetized in between
-     *
-     * @param  array<string, mixed>  $data
-     * @return array<string, mixed>
-     */
-    protected function orderResolvedFields(array $data): array
-    {
-        $weight = static function (string $key): array {
-
-            if ($key === '_type') {
-                return [0, ''];
-            }
-
-            if ($key === 'id') {
-                return [1, ''];
-            }
-
-            $is_timestamp = str_ends_with($key, '_at');
-
-            return [$is_timestamp ? 3 : 2, $key];
-        };
-
-        uksort($data, static function (string $a, string $b) use ($weight): int {
-
-            [$wa, $ka] = $weight($a);
-            [$wb, $kb] = $weight($b);
-
-            return $wa <=> $wb ?: strcmp($ka, $kb);
-        });
-
-        return $data;
     }
 
     /**
