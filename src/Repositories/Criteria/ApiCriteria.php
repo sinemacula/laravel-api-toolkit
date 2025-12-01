@@ -27,8 +27,7 @@ use Throwable;
  */
 class ApiCriteria implements CriteriaInterface
 {
-    use InteractsWithModelSchema;
-    use ResolvesResource;
+    use InteractsWithModelSchema, ResolvesResource;
 
     /** @var string The column name to be used when ordering items randomly */
     public const string ORDER_BY_RANDOM = 'random';
