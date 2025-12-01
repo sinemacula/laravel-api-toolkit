@@ -45,7 +45,6 @@ abstract class ApiRepository extends Repository
     {
         $this->customResourceClass = $resource_class;
 
-        // Update any existing ApiCriteria instances
         foreach ($this->getCriteria() as $criteria) {
             if ($criteria instanceof ApiCriteria) {
                 $criteria->usingResource($resource_class);
