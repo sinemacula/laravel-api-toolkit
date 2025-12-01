@@ -8,10 +8,10 @@ use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Config;
-use SineMacula\ApiToolkit\Contracts\ApiResourceInterface;
 use SineMacula\ApiToolkit\Enums\CacheKeys;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
 use SineMacula\ApiToolkit\Http\Resources\ApiResource;
+use SineMacula\ApiToolkit\Repositories\Traits\ResolvesResource;
 use SineMacula\ApiToolkit\Repositories\Traits\InteractsWithModelSchema;
 use SineMacula\Repositories\Contracts\CriteriaInterface;
 use Throwable;
@@ -27,7 +27,7 @@ use Throwable;
  */
 class ApiCriteria implements CriteriaInterface
 {
-    use InteractsWithModelSchema;
+    use InteractsWithModelSchema, ResolvesResource;
 
     /** @var string The column name to be used when ordering items randomly */
     public const string ORDER_BY_RANDOM = 'random';
@@ -148,7 +148,7 @@ class ApiCriteria implements CriteriaInterface
     protected function applyEagerLoading(Builder $query): Builder
     {
         $model    = $query->getModel();
-        $resource = $this->getResourceFromModel($model);
+        $resource = $this->resolveResource($model);
 
         if (!$resource || !is_subclass_of($resource, ApiResource::class)) {
             return $query;
@@ -182,26 +182,6 @@ class ApiCriteria implements CriteriaInterface
         }
 
         return $query;
-    }
-
-    /**
-     * Get the resource from the given model.
-     *
-     * @param  \Illuminate\Database\Eloquent\Model  $model
-     * @return string|null
-     */
-    protected function getResourceFromModel(Model $model): ?string
-    {
-        $class = $model::class;
-
-        return Cache::rememberForever(CacheKeys::MODEL_RESOURCES->resolveKey([$class]), function () use ($class) {
-
-            $resource = Config::get('api-toolkit.resources.resource_map.' . $class);
-
-            if ($resource && class_exists($resource) && in_array(ApiResourceInterface::class, class_implements($resource) ?: [], true)) {
-                return $resource;
-            }
-        });
     }
 
     /**
