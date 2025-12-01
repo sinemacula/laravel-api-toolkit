@@ -4,6 +4,12 @@ namespace SineMacula\ApiToolkit\Traits;
 
 use SineMacula\ApiToolkit\Enums\FieldOrderingStrategy;
 
+/**
+ * Provides consistent field-ordering utilities for API resources.
+ *
+ * @author      Michael Stivala <michael.stivala@verifast.com>
+ * @copyright   2025 Verifast, Inc.
+ */
 trait OrdersFields
 {
     /**
@@ -82,28 +88,20 @@ trait OrdersFields
      */
     protected function orderByRequestedFields(array $data): array
     {
-        $requestedFields = static::resolveFields();
+        $requested_fields = static::resolveFields();
 
-        if (empty($requestedFields)) {
+        if (empty($requested_fields)) {
             return $data;
         }
 
         $ordered = [];
 
-        // Add fields in requested order
-        foreach ($requestedFields as $field) {
+        foreach ($requested_fields as $field) {
             if (array_key_exists($field, $data)) {
                 $ordered[$field] = $data[$field];
             }
         }
 
-        // Add any remaining fields that weren't requested
-        foreach ($data as $key => $value) {
-            if (!array_key_exists($key, $ordered)) {
-                $ordered[$key] = $value;
-            }
-        }
-
-        return $ordered;
+        return $ordered + $data;
     }
 }
