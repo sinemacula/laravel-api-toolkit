@@ -2,6 +2,12 @@
 
 namespace SineMacula\ApiToolkit\Enums;
 
+/**
+ * Defines the strategies available for ordering resolved API fields.
+ *
+ * @author      Michael Stivala <michael.stivala@verifast.app>
+ * @copyright   2025 Verifast, Inc.
+ */
 enum FieldOrderingStrategy: string
 {
     /**
