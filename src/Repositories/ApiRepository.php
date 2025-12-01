@@ -19,6 +19,7 @@ use ReflectionMethod;
 use SineMacula\ApiToolkit\Enums\CacheKeys;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
 use SineMacula\ApiToolkit\Repositories\Criteria\ApiCriteria;
+use SineMacula\ApiToolkit\Repositories\Traits\ResolvesResource;
 use SineMacula\Repositories\Repository;
 
 /**
@@ -29,8 +30,39 @@ use SineMacula\Repositories\Repository;
  */
 abstract class ApiRepository extends Repository
 {
+    use ResolvesResource;
+
     /** @var array<int, string> */
     protected array $casts = [];
+
+    /**
+     * Set a custom resource class to be used.
+     *
+     * @param string|null $resource_class
+     * @return $this
+     */
+    public function usingResource(?string $resource_class): static
+    {
+        $this->customResourceClass = $resource_class;
+
+        foreach ($this->getCriteria() as $criteria) {
+            if ($criteria instanceof ApiCriteria) {
+                $criteria->usingResource($resource_class);
+            }
+        }
+
+        return $this;
+    }
+
+    /**
+     * Get the resource class for this repository's model.
+     *
+     * @return string|null
+     */
+    public function getResourceClass(): ?string
+    {
+        return $this->resolveResource($this->app->make($this->model()));
+    }
 
     /**
      * Apply the API criteria to the next request.
@@ -39,9 +71,13 @@ abstract class ApiRepository extends Repository
      */
     public function withApiCriteria(): static
     {
-        $this->withCriteria($this->app->make(ApiCriteria::class));
+        $criteria = $this->app->make(ApiCriteria::class);
 
-        return $this;
+        if ($this->customResourceClass) {
+            $criteria->usingResource($this->customResourceClass);
+        }
+
+        return $this->withCriteria($criteria);
     }
 
     /**
