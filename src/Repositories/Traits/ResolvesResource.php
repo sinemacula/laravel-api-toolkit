@@ -8,6 +8,12 @@ use Illuminate\Support\Facades\Config;
 use SineMacula\ApiToolkit\Contracts\ApiResourceInterface;
 use SineMacula\ApiToolkit\Enums\CacheKeys;
 
+/**
+ * Provides automatic resolution of API resource classes for Eloquent models.
+ *
+ * @author      Michael Stivala <michael.stivala@verifast.com>
+ * @copyright   2025 Verifast, Inc.
+ */
 trait ResolvesResource
 {
     /** @var string|null  */
