@@ -53,7 +53,7 @@ trait ResolvesResource
     {
         $class = $model::class;
 
-        return Cache::rememberForever(CacheKeys::MODEL_RESOURCES->resolveKey([$class]), function () use ($class) {
+        return Cache::memo()->rememberForever(CacheKeys::MODEL_RESOURCES->resolveKey([$class]), function () use ($class) {
 
             $resource = Config::get('api-toolkit.resources.resource_map.' . $class);
 

@@ -56,7 +56,7 @@ trait InteractsWithModelSchema
      */
     private function resolveColumnsFromCacheForModel(Model $model): array
     {
-        return Cache::get(CacheKeys::MODEL_SCHEMA_COLUMNS->resolveKey([$model::class]), []);
+        return Cache::memo()->get(CacheKeys::MODEL_SCHEMA_COLUMNS->resolveKey([$model::class]), []);
     }
 
     /**
@@ -68,6 +68,6 @@ trait InteractsWithModelSchema
      */
     private function storeColumnsInCacheForModel(array $columns, Model $model): void
     {
-        Cache::rememberForever(CacheKeys::MODEL_SCHEMA_COLUMNS->resolveKey([$model::class]), fn () => $columns);
+        Cache::memo()->rememberForever(CacheKeys::MODEL_SCHEMA_COLUMNS->resolveKey([$model::class]), fn () => $columns);
     }
 }
