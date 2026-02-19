@@ -567,7 +567,7 @@ class ApiCriteria implements CriteriaInterface
      */
     private function isRelation(string $key, Model $model): bool
     {
-        return Cache::rememberForever(CacheKeys::MODEL_RELATIONS->resolveKey([
+        return Cache::memo()->rememberForever(CacheKeys::MODEL_RELATIONS->resolveKey([
             $model::class,
             $key
         ]), function () use ($key, $model) {
