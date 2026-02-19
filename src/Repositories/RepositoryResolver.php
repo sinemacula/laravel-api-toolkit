@@ -72,4 +72,22 @@ class RepositoryResolver
 
         unset(self::$repositories[$key]);
     }
+
+    /**
+     * Flush all cached repository instances.
+     *
+     * This method clears the internal static cache of repository instances,
+     * forcing the resolver to create new instances on the next get() call.
+     * This is primarily useful for testing to prevent repository instances
+     * from leaking across test cases, which can cause issues with stale
+     * model instances that have cleared global scopes.
+     *
+     * @return void
+     */
+    public static function flush(): void
+    {
+        self::$repositories = [];
+    }
+
 }
+
