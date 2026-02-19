@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "46be4c407750841741c7b0f81ad9ab1e",
+    "content-hash": "f0a622179877c7e98a0e7f9c5ec29e36",
     "packages": [
         {
             "name": "aws/aws-crt-php",
@@ -3351,16 +3351,16 @@
         },
         {
             "name": "sinemacula/laravel-repositories",
-            "version": "v1.0.2",
+            "version": "v1.0.3",
             "source": {
                 "type": "git",
                 "url": "https://github.com/sinemacula/laravel-repositories.git",
-                "reference": "c7bfcd64e923201b05efee6c89da89ff3b980689"
+                "reference": "728390e3e7eecd1db6b862aa95cb8d9ed639c014"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/sinemacula/laravel-repositories/zipball/c7bfcd64e923201b05efee6c89da89ff3b980689",
-                "reference": "c7bfcd64e923201b05efee6c89da89ff3b980689",
+                "url": "https://api.github.com/repos/sinemacula/laravel-repositories/zipball/728390e3e7eecd1db6b862aa95cb8d9ed639c014",
+                "reference": "728390e3e7eecd1db6b862aa95cb8d9ed639c014",
                 "shasum": ""
             },
             "require": {
@@ -3399,9 +3399,9 @@
             ],
             "support": {
                 "issues": "https://github.com/sinemacula/laravel-repositories/issues",
-                "source": "https://github.com/sinemacula/laravel-repositories/tree/v1.0.2"
+                "source": "https://github.com/sinemacula/laravel-repositories/tree/v1.0.3"
             },
-            "time": "2025-08-15T05:11:31+00:00"
+            "time": "2026-02-19T16:03:58+00:00"
         },
         {
             "name": "sinemacula/laravel-resource-exporter",
