@@ -265,7 +265,7 @@ abstract class ApiRepository extends Repository
      */
     private function storeCastsInCache(): void
     {
-        Cache::rememberForever(CacheKeys::REPOSITORY_MODEL_CASTS->resolveKey([$this->model()]), fn () => $this->casts);
+        Cache::memo()->rememberForever(CacheKeys::REPOSITORY_MODEL_CASTS->resolveKey([$this->model()]), fn () => $this->casts);
     }
 
     /**
@@ -469,6 +469,6 @@ abstract class ApiRepository extends Repository
      */
     private function resolveCastsFromCache(): array
     {
-        return Cache::get(CacheKeys::REPOSITORY_MODEL_CASTS->resolveKey([$this->model()]), []);
+        return Cache::memo()->get(CacheKeys::REPOSITORY_MODEL_CASTS->resolveKey([$this->model()]), []);
     }
 }
