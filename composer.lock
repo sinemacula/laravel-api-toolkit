@@ -3351,16 +3351,16 @@
         },
         {
             "name": "sinemacula/laravel-repositories",
-            "version": "v1.0.3",
+            "version": "v1.0.4",
             "source": {
                 "type": "git",
                 "url": "https://github.com/sinemacula/laravel-repositories.git",
-                "reference": "728390e3e7eecd1db6b862aa95cb8d9ed639c014"
+                "reference": "9dd85b75e35efc7c376679fafa9f16b3226c2eb6"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/sinemacula/laravel-repositories/zipball/728390e3e7eecd1db6b862aa95cb8d9ed639c014",
-                "reference": "728390e3e7eecd1db6b862aa95cb8d9ed639c014",
+                "url": "https://api.github.com/repos/sinemacula/laravel-repositories/zipball/9dd85b75e35efc7c376679fafa9f16b3226c2eb6",
+                "reference": "9dd85b75e35efc7c376679fafa9f16b3226c2eb6",
                 "shasum": ""
             },
             "require": {
@@ -3399,9 +3399,9 @@
             ],
             "support": {
                 "issues": "https://github.com/sinemacula/laravel-repositories/issues",
-                "source": "https://github.com/sinemacula/laravel-repositories/tree/v1.0.3"
+                "source": "https://github.com/sinemacula/laravel-repositories/tree/v1.0.4"
             },
-            "time": "2026-02-19T16:03:58+00:00"
+            "time": "2026-02-19T19:49:01+00:00"
         },
         {
             "name": "sinemacula/laravel-resource-exporter",
