@@ -36,9 +36,36 @@ abstract class ApiRepository extends Repository
     protected array $casts = [];
 
     /**
+     * Forward method calls to the model.
+     *
+     * This method ensures that the model is always converted to a Builder instance
+     * before forwarding method calls. This prevents race conditions where methods
+     * like withTrashed() are called on a Model instance instead of a Builder,
+     * which can occur during parallel test execution.
+     *
+     * @param  string  $method
+     * @param  array  $arguments
+     *
+     * @return mixed
+     */
+    public function __call(string $method, array $arguments): mixed
+    {
+        $this->applyCriteria();
+        $this->applyScopes();
+
+        if (!$this->model instanceof Builder) {
+            $this->model = $this->model->newQuery();
+        }
+
+        $result = call_user_func_array([$this->model, $method], $arguments);
+
+        return $this->resetAndReturn($result);
+    }
+
+    /**
      * Set a custom resource class to be used.
      *
-     * @param string|null $resource_class
+     * @param  string|null  $resource_class
      * @return $this
      */
     public function usingResource(?string $resource_class): static
@@ -425,7 +452,7 @@ abstract class ApiRepository extends Repository
             $values = $value['values']->pluck('id');
         }
 
-        $values ??= $value;
+        $values    ??= $value;
         $detaching = $value['detaching'] ?? true;
 
         $model->{Str::camel($attribute)}()->sync($values, $detaching);
@@ -472,3 +499,4 @@ abstract class ApiRepository extends Repository
         return Cache::memo()->get(CacheKeys::REPOSITORY_MODEL_CASTS->resolveKey([$this->model()]), []);
     }
 }
+
