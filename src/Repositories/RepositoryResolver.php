@@ -2,6 +2,7 @@
 
 namespace SineMacula\ApiToolkit\Repositories;
 
+use SineMacula\ApiToolkit\Exceptions\RepositoryResolutionException;
 use SineMacula\Repositories\Contracts\RepositoryInterface;
 
 /**
@@ -12,7 +13,7 @@ use SineMacula\Repositories\Contracts\RepositoryInterface;
  */
 class RepositoryResolver
 {
-    /** @var array<string, class-string> */
+    /** @var array<string, string> */
     private static array $map;
 
     /** @var array<string, \SineMacula\Repositories\Contracts\RepositoryInterface> */
@@ -21,11 +22,11 @@ class RepositoryResolver
     /**
      * Return the map of the repositories.
      *
-     * @return array<string, class-string>
+     * @return array<string, string>
      */
     public static function map(): array
     {
-        return self::$map ??= config('api-toolkit.repositories.repository_map', []);
+        return self::$map ??= self::resolveMap();
     }
 
     /**
@@ -34,15 +35,26 @@ class RepositoryResolver
      * @param  string  $name
      * @return \SineMacula\Repositories\Contracts\RepositoryInterface
      *
-     * @throws \RuntimeException
+     * @throws \SineMacula\ApiToolkit\Exceptions\RepositoryResolutionException
      */
     public static function get(string $name): RepositoryInterface
     {
         if (!self::has($name)) {
-            throw new \RuntimeException("Repository '{$name}' not found in registry.");
+            throw new RepositoryResolutionException("Repository '{$name}' not found in registry.");
         }
 
-        return self::$repositories[$name] ??= resolve(self::map()[$name]);
+        $repository_class = self::map()[$name];
+        $repository       = resolve($repository_class);
+
+        if (!$repository instanceof RepositoryInterface) {
+            throw new RepositoryResolutionException("Repository '{$name}' does not resolve to a valid repository instance.");
+        }
+
+        if (!self::shouldCacheResolvedInstances()) {
+            return $repository;
+        }
+
+        return self::$repositories[$name] ??= $repository;
     }
 
     /**
@@ -67,7 +79,7 @@ class RepositoryResolver
     {
         config()->set('api-toolkit.repositories.repository_map.' . $key, $class);
 
-        self::$map = config('api-toolkit.repositories.repository_map', []);
+        self::$map = self::resolveMap();
 
         unset(self::$repositories[$key]);
     }
@@ -86,5 +98,61 @@ class RepositoryResolver
     public static function flush(): void
     {
         self::$repositories = [];
+    }
+
+    /**
+     * Determine whether resolved repository instances should be cached.
+     *
+     * @return bool
+     */
+    public static function shouldCacheResolvedInstances(): bool
+    {
+        if (!config('api-toolkit.repositories.cache_resolved_instances', true)) {
+            return false;
+        }
+
+        return !self::isRunningUnderOctane();
+    }
+
+    /**
+     * Determine whether the current runtime is Laravel Octane.
+     *
+     * @return bool
+     */
+    private static function isRunningUnderOctane(): bool
+    {
+        if (!function_exists('app')) {
+            return false;
+        }
+
+        try {
+            return app()->bound('octane');
+        } catch (\Throwable $exception) {
+            return false;
+        }
+    }
+
+    /**
+     * Resolve and normalize repository map configuration values.
+     *
+     * @return array<string, string>
+     */
+    private static function resolveMap(): array
+    {
+        $map = config('api-toolkit.repositories.repository_map', []);
+
+        if (!is_array($map)) {
+            return [];
+        }
+
+        $resolved = [];
+
+        foreach ($map as $key => $class) {
+            if (is_string($key) && is_string($class) && $class !== '') {
+                $resolved[$key] = $class;
+            }
+        }
+
+        return $resolved;
     }
 }

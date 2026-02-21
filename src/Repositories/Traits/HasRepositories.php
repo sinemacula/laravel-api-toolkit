@@ -20,29 +20,22 @@ trait HasRepositories
      * Magic method to dynamically call repository accessors while allowing
      * other `__call` methods to work.
      *
-     * phpcs:disable Squiz.Commenting.FunctionComment.ScalarTypeHintMissing
-     *
      * @param  string  $method
-     * @param  array  $arguments
+     * @param  array<int, mixed>  $arguments
      * @return mixed
      *
-     * @throws \Exception
+     * @throws \BadMethodCallException
      */
-    public function __call(#[\SensitiveParameter] $method, #[\SensitiveParameter] $arguments): mixed
+    public function __call(#[\SensitiveParameter] string $method, #[\SensitiveParameter] array $arguments): mixed
     {
-        // phpcs:enable
         if (RepositoryResolver::has($method)) {
             return $this->resolveRepository($method);
         }
 
-        if (is_callable([get_parent_class($this), '__call'])) {
-            return parent::__call($method, $arguments);
-        }
+        $parent = get_parent_class($this);
 
-        foreach (class_uses($this) as $trait) {
-            if ($trait !== self::class && method_exists($trait, '__call')) {
-                return call_user_func_array([$this, '__call'], [$method, $arguments]);
-            }
+        if (is_string($parent) && is_callable([$parent, '__call'])) {
+            return parent::__call($method, $arguments);
         }
 
         throw new \BadMethodCallException("Method {$method} does not exist.");
@@ -58,6 +51,10 @@ trait HasRepositories
      */
     protected function resolveRepository(string $repository): RepositoryInterface
     {
+        if (!RepositoryResolver::shouldCacheResolvedInstances()) {
+            return RepositoryResolver::get($repository);
+        }
+
         if (!isset($this->repositories[$repository])) {
             $this->repositories[$repository] = RepositoryResolver::get($repository);
         }

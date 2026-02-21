@@ -2,8 +2,8 @@
 
 namespace SineMacula\ApiToolkit;
 
-use Illuminate\Contracts\Http\Kernel;
 use Illuminate\Database\Eloquent\Relations\Relation;
+use Illuminate\Foundation\Http\Kernel;
 use Illuminate\Foundation\Http\Middleware\PreventRequestsDuringMaintenance as LaravelPreventRequestsDuringMaintenance;
 use Illuminate\Log\LogManager;
 use Illuminate\Notifications\Events\NotificationSending;
@@ -20,6 +20,8 @@ use SineMacula\ApiToolkit\Http\Middleware\ThrottleRequests;
 use SineMacula\ApiToolkit\Http\Middleware\ThrottleRequestsWithRedis;
 use SineMacula\ApiToolkit\Listeners\NotificationListener;
 use SineMacula\ApiToolkit\Logging\CloudWatchLogger;
+use SineMacula\ApiToolkit\Support\Discovery\RepositoryMapAutoDiscoverer;
+use SineMacula\ApiToolkit\Support\Discovery\ResourceMapAutoDiscoverer;
 
 /**
  * API service provider.
@@ -55,12 +57,16 @@ class ApiServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->mergeConfigFrom(
-            __DIR__ . '/../config/api-toolkit.php', 'api-toolkit',
+            __DIR__ . '/../config/api-toolkit.php',
+            'api-toolkit',
         );
 
         $this->replaceConfigRecursivelyFrom(
-            __DIR__ . '/../config/logging.php', 'logging',
+            __DIR__ . '/../config/logging.php',
+            'logging',
         );
+
+        $this->registerAutoDiscoveredMaps();
 
         $this->registerQueryParser();
     }
@@ -73,7 +79,8 @@ class ApiServiceProvider extends ServiceProvider
     private function loadTranslationFiles(): void
     {
         $this->loadTranslationsFrom(
-            __DIR__ . '/../resources/lang', 'api-toolkit',
+            __DIR__ . '/../resources/lang',
+            'api-toolkit',
         );
 
         $this->publishes([
@@ -101,7 +108,7 @@ class ApiServiceProvider extends ServiceProvider
         ], 'config');
 
         $this->publishes([
-            __DIR__ . '/../stubs/logs-table.stub' => database_path('migrations/' . date('Y_m_d_His') . '_create_logs_table.php'),
+            __DIR__ . '/../database/migrations/create_logs_table.stub' => database_path('migrations/' . date('Y_m_d_His') . '_create_logs_table.php'),
         ], 'migrations');
     }
 
@@ -139,8 +146,8 @@ class ApiServiceProvider extends ServiceProvider
      */
     private function registerTrashedMacros(): void
     {
-        Request::macro('includeTrashed', fn () => $this->get('include_trashed', false) === 'true');
-        Request::macro('onlyTrashed', fn () => $this->get('only_trashed', false) === 'true');
+        Request::macro('includeTrashed', static fn (): bool => request()->query('include_trashed') === 'true');
+        Request::macro('onlyTrashed', static fn (): bool => request()->query('only_trashed') === 'true');
     }
 
     /**
@@ -150,15 +157,12 @@ class ApiServiceProvider extends ServiceProvider
      */
     private function registerExportMacros(): void
     {
-        Request::macro('expectsExport', fn () => config('api-toolkit.exports.enabled') && ($this->expectsCsv() || $this->expectsXml()));
+        Request::macro('expectsExport', static fn (): bool => (bool) config('api-toolkit.exports.enabled')
+            && (self::requestExpectsCsv() || self::requestExpectsXml()));
 
-        Request::macro('expectsCsv', fn () => strtolower($this->header('Accept')) === 'text/csv'
-            && in_array('csv', config('api-toolkit.exports.supported_formats', []), true));
-
-        Request::macro('expectsXml', fn () => strtolower($this->header('Accept')) === 'application/xml'
-            && in_array('xml', config('api-toolkit.exports.supported_formats', []), true));
-
-        Request::macro('expectsPdf', fn () => strtolower($this->header('Accept')) === 'application/pdf');
+        Request::macro('expectsCsv', static fn (): bool => self::requestExpectsCsv());
+        Request::macro('expectsXml', static fn (): bool => self::requestExpectsXml());
+        Request::macro('expectsPdf', static fn (): bool => self::requestAcceptHeader() === 'application/pdf');
     }
 
     /**
@@ -168,7 +172,7 @@ class ApiServiceProvider extends ServiceProvider
      */
     private function registerStreamMacros(): void
     {
-        Request::macro('expectsStream', fn () => strtolower($this->header('Accept')) === 'text/event-stream');
+        Request::macro('expectsStream', static fn (): bool => self::requestAcceptHeader() === 'text/event-stream');
     }
 
     /**
@@ -249,5 +253,75 @@ class ApiServiceProvider extends ServiceProvider
     private function registerQueryParser(): void
     {
         $this->app->singleton(Config::get('api-toolkit.parser.alias'), fn ($app) => new ApiQueryParser);
+    }
+
+    /**
+     * Merge auto-discovered resource and repository maps into config.
+     *
+     * Manual configuration always takes precedence over discovered values.
+     *
+     * @return void
+     */
+    private function registerAutoDiscoveredMaps(): void
+    {
+        if (!Config::get('api-toolkit.auto_discovery.enabled', false)) {
+            return;
+        }
+
+        $resource_map = Config::get('api-toolkit.resources.resource_map', []);
+        $resource_map = is_array($resource_map) ? $resource_map : [];
+
+        $discovered_resources = (new ResourceMapAutoDiscoverer($this->app))->discover();
+
+        if ($discovered_resources !== []) {
+            Config::set('api-toolkit.resources.resource_map', $resource_map + $discovered_resources);
+        }
+
+        $repository_map = Config::get('api-toolkit.repositories.repository_map', []);
+        $repository_map = is_array($repository_map) ? $repository_map : [];
+
+        $discovered_repositories = (new RepositoryMapAutoDiscoverer($this->app))->discover($repository_map);
+
+        if ($discovered_repositories !== []) {
+            Config::set('api-toolkit.repositories.repository_map', $repository_map + $discovered_repositories);
+        }
+    }
+
+    /**
+     * Determine whether the current request expects CSV export output.
+     *
+     * @return bool
+     */
+    private static function requestExpectsCsv(): bool
+    {
+        return self::requestAcceptHeader() === 'text/csv'
+            && in_array('csv', (array) config('api-toolkit.exports.supported_formats', []), true);
+    }
+
+    /**
+     * Determine whether the current request expects XML export output.
+     *
+     * @return bool
+     */
+    private static function requestExpectsXml(): bool
+    {
+        return self::requestAcceptHeader() === 'application/xml'
+            && in_array('xml', (array) config('api-toolkit.exports.supported_formats', []), true);
+    }
+
+    /**
+     * Get the current request's normalized Accept header.
+     *
+     * @return string
+     */
+    private static function requestAcceptHeader(): string
+    {
+        $accept_header = request()->header('Accept');
+
+        if (is_array($accept_header)) {
+            $accept_header = $accept_header[0] ?? '';
+        }
+
+        return strtolower((string) $accept_header);
     }
 }

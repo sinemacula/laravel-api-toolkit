@@ -37,6 +37,19 @@ use Symfony\Component\HttpKernel\Exception\TooManyRequestsHttpException;
  */
 class ApiExceptionHandler
 {
+    /** @var array<int, string> */
+    private const array DEFAULT_SENSITIVE_CONTEXT_KEYS = [
+        'password',
+        'password_confirmation',
+        'current_password',
+        'token',
+        'api_token',
+        'access_token',
+        'refresh_token',
+        'secret',
+        'authorization',
+    ];
+
     /**
      * Convenience method to register the various exception handler controls.
      *
@@ -57,13 +70,13 @@ class ApiExceptionHandler
      *
      * @param  \Throwable  $exception
      * @param  \Illuminate\Http\Request  $request
-     * @return \Symfony\Component\HttpFoundation\Response|null
+     * @return \Illuminate\Http\JsonResponse|null
      */
     private static function render(\Throwable $exception, Request $request): ?JsonResponse
     {
         // We only render exceptions as JSON when specifically required and if
         // the application is in debug mode.
-        if (!$request->expectsJson() && Config::get('app.debug')) {
+        if (!$request->expectsJson() && (bool) Config::get('app.debug')) {
             return null;
         }
 
@@ -121,27 +134,34 @@ class ApiExceptionHandler
      */
     private static function renderApiExceptionWithJson(Request $request, ApiException $exception): JsonResponse
     {
-        $options = $request->get('pretty') ? JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES : JSON_UNESCAPED_SLASHES;
+        $options = $request->boolean('pretty')
+            ? JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES
+            : JSON_UNESCAPED_SLASHES;
 
-        return Response::json(self::convertApiExceptionToArray($exception), $exception->getHttpStatusCode(), $exception->getHeaders(), $options);
+        return Response::json(
+            self::convertApiExceptionToArray($exception),
+            $exception::getHttpStatusCode(),
+            $exception->getHeaders(),
+            $options,
+        );
     }
 
     /**
      * Convert the given API exception to an array.
      *
      * @param  \SineMacula\ApiToolkit\Exceptions\ApiException  $exception
-     * @return array
+     * @return array{error: array<string, mixed>}
      */
     private static function convertApiExceptionToArray(ApiException $exception): array
     {
         return [
             'error' => array_filter([
-                'status' => $exception->getHttpStatusCode(),
-                'code'   => $exception->getInternalErrorCode(),
+                'status' => $exception::getHttpStatusCode(),
+                'code'   => $exception::getInternalErrorCode(),
                 'title'  => $exception->getCustomTitle(),
                 'detail' => $exception->getCustomDetail(),
                 'meta'   => self::getApiExceptionMeta($exception),
-            ]),
+            ], static fn (mixed $value): bool => $value !== null),
         ];
     }
 
@@ -149,13 +169,13 @@ class ApiExceptionHandler
      * Extracts meta information for an API exception.
      *
      * @param  \SineMacula\ApiToolkit\Exceptions\ApiException  $exception
-     * @return array|null
+     * @return array<string, mixed>|null
      */
     private static function getApiExceptionMeta(ApiException $exception): ?array
     {
         $previous = $exception->getPrevious();
 
-        return Config::get('app.debug') && $previous ? array_merge($exception->getCustomMeta() ?? [], [
+        return ((bool) Config::get('app.debug')) && $previous instanceof \Throwable ? array_merge($exception->getCustomMeta() ?? [], [
             'message'   => $previous->getMessage(),
             'exception' => $previous::class,
             'file'      => $previous->getFile(),
@@ -199,24 +219,71 @@ class ApiExceptionHandler
     /**
      * Retrieves context for logging an exception.
      *
-     * @return array
+     * @return array<string, mixed>
      */
     private static function getContext(): array
     {
         $context = [
             'method' => RequestFacade::method(),
             'path'   => RequestFacade::path(),
-            'data'   => RequestFacade::all(),
         ];
+
+        if (Config::get('api-toolkit.logging.request_context.include_payload', true)) {
+            $context['data'] = self::sanitizeContextData(RequestFacade::all());
+        }
 
         try {
             return array_filter(
                 array_merge($context, [
                     'user_id' => Auth::id(),
                 ]),
+                static fn (mixed $value): bool => $value !== null && $value !== [],
             );
         } catch (\Throwable $exception) {
             return $context;
         }
+    }
+
+    /**
+     * Sanitize context payload data.
+     *
+     * @param  mixed  $data
+     * @return mixed
+     */
+    private static function sanitizeContextData(mixed $data): mixed
+    {
+        if (!is_array($data)) {
+            return $data;
+        }
+
+        $keys = Config::get('api-toolkit.logging.request_context.sensitive_keys', self::DEFAULT_SENSITIVE_CONTEXT_KEYS);
+
+        return self::maskSensitiveContextValues($data, array_map('strtolower', (array) $keys));
+    }
+
+    /**
+     * Mask values with sensitive keys recursively.
+     *
+     * @param  array<int|string, mixed>  $data
+     * @param  array<int, string>  $sensitive_keys
+     * @return array<int|string, mixed>
+     */
+    private static function maskSensitiveContextValues(array $data, array $sensitive_keys): array
+    {
+        /** @var array<int|string, mixed> $sanitized */
+        $sanitized = [];
+
+        foreach ($data as $key => $value) {
+            if (is_string($key) && in_array(strtolower($key), $sensitive_keys, true)) {
+                $sanitized[$key] = '[REDACTED]';
+                continue;
+            }
+
+            $sanitized[$key] = is_array($value)
+                ? self::maskSensitiveContextValues($value, $sensitive_keys)
+                : $value;
+        }
+
+        return $sanitized;
     }
 }

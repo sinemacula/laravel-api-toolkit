@@ -11,9 +11,12 @@ Current implementation includes:
 - Query parsing utilities for fields, filters, sorting, pagination, aggregates, and request-scoped API controls
 - API-focused repository abstractions built on `sinemacula/laravel-repositories`
 - Resource primitives for consistent API payloads, collections, polymorphic rendering, and schema definitions
+- Optional auto-discovery for model/resource and repository alias maps across standard and module-based structures
+- Schema-strict resource field resolution to prevent undeclared dynamic output fields
 - Structured API exception hierarchy with centralized mapping, JSON rendering, and debug-aware metadata
 - Middleware extensions for parsing, throttling, pretty-printing, and maintenance-mode behavior
 - Logging integrations for API exceptions and notifications, including optional CloudWatch support
+- Octane-aware repository resolution controls to avoid cross-request state leakage
 - Traits, contracts, enums, and helpers for reusable API behavior and consistent application-level integration
 
 This repository is intended to remain:
@@ -35,6 +38,8 @@ The package currently centers around:
 - API request query parsing and safe request-level parameter extraction
 - API repository composition, criteria application, and model schema-aware attribute handling
 - API resource transformation patterns for single models, collections, and polymorphic relationships
+- Strict schema-based response field governance for API resources
+- Convention- and config-driven autodiscovery for resource and repository map registration
 - Exception normalization into consistent error responses with internal error code support
 - Middleware-level request handling for parser registration, throttling behavior, and maintenance controls
 - Logging and notification instrumentation for operational visibility

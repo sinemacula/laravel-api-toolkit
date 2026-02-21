@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "96b6b0dd3e8cf1c604e143adff78c61d",
+    "content-hash": "3f110d986fafe76f4adbae3a044758b3",
     "packages": [
         {
             "name": "aws/aws-crt-php",
@@ -3418,16 +3418,16 @@
         },
         {
             "name": "sinemacula/laravel-repositories",
-            "version": "v1.0.4",
+            "version": "v2.0.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/sinemacula/laravel-repositories.git",
-                "reference": "9dd85b75e35efc7c376679fafa9f16b3226c2eb6"
+                "reference": "5d5bb09842bc1c644a90b442063ab24bdd431faa"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/sinemacula/laravel-repositories/zipball/9dd85b75e35efc7c376679fafa9f16b3226c2eb6",
-                "reference": "9dd85b75e35efc7c376679fafa9f16b3226c2eb6",
+                "url": "https://api.github.com/repos/sinemacula/laravel-repositories/zipball/5d5bb09842bc1c644a90b442063ab24bdd431faa",
+                "reference": "5d5bb09842bc1c644a90b442063ab24bdd431faa",
                 "shasum": ""
             },
             "require": {
@@ -3436,10 +3436,17 @@
                 "php": "^8.3"
             },
             "require-dev": {
+                "brianium/paratest": "^7.8",
                 "friendsofphp/php-cs-fixer": "^3.85",
+                "orchestra/testbench": "^9.0 || ^10.0",
+                "phpstan/extension-installer": "^1.4",
                 "phpstan/phpdoc-parser": "^2.2",
                 "phpstan/phpstan": "^2.1",
-                "phpunit/phpunit": "^11.0",
+                "phpstan/phpstan-deprecation-rules": "^2.0",
+                "phpstan/phpstan-phpunit": "^2.0",
+                "phpstan/phpstan-strict-rules": "^2.0",
+                "phpunit/phpunit": "^11.5.3",
+                "slevomat/coding-standard": "^8.20",
                 "squizlabs/php_codesniffer": "^3.13"
             },
             "type": "library",
@@ -3466,9 +3473,9 @@
             ],
             "support": {
                 "issues": "https://github.com/sinemacula/laravel-repositories/issues",
-                "source": "https://github.com/sinemacula/laravel-repositories/tree/v1.0.4"
+                "source": "https://github.com/sinemacula/laravel-repositories/tree/v2.0.0"
             },
-            "time": "2026-02-19T19:49:01+00:00"
+            "time": "2026-02-21T05:45:31+00:00"
         },
         {
             "name": "sinemacula/laravel-resource-exporter",

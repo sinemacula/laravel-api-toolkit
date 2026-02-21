@@ -30,16 +30,23 @@ enum CacheKeys: string
     // Store the model relation instances associated with each model
     case MODEL_RELATION_INSTANCES = 'model-relation-instances:%s:%s';
 
+    // Store auto-discovered model-to-resource map entries
+    case AUTO_DISCOVERED_RESOURCE_MAP = 'auto-discovered-resource-map:%s';
+
+    // Store auto-discovered repository alias map entries
+    case AUTO_DISCOVERED_REPOSITORY_MAP = 'auto-discovered-repository-map:%s';
+
     /**
      * Resolves the cache key with the necessary prefix and replaces any
      * placeholders.
      *
-     * @param  array  $replacements
+     * @param  array<int, float|int|string>  $replacements
      * @return string
      */
     public function resolveKey(array $replacements = []): string
     {
         $prefix = Config::get('api-toolkit.cache.prefix', 'sm-api-toolkit');
+        $prefix = is_string($prefix) && $prefix !== '' ? $prefix : 'sm-api-toolkit';
 
         $key = $prefix . ':' . $this->value;
 
