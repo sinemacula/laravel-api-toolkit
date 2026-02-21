@@ -2,7 +2,6 @@
 
 namespace SineMacula\ApiToolkit\Repositories;
 
-use RuntimeException;
 use SineMacula\Repositories\Contracts\RepositoryInterface;
 
 /**
@@ -35,12 +34,12 @@ class RepositoryResolver
      * @param  string  $name
      * @return \SineMacula\Repositories\Contracts\RepositoryInterface
      *
-     * @throws RuntimeException
+     * @throws \RuntimeException
      */
     public static function get(string $name): RepositoryInterface
     {
         if (!self::has($name)) {
-            throw new RuntimeException("Repository '{$name}' not found in registry.");
+            throw new \RuntimeException("Repository '{$name}' not found in registry.");
         }
 
         return self::$repositories[$name] ??= resolve(self::map()[$name]);
@@ -88,6 +87,4 @@ class RepositoryResolver
     {
         self::$repositories = [];
     }
-
 }
-

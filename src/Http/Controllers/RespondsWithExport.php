@@ -7,7 +7,6 @@ use Illuminate\Http\Resources\Json\ResourceCollection;
 use Illuminate\Http\Response as HttpResponse;
 use Illuminate\Support\Facades\Request;
 use Illuminate\Support\Facades\Response;
-use InvalidArgumentException;
 use SineMacula\Exporter\Facades\Exporter;
 
 /**
@@ -32,7 +31,7 @@ trait RespondsWithExport
         return match (true) {
             Request::expectsCsv() => $this->exportArrayToCsv($data, $download),
             Request::expectsXml() => $this->exportArrayToXml($data, $download),
-            default               => throw new InvalidArgumentException('Unsupported export format'),
+            default               => throw new \InvalidArgumentException('Unsupported export format'),
         };
     }
 
@@ -80,7 +79,7 @@ trait RespondsWithExport
         return match (true) {
             Request::expectsCsv() => $this->exportCollectionToCsv($collection, $download),
             Request::expectsXml() => $this->exportCollectionToXml($collection, $download),
-            default               => throw new InvalidArgumentException('Unsupported export format'),
+            default               => throw new \InvalidArgumentException('Unsupported export format'),
         };
     }
 
@@ -128,7 +127,7 @@ trait RespondsWithExport
         return match (true) {
             Request::expectsCsv() => $this->exportItemToCsv($resource, $download),
             Request::expectsXml() => $this->exportItemToXml($resource, $download),
-            default               => throw new InvalidArgumentException('Unsupported export format'),
+            default               => throw new \InvalidArgumentException('Unsupported export format'),
         };
     }
 

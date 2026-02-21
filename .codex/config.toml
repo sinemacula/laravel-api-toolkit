@@ -1,0 +1,42 @@
+model = "gpt-5.3-codex"
+sandbox_mode = "workspace-write"
+web_search = "live"
+
+[sandbox_workspace_write]
+network_access = true
+
+[[skills.config]]
+path = "/.agents/skills/php-attribution/SKILL.md"
+enabled = true
+
+[[skills.config]]
+path = "/.agents/skills/php-complexity-refactor/SKILL.md"
+enabled = true
+
+[[skills.config]]
+path = "/.agents/skills/php-documenter/SKILL.md"
+enabled = true
+
+[[skills.config]]
+path = "/.agents/skills/php-naming-normalizer/SKILL.md"
+enabled = true
+
+[[skills.config]]
+path = "/.agents/skills/php-quality-remediator/SKILL.md"
+enabled = true
+
+[[skills.config]]
+path = "/.agents/skills/php-styling/SKILL.md"
+enabled = true
+
+[[skills.config]]
+path = "/.agents/skills/php-test-author/SKILL.md"
+enabled = true
+
+[[skills.config]]
+path = "/.agents/skills/markdown-styling/SKILL.md"
+enabled = true
+
+[[skills.config]]
+path = "/.agents/skills/organization-repository-context/SKILL.md"
+enabled = true

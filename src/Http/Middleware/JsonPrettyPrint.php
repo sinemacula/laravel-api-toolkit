@@ -2,7 +2,6 @@
 
 namespace SineMacula\ApiToolkit\Http\Middleware;
 
-use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -18,10 +17,10 @@ class JsonPrettyPrint
      * Handle an incoming request.
      *
      * @param  \Illuminate\Http\Request  $request
-     * @param  Closure  $next
+     * @param  \Closure  $next
      * @return \Symfony\Component\HttpFoundation\Response
      */
-    public function handle(Request $request, Closure $next): Response
+    public function handle(Request $request, \Closure $next): Response
     {
         $response = $next($request);
 

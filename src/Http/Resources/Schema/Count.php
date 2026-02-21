@@ -2,7 +2,6 @@
 
 namespace SineMacula\ApiToolkit\Http\Resources\Schema;
 
-use Closure;
 use Illuminate\Contracts\Support\Arrayable;
 
 /**
@@ -13,8 +12,8 @@ use Illuminate\Contracts\Support\Arrayable;
  */
 final class Count extends BaseDefinition implements Arrayable
 {
-    /** @var Closure|null Optional eager-load constraint for this count */
-    private ?Closure $constraint = null;
+    /** @var \Closure|null Optional eager-load constraint for this count */
+    private ?\Closure $constraint = null;
 
     /** @var bool Whether this count should be included by default when metrics are requested */
     private bool $isDefault = false;
@@ -31,7 +30,7 @@ final class Count extends BaseDefinition implements Arrayable
         private readonly string $name,
 
         /** Optional alias to expose this metric under */
-        private ?string $alias = null
+        private ?string $alias = null,
 
     ) {}
 
@@ -63,10 +62,10 @@ final class Count extends BaseDefinition implements Arrayable
     /**
      * Apply an optional query constraint to this count.
      *
-     * @param  Closure  $constraint
+     * @param  \Closure  $constraint
      * @return self
      */
-    public function constrain(Closure $constraint): self
+    public function constrain(\Closure $constraint): self
     {
         $this->constraint = $constraint;
 
@@ -105,8 +104,8 @@ final class Count extends BaseDefinition implements Arrayable
                 'default'      => $this->isDefault ? true : null,
                 'extras'       => $this->extras ?: null,
                 'guards'       => $this->getGuards() ?: null,
-                'transformers' => $this->getTransformers() ?: null
-            ], static fn ($value) => $value !== null)
+                'transformers' => $this->getTransformers() ?: null,
+            ], static fn ($value) => $value !== null),
         ];
     }
 }

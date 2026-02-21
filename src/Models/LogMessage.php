@@ -51,7 +51,7 @@ class LogMessage extends Model
             'level'      => 'string',
             'message'    => 'string',
             'context'    => AsArrayObject::class,
-            'created_at' => 'immutable_datetime'
+            'created_at' => 'immutable_datetime',
         ];
     }
 }

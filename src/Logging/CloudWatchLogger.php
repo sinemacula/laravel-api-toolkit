@@ -35,7 +35,7 @@ class CloudWatchLogger
             (int) ($config['retention'] ?? 7),
             (int) ($config['batch_size'] ?? 1000),
             [],
-            Logger::toMonologLevel($config['level'] ?? 'debug')
+            Logger::toMonologLevel($config['level'] ?? 'debug'),
         );
 
         return new Logger('cloudwatch', [$handler]);

@@ -4,10 +4,8 @@ namespace SineMacula\ApiToolkit\Exceptions;
 
 use Exception;
 use Illuminate\Support\Facades\Lang;
-use LogicException;
 use SineMacula\ApiToolkit\Contracts\ErrorCodeInterface;
 use SineMacula\ApiToolkit\Enums\HttpStatus;
-use Throwable;
 
 /**
  * The base API exception.
@@ -15,14 +13,14 @@ use Throwable;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2025 Sine Macula Limited.
  */
-abstract class ApiException extends Exception
+abstract class ApiException extends \Exception
 {
     /**
      * Constructor.
      *
      * @param  array|null  $meta
      * @param  array|null  $headers
-     * @param  Throwable|null  $previous
+     * @param  \Throwable|null  $previous
      */
     public function __construct(
 
@@ -32,7 +30,7 @@ abstract class ApiException extends Exception
         /** Exception headers */
         private readonly ?array $headers = null,
 
-        ?Throwable $previous = null
+        ?\Throwable $previous = null,
 
     ) {
         parent::__construct($this->getCustomDetail(), $this->getHttpStatusCode(), $previous);
@@ -116,7 +114,7 @@ abstract class ApiException extends Exception
     private static function getInternalError(): ErrorCodeInterface
     {
         if (!defined(static::class . '::CODE')) {
-            throw new LogicException('The CODE constant must be defined on the exception');
+            throw new \LogicException('The CODE constant must be defined on the exception');
         }
 
         return static::CODE;
@@ -130,7 +128,7 @@ abstract class ApiException extends Exception
     private static function getHttpStatus(): HttpStatus
     {
         if (!defined(static::class . '::HTTP_STATUS')) {
-            throw new LogicException('The HTTP_STATUS constant must be defined on the exception');
+            throw new \LogicException('The HTTP_STATUS constant must be defined on the exception');
         }
 
         return static::HTTP_STATUS;

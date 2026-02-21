@@ -1,18 +1,27 @@
-includes:
-    - vendor/larastan/larastan/extension.neon
-
 parameters:
+	level: 8
 
-    level: 5
+	ignoreErrors:
+		- identifier: argument.type
+		- identifier: ternary.shortNotAllowed
+		- identifier: booleanAnd.leftNotBoolean
+		- identifier: booleanNot.exprNotBoolean
+		- identifier: if.condNotBoolean
+		- identifier: ternary.condNotBoolean
+		- identifier: empty.notAllowed
+		- identifier: staticMethod.alreadyNarrowedType
+		- identifier: offsetAccess.nonOffsetAccessible
 
-    paths:
-        - config
-        - src
-        - tests
+	scanDirectories:
+		- %currentWorkingDirectory%/src
+		- %currentWorkingDirectory%/tests
 
-    checkMissingCallableSignature: false
-    checkUninitializedProperties: true
-    inferPrivatePropertyTypeFromConstructor: true
+	paths:
+		- src
+		- tests
 
-    ignoreErrors:
-        - '#Call to an undefined method Illuminate\\.+#'
+	checkMissingCallableSignature: true
+	checkMissingVarTagTypehint: true
+	checkUninitializedProperties: true
+	inferPrivatePropertyTypeFromConstructor: false
+	reportUnmatchedIgnoredErrors: true

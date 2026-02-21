@@ -6,11 +6,8 @@ use Exception;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
-use RuntimeException;
 use SineMacula\ApiToolkit\Services\Contracts\ServiceInterface;
 use SineMacula\ApiToolkit\Traits\Lockable;
-use stdClass;
-use Throwable;
 
 /**
  * Base API service.
@@ -34,15 +31,15 @@ abstract class Service implements ServiceInterface
     /**
      * Constructor.
      *
-     * @param  array|\Illuminate\Support\Collection|stdClass  $payload
+     * @param  array|\Illuminate\Support\Collection|\stdClass  $payload
      */
     public function __construct(
 
         /** The service input payload */
-        protected array|Collection|stdClass $payload = []
+        protected array|Collection|\stdClass $payload = [],
 
     ) {
-        $this->payload = (!$payload instanceof Collection && !$payload instanceof stdClass) ? collect($payload) : $payload;
+        $this->payload = (!$payload instanceof Collection && !$payload instanceof \stdClass) ? collect($payload) : $payload;
 
         $this->initialize();
     }
@@ -92,7 +89,7 @@ abstract class Service implements ServiceInterface
     public function useLock(): static
     {
         if (!$this->getLockId()) {
-            throw new RuntimeException('Lock key is not set');
+            throw new \RuntimeException('Lock key is not set');
         }
 
         $this->useLock = true;
@@ -117,7 +114,7 @@ abstract class Service implements ServiceInterface
      *
      * @return void
      *
-     * @throws Exception
+     * @throws \Exception
      */
     public function prepare(): void {}
 
@@ -131,17 +128,17 @@ abstract class Service implements ServiceInterface
     /**
      * Method is triggered if the handle method failed.
      *
-     * @param  Throwable  $exception
+     * @param  \Throwable  $exception
      * @return void
      */
-    public function failed(Throwable $exception): void {}
+    public function failed(\Throwable $exception): void {}
 
     /**
      * Run the service.
      *
      * @return bool
      *
-     * @throws Throwable
+     * @throws \Throwable
      */
     public function run(): bool
     {
@@ -159,7 +156,7 @@ abstract class Service implements ServiceInterface
                 ? DB::transaction(fn () => $this->handle(), 3)
                 : $this->handle();
 
-        } catch (Throwable $exception) {
+        } catch (\Throwable $exception) {
             $this->failed($exception);
             throw $exception;
         } finally {
