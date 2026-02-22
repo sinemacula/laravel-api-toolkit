@@ -1,0 +1,12 @@
+interface:
+    display_name: PHP Attribute Enricher
+    short_description: Add high-signal PHP attributes to clarify intent and improve correctness
+    default_prompt: >
+        Use $php-attribution to add appropriate PHP-native attributes to modified
+        code where they provide clear, defensible value.
+        Apply attributes conservatively, only when intent is unambiguous and behavior
+        is already implied by the existing code.
+        Do not introduce new dependencies, configuration changes, or broad attribute
+        sweeps without explicit approval.
+        Keep changes scoped, avoid churn, preserve runtime behavior, and return the
+        standard outcome contract.

@@ -35,7 +35,7 @@ final class Field extends BaseDefinition
         private readonly mixed $accessor = null,
 
         /** Optional alias to expose this field under */
-        private ?string $alias = null
+        private ?string $alias = null,
 
     ) {}
 

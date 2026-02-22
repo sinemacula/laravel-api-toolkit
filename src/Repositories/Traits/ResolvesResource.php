@@ -16,13 +16,13 @@ use SineMacula\ApiToolkit\Enums\CacheKeys;
  */
 trait ResolvesResource
 {
-    /** @var string|null  */
+    /** @var string|null */
     private ?string $customResourceClass = null;
 
     /**
      * Set a custom resource class to be used.
      *
-     * @param string|null $resource_class
+     * @param  string|null  $resource_class
      * @return $this
      */
     public function usingResource(?string $resource_class): static
@@ -35,7 +35,7 @@ trait ResolvesResource
     /**
      * Resolve the resource class for the given model.
      *
-     * @param Model $model
+     * @param  Model  $model
      * @return string|null
      */
     protected function resolveResource(Model $model): ?string

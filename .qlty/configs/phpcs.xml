@@ -1,14 +1,5 @@
 <?xml version="1.0"?>
-<ruleset name="VerifastApi">
-
-    <!-- TODO: Enable this once Qlty Cloud allows composer install -->
-    <!--<arg name="bootstrap" value="vendor/autoload.php"/>-->
-
-    <!-- TODO: Enable this once Qlty Cloud allows composer install -->
-    <!--<config name="installed_paths" value="vendor/slevomat/coding-standard"/>-->
-
-    <!-- Ignore blade templates -->
-    <exclude-pattern>*.blade.php</exclude-pattern>
+<ruleset name="SineMacula">
 
     <!-- Base PSR-12 standard -->
     <rule ref="PSR12"/>
@@ -43,6 +34,11 @@
         <exclude name="PSR12.Classes.ClassInstantiation.MissingParentheses"/>
     </rule>
 
+    <rule ref="PSR12.Files.DeclareStatement">
+        <exclude name="PSR12.Files.DeclareStatement.SpaceFoundAfterDirective"/>
+        <exclude name="PSR12.Files.DeclareStatement.SpaceFoundBeforeDirectiveValue"/>
+    </rule>
+
     <rule ref="Squiz.Functions.MultiLineFunctionDeclaration">
         <exclude name="Squiz.Functions.MultiLineFunctionDeclaration.EmptyLine"/>
         <exclude name="Squiz.Functions.MultiLineFunctionDeclaration.BraceOnSameLine"/>
@@ -50,10 +46,15 @@
 
     <rule ref="Squiz.WhiteSpace.ControlStructureSpacing">
         <exclude name="Squiz.WhiteSpace.ControlStructureSpacing.SpacingAfterOpen"/>
+        <exclude name="Squiz.WhiteSpace.ControlStructureSpacing.SpacingBeforeClose"/>
     </rule>
 
     <rule ref="Squiz.WhiteSpace.ScopeClosingBrace">
         <exclude name="Squiz.WhiteSpace.ScopeClosingBrace.ContentBefore"/>
+    </rule>
+
+    <rule ref="PSR1.Files.SideEffects.FoundWithSymbols">
+        <exclude-pattern>tests/*</exclude-pattern>
     </rule>
 
     <rule ref="PSR2.Classes.ClassDeclaration">
@@ -70,11 +71,9 @@
         <exclude name="PSR12.Files.FileHeader.SpacingAfterBlock"/>
     </rule>
 
-    <!-- TODO: Enable this once Qlty Cloud allows composer install -->
-    <!--<rule ref="SlevomatCodingStandard.Namespaces.FullyQualifiedClassNameInAnnotation"/>-->
+    <rule ref="SlevomatCodingStandard.Namespaces.FullyQualifiedClassNameInAnnotation"/>
 
     <!-- File paths to lint -->
-    <file>config</file>
     <file>src</file>
     <file>tests</file>
 

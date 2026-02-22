@@ -1,0 +1,8 @@
+interface:
+    display_name: PHP Complexity Refactor
+    short_description: Resolve objective PHP complexity findings or flag AI-identified maintainability risks with approval gating
+    default_prompt: >
+        Use $php-complexity-refactor to address PHP complexity.
+        If objective tool-reported thresholds are exceeded, apply focused, behavior-preserving refactors and run targeted tests.
+        If complexity is identified through AI judgment only, do not modify code and return an approval-required outcome with recommendations.
+        Always return the standard outcome contract.

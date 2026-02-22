@@ -51,14 +51,14 @@ class NotificationListener
         Log::channel('notifications')->info($message, [
             'notification' => $notification::class,
             'notifiable'   => $notifiable::class,
-            'channel'      => $channel
+            'channel'      => $channel,
         ]);
 
         if (config('api-toolkit.logging.cloudwatch.enabled', false)) {
             Log::channel('cloudwatch-notifications')->info($message, [
                 'notification' => $notification::class,
                 'notifiable'   => $notifiable::class,
-                'channel'      => $channel
+                'channel'      => $channel,
             ]);
         }
     }

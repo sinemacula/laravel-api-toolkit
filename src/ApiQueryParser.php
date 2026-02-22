@@ -6,7 +6,6 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\ValidationException;
 use SineMacula\ApiToolkit\Exceptions\InvalidInputException;
-use Throwable;
 
 /**
  * API query parser.
@@ -164,7 +163,7 @@ class ApiQueryParser
             'sums'     => fn ($value) => $this->parseSums($value),
             'averages' => fn ($value) => $this->parseAverages($value),
             'filters'  => fn ($value) => $this->parseFilters($value),
-            'order'    => fn ($value) => $this->parseOrder($value)
+            'order'    => fn ($value) => $this->parseOrder($value),
         ];
 
         foreach ($parsers as $key => $parser) {
@@ -342,7 +341,7 @@ class ApiQueryParser
     {
         try {
             return json_decode($query, true) ?? [];
-        } catch (Throwable $exception) {
+        } catch (\Throwable $exception) {
             throw new InvalidInputException;
         }
     }
@@ -384,11 +383,11 @@ class ApiQueryParser
         $this->applyArrayValidationRules($rules, $parameters, 'counts', ['counts.*' => 'string']);
         $this->applyArrayValidationRules($rules, $parameters, 'sums', [
             'sums.*'   => 'array',
-            'sums.*.*' => 'string'
+            'sums.*.*' => 'string',
         ]);
         $this->applyArrayValidationRules($rules, $parameters, 'averages', [
             'averages.*'   => 'array',
-            'averages.*.*' => 'string'
+            'averages.*.*' => 'string',
         ]);
 
         return $rules;
@@ -407,7 +406,7 @@ class ApiQueryParser
             'order'   => 'string',
             'page'    => 'integer|min:1',
             'limit'   => 'integer|min:1',
-            'cursor'  => 'string'
+            'cursor'  => 'string',
         ];
     }
 

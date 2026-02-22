@@ -3,7 +3,6 @@
 namespace SineMacula\ApiToolkit\Http\Controllers;
 
 use Closure;
-use InvalidArgumentException;
 use Illuminate\Support\Facades\Response;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
 use SineMacula\ApiToolkit\Repositories\ApiRepository;
@@ -23,8 +22,8 @@ trait RespondsWithStream
     /**
      * Stream a repository's data as a CSV file.
      *
-     * @param ApiRepository $repository
-     * @param int $chunk_size
+     * @param  ApiRepository  $repository
+     * @param  int  $chunk_size
      * @return StreamedResponse
      */
     public function streamRepositoryToCsv(ApiRepository $repository, int $chunk_size = 1500): StreamedResponse
@@ -63,13 +62,13 @@ trait RespondsWithStream
     /**
      * Create a transformer closure for the given repository.
      *
-     * @param ApiRepository $repository
-     * @return Closure
+     * @param  ApiRepository  $repository
+     * @return \Closure
      */
-    protected function makeTransformer(ApiRepository $repository): Closure
+    protected function makeTransformer(ApiRepository $repository): \Closure
     {
         if (!$resource_class = $repository->getResourceClass()) {
-            throw new InvalidArgumentException("Unable to resolve resource class from repository.");
+            throw new \InvalidArgumentException('Unable to resolve resource class from repository.');
         }
 
         return fn ($items) => $resource_class::collection($items)->resolve();
