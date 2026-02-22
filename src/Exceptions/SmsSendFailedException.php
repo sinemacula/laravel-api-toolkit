@@ -14,7 +14,7 @@ use SineMacula\ApiToolkit\Enums\HttpStatus;
 class SmsSendFailedException extends ApiException
 {
     /** @var \SineMacula\ApiToolkit\Contracts\ErrorCodeInterface The internal error code */
-    public const ErrorCodeInterface CODE = ErrorCode::FAILED_TO_SEND_SMS;
+    public const \SineMacula\ApiToolkit\Contracts\ErrorCodeInterface CODE = ErrorCode::FAILED_TO_SEND_SMS;
 
     /** @var \SineMacula\ApiToolkit\Enums\HttpStatus The HTTP status code */
     public const HttpStatus HTTP_STATUS = HttpStatus::INTERNAL_SERVER_ERROR;

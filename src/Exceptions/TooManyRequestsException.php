@@ -14,7 +14,7 @@ use SineMacula\ApiToolkit\Enums\HttpStatus;
 class TooManyRequestsException extends ApiException
 {
     /** @var \SineMacula\ApiToolkit\Contracts\ErrorCodeInterface The internal error code */
-    public const ErrorCodeInterface CODE = ErrorCode::TOO_MANY_REQUESTS;
+    public const \SineMacula\ApiToolkit\Contracts\ErrorCodeInterface CODE = ErrorCode::TOO_MANY_REQUESTS;
 
     /** @var \SineMacula\ApiToolkit\Enums\HttpStatus The HTTP status code */
     public const HttpStatus HTTP_STATUS = HttpStatus::TOO_MANY_REQUESTS;

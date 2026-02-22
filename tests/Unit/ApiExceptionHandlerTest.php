@@ -40,7 +40,7 @@ use Tests\TestCase;
 /**
  * @internal
  */
-#[\PHPUnit\Framework\Attributes\CoversNothing]
+#[\PHPUnit\Framework\Attributes\CoversClass(ApiExceptionHandler::class)]
 class ApiExceptionHandlerTest extends TestCase
 {
     use InteractsWithNonPublicMembers;
@@ -72,8 +72,6 @@ class ApiExceptionHandlerTest extends TestCase
 
         static::assertIsCallable($reportCallback);
         $reportCallback(new BadRequestException);
-
-        static::assertTrue(true);
     }
 
     public function testRenderReturnsNullForNonJsonRequestsInDebugMode(): void
@@ -98,31 +96,12 @@ class ApiExceptionHandlerTest extends TestCase
         static::assertArrayHasKey('error', $response->getData(true));
     }
 
-    public function testMapApiExceptionHandlesKnownFrameworkExceptions(): void
+    #[\PHPUnit\Framework\Attributes\DataProvider('frameworkExceptionMappingProvider')]
+    public function testMapApiExceptionHandlesKnownFrameworkExceptions(callable $throwableFactory, string $expectedClass): void
     {
-        $validator = validator([], ['name' => ['required']]);
+        $mapped = $this->invokeNonPublic(ApiExceptionHandler::class, 'mapApiException', $throwableFactory());
 
-        $mapping = [
-            [new NotFoundHttpException, NotFoundException::class],
-            [new BackedEnumCaseNotFoundException(HttpStatus::class, 'bad'), NotFoundException::class],
-            [new ModelNotFoundException, NotFoundException::class],
-            [new SuspiciousOperationException, NotFoundException::class],
-            [new MethodNotAllowedHttpException([]), NotAllowedException::class],
-            [new class extends \RuntimeException implements RequestExceptionInterface {}, BadRequestException::class],
-            [new LaravelUnauthorizedException, ForbiddenException::class],
-            [new AuthorizationException, ForbiddenException::class],
-            [new AccessDeniedHttpException, ForbiddenException::class],
-            [new AuthenticationException, UnauthenticatedException::class],
-            [new LaravelTokenMismatchException, TokenMismatchException::class],
-            [new ValidationException($validator), InvalidInputException::class],
-            [new TooManyRequestsHttpException, TooManyRequestsException::class],
-            [new \RuntimeException('fallback'), UnhandledException::class],
-        ];
-
-        foreach ($mapping as [$throwable, $expectedClass]) {
-            $mapped = $this->invokeNonPublic(ApiExceptionHandler::class, 'mapApiException', $throwable);
-            static::assertInstanceOf($expectedClass, $mapped);
-        }
+        static::assertInstanceOf($expectedClass, $mapped);
     }
 
     public function testConvertApiExceptionToArrayIncludesMetaAndCanExposeDebugPreviousContext(): void
@@ -187,7 +166,81 @@ class ApiExceptionHandlerTest extends TestCase
         Log::shouldReceive('error')->twice();
 
         $this->invokeNonPublic(ApiExceptionHandler::class, 'logApiException', $exception);
+    }
 
-        static::assertTrue(true);
+    /**
+     * @return iterable<string, array{0: callable(): \Throwable, 1: class-string<ApiException>}>
+     */
+    public static function frameworkExceptionMappingProvider(): iterable
+    {
+        yield 'not found http exception' => [
+            static fn (): \Throwable => new NotFoundHttpException,
+            NotFoundException::class,
+        ];
+
+        yield 'backed enum case not found exception' => [
+            static fn (): \Throwable => new BackedEnumCaseNotFoundException(HttpStatus::class, 'bad'),
+            NotFoundException::class,
+        ];
+
+        yield 'model not found exception' => [
+            static fn (): \Throwable => new ModelNotFoundException,
+            NotFoundException::class,
+        ];
+
+        yield 'suspicious operation exception' => [
+            static fn (): \Throwable => new SuspiciousOperationException,
+            NotFoundException::class,
+        ];
+
+        yield 'method not allowed http exception' => [
+            static fn (): \Throwable => new MethodNotAllowedHttpException([]),
+            NotAllowedException::class,
+        ];
+
+        yield 'request exception interface implementation' => [
+            static fn (): \Throwable => new class extends \RuntimeException implements RequestExceptionInterface {},
+            BadRequestException::class,
+        ];
+
+        yield 'laravel unauthorized exception' => [
+            static fn (): \Throwable => new LaravelUnauthorizedException,
+            ForbiddenException::class,
+        ];
+
+        yield 'authorization exception' => [
+            static fn (): \Throwable => new AuthorizationException,
+            ForbiddenException::class,
+        ];
+
+        yield 'access denied http exception' => [
+            static fn (): \Throwable => new AccessDeniedHttpException,
+            ForbiddenException::class,
+        ];
+
+        yield 'authentication exception' => [
+            static fn (): \Throwable => new AuthenticationException,
+            UnauthenticatedException::class,
+        ];
+
+        yield 'laravel token mismatch exception' => [
+            static fn (): \Throwable => new LaravelTokenMismatchException,
+            TokenMismatchException::class,
+        ];
+
+        yield 'validation exception' => [
+            static fn (): \Throwable => new ValidationException(validator([], ['name' => ['required']])),
+            InvalidInputException::class,
+        ];
+
+        yield 'too many requests http exception' => [
+            static fn (): \Throwable => new TooManyRequestsHttpException,
+            TooManyRequestsException::class,
+        ];
+
+        yield 'fallback runtime exception' => [
+            static fn (): \Throwable => new \RuntimeException('fallback'),
+            UnhandledException::class,
+        ];
     }
 }

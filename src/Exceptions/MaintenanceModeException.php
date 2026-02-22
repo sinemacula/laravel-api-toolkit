@@ -14,7 +14,7 @@ use SineMacula\ApiToolkit\Enums\HttpStatus;
 class MaintenanceModeException extends ApiException
 {
     /** @var \SineMacula\ApiToolkit\Contracts\ErrorCodeInterface The internal error code */
-    public const ErrorCodeInterface CODE = ErrorCode::MAINTENANCE_MODE;
+    public const \SineMacula\ApiToolkit\Contracts\ErrorCodeInterface CODE = ErrorCode::MAINTENANCE_MODE;
 
     /** @var \SineMacula\ApiToolkit\Enums\HttpStatus The HTTP status code */
     public const HttpStatus HTTP_STATUS = HttpStatus::SERVICE_UNAVAILABLE;

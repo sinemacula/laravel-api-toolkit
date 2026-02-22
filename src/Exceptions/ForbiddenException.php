@@ -14,7 +14,7 @@ use SineMacula\ApiToolkit\Enums\HttpStatus;
 class ForbiddenException extends ApiException
 {
     /** @var \SineMacula\ApiToolkit\Contracts\ErrorCodeInterface The internal error code */
-    public const ErrorCodeInterface CODE = ErrorCode::FORBIDDEN;
+    public const \SineMacula\ApiToolkit\Contracts\ErrorCodeInterface CODE = ErrorCode::FORBIDDEN;
 
     /** @var \SineMacula\ApiToolkit\Enums\HttpStatus The HTTP status code */
     public const HttpStatus HTTP_STATUS = HttpStatus::FORBIDDEN;

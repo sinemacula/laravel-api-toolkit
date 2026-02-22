@@ -14,7 +14,7 @@ use SineMacula\ApiToolkit\Enums\HttpStatus;
 class UnauthenticatedException extends ApiException
 {
     /** @var \SineMacula\ApiToolkit\Contracts\ErrorCodeInterface The internal error code */
-    public const ErrorCodeInterface CODE = ErrorCode::UNAUTHENTICATED;
+    public const \SineMacula\ApiToolkit\Contracts\ErrorCodeInterface CODE = ErrorCode::UNAUTHENTICATED;
 
     /** @var \SineMacula\ApiToolkit\Enums\HttpStatus The HTTP status code */
     public const HttpStatus HTTP_STATUS = HttpStatus::UNAUTHORIZED;

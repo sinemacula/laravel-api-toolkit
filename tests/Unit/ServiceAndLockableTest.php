@@ -14,7 +14,7 @@ use Tests\TestCase;
 /**
  * @internal
  */
-#[\PHPUnit\Framework\Attributes\CoversNothing]
+#[\PHPUnit\Framework\Attributes\CoversClass(Service::class)]
 class ServiceAndLockableTest extends TestCase
 {
     use InteractsWithNonPublicMembers;
@@ -141,19 +141,33 @@ class ServiceAndLockableTest extends TestCase
         static::assertSame('', $this->invokeNonPublic(new FailingService, 'getLockId'));
     }
 
-    public function testBaseServiceSuccessAndFailedCallbacksAreInvokable(): void
+    public function testBaseServiceCanInvokeOverriddenSuccessAndFailedCallbacks(): void
     {
         $service = new class extends Service {
+            public bool $successCalled = false;
+            public bool $failedCalled  = false;
+
+            public function success(): void
+            {
+                $this->successCalled = true;
+            }
+
+            public function failed(\Throwable $exception): void
+            {
+                $this->failedCalled = true;
+            }
+
             protected function handle(): bool
             {
                 return true;
             }
         };
 
-        $service->success();
-        $service->failed(new \RuntimeException('noop'));
+        $result = $service->run();
 
-        static::assertTrue(true);
+        static::assertTrue($result);
+        static::assertTrue($service->successCalled);
+        static::assertFalse($service->failedCalled);
     }
 }
 

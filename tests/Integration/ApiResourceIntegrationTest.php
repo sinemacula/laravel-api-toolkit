@@ -446,8 +446,6 @@ class ApiResourceIntegrationTest extends TestCase
         $scope($user->owner());
         $scope($user->posts());
         $scope(Post::query());
-
-        static::assertTrue(true);
     }
 }
 

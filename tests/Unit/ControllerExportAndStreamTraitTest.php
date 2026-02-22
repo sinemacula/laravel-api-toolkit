@@ -19,7 +19,8 @@ use Tests\TestCase;
 /**
  * @internal
  */
-#[\PHPUnit\Framework\Attributes\CoversNothing]
+#[\PHPUnit\Framework\Attributes\CoversTrait(RespondsWithExport::class)]
+#[\PHPUnit\Framework\Attributes\CoversTrait(RespondsWithStream::class)]
 class ControllerExportAndStreamTraitTest extends TestCase
 {
     use MockeryPHPUnitIntegration;
@@ -75,7 +76,7 @@ class ControllerExportAndStreamTraitTest extends TestCase
         $controller->exportFromArray([['id' => 1]]);
     }
 
-    public function testExportTraitThrowsForUnsupportedCollectionAndItemFormats(): void
+    public function testExportTraitThrowsForUnsupportedCollectionFormat(): void
     {
         $controller = new ExportAndStreamHarness;
 
@@ -83,19 +84,20 @@ class ControllerExportAndStreamTraitTest extends TestCase
 
         $collection = UserResource::collection(new Collection([(object) ['id' => 1, 'name' => 'Alice']]));
 
-        try {
-            $controller->exportFromCollection($collection);
-            static::fail('Expected InvalidArgumentException for unsupported collection export format.');
-        } catch (\InvalidArgumentException) {
-            static::assertTrue(true);
-        }
+        $this->expectException(\InvalidArgumentException::class);
 
-        try {
-            $controller->exportFromItem(new JsonResource((object) ['id' => 1]));
-            static::fail('Expected InvalidArgumentException for unsupported item export format.');
-        } catch (\InvalidArgumentException) {
-            static::assertTrue(true);
-        }
+        $controller->exportFromCollection($collection);
+    }
+
+    public function testExportTraitThrowsForUnsupportedItemFormat(): void
+    {
+        $controller = new ExportAndStreamHarness;
+
+        $this->app->instance('request', Request::create('/api/users', 'GET', [], [], [], ['HTTP_ACCEPT' => 'application/json']));
+
+        $this->expectException(\InvalidArgumentException::class);
+
+        $controller->exportFromItem(new JsonResource((object) ['id' => 1]));
     }
 
     public function testStreamTraitFormatsCsvChunksAndCanDisableHeadersAfterFirstChunk(): void

@@ -4,6 +4,13 @@ declare(strict_types = 1);
 
 namespace Tests\Fixtures\Repositories;
 
-use SineMacula\Repositories\Contracts\RepositoryInterface;
+use SineMacula\ApiToolkit\Repositories\ApiRepository;
+use Tests\Fixtures\Models\User;
 
-class DummyRepository implements RepositoryInterface {}
+class DummyRepository extends ApiRepository
+{
+    public function model(): string
+    {
+        return User::class;
+    }
+}

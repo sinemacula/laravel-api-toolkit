@@ -9,6 +9,7 @@ use Illuminate\Notifications\Events\NotificationSent;
 use Illuminate\Notifications\Notification;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
+use Mockery\Adapter\Phpunit\MockeryPHPUnitIntegration;
 use Monolog\Level;
 use Monolog\LogRecord;
 use SineMacula\ApiToolkit\Listeners\NotificationListener;
@@ -23,10 +24,14 @@ use Tests\TestCase;
 /**
  * @internal
  */
-#[\PHPUnit\Framework\Attributes\CoversNothing]
+#[\PHPUnit\Framework\Attributes\CoversClass(NotificationListener::class)]
+#[\PHPUnit\Framework\Attributes\CoversClass(DatabaseLogger::class)]
+#[\PHPUnit\Framework\Attributes\CoversClass(CloudWatchLogger::class)]
+#[\PHPUnit\Framework\Attributes\CoversClass(DatabaseHandler::class)]
 class LoggingAndListenerTest extends TestCase
 {
     use InteractsWithNonPublicMembers;
+    use MockeryPHPUnitIntegration;
 
     public function testNotificationListenerLogsSendingAndSentEvents(): void
     {
@@ -47,8 +52,6 @@ class LoggingAndListenerTest extends TestCase
 
         $listener->sending(new NotificationSending($notifiable, $notification, 'mail'));
         $listener->sent(new NotificationSent($notifiable, $notification, 'mail', null));
-
-        static::assertTrue(true);
     }
 
     public function testNotificationListenerAlsoLogsToCloudwatchWhenEnabled(): void
@@ -67,8 +70,6 @@ class LoggingAndListenerTest extends TestCase
                 return ['sms'];
             }
         }, 'sms'));
-
-        static::assertTrue(true);
     }
 
     public function testDatabaseLoggerFactoryReturnsMonologLogger(): void
@@ -160,7 +161,5 @@ class LoggingAndListenerTest extends TestCase
         );
 
         $this->invokeNonPublic($handler, 'write', $record);
-
-        static::assertTrue(true);
     }
 }
