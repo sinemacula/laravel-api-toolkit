@@ -19,6 +19,7 @@ use Tests\TestCase;
 /**
  * @internal
  */
+#[\PHPUnit\Framework\Attributes\CoversNothing]
 #[\PHPUnit\Framework\Attributes\CoversTrait(RespondsWithExport::class)]
 #[\PHPUnit\Framework\Attributes\CoversTrait(RespondsWithStream::class)]
 class ControllerExportAndStreamTraitTest extends TestCase

@@ -8,7 +8,7 @@ use SineMacula\Repositories\Contracts\RepositoryInterface;
  * Repository resolver.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
- * @copyright   2025 Sine Macula Limited.
+ * @copyright   2026 Sine Macula Limited.
  */
 class RepositoryResolver
 {

@@ -11,7 +11,7 @@ use SineMacula\ApiToolkit\Enums\HttpStatus;
  * The base API exception.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
- * @copyright   2025 Sine Macula Limited.
+ * @copyright   2026 Sine Macula Limited.
  */
 abstract class ApiException extends \Exception
 {

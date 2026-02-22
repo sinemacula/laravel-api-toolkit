@@ -8,7 +8,7 @@ use Illuminate\Contracts\Support\Arrayable;
  * Count schema helper for metric definitions.
  *
  * @author      Ben Carey <ben.carey@verifast.com>
- * @copyright   2025 Sine Macula Limited.
+ * @copyright   2026 Sine Macula Limited.
  */
 final class Count extends BaseDefinition implements Arrayable
 {

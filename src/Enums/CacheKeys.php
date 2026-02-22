@@ -8,7 +8,7 @@ use Illuminate\Support\Facades\Config;
  * Define the keys used for the cache.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
- * @copyright   2025 Sine Macula Limited.
+ * @copyright   2026 Sine Macula Limited.
  */
 enum CacheKeys: string
 {

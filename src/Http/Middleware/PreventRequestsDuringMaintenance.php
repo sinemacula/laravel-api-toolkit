@@ -12,7 +12,7 @@ use Symfony\Component\HttpKernel\Exception\HttpException;
  * Prevent requests during maintenance mode.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
- * @copyright   2025 Sine Macula Limited.
+ * @copyright   2026 Sine Macula Limited.
  */
 class PreventRequestsDuringMaintenance extends Middleware
 {

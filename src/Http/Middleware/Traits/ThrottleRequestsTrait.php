@@ -6,7 +6,7 @@ namespace SineMacula\ApiToolkit\Http\Middleware\Traits;
  * Throttle requests trait.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
- * @copyright   2025 Sine Macula Limited.
+ * @copyright   2026 Sine Macula Limited.
  */
 trait ThrottleRequestsTrait
 {

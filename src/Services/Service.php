@@ -13,7 +13,7 @@ use SineMacula\ApiToolkit\Traits\Lockable;
  * Base API service.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
- * @copyright   2025 Sine Macula Limited.
+ * @copyright   2026 Sine Macula Limited.
  */
 abstract class Service implements ServiceInterface
 {
