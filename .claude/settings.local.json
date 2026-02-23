@@ -1,0 +1,45 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git:*)",
+      "Bash(cd:*)",
+      "Bash(composer dump-autoload:*)",
+      "Bash(find:*)",
+      "Bash(head:*)",
+      "Bash(cd \"/Users/ben/Projects/Sine Macula/Repositories/laravel-api-toolkit\" && vendor/bin/phpunit tests/Unit/Enums/CacheKeysTest.php tests/Unit/Enums/ErrorCodeTest.php tests/Unit/Enums/HttpStatusTest.php tests/Unit/Enums/FieldOrderingStrategyTest.php tests/Unit/Enums/Traits/ProvidesCodeTest.php tests/Unit/Enums/Traits/PureEnumHelperTest.php tests/Unit/Contracts/ApiResourceInterfaceTest.php tests/Unit/Contracts/ErrorCodeInterfaceTest.php tests/Unit/Contracts/PureEnumInterfaceTest.php tests/Unit/Exceptions/RequestSignatureExceptionTest.php tests/Unit/Exceptions/ServiceLockExceptionTest.php 2>&1)",
+      "Bash(cd \"/Users/ben/Projects/Sine Macula/Repositories/laravel-api-toolkit\" && vendor/bin/phpunit tests/Unit/Http/Middleware/ParseApiQueryTest.php tests/Unit/Http/Middleware/JsonPrettyPrintTest.php tests/Unit/Http/Middleware/ThrottleRequestsTest.php tests/Unit/Http/Middleware/ThrottleRequestsWithRedisTest.php 2>&1)",
+      "Bash(cd \"/Users/ben/Projects/Sine Macula/Repositories/laravel-api-toolkit\" && vendor/bin/phpunit tests/Unit/Http/Resources/Schema/BaseDefinitionTest.php tests/Unit/Http/Resources/Schema/FieldTest.php tests/Unit/Http/Resources/Schema/RelationTest.php tests/Unit/Http/Resources/Schema/CountTest.php tests/Unit/Http/Resources/BaseResourceTest.php 2>&1)",
+      "Bash(cd \"/Users/ben/Projects/Sine Macula/Repositories/laravel-api-toolkit\" && vendor/bin/phpunit tests/Unit/Http/Resources/ApiResourceTest.php 2>&1)",
+      "Bash(cd \"/Users/ben/Projects/Sine Macula/Repositories/laravel-api-toolkit\" && vendor/bin/phpunit tests/Unit/Exceptions/ApiExceptionTest.php tests/Unit/Exceptions/ConcreteExceptionsTest.php tests/Unit/Exceptions/ApiExceptionHandlerTest.php 2>&1)",
+      "Bash(cd \"/Users/ben/Projects/Sine Macula/Repositories/laravel-api-toolkit\" && vendor/bin/phpunit tests/Unit/Enums/HttpStatusTest.php 2>&1)",
+      "Bash(cd \"/Users/ben/Projects/Sine Macula/Repositories/laravel-api-toolkit\" && php -r \"class_exists\\('SineMacula\\\\Repositories\\\\RepositoryServiceProvider'\\) ? print\\('exists'\\) : print\\('missing'\\);\" 2>&1)",
+      "Bash(cd \"/Users/ben/Projects/Sine Macula/Repositories/laravel-api-toolkit\" && php -r \"require 'vendor/autoload.php'; echo class_exists\\('SineMacula\\\\Repositories\\\\RepositoryServiceProvider'\\) ? 'exists' : 'not found';\" 2>&1)",
+      "Bash(tail:*)",
+      "Bash(cd \"/Users/ben/Projects/Sine Macula/Repositories/laravel-api-toolkit\" && php -r \"require 'vendor/autoload.php'; foreach\\(get_declared_classes\\(\\) as \\\\$c\\) if\\(str_contains\\(\\\\$c, 'RepositoryService'\\)\\) echo \\\\$c.PHP_EOL;\" 2>&1)",
+      "Bash(cd \"/Users/ben/Projects/Sine Macula/Repositories/laravel-api-toolkit\" && vendor/bin/phpunit tests/Unit/Logging/CloudWatchLoggerTest.php tests/Unit/Logging/DatabaseLoggerTest.php tests/Unit/Models/LogMessageTest.php 2>&1)",
+      "Bash(cd \"/Users/ben/Projects/Sine Macula/Repositories/laravel-api-toolkit\" && vendor/bin/phpunit tests/Unit/Facades/ApiQueryTest.php 2>&1)",
+      "Bash(cd \"/Users/ben/Projects/Sine Macula/Repositories/laravel-api-toolkit\" && php -l tests/Unit/Http/Resources/ApiResourceTest.php && php -l tests/Unit/Http/Resources/ApiResourceCollectionTest.php && php -l tests/Unit/Http/Resources/PolymorphicResourceTest.php 2>&1)",
+      "Bash(cd \"/Users/ben/Projects/Sine Macula/Repositories/laravel-api-toolkit\" && php -l tests/Unit/Repositories/ApiRepositoryTest.php && php -l tests/Unit/Repositories/Criteria/ApiCriteriaTest.php && php -l tests/Unit/Repositories/RepositoryResolverTest.php && php -l tests/Unit/Repositories/Traits/HasRepositoriesTest.php && php -l tests/Unit/Repositories/Traits/InteractsWithModelSchemaTest.php && php -l tests/Unit/Repositories/Traits/ResolvesResourceTest.php && php -l tests/Unit/Services/ServiceTest.php && php -l tests/Unit/Traits/LockableTest.php && php -l tests/Unit/Traits/OrdersFieldsTest.php && php -l tests/Unit/Http/Controllers/RespondsWithExportTest.php 2>&1)",
+      "Bash(grep:*)",
+      "Bash(cd \"/Users/ben/Projects/Sine Macula/Repositories/laravel-api-toolkit\" && vendor/bin/phpunit tests/Unit/Exceptions/ApiExceptionTest.php tests/Unit/Exceptions/ConcreteExceptionsTest.php 2>&1)",
+      "Bash(cd \"/Users/ben/Projects/Sine Macula/Repositories/laravel-api-toolkit\" && vendor/bin/phpunit tests/Unit/Http/Middleware/ParseApiQueryTest.php tests/Unit/Http/Middleware/JsonPrettyPrintTest.php tests/Unit/Http/Middleware/ThrottleRequestsTest.php tests/Unit/Http/Middleware/ThrottleRequestsWithRedisTest.php tests/Unit/Http/Middleware/Traits/ThrottleRequestsTraitTest.php tests/Unit/Http/FormRequestTest.php tests/Unit/Facades/ApiQueryTest.php tests/Unit/Http/Routing/AuthorizedControllerTest.php 2>&1)",
+      "Bash(php:*)",
+      "Bash(cd \"/Users/ben/Projects/Sine Macula/Repositories/laravel-api-toolkit\" && vendor/bin/phpunit tests/Unit/Http/Resources/Schema/BaseDefinitionTest.php tests/Unit/Http/Resources/Schema/FieldTest.php tests/Unit/Http/Resources/Schema/RelationTest.php tests/Unit/Http/Resources/Schema/CountTest.php tests/Unit/Http/Resources/BaseResourceTest.php tests/Unit/Exceptions/ApiExceptionTest.php tests/Unit/Exceptions/ConcreteExceptionsTest.php tests/Unit/Exceptions/ApiExceptionHandlerTest.php 2>&1)",
+      "Bash(cd \"/Users/ben/Projects/Sine Macula/Repositories/laravel-api-toolkit\" && vendor/bin/phpunit tests/Unit/Http/Middleware/ParseApiQueryTest.php tests/Unit/Http/Middleware/JsonPrettyPrintTest.php tests/Unit/Http/Middleware/ThrottleRequestsTest.php tests/Unit/Http/Middleware/ThrottleRequestsWithRedisTest.php tests/Unit/Http/Middleware/Traits/ThrottleRequestsTraitTest.php tests/Unit/Http/Middleware/PreventRequestsDuringMaintenanceTest.php tests/Unit/Http/FormRequestTest.php tests/Unit/Facades/ApiQueryTest.php tests/Unit/Http/Routing/AuthorizedControllerTest.php 2>&1)",
+      "Bash(cd \"/Users/ben/Projects/Sine Macula/Repositories/laravel-api-toolkit\" && rm -f vendor/orchestra/testbench-core/laravel/bootstrap/cache/services.php vendor/orchestra/testbench-core/laravel/bootstrap/cache/packages.php && vendor/bin/phpunit tests/Unit/Http/Routing/ControllerTest.php tests/Unit/ApiQueryParserTest.php 2>&1)",
+      "Bash(cd \"/Users/ben/Projects/Sine Macula/Repositories/laravel-api-toolkit\" && vendor/bin/phpunit tests/Unit/Http/Middleware/ParseApiQueryTest.php tests/Unit/Http/Middleware/JsonPrettyPrintTest.php tests/Unit/Http/Middleware/PreventRequestsDuringMaintenanceTest.php tests/Unit/Http/Middleware/ThrottleRequestsTest.php tests/Unit/Http/Middleware/ThrottleRequestsWithRedisTest.php tests/Unit/Http/Middleware/Traits/ThrottleRequestsTraitTest.php tests/Unit/Http/FormRequestTest.php tests/Unit/Facades/ApiQueryTest.php tests/Unit/Http/Routing/ControllerTest.php tests/Unit/Http/Routing/AuthorizedControllerTest.php tests/Unit/ApiQueryParserTest.php 2>&1)",
+      "Bash(grep ^[0-9]*\\):*)",
+      "Bash(cd \"/Users/ben/Projects/Sine Macula/Repositories/laravel-api-toolkit\" && vendor/bin/phpunit --filter=\"testRespondWithEventStreamSetsSseHeaders\" tests/Unit/Http/Routing/ControllerTest.php 2>&1)",
+      "Bash(grep ✖\\\\|✔:*)",
+      "Bash(grep unformatted:*)",
+      "Bash(grep ✖:*)",
+      "Bash(cat:*)",
+      "Bash(cd \"/Users/ben/Projects/Sine Macula/Repositories/laravel-api-toolkit\" && composer format 2>&1)",
+      "Bash(grep ^✖:*)"
+    ]
+  },
+  "sandbox": {
+    "enabled": true,
+    "autoAllowBashIfSandboxed": true
+  }
+}
