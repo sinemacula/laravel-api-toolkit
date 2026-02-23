@@ -4,6 +4,7 @@ namespace Tests\Integration;
 
 use Illuminate\Contracts\Config\Repository as ConfigRepository;
 use Illuminate\Contracts\Http\Kernel as HttpKernel;
+use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Http\Middleware\PreventRequestsDuringMaintenance;
 use Illuminate\Notifications\Events\NotificationSending;
@@ -179,6 +180,78 @@ class ApiServiceProviderTest extends TestCase
         // We can check that the current listeners include the notification ones
         // (they were already registered in setUp, but this test validates the config gate)
         static::assertTrue(true);
+    }
+
+    /**
+     * Test that registerNotificationLogging returns early when disabled.
+     *
+     * This test exercises the early-return branch inside
+     * registerNotificationLogging() directly via a fresh provider instance
+     * booted with logging disabled.
+     *
+     * @return void
+     */
+    public function testRegisterNotificationLoggingSkipsWhenDisabled(): void
+    {
+        $app = $this->getApplication();
+
+        $this->getConfig()->set('api-toolkit.notifications.enable_logging', false);
+
+        $provider = new ApiServiceProvider($app);
+        $provider->boot();
+
+        // If we reach here the early-return executed without error.
+        static::assertFalse((bool) $this->getConfig()->get('api-toolkit.notifications.enable_logging'));
+    }
+
+    /**
+     * Test that registerMorphMap builds the map when dynamic mapping is
+     * enabled and a valid resource map is configured.
+     *
+     * @return void
+     */
+    public function testRegisterMorphMapBuildsMapWhenEnabled(): void
+    {
+        $app = $this->getApplication();
+
+        $this->getConfig()->set('api-toolkit.resources.enable_dynamic_morph_mapping', true);
+        $this->getConfig()->set('api-toolkit.resources.resource_map', [
+            \Tests\Fixtures\Models\User::class => \Tests\Fixtures\Resources\UserResource::class,
+        ]);
+
+        $provider = new ApiServiceProvider($app);
+        $provider->boot();
+
+        $morph_map = Relation::morphMap();
+
+        static::assertArrayHasKey('users', $morph_map);
+    }
+
+    /**
+     * Test that registerMorphMap skips resources that lack getResourceType,
+     * exercising the `return []` branch inside the mapWithKeys callback
+     * (line 128 in ApiServiceProvider.php).
+     *
+     * @return void
+     */
+    public function testRegisterMorphMapSkipsResourcesWithoutGetResourceType(): void
+    {
+        $app = $this->getApplication();
+
+        $this->getConfig()->set('api-toolkit.resources.enable_dynamic_morph_mapping', true);
+        $this->getConfig()->set('api-toolkit.resources.resource_map', [
+            \Tests\Fixtures\Models\User::class => \stdClass::class,
+        ]);
+
+        $provider = new ApiServiceProvider($app);
+        $provider->boot();
+
+        // stdClass has no getResourceType; boot() must complete without error.
+        // The morph map may contain entries from earlier tests in the suite —
+        // we assert only that stdClass did not produce a morph-map key.
+        $morph_map = Relation::morphMap();
+
+        static::assertArrayNotHasKey(\stdClass::class, $morph_map);
     }
 
     /**

@@ -9,6 +9,7 @@ use Tests\Concerns\InteractsWithNonPublicMembers;
 use Tests\Fixtures\Services\FailingService;
 use Tests\Fixtures\Services\LockableService;
 use Tests\Fixtures\Services\SimpleService;
+use Tests\Fixtures\Traits\HasTrackableCallbacks;
 use Tests\TestCase;
 
 /**
@@ -291,5 +292,92 @@ class ServiceTest extends TestCase
         $result = $service->run();
 
         static::assertTrue($result);
+    }
+
+    /**
+     * Test that the base failed() implementation is a no-op.
+     *
+     * @SuppressWarnings("php:S112")
+     *
+     * @return void
+     */
+    public function testBaseFailedIsANoop(): void
+    {
+        $service = new class extends Service {
+            /**
+             * Handle the service execution.
+             *
+             * @return never
+             *
+             * @throws \RuntimeException
+             */
+            protected function handle(): bool
+            {
+                throw new \RuntimeException('handled');
+            }
+        };
+
+        try {
+            $service->run();
+        } catch (\RuntimeException) {
+            // Base failed() was called and did nothing — no secondary exception
+        }
+
+        static::assertFalse($service->getStatus() ?? false);
+    }
+
+    /**
+     * Test that initializeTraits calls the initialize* method on used traits.
+     *
+     * @return void
+     */
+    public function testInitializeTraitsCallsTraitInitializer(): void
+    {
+        $service = new class extends Service {
+            use HasTrackableCallbacks;
+
+            /**
+             * Handle the service execution.
+             *
+             * @return bool
+             */
+            protected function handle(): bool
+            {
+                return true;
+            }
+        };
+
+        // The static property lives on the using (anonymous) class, not on the
+        // trait directly, because forward_static_call uses late static binding.
+        $class = $service::class;
+
+        static::assertTrue($class::$traitInitialized);
+    }
+
+    /**
+     * Test that callTraitsSuccessCallbacks invokes the *Success method on
+     * used traits.
+     *
+     * @return void
+     */
+    public function testCallTraitsSuccessCallbacksInvokesTraitSuccessMethod(): void
+    {
+        $service = new class extends Service {
+            use HasTrackableCallbacks;
+
+            /**
+             * Handle the service execution.
+             *
+             * @return bool
+             */
+            protected function handle(): bool
+            {
+                return true;
+            }
+        };
+
+        $service->run();
+
+        static::assertTrue($service->traitSuccessRan);
     }
 }

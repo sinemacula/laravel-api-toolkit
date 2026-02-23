@@ -9,6 +9,9 @@ use SineMacula\ApiToolkit\Http\Controllers\RespondsWithStream;
 use SineMacula\ApiToolkit\Repositories\ApiRepository;
 use SineMacula\Exporter\Facades\Exporter;
 use Symfony\Component\HttpFoundation\StreamedResponse;
+use Tests\Fixtures\Models\User;
+use Tests\Fixtures\Resources\UserResource;
+use Tests\Fixtures\Support\FunctionOverrides;
 use Tests\TestCase;
 
 /**
@@ -22,6 +25,9 @@ use Tests\TestCase;
 #[CoversClass(RespondsWithStream::class)]
 class RespondsWithStreamTest extends TestCase
 {
+    /** @var string */
+    private const string TEST_URI = '/test';
+
     /**
      * Test that streamRepositoryToCsv returns a StreamedResponse.
      *
@@ -31,7 +37,7 @@ class RespondsWithStreamTest extends TestCase
     {
         $controller = $this->createControllerWithTrait();
 
-        $request = Request::create('/test', 'GET');
+        $request = Request::create(self::TEST_URI, 'GET');
         ApiQuery::parse($request);
 
         /** @var \Mockery\MockInterface&\SineMacula\ApiToolkit\Repositories\ApiRepository $repository */
@@ -149,6 +155,111 @@ class RespondsWithStreamTest extends TestCase
         $result = $reflection->invokeArgs($controller, $args);
 
         static::assertStringContainsString('Jane', $result);
+    }
+
+    /**
+     * Test that the chunk callback is invoked and outputs CSV data.
+     *
+     * @SuppressWarnings("php:S1172")
+     *
+     * @return void
+     */
+    public function testStreamRepositoryToCsvInvokesChunkCallback(): void
+    {
+        $controller = $this->createControllerWithTrait();
+
+        $request = Request::create(self::TEST_URI, 'GET');
+        ApiQuery::parse($request);
+
+        $user = User::create(['name' => 'Streamed', 'email' => 'streamed@example.com']);
+
+        /** @var \Mockery\MockInterface&\SineMacula\ApiToolkit\Repositories\ApiRepository $repository */
+        $repository = \Mockery::mock(ApiRepository::class);
+        $repository->shouldReceive('getResourceClass') // @phpstan-ignore method.notFound
+            ->andReturn(UserResource::class);
+        $repository->shouldReceive('chunkById') // @phpstan-ignore method.notFound
+            ->andReturnUsing(function (int $_size, callable $callback) use ($user): bool {
+                $callback(collect([$user]));
+
+                return true;
+            });
+
+        /** @var \Mockery\MockInterface $chain */
+        $chain = \Mockery::mock();
+        $chain->shouldReceive('withoutFields')->andReturnSelf(); // @phpstan-ignore method.notFound
+        $chain->shouldReceive('withoutHeaders')->andReturnSelf(); // @phpstan-ignore method.notFound
+        $chain->shouldReceive('exportArray')->andReturn("id,name\n1,Streamed\n"); // @phpstan-ignore method.notFound
+
+        /** @var \Mockery\MockInterface $exporter */
+        $exporter = \Mockery::mock();
+        $exporter->shouldReceive('format')->andReturn($chain); // @phpstan-ignore method.notFound
+
+        Exporter::swap($exporter);
+
+        FunctionOverrides::set('flush', fn () => null);
+        FunctionOverrides::set('ob_flush', fn () => null);
+
+        $response = $controller->streamRepositoryToCsv($repository); // @phpstan-ignore method.notFound
+
+        ob_start();
+        $response->sendContent();
+        ob_end_clean();
+
+        static::assertInstanceOf(StreamedResponse::class, $response);
+    }
+
+    /**
+     * Test that the limit cap stops chunking once processed count reaches the
+     * limit.
+     *
+     * @SuppressWarnings("php:S1172")
+     *
+     * @return void
+     */
+    public function testStreamRepositoryToCsvRespectsLimit(): void
+    {
+        $controller = $this->createControllerWithTrait();
+
+        $request = Request::create(self::TEST_URI, 'GET', ['limit' => '1']);
+        ApiQuery::parse($request);
+
+        $user1 = User::create(['name' => 'User1', 'email' => 'user1@stream.com']);
+        $user2 = User::create(['name' => 'User2', 'email' => 'user2@stream.com']);
+
+        /** @var \Mockery\MockInterface&\SineMacula\ApiToolkit\Repositories\ApiRepository $repository */
+        $repository = \Mockery::mock(ApiRepository::class);
+        $repository->shouldReceive('getResourceClass') // @phpstan-ignore method.notFound
+            ->andReturn(UserResource::class);
+        $repository->shouldReceive('chunkById') // @phpstan-ignore method.notFound
+            ->andReturnUsing(function (int $_size, callable $callback) use ($user1, $user2): bool {
+                $callback(collect([$user1]));
+                $callback(collect([$user2]));
+
+                return true;
+            });
+
+        /** @var \Mockery\MockInterface $chain */
+        $chain = \Mockery::mock();
+        $chain->shouldReceive('withoutFields')->andReturnSelf(); // @phpstan-ignore method.notFound
+        $chain->shouldReceive('withoutHeaders')->andReturnSelf(); // @phpstan-ignore method.notFound
+        $chain->shouldReceive('exportArray')->andReturn("id,name\n1,User1\n"); // @phpstan-ignore method.notFound
+
+        /** @var \Mockery\MockInterface $exporter */
+        $exporter = \Mockery::mock();
+        $exporter->shouldReceive('format')->andReturn($chain); // @phpstan-ignore method.notFound
+
+        Exporter::swap($exporter);
+
+        FunctionOverrides::set('flush', fn () => null);
+        FunctionOverrides::set('ob_flush', fn () => null);
+
+        $response = $controller->streamRepositoryToCsv($repository); // @phpstan-ignore method.notFound
+
+        ob_start();
+        $response->sendContent();
+        ob_end_clean();
+
+        static::assertInstanceOf(StreamedResponse::class, $response);
     }
 
     /**

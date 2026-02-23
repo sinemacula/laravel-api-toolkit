@@ -7,6 +7,7 @@ use Illuminate\Validation\ValidationException;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use SineMacula\ApiToolkit\ApiQueryParser;
+use Tests\Concerns\InteractsWithNonPublicMembers;
 use Tests\TestCase;
 
 /**
@@ -22,6 +23,8 @@ use Tests\TestCase;
 #[CoversClass(ApiQueryParser::class)]
 class ApiQueryParserTest extends TestCase
 {
+    use InteractsWithNonPublicMembers;
+
     /** @var string */
     private const string TEST_URL = '/test';
 
@@ -401,6 +404,50 @@ class ApiQueryParserTest extends TestCase
         static::assertSame(2, $this->parser->getPage());
         static::assertSame(10, $this->parser->getLimit());
         static::assertSame(['active' => true], $this->parser->getFilters());
+    }
+
+    /**
+     * Test that normalizeFields returns an array value unchanged.
+     *
+     * This path is only reachable through direct method invocation because the
+     * parser's validation rules reject non-string aggregation field values
+     * before they can reach the parsing logic.
+     *
+     * @return void
+     */
+    public function testNormalizeFieldsPreservesArrayInput(): void
+    {
+        $result = $this->invokeMethod($this->parser, 'normalizeFields', ['amount', 'fee']);
+
+        static::assertSame(['amount', 'fee'], $result);
+    }
+
+    /**
+     * Test that normalizeFields wraps non-string non-array input in an array.
+     *
+     * @return void
+     */
+    public function testNormalizeFieldsWrapsOtherInputInArray(): void
+    {
+        $result = $this->invokeMethod($this->parser, 'normalizeFields', 42);
+
+        static::assertSame([42], $result);
+    }
+
+    /**
+     * Test that parseAggregations skips non-array relation entries.
+     *
+     * @return void
+     */
+    public function testParseAggregationsSkipsNonArrayRelations(): void
+    {
+        $result = $this->invokeMethod($this->parser, 'parseAggregations', [
+            'valid'   => ['fields' => 'amount'],
+            'invalid' => 'not_an_array',
+        ]);
+
+        static::assertArrayHasKey('valid', $result);
+        static::assertArrayNotHasKey('invalid', $result);
     }
 
     /**

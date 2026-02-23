@@ -27,6 +27,12 @@ class ApiCriteriaTest extends TestCase
 {
     use InteractsWithNonPublicMembers;
 
+    /** @var string */
+    private const string OPERATOR_LIKE = '$like';
+
+    /** @var string */
+    private const string OPERATOR_CONTAINS = '$contains';
+
     /** @var \SineMacula\ApiToolkit\Repositories\Criteria\ApiCriteria */
     private ApiCriteria $criteria;
 
@@ -135,7 +141,7 @@ class ApiCriteriaTest extends TestCase
     public function testApplyWithLikeOperatorWrapsValueWithPercent(): void
     {
         $this->parseRequest(new \Illuminate\Http\Request([
-            'filters' => json_encode(['name' => ['$like' => 'Ali']]),
+            'filters' => json_encode(['name' => [self::OPERATOR_LIKE => 'Ali']]),
         ]));
 
         $model = new User;
@@ -328,7 +334,7 @@ class ApiCriteriaTest extends TestCase
         $this->parseRequest(new \Illuminate\Http\Request([
             'filters' => json_encode([
                 'posts' => [
-                    'title' => ['$like' => 'test'],
+                    'title' => [self::OPERATOR_LIKE => 'test'],
                 ],
             ]),
         ]));
@@ -485,6 +491,336 @@ class ApiCriteriaTest extends TestCase
         $orders = $query->getQuery()->orders ?? [];
 
         static::assertEmpty($orders);
+    }
+
+    /**
+     * Test that applyEagerLoading uses getAllFields when ':all' is requested.
+     *
+     * @return void
+     */
+    public function testApplyEagerLoadingUsesGetAllFieldsWhenAllRequested(): void
+    {
+        Config::set('api-toolkit.resources.resource_map.' . User::class, UserResource::class);
+
+        $this->parseRequest(new \Illuminate\Http\Request([
+            'fields' => ['users' => ':all'],
+        ]));
+
+        $this->criteria->usingResource(UserResource::class);
+
+        $model = new User;
+        $query = $this->criteria->apply($model);
+
+        static::assertNotNull($query);
+    }
+
+    /**
+     * Test that a condition operator inside a logical group is handled.
+     *
+     * @return void
+     */
+    public function testConditionOperatorInsideLogicalGroupIsHandled(): void
+    {
+        $this->parseRequest(new \Illuminate\Http\Request([
+            'filters' => json_encode(['$or' => ['$eq' => 'anything']]),
+        ]));
+
+        $model = new User;
+        $query = $this->criteria->apply($model);
+
+        static::assertNotNull($query);
+    }
+
+    /**
+     * Test that a nested logical operator inside a logical group is handled.
+     *
+     * @return void
+     */
+    public function testNestedLogicalOperatorInsideLogicalGroupIsHandled(): void
+    {
+        $this->parseRequest(new \Illuminate\Http\Request([
+            'filters' => json_encode([
+                '$and' => [
+                    '$or' => [
+                        'name'  => 'Alice',
+                        'email' => 'alice@example.com',
+                    ],
+                ],
+            ]),
+        ]));
+
+        $model = new User;
+        $query = $this->criteria->apply($model);
+
+        static::assertNotEmpty($query->getQuery()->wheres);
+    }
+
+    /**
+     * Test that $or inside a relation filter creates a grouped orWhere.
+     *
+     * @return void
+     */
+    public function testOrInsideRelationFilterCreatesOrWhereGroup(): void
+    {
+        $this->parseRequest(new \Illuminate\Http\Request([
+            'filters' => json_encode([
+                'posts' => [
+                    '$or' => [
+                        'title' => [self::OPERATOR_LIKE => 'test'],
+                    ],
+                ],
+            ]),
+        ]));
+
+        $model = new User;
+        $query = $this->criteria->apply($model);
+
+        static::assertNotEmpty($query->getQuery()->wheres);
+    }
+
+    /**
+     * Test that a named $has relation with conditions applies whereHas with
+     * nested constraints.
+     *
+     * @return void
+     */
+    public function testHasFilterWithNamedRelationAndConditions(): void
+    {
+        $this->parseRequest(new \Illuminate\Http\Request([
+            'filters' => json_encode([
+                '$has' => [
+                    'posts' => ['title' => [self::OPERATOR_LIKE => 'test']],
+                ],
+            ]),
+        ]));
+
+        $model = new User;
+        $query = $this->criteria->apply($model);
+
+        $wheres = $query->getQuery()->wheres;
+
+        static::assertNotEmpty($wheres);
+        static::assertSame('Exists', $wheres[0]['type']);
+    }
+
+    /**
+     * Test that $hasnt with a named relation and conditions applies
+     * whereDoesntHave.
+     *
+     * @return void
+     */
+    public function testHasntFilterWithNamedRelationAndConditions(): void
+    {
+        $this->parseRequest(new \Illuminate\Http\Request([
+            'filters' => json_encode([
+                '$hasnt' => [
+                    'posts' => ['title' => [self::OPERATOR_LIKE => 'test']],
+                ],
+            ]),
+        ]));
+
+        $model = new User;
+        $query = $this->criteria->apply($model);
+
+        $wheres = $query->getQuery()->wheres;
+
+        static::assertNotEmpty($wheres);
+        static::assertSame('NotExists', $wheres[0]['type']);
+    }
+
+    /**
+     * Test that $or combined with $has uses orWhereHas.
+     *
+     * @return void
+     */
+    public function testOrWithHasOperatorUsesOrWhereHas(): void
+    {
+        $this->parseRequest(new \Illuminate\Http\Request([
+            'filters' => json_encode([
+                '$or' => [
+                    '$has' => ['posts'],
+                ],
+            ]),
+        ]));
+
+        $model = new User;
+        $query = $this->criteria->apply($model);
+
+        static::assertNotEmpty($query->getQuery()->wheres);
+    }
+
+    /**
+     * Test that $between with a single-element array is ignored.
+     *
+     * @return void
+     */
+    public function testBetweenWithWrongArraySizeIsIgnored(): void
+    {
+        $this->parseRequest(new \Illuminate\Http\Request([
+            'filters' => json_encode(['id' => ['$between' => [1]]]),
+        ]));
+
+        $model = new User;
+        $query = $this->criteria->apply($model);
+
+        static::assertEmpty($query->getQuery()->wheres);
+    }
+
+    /**
+     * Test that $contains with an array value uses whereJsonContains.
+     *
+     * @return void
+     */
+    public function testContainsWithArrayValueUsesWhereJsonContains(): void
+    {
+        $this->parseRequest(new \Illuminate\Http\Request([
+            'filters' => json_encode(['name' => [self::OPERATOR_CONTAINS => ['Alice']]]),
+        ]));
+
+        $model = new User;
+        $query = $this->criteria->apply($model);
+
+        static::assertNotEmpty($query->getQuery()->wheres);
+    }
+
+    /**
+     * Test that $contains with a comma-separated string creates multiple
+     * whereJsonContains conditions.
+     *
+     * @return void
+     */
+    public function testContainsWithCommaSeparatedStringCreatesMultipleConditions(): void
+    {
+        $this->parseRequest(new \Illuminate\Http\Request([
+            'filters' => json_encode(['name' => [self::OPERATOR_CONTAINS => 'Alice,Bob']]),
+        ]));
+
+        $model = new User;
+        $query = $this->criteria->apply($model);
+
+        static::assertNotEmpty($query->getQuery()->wheres);
+    }
+
+    /**
+     * Test that $contains with a plain scalar string uses whereJsonContains.
+     *
+     * @return void
+     */
+    public function testContainsWithPlainStringUsesWhereJsonContains(): void
+    {
+        $this->parseRequest(new \Illuminate\Http\Request([
+            'filters' => json_encode(['name' => [self::OPERATOR_CONTAINS => 'Alice']]),
+        ]));
+
+        $model = new User;
+        $query = $this->criteria->apply($model);
+
+        static::assertNotEmpty($query->getQuery()->wheres);
+    }
+
+    /**
+     * Test that a table-specific searchable exclusion is respected.
+     *
+     * @return void
+     */
+    public function testTableSpecificSearchableExclusionIsRespected(): void
+    {
+        Config::set('api-toolkit.repositories.searchable_exclusions', ['users.password']);
+
+        $this->parseRequest(new \Illuminate\Http\Request([
+            'filters' => json_encode(['password' => 'secret']),
+        ]));
+
+        assert($this->app !== null);
+
+        /** @var \SineMacula\ApiToolkit\Repositories\Criteria\ApiCriteria $criteria */
+        $criteria = $this->app->make(ApiCriteria::class);
+
+        $model = new User;
+        $query = $criteria->apply($model);
+
+        static::assertEmpty($query->getQuery()->wheres);
+    }
+
+    /**
+     * Test that $notNull with $or logical operator uses orWhereNotNull.
+     *
+     * @return void
+     */
+    public function testNotNullWithOrLogicalOperatorUsesOrWhereNotNull(): void
+    {
+        $this->parseRequest(new \Illuminate\Http\Request([
+            'filters' => json_encode([
+                '$or' => [
+                    'organization_id' => ['$notNull' => true],
+                ],
+            ]),
+        ]));
+
+        $model = new User;
+        $query = $this->criteria->apply($model);
+
+        static::assertNotEmpty($query->getQuery()->wheres);
+    }
+
+    /**
+     * Test that $contains with null exercises the isValidJson null path and
+     * the defensive catch inside applyJsonContains.
+     *
+     * @return void
+     */
+    public function testContainsWithNullValueIsHandledGracefully(): void
+    {
+        $this->parseRequest(new \Illuminate\Http\Request([
+            'filters' => json_encode(['name' => [self::OPERATOR_CONTAINS => null]]),
+        ]));
+
+        $model = new User;
+        $query = $this->criteria->apply($model);
+
+        static::assertNotNull($query);
+    }
+
+    /**
+     * Test that applyEagerLoading returns early when fields resolve to an
+     * empty array.
+     *
+     * @SuppressWarnings("php:S2014")
+     *
+     * @return void
+     */
+    public function testApplyEagerLoadingReturnsEarlyWhenFieldsAreEmpty(): void
+    {
+        $resource_class = new class (null) extends \SineMacula\ApiToolkit\Http\Resources\ApiResource {
+            /** @var string */
+            public const string RESOURCE_TYPE = 'empty_res';
+
+            /** @var array<int, string> */
+            protected static array $default = []; // @phpstan-ignore property.phpDocType
+
+            /**
+             * Return the resource schema.
+             *
+             * @return array<string, array<string, mixed>>
+             */
+            public static function schema(): array
+            {
+                return [];
+            }
+        };
+
+        assert($this->app !== null);
+
+        /** @var \SineMacula\ApiToolkit\Repositories\Criteria\ApiCriteria $criteria */
+        $criteria = $this->app->make(ApiCriteria::class);
+        $criteria->usingResource($resource_class::class);
+
+        $this->parseRequest(new \Illuminate\Http\Request);
+
+        $model = new User;
+        $query = $criteria->apply($model);
+
+        static::assertEmpty($query->getEagerLoads());
     }
 
     /**

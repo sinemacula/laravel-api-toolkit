@@ -79,6 +79,26 @@ class InteractsWithModelSchemaTest extends TestCase
     }
 
     /**
+     * Test that a second consumer reads columns from the Laravel cache,
+     * exercising the early-return branch in resolveColumnsFromModel.
+     *
+     * @return void
+     */
+    public function testSecondConsumerReadsColumnsFromLaravelCache(): void
+    {
+        $model = new User;
+
+        $consumer1 = $this->createConsumer();
+        $this->invokeMethod($consumer1, 'getColumnsFromModel', $model);
+
+        // Fresh instance: no instance cache, but Laravel cache is populated.
+        $consumer2 = $this->createConsumer();
+        $columns   = $this->invokeMethod($consumer2, 'getColumnsFromModel', $model);
+
+        static::assertNotEmpty($columns);
+    }
+
+    /**
      * Create a test consumer class that uses the InteractsWithModelSchema
      * trait.
      *

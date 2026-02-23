@@ -11,6 +11,7 @@ use SineMacula\ApiToolkit\Http\Routing\Controller;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 use Tests\Concerns\InteractsWithNonPublicMembers;
 use Tests\Fixtures\Controllers\TestingController;
+use Tests\Fixtures\Support\FunctionOverrides;
 use Tests\TestCase;
 
 /**
@@ -210,5 +211,89 @@ class ControllerTest extends TestCase
 
         static::assertSame('abc123', $response->headers->get('X-Stream-Id'));
         static::assertSame('text/event-stream', $response->headers->get('Content-Type'));
+    }
+
+    /**
+     * Test that the stream callback body executes, including the heartbeat
+     * and sleep paths.
+     *
+     * Uses FunctionOverrides to control connection_aborted(), flush(), and
+     * sleep(). The user-supplied callback advances Carbon's test clock past
+     * the 20-second heartbeat threshold so the inner heartbeat block fires
+     * during the first full iteration.
+     *
+     * @return void
+     */
+    public function testRespondWithEventStreamExecutesStreamBody(): void
+    {
+        $this->travelTo(now());
+
+        $abort_count = 0;
+
+        // 4 calls: 0, 0, 0 → full iteration + sleep; 0 → second iteration enters;
+        // heartbeat fires; call 4 at the second abort-check → break (line 110).
+        FunctionOverrides::set('connection_aborted', function () use (&$abort_count): int {
+            return ++$abort_count >= 4 ? 1 : 0;
+        });
+        FunctionOverrides::set('flush', fn () => null);
+        FunctionOverrides::set('ob_flush', fn () => null);
+        FunctionOverrides::set('sleep', fn (int $_s) => 0);
+
+        $callback_ran = false;
+
+        /** @var \Symfony\Component\HttpFoundation\StreamedResponse $response */
+        $response = $this->invokeMethod(
+            $this->controller,
+            'respondWithEventStream',
+            function () use (&$callback_ran): void {
+                $callback_ran = true;
+                $this->travel(25)->seconds();
+            },
+        );
+
+        ob_start();
+        $response->sendContent();
+        ob_end_clean();
+
+        static::assertTrue($callback_ran);
+    }
+
+    /**
+     * Test that the stream loop breaks on the first abort check at the start
+     * of the second iteration.
+     *
+     * 3 abort calls: 0, 0, 1. The first iteration runs fully (callback +
+     * heartbeat + sleep), then the third call at the first per-iteration
+     * check of iteration 2 returns 1, exercising the break on line 92.
+     *
+     * @return void
+     */
+    public function testRespondWithEventStreamBreaksOnFirstCheckOfSecondIteration(): void
+    {
+        $this->travelTo(now());
+
+        $abort_count = 0;
+
+        FunctionOverrides::set('connection_aborted', function () use (&$abort_count): int {
+            return ++$abort_count >= 3 ? 1 : 0;
+        });
+        FunctionOverrides::set('flush', fn () => null);
+        FunctionOverrides::set('ob_flush', fn () => null);
+        FunctionOverrides::set('sleep', fn (int $_s) => 0);
+
+        /** @var \Symfony\Component\HttpFoundation\StreamedResponse $response */
+        $response = $this->invokeMethod(
+            $this->controller,
+            'respondWithEventStream',
+            function (): void {
+                $this->travel(25)->seconds();
+            },
+        );
+
+        ob_start();
+        $response->sendContent();
+        ob_end_clean();
+
+        static::assertInstanceOf(StreamedResponse::class, $response);
     }
 }

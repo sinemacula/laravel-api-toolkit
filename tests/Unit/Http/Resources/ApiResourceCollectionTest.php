@@ -257,6 +257,39 @@ class ApiResourceCollectionTest extends TestCase
     }
 
     /**
+     * Test that toArray resolves a raw model item (not a pre-wrapped resource)
+     * using the collection's resource class.
+     *
+     * ApiResourceCollection::collectResource() wraps items via mapInto(), so
+     * $this->resource always contains ApiResource instances under normal use.
+     * To exercise the false branch on line 54 (the raw-item path), we bypass
+     * the constructor wrapping by setting $this->resource via reflection to a
+     * plain model object collection.
+     *
+     * @return void
+     */
+    public function testToArrayResolvesRawModelItemViaResourceClass(): void
+    {
+        $user = User::create(['name' => 'Raw', 'email' => 'raw@example.com']);
+
+        // Construct with an empty collection to avoid wrapping overhead,
+        // then inject the raw model item directly.
+        $collection = new ApiResourceCollection(collect([]), UserResource::class);
+
+        // $this->collection is set to $this->resource->values() in the
+        // ResourceCollection constructor; inject the raw User directly so
+        // the false-branch of `instanceof ApiResource` in toArray() fires.
+        $reflection = new \ReflectionProperty($collection, 'collection');
+        $reflection->setValue($collection, collect([$user])); // NOSONAR
+
+        $request = Request::create('/', 'GET');
+        $result  = $collection->toArray($request);
+
+        static::assertCount(1, $result);
+        static::assertSame('users', $result[0]['_type']);
+    }
+
+    /**
      * Test that toArray resolves items when they are already ApiResource
      * instances.
      *

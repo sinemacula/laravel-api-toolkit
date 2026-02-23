@@ -2,7 +2,7 @@
 
 namespace Tests\Unit\Contracts;
 
-use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\TestCase;
 use SineMacula\ApiToolkit\Contracts\ApiResourceInterface;
 
@@ -14,7 +14,7 @@ use SineMacula\ApiToolkit\Contracts\ApiResourceInterface;
  *
  * @internal
  */
-#[CoversClass(ApiResourceInterface::class)]
+#[CoversNothing]
 class ApiResourceInterfaceTest extends TestCase
 {
     /**
