@@ -35,7 +35,14 @@ use Tests\TestCase;
 #[CoversClass(ApiResource::class)]
 class ApiResourceTest extends TestCase
 {
+    /** @var string */
     private const string FLUENT_EMAIL = 'fluent@example.com';
+
+    /** @var string */
+    private const string COUNTS_FIELDS = 'id,counts';
+
+    /** @var string */
+    private const string COUNT_KEY_POSTS = '__count__:posts';
 
     /**
      * Clean up the testing environment before the next test.
@@ -1413,6 +1420,582 @@ class ApiResourceTest extends TestCase
         yield 'organization fields' => [OrganizationResource::class, ['id', 'name', 'slug', 'created_at', 'updated_at']];
         yield 'post fields' => [PostResource::class, ['id', 'title', 'body', 'published', 'created_at', 'updated_at', 'user', 'tags']];
         yield 'tag fields' => [TagResource::class, ['id', 'name', 'created_at', 'updated_at']];
+    }
+
+    /**
+     * Test that load_missing with ':all' uses getAllFields for eager loading.
+     *
+     * @return void
+     */
+    public function testConstructorWithLoadMissingAndAllUsesGetAllFields(): void
+    {
+        $user = User::create([
+            'name'  => 'EagerAll',
+            'email' => 'eagerall@example.com',
+        ]);
+
+        assert($this->app !== null);
+
+        /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
+        $parser  = $this->app->make('api.query');
+        $request = Request::create('/', 'GET');
+        $parser->parse($request);
+
+        $resource = new UserResource($user, true, ':all');
+        $result   = $resource->resolve();
+
+        static::assertArrayHasKey('_type', $result);
+        static::assertArrayHasKey('name', $result);
+    }
+
+    /**
+     * Test that load_missing triggers loadCount when 'counts' is in the
+     * included fields.
+     *
+     * @return void
+     */
+    public function testConstructorWithLoadMissingAndCountsField(): void
+    {
+        $user = User::create([
+            'name'  => 'CountLoad',
+            'email' => 'countload@example.com',
+        ]);
+
+        assert($this->app !== null);
+
+        /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
+        $parser  = $this->app->make('api.query');
+        $request = Request::create('/', 'GET');
+        $parser->parse($request);
+
+        // 'counts' in included ensures shouldIncludeCountsField() returns true
+        // inside the constructor, exercising the loadCount branch.
+        $resource = new UserResource($user, true, ['id', 'counts']);
+        $result   = $resource->resolve();
+
+        static::assertArrayHasKey('_type', $result);
+    }
+
+    /**
+     * Test that resolveCountsPayload returns an empty array for non-object
+     * resources, including unwrapping nested JsonResource layers.
+     *
+     * Passes a UserResource wrapping null so that unwrapResource loops through
+     * the JsonResource layer (covering line 863) and then finds a non-object,
+     * exercising the early-return branch (line 255).
+     *
+     * @return void
+     */
+    public function testResolveCountsPayloadReturnsEmptyForNullResource(): void
+    {
+        assert($this->app !== null);
+
+        /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
+        $parser  = $this->app->make('api.query');
+        $request = Request::create('/', 'GET', ['fields' => ['users' => self::COUNTS_FIELDS]]);
+        $parser->parse($request);
+
+        // Inner resource wraps null; outer resource wraps the inner resource.
+        // unwrapResource() loops through the JsonResource (line 863) and
+        // reaches null, triggering the is_object guard (line 255).
+        $inner    = new UserResource(null);
+        $resource = new UserResource($inner);
+
+        $result = $resource->resolve();
+
+        static::assertArrayNotHasKey('counts', $result);
+    }
+
+    /**
+     * Test that a count field excluded by a guard is omitted from the counts
+     * payload.
+     *
+     * @SuppressWarnings("php:S2014")
+     *
+     * @return void
+     */
+    public function testCountExcludedByGuardIsOmittedFromPayload(): void
+    {
+        $resource_class = new class (null) extends ApiResource {
+            /** @var string */
+            public const string RESOURCE_TYPE = 'guarded_count_test';
+
+            /** @var array<int, string> */
+            protected static array $default = ['id', 'counts']; // @phpstan-ignore property.phpDocType
+
+            /**
+             * Get the resource schema.
+             *
+             * @return array<string, array<string, mixed>>
+             */
+            public static function schema(): array
+            {
+                return Field::set(
+                    Field::scalar('id'),
+                    Count::of('posts')->guard(fn () => false)->default(),
+                );
+            }
+        };
+
+        $user = User::create([
+            'name'  => 'GuardedCount',
+            'email' => 'guardedcount@example.com',
+        ]);
+
+        $user->loadCount('posts');
+
+        assert($this->app !== null);
+
+        /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
+        $parser  = $this->app->make('api.query');
+        $request = Request::create('/', 'GET', ['fields' => ['guarded_count_test' => self::COUNTS_FIELDS]]);
+        $parser->parse($request);
+
+        $resource = new $resource_class($user);
+        $result   = $resource->resolve();
+
+        static::assertArrayNotHasKey('counts', $result);
+    }
+
+    /**
+     * Test that a relation with a callable accessor resolves via the callable.
+     *
+     * @return void
+     */
+    public function testRelationWithCallableAccessorResolvesViaCallable(): void
+    {
+        $org = Organization::create([
+            'name' => 'CallableOrg',
+            'slug' => 'callable-org',
+        ]);
+
+        $user = User::create([
+            'name'            => 'RelCallable',
+            'email'           => 'relcallable@example.com',
+            'organization_id' => $org->id,
+        ]);
+
+        $user->load('organization');
+
+        $resource_class = new class (null) extends ApiResource {
+            /** @var string */
+            public const string RESOURCE_TYPE = 'callable_rel_test';
+
+            /** @var array<int, string> */
+            protected static array $default = ['id', 'org_name']; // @phpstan-ignore property.phpDocType
+
+            /**
+             * Get the resource schema.
+             *
+             * @return array<string, array<string, mixed>>
+             */
+            public static function schema(): array
+            {
+                return Field::set(
+                    Field::scalar('id'),
+                    Relation::to('organization', fn ($resource, $request) => $resource->resource?->organization?->name, 'org_name'),
+                );
+            }
+        };
+
+        $resource = new $resource_class($user);
+        $resource->withFields(['org_name']);
+
+        $result = $resource->resolve();
+
+        static::assertArrayHasKey('org_name', $result);
+        static::assertSame('CallableOrg', $result['org_name']);
+    }
+
+    /**
+     * Test that eagerLoadMapFor includes child fields from explicit relation
+     * field projections, covering resolveChildFields explicit-fields branch.
+     *
+     * @return void
+     */
+    public function testEagerLoadMapForWithExplicitChildFields(): void
+    {
+        $this->clearSchemaCache();
+
+        $resource_class = new class (null) extends ApiResource {
+            /** @var string */
+            public const string RESOURCE_TYPE = 'explicit_fields_test';
+
+            /** @var array<int, string> */
+            protected static array $default = ['id', 'organization']; // @phpstan-ignore property.phpDocType
+
+            /**
+             * Get the resource schema.
+             *
+             * @return array<string, array<string, mixed>>
+             */
+            public static function schema(): array
+            {
+                return Field::set(
+                    Field::scalar('id'),
+                    Relation::to('organization', OrganizationResource::class)
+                        ->fields(['id', 'name']),
+                );
+            }
+        };
+
+        $fields = ['organization'];
+        $map    = $resource_class::eagerLoadMapFor($fields);
+
+        static::assertNotEmpty($map);
+    }
+
+    /**
+     * Test that wrapRelatedWithResource calls withFields on the wrapped
+     * resource when child fields are provided.
+     *
+     * @return void
+     */
+    public function testRelationWithExplicitChildFieldsFiltersOutput(): void
+    {
+        $this->clearSchemaCache();
+
+        $org = Organization::create([
+            'name' => 'ChildFieldOrg',
+            'slug' => 'child-field-org',
+        ]);
+
+        $user = User::create([
+            'name'            => 'ChildField',
+            'email'           => 'childfield@example.com',
+            'organization_id' => $org->id,
+        ]);
+
+        $user->load('organization');
+
+        $resource_class = new class (null) extends ApiResource {
+            /** @var string */
+            public const string RESOURCE_TYPE = 'child_fields_test';
+
+            /** @var array<int, string> */
+            protected static array $default = ['id', 'organization']; // @phpstan-ignore property.phpDocType
+
+            /**
+             * Get the resource schema.
+             *
+             * @return array<string, array<string, mixed>>
+             */
+            public static function schema(): array
+            {
+                return Field::set(
+                    Field::scalar('id'),
+                    Relation::to('organization', OrganizationResource::class)
+                        ->fields(['id', 'name']),
+                );
+            }
+        };
+
+        $resource = new $resource_class($user);
+        $resource->withFields(['id', 'organization']);
+
+        $result = $resource->resolve();
+
+        static::assertArrayHasKey('organization', $result);
+    }
+
+    /**
+     * Test that unwrapResource loops through nested JsonResource layers to
+     * reach the underlying model (line 863).
+     *
+     * @return void
+     */
+    public function testUnwrapResourceLoopsThroughNestedJsonResource(): void
+    {
+        $user = User::create([
+            'name'  => 'Wrapped',
+            'email' => 'wrapped2@example.com',
+        ]);
+
+        $user->loadCount('posts');
+
+        assert($this->app !== null);
+
+        /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
+        $parser  = $this->app->make('api.query');
+        $request = Request::create('/', 'GET', ['fields' => ['users' => self::COUNTS_FIELDS]]);
+        $parser->parse($request);
+
+        // Wrap the user in an inner UserResource, then wrap THAT in an outer
+        // UserResource. unwrapResource() loops through the JsonResource layer
+        // (line 863) to reach the User model, then resolves counts normally.
+        $inner    = new UserResource($user);
+        $resource = new UserResource($inner);
+
+        $result = $resource->resolve();
+
+        static::assertArrayHasKey('_type', $result);
+        static::assertSame('users', $result['_type']);
+    }
+
+    /**
+     * Test that a count metric key requested as a regular field is treated as
+     * MissingValue and excluded from the output.
+     *
+     * @return void
+     */
+    public function testCountMetricKeyAsRegularFieldExcludedFromOutput(): void
+    {
+        $user = User::create([
+            'name'  => 'MetricField',
+            'email' => 'metricfield@example.com',
+        ]);
+
+        $resource = new UserResource($user);
+        $resource->withFields([self::COUNT_KEY_POSTS]);
+
+        $result = $resource->resolve();
+
+        static::assertArrayNotHasKey(self::COUNT_KEY_POSTS, $result);
+    }
+
+    /**
+     * Test that eagerLoadMapFor skips fields not in the schema (line 604).
+     *
+     * @return void
+     */
+    public function testEagerLoadMapForSkipsFieldsNotInSchema(): void
+    {
+        $map = UserResource::eagerLoadMapFor(['nonexistent_field_xyz']);
+
+        static::assertSame([], $map);
+    }
+
+    /**
+     * Test that eagerLoadMapFor skips metric fields in walkRelationsWith
+     * (line 608).
+     *
+     * @return void
+     */
+    public function testEagerLoadMapForSkipsMetricFields(): void
+    {
+        // __count__:posts is a metric in the UserResource schema and must be
+        // skipped when encountered during relation traversal.
+        $map = UserResource::eagerLoadMapFor([self::COUNT_KEY_POSTS]);
+
+        static::assertSame([], $map);
+    }
+
+    /**
+     * Test that eagerLoadMapFor includes extras paths defined on a relation
+     * (line 616).
+     *
+     * @return void
+     */
+    public function testEagerLoadMapForIncludesExtrasPaths(): void
+    {
+        $this->clearSchemaCache();
+
+        $resource_class = new class (null) extends ApiResource {
+            /** @var string */
+            public const string RESOURCE_TYPE = 'extras_path_test';
+
+            /** @var array<int, string> */
+            protected static array $default = ['organization']; // @phpstan-ignore property.phpDocType
+
+            /**
+             * Get the resource schema.
+             *
+             * @return array<string, array<string, mixed>>
+             */
+            public static function schema(): array
+            {
+                return Field::set(
+                    Relation::to('organization', OrganizationResource::class)
+                        ->extras('organization.owner'),
+                );
+            }
+        };
+
+        $map = $resource_class::eagerLoadMapFor(['organization']);
+
+        static::assertContains('organization.owner', $map);
+    }
+
+    /**
+     * Test that eagerLoadMapFor does not add duplicate paths when the same
+     * relation appears more than once in the fields list (line 624).
+     *
+     * @return void
+     */
+    public function testEagerLoadMapForDoesNotAddDuplicatePaths(): void
+    {
+        // Passing 'organization' twice triggers the wasVisited guard on the
+        // second occurrence, exercising the continue on line 624.
+        $map = UserResource::eagerLoadMapFor(['organization', 'organization']);
+
+        $plain_values = array_values($map);
+
+        static::assertContains('organization', $plain_values);
+        static::assertCount(1, array_keys($map, 'organization', true));
+    }
+
+    /**
+     * Test that resolveChildFields falls back to getAllFields when the child
+     * resource has empty defaults and no requested fields (line 837).
+     *
+     * @return void
+     */
+    public function testResolveChildFieldsFallsBackToGetAllFieldsWhenDefaultsEmpty(): void
+    {
+        $this->clearSchemaCache();
+
+        $child_class = new class (null) extends ApiResource {
+            /** @var string */
+            public const string RESOURCE_TYPE = 'no_defaults_child';
+
+            /** @var array<int, string> */
+            protected static array $default = []; // @phpstan-ignore property.phpDocType
+
+            /**
+             * Get the resource schema.
+             *
+             * @return array<string, array<string, mixed>>
+             */
+            public static function schema(): array
+            {
+                return Field::set(
+                    Field::scalar('id'),
+                    Field::scalar('name'),
+                );
+            }
+        };
+
+        $child_class_name = $child_class::class;
+
+        $outer_class = new class (null) extends ApiResource {
+            /** @var string */
+            public const string RESOURCE_TYPE = 'outer_for_empty_defaults';
+
+            /** @var array<int, string> */
+            protected static array $default = ['rel']; // @phpstan-ignore property.phpDocType
+
+            /** @var string */
+            public static string $childClassName = '';
+
+            /**
+             * Get the resource schema.
+             *
+             * @return array<string, array<string, mixed>>
+             */
+            public static function schema(): array
+            {
+                return Field::set(
+                    Relation::to('rel', self::$childClassName),
+                );
+            }
+        };
+
+        $outer_class::$childClassName = $child_class_name;
+
+        // No fields set for 'no_defaults_child' in the query — defaults are
+        // empty — so resolveChildFields falls through to getAllFields (line 837).
+        $map = $outer_class::eagerLoadMapFor(['rel']);
+
+        static::assertContains('rel', $map);
+    }
+
+    /**
+     * Test that resolveSimpleProperty reflects on a model method when the
+     * field name matches a method that does NOT return an Attribute, covering
+     * the reflection path (lines 385-386) and the non-Attribute check (388).
+     *
+     * @return void
+     */
+    public function testResolveSimplePropertyReflectsOnModelMethod(): void
+    {
+        $this->clearSchemaCache();
+
+        // Request 'posts' on a resource whose schema does NOT include it as
+        // a relation. resolveSimpleProperty() is then called for 'posts'.
+        // User.posts() exists (method_exists = true) → reflection runs → the
+        // return type is HasMany, not Attribute → line 388 condition is false.
+        $resource_class = new class (null) extends ApiResource {
+            /** @var string */
+            public const string RESOURCE_TYPE = 'method_reflect_test';
+
+            /** @var array<int, string> */
+            protected static array $default = ['id', 'posts']; // @phpstan-ignore property.phpDocType
+
+            /**
+             * Get the resource schema.
+             *
+             * @return array<string, array<string, mixed>>
+             */
+            public static function schema(): array
+            {
+                return Field::set(
+                    Field::scalar('id'),
+                    Field::scalar('posts'),
+                );
+            }
+        };
+
+        $user = User::create([
+            'name'  => 'MethodReflect',
+            'email' => 'methodreflect@example.com',
+        ]);
+
+        $resource = new $resource_class($user);
+        $resource->withFields(['id', 'posts']);
+
+        $result = $resource->resolve();
+
+        // 'posts' resolves via Eloquent's __isset/__get (relation lazy-loaded),
+        // so the key is present in the result. The main goal is to exercise
+        // the ReflectionMethod path (lines 385-386, 388) before falling through
+        // to the __isset check.
+        static::assertArrayHasKey('_type', $result);
+    }
+
+    /**
+     * Test that the scoped-constraint closure returned by eagerLoadMapFor
+     * is properly invoked for a non-MorphTo builder, covering the
+     * Builder-path inside the wrapper closure (lines 637-640).
+     *
+     * @return void
+     */
+    public function testEagerLoadMapConstraintClosureExecutesOnBuilder(): void
+    {
+        $this->clearSchemaCache();
+
+        $resource_class = new class (null) extends ApiResource {
+            /** @var string */
+            public const string RESOURCE_TYPE = 'constrained_exec_test';
+
+            /** @var array<int, string> */
+            protected static array $default = ['id', 'organization']; // @phpstan-ignore property.phpDocType
+
+            /**
+             * Get the resource schema.
+             *
+             * @return array<string, array<string, mixed>>
+             */
+            public static function schema(): array
+            {
+                return Field::set(
+                    Field::scalar('id'),
+                    Relation::to('organization', OrganizationResource::class)
+                        ->constrain(fn ($query) => $query->where('name', 'Active')),
+                );
+            }
+        };
+
+        $map = $resource_class::eagerLoadMapFor(['organization']);
+
+        static::assertArrayHasKey('organization', $map);
+        static::assertIsCallable($map['organization']);
+
+        // Invoke the wrapper closure with a real Builder so the non-MorphTo
+        // path (lines 637-640) executes.
+        $builder = Organization::query();
+        ($map['organization'])($builder);
+
+        static::assertNotEmpty($builder->getQuery()->wheres);
     }
 
     /**

@@ -8,6 +8,49 @@
  * connection_aborted(), sleep(), and flush() without affecting global state.
  */
 
+namespace SineMacula\ApiToolkit\Http\Controllers;
+
+use Tests\Fixtures\Support\FunctionOverrides;
+
+/**
+ * Override ob_flush() within the Http\Controllers namespace.
+ *
+ * Prevents ob_flush() from pushing captured output past the test's output
+ * buffer during stream response execution.
+ *
+ * @SuppressWarnings("php:S100")
+ *
+ * @return void
+ */
+function ob_flush(): void
+{
+    $override = FunctionOverrides::get('ob_flush');
+
+    if ($override !== null) {
+        $override();
+        return;
+    }
+
+    \ob_flush();
+}
+
+/**
+ * Override flush() within the Http\Controllers namespace.
+ *
+ * @return void
+ */
+function flush(): void
+{
+    $override = FunctionOverrides::get('flush');
+
+    if ($override !== null) {
+        $override();
+        return;
+    }
+
+    \flush();
+}
+
 namespace SineMacula\ApiToolkit\Http\Routing;
 
 use Tests\Fixtures\Support\FunctionOverrides;
@@ -50,7 +93,32 @@ function sleep(int $seconds): int
 }
 
 /**
- * Override flush() within the controller namespace.
+ * Override ob_flush() within the Http\Routing namespace.
+ *
+ * Prevents ob_flush() from pushing captured output past the test's output
+ * buffer during stream response execution.
+ *
+ * @SuppressWarnings("php:S100")
+ * @SuppressWarnings("php:S4144")
+ *
+ * @return void
+ */
+function ob_flush(): void
+{
+    $override = FunctionOverrides::get('ob_flush');
+
+    if ($override !== null) {
+        $override();
+        return;
+    }
+
+    \ob_flush();
+}
+
+/**
+ * Override flush() within the Http\Routing namespace.
+ *
+ * @SuppressWarnings("php:S4144")
  *
  * @return void
  */

@@ -40,7 +40,7 @@ trait HasRepositories
         }
 
         foreach (class_uses($this) as $trait) {
-            if ($trait !== self::class && method_exists($trait, '__call')) {
+            if ($trait !== __TRAIT__ && method_exists($trait, '__call')) {
                 return call_user_func_array([$this, '__call'], [$method, $arguments]);
             }
         }

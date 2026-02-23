@@ -74,6 +74,26 @@ class HasRepositoriesTest extends TestCase
     }
 
     /**
+     * Test that __call throws BadMethodCallException when there is no parent
+     * __call, no matching repository, and no other trait provides __call.
+     *
+     * This path exercises the foreach fallback and the final throw.
+     *
+     * @return void
+     */
+    public function testCallThrowsBadMethodCallExceptionWithNoParentClass(): void
+    {
+        $consumer = new class {
+            use HasRepositories;
+        };
+
+        $this->expectException(\BadMethodCallException::class);
+
+        // @phpstan-ignore method.notFound
+        $consumer->nonexistent();
+    }
+
+    /**
      * Test that resolveRepository caches the resolved instance.
      *
      * @return void
