@@ -44,9 +44,9 @@ class AuthorizedControllerTest extends TestCase
 
         $controller = new class extends AuthorizedController {
             /**
-             * Create a new instance.
+             * Create a new instance without parent constructor.
              */
-            public function __construct()
+            public function __construct() // @phpstan-ignore constructor.missingParentCall
             {
                 // Skip parent constructor to avoid authorizeResource call
             }
@@ -98,6 +98,9 @@ class AuthorizedControllerTest extends TestCase
      */
     public function testExtendsController(): void
     {
-        static::assertTrue(is_subclass_of(AuthorizedController::class, \SineMacula\ApiToolkit\Http\Routing\Controller::class));
+        $parents = class_parents(AuthorizedController::class);
+
+        static::assertIsArray($parents);
+        static::assertArrayHasKey(\SineMacula\ApiToolkit\Http\Routing\Controller::class, $parents);
     }
 }

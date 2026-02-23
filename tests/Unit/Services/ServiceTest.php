@@ -232,7 +232,7 @@ class ServiceTest extends TestCase
             /**
              * Create a new instance.
              *
-             * @param  array  $callOrder
+             * @param  array<int, string>  $callOrder
              */
             public function __construct(array &$callOrder)
             {
@@ -266,7 +266,7 @@ class ServiceTest extends TestCase
             /**
              * Get the recorded call order.
              *
-             * @return array
+             * @return array<int, string>
              */
             public function getCallOrder(): array
             {

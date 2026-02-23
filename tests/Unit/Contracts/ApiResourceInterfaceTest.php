@@ -41,7 +41,10 @@ class ApiResourceInterfaceTest extends TestCase
         $reflection = new \ReflectionClass(ApiResourceInterface::class);
         $method     = $reflection->getMethod('getResourceType');
 
-        static::assertSame('string', $method->getReturnType()?->getName());
+        $returnType = $method->getReturnType();
+
+        static::assertInstanceOf(\ReflectionNamedType::class, $returnType);
+        static::assertSame('string', $returnType->getName());
     }
 
     /**
@@ -68,7 +71,10 @@ class ApiResourceInterfaceTest extends TestCase
         $reflection = new \ReflectionClass(ApiResourceInterface::class);
         $method     = $reflection->getMethod('getDefaultFields');
 
-        static::assertSame('array', $method->getReturnType()?->getName());
+        $returnType = $method->getReturnType();
+
+        static::assertInstanceOf(\ReflectionNamedType::class, $returnType);
+        static::assertSame('array', $returnType->getName());
     }
 
     /**

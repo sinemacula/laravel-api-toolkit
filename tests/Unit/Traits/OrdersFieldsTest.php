@@ -22,39 +22,30 @@ class OrdersFieldsTest extends TestCase
 {
     use InteractsWithNonPublicMembers;
 
-    /**
-     * Test that orderByDefault puts _type first, id second, timestamps last,
-     * and everything else alphabetized.
-     *
-     * @param  array<string, mixed>  $input
-     * @param  array<int, string>  $expectedKeyOrder
-     * @return void
-     */
-    #[DataProvider('defaultOrderingProvider')]
-    public function testOrderByDefaultOrdersFieldsCorrectly(array $input, array $expectedKeyOrder): void
-    {
-        $consumer = $this->createConsumer(FieldOrderingStrategy::DEFAULT);
+    /** @var string */
+    private const string TEST_EMAIL = 'test@example.com';
 
-        $result = $this->invokeMethod($consumer, 'orderByDefault', $input);
+    /** @var string */
+    private const string DATE_JAN_01 = '2026-01-01';
 
-        static::assertSame($expectedKeyOrder, array_keys($result));
-    }
+    /** @var string */
+    private const string DATE_JAN_02 = '2026-01-02';
 
     /**
      * Provide test cases for default field ordering.
      *
-     * @return iterable<string, array{array, array}>
+     * @return iterable<string, array{array<string, mixed>, array<int, string>}>
      */
     public static function defaultOrderingProvider(): iterable
     {
         yield 'type first, id second, timestamps last' => [
             [
-                'email'      => 'test@example.com',
-                'created_at' => '2026-01-01',
+                'email'      => self::TEST_EMAIL,
+                'created_at' => self::DATE_JAN_01,
                 'id'         => 1,
                 '_type'      => 'users',
                 'name'       => 'Alice',
-                'updated_at' => '2026-01-02',
+                'updated_at' => self::DATE_JAN_02,
             ],
             ['_type', 'id', 'email', 'name', 'created_at', 'updated_at'],
         ];
@@ -78,19 +69,19 @@ class OrdersFieldsTest extends TestCase
 
         yield 'timestamps sorted among themselves' => [
             [
-                'updated_at' => '2026-01-02',
+                'updated_at' => self::DATE_JAN_02,
                 'deleted_at' => '2026-01-03',
-                'created_at' => '2026-01-01',
+                'created_at' => self::DATE_JAN_01,
             ],
             ['created_at', 'deleted_at', 'updated_at'],
         ];
 
         yield 'mixed fields with all categories' => [
             [
-                'updated_at' => '2026-01-02',
+                'updated_at' => self::DATE_JAN_02,
                 'name'       => 'Alice',
                 '_type'      => 'users',
-                'created_at' => '2026-01-01',
+                'created_at' => self::DATE_JAN_01,
                 'id'         => 1,
                 'age'        => 25,
             ],
@@ -99,27 +90,27 @@ class OrdersFieldsTest extends TestCase
     }
 
     /**
-     * Test that orderByRequestedFields maintains the requested order.
+     * Test that orderByDefault puts _type first, id second, timestamps last,
+     * and everything else alphabetized.
      *
-     * @param  array  $requestedFields
-     * @param  array  $data
-     * @param  array  $expectedKeyOrder
+     * @param  array<string, mixed>  $input
+     * @param  array<int, string>  $expected_key_order
      * @return void
      */
-    #[DataProvider('requestedFieldsOrderingProvider')]
-    public function testOrderByRequestedFieldsMaintainsRequestedOrder(array $requestedFields, array $data, array $expectedKeyOrder): void
+    #[DataProvider('defaultOrderingProvider')]
+    public function testOrderByDefaultOrdersFieldsCorrectly(array $input, array $expected_key_order): void
     {
-        $consumer = $this->createConsumer(FieldOrderingStrategy::BY_REQUESTED_FIELDS, $requestedFields);
+        $consumer = $this->createConsumer(FieldOrderingStrategy::DEFAULT);
 
-        $result = $this->invokeMethod($consumer, 'orderByRequestedFields', $data);
+        $result = $this->invokeMethod($consumer, 'orderByDefault', $input);
 
-        static::assertSame($expectedKeyOrder, array_keys($result));
+        static::assertSame($expected_key_order, array_keys($result));
     }
 
     /**
      * Provide test cases for requested fields ordering.
      *
-     * @return iterable<string, array{array, array, array}>
+     * @return iterable<string, array{array<int, string>, array<string, mixed>, array<int, string>}>
      */
     public static function requestedFieldsOrderingProvider(): iterable
     {
@@ -128,7 +119,7 @@ class OrdersFieldsTest extends TestCase
             [
                 'id'    => 1,
                 'name'  => 'Alice',
-                'email' => 'test@example.com',
+                'email' => self::TEST_EMAIL,
             ],
             ['name', 'email', 'id'],
         ];
@@ -138,7 +129,7 @@ class OrdersFieldsTest extends TestCase
             [
                 'id'    => 1,
                 'name'  => 'Alice',
-                'email' => 'test@example.com',
+                'email' => self::TEST_EMAIL,
             ],
             ['name', 'id', 'email'],
         ];
@@ -154,6 +145,27 @@ class OrdersFieldsTest extends TestCase
     }
 
     /**
+     * Test that orderByRequestedFields maintains the requested order.
+     *
+     * @param  array<int, string>  $requested_fields
+     * @param  array<string, mixed>  $data
+     * @param  array<int, string>  $expected_key_order
+     * @return void
+     */
+    #[DataProvider('requestedFieldsOrderingProvider')]
+    public function testOrderByRequestedFieldsMaintainsRequestedOrder(
+        array $requested_fields,
+        array $data,
+        array $expected_key_order,
+    ): void {
+        $consumer = $this->createConsumer(FieldOrderingStrategy::BY_REQUESTED_FIELDS, $requested_fields);
+
+        $result = $this->invokeMethod($consumer, 'orderByRequestedFields', $data);
+
+        static::assertSame($expected_key_order, array_keys($result));
+    }
+
+    /**
      * Test that orderResolvedFields delegates based on strategy.
      *
      * @return void
@@ -161,37 +173,37 @@ class OrdersFieldsTest extends TestCase
     public function testOrderResolvedFieldsDelegatesBasedOnStrategy(): void
     {
         $data = [
-            'email'      => 'test@example.com',
+            'email'      => self::TEST_EMAIL,
             'id'         => 1,
             '_type'      => 'users',
             'name'       => 'Alice',
-            'created_at' => '2026-01-01',
+            'created_at' => self::DATE_JAN_01,
         ];
 
-        $defaultConsumer = $this->createConsumer(FieldOrderingStrategy::DEFAULT);
-        $defaultResult   = $this->invokeMethod($defaultConsumer, 'orderResolvedFields', $data);
+        $default_consumer = $this->createConsumer(FieldOrderingStrategy::DEFAULT);
+        $default_result   = $this->invokeMethod($default_consumer, 'orderResolvedFields', $data);
 
-        static::assertSame('_type', array_key_first($defaultResult));
+        static::assertSame('_type', array_key_first($default_result));
 
-        $requestedConsumer = $this->createConsumer(
+        $requested_consumer = $this->createConsumer(
             FieldOrderingStrategy::BY_REQUESTED_FIELDS,
             ['name', 'email', 'id'],
         );
-        $requestedResult = $this->invokeMethod($requestedConsumer, 'orderResolvedFields', $data);
+        $requested_result = $this->invokeMethod($requested_consumer, 'orderResolvedFields', $data);
 
-        static::assertSame('name', array_key_first($requestedResult));
+        static::assertSame('name', array_key_first($requested_result));
     }
 
     /**
      * Create a test consumer class that uses the OrdersFields trait.
      *
      * @param  \SineMacula\ApiToolkit\Enums\FieldOrderingStrategy  $strategy
-     * @param  array  $requestedFields
+     * @param  array<int, string>  $requested_fields
      * @return object
      */
-    private function createConsumer(FieldOrderingStrategy $strategy, array $requestedFields = []): object
+    private function createConsumer(FieldOrderingStrategy $strategy, array $requested_fields = []): object
     {
-        return new class ($strategy, $requestedFields) {
+        return new class ($strategy, $requested_fields) {
             use OrdersFields;
 
             /** @var array<int, string> */
@@ -200,21 +212,19 @@ class OrdersFieldsTest extends TestCase
             /**
              * Create a new instance.
              *
-             * @param  FieldOrderingStrategy  $strategy
-             * @param  array  $requestedFields
+             * @param  \SineMacula\ApiToolkit\Enums\FieldOrderingStrategy  $strategy
+             * @param  array<int, string>  $requested_fields
              */
-            public function __construct(
-                FieldOrderingStrategy $strategy,
-                array $requestedFields,
-            ) {
+            public function __construct(FieldOrderingStrategy $strategy, array $requested_fields)
+            {
                 $this->fieldOrderingStrategy = $strategy;
-                self::$staticFields          = $requestedFields;
+                self::$staticFields          = $requested_fields;
             }
 
             /**
              * Resolve the fields for ordering.
              *
-             * @return array
+             * @return array<int, string>
              */
             public static function resolveFields(): array
             {

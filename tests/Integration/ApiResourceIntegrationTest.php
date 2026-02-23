@@ -23,11 +23,16 @@ use Tests\TestCase;
 #[CoversClass(ApiResource::class)]
 class ApiResourceIntegrationTest extends TestCase
 {
+    private const TEST_URL = '/test';
+
     /**
      * Set up each test.
      *
+     * @SuppressWarnings("php:S3011")
+     *
      * @return void
      */
+    #[\Override]
     protected function setUp(): void
     {
         parent::setUp();
@@ -46,7 +51,7 @@ class ApiResourceIntegrationTest extends TestCase
      */
     public function testUserResourceResolvesWithDefaultFields(): void
     {
-        $request = Request::create('/test', 'GET');
+        $request = Request::create(self::TEST_URL, 'GET');
         ApiQuery::parse($request);
 
         $user = User::first();
@@ -68,7 +73,7 @@ class ApiResourceIntegrationTest extends TestCase
      */
     public function testUserResourceResolvesWithSpecificRequestedFields(): void
     {
-        $request = Request::create('/test', 'GET', [
+        $request = Request::create(self::TEST_URL, 'GET', [
             'fields' => ['users' => 'name,status'],
         ]);
         ApiQuery::parse($request);
@@ -92,7 +97,7 @@ class ApiResourceIntegrationTest extends TestCase
      */
     public function testUserResourceResolvesNestedOrganizationRelation(): void
     {
-        $request = Request::create('/test', 'GET', [
+        $request = Request::create(self::TEST_URL, 'GET', [
             'fields' => ['users' => 'name,organization'],
         ]);
         ApiQuery::parse($request);
@@ -117,7 +122,7 @@ class ApiResourceIntegrationTest extends TestCase
      */
     public function testResourceCollectionResolvesCorrectly(): void
     {
-        $request = Request::create('/test', 'GET');
+        $request = Request::create(self::TEST_URL, 'GET');
         ApiQuery::parse($request);
 
         $users = User::all();
@@ -151,7 +156,7 @@ class ApiResourceIntegrationTest extends TestCase
      */
     public function testCountsAreIncludedInResponse(): void
     {
-        $request = Request::create('/test', 'GET', [
+        $request = Request::create(self::TEST_URL, 'GET', [
             'fields' => ['users' => 'name,counts'],
             'counts' => ['users' => 'posts'],
         ]);
@@ -182,7 +187,7 @@ class ApiResourceIntegrationTest extends TestCase
             'organization_id' => $org->id,
         ]);
 
-        $bob = User::create([
+        User::create([
             'name'            => 'Bob',
             'email'           => 'bob@example.com',
             'status'          => 'active',

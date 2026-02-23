@@ -19,6 +19,8 @@ use SineMacula\ApiToolkit\Http\Middleware\Traits\ThrottleRequestsTrait;
 #[CoversClass(ThrottleRequestsTrait::class)]
 class ThrottleRequestsTraitTest extends TestCase
 {
+    private const string API_DATA_URI = '/api/data';
+
     /**
      * Test that resolveRequestSignature throws RuntimeException when route is null.
      *
@@ -32,7 +34,7 @@ class ThrottleRequestsTraitTest extends TestCase
         $trait   = $this->createTraitInstance();
         $request = Request::create('/test', 'GET');
 
-        $trait->resolveRequestSignature($request);
+        $trait->resolveRequestSignature($request); // @phpstan-ignore method.notFound
     }
 
     /**
@@ -45,7 +47,7 @@ class ThrottleRequestsTraitTest extends TestCase
         $trait   = $this->createTraitInstance();
         $request = $this->createRequestWithRoute('/test', 'GET');
 
-        $result = $trait->resolveRequestSignature($request);
+        $result = $trait->resolveRequestSignature($request); // @phpstan-ignore method.notFound
 
         static::assertMatchesRegularExpression('/^[a-f0-9]{40}$/', $result);
     }
@@ -62,10 +64,10 @@ class ThrottleRequestsTraitTest extends TestCase
         $user = $this->createMock(\Illuminate\Contracts\Auth\Authenticatable::class);
         $user->method('getAuthIdentifier')->willReturn(42);
 
-        $request = $this->createRequestWithRoute('/api/data', 'GET', '10.0.0.1');
+        $request = $this->createRequestWithRoute(self::API_DATA_URI, 'GET', '10.0.0.1');
         $request->setUserResolver(fn () => $user);
 
-        $result   = $trait->resolveRequestSignature($request);
+        $result   = $trait->resolveRequestSignature($request); // @phpstan-ignore method.notFound
         $expected = sha1('GET|localhost|api/data|42');
 
         static::assertSame($expected, $result);
@@ -83,9 +85,9 @@ class ThrottleRequestsTraitTest extends TestCase
     public function testSignatureHandlesUnauthenticatedUsers(): void
     {
         $trait   = $this->createTraitInstance();
-        $request = $this->createRequestWithRoute('/api/data', 'GET', '192.168.1.50');
+        $request = $this->createRequestWithRoute(self::API_DATA_URI, 'GET', '192.168.1.50');
 
-        $result   = $trait->resolveRequestSignature($request);
+        $result   = $trait->resolveRequestSignature($request); // @phpstan-ignore method.notFound
         $expected = sha1('GET|localhost|api/data|');
 
         static::assertSame($expected, $result);
@@ -100,11 +102,11 @@ class ThrottleRequestsTraitTest extends TestCase
     {
         $trait = $this->createTraitInstance();
 
-        $getRequest  = $this->createRequestWithRoute('/api/data', 'GET');
-        $postRequest = $this->createRequestWithRoute('/api/data', 'POST');
+        $getRequest  = $this->createRequestWithRoute(self::API_DATA_URI, 'GET');
+        $postRequest = $this->createRequestWithRoute(self::API_DATA_URI, 'POST');
 
-        $getSignature  = $trait->resolveRequestSignature($getRequest);
-        $postSignature = $trait->resolveRequestSignature($postRequest);
+        $getSignature  = $trait->resolveRequestSignature($getRequest); // @phpstan-ignore method.notFound
+        $postSignature = $trait->resolveRequestSignature($postRequest); // @phpstan-ignore method.notFound
 
         static::assertNotSame($getSignature, $postSignature);
     }
@@ -121,8 +123,8 @@ class ThrottleRequestsTraitTest extends TestCase
         $request1 = $this->createRequestWithRoute('/api/users', 'GET');
         $request2 = $this->createRequestWithRoute('/api/posts', 'GET');
 
-        $signature1 = $trait->resolveRequestSignature($request1);
-        $signature2 = $trait->resolveRequestSignature($request2);
+        $signature1 = $trait->resolveRequestSignature($request1); // @phpstan-ignore method.notFound
+        $signature2 = $trait->resolveRequestSignature($request2); // @phpstan-ignore method.notFound
 
         static::assertNotSame($signature1, $signature2);
     }
@@ -147,12 +149,14 @@ class ThrottleRequestsTraitTest extends TestCase
      * @param  string  $uri
      * @param  string  $method
      * @param  string  $ip
-     * @return Request
+     * @return \Illuminate\Http\Request
      */
     private function createRequestWithRoute(string $uri, string $method, string $ip = '127.0.0.1'): Request
     {
         $request = Request::create($uri, $method, [], [], [], ['REMOTE_ADDR' => $ip]);
-        $route   = new Route($method, $uri, function (): void {});
+        $route   = new Route($method, $uri, static function (): void {
+            // Route action placeholder
+        });
         $request->setRouteResolver(fn () => $route);
 
         return $request;

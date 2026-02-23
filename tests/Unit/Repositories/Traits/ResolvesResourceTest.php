@@ -32,6 +32,7 @@ class ResolvesResourceTest extends TestCase
     {
         $consumer = $this->createConsumer();
 
+        /** @phpstan-ignore method.notFound */
         $result = $consumer->usingResource(UserResource::class);
 
         static::assertSame($consumer, $result);
@@ -49,6 +50,7 @@ class ResolvesResourceTest extends TestCase
     public function testResolveResourceReturnsCustomClassWhenSet(): void
     {
         $consumer = $this->createConsumer();
+        // @phpstan-ignore method.notFound
         $consumer->usingResource(UserResource::class);
 
         $result = $this->invokeMethod($consumer, 'resolveResource', new User);

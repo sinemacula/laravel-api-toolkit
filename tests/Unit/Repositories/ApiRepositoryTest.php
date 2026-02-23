@@ -2,13 +2,17 @@
 
 namespace Tests\Unit\Repositories;
 
+use Illuminate\Contracts\Pagination\CursorPaginator;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Config;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Repositories\ApiRepository;
 use SineMacula\ApiToolkit\Repositories\Criteria\ApiCriteria;
 use Tests\Concerns\InteractsWithNonPublicMembers;
 use Tests\Fixtures\Enums\UserStatus;
+use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\User;
+use Tests\Fixtures\Repositories\DummyRepository;
 use Tests\Fixtures\Repositories\UserRepository;
 use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
@@ -26,6 +30,12 @@ class ApiRepositoryTest extends TestCase
 {
     use InteractsWithNonPublicMembers;
 
+    /** @var string */
+    private const string ALICE_EMAIL = 'alice@example.com';
+
+    /** @var string */
+    private const string BOB_EMAIL = 'bob@example.com';
+
     /** @var \Tests\Fixtures\Repositories\UserRepository */
     private UserRepository $repository;
 
@@ -37,6 +47,8 @@ class ApiRepositoryTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+
+        assert($this->app !== null);
 
         $this->repository = $this->app->make(UserRepository::class);
     }
@@ -117,11 +129,10 @@ class ApiRepositoryTest extends TestCase
      */
     public function testPaginateReturnsPaginatedResults(): void
     {
-        User::create(['name' => 'Alice', 'email' => 'alice@example.com']);
-        User::create(['name' => 'Bob', 'email' => 'bob@example.com']);
+        User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL]);
+        User::create(['name' => 'Bob', 'email' => self::BOB_EMAIL]);
 
-        $parser = $this->app->make('api.query');
-        $parser->parse(new \Illuminate\Http\Request(['limit' => '10']));
+        $this->parseRequest(new Request(['limit' => '10']));
 
         $result = $this->repository->paginate();
 
@@ -135,22 +146,25 @@ class ApiRepositoryTest extends TestCase
      */
     public function testPaginateUsesCursorPaginationWhenRequested(): void
     {
-        User::create(['name' => 'Alice', 'email' => 'alice@example.com']);
+        User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL]);
 
-        $request = \Illuminate\Http\Request::create('/', 'GET', ['pagination' => 'cursor']);
+        $request = Request::create('/', 'GET', ['pagination' => 'cursor']);
+
+        assert($this->app !== null);
 
         $this->app->instance('request', $request);
 
         \Illuminate\Support\Facades\Request::clearResolvedInstance('request');
 
-        $parser = $this->app->make('api.query');
-        $parser->parse($request);
+        $this->parseRequest($request);
+
+        assert($this->app !== null);
 
         $repository = $this->app->make(UserRepository::class);
 
         $result = $repository->paginate();
 
-        static::assertInstanceOf(\Illuminate\Contracts\Pagination\CursorPaginator::class, $result);
+        static::assertInstanceOf(CursorPaginator::class, $result);
     }
 
     /**
@@ -160,14 +174,14 @@ class ApiRepositoryTest extends TestCase
      */
     public function testSetAttributesSetsStringAttributes(): void
     {
-        $user = User::create(['name' => 'Alice', 'email' => 'alice@example.com']);
+        $user = User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL]);
 
         $this->setProperty($this->repository, 'casts', ['name' => 'string']);
 
         $result = $this->repository->setAttributes($user, ['name' => 'Bob']);
 
         static::assertTrue($result);
-        static::assertSame('Bob', $user->fresh()->name);
+        static::assertSame('Bob', $user->fresh()?->name);
     }
 
     /**
@@ -179,7 +193,9 @@ class ApiRepositoryTest extends TestCase
     {
         Config::set('api-toolkit.repositories.cast_map.integer', ['integer', 'int']);
 
-        $user = User::create(['name' => 'Alice', 'email' => 'alice@example.com']);
+        $user = User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL]);
+
+        assert($this->app !== null);
 
         $repository = $this->app->make(UserRepository::class);
 
@@ -188,7 +204,7 @@ class ApiRepositoryTest extends TestCase
         $result = $repository->setAttributes($user, ['organization_id' => '5']);
 
         static::assertTrue($result);
-        static::assertSame(5, $user->fresh()->organization_id);
+        static::assertSame(5, $user->fresh()?->organization_id);
     }
 
     /**
@@ -198,20 +214,22 @@ class ApiRepositoryTest extends TestCase
      */
     public function testSetAttributesSetsBooleanAttributes(): void
     {
-        $post = \Tests\Fixtures\Models\Post::create([
-            'user_id' => User::create(['name' => 'Alice', 'email' => 'alice@example.com'])->id,
+        $post = Post::create([
+            'user_id' => User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL])->id,
             'title'   => 'Test',
             'body'    => 'Body',
         ]);
 
-        $repository = $this->app->make(\Tests\Fixtures\Repositories\DummyRepository::class);
+        assert($this->app !== null);
+
+        $repository = $this->app->make(DummyRepository::class);
 
         $this->setProperty($repository, 'casts', ['published' => 'boolean']);
 
         $result = $repository->setAttributes($post, ['published' => true]);
 
         static::assertTrue($result);
-        static::assertTrue((bool) $post->fresh()->published);
+        static::assertTrue($post->fresh()?->published === true);
     }
 
     /**
@@ -221,14 +239,14 @@ class ApiRepositoryTest extends TestCase
      */
     public function testSetAttributesHandlesArrayAttributes(): void
     {
-        $user = User::create(['name' => 'Alice', 'email' => 'alice@example.com']);
+        $user = User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL]);
 
         $this->setProperty($this->repository, 'casts', ['name' => 'string']);
 
         $result = $this->repository->setAttributes($user, ['name' => 'Updated']);
 
         static::assertTrue($result);
-        static::assertSame('Updated', $user->fresh()->name);
+        static::assertSame('Updated', $user->fresh()?->name);
     }
 
     /**
@@ -238,14 +256,15 @@ class ApiRepositoryTest extends TestCase
      */
     public function testSetAttributesHandlesEnumCasting(): void
     {
-        $user = User::create(['name' => 'Alice', 'email' => 'alice@example.com', 'status' => 'active']);
+        $user = User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL, 'status' => 'active']);
 
         $this->setProperty($this->repository, 'casts', ['status' => 'enum']);
 
         $result = $this->repository->setAttributes($user, ['status' => UserStatus::BANNED]);
 
         static::assertTrue($result);
-        static::assertSame(UserStatus::BANNED, $user->fresh()->status);
+        // @phpstan-ignore staticMethod.impossibleType
+        static::assertSame(UserStatus::BANNED, $user->fresh()?->status);
     }
 
     /**
@@ -255,11 +274,13 @@ class ApiRepositoryTest extends TestCase
      */
     public function testScopeByIdFiltersBySingleId(): void
     {
-        $alice = User::create(['name' => 'Alice', 'email' => 'alice@example.com']);
-        User::create(['name' => 'Bob', 'email' => 'bob@example.com']);
+        $alice = User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL]);
+        User::create(['name' => 'Bob', 'email' => self::BOB_EMAIL]);
 
-        $result = $this->repository->scopeById($alice->id)->first();
+        $result = $this->repository->scopeById($alice->id)->first(); // @phpstan-ignore staticMethod.dynamicCall
 
+        static::assertNotNull($result);
+        static::assertInstanceOf(User::class, $result);
         static::assertSame($alice->id, $result->id);
     }
 
@@ -270,11 +291,12 @@ class ApiRepositoryTest extends TestCase
      */
     public function testScopeByIdsFiltersByMultipleIds(): void
     {
-        $alice = User::create(['name' => 'Alice', 'email' => 'alice@example.com']);
-        $bob   = User::create(['name' => 'Bob', 'email' => 'bob@example.com']);
+        $alice = User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL]);
+        $bob   = User::create(['name' => 'Bob', 'email' => self::BOB_EMAIL]);
         User::create(['name' => 'Charlie', 'email' => 'charlie@example.com']);
 
-        $result = $this->repository->scopeByIds([$alice->id, $bob->id])->get();
+        $ids    = [$alice->id, $bob->id];
+        $result = $this->repository->scopeByIds($ids)->get(); // @phpstan-ignore staticMethod.dynamicCall
 
         static::assertCount(2, $result);
     }
@@ -289,5 +311,20 @@ class ApiRepositoryTest extends TestCase
         $casts = $this->getProperty($this->repository, 'casts');
 
         static::assertIsArray($casts);
+    }
+
+    /**
+     * Resolve the API query parser and parse the given request.
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @return void
+     */
+    private function parseRequest(Request $request): void
+    {
+        assert($this->app !== null);
+
+        /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
+        $parser = $this->app->make('api.query');
+        $parser->parse($request);
     }
 }

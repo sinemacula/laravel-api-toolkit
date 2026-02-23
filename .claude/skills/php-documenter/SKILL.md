@@ -40,6 +40,9 @@ This skill exists to document intent, not to restate code, generate prose, or ov
 
 ## Hard Guardrails
 
+- **Never use `@inheritDoc` or `{@inheritDoc}`** — always write explicit docblocks with full `@param`, `@return`, and
+  `@throws` tags, even when overriding a parent method. If an existing docblock uses `@inheritDoc`, replace it with the
+  explicit tags.
 - Do not invent documentation where none is warranted
 - Do not remove or alter existing attribution unless it is missing or malformed
 - Do not remove custom or tool-specific comments (e.g. formatter directives)

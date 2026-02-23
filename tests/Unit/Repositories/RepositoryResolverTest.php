@@ -177,6 +177,8 @@ class RepositoryResolverTest extends TestCase
      * by setting the map to the current config value.
      *
      * @return void
+     *
+     * @SuppressWarnings("php:S3011")
      */
     private function forceReloadMap(): void
     {

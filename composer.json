@@ -60,6 +60,9 @@
         "format": [
             "qlty fmt"
         ],
+        "smell": [
+            "qlty smells"
+        ],
         "test": [
             "@php vendor/bin/paratest $@"
         ],

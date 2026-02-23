@@ -5,6 +5,7 @@ namespace Tests\Unit\Listeners;
 use Illuminate\Notifications\Events\NotificationSending;
 use Illuminate\Notifications\Events\NotificationSent;
 use Illuminate\Notifications\Notification;
+use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Log;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Listeners\NotificationListener;
@@ -28,7 +29,7 @@ class NotificationListenerTest extends TestCase
      */
     public function testSendingLogsNotificationSendingEvent(): void
     {
-        $this->app['config']->set('api-toolkit.logging.cloudwatch.enabled', false);
+        Config::set('api-toolkit.logging.cloudwatch.enabled', false);
 
         Log::shouldReceive('channel')
             ->with('notifications')
@@ -37,9 +38,9 @@ class NotificationListenerTest extends TestCase
 
         Log::shouldReceive('info')
             ->once()
-            ->withArgs(fn (string $message, array $context) => $message === 'Notification Sending'
+            ->withArgs(
+                fn (string $message, array $context) => $message === 'Notification Sending'
                     && isset($context['notification'], $context['notifiable'], $context['channel']),
-
             );
 
         $listener = new NotificationListener;
@@ -55,7 +56,7 @@ class NotificationListenerTest extends TestCase
      */
     public function testSentLogsNotificationSentEvent(): void
     {
-        $this->app['config']->set('api-toolkit.logging.cloudwatch.enabled', false);
+        Config::set('api-toolkit.logging.cloudwatch.enabled', false);
 
         Log::shouldReceive('channel')
             ->with('notifications')
@@ -64,9 +65,9 @@ class NotificationListenerTest extends TestCase
 
         Log::shouldReceive('info')
             ->once()
-            ->withArgs(fn (string $message, array $context) => $message === 'Notification Sent'
+            ->withArgs(
+                fn (string $message, array $context) => $message === 'Notification Sent'
                     && isset($context['notification'], $context['notifiable'], $context['channel']),
-
             );
 
         $listener = new NotificationListener;
@@ -82,7 +83,7 @@ class NotificationListenerTest extends TestCase
      */
     public function testLogIncludesCorrectContext(): void
     {
-        $this->app['config']->set('api-toolkit.logging.cloudwatch.enabled', false);
+        Config::set('api-toolkit.logging.cloudwatch.enabled', false);
 
         $notification = new class extends Notification {};
         $notifiable   = new \stdClass;
@@ -113,7 +114,7 @@ class NotificationListenerTest extends TestCase
      */
     public function testCloudWatchLoggingWhenEnabled(): void
     {
-        $this->app['config']->set('api-toolkit.logging.cloudwatch.enabled', true);
+        Config::set('api-toolkit.logging.cloudwatch.enabled', true);
 
         Log::shouldReceive('channel')
             ->with('notifications')

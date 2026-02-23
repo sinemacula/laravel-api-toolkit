@@ -28,7 +28,7 @@ class FormRequestTest extends TestCase
      */
     public function testExtendsLaravelFormRequest(): void
     {
-        static::assertTrue(is_subclass_of(FormRequest::class, LaravelFormRequest::class));
+        static::assertContains(LaravelFormRequest::class, class_parents(FormRequest::class) ?: []);
     }
 
     /**
@@ -51,7 +51,8 @@ class FormRequestTest extends TestCase
         try {
             $reflection->invoke($formRequest, $validator);
             static::fail('Expected InvalidInputException was not thrown.');
-        } catch (InvalidInputException $exception) {
+        } catch (\Throwable $exception) {
+            static::assertInstanceOf(InvalidInputException::class, $exception);
             static::assertSame($messages, $exception->getCustomMeta());
         }
     }
@@ -101,7 +102,8 @@ class FormRequestTest extends TestCase
         try {
             $reflection->invoke($formRequest, $validator);
             static::fail('Expected InvalidInputException was not thrown.');
-        } catch (InvalidInputException $exception) {
+        } catch (\Throwable $exception) {
+            static::assertInstanceOf(InvalidInputException::class, $exception);
             static::assertSame($messages, $exception->getCustomMeta());
         }
     }
@@ -109,7 +111,7 @@ class FormRequestTest extends TestCase
     /**
      * Create a concrete implementation of the abstract FormRequest.
      *
-     * @return FormRequest
+     * @return \SineMacula\ApiToolkit\Http\FormRequest
      */
     private function createConcreteFormRequest(): FormRequest
     {
@@ -117,7 +119,7 @@ class FormRequestTest extends TestCase
             /**
              * Get the validation rules.
              *
-             * @return array
+             * @return array<string, mixed>
              */
             public function rules(): array
             {

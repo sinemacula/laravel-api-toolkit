@@ -37,10 +37,10 @@ abstract class TestCase extends OrchestraTestCase
     /**
      * Get the package providers.
      *
-     * @param  \Illuminate\Foundation\Application  $app
+     * @param  mixed  $app
      * @return array<int, class-string>
      */
-    protected function getPackageProviders(\Illuminate\Foundation\Application $app): array
+    protected function getPackageProviders(mixed $app): array
     {
         return [
             ApiServiceProvider::class,
@@ -50,24 +50,27 @@ abstract class TestCase extends OrchestraTestCase
     /**
      * Define the environment setup.
      *
-     * @param  \Illuminate\Foundation\Application  $app
+     * @param  mixed  $app
      * @return void
      */
-    protected function defineEnvironment(\Illuminate\Foundation\Application $app): void
+    protected function defineEnvironment(mixed $app): void
     {
-        $app['config']->set('database.default', 'testing');
-        $app['config']->set('database.connections.testing', [
+        /** @var \Illuminate\Config\Repository $config */
+        $config = $app['config'];
+
+        $config->set('database.default', 'testing');
+        $config->set('database.connections.testing', [
             'driver'   => 'sqlite',
             'database' => ':memory:',
             'prefix'   => '',
         ]);
 
-        $app['config']->set('api-toolkit.parser.alias', 'api.query');
-        $app['config']->set('api-toolkit.parser.register_middleware', false);
-        $app['config']->set('api-toolkit.resources.fixed_fields', ['id', '_type']);
-        $app['config']->set('api-toolkit.resources.enable_dynamic_morph_mapping', false);
-        $app['config']->set('api-toolkit.notifications.enable_logging', false);
-        $app['config']->set('api-toolkit.logging.cloudwatch.enabled', false);
+        $config->set('api-toolkit.parser.alias', 'api.query');
+        $config->set('api-toolkit.parser.register_middleware', false);
+        $config->set('api-toolkit.resources.fixed_fields', ['id', '_type']);
+        $config->set('api-toolkit.resources.enable_dynamic_morph_mapping', false);
+        $config->set('api-toolkit.notifications.enable_logging', false);
+        $config->set('api-toolkit.logging.cloudwatch.enabled', false);
     }
 
     /**

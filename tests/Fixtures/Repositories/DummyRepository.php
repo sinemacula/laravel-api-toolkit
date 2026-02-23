@@ -16,7 +16,7 @@ class DummyRepository extends ApiRepository
     /**
      * Return the model class.
      *
-     * @return class-string
+     * @return class-string<\Illuminate\Database\Eloquent\Model>
      */
     public function model(): string
     {

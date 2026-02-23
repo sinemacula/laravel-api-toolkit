@@ -19,6 +19,8 @@ use SineMacula\ApiToolkit\Http\Middleware\JsonPrettyPrint;
 #[CoversClass(JsonPrettyPrint::class)]
 class JsonPrettyPrintTest extends TestCase
 {
+    private const string TEST_URI = '/test';
+
     /**
      * Test that response content is unchanged without the pretty parameter.
      *
@@ -28,7 +30,7 @@ class JsonPrettyPrintTest extends TestCase
     {
         $data       = ['key' => 'value'];
         $json       = json_encode($data);
-        $request    = Request::create('/test', 'GET');
+        $request    = Request::create(self::TEST_URI, 'GET');
         $middleware = new JsonPrettyPrint;
 
         $response = $middleware->handle($request, fn () => new Response($json));
@@ -45,7 +47,7 @@ class JsonPrettyPrintTest extends TestCase
     {
         $data       = ['key' => 'value', 'nested' => ['a' => 1]];
         $json       = json_encode($data);
-        $request    = Request::create('/test', 'GET', ['pretty' => 'true']);
+        $request    = Request::create(self::TEST_URI, 'GET', ['pretty' => 'true']);
         $middleware = new JsonPrettyPrint;
 
         $response = $middleware->handle($request, fn () => new Response($json));
@@ -64,7 +66,7 @@ class JsonPrettyPrintTest extends TestCase
     {
         $data       = ['key' => 'value'];
         $json       = json_encode($data);
-        $request    = Request::create('/test', 'GET', ['pretty' => 'false']);
+        $request    = Request::create(self::TEST_URI, 'GET', ['pretty' => 'false']);
         $middleware = new JsonPrettyPrint;
 
         $response = $middleware->handle($request, fn () => new Response($json));
@@ -80,7 +82,7 @@ class JsonPrettyPrintTest extends TestCase
     public function testHandlesNonJsonContentWithPrettyParam(): void
     {
         $content    = 'This is not JSON';
-        $request    = Request::create('/test', 'GET', ['pretty' => 'true']);
+        $request    = Request::create(self::TEST_URI, 'GET', ['pretty' => 'true']);
         $middleware = new JsonPrettyPrint;
 
         $response = $middleware->handle($request, fn () => new Response($content));
@@ -96,7 +98,7 @@ class JsonPrettyPrintTest extends TestCase
      */
     public function testReturnsResponseFromNext(): void
     {
-        $request          = Request::create('/test', 'GET');
+        $request          = Request::create(self::TEST_URI, 'GET');
         $middleware       = new JsonPrettyPrint;
         $expectedResponse = new Response('ok');
 

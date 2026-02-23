@@ -28,11 +28,15 @@ use Tests\TestCase;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  *
+ * @SuppressWarnings("php:S1448")
+ *
  * @internal
  */
 #[CoversClass(ApiResource::class)]
 class ApiResourceTest extends TestCase
 {
+    private const string FLUENT_EMAIL = 'fluent@example.com';
+
     /**
      * Clean up the testing environment before the next test.
      *
@@ -66,20 +70,20 @@ class ApiResourceTest extends TestCase
      */
     public function testGetResourceTypeThrowsLogicExceptionWhenNotDefined(): void
     {
+        $this->expectException(\LogicException::class);
+        $this->expectExceptionMessage('The RESOURCE_TYPE constant must be defined on the resource');
+
         $resource = new class (null) extends ApiResource {
             /**
              * Get the resource schema.
              *
-             * @return array
+             * @return array<string, array<string, mixed>>
              */
             public static function schema(): array
             {
                 return [];
             }
         };
-
-        $this->expectException(\LogicException::class);
-        $this->expectExceptionMessage('The RESOURCE_TYPE constant must be defined on the resource');
 
         $resource::getResourceType();
     }
@@ -129,6 +133,9 @@ class ApiResourceTest extends TestCase
      */
     public function testResolveFieldsReturnsApiQueryFieldsWhenSet(): void
     {
+        assert($this->app !== null);
+
+        /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
         $parser = $this->app->make('api.query');
 
         $request = Request::create('/', 'GET', [
@@ -149,6 +156,9 @@ class ApiResourceTest extends TestCase
      */
     public function testResolveFieldsReturnsDefaultsWhenNoQueryFields(): void
     {
+        assert($this->app !== null);
+
+        /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
         $parser = $this->app->make('api.query');
 
         $request = Request::create('/', 'GET');
@@ -191,6 +201,9 @@ class ApiResourceTest extends TestCase
             'email' => 'bob@example.com',
         ]);
 
+        assert($this->app !== null);
+
+        /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
         $parser  = $this->app->make('api.query');
         $request = Request::create('/', 'GET', [
             'fields' => ['users' => 'name'],
@@ -219,6 +232,9 @@ class ApiResourceTest extends TestCase
             'status' => 'active',
         ]);
 
+        assert($this->app !== null);
+
+        /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
         $parser  = $this->app->make('api.query');
         $request = Request::create('/', 'GET', [
             'fields' => ['users' => 'id,name'],
@@ -292,6 +308,9 @@ class ApiResourceTest extends TestCase
             'status' => 'active',
         ]);
 
+        assert($this->app !== null);
+
+        /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
         $parser  = $this->app->make('api.query');
         $request = Request::create('/', 'GET', [
             'fields' => ['users' => ':all'],
@@ -320,12 +339,12 @@ class ApiResourceTest extends TestCase
             public const string RESOURCE_TYPE = 'guarded_test';
 
             /** @var array<int, string> */
-            protected static array $default = ['id', 'name', 'secret'];
+            protected static array $default = ['id', 'name', 'secret']; // @phpstan-ignore property.phpDocType
 
             /**
              * Get the resource schema.
              *
-             * @return array
+             * @return array<string, array<string, mixed>>
              */
             public static function schema(): array
             {
@@ -363,12 +382,12 @@ class ApiResourceTest extends TestCase
             public const string RESOURCE_TYPE = 'guard_pass_test';
 
             /** @var array<int, string> */
-            protected static array $default = ['id', 'name', 'visible'];
+            protected static array $default = ['id', 'name', 'visible']; // @phpstan-ignore property.phpDocType
 
             /**
              * Get the resource schema.
              *
-             * @return array
+             * @return array<string, array<string, mixed>>
              */
             public static function schema(): array
             {
@@ -385,7 +404,7 @@ class ApiResourceTest extends TestCase
             'email' => 'visible@example.com',
         ]);
 
-        $user->visible = 'shown';
+        $user->setAttribute('visible', 'shown');
 
         $resource = new $resource_class($user);
         $resource->withFields(['name', 'visible']);
@@ -407,12 +426,12 @@ class ApiResourceTest extends TestCase
             public const string RESOURCE_TYPE = 'transform_test';
 
             /** @var array<int, string> */
-            protected static array $default = ['id', 'name'];
+            protected static array $default = ['id', 'name']; // @phpstan-ignore property.phpDocType
 
             /**
              * Get the resource schema.
              *
-             * @return array
+             * @return array<string, array<string, mixed>>
              */
             public static function schema(): array
             {
@@ -468,12 +487,12 @@ class ApiResourceTest extends TestCase
             public const string RESOURCE_TYPE = 'accessor_test';
 
             /** @var array<int, string> */
-            protected static array $default = ['id', 'nested_value'];
+            protected static array $default = ['id', 'nested_value']; // @phpstan-ignore property.phpDocType
 
             /**
              * Get the resource schema.
              *
-             * @return array
+             * @return array<string, array<string, mixed>>
              */
             public static function schema(): array
             {
@@ -509,12 +528,12 @@ class ApiResourceTest extends TestCase
             public const string RESOURCE_TYPE = 'accessor_callable_test';
 
             /** @var array<int, string> */
-            protected static array $default = ['id', 'computed_accessor'];
+            protected static array $default = ['id', 'computed_accessor']; // @phpstan-ignore property.phpDocType
 
             /**
              * Get the resource schema.
              *
-             * @return array
+             * @return array<string, array<string, mixed>>
              */
             public static function schema(): array
             {
@@ -609,7 +628,7 @@ class ApiResourceTest extends TestCase
             'email' => 'profile@example.com',
         ]);
 
-        $profile = Profile::create([
+        Profile::create([
             'user_id' => $user->id,
             'bio'     => 'A great bio',
         ]);
@@ -676,6 +695,9 @@ class ApiResourceTest extends TestCase
 
         $user->loadCount('posts');
 
+        assert($this->app !== null);
+
+        /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
         $parser  = $this->app->make('api.query');
         $request = Request::create('/', 'GET', [
             'fields' => ['users' => 'id,name,counts'],
@@ -705,6 +727,9 @@ class ApiResourceTest extends TestCase
 
         $user->loadCount('posts');
 
+        assert($this->app !== null);
+
+        /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
         $parser  = $this->app->make('api.query');
         $request = Request::create('/', 'GET', [
             'fields' => ['users' => 'id,name,counts'],
@@ -759,12 +784,12 @@ class ApiResourceTest extends TestCase
             public const string RESOURCE_TYPE = 'constrained_test';
 
             /** @var array<int, string> */
-            protected static array $default = ['id', 'items'];
+            protected static array $default = ['id', 'items']; // @phpstan-ignore property.phpDocType
 
             /**
              * Get the resource schema.
              *
-             * @return array
+             * @return array<string, array<string, mixed>>
              */
             public static function schema(): array
             {
@@ -890,11 +915,14 @@ class ApiResourceTest extends TestCase
     public function testWithFieldsOverridesApiQueryFields(): void
     {
         $user = User::create([
-            'name'   => \Override::class,
+            'name'   => 'Override User',
             'email'  => 'override@example.com',
             'status' => 'active',
         ]);
 
+        assert($this->app !== null);
+
+        /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
         $parser  = $this->app->make('api.query');
         $request = Request::create('/', 'GET', [
             'fields' => ['users' => 'id,name,email,status'],
@@ -1033,6 +1061,9 @@ class ApiResourceTest extends TestCase
             'organization_id' => $org->id,
         ]);
 
+        assert($this->app !== null);
+
+        /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
         $parser  = $this->app->make('api.query');
         $request = Request::create('/', 'GET', [
             'fields' => ['users' => 'id,name,organization'],
@@ -1058,6 +1089,9 @@ class ApiResourceTest extends TestCase
      */
     public function testEagerLoadMapForRecursesIntoChildResources(): void
     {
+        assert($this->app !== null);
+
+        /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
         $parser  = $this->app->make('api.query');
         $request = Request::create('/', 'GET', [
             'fields' => [
@@ -1087,12 +1121,12 @@ class ApiResourceTest extends TestCase
             public const string RESOURCE_TYPE = 'multi_transform_test';
 
             /** @var array<int, string> */
-            protected static array $default = ['id', 'name'];
+            protected static array $default = ['id', 'name']; // @phpstan-ignore property.phpDocType
 
             /**
              * Get the resource schema.
              *
-             * @return array
+             * @return array<string, array<string, mixed>>
              */
             public static function schema(): array
             {
@@ -1100,7 +1134,7 @@ class ApiResourceTest extends TestCase
                     Field::scalar('id'),
                     Field::scalar('name')
                         ->transform(fn ($resource, $value) => strtoupper($value))
-                        ->transform(fn ($resource, $value) => 'PREFIX_' . $value),
+                        ->transform(fn ($resource, $value) => 'PREFIX_' . (string) $value), // @phpstan-ignore cast.string
                 );
             }
         };
@@ -1130,12 +1164,12 @@ class ApiResourceTest extends TestCase
             public const string RESOURCE_TYPE = 'null_test';
 
             /** @var array<int, string> */
-            protected static array $default = ['id'];
+            protected static array $default = ['id']; // @phpstan-ignore property.phpDocType
 
             /**
              * Get the resource schema.
              *
-             * @return array
+             * @return array<string, array<string, mixed>>
              */
             public static function schema(): array
             {
@@ -1199,7 +1233,7 @@ class ApiResourceTest extends TestCase
     {
         $user = User::create([
             'name'  => 'Fluent',
-            'email' => 'fluent@example.com',
+            'email' => self::FLUENT_EMAIL,
         ]);
 
         $resource = new UserResource($user);
@@ -1217,7 +1251,7 @@ class ApiResourceTest extends TestCase
     {
         $user = User::create([
             'name'  => 'Fluent',
-            'email' => 'fluent@example.com',
+            'email' => self::FLUENT_EMAIL,
         ]);
 
         $resource = new UserResource($user);
@@ -1235,7 +1269,7 @@ class ApiResourceTest extends TestCase
     {
         $user = User::create([
             'name'  => 'Fluent',
-            'email' => 'fluent@example.com',
+            'email' => self::FLUENT_EMAIL,
         ]);
 
         $resource = new UserResource($user);
@@ -1256,12 +1290,12 @@ class ApiResourceTest extends TestCase
             public const string RESOURCE_TYPE = 'constrained_count_test';
 
             /** @var array<int, string> */
-            protected static array $default = ['id'];
+            protected static array $default = ['id']; // @phpstan-ignore property.phpDocType
 
             /**
              * Get the resource schema.
              *
-             * @return array
+             * @return array<string, array<string, mixed>>
              */
             public static function schema(): array
             {
@@ -1356,7 +1390,7 @@ class ApiResourceTest extends TestCase
      * Test that getAllFields for different resources returns correct fields.
      *
      * @param  string  $resource_class
-     * @param  array  $expected_fields
+     * @param  array<int, string>  $expected_fields
      * @return void
      */
     #[DataProvider('allFieldsProvider')]
@@ -1385,6 +1419,8 @@ class ApiResourceTest extends TestCase
      * Clear the static schema cache between tests.
      *
      * @return void
+     *
+     * @SuppressWarnings("php:S3011")
      */
     private function clearSchemaCache(): void
     {

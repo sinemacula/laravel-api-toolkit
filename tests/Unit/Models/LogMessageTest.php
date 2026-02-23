@@ -5,6 +5,7 @@ namespace Tests\Unit\Models;
 use Illuminate\Database\Eloquent\Casts\AsArrayObject;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\MassPrunable;
+use Illuminate\Support\Facades\Config;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Models\LogMessage;
 use Tests\TestCase;
@@ -104,11 +105,12 @@ class LogMessageTest extends TestCase
      */
     public function testPrunableReturnsScopedQuery(): void
     {
-        $this->app['config']->set('logging.channels.database.days', 30);
+        Config::set('logging.channels.database.days', 30);
 
         $model = new LogMessage;
         $query = $model->prunable();
 
+        /** @phpstan-ignore staticMethod.dynamicCall */
         $sql = $query->toRawSql();
 
         static::assertStringContainsString('created_at', $sql);
@@ -122,6 +124,7 @@ class LogMessageTest extends TestCase
      */
     public function testModelCanBeCreatedWithValidAttributes(): void
     {
+        /** @phpstan-ignore staticMethod.notFound */
         $log = LogMessage::create([
             'level'      => 'INFO',
             'message'    => 'Test message',

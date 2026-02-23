@@ -20,6 +20,8 @@ use Tests\TestCase;
 #[CoversClass(RespondsWithExport::class)]
 class RespondsWithExportTest extends TestCase
 {
+    private const string CONTENT_TYPE_CSV = 'text/csv';
+
     /**
      * Test that exportFromArray with CSV accept header returns a CSV response.
      *
@@ -33,14 +35,15 @@ class RespondsWithExportTest extends TestCase
         Request::macro('expectsCsv', fn () => true);
         Request::macro('expectsXml', fn () => false);
 
-        $exporter = $this->createMockExporter('csv', "id,name\n1,Alice");
+        $exporter = $this->createMockExporter("id,name\n1,Alice");
 
         Exporter::swap($exporter);
 
-        $response = $controller->exportFromArray($data);
+        /** @var \Illuminate\Http\Response $response */
+        $response = $controller->exportFromArray($data); // @phpstan-ignore method.notFound
 
         static::assertInstanceOf(HttpResponse::class, $response);
-        static::assertSame('text/csv', $response->headers->get('Content-Type'));
+        static::assertSame(self::CONTENT_TYPE_CSV, $response->headers->get('Content-Type'));
         static::assertStringContainsString('attachment', $response->headers->get('Content-Disposition'));
     }
 
@@ -57,11 +60,12 @@ class RespondsWithExportTest extends TestCase
         Request::macro('expectsCsv', fn () => false);
         Request::macro('expectsXml', fn () => true);
 
-        $exporter = $this->createMockExporter('xml', '<root><item><id>1</id></item></root>');
+        $exporter = $this->createMockExporter('<root><item><id>1</id></item></root>');
 
         Exporter::swap($exporter);
 
-        $response = $controller->exportFromArray($data);
+        /** @var \Illuminate\Http\Response $response */
+        $response = $controller->exportFromArray($data); // @phpstan-ignore method.notFound
 
         static::assertInstanceOf(HttpResponse::class, $response);
         static::assertSame('application/xml', $response->headers->get('Content-Type'));
@@ -84,7 +88,7 @@ class RespondsWithExportTest extends TestCase
         $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionMessage('Unsupported export format');
 
-        $controller->exportFromArray($data);
+        $controller->exportFromArray($data); // @phpstan-ignore method.notFound
     }
 
     /**
@@ -98,9 +102,10 @@ class RespondsWithExportTest extends TestCase
 
         $reflection = new \ReflectionMethod($controller, 'createExportResponse');
 
-        $response = $reflection->invoke($controller, 'test-data', 'text/csv', false, 'export.csv');
+        /** @var \Illuminate\Http\Response $response */
+        $response = $reflection->invoke($controller, 'test-data', self::CONTENT_TYPE_CSV, false, 'export.csv');
 
-        static::assertSame('text/csv', $response->headers->get('Content-Type'));
+        static::assertSame(self::CONTENT_TYPE_CSV, $response->headers->get('Content-Type'));
         static::assertSame((string) strlen('test-data'), $response->headers->get('Content-Length'));
         static::assertNull($response->headers->get('Content-Disposition'));
     }
@@ -116,7 +121,8 @@ class RespondsWithExportTest extends TestCase
 
         $reflection = new \ReflectionMethod($controller, 'createExportResponse');
 
-        $response = $reflection->invoke($controller, 'test-data', 'text/csv', true, 'export.csv');
+        /** @var \Illuminate\Http\Response $response */
+        $response = $reflection->invoke($controller, 'test-data', self::CONTENT_TYPE_CSV, true, 'export.csv');
 
         static::assertSame('attachment; filename="export.csv"', $response->headers->get('Content-Disposition'));
     }
@@ -136,71 +142,68 @@ class RespondsWithExportTest extends TestCase
     /**
      * Create a mock exporter for testing.
      *
-     * @param  string  $format
      * @param  string  $output
      * @return object
      */
-    private function createMockExporter(string $format, string $output): object
+    private function createMockExporter(string $output): object
     {
-        return new class ($format, $output) {
-            /** @var string */
-            private string $format;
-
+        return new class ($output) {
             /** @var string */
             private string $output;
-
-            /** @var array<int, string> */
-            private array $withoutFields = [];
 
             /**
              * Create a new instance.
              *
-             * @param  string  $format
              * @param  string  $output
              */
-            public function __construct(string $format, string $output)
+            public function __construct(string $output)
             {
-                $this->format = $format;
                 $this->output = $output;
             }
 
             /**
              * Get the export format.
              *
-             * @param  ?string  $format
+             * @SuppressWarnings("php:S1172")
+             *
+             * @param  ?string  $_format
              * @return self
              */
-            public function format(?string $format = null): self
+            public function format(?string $_format = null): self
             {
                 return $this;
             }
 
             /**
-             * @param  array<int, string>|string  $fields
+             * @SuppressWarnings("php:S1172")
+             *
+             * @param  array<int, string>|string  $_fields
              * @return self
              */
-            public function withoutFields(array|string $fields): self
+            public function withoutFields(array|string $_fields): self
             {
-                $this->withoutFields = (array) $fields;
-
                 return $this;
             }
 
             /**
-             * @param  array<int, array<string, mixed>>  $data
+             * @SuppressWarnings("php:S1172")
+             *
+             * @param  array<int, array<string, mixed>>  $_data
              * @return string
              */
-            public function exportArray(array $data): string
+            public function exportArray(array $_data): string
             {
                 return $this->output;
             }
 
             /**
-             * @param  string  $method
-             * @param  array<int, mixed>  $parameters
+             * @SuppressWarnings("php:S1172")
+             *
+             * @param  string  $_method
+             * @param  array<int, mixed>  $_parameters
              * @return mixed
              */
-            public function __call(string $method, array $parameters): mixed
+            public function __call(string $_method, array $_parameters): mixed
             {
                 return $this;
             }

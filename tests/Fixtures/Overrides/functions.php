@@ -15,6 +15,8 @@ use Tests\Fixtures\Support\FunctionOverrides;
 /**
  * Override connection_aborted() within the controller namespace.
  *
+ * @SuppressWarnings("php:S100")
+ *
  * @return int
  */
 function connection_aborted(): int
@@ -22,6 +24,7 @@ function connection_aborted(): int
     $override = FunctionOverrides::get('connection_aborted');
 
     if ($override !== null) {
+        /** @phpstan-ignore cast.int */
         return (int) $override();
     }
 
@@ -39,6 +42,7 @@ function sleep(int $seconds): int
     $override = FunctionOverrides::get('sleep');
 
     if ($override !== null) {
+        /** @phpstan-ignore cast.int */
         return (int) $override($seconds);
     }
 

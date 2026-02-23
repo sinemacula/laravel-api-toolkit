@@ -3,6 +3,7 @@
 namespace Tests\Fixtures\Services;
 
 use SineMacula\ApiToolkit\Services\Service;
+use Tests\Fixtures\Exceptions\ServiceExecutionException;
 
 /**
  * Fixture service that always fails.
@@ -33,10 +34,12 @@ class FailingService extends Service
     /**
      * Handles the main execution of the service.
      *
-     * @return bool
+     * @return never
+     *
+     * @throws \Tests\Fixtures\Exceptions\ServiceExecutionException
      */
     protected function handle(): bool
     {
-        throw new \RuntimeException('Service execution failed');
+        throw new ServiceExecutionException('Service execution failed');
     }
 }

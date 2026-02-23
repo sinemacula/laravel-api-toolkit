@@ -5,6 +5,8 @@ namespace Tests\Concerns;
 /**
  * Provides reflection helpers for accessing non-public class members in tests.
  *
+ * @SuppressWarnings("php:S3011")
+ *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */

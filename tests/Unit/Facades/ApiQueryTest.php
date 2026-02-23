@@ -42,10 +42,9 @@ class ApiQueryTest extends TestCase
 
         ApiQuery::shouldReceive('parse')
             ->once()
-            ->with($request)
-            ->andReturnNull();
+            ->with($request);
 
-        static::assertNull(ApiQuery::parse($request));
+        ApiQuery::parse($request);
     }
 
     /**

@@ -26,15 +26,17 @@ class CloudWatchLoggerTest extends TestCase
      */
     public function testInvokeReturnsLoggerInstance(): void
     {
-        $logger_factory = new CloudWatchLogger;
+        $loggerFactory = new CloudWatchLogger;
 
         $config = $this->buildConfig();
 
-        $mock_client = $this->createMock(CloudWatchLogsClient::class);
+        $mockClient = $this->createMock(CloudWatchLogsClient::class);
 
-        $this->app->bind(CloudWatchLogsClient::class, fn () => $mock_client);
+        assert($this->app !== null);
 
-        $logger = $logger_factory($config);
+        $this->app->bind(CloudWatchLogsClient::class, fn () => $mockClient);
+
+        $logger = $loggerFactory($config);
 
         static::assertInstanceOf(Logger::class, $logger);
     }
@@ -46,11 +48,11 @@ class CloudWatchLoggerTest extends TestCase
      */
     public function testLoggerHasCloudwatchChannelName(): void
     {
-        $logger_factory = new CloudWatchLogger;
+        $loggerFactory = new CloudWatchLogger;
 
         $config = $this->buildConfig();
 
-        $logger = $logger_factory($config);
+        $logger = $loggerFactory($config);
 
         static::assertSame('cloudwatch', $logger->getName());
     }
@@ -62,11 +64,11 @@ class CloudWatchLoggerTest extends TestCase
      */
     public function testLoggerHasOneHandler(): void
     {
-        $logger_factory = new CloudWatchLogger;
+        $loggerFactory = new CloudWatchLogger;
 
         $config = $this->buildConfig();
 
-        $logger = $logger_factory($config);
+        $logger = $loggerFactory($config);
 
         static::assertCount(1, $logger->getHandlers());
     }
@@ -74,7 +76,7 @@ class CloudWatchLoggerTest extends TestCase
     /**
      * Build a configuration array for the CloudWatch logger.
      *
-     * @return array
+     * @return array<string, mixed>
      */
     private function buildConfig(): array
     {

@@ -18,12 +18,12 @@ class OrganizationResource extends ApiResource
     public const string RESOURCE_TYPE = 'organizations';
 
     /** @var array<int, string> */
-    protected static array $default = ['id', 'name', 'slug'];
+    protected static array $default = ['id', 'name', 'slug']; // @phpstan-ignore property.phpDocType
 
     /**
      * Return the resource schema.
      *
-     * @return array<string, array>
+     * @return array<string, array<string, mixed>>
      */
     public static function schema(): array
     {

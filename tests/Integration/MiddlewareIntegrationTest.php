@@ -22,6 +22,8 @@ use Tests\TestCase;
 #[CoversClass(JsonPrettyPrint::class)]
 class MiddlewareIntegrationTest extends TestCase
 {
+    private const TEST_URL = '/test';
+
     /**
      * Test that ParseApiQuery middleware populates API query parser.
      *
@@ -29,7 +31,7 @@ class MiddlewareIntegrationTest extends TestCase
      */
     public function testParseApiQueryMiddlewarePopulatesParser(): void
     {
-        $request = Request::create('/test', 'GET', [
+        $request = Request::create(self::TEST_URL, 'GET', [
             'page'  => '3',
             'limit' => '25',
             'order' => 'name:desc',
@@ -39,6 +41,9 @@ class MiddlewareIntegrationTest extends TestCase
 
         $middleware->handle($request, fn () => new Response('ok'));
 
+        assert($this->app !== null);
+
+        /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
         $parser = $this->app->make('api.query');
 
         static::assertInstanceOf(ApiQueryParser::class, $parser);
@@ -54,7 +59,7 @@ class MiddlewareIntegrationTest extends TestCase
      */
     public function testJsonPrettyPrintMiddlewarePrettyPrintsWhenRequested(): void
     {
-        $request = Request::create('/test', 'GET', ['pretty' => '1']);
+        $request = Request::create(self::TEST_URL, 'GET', ['pretty' => '1']);
 
         $middleware = new JsonPrettyPrint;
         $payload    = json_encode(['key' => 'value']);
@@ -75,7 +80,7 @@ class MiddlewareIntegrationTest extends TestCase
      */
     public function testFullMiddlewareChainWorksEndToEnd(): void
     {
-        $request = Request::create('/test', 'GET', [
+        $request = Request::create(self::TEST_URL, 'GET', [
             'page'   => '2',
             'limit'  => '10',
             'pretty' => '1',
@@ -86,6 +91,7 @@ class MiddlewareIntegrationTest extends TestCase
 
         $response = $parse_middleware->handle($request, function ($req) use ($pretty_middleware) {
             return $pretty_middleware->handle($req, function () {
+                /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
                 $parser = app('api.query');
 
                 return new Response(json_encode([

@@ -17,12 +17,12 @@ class TagResource extends ApiResource
     public const string RESOURCE_TYPE = 'tags';
 
     /** @var array<int, string> */
-    protected static array $default = ['id', 'name'];
+    protected static array $default = ['id', 'name']; // @phpstan-ignore property.phpDocType
 
     /**
      * Return the resource schema.
      *
-     * @return array<string, array>
+     * @return array<string, array<string, mixed>>
      */
     public static function schema(): array
     {

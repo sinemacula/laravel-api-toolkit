@@ -2,14 +2,18 @@
 
 namespace Tests\Integration;
 
-use Illuminate\Contracts\Http\Kernel;
+use Illuminate\Contracts\Config\Repository as ConfigRepository;
+use Illuminate\Contracts\Http\Kernel as HttpKernel;
+use Illuminate\Foundation\Application;
+use Illuminate\Foundation\Http\Middleware\PreventRequestsDuringMaintenance;
+use Illuminate\Notifications\Events\NotificationSending;
+use Illuminate\Notifications\Events\NotificationSent;
 use Illuminate\Routing\Router;
 use Illuminate\Support\Facades\Request;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\ApiQueryParser;
 use SineMacula\ApiToolkit\ApiServiceProvider;
 use SineMacula\ApiToolkit\Http\Middleware\JsonPrettyPrint;
-use SineMacula\ApiToolkit\Http\Middleware\PreventRequestsDuringMaintenance;
 use Tests\TestCase;
 
 /**
@@ -30,8 +34,10 @@ class ApiServiceProviderTest extends TestCase
      */
     public function testPackageConfigIsMerged(): void
     {
-        static::assertNotNull($this->app['config']->get('api-toolkit'));
-        static::assertIsArray($this->app['config']->get('api-toolkit.resources'));
+        $config = $this->getConfig();
+
+        static::assertNotNull($config->get('api-toolkit'));
+        static::assertIsArray($config->get('api-toolkit.resources'));
     }
 
     /**
@@ -41,7 +47,7 @@ class ApiServiceProviderTest extends TestCase
      */
     public function testLoggingConfigIsMerged(): void
     {
-        $channels = $this->app['config']->get('logging.channels');
+        $channels = $this->getConfig()->get('logging.channels');
 
         static::assertArrayHasKey('notifications', $channels);
         static::assertArrayHasKey('cloudwatch', $channels);
@@ -55,10 +61,10 @@ class ApiServiceProviderTest extends TestCase
      */
     public function testTranslationsAreLoaded(): void
     {
-        $translator = $this->app['translator'];
+        /** @var \Illuminate\Translation\Translator $translator */
+        $translator = $this->getApplication()->make('translator');
 
-        // The api-toolkit namespace should be registered
-        static::assertTrue($translator->hasForLocale('api-toolkit::exceptions', 'en') || true);
+        static::assertTrue($translator->hasForLocale('api-toolkit::exceptions', 'en'));
     }
 
     /**
@@ -68,13 +74,14 @@ class ApiServiceProviderTest extends TestCase
      */
     public function testApiQueryParserIsRegisteredAsSingleton(): void
     {
-        $alias  = $this->app['config']->get('api-toolkit.parser.alias');
-        $parser = $this->app->make($alias);
+        $app    = $this->getApplication();
+        $alias  = $this->getConfig()->get('api-toolkit.parser.alias');
+        $parser = $app->make($alias);
 
         static::assertInstanceOf(ApiQueryParser::class, $parser);
 
         // Same instance on second resolve (singleton)
-        static::assertSame($parser, $this->app->make($alias));
+        static::assertSame($parser, $app->make($alias));
     }
 
     /**
@@ -84,7 +91,8 @@ class ApiServiceProviderTest extends TestCase
      */
     public function testJsonPrettyPrintMiddlewareIsRegisteredGlobally(): void
     {
-        $kernel     = $this->app->make(Kernel::class);
+        /** @var \Illuminate\Foundation\Http\Kernel $kernel */
+        $kernel     = $this->getApplication()->make(HttpKernel::class);
         $middleware = $kernel->getGlobalMiddleware();
 
         static::assertContains(JsonPrettyPrint::class, $middleware);
@@ -97,11 +105,12 @@ class ApiServiceProviderTest extends TestCase
      */
     public function testPreventRequestsDuringMaintenanceReplacesDefault(): void
     {
-        $kernel     = $this->app->make(Kernel::class);
+        /** @var \Illuminate\Foundation\Http\Kernel $kernel */
+        $kernel     = $this->getApplication()->make(HttpKernel::class);
         $middleware = $kernel->getGlobalMiddleware();
 
         static::assertNotContains(
-            \Illuminate\Foundation\Http\Middleware\PreventRequestsDuringMaintenance::class,
+            PreventRequestsDuringMaintenance::class,
             $middleware,
         );
     }
@@ -113,7 +122,8 @@ class ApiServiceProviderTest extends TestCase
      */
     public function testThrottleMiddlewareAliasIsSet(): void
     {
-        $router = $this->app->make(Router::class);
+        /** @var \Illuminate\Routing\Router $router */
+        $router = $this->getApplication()->make(Router::class);
 
         $middleware = $router->getMiddleware();
 
@@ -143,10 +153,11 @@ class ApiServiceProviderTest extends TestCase
      */
     public function testNotificationListenersAreRegisteredWhenEnabled(): void
     {
-        $events = $this->app['events'];
+        /** @var \Illuminate\Contracts\Events\Dispatcher $events */
+        $events = $this->getApplication()->make('events');
 
-        static::assertTrue($events->hasListeners(\Illuminate\Notifications\Events\NotificationSending::class));
-        static::assertTrue($events->hasListeners(\Illuminate\Notifications\Events\NotificationSent::class));
+        static::assertTrue($events->hasListeners(NotificationSending::class));
+        static::assertTrue($events->hasListeners(NotificationSent::class));
     }
 
     /**
@@ -156,11 +167,14 @@ class ApiServiceProviderTest extends TestCase
      */
     public function testNotificationListenersAreNotRegisteredWhenDisabled(): void
     {
+        $app = $this->getApplication();
+
         // Create a fresh app with notifications disabled
-        $this->app['config']->set('api-toolkit.notifications.enable_logging', false);
+        $this->getConfig()->set('api-toolkit.notifications.enable_logging', false);
 
         // Re-register with new config by creating a fresh provider
-        $provider = new ApiServiceProvider($this->app);
+        $provider = new ApiServiceProvider($app);
+        $provider->register();
 
         // We can check that the current listeners include the notification ones
         // (they were already registered in setUp, but this test validates the config gate)
@@ -168,17 +182,46 @@ class ApiServiceProviderTest extends TestCase
     }
 
     /**
-     * @inheritDoc
+     * Define the test environment configuration.
      *
      * @param  mixed  $app
      * @return void
      */
+    #[\Override]
     protected function defineEnvironment(mixed $app): void
     {
         parent::defineEnvironment($app);
 
+        assert($app instanceof \Illuminate\Foundation\Application);
+
         // Enable middleware registration for these tests
-        $app['config']->set('api-toolkit.parser.register_middleware', true);
-        $app['config']->set('api-toolkit.notifications.enable_logging', true);
+        /** @var \Illuminate\Contracts\Config\Repository $config */
+        $config = $app->make('config');
+
+        $config->set('api-toolkit.parser.register_middleware', true);
+        $config->set('api-toolkit.notifications.enable_logging', true);
+    }
+
+    /**
+     * Get the application instance.
+     *
+     * @return \Illuminate\Foundation\Application
+     */
+    private function getApplication(): Application
+    {
+        assert($this->app !== null);
+
+        return $this->app;
+    }
+
+    /**
+     * Get the config repository instance.
+     *
+     * @return \Illuminate\Contracts\Config\Repository
+     */
+    private function getConfig(): ConfigRepository
+    {
+        /** @var \Illuminate\Contracts\Config\Repository */
+        return $this->getApplication()->make('config');
     }
 }

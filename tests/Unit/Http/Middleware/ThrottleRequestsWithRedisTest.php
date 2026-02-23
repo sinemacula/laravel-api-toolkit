@@ -26,7 +26,10 @@ class ThrottleRequestsWithRedisTest extends TestCase
      */
     public function testExtendsBaseThrottleRequestsWithRedis(): void
     {
-        static::assertTrue(is_subclass_of(ThrottleRequestsWithRedis::class, BaseThrottleRequestsWithRedis::class));
+        $parents = class_parents(ThrottleRequestsWithRedis::class);
+
+        static::assertIsArray($parents);
+        static::assertArrayHasKey(BaseThrottleRequestsWithRedis::class, $parents);
     }
 
     /**

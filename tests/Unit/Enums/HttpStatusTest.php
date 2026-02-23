@@ -115,7 +115,7 @@ class HttpStatusTest extends TestCase
     {
         $values = array_map(fn (HttpStatus $case) => $case->value, HttpStatus::cases());
 
-        static::assertSame(count($values), count(array_unique($values)));
+        static::assertCount(count(array_unique($values)), $values);
     }
 
     /**

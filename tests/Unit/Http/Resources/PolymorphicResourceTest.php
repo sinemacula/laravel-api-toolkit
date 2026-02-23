@@ -74,6 +74,7 @@ class PolymorphicResourceTest extends TestCase
         $resource = new PolymorphicResource($org);
         $result   = $resource->toArray(request());
 
+        static::assertIsArray($result);
         static::assertSame('organizations', $result['_type']);
     }
 
@@ -84,7 +85,11 @@ class PolymorphicResourceTest extends TestCase
      */
     public function testToArrayThrowsLogicExceptionForUnmappedResource(): void
     {
-        $this->app['config']->set('api-toolkit.resources.resource_map', []);
+        assert($this->app !== null);
+
+        /** @var \Illuminate\Config\Repository $config */
+        $config = $this->app['config'];
+        $config->set('api-toolkit.resources.resource_map', []);
 
         $user = User::create([
             'name'  => 'Unmapped',
@@ -136,7 +141,7 @@ class PolymorphicResourceTest extends TestCase
         ]);
 
         $post = Post::create([
-            'user_id'   => $user->id,
+            'user_id'   => $user->getKey(),
             'title'     => 'Post Title',
             'body'      => 'Post body',
             'published' => true,
@@ -148,6 +153,8 @@ class PolymorphicResourceTest extends TestCase
         $user_result = $user_resource->toArray(request());
         $post_result = $post_resource->toArray(request());
 
+        static::assertIsArray($user_result);
+        static::assertIsArray($post_result);
         static::assertSame('users', $user_result['_type']);
         static::assertSame('posts', $post_result['_type']);
     }
@@ -191,14 +198,18 @@ class PolymorphicResourceTest extends TestCase
     /**
      * Define the environment setup.
      *
-     * @param  \Illuminate\Foundation\Application  $app
+     * @param  mixed  $app
      * @return void
      */
-    protected function defineEnvironment(\Illuminate\Foundation\Application $app): void
+    protected function defineEnvironment(mixed $app): void
     {
         parent::defineEnvironment($app);
 
-        $app['config']->set('api-toolkit.resources.resource_map', [
+        assert($app instanceof \Illuminate\Foundation\Application);
+
+        /** @var \Illuminate\Config\Repository $config */
+        $config = $app['config'];
+        $config->set('api-toolkit.resources.resource_map', [
             User::class         => UserResource::class,
             Organization::class => OrganizationResource::class,
             Post::class         => PostResource::class,

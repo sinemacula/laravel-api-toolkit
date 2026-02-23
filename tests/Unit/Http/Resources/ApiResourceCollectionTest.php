@@ -18,11 +18,15 @@ use Tests\TestCase;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  *
+ * @SuppressWarnings("php:S1075")
+ *
  * @internal
  */
 #[CoversClass(ApiResourceCollection::class)]
 class ApiResourceCollectionTest extends TestCase
 {
+    private const string PAGINATION_PATH = 'http://localhost/api/users';
+
     /**
      * Test that toArray resolves each item via the resource class.
      *
@@ -163,7 +167,7 @@ class ApiResourceCollectionTest extends TestCase
     {
         $items     = [User::create(['name' => 'PagedMeta', 'email' => 'pagedmeta@example.com'])];
         $paginator = new LengthAwarePaginator($items, 50, 15, 2, [
-            'path' => 'http://localhost/api/users',
+            'path' => self::PAGINATION_PATH,
         ]);
 
         $collection = new ApiResourceCollection($paginator, UserResource::class);
@@ -193,7 +197,7 @@ class ApiResourceCollectionTest extends TestCase
     {
         $items     = [User::create(['name' => 'CursorUser', 'email' => 'cursor@example.com'])];
         $paginator = new CursorPaginator($items, 15, null, [
-            'path' => 'http://localhost/api/users',
+            'path' => self::PAGINATION_PATH,
         ]);
 
         $collection = new ApiResourceCollection($paginator, UserResource::class);
@@ -234,7 +238,7 @@ class ApiResourceCollectionTest extends TestCase
         $items = [User::create(['name' => 'ContinueTest', 'email' => 'continue@example.com'])];
 
         $has_more = new LengthAwarePaginator($items, 50, 15, 1, [
-            'path' => 'http://localhost/api/users',
+            'path' => self::PAGINATION_PATH,
         ]);
 
         $collection_more = new ApiResourceCollection($has_more, UserResource::class);
@@ -243,7 +247,7 @@ class ApiResourceCollectionTest extends TestCase
         static::assertTrue($result_more['meta']['continue']);
 
         $no_more = new LengthAwarePaginator($items, 1, 15, 1, [
-            'path' => 'http://localhost/api/users',
+            'path' => self::PAGINATION_PATH,
         ]);
 
         $collection_last = new ApiResourceCollection($no_more, UserResource::class);

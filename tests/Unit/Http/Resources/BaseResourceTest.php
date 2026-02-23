@@ -6,6 +6,7 @@ use Illuminate\Http\Resources\Json\JsonResource;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 use SineMacula\ApiToolkit\Http\Resources\BaseResource;
+use Tests\Concerns\InteractsWithNonPublicMembers;
 
 /**
  * Tests for the BaseResource abstract class.
@@ -18,6 +19,8 @@ use SineMacula\ApiToolkit\Http\Resources\BaseResource;
 #[CoversClass(BaseResource::class)]
 class BaseResourceTest extends TestCase
 {
+    use InteractsWithNonPublicMembers;
+
     /**
      * Test that the resource extends JsonResource.
      *
@@ -43,9 +46,7 @@ class BaseResourceTest extends TestCase
         $result = $resource->withFields($fields);
 
         static::assertSame($resource, $result);
-
-        $reflection = new \ReflectionProperty($resource, 'fields');
-        static::assertSame($fields, $reflection->getValue($resource));
+        static::assertSame($fields, $this->getProperty($resource, 'fields'));
     }
 
     /**
@@ -59,8 +60,7 @@ class BaseResourceTest extends TestCase
 
         $resource->withFields(['id'])->withFields(null);
 
-        $reflection = new \ReflectionProperty($resource, 'fields');
-        static::assertNull($reflection->getValue($resource));
+        static::assertNull($this->getProperty($resource, 'fields'));
     }
 
     /**
@@ -76,9 +76,7 @@ class BaseResourceTest extends TestCase
         $result = $resource->withoutFields($fields);
 
         static::assertSame($resource, $result);
-
-        $reflection = new \ReflectionProperty($resource, 'excludedFields');
-        static::assertSame($fields, $reflection->getValue($resource));
+        static::assertSame($fields, $this->getProperty($resource, 'excludedFields'));
     }
 
     /**
@@ -92,8 +90,7 @@ class BaseResourceTest extends TestCase
 
         $resource->withoutFields(['password'])->withoutFields(null);
 
-        $reflection = new \ReflectionProperty($resource, 'excludedFields');
-        static::assertNull($reflection->getValue($resource));
+        static::assertNull($this->getProperty($resource, 'excludedFields'));
     }
 
     /**
@@ -108,9 +105,7 @@ class BaseResourceTest extends TestCase
         $result = $resource->withAll();
 
         static::assertSame($resource, $result);
-
-        $reflection = new \ReflectionProperty($resource, 'all');
-        static::assertTrue($reflection->getValue($resource));
+        static::assertTrue($this->getProperty($resource, 'all'));
     }
 
     /**
@@ -122,8 +117,7 @@ class BaseResourceTest extends TestCase
     {
         $resource = $this->createConcreteResource((object) ['id' => 1]);
 
-        $allReflection = new \ReflectionProperty($resource, 'all');
-        static::assertFalse($allReflection->getValue($resource));
+        static::assertFalse($this->getProperty($resource, 'all'));
     }
 
     /**

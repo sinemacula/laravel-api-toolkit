@@ -29,11 +29,17 @@ class ApiRepositoryIntegrationTest extends TestCase
      *
      * @return void
      */
+    #[\Override]
     protected function setUp(): void
     {
         parent::setUp();
 
-        $this->repository = $this->app->make(UserRepository::class);
+        assert($this->app !== null);
+
+        /** @var \Tests\Fixtures\Repositories\UserRepository $repository */
+        $repository = $this->app->make(UserRepository::class);
+
+        $this->repository = $repository;
 
         $this->seedUsers();
     }
@@ -57,10 +63,13 @@ class ApiRepositoryIntegrationTest extends TestCase
     /**
      * Test that setAttributes persists model changes.
      *
+     * @SuppressWarnings("php:S3011")
+     *
      * @return void
      */
     public function testSetAttributesPersistsModelChanges(): void
     {
+        /** @var \Tests\Fixtures\Models\User $user */
         $user = User::where('name', 'Alice')->first();
 
         $reflection = new \ReflectionProperty($this->repository, 'casts');
@@ -79,9 +88,11 @@ class ApiRepositoryIntegrationTest extends TestCase
      */
     public function testScopeByIdReturnsCorrectRecord(): void
     {
+        /** @var \Tests\Fixtures\Models\User $user */
         $user = User::where('name', 'Alice')->first();
 
-        $result = $this->repository->scopeById($user->id)->first();
+        /** @var \Tests\Fixtures\Models\User|null $result */
+        $result = $this->repository->scopeById($user->id)->first(); // @phpstan-ignore staticMethod.dynamicCall
 
         static::assertNotNull($result);
         static::assertSame('Alice', $result->name);
@@ -94,10 +105,13 @@ class ApiRepositoryIntegrationTest extends TestCase
      */
     public function testScopeByIdsReturnsCorrectRecords(): void
     {
+        /** @var \Tests\Fixtures\Models\User $alice */
         $alice = User::where('name', 'Alice')->first();
-        $bob   = User::where('name', 'Bob')->first();
 
-        $results = $this->repository->scopeByIds([$alice->id, $bob->id])->get();
+        /** @var \Tests\Fixtures\Models\User $bob */
+        $bob = User::where('name', 'Bob')->first();
+
+        $results = $this->repository->scopeByIds([$alice->id, $bob->id])->get(); // @phpstan-ignore staticMethod.dynamicCall
 
         static::assertCount(2, $results);
         static::assertTrue($results->pluck('name')->contains('Alice'));
@@ -116,10 +130,14 @@ class ApiRepositoryIntegrationTest extends TestCase
         ]);
         ApiQuery::parse($request);
 
-        $results = $this->repository->withApiCriteria()->get();
+        $results = $this->repository->withApiCriteria()->get(); // @phpstan-ignore staticMethod.dynamicCall
 
         static::assertCount(1, $results);
-        static::assertSame('Alice', $results->first()->name);
+
+        /** @var \Tests\Fixtures\Models\User $first */
+        $first = $results->first();
+
+        static::assertSame('Alice', $first->name);
     }
 
     /**

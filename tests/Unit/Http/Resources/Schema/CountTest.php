@@ -17,6 +17,9 @@ use SineMacula\ApiToolkit\Http\Resources\Schema\Count;
 #[CoversClass(Count::class)]
 class CountTest extends TestCase
 {
+    private const string COUNT_KEY_POSTS      = '__count__:posts';
+    private const string COUNT_KEY_POST_COUNT = '__count__:post_count';
+
     /**
      * Test that of creates a count definition with the given key.
      *
@@ -28,10 +31,10 @@ class CountTest extends TestCase
 
         $array = $count->toArray();
 
-        static::assertArrayHasKey('__count__:posts', $array);
-        static::assertSame('posts', $array['__count__:posts']['key']);
-        static::assertSame('count', $array['__count__:posts']['metric']);
-        static::assertSame('posts', $array['__count__:posts']['relation']);
+        static::assertArrayHasKey(self::COUNT_KEY_POSTS, $array);
+        static::assertSame('posts', $array[self::COUNT_KEY_POSTS]['key']);
+        static::assertSame('count', $array[self::COUNT_KEY_POSTS]['metric']);
+        static::assertSame('posts', $array[self::COUNT_KEY_POSTS]['relation']);
     }
 
     /**
@@ -45,9 +48,9 @@ class CountTest extends TestCase
 
         $array = $count->toArray();
 
-        static::assertArrayHasKey('__count__:post_count', $array);
-        static::assertSame('post_count', $array['__count__:post_count']['key']);
-        static::assertSame('posts', $array['__count__:post_count']['relation']);
+        static::assertArrayHasKey(self::COUNT_KEY_POST_COUNT, $array);
+        static::assertSame('post_count', $array[self::COUNT_KEY_POST_COUNT]['key']);
+        static::assertSame('posts', $array[self::COUNT_KEY_POST_COUNT]['relation']);
     }
 
     /**
@@ -85,7 +88,7 @@ class CountTest extends TestCase
 
         $array = $count->toArray();
 
-        static::assertSame($constraint, $array['__count__:posts']['constraint']);
+        static::assertSame($constraint, $array[self::COUNT_KEY_POSTS]['constraint']);
     }
 
     /**
@@ -103,7 +106,7 @@ class CountTest extends TestCase
 
         $array = $count->toArray();
 
-        static::assertTrue($array['__count__:posts']['default']);
+        static::assertTrue($array[self::COUNT_KEY_POSTS]['default']);
     }
 
     /**
@@ -134,11 +137,11 @@ class CountTest extends TestCase
 
         $array = $count->toArray();
 
-        static::assertArrayNotHasKey('constraint', $array['__count__:posts']);
-        static::assertArrayNotHasKey('default', $array['__count__:posts']);
-        static::assertArrayNotHasKey('extras', $array['__count__:posts']);
-        static::assertArrayNotHasKey('guards', $array['__count__:posts']);
-        static::assertArrayNotHasKey('transformers', $array['__count__:posts']);
+        static::assertArrayNotHasKey('constraint', $array[self::COUNT_KEY_POSTS]);
+        static::assertArrayNotHasKey('default', $array[self::COUNT_KEY_POSTS]);
+        static::assertArrayNotHasKey('extras', $array[self::COUNT_KEY_POSTS]);
+        static::assertArrayNotHasKey('guards', $array[self::COUNT_KEY_POSTS]);
+        static::assertArrayNotHasKey('transformers', $array[self::COUNT_KEY_POSTS]);
     }
 
     /**

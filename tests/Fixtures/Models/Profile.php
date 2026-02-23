@@ -8,14 +8,14 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 /**
  * Fixture profile model.
  *
- * @method static static create(array $attributes = [])
+ * @method static static create(array<string, mixed> $attributes = [])
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
 class Profile extends Model
 {
-    /** @var string */
+    /** @var string|null */
     protected $table = 'profiles';
 
     /** @var array<int, string> */
@@ -24,7 +24,7 @@ class Profile extends Model
     /**
      * Get the user that owns the profile.
      *
-     * @return \Illuminate\Database\Eloquent\Relations\BelongsTo
+     * @return \Illuminate\Database\Eloquent\Relations\BelongsTo<\Tests\Fixtures\Models\User, $this>
      */
     public function user(): BelongsTo
     {

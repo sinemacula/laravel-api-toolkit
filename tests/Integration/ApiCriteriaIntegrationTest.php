@@ -26,6 +26,7 @@ class ApiCriteriaIntegrationTest extends TestCase
      *
      * @return void
      */
+    #[\Override]
     protected function setUp(): void
     {
         parent::setUp();
@@ -42,13 +43,14 @@ class ApiCriteriaIntegrationTest extends TestCase
     {
         $this->parseQuery(['filters' => json_encode(['name' => 'Alice'])]);
 
-        $criteria = $this->app->make(ApiCriteria::class);
-        $query    = $criteria->apply(new User);
-
-        $results = $query->get();
+        $results = $this->makeCriteria()->apply(new User)->get();
 
         static::assertCount(1, $results);
-        static::assertSame('Alice', $results->first()->name);
+
+        /** @var \Tests\Fixtures\Models\User $first */
+        $first = $results->first();
+
+        static::assertSame('Alice', $first->name);
     }
 
     /**
@@ -60,13 +62,14 @@ class ApiCriteriaIntegrationTest extends TestCase
     {
         $this->parseQuery(['filters' => json_encode(['name' => ['$eq' => 'Bob']])]);
 
-        $criteria = $this->app->make(ApiCriteria::class);
-        $query    = $criteria->apply(new User);
-
-        $results = $query->get();
+        $results = $this->makeCriteria()->apply(new User)->get();
 
         static::assertCount(1, $results);
-        static::assertSame('Bob', $results->first()->name);
+
+        /** @var \Tests\Fixtures\Models\User $first */
+        $first = $results->first();
+
+        static::assertSame('Bob', $first->name);
     }
 
     /**
@@ -78,10 +81,7 @@ class ApiCriteriaIntegrationTest extends TestCase
     {
         $this->parseQuery(['filters' => json_encode(['name' => ['$neq' => 'Alice']])]);
 
-        $criteria = $this->app->make(ApiCriteria::class);
-        $query    = $criteria->apply(new User);
-
-        $results = $query->get();
+        $results = $this->makeCriteria()->apply(new User)->get();
 
         static::assertTrue($results->pluck('name')->doesntContain('Alice'));
         static::assertGreaterThan(0, $results->count());
@@ -96,13 +96,14 @@ class ApiCriteriaIntegrationTest extends TestCase
     {
         $this->parseQuery(['filters' => json_encode(['name' => ['$like' => 'Ali']])]);
 
-        $criteria = $this->app->make(ApiCriteria::class);
-        $query    = $criteria->apply(new User);
-
-        $results = $query->get();
+        $results = $this->makeCriteria()->apply(new User)->get();
 
         static::assertCount(1, $results);
-        static::assertSame('Alice', $results->first()->name);
+
+        /** @var \Tests\Fixtures\Models\User $first */
+        $first = $results->first();
+
+        static::assertSame('Alice', $first->name);
     }
 
     /**
@@ -114,10 +115,7 @@ class ApiCriteriaIntegrationTest extends TestCase
     {
         $this->parseQuery(['filters' => json_encode(['name' => ['$in' => ['Alice', 'Charlie']]])]);
 
-        $criteria = $this->app->make(ApiCriteria::class);
-        $query    = $criteria->apply(new User);
-
-        $results = $query->get();
+        $results = $this->makeCriteria()->apply(new User)->get();
 
         static::assertCount(2, $results);
         static::assertTrue($results->pluck('name')->contains('Alice'));
@@ -133,12 +131,10 @@ class ApiCriteriaIntegrationTest extends TestCase
     {
         $this->parseQuery(['filters' => json_encode(['password' => ['$null' => true]])]);
 
-        $criteria = $this->app->make(ApiCriteria::class);
-        $query    = $criteria->apply(new User);
-
-        $results = $query->get();
+        $results = $this->makeCriteria()->apply(new User)->get();
 
         foreach ($results as $user) {
+            assert($user instanceof User);
             static::assertNull($user->password);
         }
     }
@@ -155,14 +151,12 @@ class ApiCriteriaIntegrationTest extends TestCase
 
         $this->parseQuery(['filters' => json_encode(['organization_id' => ['$notNull' => true]])]);
 
-        $criteria = $this->app->make(ApiCriteria::class);
-        $query    = $criteria->apply(new User);
-
-        $results = $query->get();
+        $results = $this->makeCriteria()->apply(new User)->get();
 
         static::assertGreaterThan(0, $results->count());
 
         foreach ($results as $user) {
+            assert($user instanceof User);
             static::assertNotNull($user->organization_id);
         }
     }
@@ -176,10 +170,7 @@ class ApiCriteriaIntegrationTest extends TestCase
     {
         $this->parseQuery(['filters' => json_encode(['$has' => 'posts'])]);
 
-        $criteria = $this->app->make(ApiCriteria::class);
-        $query    = $criteria->apply(new User);
-
-        $results = $query->get();
+        $results = $this->makeCriteria()->apply(new User)->get();
 
         // Only Alice and Bob have posts
         static::assertCount(2, $results);
@@ -194,14 +185,15 @@ class ApiCriteriaIntegrationTest extends TestCase
     {
         $this->parseQuery(['filters' => json_encode(['$hasnt' => 'posts'])]);
 
-        $criteria = $this->app->make(ApiCriteria::class);
-        $query    = $criteria->apply(new User);
-
-        $results = $query->get();
+        $results = $this->makeCriteria()->apply(new User)->get();
 
         // Charlie has no posts
         static::assertCount(1, $results);
-        static::assertSame('Charlie', $results->first()->name);
+
+        /** @var \Tests\Fixtures\Models\User $first */
+        $first = $results->first();
+
+        static::assertSame('Charlie', $first->name);
     }
 
     /**
@@ -213,13 +205,16 @@ class ApiCriteriaIntegrationTest extends TestCase
     {
         $this->parseQuery(['order' => 'name:asc']);
 
-        $criteria = $this->app->make(ApiCriteria::class);
-        $query    = $criteria->apply(new User);
+        $results = $this->makeCriteria()->apply(new User)->get();
 
-        $results = $query->get();
+        /** @var \Tests\Fixtures\Models\User $first */
+        $first = $results->first();
 
-        static::assertSame('Alice', $results->first()->name);
-        static::assertSame('Charlie', $results->last()->name);
+        /** @var \Tests\Fixtures\Models\User $last */
+        $last = $results->last();
+
+        static::assertSame('Alice', $first->name);
+        static::assertSame('Charlie', $last->name);
     }
 
     /**
@@ -231,13 +226,16 @@ class ApiCriteriaIntegrationTest extends TestCase
     {
         $this->parseQuery(['order' => 'name:desc']);
 
-        $criteria = $this->app->make(ApiCriteria::class);
-        $query    = $criteria->apply(new User);
+        $results = $this->makeCriteria()->apply(new User)->get();
 
-        $results = $query->get();
+        /** @var \Tests\Fixtures\Models\User $first */
+        $first = $results->first();
 
-        static::assertSame('Charlie', $results->first()->name);
-        static::assertSame('Alice', $results->last()->name);
+        /** @var \Tests\Fixtures\Models\User $last */
+        $last = $results->last();
+
+        static::assertSame('Charlie', $first->name);
+        static::assertSame('Alice', $last->name);
     }
 
     /**
@@ -249,10 +247,7 @@ class ApiCriteriaIntegrationTest extends TestCase
     {
         $this->parseQuery(['order' => 'random']);
 
-        $criteria = $this->app->make(ApiCriteria::class);
-        $query    = $criteria->apply(new User);
-
-        $results = $query->get();
+        $results = $this->makeCriteria()->apply(new User)->get();
 
         // Cannot assert order, but we can assert the count is correct
         static::assertCount(3, $results);
@@ -267,10 +262,7 @@ class ApiCriteriaIntegrationTest extends TestCase
     {
         $this->parseQuery(['limit' => '2']);
 
-        $criteria = $this->app->make(ApiCriteria::class);
-        $query    = $criteria->apply(new User);
-
-        $results = $query->get();
+        $results = $this->makeCriteria()->apply(new User)->get();
 
         static::assertCount(2, $results);
     }
@@ -288,19 +280,20 @@ class ApiCriteriaIntegrationTest extends TestCase
             'limit'   => '1',
         ]);
 
-        $criteria = $this->app->make(ApiCriteria::class);
-        $query    = $criteria->apply(new User);
-
-        $results = $query->get();
+        $results = $this->makeCriteria()->apply(new User)->get();
 
         static::assertCount(1, $results);
-        static::assertSame('Bob', $results->first()->name);
+
+        /** @var \Tests\Fixtures\Models\User $first */
+        $first = $results->first();
+
+        static::assertSame('Bob', $first->name);
     }
 
     /**
      * Parse query parameters through the ApiQuery facade.
      *
-     * @param  array  $params
+     * @param  array<string, string>  $params
      * @return void
      */
     private function parseQuery(array $params): void
@@ -308,6 +301,19 @@ class ApiCriteriaIntegrationTest extends TestCase
         $request = Request::create('/test', 'GET', $params);
 
         ApiQuery::parse($request);
+    }
+
+    /**
+     * Resolve a fresh ApiCriteria instance from the container.
+     *
+     * @return \SineMacula\ApiToolkit\Repositories\Criteria\ApiCriteria
+     */
+    private function makeCriteria(): ApiCriteria
+    {
+        assert($this->app !== null);
+
+        /** @var \SineMacula\ApiToolkit\Repositories\Criteria\ApiCriteria */
+        return $this->app->make(ApiCriteria::class);
     }
 
     /**

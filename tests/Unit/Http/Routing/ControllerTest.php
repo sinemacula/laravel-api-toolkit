@@ -9,6 +9,7 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Enums\HttpStatus;
 use SineMacula\ApiToolkit\Http\Routing\Controller;
 use Symfony\Component\HttpFoundation\StreamedResponse;
+use Tests\Concerns\InteractsWithNonPublicMembers;
 use Tests\Fixtures\Controllers\TestingController;
 use Tests\TestCase;
 
@@ -23,6 +24,8 @@ use Tests\TestCase;
 #[CoversClass(Controller::class)]
 class ControllerTest extends TestCase
 {
+    use InteractsWithNonPublicMembers;
+
     /** @var \Tests\Fixtures\Controllers\TestingController */
     private TestingController $controller;
 
@@ -47,7 +50,8 @@ class ControllerTest extends TestCase
     {
         $data = ['name' => 'Test', 'value' => 42];
 
-        $response = $this->invokeProtected('respondWithData', [$data]);
+        /** @var \Illuminate\Http\JsonResponse $response */
+        $response = $this->invokeMethod($this->controller, 'respondWithData', $data);
 
         static::assertInstanceOf(JsonResponse::class, $response);
         static::assertSame(200, $response->getStatusCode());
@@ -67,7 +71,8 @@ class ControllerTest extends TestCase
     {
         $data = ['created' => true];
 
-        $response = $this->invokeProtected('respondWithData', [$data, HttpStatus::CREATED]);
+        /** @var \Illuminate\Http\JsonResponse $response */
+        $response = $this->invokeMethod($this->controller, 'respondWithData', $data, HttpStatus::CREATED);
 
         static::assertSame(201, $response->getStatusCode());
     }
@@ -82,7 +87,8 @@ class ControllerTest extends TestCase
         $data    = ['ok' => true];
         $headers = ['X-Custom-Header' => 'custom-value'];
 
-        $response = $this->invokeProtected('respondWithData', [$data, HttpStatus::OK, $headers]);
+        /** @var \Illuminate\Http\JsonResponse $response */
+        $response = $this->invokeMethod($this->controller, 'respondWithData', $data, HttpStatus::OK, $headers);
 
         static::assertSame('custom-value', $response->headers->get('X-Custom-Header'));
     }
@@ -96,7 +102,8 @@ class ControllerTest extends TestCase
     {
         $resource = new JsonResource(['id' => 1, 'name' => 'Test']);
 
-        $response = $this->invokeProtected('respondWithItem', [$resource]);
+        /** @var \Illuminate\Http\JsonResponse $response */
+        $response = $this->invokeMethod($this->controller, 'respondWithItem', $resource);
 
         static::assertInstanceOf(JsonResponse::class, $response);
         static::assertSame(200, $response->getStatusCode());
@@ -111,7 +118,8 @@ class ControllerTest extends TestCase
     {
         $resource = new JsonResource(['id' => 1]);
 
-        $response = $this->invokeProtected('respondWithItem', [$resource, HttpStatus::CREATED]);
+        /** @var \Illuminate\Http\JsonResponse $response */
+        $response = $this->invokeMethod($this->controller, 'respondWithItem', $resource, HttpStatus::CREATED);
 
         static::assertSame(201, $response->getStatusCode());
     }
@@ -128,7 +136,8 @@ class ControllerTest extends TestCase
             new JsonResource(['id' => 2, 'name' => 'Second']),
         ]));
 
-        $response = $this->invokeProtected('respondWithCollection', [$collection]);
+        /** @var \Illuminate\Http\JsonResponse $response */
+        $response = $this->invokeMethod($this->controller, 'respondWithCollection', $collection);
 
         static::assertInstanceOf(JsonResponse::class, $response);
         static::assertSame(200, $response->getStatusCode());
@@ -143,7 +152,8 @@ class ControllerTest extends TestCase
     {
         $collection = new ResourceCollection(collect([]));
 
-        $response = $this->invokeProtected('respondWithCollection', [$collection, HttpStatus::ACCEPTED]);
+        /** @var \Illuminate\Http\JsonResponse $response */
+        $response = $this->invokeMethod($this->controller, 'respondWithCollection', $collection, HttpStatus::ACCEPTED);
 
         static::assertSame(202, $response->getStatusCode());
     }
@@ -155,7 +165,10 @@ class ControllerTest extends TestCase
      */
     public function testRespondWithEventStreamReturnsStreamedResponse(): void
     {
-        $response = $this->invokeProtected('respondWithEventStream', [function (): void {}]);
+        /** @var \Symfony\Component\HttpFoundation\StreamedResponse $response */
+        $response = $this->invokeMethod($this->controller, 'respondWithEventStream', static function (): void {
+            // Stream callback placeholder
+        });
 
         static::assertInstanceOf(StreamedResponse::class, $response);
         static::assertSame(200, $response->getStatusCode());
@@ -168,7 +181,10 @@ class ControllerTest extends TestCase
      */
     public function testRespondWithEventStreamSetsSseHeaders(): void
     {
-        $response = $this->invokeProtected('respondWithEventStream', [function (): void {}]);
+        /** @var \Symfony\Component\HttpFoundation\StreamedResponse $response */
+        $response = $this->invokeMethod($this->controller, 'respondWithEventStream', static function (): void {
+            // Stream callback placeholder
+        });
 
         static::assertSame('text/event-stream', $response->headers->get('Content-Type'));
         $cache_control = $response->headers->get('Cache-Control');
@@ -187,23 +203,12 @@ class ControllerTest extends TestCase
     {
         $headers = ['X-Stream-Id' => 'abc123'];
 
-        $response = $this->invokeProtected('respondWithEventStream', [function (): void {}, 1, HttpStatus::OK, $headers]);
+        /** @var \Symfony\Component\HttpFoundation\StreamedResponse $response */
+        $response = $this->invokeMethod($this->controller, 'respondWithEventStream', static function (): void {
+            // Stream callback placeholder
+        }, 1, HttpStatus::OK, $headers);
 
         static::assertSame('abc123', $response->headers->get('X-Stream-Id'));
         static::assertSame('text/event-stream', $response->headers->get('Content-Type'));
-    }
-
-    /**
-     * Invoke a protected method on the controller.
-     *
-     * @param  string  $method
-     * @param  array  $arguments
-     * @return mixed
-     */
-    private function invokeProtected(string $method, array $arguments = []): mixed
-    {
-        $reflection = new \ReflectionMethod($this->controller, $method);
-
-        return $reflection->invoke($this->controller, ...$arguments);
     }
 }

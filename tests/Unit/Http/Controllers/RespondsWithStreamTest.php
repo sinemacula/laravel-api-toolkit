@@ -34,13 +34,14 @@ class RespondsWithStreamTest extends TestCase
         $request = Request::create('/test', 'GET');
         ApiQuery::parse($request);
 
+        /** @var \Mockery\MockInterface&\SineMacula\ApiToolkit\Repositories\ApiRepository $repository */
         $repository = \Mockery::mock(ApiRepository::class);
-        $repository->shouldReceive('getResourceClass')
+        $repository->shouldReceive('getResourceClass') // @phpstan-ignore method.notFound
             ->andReturn(\Tests\Fixtures\Resources\UserResource::class);
-        $repository->shouldReceive('chunkById')
+        $repository->shouldReceive('chunkById') // @phpstan-ignore method.notFound
             ->andReturn(true);
 
-        $response = $controller->streamRepositoryToCsv($repository);
+        $response = $controller->streamRepositoryToCsv($repository); // @phpstan-ignore method.notFound
 
         static::assertInstanceOf(StreamedResponse::class, $response);
     }
@@ -57,8 +58,9 @@ class RespondsWithStreamTest extends TestCase
 
         $controller = $this->createControllerWithTrait();
 
+        /** @var \Mockery\MockInterface&\SineMacula\ApiToolkit\Repositories\ApiRepository $repository */
         $repository = \Mockery::mock(ApiRepository::class);
-        $repository->shouldReceive('getResourceClass')
+        $repository->shouldReceive('getResourceClass') // @phpstan-ignore method.notFound
             ->once()
             ->andReturn(null);
 
@@ -77,6 +79,7 @@ class RespondsWithStreamTest extends TestCase
 
         $reflection = new \ReflectionMethod($controller, 'createStreamedResponse');
 
+        /** @var \Symfony\Component\HttpFoundation\StreamedResponse $response */
         $response = $reflection->invoke($controller, function (): void {
             echo 'test';
         }, 'text/csv', 'export.csv');
@@ -94,12 +97,14 @@ class RespondsWithStreamTest extends TestCase
     {
         $controller = $this->createControllerWithTrait();
 
+        /** @var \Mockery\MockInterface $chain_mock */
         $chain_mock = \Mockery::mock();
-        $chain_mock->shouldReceive('withoutFields')->andReturnSelf();
-        $chain_mock->shouldReceive('exportArray')->once()->andReturn("name,email\nJohn,john@example.com\n");
+        $chain_mock->shouldReceive('withoutFields')->andReturnSelf(); // @phpstan-ignore method.notFound
+        $chain_mock->shouldReceive('exportArray')->once()->andReturn("name,email\nJohn,john@example.com\n"); // @phpstan-ignore method.notFound
 
+        /** @var \Mockery\MockInterface $facade_mock */
         $facade_mock = \Mockery::mock();
-        $facade_mock->shouldReceive('format')
+        $facade_mock->shouldReceive('format') // @phpstan-ignore method.notFound
             ->with('csv')
             ->once()
             ->andReturn($chain_mock);
@@ -110,9 +115,12 @@ class RespondsWithStreamTest extends TestCase
 
         $is_first = true;
         $args     = [[['name' => 'John', 'email' => 'john@example.com']], &$is_first];
-        $result   = $reflection->invokeArgs($controller, $args);
+
+        /** @var string $result */
+        $result = $reflection->invokeArgs($controller, $args);
 
         static::assertStringContainsString('name', $result);
+        // @phpstan-ignore staticMethod.impossibleType
         static::assertFalse($is_first);
     }
 
@@ -125,13 +133,15 @@ class RespondsWithStreamTest extends TestCase
     {
         $controller = $this->createControllerWithTrait();
 
+        /** @var \Mockery\MockInterface $chain_mock */
         $chain_mock = \Mockery::mock();
-        $chain_mock->shouldReceive('withoutFields')->andReturnSelf();
-        $chain_mock->shouldReceive('withoutHeaders')->once()->andReturnSelf();
-        $chain_mock->shouldReceive('exportArray')->once()->andReturn("Jane,jane@example.com\n");
+        $chain_mock->shouldReceive('withoutFields')->andReturnSelf(); // @phpstan-ignore method.notFound
+        $chain_mock->shouldReceive('withoutHeaders')->once()->andReturnSelf(); // @phpstan-ignore method.notFound
+        $chain_mock->shouldReceive('exportArray')->once()->andReturn("Jane,jane@example.com\n"); // @phpstan-ignore method.notFound
 
+        /** @var \Mockery\MockInterface $facade_mock */
         $facade_mock = \Mockery::mock();
-        $facade_mock->shouldReceive('format')
+        $facade_mock->shouldReceive('format') // @phpstan-ignore method.notFound
             ->with('csv')
             ->once()
             ->andReturn($chain_mock);
@@ -142,7 +152,9 @@ class RespondsWithStreamTest extends TestCase
 
         $is_first = false;
         $args     = [[['name' => 'Jane', 'email' => 'jane@example.com']], &$is_first];
-        $result   = $reflection->invokeArgs($controller, $args);
+
+        /** @var string $result */
+        $result = $reflection->invokeArgs($controller, $args);
 
         static::assertStringContainsString('Jane', $result);
     }

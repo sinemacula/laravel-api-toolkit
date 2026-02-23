@@ -14,7 +14,7 @@ namespace Tests\Fixtures\Support;
  */
 final class FunctionOverrides
 {
-    /** @var array<string, callable|null> */
+    /** @var array<string, (callable(mixed...): mixed)|null> */
     private static array $overrides = [];
 
     /**
@@ -23,6 +23,8 @@ final class FunctionOverrides
      * @param  string  $name
      * @param  callable|null  $callback
      * @return void
+     *
+     * @phpstan-param (callable(mixed...): mixed)|null $callback
      */
     public static function set(string $name, ?callable $callback): void
     {
@@ -34,6 +36,8 @@ final class FunctionOverrides
      *
      * @param  string  $name
      * @return callable|null
+     *
+     * @phpstan-return (callable(mixed...): mixed)|null
      */
     public static function get(string $name): ?callable
     {

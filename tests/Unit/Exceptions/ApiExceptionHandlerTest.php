@@ -30,6 +30,15 @@ use Symfony\Component\HttpKernel\Exception\TooManyRequestsHttpException;
 #[CoversClass(ApiExceptionHandler::class)]
 class ApiExceptionHandlerTest extends TestCase
 {
+    /** @var string Test API endpoint path. */
+    private const string API_PATH = '/api/test';
+
+    /** @var string JSON content type header value. */
+    private const string ACCEPT_JSON = 'application/json';
+
+    /** @var string Generic error message used in test fixtures. */
+    private const string GENERIC_ERROR_MESSAGE = 'Something went wrong';
+
     /**
      * Test that handles registers report and render callbacks.
      *
@@ -62,16 +71,17 @@ class ApiExceptionHandlerTest extends TestCase
     /**
      * Test that render maps various Laravel exceptions to the correct HTTP status.
      *
+     * @param  \Throwable  $inputException
      * @param  int  $expectedHttpCode
      * @return void
      */
     #[DataProvider('exceptionMappingProvider')]
     public function testRenderMapsExceptionsCorrectly(\Throwable $inputException, int $expectedHttpCode): void
     {
-        $request = Request::create('/api/test', 'GET');
-        $request->headers->set('Accept', 'application/json');
+        $request = Request::create(self::API_PATH, 'GET');
+        $request->headers->set('Accept', self::ACCEPT_JSON);
 
-        $this->app['config']->set('app.debug', false);
+        config()->set('app.debug', false);
 
         $reflection = new \ReflectionMethod(ApiExceptionHandler::class, 'render');
         $response   = $reflection->invoke(null, $inputException, $request);
@@ -87,13 +97,15 @@ class ApiExceptionHandlerTest extends TestCase
      */
     public function testJsonRenderingIncludesErrorStructure(): void
     {
-        $request = Request::create('/api/test', 'GET');
-        $request->headers->set('Accept', 'application/json');
+        $request = Request::create(self::API_PATH, 'GET');
+        $request->headers->set('Accept', self::ACCEPT_JSON);
 
-        $this->app['config']->set('app.debug', false);
+        config()->set('app.debug', false);
 
         $reflection = new \ReflectionMethod(ApiExceptionHandler::class, 'render');
         $response   = $reflection->invoke(null, new NotFoundHttpException, $request);
+
+        static::assertInstanceOf(JsonResponse::class, $response);
 
         $data = $response->getData(true);
 
@@ -111,22 +123,24 @@ class ApiExceptionHandlerTest extends TestCase
      */
     public function testDebugModeIncludesMetaWithTrace(): void
     {
-        $request = Request::create('/api/test', 'GET');
-        $request->headers->set('Accept', 'application/json');
+        $request = Request::create(self::API_PATH, 'GET');
+        $request->headers->set('Accept', self::ACCEPT_JSON);
 
-        $this->app['config']->set('app.debug', true);
+        config()->set('app.debug', true);
 
-        $original = new \RuntimeException('Something went wrong');
+        $original = new \RuntimeException(self::GENERIC_ERROR_MESSAGE);
 
         $reflection = new \ReflectionMethod(ApiExceptionHandler::class, 'render');
         $response   = $reflection->invoke(null, $original, $request);
+
+        static::assertInstanceOf(JsonResponse::class, $response);
 
         $data = $response->getData(true);
 
         static::assertArrayHasKey('meta', $data['error']);
         static::assertArrayHasKey('exception', $data['error']['meta']);
         static::assertArrayHasKey('trace', $data['error']['meta']);
-        static::assertSame('Something went wrong', $data['error']['meta']['message']);
+        static::assertSame(self::GENERIC_ERROR_MESSAGE, $data['error']['meta']['message']);
     }
 
     /**
@@ -139,7 +153,7 @@ class ApiExceptionHandlerTest extends TestCase
         $request = Request::create('/test', 'GET');
         $request->headers->set('Accept', 'text/html');
 
-        $this->app['config']->set('app.debug', true);
+        config()->set('app.debug', true);
 
         $reflection = new \ReflectionMethod(ApiExceptionHandler::class, 'render');
         $response   = $reflection->invoke(null, new \RuntimeException('error'), $request);
@@ -154,16 +168,17 @@ class ApiExceptionHandlerTest extends TestCase
      */
     public function testApiExceptionIsRenderedDirectly(): void
     {
-        $request = Request::create('/api/test', 'GET');
-        $request->headers->set('Accept', 'application/json');
+        $request = Request::create(self::API_PATH, 'GET');
+        $request->headers->set('Accept', self::ACCEPT_JSON);
 
-        $this->app['config']->set('app.debug', false);
+        config()->set('app.debug', false);
 
         $exception = new BadRequestException(['field' => 'value']);
 
         $reflection = new \ReflectionMethod(ApiExceptionHandler::class, 'render');
         $response   = $reflection->invoke(null, $exception, $request);
 
+        static::assertInstanceOf(JsonResponse::class, $response);
         static::assertSame(400, $response->getStatusCode());
 
         $data = $response->getData(true);
@@ -209,7 +224,7 @@ class ApiExceptionHandlerTest extends TestCase
         ];
 
         yield 'Generic exception -> 500' => [
-            new \RuntimeException('Something went wrong'),
+            new \RuntimeException(self::GENERIC_ERROR_MESSAGE),
             500,
         ];
     }
@@ -224,12 +239,12 @@ class ApiExceptionHandlerTest extends TestCase
      */
     public function testValidationExceptionMapsToUnprocessableEntity(): void
     {
-        $request = Request::create('/api/test', 'GET');
-        $request->headers->set('Accept', 'application/json');
+        $request = Request::create(self::API_PATH, 'GET');
+        $request->headers->set('Accept', self::ACCEPT_JSON);
 
-        $this->app['config']->set('app.debug', false);
+        config()->set('app.debug', false);
 
-        $validator = new Validator($this->app['translator'], [], []);
+        $validator = new Validator(app('translator'), [], []);
         $exception = new ValidationException($validator);
 
         $reflection = new \ReflectionMethod(ApiExceptionHandler::class, 'render');

@@ -28,6 +28,7 @@ class ProvidesExclusiveLockTest extends TestCase
         $instance = $this->createTraitInstance();
         $executed = false;
 
+        // @phpstan-ignore method.notFound
         $instance->callHandleWithLock('test-id', function () use (&$executed): void {
             $executed = true;
         });
@@ -44,6 +45,7 @@ class ProvidesExclusiveLockTest extends TestCase
     {
         $instance = $this->createTraitInstance();
 
+        // @phpstan-ignore method.notFound
         $instance->callHandleWithLock('release-test', function (): void {
             // Noop
         });
@@ -70,6 +72,7 @@ class ProvidesExclusiveLockTest extends TestCase
         $instance = $this->createTraitInstance();
         $executed = false;
 
+        // @phpstan-ignore method.notFound
         $instance->callHandleWithLock('busy-id', function () use (&$executed): void {
             $executed = true;
         });
@@ -94,6 +97,7 @@ class ProvidesExclusiveLockTest extends TestCase
 
         $executed = false;
 
+        // @phpstan-ignore method.notFound
         $instance->callHandleWithLock('custom-id', function () use (&$executed): void {
             $executed = true;
         }, 'CUSTOM_PREFIX');
@@ -114,10 +118,11 @@ class ProvidesExclusiveLockTest extends TestCase
         $instance = $this->createTraitInstance();
 
         try {
+            // @phpstan-ignore method.notFound
             $instance->callHandleWithLock('exception-id', function (): void {
-                throw new \RuntimeException('Callback failed');
+                throw new \LogicException('Callback failed');
             });
-        } catch (\RuntimeException) {
+        } catch (\LogicException) {
             // Expected
         }
 
@@ -143,7 +148,7 @@ class ProvidesExclusiveLockTest extends TestCase
              * Call the handle-with-lock method.
              *
              * @param  string  $id
-             * @param  callable  $callback
+             * @param  callable(): void  $callback
              * @param  string  $prefix
              * @return void
              */

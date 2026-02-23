@@ -127,7 +127,7 @@ class LockableTest extends TestCase
             /**
              * Create a new instance.
              *
-             * @param  private readonly string  $lockId
+             * @param  string  $lockId
              */
             public function __construct(
                 private readonly string $lockId,

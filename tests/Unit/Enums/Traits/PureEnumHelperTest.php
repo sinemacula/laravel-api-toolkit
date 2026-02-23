@@ -69,9 +69,8 @@ class PureEnumHelperTest extends TestCase
     #[DataProvider('nonStringProvider')]
     public function testTryFromWithNonStringValuesReturnsNull(mixed $input): void
     {
-        $result = PureState::tryFrom($input);
-
-        static::assertNull($result);
+        static::assertFalse(is_string($input), 'Input must be a non-string type');
+        static::assertNull(PureState::tryFrom($input));
     }
 
     /**

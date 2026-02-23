@@ -8,14 +8,18 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 /**
  * Fixture organization model.
  *
- * @method static static create(array $attributes = [])
+ * @property int $id
+ * @property string $name
+ * @property string $slug
+ *
+ * @method static static create(array<string, mixed> $attributes = [])
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
 class Organization extends Model
 {
-    /** @var string */
+    /** @var string|null */
     protected $table = 'organizations';
 
     /** @var array<int, string> */
@@ -24,7 +28,7 @@ class Organization extends Model
     /**
      * Get the organization's users.
      *
-     * @return \Illuminate\Database\Eloquent\Relations\HasMany
+     * @return \Illuminate\Database\Eloquent\Relations\HasMany<\Tests\Fixtures\Models\User, $this>
      */
     public function users(): HasMany
     {

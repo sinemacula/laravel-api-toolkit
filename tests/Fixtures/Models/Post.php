@@ -9,14 +9,20 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 /**
  * Fixture post model.
  *
- * @method static static create(array $attributes = [])
+ * @property int $id
+ * @property int $user_id
+ * @property string $title
+ * @property string $body
+ * @property bool $published
+ *
+ * @method static static create(array<string, mixed> $attributes = [])
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
 class Post extends Model
 {
-    /** @var string */
+    /** @var string|null */
     protected $table = 'posts';
 
     /** @var array<int, string> */
@@ -25,7 +31,7 @@ class Post extends Model
     /**
      * Get the post's author.
      *
-     * @return \Illuminate\Database\Eloquent\Relations\BelongsTo
+     * @return \Illuminate\Database\Eloquent\Relations\BelongsTo<\Tests\Fixtures\Models\User, $this>
      */
     public function user(): BelongsTo
     {
@@ -35,7 +41,7 @@ class Post extends Model
     /**
      * Get the tags associated with the post.
      *
-     * @return \Illuminate\Database\Eloquent\Relations\BelongsToMany
+     * @return \Illuminate\Database\Eloquent\Relations\BelongsToMany<\Tests\Fixtures\Models\Tag, $this>
      */
     public function tags(): BelongsToMany
     {

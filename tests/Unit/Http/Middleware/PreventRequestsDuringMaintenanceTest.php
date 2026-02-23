@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\Config;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 use SineMacula\ApiToolkit\Http\Middleware\PreventRequestsDuringMaintenance;
+use Tests\Concerns\InteractsWithNonPublicMembers;
 
 /**
  * Tests for the PreventRequestsDuringMaintenance middleware.
@@ -19,6 +20,8 @@ use SineMacula\ApiToolkit\Http\Middleware\PreventRequestsDuringMaintenance;
 #[CoversClass(PreventRequestsDuringMaintenance::class)]
 class PreventRequestsDuringMaintenanceTest extends TestCase
 {
+    use InteractsWithNonPublicMembers;
+
     /**
      * Test that the middleware extends Laravel's PreventRequestsDuringMaintenance.
      *
@@ -26,7 +29,7 @@ class PreventRequestsDuringMaintenanceTest extends TestCase
      */
     public function testExtendsLaravelMiddleware(): void
     {
-        static::assertTrue(is_subclass_of(PreventRequestsDuringMaintenance::class, LaravelMiddleware::class));
+        static::assertContains(LaravelMiddleware::class, class_parents(PreventRequestsDuringMaintenance::class) ?: []);
     }
 
     /**
@@ -45,8 +48,7 @@ class PreventRequestsDuringMaintenanceTest extends TestCase
 
         $middleware = new PreventRequestsDuringMaintenance($app);
 
-        $reflection = new \ReflectionProperty(LaravelMiddleware::class, 'except');
-        $except     = $reflection->getValue($middleware);
+        $except = $this->getProperty($middleware, 'except');
 
         static::assertSame(['/health', '/status'], $except);
 
@@ -69,8 +71,7 @@ class PreventRequestsDuringMaintenanceTest extends TestCase
 
         $middleware = new PreventRequestsDuringMaintenance($app);
 
-        $reflection = new \ReflectionProperty(LaravelMiddleware::class, 'except');
-        $except     = $reflection->getValue($middleware);
+        $except = $this->getProperty($middleware, 'except');
 
         static::assertSame([], $except);
 

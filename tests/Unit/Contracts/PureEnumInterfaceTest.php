@@ -44,7 +44,10 @@ class PureEnumInterfaceTest extends TestCase
 
         static::assertCount(1, $parameters);
         static::assertSame('value', $parameters[0]->getName());
-        static::assertSame('mixed', $parameters[0]->getType()?->getName());
+        $paramType = $parameters[0]->getType();
+
+        static::assertInstanceOf(\ReflectionNamedType::class, $paramType);
+        static::assertSame('mixed', $paramType->getName());
     }
 
     /**

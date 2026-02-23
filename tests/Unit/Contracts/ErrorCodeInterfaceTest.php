@@ -41,7 +41,10 @@ class ErrorCodeInterfaceTest extends TestCase
         $reflection = new \ReflectionClass(ErrorCodeInterface::class);
         $method     = $reflection->getMethod('getCode');
 
-        static::assertSame('int', $method->getReturnType()?->getName());
+        $returnType = $method->getReturnType();
+
+        static::assertInstanceOf(\ReflectionNamedType::class, $returnType);
+        static::assertSame('int', $returnType->getName());
     }
 
     /**

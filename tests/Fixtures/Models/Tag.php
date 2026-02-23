@@ -8,14 +8,14 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 /**
  * Fixture tag model.
  *
- * @method static static create(array $attributes = [])
+ * @method static static create(array<string, mixed> $attributes = [])
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
 class Tag extends Model
 {
-    /** @var string */
+    /** @var string|null */
     protected $table = 'tags';
 
     /** @var array<int, string> */
@@ -24,7 +24,7 @@ class Tag extends Model
     /**
      * Get the posts associated with the tag.
      *
-     * @return \Illuminate\Database\Eloquent\Relations\BelongsToMany
+     * @return \Illuminate\Database\Eloquent\Relations\BelongsToMany<\Tests\Fixtures\Models\Post, $this>
      */
     public function posts(): BelongsToMany
     {

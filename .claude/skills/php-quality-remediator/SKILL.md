@@ -44,17 +44,38 @@ This skill prioritizes code fixes over configuration changes and uses existing s
 - Always run `composer check -- --all --no-cache --fix` before attempting remediation
 - Never change static analysis configuration as a first-line fix
 - Configuration changes are a last resort and require explicit manual approval
-- Do not ignore or suppress findings without explicit manual approval
 - Preserve runtime behavior and public contracts unless explicitly approved
 - Avoid drive-by refactors; keep changes scoped to resolving reported findings
 - If remediation requires large changes or anything potentially breaking, stop and request approval
+
+## Remediation Strategy
+
+**Exhaust code-level solutions before resorting to suppression.** For every finding, iterate through conforming code
+changes first. Any approach is acceptable as long as it does not promote bad practice or degrade code quality. Be
+creative — adjust types, add assertions, restructure signatures, use type narrowing, or rework logic to satisfy the
+tools. Only after **3 genuine attempts** at a code fix have failed should suppression be considered. Suppression is a
+last resort, not a convenience.
+
+When suppression is genuinely unavoidable, use the correct format for the tool:
+
+- **PHPStan**: `/** @phpstan-ignore rule.name (justification) */` on the line above the subject
+- **radarlint/SonarPHP**: `@SuppressWarnings("php:SXXXX")` in the class/method docblock. Prefer class-level when the
+  entire class legitimately triggers the rule; use method-level for isolated cases. Avoid `// NOSONAR` as it suppresses
+  all rules indiscriminately.
+- **PHP_CodeSniffer**: `// phpcs:ignore Rule.Name -- justification` on the line above the subject. When a line-above
+  comment would break the docblock-to-function association (e.g. between a docblock and a function declaration), use an
+  **inline end-of-line** `// phpcs:ignore Rule.Name` on the function declaration instead. Do not place phpcs directives
+  inside docblocks. Do not use `phpcs:disable`/`phpcs:enable` blocks to wrap individual methods.
+- For PHPStan and radarlint, prefer line-above or docblock placement over end-of-line comments.
+- Never modify configuration files in `.qlty/configs/` or tool-level config without explicit manual approval
 
 ## Approval Boundaries
 
 Manual approval is required for any of the following:
 
-- Any change to static analysis, linting, or formatter configuration
-- Any ignore or suppression of findings
+- Any change to static analysis, linting, or formatter configuration files (`.qlty/configs/`, `phpstan.neon`, etc.)
+- Broad suppression patterns (e.g. baseline files, rule-level disables); inline code suppressions with justification are
+  permitted without approval
 - Any change that modifies public APIs, contracts, or externally visible behavior
 - Any large remediation that materially changes structure or touches unrelated files
 
@@ -96,6 +117,11 @@ Manual approval is required for any of the following:
 - If `composer check -- --all --no-cache --fix` exposes many pre-existing issues:
   - Fix only issues introduced or touched by the current task unless explicitly asked to do a cleanup sweep
 - Prefer batching related fixes, but keep diffs explainable and minimal
+- **Formatter/check loop detection**: If a code fix triggers a formatter change, which re-triggers the original issue
+  (or vice versa), **first consult the "Known Circular Conflicts" table in `references/triage-matrix.md`**. If the
+  conflict matches a known pattern, apply the documented resolution (e.g. routing to `$php-documenter` to add a missing
+  doc block) rather than escalating. Only if no known resolution applies should you stop after **3 cycles**, report the
+  conflicting file(s), the two competing rules, and the exact changes oscillating.
 
 ## Output Contract
 

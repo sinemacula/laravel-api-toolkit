@@ -2,6 +2,7 @@
 
 namespace Tests\Unit\Logging;
 
+use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Log;
 use Monolog\Level;
 use Monolog\LogRecord;
@@ -28,7 +29,7 @@ class DatabaseHandlerTest extends TestCase
      */
     public function testWriteCreatesLogMessageRecord(): void
     {
-        $this->app['config']->set('logging.channels.database.level', 'debug');
+        Config::set('logging.channels.database.level', 'debug');
 
         $handler = new DatabaseHandler;
 
@@ -55,7 +56,7 @@ class DatabaseHandlerTest extends TestCase
      */
     public function testWriteStoresLevelMessageAndContext(): void
     {
-        $this->app['config']->set('logging.channels.database.level', 'debug');
+        Config::set('logging.channels.database.level', 'debug');
 
         $handler = new DatabaseHandler;
 
@@ -69,6 +70,7 @@ class DatabaseHandlerTest extends TestCase
 
         $handler->handle($record);
 
+        /** @phpstan-ignore staticMethod.notFound */
         $log = LogMessage::first();
 
         static::assertNotNull($log);
@@ -84,7 +86,7 @@ class DatabaseHandlerTest extends TestCase
      */
     public function testWriteConvertsThrowableContextToString(): void
     {
-        $this->app['config']->set('logging.channels.database.level', 'debug');
+        Config::set('logging.channels.database.level', 'debug');
 
         $handler   = new DatabaseHandler;
         $exception = new \RuntimeException('Something went wrong');
@@ -99,6 +101,7 @@ class DatabaseHandlerTest extends TestCase
 
         $handler->handle($record);
 
+        /** @phpstan-ignore staticMethod.notFound */
         $log = LogMessage::first();
 
         static::assertNotNull($log);
@@ -113,7 +116,7 @@ class DatabaseHandlerTest extends TestCase
      */
     public function testWriteRespectsMinimumLogLevel(): void
     {
-        $this->app['config']->set('logging.channels.database.level', 'error');
+        Config::set('logging.channels.database.level', 'error');
 
         $handler = new DatabaseHandler;
 
@@ -139,8 +142,8 @@ class DatabaseHandlerTest extends TestCase
      */
     public function testWriteFallsBackToFileLoggingOnDatabaseFailure(): void
     {
-        $this->app['config']->set('logging.channels.database.level', 'debug');
-        $this->app['config']->set('logging.channels.fallback.channels', ['single']);
+        Config::set('logging.channels.database.level', 'debug');
+        Config::set('logging.channels.fallback.channels', ['single']);
 
         Log::shouldReceive('stack')
             ->andReturnSelf();
@@ -172,7 +175,7 @@ class DatabaseHandlerTest extends TestCase
      */
     public function testHighLevelRecordPassesShouldLogAtDebugMinimum(): void
     {
-        $this->app['config']->set('logging.channels.database.level', 'debug');
+        Config::set('logging.channels.database.level', 'debug');
 
         $handler = new DatabaseHandler;
 

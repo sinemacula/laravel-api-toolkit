@@ -26,7 +26,7 @@ class ThrottleRequestsTest extends TestCase
      */
     public function testExtendsBaseThrottleRequests(): void
     {
-        static::assertTrue(is_subclass_of(ThrottleRequests::class, BaseThrottleRequests::class));
+        static::assertContains(BaseThrottleRequests::class, class_parents(ThrottleRequests::class) ?: []);
     }
 
     /**

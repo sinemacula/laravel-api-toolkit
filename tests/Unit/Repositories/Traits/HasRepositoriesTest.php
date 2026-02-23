@@ -8,6 +8,7 @@ use SineMacula\ApiToolkit\Repositories\Traits\HasRepositories;
 use SineMacula\Repositories\Contracts\RepositoryInterface;
 use Tests\Concerns\InteractsWithNonPublicMembers;
 use Tests\Fixtures\Repositories\UserRepository;
+use Tests\Fixtures\Support\HasRepositoriesTestParent;
 use Tests\TestCase;
 
 /**
@@ -46,6 +47,7 @@ class HasRepositoriesTest extends TestCase
 
         $consumer = $this->createConsumerWithParent();
 
+        /** @phpstan-ignore method.notFound */
         $result = $consumer->users();
 
         static::assertInstanceOf(RepositoryInterface::class, $result);
@@ -55,7 +57,7 @@ class HasRepositoriesTest extends TestCase
     /**
      * Test that __call throws BadMethodCallException for an unknown method.
      *
-     * NOTE: The trait's __call has a recursive path when class_uses
+     * The trait's __call has a recursive path when class_uses
      * returns the trait itself. Using a parent class that throws
      * BadMethodCallException avoids this recursion.
      *
@@ -67,6 +69,7 @@ class HasRepositoriesTest extends TestCase
 
         $this->expectException(\BadMethodCallException::class);
 
+        // @phpstan-ignore method.notFound
         $consumer->nonexistent();
     }
 
@@ -81,7 +84,9 @@ class HasRepositoriesTest extends TestCase
 
         $consumer = $this->createConsumerWithParent();
 
-        $first  = $consumer->users();
+        /** @phpstan-ignore method.notFound */
+        $first = $consumer->users();
+        /** @phpstan-ignore method.notFound */
         $second = $consumer->users();
 
         static::assertSame($first, $second);
@@ -97,21 +102,5 @@ class HasRepositoriesTest extends TestCase
         return new class extends HasRepositoriesTestParent {
             use HasRepositories;
         };
-    }
-}
-
-/**
- * Parent class providing a fallback __call that throws BadMethodCallException.
- */
-class HasRepositoriesTestParent
-{
-    /**
-     * @param  string  $method
-     * @param  array  $arguments
-     * @return mixed
-     */
-    public function __call(string $method, array $arguments): mixed
-    {
-        throw new \BadMethodCallException("Method {$method} does not exist.");
     }
 }
