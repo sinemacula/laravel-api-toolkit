@@ -12,9 +12,6 @@ use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Http\Resources\MissingValue;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Config;
-use LogicException;
-use ReflectionMethod;
-use SensitiveParameter;
 use SineMacula\ApiToolkit\Contracts\ApiResourceInterface;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
 use SineMacula\ApiToolkit\Traits\OrdersFields;
@@ -26,7 +23,7 @@ use SineMacula\ApiToolkit\Traits\OrdersFields;
  * parameters and the resource schema.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
- * @copyright   2025 Sine Macula Limited.
+ * @copyright   2026 Sine Macula Limited.
  */
 abstract class ApiResource extends BaseResource implements ApiResourceInterface
 {
@@ -100,7 +97,7 @@ abstract class ApiResource extends BaseResource implements ApiResourceInterface
      * @param  mixed  $request
      * @return array<string, mixed>
      */
-    public function resolve(#[SensitiveParameter] $request = null): array
+    public function resolve(#[\SensitiveParameter] $request = null): array
     {
         // phpcs:enable
         $data   = ['_type' => static::getResourceType()];
@@ -146,7 +143,7 @@ abstract class ApiResource extends BaseResource implements ApiResourceInterface
             $relation   = (string) $definition['relation'];
             $constraint = $definition['constraint'] ?? null;
 
-            if ($constraint instanceof Closure) {
+            if ($constraint instanceof \Closure) {
                 $with[$relation] = $constraint;
             } else {
                 $with[] = $relation;
@@ -189,7 +186,7 @@ abstract class ApiResource extends BaseResource implements ApiResourceInterface
     public static function getResourceType(): string
     {
         if (!defined(static::class . '::RESOURCE_TYPE')) {
-            throw new LogicException('The RESOURCE_TYPE constant must be defined on the resource');
+            throw new \LogicException('The RESOURCE_TYPE constant must be defined on the resource');
         }
 
         return strtolower(static::RESOURCE_TYPE);
@@ -320,7 +317,7 @@ abstract class ApiResource extends BaseResource implements ApiResourceInterface
      * @param  mixed  $resource
      * @return \SineMacula\ApiToolkit\Http\Resources\ApiResourceCollection
      */
-    protected static function newCollection(#[SensitiveParameter] $resource): ApiResourceCollection
+    protected static function newCollection(#[\SensitiveParameter] $resource): ApiResourceCollection
     {
         // phpcs:enable
         return new ApiResourceCollection($resource, static::class);
@@ -349,7 +346,7 @@ abstract class ApiResource extends BaseResource implements ApiResourceInterface
             array_key_exists('compute', $definition ?? [])  => $this->resolveComputedValue($definition['compute'], $request),
             array_key_exists('relation', $definition ?? []) => $this->resolveRelationValue($definition, $request),
             array_key_exists('accessor', $definition ?? []) => $this->resolveAccessorValue($definition['accessor'], $request),
-            default                                         => $this->resolveSimpleProperty($field)
+            default                                         => $this->resolveSimpleProperty($field),
         };
 
         if (!($value instanceof MissingValue) && !empty($definition['transformers'])) {
@@ -385,7 +382,7 @@ abstract class ApiResource extends BaseResource implements ApiResourceInterface
 
             if (method_exists($this->resource, $field)) {
 
-                $method      = new ReflectionMethod($this->resource, $field);
+                $method      = new \ReflectionMethod($this->resource, $field);
                 $return_type = $method->getReturnType();
 
                 if ($return_type && $return_type->getName() === Attribute::class) {
@@ -413,7 +410,7 @@ abstract class ApiResource extends BaseResource implements ApiResourceInterface
         return match (true) {
             is_string($compute) && method_exists($this, $compute) => $this->{$compute}($request),
             is_callable($compute)                                 => $compute($this, $request),
-            default                                               => new MissingValue
+            default                                               => new MissingValue,
         };
     }
 
@@ -429,7 +426,7 @@ abstract class ApiResource extends BaseResource implements ApiResourceInterface
         return match (true) {
             is_string($accessor)   => data_get($this->resource, $accessor),
             is_callable($accessor) => $accessor($this, $request),
-            default                => new MissingValue
+            default                => new MissingValue,
         };
     }
 
@@ -459,7 +456,7 @@ abstract class ApiResource extends BaseResource implements ApiResourceInterface
             return match (true) {
                 is_string($accessor)   => data_get($related, $accessor),
                 is_callable($accessor) => $accessor($this, $request),
-                default                => null
+                default                => null,
             };
         }
 
@@ -492,7 +489,7 @@ abstract class ApiResource extends BaseResource implements ApiResourceInterface
     /**
      * Collect count definitions (presentation key => normalized def).
      *
-     * @return array<string, array{relation:string,constraint?:Closure,default?:bool}>
+     * @return array<string, array{relation:string,constraint?:\Closure,default?:bool}>
      */
     private static function countDefinitions(): array
     {
@@ -512,7 +509,7 @@ abstract class ApiResource extends BaseResource implements ApiResourceInterface
                 'relation'   => $relation,
                 'constraint' => $definition['constraint'] ?? null,
                 'default'    => (bool) ($definition['default'] ?? false),
-                'guards'     => $definition['guards'] ?? []
+                'guards'     => $definition['guards'] ?? [],
             ];
         }
 
@@ -629,7 +626,7 @@ abstract class ApiResource extends BaseResource implements ApiResourceInterface
 
                 static::markVisited($visited, $resource, $full_path);
 
-                if ($constraint instanceof Closure) {
+                if ($constraint instanceof \Closure) {
                     $scoped[$full_path] = static function ($query) use ($constraint): void {
 
                         if ($query instanceof MorphTo) {
@@ -686,7 +683,7 @@ abstract class ApiResource extends BaseResource implements ApiResourceInterface
         $relations = isset($definition['relation']) ? (array) $definition['relation'] : [];
 
         return array_values(
-            array_filter($relations, static fn ($relation) => is_string($relation) && $relation !== '')
+            array_filter($relations, static fn ($relation) => is_string($relation) && $relation !== ''),
         );
     }
 
@@ -701,7 +698,7 @@ abstract class ApiResource extends BaseResource implements ApiResourceInterface
         $extras = is_array($definition['extras'] ?? null) ? $definition['extras'] : [];
 
         return array_values(
-            array_filter($extras, static fn ($path) => is_string($path) && $path !== '')
+            array_filter($extras, static fn ($path) => is_string($path) && $path !== ''),
         );
     }
 
@@ -710,13 +707,13 @@ abstract class ApiResource extends BaseResource implements ApiResourceInterface
      * present.
      *
      * @param  array<string, mixed>  $definition
-     * @return Closure|null
+     * @return \Closure|null
      */
-    private static function extractConstraint(array $definition): ?Closure
+    private static function extractConstraint(array $definition): ?\Closure
     {
         $constraint = $definition['constraint'] ?? null;
 
-        return $constraint instanceof Closure ? $constraint : null;
+        return $constraint instanceof \Closure ? $constraint : null;
     }
 
     /**
@@ -811,8 +808,8 @@ abstract class ApiResource extends BaseResource implements ApiResourceInterface
             return array_values(
                 array_filter(
                     $definition['fields'],
-                    static fn ($f) => is_string($f) && $f !== ''
-                )
+                    static fn ($f) => is_string($f) && $f !== '',
+                ),
             );
         }
 
@@ -825,8 +822,8 @@ abstract class ApiResource extends BaseResource implements ApiResourceInterface
                 return array_values(
                     array_filter(
                         $requested,
-                        static fn ($f) => is_string($f) && $f !== ''
-                    )
+                        static fn ($f) => is_string($f) && $f !== '',
+                    ),
                 );
             }
         }

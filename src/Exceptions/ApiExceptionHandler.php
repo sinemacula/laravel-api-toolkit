@@ -25,7 +25,6 @@ use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Component\HttpKernel\Exception\MethodNotAllowedHttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\HttpKernel\Exception\TooManyRequestsHttpException;
-use Throwable;
 
 /**
  * API exception handler.
@@ -34,7 +33,7 @@ use Throwable;
  * responses.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
- * @copyright   2025 Sine Macula Limited.
+ * @copyright   2026 Sine Macula Limited.
  */
 class ApiExceptionHandler
 {
@@ -50,17 +49,17 @@ class ApiExceptionHandler
             self::logApiException($exception);
         })->stop();
 
-        $exceptions->render(fn (Throwable $exception, Request $request) => self::render($exception, $request));
+        $exceptions->render(fn (\Throwable $exception, Request $request) => self::render($exception, $request));
     }
 
     /**
      * Renders the given exception as an HTTP response.
      *
-     * @param  Throwable  $exception
+     * @param  \Throwable  $exception
      * @param  \Illuminate\Http\Request  $request
      * @return \Symfony\Component\HttpFoundation\Response|null
      */
-    private static function render(Throwable $exception, Request $request): ?JsonResponse
+    private static function render(\Throwable $exception, Request $request): ?JsonResponse
     {
         // We only render exceptions as JSON when specifically required and if
         // the application is in debug mode.
@@ -82,10 +81,10 @@ class ApiExceptionHandler
     /**
      * Maps standard exceptions to custom API exceptions.
      *
-     * @param  Throwable  $exception
+     * @param  \Throwable  $exception
      * @return \SineMacula\ApiToolkit\Exceptions\ApiException
      */
-    private static function mapApiException(Throwable $exception): ApiException
+    private static function mapApiException(\Throwable $exception): ApiException
     {
         $headers = method_exists($exception, 'getHeaders') ? $exception->getHeaders() : [];
         $meta    = method_exists($exception, 'errors') ? $exception->errors() : null;
@@ -107,7 +106,7 @@ class ApiExceptionHandler
             $exception instanceof LaravelTokenMismatchException   => TokenMismatchException::class,
             $exception instanceof ValidationException             => InvalidInputException::class,
             $exception instanceof TooManyRequestsHttpException    => TooManyRequestsException::class,
-            default                                               => UnhandledException::class
+            default                                               => UnhandledException::class,
         };
 
         return new $mapped($meta, $headers, $previous);
@@ -141,8 +140,8 @@ class ApiExceptionHandler
                 'code'   => $exception->getInternalErrorCode(),
                 'title'  => $exception->getCustomTitle(),
                 'detail' => $exception->getCustomDetail(),
-                'meta'   => self::getApiExceptionMeta($exception)
-            ])
+                'meta'   => self::getApiExceptionMeta($exception),
+            ]),
         ];
     }
 
@@ -161,7 +160,7 @@ class ApiExceptionHandler
             'exception' => $previous::class,
             'file'      => $previous->getFile(),
             'line'      => $previous->getLine(),
-            'trace'     => collect($previous->getTrace())->map(fn ($trace) => Arr::except($trace, ['args']))->all()
+            'trace'     => collect($previous->getTrace())->map(fn ($trace) => Arr::except($trace, ['args']))->all(),
         ]) : $exception->getCustomMeta();
     }
 
@@ -183,17 +182,17 @@ class ApiExceptionHandler
     /**
      * Formats an exception into a string representation.
      *
-     * @param  Throwable  $exception
+     * @param  \Throwable  $exception
      * @return string
      */
-    private static function convertExceptionToString(Throwable $exception): string
+    private static function convertExceptionToString(\Throwable $exception): string
     {
         return sprintf(
             '[%s] "%s" on line %s of file %s',
             $exception->getCode(),
             $exception->getMessage(),
             $exception->getLine(),
-            $exception->getFile()
+            $exception->getFile(),
         );
     }
 
@@ -207,16 +206,16 @@ class ApiExceptionHandler
         $context = [
             'method' => RequestFacade::method(),
             'path'   => RequestFacade::path(),
-            'data'   => RequestFacade::all()
+            'data'   => RequestFacade::all(),
         ];
 
         try {
             return array_filter(
                 array_merge($context, [
-                    'user_id' => Auth::id()
-                ])
+                    'user_id' => Auth::id(),
+                ]),
             );
-        } catch (Throwable $exception) {
+        } catch (\Throwable $exception) {
             return $context;
         }
     }

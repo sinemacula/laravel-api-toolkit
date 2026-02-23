@@ -6,7 +6,7 @@ namespace SineMacula\ApiToolkit\Contracts;
  * Pure enumeration interface.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
- * @copyright   2025 Sine Macula Limited.
+ * @copyright   2026 Sine Macula Limited.
  */
 interface PureEnumInterface
 {

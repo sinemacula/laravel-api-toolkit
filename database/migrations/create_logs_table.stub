@@ -8,7 +8,7 @@ use Illuminate\Support\Facades\Schema;
  * Create logs table.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
- * @copyright   2025 Sine Macula Limited.
+ * @copyright   2026 Sine Macula Limited.
  */
 return new class extends Migration {
     /**
@@ -24,6 +24,7 @@ return new class extends Migration {
             $table->longText('message');
             $table->json('context')->nullable();
             $table->timestamp('created_at', 6)->useCurrent();
+            $table->index('created_at');
         });
     }
 

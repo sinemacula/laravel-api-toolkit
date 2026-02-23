@@ -29,13 +29,13 @@ trait OrdersFields
     /**
      * Order the resolved fields based on the configured strategy.
      *
-     * @param array $data
+     * @param  array  $data
      * @return array
      */
     protected function orderResolvedFields(array $data): array
     {
         return match ($this->fieldOrderingStrategy) {
-            FieldOrderingStrategy::DEFAULT => $this->orderByDefault($data),
+            FieldOrderingStrategy::DEFAULT             => $this->orderByDefault($data),
             FieldOrderingStrategy::BY_REQUESTED_FIELDS => $this->orderByRequestedFields($data),
         };
     }
@@ -83,7 +83,7 @@ trait OrdersFields
     /**
      * Order resolved fields in the order they were requested.
      *
-     * @param array $data
+     * @param  array  $data
      * @return array
      */
     protected function orderByRequestedFields(array $data): array

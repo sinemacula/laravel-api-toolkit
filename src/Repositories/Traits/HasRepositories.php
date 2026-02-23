@@ -2,9 +2,6 @@
 
 namespace SineMacula\ApiToolkit\Repositories\Traits;
 
-use BadMethodCallException;
-use Exception;
-use SensitiveParameter;
 use SineMacula\ApiToolkit\Repositories\RepositoryResolver;
 use SineMacula\Repositories\Contracts\RepositoryInterface;
 
@@ -12,7 +9,7 @@ use SineMacula\Repositories\Contracts\RepositoryInterface;
  * Provides access to all registered repositories.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
- * @copyright   2025 Sine Macula Limited.
+ * @copyright   2026 Sine Macula Limited.
  */
 trait HasRepositories
 {
@@ -29,9 +26,9 @@ trait HasRepositories
      * @param  array  $arguments
      * @return mixed
      *
-     * @throws Exception
+     * @throws \Exception
      */
-    public function __call(#[SensitiveParameter] $method, #[SensitiveParameter] $arguments): mixed
+    public function __call(#[\SensitiveParameter] $method, #[\SensitiveParameter] $arguments): mixed
     {
         // phpcs:enable
         if (RepositoryResolver::has($method)) {
@@ -48,7 +45,7 @@ trait HasRepositories
             }
         }
 
-        throw new BadMethodCallException("Method {$method} does not exist.");
+        throw new \BadMethodCallException("Method {$method} does not exist.");
     }
 
     /**
@@ -57,7 +54,7 @@ trait HasRepositories
      * @param  string  $repository
      * @return mixed
      *
-     * @throws Exception
+     * @throws \Exception
      */
     protected function resolveRepository(string $repository): RepositoryInterface
     {

@@ -15,7 +15,7 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
  * Base API controller.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
- * @copyright   2025 Sine Macula Limited.
+ * @copyright   2026 Sine Macula Limited.
  */
 abstract class Controller extends LaravelController
 {
@@ -75,7 +75,7 @@ abstract class Controller extends LaravelController
             'Content-Type'      => 'text/event-stream',
             'Cache-Control'     => 'no-cache, no-transform',
             'Connection'        => 'keep-alive',
-            'X-Accel-Buffering' => 'no'
+            'X-Accel-Buffering' => 'no',
         ]);
 
         return Response::stream(function () use ($callback, $interval): void {

@@ -8,7 +8,7 @@ namespace SineMacula\ApiToolkit\Enums\Traits;
  * This is a helper trait to return codes from integer backed enums.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
- * @copyright   2025 Sine Macula Limited.
+ * @copyright   2026 Sine Macula Limited.
  */
 trait ProvidesCode
 {

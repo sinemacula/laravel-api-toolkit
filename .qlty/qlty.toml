@@ -38,18 +38,19 @@ exclude_patterns = [
     "**/target/**",
     "**/templates/**",
     "**/testdata/**",
-    "**/vendor/**",
+    "**/vendor/**"
 ]
 
 test_patterns = [
     "**/test/**",
+    "**/tests/**",
     "**/spec/**",
     "**/*.test.*",
     "**/*.spec.*",
     "**/*_test.*",
     "**/*_spec.*",
     "**/test_*.*",
-    "**/spec_*.*",
+    "**/spec_*.*"
 ]
 
 [runtimes.enabled]
@@ -62,16 +63,11 @@ mode = "comment"
 name = "default"
 default = true
 
-
 [[plugin]]
 name = "actionlint"
 
 [[plugin]]
 name = "checkov"
-
-[[plugin]]
-name = "dotenv-linter"
-mode = "comment"
 
 [[plugin]]
 name = "markdownlint"
@@ -82,7 +78,10 @@ name = "osv-scanner"
 
 [[plugin]]
 name = "php-codesniffer"
+version = "3.13.5"
 mode = "comment"
+package_file = "composer.json"
+package_filters = ["slevomat", "dealerdirect"]
 
 [[plugin]]
 name = "php-cs-fixer"
@@ -96,12 +95,6 @@ name = "ripgrep"
 mode = "comment"
 
 [[plugin]]
-name = "shellcheck"
-
-[[plugin]]
-name = "shfmt"
-
-[[plugin]]
 name = "trivy"
 drivers = [
     "config",
@@ -113,3 +106,8 @@ name = "trufflehog"
 
 [[plugin]]
 name = "yamllint"
+
+[[plugin]]
+name = "phpstan"
+version = "2.1.38"
+package_file = "composer.json"

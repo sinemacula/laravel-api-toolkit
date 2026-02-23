@@ -11,10 +11,9 @@ use Illuminate\Support\Facades\Config;
 use SineMacula\ApiToolkit\Enums\CacheKeys;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
 use SineMacula\ApiToolkit\Http\Resources\ApiResource;
-use SineMacula\ApiToolkit\Repositories\Traits\ResolvesResource;
 use SineMacula\ApiToolkit\Repositories\Traits\InteractsWithModelSchema;
+use SineMacula\ApiToolkit\Repositories\Traits\ResolvesResource;
 use SineMacula\Repositories\Contracts\CriteriaInterface;
-use Throwable;
 
 /**
  * API criteria.
@@ -23,7 +22,7 @@ use Throwable;
  * on model queries based on API requests.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
- * @copyright   2025 Sine Macula Limited.
+ * @copyright   2026 Sine Macula Limited.
  */
 class ApiCriteria implements CriteriaInterface
 {
@@ -47,19 +46,19 @@ class ApiCriteria implements CriteriaInterface
         '$has'      => 'has',
         '$hasnt'    => 'hasnt',
         '$null'     => 'null',
-        '$notNull'  => 'notNull'
+        '$notNull'  => 'notNull',
     ];
 
     /** @var array<string, string> */
     private array $logicalOperatorMap = [
         '$or'  => 'orWhere',
-        '$and' => 'where'
+        '$and' => 'where',
     ];
 
     /** @var array<string, string> */
     private array $relationLogicalOperatorMap = [
         '$or'  => 'orWhereHas',
-        '$and' => 'whereHas'
+        '$and' => 'whereHas',
     ];
 
     /** @var array<int, string> */
@@ -71,7 +70,7 @@ class ApiCriteria implements CriteriaInterface
     /** @var array<string, string> */
     private array $relationalMethodMap = [
         '$has'   => 'whereHas',
-        '$hasnt' => 'whereDoesntHave'
+        '$hasnt' => 'whereDoesntHave',
     ];
 
     /**
@@ -82,7 +81,7 @@ class ApiCriteria implements CriteriaInterface
     public function __construct(
 
         /** The HTTP request */
-        protected Request $request
+        protected Request $request,
 
     ) {}
 
@@ -451,7 +450,7 @@ class ApiCriteria implements CriteriaInterface
             '$contains' => $this->applyJsonContains($query, $column, $value),
             '$null'     => $this->applyNullCondition($query, $column, true, $last_logical_operator),
             '$notNull'  => $this->applyNullCondition($query, $column, false, $last_logical_operator),
-            default     => $this->applyDefaultCondition($query, $column, $operator, $value, $last_logical_operator)
+            default     => $this->applyDefaultCondition($query, $column, $operator, $value, $last_logical_operator),
         };
     }
 
@@ -489,7 +488,7 @@ class ApiCriteria implements CriteriaInterface
 
         try {
             $query->whereJsonContains($column, $value);
-        } catch (Throwable $exception) {
+        } catch (\Throwable $exception) {
         }
     }
 
@@ -569,7 +568,7 @@ class ApiCriteria implements CriteriaInterface
     {
         return Cache::memo()->rememberForever(CacheKeys::MODEL_RELATIONS->resolveKey([
             $model::class,
-            $key
+            $key,
         ]), function () use ($key, $model) {
             if (!method_exists($model, $key) || !is_callable([$model, $key])) {
                 return false;
@@ -577,7 +576,7 @@ class ApiCriteria implements CriteriaInterface
 
             try {
                 return $model->{$key}() instanceof Relation;
-            } catch (Throwable $e) {
+            } catch (\Throwable $e) {
                 return false;
             }
         });

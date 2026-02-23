@@ -12,7 +12,7 @@ use Illuminate\Http\Resources\Json\JsonResource;
  * definitions suitable for direct use in resource schemas.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
- * @copyright   2025 Sine Macula Limited.
+ * @copyright   2026 Sine Macula Limited.
  */
 final class Field extends BaseDefinition
 {
@@ -35,7 +35,7 @@ final class Field extends BaseDefinition
         private readonly mixed $accessor = null,
 
         /** Optional alias to expose this field under */
-        private ?string $alias = null
+        private ?string $alias = null,
 
     ) {}
 

@@ -3,13 +3,12 @@
 namespace SineMacula\ApiToolkit\Http\Routing;
 
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
-use LogicException;
 
 /**
  * Authorized API controller.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
- * @copyright   2025 Sine Macula Limited.
+ * @copyright   2026 Sine Macula Limited.
  */
 abstract class AuthorizedController extends Controller
 {
@@ -31,7 +30,7 @@ abstract class AuthorizedController extends Controller
     public static function getResourceModel(): string
     {
         if (!defined(static::class . '::RESOURCE_MODEL')) {
-            throw new LogicException('The RESOURCE_MODEL constant must be defined on the authorized controller');
+            throw new \LogicException('The RESOURCE_MODEL constant must be defined on the authorized controller');
         }
 
         return static::RESOURCE_MODEL;

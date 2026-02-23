@@ -14,8 +14,6 @@ use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Request;
 use Illuminate\Support\Str;
-use ReflectionException;
-use ReflectionMethod;
 use SineMacula\ApiToolkit\Enums\CacheKeys;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
 use SineMacula\ApiToolkit\Repositories\Criteria\ApiCriteria;
@@ -26,7 +24,7 @@ use SineMacula\Repositories\Repository;
  * The base API repository.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
- * @copyright   2025 Sine Macula Limited.
+ * @copyright   2026 Sine Macula Limited.
  */
 abstract class ApiRepository extends Repository
 {
@@ -38,7 +36,7 @@ abstract class ApiRepository extends Repository
     /**
      * Set a custom resource class to be used.
      *
-     * @param string|null $resource_class
+     * @param  string|null  $resource_class
      * @return $this
      */
     public function usingResource(?string $resource_class): static
@@ -279,7 +277,7 @@ abstract class ApiRepository extends Repository
     {
         try {
 
-            $method = new ReflectionMethod($this->model(), $attribute);
+            $method = new \ReflectionMethod($this->model(), $attribute);
 
             if ($method->getNumberOfParameters() === 0 && !$method->isStatic()) {
 
@@ -290,11 +288,11 @@ abstract class ApiRepository extends Repository
                     $relation instanceof MorphTo       => 'associate',
                     $relation instanceof BelongsToMany => 'sync',
                     $relation instanceof MorphToMany   => 'sync',
-                    default                            => null
+                    default                            => null,
                 };
             }
 
-        } catch (ReflectionException $exception) {
+        } catch (\ReflectionException $exception) {
             Log::error("Failed to resolve relation for attribute {$attribute}: {$exception->getMessage()}");
         }
 
@@ -418,7 +416,7 @@ abstract class ApiRepository extends Repository
             if ($value instanceof Collection) {
                 $value = [
                     'values'    => $value,
-                    'detaching' => true
+                    'detaching' => true,
                 ];
             }
 

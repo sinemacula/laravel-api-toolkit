@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\Log;
  * Notification event listener.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
- * @copyright   2025 Sine Macula Limited.
+ * @copyright   2026 Sine Macula Limited.
  */
 class NotificationListener
 {
@@ -51,14 +51,14 @@ class NotificationListener
         Log::channel('notifications')->info($message, [
             'notification' => $notification::class,
             'notifiable'   => $notifiable::class,
-            'channel'      => $channel
+            'channel'      => $channel,
         ]);
 
         if (config('api-toolkit.logging.cloudwatch.enabled', false)) {
             Log::channel('cloudwatch-notifications')->info($message, [
                 'notification' => $notification::class,
                 'notifiable'   => $notifiable::class,
-                'channel'      => $channel
+                'channel'      => $channel,
             ]);
         }
     }

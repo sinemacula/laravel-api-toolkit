@@ -8,7 +8,6 @@ use Monolog\Handler\AbstractProcessingHandler;
 use Monolog\Level;
 use Monolog\LogRecord;
 use SineMacula\ApiToolkit\Models\LogMessage;
-use Throwable;
 
 /**
  * Custom Monolog handler for database logging.
@@ -18,7 +17,7 @@ use Throwable;
  * logging fails.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
- * @copyright   2025 Sine Macula Limited.
+ * @copyright   2026 Sine Macula Limited.
  */
 class DatabaseHandler extends AbstractProcessingHandler
 {
@@ -37,7 +36,7 @@ class DatabaseHandler extends AbstractProcessingHandler
         $context = $record->context;
 
         // Convert exception objects to string before storing
-        if (isset($context['exception']) && $context['exception'] instanceof Throwable) {
+        if (isset($context['exception']) && $context['exception'] instanceof \Throwable) {
             $context['exception'] = (string) $context['exception'];
         }
 
@@ -48,7 +47,7 @@ class DatabaseHandler extends AbstractProcessingHandler
                 'context'    => empty($context) ? null : json_encode($context, JSON_THROW_ON_ERROR),
                 'created_at' => $record->datetime,
             ]);
-        } catch (Exception $e) {
+        } catch (\Exception $e) {
             $this->logToFallback($record, $e);
         }
     }
@@ -70,10 +69,10 @@ class DatabaseHandler extends AbstractProcessingHandler
      * Log to fallback channels in case of database logging failure.
      *
      * @param  \Monolog\LogRecord  $record
-     * @param  Exception  $exception
+     * @param  \Exception  $exception
      * @return void
      */
-    private function logToFallback(LogRecord $record, Exception $exception): void
+    private function logToFallback(LogRecord $record, \Exception $exception): void
     {
         $fallback_channels = config('logging.channels.fallback.channels', ['single']);
 

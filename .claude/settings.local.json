@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(*)",
+      "WebSearch",
+      "mcp__ide__getDiagnostics",
+      "mcp__plugin_github_github__create_pull_request",
+      "WebFetch(domain:docs.qlty.sh)",
+      "WebFetch(domain:qlty.sh)"
+    ]
+  },
+  "outputStyle": "default"
+}

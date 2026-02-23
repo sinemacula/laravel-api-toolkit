@@ -10,7 +10,7 @@ use PhpNexus\Cwh\Handler\CloudWatch as CloudWatchHandler;
  * CloudWatch Logger.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
- * @copyright   2025 Sine Macula Limited.
+ * @copyright   2026 Sine Macula Limited.
  */
 class CloudWatchLogger
 {
@@ -35,7 +35,7 @@ class CloudWatchLogger
             (int) ($config['retention'] ?? 7),
             (int) ($config['batch_size'] ?? 1000),
             [],
-            Logger::toMonologLevel($config['level'] ?? 'debug')
+            Logger::toMonologLevel($config['level'] ?? 'debug'),
         );
 
         return new Logger('cloudwatch', [$handler]);

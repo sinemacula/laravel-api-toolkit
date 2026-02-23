@@ -16,7 +16,7 @@ use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
  * in the response.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
- * @copyright   2025 Sine Macula Limited.
+ * @copyright   2026 Sine Macula Limited.
  */
 class ApiResourceCollection extends AnonymousResourceCollection
 {
@@ -110,14 +110,14 @@ class ApiResourceCollection extends AnonymousResourceCollection
         if ($this->resource instanceof LengthAwarePaginator) {
             return [
                 'meta'  => $this->buildPaginationMeta($this->resource),
-                'links' => $this->buildPaginationLinks($this->resource)
+                'links' => $this->buildPaginationLinks($this->resource),
             ];
         }
 
         if ($this->resource instanceof CursorPaginator) {
             return [
                 'meta'  => $this->buildCursorPaginationMeta($this->resource),
-                'links' => $this->buildCursorPaginationLinks($this->resource)
+                'links' => $this->buildCursorPaginationLinks($this->resource),
             ];
         }
 
@@ -135,7 +135,7 @@ class ApiResourceCollection extends AnonymousResourceCollection
         return [
             'total'    => $paginator->total(),
             'count'    => count($paginator->items()),
-            'continue' => $paginator->hasMorePages()
+            'continue' => $paginator->hasMorePages(),
         ];
     }
 
@@ -152,7 +152,7 @@ class ApiResourceCollection extends AnonymousResourceCollection
             'first' => $paginator->url(1),
             'prev'  => $paginator->previousPageUrl(),
             'next'  => $paginator->nextPageUrl(),
-            'last'  => $paginator->url($paginator->lastPage())
+            'last'  => $paginator->url($paginator->lastPage()),
         ];
     }
 
@@ -165,7 +165,7 @@ class ApiResourceCollection extends AnonymousResourceCollection
     private function buildCursorPaginationMeta(CursorPaginator $paginator): array
     {
         return [
-            'continue' => $paginator->hasMorePages()
+            'continue' => $paginator->hasMorePages(),
         ];
     }
 
@@ -180,7 +180,7 @@ class ApiResourceCollection extends AnonymousResourceCollection
         return [
             'self' => request()->fullUrl(),
             'prev' => $paginator->previousPageUrl(),
-            'next' => $paginator->nextPageUrl()
+            'next' => $paginator->nextPageUrl(),
         ];
     }
 }

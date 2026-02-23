@@ -2,7 +2,6 @@
 
 namespace SineMacula\ApiToolkit\Http\Resources\Schema;
 
-use Closure;
 use Illuminate\Contracts\Support\Arrayable;
 
 /**
@@ -14,15 +13,15 @@ use Illuminate\Contracts\Support\Arrayable;
  *  Relation::to('organization', 'name', 'organization_name')
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
- * @copyright   2025 Sine Macula Limited.
+ * @copyright   2026 Sine Macula Limited.
  */
 final class Relation extends BaseDefinition implements Arrayable
 {
     /** @var class-string|null Child ApiResource class */
     private ?string $resource = null;
 
-    /** @var Closure|string|null */
-    private Closure|string|null $accessor = null;
+    /** @var \Closure|string|null */
+    private \Closure|string|null $accessor = null;
 
     /** @var array<int, string>|null Child field projection for eager-load planning */
     private ?array $fields = null;
@@ -46,7 +45,7 @@ final class Relation extends BaseDefinition implements Arrayable
         callable|string $resource_or_accessor,
 
         /** Optional alias to expose this field under */
-        private ?string $alias = null
+        private ?string $alias = null,
 
     ) {
         if (is_string($resource_or_accessor) && class_exists($resource_or_accessor)) {
@@ -129,7 +128,7 @@ final class Relation extends BaseDefinition implements Arrayable
                 'constraint'   => $this->constraint,
                 'guards'       => $this->getGuards() ?: null,
                 'transformers' => $this->getTransformers() ?: null,
-            ], static fn ($value) => $value !== null)
+            ], static fn ($value) => $value !== null),
         ];
     }
 }

@@ -4,7 +4,6 @@ namespace SineMacula\ApiToolkit\Http\Resources;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Config;
-use LogicException;
 use SineMacula\ApiToolkit\Contracts\ApiResourceInterface;
 
 /**
@@ -16,7 +15,7 @@ use SineMacula\ApiToolkit\Contracts\ApiResourceInterface;
  * different types of models need to be returned in a uniform API structure.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
- * @copyright   2025 Sine Macula Limited.
+ * @copyright   2026 Sine Macula Limited.
  */
 class PolymorphicResource extends BaseResource
 {
@@ -40,7 +39,7 @@ class PolymorphicResource extends BaseResource
 
         return [
             '_type' => $resource::getResourceType(),
-            ...$resource->resolve($request)
+            ...$resource->resolve($request),
         ];
     }
 
@@ -51,7 +50,7 @@ class PolymorphicResource extends BaseResource
      * @param  mixed  $resource
      * @return \SineMacula\ApiToolkit\Contracts\ApiResourceInterface
      *
-     * @throws LogicException
+     * @throws \LogicException
      */
     private function mapResource(mixed $resource): ApiResourceInterface
     {
@@ -62,6 +61,6 @@ class PolymorphicResource extends BaseResource
             return new $map[$class]($resource, false, $this->fields ?? null);
         }
 
-        throw new LogicException("Resource not found for: {$class}");
+        throw new \LogicException("Resource not found for: {$class}");
     }
 }

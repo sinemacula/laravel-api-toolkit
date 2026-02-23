@@ -1,5 +1,3 @@
-extends: default
-
 rules:
   document-start: disable
   quoted-strings:
@@ -8,14 +6,3 @@ rules:
   key-duplicates: {}
   octal-values:
     forbid-implicit-octal: true
-  line-length: disable
-  indentation: disable
-  new-line-at-end-of-file: disable
-  trailing-spaces: disable
-  brackets: disable
-  colons: disable
-  empty-lines: disable
-  comments: disable
-  braces: disable
-  comments-indentation: disable
-  commas: disable
