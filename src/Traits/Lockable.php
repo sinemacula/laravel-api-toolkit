@@ -23,8 +23,8 @@ trait Lockable
     /** @var \Illuminate\Contracts\Cache\Lock|null The atomic cache lock */
     private ?Lock $lock = null;
 
-    /** @var string The key used for locking the task execution */
-    private string $lockKey;
+    /** @var string|null The key used for locking the task execution */
+    private ?string $lockKey = null;
 
     /**
      * Lock the task execution.
