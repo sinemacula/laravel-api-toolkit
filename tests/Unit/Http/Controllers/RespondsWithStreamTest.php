@@ -60,9 +60,7 @@ class RespondsWithStreamTest extends TestCase
 
         /** @var \Mockery\MockInterface&\SineMacula\ApiToolkit\Repositories\ApiRepository $repository */
         $repository = \Mockery::mock(ApiRepository::class);
-        $repository->shouldReceive('getResourceClass') // @phpstan-ignore method.notFound
-            ->once()
-            ->andReturn(null);
+        $repository->shouldReceive('getResourceClass')->once()->andReturn(null); // @phpstan-ignore method.notFound
 
         $reflection = new \ReflectionMethod($controller, 'makeTransformer');
         $reflection->invoke($controller, $repository);
@@ -104,10 +102,7 @@ class RespondsWithStreamTest extends TestCase
 
         /** @var \Mockery\MockInterface $facade_mock */
         $facade_mock = \Mockery::mock();
-        $facade_mock->shouldReceive('format') // @phpstan-ignore method.notFound
-            ->with('csv')
-            ->once()
-            ->andReturn($chain_mock);
+        $facade_mock->shouldReceive('format')->with('csv')->once()->andReturn($chain_mock); // @phpstan-ignore method.notFound
 
         Exporter::swap($facade_mock);
 
@@ -141,10 +136,7 @@ class RespondsWithStreamTest extends TestCase
 
         /** @var \Mockery\MockInterface $facade_mock */
         $facade_mock = \Mockery::mock();
-        $facade_mock->shouldReceive('format') // @phpstan-ignore method.notFound
-            ->with('csv')
-            ->once()
-            ->andReturn($chain_mock);
+        $facade_mock->shouldReceive('format')->with('csv')->once()->andReturn($chain_mock); // @phpstan-ignore method.notFound
 
         Exporter::swap($facade_mock);
 

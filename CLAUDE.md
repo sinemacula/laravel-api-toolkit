@@ -4,9 +4,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Laravel API Toolkit (`sinemacula/laravel-api-toolkit`) is a Laravel package for building consistent REST APIs. Namespace: `SineMacula\ApiToolkit\`, source in `src/`. Requires PHP ^8.3.
+Laravel API Toolkit (`sinemacula/laravel-api-toolkit`) is a Laravel package for building consistent REST APIs.
+Namespace: `SineMacula\ApiToolkit\`, source in `src/`. Requires PHP ^8.3.
 
-Key sibling packages: `sinemacula/laravel-repositories` (base repository pattern), `sinemacula/laravel-resource-exporter` (export functionality).
+Key sibling packages: `sinemacula/laravel-repositories` (base repository pattern),
+`sinemacula/laravel-resource-exporter` (export functionality).
 
 ## Commands
 
@@ -29,30 +31,40 @@ vendor/bin/phpunit --filter testMethodName tests/Unit/SomeTest.php
 
 ### Request Lifecycle
 
-1. **ParseApiQuery middleware** parses request query parameters into an `ApiQueryParser` singleton (bound as `api.query` in the container). Supports fields, filters, ordering, pagination, and aggregates.
-2. **Controller** (`Http\Routing\Controller`) uses `respondWithItem`, `respondWithCollection`, `respondWithEventStream`, or `respondWithData` to build responses.
-3. **ApiResource** resolves a declarative `schema()` into JSON, filtering fields based on the parsed query. Automatically computes eager-load maps via `eagerLoadMapFor()` and count maps via `eagerLoadCountsFor()`.
-4. **ApiRepository** applies `ApiCriteria` (built from the parsed query) to Eloquent queries for filtering, ordering, and pagination.
+1. **ParseApiQuery middleware** parses request query parameters into an `ApiQueryParser` singleton (bound as `api.query`
+   in the container). Supports fields, filters, ordering, pagination, and aggregates.
+2. **Controller** (`Http\Routing\Controller`) uses `respondWithItem`, `respondWithCollection`, `respondWithEventStream`,
+   or `respondWithData` to build responses.
+3. **ApiResource** resolves a declarative `schema()` into JSON, filtering fields based on the parsed query.
+   Automatically computes eager-load maps via `eagerLoadMapFor()` and count maps via `eagerLoadCountsFor()`.
+4. **ApiRepository** applies `ApiCriteria` (built from the parsed query) to Eloquent queries for filtering, ordering,
+   and pagination.
 
 ### Resource Schema System
 
-Resources extend `ApiResource` and define a static `schema()` returning an array of `Field`, `Relation`, and `Count` definitions (in `Http\Resources\Schema\`). Each definition supports guards, transformers, constraints, computed values, and accessors. Resources must define a `RESOURCE_TYPE` constant.
+Resources extend `ApiResource` and define a static `schema()` returning an array of `Field`, `Relation`, and `Count`
+definitions (in `Http\Resources\Schema\`). Each definition supports guards, transformers, constraints, computed values,
+and accessors. Resources must define a `RESOURCE_TYPE` constant.
 
 ### Exception Handling
 
-`ApiExceptionHandler` maps Laravel exceptions to typed `ApiException` subclasses (BadRequest, Forbidden, NotFound, etc.) and renders them as consistent JSON with translation key support.
+`ApiExceptionHandler` maps Laravel exceptions to typed `ApiException` subclasses (BadRequest, Forbidden, NotFound, etc.)
+and renders them as consistent JSON with translation key support.
 
 ### Service Layer
 
-`Services\Service` provides a base class with optional database transactions, cache-based locking (`Lockable` trait), and success/failure lifecycle callbacks.
+`Services\Service` provides a base class with optional database transactions, cache-based locking (`Lockable` trait),
+and success/failure lifecycle callbacks.
 
 ### Configuration
 
-All behavior is driven by `config/api-toolkit.php`: resource maps, repository maps, cast maps, query parser defaults, export formats, notification logging, maintenance mode exceptions, and CloudWatch logging.
+All behavior is driven by `config/api-toolkit.php`: resource maps, repository maps, cast maps, query parser defaults,
+export formats, notification logging, maintenance mode exceptions, and CloudWatch logging.
 
 ### Logging
 
-Dual-channel logging: `DatabaseLogger`/`DatabaseHandler` for database storage, `CloudWatchLogger` for AWS CloudWatch. Notification events are automatically logged via `NotificationListener`.
+Dual-channel logging: `DatabaseLogger`/`DatabaseHandler` for database storage, `CloudWatchLogger` for AWS CloudWatch.
+Notification events are automatically logged via `NotificationListener`.
 
 ## Repository Structure
 
@@ -65,7 +77,8 @@ Dual-channel logging: `DatabaseLogger`/`DatabaseHandler` for database storage, `
 
 ## Quality Skills (`.claude/agents/`)
 
-When PHP code is changed, run the quality skill agents in this order via the Task tool (subagent_type matching the agent name):
+When PHP code is changed, run the quality skill agents in this order via the Task tool (subagent_type matching the agent
+name):
 
 1. `php-test-author` — when adding/updating tests or closing coverage gaps
 2. `php-complexity-refactor` — resolve tool-reported complexity findings
@@ -77,7 +90,8 @@ When PHP code is changed, run the quality skill agents in this order via the Tas
 
 For Markdown changes, run `markdown-styling`.
 
-If `php-quality-remediator` changes code, rerun the chain (max 3 passes). Each agent includes its full reference material inline.
+If `php-quality-remediator` changes code, rerun the chain (max 3 passes). Each agent includes its full reference
+material inline.
 
 ## Conventions
 

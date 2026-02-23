@@ -28,6 +28,7 @@ this table before stopping.
 ### PSR12.Traits.UseDeclaration.NoBlankLineAfterUse vs CS-Fixer blank-line removal
 
 **Pattern:**
+
 - `phpcs` reports `PSR12.Traits.UseDeclaration.NoBlankLineAfterUse` on a
   trait `use` statement — requires a blank line after it.
 - PHP-CS-Fixer removes that blank line because the member directly below the
@@ -39,6 +40,7 @@ block. When a `/** @var type */` (or full method docblock) is present, both
 tools interpret the blank line as meaningful and agree on its placement.
 
 **Resolution:**
+
 1. Identify the member (property, constant, or method) immediately below the
    offending `use Trait;` line.
 2. If it lacks a doc block, route to `$php-documenter` to add one.
