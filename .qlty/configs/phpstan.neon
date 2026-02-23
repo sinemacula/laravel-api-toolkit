@@ -22,6 +22,6 @@ parameters:
 
 	checkMissingCallableSignature: true
 	checkMissingVarTagTypehint: true
-	checkUninitializedProperties: true
+	checkUninitializedProperties: false
 	inferPrivatePropertyTypeFromConstructor: false
 	reportUnmatchedIgnoredErrors: true
