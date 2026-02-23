@@ -3,9 +3,8 @@
 namespace Tests\Unit\Http\Middleware;
 
 use Illuminate\Foundation\Http\Middleware\PreventRequestsDuringMaintenance as LaravelMiddleware;
-use Illuminate\Support\Facades\Config;
+use Orchestra\Testbench\TestCase;
 use PHPUnit\Framework\Attributes\CoversClass;
-use PHPUnit\Framework\TestCase;
 use SineMacula\ApiToolkit\Http\Middleware\PreventRequestsDuringMaintenance;
 use Tests\Concerns\InteractsWithNonPublicMembers;
 
@@ -39,20 +38,14 @@ class PreventRequestsDuringMaintenanceTest extends TestCase
      */
     public function testConstructorSetsExceptFromConfig(): void
     {
-        Config::shouldReceive('get')
-            ->with('api-toolkit.maintenance_mode.except', [])
-            ->once()
-            ->andReturn(['/health', '/status']);
+        config()->set('api-toolkit.maintenance_mode.except', ['/health', '/status']);
 
-        $app = $this->createAppMock();
+        assert($this->app !== null);
 
-        $middleware = new PreventRequestsDuringMaintenance($app);
-
-        $except = $this->getProperty($middleware, 'except');
+        $middleware = new PreventRequestsDuringMaintenance($this->app);
+        $except     = $this->getProperty($middleware, 'except');
 
         static::assertSame(['/health', '/status'], $except);
-
-        \Mockery::close();
     }
 
     /**
@@ -62,35 +55,13 @@ class PreventRequestsDuringMaintenanceTest extends TestCase
      */
     public function testConstructorUsesEmptyArrayWhenConfigReturnsDefault(): void
     {
-        Config::shouldReceive('get')
-            ->with('api-toolkit.maintenance_mode.except', [])
-            ->once()
-            ->andReturn([]);
+        config()->set('api-toolkit.maintenance_mode.except', []);
 
-        $app = $this->createAppMock();
+        assert($this->app !== null);
 
-        $middleware = new PreventRequestsDuringMaintenance($app);
-
-        $except = $this->getProperty($middleware, 'except');
+        $middleware = new PreventRequestsDuringMaintenance($this->app);
+        $except     = $this->getProperty($middleware, 'except');
 
         static::assertSame([], $except);
-
-        \Mockery::close();
-    }
-
-    /**
-     * Create a mock Application instance.
-     *
-     * @return \Illuminate\Contracts\Foundation\Application
-     */
-    private function createAppMock(): \Illuminate\Contracts\Foundation\Application
-    {
-        $app = $this->createMock(\Illuminate\Contracts\Foundation\Application::class);
-        $app->method('isDownForMaintenance')->willReturn(false);
-        $app->method('maintenanceMode')->willReturn(
-            $this->createMock(\Illuminate\Contracts\Foundation\MaintenanceMode::class),
-        );
-
-        return $app;
     }
 }
