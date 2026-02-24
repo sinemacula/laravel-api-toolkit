@@ -15,6 +15,7 @@ use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\Tag;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Repositories\DummyRepository;
+use Tests\Fixtures\Repositories\TagRepository;
 use Tests\Fixtures\Repositories\UserRepository;
 use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
@@ -549,6 +550,22 @@ class ApiRepositoryTest extends TestCase
         $this->invokeMethod($this->repository, 'setAttribute', $user, 'name', null, 'object');
 
         static::assertNull($user->getAttribute('name'));
+    }
+
+    /**
+     * Test that resolveCastForRelation returns 'sync' for a MorphToMany
+     * relation.
+     *
+     * @return void
+     */
+    public function testResolveCastForRelationReturnsSyncForMorphToMany(): void
+    {
+        assert($this->app !== null);
+
+        $repository = $this->app->make(TagRepository::class);
+        $cast       = $this->invokeMethod($repository, 'resolveCastForRelation', 'articles');
+
+        static::assertSame('sync', $cast);
     }
 
     /**

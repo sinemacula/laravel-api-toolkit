@@ -4,6 +4,7 @@ namespace Tests\Fixtures\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\MorphToMany;
 
 /**
  * Fixture tag model.
@@ -29,5 +30,15 @@ class Tag extends Model
     public function posts(): BelongsToMany
     {
         return $this->belongsToMany(Post::class);
+    }
+
+    /**
+     * Get the posts associated with the tag via a polymorphic many-to-many.
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\MorphToMany<\Tests\Fixtures\Models\Post, $this>
+     */
+    public function articles(): MorphToMany
+    {
+        return $this->morphToMany(Post::class, 'taggable');
     }
 }

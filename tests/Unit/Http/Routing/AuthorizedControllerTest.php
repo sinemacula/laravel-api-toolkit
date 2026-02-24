@@ -2,9 +2,12 @@
 
 namespace Tests\Unit\Http\Routing;
 
+use LogicException;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 use SineMacula\ApiToolkit\Http\Routing\AuthorizedController;
+use SineMacula\ApiToolkit\Http\Routing\Controller;
+use Tests\Concerns\InteractsWithNonPublicMembers;
 use Tests\Fixtures\Controllers\TestingAuthorizedController;
 use Tests\Fixtures\Controllers\TestingMinimalAuthorizedController;
 use Tests\Fixtures\Models\User;
@@ -20,6 +23,8 @@ use Tests\Fixtures\Models\User;
 #[CoversClass(AuthorizedController::class)]
 class AuthorizedControllerTest extends TestCase
 {
+    use InteractsWithNonPublicMembers;
+
     /**
      * Test that getResourceModel returns the RESOURCE_MODEL constant value.
      *
@@ -101,6 +106,45 @@ class AuthorizedControllerTest extends TestCase
         $parents = class_parents(AuthorizedController::class);
 
         static::assertIsArray($parents);
-        static::assertArrayHasKey(\SineMacula\ApiToolkit\Http\Routing\Controller::class, $parents);
+        static::assertArrayHasKey(Controller::class, $parents);
+    }
+
+    /**
+     * Test that the constructor registers authorizeResource middleware.
+     *
+     * Using newInstanceWithoutConstructor avoids running authorizeResource
+     * twice; we then manually invoke the constructor to exercise line 22.
+     *
+     * @return void
+     */
+    public function testConstructorRegistersAuthorizeResourceMiddleware(): void
+    {
+        $reflection = new \ReflectionClass(TestingAuthorizedController::class);
+        $controller = $reflection->newInstanceWithoutConstructor(); // qlty-ignore: radarlint-php:php:S3011
+
+        // Call the constructor to exercise line 22 (authorizeResource call)
+        $constructor = $reflection->getConstructor();
+        static::assertNotNull($constructor);
+        $constructor->invoke($controller);
+
+        $middleware = $this->getProperty($controller, 'middleware');
+
+        static::assertNotEmpty($middleware);
+    }
+
+    /**
+     * Test that getGuardExclusions returns the GUARD_EXCLUSIONS constant value
+     * when defined.
+     *
+     * @return void
+     */
+    public function testGetGuardExclusionsReturnsConstantValueWhenDefined(): void
+    {
+        $reflection = new \ReflectionClass(TestingAuthorizedController::class);
+        $controller = $reflection->newInstanceWithoutConstructor(); // qlty-ignore: radarlint-php:php:S3011
+
+        $result = $this->invokeMethod($controller, 'getGuardExclusions');
+
+        static::assertSame(['index', 'show'], $result);
     }
 }

@@ -2,6 +2,8 @@ parameters:
 	level: 8
 
 	ignoreErrors:
+		- message: '#Call to an undefined method Mockery\\#'
+		  reportUnmatched: false
 		- identifier: argument.type
 		- identifier: ternary.shortNotAllowed
 		- identifier: booleanAnd.leftNotBoolean

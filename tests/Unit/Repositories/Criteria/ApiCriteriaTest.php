@@ -824,6 +824,34 @@ class ApiCriteriaTest extends TestCase
     }
 
     /**
+     * Test that isRelation returns false and catches the exception when the
+     * relation method throws on invocation.
+     *
+     * @return void
+     */
+    public function testIsRelationReturnsFalseWhenRelationMethodThrows(): void
+    {
+        $throwingModel = new class extends \Illuminate\Database\Eloquent\Model {
+            /** @var string|null */
+            protected $table = 'users';
+
+            /**
+             * A method that exists and is callable but throws when invoked.
+             *
+             * @return never
+             */
+            public function brokenRelation(): never
+            {
+                throw new \UnexpectedValueException('intentional test error');
+            }
+        };
+
+        $result = $this->invokeMethod($this->criteria, 'isRelation', 'brokenRelation', $throwingModel);
+
+        static::assertFalse($result);
+    }
+
+    /**
      * Resolve the API query parser and parse the given request.
      *
      * @param  \Illuminate\Http\Request  $request

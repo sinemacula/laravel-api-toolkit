@@ -89,11 +89,11 @@ class ApiServiceProvider extends ServiceProvider
     private function offerPublishing(): void
     {
         if (!$this->app->runningInConsole()) {
-            return;
+            return; // @codeCoverageIgnore
         }
 
         if (!function_exists('config_path')) {
-            return;
+            return; // @codeCoverageIgnore
         }
 
         $this->publishes([

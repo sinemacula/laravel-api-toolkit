@@ -23,6 +23,10 @@ use SineMacula\Repositories\Repository;
 /**
  * The base API repository.
  *
+ * @template TModel of \Illuminate\Database\Eloquent\Model
+ *
+ * @extends \SineMacula\Repositories\Repository<TModel>
+ *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
@@ -30,7 +34,7 @@ abstract class ApiRepository extends Repository
 {
     use ResolvesResource;
 
-    /** @var array<int, string> */
+    /** @var array<string, string|null> Resolved cast map keyed by attribute name. */
     protected array $casts = [];
 
     /**
@@ -182,6 +186,7 @@ abstract class ApiRepository extends Repository
      *
      * @return void
      */
+    #[\Override]
     protected function boot(): void
     {
         $this->resolveAttributeCasts();
@@ -284,10 +289,10 @@ abstract class ApiRepository extends Repository
                 $relation = $method->invoke($this->model);
 
                 return match (true) {
-                    $relation instanceof BelongsTo     => 'associate',
                     $relation instanceof MorphTo       => 'associate',
-                    $relation instanceof BelongsToMany => 'sync',
+                    $relation instanceof BelongsTo     => 'associate',
                     $relation instanceof MorphToMany   => 'sync',
+                    $relation instanceof BelongsToMany => 'sync',
                     default                            => null,
                 };
             }
@@ -463,7 +468,7 @@ abstract class ApiRepository extends Repository
     /**
      * Attempt to resolve the casts from the cache.
      *
-     * @return array
+     * @return array<string, string|null>
      */
     private function resolveCastsFromCache(): array
     {

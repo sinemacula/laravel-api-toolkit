@@ -8,11 +8,14 @@ use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Validation\Validator;
 use Orchestra\Testbench\TestCase;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
+use Psr\Log\LoggerInterface;
 use SineMacula\ApiToolkit\Exceptions\ApiExceptionHandler;
 use SineMacula\ApiToolkit\Exceptions\BadRequestException;
 use Symfony\Component\HttpKernel\Exception\MethodNotAllowedHttpException;
@@ -69,7 +72,51 @@ class ApiExceptionHandlerTest extends TestCase
     }
 
     /**
-     * Test that render maps various Laravel exceptions to the correct HTTP status.
+     * Provide exception mapping test cases.
+     *
+     * @return iterable<string, array{\Throwable, int}>
+     */
+    public static function exceptionMappingProvider(): iterable
+    {
+        yield 'NotFoundHttpException -> 404' => [
+            new NotFoundHttpException,
+            404,
+        ];
+
+        yield 'ModelNotFoundException -> 404' => [
+            new ModelNotFoundException,
+            404,
+        ];
+
+        yield 'AuthorizationException -> 403' => [
+            new AuthorizationException,
+            403,
+        ];
+
+        yield 'AuthenticationException -> 401' => [
+            new AuthenticationException,
+            401,
+        ];
+
+        yield 'TooManyRequestsHttpException -> 429' => [
+            new TooManyRequestsHttpException,
+            429,
+        ];
+
+        yield 'MethodNotAllowedHttpException -> 405' => [
+            new MethodNotAllowedHttpException(['GET', 'POST']),
+            405,
+        ];
+
+        yield 'Generic exception -> 500' => [
+            new \RuntimeException(self::GENERIC_ERROR_MESSAGE),
+            500,
+        ];
+    }
+
+    /**
+     * Test that render maps various Laravel exceptions to the correct HTTP
+     * status.
      *
      * @param  \Throwable  $inputException
      * @param  int  $expectedHttpCode
@@ -187,49 +234,6 @@ class ApiExceptionHandlerTest extends TestCase
     }
 
     /**
-     * Provide exception mapping test cases.
-     *
-     * @return iterable<string, array{\Throwable, int}>
-     */
-    public static function exceptionMappingProvider(): iterable
-    {
-        yield 'NotFoundHttpException -> 404' => [
-            new NotFoundHttpException,
-            404,
-        ];
-
-        yield 'ModelNotFoundException -> 404' => [
-            new ModelNotFoundException,
-            404,
-        ];
-
-        yield 'AuthorizationException -> 403' => [
-            new AuthorizationException,
-            403,
-        ];
-
-        yield 'AuthenticationException -> 401' => [
-            new AuthenticationException,
-            401,
-        ];
-
-        yield 'TooManyRequestsHttpException -> 429' => [
-            new TooManyRequestsHttpException,
-            429,
-        ];
-
-        yield 'MethodNotAllowedHttpException -> 405' => [
-            new MethodNotAllowedHttpException(['GET', 'POST']),
-            405,
-        ];
-
-        yield 'Generic exception -> 500' => [
-            new \RuntimeException(self::GENERIC_ERROR_MESSAGE),
-            500,
-        ];
-    }
-
-    /**
      * Test that ValidationException maps to 422.
      *
      * This test is separate because ValidationException requires a Validator
@@ -252,5 +256,152 @@ class ApiExceptionHandlerTest extends TestCase
 
         static::assertInstanceOf(JsonResponse::class, $response);
         static::assertSame(422, $response->getStatusCode());
+    }
+
+    /**
+     * Test that the report callback registered via handles() invokes
+     * logApiException when an ApiException is reported.
+     *
+     * @return void
+     */
+    public function testHandlesReportCallbackInvokesLogApiException(): void
+    {
+        $mock_channel = \Mockery::mock(LoggerInterface::class);
+        $mock_channel->shouldReceive('error')->once()->withAnyArgs();
+
+        Log::shouldReceive('channel')
+            ->with('api-exceptions')
+            ->once()
+            ->andReturn($mock_channel);
+
+        $reportable = new class {
+            /**
+             * @return $this
+             */
+            public function stop(): static
+            {
+                return $this;
+            }
+        };
+
+        $captured_callback = null;
+
+        $exceptions = $this->createMock(Exceptions::class);
+        $exceptions->method('report')
+            ->willReturnCallback(function ($callback) use (&$captured_callback, $reportable) {
+                $captured_callback = $callback;
+
+                return $reportable;
+            });
+        $exceptions->method('render');
+
+        ApiExceptionHandler::handles($exceptions);
+
+        static::assertNotNull($captured_callback);
+
+        $captured_callback(new BadRequestException);
+    }
+
+    /**
+     * Test that logApiException logs to the api-exceptions channel.
+     *
+     * @return void
+     */
+    public function testLogApiExceptionLogsToApiExceptionsChannel(): void
+    {
+        $mock_channel = \Mockery::mock(LoggerInterface::class);
+        $mock_channel->shouldReceive('error')->once()->withAnyArgs();
+
+        Log::shouldReceive('channel')
+            ->with('api-exceptions')
+            ->once()
+            ->andReturn($mock_channel);
+
+        $exception  = new BadRequestException;
+        $reflection = new \ReflectionMethod(ApiExceptionHandler::class, 'logApiException');
+
+        $reflection->invoke(null, $exception);
+    }
+
+    /**
+     * Test that logApiException also logs to cloudwatch when enabled.
+     *
+     * @return void
+     */
+    public function testLogApiExceptionAlsoLogsToCloudWatchWhenEnabled(): void
+    {
+        config()->set('api-toolkit.logging.cloudwatch.enabled', true);
+
+        $mock_api_channel = \Mockery::mock(LoggerInterface::class);
+        $mock_api_channel->shouldReceive('error')->once()->withAnyArgs();
+
+        $mock_cw_channel = \Mockery::mock(LoggerInterface::class);
+        $mock_cw_channel->shouldReceive('error')->once()->withAnyArgs();
+
+        Log::shouldReceive('channel')
+            ->with('api-exceptions')
+            ->once()
+            ->andReturn($mock_api_channel);
+
+        Log::shouldReceive('channel')
+            ->with('cloudwatch-api-exceptions')
+            ->once()
+            ->andReturn($mock_cw_channel);
+
+        $exception  = new BadRequestException;
+        $reflection = new \ReflectionMethod(ApiExceptionHandler::class, 'logApiException');
+
+        $reflection->invoke(null, $exception);
+    }
+
+    /**
+     * Test that convertExceptionToString returns a formatted string.
+     *
+     * @return void
+     */
+    public function testConvertExceptionToStringReturnsFormattedString(): void
+    {
+        $exception  = new \RuntimeException(self::GENERIC_ERROR_MESSAGE, 42);
+        $reflection = new \ReflectionMethod(ApiExceptionHandler::class, 'convertExceptionToString');
+
+        $result = $reflection->invoke(null, $exception);
+
+        static::assertStringContainsString('[42]', $result);
+        static::assertStringContainsString(self::GENERIC_ERROR_MESSAGE, $result);
+        static::assertStringContainsString('on line', $result);
+        static::assertStringContainsString('of file', $result);
+    }
+
+    /**
+     * Test that getContext returns request method, path, and data.
+     *
+     * @return void
+     */
+    public function testGetContextReturnsRequestContext(): void
+    {
+        $reflection = new \ReflectionMethod(ApiExceptionHandler::class, 'getContext');
+
+        $result = $reflection->invoke(null);
+
+        static::assertIsArray($result);
+        static::assertArrayHasKey('method', $result);
+        static::assertArrayHasKey('path', $result);
+    }
+
+    /**
+     * Test that getContext falls back gracefully when Auth::id() throws.
+     *
+     * @return void
+     */
+    public function testGetContextFallsBackWhenAuthThrows(): void
+    {
+        Auth::shouldReceive('id')->andThrow(new \RuntimeException('No auth guard'));
+
+        $reflection = new \ReflectionMethod(ApiExceptionHandler::class, 'getContext');
+
+        $result = $reflection->invoke(null);
+
+        static::assertIsArray($result);
+        static::assertArrayHasKey('method', $result);
     }
 }
