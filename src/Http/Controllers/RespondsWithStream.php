@@ -27,20 +27,19 @@ trait RespondsWithStream
      * @param  string  $filename
      * @return \Symfony\Component\HttpFoundation\StreamedResponse
      */
-    public function streamRepositoryToCsv(
-        ApiRepository $repository,
-        int $chunk_size = 1500,
-        string $filename = 'export.csv',
-    ): StreamedResponse {
+    public function streamRepositoryToCsv(ApiRepository $repository, int $chunk_size = 1500, string $filename = 'export.csv'): StreamedResponse
+    {
         $limit = ApiQuery::getLimit();
 
         $transformer = $this->makeTransformer($repository);
 
         $stream = function () use ($repository, $transformer, $chunk_size, $limit): void {
+
             $is_first_chunk = true;
             $processed      = 0;
 
             $repository->chunkById($chunk_size, function ($chunk) use ($transformer, &$is_first_chunk, &$processed, $limit): bool {
+
                 if ($limit && $processed >= $limit) {
                     return false; // Stop chunking
                 }
@@ -83,8 +82,9 @@ trait RespondsWithStream
     /**
      * Format a chunk of rows as a CSV string.
      *
-     * Uses the vendor Exporter for consistent formatting (column name conversion,
-     * escaping, etc.) but handles header row output to avoid duplicates per chunk.
+     * Uses the vendor Exporter for consistent formatting (column name
+     * conversion, escaping, etc.) but handles header row output to avoid
+     * duplicates per chunk.
      *
      * @param  array  $rows
      * @param  bool  $is_first_chunk

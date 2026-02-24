@@ -27,14 +27,9 @@ abstract class Controller extends LaravelController
     /**
      * Respond with raw array data as a JSON response.
      *
-     * @formatter:off
-     *
      * @param  array<string, mixed>  $data
      * @param  \SineMacula\ApiToolkit\Enums\HttpStatus  $status
      * @param  array<string, string>  $headers
-     *
-     * @formatter:on
-     *
      * @return \Illuminate\Http\JsonResponse
      */
     protected function respondWithData(array $data, HttpStatus $status = HttpStatus::OK, array $headers = []): JsonResponse
@@ -45,14 +40,9 @@ abstract class Controller extends LaravelController
     /**
      * Respond with a JSON resource representing a single item.
      *
-     * @formatter:off
-     *
      * @param  \Illuminate\Http\Resources\Json\JsonResource  $resource
      * @param  \SineMacula\ApiToolkit\Enums\HttpStatus  $status
      * @param  array<string, string>  $headers
-     *
-     * @formatter:on
-     *
      * @return \Illuminate\Http\JsonResponse
      */
     protected function respondWithItem(JsonResource $resource, HttpStatus $status = HttpStatus::OK, array $headers = []): JsonResponse
@@ -63,14 +53,9 @@ abstract class Controller extends LaravelController
     /**
      * Respond with a JSON resource collection.
      *
-     * @formatter:off
-     *
      * @param  \Illuminate\Http\Resources\Json\ResourceCollection  $collection
      * @param  \SineMacula\ApiToolkit\Enums\HttpStatus  $status
      * @param  array<string, string>  $headers
-     *
-     * @formatter:on
-     *
      * @return \Illuminate\Http\JsonResponse
      */
     protected function respondWithCollection(ResourceCollection $collection, HttpStatus $status = HttpStatus::OK, array $headers = []): JsonResponse
@@ -81,15 +66,10 @@ abstract class Controller extends LaravelController
     /**
      * Respond with an SSE event stream.
      *
-     * @formatter:off
-     *
      * @param  callable(): void  $callback
      * @param  int  $interval
      * @param  \SineMacula\ApiToolkit\Enums\HttpStatus  $status
      * @param  array<string, string>  $headers
-     *
-     * @formatter:on
-     *
      * @return \Symfony\Component\HttpFoundation\StreamedResponse
      */
     protected function respondWithEventStream(callable $callback, int $interval = 1, HttpStatus $status = HttpStatus::OK, array $headers = []): StreamedResponse
@@ -125,6 +105,7 @@ abstract class Controller extends LaravelController
         $heartbeat_timestamp = now();
 
         while (true) {
+
             if (connection_aborted()) {
                 break;
             }
@@ -167,13 +148,11 @@ abstract class Controller extends LaravelController
     {
         try {
             $callback();
-
             return true;
         } catch (\Throwable $e) {
             report($e);
             echo "event: error\n\n";
             flush();
-
             return false;
         }
     }

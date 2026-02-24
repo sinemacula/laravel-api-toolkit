@@ -91,11 +91,8 @@ trait RespondsWithExport
      *
      * @throws \InvalidArgumentException
      */
-    public function exportFromCollection(
-        ResourceCollection $collection,
-        bool $download = true,
-        ?string $filename = null,
-    ): HttpResponse {
+    public function exportFromCollection(ResourceCollection $collection, bool $download = true, ?string $filename = null): HttpResponse
+    {
         return match (true) {
             Request::expectsCsv() => $this->exportCollectionToCsv($collection, $download, $filename ?? 'export.csv'),
             Request::expectsXml() => $this->exportCollectionToXml($collection, $download, $filename ?? 'export.xml'),
@@ -111,11 +108,8 @@ trait RespondsWithExport
      * @param  string  $filename
      * @return \Illuminate\Http\Response
      */
-    public function exportCollectionToCsv(
-        ResourceCollection $collection,
-        bool $download = true,
-        string $filename = 'export.csv',
-    ): HttpResponse {
+    public function exportCollectionToCsv(ResourceCollection $collection, bool $download = true, string $filename = 'export.csv'): HttpResponse
+    {
         $csv = Exporter::format('csv')
             ->withoutFields(config('api-toolkit.exports.ignored_fields', []))
             ->exportCollection($collection);
@@ -131,11 +125,8 @@ trait RespondsWithExport
      * @param  string  $filename
      * @return \Illuminate\Http\Response
      */
-    public function exportCollectionToXml(
-        ResourceCollection $collection,
-        bool $download = true,
-        string $filename = 'export.xml',
-    ): HttpResponse {
+    public function exportCollectionToXml(ResourceCollection $collection, bool $download = true, string $filename = 'export.xml'): HttpResponse
+    {
         $xml = Exporter::format('xml')
             ->withoutFields(config('api-toolkit.exports.ignored_fields', []))
             ->exportCollection($collection);
@@ -153,11 +144,8 @@ trait RespondsWithExport
      *
      * @throws \InvalidArgumentException
      */
-    public function exportFromItem(
-        JsonResource $resource,
-        bool $download = true,
-        ?string $filename = null,
-    ): HttpResponse {
+    public function exportFromItem(JsonResource $resource, bool $download = true, ?string $filename = null): HttpResponse
+    {
         return match (true) {
             Request::expectsCsv() => $this->exportItemToCsv($resource, $download, $filename ?? 'export.csv'),
             Request::expectsXml() => $this->exportItemToXml($resource, $download, $filename ?? 'export.xml'),
@@ -173,11 +161,8 @@ trait RespondsWithExport
      * @param  string  $filename
      * @return \Illuminate\Http\Response
      */
-    public function exportItemToCsv(
-        JsonResource $resource,
-        bool $download = true,
-        string $filename = 'export.csv',
-    ): HttpResponse {
+    public function exportItemToCsv(JsonResource $resource, bool $download = true, string $filename = 'export.csv'): HttpResponse
+    {
         $csv = Exporter::format('csv')
             ->withoutFields(config('api-toolkit.exports.ignored_fields', []))
             ->exportItem($resource);
@@ -193,11 +178,8 @@ trait RespondsWithExport
      * @param  string  $filename
      * @return \Illuminate\Http\Response
      */
-    public function exportItemToXml(
-        JsonResource $resource,
-        bool $download = true,
-        string $filename = 'export.xml',
-    ): HttpResponse {
+    public function exportItemToXml(JsonResource $resource, bool $download = true, string $filename = 'export.xml'): HttpResponse
+    {
         $xml = Exporter::format('xml')
             ->withoutFields(config('api-toolkit.exports.ignored_fields', []))
             ->exportItem($resource);
