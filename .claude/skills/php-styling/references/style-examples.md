@@ -4,13 +4,13 @@ Use these examples to keep style changes aligned with repository conventions.
 
 ## Signature Wrapping
 
-Single-line when <= 120 chars:
+Single-line when <= 180 chars (measured using short/imported names, not FQCN):
 
 ```php
 private function makeRequest(array $overrides = []): HttpRequest
 ```
 
-Multi-line when > 120 chars:
+Multi-line when > 180 chars:
 
 ```php
 public function send(

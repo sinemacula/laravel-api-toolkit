@@ -8,7 +8,7 @@
  * connection_aborted(), sleep(), and flush() without affecting global state.
  */
 
-namespace SineMacula\ApiToolkit\Http\Controllers;
+namespace SineMacula\ApiToolkit\Http\Concerns;
 
 use Tests\Fixtures\Support\FunctionOverrides;
 

@@ -1,6 +1,6 @@
 <?php
 
-namespace SineMacula\ApiToolkit\Http\Controllers;
+namespace SineMacula\ApiToolkit\Http\Concerns;
 
 use Closure;
 use Illuminate\Support\Facades\Response;
@@ -14,8 +14,8 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
  *
  * Handles the streaming of datasets within controllers.
  *
- * @author      Michael Stivala <michael.stivala@verifast.app>
- * @copyright   2025 Verifast, Inc.
+ * @author      Michael Stivala <michael.stivala@verifast.com>
+ * @copyright   2026 Sine Macula Limited.
  */
 trait RespondsWithStream
 {
@@ -52,14 +52,17 @@ trait RespondsWithStream
                 // Remove trailing newline to prevent blank lines between chunks
                 echo rtrim($csv, "\n");
 
-                ob_flush();
+                if (ob_get_level() > 0) {
+                    ob_flush();
+                }
+
                 flush();
 
                 return true;
             });
         };
 
-        return $this->createStreamedResponse($stream, 'text/csv', $filename);
+        return $this->createStreamedResponse($stream, 'text/csv; charset=utf-8', $filename);
     }
 
     /**
@@ -86,7 +89,7 @@ trait RespondsWithStream
      * conversion, escaping, etc.) but handles header row output to avoid
      * duplicates per chunk.
      *
-     * @param  array  $rows
+     * @param  array<int, array<string, mixed>>  $rows
      * @param  bool  $is_first_chunk
      * @return string
      */
@@ -100,6 +103,7 @@ trait RespondsWithStream
         }
 
         $is_first_chunk = false;
+
         return $exporter->exportArray($rows);
     }
 

@@ -1,12 +1,13 @@
 <?php
 
-namespace SineMacula\ApiToolkit\Http\Controllers;
+namespace SineMacula\ApiToolkit\Http\Concerns;
 
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Http\Resources\Json\ResourceCollection;
 use Illuminate\Http\Response as HttpResponse;
 use Illuminate\Support\Facades\Request;
 use Illuminate\Support\Facades\Response;
+use SineMacula\Exporter\Contracts\Exporter as ExporterContract;
 use SineMacula\Exporter\Facades\Exporter;
 
 /**
@@ -19,19 +20,19 @@ use SineMacula\Exporter\Facades\Exporter;
  */
 trait RespondsWithExport
 {
-    /** @var string */
+    /** @var string CSV content type header value. */
     private const string CONTENT_TYPE_CSV = 'text/csv; charset=utf-8';
 
-    /** @var string */
+    /** @var string XML content type header value. */
     private const string CONTENT_TYPE_XML = 'application/xml';
 
-    /** @var string */
+    /** @var string Error message for unsupported export formats. */
     private const string UNSUPPORTED_FORMAT_MESSAGE = 'Unsupported export format';
 
     /**
      * Export the given array.
      *
-     * @param  array  $data
+     * @param  array<int|string, mixed>  $data
      * @param  bool  $download
      * @param  string|null  $filename
      * @return \Illuminate\Http\Response
@@ -50,16 +51,14 @@ trait RespondsWithExport
     /**
      * Export the given array to CSV.
      *
-     * @param  array  $data
+     * @param  array<int, array<string, mixed>>  $data
      * @param  bool  $download
      * @param  string  $filename
      * @return \Illuminate\Http\Response
      */
     public function exportArrayToCsv(array $data, bool $download = true, string $filename = 'export.csv'): HttpResponse
     {
-        $csv = Exporter::format('csv')
-            ->withoutFields(config('api-toolkit.exports.ignored_fields', []))
-            ->exportArray($data);
+        $csv = $this->buildExporter('csv')->exportArray($data);
 
         return $this->createExportResponse($csv, self::CONTENT_TYPE_CSV, $download, $filename);
     }
@@ -67,16 +66,14 @@ trait RespondsWithExport
     /**
      * Export the given array to XML.
      *
-     * @param  array  $data
+     * @param  array<int, array<string, mixed>>  $data
      * @param  bool  $download
      * @param  string  $filename
      * @return \Illuminate\Http\Response
      */
     public function exportArrayToXml(array $data, bool $download = true, string $filename = 'export.xml'): HttpResponse
     {
-        $xml = Exporter::format('xml')
-            ->withoutFields(config('api-toolkit.exports.ignored_fields', []))
-            ->exportArray($data);
+        $xml = $this->buildExporter('xml')->exportArray($data);
 
         return $this->createExportResponse($xml, self::CONTENT_TYPE_XML, $download, $filename);
     }
@@ -110,9 +107,7 @@ trait RespondsWithExport
      */
     public function exportCollectionToCsv(ResourceCollection $collection, bool $download = true, string $filename = 'export.csv'): HttpResponse
     {
-        $csv = Exporter::format('csv')
-            ->withoutFields(config('api-toolkit.exports.ignored_fields', []))
-            ->exportCollection($collection);
+        $csv = $this->buildExporter('csv')->exportCollection($collection);
 
         return $this->createExportResponse($csv, self::CONTENT_TYPE_CSV, $download, $filename);
     }
@@ -127,9 +122,7 @@ trait RespondsWithExport
      */
     public function exportCollectionToXml(ResourceCollection $collection, bool $download = true, string $filename = 'export.xml'): HttpResponse
     {
-        $xml = Exporter::format('xml')
-            ->withoutFields(config('api-toolkit.exports.ignored_fields', []))
-            ->exportCollection($collection);
+        $xml = $this->buildExporter('xml')->exportCollection($collection);
 
         return $this->createExportResponse($xml, self::CONTENT_TYPE_XML, $download, $filename);
     }
@@ -163,9 +156,7 @@ trait RespondsWithExport
      */
     public function exportItemToCsv(JsonResource $resource, bool $download = true, string $filename = 'export.csv'): HttpResponse
     {
-        $csv = Exporter::format('csv')
-            ->withoutFields(config('api-toolkit.exports.ignored_fields', []))
-            ->exportItem($resource);
+        $csv = $this->buildExporter('csv')->exportItem($resource);
 
         return $this->createExportResponse($csv, self::CONTENT_TYPE_CSV, $download, $filename);
     }
@@ -180,9 +171,7 @@ trait RespondsWithExport
      */
     public function exportItemToXml(JsonResource $resource, bool $download = true, string $filename = 'export.xml'): HttpResponse
     {
-        $xml = Exporter::format('xml')
-            ->withoutFields(config('api-toolkit.exports.ignored_fields', []))
-            ->exportItem($resource);
+        $xml = $this->buildExporter('xml')->exportItem($resource);
 
         return $this->createExportResponse($xml, self::CONTENT_TYPE_XML, $download, $filename);
     }
@@ -207,5 +196,17 @@ trait RespondsWithExport
         }
 
         return $response;
+    }
+
+    /**
+     * Build a configured exporter instance for the given format.
+     *
+     * @param  string  $format
+     * @return \SineMacula\Exporter\Contracts\Exporter
+     */
+    private function buildExporter(string $format): ExporterContract
+    {
+        return Exporter::format($format)
+            ->withoutFields(config('api-toolkit.exports.ignored_fields', []));
     }
 }

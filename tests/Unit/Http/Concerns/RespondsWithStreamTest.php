@@ -1,11 +1,12 @@
 <?php
 
-namespace Tests\Unit\Http\Controllers;
+namespace Tests\Unit\Http\Concerns;
 
 use Illuminate\Http\Request;
+use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
-use SineMacula\ApiToolkit\Http\Controllers\RespondsWithStream;
+use SineMacula\ApiToolkit\Http\Concerns\RespondsWithStream;
 use SineMacula\ApiToolkit\Repositories\ApiRepository;
 use SineMacula\Exporter\Facades\Exporter;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -26,6 +27,9 @@ use Tests\TestCase;
 class RespondsWithStreamTest extends TestCase
 {
     /** @var string */
+    private const string CONTENT_TYPE_CSV = 'text/csv; charset=utf-8';
+
+    /** @var string */
     private const string TEST_URI = '/test';
 
     /**
@@ -43,7 +47,7 @@ class RespondsWithStreamTest extends TestCase
         /** @var \Mockery\MockInterface&\SineMacula\ApiToolkit\Repositories\ApiRepository<\Illuminate\Database\Eloquent\Model> $repository */
         $repository = \Mockery::mock(ApiRepository::class);
         $repository->shouldReceive('getResourceClass')
-            ->andReturn(\Tests\Fixtures\Resources\UserResource::class);
+            ->andReturn(UserResource::class);
         $repository->shouldReceive('chunkById')
             ->andReturn(true);
 
@@ -277,12 +281,34 @@ class RespondsWithStreamTest extends TestCase
 
         /** @var \Mockery\MockInterface&\SineMacula\ApiToolkit\Repositories\ApiRepository<\Illuminate\Database\Eloquent\Model> $repository */
         $repository = \Mockery::mock(ApiRepository::class);
-        $repository->shouldReceive('getResourceClass')->andReturn(\Tests\Fixtures\Resources\UserResource::class);
+        $repository->shouldReceive('getResourceClass')->andReturn(UserResource::class);
         $repository->shouldReceive('chunkById')->andReturn(true);
 
         $response = $controller->streamRepositoryToCsv($repository, 1500, 'users.csv'); // @phpstan-ignore method.notFound
 
         static::assertStringContainsString('users.csv', $response->headers->get('Content-Disposition') ?? '');
+    }
+
+    /**
+     * Test that streamRepositoryToCsv sets Content-Type with charset.
+     *
+     * @return void
+     */
+    public function testStreamRepositoryToCsvSetsContentTypeWithCharset(): void
+    {
+        $controller = $this->createControllerWithTrait();
+
+        $request = Request::create(self::TEST_URI, 'GET');
+        ApiQuery::parse($request);
+
+        /** @var \Mockery\MockInterface&\SineMacula\ApiToolkit\Repositories\ApiRepository<\Illuminate\Database\Eloquent\Model> $repository */
+        $repository = \Mockery::mock(ApiRepository::class);
+        $repository->shouldReceive('getResourceClass')->andReturn(UserResource::class);
+        $repository->shouldReceive('chunkById')->andReturn(true);
+
+        $response = $controller->streamRepositoryToCsv($repository); // @phpstan-ignore method.notFound
+
+        static::assertSame(self::CONTENT_TYPE_CSV, $response->headers->get('Content-Type'));
     }
 
     /**
