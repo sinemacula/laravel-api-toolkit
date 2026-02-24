@@ -2,6 +2,7 @@
 
 namespace Tests\Unit\Http\Resources;
 
+use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\MissingValue;
 use LogicException;
@@ -35,13 +36,13 @@ use Tests\TestCase;
 #[CoversClass(ApiResource::class)]
 class ApiResourceTest extends TestCase
 {
-    /** @var string */
+    /** @var string Email address used in fluent-return test fixtures. */
     private const string FLUENT_EMAIL = 'fluent@example.com';
 
-    /** @var string */
+    /** @var string Field selection string that includes the counts field. */
     private const string COUNTS_FIELDS = 'id,counts';
 
-    /** @var string */
+    /** @var string Count metric key for the posts relation. */
     private const string COUNT_KEY_POSTS = '__count__:posts';
 
     /**
@@ -49,6 +50,7 @@ class ApiResourceTest extends TestCase
      *
      * @return void
      */
+    #[\Override]
     protected function tearDown(): void
     {
         $this->clearSchemaCache();
@@ -1996,6 +1998,148 @@ class ApiResourceTest extends TestCase
         ($map['organization'])($builder);
 
         static::assertNotEmpty($builder->getQuery()->wheres);
+    }
+
+    /**
+     * Test that resolveSimpleProperty returns the accessor value when the
+     * model method's return type is Attribute (line 389).
+     *
+     * @return void
+     */
+    public function testResolveSimplePropertyReturnsValueWhenMethodReturnsAttributeType(): void
+    {
+        $this->clearSchemaCache();
+
+        $model = new class extends \Illuminate\Database\Eloquent\Model {
+            /** @var string|null The database table backing the model. */
+            protected $table = 'users';
+
+            /**
+             * Get the label attribute.
+             *
+             * @return \Illuminate\Database\Eloquent\Casts\Attribute
+             */
+            public function label(): \Illuminate\Database\Eloquent\Casts\Attribute
+            {
+                return \Illuminate\Database\Eloquent\Casts\Attribute::make(
+                    get: fn () => 'attr_value',
+                );
+            }
+        };
+
+        $resource_class = new class (null) extends ApiResource {
+            /** @var string */
+            public const string RESOURCE_TYPE = 'attr_method_test';
+
+            /** @var array<int, string> */
+            protected static array $default = ['label']; // @phpstan-ignore property.phpDocType
+
+            /**
+             * Get the resource schema.
+             *
+             * @return array<string, array<string, mixed>>
+             */
+            public static function schema(): array
+            {
+                return Field::set(
+                    Field::scalar('label'),
+                );
+            }
+        };
+
+        $resource = new $resource_class($model);
+        $resource->withFields(['label']);
+
+        $result = $resource->resolve();
+
+        static::assertSame('attr_value', $result['label']);
+    }
+
+    /**
+     * Test that getAttributeIfLoaded returns via __isset when the owner has
+     * no getAttributes method (line 555).
+     *
+     * @return void
+     */
+    public function testGetAttributeIfLoadedTakesIssetPathForNonEloquentOwner(): void
+    {
+        assert($this->app !== null);
+
+        /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
+        $parser  = $this->app->make('api.query');
+        $request = Request::create('/', 'GET', ['fields' => ['users' => 'id,counts']]);
+        $parser->parse($request);
+
+        // A plain object with __isset/__get but no getAttributes(), so
+        // getAttributeIfLoaded falls through to the __isset branch (line 554).
+        $fake_owner = new class {
+            /**
+             * @param  string  $name
+             * @return bool
+             */
+            public function __isset(string $name): bool
+            {
+                return $name === 'posts_count';
+            }
+
+            /**
+             * @param  string  $name
+             * @return mixed
+             */
+            public function __get(string $name): mixed
+            {
+                return $name === 'posts_count' ? 2 : null;
+            }
+        };
+
+        $resource = new UserResource($fake_owner);
+        $result   = $resource->resolve();
+
+        static::assertArrayHasKey('counts', $result);
+        static::assertSame(2, $result['counts']['posts']);
+    }
+
+    /**
+     * Test that the scoped-constraint closure passes the query directly to
+     * the user constraint when the query is a MorphTo instance (lines 633-634).
+     *
+     * @return void
+     */
+    public function testEagerLoadMapConstraintClosureExecutesOnMorphTo(): void
+    {
+        $this->clearSchemaCache();
+
+        $resource_class = new class (null) extends ApiResource {
+            /** @var string */
+            public const string RESOURCE_TYPE = 'morph_to_exec_test';
+
+            /** @var array<int, string> */
+            protected static array $default = ['id', 'organization']; // @phpstan-ignore property.phpDocType
+
+            /**
+             * Get the resource schema.
+             *
+             * @return array<string, array<string, mixed>>
+             */
+            public static function schema(): array
+            {
+                return Field::set(
+                    Field::scalar('id'),
+                    Relation::to('organization', OrganizationResource::class)
+                        ->constrain(fn ($query) => $query),
+                );
+            }
+        };
+
+        $map = $resource_class::eagerLoadMapFor(['organization']);
+
+        static::assertArrayHasKey('organization', $map);
+        static::assertIsCallable($map['organization']);
+
+        // Invoke the wrapper closure with a MorphTo mock to exercise the
+        // MorphTo branch (lines 633-634) where the constraint is called directly.
+        $morph_to = \Mockery::mock(MorphTo::class);
+        ($map['organization'])($morph_to);
     }
 
     /**

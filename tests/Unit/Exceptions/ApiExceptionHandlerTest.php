@@ -8,6 +8,8 @@ use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Validation\Validator;
 use Orchestra\Testbench\TestCase;
@@ -252,5 +254,156 @@ class ApiExceptionHandlerTest extends TestCase
 
         static::assertInstanceOf(JsonResponse::class, $response);
         static::assertSame(422, $response->getStatusCode());
+    }
+
+    /**
+     * Test that the report callback registered via handles() invokes
+     * logApiException when an ApiException is reported.
+     *
+     * @return void
+     */
+    public function testHandlesReportCallbackInvokesLogApiException(): void
+    {
+        $mock_channel = \Mockery::mock(\Psr\Log\LoggerInterface::class);
+        // @phpstan-ignore method.notFound (Mockery expectation chain; HigherOrderMessage is not in play here)
+        $mock_channel->shouldReceive('error')->once()->withAnyArgs();
+
+        Log::shouldReceive('channel')
+            ->with('api-exceptions')
+            ->once()
+            ->andReturn($mock_channel);
+
+        $reportable = new class {
+            /**
+             * @return $this
+             */
+            public function stop(): static
+            {
+                return $this;
+            }
+        };
+
+        $capturedCallback = null;
+
+        $exceptions = $this->createMock(Exceptions::class);
+        $exceptions->method('report')
+            ->willReturnCallback(function ($callback) use (&$capturedCallback, $reportable) {
+                $capturedCallback = $callback;
+
+                return $reportable;
+            });
+        $exceptions->method('render');
+
+        ApiExceptionHandler::handles($exceptions);
+
+        static::assertNotNull($capturedCallback);
+
+        $capturedCallback(new BadRequestException);
+    }
+
+    /**
+     * Test that logApiException logs to the api-exceptions channel.
+     *
+     * @return void
+     */
+    public function testLogApiExceptionLogsToApiExceptionsChannel(): void
+    {
+        $mock_channel = \Mockery::mock(\Psr\Log\LoggerInterface::class);
+        // @phpstan-ignore method.notFound (Mockery expectation chain; HigherOrderMessage is not in play here)
+        $mock_channel->shouldReceive('error')->once()->withAnyArgs();
+
+        Log::shouldReceive('channel')
+            ->with('api-exceptions')
+            ->once()
+            ->andReturn($mock_channel);
+
+        $exception  = new BadRequestException;
+        $reflection = new \ReflectionMethod(ApiExceptionHandler::class, 'logApiException');
+
+        $reflection->invoke(null, $exception);
+    }
+
+    /**
+     * Test that logApiException also logs to cloudwatch when enabled.
+     *
+     * @return void
+     */
+    public function testLogApiExceptionAlsoLogsToCloudWatchWhenEnabled(): void
+    {
+        config()->set('api-toolkit.logging.cloudwatch.enabled', true);
+
+        $mock_api_channel = \Mockery::mock(\Psr\Log\LoggerInterface::class);
+        // @phpstan-ignore method.notFound (Mockery expectation chain; HigherOrderMessage is not in play here)
+        $mock_api_channel->shouldReceive('error')->once()->withAnyArgs();
+
+        $mock_cw_channel = \Mockery::mock(\Psr\Log\LoggerInterface::class);
+        // @phpstan-ignore method.notFound (Mockery expectation chain; HigherOrderMessage is not in play here)
+        $mock_cw_channel->shouldReceive('error')->once()->withAnyArgs();
+
+        Log::shouldReceive('channel')
+            ->with('api-exceptions')
+            ->once()
+            ->andReturn($mock_api_channel);
+
+        Log::shouldReceive('channel')
+            ->with('cloudwatch-api-exceptions')
+            ->once()
+            ->andReturn($mock_cw_channel);
+
+        $exception  = new BadRequestException;
+        $reflection = new \ReflectionMethod(ApiExceptionHandler::class, 'logApiException');
+
+        $reflection->invoke(null, $exception);
+    }
+
+    /**
+     * Test that convertExceptionToString returns a formatted string.
+     *
+     * @return void
+     */
+    public function testConvertExceptionToStringReturnsFormattedString(): void
+    {
+        $exception  = new \RuntimeException(self::GENERIC_ERROR_MESSAGE, 42);
+        $reflection = new \ReflectionMethod(ApiExceptionHandler::class, 'convertExceptionToString');
+
+        $result = $reflection->invoke(null, $exception);
+
+        static::assertStringContainsString('[42]', $result);
+        static::assertStringContainsString(self::GENERIC_ERROR_MESSAGE, $result);
+        static::assertStringContainsString('on line', $result);
+        static::assertStringContainsString('of file', $result);
+    }
+
+    /**
+     * Test that getContext returns request method, path, and data.
+     *
+     * @return void
+     */
+    public function testGetContextReturnsRequestContext(): void
+    {
+        $reflection = new \ReflectionMethod(ApiExceptionHandler::class, 'getContext');
+
+        $result = $reflection->invoke(null);
+
+        static::assertIsArray($result);
+        static::assertArrayHasKey('method', $result);
+        static::assertArrayHasKey('path', $result);
+    }
+
+    /**
+     * Test that getContext falls back gracefully when Auth::id() throws.
+     *
+     * @return void
+     */
+    public function testGetContextFallsBackWhenAuthThrows(): void
+    {
+        Auth::shouldReceive('id')->andThrow(new \RuntimeException('No auth guard'));
+
+        $reflection = new \ReflectionMethod(ApiExceptionHandler::class, 'getContext');
+
+        $result = $reflection->invoke(null);
+
+        static::assertIsArray($result);
+        static::assertArrayHasKey('method', $result);
     }
 }

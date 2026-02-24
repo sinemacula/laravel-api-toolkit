@@ -10,13 +10,15 @@ use Tests\Fixtures\Models\User;
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
+ *
+ * @extends \SineMacula\ApiToolkit\Repositories\ApiRepository<\Tests\Fixtures\Models\User>
  */
 class UserRepository extends ApiRepository
 {
     /**
      * Return the model class.
      *
-     * @return class-string<\Illuminate\Database\Eloquent\Model>
+     * @return class-string<\Tests\Fixtures\Models\User>
      */
     public function model(): string
     {

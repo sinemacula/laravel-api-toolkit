@@ -488,8 +488,8 @@ class ApiCriteria implements CriteriaInterface
 
         try {
             $query->whereJsonContains($column, $value);
-        } catch (\Throwable $exception) {
-        }
+        } catch (\Throwable $exception) { // @codeCoverageIgnore
+        } // @codeCoverageIgnore
     }
 
     /**

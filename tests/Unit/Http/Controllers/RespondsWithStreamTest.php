@@ -40,7 +40,7 @@ class RespondsWithStreamTest extends TestCase
         $request = Request::create(self::TEST_URI, 'GET');
         ApiQuery::parse($request);
 
-        /** @var \Mockery\MockInterface&\SineMacula\ApiToolkit\Repositories\ApiRepository $repository */
+        /** @var \Mockery\MockInterface&\SineMacula\ApiToolkit\Repositories\ApiRepository<\Illuminate\Database\Eloquent\Model> $repository */
         $repository = \Mockery::mock(ApiRepository::class);
         $repository->shouldReceive('getResourceClass') // @phpstan-ignore method.notFound
             ->andReturn(\Tests\Fixtures\Resources\UserResource::class);
@@ -64,7 +64,7 @@ class RespondsWithStreamTest extends TestCase
 
         $controller = $this->createControllerWithTrait();
 
-        /** @var \Mockery\MockInterface&\SineMacula\ApiToolkit\Repositories\ApiRepository $repository */
+        /** @var \Mockery\MockInterface&\SineMacula\ApiToolkit\Repositories\ApiRepository<\Illuminate\Database\Eloquent\Model> $repository */
         $repository = \Mockery::mock(ApiRepository::class);
         $repository->shouldReceive('getResourceClass')->once()->andReturn(null); // @phpstan-ignore method.notFound
 
@@ -173,7 +173,7 @@ class RespondsWithStreamTest extends TestCase
 
         $user = User::create(['name' => 'Streamed', 'email' => 'streamed@example.com']);
 
-        /** @var \Mockery\MockInterface&\SineMacula\ApiToolkit\Repositories\ApiRepository $repository */
+        /** @var \Mockery\MockInterface&\SineMacula\ApiToolkit\Repositories\ApiRepository<\Illuminate\Database\Eloquent\Model> $repository */
         $repository = \Mockery::mock(ApiRepository::class);
         $repository->shouldReceive('getResourceClass') // @phpstan-ignore method.notFound
             ->andReturn(UserResource::class);
@@ -226,7 +226,7 @@ class RespondsWithStreamTest extends TestCase
         $user1 = User::create(['name' => 'User1', 'email' => 'user1@stream.com']);
         $user2 = User::create(['name' => 'User2', 'email' => 'user2@stream.com']);
 
-        /** @var \Mockery\MockInterface&\SineMacula\ApiToolkit\Repositories\ApiRepository $repository */
+        /** @var \Mockery\MockInterface&\SineMacula\ApiToolkit\Repositories\ApiRepository<\Illuminate\Database\Eloquent\Model> $repository */
         $repository = \Mockery::mock(ApiRepository::class);
         $repository->shouldReceive('getResourceClass') // @phpstan-ignore method.notFound
             ->andReturn(UserResource::class);

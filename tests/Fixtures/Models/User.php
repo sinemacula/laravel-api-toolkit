@@ -2,6 +2,7 @@
 
 namespace Tests\Fixtures\Models;
 
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -66,6 +67,18 @@ class User extends Model
     public function posts(): HasMany
     {
         return $this->hasMany(Post::class);
+    }
+
+    /**
+     * Get the user's full label as a computed Eloquent attribute.
+     *
+     * @return \Illuminate\Database\Eloquent\Casts\Attribute
+     */
+    public function fullLabel(): Attribute
+    {
+        return Attribute::make(
+            get: fn () => $this->name . ' <' . $this->email . '>',
+        );
     }
 
     /**

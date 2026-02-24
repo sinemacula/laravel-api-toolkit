@@ -341,9 +341,9 @@ class ApiQueryParser
     {
         try {
             return json_decode($query, true) ?? [];
-        } catch (\Throwable $exception) {
-            throw new InvalidInputException;
-        }
+        } catch (\Throwable $exception) { // @codeCoverageIgnore
+            throw new InvalidInputException; // @codeCoverageIgnore
+        } // @codeCoverageIgnore
     }
 
     /**

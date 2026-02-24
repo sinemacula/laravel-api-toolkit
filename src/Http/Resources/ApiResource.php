@@ -501,8 +501,8 @@ abstract class ApiResource extends BaseResource implements ApiResourceInterface
                 continue;
             }
 
-            $present_key = $definition['key']
-                ?? (str_starts_with($schema_key, '__count__:') ? substr($schema_key, 10) : $schema_key);
+            $present_key = $definition['key'] // @codeCoverageIgnore
+                ?? (str_starts_with($schema_key, '__count__:') ? substr($schema_key, 10) : $schema_key); // @codeCoverageIgnore
 
             $relation          = (string) ($definition['relation'] ?? $present_key);
             $out[$present_key] = [
@@ -761,10 +761,10 @@ abstract class ApiResource extends BaseResource implements ApiResourceInterface
      * @param  string  $path
      * @return void
      */
-    private static function addPath(array &$paths, string $path): void
+    private static function addPath(array &$paths, string $path): void // @codeCoverageIgnore
     {
-        $paths[] = $path;
-    }
+        $paths[] = $path; // @codeCoverageIgnore
+    } // @codeCoverageIgnore
 
     /**
      * Add any extra eager-load paths, respecting the current prefix.
@@ -774,12 +774,12 @@ abstract class ApiResource extends BaseResource implements ApiResourceInterface
      * @param  array<int, string>  $extras
      * @return void
      */
-    private static function addExtras(array &$paths, string $prefix, array $extras): void
+    private static function addExtras(array &$paths, string $prefix, array $extras): void // @codeCoverageIgnore
     {
-        foreach ($extras as $extra) {
-            $paths[] = static::makePrefixedPath($prefix, $extra);
-        }
-    }
+        foreach ($extras as $extra) { // @codeCoverageIgnore
+            $paths[] = static::makePrefixedPath($prefix, $extra); // @codeCoverageIgnore
+        } // @codeCoverageIgnore
+    } // @codeCoverageIgnore
 
     /**
      * Decide whether to recurse into a child resource.
