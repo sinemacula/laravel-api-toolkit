@@ -284,12 +284,12 @@ class ApiExceptionHandlerTest extends TestCase
             }
         };
 
-        $capturedCallback = null;
+        $captured_callback = null;
 
         $exceptions = $this->createMock(Exceptions::class);
         $exceptions->method('report')
-            ->willReturnCallback(function ($callback) use (&$capturedCallback, $reportable) {
-                $capturedCallback = $callback;
+            ->willReturnCallback(function ($callback) use (&$captured_callback, $reportable) {
+                $captured_callback = $callback;
 
                 return $reportable;
             });
@@ -297,9 +297,9 @@ class ApiExceptionHandlerTest extends TestCase
 
         ApiExceptionHandler::handles($exceptions);
 
-        static::assertNotNull($capturedCallback);
+        static::assertNotNull($captured_callback);
 
-        $capturedCallback(new BadRequestException);
+        $captured_callback(new BadRequestException);
     }
 
     /**
