@@ -15,6 +15,7 @@ use Illuminate\Validation\Validator;
 use Orchestra\Testbench\TestCase;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
+use Psr\Log\LoggerInterface;
 use SineMacula\ApiToolkit\Exceptions\ApiExceptionHandler;
 use SineMacula\ApiToolkit\Exceptions\BadRequestException;
 use Symfony\Component\HttpKernel\Exception\MethodNotAllowedHttpException;
@@ -71,7 +72,51 @@ class ApiExceptionHandlerTest extends TestCase
     }
 
     /**
-     * Test that render maps various Laravel exceptions to the correct HTTP status.
+     * Provide exception mapping test cases.
+     *
+     * @return iterable<string, array{\Throwable, int}>
+     */
+    public static function exceptionMappingProvider(): iterable
+    {
+        yield 'NotFoundHttpException -> 404' => [
+            new NotFoundHttpException,
+            404,
+        ];
+
+        yield 'ModelNotFoundException -> 404' => [
+            new ModelNotFoundException,
+            404,
+        ];
+
+        yield 'AuthorizationException -> 403' => [
+            new AuthorizationException,
+            403,
+        ];
+
+        yield 'AuthenticationException -> 401' => [
+            new AuthenticationException,
+            401,
+        ];
+
+        yield 'TooManyRequestsHttpException -> 429' => [
+            new TooManyRequestsHttpException,
+            429,
+        ];
+
+        yield 'MethodNotAllowedHttpException -> 405' => [
+            new MethodNotAllowedHttpException(['GET', 'POST']),
+            405,
+        ];
+
+        yield 'Generic exception -> 500' => [
+            new \RuntimeException(self::GENERIC_ERROR_MESSAGE),
+            500,
+        ];
+    }
+
+    /**
+     * Test that render maps various Laravel exceptions to the correct HTTP
+     * status.
      *
      * @param  \Throwable  $inputException
      * @param  int  $expectedHttpCode
@@ -189,49 +234,6 @@ class ApiExceptionHandlerTest extends TestCase
     }
 
     /**
-     * Provide exception mapping test cases.
-     *
-     * @return iterable<string, array{\Throwable, int}>
-     */
-    public static function exceptionMappingProvider(): iterable
-    {
-        yield 'NotFoundHttpException -> 404' => [
-            new NotFoundHttpException,
-            404,
-        ];
-
-        yield 'ModelNotFoundException -> 404' => [
-            new ModelNotFoundException,
-            404,
-        ];
-
-        yield 'AuthorizationException -> 403' => [
-            new AuthorizationException,
-            403,
-        ];
-
-        yield 'AuthenticationException -> 401' => [
-            new AuthenticationException,
-            401,
-        ];
-
-        yield 'TooManyRequestsHttpException -> 429' => [
-            new TooManyRequestsHttpException,
-            429,
-        ];
-
-        yield 'MethodNotAllowedHttpException -> 405' => [
-            new MethodNotAllowedHttpException(['GET', 'POST']),
-            405,
-        ];
-
-        yield 'Generic exception -> 500' => [
-            new \RuntimeException(self::GENERIC_ERROR_MESSAGE),
-            500,
-        ];
-    }
-
-    /**
      * Test that ValidationException maps to 422.
      *
      * This test is separate because ValidationException requires a Validator
@@ -264,8 +266,7 @@ class ApiExceptionHandlerTest extends TestCase
      */
     public function testHandlesReportCallbackInvokesLogApiException(): void
     {
-        $mock_channel = \Mockery::mock(\Psr\Log\LoggerInterface::class);
-        // @phpstan-ignore method.notFound (Mockery expectation chain; HigherOrderMessage is not in play here)
+        $mock_channel = \Mockery::mock(LoggerInterface::class);
         $mock_channel->shouldReceive('error')->once()->withAnyArgs();
 
         Log::shouldReceive('channel')
@@ -308,8 +309,7 @@ class ApiExceptionHandlerTest extends TestCase
      */
     public function testLogApiExceptionLogsToApiExceptionsChannel(): void
     {
-        $mock_channel = \Mockery::mock(\Psr\Log\LoggerInterface::class);
-        // @phpstan-ignore method.notFound (Mockery expectation chain; HigherOrderMessage is not in play here)
+        $mock_channel = \Mockery::mock(LoggerInterface::class);
         $mock_channel->shouldReceive('error')->once()->withAnyArgs();
 
         Log::shouldReceive('channel')
@@ -332,12 +332,10 @@ class ApiExceptionHandlerTest extends TestCase
     {
         config()->set('api-toolkit.logging.cloudwatch.enabled', true);
 
-        $mock_api_channel = \Mockery::mock(\Psr\Log\LoggerInterface::class);
-        // @phpstan-ignore method.notFound (Mockery expectation chain; HigherOrderMessage is not in play here)
+        $mock_api_channel = \Mockery::mock(LoggerInterface::class);
         $mock_api_channel->shouldReceive('error')->once()->withAnyArgs();
 
-        $mock_cw_channel = \Mockery::mock(\Psr\Log\LoggerInterface::class);
-        // @phpstan-ignore method.notFound (Mockery expectation chain; HigherOrderMessage is not in play here)
+        $mock_cw_channel = \Mockery::mock(LoggerInterface::class);
         $mock_cw_channel->shouldReceive('error')->once()->withAnyArgs();
 
         Log::shouldReceive('channel')

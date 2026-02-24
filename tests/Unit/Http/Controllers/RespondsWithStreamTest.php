@@ -42,9 +42,9 @@ class RespondsWithStreamTest extends TestCase
 
         /** @var \Mockery\MockInterface&\SineMacula\ApiToolkit\Repositories\ApiRepository<\Illuminate\Database\Eloquent\Model> $repository */
         $repository = \Mockery::mock(ApiRepository::class);
-        $repository->shouldReceive('getResourceClass') // @phpstan-ignore method.notFound
+        $repository->shouldReceive('getResourceClass')
             ->andReturn(\Tests\Fixtures\Resources\UserResource::class);
-        $repository->shouldReceive('chunkById') // @phpstan-ignore method.notFound
+        $repository->shouldReceive('chunkById')
             ->andReturn(true);
 
         $response = $controller->streamRepositoryToCsv($repository); // @phpstan-ignore method.notFound
@@ -66,7 +66,7 @@ class RespondsWithStreamTest extends TestCase
 
         /** @var \Mockery\MockInterface&\SineMacula\ApiToolkit\Repositories\ApiRepository<\Illuminate\Database\Eloquent\Model> $repository */
         $repository = \Mockery::mock(ApiRepository::class);
-        $repository->shouldReceive('getResourceClass')->once()->andReturn(null); // @phpstan-ignore method.notFound
+        $repository->shouldReceive('getResourceClass')->once()->andReturn(null);
 
         $reflection = new \ReflectionMethod($controller, 'makeTransformer');
         $reflection->invoke($controller, $repository);
@@ -103,12 +103,12 @@ class RespondsWithStreamTest extends TestCase
 
         /** @var \Mockery\MockInterface $chain_mock */
         $chain_mock = \Mockery::mock();
-        $chain_mock->shouldReceive('withoutFields')->andReturnSelf(); // @phpstan-ignore method.notFound
-        $chain_mock->shouldReceive('exportArray')->once()->andReturn("name,email\nJohn,john@example.com\n"); // @phpstan-ignore method.notFound
+        $chain_mock->shouldReceive('withoutFields')->andReturnSelf();
+        $chain_mock->shouldReceive('exportArray')->once()->andReturn("name,email\nJohn,john@example.com\n");
 
         /** @var \Mockery\MockInterface $facade_mock */
         $facade_mock = \Mockery::mock();
-        $facade_mock->shouldReceive('format')->with('csv')->once()->andReturn($chain_mock); // @phpstan-ignore method.notFound
+        $facade_mock->shouldReceive('format')->with('csv')->once()->andReturn($chain_mock);
 
         Exporter::swap($facade_mock);
 
@@ -136,13 +136,13 @@ class RespondsWithStreamTest extends TestCase
 
         /** @var \Mockery\MockInterface $chain_mock */
         $chain_mock = \Mockery::mock();
-        $chain_mock->shouldReceive('withoutFields')->andReturnSelf(); // @phpstan-ignore method.notFound
-        $chain_mock->shouldReceive('withoutHeaders')->once()->andReturnSelf(); // @phpstan-ignore method.notFound
-        $chain_mock->shouldReceive('exportArray')->once()->andReturn("Jane,jane@example.com\n"); // @phpstan-ignore method.notFound
+        $chain_mock->shouldReceive('withoutFields')->andReturnSelf();
+        $chain_mock->shouldReceive('withoutHeaders')->once()->andReturnSelf();
+        $chain_mock->shouldReceive('exportArray')->once()->andReturn("Jane,jane@example.com\n");
 
         /** @var \Mockery\MockInterface $facade_mock */
         $facade_mock = \Mockery::mock();
-        $facade_mock->shouldReceive('format')->with('csv')->once()->andReturn($chain_mock); // @phpstan-ignore method.notFound
+        $facade_mock->shouldReceive('format')->with('csv')->once()->andReturn($chain_mock);
 
         Exporter::swap($facade_mock);
 
@@ -175,9 +175,9 @@ class RespondsWithStreamTest extends TestCase
 
         /** @var \Mockery\MockInterface&\SineMacula\ApiToolkit\Repositories\ApiRepository<\Illuminate\Database\Eloquent\Model> $repository */
         $repository = \Mockery::mock(ApiRepository::class);
-        $repository->shouldReceive('getResourceClass') // @phpstan-ignore method.notFound
+        $repository->shouldReceive('getResourceClass')
             ->andReturn(UserResource::class);
-        $repository->shouldReceive('chunkById') // @phpstan-ignore method.notFound
+        $repository->shouldReceive('chunkById')
             ->andReturnUsing(function (int $_size, callable $callback) use ($user): bool {
                 $callback(collect([$user]));
 
@@ -186,13 +186,13 @@ class RespondsWithStreamTest extends TestCase
 
         /** @var \Mockery\MockInterface $chain */
         $chain = \Mockery::mock();
-        $chain->shouldReceive('withoutFields')->andReturnSelf(); // @phpstan-ignore method.notFound
-        $chain->shouldReceive('withoutHeaders')->andReturnSelf(); // @phpstan-ignore method.notFound
-        $chain->shouldReceive('exportArray')->andReturn("id,name\n1,Streamed\n"); // @phpstan-ignore method.notFound
+        $chain->shouldReceive('withoutFields')->andReturnSelf();
+        $chain->shouldReceive('withoutHeaders')->andReturnSelf();
+        $chain->shouldReceive('exportArray')->andReturn("id,name\n1,Streamed\n");
 
         /** @var \Mockery\MockInterface $exporter */
         $exporter = \Mockery::mock();
-        $exporter->shouldReceive('format')->andReturn($chain); // @phpstan-ignore method.notFound
+        $exporter->shouldReceive('format')->andReturn($chain);
 
         Exporter::swap($exporter);
 
@@ -228,9 +228,9 @@ class RespondsWithStreamTest extends TestCase
 
         /** @var \Mockery\MockInterface&\SineMacula\ApiToolkit\Repositories\ApiRepository<\Illuminate\Database\Eloquent\Model> $repository */
         $repository = \Mockery::mock(ApiRepository::class);
-        $repository->shouldReceive('getResourceClass') // @phpstan-ignore method.notFound
+        $repository->shouldReceive('getResourceClass')
             ->andReturn(UserResource::class);
-        $repository->shouldReceive('chunkById') // @phpstan-ignore method.notFound
+        $repository->shouldReceive('chunkById')
             ->andReturnUsing(function (int $_size, callable $callback) use ($user1, $user2): bool {
                 $callback(collect([$user1]));
                 $callback(collect([$user2]));
@@ -240,13 +240,13 @@ class RespondsWithStreamTest extends TestCase
 
         /** @var \Mockery\MockInterface $chain */
         $chain = \Mockery::mock();
-        $chain->shouldReceive('withoutFields')->andReturnSelf(); // @phpstan-ignore method.notFound
-        $chain->shouldReceive('withoutHeaders')->andReturnSelf(); // @phpstan-ignore method.notFound
-        $chain->shouldReceive('exportArray')->andReturn("id,name\n1,User1\n"); // @phpstan-ignore method.notFound
+        $chain->shouldReceive('withoutFields')->andReturnSelf();
+        $chain->shouldReceive('withoutHeaders')->andReturnSelf();
+        $chain->shouldReceive('exportArray')->andReturn("id,name\n1,User1\n");
 
         /** @var \Mockery\MockInterface $exporter */
         $exporter = \Mockery::mock();
-        $exporter->shouldReceive('format')->andReturn($chain); // @phpstan-ignore method.notFound
+        $exporter->shouldReceive('format')->andReturn($chain);
 
         Exporter::swap($exporter);
 

@@ -1,3 +1,6 @@
+includes:
+	- %currentWorkingDirectory%/vendor/phpstan/phpstan-mockery/extension.neon
+
 parameters:
 	level: 8
 
