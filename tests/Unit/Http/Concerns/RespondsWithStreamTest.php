@@ -1,11 +1,12 @@
 <?php
 
-namespace Tests\Unit\Http\Controllers;
+namespace Tests\Unit\Http\Concerns;
 
 use Illuminate\Http\Request;
+use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
-use SineMacula\ApiToolkit\Http\Controllers\RespondsWithStream;
+use SineMacula\ApiToolkit\Http\Concerns\RespondsWithStream;
 use SineMacula\ApiToolkit\Repositories\ApiRepository;
 use SineMacula\Exporter\Facades\Exporter;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -26,6 +27,9 @@ use Tests\TestCase;
 class RespondsWithStreamTest extends TestCase
 {
     /** @var string */
+    private const string CONTENT_TYPE_CSV = 'text/csv; charset=utf-8';
+
+    /** @var string */
     private const string TEST_URI = '/test';
 
     /**
@@ -43,7 +47,7 @@ class RespondsWithStreamTest extends TestCase
         /** @var \Mockery\MockInterface&\SineMacula\ApiToolkit\Repositories\ApiRepository<\Illuminate\Database\Eloquent\Model> $repository */
         $repository = \Mockery::mock(ApiRepository::class);
         $repository->shouldReceive('getResourceClass')
-            ->andReturn(\Tests\Fixtures\Resources\UserResource::class);
+            ->andReturn(UserResource::class);
         $repository->shouldReceive('chunkById')
             ->andReturn(true);
 
@@ -260,6 +264,110 @@ class RespondsWithStreamTest extends TestCase
         ob_end_clean();
 
         static::assertInstanceOf(StreamedResponse::class, $response);
+    }
+
+    /**
+     * Test that streamRepositoryToCsv uses a custom filename in the
+     * Content-Disposition header.
+     *
+     * @return void
+     */
+    public function testStreamRepositoryToCsvUsesCustomFilenameInContentDisposition(): void
+    {
+        $controller = $this->createControllerWithTrait();
+
+        $request = Request::create(self::TEST_URI, 'GET');
+        ApiQuery::parse($request);
+
+        /** @var \Mockery\MockInterface&\SineMacula\ApiToolkit\Repositories\ApiRepository<\Illuminate\Database\Eloquent\Model> $repository */
+        $repository = \Mockery::mock(ApiRepository::class);
+        $repository->shouldReceive('getResourceClass')->andReturn(UserResource::class);
+        $repository->shouldReceive('chunkById')->andReturn(true);
+
+        $response = $controller->streamRepositoryToCsv($repository, 1500, 'users.csv'); // @phpstan-ignore method.notFound
+
+        static::assertStringContainsString('users.csv', $response->headers->get('Content-Disposition') ?? '');
+    }
+
+    /**
+     * Test that streamRepositoryToCsv sets Content-Type with charset.
+     *
+     * @return void
+     */
+    public function testStreamRepositoryToCsvSetsContentTypeWithCharset(): void
+    {
+        $controller = $this->createControllerWithTrait();
+
+        $request = Request::create(self::TEST_URI, 'GET');
+        ApiQuery::parse($request);
+
+        /** @var \Mockery\MockInterface&\SineMacula\ApiToolkit\Repositories\ApiRepository<\Illuminate\Database\Eloquent\Model> $repository */
+        $repository = \Mockery::mock(ApiRepository::class);
+        $repository->shouldReceive('getResourceClass')->andReturn(UserResource::class);
+        $repository->shouldReceive('chunkById')->andReturn(true);
+
+        $response = $controller->streamRepositoryToCsv($repository); // @phpstan-ignore method.notFound
+
+        static::assertSame(self::CONTENT_TYPE_CSV, $response->headers->get('Content-Type'));
+    }
+
+    /**
+     * Test that streamRepositoryToCsv preserves trailing whitespace within CSV
+     * field values while stripping trailing newlines between chunks.
+     *
+     * @SuppressWarnings("php:S1172")
+     *
+     * @return void
+     */
+    public function testStreamRepositoryToCsvPreservesTrailingWhitespaceInCsvFieldValues(): void
+    {
+        $controller = $this->createControllerWithTrait();
+
+        $request = Request::create(self::TEST_URI, 'GET');
+        ApiQuery::parse($request);
+
+        $user = User::create(['name' => 'Alice   ', 'email' => 'alice@example.com']);
+
+        /** @var \Mockery\MockInterface&\SineMacula\ApiToolkit\Repositories\ApiRepository<\Illuminate\Database\Eloquent\Model> $repository */
+        $repository = \Mockery::mock(ApiRepository::class);
+        $repository->shouldReceive('getResourceClass')->andReturn(UserResource::class);
+        $repository->shouldReceive('chunkById')
+            ->andReturnUsing(function (int $_size, callable $callback) use ($user): bool {
+                $callback(collect([$user]));
+
+                return true;
+            });
+
+        // CSV data where the last field value has trailing spaces followed by a
+        // trailing newline. rtrim($csv, "\n") must strip only the newline.
+        $csv = "id,name\n1,Alice   \n";
+
+        /** @var \Mockery\MockInterface $chain */
+        $chain = \Mockery::mock();
+        $chain->shouldReceive('withoutFields')->andReturnSelf();
+        $chain->shouldReceive('withoutHeaders')->andReturnSelf();
+        $chain->shouldReceive('exportArray')->andReturn($csv);
+
+        /** @var \Mockery\MockInterface $exporter */
+        $exporter = \Mockery::mock();
+        $exporter->shouldReceive('format')->andReturn($chain);
+
+        Exporter::swap($exporter);
+
+        FunctionOverrides::set('flush', fn () => null);
+        FunctionOverrides::set('ob_flush', fn () => null);
+
+        $response = $controller->streamRepositoryToCsv($repository); // @phpstan-ignore method.notFound
+
+        ob_start();
+        $response->sendContent();
+        $output = ob_get_clean();
+
+        // Trailing spaces within the field value must be preserved.
+        static::assertStringContainsString('Alice   ', (string) $output);
+
+        // Trailing newline must be stripped (chunk boundary prevention).
+        static::assertStringEndsNotWith("\n", (string) $output);
     }
 
     /**

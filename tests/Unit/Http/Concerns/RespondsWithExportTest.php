@@ -1,18 +1,22 @@
 <?php
 
-namespace Tests\Unit\Http\Controllers;
+namespace Tests\Unit\Http\Concerns;
 
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Http\Resources\Json\ResourceCollection;
 use Illuminate\Http\Response as HttpResponse;
 use Illuminate\Support\Facades\Request;
+use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\CoversClass;
-use SineMacula\ApiToolkit\Http\Controllers\RespondsWithExport;
+use SineMacula\ApiToolkit\Http\Concerns\RespondsWithExport;
+use SineMacula\Exporter\Contracts\Exporter as ExporterContract;
 use SineMacula\Exporter\Facades\Exporter;
 use Tests\TestCase;
 
 /**
  * Tests for the RespondsWithExport trait.
+ *
+ * @SuppressWarnings("php:S1448")
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -23,10 +27,16 @@ use Tests\TestCase;
 class RespondsWithExportTest extends TestCase
 {
     /** @var string */
-    private const string CONTENT_TYPE_CSV = 'text/csv';
+    private const string CONTENT_TYPE_CSV = 'text/csv; charset=utf-8';
 
     /** @var string */
     private const string CONTENT_TYPE_XML = 'application/xml';
+
+    /** @var string */
+    private const string MOCK_COLLECTION_CSV = 'col,data';
+
+    /** @var string */
+    private const string MOCK_ITEM_XML = '<root/>';
 
     /**
      * Test that exportFromArray with CSV accept header returns a CSV response.
@@ -146,7 +156,7 @@ class RespondsWithExportTest extends TestCase
         Request::macro('expectsCsv', fn () => true);
         Request::macro('expectsXml', fn () => false);
 
-        Exporter::swap($this->createMockExporter('col,data'));
+        Exporter::swap($this->createMockExporter(self::MOCK_COLLECTION_CSV));
 
         /** @var \Illuminate\Http\Response $response */
         $response = $controller->exportFromCollection($collection); // @phpstan-ignore method.notFound
@@ -165,7 +175,7 @@ class RespondsWithExportTest extends TestCase
         $controller = $this->createController();
         $collection = new ResourceCollection(collect([]));
 
-        Exporter::swap($this->createMockExporter('col,data'));
+        Exporter::swap($this->createMockExporter(self::MOCK_COLLECTION_CSV));
 
         /** @var \Illuminate\Http\Response $response */
         $response = $controller->exportCollectionToCsv($collection); // @phpstan-ignore method.notFound
@@ -184,7 +194,7 @@ class RespondsWithExportTest extends TestCase
         $controller = $this->createController();
         $collection = new ResourceCollection(collect([]));
 
-        Exporter::swap($this->createMockExporter('<root/>'));
+        Exporter::swap($this->createMockExporter(self::MOCK_ITEM_XML));
 
         /** @var \Illuminate\Http\Response $response */
         $response = $controller->exportCollectionToXml($collection); // @phpstan-ignore method.notFound
@@ -262,7 +272,7 @@ class RespondsWithExportTest extends TestCase
         $controller = $this->createController();
         $resource   = new JsonResource(['id' => 1]);
 
-        Exporter::swap($this->createMockExporter('<root/>'));
+        Exporter::swap($this->createMockExporter(self::MOCK_ITEM_XML));
 
         /** @var \Illuminate\Http\Response $response */
         $response = $controller->exportItemToXml($resource); // @phpstan-ignore method.notFound
@@ -290,6 +300,294 @@ class RespondsWithExportTest extends TestCase
     }
 
     /**
+     * Test that exportArrayToCsv uses a custom filename in the Content-Disposition
+     * header.
+     *
+     * @return void
+     */
+    public function testExportArrayToCsvUsesCustomFilenameInContentDisposition(): void
+    {
+        $controller = $this->createController();
+
+        Exporter::swap($this->createMockExporter('id,name'));
+
+        /** @var \Illuminate\Http\Response $response */
+        $response = $controller->exportArrayToCsv([['id' => 1]], true, 'users.csv'); // @phpstan-ignore method.notFound
+
+        static::assertStringContainsString('users.csv', $response->headers->get('Content-Disposition') ?? '');
+    }
+
+    /**
+     * Test that exportArrayToXml uses a custom filename in the Content-Disposition
+     * header.
+     *
+     * @return void
+     */
+    public function testExportArrayToXmlUsesCustomFilenameInContentDisposition(): void
+    {
+        $controller = $this->createController();
+
+        Exporter::swap($this->createMockExporter(self::MOCK_ITEM_XML));
+
+        /** @var \Illuminate\Http\Response $response */
+        $response = $controller->exportArrayToXml([['id' => 1]], true, 'users.xml'); // @phpstan-ignore method.notFound
+
+        static::assertStringContainsString('users.xml', $response->headers->get('Content-Disposition') ?? '');
+    }
+
+    /**
+     * Test that exportCollectionToCsv uses a custom filename in the
+     * Content-Disposition header.
+     *
+     * @return void
+     */
+    public function testExportCollectionToCsvUsesCustomFilenameInContentDisposition(): void
+    {
+        $controller = $this->createController();
+        $collection = new ResourceCollection(collect([]));
+
+        Exporter::swap($this->createMockExporter(self::MOCK_COLLECTION_CSV));
+
+        /** @var \Illuminate\Http\Response $response */
+        $response = $controller->exportCollectionToCsv($collection, true, 'orders.csv'); // @phpstan-ignore method.notFound
+
+        static::assertStringContainsString('orders.csv', $response->headers->get('Content-Disposition') ?? '');
+    }
+
+    /**
+     * Test that exportCollectionToXml uses a custom filename in the
+     * Content-Disposition header.
+     *
+     * @return void
+     */
+    public function testExportCollectionToXmlUsesCustomFilenameInContentDisposition(): void
+    {
+        $controller = $this->createController();
+        $collection = new ResourceCollection(collect([]));
+
+        Exporter::swap($this->createMockExporter(self::MOCK_ITEM_XML));
+
+        /** @var \Illuminate\Http\Response $response */
+        $response = $controller->exportCollectionToXml($collection, true, 'orders.xml'); // @phpstan-ignore method.notFound
+
+        static::assertStringContainsString('orders.xml', $response->headers->get('Content-Disposition') ?? '');
+    }
+
+    /**
+     * Test that exportItemToCsv uses a custom filename in the Content-Disposition
+     * header.
+     *
+     * @return void
+     */
+    public function testExportItemToCsvUsesCustomFilenameInContentDisposition(): void
+    {
+        $controller = $this->createController();
+        $resource   = new JsonResource(['id' => 1]);
+
+        Exporter::swap($this->createMockExporter('id,1'));
+
+        /** @var \Illuminate\Http\Response $response */
+        $response = $controller->exportItemToCsv($resource, true, 'invoice.csv'); // @phpstan-ignore method.notFound
+
+        static::assertStringContainsString('invoice.csv', $response->headers->get('Content-Disposition') ?? '');
+    }
+
+    /**
+     * Test that exportItemToXml uses a custom filename in the Content-Disposition
+     * header.
+     *
+     * @return void
+     */
+    public function testExportItemToXmlUsesCustomFilenameInContentDisposition(): void
+    {
+        $controller = $this->createController();
+        $resource   = new JsonResource(['id' => 1]);
+
+        Exporter::swap($this->createMockExporter(self::MOCK_ITEM_XML));
+
+        /** @var \Illuminate\Http\Response $response */
+        $response = $controller->exportItemToXml($resource, true, 'invoice.xml'); // @phpstan-ignore method.notFound
+
+        static::assertStringContainsString('invoice.xml', $response->headers->get('Content-Disposition') ?? '');
+    }
+
+    /**
+     * Test that exportFromArray forwards a custom filename to the underlying CSV
+     * format method.
+     *
+     * @return void
+     */
+    public function testExportFromArrayForwardsCustomFilenameToFormatMethod(): void
+    {
+        $controller = $this->createController();
+        $data       = [['id' => 1]];
+
+        Request::macro('expectsCsv', fn () => true);
+        Request::macro('expectsXml', fn () => false);
+
+        Exporter::swap($this->createMockExporter('id,1'));
+
+        /** @var \Illuminate\Http\Response $response */
+        $response = $controller->exportFromArray($data, true, 'users.csv'); // @phpstan-ignore method.notFound
+
+        static::assertStringContainsString('users.csv', $response->headers->get('Content-Disposition') ?? '');
+    }
+
+    /**
+     * Test that exportFromArray uses the format method default filename when null
+     * is given.
+     *
+     * @return void
+     */
+    public function testExportFromArrayUsesDefaultFilenameWhenNullGiven(): void
+    {
+        $controller = $this->createController();
+        $data       = [['id' => 1]];
+
+        Request::macro('expectsCsv', fn () => true);
+        Request::macro('expectsXml', fn () => false);
+
+        Exporter::swap($this->createMockExporter('id,1'));
+
+        /** @var \Illuminate\Http\Response $response */
+        $response = $controller->exportFromArray($data, true, null); // @phpstan-ignore method.notFound
+
+        static::assertStringContainsString('export.csv', $response->headers->get('Content-Disposition') ?? '');
+    }
+
+    /**
+     * Test that exportFromCollection forwards a custom filename to the underlying
+     * format method.
+     *
+     * @return void
+     */
+    public function testExportFromCollectionForwardsCustomFilename(): void
+    {
+        $controller = $this->createController();
+        $collection = new ResourceCollection(collect([]));
+
+        Request::macro('expectsCsv', fn () => true);
+        Request::macro('expectsXml', fn () => false);
+
+        Exporter::swap($this->createMockExporter(self::MOCK_COLLECTION_CSV));
+
+        /** @var \Illuminate\Http\Response $response */
+        $response = $controller->exportFromCollection($collection, true, 'orders.csv'); // @phpstan-ignore method.notFound
+
+        static::assertStringContainsString('orders.csv', $response->headers->get('Content-Disposition') ?? '');
+    }
+
+    /**
+     * Test that exportFromItem forwards a custom filename to the underlying format
+     * method.
+     *
+     * @return void
+     */
+    public function testExportFromItemForwardsCustomFilename(): void
+    {
+        $controller = $this->createController();
+        $resource   = new JsonResource(['id' => 1]);
+
+        Request::macro('expectsCsv', fn () => true);
+        Request::macro('expectsXml', fn () => false);
+
+        Exporter::swap($this->createMockExporter('id,1'));
+
+        /** @var \Illuminate\Http\Response $response */
+        $response = $controller->exportFromItem($resource, true, 'invoice.csv'); // @phpstan-ignore method.notFound
+
+        static::assertStringContainsString('invoice.csv', $response->headers->get('Content-Disposition') ?? '');
+    }
+
+    /**
+     * Test that exportFromArray forwards a custom filename to the underlying XML
+     * format method.
+     *
+     * @return void
+     */
+    public function testExportFromArrayForwardsCustomFilenameToXmlFormatMethod(): void
+    {
+        $controller = $this->createController();
+        $data       = [['id' => 1]];
+
+        Request::macro('expectsCsv', fn () => false);
+        Request::macro('expectsXml', fn () => true);
+
+        Exporter::swap($this->createMockExporter(self::MOCK_ITEM_XML));
+
+        /** @var \Illuminate\Http\Response $response */
+        $response = $controller->exportFromArray($data, true, 'users.xml'); // @phpstan-ignore method.notFound
+
+        static::assertStringContainsString('users.xml', $response->headers->get('Content-Disposition') ?? '');
+    }
+
+    /**
+     * Test that exportFromArray uses the format method default XML filename when
+     * null is given.
+     *
+     * @return void
+     */
+    public function testExportFromArrayUsesDefaultXmlFilenameWhenNullGiven(): void
+    {
+        $controller = $this->createController();
+        $data       = [['id' => 1]];
+
+        Request::macro('expectsCsv', fn () => false);
+        Request::macro('expectsXml', fn () => true);
+
+        Exporter::swap($this->createMockExporter(self::MOCK_ITEM_XML));
+
+        /** @var \Illuminate\Http\Response $response */
+        $response = $controller->exportFromArray($data, true, null); // @phpstan-ignore method.notFound
+
+        static::assertStringContainsString('export.xml', $response->headers->get('Content-Disposition') ?? '');
+    }
+
+    /**
+     * Test that exportFromCollection forwards a custom XML filename to the
+     * underlying format method.
+     *
+     * @return void
+     */
+    public function testExportFromCollectionForwardsCustomXmlFilename(): void
+    {
+        $controller = $this->createController();
+        $collection = new ResourceCollection(collect([]));
+
+        Request::macro('expectsCsv', fn () => false);
+        Request::macro('expectsXml', fn () => true);
+
+        Exporter::swap($this->createMockExporter(self::MOCK_ITEM_XML));
+
+        /** @var \Illuminate\Http\Response $response */
+        $response = $controller->exportFromCollection($collection, true, 'orders.xml'); // @phpstan-ignore method.notFound
+
+        static::assertStringContainsString('orders.xml', $response->headers->get('Content-Disposition') ?? '');
+    }
+
+    /**
+     * Test that exportFromItem forwards a custom XML filename to the underlying
+     * format method.
+     *
+     * @return void
+     */
+    public function testExportFromItemForwardsCustomXmlFilename(): void
+    {
+        $controller = $this->createController();
+        $resource   = new JsonResource(['id' => 1]);
+
+        Request::macro('expectsCsv', fn () => false);
+        Request::macro('expectsXml', fn () => true);
+
+        Exporter::swap($this->createMockExporter(self::MOCK_ITEM_XML));
+
+        /** @var \Illuminate\Http\Response $response */
+        $response = $controller->exportFromItem($resource, true, 'invoice.xml'); // @phpstan-ignore method.notFound
+
+        static::assertStringContainsString('invoice.xml', $response->headers->get('Content-Disposition') ?? '');
+    }
+
+    /**
      * Create a test controller that uses the RespondsWithExport trait.
      *
      * @return object
@@ -309,7 +607,7 @@ class RespondsWithExportTest extends TestCase
      */
     private function createMockExporter(string $output): object
     {
-        return new class ($output) {
+        return new class ($output) implements ExporterContract {
             /** @var string */
             private string $output;
 
@@ -337,12 +635,20 @@ class RespondsWithExportTest extends TestCase
             }
 
             /**
+             * @return array<string, mixed>
+             */
+            public function getConfig(): array
+            {
+                return [];
+            }
+
+            /**
              * @SuppressWarnings("php:S1172")
              *
              * @param  array<int, string>|string  $_fields
-             * @return self
+             * @return static
              */
-            public function withoutFields(array|string $_fields): self
+            public function withoutFields(array|string $_fields): static
             {
                 return $this;
             }
@@ -361,10 +667,10 @@ class RespondsWithExportTest extends TestCase
             /**
              * @SuppressWarnings("php:S1172")
              *
-             * @param  mixed  $_collection
+             * @param  \Illuminate\Http\Resources\Json\ResourceCollection  $_collection
              * @return string
              */
-            public function exportCollection(mixed $_collection): string
+            public function exportCollection(ResourceCollection $_collection): string
             {
                 return $this->output;
             }
@@ -372,10 +678,10 @@ class RespondsWithExportTest extends TestCase
             /**
              * @SuppressWarnings("php:S1172")
              *
-             * @param  mixed  $_item
+             * @param  \Illuminate\Http\Resources\Json\JsonResource  $_item
              * @return string
              */
-            public function exportItem(mixed $_item): string
+            public function exportItem(JsonResource $_item): string
             {
                 return $this->output;
             }

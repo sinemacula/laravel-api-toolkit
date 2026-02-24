@@ -1,6 +1,6 @@
 <?php
 
-namespace SineMacula\ApiToolkit\Http\Controllers;
+namespace SineMacula\ApiToolkit\Http\Concerns;
 
 use Closure;
 use Illuminate\Support\Facades\Response;
@@ -14,29 +14,32 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
  *
  * Handles the streaming of datasets within controllers.
  *
- * @author      Michael Stivala <michael.stivala@verifast.app>
- * @copyright   2025 Verifast, Inc.
+ * @author      Michael Stivala <michael.stivala@verifast.com>
+ * @copyright   2026 Sine Macula Limited.
  */
 trait RespondsWithStream
 {
     /**
      * Stream a repository's data as a CSV file.
      *
-     * @param  ApiRepository  $repository
+     * @param  \SineMacula\ApiToolkit\Repositories\ApiRepository<\Illuminate\Database\Eloquent\Model>  $repository
      * @param  int  $chunk_size
-     * @return StreamedResponse
+     * @param  string  $filename
+     * @return \Symfony\Component\HttpFoundation\StreamedResponse
      */
-    public function streamRepositoryToCsv(ApiRepository $repository, int $chunk_size = 1500): StreamedResponse
+    public function streamRepositoryToCsv(ApiRepository $repository, int $chunk_size = 1500, string $filename = 'export.csv'): StreamedResponse
     {
         $limit = ApiQuery::getLimit();
 
         $transformer = $this->makeTransformer($repository);
 
         $stream = function () use ($repository, $transformer, $chunk_size, $limit): void {
+
             $is_first_chunk = true;
             $processed      = 0;
 
             $repository->chunkById($chunk_size, function ($chunk) use ($transformer, &$is_first_chunk, &$processed, $limit): bool {
+
                 if ($limit && $processed >= $limit) {
                     return false; // Stop chunking
                 }
@@ -47,23 +50,28 @@ trait RespondsWithStream
                 $csv = $this->formatChunkAsCsv($transformer($items->all()), $is_first_chunk);
 
                 // Remove trailing newline to prevent blank lines between chunks
-                echo rtrim($csv);
+                echo rtrim($csv, "\n");
 
-                ob_flush();
+                if (ob_get_level() > 0) {
+                    ob_flush();
+                }
+
                 flush();
 
                 return true;
             });
         };
 
-        return $this->createStreamedResponse($stream, 'text/csv', 'export.csv');
+        return $this->createStreamedResponse($stream, 'text/csv; charset=utf-8', $filename);
     }
 
     /**
      * Create a transformer closure for the given repository.
      *
-     * @param  ApiRepository  $repository
+     * @param  \SineMacula\ApiToolkit\Repositories\ApiRepository<\Illuminate\Database\Eloquent\Model>  $repository
      * @return \Closure
+     *
+     * @throws \InvalidArgumentException
      */
     protected function makeTransformer(ApiRepository $repository): \Closure
     {
@@ -75,12 +83,13 @@ trait RespondsWithStream
     }
 
     /**
-     * Process a chunk of verifications and write to CSV.
+     * Format a chunk of rows as a CSV string.
      *
-     * Uses the vendor Exporter for consistent formatting (column name conversion,
-     * escaping, etc.) but handles header row output to avoid duplicates per chunk.
+     * Uses the vendor Exporter for consistent formatting (column name
+     * conversion, escaping, etc.) but handles header row output to avoid
+     * duplicates per chunk.
      *
-     * @param  array  $rows
+     * @param  array<int, array<string, mixed>>  $rows
      * @param  bool  $is_first_chunk
      * @return string
      */
@@ -94,6 +103,7 @@ trait RespondsWithStream
         }
 
         $is_first_chunk = false;
+
         return $exporter->exportArray($rows);
     }
 
@@ -103,7 +113,7 @@ trait RespondsWithStream
      * @param  callable  $callback
      * @param  string  $content_type
      * @param  string  $filename
-     * @return StreamedResponse
+     * @return \Symfony\Component\HttpFoundation\StreamedResponse
      */
     protected function createStreamedResponse(callable $callback, string $content_type, string $filename): StreamedResponse
     {

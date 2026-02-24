@@ -46,10 +46,10 @@ without introducing semantic refactors or broad churn.
 - Keep method/function signatures on a single line by default
 - Constructor signatures that contain promoted properties MUST be multi-line
 - Signatures without promoted properties may be multi-line only when the equivalent single-line signature would exceed
-  120 characters
+  180 characters, measured using short/imported names (not FQCN)
 - Do not wrap signatures for visual preference, alignment, or symmetry unless the signature contains promoted
   properties
-- Signatures without promoted properties that fit within 120 characters MUST remain single-line
+- Signatures without promoted properties that fit within 180 characters MUST remain single-line
 
 Reference:
 

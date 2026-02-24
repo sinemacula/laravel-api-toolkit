@@ -35,6 +35,7 @@ class ControllerTest extends TestCase
      *
      * @return void
      */
+    #[\Override]
     protected function setUp(): void
     {
         parent::setUp();
@@ -256,6 +257,79 @@ class ControllerTest extends TestCase
         ob_end_clean();
 
         static::assertTrue($callback_ran);
+    }
+
+    /**
+     * Test that the HEARTBEAT_INTERVAL constant is defined and equals twenty.
+     *
+     * @SuppressWarnings("php:S3011")
+     *
+     * @return void
+     */
+    public function testHeartbeatIntervalConstantEqualsTwenty(): void
+    {
+        $reflection = new \ReflectionClass(Controller::class);
+
+        $constant = $reflection->getReflectionConstant('HEARTBEAT_INTERVAL');
+
+        static::assertNotFalse($constant);
+        static::assertSame(20, $constant->getValue());
+    }
+
+    /**
+     * Test that a subclass can override the HEARTBEAT_INTERVAL constant.
+     *
+     * @SuppressWarnings("php:S3011")
+     *
+     * @return void
+     */
+    public function testHeartbeatIntervalConstantCanBeOverriddenBySubclass(): void
+    {
+        $sub = new class extends TestingController {
+            protected const int HEARTBEAT_INTERVAL = 5;
+        };
+
+        $reflection = new \ReflectionClass($sub);
+
+        $constant = $reflection->getReflectionConstant('HEARTBEAT_INTERVAL');
+
+        static::assertNotFalse($constant);
+        static::assertSame(5, $constant->getValue());
+    }
+
+    /**
+     * Test that respondWithEventStream emits an SSE error event and breaks the
+     * stream loop when the callback throws a Throwable.
+     *
+     * @SuppressWarnings("php:S112")
+     *
+     * @return void
+     */
+    public function testRespondWithEventStreamEmitsErrorEventAndBreaksWhenCallbackThrows(): void
+    {
+        FunctionOverrides::set('connection_aborted', fn (): int => 0);
+        FunctionOverrides::set('flush', fn () => null);
+        FunctionOverrides::set('ob_flush', fn () => null);
+        FunctionOverrides::set('sleep', fn (int $_s) => 0);
+
+        $call_count = 0;
+
+        /** @var \Symfony\Component\HttpFoundation\StreamedResponse $response */
+        $response = $this->invokeMethod(
+            $this->controller,
+            'respondWithEventStream',
+            function () use (&$call_count): void {
+                $call_count++;
+                throw new \RuntimeException('Simulated stream failure');
+            },
+        );
+
+        ob_start();
+        $response->sendContent();
+        $output = ob_get_clean();
+
+        static::assertStringContainsString("event: error\n\n", (string) $output);
+        static::assertSame(1, $call_count);
     }
 
     /**

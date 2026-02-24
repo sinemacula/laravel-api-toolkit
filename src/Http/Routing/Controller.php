@@ -21,12 +21,15 @@ abstract class Controller extends LaravelController
 {
     use ValidatesRequests;
 
+    /** The SSE heartbeat interval in seconds. */
+    protected const int HEARTBEAT_INTERVAL = 20;
+
     /**
      * Respond with raw array data as a JSON response.
      *
-     * @param  array  $data
+     * @param  array<string, mixed>  $data
      * @param  \SineMacula\ApiToolkit\Enums\HttpStatus  $status
-     * @param  array  $headers
+     * @param  array<string, string>  $headers
      * @return \Illuminate\Http\JsonResponse
      */
     protected function respondWithData(array $data, HttpStatus $status = HttpStatus::OK, array $headers = []): JsonResponse
@@ -39,7 +42,7 @@ abstract class Controller extends LaravelController
      *
      * @param  \Illuminate\Http\Resources\Json\JsonResource  $resource
      * @param  \SineMacula\ApiToolkit\Enums\HttpStatus  $status
-     * @param  array  $headers
+     * @param  array<string, string>  $headers
      * @return \Illuminate\Http\JsonResponse
      */
     protected function respondWithItem(JsonResource $resource, HttpStatus $status = HttpStatus::OK, array $headers = []): JsonResponse
@@ -52,7 +55,7 @@ abstract class Controller extends LaravelController
      *
      * @param  \Illuminate\Http\Resources\Json\ResourceCollection  $collection
      * @param  \SineMacula\ApiToolkit\Enums\HttpStatus  $status
-     * @param  array  $headers
+     * @param  array<string, string>  $headers
      * @return \Illuminate\Http\JsonResponse
      */
     protected function respondWithCollection(ResourceCollection $collection, HttpStatus $status = HttpStatus::OK, array $headers = []): JsonResponse
@@ -63,10 +66,10 @@ abstract class Controller extends LaravelController
     /**
      * Respond with an SSE event stream.
      *
-     * @param  callable  $callback
+     * @param  callable(): void  $callback
      * @param  int  $interval
      * @param  \SineMacula\ApiToolkit\Enums\HttpStatus  $status
-     * @param  array  $headers
+     * @param  array<string, string>  $headers
      * @return \Symfony\Component\HttpFoundation\StreamedResponse
      */
     protected function respondWithEventStream(callable $callback, int $interval = 1, HttpStatus $status = HttpStatus::OK, array $headers = []): StreamedResponse
@@ -79,40 +82,78 @@ abstract class Controller extends LaravelController
         ]);
 
         return Response::stream(function () use ($callback, $interval): void {
+            $this->runEventStream($callback, $interval);
+        }, $status->getCode(), $headers);
+    }
 
-            echo ":\n\n";
-            flush();
+    /**
+     * Execute the SSE stream loop.
+     *
+     * Emits an initial keep-alive comment, then polls the callback on each
+     * iteration, sending a heartbeat comment when the interval expires.
+     * Exits when the client disconnects or the callback throws.
+     *
+     * @param  callable(): void  $callback
+     * @param  int  $interval
+     * @return void
+     */
+    private function runEventStream(callable $callback, int $interval): void
+    {
+        echo ":\n\n";
+        flush();
 
-            $heartbeat_interval  = 20;
-            $heartbeat_timestamp = now();
+        $heartbeat_timestamp = now();
 
-            while (true) {
+        while (true) {
 
-                if (connection_aborted()) {
-                    break;
-                }
-
-                $callback();
-
-                if (ob_get_level() > 0) {
-                    ob_flush();
-                }
-
-                flush();
-
-                if ($heartbeat_timestamp->diffInSeconds(now()) >= $heartbeat_interval) {
-                    echo ":\n\n";
-                    flush();
-                    $heartbeat_timestamp = now();
-                }
-
-                if (connection_aborted()) {
-                    break;
-                }
-
-                sleep($interval);
+            if (connection_aborted()) {
+                break;
             }
 
-        }, $status->getCode(), $headers);
+            if (!$this->runStreamCallback($callback)) {
+                break;
+            }
+
+            if (ob_get_level() > 0) {
+                ob_flush();
+            }
+
+            flush();
+
+            if ($heartbeat_timestamp->diffInSeconds(now()) >= static::HEARTBEAT_INTERVAL) {
+                echo ":\n\n";
+                flush();
+                $heartbeat_timestamp = now();
+            }
+
+            // @phpstan-ignore-next-line if.alwaysFalse (connection state may change between the two checks per iteration)
+            if (connection_aborted()) {
+                break;
+            }
+
+            sleep($interval);
+        }
+    }
+
+    /**
+     * Invoke the stream callback, emitting an SSE error event on failure.
+     *
+     * Returns true when the callback succeeded, false when it threw so the
+     * caller can break the stream loop.
+     *
+     * @param  callable(): void  $callback
+     * @return bool
+     */
+    private function runStreamCallback(callable $callback): bool
+    {
+        try {
+            $callback();
+            return true;
+        } catch (\Throwable $e) {
+            report($e);
+            echo "event: error\n\n";
+            flush();
+            return false;
+        }
     }
 }
