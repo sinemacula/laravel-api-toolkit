@@ -22,12 +22,16 @@ trait RespondsWithStream
     /**
      * Stream a repository's data as a CSV file.
      *
-     * @param  ApiRepository  $repository
+     * @param  \SineMacula\ApiToolkit\Repositories\ApiRepository<\Illuminate\Database\Eloquent\Model>  $repository
      * @param  int  $chunk_size
-     * @return StreamedResponse
+     * @param  string  $filename
+     * @return \Symfony\Component\HttpFoundation\StreamedResponse
      */
-    public function streamRepositoryToCsv(ApiRepository $repository, int $chunk_size = 1500): StreamedResponse
-    {
+    public function streamRepositoryToCsv(
+        ApiRepository $repository,
+        int $chunk_size = 1500,
+        string $filename = 'export.csv',
+    ): StreamedResponse {
         $limit = ApiQuery::getLimit();
 
         $transformer = $this->makeTransformer($repository);
@@ -47,7 +51,7 @@ trait RespondsWithStream
                 $csv = $this->formatChunkAsCsv($transformer($items->all()), $is_first_chunk);
 
                 // Remove trailing newline to prevent blank lines between chunks
-                echo rtrim($csv);
+                echo rtrim($csv, "\n");
 
                 ob_flush();
                 flush();
@@ -56,14 +60,16 @@ trait RespondsWithStream
             });
         };
 
-        return $this->createStreamedResponse($stream, 'text/csv', 'export.csv');
+        return $this->createStreamedResponse($stream, 'text/csv', $filename);
     }
 
     /**
      * Create a transformer closure for the given repository.
      *
-     * @param  ApiRepository  $repository
+     * @param  \SineMacula\ApiToolkit\Repositories\ApiRepository<\Illuminate\Database\Eloquent\Model>  $repository
      * @return \Closure
+     *
+     * @throws \InvalidArgumentException
      */
     protected function makeTransformer(ApiRepository $repository): \Closure
     {
@@ -75,7 +81,7 @@ trait RespondsWithStream
     }
 
     /**
-     * Process a chunk of verifications and write to CSV.
+     * Format a chunk of rows as a CSV string.
      *
      * Uses the vendor Exporter for consistent formatting (column name conversion,
      * escaping, etc.) but handles header row output to avoid duplicates per chunk.
@@ -103,7 +109,7 @@ trait RespondsWithStream
      * @param  callable  $callback
      * @param  string  $content_type
      * @param  string  $filename
-     * @return StreamedResponse
+     * @return \Symfony\Component\HttpFoundation\StreamedResponse
      */
     protected function createStreamedResponse(callable $callback, string $content_type, string $filename): StreamedResponse
     {
