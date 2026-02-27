@@ -1,0 +1,51 @@
+# Build Project Configuration
+# Lives at .build/config.toml in the user's repo root.
+# Single source of truth for project-specific variables.
+
+[project]
+project_name = "Laravel API Toolkit"
+project_description = "A Laravel package providing structured REST API scaffolding with declarative resource schemas, query parsing, repository-driven filtering, and consistent exception handling."
+
+[language]
+# Primary language — auto-detected or manually set.
+# Must match a pack name in plugins/build/packs/.
+primary = "php"
+pack = "php"
+
+[paths]
+# Workflow directory — one per workflow, supports concurrent workflows.
+# {workflow-slug} is derived from the PRD or user request (kebab-case, max 40 chars).
+workflow_dir = ".build/workflows/{workflow-slug}/"
+
+# Workflow-internal artifact paths (relative to repo root).
+# {workflow-dir} expands to the workflow's directory above.
+path_state = "{workflow-dir}/workflow-state.md"
+path_spec = "{workflow-dir}/spec.md"
+path_architecture = "{workflow-dir}/architecture.md"
+path_tasks = "{workflow-dir}/tasks/"
+path_findings = "{workflow-dir}/findings.md"
+path_verification = "{workflow-dir}/verification.md"
+path_standards_report = "{workflow-dir}/standards-report.md"
+path_refactor_plan = "{workflow-dir}/refactor-plan.md"
+path_behavior_snapshot = "{workflow-dir}/behavior-snapshot.md"
+path_clean_analysis = "{workflow-dir}/clean-analysis.md"
+path_clean_plan = "{workflow-dir}/clean-plan.md"
+
+[standards]
+# Override language pack thresholds per-project.
+# Uncomment and adjust as needed.
+# min_coverage = 80
+# max_cyclomatic_complexity = 10
+# max_method_lines = 30
+# max_class_lines = 300
+# max_parameters = 4
+# max_remediation_cycles = 3
+
+[checks]
+# CLI commands that must pass before workflow completion.
+# Each entry is run via Bash; non-zero exit blocks the gate.
+required = []
+
+[git]
+git_base_branches = ["master"]
+git_branch_format = "{type}/{scope}"

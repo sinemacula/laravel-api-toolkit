@@ -35,7 +35,7 @@ trait ResolvesResource
     /**
      * Resolve the resource class for the given model.
      *
-     * @param  Model  $model
+     * @param  \Illuminate\Database\Eloquent\Model  $model
      * @return string|null
      */
     protected function resolveResource(Model $model): ?string

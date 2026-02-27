@@ -12,6 +12,8 @@ use Illuminate\Contracts\Support\Arrayable;
  *  Relation::to('organization', 'name')
  *  Relation::to('organization', 'name', 'organization_name')
  *
+ * @implements \Illuminate\Contracts\Support\Arrayable<string, array<string, mixed>>
+ *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
@@ -26,14 +28,14 @@ final class Relation extends BaseDefinition implements Arrayable
     /** @var array<int, string>|null Child field projection for eager-load planning */
     private ?array $fields = null;
 
-    /** @var callable|null Eager-load constraint callback */
+    /** @var callable(mixed): mixed|null Eager-load constraint callback */
     private mixed $constraint = null;
 
     /**
      * Prevent direct instantiation.
      *
      * @param  string  $name
-     * @param  callable|string  $resource_or_accessor
+     * @param  callable(mixed): mixed|string  $resource_or_accessor
      * @param  string|null  $alias
      */
     private function __construct(
@@ -51,6 +53,7 @@ final class Relation extends BaseDefinition implements Arrayable
         if (is_string($resource_or_accessor) && class_exists($resource_or_accessor)) {
             $this->resource = $resource_or_accessor;
         } else {
+            // @phpstan-ignore assign.propertyType (callable is always a Closure or string, both are assignable)
             $this->accessor = $resource_or_accessor;
         }
     }
@@ -59,7 +62,7 @@ final class Relation extends BaseDefinition implements Arrayable
      * Create a relation definition for the given relation name.
      *
      * @param  string  $name
-     * @param  callable|string  $resource_or_accessor
+     * @param  callable(mixed): mixed|string  $resource_or_accessor
      * @param  string|null  $alias
      * @return self
      */
@@ -99,7 +102,7 @@ final class Relation extends BaseDefinition implements Arrayable
      *
      * The callback receives the relation's query builder.
      *
-     * @param  callable  $constraint
+     * @param  callable(mixed): mixed  $constraint
      * @return self
      */
     public function constrain(callable $constraint): self

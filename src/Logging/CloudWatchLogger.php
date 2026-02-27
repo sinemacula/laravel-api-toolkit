@@ -17,7 +17,7 @@ class CloudWatchLogger
     /**
      * Create a custom Monolog instance.
      *
-     * @param  array  $config
+     * @param  array<string, mixed>  $config
      * @return \Monolog\Logger
      */
     public function __invoke(array $config): Logger

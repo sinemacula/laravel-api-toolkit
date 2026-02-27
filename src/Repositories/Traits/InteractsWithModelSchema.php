@@ -15,14 +15,14 @@ use SineMacula\ApiToolkit\Enums\CacheKeys;
  */
 trait InteractsWithModelSchema
 {
-    /** @var array<string, array> */
+    /** @var array<string, list<string>> */
     private array $columns = [];
 
     /**
      * Get the database columns associated with the given model.
      *
      * @param  \Illuminate\Database\Eloquent\Model  $model
-     * @return array
+     * @return list<string>
      */
     private function getColumnsFromModel(Model $model): array
     {
@@ -33,7 +33,7 @@ trait InteractsWithModelSchema
      * Resolve the columns associated with the given model.
      *
      * @param  \Illuminate\Database\Eloquent\Model  $model
-     * @return array
+     * @return list<string>
      */
     private function resolveColumnsFromModel(Model $model): array
     {
@@ -52,7 +52,7 @@ trait InteractsWithModelSchema
      * Resolve the columns from the cache.
      *
      * @param  \Illuminate\Database\Eloquent\Model  $model
-     * @return array
+     * @return list<string>
      */
     private function resolveColumnsFromCacheForModel(Model $model): array
     {
@@ -62,7 +62,7 @@ trait InteractsWithModelSchema
     /**
      * Store the columns in the cache for the given model.
      *
-     * @param  array  $columns
+     * @param  list<string>  $columns
      * @param  \Illuminate\Database\Eloquent\Model  $model
      * @return void
      */

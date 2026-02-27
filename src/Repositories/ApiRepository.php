@@ -26,9 +26,6 @@ use SineMacula\Repositories\Repository;
  * @template TModel of \Illuminate\Database\Eloquent\Model
  *
  * @extends \SineMacula\Repositories\Repository<TModel>
- *
- * @author      Ben Carey <bdmc@sinemacula.co.uk>
- * @copyright   2026 Sine Macula Limited.
  */
 abstract class ApiRepository extends Repository
 {
@@ -40,16 +37,16 @@ abstract class ApiRepository extends Repository
     /**
      * Set a custom resource class to be used.
      *
-     * @param  string|null  $resource_class
+     * @param  string|null  $resourceClass
      * @return $this
      */
-    public function usingResource(?string $resource_class): static
+    public function usingResource(?string $resourceClass): static
     {
-        $this->customResourceClass = $resource_class;
+        $this->customResourceClass = $resourceClass;
 
         foreach ($this->getCriteria() as $criteria) {
             if ($criteria instanceof ApiCriteria) {
-                $criteria->usingResource($resource_class);
+                $criteria->usingResource($resourceClass);
             }
         }
 
@@ -98,8 +95,10 @@ abstract class ApiRepository extends Repository
         $limit  = ApiQuery::getLimit() ?? Config::get('api-toolkit.parser.defaults.limit');
 
         if ($method === 'cursorPaginate') {
+            /** @phpstan-ignore method.nonObject (model is always an Eloquent Model at this point) */
             $results = $this->model->cursorPaginate($limit, '*', 'cursor', ApiQuery::getCursor());
         } else {
+            /** @phpstan-ignore method.nonObject (model is always an Eloquent Model at this point) */
             $results = $this->model->paginate($limit, '*', 'page', ApiQuery::getPage());
         }
 
@@ -112,14 +111,14 @@ abstract class ApiRepository extends Repository
      * Set the attributes for the given model.
      *
      * @param  \Illuminate\Database\Eloquent\Model  $model
-     * @param  array|\Illuminate\Support\Collection  $attributes
+     * @param  array<string, mixed>|\Illuminate\Support\Collection<string, mixed>  $attributes
      * @return bool
      */
     public function setAttributes(Model $model, array|Collection $attributes): bool
     {
         $attributes = $attributes instanceof Collection ? $attributes->all() : $attributes;
 
-        $sync_attributes = [];
+        $syncAttributes = [];
 
         foreach ($attributes as $attribute => $value) {
 
@@ -130,7 +129,7 @@ abstract class ApiRepository extends Repository
                 $this->casts[$attribute] = $cast;
 
                 if ($cast === 'sync') {
-                    $sync_attributes[$attribute] = $value;
+                    $syncAttributes[$attribute] = $value;
                 } else {
                     $this->setAttribute($model, $attribute, $value, $cast);
                 }
@@ -143,7 +142,7 @@ abstract class ApiRepository extends Repository
         // ensure the model has been saved before we sync, and we also need to
         // make sure all given attributes have been saved to ensure no required
         // columns are missing
-        foreach ($sync_attributes as $attribute => $value) {
+        foreach ($syncAttributes as $attribute => $value) {
             $this->setAttribute($model, $attribute, $value, 'sync');
         }
 
@@ -167,13 +166,14 @@ abstract class ApiRepository extends Repository
     /**
      * Scopes the model by the given ids.
      *
-     * @param  array  $ids
+     * @param  array<int, int|string|null>  $ids
      * @param  string  $column
      * @return static
      */
     public function scopeByIds(array $ids, string $column = 'id'): static
     {
         return $this->addScope(function (Builder $query) use ($column, $ids): void {
+            // @phpstan-ignore staticMethod.dynamicCall (whereIn is provided by Eloquent Builder)
             $query->whereIn($column, array_unique($ids));
         });
     }
@@ -219,6 +219,7 @@ abstract class ApiRepository extends Repository
      */
     private function resolveCastForAttribute(string $attribute, ?string $cast = null): ?string
     {
+        /** @phpstan-ignore method.nonObject (model is always an Eloquent Model at this point) */
         $cast ??= $this->model->getCasts()[$attribute] ?? null;
 
         if (!$cast) {
@@ -227,10 +228,12 @@ abstract class ApiRepository extends Repository
 
         $map = Config::get('api-toolkit.repositories.cast_map');
 
-        foreach ($map as $native_cast => $laravel_casts) {
-            foreach ($laravel_casts as $laravel_cast) {
-                if ($this->castMatchesLaravelCast($cast, $laravel_cast)) {
-                    return $native_cast;
+        // @phpstan-ignore foreach.nonIterable (config value is always an array)
+        foreach ($map as $nativeCast => $laravelCasts) {
+            // @phpstan-ignore foreach.nonIterable (config value is always an array)
+            foreach ($laravelCasts as $laravelCast) {
+                if ($this->castMatchesLaravelCast($cast, $laravelCast)) {
+                    return (string) $nativeCast;
                 }
             }
         }
@@ -308,24 +311,24 @@ abstract class ApiRepository extends Repository
      * Determine if the given cast matches the given Laravel cast.
      *
      * @param  string  $cast
-     * @param  string  $laravel_cast
+     * @param  string  $laravelCast
      * @return bool
      */
-    private function castMatchesLaravelCast(string $cast, string $laravel_cast): bool
+    private function castMatchesLaravelCast(string $cast, string $laravelCast): bool
     {
-        $base_cast = explode(':', $cast)[0];
+        $baseCast = explode(':', $cast)[0];
 
-        if (class_exists($laravel_cast) && $base_cast === $laravel_cast) {
+        if (class_exists($laravelCast) && $baseCast === $laravelCast) {
             return true;
         }
 
-        if (str_contains($laravel_cast, '*')) {
-            $pattern = '/^' . str_replace('*', '.*', $laravel_cast) . '$/';
+        if (str_contains($laravelCast, '*')) {
+            $pattern = '/^' . str_replace('*', '.*', $laravelCast) . '$/';
 
-            return preg_match($pattern, $cast);
+            return (bool) preg_match($pattern, $cast);
         }
 
-        return $cast === $laravel_cast;
+        return $cast === $laravelCast;
     }
 
     /**
@@ -338,6 +341,7 @@ abstract class ApiRepository extends Repository
      */
     private function setIntegerAttribute(Model $model, string $attribute, mixed $value): void
     {
+        // @phpstan-ignore property.dynamicName (Eloquent models support dynamic property access)
         $model->{$attribute} = !is_null($value) ? (int) $value : null;
     }
 
@@ -351,6 +355,7 @@ abstract class ApiRepository extends Repository
      */
     private function setBooleanAttribute(Model $model, string $attribute, mixed $value): void
     {
+        // @phpstan-ignore property.dynamicName (Eloquent models support dynamic property access)
         $model->{$attribute} = (bool) $value;
     }
 
@@ -364,7 +369,8 @@ abstract class ApiRepository extends Repository
      */
     private function setArrayAttribute(Model $model, string $attribute, mixed $value): void
     {
-        $model->{$attribute} = !is_null($value) ? $value : null;
+        // @phpstan-ignore property.dynamicName (Eloquent models support dynamic property access)
+        $model->{$attribute} = $value;
     }
 
     /**
@@ -377,6 +383,7 @@ abstract class ApiRepository extends Repository
      */
     private function setObjectAttribute(Model $model, string $attribute, mixed $value): void
     {
+        // @phpstan-ignore property.dynamicName (Eloquent models support dynamic property access)
         $model->{$attribute} = $value ? (object) $value : null;
     }
 
@@ -390,6 +397,7 @@ abstract class ApiRepository extends Repository
      */
     private function setEnumAttribute(Model $model, string $attribute, mixed $value): void
     {
+        // @phpstan-ignore property.dynamicName (Eloquent models support dynamic property access)
         $model->{$attribute} = $value;
     }
 
@@ -403,6 +411,7 @@ abstract class ApiRepository extends Repository
      */
     private function setAssociateAttribute(Model $model, string $attribute, mixed $value): void
     {
+        // @phpstan-ignore method.dynamicName (Eloquent models support dynamic method access for relations)
         $model->{Str::camel($attribute)}()->associate($value);
     }
 
@@ -425,12 +434,14 @@ abstract class ApiRepository extends Repository
                 ];
             }
 
+            /** @phpstan-ignore method.nonObject (value is an array with a Collection at 'values' key at this point) */
             $values = $value['values']->pluck('id');
         }
 
         $values ??= $value;
         $detaching = $value['detaching'] ?? true;
 
+        // @phpstan-ignore method.dynamicName (Eloquent models support dynamic method access for relations)
         $model->{Str::camel($attribute)}()->sync($values, $detaching);
     }
 
@@ -444,6 +455,7 @@ abstract class ApiRepository extends Repository
      */
     private function setStringAttribute(Model $model, string $attribute, mixed $value): void
     {
+        // @phpstan-ignore property.dynamicName (Eloquent models support dynamic property access)
         $model->{$attribute} = $value ? (string) $value : null;
     }
 
@@ -458,6 +470,7 @@ abstract class ApiRepository extends Repository
             return;
         }
 
+        // @phpstan-ignore method.nonObject (model is always an Eloquent Model at this point)
         foreach ($this->model->getCasts() as $attribute => $cast) {
             $this->casts[$attribute] = $this->resolveCastForAttribute($attribute, $cast);
         }
@@ -472,6 +485,8 @@ abstract class ApiRepository extends Repository
      */
     private function resolveCastsFromCache(): array
     {
-        return Cache::memo()->get(CacheKeys::REPOSITORY_MODEL_CASTS->resolveKey([$this->model()]), []);
+        $result = Cache::memo()->get(CacheKeys::REPOSITORY_MODEL_CASTS->resolveKey([$this->model()]), []);
+
+        return is_array($result) ? $result : [];
     }
 }

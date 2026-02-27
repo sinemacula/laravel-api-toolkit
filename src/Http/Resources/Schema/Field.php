@@ -55,7 +55,7 @@ final class Field extends BaseDefinition
      * Define an accessor field by name.
      *
      * @param  string  $field
-     * @param  callable|string  $accessor
+     * @param  callable(mixed): mixed|string  $accessor
      * @param  string|null  $alias
      * @return self
      */
@@ -92,7 +92,7 @@ final class Field extends BaseDefinition
      * Define a computed field by name.
      *
      * @param  string  $field
-     * @param  callable|string  $compute
+     * @param  callable(mixed): mixed|string  $compute
      * @param  string|null  $alias
      * @return self
      */
@@ -142,8 +142,8 @@ final class Field extends BaseDefinition
      *
      * Later definitions overwrite earlier ones for the same field key.
      *
-     * @param  array<int, array<string, array>|Arrayable>  ...$definitions
-     * @return array<string, array>
+     * @param  array<int, array<string, array<string, mixed>>|\Illuminate\Contracts\Support\Arrayable<string, array<string, mixed>>>  ...$definitions
+     * @return array<string, array<string, mixed>>
      */
     public static function set(array|Arrayable ...$definitions): array
     {

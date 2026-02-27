@@ -20,17 +20,15 @@ trait HasRepositories
      * Magic method to dynamically call repository accessors while allowing
      * other `__call` methods to work.
      *
-     * phpcs:disable Squiz.Commenting.FunctionComment.ScalarTypeHintMissing
-     *
      * @param  string  $method
-     * @param  array  $arguments
+     * @param  array<int, mixed>  $arguments
      * @return mixed
      *
-     * @throws \Exception
+     * @throws \RuntimeException
+     * @throws \BadMethodCallException
      */
-    public function __call(#[\SensitiveParameter] $method, #[\SensitiveParameter] $arguments): mixed
+    public function __call(string $method, array $arguments): mixed
     {
-        // phpcs:enable
         if (RepositoryResolver::has($method)) {
             return $this->resolveRepository($method);
         }
@@ -52,9 +50,9 @@ trait HasRepositories
      * Resolve the repository dynamically based on the method name.
      *
      * @param  string  $repository
-     * @return mixed
+     * @return \SineMacula\Repositories\Contracts\RepositoryInterface
      *
-     * @throws \Exception
+     * @throws \RuntimeException
      */
     protected function resolveRepository(string $repository): RepositoryInterface
     {

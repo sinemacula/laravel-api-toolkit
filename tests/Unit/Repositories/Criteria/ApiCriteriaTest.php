@@ -28,6 +28,9 @@ class ApiCriteriaTest extends TestCase
     use InteractsWithNonPublicMembers;
 
     /** @var string */
+    private const string OPERATOR_HASNT = '$hasnt';
+
+    /** @var string */
     private const string OPERATOR_LIKE = '$like';
 
     /** @var string */
@@ -263,7 +266,7 @@ class ApiCriteriaTest extends TestCase
     public function testApplyWithHasntOperatorAddsWhereDoesntHave(): void
     {
         $this->parseRequest(new \Illuminate\Http\Request([
-            'filters' => json_encode(['$hasnt' => ['posts']]),
+            'filters' => json_encode([self::OPERATOR_HASNT => ['posts']]),
         ]));
 
         $model = new User;
@@ -613,7 +616,7 @@ class ApiCriteriaTest extends TestCase
     {
         $this->parseRequest(new \Illuminate\Http\Request([
             'filters' => json_encode([
-                '$hasnt' => [
+                self::OPERATOR_HASNT => [
                     'posts' => ['title' => [self::OPERATOR_LIKE => 'test']],
                 ],
             ]),
@@ -639,6 +642,27 @@ class ApiCriteriaTest extends TestCase
             'filters' => json_encode([
                 '$or' => [
                     '$has' => ['posts'],
+                ],
+            ]),
+        ]));
+
+        $model = new User;
+        $query = $this->criteria->apply($model);
+
+        static::assertNotEmpty($query->getQuery()->wheres);
+    }
+
+    /**
+     * Test that $or combined with $hasnt uses orWhereDoesntHave.
+     *
+     * @return void
+     */
+    public function testOrWithHasntOperatorUsesOrWhereDoesntHave(): void
+    {
+        $this->parseRequest(new \Illuminate\Http\Request([
+            'filters' => json_encode([
+                '$or' => [
+                    self::OPERATOR_HASNT => ['posts'],
                 ],
             ]),
         ]));
@@ -842,7 +866,7 @@ class ApiCriteriaTest extends TestCase
              */
             public function brokenRelation(): never
             {
-                throw new \UnexpectedValueException('intentional test error');
+                throw new \BadMethodCallException('intentional test error');
             }
         };
 

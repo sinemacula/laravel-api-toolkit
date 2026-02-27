@@ -18,10 +18,10 @@ class DatabaseLogger
     /**
      * Invoke the custom logger instance.
      *
-     * @param  array  $config
+     * @param  array<string, mixed>  $_config
      * @return \Monolog\Logger
      */
-    public function __invoke(array $config): Logger
+    public function __invoke(array $_config): Logger
     {
         return new Logger('database', [
             new DatabaseHandler,

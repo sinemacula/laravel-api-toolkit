@@ -7,6 +7,11 @@ use SineMacula\Repositories\Contracts\RepositoryInterface;
 /**
  * Repository resolver.
  *
+ * Uses the service locator pattern (config(), resolve()) because this is a
+ * static utility class. Refactoring to constructor injection would change
+ * the public API. The static resolver pattern requires runtime container
+ * access.
+ *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
@@ -25,7 +30,12 @@ class RepositoryResolver
      */
     public static function map(): array
     {
-        return self::$map ??= config('api-toolkit.repositories.repository_map', []);
+        if (!isset(self::$map)) {
+            // @phpstan-ignore assign.propertyType (config() returns mixed; runtime value is always the expected array type)
+            self::$map = config('api-toolkit.repositories.repository_map', []);
+        }
+
+        return self::$map;
     }
 
     /**

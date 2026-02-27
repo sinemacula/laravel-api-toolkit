@@ -26,6 +26,7 @@ class PreventRequestsDuringMaintenance extends Middleware
     {
         parent::__construct($app);
 
+        // @phpstan-ignore assign.propertyType (Config::get returns mixed but value is always array<int, string>)
         $this->except = Config::get('api-toolkit.maintenance_mode.except', []);
     }
 
@@ -35,7 +36,7 @@ class PreventRequestsDuringMaintenance extends Middleware
      * phpcs:disable Squiz.Commenting.FunctionComment.ScalarTypeHintMissing
      *
      * @param  \Illuminate\Http\Request  $request
-     * @param  \Closure  $next
+     * @param  \Closure(\Illuminate\Http\Request): mixed  $next
      * @return mixed
      *
      * @throws \SineMacula\ApiToolkit\Exceptions\ApiException

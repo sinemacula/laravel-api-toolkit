@@ -21,22 +21,23 @@ class LogMessage extends Model
     /** @var bool Indicates if the model should be timestamped */
     public $timestamps = false;
 
-    /** @var string The table associated with the model */
+    /** @var non-empty-string The table associated with the model */
     protected $table = 'logs';
 
     /** @var array<int, string> The attributes that are mass assignable */
     protected $fillable = ['level', 'message', 'context', 'created_at'];
 
-    /** @var string The storage format of the model's date columns */
+    /** @var non-empty-string The storage format of the model's date columns */
     protected $dateFormat = 'Y-m-d H:i:s.u';
 
     /**
      * Get the prunable model query.
      *
-     * @return \Illuminate\Database\Eloquent\Builder
+     * @return \Illuminate\Database\Eloquent\Builder<static>
      */
     public function prunable(): Builder
     {
+        /** @phpstan-ignore staticMethod.notFound (Eloquent model provides where() via magic) */
         return static::where('created_at', '<=', now()->subDays(config('logging.channels.database.days')));
     }
 

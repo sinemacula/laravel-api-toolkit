@@ -7,10 +7,11 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\Config;
 use SineMacula\ApiToolkit\Enums\CacheKeys;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
 use SineMacula\ApiToolkit\Http\Resources\ApiResource;
+use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\AppliesFilterConditions;
+use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\ResolvesSearchableColumns;
 use SineMacula\ApiToolkit\Repositories\Traits\InteractsWithModelSchema;
 use SineMacula\ApiToolkit\Repositories\Traits\ResolvesResource;
 use SineMacula\Repositories\Contracts\CriteriaInterface;
@@ -21,56 +22,58 @@ use SineMacula\Repositories\Contracts\CriteriaInterface;
  * This class is responsible for applying filters, ordering, and limiting
  * on model queries based on API requests.
  *
+ * @SuppressWarnings("php:S1068") Private fields are accessed by traits via $this
+ * @SuppressWarnings("php:S1144") Private methods are called by traits via $this
+ * @SuppressWarnings("php:S1448") Criteria class necessarily combines filtering, ordering, and eager-loading concerns
+ *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
+/** @implements \SineMacula\Repositories\Contracts\CriteriaInterface<\Illuminate\Database\Eloquent\Model> */
 class ApiCriteria implements CriteriaInterface
 {
-    use InteractsWithModelSchema, ResolvesResource;
+    use AppliesFilterConditions, InteractsWithModelSchema, ResolvesResource, ResolvesSearchableColumns;
 
     /** @var string The column name to be used when ordering items randomly */
     public const string ORDER_BY_RANDOM = 'random';
 
-    /** @var array<string, string> */
+    /** @var string The filter operator for "does not have relation" */
+    private const string OPERATOR_HAS_NOT = '$hasnt';
+
+    /** @var array<string, string> Map of API filter operators to SQL/Eloquent equivalents. */
     private array $conditionOperatorMap = [
-        '$le'       => '<=',
-        '$lt'       => '<',
-        '$ge'       => '>=',
-        '$gt'       => '>',
-        '$neq'      => '<>',
-        '$eq'       => '=',
-        '$like'     => 'like',
-        '$in'       => 'in',
-        '$between'  => 'between',
-        '$contains' => 'contains',
-        '$has'      => 'has',
-        '$hasnt'    => 'hasnt',
-        '$null'     => 'null',
-        '$notNull'  => 'notNull',
+        '$le'                  => '<=',
+        '$lt'                  => '<',
+        '$ge'                  => '>=',
+        '$gt'                  => '>',
+        '$neq'                 => '<>',
+        '$eq'                  => '=',
+        '$like'                => 'like',
+        '$in'                  => 'in',
+        '$between'             => 'between',
+        '$contains'            => 'contains',
+        '$has'                 => 'has',
+        self::OPERATOR_HAS_NOT => 'hasnt',
+        '$null'                => 'null',
+        '$notNull'             => 'notNull',
     ];
 
-    /** @var array<string, string> */
+    /** @var array<string, string> Map of API logical operators to Eloquent where methods. */
     private array $logicalOperatorMap = [
         '$or'  => 'orWhere',
         '$and' => 'where',
     ];
 
-    /** @var array<string, string> */
-    private array $relationLogicalOperatorMap = [
-        '$or'  => 'orWhereHas',
-        '$and' => 'whereHas',
-    ];
-
-    /** @var array<int, string> */
+    /** @var array<int, string> Valid order directions. */
     private array $directions = ['asc', 'desc'];
 
-    /** @var array<string, array> */
+    /** @var array<string, array<int, string>> Resolved searchable columns keyed by model class. */
     private array $searchable = [];
 
-    /** @var array<string, string> */
+    /** @var array<string, string> Map of relational operators to Eloquent where-has methods. */
     private array $relationalMethodMap = [
-        '$has'   => 'whereHas',
-        '$hasnt' => 'whereDoesntHave',
+        '$has'                 => 'whereHas',
+        self::OPERATOR_HAS_NOT => 'whereDoesntHave',
     ];
 
     /**
@@ -91,8 +94,10 @@ class ApiCriteria implements CriteriaInterface
      * @param  \Illuminate\Contracts\Database\Eloquent\Builder|\Illuminate\Database\Eloquent\Model  $model
      * @return \Illuminate\Contracts\Database\Eloquent\Builder
      */
+    #[\Override]
     public function apply(Builder|Model $model): Builder
     {
+        /** @phpstan-ignore staticMethod.dynamicCall (calling static method on instance is valid PHP) */
         $query = $model instanceof Model ? $model->query() : $model;
 
         $query = $this->applyFilters($query, $this->getFilters());
@@ -105,33 +110,32 @@ class ApiCriteria implements CriteriaInterface
     /**
      * Apply the filters to the query.
      *
-     * This appends the supplied query with the requested filters.
-     *
-     * @param  \Illuminate\Database\Eloquent\Builder  $query
-     * @param  array|string|null  $filters
+     * @param  \Illuminate\Contracts\Database\Eloquent\Builder  $query
+     * @param  array<int|string, mixed>|string|null  $filters
      * @param  string|null  $field
-     * @param  string|null  $last_logical_operator
-     * @return \Illuminate\Database\Eloquent\Builder
+     * @param  string|null  $lastLogicalOperator
+     * @return \Illuminate\Contracts\Database\Eloquent\Builder
      */
-    protected function applyFilters(Builder $query, array|string|null $filters = null, ?string $field = null, ?string $last_logical_operator = null): Builder
+    protected function applyFilters(Builder $query, array|string|null $filters = null, ?string $field = null, ?string $lastLogicalOperator = null): Builder
     {
         if (empty($filters)) {
             return $query;
         }
 
         if (is_string($filters)) {
-            return $this->applySimpleFilter($query, $field, $filters, $last_logical_operator ?? '$and');
+            return $this->applySimpleFilter($query, $field, $filters, $lastLogicalOperator ?? '$and');
         }
 
         foreach ($filters as $key => $value) {
+
             if ($this->isConditionOperator($key)) {
-                $this->applyConditionOperator($query, $key, $value, $field, $last_logical_operator);
+                $this->applyConditionOperator($query, $key, $value, $field, $lastLogicalOperator);
             } elseif ($this->isLogicalOperator($key)) {
-                $this->applyLogicalOperator($query, $key, $value, $last_logical_operator);
+                $this->applyLogicalOperator($query, $key, $value, $lastLogicalOperator);
             } elseif ($this->isRelation($key, $query->getModel())) {
-                $this->applyRelationFilter($query, $key, $value, $last_logical_operator);
+                $this->applyRelationFilter($query, $key, $value, $lastLogicalOperator);
             } else {
-                $this->applyFilters($query, $value, $key, $last_logical_operator);
+                $this->applyFilters($query, $value, $key, $lastLogicalOperator);
             }
         }
 
@@ -161,31 +165,23 @@ class ApiCriteria implements CriteriaInterface
             return $query;
         }
 
-        if (method_exists($resource, 'eagerLoadMapFor')) {
+        $with = $resource::eagerLoadMapFor($fields);
 
-            $with = $resource::eagerLoadMapFor($fields);
-
-            if (!empty($with)) {
-                $query->with($with);
-            }
+        if (!empty($with)) {
+            $query->with($with);
         }
 
-        if (method_exists($resource, 'eagerLoadCountsFor')) {
+        $requestedCounts = ApiQuery::getCounts($resource::getResourceType()) ?? [];
+        $withCounts      = $resource::eagerLoadCountsFor($requestedCounts);
 
-            $requested_counts = ApiQuery::getCounts($resource::getResourceType()) ?? [];
-            $with_counts      = $resource::eagerLoadCountsFor($requested_counts);
-
-            if (!empty($with_counts)) {
-                $query->withCount($with_counts);
-            }
+        if (!empty($withCounts)) {
+            $query->withCount($withCounts);
         }
 
         return $query;
     }
 
     /**
-     * Apply limit.
-     *
      * Append the query with a record limit.
      *
      * @param  \Illuminate\Contracts\Database\Eloquent\Builder  $query
@@ -194,16 +190,19 @@ class ApiCriteria implements CriteriaInterface
      */
     protected function applyLimit(Builder $query, ?int $limit = null): Builder
     {
-        return is_null($limit) ? $query : $query->limit($limit);
+        if (is_null($limit)) {
+            return $query;
+        }
+
+        /** @phpstan-ignore return.type, staticMethod.dynamicCall (limit() is provided by Eloquent Builder and returns the correct type at runtime) */
+        return $query->limit($limit);
     }
 
     /**
-     * Apply order.
-     *
      * Append an order by statement to the query.
      *
      * @param  \Illuminate\Contracts\Database\Eloquent\Builder  $query
-     * @param  array  $order
+     * @param  array<string, string>  $order
      * @return \Illuminate\Contracts\Database\Eloquent\Builder
      */
     protected function applyOrder(Builder $query, array $order): Builder
@@ -213,76 +212,20 @@ class ApiCriteria implements CriteriaInterface
         }
 
         foreach ($order as $column => $direction) {
+
             if ($column === self::ORDER_BY_RANDOM) {
                 $query = $query->inRandomOrder();
                 continue;
             }
 
+            // @phpstan-ignore method.notFound ($getModel() is provided by Eloquent Builder)
             if ($this->isColumnSearchable($query->getModel(), $column, $direction)) {
                 $query = $query->orderBy($column, $direction);
             }
         }
 
+        /** @phpstan-ignore return.type (inRandomOrder() returns the correct Builder type at runtime) */
         return $query;
-    }
-
-    /**
-     * Apply a condition operator to the query.
-     *
-     * @param  \Illuminate\Contracts\Database\Eloquent\Builder  $query
-     * @param  string  $operator
-     * @param  mixed  $value
-     * @param  string|null  $field
-     * @param  string|null  $last_logical_operator
-     * @return void
-     */
-    private function applyConditionOperator(Builder $query, string $operator, mixed $value, ?string $field, ?string $last_logical_operator): void
-    {
-        if (in_array($operator, ['$has', '$hasnt'], true)) {
-            $this->applyHasFilter($query, $value, $operator, $last_logical_operator);
-        } else {
-            $this->handleCondition($query, $operator, $value, $field, $last_logical_operator);
-        }
-    }
-
-    /**
-     * Apply a logical operator to the query.
-     *
-     * @param  \Illuminate\Contracts\Database\Eloquent\Builder  $query
-     * @param  string  $operator
-     * @param  array  $value
-     * @param  string|null  $last_logical_operator
-     * @return void
-     */
-    private function applyLogicalOperator(Builder $query, string $operator, array $value, ?string $last_logical_operator): void
-    {
-        $method = $this->determineLogicalMethod($operator, $last_logical_operator);
-
-        $query->{$method}(function (Builder $query) use ($value, $operator): void {
-            foreach ($value as $subKey => $subValue) {
-                if ($this->isConditionOperator($subKey)) {
-                    $this->applyConditionOperator($query, $subKey, $subValue, null, $operator);
-                } elseif ($this->isLogicalOperator($subKey)) {
-                    $this->applyLogicalOperator($query, $subKey, $subValue, $operator);
-                } else {
-                    $this->applyFilters($query, $subValue, $subKey, $operator);
-                }
-            }
-        });
-    }
-
-    /**
-     * Determine the method to use for logical operators.
-     *
-     * @param  string  $operator
-     * @param  string|null  $last_logical_operator
-     * @return string
-     */
-    private function determineLogicalMethod(string $operator, ?string $last_logical_operator): string
-    {
-        return ($last_logical_operator === '$and' && $operator === '$or')
-            ? 'where'
-            : $this->logicalOperatorMap[$operator];
     }
 
     /**
@@ -302,7 +245,7 @@ class ApiCriteria implements CriteriaInterface
     /**
      * Get the filters to be applied to the query.
      *
-     * @return array|null
+     * @return array<int|string, mixed>|null
      */
     private function getFilters(): ?array
     {
@@ -322,7 +265,7 @@ class ApiCriteria implements CriteriaInterface
     /**
      * Get the order to be applied to the query.
      *
-     * @return array
+     * @return array<string, string>
      */
     private function getOrder(): array
     {
@@ -335,14 +278,15 @@ class ApiCriteria implements CriteriaInterface
      * @param  \Illuminate\Contracts\Database\Eloquent\Builder  $query
      * @param  string|null  $column
      * @param  string  $value
-     * @param  string  $logical_operator
+     * @param  string  $logicalOperator
      * @return \Illuminate\Contracts\Database\Eloquent\Builder
      */
-    private function applySimpleFilter(Builder $query, ?string $column, string $value, string $logical_operator): Builder
+    private function applySimpleFilter(Builder $query, ?string $column, string $value, string $logicalOperator): Builder
     {
         if ($column && in_array($column, $this->getSearchableColumns($query->getModel()), true)) {
-            $value = $this->formatValueBasedOnOperator($value, $logical_operator);
-            $query->{$this->logicalOperatorMap[$logical_operator]}($column, $value);
+            $value = $this->formatValueBasedOnOperator($value, $logicalOperator);
+            // @phpstan-ignore method.dynamicName (method name is resolved from logicalOperatorMap)
+            $query->{$this->logicalOperatorMap[$logicalOperator]}($column, $value);
         }
 
         return $query;
@@ -353,14 +297,15 @@ class ApiCriteria implements CriteriaInterface
      *
      * @param  \Illuminate\Contracts\Database\Eloquent\Builder  $query
      * @param  string  $relation
-     * @param  array  $filters
-     * @param  string|null  $last_logical_operator
+     * @param  array<int|string, mixed>  $filters
+     * @param  string|null  $lastLogicalOperator
      * @return void
      */
-    private function applyRelationFilter(Builder $query, string $relation, array $filters, ?string $last_logical_operator): void
+    private function applyRelationFilter(Builder $query, string $relation, array $filters, ?string $lastLogicalOperator): void
     {
-        $method = ($last_logical_operator === '$or') ? 'orWhereHas' : 'whereHas';
+        $method = ($lastLogicalOperator === '$or') ? 'orWhereHas' : 'whereHas';
 
+        // @phpstan-ignore method.dynamicName (method name is dynamically resolved to whereHas/orWhereHas)
         $query->{$method}($relation, function (Builder $query) use ($filters): void {
             $this->processRelationFilters($query, $filters);
         });
@@ -370,13 +315,15 @@ class ApiCriteria implements CriteriaInterface
      * Process relation filters.
      *
      * @param  \Illuminate\Contracts\Database\Eloquent\Builder  $query
-     * @param  array  $filters
+     * @param  array<int|string, mixed>  $filters
      * @return void
      */
     private function processRelationFilters(Builder $query, array $filters): void
     {
         if (isset($filters['$or'])) {
+
             $query->where(function ($nested) use ($filters): void {
+                // @phpstan-ignore foreach.nonIterable (filters[$or] is always an iterable array at this point)
                 foreach ($filters['$or'] as $key => $value) {
                     $this->applyFilters($nested, $value, $key, '$or');
                 }
@@ -392,158 +339,63 @@ class ApiCriteria implements CriteriaInterface
      * Apply a whereHas or whereDoesntHave filter.
      *
      * @param  \Illuminate\Contracts\Database\Eloquent\Builder  $query
-     * @param  array|string  $relations
+     * @param  array<int|string, mixed>|string  $relations
      * @param  string  $operator
-     * @param  string|null  $last_logical_operator
+     * @param  string|null  $lastLogicalOperator
      * @return void
      */
-    private function applyHasFilter(Builder $query, array|string $relations, string $operator, ?string $last_logical_operator = null): void
+    private function applyHasFilter(Builder $query, array|string $relations, string $operator, ?string $lastLogicalOperator = null): void
     {
-        $base_method = $this->relationalMethodMap[$operator];
-        $method      = ($last_logical_operator === '$or' && $operator === '$has') ? 'orWhereHas' : $base_method;
+        $baseMethod = $this->relationalMethodMap[$operator];
+        $method     = match (true) {
+            $lastLogicalOperator === '$or' && $operator === '$has'                 => 'orWhereHas',
+            $lastLogicalOperator === '$or' && $operator === self::OPERATOR_HAS_NOT => 'orWhereDoesntHave',
+            default                                                                => $baseMethod,
+        };
 
         foreach ((array) $relations as $relation => $filters) {
+
             if (is_int($relation)) {
-                if ($this->isRelation($filters, $query->getModel())) {
-                    $query->{$method}($filters);
-                }
+                $this->applySimpleHasFilter($query, $method, $filters);
             } else {
-                if ($this->isRelation($relation, $query->getModel())) {
-                    $query->{$method}($relation, function (Builder $query) use ($filters): void {
-                        $this->processRelationFilters($query, $filters);
-                    });
-                }
+                $this->applyNestedHasFilter($query, $method, $relation, $filters);
             }
         }
     }
 
     /**
-     * Determine if the given operator is conditional.
-     *
-     * @param  string|null  $operator
-     * @return bool
-     */
-    private function isConditionOperator(?string $operator = null): bool
-    {
-        return array_key_exists($operator, $this->conditionOperatorMap);
-    }
-
-    /**
-     * Handle a condition based on its operator.
+     * Apply a simple has/doesntHave filter for a relation without nested filters.
      *
      * @param  \Illuminate\Contracts\Database\Eloquent\Builder  $query
-     * @param  string  $operator
-     * @param  mixed  $value
-     * @param  string|null  $column
-     * @param  string|null  $last_logical_operator
+     * @param  string  $method
+     * @param  string  $relation
      * @return void
      */
-    private function handleCondition(Builder $query, string $operator, mixed $value, ?string $column, ?string $last_logical_operator): void
+    private function applySimpleHasFilter(Builder $query, string $method, string $relation): void
     {
-        if (!$column || !in_array($column, $this->getSearchableColumns($query->getModel()), true)) {
-            return;
+        if ($this->isRelation($relation, $query->getModel())) {
+            // @phpstan-ignore method.dynamicName (method name is dynamically resolved to whereHas/whereDoesntHave)
+            $query->{$method}($relation);
         }
-
-        match ($operator) {
-            '$in'       => $query->whereIn($column, (array) $value),
-            '$between'  => $this->applyBetween($query, $column, $value),
-            '$contains' => $this->applyJsonContains($query, $column, $value),
-            '$null'     => $this->applyNullCondition($query, $column, true, $last_logical_operator),
-            '$notNull'  => $this->applyNullCondition($query, $column, false, $last_logical_operator),
-            default     => $this->applyDefaultCondition($query, $column, $operator, $value, $last_logical_operator),
-        };
     }
 
     /**
-     * Apply JSON contains condition if the value is valid JSON.
+     * Apply a has/doesntHave filter for a relation with nested filters.
      *
      * @param  \Illuminate\Contracts\Database\Eloquent\Builder  $query
-     * @param  string  $column
-     * @param  mixed  $value
+     * @param  string  $method
+     * @param  string  $relation
+     * @param  array<int|string, mixed>  $filters
      * @return void
      */
-    private function applyJsonContains(Builder $query, string $column, mixed $value): void
+    private function applyNestedHasFilter(Builder $query, string $method, string $relation, array $filters): void
     {
-        if (is_array($value) || is_object($value) || $this->isValidJson($value)) {
-            $query->whereJsonContains($column, $value);
-
-            return;
+        if ($this->isRelation($relation, $query->getModel())) {
+            // @phpstan-ignore method.dynamicName (method name is dynamically resolved to whereHas/whereDoesntHave)
+            $query->{$method}($relation, function (Builder $query) use ($filters): void {
+                $this->processRelationFilters($query, $filters);
+            });
         }
-
-        if (is_string($value) && str_contains($value, ',')) {
-
-            $items = array_filter(array_map('trim', explode(',', $value)));
-
-            if (!empty($items)) {
-                $query->where(function (Builder $query) use ($column, $items): void {
-                    foreach ($items as $index => $item) {
-                        $method = $index === 0 ? 'whereJsonContains' : 'orWhereJsonContains';
-                        $query->{$method}($column, $item);
-                    }
-                });
-            }
-
-            return;
-        }
-
-        try {
-            $query->whereJsonContains($column, $value);
-        } catch (\Throwable $exception) { // @codeCoverageIgnore
-        } // @codeCoverageIgnore
-    }
-
-    /**
-     * Check if a string is valid JSON.
-     *
-     * @param  string|null  $string
-     * @return bool
-     */
-    private function isValidJson(?string $string): bool
-    {
-        if (!is_string($string) || empty($string)) {
-            return false;
-        }
-
-        return json_validate($string);
-    }
-
-    /**
-     * Apply a null or not null condition to the query.
-     *
-     * @param  \Illuminate\Contracts\Database\Eloquent\Builder  $query
-     * @param  string  $column
-     * @param  bool  $isNull
-     * @param  string|null  $last_logical_operator
-     * @return void
-     */
-    private function applyNullCondition(Builder $query, string $column, bool $isNull, ?string $last_logical_operator): void
-    {
-        $method = $this->logicalOperatorMap[$last_logical_operator ?? '$and'];
-
-        if ($isNull) {
-            $query->{$method . 'Null'}($column);
-        } else {
-            $query->{$method . 'NotNull'}($column);
-        }
-    }
-
-    /**
-     * Apply a default condition to the query.
-     *
-     * @param  \Illuminate\Contracts\Database\Eloquent\Builder  $query
-     * @param  string  $column
-     * @param  string  $operator
-     * @param  mixed  $value
-     * @param  string|null  $last_logical_operator
-     * @return void
-     */
-    private function applyDefaultCondition(Builder $query, string $column, string $operator, mixed $value, ?string $last_logical_operator): void
-    {
-        $method          = $this->logicalOperatorMap[$last_logical_operator ?? '$and'];
-        $sql_operator    = $this->conditionOperatorMap[$operator];
-        $formatted_value = $this->formatValueBasedOnOperator($value, $operator);
-
-        $query->{$method}($column, $sql_operator, $formatted_value);
     }
 
     /**
@@ -575,89 +427,11 @@ class ApiCriteria implements CriteriaInterface
             }
 
             try {
+                // @phpstan-ignore method.dynamicName (existence and callability are verified by method_exists and is_callable guards above)
                 return $model->{$key}() instanceof Relation;
-            } catch (\Throwable $e) {
+            } catch (\BadMethodCallException $e) {
                 return false;
             }
         });
-    }
-
-    /**
-     * Get the searchable columns for the given model.
-     *
-     * @param  \Illuminate\Database\Eloquent\Model  $model
-     * @return array
-     */
-    private function getSearchableColumns(Model $model): array
-    {
-        $class = $model::class;
-
-        if (!isset($this->searchable[$class])) {
-            $this->searchable[$class] = $this->resolveSearchableColumns($model);
-        }
-
-        return $this->searchable[$class];
-    }
-
-    /**
-     * Format the value based on the specified operator.
-     *
-     * @param  mixed  $value
-     * @param  string  $operator
-     * @return string
-     */
-    private function formatValueBasedOnOperator(mixed $value, string $operator): mixed
-    {
-        return $operator === '$like' ? "%{$value}%" : $value;
-    }
-
-    /**
-     * Apply a 'between' condition if the value is appropriate.
-     *
-     * @param  \Illuminate\Contracts\Database\Eloquent\Builder  $query
-     * @param  string  $field
-     * @param  mixed  $value
-     * @return void
-     */
-    private function applyBetween(Builder $query, string $field, mixed $value): void
-    {
-        if (is_array($value) && count($value) === 2) {
-            $query->whereBetween($field, $value);
-        }
-    }
-
-    /**
-     * Resolve the searchable columns for the given model.
-     *
-     * @param  \Illuminate\Database\Eloquent\Model  $model
-     * @return array
-     */
-    private function resolveSearchableColumns(Model $model): array
-    {
-        $table      = $model->getTable();
-        $exclusions = $this->getColumnExclusions($table);
-
-        return array_diff($this->getColumnsFromModel($model), $exclusions);
-    }
-
-    /**
-     * Get column exclusions for the given table.
-     *
-     * @param  string  $table
-     * @return array
-     */
-    private function getColumnExclusions(string $table): array
-    {
-        return (array) collect(Config::get('api-toolkit.repositories.searchable_exclusions', []))
-            ->reduce(function ($carry, $exclusion) use ($table) {
-
-                if (str_contains($exclusion, '.') && strtok($exclusion, '.') === $table) {
-                    $carry[] = substr(strstr($exclusion, '.'), 1);
-                } else {
-                    $carry[] = $exclusion;
-                }
-
-                return $carry;
-            }, []);
     }
 }
