@@ -1,0 +1,28 @@
+# Blueprint Project Configuration
+# Lives at .blueprint/config.toml in the user's repo root.
+# Single source of truth for project-specific variables.
+
+[project]
+project_name = "Laravel API Toolkit"
+project_description = ""
+
+[paths]
+# Workflow directory — one per idea, supports concurrent workflows.
+# {workflow-slug} is derived from the idea (kebab-case, max 40 chars).
+workflow_dir = ".blueprint/workflows/{workflow-slug}/"
+
+# PRD output — public directory, consumed by the Build plugin.
+prd_dir = "docs/prd"
+path_prd = "docs/prd/{NN}-{slug}.md"
+
+# Workflow-internal artifact paths (relative to repo root).
+# {workflow-dir} expands to the workflow's directory above.
+path_intake = "{workflow-dir}/intake-brief.md"
+path_spike = "{workflow-dir}/spikes/spike-{slug}.md"
+path_problem_map = "{workflow-dir}/problem-map.md"
+path_prioritization = "{workflow-dir}/prioritization.md"
+path_state = "{workflow-dir}/workflow-state.md"
+
+[git]
+git_base_branches = ["master"]
+git_branch_format = "{type}/{scope}"
