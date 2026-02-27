@@ -31,7 +31,7 @@ abstract class Service implements ServiceInterface
     /**
      * Constructor.
      *
-     * @param  array|\Illuminate\Support\Collection|\stdClass  $payload
+     * @param  array<int|string, mixed>|\Illuminate\Support\Collection<int|string, mixed>|\stdClass  $payload
      */
     public function __construct(
 
@@ -60,7 +60,7 @@ abstract class Service implements ServiceInterface
      * NOTE: Transactions are only supported on MySQL databases running the
      * InnoDB engine
      *
-     * @return \SineMacula\ApiToolkit\Services\Service
+     * @return static
      */
     public function useTransaction(): static
     {
@@ -72,7 +72,7 @@ abstract class Service implements ServiceInterface
     /**
      * Instruct the service not to use database transactions.
      *
-     * @return \SineMacula\ApiToolkit\Services\Service
+     * @return static
      */
     public function dontUseTransaction(): static
     {
@@ -84,7 +84,9 @@ abstract class Service implements ServiceInterface
     /**
      * Instruct the service to use a cache lock.
      *
-     * @return \SineMacula\ApiToolkit\Services\Service
+     * @return static
+     *
+     * @throws \RuntimeException
      */
     public function useLock(): static
     {
@@ -100,7 +102,7 @@ abstract class Service implements ServiceInterface
     /**
      * Instruct the service not to use a cache lock.
      *
-     * @return \SineMacula\ApiToolkit\Services\Service
+     * @return static
      */
     public function dontUseLock(): static
     {
@@ -152,9 +154,11 @@ abstract class Service implements ServiceInterface
             $this->prepare();
 
             // Execute the service handler
-            $this->status = $this->useTransaction
+            $result = $this->useTransaction
                 ? DB::transaction(fn () => $this->handle(), 3)
                 : $this->handle();
+
+            $this->status = is_bool($result) ? $result : (bool) $result;
 
         } catch (\Throwable $exception) {
             $this->failed($exception);
@@ -173,7 +177,7 @@ abstract class Service implements ServiceInterface
         // Call any success callbacks defined on traits used by the service
         $this->callTraitsSuccessCallbacks();
 
-        return $this->status;
+        return (bool) $this->status;
     }
 
     /**
@@ -200,6 +204,7 @@ abstract class Service implements ServiceInterface
             $method = 'initialize' . class_basename($trait);
 
             if (method_exists($class, $method)) {
+                // @phpstan-ignore staticMethod.dynamicCall (method name is dynamically resolved from trait names)
                 forward_static_call([$class, $method]);
             }
         }
@@ -247,6 +252,7 @@ abstract class Service implements ServiceInterface
             $method = Str::camel(class_basename($trait) . 'Success');
 
             if (method_exists($this, $method)) {
+                // @phpstan-ignore method.dynamicName (method name is dynamically resolved from trait names)
                 $this->{$method}();
             }
         }

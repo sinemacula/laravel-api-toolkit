@@ -55,11 +55,13 @@ class ApiServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->mergeConfigFrom(
-            __DIR__ . '/../config/api-toolkit.php', 'api-toolkit',
+            __DIR__ . '/../config/api-toolkit.php',
+            'api-toolkit',
         );
 
         $this->replaceConfigRecursivelyFrom(
-            __DIR__ . '/../config/logging.php', 'logging',
+            __DIR__ . '/../config/logging.php',
+            'logging',
         );
 
         $this->registerQueryParser();
@@ -73,7 +75,8 @@ class ApiServiceProvider extends ServiceProvider
     private function loadTranslationFiles(): void
     {
         $this->loadTranslationsFrom(
-            __DIR__ . '/../resources/lang', 'api-toolkit',
+            __DIR__ . '/../resources/lang',
+            'api-toolkit',
         );
 
         $this->publishes([
@@ -139,7 +142,9 @@ class ApiServiceProvider extends ServiceProvider
      */
     private function registerTrashedMacros(): void
     {
+        // @phpstan-ignore method.notFound ($this is bound to Request at call-time via macro)
         Request::macro('includeTrashed', fn () => $this->get('include_trashed', false) === 'true');
+        // @phpstan-ignore method.notFound ($this is bound to Request at call-time via macro)
         Request::macro('onlyTrashed', fn () => $this->get('only_trashed', false) === 'true');
     }
 
@@ -150,14 +155,18 @@ class ApiServiceProvider extends ServiceProvider
      */
     private function registerExportMacros(): void
     {
+        // @phpstan-ignore method.notFound ($this is bound to Request at call-time via macro)
         Request::macro('expectsExport', fn () => config('api-toolkit.exports.enabled') && ($this->expectsCsv() || $this->expectsXml()));
 
+        // @phpstan-ignore method.notFound ($this is bound to Request at call-time via macro)
         Request::macro('expectsCsv', fn () => strtolower($this->header('Accept')) === 'text/csv'
             && in_array('csv', config('api-toolkit.exports.supported_formats', []), true));
 
+        // @phpstan-ignore method.notFound ($this is bound to Request at call-time via macro)
         Request::macro('expectsXml', fn () => strtolower($this->header('Accept')) === 'application/xml'
             && in_array('xml', config('api-toolkit.exports.supported_formats', []), true));
 
+        // @phpstan-ignore method.notFound ($this is bound to Request at call-time via macro)
         Request::macro('expectsPdf', fn () => strtolower($this->header('Accept')) === 'application/pdf');
     }
 
@@ -168,6 +177,7 @@ class ApiServiceProvider extends ServiceProvider
      */
     private function registerStreamMacros(): void
     {
+        // @phpstan-ignore method.notFound ($this is bound to Request at call-time via macro)
         Request::macro('expectsStream', fn () => strtolower($this->header('Accept')) === 'text/event-stream');
     }
 

@@ -20,7 +20,7 @@ interface ApiResourceInterface
     /**
      * Gets the default fields that should be included in the response.
      *
-     * @return array
+     * @return array<int, string>
      */
     public static function getDefaultFields(): array;
 }

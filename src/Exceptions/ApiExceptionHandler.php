@@ -123,6 +123,7 @@ class ApiExceptionHandler
     {
         $options = $request->get('pretty') ? JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES : JSON_UNESCAPED_SLASHES;
 
+        /** @phpstan-ignore staticMethod.dynamicCall (calling static method on instance is valid PHP) */
         return Response::json(self::convertApiExceptionToArray($exception), $exception->getHttpStatusCode(), $exception->getHeaders(), $options);
     }
 
@@ -130,13 +131,15 @@ class ApiExceptionHandler
      * Convert the given API exception to an array.
      *
      * @param  \SineMacula\ApiToolkit\Exceptions\ApiException  $exception
-     * @return array
+     * @return array<string, mixed>
      */
     private static function convertApiExceptionToArray(ApiException $exception): array
     {
         return [
             'error' => array_filter([
+                // @phpstan-ignore staticMethod.dynamicCall (calling static method on instance is valid PHP)
                 'status' => $exception->getHttpStatusCode(),
+                // @phpstan-ignore staticMethod.dynamicCall (calling static method on instance is valid PHP)
                 'code'   => $exception->getInternalErrorCode(),
                 'title'  => $exception->getCustomTitle(),
                 'detail' => $exception->getCustomDetail(),
@@ -149,7 +152,7 @@ class ApiExceptionHandler
      * Extracts meta information for an API exception.
      *
      * @param  \SineMacula\ApiToolkit\Exceptions\ApiException  $exception
-     * @return array|null
+     * @return array<string, mixed>|null
      */
     private static function getApiExceptionMeta(ApiException $exception): ?array
     {
@@ -199,7 +202,7 @@ class ApiExceptionHandler
     /**
      * Retrieves context for logging an exception.
      *
-     * @return array
+     * @return array<string, mixed>
      */
     private static function getContext(): array
     {

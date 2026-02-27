@@ -15,7 +15,7 @@ trait OrdersFields
     /**
      * The field-ordering strategy to use.
      *
-     * @var FieldOrderingStrategy
+     * @var \SineMacula\ApiToolkit\Enums\FieldOrderingStrategy
      */
     protected FieldOrderingStrategy $fieldOrderingStrategy = FieldOrderingStrategy::DEFAULT;
 

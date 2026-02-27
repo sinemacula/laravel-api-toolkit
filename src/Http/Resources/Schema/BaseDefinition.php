@@ -3,21 +3,21 @@
 namespace SineMacula\ApiToolkit\Http\Resources\Schema;
 
 use Illuminate\Contracts\Support\Arrayable;
-use Illuminate\Http\Request;
-use SineMacula\ApiToolkit\Http\Resources\ApiResource;
 
 /**
  * Base class for schema definitions.
+ *
+ * @implements \Illuminate\Contracts\Support\Arrayable<string, array<string, mixed>>
  *
  * @author      Ben Carey
  * @copyright   2025 Sine Macula
  */
 abstract class BaseDefinition implements Arrayable
 {
-    /** @var array<int, callable(ApiResource, ?Request): bool> Guards for conditional inclusion */
+    /** @var array<int, callable(\SineMacula\ApiToolkit\Http\Resources\ApiResource, ?\Illuminate\Http\Request): bool> Guards for conditional inclusion */
     protected array $guards = [];
 
-    /** @var array<int, callable(ApiResource, mixed): mixed> Transformers for modifying resolved values */
+    /** @var array<int, callable(\SineMacula\ApiToolkit\Http\Resources\ApiResource, mixed): mixed> Transformers for modifying resolved values */
     protected array $transformers = [];
 
     /** @var array<int, string> Extra eager-load paths */
@@ -26,7 +26,7 @@ abstract class BaseDefinition implements Arrayable
     /**
      * Add a guard condition — return false to suppress the field.
      *
-     * @param  callable(ApiResource, ?Request): bool  $guard
+     * @param  callable(\SineMacula\ApiToolkit\Http\Resources\ApiResource, ?\Illuminate\Http\Request): bool  $guard
      * @return static
      */
     public function guard(callable $guard): static
@@ -39,7 +39,7 @@ abstract class BaseDefinition implements Arrayable
     /**
      * Get the guards attached to this definition.
      *
-     * @return array<int, callable(ApiResource, ?Request): bool>
+     * @return array<int, callable(\SineMacula\ApiToolkit\Http\Resources\ApiResource, ?\Illuminate\Http\Request): bool>
      */
     public function getGuards(): array
     {
@@ -49,7 +49,7 @@ abstract class BaseDefinition implements Arrayable
     /**
      * Add a transformer to modify the resolved value.
      *
-     * @param  callable(ApiResource, mixed): mixed  $transformer
+     * @param  callable(\SineMacula\ApiToolkit\Http\Resources\ApiResource, mixed): mixed  $transformer
      * @return static
      */
     public function transform(callable $transformer): static
@@ -62,7 +62,7 @@ abstract class BaseDefinition implements Arrayable
     /**
      * Get the transformers attached to this definition.
      *
-     * @return array<int, callable(ApiResource, mixed): mixed>
+     * @return array<int, callable(\SineMacula\ApiToolkit\Http\Resources\ApiResource, mixed): mixed>
      */
     public function getTransformers(): array
     {

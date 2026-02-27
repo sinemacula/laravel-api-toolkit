@@ -268,6 +268,31 @@ class ApiCriteriaIntegrationTest extends TestCase
     }
 
     /**
+     * Test that $hasnt inside an $or group uses OR NOT EXISTS logic.
+     *
+     * @return void
+     */
+    public function testOrWithHasntRelationUsesOrNotExistsLogic(): void
+    {
+        // Alice has posts; Bob has posts; Charlie has no posts.
+        // Combining $hasnt posts (Charlie) OR name = Alice should return both.
+        $this->parseQuery([
+            'filters' => json_encode([
+                '$or' => [
+                    '$hasnt' => ['posts'],
+                    'name'   => 'Alice',
+                ],
+            ]),
+        ]);
+
+        $results = $this->makeCriteria()->apply(new User)->get();
+
+        static::assertGreaterThanOrEqual(2, $results->count());
+        static::assertTrue($results->pluck('name')->contains('Charlie'));
+        static::assertTrue($results->pluck('name')->contains('Alice'));
+    }
+
+    /**
      * Test combined filters, order, and limit.
      *
      * @return void

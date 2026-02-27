@@ -238,17 +238,30 @@ class ApiQueryParserTest extends TestCase
     /**
      * Test that getOrder parses order with direction.
      *
-     * @param  string  $orderString
+     * @param  string  $order_string
      * @param  array<string, string>  $expected
      * @return void
      */
     #[DataProvider('orderProvider')]
-    public function testGetOrderParsesOrderWithDirection(string $orderString, array $expected): void
+    public function testGetOrderParsesOrderWithDirection(string $order_string, array $expected): void
     {
-        $request = Request::create(self::TEST_URL, 'GET', ['order' => $orderString]);
+        $request = Request::create(self::TEST_URL, 'GET', ['order' => $order_string]);
         $this->parser->parse($request);
 
         static::assertSame($expected, $this->parser->getOrder());
+    }
+
+    /**
+     * Test that getOrder trims whitespace from column names and directions.
+     *
+     * @return void
+     */
+    public function testGetOrderTrimsWhitespaceFromColumnNamesAndDirections(): void
+    {
+        $request = Request::create(self::TEST_URL, 'GET', ['order' => ' name : desc , email : asc ']);
+        $this->parser->parse($request);
+
+        static::assertSame(['name' => 'desc', 'email' => 'asc'], $this->parser->getOrder());
     }
 
     /**
@@ -331,16 +344,16 @@ class ApiQueryParserTest extends TestCase
     }
 
     /**
-     * Test that getCursor returns an empty string when not set.
+     * Test that getCursor returns null when not set.
      *
      * @return void
      */
-    public function testGetCursorReturnsEmptyStringWhenNotSet(): void
+    public function testGetCursorReturnsNullWhenNotSet(): void
     {
         $request = Request::create(self::TEST_URL, 'GET');
         $this->parser->parse($request);
 
-        static::assertSame('', $this->parser->getCursor());
+        static::assertNull($this->parser->getCursor());
     }
 
     /**

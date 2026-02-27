@@ -41,6 +41,7 @@ class DatabaseHandler extends AbstractProcessingHandler
         }
 
         try {
+            // @phpstan-ignore staticMethod.notFound (Eloquent model provides create() via magic)
             LogMessage::create([
                 'level'      => $record->level->getName(),
                 'message'    => $record->message,

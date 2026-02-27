@@ -69,7 +69,7 @@ return [
 
     ErrorCode::MAINTENANCE_MODE->getCode() => [
         'title'  => 'Maintenance Mode',
-        'detail' => config('app.name') . ' is currently in maintenance mode, please try again a little later',
+        'detail' => ((string) config('app.name')) . ' is currently in maintenance mode, please try again a little later',
     ],
 
     /*

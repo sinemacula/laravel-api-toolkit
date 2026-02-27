@@ -18,8 +18,8 @@ abstract class ApiException extends \Exception
     /**
      * Constructor.
      *
-     * @param  array|null  $meta
-     * @param  array|null  $headers
+     * @param  array<string, mixed>|null  $meta
+     * @param  array<string, string>|null  $headers
      * @param  \Throwable|null  $previous
      */
     public function __construct(
@@ -33,6 +33,7 @@ abstract class ApiException extends \Exception
         ?\Throwable $previous = null,
 
     ) {
+        // @phpstan-ignore staticMethod.dynamicCall (calling static method on instance is valid PHP)
         parent::__construct($this->getCustomDetail(), $this->getHttpStatusCode(), $previous);
     }
 
@@ -43,7 +44,7 @@ abstract class ApiException extends \Exception
      */
     public function getCustomDetail(): string
     {
-        return Lang::get($this->getTranslationKey('detail'));
+        return (string) Lang::get($this->getTranslationKey('detail'));
     }
 
     /**
@@ -73,13 +74,13 @@ abstract class ApiException extends \Exception
      */
     public function getCustomTitle(): string
     {
-        return Lang::get($this->getTranslationKey('title'));
+        return (string) Lang::get($this->getTranslationKey('title'));
     }
 
     /**
      * Get custom Meta.
      *
-     * @return array|null
+     * @return array<string, mixed>|null
      */
     public function getCustomMeta(): ?array
     {
@@ -89,7 +90,7 @@ abstract class ApiException extends \Exception
     /**
      * Get headers.
      *
-     * @return array
+     * @return array<string, string>
      */
     public function getHeaders(): array
     {
@@ -117,6 +118,7 @@ abstract class ApiException extends \Exception
             throw new \LogicException('The CODE constant must be defined on the exception');
         }
 
+        /** @phpstan-ignore classConstant.notFound (subclasses are required to define CODE) */
         return static::CODE;
     }
 
@@ -131,6 +133,7 @@ abstract class ApiException extends \Exception
             throw new \LogicException('The HTTP_STATUS constant must be defined on the exception');
         }
 
+        /** @phpstan-ignore classConstant.notFound (subclasses are required to define HTTP_STATUS) */
         return static::HTTP_STATUS;
     }
 
@@ -142,6 +145,7 @@ abstract class ApiException extends \Exception
      */
     private function getTranslationKey(string $key): string
     {
+        /** @phpstan-ignore staticMethod.dynamicCall (calling static method on instance is valid PHP) */
         return sprintf('%s::exceptions.%s.%s', $this->getNamespace(), $this->getInternalErrorCode(), $key);
     }
 }
