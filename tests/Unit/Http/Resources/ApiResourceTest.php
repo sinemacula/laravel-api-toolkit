@@ -10,6 +10,7 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use SineMacula\ApiToolkit\Http\Resources\ApiResource;
 use SineMacula\ApiToolkit\Http\Resources\ApiResourceCollection;
+use SineMacula\ApiToolkit\Http\Resources\Concerns\SchemaCompiler;
 use SineMacula\ApiToolkit\Http\Resources\Schema\Count;
 use SineMacula\ApiToolkit\Http\Resources\Schema\Field;
 use SineMacula\ApiToolkit\Http\Resources\Schema\Relation;
@@ -348,7 +349,7 @@ class ApiResourceTest extends TestCase
             public const string RESOURCE_TYPE = 'guarded_test';
 
             /** @var array<int, string> */
-            protected static array $default = ['id', 'name', 'secret']; // @phpstan-ignore property.phpDocType
+            protected static array $default = ['id', 'name', 'secret'];
 
             /**
              * Get the resource schema.
@@ -391,7 +392,7 @@ class ApiResourceTest extends TestCase
             public const string RESOURCE_TYPE = 'guard_pass_test';
 
             /** @var array<int, string> */
-            protected static array $default = ['id', 'name', 'visible']; // @phpstan-ignore property.phpDocType
+            protected static array $default = ['id', 'name', 'visible'];
 
             /**
              * Get the resource schema.
@@ -435,7 +436,7 @@ class ApiResourceTest extends TestCase
             public const string RESOURCE_TYPE = 'transform_test';
 
             /** @var array<int, string> */
-            protected static array $default = ['id', 'name']; // @phpstan-ignore property.phpDocType
+            protected static array $default = ['id', 'name'];
 
             /**
              * Get the resource schema.
@@ -496,7 +497,7 @@ class ApiResourceTest extends TestCase
             public const string RESOURCE_TYPE = 'accessor_test';
 
             /** @var array<int, string> */
-            protected static array $default = ['id', 'nested_value']; // @phpstan-ignore property.phpDocType
+            protected static array $default = ['id', 'nested_value'];
 
             /**
              * Get the resource schema.
@@ -537,7 +538,7 @@ class ApiResourceTest extends TestCase
             public const string RESOURCE_TYPE = 'accessor_callable_test';
 
             /** @var array<int, string> */
-            protected static array $default = ['id', 'computed_accessor']; // @phpstan-ignore property.phpDocType
+            protected static array $default = ['id', 'computed_accessor'];
 
             /**
              * Get the resource schema.
@@ -793,7 +794,7 @@ class ApiResourceTest extends TestCase
             public const string RESOURCE_TYPE = 'constrained_test';
 
             /** @var array<int, string> */
-            protected static array $default = ['id', 'items']; // @phpstan-ignore property.phpDocType
+            protected static array $default = ['id', 'items'];
 
             /**
              * Get the resource schema.
@@ -1130,7 +1131,7 @@ class ApiResourceTest extends TestCase
             public const string RESOURCE_TYPE = 'multi_transform_test';
 
             /** @var array<int, string> */
-            protected static array $default = ['id', 'name']; // @phpstan-ignore property.phpDocType
+            protected static array $default = ['id', 'name'];
 
             /**
              * Get the resource schema.
@@ -1173,7 +1174,7 @@ class ApiResourceTest extends TestCase
             public const string RESOURCE_TYPE = 'null_test';
 
             /** @var array<int, string> */
-            protected static array $default = ['id']; // @phpstan-ignore property.phpDocType
+            protected static array $default = ['id'];
 
             /**
              * Get the resource schema.
@@ -1299,7 +1300,7 @@ class ApiResourceTest extends TestCase
             public const string RESOURCE_TYPE = 'constrained_count_test';
 
             /** @var array<int, string> */
-            protected static array $default = ['id']; // @phpstan-ignore property.phpDocType
+            protected static array $default = ['id'];
 
             /**
              * Get the resource schema.
@@ -1523,7 +1524,7 @@ class ApiResourceTest extends TestCase
             public const string RESOURCE_TYPE = 'guarded_count_test';
 
             /** @var array<int, string> */
-            protected static array $default = ['id', 'counts']; // @phpstan-ignore property.phpDocType
+            protected static array $default = ['id', 'counts'];
 
             /**
              * Get the resource schema.
@@ -1584,7 +1585,7 @@ class ApiResourceTest extends TestCase
             public const string RESOURCE_TYPE = 'callable_rel_test';
 
             /** @var array<int, string> */
-            protected static array $default = ['id', 'org_name']; // @phpstan-ignore property.phpDocType
+            protected static array $default = ['id', 'org_name'];
 
             /**
              * Get the resource schema.
@@ -1624,7 +1625,7 @@ class ApiResourceTest extends TestCase
             public const string RESOURCE_TYPE = 'explicit_fields_test';
 
             /** @var array<int, string> */
-            protected static array $default = ['id', 'organization']; // @phpstan-ignore property.phpDocType
+            protected static array $default = ['id', 'organization'];
 
             /**
              * Get the resource schema.
@@ -1675,7 +1676,7 @@ class ApiResourceTest extends TestCase
             public const string RESOURCE_TYPE = 'child_fields_test';
 
             /** @var array<int, string> */
-            protected static array $default = ['id', 'organization']; // @phpstan-ignore property.phpDocType
+            protected static array $default = ['id', 'organization'];
 
             /**
              * Get the resource schema.
@@ -1797,7 +1798,7 @@ class ApiResourceTest extends TestCase
             public const string RESOURCE_TYPE = 'extras_path_test';
 
             /** @var array<int, string> */
-            protected static array $default = ['organization']; // @phpstan-ignore property.phpDocType
+            protected static array $default = ['organization'];
 
             /**
              * Get the resource schema.
@@ -1851,7 +1852,7 @@ class ApiResourceTest extends TestCase
             public const string RESOURCE_TYPE = 'no_defaults_child';
 
             /** @var array<int, string> */
-            protected static array $default = []; // @phpstan-ignore property.phpDocType
+            protected static array $default = [];
 
             /**
              * Get the resource schema.
@@ -1874,7 +1875,7 @@ class ApiResourceTest extends TestCase
             public const string RESOURCE_TYPE = 'outer_for_empty_defaults';
 
             /** @var array<int, string> */
-            protected static array $default = ['rel']; // @phpstan-ignore property.phpDocType
+            protected static array $default = ['rel'];
 
             /** @var string */
             public static string $childClassName = '';
@@ -1921,7 +1922,7 @@ class ApiResourceTest extends TestCase
             public const string RESOURCE_TYPE = 'method_reflect_test';
 
             /** @var array<int, string> */
-            protected static array $default = ['id', 'posts']; // @phpstan-ignore property.phpDocType
+            protected static array $default = ['id', 'posts'];
 
             /**
              * Get the resource schema.
@@ -1970,7 +1971,7 @@ class ApiResourceTest extends TestCase
             public const string RESOURCE_TYPE = 'constrained_exec_test';
 
             /** @var array<int, string> */
-            protected static array $default = ['id', 'organization']; // @phpstan-ignore property.phpDocType
+            protected static array $default = ['id', 'organization'];
 
             /**
              * Get the resource schema.
@@ -2032,7 +2033,7 @@ class ApiResourceTest extends TestCase
             public const string RESOURCE_TYPE = 'attr_method_test';
 
             /** @var array<int, string> */
-            protected static array $default = ['label']; // @phpstan-ignore property.phpDocType
+            protected static array $default = ['label'];
 
             /**
              * Get the resource schema.
@@ -2114,7 +2115,7 @@ class ApiResourceTest extends TestCase
             public const string RESOURCE_TYPE = 'morph_to_exec_test';
 
             /** @var array<int, string> */
-            protected static array $default = ['id', 'organization']; // @phpstan-ignore property.phpDocType
+            protected static array $default = ['id', 'organization'];
 
             /**
              * Get the resource schema.
@@ -2146,12 +2147,9 @@ class ApiResourceTest extends TestCase
      * Clear the static schema cache between tests.
      *
      * @return void
-     *
-     * @SuppressWarnings("php:S3011")
      */
     private function clearSchemaCache(): void
     {
-        $property = new \ReflectionProperty(ApiResource::class, 'schemaCache');
-        $property->setValue(null, []);
+        SchemaCompiler::clearCache();
     }
 }
