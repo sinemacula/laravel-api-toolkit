@@ -19,7 +19,7 @@ class UserResource extends ApiResource
     public const string RESOURCE_TYPE = 'users';
 
     /** @var array<int, string> */
-    protected static array $default = ['id', 'name', 'email']; // @phpstan-ignore property.phpDocType
+    protected static array $default = ['id', 'name', 'email'];
 
     /**
      * Return the resource schema.

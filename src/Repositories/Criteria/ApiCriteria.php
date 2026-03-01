@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Config;
+use SineMacula\ApiToolkit\Contracts\ResourceMetadataProvider;
 use SineMacula\ApiToolkit\Enums\CacheKeys;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
 use SineMacula\ApiToolkit\Http\Resources\ApiResource;
@@ -18,8 +19,8 @@ use SineMacula\Repositories\Contracts\CriteriaInterface;
 /**
  * API criteria.
  *
- * This class is responsible for applying filters, ordering, and limiting
- * on model queries based on API requests.
+ * This class is responsible for applying filters, ordering, and limiting on
+ * model queries based on API requests.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -64,7 +65,7 @@ class ApiCriteria implements CriteriaInterface
     /** @var array<int, string> */
     private array $directions = ['asc', 'desc'];
 
-    /** @var array<string, array> */
+    /** @var array<string, array<int, string>> */
     private array $searchable = [];
 
     /** @var array<string, string> */
@@ -77,11 +78,15 @@ class ApiCriteria implements CriteriaInterface
      * Constructor.
      *
      * @param  \Illuminate\Http\Request  $request
+     * @param  \SineMacula\ApiToolkit\Contracts\ResourceMetadataProvider  $metadataProvider
      */
     public function __construct(
 
         /** The HTTP request */
         protected Request $request,
+
+        /** The resource metadata provider */
+        private readonly ResourceMetadataProvider $metadataProvider,
 
     ) {}
 
@@ -110,28 +115,28 @@ class ApiCriteria implements CriteriaInterface
      * @param  \Illuminate\Database\Eloquent\Builder  $query
      * @param  array|string|null  $filters
      * @param  string|null  $field
-     * @param  string|null  $last_logical_operator
+     * @param  string|null  $lastLogicalOperator
      * @return \Illuminate\Database\Eloquent\Builder
      */
-    protected function applyFilters(Builder $query, array|string|null $filters = null, ?string $field = null, ?string $last_logical_operator = null): Builder
+    protected function applyFilters(Builder $query, array|string|null $filters = null, ?string $field = null, ?string $lastLogicalOperator = null): Builder
     {
         if (empty($filters)) {
             return $query;
         }
 
         if (is_string($filters)) {
-            return $this->applySimpleFilter($query, $field, $filters, $last_logical_operator ?? '$and');
+            return $this->applySimpleFilter($query, $field, $filters, $lastLogicalOperator ?? '$and');
         }
 
         foreach ($filters as $key => $value) {
             if ($this->isConditionOperator($key)) {
-                $this->applyConditionOperator($query, $key, $value, $field, $last_logical_operator);
+                $this->applyConditionOperator($query, $key, $value, $field, $lastLogicalOperator);
             } elseif ($this->isLogicalOperator($key)) {
-                $this->applyLogicalOperator($query, $key, $value, $last_logical_operator);
+                $this->applyLogicalOperator($query, $key, $value, $lastLogicalOperator);
             } elseif ($this->isRelation($key, $query->getModel())) {
-                $this->applyRelationFilter($query, $key, $value, $last_logical_operator);
+                $this->applyRelationFilter($query, $key, $value, $lastLogicalOperator);
             } else {
-                $this->applyFilters($query, $value, $key, $last_logical_operator);
+                $this->applyFilters($query, $value, $key, $lastLogicalOperator);
             }
         }
 
@@ -153,31 +158,27 @@ class ApiCriteria implements CriteriaInterface
             return $query;
         }
 
-        $fields = in_array(':all', ApiQuery::getFields($resource::getResourceType()) ?? [], true)
-            ? $resource::getAllFields()
-            : $resource::resolveFields();
+        $resourceType = $this->metadataProvider->getResourceType($resource);
+
+        $fields = in_array(':all', ApiQuery::getFields($resourceType) ?? [], true)
+            ? $this->metadataProvider->getAllFields($resource)
+            : $this->metadataProvider->resolveFields($resource);
 
         if (empty($fields)) {
             return $query;
         }
 
-        if (method_exists($resource, 'eagerLoadMapFor')) {
+        $with = $this->metadataProvider->eagerLoadMapFor($resource, $fields);
 
-            $with = $resource::eagerLoadMapFor($fields);
-
-            if (!empty($with)) {
-                $query->with($with);
-            }
+        if (!empty($with)) {
+            $query->with($with);
         }
 
-        if (method_exists($resource, 'eagerLoadCountsFor')) {
+        $requestedCounts = ApiQuery::getCounts($resourceType) ?? [];
+        $withCounts      = $this->metadataProvider->eagerLoadCountsFor($resource, $requestedCounts);
 
-            $requested_counts = ApiQuery::getCounts($resource::getResourceType()) ?? [];
-            $with_counts      = $resource::eagerLoadCountsFor($requested_counts);
-
-            if (!empty($with_counts)) {
-                $query->withCount($with_counts);
-            }
+        if (!empty($withCounts)) {
+            $query->withCount($withCounts);
         }
 
         return $query;
@@ -233,15 +234,15 @@ class ApiCriteria implements CriteriaInterface
      * @param  string  $operator
      * @param  mixed  $value
      * @param  string|null  $field
-     * @param  string|null  $last_logical_operator
+     * @param  string|null  $lastLogicalOperator
      * @return void
      */
-    private function applyConditionOperator(Builder $query, string $operator, mixed $value, ?string $field, ?string $last_logical_operator): void
+    private function applyConditionOperator(Builder $query, string $operator, mixed $value, ?string $field, ?string $lastLogicalOperator): void
     {
         if (in_array($operator, ['$has', '$hasnt'], true)) {
-            $this->applyHasFilter($query, $value, $operator, $last_logical_operator);
+            $this->applyHasFilter($query, $value, $operator, $lastLogicalOperator);
         } else {
-            $this->handleCondition($query, $operator, $value, $field, $last_logical_operator);
+            $this->handleCondition($query, $operator, $value, $field, $lastLogicalOperator);
         }
     }
 
@@ -251,12 +252,12 @@ class ApiCriteria implements CriteriaInterface
      * @param  \Illuminate\Contracts\Database\Eloquent\Builder  $query
      * @param  string  $operator
      * @param  array  $value
-     * @param  string|null  $last_logical_operator
+     * @param  string|null  $lastLogicalOperator
      * @return void
      */
-    private function applyLogicalOperator(Builder $query, string $operator, array $value, ?string $last_logical_operator): void
+    private function applyLogicalOperator(Builder $query, string $operator, array $value, ?string $lastLogicalOperator): void
     {
-        $method = $this->determineLogicalMethod($operator, $last_logical_operator);
+        $method = $this->determineLogicalMethod($operator, $lastLogicalOperator);
 
         $query->{$method}(function (Builder $query) use ($value, $operator): void {
             foreach ($value as $subKey => $subValue) {
@@ -275,12 +276,12 @@ class ApiCriteria implements CriteriaInterface
      * Determine the method to use for logical operators.
      *
      * @param  string  $operator
-     * @param  string|null  $last_logical_operator
+     * @param  string|null  $lastLogicalOperator
      * @return string
      */
-    private function determineLogicalMethod(string $operator, ?string $last_logical_operator): string
+    private function determineLogicalMethod(string $operator, ?string $lastLogicalOperator): string
     {
-        return ($last_logical_operator === '$and' && $operator === '$or')
+        return ($lastLogicalOperator === '$and' && $operator === '$or')
             ? 'where'
             : $this->logicalOperatorMap[$operator];
     }
@@ -302,7 +303,7 @@ class ApiCriteria implements CriteriaInterface
     /**
      * Get the filters to be applied to the query.
      *
-     * @return array|null
+     * @return array<string, mixed>|null
      */
     private function getFilters(): ?array
     {
@@ -335,14 +336,14 @@ class ApiCriteria implements CriteriaInterface
      * @param  \Illuminate\Contracts\Database\Eloquent\Builder  $query
      * @param  string|null  $column
      * @param  string  $value
-     * @param  string  $logical_operator
+     * @param  string  $logicalOperator
      * @return \Illuminate\Contracts\Database\Eloquent\Builder
      */
-    private function applySimpleFilter(Builder $query, ?string $column, string $value, string $logical_operator): Builder
+    private function applySimpleFilter(Builder $query, ?string $column, string $value, string $logicalOperator): Builder
     {
         if ($column && in_array($column, $this->getSearchableColumns($query->getModel()), true)) {
-            $value = $this->formatValueBasedOnOperator($value, $logical_operator);
-            $query->{$this->logicalOperatorMap[$logical_operator]}($column, $value);
+            $value = $this->formatValueBasedOnOperator($value, $logicalOperator);
+            $query->{$this->logicalOperatorMap[$logicalOperator]}($column, $value);
         }
 
         return $query;
@@ -354,12 +355,12 @@ class ApiCriteria implements CriteriaInterface
      * @param  \Illuminate\Contracts\Database\Eloquent\Builder  $query
      * @param  string  $relation
      * @param  array  $filters
-     * @param  string|null  $last_logical_operator
+     * @param  string|null  $lastLogicalOperator
      * @return void
      */
-    private function applyRelationFilter(Builder $query, string $relation, array $filters, ?string $last_logical_operator): void
+    private function applyRelationFilter(Builder $query, string $relation, array $filters, ?string $lastLogicalOperator): void
     {
-        $method = ($last_logical_operator === '$or') ? 'orWhereHas' : 'whereHas';
+        $method = ($lastLogicalOperator === '$or') ? 'orWhereHas' : 'whereHas';
 
         $query->{$method}($relation, function (Builder $query) use ($filters): void {
             $this->processRelationFilters($query, $filters);
@@ -394,13 +395,13 @@ class ApiCriteria implements CriteriaInterface
      * @param  \Illuminate\Contracts\Database\Eloquent\Builder  $query
      * @param  array|string  $relations
      * @param  string  $operator
-     * @param  string|null  $last_logical_operator
+     * @param  string|null  $lastLogicalOperator
      * @return void
      */
-    private function applyHasFilter(Builder $query, array|string $relations, string $operator, ?string $last_logical_operator = null): void
+    private function applyHasFilter(Builder $query, array|string $relations, string $operator, ?string $lastLogicalOperator = null): void
     {
-        $base_method = $this->relationalMethodMap[$operator];
-        $method      = ($last_logical_operator === '$or' && $operator === '$has') ? 'orWhereHas' : $base_method;
+        $baseMethod = $this->relationalMethodMap[$operator];
+        $method      = ($lastLogicalOperator === '$or' && $operator === '$has') ? 'orWhereHas' : $baseMethod;
 
         foreach ((array) $relations as $relation => $filters) {
             if (is_int($relation)) {
@@ -435,10 +436,10 @@ class ApiCriteria implements CriteriaInterface
      * @param  string  $operator
      * @param  mixed  $value
      * @param  string|null  $column
-     * @param  string|null  $last_logical_operator
+     * @param  string|null  $lastLogicalOperator
      * @return void
      */
-    private function handleCondition(Builder $query, string $operator, mixed $value, ?string $column, ?string $last_logical_operator): void
+    private function handleCondition(Builder $query, string $operator, mixed $value, ?string $column, ?string $lastLogicalOperator): void
     {
         if (!$column || !in_array($column, $this->getSearchableColumns($query->getModel()), true)) {
             return;
@@ -448,9 +449,9 @@ class ApiCriteria implements CriteriaInterface
             '$in'       => $query->whereIn($column, (array) $value),
             '$between'  => $this->applyBetween($query, $column, $value),
             '$contains' => $this->applyJsonContains($query, $column, $value),
-            '$null'     => $this->applyNullCondition($query, $column, true, $last_logical_operator),
-            '$notNull'  => $this->applyNullCondition($query, $column, false, $last_logical_operator),
-            default     => $this->applyDefaultCondition($query, $column, $operator, $value, $last_logical_operator),
+            '$null'     => $this->applyNullCondition($query, $column, true, $lastLogicalOperator),
+            '$notNull'  => $this->applyNullCondition($query, $column, false, $lastLogicalOperator),
+            default     => $this->applyDefaultCondition($query, $column, $operator, $value, $lastLogicalOperator),
         };
     }
 
@@ -466,7 +467,6 @@ class ApiCriteria implements CriteriaInterface
     {
         if (is_array($value) || is_object($value) || $this->isValidJson($value)) {
             $query->whereJsonContains($column, $value);
-
             return;
         }
 
@@ -489,6 +489,9 @@ class ApiCriteria implements CriteriaInterface
         try {
             $query->whereJsonContains($column, $value);
         } catch (\Throwable $exception) { // @codeCoverageIgnore
+            // Intentionally swallowed: non-JSON-castable scalar values may
+            // cause a database driver error; silently skipping the filter is
+            // preferred over failing the entire request.
         } // @codeCoverageIgnore
     }
 
@@ -513,12 +516,12 @@ class ApiCriteria implements CriteriaInterface
      * @param  \Illuminate\Contracts\Database\Eloquent\Builder  $query
      * @param  string  $column
      * @param  bool  $isNull
-     * @param  string|null  $last_logical_operator
+     * @param  string|null  $lastLogicalOperator
      * @return void
      */
-    private function applyNullCondition(Builder $query, string $column, bool $isNull, ?string $last_logical_operator): void
+    private function applyNullCondition(Builder $query, string $column, bool $isNull, ?string $lastLogicalOperator): void
     {
-        $method = $this->logicalOperatorMap[$last_logical_operator ?? '$and'];
+        $method = $this->logicalOperatorMap[$lastLogicalOperator ?? '$and'];
 
         if ($isNull) {
             $query->{$method . 'Null'}($column);
@@ -534,16 +537,16 @@ class ApiCriteria implements CriteriaInterface
      * @param  string  $column
      * @param  string  $operator
      * @param  mixed  $value
-     * @param  string|null  $last_logical_operator
+     * @param  string|null  $lastLogicalOperator
      * @return void
      */
-    private function applyDefaultCondition(Builder $query, string $column, string $operator, mixed $value, ?string $last_logical_operator): void
+    private function applyDefaultCondition(Builder $query, string $column, string $operator, mixed $value, ?string $lastLogicalOperator): void
     {
-        $method          = $this->logicalOperatorMap[$last_logical_operator ?? '$and'];
-        $sql_operator    = $this->conditionOperatorMap[$operator];
-        $formatted_value = $this->formatValueBasedOnOperator($value, $operator);
+        $method          = $this->logicalOperatorMap[$lastLogicalOperator ?? '$and'];
+        $sqlOperator    = $this->conditionOperatorMap[$operator];
+        $formattedValue = $this->formatValueBasedOnOperator($value, $operator);
 
-        $query->{$method}($column, $sql_operator, $formatted_value);
+        $query->{$method}($column, $sqlOperator, $formattedValue);
     }
 
     /**
@@ -604,7 +607,7 @@ class ApiCriteria implements CriteriaInterface
      *
      * @param  mixed  $value
      * @param  string  $operator
-     * @return string
+     * @return mixed
      */
     private function formatValueBasedOnOperator(mixed $value, string $operator): mixed
     {

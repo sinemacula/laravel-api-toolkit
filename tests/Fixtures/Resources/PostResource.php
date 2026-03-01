@@ -19,7 +19,7 @@ class PostResource extends ApiResource
     public const string RESOURCE_TYPE = 'posts';
 
     /** @var array<int, string> */
-    protected static array $default = ['id', 'title']; // @phpstan-ignore property.phpDocType
+    protected static array $default = ['id', 'title'];
 
     /**
      * Return the resource schema.
