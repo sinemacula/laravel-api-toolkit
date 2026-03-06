@@ -17,7 +17,7 @@ class TagResource extends ApiResource
     public const string RESOURCE_TYPE = 'tags';
 
     /** @var array<int, string> */
-    protected static array $default = ['id', 'name']; // @phpstan-ignore property.phpDocType
+    protected static array $default = ['id', 'name'];
 
     /**
      * Return the resource schema.

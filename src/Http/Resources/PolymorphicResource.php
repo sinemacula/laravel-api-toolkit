@@ -3,6 +3,7 @@
 namespace SineMacula\ApiToolkit\Http\Resources;
 
 use Illuminate\Http\Request;
+use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Facades\Config;
 use SineMacula\ApiToolkit\Contracts\ApiResourceInterface;
 
@@ -17,13 +18,60 @@ use SineMacula\ApiToolkit\Contracts\ApiResourceInterface;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-class PolymorphicResource extends BaseResource
+class PolymorphicResource extends JsonResource
 {
+    /** @var bool Whether to return all fields in the response */
+    protected bool $all = false;
+
+    /** @var array<int, string>|null Explicit list of fields to be returned in the response */
+    protected ?array $fields = null;
+
+    /** @var array<int, string>|null Explicit list of fields to be excluded from the response */
+    protected ?array $excludedFields = null;
+
+    /**
+     * Force the response to include all available fields.
+     *
+     * @return static
+     */
+    public function withAll(): static
+    {
+        $this->all = true;
+
+        return $this;
+    }
+
+    /**
+     * Override the default fields and any requested fields.
+     *
+     * @param  array<int, string>|null  $fields
+     * @return static
+     */
+    public function withFields(?array $fields = null): static
+    {
+        $this->fields = $fields;
+
+        return $this;
+    }
+
+    /**
+     * Exclude specific fields from the response.
+     *
+     * @param  array<int, string>|null  $fields
+     * @return static
+     */
+    public function withoutFields(?array $fields = null): static
+    {
+        $this->excludedFields = $fields;
+
+        return $this;
+    }
+
     /**
      * Transform the resource into an array.
      *
-     * @param  Request  $request
-     * @return array|null
+     * @param  \Illuminate\Http\Request  $request
+     * @return array<string, mixed>|null
      */
     public function toArray(Request $request): ?array
     {

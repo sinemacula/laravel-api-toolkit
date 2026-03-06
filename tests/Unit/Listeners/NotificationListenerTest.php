@@ -40,7 +40,7 @@ class NotificationListenerTest extends TestCase
             ->once()
             ->withArgs(
                 fn (string $message, array $context) => $message === 'Notification Sending'
-                    && isset($context['notification'], $context['notifiable'], $context['channel']),
+                    && isset($context['notification'], $context['notifiable_type'], $context['channel']),
             );
 
         $listener = new NotificationListener;
@@ -67,7 +67,7 @@ class NotificationListenerTest extends TestCase
             ->once()
             ->withArgs(
                 fn (string $message, array $context) => $message === 'Notification Sent'
-                    && isset($context['notification'], $context['notifiable'], $context['channel']),
+                    && isset($context['notification'], $context['notifiable_type'], $context['channel']),
             );
 
         $listener = new NotificationListener;
@@ -97,7 +97,7 @@ class NotificationListenerTest extends TestCase
         Log::shouldReceive('info')
             ->once()
             ->withArgs(fn (string $message, array $context) => $context['notification'] === $notification::class
-                    && $context['notifiable']                                           === $notifiable::class
+                    && $context['notifiable_type']                                           === $notifiable::class
                     && $context['channel']                                              === 'mail');
 
         $listener = new NotificationListener;

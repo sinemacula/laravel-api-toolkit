@@ -63,6 +63,7 @@ class ApiServiceProvider extends ServiceProvider
         );
 
         $this->registerQueryParser();
+        $this->registerResourceMetadataProvider();
     }
 
     /**
@@ -187,15 +188,15 @@ class ApiServiceProvider extends ServiceProvider
 
         // Replace the existing maintenance mode middleware with our custom
         // implementation
-        $global_middleware = $kernel->getGlobalMiddleware();
+        $globalMiddleware = $kernel->getGlobalMiddleware();
 
-        foreach ($global_middleware as $key => $middleware) {
+        foreach ($globalMiddleware as $key => $middleware) {
             if ($middleware === LaravelPreventRequestsDuringMaintenance::class) {
-                $global_middleware[$key] = PreventRequestsDuringMaintenance::class;
+                $globalMiddleware[$key] = PreventRequestsDuringMaintenance::class;
             }
         }
 
-        $kernel->setGlobalMiddleware($global_middleware);
+        $kernel->setGlobalMiddleware($globalMiddleware);
 
         // Global middleware
         $kernel->pushMiddleware(JsonPrettyPrint::class);
@@ -249,5 +250,18 @@ class ApiServiceProvider extends ServiceProvider
     private function registerQueryParser(): void
     {
         $this->app->singleton(Config::get('api-toolkit.parser.alias'), fn ($app) => new ApiQueryParser);
+    }
+
+    /**
+     * Bind the ResourceMetadataProvider to the service container.
+     *
+     * @return void
+     */
+    private function registerResourceMetadataProvider(): void
+    {
+        $this->app->singleton(
+            \SineMacula\ApiToolkit\Contracts\ResourceMetadataProvider::class,
+            \SineMacula\ApiToolkit\Http\Resources\ResourceMetadataService::class,
+        );
     }
 }

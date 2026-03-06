@@ -2,6 +2,7 @@
 
 namespace Tests\Unit\Http\Resources;
 
+use Illuminate\Http\Resources\Json\JsonResource;
 use LogicException;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Http\Resources\PolymorphicResource;
@@ -193,6 +194,64 @@ class PolymorphicResourceTest extends TestCase
 
         static::assertArrayHasKey('_type', $result);
         static::assertArrayHasKey('name', $result);
+    }
+
+    /**
+     * Test that PolymorphicResource extends JsonResource directly.
+     *
+     * @return void
+     */
+    public function testPolymorphicResourceExtendsJsonResource(): void
+    {
+        $resource = new PolymorphicResource(null);
+
+        static::assertInstanceOf(JsonResource::class, $resource);
+        static::assertSame(JsonResource::class, get_parent_class($resource));
+    }
+
+    /**
+     * Test that withAll sets the all flag locally and returns the instance
+     * for fluent chaining.
+     *
+     * @return void
+     */
+    public function testPolymorphicResourceWithAllSetsFlag(): void
+    {
+        $resource = new PolymorphicResource(null);
+
+        $result = $resource->withAll();
+
+        static::assertSame($resource, $result);
+    }
+
+    /**
+     * Test that withFields sets the fields locally and returns the instance
+     * for fluent chaining.
+     *
+     * @return void
+     */
+    public function testPolymorphicResourceWithFieldsSetsFields(): void
+    {
+        $resource = new PolymorphicResource(null);
+
+        $result = $resource->withFields(['name', 'email']);
+
+        static::assertSame($resource, $result);
+    }
+
+    /**
+     * Test that withoutFields sets the excluded fields locally and returns
+     * the instance for fluent chaining.
+     *
+     * @return void
+     */
+    public function testPolymorphicResourceWithoutFieldsSetsExcludedFields(): void
+    {
+        $resource = new PolymorphicResource(null);
+
+        $result = $resource->withoutFields(['email']);
+
+        static::assertSame($resource, $result);
     }
 
     /**
