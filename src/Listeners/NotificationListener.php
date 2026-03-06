@@ -2,6 +2,7 @@
 
 namespace SineMacula\ApiToolkit\Listeners;
 
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Notifications\Events\NotificationSending;
 use Illuminate\Notifications\Events\NotificationSent;
 use Illuminate\Notifications\Notification;
@@ -48,18 +49,17 @@ class NotificationListener
      */
     private function log(string $message, Notification $notification, mixed $notifiable, string $channel): void
     {
-        Log::channel('notifications')->info($message, [
-            'notification' => $notification::class,
-            'notifiable'   => $notifiable::class,
-            'channel'      => $channel,
+        $payload = array_filter([
+            'notification'    => $notification::class,
+            'notifiable_type' => $notifiable::class,
+            'notifiable_id'   => $notifiable instanceof Model ? $notifiable->getKey() : null,
+            'channel'         => $channel,
         ]);
 
+        Log::channel('notifications')->info($message, $payload);
+
         if (config('api-toolkit.logging.cloudwatch.enabled', false)) {
-            Log::channel('cloudwatch-notifications')->info($message, [
-                'notification' => $notification::class,
-                'notifiable'   => $notifiable::class,
-                'channel'      => $channel,
-            ]);
+            Log::channel('cloudwatch-notifications')->info($message, $payload);
         }
     }
 }
