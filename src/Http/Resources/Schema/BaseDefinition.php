@@ -9,8 +9,8 @@ use SineMacula\ApiToolkit\Http\Resources\ApiResource;
 /**
  * Base class for schema definitions.
  *
- * @author      Ben Carey
- * @copyright   2025 Sine Macula
+ * @author      Ben Carey <bdmc@sinemacula.co.uk>
+ * @copyright   2026 Sine Macula Limited.
  */
 abstract class BaseDefinition implements Arrayable
 {

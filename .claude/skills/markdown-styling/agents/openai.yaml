@@ -1,8 +1,0 @@
-interface:
-    display_name: Markdown Styling
-    short_description: Enforce consistent Markdown style with 120-char prose reflow
-    default_prompt: >
-        Use $markdown-styling to normalize Markdown files by removing duplicate
-        content, unwrapping and rewrapping prose at 120 characters, and enforcing
-        consistent heading, list, spacing, and terminology style without changing
-        meaning. Never reflow fenced code block content.

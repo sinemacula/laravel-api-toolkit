@@ -6,6 +6,7 @@ use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Schema;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
+use SineMacula\ApiToolkit\Contracts\ResourceMetadataProvider;
 use SineMacula\ApiToolkit\Repositories\Criteria\ApiCriteria;
 use Tests\Concerns\InteractsWithNonPublicMembers;
 use Tests\Fixtures\Models\User;
@@ -26,6 +27,9 @@ use Tests\TestCase;
 class ApiCriteriaTest extends TestCase
 {
     use InteractsWithNonPublicMembers;
+
+    /** @var string */
+    private const STUB_USER_FIELDS = 'id,name';
 
     /** @var string */
     private const string OPERATOR_LIKE = '$like';
@@ -796,7 +800,7 @@ class ApiCriteriaTest extends TestCase
             public const string RESOURCE_TYPE = 'empty_res';
 
             /** @var array<int, string> */
-            protected static array $default = []; // @phpstan-ignore property.phpDocType
+            protected static array $default = [];
 
             /**
              * Return the resource schema.
@@ -849,6 +853,162 @@ class ApiCriteriaTest extends TestCase
         $result = $this->invokeMethod($this->criteria, 'isRelation', 'brokenRelation', $throwingModel);
 
         static::assertFalse($result);
+    }
+
+    /**
+     * Test that applyEagerLoading calls getResourceType on the metadata
+     * provider.
+     *
+     * @return void
+     */
+    public function testApplyEagerLoadingUsesMetadataProviderForResourceType(): void
+    {
+        assert($this->app !== null);
+
+        $provider = $this->createMock(ResourceMetadataProvider::class);
+
+        $provider->expects(static::once())
+            ->method('getResourceType')
+            ->with(UserResource::class)
+            ->willReturn('users');
+
+        $provider->method('resolveFields')
+            ->willReturn(['id', 'name']);
+
+        $provider->method('eagerLoadMapFor')
+            ->willReturn([]);
+
+        $provider->method('eagerLoadCountsFor')
+            ->willReturn([]);
+
+        $this->app->instance(ResourceMetadataProvider::class, $provider);
+
+        /** @var \SineMacula\ApiToolkit\Repositories\Criteria\ApiCriteria $criteria */
+        $criteria = $this->app->make(ApiCriteria::class);
+        $criteria->usingResource(UserResource::class);
+
+        $this->parseRequest(new \Illuminate\Http\Request([
+            'fields' => ['users' => self::STUB_USER_FIELDS],
+        ]));
+
+        $criteria->apply(new User);
+    }
+
+    /**
+     * Test that applyEagerLoading calls resolveFields on the metadata
+     * provider.
+     *
+     * @return void
+     */
+    public function testApplyEagerLoadingUsesMetadataProviderForFieldResolution(): void
+    {
+        assert($this->app !== null);
+
+        $provider = $this->createMock(ResourceMetadataProvider::class);
+
+        $provider->method('getResourceType')
+            ->willReturn('users');
+
+        $provider->expects(static::once())
+            ->method('resolveFields')
+            ->with(UserResource::class)
+            ->willReturn(['id', 'name']);
+
+        $provider->method('eagerLoadMapFor')
+            ->willReturn([]);
+
+        $provider->method('eagerLoadCountsFor')
+            ->willReturn([]);
+
+        $this->app->instance(ResourceMetadataProvider::class, $provider);
+
+        /** @var \SineMacula\ApiToolkit\Repositories\Criteria\ApiCriteria $criteria */
+        $criteria = $this->app->make(ApiCriteria::class);
+        $criteria->usingResource(UserResource::class);
+
+        $this->parseRequest(new \Illuminate\Http\Request([
+            'fields' => ['users' => self::STUB_USER_FIELDS],
+        ]));
+
+        $criteria->apply(new User);
+    }
+
+    /**
+     * Test that applyEagerLoading calls eagerLoadMapFor on the metadata
+     * provider.
+     *
+     * @return void
+     */
+    public function testApplyEagerLoadingUsesMetadataProviderForEagerLoadMap(): void
+    {
+        assert($this->app !== null);
+
+        $provider = $this->createMock(ResourceMetadataProvider::class);
+
+        $provider->method('getResourceType')
+            ->willReturn('users');
+
+        $provider->method('resolveFields')
+            ->willReturn(['id', 'name', 'organization']);
+
+        $provider->expects(static::once())
+            ->method('eagerLoadMapFor')
+            ->with(UserResource::class, ['id', 'name', 'organization'])
+            ->willReturn(['organization' => fn () => null]);
+
+        $provider->method('eagerLoadCountsFor')
+            ->willReturn([]);
+
+        $this->app->instance(ResourceMetadataProvider::class, $provider);
+
+        /** @var \SineMacula\ApiToolkit\Repositories\Criteria\ApiCriteria $criteria */
+        $criteria = $this->app->make(ApiCriteria::class);
+        $criteria->usingResource(UserResource::class);
+
+        $this->parseRequest(new \Illuminate\Http\Request([
+            'fields' => ['users' => 'id,name,organization'],
+        ]));
+
+        $criteria->apply(new User);
+    }
+
+    /**
+     * Test that applyEagerLoading calls eagerLoadCountsFor on the metadata
+     * provider.
+     *
+     * @return void
+     */
+    public function testApplyEagerLoadingUsesMetadataProviderForCountMap(): void
+    {
+        assert($this->app !== null);
+
+        $provider = $this->createMock(ResourceMetadataProvider::class);
+
+        $provider->method('getResourceType')
+            ->willReturn('users');
+
+        $provider->method('resolveFields')
+            ->willReturn(['id', 'name']);
+
+        $provider->method('eagerLoadMapFor')
+            ->willReturn([]);
+
+        $provider->expects(static::once())
+            ->method('eagerLoadCountsFor')
+            ->with(UserResource::class, [])
+            ->willReturn([]);
+
+        $this->app->instance(ResourceMetadataProvider::class, $provider);
+
+        /** @var \SineMacula\ApiToolkit\Repositories\Criteria\ApiCriteria $criteria */
+        $criteria = $this->app->make(ApiCriteria::class);
+        $criteria->usingResource(UserResource::class);
+
+        $this->parseRequest(new \Illuminate\Http\Request([
+            'fields' => ['users' => self::STUB_USER_FIELDS],
+        ]));
+
+        $criteria->apply(new User);
     }
 
     /**

@@ -1,9 +1,0 @@
-interface:
-    display_name: PHP Naming Normalizer
-    short_description: Improve PHP naming for human readability and domain clarity with anti-churn safeguards
-    default_prompt: >
-        Use $php-naming-normalizer to improve PHP naming based on human readability and domain clarity.
-        Apply only high-confidence, task-scoped renames that meet the rename threshold.
-        Do not perform broad or preference-based refactors.
-        If broader renaming would be beneficial, return approval-required with a proposed plan.
-        Run tests if executable code is modified and always return the standard outcome contract.

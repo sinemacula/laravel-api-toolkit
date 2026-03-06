@@ -78,16 +78,39 @@ class ApiResourceInterfaceTest extends TestCase
     }
 
     /**
-     * Test that the interface declares exactly two methods.
+     * Test that the interface declares all required methods.
      *
      * @return void
      */
-    public function testInterfaceDeclaresExactlyTwoMethods(): void
+    public function testApiResourceInterfaceDeclaresAllRequiredMethods(): void
     {
         $reflection = new \ReflectionClass(ApiResourceInterface::class);
         $methods    = $reflection->getMethods(\ReflectionMethod::IS_PUBLIC);
 
-        static::assertCount(2, $methods);
+        $expectedMethods = [
+            'getResourceType',
+            'getDefaultFields',
+            'schema',
+            'getAllFields',
+            'resolveFields',
+            'eagerLoadMapFor',
+            'eagerLoadCountsFor',
+            'resolve',
+            'withFields',
+            'withoutFields',
+            'withAll',
+        ];
+
+        $actualMethods = array_map(
+            static fn (\ReflectionMethod $method): string => $method->getName(),
+            $methods,
+        );
+
+        static::assertCount(count($expectedMethods), $methods);
+
+        foreach ($expectedMethods as $name) {
+            static::assertContains($name, $actualMethods, "Missing method: {$name}");
+        }
     }
 
     /**

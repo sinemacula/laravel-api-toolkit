@@ -6,6 +6,7 @@ use Illuminate\Http\Request;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
 use SineMacula\ApiToolkit\Http\Resources\ApiResource;
+use SineMacula\ApiToolkit\Http\Resources\Concerns\SchemaCompiler;
 use Tests\Fixtures\Models\Organization;
 use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\User;
@@ -28,8 +29,6 @@ class ApiResourceIntegrationTest extends TestCase
     /**
      * Set up each test.
      *
-     * @SuppressWarnings("php:S3011")
-     *
      * @return void
      */
     #[\Override]
@@ -37,9 +36,7 @@ class ApiResourceIntegrationTest extends TestCase
     {
         parent::setUp();
 
-        // Clear schema cache between tests
-        $reflection = new \ReflectionProperty(ApiResource::class, 'schemaCache');
-        $reflection->setValue(null, []);
+        SchemaCompiler::clearCache();
 
         $this->seedData();
     }
