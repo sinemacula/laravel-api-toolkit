@@ -4,15 +4,11 @@ namespace SineMacula\ApiToolkit\Repositories\Criteria;
 
 use Illuminate\Contracts\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\Config;
 use SineMacula\ApiToolkit\Contracts\ResourceMetadataProvider;
-use SineMacula\ApiToolkit\Enums\CacheKeys;
+use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
 use SineMacula\ApiToolkit\Http\Resources\ApiResource;
-use SineMacula\ApiToolkit\Repositories\Traits\InteractsWithModelSchema;
 use SineMacula\ApiToolkit\Repositories\Traits\ResolvesResource;
 use SineMacula\Repositories\Contracts\CriteriaInterface;
 
@@ -27,7 +23,7 @@ use SineMacula\Repositories\Contracts\CriteriaInterface;
  */
 class ApiCriteria implements CriteriaInterface
 {
-    use InteractsWithModelSchema, ResolvesResource;
+    use ResolvesResource;
 
     /** @var string The column name to be used when ordering items randomly */
     public const string ORDER_BY_RANDOM = 'random';
@@ -65,9 +61,6 @@ class ApiCriteria implements CriteriaInterface
     /** @var array<int, string> */
     private array $directions = ['asc', 'desc'];
 
-    /** @var array<string, array<int, string>> */
-    private array $searchable = [];
-
     /** @var array<string, string> */
     private array $relationalMethodMap = [
         '$has'   => 'whereHas',
@@ -79,6 +72,7 @@ class ApiCriteria implements CriteriaInterface
      *
      * @param  \Illuminate\Http\Request  $request
      * @param  \SineMacula\ApiToolkit\Contracts\ResourceMetadataProvider  $metadataProvider
+     * @param  \SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider  $schemaIntrospector
      */
     public function __construct(
 
@@ -87,6 +81,9 @@ class ApiCriteria implements CriteriaInterface
 
         /** The resource metadata provider */
         private readonly ResourceMetadataProvider $metadataProvider,
+
+        /** The schema introspection provider */
+        private readonly SchemaIntrospectionProvider $schemaIntrospector,
 
     ) {}
 
@@ -133,7 +130,7 @@ class ApiCriteria implements CriteriaInterface
                 $this->applyConditionOperator($query, $key, $value, $field, $lastLogicalOperator);
             } elseif ($this->isLogicalOperator($key)) {
                 $this->applyLogicalOperator($query, $key, $value, $lastLogicalOperator);
-            } elseif ($this->isRelation($key, $query->getModel())) {
+            } elseif ($this->schemaIntrospector->isRelation($key, $query->getModel())) {
                 $this->applyRelationFilter($query, $key, $value, $lastLogicalOperator);
             } else {
                 $this->applyFilters($query, $value, $key, $lastLogicalOperator);
@@ -219,7 +216,7 @@ class ApiCriteria implements CriteriaInterface
                 continue;
             }
 
-            if ($this->isColumnSearchable($query->getModel(), $column, $direction)) {
+            if ($this->schemaIntrospector->isSearchable($query->getModel(), $column) && in_array($direction, $this->directions, true)) {
                 $query = $query->orderBy($column, $direction);
             }
         }
@@ -287,20 +284,6 @@ class ApiCriteria implements CriteriaInterface
     }
 
     /**
-     * Check if a column is searchable and direction is valid.
-     *
-     * @param  \Illuminate\Database\Eloquent\Model  $model
-     * @param  string  $column
-     * @param  string  $direction
-     * @return bool
-     */
-    private function isColumnSearchable(Model $model, string $column, string $direction): bool
-    {
-        return in_array($column, $this->getSearchableColumns($model), true)
-            && in_array($direction, $this->directions, true);
-    }
-
-    /**
      * Get the filters to be applied to the query.
      *
      * @return array<string, mixed>|null
@@ -341,7 +324,7 @@ class ApiCriteria implements CriteriaInterface
      */
     private function applySimpleFilter(Builder $query, ?string $column, string $value, string $logicalOperator): Builder
     {
-        if ($column && in_array($column, $this->getSearchableColumns($query->getModel()), true)) {
+        if ($column && $this->schemaIntrospector->isSearchable($query->getModel(), $column)) {
             $value = $this->formatValueBasedOnOperator($value, $logicalOperator);
             $query->{$this->logicalOperatorMap[$logicalOperator]}($column, $value);
         }
@@ -401,15 +384,15 @@ class ApiCriteria implements CriteriaInterface
     private function applyHasFilter(Builder $query, array|string $relations, string $operator, ?string $lastLogicalOperator = null): void
     {
         $baseMethod = $this->relationalMethodMap[$operator];
-        $method      = ($lastLogicalOperator === '$or' && $operator === '$has') ? 'orWhereHas' : $baseMethod;
+        $method     = ($lastLogicalOperator === '$or' && $operator === '$has') ? 'orWhereHas' : $baseMethod;
 
         foreach ((array) $relations as $relation => $filters) {
             if (is_int($relation)) {
-                if ($this->isRelation($filters, $query->getModel())) {
+                if ($this->schemaIntrospector->isRelation($filters, $query->getModel())) {
                     $query->{$method}($filters);
                 }
             } else {
-                if ($this->isRelation($relation, $query->getModel())) {
+                if ($this->schemaIntrospector->isRelation($relation, $query->getModel())) {
                     $query->{$method}($relation, function (Builder $query) use ($filters): void {
                         $this->processRelationFilters($query, $filters);
                     });
@@ -441,7 +424,7 @@ class ApiCriteria implements CriteriaInterface
      */
     private function handleCondition(Builder $query, string $operator, mixed $value, ?string $column, ?string $lastLogicalOperator): void
     {
-        if (!$column || !in_array($column, $this->getSearchableColumns($query->getModel()), true)) {
+        if (!$column || !$this->schemaIntrospector->isSearchable($query->getModel(), $column)) {
             return;
         }
 
@@ -542,7 +525,7 @@ class ApiCriteria implements CriteriaInterface
      */
     private function applyDefaultCondition(Builder $query, string $column, string $operator, mixed $value, ?string $lastLogicalOperator): void
     {
-        $method          = $this->logicalOperatorMap[$lastLogicalOperator ?? '$and'];
+        $method         = $this->logicalOperatorMap[$lastLogicalOperator ?? '$and'];
         $sqlOperator    = $this->conditionOperatorMap[$operator];
         $formattedValue = $this->formatValueBasedOnOperator($value, $operator);
 
@@ -558,48 +541,6 @@ class ApiCriteria implements CriteriaInterface
     private function isLogicalOperator(?string $operator = null): bool
     {
         return array_key_exists($operator, $this->logicalOperatorMap);
-    }
-
-    /**
-     * Determine if a given key is a relation on the given model.
-     *
-     * @param  string  $key
-     * @param  \Illuminate\Database\Eloquent\Model  $model
-     * @return bool
-     */
-    private function isRelation(string $key, Model $model): bool
-    {
-        return Cache::memo()->rememberForever(CacheKeys::MODEL_RELATIONS->resolveKey([
-            $model::class,
-            $key,
-        ]), function () use ($key, $model) {
-            if (!method_exists($model, $key) || !is_callable([$model, $key])) {
-                return false;
-            }
-
-            try {
-                return $model->{$key}() instanceof Relation;
-            } catch (\Throwable $e) {
-                return false;
-            }
-        });
-    }
-
-    /**
-     * Get the searchable columns for the given model.
-     *
-     * @param  \Illuminate\Database\Eloquent\Model  $model
-     * @return array
-     */
-    private function getSearchableColumns(Model $model): array
-    {
-        $class = $model::class;
-
-        if (!isset($this->searchable[$class])) {
-            $this->searchable[$class] = $this->resolveSearchableColumns($model);
-        }
-
-        return $this->searchable[$class];
     }
 
     /**
@@ -627,40 +568,5 @@ class ApiCriteria implements CriteriaInterface
         if (is_array($value) && count($value) === 2) {
             $query->whereBetween($field, $value);
         }
-    }
-
-    /**
-     * Resolve the searchable columns for the given model.
-     *
-     * @param  \Illuminate\Database\Eloquent\Model  $model
-     * @return array
-     */
-    private function resolveSearchableColumns(Model $model): array
-    {
-        $table      = $model->getTable();
-        $exclusions = $this->getColumnExclusions($table);
-
-        return array_diff($this->getColumnsFromModel($model), $exclusions);
-    }
-
-    /**
-     * Get column exclusions for the given table.
-     *
-     * @param  string  $table
-     * @return array
-     */
-    private function getColumnExclusions(string $table): array
-    {
-        return (array) collect(Config::get('api-toolkit.repositories.searchable_exclusions', []))
-            ->reduce(function ($carry, $exclusion) use ($table) {
-
-                if (str_contains($exclusion, '.') && strtok($exclusion, '.') === $table) {
-                    $carry[] = substr(strstr($exclusion, '.'), 1);
-                } else {
-                    $carry[] = $exclusion;
-                }
-
-                return $carry;
-            }, []);
     }
 }
