@@ -8,6 +8,11 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use SineMacula\ApiToolkit\Contracts\ResourceMetadataProvider;
 use SineMacula\ApiToolkit\Repositories\Criteria\ApiCriteria;
+use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\EagerLoadApplier;
+use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterApplier;
+use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext;
+use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\LimitApplier;
+use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\OrderApplier;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
@@ -23,6 +28,11 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(ApiCriteria::class)]
+#[CoversClass(FilterApplier::class)]
+#[CoversClass(FilterContext::class)]
+#[CoversClass(OrderApplier::class)]
+#[CoversClass(EagerLoadApplier::class)]
+#[CoversClass(LimitApplier::class)]
 class ApiCriteriaTest extends TestCase
 {
     /** @var string */

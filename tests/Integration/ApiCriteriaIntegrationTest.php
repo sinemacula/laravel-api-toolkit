@@ -6,6 +6,11 @@ use Illuminate\Http\Request;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
 use SineMacula\ApiToolkit\Repositories\Criteria\ApiCriteria;
+use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\EagerLoadApplier;
+use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterApplier;
+use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext;
+use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\LimitApplier;
+use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\OrderApplier;
 use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\User;
 use Tests\TestCase;
@@ -19,6 +24,11 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(ApiCriteria::class)]
+#[CoversClass(FilterApplier::class)]
+#[CoversClass(FilterContext::class)]
+#[CoversClass(OrderApplier::class)]
+#[CoversClass(EagerLoadApplier::class)]
+#[CoversClass(LimitApplier::class)]
 class ApiCriteriaIntegrationTest extends TestCase
 {
     /**
