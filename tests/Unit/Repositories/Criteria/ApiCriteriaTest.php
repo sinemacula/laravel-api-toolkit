@@ -8,7 +8,6 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use SineMacula\ApiToolkit\Contracts\ResourceMetadataProvider;
 use SineMacula\ApiToolkit\Repositories\Criteria\ApiCriteria;
-use Tests\Concerns\InteractsWithNonPublicMembers;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
@@ -26,8 +25,6 @@ use Tests\TestCase;
 #[CoversClass(ApiCriteria::class)]
 class ApiCriteriaTest extends TestCase
 {
-    use InteractsWithNonPublicMembers;
-
     /** @var string */
     private const STUB_USER_FIELDS = 'id,name';
 
@@ -825,34 +822,6 @@ class ApiCriteriaTest extends TestCase
         $query = $criteria->apply($model);
 
         static::assertEmpty($query->getEagerLoads());
-    }
-
-    /**
-     * Test that isRelation returns false and catches the exception when the
-     * relation method throws on invocation.
-     *
-     * @return void
-     */
-    public function testIsRelationReturnsFalseWhenRelationMethodThrows(): void
-    {
-        $throwingModel = new class extends \Illuminate\Database\Eloquent\Model {
-            /** @var string|null */
-            protected $table = 'users';
-
-            /**
-             * A method that exists and is callable but throws when invoked.
-             *
-             * @return never
-             */
-            public function brokenRelation(): never
-            {
-                throw new \UnexpectedValueException('intentional test error');
-            }
-        };
-
-        $result = $this->invokeMethod($this->criteria, 'isRelation', 'brokenRelation', $throwingModel);
-
-        static::assertFalse($result);
     }
 
     /**

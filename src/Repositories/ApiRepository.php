@@ -11,9 +11,9 @@ use Illuminate\Database\Eloquent\Relations\MorphToMany;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Config;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Request;
 use Illuminate\Support\Str;
+use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Enums\CacheKeys;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
 use SineMacula\ApiToolkit\Repositories\Criteria\ApiCriteria;
@@ -36,6 +36,9 @@ abstract class ApiRepository extends Repository
 
     /** @var array<string, string|null> Resolved cast map keyed by attribute name. */
     protected array $casts = [];
+
+    /** @var \SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider */
+    private SchemaIntrospectionProvider $schemaIntrospector;
 
     /**
      * Set a custom resource class to be used.
@@ -189,6 +192,8 @@ abstract class ApiRepository extends Repository
     #[\Override]
     protected function boot(): void
     {
+        $this->schemaIntrospector = $this->app->make(SchemaIntrospectionProvider::class);
+
         $this->resolveAttributeCasts();
     }
 
@@ -280,28 +285,19 @@ abstract class ApiRepository extends Repository
      */
     private function resolveCastForRelation(string $attribute): ?string
     {
-        try {
+        $relation = $this->schemaIntrospector->resolveRelation($attribute, $this->model);
 
-            $method = new \ReflectionMethod($this->model(), $attribute);
-
-            if ($method->getNumberOfParameters() === 0 && !$method->isStatic()) {
-
-                $relation = $method->invoke($this->model);
-
-                return match (true) {
-                    $relation instanceof MorphTo       => 'associate',
-                    $relation instanceof BelongsTo     => 'associate',
-                    $relation instanceof MorphToMany   => 'sync',
-                    $relation instanceof BelongsToMany => 'sync',
-                    default                            => null,
-                };
-            }
-
-        } catch (\ReflectionException $exception) {
-            Log::error("Failed to resolve relation for attribute {$attribute}: {$exception->getMessage()}");
+        if (!$relation) {
+            return null;
         }
 
-        return null;
+        return match (true) {
+            $relation instanceof MorphTo       => 'associate',
+            $relation instanceof BelongsTo     => 'associate',
+            $relation instanceof MorphToMany   => 'sync',
+            $relation instanceof BelongsToMany => 'sync',
+            default                            => null,
+        };
     }
 
     /**
