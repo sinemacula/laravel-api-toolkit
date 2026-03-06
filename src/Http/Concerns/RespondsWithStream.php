@@ -33,6 +33,9 @@ trait RespondsWithStream
 
         $transformer = $this->makeTransformer($repository);
 
+        // Strip any user-defined ordering before chunking.
+        $repository->addScope(fn ($query) => $query->reorder());
+
         $stream = function () use ($repository, $transformer, $chunk_size, $limit): void {
 
             $is_first_chunk = true;
