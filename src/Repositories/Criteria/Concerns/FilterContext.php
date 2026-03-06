@@ -20,6 +20,7 @@ final class FilterContext
      * @param  string|null  $logicalOperator
      * @param  bool  $inRelation
      * @param  int  $depth
+     * @return void
      */
     private function __construct(
 

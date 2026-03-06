@@ -144,6 +144,7 @@ class ApiCriteriaIntegrationTest extends TestCase
         $results = $this->makeCriteria()->apply(new User)->get();
 
         foreach ($results as $user) {
+
             assert($user instanceof User);
             static::assertNull($user->password);
         }
@@ -166,6 +167,7 @@ class ApiCriteriaIntegrationTest extends TestCase
         static::assertGreaterThan(0, $results->count());
 
         foreach ($results as $user) {
+
             assert($user instanceof User);
             static::assertNotNull($user->organization_id);
         }

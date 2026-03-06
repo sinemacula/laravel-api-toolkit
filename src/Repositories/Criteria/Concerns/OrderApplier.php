@@ -40,6 +40,7 @@ final class OrderApplier
         }
 
         foreach ($order as $column => $direction) {
+
             if ($column === self::ORDER_BY_RANDOM) {
                 $query->inRandomOrder();
                 continue;

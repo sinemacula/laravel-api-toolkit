@@ -7,9 +7,6 @@ use Illuminate\Contracts\Database\Eloquent\Builder;
 /**
  * Apply a record limit to a query.
  *
- * Extracted from the monolithic ApiCriteria to encapsulate limit
- * application as a single-responsibility concern.
- *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */

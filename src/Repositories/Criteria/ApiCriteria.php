@@ -47,16 +47,17 @@ class ApiCriteria implements CriteriaInterface
      * @param  \Illuminate\Http\Request  $request
      * @param  \SineMacula\ApiToolkit\Contracts\ResourceMetadataProvider  $metadataProvider
      * @param  \SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider  $schemaIntrospector
+     * @return void
      */
     public function __construct(
 
-        /** The HTTP request */
+        /** Source of query parameters for criteria resolution */
         protected Request $request,
 
-        /** The resource metadata provider */
+        /** Resolves fields, eager loads, and counts from resource schemas */
         private readonly ResourceMetadataProvider $metadataProvider,
 
-        /** The schema introspection provider */
+        /** Validates column searchability and relation existence */
         private readonly SchemaIntrospectionProvider $schemaIntrospector,
 
     ) {
@@ -72,6 +73,7 @@ class ApiCriteria implements CriteriaInterface
      * @param  \Illuminate\Contracts\Database\Eloquent\Builder|\Illuminate\Database\Eloquent\Model  $model
      * @return \Illuminate\Contracts\Database\Eloquent\Builder
      */
+    #[\Override]
     public function apply(Builder|Model $model): Builder
     {
         $query = $model instanceof Model ? $model->query() : $model;
