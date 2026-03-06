@@ -14,8 +14,8 @@ use SineMacula\ApiToolkit\Enums\CacheKeys;
 /**
  * Schema introspector.
  *
- * Provides column listing, searchable column resolution, relation
- * detection, and relation type reporting for Eloquent models.
+ * Provides column listing, searchable column resolution, relation detection,
+ * and relation type reporting for Eloquent models.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -112,8 +112,7 @@ class SchemaIntrospector implements SchemaIntrospectionProvider
     }
 
     /**
-     * Determine whether the given key is an Eloquent relation on the
-     * model.
+     * Determine whether the given key is an Eloquent relation on the model.
      *
      * Results are cached for the duration of the request.
      *
@@ -143,8 +142,8 @@ class SchemaIntrospector implements SchemaIntrospectionProvider
     }
 
     /**
-     * Resolve the relation instance for the given key on the model,
-     * or return null if the key is not a relation.
+     * Resolve the relation instance for the given key on the model, or return
+     * null if the key is not a relation.
      *
      * @param  string  $key
      * @param  \Illuminate\Database\Eloquent\Model  $model
