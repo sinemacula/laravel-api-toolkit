@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Request;
 use Illuminate\Support\ServiceProvider;
+use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Http\Middleware\JsonPrettyPrint;
 use SineMacula\ApiToolkit\Http\Middleware\ParseApiQuery;
 use SineMacula\ApiToolkit\Http\Middleware\PreventRequestsDuringMaintenance;
@@ -20,6 +21,7 @@ use SineMacula\ApiToolkit\Http\Middleware\ThrottleRequests;
 use SineMacula\ApiToolkit\Http\Middleware\ThrottleRequestsWithRedis;
 use SineMacula\ApiToolkit\Listeners\NotificationListener;
 use SineMacula\ApiToolkit\Logging\CloudWatchLogger;
+use SineMacula\ApiToolkit\Services\SchemaIntrospector;
 
 /**
  * API service provider.
@@ -64,6 +66,7 @@ class ApiServiceProvider extends ServiceProvider
 
         $this->registerQueryParser();
         $this->registerResourceMetadataProvider();
+        $this->registerSchemaIntrospector();
     }
 
     /**
@@ -262,6 +265,19 @@ class ApiServiceProvider extends ServiceProvider
         $this->app->singleton(
             \SineMacula\ApiToolkit\Contracts\ResourceMetadataProvider::class,
             \SineMacula\ApiToolkit\Http\Resources\ResourceMetadataService::class,
+        );
+    }
+
+    /**
+     * Bind the SchemaIntrospectionProvider to the service container.
+     *
+     * @return void
+     */
+    private function registerSchemaIntrospector(): void
+    {
+        $this->app->singleton(
+            SchemaIntrospectionProvider::class,
+            SchemaIntrospector::class,
         );
     }
 }
