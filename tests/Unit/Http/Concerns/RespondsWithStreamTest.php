@@ -46,6 +46,7 @@ class RespondsWithStreamTest extends TestCase
 
         /** @var \Mockery\MockInterface&\SineMacula\ApiToolkit\Repositories\ApiRepository<\Illuminate\Database\Eloquent\Model> $repository */
         $repository = \Mockery::mock(ApiRepository::class);
+        $repository->shouldReceive('addScope')->andReturnSelf();
         $repository->shouldReceive('getResourceClass')
             ->andReturn(UserResource::class);
         $repository->shouldReceive('chunkById')
@@ -179,6 +180,7 @@ class RespondsWithStreamTest extends TestCase
 
         /** @var \Mockery\MockInterface&\SineMacula\ApiToolkit\Repositories\ApiRepository<\Illuminate\Database\Eloquent\Model> $repository */
         $repository = \Mockery::mock(ApiRepository::class);
+        $repository->shouldReceive('addScope')->andReturnSelf();
         $repository->shouldReceive('getResourceClass')
             ->andReturn(UserResource::class);
         $repository->shouldReceive('chunkById')
@@ -232,6 +234,7 @@ class RespondsWithStreamTest extends TestCase
 
         /** @var \Mockery\MockInterface&\SineMacula\ApiToolkit\Repositories\ApiRepository<\Illuminate\Database\Eloquent\Model> $repository */
         $repository = \Mockery::mock(ApiRepository::class);
+        $repository->shouldReceive('addScope')->andReturnSelf();
         $repository->shouldReceive('getResourceClass')
             ->andReturn(UserResource::class);
         $repository->shouldReceive('chunkById')
@@ -281,6 +284,7 @@ class RespondsWithStreamTest extends TestCase
 
         /** @var \Mockery\MockInterface&\SineMacula\ApiToolkit\Repositories\ApiRepository<\Illuminate\Database\Eloquent\Model> $repository */
         $repository = \Mockery::mock(ApiRepository::class);
+        $repository->shouldReceive('addScope')->andReturnSelf();
         $repository->shouldReceive('getResourceClass')->andReturn(UserResource::class);
         $repository->shouldReceive('chunkById')->andReturn(true);
 
@@ -303,6 +307,7 @@ class RespondsWithStreamTest extends TestCase
 
         /** @var \Mockery\MockInterface&\SineMacula\ApiToolkit\Repositories\ApiRepository<\Illuminate\Database\Eloquent\Model> $repository */
         $repository = \Mockery::mock(ApiRepository::class);
+        $repository->shouldReceive('addScope')->andReturnSelf();
         $repository->shouldReceive('getResourceClass')->andReturn(UserResource::class);
         $repository->shouldReceive('chunkById')->andReturn(true);
 
@@ -330,6 +335,7 @@ class RespondsWithStreamTest extends TestCase
 
         /** @var \Mockery\MockInterface&\SineMacula\ApiToolkit\Repositories\ApiRepository<\Illuminate\Database\Eloquent\Model> $repository */
         $repository = \Mockery::mock(ApiRepository::class);
+        $repository->shouldReceive('addScope')->andReturnSelf();
         $repository->shouldReceive('getResourceClass')->andReturn(UserResource::class);
         $repository->shouldReceive('chunkById')
             ->andReturnUsing(function (int $_size, callable $callback) use ($user): bool {
