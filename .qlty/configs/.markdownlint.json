@@ -25,7 +25,7 @@
         "lines_below": 1
     },
     "MD024": {
-        "allow_different_nesting": true
+        "siblings_only": true
     },
     "MD025": {
         "front_matter_title": ""
