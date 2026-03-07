@@ -5,9 +5,9 @@ namespace SineMacula\ApiToolkit\Repositories\Criteria\Concerns;
 /**
  * Immutable value object for filter dispatch state.
  *
- * Captures the logical operator, relation scope flag, and nesting depth
- * at each level of the recursive filter dispatch. Each named constructor
- * returns a new instance, leaving the parent unmodified.
+ * Captures the logical operator, relation scope flag, and nesting depth at each
+ * level of the recursive filter dispatch. Each named constructor returns a new
+ * instance, leaving the parent unmodified.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.

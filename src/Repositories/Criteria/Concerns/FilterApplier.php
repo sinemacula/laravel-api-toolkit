@@ -23,9 +23,20 @@ final class FilterApplier
 
     /** @var array<string, string> */
     private array $conditionOperatorMap = [
-        '$le'       => '<=', '$lt' => '<', '$ge' => '>=', '$gt' => '>', '$neq' => '<>',
-        '$eq'       => '=', self::OPERATOR_LIKE => 'like', '$in' => 'in', '$between' => 'between',
-        '$contains' => 'contains', '$has' => 'has', self::OPERATOR_HASNT => 'hasnt', '$null' => 'null', '$notNull' => 'notNull',
+        '$le'                => '<=',
+        '$lt'                => '<',
+        '$ge'                => '>=',
+        '$gt'                => '>',
+        '$neq'               => '<>',
+        '$eq'                => '=',
+        self::OPERATOR_LIKE  => 'like',
+        '$in'                => 'in',
+        '$between'           => 'between',
+        '$contains'          => 'contains',
+        '$has'               => 'has',
+        self::OPERATOR_HASNT => 'hasnt',
+        '$null'              => 'null',
+        '$notNull'           => 'notNull',
     ];
 
     /** @var array<string, string> */
@@ -61,12 +72,8 @@ final class FilterApplier
      * @param  \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext  $context
      * @return \Illuminate\Database\Eloquent\Builder
      */
-    private function applyFilters(
-        Builder $query,
-        array|string|null $filters,
-        ?string $field,
-        FilterContext $context,
-    ): Builder {
+    private function applyFilters(Builder $query, array|string|null $filters, ?string $field, FilterContext $context): Builder
+    {
         if (empty($filters)) {
             return $query;
         }
@@ -76,7 +83,6 @@ final class FilterApplier
         }
 
         foreach ($filters as $key => $value) {
-
             if (array_key_exists($key, $this->conditionOperatorMap)) {
                 $this->applyConditionOperator($query, $key, $value, $field, $context);
             } elseif (array_key_exists($key, $this->logicalOperatorMap)) {
@@ -87,6 +93,7 @@ final class FilterApplier
                 $this->applyFilters($query, $value, $key, $context);
             }
         }
+
         return $query;
     }
 
@@ -105,8 +112,10 @@ final class FilterApplier
 
             $operator = $context->getLogicalOperator() ?? '$and';
             $value    = $operator === self::OPERATOR_LIKE ? "%{$value}%" : $value;
+
             $query->{$this->logicalOperatorMap[$operator]}($column, $value);
         }
+
         return $query;
     }
 
@@ -120,13 +129,8 @@ final class FilterApplier
      * @param  \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext  $context
      * @return void
      */
-    private function applyConditionOperator(
-        Builder $query,
-        string $operator,
-        mixed $value,
-        ?string $field,
-        FilterContext $context,
-    ): void {
+    private function applyConditionOperator(Builder $query, string $operator, mixed $value, ?string $field, FilterContext $context): void
+    {
         in_array($operator, ['$has', self::OPERATOR_HASNT], true)
             ? $this->applyHasFilter($query, $value, $operator, $context)
             : $this->handleCondition($query, $operator, $value, $field, $context);
@@ -146,9 +150,9 @@ final class FilterApplier
         $method = ($context->getLogicalOperator() === '$and' && $operator === '$or')
             ? 'where' : $this->logicalOperatorMap[$operator];
         $nested = FilterContext::nested($operator, $context);
+
         $query->{$method}(function (Builder $query) use ($value, $nested): void {
             foreach ($value as $subKey => $subValue) {
-
                 if (array_key_exists($subKey, $this->conditionOperatorMap)) {
                     $this->applyConditionOperator($query, $subKey, $subValue, null, $nested);
                 } elseif (array_key_exists($subKey, $this->logicalOperatorMap)) {
@@ -173,6 +177,7 @@ final class FilterApplier
     {
         $method          = ($context->getLogicalOperator() === '$or') ? 'orWhereHas' : 'whereHas';
         $relationContext = FilterContext::forRelation($context);
+
         $query->{$method}($relation, function (Builder $query) use ($filters, $relationContext): void {
             $this->processRelationFilters($query, $filters, $relationContext);
         });
@@ -210,12 +215,8 @@ final class FilterApplier
      * @param  \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext  $context
      * @return void
      */
-    private function applyHasFilter(
-        Builder $query,
-        array|string $relations,
-        string $operator,
-        FilterContext $context,
-    ): void {
+    private function applyHasFilter(Builder $query, array|string $relations, string $operator, FilterContext $context): void
+    {
         $baseMethod = $this->relationalMethodMap[$operator];
         $method     = ($context->getLogicalOperator() === '$or' && $operator === '$has') ? 'orWhereHas' : $baseMethod;
 
@@ -243,17 +244,14 @@ final class FilterApplier
      * @param  \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext  $context
      * @return void
      */
-    private function handleCondition(
-        Builder $query,
-        string $operator,
-        mixed $value,
-        ?string $column,
-        FilterContext $context,
-    ): void {
+    private function handleCondition(Builder $query, string $operator, mixed $value, ?string $column, FilterContext $context): void
+    {
         if (!$column || !$this->schemaIntrospector->isSearchable($query->getModel(), $column)) {
             return;
         }
+
         $method = $this->logicalOperatorMap[$context->getLogicalOperator() ?? '$and'];
+
         match ($operator) {
             '$in'       => $query->whereIn($column, (array) $value),
             '$between'  => is_array($value) && count($value) === 2 ? $query->whereBetween($column, $value) : null,
@@ -268,9 +266,9 @@ final class FilterApplier
      * Apply a JSON contains condition.
      *
      * Cyclomatic complexity (11) marginally exceeds the threshold (10).
-     * Accepted because the method handles multiple JSON input formats
-     * (array, object, valid JSON string, comma-separated string, scalar
-     * fallback) in a single cohesive flow.
+     * Accepted because the method handles multiple JSON input formats (array,
+     * object, valid JSON string, comma-separated string, scalar fallback) in a
+     * single cohesive flow.
      *
      * @param  \Illuminate\Database\Eloquent\Builder  $query
      * @param  string  $column
@@ -280,7 +278,6 @@ final class FilterApplier
     private function applyJsonContains(Builder $query, string $column, mixed $value): void
     {
         if (is_array($value) || is_object($value) || (is_string($value) && !empty($value) && json_validate($value))) {
-
             $query->whereJsonContains($column, $value);
             return;
         }
@@ -296,6 +293,7 @@ final class FilterApplier
                     }
                 });
             }
+
             return;
         }
 

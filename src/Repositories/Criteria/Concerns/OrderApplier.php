@@ -8,9 +8,9 @@ use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 /**
  * Applies ordering to an Eloquent query builder.
  *
- * Supports single and multiple column ordering, random ordering via
- * the `ORDER_BY_RANDOM` keyword, direction validation, and searchable
- * column validation via the schema introspection provider.
+ * Supports single and multiple column ordering, random ordering via the
+ * `ORDER_BY_RANDOM` keyword, direction validation, and searchable column
+ * validation via the schema introspection provider.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.

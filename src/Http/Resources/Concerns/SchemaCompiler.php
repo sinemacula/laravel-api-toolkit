@@ -2,7 +2,6 @@
 
 namespace SineMacula\ApiToolkit\Http\Resources\Concerns;
 
-use Closure;
 use SineMacula\ApiToolkit\Http\Resources\Schema\CompiledCountDefinition;
 use SineMacula\ApiToolkit\Http\Resources\Schema\CompiledFieldDefinition;
 use SineMacula\ApiToolkit\Http\Resources\Schema\CompiledSchema;
@@ -111,7 +110,7 @@ final class SchemaCompiler
         return new CompiledCountDefinition(
             presentKey: $presentKey,
             relation  : is_string($definition['relation'] ?? null) ? $definition['relation'] : $presentKey,
-            constraint: $constraint instanceof Closure ? $constraint : null,
+            constraint: $constraint instanceof \Closure ? $constraint : null,
             isDefault : (bool) ($definition['default'] ?? false),
             guards    : $definition['guards'] ?? [],
         );
@@ -131,13 +130,13 @@ final class SchemaCompiler
 
         return new CompiledFieldDefinition(
             accessor    : $definition['accessor'] ?? null,
-            compute     : $definition['compute'] ?? null,
+            compute     : $definition['compute']  ?? null,
             relation    : $relation,
             resource    : isset($definition['resource']) && is_string($definition['resource']) ? $definition['resource'] : null,
             fields      : $definition['fields'] ?? null,
-            constraint  : $constraint instanceof Closure ? $constraint : null,
+            constraint  : $constraint instanceof \Closure ? $constraint : null,
             extras      : (array) ($definition['extras'] ?? []),
-            guards      : $definition['guards'] ?? [],
+            guards      : $definition['guards']       ?? [],
             transformers: $definition['transformers'] ?? [],
         );
     }

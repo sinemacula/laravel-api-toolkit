@@ -97,7 +97,7 @@ class NotificationListenerTest extends TestCase
         Log::shouldReceive('info')
             ->once()
             ->withArgs(fn (string $message, array $context) => $context['notification'] === $notification::class
-                    && $context['notifiable_type']                                           === $notifiable::class
+                    && $context['notifiable_type']                                      === $notifiable::class
                     && $context['channel']                                              === 'mail');
 
         $listener = new NotificationListener;

@@ -10,9 +10,9 @@ use SineMacula\ApiToolkit\Http\Resources\ApiResource;
 /**
  * Applies eager loading to an Eloquent query builder.
  *
- * Resolves and applies eager loads and eager load counts based on
- * the resource schema and requested fields, using the metadata
- * provider and the parsed API query state.
+ * Resolves and applies eager loads and eager load counts based on the resource
+ * schema and requested fields, using the metadata provider and the parsed API
+ * query state.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -28,12 +28,8 @@ final class EagerLoadApplier
      * @param  string|null  $resourceType
      * @return \Illuminate\Contracts\Database\Eloquent\Builder
      */
-    public function apply(
-        Builder $query,
-        ResourceMetadataProvider $metadataProvider,
-        ?string $resourceClass,
-        ?string $resourceType,
-    ): Builder {
+    public function apply(Builder $query, ResourceMetadataProvider $metadataProvider, ?string $resourceClass, ?string $resourceType): Builder
+    {
         if ($resourceClass === null || !is_subclass_of($resourceClass, ApiResource::class)) {
             return $query;
         }
