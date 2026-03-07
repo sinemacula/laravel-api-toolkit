@@ -55,7 +55,7 @@ path_clean_plan = "{workflow-dir}/clean-plan.md"
 [build.standards]
 # Override language pack thresholds per-project.
 # Uncomment and adjust as needed.
-# min_coverage = 80
+min_coverage = 100
 # max_cyclomatic_complexity = 10
 # max_method_lines = 30
 # max_class_lines = 500
