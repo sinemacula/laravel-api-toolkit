@@ -8,6 +8,11 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use SineMacula\ApiToolkit\Contracts\ResourceMetadataProvider;
 use SineMacula\ApiToolkit\Repositories\Criteria\ApiCriteria;
+use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\EagerLoadApplier;
+use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterApplier;
+use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext;
+use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\LimitApplier;
+use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\OrderApplier;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
@@ -23,6 +28,11 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(ApiCriteria::class)]
+#[CoversClass(FilterApplier::class)]
+#[CoversClass(FilterContext::class)]
+#[CoversClass(OrderApplier::class)]
+#[CoversClass(EagerLoadApplier::class)]
+#[CoversClass(LimitApplier::class)]
 class ApiCriteriaTest extends TestCase
 {
     /** @var string */
@@ -42,6 +52,7 @@ class ApiCriteriaTest extends TestCase
      *
      * @return void
      */
+    #[\Override]
     protected function setUp(): void
     {
         parent::setUp();
@@ -512,7 +523,8 @@ class ApiCriteriaTest extends TestCase
         $model = new User;
         $query = $this->criteria->apply($model);
 
-        static::assertNotNull($query);
+        static::assertNotNull($query->getQuery());
+        static::assertInstanceOf(\Illuminate\Database\Eloquent\Builder::class, $query);
     }
 
     /**
@@ -529,7 +541,8 @@ class ApiCriteriaTest extends TestCase
         $model = new User;
         $query = $this->criteria->apply($model);
 
-        static::assertNotNull($query);
+        static::assertInstanceOf(\Illuminate\Database\Eloquent\Builder::class, $query);
+        static::assertIsArray($query->getQuery()->wheres);
     }
 
     /**
@@ -779,7 +792,7 @@ class ApiCriteriaTest extends TestCase
         $model = new User;
         $query = $this->criteria->apply($model);
 
-        static::assertNotNull($query);
+        static::assertIsArray($query->getQuery()->wheres);
     }
 
     /**
@@ -792,7 +805,7 @@ class ApiCriteriaTest extends TestCase
      */
     public function testApplyEagerLoadingReturnsEarlyWhenFieldsAreEmpty(): void
     {
-        $resource_class = new class (null) extends \SineMacula\ApiToolkit\Http\Resources\ApiResource {
+        $resourceClass = new class (null) extends \SineMacula\ApiToolkit\Http\Resources\ApiResource {
             /** @var string */
             public const string RESOURCE_TYPE = 'empty_res';
 
@@ -814,7 +827,7 @@ class ApiCriteriaTest extends TestCase
 
         /** @var \SineMacula\ApiToolkit\Repositories\Criteria\ApiCriteria $criteria */
         $criteria = $this->app->make(ApiCriteria::class);
-        $criteria->usingResource($resource_class::class);
+        $criteria->usingResource($resourceClass::class);
 
         $this->parseRequest(new \Illuminate\Http\Request);
 

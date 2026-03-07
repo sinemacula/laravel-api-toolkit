@@ -6,8 +6,6 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Http\Resources\MissingValue;
 use Illuminate\Support\Facades\Config;
-use LogicException;
-use SensitiveParameter;
 use SineMacula\ApiToolkit\Contracts\ApiResourceInterface;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\EagerLoadPlanner;
@@ -82,7 +80,7 @@ abstract class ApiResource extends JsonResource implements ApiResourceInterface
      * @param  mixed  $request
      * @return array<string, mixed>
      */
-    public function resolve(#[SensitiveParameter] $request = null): array
+    public function resolve(#[\SensitiveParameter] $request = null): array
     {
         $schema = SchemaCompiler::compile(static::class);
         $data   = ['_type' => static::getResourceType()];
@@ -151,7 +149,7 @@ abstract class ApiResource extends JsonResource implements ApiResourceInterface
     public static function getResourceType(): string
     {
         if (!defined(static::class . '::RESOURCE_TYPE')) {
-            throw new LogicException('The RESOURCE_TYPE constant must be defined on the resource');
+            throw new \LogicException('The RESOURCE_TYPE constant must be defined on the resource');
         }
 
         return strtolower(static::RESOURCE_TYPE); // @phpstan-ignore classConstant.notFound
@@ -251,7 +249,7 @@ abstract class ApiResource extends JsonResource implements ApiResourceInterface
      * @param  mixed  $resource
      * @return \SineMacula\ApiToolkit\Http\Resources\ApiResourceCollection
      */
-    protected static function newCollection(#[SensitiveParameter] $resource): ApiResourceCollection
+    protected static function newCollection(#[\SensitiveParameter] $resource): ApiResourceCollection
     {
         return new ApiResourceCollection($resource, static::class);
     }
