@@ -2,8 +2,6 @@
 
 namespace SineMacula\ApiToolkit\Http\Resources\Schema;
 
-use Closure;
-
 /**
  * Typed representation of a single compiled count definition.
  *
@@ -33,7 +31,7 @@ final readonly class CompiledCountDefinition
         public string $relation,
 
         /** Optional query constraint for the count */
-        public ?Closure $constraint,
+        public ?\Closure $constraint,
 
         /** Whether this count is included by default */
         public bool $isDefault,

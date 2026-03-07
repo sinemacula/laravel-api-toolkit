@@ -2,8 +2,6 @@
 
 namespace SineMacula\ApiToolkit\Http\Resources\Schema;
 
-use Closure;
-
 /**
  * Typed representation of a single compiled field definition.
  *
@@ -46,7 +44,7 @@ final readonly class CompiledFieldDefinition
         public ?array $fields,
 
         /** Optional query constraint for eager loading */
-        public ?Closure $constraint,
+        public ?\Closure $constraint,
 
         /** Additional eager-load paths */
         public array $extras,
