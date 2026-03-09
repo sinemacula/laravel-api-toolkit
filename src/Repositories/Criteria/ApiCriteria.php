@@ -5,7 +5,6 @@ namespace SineMacula\ApiToolkit\Repositories\Criteria;
 use Illuminate\Contracts\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
-use Override;
 use SineMacula\ApiToolkit\Contracts\ResourceMetadataProvider;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
@@ -74,7 +73,7 @@ class ApiCriteria implements CriteriaInterface
      * @param  \Illuminate\Contracts\Database\Eloquent\Builder|\Illuminate\Database\Eloquent\Model  $model
      * @return \Illuminate\Contracts\Database\Eloquent\Builder
      */
-    #[Override]
+    #[\Override]
     public function apply(Builder|Model $model): Builder
     {
         $query = $model instanceof Model ? $model->query() : $model;
