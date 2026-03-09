@@ -49,6 +49,7 @@ class ApiRepositoryTest extends TestCase
      *
      * @return void
      */
+    #[\Override]
     protected function setUp(): void
     {
         parent::setUp();
@@ -489,9 +490,9 @@ class ApiRepositoryTest extends TestCase
     {
         // Add UserStatus::class as a recognized laravel cast under 'enum' so
         // that class_exists($laravel_cast) is true AND $base_cast matches.
-        $existing_enum_casts   = Config::get('api-toolkit.repositories.cast_map.enum', []);
-        $existing_enum_casts[] = UserStatus::class;
-        Config::set('api-toolkit.repositories.cast_map.enum', $existing_enum_casts);
+        $existingEnumCasts   = Config::get('api-toolkit.repositories.cast_map.enum', []);
+        $existingEnumCasts[] = UserStatus::class;
+        Config::set('api-toolkit.repositories.cast_map.enum', $existingEnumCasts);
 
         $user = User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL, 'status' => 'active']);
 

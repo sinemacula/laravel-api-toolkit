@@ -3,6 +3,7 @@
 namespace Tests\Unit\Repositories\Concerns;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Config;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -263,6 +264,26 @@ class AttributeSetterTest extends TestCase
     }
 
     /**
+     * Test that setAttributes syncs a relation when passed a single
+     * Model instance, using its ID via the ArrayAccess path.
+     *
+     * @return void
+     */
+    public function testSetAttributesSyncWithSingleModel(): void
+    {
+        $user = User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL]);
+        $post = Post::create(['user_id' => $user->id, 'title' => 'T', 'body' => 'B']);
+        $tag  = Tag::create(['name' => 'single']);
+
+        $this->setProperty($this->attributeSetter, 'casts', ['tags' => 'sync']);
+
+        $result = $this->attributeSetter->setAttributes($post, ['tags' => $tag], Post::class);
+
+        static::assertTrue($result);
+        static::assertCount(1, $post->fresh()?->tags()->get() ?? collect([]));
+    }
+
+    /**
      * Test that setAttributes skips attributes whose cast resolves to
      * null.
      *
@@ -358,6 +379,26 @@ class AttributeSetterTest extends TestCase
             ->willReturn($relation);
 
         $result = $this->invokeMethod($this->attributeSetter, 'resolveCastForRelation', 'organization', $model);
+
+        static::assertSame('associate', $result);
+    }
+
+    /**
+     * Test that resolveCastForRelation returns 'associate' for a
+     * MorphTo relation.
+     *
+     * @return void
+     */
+    public function testResolveCastForRelationReturnsCastForMorphTo(): void
+    {
+        $model    = new User;
+        $relation = $this->createMock(MorphTo::class);
+
+        $this->schemaIntrospector->method('resolveRelation')
+            ->with('commentable', $model)
+            ->willReturn($relation);
+
+        $result = $this->invokeMethod($this->attributeSetter, 'resolveCastForRelation', 'commentable', $model);
 
         static::assertSame('associate', $result);
     }

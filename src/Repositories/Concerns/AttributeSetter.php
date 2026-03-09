@@ -27,9 +27,11 @@ final class AttributeSetter
     private array $casts = [];
 
     /**
-     * Constructor.
+     * Create an attribute setter with the given schema introspector
+     * for resolving model relation types.
      *
      * @param  \SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider  $schemaIntrospector
+     * @return void
      */
     public function __construct(
 
@@ -99,6 +101,10 @@ final class AttributeSetter
     }
 
     /**
+     * Resolve the native cast key for the given attribute by
+     * checking the configured cast map, then falling back to
+     * relation introspection or enum detection.
+     *
      * @param  string  $attribute
      * @param  string|null  $cast
      * @param  \Illuminate\Database\Eloquent\Model|null  $model
@@ -112,6 +118,7 @@ final class AttributeSetter
             return $this->resolveCastForRelation($attribute, $model);
         }
 
+        /** @var array<string, array<int, string>> $map */
         $map = Config::get('api-toolkit.repositories.cast_map');
 
         foreach ($map as $native_cast => $laravel_casts) {
@@ -126,6 +133,9 @@ final class AttributeSetter
     }
 
     /**
+     * Map a relation type to its sync/associate cast, or null when
+     * the attribute does not correspond to a recognized relation.
+     *
      * @param  string  $attribute
      * @param  \Illuminate\Database\Eloquent\Model|null  $model
      * @return string|null
@@ -152,6 +162,10 @@ final class AttributeSetter
     }
 
     /**
+     * Check whether a model cast matches a configured Laravel cast
+     * entry, supporting exact match, class-based match, and
+     * wildcard patterns.
+     *
      * @param  string  $cast
      * @param  string  $laravel_cast
      * @return bool
@@ -165,6 +179,7 @@ final class AttributeSetter
         }
 
         if (str_contains($laravel_cast, '*')) {
+
             $pattern = '/^' . str_replace('*', '.*', $laravel_cast) . '$/';
 
             return (bool) preg_match($pattern, $cast);
@@ -174,6 +189,9 @@ final class AttributeSetter
     }
 
     /**
+     * Dispatch to the appropriate setter based on the resolved
+     * cast type.
+     *
      * @param  \Illuminate\Database\Eloquent\Model  $model
      * @param  string  $attribute
      * @param  mixed  $value
@@ -191,6 +209,9 @@ final class AttributeSetter
     }
 
     /**
+     * Associate a BelongsTo or MorphTo relation by its foreign
+     * key value.
+     *
      * @param  \Illuminate\Database\Eloquent\Model  $model
      * @param  string  $attribute
      * @param  mixed  $value
@@ -202,6 +223,9 @@ final class AttributeSetter
     }
 
     /**
+     * Sync a many-to-many relation, accepting an array of IDs, a
+     * Collection of models, or a single Model instance.
+     *
      * @param  \Illuminate\Database\Eloquent\Model  $model
      * @param  string  $attribute
      * @param  mixed  $value
@@ -209,14 +233,12 @@ final class AttributeSetter
      */
     private function setSyncAttribute(Model $model, string $attribute, mixed $value): void
     {
-        if ($value instanceof Collection || $value instanceof Model) {
+        if ($value instanceof Model || $value instanceof Collection) {
 
-            if ($value instanceof Collection) {
-                $value = [
-                    'values'    => $value,
-                    'detaching' => true,
-                ];
-            }
+            $value = [
+                'values'    => $value instanceof Model ? collect([$value]) : $value,
+                'detaching' => true,
+            ];
 
             $values = $value['values']->pluck('id');
         }
@@ -228,6 +250,9 @@ final class AttributeSetter
     }
 
     /**
+     * Persist the resolved casts to the memo cache so subsequent
+     * requests skip re-resolution.
+     *
      * @param  string  $modelClass
      * @return void
      */
@@ -237,11 +262,15 @@ final class AttributeSetter
     }
 
     /**
+     * Load previously resolved casts from the memo cache, returning
+     * an empty array on cache miss.
+     *
      * @param  string  $modelClass
      * @return array<string, string|null>
      */
     private function resolveCastsFromCache(string $modelClass): array
     {
+        /** @var array<string, string|null> */
         return Cache::memo()->get(CacheKeys::REPOSITORY_MODEL_CASTS->resolveKey([$modelClass]), []);
     }
 }
