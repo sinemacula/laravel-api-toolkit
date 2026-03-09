@@ -4,6 +4,7 @@ namespace SineMacula\ApiToolkit\Repositories\Criteria\Concerns;
 
 use Illuminate\Database\Eloquent\Builder;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
+use SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry;
 
 /**
  * Applies filter trees to an Eloquent query builder.
@@ -16,28 +17,7 @@ use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 final class FilterApplier
 {
     /** @var string */
-    private const string OPERATOR_LIKE = '$like';
-
-    /** @var string */
     private const string OPERATOR_HASNT = '$hasnt';
-
-    /** @var array<string, string> */
-    private array $conditionOperatorMap = [
-        '$le'                => '<=',
-        '$lt'                => '<',
-        '$ge'                => '>=',
-        '$gt'                => '>',
-        '$neq'               => '<>',
-        '$eq'                => '=',
-        self::OPERATOR_LIKE  => 'like',
-        '$in'                => 'in',
-        '$between'           => 'between',
-        '$contains'          => 'contains',
-        '$has'               => 'has',
-        self::OPERATOR_HASNT => 'hasnt',
-        '$null'              => 'null',
-        '$notNull'           => 'notNull',
-    ];
 
     /** @var array<string, string> */
     private array $logicalOperatorMap = ['$or' => 'orWhere', '$and' => 'where'];
@@ -48,17 +28,22 @@ final class FilterApplier
     /** @var \SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider */
     private SchemaIntrospectionProvider $schemaIntrospector;
 
+    /** @var \SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry */
+    private OperatorRegistry $operatorRegistry;
+
     /**
      * Apply filters to the query.
      *
      * @param  \Illuminate\Database\Eloquent\Builder  $query
      * @param  array<string, mixed>|null  $filters
      * @param  \SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider  $schemaIntrospector
+     * @param  \SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry  $operatorRegistry
      * @return \Illuminate\Database\Eloquent\Builder
      */
-    public function apply(Builder $query, ?array $filters, SchemaIntrospectionProvider $schemaIntrospector): Builder
+    public function apply(Builder $query, ?array $filters, SchemaIntrospectionProvider $schemaIntrospector, OperatorRegistry $operatorRegistry): Builder
     {
         $this->schemaIntrospector = $schemaIntrospector;
+        $this->operatorRegistry   = $operatorRegistry;
 
         return $this->applyFilters($query, $filters, null, FilterContext::root());
     }
@@ -83,7 +68,8 @@ final class FilterApplier
         }
 
         foreach ($filters as $key => $value) {
-            if (array_key_exists($key, $this->conditionOperatorMap)) {
+
+            if ($key === '$has' || $key === self::OPERATOR_HASNT || $this->operatorRegistry->has($key)) {
                 $this->applyConditionOperator($query, $key, $value, $field, $context);
             } elseif (array_key_exists($key, $this->logicalOperatorMap)) {
                 $this->applyLogicalOperator($query, $key, $value, $context);
@@ -111,7 +97,6 @@ final class FilterApplier
         if ($column && $this->schemaIntrospector->isSearchable($query->getModel(), $column)) {
 
             $operator = $context->getLogicalOperator() ?? '$and';
-            $value    = $operator === self::OPERATOR_LIKE ? "%{$value}%" : $value;
 
             $query->{$this->logicalOperatorMap[$operator]}($column, $value);
         }
@@ -131,9 +116,21 @@ final class FilterApplier
      */
     private function applyConditionOperator(Builder $query, string $operator, mixed $value, ?string $field, FilterContext $context): void
     {
-        in_array($operator, ['$has', self::OPERATOR_HASNT], true)
-            ? $this->applyHasFilter($query, $value, $operator, $context)
-            : $this->handleCondition($query, $operator, $value, $field, $context);
+        if (in_array($operator, ['$has', self::OPERATOR_HASNT], true)) {
+
+            $this->applyHasFilter($query, $value, $operator, $context);
+            return;
+        }
+
+        if (!$field || !$this->schemaIntrospector->isSearchable($query->getModel(), $field)) {
+            return;
+        }
+
+        $handler = $this->operatorRegistry->resolve($operator);
+
+        if ($handler !== null) {
+            $handler->apply($query, $field, $value, $context);
+        }
     }
 
     /**
@@ -153,7 +150,8 @@ final class FilterApplier
 
         $query->{$method}(function (Builder $query) use ($value, $nested): void {
             foreach ($value as $subKey => $subValue) {
-                if (array_key_exists($subKey, $this->conditionOperatorMap)) {
+
+                if ($subKey === '$has' || $subKey === self::OPERATOR_HASNT || $this->operatorRegistry->has($subKey)) {
                     $this->applyConditionOperator($query, $subKey, $subValue, null, $nested);
                 } elseif (array_key_exists($subKey, $this->logicalOperatorMap)) {
                     $this->applyLogicalOperator($query, $subKey, $subValue, $nested);
@@ -232,75 +230,5 @@ final class FilterApplier
                 });
             }
         }
-    }
-
-    /**
-     * Handle a condition based on its operator.
-     *
-     * @param  \Illuminate\Database\Eloquent\Builder  $query
-     * @param  string  $operator
-     * @param  mixed  $value
-     * @param  string|null  $column
-     * @param  \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext  $context
-     * @return void
-     */
-    private function handleCondition(Builder $query, string $operator, mixed $value, ?string $column, FilterContext $context): void
-    {
-        if (!$column || !$this->schemaIntrospector->isSearchable($query->getModel(), $column)) {
-            return;
-        }
-
-        $method = $this->logicalOperatorMap[$context->getLogicalOperator() ?? '$and'];
-
-        match ($operator) {
-            '$in'       => $query->whereIn($column, (array) $value),
-            '$between'  => is_array($value) && count($value) === 2 ? $query->whereBetween($column, $value) : null,
-            '$contains' => $this->applyJsonContains($query, $column, $value),
-            '$null'     => $query->{$method . 'Null'}($column),
-            '$notNull'  => $query->{$method . 'NotNull'}($column),
-            default     => $query->{$method}($column, $this->conditionOperatorMap[$operator], $operator === self::OPERATOR_LIKE ? "%{$value}%" : $value),
-        };
-    }
-
-    /**
-     * Apply a JSON contains condition.
-     *
-     * Cyclomatic complexity (11) marginally exceeds the threshold (10).
-     * Accepted because the method handles multiple JSON input formats (array,
-     * object, valid JSON string, comma-separated string, scalar fallback) in a
-     * single cohesive flow.
-     *
-     * @param  \Illuminate\Database\Eloquent\Builder  $query
-     * @param  string  $column
-     * @param  mixed  $value
-     * @return void
-     */
-    private function applyJsonContains(Builder $query, string $column, mixed $value): void
-    {
-        if (is_array($value) || is_object($value) || (is_string($value) && !empty($value) && json_validate($value))) {
-            $query->whereJsonContains($column, $value);
-            return;
-        }
-
-        if (is_string($value) && str_contains($value, ',')) {
-
-            $items = array_filter(array_map('trim', explode(',', $value)), static fn (string $item): bool => $item !== '');
-
-            if (!empty($items)) {
-                $query->where(function (Builder $query) use ($column, $items): void {
-                    foreach ($items as $index => $item) {
-                        $query->{$index === 0 ? 'whereJsonContains' : 'orWhereJsonContains'}($column, $item);
-                    }
-                });
-            }
-
-            return;
-        }
-
-        try {
-            $query->whereJsonContains($column, $value);
-        } catch (\Throwable) { // @codeCoverageIgnore
-            // Silently discard: whereJsonContains may throw for non-JSON-compatible scalar values (e.g. null)
-        } // @codeCoverageIgnore
     }
 }

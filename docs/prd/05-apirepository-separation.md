@@ -114,41 +114,41 @@ replaced by direct delegation to the model.
 
 - **Casting collaborator extraction:** Maintainer can work with attribute casting/setting as an independent, injectable
   collaborator that encapsulates cast resolution, attribute setting, model save, and deferred sync operations
-    - **Acceptance criteria:** All casting-related methods (cast resolution cascade, relation detection via reflection,
+  - **Acceptance criteria:** All casting-related methods (cast resolution cascade, relation detection via reflection,
       type-specific setters, cache interactions for cast maps) live in the collaborator, not in ApiRepository.
       ApiRepository delegates to the collaborator for attribute operations.
 
 - **Lifecycle preservation:** The three-phase `setAttributes()` lifecycle (set non-sync attributes → save → sync
   deferred relations) continues to produce identical outcomes for all attribute types
-    - **Acceptance criteria:** All existing integration tests for `setAttributes()` pass without modification to test
+  - **Acceptance criteria:** All existing integration tests for `setAttributes()` pass without modification to test
       assertions. BelongsTo/MorphTo attributes are associated before save. BelongsToMany/MorphToMany attributes are
       synced after save.
 
 - **Scalar setter simplification:** Scalar setters that add marginal value over Laravel's native `setAttribute()` are
   simplified to delegate to the model directly
-    - **Acceptance criteria:** `setBooleanAttribute`, `setStringAttribute`, `setIntegerAttribute`, `setArrayAttribute`,
+  - **Acceptance criteria:** `setBooleanAttribute`, `setStringAttribute`, `setIntegerAttribute`, `setArrayAttribute`,
       and `setObjectAttribute` are replaced by direct delegation to `$model->setAttribute()` (or equivalent).
       Null-handling behaviour is preserved where it differs from Laravel's default. `setEnumAttribute` delegates to
       Laravel's native `setAttribute()`, which performs enum validation.
 
 - **Behavioural equivalence:** All existing tests pass without modification to test assertions
-    - **Acceptance criteria:** `composer test` passes. No test assertion changes. No new test failures.
+  - **Acceptance criteria:** `composer test` passes. No test assertion changes. No new test failures.
 
 ### Should Have (P1)
 
 - **Independent testability:** Each collaborator can be unit-tested in complete isolation from the other
-    - **Acceptance criteria:** Casting collaborator tests do not require repository query infrastructure. Repository
+  - **Acceptance criteria:** Casting collaborator tests do not require repository query infrastructure. Repository
       query orchestration tests do not require casting infrastructure.
 
 - **Class size reduction:** No single class in the decomposed structure exceeds ~200 lines
-    - **Acceptance criteria:** ApiRepository and the casting collaborator each have fewer than 250 lines (allowing
+  - **Acceptance criteria:** ApiRepository and the casting collaborator each have fewer than 250 lines (allowing
       reasonable margin).
 
 ### Nice to Have (P2)
 
 - **Dead cache key cleanup:** Unused `MODEL_EAGER_LOADS` and `MODEL_RELATION_INSTANCES` enum cases in `CacheKeys` are
   removed
-    - **Acceptance criteria:** The two unused enum cases are deleted. No references exist in the codebase.
+  - **Acceptance criteria:** The two unused enum cases are deleted. No references exist in the codebase.
 
 ---
 

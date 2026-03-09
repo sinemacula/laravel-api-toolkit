@@ -7,6 +7,19 @@ use Illuminate\Database\Eloquent\Model;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterApplier;
+use SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry;
+use SineMacula\ApiToolkit\Repositories\Criteria\Operators\BetweenOperator;
+use SineMacula\ApiToolkit\Repositories\Criteria\Operators\ContainsOperator;
+use SineMacula\ApiToolkit\Repositories\Criteria\Operators\EqualOperator;
+use SineMacula\ApiToolkit\Repositories\Criteria\Operators\GreaterThanOperator;
+use SineMacula\ApiToolkit\Repositories\Criteria\Operators\GreaterThanOrEqualOperator;
+use SineMacula\ApiToolkit\Repositories\Criteria\Operators\InOperator;
+use SineMacula\ApiToolkit\Repositories\Criteria\Operators\LessThanOperator;
+use SineMacula\ApiToolkit\Repositories\Criteria\Operators\LessThanOrEqualOperator;
+use SineMacula\ApiToolkit\Repositories\Criteria\Operators\LikeOperator;
+use SineMacula\ApiToolkit\Repositories\Criteria\Operators\NotEqualOperator;
+use SineMacula\ApiToolkit\Repositories\Criteria\Operators\NotNullOperator;
+use SineMacula\ApiToolkit\Repositories\Criteria\Operators\NullOperator;
 use Tests\Fixtures\Models\User;
 use Tests\TestCase;
 
@@ -16,6 +29,7 @@ use Tests\TestCase;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  *
+ * @SuppressWarnings("php:S1192")
  * @SuppressWarnings("php:S1448")
  *
  * @internal
@@ -24,13 +38,13 @@ use Tests\TestCase;
 class FilterApplierTest extends TestCase
 {
     /** @var string */
-    private const string OPERATOR_LIKE = '$like';
-
-    /** @var string */
     private const string OPERATOR_CONTAINS = '$contains';
 
     /** @var \SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider */
     private SchemaIntrospectionProvider $schemaIntrospector;
+
+    /** @var \SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry */
+    private OperatorRegistry $operatorRegistry;
 
     /** @var \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterApplier */
     private FilterApplier $applier;
@@ -54,6 +68,20 @@ class FilterApplierTest extends TestCase
         $this->schemaIntrospector->method('isRelation')->willReturnCallback(
             fn (string $key, Model $model) => in_array($key, ['posts', 'organization'], true),
         );
+
+        $this->operatorRegistry = new OperatorRegistry;
+        $this->operatorRegistry->register('$eq', new EqualOperator);
+        $this->operatorRegistry->register('$neq', new NotEqualOperator);
+        $this->operatorRegistry->register('$gt', new GreaterThanOperator);
+        $this->operatorRegistry->register('$lt', new LessThanOperator);
+        $this->operatorRegistry->register('$ge', new GreaterThanOrEqualOperator);
+        $this->operatorRegistry->register('$le', new LessThanOrEqualOperator);
+        $this->operatorRegistry->register('$like', new LikeOperator);
+        $this->operatorRegistry->register('$in', new InOperator);
+        $this->operatorRegistry->register('$between', new BetweenOperator);
+        $this->operatorRegistry->register('$contains', new ContainsOperator);
+        $this->operatorRegistry->register('$null', new NullOperator);
+        $this->operatorRegistry->register('$notNull', new NotNullOperator);
 
         $this->applier = new FilterApplier;
     }
@@ -190,7 +218,7 @@ class FilterApplierTest extends TestCase
      */
     public function testApplyWithLikeOperatorWrapsValueWithPercent(): void
     {
-        $result = $this->applyFilters(['name' => [self::OPERATOR_LIKE => 'Ali']]);
+        $result = $this->applyFilters(['name' => ['$like' => 'Ali']]);
         $wheres = $result->getQuery()->wheres;
 
         static::assertNotEmpty($wheres);
@@ -342,7 +370,7 @@ class FilterApplierTest extends TestCase
     {
         $result = $this->applyFilters([
             '$has' => [
-                'posts' => ['title' => [self::OPERATOR_LIKE => 'test']],
+                'posts' => ['title' => ['$like' => 'test']],
             ],
         ]);
 
@@ -413,7 +441,7 @@ class FilterApplierTest extends TestCase
     public function testApplyWithRelationFilterAppliesWhereHas(): void
     {
         $result = $this->applyFilters([
-            'posts' => ['title' => [self::OPERATOR_LIKE => 'test']],
+            'posts' => ['title' => ['$like' => 'test']],
         ]);
 
         $wheres = $result->getQuery()->wheres;
@@ -432,7 +460,7 @@ class FilterApplierTest extends TestCase
         $result = $this->applyFilters([
             'posts' => [
                 '$or' => [
-                    'title' => [self::OPERATOR_LIKE => 'test'],
+                    'title' => ['$like' => 'test'],
                 ],
             ],
         ]);
@@ -497,6 +525,7 @@ class FilterApplierTest extends TestCase
             (new User)->newQuery(),
             $filters,
             $this->schemaIntrospector,
+            $this->operatorRegistry,
         );
     }
 }

@@ -21,6 +21,19 @@ use SineMacula\ApiToolkit\Http\Middleware\ThrottleRequests;
 use SineMacula\ApiToolkit\Http\Middleware\ThrottleRequestsWithRedis;
 use SineMacula\ApiToolkit\Listeners\NotificationListener;
 use SineMacula\ApiToolkit\Logging\CloudWatchLogger;
+use SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry;
+use SineMacula\ApiToolkit\Repositories\Criteria\Operators\BetweenOperator;
+use SineMacula\ApiToolkit\Repositories\Criteria\Operators\ContainsOperator;
+use SineMacula\ApiToolkit\Repositories\Criteria\Operators\EqualOperator;
+use SineMacula\ApiToolkit\Repositories\Criteria\Operators\GreaterThanOperator;
+use SineMacula\ApiToolkit\Repositories\Criteria\Operators\GreaterThanOrEqualOperator;
+use SineMacula\ApiToolkit\Repositories\Criteria\Operators\InOperator;
+use SineMacula\ApiToolkit\Repositories\Criteria\Operators\LessThanOperator;
+use SineMacula\ApiToolkit\Repositories\Criteria\Operators\LessThanOrEqualOperator;
+use SineMacula\ApiToolkit\Repositories\Criteria\Operators\LikeOperator;
+use SineMacula\ApiToolkit\Repositories\Criteria\Operators\NotEqualOperator;
+use SineMacula\ApiToolkit\Repositories\Criteria\Operators\NotNullOperator;
+use SineMacula\ApiToolkit\Repositories\Criteria\Operators\NullOperator;
 use SineMacula\ApiToolkit\Services\SchemaIntrospector;
 
 /**
@@ -67,6 +80,7 @@ class ApiServiceProvider extends ServiceProvider
         $this->registerQueryParser();
         $this->registerResourceMetadataProvider();
         $this->registerSchemaIntrospector();
+        $this->registerOperatorRegistry();
     }
 
     /**
@@ -279,5 +293,33 @@ class ApiServiceProvider extends ServiceProvider
             SchemaIntrospectionProvider::class,
             SchemaIntrospector::class,
         );
+    }
+
+    /**
+     * Bind the OperatorRegistry to the service container.
+     *
+     * @return void
+     */
+    private function registerOperatorRegistry(): void
+    {
+        $this->app->singleton(OperatorRegistry::class, function (): OperatorRegistry {
+
+            $registry = new OperatorRegistry;
+
+            $registry->register('$eq', new EqualOperator);
+            $registry->register('$neq', new NotEqualOperator);
+            $registry->register('$gt', new GreaterThanOperator);
+            $registry->register('$lt', new LessThanOperator);
+            $registry->register('$ge', new GreaterThanOrEqualOperator);
+            $registry->register('$le', new LessThanOrEqualOperator);
+            $registry->register('$like', new LikeOperator);
+            $registry->register('$in', new InOperator);
+            $registry->register('$between', new BetweenOperator);
+            $registry->register('$contains', new ContainsOperator);
+            $registry->register('$null', new NullOperator);
+            $registry->register('$notNull', new NotNullOperator);
+
+            return $registry;
+        });
     }
 }
