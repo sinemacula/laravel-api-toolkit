@@ -153,132 +153,132 @@ and where they were found.
 
 - **R1: Automatic repository registration:** Developer can create a repository class with an alias declaration and have
   it automatically discovered and registered in the `RepositoryResolver` without adding any manual config entry.
-    - **Acceptance criteria:** A newly created repository class extending the base repository with a valid alias
+  - **Acceptance criteria:** A newly created repository class extending the base repository with a valid alias
       declaration is resolvable via `RepositoryResolver::get('alias')` without any config file changes. This is verified
       by an integration test that creates a repository class and confirms resolution without a `repository_map` entry.
-    - **Traces to:** P1 (Every Repository Requires Manual Config Entry), Rank 1, Score 9
+  - **Traces to:** P1 (Every Repository Requires Manual Config Entry), Rank 1, Score 9
 
 - **R2: Stale entry elimination:** Developer is no longer exposed to stale config entries when repositories are renamed,
   moved, or deleted.
-    - **Acceptance criteria:** After removing a repository class file, the toolkit no longer attempts to resolve that
+  - **Acceptance criteria:** After removing a repository class file, the toolkit no longer attempts to resolve that
       repository. No config file cleanup is required. Attempting to resolve the removed repository's alias produces a "
       not found" error rather than a class-not-found error.
-    - **Traces to:** P2 (Stale Config Entries After Refactoring), Rank 10, Score 8
+  - **Traces to:** P2 (Stale Config Entries After Refactoring), Rank 10, Score 8
 
 - **R3: Config file reduction:** Developer's `api-toolkit.php` config file does not contain a `repository_map` array
   that grows with the application.
-    - **Acceptance criteria:** The published config file does not include a `repository_map` key that requires manual
+  - **Acceptance criteria:** The published config file does not include a `repository_map` key that requires manual
       per-repository entries. A project with 50 repositories has the same config file size as a project with 5
       repositories (excluding discovery path configuration, if applicable).
-    - **Traces to:** P3 (Config File Becomes Unwieldy at Scale), Rank 9, Score 8
+  - **Traces to:** P3 (Config File Becomes Unwieldy at Scale), Rank 9, Score 8
 
 - **R4: Explicit alias declaration with override capability:** Developer can declare an alias on each repository class
   that takes precedence over any convention-based default, ensuring the alias always matches developer intent.
-    - **Acceptance criteria:** A repository with an explicitly declared alias (e.g., `'factors'`) is registered under
+  - **Acceptance criteria:** A repository with an explicitly declared alias (e.g., `'factors'`) is registered under
       that exact alias regardless of the class name or model name. The declared alias is the alias returned by
       `RepositoryResolver::map()`.
-    - **Traces to:** P4 (Convention-Derived Aliases Diverge from Developer Intent), Rank 6, Score 8
+  - **Traces to:** P4 (Convention-Derived Aliases Diverge from Developer Intent), Rank 6, Score 8
 
 - **R5: Enforced alias contract:** Developer receives a clear error at boot time if a repository class does not declare
   a valid alias.
-    - **Acceptance criteria:** A repository class that extends the base repository without declaring an alias (or
+  - **Acceptance criteria:** A repository class that extends the base repository without declaring an alias (or
       declaring an empty alias) causes a boot-time error with a message identifying the class and explaining that an
       alias is required. The application does not boot successfully with an alias-less repository.
-    - **Traces to:** P5 (No Enforced Contract for Alias Declaration), Rank 7, Score 7
+  - **Traces to:** P5 (No Enforced Contract for Alias Declaration), Rank 7, Score 7
 
 - **R6: Pre-instantiation alias reading:** Developer's alias declaration is readable by the discovery mechanism without
   instantiating the repository or its model.
-    - **Acceptance criteria:** During the discovery phase, no repository constructor is invoked and no Eloquent model is
+  - **Acceptance criteria:** During the discovery phase, no repository constructor is invoked and no Eloquent model is
       resolved from the container. Alias reading works even when the application's database is unavailable. This is
       verified by a test that confirms discovery completes without database connectivity.
-    - **Traces to:** P6 (Alias Derivation Requires Information Not Available Before Instantiation), Rank 4, Score 8
+  - **Traces to:** P6 (Alias Derivation Requires Information Not Available Before Instantiation), Rank 4, Score 8
 
 - **R7: Configurable discovery paths:** Developer can specify which directories the toolkit scans for repository
   classes, supporting modular and non-standard directory structures.
-    - **Acceptance criteria:** A developer with repositories in `modules/auth/Repositories/` and
+  - **Acceptance criteria:** A developer with repositories in `modules/auth/Repositories/` and
       `modules/billing/Repositories/` can configure these paths in the toolkit config and have all repositories in those
       directories discovered. Paths are specified as provided by the developer without opinionated normalization (no
       automatic appending of wildcards or suffixes). The default configuration works for a standard Laravel application
       without any path configuration.
-    - **Traces to:** P7 (Standard Laravel Path Assumptions Do Not Apply to Modular Apps), Rank 2, Score 8; P8 (No
+  - **Traces to:** P7 (Standard Laravel Path Assumptions Do Not Apply to Modular Apps), Rank 2, Score 8; P8 (No
       Standard Way to Tell a Package Where to Look), Rank 8, Score 7
 
 - **R8: Production-ready caching:** Developer can cache the discovery result so that production requests do not incur
   filesystem scanning overhead.
-    - **Acceptance criteria:** After running a cache command, subsequent application boots load the repository map from
+  - **Acceptance criteria:** After running a cache command, subsequent application boots load the repository map from
       the cache without scanning the filesystem. The cached boot path does not perform directory traversal, file
       reading, or reflection. The cache can be cleared via a separate command. Boot time with a cached discovery result
       is no slower than the current config-based approach.
-    - **Traces to:** P9 (Filesystem Scanning on Every Request Is Prohibitively Expensive for Production), Rank 3, Score
+  - **Traces to:** P9 (Filesystem Scanning on Every Request Is Prohibitively Expensive for Production), Rank 3, Score
       8
 
 - **R9: Duplicate alias detection with hard failure:** Developer receives a hard error at boot time when two or more
   repository classes declare the same alias.
-    - **Acceptance criteria:** When two repository classes declare the same alias, the application fails to boot. The
+  - **Acceptance criteria:** When two repository classes declare the same alias, the application fails to boot. The
       error is raised during the discovery/registration phase, not deferred to first use. The error occurs regardless of
       whether the repositories are in the same directory or different directories. Silent overwriting never occurs.
-    - **Traces to:** P12 (Duplicate Aliases Across Modules Produce No Error), Rank 5, Score 9
+  - **Traces to:** P12 (Duplicate Aliases Across Modules Produce No Error), Rank 5, Score 9
 
 - **R10: Actionable conflict error messages:** Developer receives an error message that identifies the conflicting
   alias, both conflicting class names with their file locations, and guidance on how to resolve the conflict.
-    - **Acceptance criteria:** The duplicate alias error message contains: (1) the alias that is duplicated, (2) the
+  - **Acceptance criteria:** The duplicate alias error message contains: (1) the alias that is duplicated, (2) the
       fully qualified class name of both conflicting repositories, (3) the file path of both conflicting repositories,
       and (4) a human-readable instruction on how to resolve the conflict (e.g., changing one of the aliases). The
       message is self-contained -- the developer does not need to search the codebase to identify the conflicting
       classes.
-    - **Traces to:** P13 (Conflict Error Messages Lack Actionable Context), Rank 13, Score 7
+  - **Traces to:** P13 (Conflict Error Messages Lack Actionable Context), Rank 13, Score 7
 
 - **R11: Discovery path configuration format:** Developer can specify discovery paths using a clear, documented
   configuration format that does not depend on host-application helpers.
-    - **Acceptance criteria:** Discovery paths are configured in the toolkit's config file using absolute paths or paths
+  - **Acceptance criteria:** Discovery paths are configured in the toolkit's config file using absolute paths or paths
       relative to the application's base path. The configuration does not reference `module_path()` or any other
       host-application helper. The configuration format is documented with examples for both standard and modular
       directory structures.
-    - **Traces to:** P8 (No Standard Way to Tell a Package Where to Look), Rank 8, Score 7
+  - **Traces to:** P8 (No Standard Way to Tell a Package Where to Look), Rank 8, Score 7
 
 ### Should Have (P1)
 
 - **R12: Consistent dev/prod discovery behavior:** Developer experiences the same set of discovered repositories in
   development and production, regardless of Composer autoloader optimization level.
-    - **Acceptance criteria:** The same repository classes are discovered whether or not
+  - **Acceptance criteria:** The same repository classes are discovered whether or not
       `composer dump-autoload --optimize` has been run. No repository is silently missed in development that would be
       found in production, or vice versa.
-    - **Traces to:** P10 (Composer Classmap Availability Differs Between Development and Production), Rank 11, Score 6
+  - **Traces to:** P10 (Composer Classmap Availability Differs Between Development and Production), Rank 11, Score 6
 
 - **R13: Cache management commands:** Developer can rebuild and clear the discovery cache via Artisan commands,
   following the same patterns as Laravel's `event:cache` and `event:clear`.
-    - **Acceptance criteria:** An Artisan command exists to build/rebuild the discovery cache. A separate Artisan
+  - **Acceptance criteria:** An Artisan command exists to build/rebuild the discovery cache. A separate Artisan
       command exists to clear the discovery cache. Both commands produce confirmation output indicating success. The
       cache command can be included in deployment scripts alongside `event:cache` and `route:cache`.
-    - **Traces to:** P11 (Cache Invalidation Is a Manual Burden), Rank 12, Score 6
+  - **Traces to:** P11 (Cache Invalidation Is a Manual Burden), Rank 12, Score 6
 
 - **R14: All conflicts reported at once:** Developer sees all duplicate alias conflicts in a single error, not one at a
   time.
-    - **Acceptance criteria:** When three repositories declare alias `'users'` and two repositories declare alias
+  - **Acceptance criteria:** When three repositories declare alias `'users'` and two repositories declare alias
       `'orders'`, the error message reports both the `'users'` conflict (with all three classes) and the `'orders'`
       conflict (with both classes) in a single exception. The developer does not need to fix one conflict, restart, and
       discover the next.
-    - **Traces to:** P14 (Reporting Only the First Conflict Forces Restart Loops), Rank 15, Score 6
+  - **Traces to:** P14 (Reporting Only the First Conflict Forces Restart Loops), Rank 15, Score 6
 
 - **R15: Repository introspection command:** Developer can run an Artisan command to list all discovered repositories
   with their aliases and source locations.
-    - **Acceptance criteria:** An Artisan command exists that displays a table of all registered repositories showing at
+  - **Acceptance criteria:** An Artisan command exists that displays a table of all registered repositories showing at
       minimum: alias, fully qualified class name, and file path. The command works in both cached and uncached modes.
       The output format is human-readable by default.
-    - **Traces to:** P15 (No Introspection Tooling for Discovered Repositories), Rank 16, Score 5
+  - **Traces to:** P15 (No Introspection Tooling for Discovered Repositories), Rank 16, Score 5
 
 - **R16: Cross-package coordination specification:** The PRD includes a clear specification of changes needed in
   `sinemacula/laravel-repositories` so the base package maintainer can create a companion PRD.
-    - **Acceptance criteria:** The Cross-Package Specification section of this PRD is detailed enough for the base
+  - **Acceptance criteria:** The Cross-Package Specification section of this PRD is detailed enough for the base
       package maintainer to understand what changes are needed, why, and what contract the API Toolkit depends on,
       without requiring additional discussion. See the Dependencies section below.
-    - **Traces to:** P16 (Alias Infrastructure May Require Changes to the Base Repository Package), Rank 14, Score 6
+  - **Traces to:** P16 (Alias Infrastructure May Require Changes to the Base Repository Package), Rank 14, Score 6
 
 ### Nice to Have (P2)
 
 - **R17: Manual registration coexistence:** Developer can use manual registration alongside autodiscovery during
   migration, with manually registered repositories taking precedence over discovered ones.
-    - **Acceptance criteria:** A repository registered via a manual mechanism takes precedence over a repository
+  - **Acceptance criteria:** A repository registered via a manual mechanism takes precedence over a repository
       discovered via autodiscovery if both claim the same alias. This allows incremental migration from manual to
       automatic registration.
 
