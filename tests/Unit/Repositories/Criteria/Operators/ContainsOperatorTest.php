@@ -52,7 +52,8 @@ class ContainsOperatorTest extends TestCase
     }
 
     /**
-     * Test that apply with a comma-separated string creates multiple conditions.
+     * Test that apply with a comma-separated string creates
+     * multiple conditions.
      *
      * @return void
      */

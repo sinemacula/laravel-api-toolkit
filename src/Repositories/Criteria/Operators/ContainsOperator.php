@@ -25,9 +25,11 @@ final class ContainsOperator implements FilterOperator
      * @param  \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext  $context
      * @return void
      */
+    #[\Override]
     public function apply(Builder $query, string $column, mixed $value, FilterContext $context): void
     {
         if (is_array($value) || is_object($value) || (is_string($value) && !empty($value) && json_validate($value))) {
+
             $query->whereJsonContains($column, $value);
             return;
         }

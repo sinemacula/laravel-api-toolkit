@@ -23,6 +23,7 @@ final class BetweenOperator implements FilterOperator
      * @param  \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext  $context
      * @return void
      */
+    #[\Override]
     public function apply(Builder $query, string $column, mixed $value, FilterContext $context): void
     {
         if (!is_array($value) || count($value) !== 2) {

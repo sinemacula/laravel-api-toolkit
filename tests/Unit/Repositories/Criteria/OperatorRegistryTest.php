@@ -214,6 +214,12 @@ class OperatorRegistryTest extends TestCase
      */
     private function createStubOperator(): FilterOperator
     {
+        /**
+         * Stub FilterOperator for testing.
+         *
+         * @author      Ben Carey <bdmc@sinemacula.co.uk>
+         * @copyright   2026 Sine Macula Limited.
+         */
         return new class implements FilterOperator {
             /**
              * No-op operator for testing.

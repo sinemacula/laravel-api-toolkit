@@ -23,6 +23,7 @@ final class InOperator implements FilterOperator
      * @param  \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext  $context
      * @return void
      */
+    #[\Override]
     public function apply(Builder $query, string $column, mixed $value, FilterContext $context): void
     {
         $query->whereIn($column, (array) $value);

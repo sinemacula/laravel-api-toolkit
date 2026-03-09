@@ -68,6 +68,7 @@ final class FilterApplier
         }
 
         foreach ($filters as $key => $value) {
+
             if ($key === '$has' || $key === self::OPERATOR_HASNT || $this->operatorRegistry->has($key)) {
                 $this->applyConditionOperator($query, $key, $value, $field, $context);
             } elseif (array_key_exists($key, $this->logicalOperatorMap)) {
@@ -116,6 +117,7 @@ final class FilterApplier
     private function applyConditionOperator(Builder $query, string $operator, mixed $value, ?string $field, FilterContext $context): void
     {
         if (in_array($operator, ['$has', self::OPERATOR_HASNT], true)) {
+
             $this->applyHasFilter($query, $value, $operator, $context);
             return;
         }
@@ -148,6 +150,7 @@ final class FilterApplier
 
         $query->{$method}(function (Builder $query) use ($value, $nested): void {
             foreach ($value as $subKey => $subValue) {
+
                 if ($subKey === '$has' || $subKey === self::OPERATOR_HASNT || $this->operatorRegistry->has($subKey)) {
                     $this->applyConditionOperator($query, $subKey, $subValue, null, $nested);
                 } elseif (array_key_exists($subKey, $this->logicalOperatorMap)) {

@@ -104,6 +104,12 @@ final class OperatorRegistry
      */
     private function wrapClosure(\Closure $closure): FilterOperator // @phpstan-ignore missingType.callable
     {
+        /**
+         * Closure-backed FilterOperator adapter.
+         *
+         * @author      Ben Carey <bdmc@sinemacula.co.uk>
+         * @copyright   2026 Sine Macula Limited.
+         */
         return new class ($closure) implements FilterOperator {
             /**
              * Constructor.
@@ -112,7 +118,10 @@ final class OperatorRegistry
              * @return void
              */
             public function __construct(// @phpstan-ignore missingType.callable
+
+                /** @var \Closure */
                 private readonly \Closure $closure,
+
             ) {}
 
             /**
@@ -124,6 +133,7 @@ final class OperatorRegistry
              * @param  \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext  $context
              * @return void
              */
+            #[\Override]
             public function apply(Builder $query, string $column, mixed $value, FilterContext $context): void
             {
                 ($this->closure)($query, $column, $value, $context);

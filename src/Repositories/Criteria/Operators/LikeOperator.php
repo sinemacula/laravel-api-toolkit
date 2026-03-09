@@ -23,6 +23,7 @@ final class LikeOperator implements FilterOperator
      * @param  \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext  $context
      * @return void
      */
+    #[\Override]
     public function apply(Builder $query, string $column, mixed $value, FilterContext $context): void
     {
         $method = $context->getLogicalOperator() === '$or' ? 'orWhere' : 'where';
