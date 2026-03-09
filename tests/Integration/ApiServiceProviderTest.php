@@ -15,6 +15,7 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\ApiQueryParser;
 use SineMacula\ApiToolkit\ApiServiceProvider;
 use SineMacula\ApiToolkit\Http\Middleware\JsonPrettyPrint;
+use SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry;
 use Tests\TestCase;
 
 /**
@@ -252,6 +253,37 @@ class ApiServiceProviderTest extends TestCase
         $morph_map = Relation::morphMap();
 
         static::assertArrayNotHasKey(\stdClass::class, $morph_map);
+    }
+
+    /**
+     * Test that the OperatorRegistry is registered as a singleton with
+     * built-in operators.
+     *
+     * @return void
+     */
+    public function testOperatorRegistryIsRegisteredAsSingleton(): void
+    {
+        $app      = $this->getApplication();
+        $registry = $app->make(OperatorRegistry::class);
+
+        static::assertInstanceOf(OperatorRegistry::class, $registry);
+
+        // Same instance on second resolve (singleton)
+        static::assertSame($registry, $app->make(OperatorRegistry::class));
+
+        // Built-in operators are pre-registered
+        static::assertTrue($registry->has('$eq'));
+        static::assertTrue($registry->has('$neq'));
+        static::assertTrue($registry->has('$gt'));
+        static::assertTrue($registry->has('$lt'));
+        static::assertTrue($registry->has('$ge'));
+        static::assertTrue($registry->has('$le'));
+        static::assertTrue($registry->has('$like'));
+        static::assertTrue($registry->has('$in'));
+        static::assertTrue($registry->has('$between'));
+        static::assertTrue($registry->has('$contains'));
+        static::assertTrue($registry->has('$null'));
+        static::assertTrue($registry->has('$notNull'));
     }
 
     /**
