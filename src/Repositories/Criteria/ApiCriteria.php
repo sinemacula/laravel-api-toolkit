@@ -47,6 +47,7 @@ class ApiCriteria implements CriteriaInterface
      * @param  \Illuminate\Http\Request  $request
      * @param  \SineMacula\ApiToolkit\Contracts\ResourceMetadataProvider  $metadataProvider
      * @param  \SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider  $schemaIntrospector
+     * @param  \SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry  $operatorRegistry
      * @return void
      */
     public function __construct(
@@ -59,6 +60,9 @@ class ApiCriteria implements CriteriaInterface
 
         /** Validates column searchability and relation existence */
         private readonly SchemaIntrospectionProvider $schemaIntrospector,
+
+        /** Registry of filter operator handlers */
+        private readonly OperatorRegistry $operatorRegistry,
 
     ) {
         $this->filterApplier    = new FilterApplier;
@@ -78,7 +82,7 @@ class ApiCriteria implements CriteriaInterface
     {
         $query = $model instanceof Model ? $model->query() : $model;
 
-        $query = $this->filterApplier->apply($query, $this->getFilters(), $this->schemaIntrospector);
+        $query = $this->filterApplier->apply($query, $this->getFilters(), $this->schemaIntrospector, $this->operatorRegistry);
         $query = $this->eagerLoadApplier->apply($query, $this->metadataProvider, $this->resolveResource($query->getModel()), $this->getResourceType($query->getModel()));
 
         $query = $this->limitApplier->apply($query, $this->getLimit());
