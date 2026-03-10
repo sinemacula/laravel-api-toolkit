@@ -15,6 +15,7 @@ use Tests\Fixtures\Models\Organization;
 use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\Tag;
 use Tests\Fixtures\Models\User;
+use Tests\Fixtures\Repositories\CacheableTagRepository;
 use Tests\Fixtures\Repositories\DummyRepository;
 use Tests\Fixtures\Repositories\UserRepository;
 use Tests\Fixtures\Resources\UserResource;
@@ -506,6 +507,47 @@ class ApiRepositoryTest extends TestCase
         $result = $repository->setAttributes($user, ['status' => UserStatus::BANNED]);
 
         static::assertTrue($result);
+    }
+
+    /**
+     * Test that an ApiRepository subclass without the Cacheable trait
+     * reads directly from the database.
+     *
+     * @return void
+     */
+    public function testApiRepositorySubclassWorksWithoutCacheableTrait(): void
+    {
+        User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL]);
+
+        $result = $this->repository->get(); // @phpstan-ignore staticMethod.dynamicCall
+
+        static::assertCount(1, $result);
+        static::assertSame('Alice', $result->first()?->name); // @phpstan-ignore property.notFound
+    }
+
+    /**
+     * Test that an ApiRepository subclass with the Cacheable trait
+     * returns cached data on subsequent reads.
+     *
+     * @return void
+     */
+    public function testApiRepositorySubclassWithCacheableTraitReturnsCachedData(): void
+    {
+        Config::set('cache.default', 'array');
+
+        Tag::create(['name' => 'php']);
+        Tag::create(['name' => 'laravel']);
+
+        assert($this->app !== null);
+
+        $repository = $this->app->make(CacheableTagRepository::class);
+
+        $firstRead  = $repository->get(); // @phpstan-ignore staticMethod.dynamicCall
+        $secondRead = $repository->get(); // @phpstan-ignore staticMethod.dynamicCall
+
+        static::assertCount(2, $firstRead);
+        static::assertCount(2, $secondRead);
+        static::assertTrue($repository->getCacheStatus()->isPopulated());
     }
 
     /**
