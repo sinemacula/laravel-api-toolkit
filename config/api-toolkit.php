@@ -159,6 +159,33 @@ return [
 
     /*
     |---------------------------------------------------------------------------
+    | Deferred Writes Configuration
+    |---------------------------------------------------------------------------
+    |
+    | This section configures the deferred write pool, which buffers insert
+    | operations in memory and flushes them as bulk INSERT statements at the
+    | end of the request lifecycle. The pool is opt-in per repository via the
+    | Deferrable trait.
+    |
+    | `chunk_size` controls the maximum number of records per INSERT statement.
+    | This should stay below the database parameter binding limit divided by
+    | the number of columns in the widest deferred table.
+    |
+    | `pool_limit` sets the maximum number of total buffered records before
+    | an automatic flush is triggered, preventing unbounded memory growth.
+    |
+    */
+
+    'deferred_writes' => [
+
+        'chunk_size' => (int) env('DEFERRED_WRITES_CHUNK_SIZE', 500),
+
+        'pool_limit' => (int) env('DEFERRED_WRITES_POOL_LIMIT', 10000),
+
+    ],
+
+    /*
+    |---------------------------------------------------------------------------
     | API Notification Configuration
     |---------------------------------------------------------------------------
     |
