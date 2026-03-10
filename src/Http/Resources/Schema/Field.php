@@ -140,10 +140,10 @@ final class Field extends BaseDefinition
     /**
      * Merge multiple field definitions into a single normalized array.
      *
-     * Later definitions overwrite earlier ones for the same field key.
-     *
      * @param  array<int, array<string, array>|Arrayable>  ...$definitions
      * @return array<string, array>
+     *
+     * @throws \RuntimeException If a duplicate key is detected
      */
     public static function set(array|Arrayable ...$definitions): array
     {
@@ -154,6 +154,11 @@ final class Field extends BaseDefinition
             $definition = $definition instanceof Arrayable ? $definition->toArray() : $definition;
 
             foreach ($definition as $key => $value) {
+
+                if (array_key_exists($key, $compiled)) {
+                    throw new \RuntimeException(sprintf('Duplicate schema key "%s" detected in Field::set()', $key));
+                }
+
                 $compiled[$key] = $value;
             }
         }

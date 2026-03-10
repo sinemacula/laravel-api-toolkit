@@ -242,20 +242,67 @@ class FieldTest extends TestCase
     }
 
     /**
-     * Test that set overwrites earlier definitions with later ones.
+     * Test that set throws on duplicate key from separate definitions.
      *
      * @return void
      */
-    public function testSetOverwritesEarlierWithLater(): void
+    public function testSetThrowsOnDuplicateKeyFromSeparateDefinitions(): void
     {
-        $accessor = fn ($resource) => 'computed';
+        $this->expectException(\RuntimeException::class);
 
+        Field::set(
+            Field::scalar('name'),
+            Field::accessor('name', fn ($resource) => 'computed'),
+        );
+    }
+
+    /**
+     * Test that set throws on duplicate key from Arrayable and scalar.
+     *
+     * @return void
+     */
+    public function testSetThrowsOnDuplicateKeyFromArrayableAndScalar(): void
+    {
+        $this->expectException(\RuntimeException::class);
+
+        Field::set(
+            Field::scalar('email'),
+            ['email' => []],
+        );
+    }
+
+    /**
+     * Test that set accepts unique keys without exception.
+     *
+     * @return void
+     */
+    public function testSetAcceptsUniqueKeysWithoutException(): void
+    {
         $result = Field::set(
             Field::scalar('name'),
-            Field::accessor('name', $accessor),
+            Field::scalar('email'),
+            Field::scalar('status'),
         );
 
-        static::assertSame($accessor, $result['name']['accessor']);
+        static::assertArrayHasKey('name', $result);
+        static::assertArrayHasKey('email', $result);
+        static::assertArrayHasKey('status', $result);
+    }
+
+    /**
+     * Test that set exception message contains the duplicate key name.
+     *
+     * @return void
+     */
+    public function testSetExceptionMessageContainsDuplicateKeyName(): void
+    {
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('Duplicate schema key "title" detected in Field::set()');
+
+        Field::set(
+            Field::scalar('title'),
+            Field::scalar('title'),
+        );
     }
 
     /**
