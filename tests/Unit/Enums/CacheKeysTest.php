@@ -98,7 +98,7 @@ class CacheKeysTest extends TestCase
      */
     public function testExpectedCaseCount(): void
     {
-        static::assertCount(6, CacheKeys::cases());
+        static::assertCount(4, CacheKeys::cases());
     }
 
     /**
@@ -112,7 +112,5 @@ class CacheKeysTest extends TestCase
         yield 'MODEL_SCHEMA_COLUMNS' => [CacheKeys::MODEL_SCHEMA_COLUMNS, 'model-schema-columns:%s'];
         yield 'MODEL_RELATIONS' => [CacheKeys::MODEL_RELATIONS, 'model-relations:%s:%s'];
         yield 'MODEL_RESOURCES' => [CacheKeys::MODEL_RESOURCES, 'model-resources:%s'];
-        yield 'MODEL_EAGER_LOADS' => [CacheKeys::MODEL_EAGER_LOADS, 'model-eager-loads:%s:%s'];
-        yield 'MODEL_RELATION_INSTANCES' => [CacheKeys::MODEL_RELATION_INSTANCES, 'model-relation-instances:%s:%s'];
     }
 }

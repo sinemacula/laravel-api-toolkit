@@ -72,8 +72,9 @@ class ApiRepositoryIntegrationTest extends TestCase
         /** @var \Tests\Fixtures\Models\User $user */
         $user = User::where('name', 'Alice')->first();
 
-        $reflection = new \ReflectionProperty($this->repository, 'casts');
-        $reflection->setValue($this->repository, ['name' => 'string']);
+        $reflection      = new \ReflectionClass(ApiRepository::class);
+        $attributeSetter = $reflection->getProperty('attributeSetter')->getValue($this->repository);
+        (new \ReflectionProperty($attributeSetter, 'casts'))->setValue($attributeSetter, ['name' => 'string']);
 
         $result = $this->repository->setAttributes($user, ['name' => 'Alice Updated']);
 
