@@ -23,7 +23,6 @@ final class CacheManager
      * Create a new cache manager instance.
      *
      * @param  \Illuminate\Contracts\Container\Container  $container
-     *
      * @return void
      */
     public function __construct(
@@ -40,7 +39,7 @@ final class CacheManager
      */
     public function flush(): void
     {
-        Cache::memo()->flush(); // @phpstan-ignore method.notFound
+        Cache::memo()->flush();
 
         SchemaCompiler::clearCache();
 

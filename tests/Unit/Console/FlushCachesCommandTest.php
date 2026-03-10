@@ -33,8 +33,7 @@ class FlushCachesCommandTest extends TestCase
         Event::fake();
 
         $this->artisan(self::COMMAND)
-            ->expectsOutputToContain('All API toolkit caches have been flushed.'); // @phpstan-ignore method.nonObject
-
+            ->expectsOutputToContain('All API toolkit caches have been flushed.');
         Event::assertDispatched(CacheFlushed::class);
     }
 
@@ -48,6 +47,5 @@ class FlushCachesCommandTest extends TestCase
         Event::fake();
 
         $this->artisan(self::COMMAND)
-            ->assertExitCode(0); // @phpstan-ignore method.nonObject
-    }
+            ->assertExitCode(0);    }
 }

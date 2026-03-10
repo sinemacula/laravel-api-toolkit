@@ -431,7 +431,7 @@ class ApiServiceProvider extends ServiceProvider
      */
     private function registerOctaneFlushListener(): void
     {
-        if (!Config::get('api-toolkit.lifecycle.octane')) {
+        if (!(bool) Config::get('api-toolkit.lifecycle.octane')) {
             return;
         }
 
@@ -449,7 +449,7 @@ class ApiServiceProvider extends ServiceProvider
      */
     private function registerQueueFlushSubscriber(): void
     {
-        if (!Config::get('api-toolkit.lifecycle.queue')) {
+        if (!(bool) Config::get('api-toolkit.lifecycle.queue')) {
             return;
         }
 

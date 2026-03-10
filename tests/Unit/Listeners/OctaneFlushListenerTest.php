@@ -35,8 +35,7 @@ class OctaneFlushListenerTest extends TestCase
             ->shouldReceive('flush')
             ->once();
 
-        $cacheManager = $this->app->make(CacheManager::class); // @phpstan-ignore method.nonObject
-        $listener     = new OctaneFlushListener($cacheManager);
+        $cacheManager = $this->app->make(CacheManager::class);        $listener     = new OctaneFlushListener($cacheManager);
 
         $key = 'octane-flush-test';
 
