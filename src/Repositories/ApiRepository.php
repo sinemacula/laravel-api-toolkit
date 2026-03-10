@@ -103,17 +103,22 @@ abstract class ApiRepository extends Repository
     }
 
     /**
-     * Set the attributes for the given model.
+     * Persist the given attributes to the model.
+     *
+     * This method handles both create and update operations
+     * transparently. Attributes are cast-resolved, BelongsTo and
+     * MorphTo relations are associated, and BelongsToMany and
+     * MorphToMany relations are synced after the model is saved.
      *
      * @param  \Illuminate\Database\Eloquent\Model  $model
      * @param  array|\Illuminate\Support\Collection  $attributes
      * @return bool
      */
-    public function setAttributes(Model $model, array|Collection $attributes): bool
+    public function persist(Model $model, array|Collection $attributes): bool
     {
         $attributes = $attributes instanceof Collection ? $attributes->all() : $attributes;
 
-        return $this->attributeSetter->setAttributes($model, $attributes, $this->model());
+        return $this->attributeSetter->persist($model, $attributes, $this->model());
     }
 
     /**

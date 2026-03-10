@@ -175,29 +175,29 @@ class ApiRepositoryTest extends TestCase
     }
 
     /**
-     * Test that setAttributes sets string attributes on the model.
+     * Test that persist sets string attributes on the model.
      *
      * @return void
      */
-    public function testSetAttributesSetsStringAttributes(): void
+    public function testPersistSetsStringAttributes(): void
     {
         $user = User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL]);
 
         $attributeSetter = $this->getAttributeSetter($this->repository);
         $this->setProperty($attributeSetter, 'casts', ['name' => 'string']);
 
-        $result = $this->repository->setAttributes($user, ['name' => 'Bob']);
+        $result = $this->repository->persist($user, ['name' => 'Bob']);
 
         static::assertTrue($result);
         static::assertSame('Bob', $user->fresh()?->name);
     }
 
     /**
-     * Test that setAttributes sets integer attributes on the model.
+     * Test that persist sets integer attributes on the model.
      *
      * @return void
      */
-    public function testSetAttributesSetsIntegerAttributes(): void
+    public function testPersistSetsIntegerAttributes(): void
     {
         Config::set('api-toolkit.repositories.cast_map.integer', ['integer', 'int']);
 
@@ -210,18 +210,18 @@ class ApiRepositoryTest extends TestCase
         $attributeSetter = $this->getAttributeSetter($repository);
         $this->setProperty($attributeSetter, 'casts', ['organization_id' => 'integer']);
 
-        $result = $repository->setAttributes($user, ['organization_id' => '5']);
+        $result = $repository->persist($user, ['organization_id' => '5']);
 
         static::assertTrue($result);
         static::assertSame(5, $user->fresh()?->organization_id);
     }
 
     /**
-     * Test that setAttributes sets boolean attributes on the model.
+     * Test that persist sets boolean attributes on the model.
      *
      * @return void
      */
-    public function testSetAttributesSetsBooleanAttributes(): void
+    public function testPersistSetsBooleanAttributes(): void
     {
         $post = Post::create([
             'user_id' => User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL])->id,
@@ -236,43 +236,43 @@ class ApiRepositoryTest extends TestCase
         $attributeSetter = $this->getAttributeSetter($repository);
         $this->setProperty($attributeSetter, 'casts', ['published' => 'boolean']);
 
-        $result = $repository->setAttributes($post, ['published' => true]);
+        $result = $repository->persist($post, ['published' => true]);
 
         static::assertTrue($result);
         static::assertTrue($post->fresh()?->published === true);
     }
 
     /**
-     * Test that setAttributes handles array attributes on the model.
+     * Test that persist handles array attributes on the model.
      *
      * @return void
      */
-    public function testSetAttributesHandlesArrayAttributes(): void
+    public function testPersistHandlesArrayAttributes(): void
     {
         $user = User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL]);
 
         $attributeSetter = $this->getAttributeSetter($this->repository);
         $this->setProperty($attributeSetter, 'casts', ['name' => 'string']);
 
-        $result = $this->repository->setAttributes($user, ['name' => 'Updated']);
+        $result = $this->repository->persist($user, ['name' => 'Updated']);
 
         static::assertTrue($result);
         static::assertSame('Updated', $user->fresh()?->name);
     }
 
     /**
-     * Test that setAttributes handles enum casting.
+     * Test that persist handles enum casting.
      *
      * @return void
      */
-    public function testSetAttributesHandlesEnumCasting(): void
+    public function testPersistHandlesEnumCasting(): void
     {
         $user = User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL, 'status' => 'active']);
 
         $attributeSetter = $this->getAttributeSetter($this->repository);
         $this->setProperty($attributeSetter, 'casts', ['status' => 'enum']);
 
-        $result = $this->repository->setAttributes($user, ['status' => UserStatus::BANNED]);
+        $result = $this->repository->persist($user, ['status' => UserStatus::BANNED]);
 
         static::assertTrue($result);
         // @phpstan-ignore staticMethod.impossibleType
@@ -326,28 +326,28 @@ class ApiRepositoryTest extends TestCase
     }
 
     /**
-     * Test that setAttributes handles array cast attributes.
+     * Test that persist handles array cast attributes.
      *
      * @return void
      */
-    public function testSetAttributesSetsArrayAttributes(): void
+    public function testPersistSetsArrayAttributes(): void
     {
         $user = User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL]);
 
         $attributeSetter = $this->getAttributeSetter($this->repository);
         $this->setProperty($attributeSetter, 'casts', ['name' => 'array']);
 
-        $result = $this->repository->setAttributes($user, ['name' => ['first', 'last']]);
+        $result = $this->repository->persist($user, ['name' => ['first', 'last']]);
 
         static::assertTrue($result);
     }
 
     /**
-     * Test that setAttributes handles associate cast (BelongsTo relation).
+     * Test that persist handles associate cast (BelongsTo relation).
      *
      * @return void
      */
-    public function testSetAttributesSetsAssociateAttribute(): void
+    public function testPersistSetsAssociateAttribute(): void
     {
         $org  = Organization::create(['name' => 'Acme', 'slug' => 'acme']);
         $user = User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL]);
@@ -355,18 +355,18 @@ class ApiRepositoryTest extends TestCase
         $attributeSetter = $this->getAttributeSetter($this->repository);
         $this->setProperty($attributeSetter, 'casts', ['organization' => 'associate']);
 
-        $result = $this->repository->setAttributes($user, ['organization' => $org->id]);
+        $result = $this->repository->persist($user, ['organization' => $org->id]);
 
         static::assertTrue($result);
         static::assertSame($org->id, $user->organization_id);
     }
 
     /**
-     * Test that setAttributes handles sync cast (BelongsToMany relation).
+     * Test that persist handles sync cast (BelongsToMany relation).
      *
      * @return void
      */
-    public function testSetAttributesSyncAttribute(): void
+    public function testPersistSyncAttribute(): void
     {
         $user = User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL]);
         $post = Post::create(['user_id' => $user->id, 'title' => 'T', 'body' => 'B']);
@@ -379,18 +379,18 @@ class ApiRepositoryTest extends TestCase
         $attributeSetter = $this->getAttributeSetter($repository);
         $this->setProperty($attributeSetter, 'casts', ['tags' => 'sync']);
 
-        $result = $repository->setAttributes($post, ['tags' => collect([$tag])]);
+        $result = $repository->persist($post, ['tags' => collect([$tag])]);
 
         static::assertTrue($result);
         static::assertCount(1, $post->fresh()?->tags()->get() ?? collect([]));
     }
 
     /**
-     * Test that setAttributes with a sync cast using an array of IDs.
+     * Test that persist with a sync cast using an array of IDs.
      *
      * @return void
      */
-    public function testSetAttributesSyncAttributeWithArrayOfIds(): void
+    public function testPersistSyncAttributeWithArrayOfIds(): void
     {
         $user = User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL]);
         $post = Post::create(['user_id' => $user->id, 'title' => 'T', 'body' => 'B']);
@@ -403,7 +403,7 @@ class ApiRepositoryTest extends TestCase
         $attributeSetter = $this->getAttributeSetter($repository);
         $this->setProperty($attributeSetter, 'casts', ['tags' => 'sync']);
 
-        $result = $repository->setAttributes($post, ['tags' => [$tag->getKey()]]);
+        $result = $repository->persist($post, ['tags' => [$tag->getKey()]]);
 
         static::assertTrue($result);
     }
@@ -439,30 +439,30 @@ class ApiRepositoryTest extends TestCase
     }
 
     /**
-     * Test that setAttributes auto-discovers BelongsTo cast via reflection
+     * Test that persist auto-discovers BelongsTo cast via reflection
      * when the attribute is not pre-cached.
      *
      * @return void
      */
-    public function testSetAttributesAutoDiscoversBelongsToRelationCast(): void
+    public function testPersistAutoDiscoversBelongsToRelationCast(): void
     {
         $org  = Organization::create(['name' => 'AutoOrg', 'slug' => 'auto-org']);
         $user = User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL]);
 
         // No 'organization' pre-set in casts — resolveCastForAttribute discovers
         // it through resolveCastForRelation (line 220).
-        $result = $this->repository->setAttributes($user, ['organization' => $org->id]);
+        $result = $this->repository->persist($user, ['organization' => $org->id]);
 
         static::assertTrue($result);
     }
 
     /**
-     * Test that setAttributes auto-discovers BelongsToMany cast via
+     * Test that persist auto-discovers BelongsToMany cast via
      * resolveCastForRelation on Post.tags().
      *
      * @return void
      */
-    public function testSetAttributesAutoDiscoversBelongsToManyCast(): void
+    public function testPersistAutoDiscoversBelongsToManyCast(): void
     {
         $user = User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL]);
         $post = Post::create(['user_id' => $user->id, 'title' => 'T', 'body' => 'B']);
@@ -472,7 +472,7 @@ class ApiRepositoryTest extends TestCase
 
         $repository = $this->app->make(DummyRepository::class);
 
-        $result = $repository->setAttributes($post, ['tags' => [$tag->getKey()]]);
+        $result = $repository->persist($post, ['tags' => [$tag->getKey()]]);
 
         static::assertTrue($result);
     }
@@ -504,7 +504,7 @@ class ApiRepositoryTest extends TestCase
         $attributeSetter = $this->getAttributeSetter($repository);
         $this->setProperty($attributeSetter, 'casts', []);
 
-        $result = $repository->setAttributes($user, ['status' => UserStatus::BANNED]);
+        $result = $repository->persist($user, ['status' => UserStatus::BANNED]);
 
         static::assertTrue($result);
     }

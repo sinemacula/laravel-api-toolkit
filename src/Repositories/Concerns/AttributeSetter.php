@@ -41,15 +41,15 @@ final class AttributeSetter
     ) {}
 
     /**
-     * Set the attributes on the given model, deferring sync relations
-     * until after the model is saved.
+     * Persist the given attributes to the model, deferring sync
+     * relations until after the model is saved.
      *
      * @param  \Illuminate\Database\Eloquent\Model  $model
      * @param  array<string, mixed>  $attributes
      * @param  string  $modelClass
      * @return bool
      */
-    public function setAttributes(Model $model, array $attributes, string $modelClass): bool
+    public function persist(Model $model, array $attributes, string $modelClass): bool
     {
         $syncAttributes = [];
 
