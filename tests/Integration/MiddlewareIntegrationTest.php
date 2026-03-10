@@ -2,6 +2,7 @@
 
 namespace Tests\Integration;
 
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -22,7 +23,8 @@ use Tests\TestCase;
 #[CoversClass(JsonPrettyPrint::class)]
 class MiddlewareIntegrationTest extends TestCase
 {
-    private const TEST_URL = '/test';
+    /** @var string The shared test URI. */
+    private const TEST_URI = '/test';
 
     /**
      * Test that ParseApiQuery middleware populates API query parser.
@@ -31,7 +33,7 @@ class MiddlewareIntegrationTest extends TestCase
      */
     public function testParseApiQueryMiddlewarePopulatesParser(): void
     {
-        $request = Request::create(self::TEST_URL, 'GET', [
+        $request = Request::create(self::TEST_URI, 'GET', [
             'page'  => '3',
             'limit' => '25',
             'order' => 'name:desc',
@@ -59,15 +61,14 @@ class MiddlewareIntegrationTest extends TestCase
      */
     public function testJsonPrettyPrintMiddlewarePrettyPrintsWhenRequested(): void
     {
-        $request = Request::create(self::TEST_URL, 'GET', ['pretty' => '1']);
+        $request = Request::create(self::TEST_URI, 'GET', ['pretty' => '1']);
 
-        $middleware = new JsonPrettyPrint;
-        $payload    = json_encode(['key' => 'value']);
-        $response   = new Response($payload, 200, ['Content-Type' => 'application/json']);
+        $middleware   = new JsonPrettyPrint;
+        $jsonResponse = new JsonResponse(['key' => 'value']);
 
-        $result = $middleware->handle($request, fn () => $response);
+        $response = $middleware->handle($request, fn () => $jsonResponse);
 
-        $content = $result->getContent();
+        $content = $response->getContent();
 
         static::assertStringContainsString("\n", $content);
         static::assertSame(json_encode(['key' => 'value'], JSON_PRETTY_PRINT), $content);
@@ -80,24 +81,24 @@ class MiddlewareIntegrationTest extends TestCase
      */
     public function testFullMiddlewareChainWorksEndToEnd(): void
     {
-        $request = Request::create(self::TEST_URL, 'GET', [
+        $request = Request::create(self::TEST_URI, 'GET', [
             'page'   => '2',
             'limit'  => '10',
             'pretty' => '1',
         ]);
 
-        $parse_middleware  = new ParseApiQuery;
-        $pretty_middleware = new JsonPrettyPrint;
+        $parseMiddleware  = new ParseApiQuery;
+        $prettyMiddleware = new JsonPrettyPrint;
 
-        $response = $parse_middleware->handle($request, function ($req) use ($pretty_middleware) {
-            return $pretty_middleware->handle($req, function () {
+        $response = $parseMiddleware->handle($request, function ($request) use ($prettyMiddleware) {
+            return $prettyMiddleware->handle($request, function () {
                 /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
                 $parser = app('api.query');
 
-                return new Response(json_encode([
+                return new JsonResponse([
                     'page'  => $parser->getPage(),
                     'limit' => $parser->getLimit(),
-                ]));
+                ]);
             });
         });
 
@@ -106,7 +107,6 @@ class MiddlewareIntegrationTest extends TestCase
         static::assertSame(2, $content['page']);
         static::assertSame(10, $content['limit']);
 
-        // Verify pretty printing was applied
         static::assertStringContainsString("\n", $response->getContent());
     }
 }
