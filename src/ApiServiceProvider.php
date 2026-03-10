@@ -21,7 +21,9 @@ use SineMacula\ApiToolkit\Http\Middleware\PreventRequestsDuringMaintenance;
 use SineMacula\ApiToolkit\Http\Middleware\ThrottleRequests;
 use SineMacula\ApiToolkit\Http\Middleware\ThrottleRequestsWithRedis;
 use SineMacula\ApiToolkit\Listeners\NotificationListener;
+use SineMacula\ApiToolkit\Listeners\WritePoolFlushSubscriber;
 use SineMacula\ApiToolkit\Logging\CloudWatchLogger;
+use SineMacula\ApiToolkit\Repositories\Concerns\WritePool;
 use SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry;
 use SineMacula\ApiToolkit\Repositories\Criteria\Operators\BetweenOperator;
 use SineMacula\ApiToolkit\Repositories\Criteria\Operators\ContainsOperator;
@@ -71,6 +73,7 @@ class ApiServiceProvider extends ServiceProvider
         $this->registerMiddleware();
         $this->registerCloudwatchLogger();
         $this->registerNotificationLogging();
+        $this->registerWritePoolFlushSubscriber();
     }
 
     /**
@@ -93,6 +96,7 @@ class ApiServiceProvider extends ServiceProvider
         $this->registerSchemaIntrospector();
         $this->registerOperatorRegistry();
         $this->registerSchemaValidator();
+        $this->registerWritePool();
 
         $this->commands([
             ValidateSchemasCommand::class,
@@ -376,5 +380,28 @@ class ApiServiceProvider extends ServiceProvider
         }
 
         $this->app->make(SchemaValidator::class)->validate($resourceMap);
+    }
+
+    /**
+     * Bind the WritePool to the service container as a scoped singleton.
+     *
+     * @return void
+     */
+    private function registerWritePool(): void
+    {
+        $this->app->scoped(WritePool::class, fn (): WritePool => new WritePool(
+            (int) Config::get('api-toolkit.deferred_writes.chunk_size', 500),
+            (int) Config::get('api-toolkit.deferred_writes.pool_limit', 10000),
+        ));
+    }
+
+    /**
+     * Subscribe the write pool flush subscriber to lifecycle events.
+     *
+     * @return void
+     */
+    private function registerWritePoolFlushSubscriber(): void
+    {
+        Event::subscribe(WritePoolFlushSubscriber::class);
     }
 }
