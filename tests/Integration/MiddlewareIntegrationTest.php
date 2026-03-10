@@ -2,6 +2,7 @@
 
 namespace Tests\Integration;
 
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -22,6 +23,7 @@ use Tests\TestCase;
 #[CoversClass(JsonPrettyPrint::class)]
 class MiddlewareIntegrationTest extends TestCase
 {
+    /** @var string The shared test URL. */
     private const TEST_URL = '/test';
 
     /**
@@ -61,11 +63,10 @@ class MiddlewareIntegrationTest extends TestCase
     {
         $request = Request::create(self::TEST_URL, 'GET', ['pretty' => '1']);
 
-        $middleware = new JsonPrettyPrint;
-        $payload    = json_encode(['key' => 'value']);
-        $response   = new Response($payload, 200, ['Content-Type' => 'application/json']);
+        $middleware   = new JsonPrettyPrint;
+        $jsonResponse = new JsonResponse(['key' => 'value']);
 
-        $result = $middleware->handle($request, fn () => $response);
+        $result = $middleware->handle($request, fn () => $jsonResponse);
 
         $content = $result->getContent();
 
@@ -86,18 +87,18 @@ class MiddlewareIntegrationTest extends TestCase
             'pretty' => '1',
         ]);
 
-        $parse_middleware  = new ParseApiQuery;
-        $pretty_middleware = new JsonPrettyPrint;
+        $parseMiddleware  = new ParseApiQuery;
+        $prettyMiddleware = new JsonPrettyPrint;
 
-        $response = $parse_middleware->handle($request, function ($req) use ($pretty_middleware) {
-            return $pretty_middleware->handle($req, function () {
+        $response = $parseMiddleware->handle($request, function ($req) use ($prettyMiddleware) {
+            return $prettyMiddleware->handle($req, function () {
                 /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
                 $parser = app('api.query');
 
-                return new Response(json_encode([
+                return new JsonResponse([
                     'page'  => $parser->getPage(),
                     'limit' => $parser->getLimit(),
-                ]));
+                ]);
             });
         });
 
