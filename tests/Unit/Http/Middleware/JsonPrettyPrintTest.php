@@ -25,6 +25,9 @@ class JsonPrettyPrintTest extends TestCase
     /** @var string The shared test URI. */
     private const string TEST_URI = '/test';
 
+    /** @var string The JSON content type header value. */
+    private const string CONTENT_TYPE_JSON = 'application/json';
+
     /**
      * Test that response content is unchanged without the pretty parameter.
      *
@@ -207,7 +210,7 @@ class JsonPrettyPrintTest extends TestCase
         $request    = Request::create(self::TEST_URI, 'GET', ['pretty' => 'true']);
         $middleware = new JsonPrettyPrint;
 
-        $plainResponse = new Response($payload, 200, ['Content-Type' => 'application/json']);
+        $plainResponse = new Response($payload, 200, ['Content-Type' => self::CONTENT_TYPE_JSON]);
 
         $response = $middleware->handle($request, fn () => $plainResponse);
 
@@ -227,7 +230,7 @@ class JsonPrettyPrintTest extends TestCase
         $request    = Request::create(self::TEST_URI, 'GET', ['pretty' => 'true']);
         $middleware = new JsonPrettyPrint;
 
-        $plainResponse = new Response('not valid json', 200, ['Content-Type' => 'application/json']);
+        $plainResponse = new Response('not valid json', 200, ['Content-Type' => self::CONTENT_TYPE_JSON]);
 
         $response = $middleware->handle($request, fn () => $plainResponse);
 
@@ -245,7 +248,7 @@ class JsonPrettyPrintTest extends TestCase
         $request    = Request::create(self::TEST_URI, 'GET', ['pretty' => 'true']);
         $middleware = new JsonPrettyPrint;
 
-        $plainResponse = new Response('null', 200, ['Content-Type' => 'application/json']);
+        $plainResponse = new Response('null', 200, ['Content-Type' => self::CONTENT_TYPE_JSON]);
 
         $response = $middleware->handle($request, fn () => $plainResponse);
 
