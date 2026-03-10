@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Request;
 use Illuminate\Support\ServiceProvider;
+use SineMacula\ApiToolkit\Console\ValidateSchemasCommand;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Http\Middleware\JsonPrettyPrint;
 use SineMacula\ApiToolkit\Http\Middleware\ParseApiQuery;
@@ -35,6 +36,15 @@ use SineMacula\ApiToolkit\Repositories\Criteria\Operators\NotEqualOperator;
 use SineMacula\ApiToolkit\Repositories\Criteria\Operators\NotNullOperator;
 use SineMacula\ApiToolkit\Repositories\Criteria\Operators\NullOperator;
 use SineMacula\ApiToolkit\Services\SchemaIntrospector;
+use SineMacula\ApiToolkit\Services\SchemaValidator;
+use SineMacula\ApiToolkit\Services\Validation\Rules\ValidateAccessors;
+use SineMacula\ApiToolkit\Services\Validation\Rules\ValidateComputedFields;
+use SineMacula\ApiToolkit\Services\Validation\Rules\ValidateConstraints;
+use SineMacula\ApiToolkit\Services\Validation\Rules\ValidateGuards;
+use SineMacula\ApiToolkit\Services\Validation\Rules\ValidateRelationClasses;
+use SineMacula\ApiToolkit\Services\Validation\Rules\ValidateRelationInterfaces;
+use SineMacula\ApiToolkit\Services\Validation\Rules\ValidateRelationMethods;
+use SineMacula\ApiToolkit\Services\Validation\Rules\ValidateTransformers;
 
 /**
  * API service provider.
@@ -54,6 +64,7 @@ class ApiServiceProvider extends ServiceProvider
         $this->loadTranslationFiles();
         $this->offerPublishing();
         $this->registerMorphMap();
+        $this->validateSchemas();
         $this->registerTrashedMacros();
         $this->registerExportMacros();
         $this->registerStreamMacros();
@@ -81,6 +92,11 @@ class ApiServiceProvider extends ServiceProvider
         $this->registerResourceMetadataProvider();
         $this->registerSchemaIntrospector();
         $this->registerOperatorRegistry();
+        $this->registerSchemaValidator();
+
+        $this->commands([
+            ValidateSchemasCommand::class,
+        ]);
     }
 
     /**
@@ -321,5 +337,44 @@ class ApiServiceProvider extends ServiceProvider
 
             return $registry;
         });
+    }
+
+    /**
+     * Bind the SchemaValidator to the service container.
+     *
+     * @return void
+     */
+    private function registerSchemaValidator(): void
+    {
+        $this->app->singleton(SchemaValidator::class, fn (): SchemaValidator => new SchemaValidator(
+            new ValidateGuards,
+            new ValidateTransformers,
+            new ValidateRelationClasses,
+            new ValidateRelationInterfaces,
+            new ValidateRelationMethods,
+            new ValidateComputedFields,
+            new ValidateConstraints,
+            new ValidateAccessors,
+        ));
+    }
+
+    /**
+     * Validate all registered resource schemas.
+     *
+     * @return void
+     */
+    private function validateSchemas(): void
+    {
+        if (Config::get('api-toolkit.resources.validate_schemas', false) !== true) {
+            return;
+        }
+
+        $resourceMap = Config::get('api-toolkit.resources.resource_map', []);
+
+        if (!is_array($resourceMap) || $resourceMap === []) {
+            return;
+        }
+
+        $this->app->make(SchemaValidator::class)->validate($resourceMap);
     }
 }
