@@ -51,7 +51,7 @@ final class AttributeSetter
      */
     public function setAttributes(Model $model, array $attributes, string $modelClass): bool
     {
-        $sync_attributes = [];
+        $syncAttributes = [];
 
         foreach ($attributes as $attribute => $value) {
 
@@ -62,7 +62,7 @@ final class AttributeSetter
                 $this->casts[$attribute] = $cast;
 
                 if ($cast === 'sync') {
-                    $sync_attributes[$attribute] = $value;
+                    $syncAttributes[$attribute] = $value;
                 } else {
                     $this->setAttribute($model, $attribute, $value, $cast);
                 }
@@ -71,7 +71,7 @@ final class AttributeSetter
 
         $saved = $model->save();
 
-        foreach ($sync_attributes as $attribute => $value) {
+        foreach ($syncAttributes as $attribute => $value) {
             $this->setAttribute($model, $attribute, $value, 'sync');
         }
 
@@ -121,10 +121,12 @@ final class AttributeSetter
         /** @var array<string, array<int, string>> $map */
         $map = Config::get('api-toolkit.repositories.cast_map');
 
-        foreach ($map as $native_cast => $laravel_casts) {
-            foreach ($laravel_casts as $laravel_cast) {
-                if ($this->castMatchesLaravelCast($cast, $laravel_cast)) {
-                    return $native_cast;
+        foreach ($map as $nativeCast => $laravelCasts) {
+
+            foreach ($laravelCasts as $laravelCast) {
+
+                if ($this->castMatchesLaravelCast($cast, $laravelCast)) {
+                    return $nativeCast;
                 }
             }
         }
@@ -167,25 +169,25 @@ final class AttributeSetter
      * wildcard patterns.
      *
      * @param  string  $cast
-     * @param  string  $laravel_cast
+     * @param  string  $laravelCast
      * @return bool
      */
-    private function castMatchesLaravelCast(string $cast, string $laravel_cast): bool
+    private function castMatchesLaravelCast(string $cast, string $laravelCast): bool
     {
-        $base_cast = explode(':', $cast)[0];
+        $baseCast = explode(':', $cast)[0];
 
-        if (class_exists($laravel_cast) && $base_cast === $laravel_cast) {
+        if (class_exists($laravelCast) && $baseCast === $laravelCast) {
             return true;
         }
 
-        if (str_contains($laravel_cast, '*')) {
+        if (str_contains($laravelCast, '*')) {
 
-            $pattern = '/^' . str_replace('*', '.*', $laravel_cast) . '$/';
+            $pattern = '/^' . str_replace('*', '.*', $laravelCast) . '$/';
 
             return (bool) preg_match($pattern, $cast);
         }
 
-        return $cast === $laravel_cast;
+        return $cast === $laravelCast;
     }
 
     /**
