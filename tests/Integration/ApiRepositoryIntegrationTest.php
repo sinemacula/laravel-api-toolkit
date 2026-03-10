@@ -61,13 +61,13 @@ class ApiRepositoryIntegrationTest extends TestCase
     }
 
     /**
-     * Test that setAttributes persists model changes.
+     * Test that persist saves model changes to the database.
      *
      * @SuppressWarnings("php:S3011")
      *
      * @return void
      */
-    public function testSetAttributesPersistsModelChanges(): void
+    public function testPersistSavesModelChanges(): void
     {
         /** @var \Tests\Fixtures\Models\User $user */
         $user = User::where('name', 'Alice')->first();
@@ -76,7 +76,7 @@ class ApiRepositoryIntegrationTest extends TestCase
         $attributeSetter = $reflection->getProperty('attributeSetter')->getValue($this->repository);
         (new \ReflectionProperty($attributeSetter, 'casts'))->setValue($attributeSetter, ['name' => 'string']);
 
-        $result = $this->repository->setAttributes($user, ['name' => 'Alice Updated']);
+        $result = $this->repository->persist($user, ['name' => 'Alice Updated']);
 
         static::assertTrue($result);
         $this->assertDatabaseHas('users', ['name' => 'Alice Updated']);
