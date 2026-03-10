@@ -96,12 +96,14 @@ trait Cacheable
         $result = parent::resetAndReturn($queryResult);
 
         if (is_bool($result) || is_int($result)) {
+
             $this->cacheStore->flush();
 
             return $result;
         }
 
         if ($this->bypassCache) {
+
             $this->bypassCache = false;
 
             return $result;

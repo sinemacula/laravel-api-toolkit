@@ -4,8 +4,8 @@ namespace Tests\Unit\Repositories\Concerns;
 
 use Carbon\CarbonImmutable;
 use PHPUnit\Framework\Attributes\CoversClass;
-use Tests\TestCase;
 use SineMacula\ApiToolkit\Repositories\Concerns\CacheStatus;
+use Tests\TestCase;
 
 /**
  * Tests for the CacheStatus value object.
