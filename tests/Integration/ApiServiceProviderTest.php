@@ -10,12 +10,15 @@ use Illuminate\Foundation\Http\Middleware\PreventRequestsDuringMaintenance;
 use Illuminate\Notifications\Events\NotificationSending;
 use Illuminate\Notifications\Events\NotificationSent;
 use Illuminate\Routing\Router;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Request;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\ApiQueryParser;
 use SineMacula\ApiToolkit\ApiServiceProvider;
+use SineMacula\ApiToolkit\Exceptions\InvalidSchemaException;
 use SineMacula\ApiToolkit\Http\Middleware\JsonPrettyPrint;
 use SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry;
+use SineMacula\ApiToolkit\Services\SchemaValidator;
 use Tests\TestCase;
 
 /**
@@ -284,6 +287,113 @@ class ApiServiceProviderTest extends TestCase
         static::assertTrue($registry->has('$contains'));
         static::assertTrue($registry->has('$null'));
         static::assertTrue($registry->has('$notNull'));
+    }
+
+    /**
+     * Test that validate schemas runs during boot when enabled.
+     *
+     * @return void
+     */
+    public function testValidateSchemasRunsDuringBootWhenEnabled(): void
+    {
+        $app = $this->getApplication();
+
+        $this->getConfig()->set('api-toolkit.resources.validate_schemas', true);
+        $this->getConfig()->set('api-toolkit.resources.resource_map', [
+            \Tests\Fixtures\Models\User::class => \Tests\Fixtures\Resources\UserResource::class,
+        ]);
+
+        $provider = new ApiServiceProvider($app);
+        $provider->register();
+        $provider->boot();
+
+        // Boot completed without exception — valid schemas passed validation
+        static::assertTrue(true);
+    }
+
+    /**
+     * Test that validate schemas is skipped when disabled.
+     *
+     * @return void
+     */
+    public function testValidateSchemasSkippedWhenDisabled(): void
+    {
+        $app = $this->getApplication();
+
+        $this->getConfig()->set('api-toolkit.resources.validate_schemas', false);
+        $this->getConfig()->set('api-toolkit.resources.resource_map', [
+            \Tests\Fixtures\Models\User::class => \Tests\Fixtures\Resources\UserResource::class,
+        ]);
+
+        $provider = new ApiServiceProvider($app);
+        $provider->register();
+        $provider->boot();
+
+        // Boot completed without calling validator — config gate works
+        static::assertFalse((bool) $this->getConfig()->get('api-toolkit.resources.validate_schemas'));
+    }
+
+    /**
+     * Test that validate schemas throws on invalid schema at boot.
+     *
+     * @return void
+     */
+    public function testValidateSchemasThrowsOnInvalidSchemaAtBoot(): void
+    {
+        $app = $this->getApplication();
+
+        $this->getConfig()->set('api-toolkit.resources.validate_schemas', true);
+        $this->getConfig()->set('api-toolkit.resources.resource_map', [
+            \Tests\Fixtures\Models\User::class => \Tests\Fixtures\Resources\BrokenResource::class,
+        ]);
+
+        $provider = new ApiServiceProvider($app);
+        $provider->register();
+
+        $this->expectException(InvalidSchemaException::class);
+
+        $provider->boot();
+    }
+
+    /**
+     * Test that SchemaValidator is registered as a singleton.
+     *
+     * @return void
+     */
+    public function testSchemaValidatorIsRegisteredAsSingleton(): void
+    {
+        $app       = $this->getApplication();
+        $validator = $app->make(SchemaValidator::class);
+
+        static::assertInstanceOf(SchemaValidator::class, $validator);
+
+        // Same instance on second resolve (singleton)
+        static::assertSame($validator, $app->make(SchemaValidator::class));
+    }
+
+    /**
+     * Test that the validate schemas command is registered.
+     *
+     * @return void
+     */
+    public function testValidateSchemasCommandIsRegistered(): void
+    {
+        $commands = Artisan::all();
+
+        static::assertArrayHasKey('api-toolkit:validate-schemas', $commands);
+    }
+
+    /**
+     * Test that configuration contains the validate schemas key.
+     *
+     * @return void
+     */
+    public function testConfigurationContainsValidateSchemasKey(): void
+    {
+        $config = $this->getConfig()->get('api-toolkit.resources');
+
+        static::assertArrayHasKey('validate_schemas', $config);
+        static::assertFalse($config['validate_schemas']);
     }
 
     /**

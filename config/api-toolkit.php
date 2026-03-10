@@ -57,6 +57,11 @@ return [
             // e.g. \App\Models\User::class => \App\Http\Resources\UserResource::class
         ],
 
+        // When enabled, all registered resource schemas are validated during
+        // the boot phase. Recommended for non-production environments.
+        // e.g. env('VALIDATE_SCHEMAS', !app()->isProduction())
+        'validate_schemas' => false,
+
         'fixed_fields' => ['id', '_type'],
 
     ],
