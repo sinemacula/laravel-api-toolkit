@@ -58,90 +58,90 @@ class AttributeSetterTest extends TestCase
     }
 
     /**
-     * Test that setAttributes delegates scalar string attributes to the
+     * Test that persist delegates scalar string attributes to the
      * model's setAttribute method.
      *
      * @return void
      */
-    public function testSetAttributesDelegatesScalarToModelSetAttribute(): void
+    public function testPersistDelegatesScalarToModelSetAttribute(): void
     {
         $user = User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL]);
 
         $this->setProperty($this->attributeSetter, 'casts', ['name' => 'string']);
 
-        $result = $this->attributeSetter->setAttributes($user, ['name' => 'Bob'], User::class);
+        $result = $this->attributeSetter->persist($user, ['name' => 'Bob'], User::class);
 
         static::assertTrue($result);
         static::assertSame('Bob', $user->fresh()?->name);
     }
 
     /**
-     * Test that setAttributes delegates integer attributes to the model's
+     * Test that persist delegates integer attributes to the model's
      * setAttribute method, relying on Laravel for type coercion.
      *
      * @return void
      */
-    public function testSetAttributesSetsIntegerViaNativeSetAttribute(): void
+    public function testPersistSetsIntegerViaNativeSetAttribute(): void
     {
         $user = User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL]);
 
         $this->setProperty($this->attributeSetter, 'casts', ['organization_id' => 'integer']);
 
-        $result = $this->attributeSetter->setAttributes($user, ['organization_id' => '5'], User::class);
+        $result = $this->attributeSetter->persist($user, ['organization_id' => '5'], User::class);
 
         static::assertTrue($result);
         static::assertSame(5, $user->fresh()?->organization_id);
     }
 
     /**
-     * Test that setAttributes delegates boolean attributes to the model's
+     * Test that persist delegates boolean attributes to the model's
      * setAttribute method.
      *
      * @return void
      */
-    public function testSetAttributesSetsBooleanViaNativeSetAttribute(): void
+    public function testPersistSetsBooleanViaNativeSetAttribute(): void
     {
         $user = User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL]);
         $post = Post::create(['user_id' => $user->id, 'title' => 'Test', 'body' => 'Body']);
 
         $this->setProperty($this->attributeSetter, 'casts', ['published' => 'boolean']);
 
-        $result = $this->attributeSetter->setAttributes($post, ['published' => true], Post::class);
+        $result = $this->attributeSetter->persist($post, ['published' => true], Post::class);
 
         static::assertTrue($result);
         static::assertTrue($post->fresh()?->published === true);
     }
 
     /**
-     * Test that setAttributes delegates array attributes to the model's
+     * Test that persist delegates array attributes to the model's
      * setAttribute method.
      *
      * @return void
      */
-    public function testSetAttributesSetsArrayViaNativeSetAttribute(): void
+    public function testPersistSetsArrayViaNativeSetAttribute(): void
     {
         $user = User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL]);
 
         $this->setProperty($this->attributeSetter, 'casts', ['name' => 'array']);
 
-        $result = $this->attributeSetter->setAttributes($user, ['name' => ['a', 'b']], User::class);
+        $result = $this->attributeSetter->persist($user, ['name' => ['a', 'b']], User::class);
 
         static::assertTrue($result);
     }
 
     /**
-     * Test that setAttributes delegates enum attributes to the model's
+     * Test that persist delegates enum attributes to the model's
      * setAttribute method.
      *
      * @return void
      */
-    public function testSetAttributesSetsEnumViaNativeSetAttribute(): void
+    public function testPersistSetsEnumViaNativeSetAttribute(): void
     {
         $user = User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL, 'status' => 'active']);
 
         $this->setProperty($this->attributeSetter, 'casts', ['status' => 'enum']);
 
-        $result = $this->attributeSetter->setAttributes($user, ['status' => UserStatus::BANNED], User::class);
+        $result = $this->attributeSetter->persist($user, ['status' => UserStatus::BANNED], User::class);
 
         static::assertTrue($result);
         // @phpstan-ignore staticMethod.impossibleType
@@ -149,12 +149,12 @@ class AttributeSetterTest extends TestCase
     }
 
     /**
-     * Test that setAttributes sets a falsy value to null for object cast
+     * Test that persist sets a falsy value to null for object cast
      * attributes.
      *
      * @return void
      */
-    public function testSetAttributesSetsObjectWithFalsyToNull(): void
+    public function testPersistSetsObjectWithFalsyToNull(): void
     {
         $user = User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL]);
 
@@ -166,12 +166,12 @@ class AttributeSetterTest extends TestCase
     }
 
     /**
-     * Test that setAttributes casts truthy values to stdClass for object
+     * Test that persist casts truthy values to stdClass for object
      * cast attributes.
      *
      * @return void
      */
-    public function testSetAttributesSetsObjectWithTruthyToStdClass(): void
+    public function testPersistSetsObjectWithTruthyToStdClass(): void
     {
         $user = User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL]);
 
@@ -181,31 +181,31 @@ class AttributeSetterTest extends TestCase
     }
 
     /**
-     * Test that setAttributes associates a BelongsTo relation via the
+     * Test that persist associates a BelongsTo relation via the
      * associate method.
      *
      * @return void
      */
-    public function testSetAttributesAssociatesRelation(): void
+    public function testPersistAssociatesRelation(): void
     {
         $org  = Organization::create(['name' => 'Acme', 'slug' => 'acme']);
         $user = User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL]);
 
         $this->setProperty($this->attributeSetter, 'casts', ['organization' => 'associate']);
 
-        $result = $this->attributeSetter->setAttributes($user, ['organization' => $org->id], User::class);
+        $result = $this->attributeSetter->persist($user, ['organization' => $org->id], User::class);
 
         static::assertTrue($result);
         static::assertSame($org->id, $user->organization_id);
     }
 
     /**
-     * Test that setAttributes syncs a BelongsToMany relation after
+     * Test that persist syncs a BelongsToMany relation after
      * saving the model.
      *
      * @return void
      */
-    public function testSetAttributesSyncsRelationAfterSave(): void
+    public function testPersistSyncsRelationAfterSave(): void
     {
         $user = User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL]);
         $post = Post::create(['user_id' => $user->id, 'title' => 'T', 'body' => 'B']);
@@ -213,7 +213,7 @@ class AttributeSetterTest extends TestCase
 
         $this->setProperty($this->attributeSetter, 'casts', ['tags' => 'sync']);
 
-        $result = $this->attributeSetter->setAttributes($post, ['tags' => [$tag->getKey()]], Post::class);
+        $result = $this->attributeSetter->persist($post, ['tags' => [$tag->getKey()]], Post::class);
 
         static::assertTrue($result);
 
@@ -224,12 +224,12 @@ class AttributeSetterTest extends TestCase
     }
 
     /**
-     * Test that setAttributes syncs a relation when passed a Collection
+     * Test that persist syncs a relation when passed a Collection
      * of models, plucking IDs automatically.
      *
      * @return void
      */
-    public function testSetAttributesSyncWithCollectionOfModels(): void
+    public function testPersistSyncWithCollectionOfModels(): void
     {
         $user = User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL]);
         $post = Post::create(['user_id' => $user->id, 'title' => 'T', 'body' => 'B']);
@@ -237,19 +237,19 @@ class AttributeSetterTest extends TestCase
 
         $this->setProperty($this->attributeSetter, 'casts', ['tags' => 'sync']);
 
-        $result = $this->attributeSetter->setAttributes($post, ['tags' => collect([$tag])], Post::class);
+        $result = $this->attributeSetter->persist($post, ['tags' => collect([$tag])], Post::class);
 
         static::assertTrue($result);
         static::assertCount(1, $post->fresh()?->tags()->get() ?? collect([]));
     }
 
     /**
-     * Test that setAttributes syncs a relation when passed a plain array
+     * Test that persist syncs a relation when passed a plain array
      * of integer IDs.
      *
      * @return void
      */
-    public function testSetAttributesSyncWithArrayOfIds(): void
+    public function testPersistSyncWithArrayOfIds(): void
     {
         $user = User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL]);
         $post = Post::create(['user_id' => $user->id, 'title' => 'T', 'body' => 'B']);
@@ -257,19 +257,19 @@ class AttributeSetterTest extends TestCase
 
         $this->setProperty($this->attributeSetter, 'casts', ['tags' => 'sync']);
 
-        $result = $this->attributeSetter->setAttributes($post, ['tags' => [$tag->getKey()]], Post::class);
+        $result = $this->attributeSetter->persist($post, ['tags' => [$tag->getKey()]], Post::class);
 
         static::assertTrue($result);
         static::assertCount(1, $post->fresh()?->tags()->get() ?? collect([]));
     }
 
     /**
-     * Test that setAttributes syncs a relation when passed a single
+     * Test that persist syncs a relation when passed a single
      * Model instance, using its ID via the ArrayAccess path.
      *
      * @return void
      */
-    public function testSetAttributesSyncWithSingleModel(): void
+    public function testPersistSyncWithSingleModel(): void
     {
         $user = User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL]);
         $post = Post::create(['user_id' => $user->id, 'title' => 'T', 'body' => 'B']);
@@ -277,43 +277,43 @@ class AttributeSetterTest extends TestCase
 
         $this->setProperty($this->attributeSetter, 'casts', ['tags' => 'sync']);
 
-        $result = $this->attributeSetter->setAttributes($post, ['tags' => $tag], Post::class);
+        $result = $this->attributeSetter->persist($post, ['tags' => $tag], Post::class);
 
         static::assertTrue($result);
         static::assertCount(1, $post->fresh()?->tags()->get() ?? collect([]));
     }
 
     /**
-     * Test that setAttributes skips attributes whose cast resolves to
+     * Test that persist skips attributes whose cast resolves to
      * null.
      *
      * @return void
      */
-    public function testSetAttributesSkipsAttributeWithNullCast(): void
+    public function testPersistSkipsAttributeWithNullCast(): void
     {
         $user = User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL]);
 
         $this->schemaIntrospector->method('resolveRelation')->willReturn(null);
 
-        $result = $this->attributeSetter->setAttributes($user, ['unknown_field' => 'value'], User::class);
+        $result = $this->attributeSetter->persist($user, ['unknown_field' => 'value'], User::class);
 
         static::assertTrue($result);
         static::assertSame('Alice', $user->fresh()?->name);
     }
 
     /**
-     * Test that setAttributes returns the boolean result of the model's
+     * Test that persist returns the boolean result of the model's
      * save method.
      *
      * @return void
      */
-    public function testSetAttributesReturnsSaveResult(): void
+    public function testPersistReturnsSaveResult(): void
     {
         $model = $this->createMock(Model::class);
         $model->method('save')->willReturn(false);
         $model->method('getCasts')->willReturn([]);
 
-        $result = $this->attributeSetter->setAttributes($model, [], 'App\Models\Stub');
+        $result = $this->attributeSetter->persist($model, [], 'App\Models\Stub');
 
         static::assertFalse($result);
     }
