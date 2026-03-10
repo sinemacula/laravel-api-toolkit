@@ -24,6 +24,12 @@ enum CacheKeys: string
     // Store the resource associated with each model
     case MODEL_RESOURCES = 'model-resources:%s';
 
+    // Store the cached collection data for a repository
+    case REPOSITORY_CACHE = 'repository-cache:%s';
+
+    // Store the cache metadata for a repository
+    case REPOSITORY_CACHE_META = 'repository-cache-meta:%s';
+
     /**
      * Resolves the cache key with the necessary prefix and replaces any
      * placeholders.
