@@ -103,9 +103,9 @@ class JsonPrettyPrintTest extends TestCase
         $middleware       = new JsonPrettyPrint;
         $expectedResponse = new Response('ok');
 
-        $result = $middleware->handle($request, fn () => $expectedResponse);
+        $response = $middleware->handle($request, fn () => $expectedResponse);
 
-        static::assertSame($expectedResponse, $result);
+        static::assertSame($expectedResponse, $response);
     }
 
     /**
@@ -232,6 +232,24 @@ class JsonPrettyPrintTest extends TestCase
         $response = $middleware->handle($request, fn () => $plainResponse);
 
         static::assertSame('not valid json', $response->getContent());
+    }
+
+    /**
+     * Test that plain Response with JSON content-type and literal
+     * JSON null content is preserved.
+     *
+     * @return void
+     */
+    public function testHandlesLiteralJsonNullWithJsonContentType(): void
+    {
+        $request    = Request::create(self::TEST_URI, 'GET', ['pretty' => 'true']);
+        $middleware = new JsonPrettyPrint;
+
+        $plainResponse = new Response('null', 200, ['Content-Type' => 'application/json']);
+
+        $response = $middleware->handle($request, fn () => $plainResponse);
+
+        static::assertSame('null', $response->getContent());
     }
 
     /**

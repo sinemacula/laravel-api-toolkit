@@ -35,8 +35,11 @@ class JsonPrettyPrint
         }
 
         if ($response instanceof JsonResponse) {
+
             $encodingOptions = $response->getEncodingOptions();
             $response->setEncodingOptions($encodingOptions | JSON_PRETTY_PRINT);
+
+            // Re-encode the payload using the updated encoding options
             $response->setData($response->getData());
 
             return $response;
@@ -52,6 +55,7 @@ class JsonPrettyPrint
 
             $decoded = json_decode($content);
 
+            // Distinguish between a JSON decode failure and the valid JSON literal 'null'
             if ($decoded === null && $content !== 'null') {
                 return $response;
             }
