@@ -12,9 +12,7 @@ use SineMacula\ApiToolkit\Services\Validation\SchemaValidationError;
  */
 final class InvalidSchemaException extends \RuntimeException
 {
-    /**
-     * @var array<int, \SineMacula\ApiToolkit\Services\Validation\SchemaValidationError>
-     */
+    /** @var array<int, \SineMacula\ApiToolkit\Services\Validation\SchemaValidationError> */
     private array $errors;
 
     /**

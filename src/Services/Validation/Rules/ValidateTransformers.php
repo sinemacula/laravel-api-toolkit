@@ -37,7 +37,7 @@ final class ValidateTransformers implements SchemaValidationRule
 
             foreach ($field->transformers as $i => $transformer) {
 
-                if (!is_callable($transformer)) {
+                if (!is_callable($transformer)) { // @phpstan-ignore function.alreadyNarrowedType
                     $errors[] = new SchemaValidationError(
                         resourceClass: $resourceClass,
                         fieldKey: $key,

@@ -143,7 +143,7 @@ final class Field extends BaseDefinition
      * @param  array<int, array<string, array>|Arrayable>  ...$definitions
      * @return array<string, array>
      *
-     * @throws \RuntimeException If a duplicate key is detected
+     * @throws \RuntimeException
      */
     public static function set(array|Arrayable ...$definitions): array
     {

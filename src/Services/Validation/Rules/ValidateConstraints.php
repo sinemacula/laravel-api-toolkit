@@ -35,7 +35,7 @@ final class ValidateConstraints implements SchemaValidationRule
                 continue;
             }
 
-            if (!($field->constraint instanceof \Closure)) {
+            if (!($field->constraint instanceof \Closure)) { // @phpstan-ignore instanceof.alwaysTrue
                 $errors[] = new SchemaValidationError(
                     resourceClass: $resourceClass,
                     fieldKey: $key,
@@ -50,7 +50,7 @@ final class ValidateConstraints implements SchemaValidationRule
                 continue;
             }
 
-            if (!($count->constraint instanceof \Closure)) {
+            if (!($count->constraint instanceof \Closure)) { // @phpstan-ignore instanceof.alwaysTrue
                 $errors[] = new SchemaValidationError(
                     resourceClass: $resourceClass,
                     fieldKey: $count->presentKey,
