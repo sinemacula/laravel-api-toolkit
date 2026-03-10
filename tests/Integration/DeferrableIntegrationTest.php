@@ -12,7 +12,6 @@ use Illuminate\Queue\Events\JobProcessed;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
-use Mockery;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Repositories\Concerns\Deferrable;
 use SineMacula\ApiToolkit\Repositories\Concerns\WritePool;
@@ -32,6 +31,8 @@ use Tests\TestCase;
 #[CoversClass(Deferrable::class)]
 class DeferrableIntegrationTest extends TestCase
 {
+    private const TIMESTAMP_DEFERRAL = '2026-03-10 12:00:01';
+
     /** @var \Tests\Fixtures\Repositories\DeferrableUserRepository The repository instance under test. */
     private DeferrableUserRepository $repository;
 
@@ -45,9 +46,9 @@ class DeferrableIntegrationTest extends TestCase
     {
         parent::setUp();
 
-        $this->app->scoped(WritePool::class, fn (): WritePool => new WritePool(3, 5));
+        $this->app->scoped(WritePool::class, fn (): WritePool => new WritePool(3, 5)); // @phpstan-ignore method.nonObject
 
-        $this->repository = $this->app->make(DeferrableUserRepository::class);
+        $this->repository = $this->app->make(DeferrableUserRepository::class); // @phpstan-ignore method.nonObject
     }
 
     /**
@@ -86,9 +87,9 @@ class DeferrableIntegrationTest extends TestCase
      */
     public function testDeferredInsertsAreFlushedAsBulkInserts(): void
     {
-        $this->app->scoped(WritePool::class, fn (): WritePool => new WritePool(3, 10000));
+        $this->app->scoped(WritePool::class, fn (): WritePool => new WritePool(3, 10000)); // @phpstan-ignore method.nonObject
 
-        $this->repository = $this->app->make(DeferrableUserRepository::class);
+        $this->repository = $this->app->make(DeferrableUserRepository::class); // @phpstan-ignore method.nonObject
 
         DB::enableQueryLog();
 
@@ -104,7 +105,7 @@ class DeferrableIntegrationTest extends TestCase
 
         DB::disableQueryLog();
 
-        static::assertSame(2, $queries->count());
+        static::assertCount(2, $queries);
         static::assertSame(6, DB::table('users')->count());
     }
 
@@ -115,7 +116,7 @@ class DeferrableIntegrationTest extends TestCase
      */
     public function testTimestampsAreCapturedAtDeferralTime(): void
     {
-        Carbon::setTestNow(Carbon::parse('2026-03-10 12:00:01'));
+        Carbon::setTestNow(Carbon::parse(self::TIMESTAMP_DEFERRAL));
 
         $this->repository->defer(['name' => 'Bob', 'email' => 'bob@example.com', 'password' => 'secret']);
 
@@ -125,8 +126,9 @@ class DeferrableIntegrationTest extends TestCase
 
         $user = DB::table('users')->first();
 
-        static::assertSame('2026-03-10 12:00:01', $user->created_at);
-        static::assertSame('2026-03-10 12:00:01', $user->updated_at);
+        static::assertNotNull($user);
+        static::assertSame(self::TIMESTAMP_DEFERRAL, $user->created_at);
+        static::assertSame(self::TIMESTAMP_DEFERRAL, $user->updated_at);
     }
 
     /**
@@ -204,7 +206,7 @@ class DeferrableIntegrationTest extends TestCase
         $this->repository->defer(['name' => 'Judy', 'email' => 'judy@example.com', 'password' => 'secret']);
         $this->repository->defer(['name' => 'Karl', 'email' => 'karl@example.com', 'password' => 'secret']);
 
-        $job = Mockery::mock(\Illuminate\Contracts\Queue\Job::class);
+        $job = \Mockery::mock(\Illuminate\Contracts\Queue\Job::class);
 
         Event::dispatch(new JobProcessed('sync', $job));
 
@@ -221,7 +223,7 @@ class DeferrableIntegrationTest extends TestCase
         $this->repository->defer(['name' => 'Leo', 'email' => 'leo@example.com', 'password' => 'secret']);
         $this->repository->defer(['name' => 'Mia', 'email' => 'mia@example.com', 'password' => 'secret']);
 
-        $job = Mockery::mock(\Illuminate\Contracts\Queue\Job::class);
+        $job = \Mockery::mock(\Illuminate\Contracts\Queue\Job::class);
 
         Event::dispatch(new JobFailed('sync', $job, new \RuntimeException('test')));
 
@@ -235,8 +237,8 @@ class DeferrableIntegrationTest extends TestCase
      */
     public function testWritePoolIsRegisteredAsScopedSingleton(): void
     {
-        $poolA = $this->app->make(WritePool::class);
-        $poolB = $this->app->make(WritePool::class);
+        $poolA = $this->app->make(WritePool::class); // @phpstan-ignore method.nonObject
+        $poolB = $this->app->make(WritePool::class); // @phpstan-ignore method.nonObject
 
         static::assertSame($poolA, $poolB);
     }
@@ -259,7 +261,7 @@ class DeferrableIntegrationTest extends TestCase
      */
     public function testExistingRepositoryOperationsAreUnaffected(): void
     {
-        $this->repository->create([
+        $this->repository->create([ // @phpstan-ignore staticMethod.dynamicCall
             'name'     => 'Nina',
             'email'    => 'nina@example.com',
             'password' => 'secret',

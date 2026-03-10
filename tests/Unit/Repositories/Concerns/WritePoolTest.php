@@ -38,28 +38,6 @@ class WritePoolTest extends TestCase
     }
 
     /**
-     * Define the database migrations.
-     *
-     * @return void
-     */
-    #[\Override]
-    protected function defineDatabaseMigrations(): void
-    {
-        parent::defineDatabaseMigrations();
-
-        Schema::create('test_records', function (Blueprint $table): void {
-            $table->id();
-            $table->string('name');
-            $table->string('value');
-        });
-
-        Schema::create('test_other', function (Blueprint $table): void {
-            $table->id();
-            $table->string('label');
-        });
-    }
-
-    /**
      * Test that add buffers attributes for a given table.
      *
      * @return void
@@ -198,7 +176,7 @@ class WritePoolTest extends TestCase
 
         DB::disableQueryLog();
 
-        static::assertSame(3, $queries->count());
+        static::assertCount(3, $queries);
         static::assertSame(5, DB::table('test_records')->count());
     }
 
@@ -213,11 +191,8 @@ class WritePoolTest extends TestCase
 
         Log::shouldReceive('error')
             ->once()
-            ->withArgs(function (string $message, array $context): bool {
-
-                return str_contains($message, 'WritePool flush failed for table [nonexistent_table]')
-                    && $context['table'] === 'nonexistent_table';
-            });
+            ->withArgs(fn (string $message, array $context): bool => str_contains($message, 'WritePool flush failed for table [nonexistent_table]')
+                    && $context['table'] === 'nonexistent_table');
 
         $pool->add('nonexistent_table', ['col' => 'val']);
         $pool->add('test_records', ['name' => 'foo', 'value' => 'bar']);
@@ -295,5 +270,27 @@ class WritePoolTest extends TestCase
 
         static::assertSame(1, $pool->count());
         static::assertSame(2, DB::table('test_records')->count());
+    }
+
+    /**
+     * Define the database migrations.
+     *
+     * @return void
+     */
+    #[\Override]
+    protected function defineDatabaseMigrations(): void
+    {
+        parent::defineDatabaseMigrations();
+
+        Schema::create('test_records', function (Blueprint $table): void {
+            $table->id();
+            $table->string('name');
+            $table->string('value');
+        });
+
+        Schema::create('test_other', function (Blueprint $table): void {
+            $table->id();
+            $table->string('label');
+        });
     }
 }

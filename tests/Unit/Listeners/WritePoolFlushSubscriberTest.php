@@ -8,7 +8,6 @@ use Illuminate\Events\Dispatcher;
 use Illuminate\Foundation\Http\Events\RequestHandled;
 use Illuminate\Queue\Events\JobFailed;
 use Illuminate\Queue\Events\JobProcessed;
-use Mockery;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Listeners\WritePoolFlushSubscriber;
 use SineMacula\ApiToolkit\Repositories\Concerns\WritePool;
@@ -95,7 +94,7 @@ class WritePoolFlushSubscriberTest extends TestCase
         $pool = new WritePool(500, 10000);
         $pool->add('test_table', ['col' => 'val']);
 
-        $container = Mockery::mock(Container::class);
+        $container = \Mockery::mock(Container::class);
         $container->shouldReceive('make')
             ->with(WritePool::class)
             ->once()

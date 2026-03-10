@@ -21,6 +21,9 @@ use Tests\TestCase;
 #[CoversClass(Deferrable::class)]
 class DeferrableTest extends TestCase
 {
+    private const TIMESTAMP_DEFERRAL = '2026-03-10 12:00:01';
+    private const TIMESTAMP_EXPLICIT = '2026-03-10 09:00:00';
+
     /** @var \Tests\Fixtures\Repositories\DeferrableUserRepository The repository instance under test. */
     private DeferrableUserRepository $repository;
 
@@ -34,9 +37,9 @@ class DeferrableTest extends TestCase
     {
         parent::setUp();
 
-        $this->app->scoped(WritePool::class, fn (): WritePool => new WritePool(500, 10000));
+        $this->app->scoped(WritePool::class, fn (): WritePool => new WritePool(500, 10000)); // @phpstan-ignore method.nonObject
 
-        $this->repository = $this->app->make(DeferrableUserRepository::class);
+        $this->repository = $this->app->make(DeferrableUserRepository::class); // @phpstan-ignore method.nonObject
     }
 
     /**
@@ -71,7 +74,7 @@ class DeferrableTest extends TestCase
      */
     public function testDeferCapturesTimestampsAtDeferralTime(): void
     {
-        Carbon::setTestNow(Carbon::parse('2026-03-10 12:00:01'));
+        Carbon::setTestNow(Carbon::parse(self::TIMESTAMP_DEFERRAL));
 
         $this->repository->defer(['name' => 'Bob', 'email' => 'bob@example.com', 'password' => 'secret']);
 
@@ -81,8 +84,9 @@ class DeferrableTest extends TestCase
 
         $user = DB::table('users')->first();
 
-        static::assertSame('2026-03-10 12:00:01', $user->created_at);
-        static::assertSame('2026-03-10 12:00:01', $user->updated_at);
+        static::assertNotNull($user);
+        static::assertSame(self::TIMESTAMP_DEFERRAL, $user->created_at);
+        static::assertSame(self::TIMESTAMP_DEFERRAL, $user->updated_at);
     }
 
     /**
@@ -104,6 +108,7 @@ class DeferrableTest extends TestCase
 
         $user = DB::table('users')->first();
 
+        static::assertNotNull($user);
         static::assertSame('2025-01-01 00:00:00', $user->created_at);
         static::assertSame('2025-06-01 00:00:00', $user->updated_at);
     }
@@ -115,7 +120,7 @@ class DeferrableTest extends TestCase
      */
     public function testDeferAddsCreatedAtAndUpdatedAtWhenMissing(): void
     {
-        Carbon::setTestNow(Carbon::parse('2026-03-10 09:00:00'));
+        Carbon::setTestNow(Carbon::parse(self::TIMESTAMP_EXPLICIT));
 
         $this->repository->defer(['name' => 'Dave', 'email' => 'dave@example.com', 'password' => 'secret']);
 
@@ -123,8 +128,9 @@ class DeferrableTest extends TestCase
 
         $user = DB::table('users')->first();
 
-        static::assertSame('2026-03-10 09:00:00', $user->created_at);
-        static::assertSame('2026-03-10 09:00:00', $user->updated_at);
+        static::assertNotNull($user);
+        static::assertSame(self::TIMESTAMP_EXPLICIT, $user->created_at);
+        static::assertSame(self::TIMESTAMP_EXPLICIT, $user->updated_at);
     }
 
     /**
