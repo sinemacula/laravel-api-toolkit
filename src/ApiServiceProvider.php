@@ -13,6 +13,8 @@ use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Request;
 use Illuminate\Support\ServiceProvider;
+use SineMacula\ApiToolkit\Cache\CacheManager;
+use SineMacula\ApiToolkit\Console\FlushCachesCommand;
 use SineMacula\ApiToolkit\Console\ValidateSchemasCommand;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Http\Middleware\JsonPrettyPrint;
@@ -21,6 +23,8 @@ use SineMacula\ApiToolkit\Http\Middleware\PreventRequestsDuringMaintenance;
 use SineMacula\ApiToolkit\Http\Middleware\ThrottleRequests;
 use SineMacula\ApiToolkit\Http\Middleware\ThrottleRequestsWithRedis;
 use SineMacula\ApiToolkit\Listeners\NotificationListener;
+use SineMacula\ApiToolkit\Listeners\OctaneFlushListener;
+use SineMacula\ApiToolkit\Listeners\QueueFlushSubscriber;
 use SineMacula\ApiToolkit\Listeners\WritePoolFlushSubscriber;
 use SineMacula\ApiToolkit\Logging\CloudWatchLogger;
 use SineMacula\ApiToolkit\Repositories\Concerns\WritePool;
@@ -74,6 +78,8 @@ class ApiServiceProvider extends ServiceProvider
         $this->registerCloudwatchLogger();
         $this->registerNotificationLogging();
         $this->registerWritePoolFlushSubscriber();
+        $this->registerOctaneFlushListener();
+        $this->registerQueueFlushSubscriber();
     }
 
     /**
@@ -97,9 +103,11 @@ class ApiServiceProvider extends ServiceProvider
         $this->registerOperatorRegistry();
         $this->registerSchemaValidator();
         $this->registerWritePool();
+        $this->registerCacheManager();
 
         $this->commands([
             ValidateSchemasCommand::class,
+            FlushCachesCommand::class,
         ]);
     }
 
@@ -396,6 +404,16 @@ class ApiServiceProvider extends ServiceProvider
     }
 
     /**
+     * Bind the CacheManager to the service container.
+     *
+     * @return void
+     */
+    private function registerCacheManager(): void
+    {
+        $this->app->singleton(CacheManager::class);
+    }
+
+    /**
      * Subscribe the write pool flush subscriber to lifecycle events.
      *
      * @return void
@@ -403,5 +421,38 @@ class ApiServiceProvider extends ServiceProvider
     private function registerWritePoolFlushSubscriber(): void
     {
         Event::subscribe(WritePoolFlushSubscriber::class);
+    }
+
+    /**
+     * Register the Octane flush listener if configured and Octane is
+     * installed.
+     *
+     * @return void
+     */
+    private function registerOctaneFlushListener(): void
+    {
+        if (!Config::get('api-toolkit.lifecycle.octane')) {
+            return;
+        }
+
+        if (!class_exists(\Laravel\Octane\Events\OperationTerminated::class)) {
+            return;
+        }
+
+        Event::listen(\Laravel\Octane\Events\OperationTerminated::class, OctaneFlushListener::class);
+    }
+
+    /**
+     * Register the queue flush subscriber if configured.
+     *
+     * @return void
+     */
+    private function registerQueueFlushSubscriber(): void
+    {
+        if (!Config::get('api-toolkit.lifecycle.queue')) {
+            return;
+        }
+
+        Event::subscribe(QueueFlushSubscriber::class);
     }
 }
