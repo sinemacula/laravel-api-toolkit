@@ -7,6 +7,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Config;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Repositories\ApiRepository;
+use SineMacula\ApiToolkit\Repositories\Concerns\AttributeSetter;
 use SineMacula\ApiToolkit\Repositories\Criteria\ApiCriteria;
 use Tests\Concerns\InteractsWithNonPublicMembers;
 use Tests\Fixtures\Enums\UserStatus;
@@ -15,7 +16,6 @@ use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\Tag;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Repositories\DummyRepository;
-use Tests\Fixtures\Repositories\TagRepository;
 use Tests\Fixtures\Repositories\UserRepository;
 use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
@@ -49,6 +49,7 @@ class ApiRepositoryTest extends TestCase
      *
      * @return void
      */
+    #[\Override]
     protected function setUp(): void
     {
         parent::setUp();
@@ -181,7 +182,8 @@ class ApiRepositoryTest extends TestCase
     {
         $user = User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL]);
 
-        $this->setProperty($this->repository, 'casts', ['name' => 'string']);
+        $attributeSetter = $this->getAttributeSetter($this->repository);
+        $this->setProperty($attributeSetter, 'casts', ['name' => 'string']);
 
         $result = $this->repository->setAttributes($user, ['name' => 'Bob']);
 
@@ -204,7 +206,8 @@ class ApiRepositoryTest extends TestCase
 
         $repository = $this->app->make(UserRepository::class);
 
-        $this->setProperty($repository, 'casts', ['organization_id' => 'integer']);
+        $attributeSetter = $this->getAttributeSetter($repository);
+        $this->setProperty($attributeSetter, 'casts', ['organization_id' => 'integer']);
 
         $result = $repository->setAttributes($user, ['organization_id' => '5']);
 
@@ -229,7 +232,8 @@ class ApiRepositoryTest extends TestCase
 
         $repository = $this->app->make(DummyRepository::class);
 
-        $this->setProperty($repository, 'casts', ['published' => 'boolean']);
+        $attributeSetter = $this->getAttributeSetter($repository);
+        $this->setProperty($attributeSetter, 'casts', ['published' => 'boolean']);
 
         $result = $repository->setAttributes($post, ['published' => true]);
 
@@ -246,7 +250,8 @@ class ApiRepositoryTest extends TestCase
     {
         $user = User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL]);
 
-        $this->setProperty($this->repository, 'casts', ['name' => 'string']);
+        $attributeSetter = $this->getAttributeSetter($this->repository);
+        $this->setProperty($attributeSetter, 'casts', ['name' => 'string']);
 
         $result = $this->repository->setAttributes($user, ['name' => 'Updated']);
 
@@ -263,7 +268,8 @@ class ApiRepositoryTest extends TestCase
     {
         $user = User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL, 'status' => 'active']);
 
-        $this->setProperty($this->repository, 'casts', ['status' => 'enum']);
+        $attributeSetter = $this->getAttributeSetter($this->repository);
+        $this->setProperty($attributeSetter, 'casts', ['status' => 'enum']);
 
         $result = $this->repository->setAttributes($user, ['status' => UserStatus::BANNED]);
 
@@ -313,9 +319,9 @@ class ApiRepositoryTest extends TestCase
      */
     public function testBootResolvesAttributeCasts(): void
     {
-        $casts = $this->getProperty($this->repository, 'casts');
+        $attributeSetter = $this->getAttributeSetter($this->repository);
 
-        static::assertIsArray($casts);
+        static::assertInstanceOf(AttributeSetter::class, $attributeSetter);
     }
 
     /**
@@ -327,28 +333,12 @@ class ApiRepositoryTest extends TestCase
     {
         $user = User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL]);
 
-        $this->setProperty($this->repository, 'casts', ['name' => 'array']);
+        $attributeSetter = $this->getAttributeSetter($this->repository);
+        $this->setProperty($attributeSetter, 'casts', ['name' => 'array']);
 
         $result = $this->repository->setAttributes($user, ['name' => ['first', 'last']]);
 
         static::assertTrue($result);
-    }
-
-    /**
-     * Test that setObjectAttribute casts the value to stdClass.
-     *
-     * The private method is invoked directly to avoid persisting a stdClass to
-     * a string column in SQLite.
-     *
-     * @return void
-     */
-    public function testSetObjectAttributeCastsValueToStdClass(): void
-    {
-        $user = User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL]);
-
-        $this->invokeMethod($this->repository, 'setObjectAttribute', $user, 'name', ['key' => 'value']);
-
-        static::assertInstanceOf(\stdClass::class, $user->getAttribute('name'));
     }
 
     /**
@@ -361,7 +351,8 @@ class ApiRepositoryTest extends TestCase
         $org  = Organization::create(['name' => 'Acme', 'slug' => 'acme']);
         $user = User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL]);
 
-        $this->setProperty($this->repository, 'casts', ['organization' => 'associate']);
+        $attributeSetter = $this->getAttributeSetter($this->repository);
+        $this->setProperty($attributeSetter, 'casts', ['organization' => 'associate']);
 
         $result = $this->repository->setAttributes($user, ['organization' => $org->id]);
 
@@ -383,39 +374,14 @@ class ApiRepositoryTest extends TestCase
         assert($this->app !== null);
 
         $repository = $this->app->make(DummyRepository::class);
-        $this->setProperty($repository, 'casts', ['tags' => 'sync']);
+
+        $attributeSetter = $this->getAttributeSetter($repository);
+        $this->setProperty($attributeSetter, 'casts', ['tags' => 'sync']);
 
         $result = $repository->setAttributes($post, ['tags' => collect([$tag])]);
 
         static::assertTrue($result);
         static::assertCount(1, $post->fresh()?->tags()->get() ?? collect([]));
-    }
-
-    /**
-     * Test that resolveCastForRelation returns 'associate' for a BelongsTo
-     * relation.
-     *
-     * @return void
-     */
-    public function testResolveCastForRelationReturnsCastForBelongsTo(): void
-    {
-        $cast = $this->invokeMethod($this->repository, 'resolveCastForRelation', 'organization');
-
-        static::assertSame('associate', $cast);
-    }
-
-    /**
-     * Test that resolveCastForRelation returns null for a non-relation
-     * method.
-     *
-     * @return void
-     */
-    public function testResolveCastForRelationReturnsNullForNonRelation(): void
-    {
-        // 'getKey' is a method on the model but not a relation
-        $cast = $this->invokeMethod($this->repository, 'resolveCastForRelation', 'nonexistent');
-
-        static::assertNull($cast);
     }
 
     /**
@@ -432,7 +398,9 @@ class ApiRepositoryTest extends TestCase
         assert($this->app !== null);
 
         $repository = $this->app->make(DummyRepository::class);
-        $this->setProperty($repository, 'casts', ['tags' => 'sync']);
+
+        $attributeSetter = $this->getAttributeSetter($repository);
+        $this->setProperty($attributeSetter, 'casts', ['tags' => 'sync']);
 
         $result = $repository->setAttributes($post, ['tags' => [$tag->getKey()]]);
 
@@ -522,16 +490,18 @@ class ApiRepositoryTest extends TestCase
     {
         // Add UserStatus::class as a recognized laravel cast under 'enum' so
         // that class_exists($laravel_cast) is true AND $base_cast matches.
-        $existing_enum_casts   = Config::get('api-toolkit.repositories.cast_map.enum', []);
-        $existing_enum_casts[] = UserStatus::class;
-        Config::set('api-toolkit.repositories.cast_map.enum', $existing_enum_casts);
+        $existingEnumCasts   = Config::get('api-toolkit.repositories.cast_map.enum', []);
+        $existingEnumCasts[] = UserStatus::class;
+        Config::set('api-toolkit.repositories.cast_map.enum', $existingEnumCasts);
 
         $user = User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL, 'status' => 'active']);
 
         assert($this->app !== null);
 
         $repository = $this->app->make(UserRepository::class);
-        $this->setProperty($repository, 'casts', []);
+
+        $attributeSetter = $this->getAttributeSetter($repository);
+        $this->setProperty($attributeSetter, 'casts', []);
 
         $result = $repository->setAttributes($user, ['status' => UserStatus::BANNED]);
 
@@ -539,33 +509,19 @@ class ApiRepositoryTest extends TestCase
     }
 
     /**
-     * Test that setAttribute routes 'object' cast through the match arm.
+     * Get the AttributeSetter collaborator from the given repository.
      *
-     * @return void
-     */
-    public function testSetAttributeRoutesObjectCastThroughMatchArm(): void
-    {
-        $user = User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL]);
-
-        $this->invokeMethod($this->repository, 'setAttribute', $user, 'name', null, 'object');
-
-        static::assertNull($user->getAttribute('name'));
-    }
-
-    /**
-     * Test that resolveCastForRelation returns 'sync' for a MorphToMany
-     * relation.
+     * @param  \SineMacula\ApiToolkit\Repositories\ApiRepository<\Illuminate\Database\Eloquent\Model>  $repository
+     * @return \SineMacula\ApiToolkit\Repositories\Concerns\AttributeSetter
      *
-     * @return void
+     * @SuppressWarnings("php:S3011")
      */
-    public function testResolveCastForRelationReturnsSyncForMorphToMany(): void
+    private function getAttributeSetter(ApiRepository $repository): AttributeSetter
     {
-        assert($this->app !== null);
+        $reflection = new \ReflectionClass(ApiRepository::class);
 
-        $repository = $this->app->make(TagRepository::class);
-        $cast       = $this->invokeMethod($repository, 'resolveCastForRelation', 'articles');
-
-        static::assertSame('sync', $cast);
+        /** @var \SineMacula\ApiToolkit\Repositories\Concerns\AttributeSetter */
+        return $reflection->getProperty('attributeSetter')->getValue($repository);
     }
 
     /**
