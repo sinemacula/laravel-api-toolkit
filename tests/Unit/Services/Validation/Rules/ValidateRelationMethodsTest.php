@@ -9,6 +9,9 @@ use SineMacula\ApiToolkit\Http\Resources\Schema\CompiledFieldDefinition;
 use SineMacula\ApiToolkit\Http\Resources\Schema\CompiledSchema;
 use SineMacula\ApiToolkit\Services\Validation\Rules\ValidateRelationMethods;
 use Tests\Fixtures\Models\User;
+use Tests\Fixtures\Resources\OrganizationResource;
+use Tests\Fixtures\Resources\PostResource;
+use Tests\Fixtures\Resources\UserResource;
 
 /**
  * Tests for the ValidateRelationMethods validation rule.
@@ -36,7 +39,7 @@ class ValidateRelationMethodsTest extends TestCase
                     accessor: 'organization',
                     compute: null,
                     relation: 'organization',
-                    resource: 'Tests\Fixtures\Resources\OrganizationResource',
+                    resource: OrganizationResource::class,
                     fields: null,
                     constraint: null,
                     extras: [],
@@ -47,7 +50,7 @@ class ValidateRelationMethodsTest extends TestCase
                     accessor: 'posts',
                     compute: null,
                     relation: 'posts',
-                    resource: 'Tests\Fixtures\Resources\PostResource',
+                    resource: PostResource::class,
                     fields: null,
                     constraint: null,
                     extras: [],
@@ -59,7 +62,7 @@ class ValidateRelationMethodsTest extends TestCase
         );
 
         $rule   = new ValidateRelationMethods;
-        $errors = $rule->validate('Tests\Fixtures\Resources\UserResource', User::class, $schema);
+        $errors = $rule->validate(UserResource::class, User::class, $schema);
 
         static::assertSame([], $errors);
     }
@@ -77,7 +80,7 @@ class ValidateRelationMethodsTest extends TestCase
                     accessor: 'nonexistent',
                     compute: null,
                     relation: 'nonexistent_relation',
-                    resource: 'Tests\Fixtures\Resources\OrganizationResource',
+                    resource: OrganizationResource::class,
                     fields: null,
                     constraint: null,
                     extras: [],
@@ -89,7 +92,7 @@ class ValidateRelationMethodsTest extends TestCase
         );
 
         $rule   = new ValidateRelationMethods;
-        $errors = $rule->validate('Tests\Fixtures\Resources\UserResource', User::class, $schema);
+        $errors = $rule->validate(UserResource::class, User::class, $schema);
 
         static::assertCount(1, $errors);
         static::assertSame('nonexistent', $errors[0]->fieldKey);
@@ -110,7 +113,7 @@ class ValidateRelationMethodsTest extends TestCase
                     accessor: 'organization',
                     compute: null,
                     relation: 'organization',
-                    resource: 'Tests\Fixtures\Resources\OrganizationResource',
+                    resource: OrganizationResource::class,
                     fields: null,
                     constraint: null,
                     extras: [],
@@ -122,7 +125,7 @@ class ValidateRelationMethodsTest extends TestCase
         );
 
         $rule   = new ValidateRelationMethods;
-        $errors = $rule->validate('Tests\Fixtures\Resources\UserResource', null, $schema);
+        $errors = $rule->validate(UserResource::class, null, $schema);
 
         static::assertSame([], $errors);
     }
@@ -148,7 +151,7 @@ class ValidateRelationMethodsTest extends TestCase
         );
 
         $rule   = new ValidateRelationMethods;
-        $errors = $rule->validate('Tests\Fixtures\Resources\UserResource', User::class, $schema);
+        $errors = $rule->validate(UserResource::class, User::class, $schema);
 
         static::assertCount(1, $errors);
         static::assertSame('nonexistent_count', $errors[0]->fieldKey);

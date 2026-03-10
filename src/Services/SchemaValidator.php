@@ -5,6 +5,7 @@ namespace SineMacula\ApiToolkit\Services;
 use SineMacula\ApiToolkit\Contracts\SchemaValidationRule;
 use SineMacula\ApiToolkit\Exceptions\InvalidSchemaException;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\SchemaCompiler;
+use SineMacula\ApiToolkit\Services\Validation\SchemaValidationError;
 
 /**
  * Orchestrates schema validation across all registered resources.
@@ -14,7 +15,9 @@ use SineMacula\ApiToolkit\Http\Resources\Concerns\SchemaCompiler;
  */
 final class SchemaValidator
 {
-    /** @var array<int|string, \SineMacula\ApiToolkit\Contracts\SchemaValidationRule> */
+    /**
+     * @var array<int|string, \SineMacula\ApiToolkit\Contracts\SchemaValidationRule>
+     */
     private readonly array $rules;
 
     /**
@@ -37,7 +40,7 @@ final class SchemaValidator
      */
     public function validate(array $resourceMap): void
     {
-        /** @var array<int, \SineMacula\ApiToolkit\Services\Validation\SchemaValidationError> $errors */
+        /** @var array<int, SchemaValidationError> $errors */
         $errors = [];
 
         foreach ($resourceMap as $modelClass => $resourceClass) {
@@ -49,7 +52,7 @@ final class SchemaValidator
             }
         }
 
-        if (!empty($errors)) {
+        if ($errors !== []) {
             throw new InvalidSchemaException($errors);
         }
     }

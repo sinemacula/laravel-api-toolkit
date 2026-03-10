@@ -30,6 +30,7 @@ class SchemaValidatorTest extends TestCase
      *
      * @return void
      */
+    #[\Override]
     protected function setUp(): void
     {
         parent::setUp();
@@ -42,6 +43,7 @@ class SchemaValidatorTest extends TestCase
      *
      * @return void
      */
+    #[\Override]
     protected function tearDown(): void
     {
         SchemaCompiler::clearCache();
@@ -203,7 +205,6 @@ class SchemaValidatorTest extends TestCase
 
         $rule->method('validate')
             ->willReturnCallback(function (string $resourceClass) use ($userError, $postError): array {
-
                 if ($resourceClass === UserResource::class) {
                     return [$userError];
                 }

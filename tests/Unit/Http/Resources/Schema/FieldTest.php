@@ -322,21 +322,6 @@ class FieldTest extends TestCase
     }
 
     /**
-     * Test static factory methods create Field instances.
-     *
-     * @param  \SineMacula\ApiToolkit\Http\Resources\Schema\Field  $field
-     * @param  string  $expectedKey
-     * @return void
-     */
-    #[DataProvider('factoryMethodProvider')]
-    public function testFactoryMethodsCreateFieldInstances(Field $field, string $expectedKey): void
-    {
-        $array = $field->toArray();
-
-        static::assertArrayHasKey($expectedKey, $array);
-    }
-
-    /**
      * Provide factory method variations.
      *
      * @return iterable<string, array{\SineMacula\ApiToolkit\Http\Resources\Schema\Field, string}>
@@ -352,5 +337,20 @@ class FieldTest extends TestCase
         yield 'date with alias' => [Field::date('birth_date', 'dob'), 'dob'];
         yield 'compute' => [Field::compute('full_name', fn () => 'value'), 'full_name'];
         yield 'compute with alias' => [Field::compute('full_name', fn () => 'value', 'name'), 'name'];
+    }
+
+    /**
+     * Test static factory methods create Field instances.
+     *
+     * @param  \SineMacula\ApiToolkit\Http\Resources\Schema\Field  $field
+     * @param  string  $expectedKey
+     * @return void
+     */
+    #[DataProvider('factoryMethodProvider')]
+    public function testFactoryMethodsCreateFieldInstances(Field $field, string $expectedKey): void
+    {
+        $array = $field->toArray();
+
+        static::assertArrayHasKey($expectedKey, $array);
     }
 }

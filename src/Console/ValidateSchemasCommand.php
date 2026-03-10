@@ -31,7 +31,8 @@ final class ValidateSchemasCommand extends Command
     {
         $resourceMap = Config::get('api-toolkit.resources.resource_map', []);
 
-        if (!is_array($resourceMap) || empty($resourceMap)) {
+        if (!is_array($resourceMap) || $resourceMap === []) {
+
             $this->components->warn('No resources registered in the resource map.');
             return self::SUCCESS;
         }
@@ -39,6 +40,7 @@ final class ValidateSchemasCommand extends Command
         try {
             $validator->validate($resourceMap);
         } catch (InvalidSchemaException $exception) {
+
             $this->components->error('Schema validation failed:');
 
             foreach ($exception->getErrors() as $error) {

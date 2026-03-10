@@ -365,13 +365,13 @@ class ApiServiceProvider extends ServiceProvider
      */
     private function validateSchemas(): void
     {
-        if (!Config::get('api-toolkit.resources.validate_schemas', false)) {
+        if (Config::get('api-toolkit.resources.validate_schemas', false) !== true) {
             return;
         }
 
         $resourceMap = Config::get('api-toolkit.resources.resource_map', []);
 
-        if (!is_array($resourceMap) || empty($resourceMap)) {
+        if (!is_array($resourceMap) || $resourceMap === []) {
             return;
         }
 

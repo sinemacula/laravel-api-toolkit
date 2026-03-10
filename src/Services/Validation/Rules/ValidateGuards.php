@@ -37,7 +37,7 @@ final class ValidateGuards implements SchemaValidationRule
 
             foreach ($field->guards as $i => $guard) {
 
-                if (!is_callable($guard)) { // @phpstan-ignore function.alreadyNarrowedType
+                if (!is_callable($guard)) {
                     $errors[] = new SchemaValidationError(
                         resourceClass: $resourceClass,
                         fieldKey: $key,
@@ -51,7 +51,7 @@ final class ValidateGuards implements SchemaValidationRule
 
             foreach ($count->guards as $i => $guard) {
 
-                if (!is_callable($guard)) { // @phpstan-ignore function.alreadyNarrowedType
+                if (!is_callable($guard)) {
                     $errors[] = new SchemaValidationError(
                         resourceClass: $resourceClass,
                         fieldKey: $count->presentKey,
