@@ -14,7 +14,6 @@ use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Request;
 use Illuminate\Support\ServiceProvider;
 use SineMacula\ApiToolkit\Cache\CacheManager;
-use SineMacula\ApiToolkit\Console\FlushCachesCommand;
 use SineMacula\ApiToolkit\Console\ValidateSchemasCommand;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Http\Middleware\JsonPrettyPrint;
@@ -107,7 +106,6 @@ class ApiServiceProvider extends ServiceProvider
 
         $this->commands([
             ValidateSchemasCommand::class,
-            FlushCachesCommand::class,
         ]);
     }
 

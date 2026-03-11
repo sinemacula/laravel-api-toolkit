@@ -413,18 +413,6 @@ class ApiServiceProviderTest extends TestCase
     }
 
     /**
-     * Test that the flush caches command is registered.
-     *
-     * @return void
-     */
-    public function testFlushCachesCommandIsRegistered(): void
-    {
-        $commands = Artisan::all();
-
-        static::assertArrayHasKey('api-toolkit:flush-caches', $commands);
-    }
-
-    /**
      * Test that the Octane flush listener is registered when config is
      * enabled.
      *
