@@ -186,6 +186,29 @@ return [
 
     /*
     |---------------------------------------------------------------------------
+    | Cache Lifecycle Configuration
+    |---------------------------------------------------------------------------
+    |
+    | This section configures automatic cache invalidation for long-running
+    | PHP environments such as Laravel Octane and queue workers. When enabled,
+    | the toolkit automatically flushes all cached metadata at the appropriate
+    | lifecycle boundaries to prevent stale data.
+    |
+    | Both options are disabled by default, meaning standard PHP-FPM
+    | deployments incur no additional overhead.
+    |
+    */
+
+    'lifecycle' => [
+
+        'octane' => env('API_TOOLKIT_LIFECYCLE_OCTANE', false),
+
+        'queue' => env('API_TOOLKIT_LIFECYCLE_QUEUE', false),
+
+    ],
+
+    /*
+    |---------------------------------------------------------------------------
     | API Notification Configuration
     |---------------------------------------------------------------------------
     |

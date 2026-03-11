@@ -66,4 +66,11 @@ interface SchemaIntrospectionProvider
      * @return \Illuminate\Database\Eloquent\Relations\Relation<\Illuminate\Database\Eloquent\Model, \Illuminate\Database\Eloquent\Model, mixed>|null
      */
     public function resolveRelation(string $key, Model $model): ?Relation;
+
+    /**
+     * Clear all internally cached schema data.
+     *
+     * @return void
+     */
+    public function flush(): void;
 }
