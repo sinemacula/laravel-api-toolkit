@@ -7,10 +7,12 @@ use Illuminate\Support\Facades\Cache;
 use SineMacula\ApiToolkit\Exceptions\TooManyRequestsException;
 
 /**
- * The lockable trait.
+ * Provides atomic cache-lock acquisition and release.
  *
- * This trait provides helper methods to lock/unlock the execution of a given
- * script.
+ * Consumers must implement generateLockKey() to supply a unique
+ * cache key. The trait is independent of any base class and can be
+ * used by any class that needs exclusive execution. Override
+ * getLockExpiration() to change the default 60-second expiration.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.

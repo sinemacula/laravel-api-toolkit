@@ -22,24 +22,30 @@ abstract class Service implements ServiceInterface
     /** @var bool|null Service outcome status */
     protected ?bool $status = null;
 
-    /** @var bool Indicate whether to use database transactions for the service */
-    protected bool $useTransaction = true;
-
-    /** @var bool Indicate whether to lock the task execution */
-    protected bool $useLock = false;
-
     /**
      * Constructor.
      *
      * @param  array|\Illuminate\Support\Collection|\stdClass  $payload
+     * @param  bool  $useTransaction
+     * @param  bool  $useLock
      */
     public function __construct(
 
         /** The service input payload */
         protected array|Collection|\stdClass $payload = [],
 
+        /** Whether to wrap handle() in a database transaction */
+        protected readonly bool $useTransaction = true,
+
+        /** Whether to acquire an exclusive cache lock before execution */
+        protected readonly bool $useLock = false,
+
     ) {
         $this->payload = (!$payload instanceof Collection && !$payload instanceof \stdClass) ? collect($payload) : $payload;
+
+        if ($this->useLock && !$this->getLockId()) {
+            throw new \RuntimeException('Lock key is not set');
+        }
 
         $this->initialize();
     }
@@ -52,61 +58,6 @@ abstract class Service implements ServiceInterface
     public function getStatus(): ?bool
     {
         return $this->status;
-    }
-
-    /**
-     * Instruct the service to use database transactions.
-     *
-     * NOTE: Transactions are only supported on MySQL databases running the
-     * InnoDB engine
-     *
-     * @return \SineMacula\ApiToolkit\Services\Service
-     */
-    public function useTransaction(): static
-    {
-        $this->useTransaction = true;
-
-        return $this;
-    }
-
-    /**
-     * Instruct the service not to use database transactions.
-     *
-     * @return \SineMacula\ApiToolkit\Services\Service
-     */
-    public function dontUseTransaction(): static
-    {
-        $this->useTransaction = false;
-
-        return $this;
-    }
-
-    /**
-     * Instruct the service to use a cache lock.
-     *
-     * @return \SineMacula\ApiToolkit\Services\Service
-     */
-    public function useLock(): static
-    {
-        if (!$this->getLockId()) {
-            throw new \RuntimeException('Lock key is not set');
-        }
-
-        $this->useLock = true;
-
-        return $this;
-    }
-
-    /**
-     * Instruct the service not to use a cache lock.
-     *
-     * @return \SineMacula\ApiToolkit\Services\Service
-     */
-    public function dontUseLock(): static
-    {
-        $this->useLock = false;
-
-        return $this;
     }
 
     /**

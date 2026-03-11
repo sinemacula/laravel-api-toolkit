@@ -2,6 +2,7 @@
 
 namespace Tests\Fixtures\Services;
 
+use Illuminate\Support\Collection;
 use SineMacula\ApiToolkit\Services\Service;
 
 /**
@@ -14,6 +15,18 @@ class SimpleService extends Service
 {
     /** @var bool Track whether success() was called */
     public bool $successCalled = false;
+
+    /**
+     * Constructor.
+     *
+     * @param  array<string, mixed>|\Illuminate\Support\Collection<string, mixed>|\stdClass  $payload
+     * @param  bool  $useTransaction
+     * @param  bool  $useLock
+     */
+    public function __construct(array|Collection|\stdClass $payload = [], bool $useTransaction = true, bool $useLock = false)
+    {
+        parent::__construct($payload, $useTransaction, $useLock);
+    }
 
     /**
      * Method is triggered if the handle method ran successfully.
