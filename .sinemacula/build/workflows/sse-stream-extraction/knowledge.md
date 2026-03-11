@@ -148,3 +148,14 @@ relevant, conventions followed, and decisions made during implementation or revi
 **Conventions followed:** The `Response` facade import was retained because `respondWithData()` still uses `Response::json()`. The `StreamedResponse` import was retained for the return type declaration even though `EventStream` now constructs it internally.
 
 **Decisions made:** Used `static::HEARTBEAT_INTERVAL` (not `self::`) in the delegation call to preserve late-static-binding for subclass overrides, matching the existing test expectation in `testHeartbeatIntervalConstantCanBeOverriddenBySubclass`.
+
+### Review: Verification
+
+| Field | Value |
+|-------|-------|
+| Source | reviewer / verification |
+| Completed | 2026-03-10 |
+
+**Patterns observed:** The namespace-scoped function override mechanism cleanly supports extraction across namespace boundaries -- when SSE logic moved from `Http\Routing` to `Sse`, the override file gained a new namespace block and existing controller tests continued passing without modification because delegation crosses the namespace boundary transparently. The `composer check` tool runs markdownlint on all `.md` files including workflow artifacts in `.sinemacula/` and `docs/prd/`, which produces false-positive noise unrelated to PHP code quality; future workflows should note that `composer check` exit code 1 from markdownlint-only issues does not indicate PHP violations.
+
+**Relevant files:** `tests/Fixtures/Overrides/functions.php`, `tests/Unit/Http/Routing/ControllerTest.php`, `src/Http/Routing/Controller.php`, `src/Sse/EventStream.php`
