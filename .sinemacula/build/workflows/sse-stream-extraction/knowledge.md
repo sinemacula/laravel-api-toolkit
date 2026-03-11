@@ -118,3 +118,33 @@ relevant, conventions followed, and decisions made during implementation or revi
 **Conventions followed:** Test setUp suppresses flush via `FunctionOverrides::set('flush', fn () => null)` to prevent real flush calls during output capture, matching the ControllerTest pattern. Used `ob_start()`/`ob_get_clean()` for output capture. The formatter reorders union types alphabetically (`array|string` not `string|array`).
 
 **Decisions made:** Set the flush override in `setUp()` rather than in each test method since every test needs it (output capture would fail otherwise). The two flush-verification tests override again with a tracking closure, which works because `FunctionOverrides::set` replaces the previous override.
+
+### Task 02: EventStream
+
+| Field | Value |
+|-------|-------|
+| Source | developer / task-02 |
+| Completed | 2026-03-10 |
+
+**Patterns discovered:** The `runEventStream` polling loop has high cognitive complexity (radarlint threshold 15). Extracting the `ob_get_level`/`ob_flush`/`flush` sequence into a `flushOutput()` private method and using a ternary for callback arity dispatch reduces complexity below threshold. The `handleStreamError` method intentionally accepts an unused `$emitter` parameter for subclass extension -- this requires `@SuppressWarnings("php:S1172")`. Anonymous class properties in tests must use camelCase (`$endCalled` not `$end_called`) per radarlint rule `php:S116`, and duplicated string literals used 5+ times must be extracted to constants.
+
+**Relevant files:** `src/Http/Routing/Controller.php`, `src/Sse/Emitter.php`, `tests/Unit/Http/Routing/ControllerTest.php`, `tests/Fixtures/Overrides/functions.php`
+
+**Conventions followed:** Set all five function overrides (`flush`, `ob_flush`, `ob_get_level`, `sleep`, `connection_aborted`) in `setUp()` with safe defaults to prevent real system calls during output capture. Used `connection_aborted` returning 1 immediately as the default to keep loops from running indefinitely; individual tests override with counting closures when loop iterations matter. Anonymous class methods in tests still require docblocks per the codesniffer rule.
+
+**Decisions made:** Extracted `flushOutput()` as a private method rather than restructuring the while loop, because the loop structure must match the controller's existing `runEventStream` exactly for behavioural equivalence. Used a public property (`$endCalled`) on the anonymous class for `testOnStreamEndIsCalledAfterLoopExits` instead of a reference-bound private property, to avoid PHPStan's `property.onlyWritten` false positive on reference assignments.
+
+### Task 03: Controller Delegation
+
+| Field | Value |
+|-------|-------|
+| Source | developer / task-03 |
+| Completed | 2026-03-10 |
+
+**Patterns discovered:** The namespace-scoped function override mechanism designed in Task 01 works seamlessly across the delegation boundary. When the controller delegates to `EventStream` (in the `Sse` namespace), built-in calls like `connection_aborted`, `sleep`, `flush` resolve to the `Sse` namespace overrides rather than the old `Http\Routing` namespace overrides, so all existing ControllerTest SSE tests pass without any test modifications.
+
+**Relevant files:** `src/Http/Routing/Controller.php`, `src/Sse/EventStream.php`, `tests/Unit/Http/Routing/ControllerTest.php`, `tests/Fixtures/Overrides/functions.php`
+
+**Conventions followed:** The `Response` facade import was retained because `respondWithData()` still uses `Response::json()`. The `StreamedResponse` import was retained for the return type declaration even though `EventStream` now constructs it internally.
+
+**Decisions made:** Used `static::HEARTBEAT_INTERVAL` (not `self::`) in the delegation call to preserve late-static-binding for subclass overrides, matching the existing test expectation in `testHeartbeatIntervalConstantCanBeOverriddenBySubclass`.
