@@ -8,6 +8,7 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Exceptions\TooManyRequestsException;
 use SineMacula\ApiToolkit\Traits\Lockable;
 use Tests\Concerns\InteractsWithNonPublicMembers;
+use Tests\Fixtures\Traits\StandaloneLockableFixture;
 use Tests\TestCase;
 
 /**
@@ -111,6 +112,29 @@ class LockableTest extends TestCase
 
         static::assertNotEmpty($lockKey);
         static::assertIsString($lockKey);
+    }
+
+    /**
+     * Test that the Lockable trait works in a standalone class that does
+     * not extend Service.
+     *
+     * @return void
+     */
+    public function testStandaloneFixtureCanAcquireAndReleaseLock(): void
+    {
+        $fixture = new StandaloneLockableFixture('standalone-test');
+
+        $lock = $fixture->acquireLock();
+
+        static::assertInstanceOf(Lock::class, $lock);
+
+        $fixture->releaseLock();
+
+        $verificationLock = Cache::lock(sha1(StandaloneLockableFixture::class . '|' . 'standalone-test'), 60);
+
+        static::assertTrue($verificationLock->get());
+
+        $verificationLock->release();
     }
 
     /**
