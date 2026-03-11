@@ -1,0 +1,176 @@
+<?php
+
+namespace Tests\Unit\Sse;
+
+use PHPUnit\Framework\Attributes\CoversClass;
+use SineMacula\ApiToolkit\Sse\Emitter;
+use Tests\Fixtures\Support\FunctionOverrides;
+use Tests\TestCase;
+
+/**
+ * Tests for the SSE Emitter.
+ *
+ * @author      Ben Carey <bdmc@sinemacula.co.uk>
+ * @copyright   2026 Sine Macula Limited.
+ *
+ * @internal
+ */
+#[CoversClass(Emitter::class)]
+class EmitterTest extends TestCase
+{
+    /** @var \SineMacula\ApiToolkit\Sse\Emitter */
+    private Emitter $emitter;
+
+    /**
+     * Set up the test environment.
+     *
+     * @return void
+     */
+    #[\Override]
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        FunctionOverrides::set('flush', fn () => null);
+
+        $this->emitter = new Emitter;
+    }
+
+    /**
+     * Test that emit writes single-line data with a blank-line terminator.
+     *
+     * @return void
+     */
+    public function testEmitWritesSingleLineDataWithTerminator(): void
+    {
+        ob_start();
+        $this->emitter->emit('hello');
+        $output = ob_get_clean();
+
+        static::assertSame("data: hello\n\n", $output);
+    }
+
+    /**
+     * Test that emit writes a named event field before the data.
+     *
+     * @return void
+     */
+    public function testEmitWritesNamedEventBeforeData(): void
+    {
+        ob_start();
+        $this->emitter->emit('hello', 'greeting');
+        $output = ob_get_clean();
+
+        static::assertSame("event: greeting\ndata: hello\n\n", $output);
+    }
+
+    /**
+     * Test that emit splits multiline data into separate data lines.
+     *
+     * @return void
+     */
+    public function testEmitSplitsMultilineDataIntoSeparateDataLines(): void
+    {
+        ob_start();
+        $this->emitter->emit("line1\nline2");
+        $output = ob_get_clean();
+
+        static::assertSame("data: line1\ndata: line2\n\n", $output);
+    }
+
+    /**
+     * Test that emit JSON-encodes array data.
+     *
+     * @return void
+     */
+    public function testEmitJsonEncodesArrayData(): void
+    {
+        ob_start();
+        $this->emitter->emit(['key' => 'value']);
+        $output = ob_get_clean();
+
+        static::assertSame("data: {\"key\":\"value\"}\n\n", $output);
+    }
+
+    /**
+     * Test that emit JSON-encodes array data with a named event.
+     *
+     * @return void
+     */
+    public function testEmitJsonEncodesArrayDataWithNamedEvent(): void
+    {
+        ob_start();
+        $this->emitter->emit(['k' => 'v'], 'update');
+        $output = ob_get_clean();
+
+        static::assertSame("event: update\ndata: {\"k\":\"v\"}\n\n", $output);
+    }
+
+    /**
+     * Test that comment writes an empty comment line.
+     *
+     * @return void
+     */
+    public function testCommentWritesEmptyCommentLine(): void
+    {
+        ob_start();
+        $this->emitter->comment();
+        $output = ob_get_clean();
+
+        static::assertSame(":\n\n", $output);
+    }
+
+    /**
+     * Test that comment writes a text comment line.
+     *
+     * @return void
+     */
+    public function testCommentWritesTextCommentLine(): void
+    {
+        ob_start();
+        $this->emitter->comment(' keep-alive');
+        $output = ob_get_clean();
+
+        static::assertSame(": keep-alive\n\n", $output);
+    }
+
+    /**
+     * Test that emit calls flush after writing.
+     *
+     * @return void
+     */
+    public function testEmitCallsFlush(): void
+    {
+        $flush_called = false;
+
+        FunctionOverrides::set('flush', function () use (&$flush_called): void {
+            $flush_called = true;
+        });
+
+        ob_start();
+        $this->emitter->emit('test');
+        ob_get_clean();
+
+        static::assertTrue($flush_called);
+    }
+
+    /**
+     * Test that comment calls flush after writing.
+     *
+     * @return void
+     */
+    public function testCommentCallsFlush(): void
+    {
+        $flush_called = false;
+
+        FunctionOverrides::set('flush', function () use (&$flush_called): void {
+            $flush_called = true;
+        });
+
+        ob_start();
+        $this->emitter->comment();
+        ob_get_clean();
+
+        static::assertTrue($flush_called);
+    }
+}
