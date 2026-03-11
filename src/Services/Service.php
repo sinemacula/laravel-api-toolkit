@@ -2,10 +2,10 @@
 
 namespace SineMacula\ApiToolkit\Services;
 
-use Exception;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Str;
+use SineMacula\ApiToolkit\Services\Contracts\HasSuccessCallback;
+use SineMacula\ApiToolkit\Services\Contracts\Initializable;
 use SineMacula\ApiToolkit\Services\Contracts\ServiceInterface;
 use SineMacula\ApiToolkit\Traits\Lockable;
 
@@ -112,6 +112,11 @@ abstract class Service implements ServiceInterface
     /**
      * Prepare the service for execution.
      *
+     * Called after lock acquisition and before handle(). Subclasses
+     * override this to perform validation, data loading, or other
+     * pre-execution setup. Exceptions thrown here trigger the
+     * failed() callback and are rethrown.
+     *
      * @return void
      *
      * @throws \Exception
@@ -121,12 +126,20 @@ abstract class Service implements ServiceInterface
     /**
      * Method is triggered if the handle method ran successfully.
      *
+     * Called after the handler completes and the transaction has
+     * committed. Runs outside the try/catch block -- exceptions here
+     * will NOT trigger the failed() callback.
+     *
      * @return void
      */
     public function success(): void {}
 
     /**
      * Method is triggered if the handle method failed.
+     *
+     * Called when prepare() or handle() throws an exception, before
+     * the exception is rethrown. The lock is released in the finally
+     * block after this method returns.
      *
      * @param  \Throwable  $exception
      * @return void
@@ -136,42 +149,21 @@ abstract class Service implements ServiceInterface
     /**
      * Run the service.
      *
+     * Orchestrates the full service lifecycle: lock acquisition,
+     * prepare/handle execution (with optional transaction wrapping and
+     * error handling), success notification, and lock release.
+     *
      * @return bool
      *
      * @throws \Throwable
      */
     public function run(): bool
     {
-        if ($this->useLock) {
-            $this->lock();
-        }
+        $this->acquireLock();
 
-        try {
+        $this->executeLifecycle();
 
-            // Prepare the service for execution
-            $this->prepare();
-
-            // Execute the service handler
-            $this->status = $this->useTransaction
-                ? DB::transaction(fn () => $this->handle(), 3)
-                : $this->handle();
-
-        } catch (\Throwable $exception) {
-            $this->failed($exception);
-            throw $exception;
-        } finally {
-            $this->unlock();
-        }
-
-        // The success callback is run outside the try/catch block in order to
-        // ensure it does not trigger the failed callback if exceptions are
-        // thrown. Typically, if an exception is thrown in the success callback,
-        // then this would be a bug considering all changes are committed at
-        // this point
-        $this->success();
-
-        // Call any success callbacks defined on traits used by the service
-        $this->callTraitsSuccessCallbacks();
+        $this->notifySuccess();
 
         return $this->status;
     }
@@ -179,29 +171,16 @@ abstract class Service implements ServiceInterface
     /**
      * Initialize the service.
      *
+     * Called during construction, after payload normalization. If the
+     * service (via a trait) implements Initializable, the trait's
+     * initializeTrait() method is called to set up trait-specific state.
+     *
      * @return void
      */
     protected function initialize(): void
     {
-        $this->initializeTraits();
-    }
-
-    /**
-     * Initialize each of the initializable traits on the service.
-     *
-     * @return void
-     */
-    protected static function initializeTraits(): void
-    {
-        $class = static::class;
-
-        foreach (class_uses_recursive($class) as $trait) {
-
-            $method = 'initialize' . class_basename($trait);
-
-            if (method_exists($class, $method)) {
-                forward_static_call([$class, $method]);
-            }
+        if ($this instanceof Initializable) {
+            $this::initializeTrait();
         }
     }
 
@@ -233,22 +212,82 @@ abstract class Service implements ServiceInterface
     }
 
     /**
-     * Call any success callbacks that are defined on any traits used by the
-     * service.
+     * Conditionally acquire the cache lock for exclusive execution.
+     *
+     * Called at the start of run(). If $useLock is false, this method
+     * is a no-op. When locking is enabled, delegates to the Lockable
+     * trait's lock() method. Exceptions from lock acquisition propagate
+     * to the caller.
      *
      * @return void
      */
-    private function callTraitsSuccessCallbacks(): void
+    private function acquireLock(): void
     {
-        $traits = class_uses_recursive(static::class);
+        if ($this->useLock) {
+            $this->lock();
+        }
+    }
 
-        foreach ($traits as $trait) {
+    /**
+     * Execute the service lifecycle within a try/catch/finally block.
+     *
+     * Runs prepare() then executeHandler() within a try block. On
+     * exception, calls failed() and rethrows. The finally block always
+     * calls unlock() to release any acquired lock, even on exception.
+     *
+     * @return void
+     *
+     * @throws \Throwable
+     */
+    private function executeLifecycle(): void
+    {
+        try {
 
-            $method = Str::camel(class_basename($trait) . 'Success');
+            $this->prepare();
 
-            if (method_exists($this, $method)) {
-                $this->{$method}();
-            }
+            $this->status = $this->executeHandler();
+
+        } catch (\Throwable $exception) {
+            $this->failed($exception);
+            throw $exception;
+        } finally {
+            $this->unlock();
+        }
+    }
+
+    /**
+     * Execute the service handler, optionally within a database
+     * transaction.
+     *
+     * When $useTransaction is true, wraps handle() in a
+     * DB::transaction() call with 3 retry attempts. When false, calls
+     * handle() directly. Returns the boolean result from handle().
+     *
+     * @return bool
+     */
+    private function executeHandler(): bool
+    {
+        return $this->useTransaction
+            ? (bool) DB::transaction(fn () => $this->handle(), 3)
+            : $this->handle();
+    }
+
+    /**
+     * Notify success callbacks after a successful service execution.
+     *
+     * Calls the service's own success() callback first, then checks
+     * whether the service (via a trait) implements HasSuccessCallback
+     * and invokes onTraitSuccess(). Runs outside the try/catch block --
+     * exceptions here will NOT trigger the failed() callback.
+     *
+     * @return void
+     */
+    private function notifySuccess(): void
+    {
+        $this->success();
+
+        if ($this instanceof HasSuccessCallback) {
+            $this->onTraitSuccess();
         }
     }
 }
