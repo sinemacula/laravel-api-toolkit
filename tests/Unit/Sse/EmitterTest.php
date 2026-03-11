@@ -141,17 +141,17 @@ class EmitterTest extends TestCase
      */
     public function testEmitCallsFlush(): void
     {
-        $flush_called = false;
+        $flushCalled = false;
 
-        FunctionOverrides::set('flush', function () use (&$flush_called): void {
-            $flush_called = true;
+        FunctionOverrides::set('flush', function () use (&$flushCalled): void {
+            $flushCalled = true;
         });
 
         ob_start();
         $this->emitter->emit('test');
         ob_get_clean();
 
-        static::assertTrue($flush_called);
+        static::assertTrue($flushCalled);
     }
 
     /**
@@ -161,16 +161,16 @@ class EmitterTest extends TestCase
      */
     public function testCommentCallsFlush(): void
     {
-        $flush_called = false;
+        $flushCalled = false;
 
-        FunctionOverrides::set('flush', function () use (&$flush_called): void {
-            $flush_called = true;
+        FunctionOverrides::set('flush', function () use (&$flushCalled): void {
+            $flushCalled = true;
         });
 
         ob_start();
         $this->emitter->comment();
         ob_get_clean();
 
-        static::assertTrue($flush_called);
+        static::assertTrue($flushCalled);
     }
 }

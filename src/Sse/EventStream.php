@@ -25,12 +25,12 @@ class EventStream
     /**
      * Create a new event stream instance.
      *
-     * @param  int  $heartbeat_interval
+     * @param  int  $heartbeatInterval
      */
     public function __construct(
 
         /** The heartbeat interval in seconds for keep-alive comments. */
-        private readonly int $heartbeat_interval = 20,
+        private readonly int $heartbeatInterval = 20,
 
     ) {}
 
@@ -47,8 +47,13 @@ class EventStream
      * @param  array<string, string>  $headers
      * @return \Symfony\Component\HttpFoundation\StreamedResponse
      */
-    public function toResponse(callable $callback, int $interval = 1, HttpStatus $status = HttpStatus::OK, array $headers = []): StreamedResponse
-    {
+    public function toResponse(
+        callable $callback,
+        int $interval = 1,
+        HttpStatus $status = HttpStatus::OK,
+        array $headers = [],
+    ): StreamedResponse {
+
         $headers = array_merge($headers, [
             'Content-Type'      => 'text/event-stream',
             'Cache-Control'     => 'no-cache, no-transform',
@@ -56,11 +61,11 @@ class EventStream
             'X-Accel-Buffering' => 'no',
         ]);
 
-        $accepts_emitter = (new \ReflectionFunction(\Closure::fromCallable($callback)))->getNumberOfParameters() >= 1;
-        $emitter         = new Emitter;
+        $acceptsEmitter = (new \ReflectionFunction(\Closure::fromCallable($callback)))->getNumberOfParameters() >= 1;
+        $emitter        = new Emitter;
 
-        return new StreamedResponse(function () use ($callback, $interval, $emitter, $accepts_emitter): void {
-            $this->runEventStream($callback, $interval, $emitter, $accepts_emitter);
+        return new StreamedResponse(function () use ($callback, $interval, $emitter, $acceptsEmitter): void {
+            $this->runEventStream($callback, $interval, $emitter, $acceptsEmitter);
         }, $status->getCode(), $headers);
     }
 
@@ -121,14 +126,14 @@ class EventStream
      * @param  callable(): void|callable(\SineMacula\ApiToolkit\Sse\Emitter): void  $callback
      * @param  int  $interval
      * @param  \SineMacula\ApiToolkit\Sse\Emitter  $emitter
-     * @param  bool  $accepts_emitter
+     * @param  bool  $acceptsEmitter
      * @return void
      */
-    private function runEventStream(callable $callback, int $interval, Emitter $emitter, bool $accepts_emitter): void
+    private function runEventStream(callable $callback, int $interval, Emitter $emitter, bool $acceptsEmitter): void
     {
         $this->onStreamStart($emitter);
 
-        $heartbeat_timestamp = now();
+        $heartbeatTimestamp = now();
 
         while (true) {
 
@@ -137,7 +142,7 @@ class EventStream
             }
 
             try {
-                $accepts_emitter ? $callback($emitter) : $callback();
+                $acceptsEmitter ? $callback($emitter) : $callback();
             } catch (\Throwable $e) {
                 if (!$this->handleStreamError($e, $emitter)) {
                     break;
@@ -148,9 +153,9 @@ class EventStream
 
             $this->flushOutput();
 
-            if ($heartbeat_timestamp->diffInSeconds(now()) >= $this->heartbeat_interval) {
+            if ($heartbeatTimestamp->diffInSeconds(now()) >= $this->heartbeatInterval) {
                 $emitter->comment();
-                $heartbeat_timestamp = now();
+                $heartbeatTimestamp = now();
             }
 
             // @phpstan-ignore-next-line if.alwaysFalse (connection state may change between the two checks per iteration)

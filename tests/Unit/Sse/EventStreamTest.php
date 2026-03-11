@@ -68,10 +68,10 @@ class EventStreamTest extends TestCase
 
         static::assertSame('text/event-stream', $response->headers->get('Content-Type'));
 
-        $cache_control = $response->headers->get('Cache-Control');
+        $cacheControl = $response->headers->get('Cache-Control');
 
-        static::assertStringContainsString('no-cache', $cache_control);
-        static::assertStringContainsString('no-transform', $cache_control);
+        static::assertStringContainsString('no-cache', $cacheControl);
+        static::assertStringContainsString('no-transform', $cacheControl);
         static::assertSame('keep-alive', $response->headers->get('Connection'));
         static::assertSame('no', $response->headers->get('X-Accel-Buffering'));
     }
@@ -116,24 +116,24 @@ class EventStreamTest extends TestCase
      */
     public function testStreamExecutesCallback(): void
     {
-        $abort_count = 0;
+        $abortCount = 0;
 
-        FunctionOverrides::set('connection_aborted', function () use (&$abort_count): int {
-            return ++$abort_count >= 2 ? 1 : 0;
+        FunctionOverrides::set('connection_aborted', function () use (&$abortCount): int {
+            return ++$abortCount >= 2 ? 1 : 0;
         });
 
-        $callback_ran = false;
+        $callbackRan = false;
 
         $stream   = new EventStream;
-        $response = $stream->toResponse(function () use (&$callback_ran): void {
-            $callback_ran = true;
+        $response = $stream->toResponse(function () use (&$callbackRan): void {
+            $callbackRan = true;
         });
 
         ob_start();
         $response->sendContent();
         ob_get_clean();
 
-        static::assertTrue($callback_ran);
+        static::assertTrue($callbackRan);
     }
 
     /**
@@ -162,13 +162,13 @@ class EventStreamTest extends TestCase
     {
         $this->travelTo(now());
 
-        $abort_count = 0;
+        $abortCount = 0;
 
-        FunctionOverrides::set('connection_aborted', function () use (&$abort_count): int {
-            return ++$abort_count >= 4 ? 1 : 0;
+        FunctionOverrides::set('connection_aborted', function () use (&$abortCount): int {
+            return ++$abortCount >= 4 ? 1 : 0;
         });
 
-        $stream   = new EventStream(heartbeat_interval: 5);
+        $stream   = new EventStream(heartbeatInterval: 5);
         $response = $stream->toResponse(function (): void {
             $this->travel(6)->seconds();
         });
@@ -177,9 +177,9 @@ class EventStreamTest extends TestCase
         $response->sendContent();
         $output = ob_get_clean();
 
-        $comment_count = substr_count((string) $output, self::SSE_COMMENT);
+        $commentCount = substr_count((string) $output, self::SSE_COMMENT);
 
-        static::assertGreaterThanOrEqual(2, $comment_count);
+        static::assertGreaterThanOrEqual(2, $commentCount);
     }
 
     /**
@@ -192,18 +192,18 @@ class EventStreamTest extends TestCase
     {
         FunctionOverrides::set('connection_aborted', fn (): int => 1);
 
-        $callback_ran = false;
+        $callbackRan = false;
 
         $stream   = new EventStream;
-        $response = $stream->toResponse(function () use (&$callback_ran): void {
-            $callback_ran = true;
+        $response = $stream->toResponse(function () use (&$callbackRan): void {
+            $callbackRan = true;
         });
 
         ob_start();
         $response->sendContent();
         ob_get_clean();
 
-        static::assertFalse($callback_ran);
+        static::assertFalse($callbackRan);
     }
 
     /**
@@ -216,17 +216,17 @@ class EventStreamTest extends TestCase
      */
     public function testStreamEmitsErrorEventWhenCallbackThrows(): void
     {
-        $abort_count = 0;
+        $abortCount = 0;
 
-        FunctionOverrides::set('connection_aborted', function () use (&$abort_count): int {
-            return ++$abort_count >= 3 ? 1 : 0;
+        FunctionOverrides::set('connection_aborted', function () use (&$abortCount): int {
+            return ++$abortCount >= 3 ? 1 : 0;
         });
 
-        $call_count = 0;
+        $callCount = 0;
 
         $stream   = new EventStream;
-        $response = $stream->toResponse(function () use (&$call_count): void {
-            $call_count++;
+        $response = $stream->toResponse(function () use (&$callCount): void {
+            $callCount++;
             throw new \RuntimeException('Simulated stream failure');
         });
 
@@ -235,7 +235,7 @@ class EventStreamTest extends TestCase
         $output = ob_get_clean();
 
         static::assertStringContainsString("event: error\n\n", (string) $output);
-        static::assertSame(1, $call_count);
+        static::assertSame(1, $callCount);
     }
 
     /**
@@ -245,24 +245,24 @@ class EventStreamTest extends TestCase
      */
     public function testStreamPassesEmitterWhenCallbackAcceptsParameter(): void
     {
-        $abort_count = 0;
+        $abortCount = 0;
 
-        FunctionOverrides::set('connection_aborted', function () use (&$abort_count): int {
-            return ++$abort_count >= 2 ? 1 : 0;
+        FunctionOverrides::set('connection_aborted', function () use (&$abortCount): int {
+            return ++$abortCount >= 2 ? 1 : 0;
         });
 
-        $received_emitter = null;
+        $receivedEmitter = null;
 
         $stream   = new EventStream;
-        $response = $stream->toResponse(function (Emitter $emitter) use (&$received_emitter): void {
-            $received_emitter = $emitter;
+        $response = $stream->toResponse(function (Emitter $emitter) use (&$receivedEmitter): void {
+            $receivedEmitter = $emitter;
         });
 
         ob_start();
         $response->sendContent();
         ob_get_clean();
 
-        static::assertInstanceOf(Emitter::class, $received_emitter);
+        static::assertInstanceOf(Emitter::class, $receivedEmitter);
     }
 
     /**
@@ -272,24 +272,24 @@ class EventStreamTest extends TestCase
      */
     public function testStreamDoesNotPassEmitterWhenCallbackAcceptsNoParameters(): void
     {
-        $abort_count = 0;
+        $abortCount = 0;
 
-        FunctionOverrides::set('connection_aborted', function () use (&$abort_count): int {
-            return ++$abort_count >= 2 ? 1 : 0;
+        FunctionOverrides::set('connection_aborted', function () use (&$abortCount): int {
+            return ++$abortCount >= 2 ? 1 : 0;
         });
 
-        $args_received = null;
+        $argsReceived = null;
 
         $stream   = new EventStream;
-        $response = $stream->toResponse(function () use (&$args_received): void {
-            $args_received = func_get_args();
+        $response = $stream->toResponse(function () use (&$argsReceived): void {
+            $argsReceived = func_get_args();
         });
 
         ob_start();
         $response->sendContent();
         ob_get_clean();
 
-        static::assertSame([], $args_received);
+        static::assertSame([], $argsReceived);
     }
 
     /**
@@ -301,10 +301,10 @@ class EventStreamTest extends TestCase
     {
         $this->travelTo(now());
 
-        $abort_count = 0;
+        $abortCount = 0;
 
-        FunctionOverrides::set('connection_aborted', function () use (&$abort_count): int {
-            return ++$abort_count >= 4 ? 1 : 0;
+        FunctionOverrides::set('connection_aborted', function () use (&$abortCount): int {
+            return ++$abortCount >= 4 ? 1 : 0;
         });
 
         $iteration = 0;
@@ -322,9 +322,9 @@ class EventStreamTest extends TestCase
         $response->sendContent();
         $output = ob_get_clean();
 
-        $comment_count = substr_count((string) $output, self::SSE_COMMENT);
+        $commentCount = substr_count((string) $output, self::SSE_COMMENT);
 
-        static::assertSame(1, $comment_count);
+        static::assertSame(1, $commentCount);
     }
 
     /**
@@ -336,13 +336,13 @@ class EventStreamTest extends TestCase
     {
         $this->travelTo(now());
 
-        $abort_count = 0;
+        $abortCount = 0;
 
-        FunctionOverrides::set('connection_aborted', function () use (&$abort_count): int {
-            return ++$abort_count >= 4 ? 1 : 0;
+        FunctionOverrides::set('connection_aborted', function () use (&$abortCount): int {
+            return ++$abortCount >= 4 ? 1 : 0;
         });
 
-        $stream   = new EventStream(heartbeat_interval: 5);
+        $stream   = new EventStream(heartbeatInterval: 5);
         $response = $stream->toResponse(function (): void {
             $this->travel(5)->seconds();
         });
@@ -351,9 +351,9 @@ class EventStreamTest extends TestCase
         $response->sendContent();
         $output = ob_get_clean();
 
-        $comment_count = substr_count((string) $output, self::SSE_COMMENT);
+        $commentCount = substr_count((string) $output, self::SSE_COMMENT);
 
-        static::assertGreaterThanOrEqual(2, $comment_count);
+        static::assertGreaterThanOrEqual(2, $commentCount);
     }
 
     /**
@@ -367,13 +367,13 @@ class EventStreamTest extends TestCase
      */
     public function testHandleStreamErrorIsOverridableBySubclass(): void
     {
-        $abort_count = 0;
+        $abortCount = 0;
 
-        FunctionOverrides::set('connection_aborted', function () use (&$abort_count): int {
-            return ++$abort_count >= 5 ? 1 : 0;
+        FunctionOverrides::set('connection_aborted', function () use (&$abortCount): int {
+            return ++$abortCount >= 5 ? 1 : 0;
         });
 
-        $call_count = 0;
+        $callCount = 0;
 
         $stream = new class extends EventStream {
             /**
@@ -387,8 +387,8 @@ class EventStreamTest extends TestCase
             }
         };
 
-        $response = $stream->toResponse(function () use (&$call_count): void {
-            $call_count++;
+        $response = $stream->toResponse(function () use (&$callCount): void {
+            $callCount++;
             throw new \RuntimeException('Recoverable error');
         });
 
@@ -396,7 +396,7 @@ class EventStreamTest extends TestCase
         $response->sendContent();
         ob_get_clean();
 
-        static::assertGreaterThan(1, $call_count);
+        static::assertGreaterThan(1, $callCount);
     }
 
     /**
@@ -469,23 +469,23 @@ class EventStreamTest extends TestCase
     {
         $this->travelTo(now());
 
-        $abort_count = 0;
+        $abortCount = 0;
 
-        FunctionOverrides::set('connection_aborted', function () use (&$abort_count): int {
-            return ++$abort_count >= 3 ? 1 : 0;
+        FunctionOverrides::set('connection_aborted', function () use (&$abortCount): int {
+            return ++$abortCount >= 3 ? 1 : 0;
         });
 
-        $call_count = 0;
+        $callCount = 0;
 
         $stream   = new EventStream;
-        $response = $stream->toResponse(function () use (&$call_count): void {
-            $call_count++;
+        $response = $stream->toResponse(function () use (&$callCount): void {
+            $callCount++;
         });
 
         ob_start();
         $response->sendContent();
         ob_get_clean();
 
-        static::assertSame(1, $call_count);
+        static::assertSame(1, $callCount);
     }
 }
