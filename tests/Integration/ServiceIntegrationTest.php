@@ -92,8 +92,7 @@ class ServiceIntegrationTest extends TestCase
      */
     public function testServiceRunsWithoutTransaction(): void
     {
-        $service = new SimpleService;
-        $service->dontUseTransaction();
+        $service = new SimpleService(useTransaction: false);
 
         $result = $service->run();
 

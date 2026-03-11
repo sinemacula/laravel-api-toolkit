@@ -107,84 +107,85 @@ class ServiceTest extends TestCase
     }
 
     /**
-     * Test that dontUseTransaction runs without a database transaction.
+     * Test that the constructor disables the transaction when configured.
      *
      * @return void
      */
-    public function testDontUseTransactionRunsWithoutTransaction(): void
+    public function testConstructorDisablesTransactionWhenConfigured(): void
     {
-        $service = new SimpleService;
+        $service = new SimpleService(useTransaction: false);
 
-        $result = $service->dontUseTransaction();
-
-        static::assertSame($service, $result);
         static::assertFalse($this->getProperty($service, 'useTransaction'));
 
         static::assertTrue($service->run());
     }
 
     /**
-     * Test that useTransaction enables the transaction.
+     * Test that the constructor defaults the transaction to enabled.
      *
      * @return void
      */
-    public function testUseTransactionEnablesTransaction(): void
+    public function testConstructorDefaultsTransactionEnabled(): void
     {
         $service = new SimpleService;
 
-        $service->dontUseTransaction();
-
-        static::assertFalse($this->getProperty($service, 'useTransaction'));
-
-        $result = $service->useTransaction();
-
-        static::assertSame($service, $result);
         static::assertTrue($this->getProperty($service, 'useTransaction'));
     }
 
     /**
-     * Test that useLock throws RuntimeException when no lock ID is defined.
+     * Test that the constructor throws when useLock is enabled without
+     * a lock ID.
+     *
+     * @SuppressWarnings("php:S1848")
      *
      * @return void
      */
-    public function testUseLockThrowsRuntimeExceptionWhenNoLockId(): void
+    public function testConstructorThrowsWhenUseLockWithoutLockId(): void
     {
-        $service = new SimpleService;
-
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionMessage('Lock key is not set');
 
-        $service->useLock();
+        new SimpleService(useLock: true);
     }
 
     /**
-     * Test that useLock enables locking when a lock ID is defined.
+     * Test that the constructor enables locking when configured.
      *
      * @return void
      */
-    public function testUseLockEnablesLocking(): void
+    public function testConstructorEnablesLockingWhenConfigured(): void
     {
         $service = new LockableService;
 
-        $result = $service->useLock();
-
-        static::assertSame($service, $result);
         static::assertTrue($this->getProperty($service, 'useLock'));
     }
 
     /**
-     * Test that dontUseLock disables locking.
+     * Test that the constructor disables locking when configured.
      *
      * @return void
      */
-    public function testDontUseLockDisablesLocking(): void
+    public function testConstructorDisablesLockingWhenConfigured(): void
     {
-        $service = new LockableService;
+        $service = new LockableService(useLock: false);
 
-        $result = $service->dontUseLock();
-
-        static::assertSame($service, $result);
         static::assertFalse($this->getProperty($service, 'useLock'));
+    }
+
+    /**
+     * Test that configuration properties are immutable after construction.
+     *
+     * @return void
+     */
+    public function testConfigurationIsImmutableAfterConstruction(): void
+    {
+        $service = new SimpleService;
+
+        $useTransaction = new \ReflectionProperty($service, 'useTransaction');
+        $useLock        = new \ReflectionProperty($service, 'useLock');
+
+        static::assertTrue($useTransaction->isReadOnly());
+        static::assertTrue($useLock->isReadOnly());
     }
 
     /**
