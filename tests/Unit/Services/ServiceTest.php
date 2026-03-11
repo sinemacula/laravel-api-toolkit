@@ -4,6 +4,8 @@ namespace Tests\Unit\Services;
 
 use Illuminate\Support\Collection;
 use PHPUnit\Framework\Attributes\CoversClass;
+use SineMacula\ApiToolkit\Services\Contracts\HasSuccessCallback;
+use SineMacula\ApiToolkit\Services\Contracts\Initializable;
 use SineMacula\ApiToolkit\Services\Service;
 use Tests\Concerns\InteractsWithNonPublicMembers;
 use Tests\Fixtures\Services\FailingService;
@@ -327,13 +329,16 @@ class ServiceTest extends TestCase
     }
 
     /**
-     * Test that initializeTraits calls the initialize* method on used traits.
+     * Test that initialize calls initializeTrait() on services
+     * implementing the Initializable contract.
      *
      * @return void
      */
-    public function testInitializeTraitsCallsTraitInitializer(): void
+    public function testInitializeCallsTraitInitializerViaContract(): void
     {
-        $service = new class extends Service {
+        HasTrackableCallbacks::$traitInitialized = false;
+
+        $service = new class extends Service implements Initializable {
             use HasTrackableCallbacks;
 
             /**
@@ -347,22 +352,20 @@ class ServiceTest extends TestCase
             }
         };
 
-        // The static property lives on the using (anonymous) class, not on the
-        // trait directly, because forward_static_call uses late static binding.
         $class = $service::class;
 
         static::assertTrue($class::$traitInitialized);
     }
 
     /**
-     * Test that callTraitsSuccessCallbacks invokes the *Success method on
-     * used traits.
+     * Test that notifySuccess calls onTraitSuccess() on services
+     * implementing the HasSuccessCallback contract.
      *
      * @return void
      */
-    public function testCallTraitsSuccessCallbacksInvokesTraitSuccessMethod(): void
+    public function testNotifySuccessInvokesTraitSuccessCallbackViaContract(): void
     {
-        $service = new class extends Service {
+        $service = new class extends Service implements HasSuccessCallback {
             use HasTrackableCallbacks;
 
             /**
@@ -379,5 +382,63 @@ class ServiceTest extends TestCase
         $service->run();
 
         static::assertTrue($service->traitSuccessRan);
+    }
+
+    /**
+     * Test that implementing a lifecycle contract without providing
+     * the required method produces a PHP error.
+     *
+     * @return void
+     */
+    public function testContractEnforcesCorrectHookDefinition(): void
+    {
+        $base = dirname(__DIR__, 3);
+
+        $code = implode(' ', [
+            "require_once '{$base}/vendor/autoload.php';",
+            'new class extends \SineMacula\ApiToolkit\Services\Service',
+            'implements \SineMacula\ApiToolkit\Services\Contracts\Initializable',
+            '{ protected function handle(): bool { return true; } };',
+        ]);
+
+        exec('php -r ' . escapeshellarg($code) . ' 2>&1', $output, $exitCode);
+
+        static::assertNotSame(0, $exitCode, 'Implementing Initializable without initializeTrait() must produce a PHP error');
+        static::assertStringContainsString('initializeTrait', implode("\n", $output));
+    }
+
+    /**
+     * Test that trait lifecycle methods are not called when the service
+     * does not implement the corresponding contract interface.
+     *
+     * @return void
+     */
+    public function testTraitMethodsAreNotCalledWithoutContractInterface(): void
+    {
+        $service = new class extends Service {
+            use HasTrackableCallbacks;
+
+            /**
+             * Handle the service execution.
+             *
+             * @return bool
+             */
+            protected function handle(): bool
+            {
+                return true;
+            }
+        };
+
+        // Reset the static property in case a previous test set it
+        $class                    = $service::class;
+        $class::$traitInitialized = false;
+
+        // Reconstruct to trigger initialize()
+        $service = new $class;
+        $service->run();
+
+        // Without the contract interfaces, the trait methods should NOT be called
+        static::assertFalse($class::$traitInitialized);
+        static::assertFalse($service->traitSuccessRan);
     }
 }
