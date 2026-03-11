@@ -32,7 +32,8 @@ class QueueFlushSubscriberTest extends TestCase
     public function testSubscribeRegistersJobProcessedAndJobFailedListeners(): void
     {
         // Arrange
-        $cacheManager = $this->app->make(CacheManager::class);        $dispatcher   = \Mockery::mock(Dispatcher::class);
+        $cacheManager = $this->app->make(CacheManager::class); // @phpstan-ignore method.nonObject
+        $dispatcher   = \Mockery::mock(Dispatcher::class);
         $subscriber   = new QueueFlushSubscriber($cacheManager);
 
         $dispatcher->shouldReceive('listen')
@@ -61,7 +62,8 @@ class QueueFlushSubscriberTest extends TestCase
             ->shouldReceive('flush')
             ->once();
 
-        $cacheManager = $this->app->make(CacheManager::class);        $subscriber   = new QueueFlushSubscriber($cacheManager);
+        $cacheManager = $this->app->make(CacheManager::class); // @phpstan-ignore method.nonObject
+        $subscriber   = new QueueFlushSubscriber($cacheManager);
 
         $key = 'queue-flush-test';
 

@@ -42,7 +42,8 @@ class CacheManagerTest extends TestCase
         static::assertSame('cached-value', Cache::memo()->get($key));
 
         // Act
-        $manager = $this->app->make(CacheManager::class);        $manager->flush();
+        $manager = $this->app->make(CacheManager::class); // @phpstan-ignore method.nonObject
+        $manager->flush();
 
         // Assert
         static::assertNull(Cache::memo()->get($key));
@@ -63,7 +64,8 @@ class CacheManagerTest extends TestCase
         static::assertNotEmpty($this->getStaticProperty(SchemaCompiler::class, 'cache'));
 
         // Act
-        $manager = $this->app->make(CacheManager::class);        $manager->flush();
+        $manager = $this->app->make(CacheManager::class); // @phpstan-ignore method.nonObject
+        $manager->flush();
 
         // Assert
         static::assertSame([], $this->getStaticProperty(SchemaCompiler::class, 'cache'));
@@ -85,7 +87,8 @@ class CacheManagerTest extends TestCase
             ->once();
 
         // Act
-        $manager = $this->app->make(CacheManager::class);        $manager->flush();
+        $manager = $this->app->make(CacheManager::class); // @phpstan-ignore method.nonObject
+        $manager->flush();
 
         // Assert (handled by Mockery expectation)
     }
@@ -101,7 +104,8 @@ class CacheManagerTest extends TestCase
         Event::fake();
 
         // Act
-        $manager = $this->app->make(CacheManager::class);        $manager->flush();
+        $manager = $this->app->make(CacheManager::class); // @phpstan-ignore method.nonObject
+        $manager->flush();
 
         // Assert
         Event::assertDispatched(CacheFlushed::class);
@@ -118,7 +122,8 @@ class CacheManagerTest extends TestCase
         Event::fake();
 
         // Act
-        $manager = $this->app->make(CacheManager::class);        $manager->flush();
+        $manager = $this->app->make(CacheManager::class); // @phpstan-ignore method.nonObject
+        $manager->flush();
 
         // Assert
         static::assertNull(Cache::memo()->get('nonexistent'));
