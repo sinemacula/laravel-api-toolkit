@@ -158,4 +158,16 @@ class SchemaIntrospector implements SchemaIntrospectionProvider
 
         return $model->{$key}(); // @phpstan-ignore method.dynamicName
     }
+
+    /**
+     * Clear all internally cached schema data.
+     *
+     * @return void
+     */
+    #[\Override]
+    public function flush(): void
+    {
+        $this->columns    = [];
+        $this->searchable = [];
+    }
 }

@@ -81,6 +81,17 @@ final class AttributeSetter
     }
 
     /**
+     * Flush the instance-level cast cache, forcing re-resolution on
+     * the next access.
+     *
+     * @return void
+     */
+    public function flush(): void
+    {
+        $this->casts = [];
+    }
+
+    /**
      * Resolve the attribute casts for the given model.
      *
      * @param  \Illuminate\Database\Eloquent\Model  $model

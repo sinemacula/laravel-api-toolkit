@@ -20,6 +20,16 @@ trait ResolvesResource
     private ?string $customResourceClass = null;
 
     /**
+     * Flush all memo-cached resource mappings.
+     *
+     * @return void
+     */
+    public static function flushResourceCache(): void
+    {
+        Cache::memo()->flush(); // @phpstan-ignore method.notFound
+    }
+
+    /**
      * Set a custom resource class to be used.
      *
      * @param  string|null  $resource_class

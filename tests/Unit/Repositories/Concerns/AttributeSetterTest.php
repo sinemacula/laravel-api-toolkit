@@ -515,6 +515,48 @@ class AttributeSetterTest extends TestCase
     }
 
     /**
+     * Test that flush clears the cached casts, forcing re-resolution
+     * on the next call.
+     *
+     * @return void
+     */
+    public function testFlushClearsCasts(): void
+    {
+        $model = new User;
+
+        Config::set('api-toolkit.repositories.cast_map', [
+            'enum' => [UserStatus::class],
+        ]);
+
+        $this->attributeSetter->resolveAttributeCasts($model, User::class);
+
+        $castsBeforeFlush = $this->getProperty($this->attributeSetter, 'casts');
+
+        static::assertNotEmpty($castsBeforeFlush);
+
+        $this->attributeSetter->flush();
+
+        $castsAfterFlush = $this->getProperty($this->attributeSetter, 'casts');
+
+        static::assertSame([], $castsAfterFlush);
+    }
+
+    /**
+     * Test that flush on a fresh AttributeSetter with no prior cast
+     * resolution does not throw an exception.
+     *
+     * @return void
+     */
+    public function testFlushOnEmptyCastsIsHarmless(): void
+    {
+        $this->attributeSetter->flush();
+
+        $casts = $this->getProperty($this->attributeSetter, 'casts');
+
+        static::assertSame([], $casts);
+    }
+
+    /**
      * Test that resolveCastForAttribute returns 'enum' for a cast
      * string that is a valid enum class.
      *

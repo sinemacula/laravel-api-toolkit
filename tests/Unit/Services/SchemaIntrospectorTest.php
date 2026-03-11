@@ -4,6 +4,7 @@ namespace Tests\Unit\Services;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
@@ -368,5 +369,89 @@ class SchemaIntrospectorTest extends TestCase
 
         static::assertInstanceOf(SchemaIntrospector::class, $first);
         static::assertSame($first, $second);
+    }
+
+    /**
+     * Test that flush clears cached columns so the next getColumns call
+     * re-queries the database.
+     *
+     * @return void
+     */
+    public function testFlushClearsColumns(): void
+    {
+        // Arrange
+        $introspector = new SchemaIntrospector;
+        $model        = new User;
+
+        $originalColumns = $introspector->getColumns($model);
+
+        static::assertNotEmpty($originalColumns);
+
+        // Act
+        $introspector->flush();
+        Cache::memo()->flush(); // @phpstan-ignore method.notFound
+
+        Schema::shouldReceive('getColumnListing')
+            ->once()
+            ->with('users')
+            ->andReturn(['id', 'name', 'extra_column']);
+
+        $refreshedColumns = $introspector->getColumns($model);
+
+        // Assert
+        static::assertSame(['id', 'name', 'extra_column'], $refreshedColumns);
+        static::assertNotSame($originalColumns, $refreshedColumns);
+    }
+
+    /**
+     * Test that flush clears cached searchable columns so the next
+     * getSearchableColumns call re-computes.
+     *
+     * @return void
+     */
+    public function testFlushClearsSearchable(): void
+    {
+        // Arrange
+        Config::set('api-toolkit.repositories.searchable_exclusions', ['password']);
+
+        $introspector = new SchemaIntrospector;
+        $model        = new User;
+
+        $originalSearchable = $introspector->getSearchableColumns($model);
+
+        static::assertNotContains('password', $originalSearchable);
+
+        // Act
+        $introspector->flush();
+        Cache::memo()->flush(); // @phpstan-ignore method.notFound
+
+        Schema::shouldReceive('getColumnListing')
+            ->once()
+            ->with('users')
+            ->andReturn(['id', 'name', 'extra_column']);
+
+        Config::set('api-toolkit.repositories.searchable_exclusions', []);
+
+        $refreshedSearchable = $introspector->getSearchableColumns($model);
+
+        // Assert
+        static::assertSame(['id', 'name', 'extra_column'], $refreshedSearchable);
+        static::assertNotSame($originalSearchable, $refreshedSearchable);
+    }
+
+    /**
+     * Test that calling flush on a freshly constructed introspector with
+     * no prior calls does not throw an exception.
+     *
+     * @return void
+     */
+    public function testFlushOnEmptyStateIsHarmless(): void
+    {
+        $introspector = new SchemaIntrospector;
+
+        $introspector->flush();
+
+        static::assertSame([], $this->getProperty($introspector, 'columns'));
+        static::assertSame([], $this->getProperty($introspector, 'searchable'));
     }
 }
