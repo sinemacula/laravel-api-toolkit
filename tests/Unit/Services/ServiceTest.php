@@ -2,18 +2,16 @@
 
 namespace Tests\Unit\Services;
 
+use Closure;
 use Illuminate\Support\Collection;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Contracts\LockKeyProvider;
-use SineMacula\ApiToolkit\Services\Contracts\HasSuccessCallback;
-use SineMacula\ApiToolkit\Services\Contracts\Initializable;
+use SineMacula\ApiToolkit\Services\Contracts\ServiceConcern;
 use SineMacula\ApiToolkit\Services\Service;
-use Tests\Concerns\InteractsWithNonPublicMembers;
 use Tests\Fixtures\Services\FailingService;
 use Tests\Fixtures\Services\LockableService;
 use Tests\Fixtures\Services\NoTransactionService;
 use Tests\Fixtures\Services\SimpleService;
-use Tests\Fixtures\Traits\HasTrackableCallbacks;
 use Tests\TestCase;
 
 /**
@@ -27,24 +25,6 @@ use Tests\TestCase;
 #[CoversClass(Service::class)]
 class ServiceTest extends TestCase
 {
-    use InteractsWithNonPublicMembers;
-
-    /**
-     * Test that run executes handle within a transaction by default.
-     *
-     * @return void
-     */
-    public function testRunExecutesHandleInTransactionByDefault(): void
-    {
-        $service = new SimpleService;
-
-        static::assertTrue($this->getProperty($service, 'useTransaction'));
-
-        $result = $service->run();
-
-        static::assertTrue($result);
-    }
-
     /**
      * Test that run calls success on successful execution.
      *
@@ -111,35 +91,6 @@ class ServiceTest extends TestCase
     }
 
     /**
-     * Test that the default property values are correct.
-     *
-     * @return void
-     */
-    public function testDefaultPropertyValues(): void
-    {
-        $service = new SimpleService;
-
-        static::assertTrue($this->getProperty($service, 'useTransaction'));
-        static::assertFalse($this->getProperty($service, 'useLock'));
-    }
-
-    /**
-     * Test that the configuration properties are readonly.
-     *
-     * @return void
-     */
-    public function testConfigurationPropertiesAreReadonly(): void
-    {
-        $service = new SimpleService;
-
-        $useTransaction = new \ReflectionProperty($service, 'useTransaction');
-        $useLock        = new \ReflectionProperty($service, 'useLock');
-
-        static::assertTrue($useTransaction->isReadOnly());
-        static::assertTrue($useLock->isReadOnly());
-    }
-
-    /**
      * Test that the service implements the LockKeyProvider contract.
      *
      * @return void
@@ -167,34 +118,6 @@ class ServiceTest extends TestCase
     }
 
     /**
-     * Test that a subclass can disable transactions via property override.
-     *
-     * @return void
-     */
-    public function testPropertyOverrideDisablesTransaction(): void
-    {
-        $service = new NoTransactionService;
-
-        static::assertFalse($this->getProperty($service, 'useTransaction'));
-
-        $result = $service->run();
-
-        static::assertTrue($result);
-    }
-
-    /**
-     * Test that a subclass can enable locking via property override.
-     *
-     * @return void
-     */
-    public function testPropertyOverrideEnablesLocking(): void
-    {
-        $service = new LockableService;
-
-        static::assertTrue($this->getProperty($service, 'useLock'));
-    }
-
-    /**
      * Test that the constructor converts an array payload to a Collection.
      *
      * @return void
@@ -203,7 +126,7 @@ class ServiceTest extends TestCase
     {
         $service = new SimpleService(['key' => 'value']);
 
-        $payload = $this->getProperty($service, 'payload');
+        $payload = (new \ReflectionProperty($service, 'payload'))->getValue($service);
 
         static::assertInstanceOf(Collection::class, $payload);
         static::assertSame('value', $payload->get('key'));
@@ -220,7 +143,7 @@ class ServiceTest extends TestCase
 
         $service = new SimpleService($collection);
 
-        $payload = $this->getProperty($service, 'payload');
+        $payload = (new \ReflectionProperty($service, 'payload'))->getValue($service);
 
         static::assertInstanceOf(Collection::class, $payload);
         static::assertSame('value', $payload->get('key'));
@@ -338,94 +261,145 @@ class ServiceTest extends TestCase
     }
 
     /**
-     * Test that initialize calls initializeTrait() on services
-     * implementing the Initializable contract.
+     * Test that the base concerns() method returns an empty array.
      *
      * @return void
      */
-    public function testInitializeCallsTraitInitializerViaContract(): void
-    {
-        HasTrackableCallbacks::$traitInitialized = false;
-
-        $service = new class extends Service implements Initializable {
-            use HasTrackableCallbacks;
-
-            /**
-             * Handle the service execution.
-             *
-             * @return bool
-             */
-            protected function handle(): bool
-            {
-                return true;
-            }
-        };
-
-        $class = $service::class;
-
-        static::assertTrue($class::$traitInitialized);
-    }
-
-    /**
-     * Test that notifySuccess calls onTraitSuccess() on services
-     * implementing the HasSuccessCallback contract.
-     *
-     * @return void
-     */
-    public function testNotifySuccessInvokesTraitSuccessCallbackViaContract(): void
-    {
-        $service = new class extends Service implements HasSuccessCallback {
-            use HasTrackableCallbacks;
-
-            /**
-             * Handle the service execution.
-             *
-             * @return bool
-             */
-            protected function handle(): bool
-            {
-                return true;
-            }
-        };
-
-        $service->run();
-
-        static::assertTrue($service->traitSuccessRan);
-    }
-
-    /**
-     * Test that implementing a lifecycle contract without providing
-     * the required method produces a PHP error.
-     *
-     * @return void
-     */
-    public function testContractEnforcesCorrectHookDefinition(): void
-    {
-        $base = dirname(__DIR__, 3);
-
-        $code = implode(' ', [
-            "require_once '{$base}/vendor/autoload.php';",
-            'new class extends \SineMacula\ApiToolkit\Services\Service',
-            'implements \SineMacula\ApiToolkit\Services\Contracts\Initializable',
-            '{ protected function handle(): bool { return true; } };',
-        ]);
-
-        exec('php -r ' . escapeshellarg($code) . ' 2>&1', $output, $exitCode);
-
-        static::assertNotSame(0, $exitCode, 'Implementing Initializable without initializeTrait() must produce a PHP error');
-        static::assertStringContainsString('initializeTrait', implode("\n", $output));
-    }
-
-    /**
-     * Test that trait lifecycle methods are not called when the service
-     * does not implement the corresponding contract interface.
-     *
-     * @return void
-     */
-    public function testTraitMethodsAreNotCalledWithoutContractInterface(): void
+    public function testConcernsDefaultsToEmptyArray(): void
     {
         $service = new class extends Service {
-            use HasTrackableCallbacks;
+            /**
+             * Handle the service execution.
+             *
+             * @return bool
+             */
+            protected function handle(): bool
+            {
+                return true;
+            }
+
+            /**
+             * Expose the protected concerns() method for testing.
+             *
+             * @return array<int, class-string<ServiceConcern>>
+             */
+            public function getConcerns(): array
+            {
+                return $this->concerns();
+            }
+        };
+
+        static::assertSame([], $service->getConcerns());
+    }
+
+    /**
+     * Test that concerns execute in declaration order.
+     *
+     * The first concern in the array is the outermost wrapper,
+     * so it runs first (before) and last (after).
+     *
+     * @return void
+     */
+    public function testConcernsExecuteInDeclarationOrder(): void
+    {
+        $order = [];
+
+        $concernA = new class ($order) implements ServiceConcern {
+            /** @var array<int, string> */
+            private array $order;
+
+            /**
+             * Create a new instance.
+             *
+             * @param  array<int, string>  $order
+             */
+            public function __construct(array &$order)
+            {
+                $this->order = &$order;
+            }
+
+            /**
+             * Execute the concern.
+             *
+             * @param  Service   $service
+             * @param  \Closure  $next
+             * @return bool
+             */
+            public function execute(Service $service, Closure $next): bool
+            {
+                $this->order[] = 'A:before';
+                $result = $next();
+                $this->order[] = 'A:after';
+
+                return $result;
+            }
+        };
+
+        $concernB = new class ($order) implements ServiceConcern {
+            /** @var array<int, string> */
+            private array $order;
+
+            /**
+             * Create a new instance.
+             *
+             * @param  array<int, string>  $order
+             */
+            public function __construct(array &$order)
+            {
+                $this->order = &$order;
+            }
+
+            /**
+             * Execute the concern.
+             *
+             * @param  Service   $service
+             * @param  \Closure  $next
+             * @return bool
+             */
+            public function execute(Service $service, Closure $next): bool
+            {
+                $this->order[] = 'B:before';
+                $result = $next();
+                $this->order[] = 'B:after';
+
+                return $result;
+            }
+        };
+
+        $this->app->instance($concernA::class, $concernA);
+        $this->app->instance($concernB::class, $concernB);
+
+        $service = new class ($concernA, $concernB) extends Service {
+            /** @var class-string<ServiceConcern> */
+            private string $classA;
+
+            /** @var class-string<ServiceConcern> */
+            private string $classB;
+
+            /**
+             * Create a new instance.
+             *
+             * @param  ServiceConcern  $concernA
+             * @param  ServiceConcern  $concernB
+             */
+            public function __construct(ServiceConcern $concernA, ServiceConcern $concernB)
+            {
+                $this->classA = $concernA::class;
+                $this->classB = $concernB::class;
+
+                parent::__construct([]);
+            }
+
+            /**
+             * Return the ordered list of concern classes for this service.
+             *
+             * @return array<int, class-string<ServiceConcern>>
+             */
+            #[\Override]
+            protected function concerns(): array
+            {
+                return [$this->classA, $this->classB];
+            }
 
             /**
              * Handle the service execution.
@@ -438,16 +412,100 @@ class ServiceTest extends TestCase
             }
         };
 
-        // Reset the static property in case a previous test set it
-        $class                    = $service::class;
-        $class::$traitInitialized = false;
-
-        // Reconstruct to trigger initialize()
-        $service = new $class;
         $service->run();
 
-        // Without the contract interfaces, the trait methods should NOT be called
-        static::assertFalse($class::$traitInitialized);
-        static::assertFalse($service->traitSuccessRan);
+        static::assertSame(['A:before', 'B:before', 'B:after', 'A:after'], $order);
+    }
+
+    /**
+     * Test that a concern can short-circuit the pipeline by not
+     * calling $next().
+     *
+     * @return void
+     */
+    public function testConcernCanShortCircuitPipeline(): void
+    {
+        $handleCalled = false;
+
+        $concern = new class implements ServiceConcern {
+            /**
+             * Execute the concern, short-circuiting the pipeline.
+             *
+             * @param  Service   $service
+             * @param  \Closure  $next
+             * @return bool
+             */
+            public function execute(Service $service, Closure $next): bool
+            {
+                return false;
+            }
+        };
+
+        $this->app->instance($concern::class, $concern);
+
+        $service = new class ($concern, $handleCalled) extends Service {
+            /** @var class-string<ServiceConcern> */
+            private string $concernClass;
+
+            /** @var bool */
+            private bool $handleCalled;
+
+            /**
+             * Create a new instance.
+             *
+             * @param  ServiceConcern  $concern
+             * @param  bool            $handleCalled
+             */
+            public function __construct(ServiceConcern $concern, bool &$handleCalled)
+            {
+                $this->concernClass = $concern::class;
+                $this->handleCalled = &$handleCalled;
+
+                parent::__construct([]);
+            }
+
+            /**
+             * Return the ordered list of concern classes for this service.
+             *
+             * @return array<int, class-string<ServiceConcern>>
+             */
+            #[\Override]
+            protected function concerns(): array
+            {
+                return [$this->concernClass];
+            }
+
+            /**
+             * Handle the service execution.
+             *
+             * @return bool
+             */
+            protected function handle(): bool
+            {
+                $this->handleCalled = true;
+
+                return true;
+            }
+        };
+
+        $result = $service->run();
+
+        static::assertFalse($result);
+        static::assertFalse($handleCalled);
+    }
+
+    /**
+     * Test that a service with no concerns runs successfully.
+     *
+     * @return void
+     */
+    public function testNoTransactionServiceRunsWithoutConcerns(): void
+    {
+        $service = new NoTransactionService;
+
+        $result = $service->run();
+
+        static::assertTrue($result);
+        static::assertTrue($service->successCalled);
     }
 }
