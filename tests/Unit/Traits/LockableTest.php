@@ -5,6 +5,7 @@ namespace Tests\Unit\Traits;
 use Illuminate\Contracts\Cache\Lock;
 use Illuminate\Support\Facades\Cache;
 use PHPUnit\Framework\Attributes\CoversClass;
+use SineMacula\ApiToolkit\Contracts\LockKeyProvider;
 use SineMacula\ApiToolkit\Exceptions\TooManyRequestsException;
 use SineMacula\ApiToolkit\Traits\Lockable;
 use Tests\Concerns\InteractsWithNonPublicMembers;
@@ -50,7 +51,7 @@ class LockableTest extends TestCase
     {
         $consumer = $this->createConsumer('conflict-lock-id');
 
-        $lockKey = $this->invokeMethod($consumer, 'generateLockKey');
+        $lockKey = $consumer->getLockKey();
 
         $existingLock = Cache::lock($lockKey, 60);
         $existingLock->get();
@@ -76,7 +77,7 @@ class LockableTest extends TestCase
         $this->invokeMethod($consumer, 'lock');
         $this->invokeMethod($consumer, 'unlock');
 
-        $lockKey = $this->invokeMethod($consumer, 'generateLockKey');
+        $lockKey = $consumer->getLockKey();
         $newLock = Cache::lock($lockKey, 60);
 
         static::assertTrue($newLock->get());
@@ -99,16 +100,16 @@ class LockableTest extends TestCase
     }
 
     /**
-     * Test that the lock key is generated via generateLockKey.
+     * Test that the lock key is generated via LockKeyProvider.
      *
      * @return void
      */
-    public function testLockKeyIsGeneratedViaGenerateLockKey(): void
+    public function testLockKeyIsGeneratedViaLockKeyProvider(): void
     {
         $lockId   = 'custom-lock-id';
         $consumer = $this->createConsumer($lockId);
 
-        $lockKey = $this->invokeMethod($consumer, 'generateLockKey');
+        $lockKey = $consumer->getLockKey();
 
         static::assertNotEmpty($lockKey);
         static::assertIsString($lockKey);
@@ -138,14 +139,45 @@ class LockableTest extends TestCase
     }
 
     /**
+     * Test that the lock expiration can be customized at construction
+     * time.
+     *
+     * @return void
+     */
+    public function testCustomLockExpirationCanBeSetAtConstructionTime(): void
+    {
+        $fixture = new StandaloneLockableFixture('expiry-test', 120);
+
+        static::assertSame(120, $fixture->lockExpiration());
+    }
+
+    /**
+     * Test that lock throws RuntimeException when no LockKeyProvider is
+     * implemented.
+     *
+     * @return void
+     */
+    public function testLockThrowsRuntimeExceptionWhenNoLockKeyProviderImplemented(): void
+    {
+        $consumer = new class {
+            use Lockable;
+        };
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('LockKeyProvider');
+
+        $this->invokeMethod($consumer, 'lock');
+    }
+
+    /**
      * Create a test consumer class that uses the Lockable trait.
      *
      * @param  string  $lockId
-     * @return object
+     * @return \SineMacula\ApiToolkit\Contracts\LockKeyProvider
      */
-    private function createConsumer(string $lockId): object
+    private function createConsumer(string $lockId): LockKeyProvider
     {
-        return new class ($lockId) {
+        return new class ($lockId) implements LockKeyProvider {
             use Lockable;
 
             /**
@@ -162,7 +194,8 @@ class LockableTest extends TestCase
              *
              * @return string
              */
-            protected function generateLockKey(): string
+            #[\Override]
+            public function getLockKey(): string
             {
                 return sha1(self::class . '|' . $this->lockId);
             }
