@@ -234,8 +234,38 @@ class EventStreamTest extends TestCase
         $response->sendContent();
         $output = ob_get_clean();
 
-        static::assertStringContainsString("event: error\n\n", (string) $output);
+        static::assertStringContainsString("event: error\ndata: An error occurred\n\n", (string) $output);
         static::assertSame(1, $callCount);
+    }
+
+    /**
+     * Test that the error event does not expose internal exception details
+     * such as the exception message or class name.
+     *
+     * @SuppressWarnings("php:S112")
+     *
+     * @return void
+     */
+    public function testStreamErrorEventDoesNotExposeInternalDetails(): void
+    {
+        $abortCount = 0;
+
+        FunctionOverrides::set('connection_aborted', function () use (&$abortCount): int {
+            return ++$abortCount >= 3 ? 1 : 0;
+        });
+
+        $stream   = new EventStream;
+        $response = $stream->toResponse(function (): void {
+            throw new \RuntimeException('Secret internal database error XYZ');
+        });
+
+        ob_start();
+        $response->sendContent();
+        $output = ob_get_clean();
+
+        static::assertStringNotContainsString('Secret internal database error XYZ', (string) $output);
+        static::assertStringNotContainsString(\RuntimeException::class, (string) $output);
+        static::assertStringContainsString('data: An error occurred', (string) $output);
     }
 
     /**

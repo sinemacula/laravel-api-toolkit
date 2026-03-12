@@ -135,6 +135,90 @@ class EmitterTest extends TestCase
     }
 
     /**
+     * Test that emit splits carriage-return data into separate data lines.
+     *
+     * @return void
+     */
+    public function testEmitSplitsCarriageReturnDataIntoSeparateDataLines(): void
+    {
+        ob_start();
+        $this->emitter->emit("line1\rline2\rline3");
+        $output = ob_get_clean();
+
+        static::assertSame("data: line1\ndata: line2\ndata: line3\n\n", $output);
+    }
+
+    /**
+     * Test that emit splits CRLF data into separate data lines.
+     *
+     * @return void
+     */
+    public function testEmitSplitsCrlfDataIntoSeparateDataLines(): void
+    {
+        ob_start();
+        $this->emitter->emit("line1\r\nline2\r\nline3");
+        $output = ob_get_clean();
+
+        static::assertSame("data: line1\ndata: line2\ndata: line3\n\n", $output);
+    }
+
+    /**
+     * Test that emit splits mixed line endings into separate data lines.
+     *
+     * @return void
+     */
+    public function testEmitSplitsMixedLineEndingsIntoSeparateDataLines(): void
+    {
+        ob_start();
+        $this->emitter->emit("a\r\nb\nc\rd");
+        $output = ob_get_clean();
+
+        static::assertSame("data: a\ndata: b\ndata: c\ndata: d\n\n", $output);
+    }
+
+    /**
+     * Test that emit handles an empty string as an empty data line.
+     *
+     * @return void
+     */
+    public function testEmitHandlesEmptyStringAsEmptyDataLine(): void
+    {
+        ob_start();
+        $this->emitter->emit('');
+        $output = ob_get_clean();
+
+        static::assertSame("data: \n\n", $output);
+    }
+
+    /**
+     * Test that emit splits consecutive newlines into empty data lines.
+     *
+     * @return void
+     */
+    public function testEmitSplitsConsecutiveNewlinesIntoEmptyDataLines(): void
+    {
+        ob_start();
+        $this->emitter->emit("\n\n");
+        $output = ob_get_clean();
+
+        static::assertSame("data: \ndata: \ndata: \n\n", $output);
+    }
+
+    /**
+     * Test that emit transmits embedded SSE field prefixes as data.
+     *
+     * @return void
+     */
+    public function testEmitTransmitsEmbeddedSseFieldPrefixesAsData(): void
+    {
+        ob_start();
+        $this->emitter->emit("data: fake\nevent: x");
+        $output = ob_get_clean();
+
+        static::assertSame("data: data: fake\ndata: event: x\n\n", $output);
+    }
+
+    /**
      * Test that emit calls flush after writing.
      *
      * @return void

@@ -62,7 +62,7 @@ class EventStream
     /**
      * Handle a stream error.
      *
-     * Reports the exception and emits a bare error event to the client.
+     * Reports the exception and emits an error event to the client.
      * Returns false to break the polling loop, or true to continue.
      * Subclasses may override this to implement recovery strategies.
      *
@@ -75,8 +75,7 @@ class EventStream
     protected function handleStreamError(\Throwable $exception, Emitter $emitter): bool
     {
         report($exception);
-        echo "event: error\n\n";
-        flush();
+        $emitter->emit('An error occurred', 'error');
 
         return false;
     }

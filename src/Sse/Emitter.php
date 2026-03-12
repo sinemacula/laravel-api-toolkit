@@ -36,7 +36,7 @@ final class Emitter
             $data = json_encode($data);
         }
 
-        foreach (explode("\n", $data) as $line) {
+        foreach ((array) preg_split('/\r\n|\r|\n/', $data) as $line) {
             echo "data: {$line}\n";
         }
 
