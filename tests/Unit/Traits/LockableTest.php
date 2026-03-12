@@ -130,7 +130,7 @@ class LockableTest extends TestCase
 
         $fixture->releaseLock();
 
-        $verificationLock = Cache::lock(sha1(StandaloneLockableFixture::class . '|' . 'standalone-test'), 60);
+        $verificationLock = Cache::lock(sha1(StandaloneLockableFixture::class . '|standalone-test'), 60);
 
         static::assertTrue($verificationLock->get());
 
