@@ -10,6 +10,7 @@ use SineMacula\ApiToolkit\Services\Service;
 use Tests\Concerns\InteractsWithNonPublicMembers;
 use Tests\Fixtures\Services\FailingService;
 use Tests\Fixtures\Services\LockableService;
+use Tests\Fixtures\Services\NoTransactionService;
 use Tests\Fixtures\Services\SimpleService;
 use Tests\Fixtures\Traits\HasTrackableCallbacks;
 use Tests\TestCase;
@@ -107,84 +108,44 @@ class ServiceTest extends TestCase
     }
 
     /**
-     * Test that dontUseTransaction runs without a database transaction.
+     * Test that the default property values are correct.
      *
      * @return void
      */
-    public function testDontUseTransactionRunsWithoutTransaction(): void
+    public function testDefaultPropertyValues(): void
     {
         $service = new SimpleService;
 
-        $result = $service->dontUseTransaction();
-
-        static::assertSame($service, $result);
-        static::assertFalse($this->getProperty($service, 'useTransaction'));
-
-        static::assertTrue($service->run());
-    }
-
-    /**
-     * Test that useTransaction enables the transaction.
-     *
-     * @return void
-     */
-    public function testUseTransactionEnablesTransaction(): void
-    {
-        $service = new SimpleService;
-
-        $service->dontUseTransaction();
-
-        static::assertFalse($this->getProperty($service, 'useTransaction'));
-
-        $result = $service->useTransaction();
-
-        static::assertSame($service, $result);
         static::assertTrue($this->getProperty($service, 'useTransaction'));
-    }
-
-    /**
-     * Test that useLock throws RuntimeException when no lock ID is defined.
-     *
-     * @return void
-     */
-    public function testUseLockThrowsRuntimeExceptionWhenNoLockId(): void
-    {
-        $service = new SimpleService;
-
-        $this->expectException(\RuntimeException::class);
-        $this->expectExceptionMessage('Lock key is not set');
-
-        $service->useLock();
-    }
-
-    /**
-     * Test that useLock enables locking when a lock ID is defined.
-     *
-     * @return void
-     */
-    public function testUseLockEnablesLocking(): void
-    {
-        $service = new LockableService;
-
-        $result = $service->useLock();
-
-        static::assertSame($service, $result);
-        static::assertTrue($this->getProperty($service, 'useLock'));
-    }
-
-    /**
-     * Test that dontUseLock disables locking.
-     *
-     * @return void
-     */
-    public function testDontUseLockDisablesLocking(): void
-    {
-        $service = new LockableService;
-
-        $result = $service->dontUseLock();
-
-        static::assertSame($service, $result);
         static::assertFalse($this->getProperty($service, 'useLock'));
+    }
+
+    /**
+     * Test that a subclass can disable transactions via property override.
+     *
+     * @return void
+     */
+    public function testPropertyOverrideDisablesTransaction(): void
+    {
+        $service = new NoTransactionService;
+
+        static::assertFalse($this->getProperty($service, 'useTransaction'));
+
+        $result = $service->run();
+
+        static::assertTrue($result);
+    }
+
+    /**
+     * Test that a subclass can enable locking via property override.
+     *
+     * @return void
+     */
+    public function testPropertyOverrideEnablesLocking(): void
+    {
+        $service = new LockableService;
+
+        static::assertTrue($this->getProperty($service, 'useLock'));
     }
 
     /**
