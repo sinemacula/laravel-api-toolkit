@@ -57,9 +57,11 @@ class LockableTest extends TestCase
         $existingLock->get();
 
         try {
+
             $this->expectException(TooManyRequestsException::class);
 
             $this->invokeMethod($consumer, 'lock');
+
         } finally {
             $existingLock->release();
         }
@@ -186,7 +188,10 @@ class LockableTest extends TestCase
              * @param  string  $lockId
              */
             public function __construct(
+
+                /** The identifier used when generating the cache lock key. */
                 private readonly string $lockId,
+
             ) {}
 
             /**

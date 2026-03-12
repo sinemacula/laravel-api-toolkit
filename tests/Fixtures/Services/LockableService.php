@@ -28,6 +28,7 @@ class LockableService extends Service
      *
      * @return bool
      */
+    #[\Override]
     protected function handle(): bool
     {
         return true;

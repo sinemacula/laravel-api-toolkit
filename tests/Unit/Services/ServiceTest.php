@@ -99,8 +99,10 @@ class ServiceTest extends TestCase
         $service = new FailingService;
 
         try {
+
             $service->run();
             static::fail('Expected RuntimeException was not thrown.');
+
         } catch (\RuntimeException $exception) {
             static::assertTrue($service->failedCalled);
             static::assertSame($exception, $service->failedException);
@@ -325,7 +327,9 @@ class ServiceTest extends TestCase
         };
 
         try {
+
             $service->run();
+
         } catch (\RuntimeException) {
             // Base failed() was called and did nothing — no secondary exception
         }

@@ -75,6 +75,8 @@ trait Lockable
      * Resolve the lock key.
      *
      * @return string
+     *
+     * @throws \RuntimeException
      */
     private function resolveLockKey(): string
     {

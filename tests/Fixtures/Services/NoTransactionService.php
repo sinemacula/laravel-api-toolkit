@@ -20,6 +20,7 @@ class NoTransactionService extends Service
      *
      * @return void
      */
+    #[\Override]
     public function success(): void
     {
         $this->successCalled = true;
@@ -41,6 +42,7 @@ class NoTransactionService extends Service
      *
      * @return bool
      */
+    #[\Override]
     protected function handle(): bool
     {
         return true;
