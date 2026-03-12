@@ -15,17 +15,26 @@ class NoTransactionService extends Service
     /** @var bool Track whether success() was called */
     public bool $successCalled = false;
 
-    /** @var bool Indicate whether to use database transactions for the service */
-    protected bool $useTransaction = false;
-
     /**
      * Method is triggered if the handle method ran successfully.
      *
      * @return void
      */
+    #[\Override]
     public function success(): void
     {
         $this->successCalled = true;
+    }
+
+    /**
+     * Determine whether to use database transactions for the service.
+     *
+     * @return bool
+     */
+    #[\Override]
+    protected function shouldUseTransaction(): bool
+    {
+        return false;
     }
 
     /**
@@ -33,6 +42,7 @@ class NoTransactionService extends Service
      *
      * @return bool
      */
+    #[\Override]
     protected function handle(): bool
     {
         return true;

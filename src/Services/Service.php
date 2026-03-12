@@ -4,6 +4,7 @@ namespace SineMacula\ApiToolkit\Services;
 
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use SineMacula\ApiToolkit\Contracts\LockKeyProvider;
 use SineMacula\ApiToolkit\Services\Contracts\HasSuccessCallback;
 use SineMacula\ApiToolkit\Services\Contracts\Initializable;
 use SineMacula\ApiToolkit\Services\Contracts\ServiceInterface;
@@ -15,7 +16,7 @@ use SineMacula\ApiToolkit\Traits\Lockable;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-abstract class Service implements ServiceInterface
+abstract class Service implements LockKeyProvider, ServiceInterface
 {
     use Lockable;
 
@@ -23,10 +24,10 @@ abstract class Service implements ServiceInterface
     protected ?bool $status = null;
 
     /** @var bool Indicate whether to use database transactions for the service */
-    protected bool $useTransaction = true;
+    protected readonly bool $useTransaction;
 
     /** @var bool Indicate whether to lock the task execution */
-    protected bool $useLock = false;
+    protected readonly bool $useLock;
 
     /**
      * Constructor.
@@ -39,6 +40,9 @@ abstract class Service implements ServiceInterface
         protected array|Collection|\stdClass $payload = [],
 
     ) {
+        $this->useTransaction = $this->shouldUseTransaction();
+        $this->useLock        = $this->shouldUseLock();
+
         $this->payload = (!$payload instanceof Collection && !$payload instanceof \stdClass) ? collect($payload) : $payload;
 
         $this->initialize();
@@ -114,6 +118,17 @@ abstract class Service implements ServiceInterface
     }
 
     /**
+     * Generate the key used for cache-based locking.
+     *
+     * @return string
+     */
+    #[\Override]
+    public function getLockKey(): string
+    {
+        return sha1(static::class . '|' . $this->getLockId());
+    }
+
+    /**
      * Initialize the service.
      *
      * Called during construction, after payload normalization. If the
@@ -137,16 +152,6 @@ abstract class Service implements ServiceInterface
     abstract protected function handle(): bool;
 
     /**
-     * Generate the key used for locking the task execution.
-     *
-     * @return string
-     */
-    protected function generateLockKey(): string
-    {
-        return sha1(static::class . '|' . $this->getLockId());
-    }
-
-    /**
      * Return the unique id to be used in the generation of the lock key.
      *
      * @return string
@@ -154,6 +159,30 @@ abstract class Service implements ServiceInterface
     protected function getLockId(): string
     {
         return '';
+    }
+
+    /**
+     * Determine whether to use database transactions for the service.
+     *
+     * Override in subclasses to disable transaction wrapping.
+     *
+     * @return bool
+     */
+    protected function shouldUseTransaction(): bool
+    {
+        return true;
+    }
+
+    /**
+     * Determine whether to lock the task execution.
+     *
+     * Override in subclasses to enable cache-based locking.
+     *
+     * @return bool
+     */
+    protected function shouldUseLock(): bool
+    {
+        return false;
     }
 
     /**
