@@ -3,10 +3,8 @@
 namespace SineMacula\ApiToolkit\Services;
 
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\DB;
 use SineMacula\ApiToolkit\Contracts\LockKeyProvider;
-use SineMacula\ApiToolkit\Services\Contracts\HasSuccessCallback;
-use SineMacula\ApiToolkit\Services\Contracts\Initializable;
+use SineMacula\ApiToolkit\Services\Contracts\ServiceConcern;
 use SineMacula\ApiToolkit\Services\Contracts\ServiceInterface;
 use SineMacula\ApiToolkit\Traits\Lockable;
 
@@ -23,12 +21,6 @@ abstract class Service implements LockKeyProvider, ServiceInterface
     /** @var bool|null Service outcome status */
     protected ?bool $status = null;
 
-    /** @var bool Indicate whether to use database transactions for the service */
-    protected readonly bool $useTransaction;
-
-    /** @var bool Indicate whether to lock the task execution */
-    protected readonly bool $useLock;
-
     /**
      * Constructor.
      *
@@ -40,12 +32,7 @@ abstract class Service implements LockKeyProvider, ServiceInterface
         protected array|Collection|\stdClass $payload = [],
 
     ) {
-        $this->useTransaction = $this->shouldUseTransaction();
-        $this->useLock        = $this->shouldUseLock();
-
         $this->payload = (!$payload instanceof Collection && !$payload instanceof \stdClass) ? collect($payload) : $payload;
-
-        $this->initialize();
     }
 
     /**
@@ -98,9 +85,10 @@ abstract class Service implements LockKeyProvider, ServiceInterface
     /**
      * Run the service.
      *
-     * Orchestrates the full service lifecycle: lock acquisition,
-     * prepare/handle execution (with optional transaction wrapping and
-     * error handling), success notification, and lock release.
+     * Builds a concern pipeline from the concerns() declaration
+     * and executes it. The innermost step runs the core lifecycle
+     * (prepare, handle, success/failed). Concerns wrap around this
+     * core in declaration order.
      *
      * @return bool
      *
@@ -108,11 +96,11 @@ abstract class Service implements LockKeyProvider, ServiceInterface
      */
     public function run(): bool
     {
-        $this->acquireLock();
+        $pipeline = $this->buildPipeline();
 
-        $this->executeLifecycle();
+        $this->status = $pipeline();
 
-        $this->notifySuccess();
+        $this->success();
 
         return $this->status;
     }
@@ -129,27 +117,26 @@ abstract class Service implements LockKeyProvider, ServiceInterface
     }
 
     /**
-     * Initialize the service.
-     *
-     * Called during construction, after payload normalization. If the
-     * service (via a trait) implements Initializable, the trait's
-     * initializeTrait() method is called to set up trait-specific state.
-     *
-     * @return void
-     */
-    protected function initialize(): void
-    {
-        if ($this instanceof Initializable) {
-            $this::initializeTrait();
-        }
-    }
-
-    /**
      * Handles the main execution of the service.
      *
      * @return bool
      */
     abstract protected function handle(): bool;
+
+    /**
+     * Return the ordered list of concern classes for this service.
+     *
+     * Override in subclasses to declare cross-cutting concerns.
+     * Concerns execute in declaration order: the first concern is
+     * the outermost wrapper, the last is closest to the core
+     * lifecycle.
+     *
+     * @return array<int, class-string<\SineMacula\ApiToolkit\Services\Contracts\ServiceConcern>>
+     */
+    protected function concerns(): array
+    {
+        return [];
+    }
 
     /**
      * Return the unique id to be used in the generation of the lock key.
@@ -162,106 +149,52 @@ abstract class Service implements LockKeyProvider, ServiceInterface
     }
 
     /**
-     * Determine whether to use database transactions for the service.
+     * Build the concern pipeline around the core lifecycle.
      *
-     * Override in subclasses to disable transaction wrapping.
+     * Resolves each concern class from the container and folds
+     * them right-to-left around the core lifecycle closure. The
+     * first concern in the array is the outermost wrapper.
+     *
+     * @return \Closure(): bool
+     */
+    private function buildPipeline(): \Closure
+    {
+        $core = fn (): bool => $this->executeCore();
+
+        $concerns = array_map(
+            fn (string $class): ServiceConcern => app()->make($class),
+            $this->concerns()
+        );
+
+        return array_reduce(
+            array_reverse($concerns),
+            fn (\Closure $next, ServiceConcern $concern): \Closure => fn (): bool => $concern->execute($this, $next),
+            $core
+        );
+    }
+
+    /**
+     * Execute the core service lifecycle.
+     *
+     * Runs prepare() then handle() within a try/catch block.
+     * On exception, calls failed() and rethrows. This is the
+     * innermost step of the concern pipeline.
      *
      * @return bool
-     */
-    protected function shouldUseTransaction(): bool
-    {
-        return true;
-    }
-
-    /**
-     * Determine whether to lock the task execution.
-     *
-     * Override in subclasses to enable cache-based locking.
-     *
-     * @return bool
-     */
-    protected function shouldUseLock(): bool
-    {
-        return false;
-    }
-
-    /**
-     * Conditionally acquire the cache lock for exclusive execution.
-     *
-     * Called at the start of run(). If $useLock is false, this method
-     * is a no-op. When locking is enabled, delegates to the Lockable
-     * trait's lock() method. Exceptions from lock acquisition propagate
-     * to the caller.
-     *
-     * @return void
-     */
-    private function acquireLock(): void
-    {
-        if ($this->useLock) {
-            $this->lock();
-        }
-    }
-
-    /**
-     * Execute the service lifecycle within a try/catch/finally block.
-     *
-     * Runs prepare() then executeHandler() within a try block. On
-     * exception, calls failed() and rethrows. The finally block always
-     * calls unlock() to release any acquired lock, even on exception.
-     *
-     * @return void
      *
      * @throws \Throwable
      */
-    private function executeLifecycle(): void
+    private function executeCore(): bool
     {
         try {
 
             $this->prepare();
 
-            $this->status = $this->executeHandler();
+            return $this->handle();
 
         } catch (\Throwable $exception) {
             $this->failed($exception);
             throw $exception;
-        } finally {
-            $this->unlock();
-        }
-    }
-
-    /**
-     * Execute the service handler, optionally within a database
-     * transaction.
-     *
-     * When $useTransaction is true, wraps handle() in a
-     * DB::transaction() call with 3 retry attempts. When false, calls
-     * handle() directly. Returns the boolean result from handle().
-     *
-     * @return bool
-     */
-    private function executeHandler(): bool
-    {
-        return $this->useTransaction
-            ? (bool) DB::transaction(fn () => $this->handle(), 3)
-            : $this->handle();
-    }
-
-    /**
-     * Notify success callbacks after a successful service execution.
-     *
-     * Calls the service's own success() callback first, then checks
-     * whether the service (via a trait) implements HasSuccessCallback
-     * and invokes onTraitSuccess(). Runs outside the try/catch block --
-     * exceptions here will NOT trigger the failed() callback.
-     *
-     * @return void
-     */
-    private function notifySuccess(): void
-    {
-        $this->success();
-
-        if ($this instanceof HasSuccessCallback) {
-            $this->onTraitSuccess();
         }
     }
 }
