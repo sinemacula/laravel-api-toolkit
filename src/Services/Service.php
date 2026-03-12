@@ -55,61 +55,6 @@ abstract class Service implements ServiceInterface
     }
 
     /**
-     * Instruct the service to use database transactions.
-     *
-     * NOTE: Transactions are only supported on MySQL databases running the
-     * InnoDB engine
-     *
-     * @return \SineMacula\ApiToolkit\Services\Service
-     */
-    public function useTransaction(): static
-    {
-        $this->useTransaction = true;
-
-        return $this;
-    }
-
-    /**
-     * Instruct the service not to use database transactions.
-     *
-     * @return \SineMacula\ApiToolkit\Services\Service
-     */
-    public function dontUseTransaction(): static
-    {
-        $this->useTransaction = false;
-
-        return $this;
-    }
-
-    /**
-     * Instruct the service to use a cache lock.
-     *
-     * @return \SineMacula\ApiToolkit\Services\Service
-     */
-    public function useLock(): static
-    {
-        if (!$this->getLockId()) {
-            throw new \RuntimeException('Lock key is not set');
-        }
-
-        $this->useLock = true;
-
-        return $this;
-    }
-
-    /**
-     * Instruct the service not to use a cache lock.
-     *
-     * @return \SineMacula\ApiToolkit\Services\Service
-     */
-    public function dontUseLock(): static
-    {
-        $this->useLock = false;
-
-        return $this;
-    }
-
-    /**
      * Prepare the service for execution.
      *
      * Called after lock acquisition and before handle(). Subclasses

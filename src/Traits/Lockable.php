@@ -7,10 +7,13 @@ use Illuminate\Support\Facades\Cache;
 use SineMacula\ApiToolkit\Exceptions\TooManyRequestsException;
 
 /**
- * The lockable trait.
+ * Cache-based atomic locking.
  *
- * This trait provides helper methods to lock/unlock the execution of a given
- * script.
+ * Provides lock acquisition and release using Laravel's cache lock
+ * system. Any class can use this trait by implementing the
+ * generateLockKey() abstract method. Override getLockExpiration() to
+ * customize the lock duration (default 60 seconds). This trait has no
+ * dependency on the Service base class or any other base class.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.

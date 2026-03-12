@@ -7,6 +7,7 @@ use SineMacula\ApiToolkit\Services\Service;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Services\FailingService;
 use Tests\Fixtures\Services\LockableService;
+use Tests\Fixtures\Services\NoTransactionService;
 use Tests\Fixtures\Services\SimpleService;
 use Tests\TestCase;
 
@@ -92,8 +93,7 @@ class ServiceIntegrationTest extends TestCase
      */
     public function testServiceRunsWithoutTransaction(): void
     {
-        $service = new SimpleService;
-        $service->dontUseTransaction();
+        $service = new NoTransactionService;
 
         $result = $service->run();
 
