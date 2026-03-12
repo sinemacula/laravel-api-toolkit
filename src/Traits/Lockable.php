@@ -40,7 +40,7 @@ trait Lockable
      *
      * @throws \SineMacula\ApiToolkit\Exceptions\ApiException
      */
-    protected function lock(): Lock
+    public function lock(): Lock
     {
         $this->lock = Cache::lock($this->resolveLockKey(), $this->getLockExpiration());
 
@@ -56,7 +56,7 @@ trait Lockable
      *
      * @return void
      */
-    protected function unlock(): void
+    public function unlock(): void
     {
         $this->lock?->release();
     }

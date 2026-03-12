@@ -8,7 +8,6 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Contracts\LockKeyProvider;
 use SineMacula\ApiToolkit\Exceptions\TooManyRequestsException;
 use SineMacula\ApiToolkit\Traits\Lockable;
-use Tests\Concerns\InteractsWithNonPublicMembers;
 use Tests\Fixtures\Traits\StandaloneLockableFixture;
 use Tests\TestCase;
 
@@ -23,8 +22,6 @@ use Tests\TestCase;
 #[CoversClass(Lockable::class)]
 class LockableTest extends TestCase
 {
-    use InteractsWithNonPublicMembers;
-
     /**
      * Test that lock acquires a cache lock successfully.
      *
@@ -34,11 +31,11 @@ class LockableTest extends TestCase
     {
         $consumer = $this->createConsumer('test-lock-id');
 
-        $lock = $this->invokeMethod($consumer, 'lock');
+        $lock = $consumer->lock();
 
         static::assertInstanceOf(Lock::class, $lock);
 
-        $this->invokeMethod($consumer, 'unlock');
+        $consumer->unlock();
     }
 
     /**
@@ -60,7 +57,7 @@ class LockableTest extends TestCase
 
             $this->expectException(TooManyRequestsException::class);
 
-            $this->invokeMethod($consumer, 'lock');
+            $consumer->lock();
 
         } finally {
             $existingLock->release();
@@ -76,8 +73,8 @@ class LockableTest extends TestCase
     {
         $consumer = $this->createConsumer('release-lock-id');
 
-        $this->invokeMethod($consumer, 'lock');
-        $this->invokeMethod($consumer, 'unlock');
+        $consumer->lock();
+        $consumer->unlock();
 
         $lockKey = $consumer->getLockKey();
         $newLock = Cache::lock($lockKey, 60);
@@ -94,11 +91,9 @@ class LockableTest extends TestCase
      */
     public function testGetLockExpirationReturnsDefault60Seconds(): void
     {
-        $consumer = $this->createConsumer('expiry-lock-id');
+        $fixture = new StandaloneLockableFixture('expiry-lock-id');
 
-        $expiration = $this->invokeMethod($consumer, 'getLockExpiration');
-
-        static::assertSame(60, $expiration);
+        static::assertSame(60, $fixture->lockExpiration());
     }
 
     /**
@@ -168,7 +163,7 @@ class LockableTest extends TestCase
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionMessage('LockKeyProvider');
 
-        $this->invokeMethod($consumer, 'lock');
+        $consumer->lock();
     }
 
     /**
