@@ -6,48 +6,50 @@ Scanned 6 files (3 source, 2 test, 1 fixture) against 40 naming rules from the P
 
 ## Governance
 
-| Field     | Value |
-|-----------|-------|
-| Created   | 2026-03-10 |
-| Category  | Naming |
-| Owned by  | Scanner |
-| Traces to | Scope: SSE Stream Extraction changed files |
+| Field     | Value                                                          |
+|-----------|----------------------------------------------------------------|
+| Created   | 2026-03-11                                                     |
+| Category  | Naming                                                         |
+| Owned by  | Scanner                                                        |
+| Traces to | Scope: SSE extraction -- Emitter, EventStream, Controller, tests, function overrides |
 
 ---
 
 ## Findings
 
-No naming issues found.
+| # | File | Line | Current Name | Expected Name | Rule ID | Severity | Fix-Risk Tier |
+|---|------|------|--------------|---------------|---------|----------|---------------|
+| 1 | src/Sse/EventStream.php | 146 | `$e` | `$exception` | php-nam-037 | Medium | auto-fix |
 
 ---
 
 ## Summary
 
-| Metric | Count |
-|--------|-------|
-| Total findings | 0 |
-| High severity | 0 |
-| Medium severity | 0 |
-| Low severity | 0 |
-| Auto-Fix | 0 |
-| Guided-Fix | 0 |
-| Detect-Only | 0 |
+| Metric          | Count |
+|-----------------|-------|
+| Total findings  | 1     |
+| High severity   | 0     |
+| Medium severity | 1     |
+| Low severity    | 0     |
+| Auto-Fix        | 1     |
+| Guided-Fix      | 0     |
+| Detect-Only     | 0     |
 
 ---
 
 ## Quality Gate
 
-| # | Gate | Result |
-|---|------|--------|
-| 1 | All files scanned | pass |
-| 2 | Issue location | pass |
-| 3 | Rule reference | pass |
-| 4 | Severity assigned | pass |
-| 5 | Tier annotated | pass |
-| 6 | Category scoped | pass |
-| 7 | Template followed | pass |
-| 8 | No placeholders | pass |
-| 9 | Attestation valid | pass |
+| # | Gate                 | Result |
+|---|----------------------|--------|
+| 1 | All files scanned    | Pass   |
+| 2 | Issue location       | Pass   |
+| 3 | Rule reference       | Pass   |
+| 4 | Severity assigned    | Pass   |
+| 5 | Tier annotated       | Pass   |
+| 6 | Category scoped      | Pass   |
+| 7 | Template followed    | Pass   |
+| 8 | No placeholders      | Pass   |
+| 9 | Attestation valid    | Pass   |
 
 ---
 
@@ -96,11 +98,11 @@ No naming issues found.
 | 39 | php-nam-039 | evaluated | |
 | 40 | php-nam-040 | evaluated | |
 
-| Metric | Count |
-|--------|-------|
-| Total rules in manifest | 40 |
-| Evaluated | 40 |
-| Not evaluated | 0 |
+| Metric                  | Count |
+|-------------------------|-------|
+| Total rules in manifest | 40    |
+| Evaluated               | 40    |
+| Not evaluated           | 0     |
 
 ---
 
@@ -109,4 +111,4 @@ No naming issues found.
 - Category: Naming
 - Rule source: `/Users/ben/.claude/plugins/cache/sinemacula/build/0.2.11/packs/php/naming.md`
 - Pack config: `/Users/ben/.claude/plugins/cache/sinemacula/build/0.2.11/packs/php/pack.toml`
-- Traces to: Scope -- SSE Stream Extraction changed files
+- Traces to: Scope -- SSE extraction file set (6 files)

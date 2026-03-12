@@ -12,11 +12,6 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
  * connection-abort detection, and error handling for Server-Sent Event
  * streams. Designed for subclass extension via protected hooks.
  *
- * Under PHP-FPM, `connection_aborted()` only updates after output is
- * flushed to the client. Under CLI, connection abort detection is not
- * meaningful. Under Octane, the persistent worker process means the
- * loop runs within the worker lifecycle.
- *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
@@ -47,13 +42,8 @@ class EventStream
      * @param  array<string, string>  $headers
      * @return \Symfony\Component\HttpFoundation\StreamedResponse
      */
-    public function toResponse(
-        callable $callback,
-        int $interval = 1,
-        HttpStatus $status = HttpStatus::OK,
-        array $headers = [],
-    ): StreamedResponse {
-
+    public function toResponse(callable $callback, int $interval = 1, HttpStatus $status = HttpStatus::OK, array $headers = []): StreamedResponse
+    {
         $headers = array_merge($headers, [
             'Content-Type'      => 'text/event-stream',
             'Cache-Control'     => 'no-cache, no-transform',
@@ -143,8 +133,8 @@ class EventStream
 
             try {
                 $acceptsEmitter ? $callback($emitter) : $callback();
-            } catch (\Throwable $e) {
-                if (!$this->handleStreamError($e, $emitter)) {
+            } catch (\Throwable $exception) {
+                if (!$this->handleStreamError($exception, $emitter)) {
                     break;
                 }
 

@@ -18,7 +18,7 @@ use Tests\TestCase;
 #[CoversClass(Emitter::class)]
 class EmitterTest extends TestCase
 {
-    /** @var \SineMacula\ApiToolkit\Sse\Emitter */
+    /** @var \SineMacula\ApiToolkit\Sse\Emitter The emitter instance under test. */
     private Emitter $emitter;
 
     /**

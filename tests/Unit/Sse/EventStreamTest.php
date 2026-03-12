@@ -381,6 +381,7 @@ class EventStreamTest extends TestCase
              * @param  \SineMacula\ApiToolkit\Sse\Emitter  $emitter
              * @return bool
              */
+            #[\Override]
             protected function handleStreamError(\Throwable $exception, Emitter $emitter): bool
             {
                 return true;
@@ -412,6 +413,7 @@ class EventStreamTest extends TestCase
              * @param  \SineMacula\ApiToolkit\Sse\Emitter  $emitter
              * @return void
              */
+            #[\Override]
             protected function onStreamStart(Emitter $emitter): void
             {
                 $emitter->emit('started', 'init');
@@ -442,6 +444,7 @@ class EventStreamTest extends TestCase
             /**
              * @return void
              */
+            #[\Override]
             protected function onStreamEnd(): void
             {
                 $this->endCalled = true;

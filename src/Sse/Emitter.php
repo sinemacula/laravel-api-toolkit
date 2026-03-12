@@ -5,15 +5,9 @@ namespace SineMacula\ApiToolkit\Sse;
 /**
  * Structured SSE event emitter.
  *
- * Provides a clean API for emitting SSE events and comments without callers
- * needing to construct wire-format strings. Each method writes the
- * appropriate SSE-formatted output and flushes immediately.
- *
- * The unqualified `flush()` call resolves within this namespace, allowing
- * tests to intercept it via namespace-scoped overrides. Under PHP-FPM,
- * output buffering layers may require additional configuration (e.g.,
- * disabling `output_buffering` or using `ob_implicit_flush`) for flush to
- * propagate output to the client immediately.
+ * Provides a clean API for emitting SSE events and comments without
+ * callers needing to construct wire-format strings. Each method writes
+ * the appropriate SSE-formatted output and flushes immediately.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.

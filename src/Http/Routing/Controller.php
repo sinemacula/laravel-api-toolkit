@@ -22,7 +22,7 @@ abstract class Controller extends LaravelController
 {
     use ValidatesRequests;
 
-    /** The SSE heartbeat interval in seconds. */
+    /** @var int The SSE heartbeat interval in seconds. */
     protected const int HEARTBEAT_INTERVAL = 20;
 
     /**

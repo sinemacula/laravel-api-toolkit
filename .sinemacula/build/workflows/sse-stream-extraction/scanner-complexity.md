@@ -6,12 +6,12 @@ Scanned 6 files for complexity threshold violations against pack.toml thresholds
 
 ## Governance
 
-| Field     | Value                                                          |
-|-----------|----------------------------------------------------------------|
-| Created   | 2026-03-10                                                     |
-| Category  | Complexity                                                     |
-| Owned by  | Scanner                                                        |
-| Traces to | Scope: SSE extraction -- Emitter, EventStream, Controller, tests, fixture overrides |
+| Field     | Value                                                        |
+|-----------|--------------------------------------------------------------|
+| Created   | 2026-03-11                                                   |
+| Category  | Complexity                                                   |
+| Owned by  | Scanner                                                      |
+| Traces to | Scope: SSE extraction -- Emitter, EventStream, Controller, tests, function overrides |
 
 ---
 
@@ -19,10 +19,10 @@ Scanned 6 files for complexity threshold violations against pack.toml thresholds
 
 | # | File | Method / Class | Metric | Current Value | Threshold | Severity | Fix-Risk Tier |
 |---|------|----------------|--------|---------------|-----------|----------|---------------|
-| 1 | src/Sse/EventStream.php | `toResponse()` | Signature length | 143 | 120 | Medium | guided-fix |
-| 2 | src/Http/Routing/Controller.php | `respondWithItem()` | Signature length | 127 | 120 | Medium | guided-fix |
-| 3 | src/Http/Routing/Controller.php | `respondWithCollection()` | Signature length | 143 | 120 | Medium | guided-fix |
-| 4 | src/Http/Routing/Controller.php | `respondWithEventStream()` | Signature length | 155 | 120 | Medium | guided-fix |
+| 1 | src/Sse/EventStream.php | EventStream::toResponse | Signature length | 142 chars | 120 chars | Medium | guided-fix |
+| 2 | src/Http/Routing/Controller.php | Controller::respondWithItem | Signature length | 131 chars | 120 chars | Medium | guided-fix |
+| 3 | src/Http/Routing/Controller.php | Controller::respondWithCollection | Signature length | 145 chars | 120 chars | Medium | guided-fix |
+| 4 | src/Http/Routing/Controller.php | Controller::respondWithEventStream | Signature length | 158 chars | 120 chars | Medium | guided-fix |
 
 ---
 
@@ -65,6 +65,6 @@ N/A -- assigned rule source has no rule identifiers.
 ## References
 
 - Category: Complexity
-- Rule source: `/Users/ben/.claude/plugins/cache/sinemacula/build/0.2.11/packs/php/pack.toml` section `[thresholds]`
+- Rule source: `pack.toml [thresholds]`
 - Pack config: `/Users/ben/.claude/plugins/cache/sinemacula/build/0.2.11/packs/php/pack.toml`
-- Traces to: Scope -- SSE extraction files (Emitter, EventStream, Controller, tests, fixture overrides)
+- Traces to: Scope -- SSE extraction files (Emitter, EventStream, Controller, tests, function overrides)
