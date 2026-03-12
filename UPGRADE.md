@@ -171,3 +171,79 @@ A service subclass with no method overrides behaves identically to the previous 
 
 - **Transactions:** enabled (`shouldUseTransaction()` returns `true`)
 - **Locking:** disabled (`shouldUseLock()` returns `false`)
+
+### Removed: Generic payload constructor parameter
+
+The `$payload` constructor parameter (typed as
+`array|Collection|\stdClass`) and its Collection normalisation logic
+have been removed from the `Service` base class. The constructor now
+accepts no arguments. Subclasses define their own typed inputs using
+standard PHP 8.3+ features.
+
+**Before:**
+
+Services inherited a generic `$payload` parameter and accessed
+inputs without type safety:
+
+    class CreateUserService extends Service
+    {
+        protected function handle(): bool
+        {
+            $name  = $this->payload->get('name');
+            $email = $this->payload->get('email');
+
+            // $name and $email are both `mixed` — invisible to PHPStan
+            return true;
+        }
+    }
+
+    $service = new CreateUserService(['name' => 'Jane', 'email' => 'jane@example.com']);
+    $service->run();
+
+**After:**
+
+Subclasses define their own typed constructors:
+
+    class CreateUserService extends Service
+    {
+        public function __construct(
+            private readonly string $name,
+            private readonly string $email,
+        ) {
+            parent::__construct();
+        }
+
+        protected function handle(): bool
+        {
+            // $this->name and $this->email are typed — PHPStan verifies usage
+            return true;
+        }
+    }
+
+    $service = new CreateUserService(name: 'Jane', email: 'jane@example.com');
+    $service->run();
+
+Constructor promotion is not the only approach. Subclasses can also
+accept a DTO, a value object, or any other typed structure as their
+input. The toolkit enables typed inputs by removing the obstacle --
+it does not prescribe a replacement pattern.
+
+**Incremental migration:**
+
+Services that have no explicit constructor and relied on the default
+`$payload = []` continue to work unchanged -- PHP calls the
+parameterless parent constructor automatically. Services that
+explicitly called `parent::__construct($payload)` must update that
+call to `parent::__construct()` and define their own input
+properties. Services can be migrated one at a time because each
+subclass owns its own constructor, so new-style and old-style
+services coexist without conflict.
+
+**PHPStan verification:**
+
+Run `composer check` (or the project's equivalent PHPStan command)
+after migrating each service. PHPStan level 8 will report errors
+for any remaining `parent::__construct($payload)` calls (argument
+count mismatch), any `$this->payload` access in subclasses
+(undefined property), and any type mismatches in the new typed
+constructor parameters.

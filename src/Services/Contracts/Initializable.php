@@ -14,7 +14,7 @@ interface Initializable
     /**
      * Initialize the trait within the service context.
      *
-     * Called during service construction, after payload normalization.
+     * Called during service construction, after configuration initialization.
      * Implementations should set up internal state required by the trait.
      * Exceptions thrown here will propagate to the caller constructing
      * the service.

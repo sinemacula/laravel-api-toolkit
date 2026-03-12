@@ -2,7 +2,6 @@
 
 namespace SineMacula\ApiToolkit\Services;
 
-use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use SineMacula\ApiToolkit\Contracts\LockKeyProvider;
 use SineMacula\ApiToolkit\Services\Contracts\HasSuccessCallback;
@@ -31,19 +30,11 @@ abstract class Service implements LockKeyProvider, ServiceInterface
 
     /**
      * Constructor.
-     *
-     * @param  array|\Illuminate\Support\Collection|\stdClass  $payload
      */
-    public function __construct(
-
-        /** The service input payload */
-        protected array|Collection|\stdClass $payload = [],
-
-    ) {
+    public function __construct()
+    {
         $this->useTransaction = $this->shouldUseTransaction();
         $this->useLock        = $this->shouldUseLock();
-
-        $this->payload = (!$payload instanceof Collection && !$payload instanceof \stdClass) ? collect($payload) : $payload;
 
         $this->initialize();
     }
@@ -131,7 +122,7 @@ abstract class Service implements LockKeyProvider, ServiceInterface
     /**
      * Initialize the service.
      *
-     * Called during construction, after payload normalization. If the
+     * Called during construction, after configuration initialization. If the
      * service (via a trait) implements Initializable, the trait's
      * initializeTrait() method is called to set up trait-specific state.
      *

@@ -2,7 +2,6 @@
 
 namespace Tests\Unit\Services;
 
-use Illuminate\Support\Collection;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Contracts\LockKeyProvider;
 use SineMacula\ApiToolkit\Services\Contracts\HasSuccessCallback;
@@ -195,38 +194,6 @@ class ServiceTest extends TestCase
     }
 
     /**
-     * Test that the constructor converts an array payload to a Collection.
-     *
-     * @return void
-     */
-    public function testConstructorConvertsArrayPayloadToCollection(): void
-    {
-        $service = new SimpleService(['key' => 'value']);
-
-        $payload = $this->getProperty($service, 'payload');
-
-        static::assertInstanceOf(Collection::class, $payload);
-        static::assertSame('value', $payload->get('key'));
-    }
-
-    /**
-     * Test that the constructor accepts a Collection payload.
-     *
-     * @return void
-     */
-    public function testConstructorAcceptsCollectionPayload(): void
-    {
-        $collection = collect(['key' => 'value']);
-
-        $service = new SimpleService($collection);
-
-        $payload = $this->getProperty($service, 'payload');
-
-        static::assertInstanceOf(Collection::class, $payload);
-        static::assertSame('value', $payload->get('key'));
-    }
-
-    /**
      * Test that prepare is called before handle.
      *
      * @return void
@@ -248,7 +215,7 @@ class ServiceTest extends TestCase
             {
                 $this->callOrder = &$callOrder;
 
-                parent::__construct([]);
+                parent::__construct();
             }
 
             /**
