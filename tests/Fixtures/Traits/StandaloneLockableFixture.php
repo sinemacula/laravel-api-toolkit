@@ -3,6 +3,7 @@
 namespace Tests\Fixtures\Traits;
 
 use Illuminate\Contracts\Cache\Lock;
+use SineMacula\ApiToolkit\Contracts\LockKeyProvider;
 use SineMacula\ApiToolkit\Traits\Lockable;
 
 /**
@@ -11,7 +12,7 @@ use SineMacula\ApiToolkit\Traits\Lockable;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-class StandaloneLockableFixture
+class StandaloneLockableFixture implements LockKeyProvider
 {
     use Lockable;
 
@@ -19,13 +20,19 @@ class StandaloneLockableFixture
      * Create a new standalone lockable fixture instance.
      *
      * @param  string  $lockId
+     * @param  int  $lockExpiration
      */
     public function __construct(
 
         /** The identifier used when generating the cache lock key. */
         private readonly string $lockId,
 
-    ) {}
+        // Custom lock expiration in seconds
+        int $lockExpiration = 60,
+
+    ) {
+        $this->lockExpiration = $lockExpiration;
+    }
 
     /**
      * Acquire a cache lock.
@@ -65,7 +72,7 @@ class StandaloneLockableFixture
      * @return string
      */
     #[\Override]
-    protected function generateLockKey(): string
+    public function getLockKey(): string
     {
         return sha1(self::class . '|' . $this->lockId);
     }

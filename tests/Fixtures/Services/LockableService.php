@@ -12,14 +12,23 @@ use SineMacula\ApiToolkit\Services\Service;
  */
 class LockableService extends Service
 {
-    /** @var bool Indicate whether to lock the task execution */
-    protected bool $useLock = true;
+    /**
+     * Determine whether to lock the task execution.
+     *
+     * @return bool
+     */
+    #[\Override]
+    protected function shouldUseLock(): bool
+    {
+        return true;
+    }
 
     /**
      * Handles the main execution of the service.
      *
      * @return bool
      */
+    #[\Override]
     protected function handle(): bool
     {
         return true;
@@ -30,6 +39,7 @@ class LockableService extends Service
      *
      * @return string
      */
+    #[\Override]
     protected function getLockId(): string
     {
         return 'lockable-test';
