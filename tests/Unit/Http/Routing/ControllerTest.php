@@ -328,7 +328,7 @@ class ControllerTest extends TestCase
         $response->sendContent();
         $output = ob_get_clean();
 
-        static::assertStringContainsString("event: error\n\n", (string) $output);
+        static::assertStringContainsString("event: error\ndata: An error occurred\n\n", (string) $output);
         static::assertSame(1, $call_count);
     }
 
