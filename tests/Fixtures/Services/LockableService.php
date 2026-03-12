@@ -2,7 +2,6 @@
 
 namespace Tests\Fixtures\Services;
 
-use SineMacula\ApiToolkit\Contracts\LockKeyProvider;
 use SineMacula\ApiToolkit\Services\Service;
 
 /**
@@ -11,20 +10,17 @@ use SineMacula\ApiToolkit\Services\Service;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-class LockableService extends Service implements LockKeyProvider
+class LockableService extends Service
 {
-    /** @var bool Indicate whether to lock the task execution */
-    protected bool $useLock = true;
-
     /**
-     * Generate the key used for cache-based locking.
+     * Determine whether to lock the task execution.
      *
-     * @return string
+     * @return bool
      */
     #[\Override]
-    public function getLockKey(): string
+    protected function shouldUseLock(): bool
     {
-        return sha1(static::class . '|' . $this->getLockId());
+        return true;
     }
 
     /**
@@ -42,6 +38,7 @@ class LockableService extends Service implements LockKeyProvider
      *
      * @return string
      */
+    #[\Override]
     protected function getLockId(): string
     {
         return 'lockable-test';

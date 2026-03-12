@@ -4,6 +4,7 @@ namespace Tests\Unit\Services;
 
 use Illuminate\Support\Collection;
 use PHPUnit\Framework\Attributes\CoversClass;
+use SineMacula\ApiToolkit\Contracts\LockKeyProvider;
 use SineMacula\ApiToolkit\Services\Contracts\HasSuccessCallback;
 use SineMacula\ApiToolkit\Services\Contracts\Initializable;
 use SineMacula\ApiToolkit\Services\Service;
@@ -118,6 +119,49 @@ class ServiceTest extends TestCase
 
         static::assertTrue($this->getProperty($service, 'useTransaction'));
         static::assertFalse($this->getProperty($service, 'useLock'));
+    }
+
+    /**
+     * Test that the configuration properties are readonly.
+     *
+     * @return void
+     */
+    public function testConfigurationPropertiesAreReadonly(): void
+    {
+        $service = new SimpleService;
+
+        $useTransaction = new \ReflectionProperty($service, 'useTransaction');
+        $useLock        = new \ReflectionProperty($service, 'useLock');
+
+        static::assertTrue($useTransaction->isReadOnly());
+        static::assertTrue($useLock->isReadOnly());
+    }
+
+    /**
+     * Test that the service implements the LockKeyProvider contract.
+     *
+     * @return void
+     */
+    public function testServiceImplementsLockKeyProvider(): void
+    {
+        $service = new SimpleService;
+
+        static::assertInstanceOf(LockKeyProvider::class, $service);
+    }
+
+    /**
+     * Test that getLockKey returns a SHA-1 hash of the class name and
+     * lock ID.
+     *
+     * @return void
+     */
+    public function testGetLockKeyReturnsSha1OfClassAndLockId(): void
+    {
+        $service = new LockableService;
+
+        $expected = sha1(LockableService::class . '|lockable-test');
+
+        static::assertSame($expected, $service->getLockKey());
     }
 
     /**
