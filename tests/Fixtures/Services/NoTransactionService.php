@@ -27,14 +27,14 @@ class NoTransactionService extends Service
     }
 
     /**
-     * Determine whether to use database transactions for the service.
+     * Return the ordered list of concern classes for this service.
      *
-     * @return bool
+     * @return array<int, class-string<\SineMacula\ApiToolkit\Services\Contracts\ServiceConcern>>
      */
     #[\Override]
-    protected function shouldUseTransaction(): bool
+    protected function concerns(): array
     {
-        return false;
+        return [];
     }
 
     /**

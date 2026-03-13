@@ -2,6 +2,7 @@
 
 namespace Tests\Fixtures\Services;
 
+use SineMacula\ApiToolkit\Services\Concerns\TransactionConcern;
 use SineMacula\ApiToolkit\Services\Service;
 
 /**
@@ -24,6 +25,17 @@ class SimpleService extends Service
     public function success(): void
     {
         $this->successCalled = true;
+    }
+
+    /**
+     * Return the ordered list of concern classes for this service.
+     *
+     * @return array<int, class-string<\SineMacula\ApiToolkit\Services\Contracts\ServiceConcern>>
+     */
+    #[\Override]
+    protected function concerns(): array
+    {
+        return [TransactionConcern::class];
     }
 
     /**

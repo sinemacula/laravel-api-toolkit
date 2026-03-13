@@ -2,6 +2,7 @@
 
 namespace Tests\Fixtures\Services;
 
+use SineMacula\ApiToolkit\Services\Concerns\TransactionConcern;
 use SineMacula\ApiToolkit\Services\Service;
 use Tests\Fixtures\Exceptions\ServiceExecutionException;
 
@@ -29,6 +30,17 @@ class FailingService extends Service
     {
         $this->failedCalled    = true;
         $this->failedException = $exception;
+    }
+
+    /**
+     * Return the ordered list of concern classes for this service.
+     *
+     * @return array<int, class-string<\SineMacula\ApiToolkit\Services\Contracts\ServiceConcern>>
+     */
+    #[\Override]
+    protected function concerns(): array
+    {
+        return [TransactionConcern::class];
     }
 
     /**
