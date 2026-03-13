@@ -2,6 +2,8 @@
 
 namespace Tests\Fixtures\Services;
 
+use SineMacula\ApiToolkit\Services\Concerns\LockConcern;
+use SineMacula\ApiToolkit\Services\Concerns\TransactionConcern;
 use SineMacula\ApiToolkit\Services\Service;
 
 /**
@@ -13,14 +15,14 @@ use SineMacula\ApiToolkit\Services\Service;
 class LockableService extends Service
 {
     /**
-     * Determine whether to lock the task execution.
+     * Return the ordered list of concern classes for this service.
      *
-     * @return bool
+     * @return array<int, class-string<\SineMacula\ApiToolkit\Services\Contracts\ServiceConcern>>
      */
     #[\Override]
-    protected function shouldUseLock(): bool
+    protected function concerns(): array
     {
-        return true;
+        return [LockConcern::class, TransactionConcern::class];
     }
 
     /**
