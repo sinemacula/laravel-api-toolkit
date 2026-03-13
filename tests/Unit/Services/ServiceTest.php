@@ -2,7 +2,6 @@
 
 namespace Tests\Unit\Services;
 
-use Closure;
 use Illuminate\Support\Collection;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Contracts\LockKeyProvider;
@@ -321,14 +320,14 @@ class ServiceTest extends TestCase
             /**
              * Execute the concern.
              *
-             * @param  Service   $service
+             * @param  Service  $service
              * @param  \Closure  $next
              * @return bool
              */
-            public function execute(Service $service, Closure $next): bool
+            public function execute(Service $service, \Closure $next): bool
             {
                 $this->order[] = 'A:before';
-                $result = $next();
+                $result        = $next();
                 $this->order[] = 'A:after';
 
                 return $result;
@@ -352,14 +351,14 @@ class ServiceTest extends TestCase
             /**
              * Execute the concern.
              *
-             * @param  Service   $service
+             * @param  Service  $service
              * @param  \Closure  $next
              * @return bool
              */
-            public function execute(Service $service, Closure $next): bool
+            public function execute(Service $service, \Closure $next): bool
             {
                 $this->order[] = 'B:before';
-                $result = $next();
+                $result        = $next();
                 $this->order[] = 'B:after';
 
                 return $result;
@@ -431,11 +430,11 @@ class ServiceTest extends TestCase
             /**
              * Execute the concern, short-circuiting the pipeline.
              *
-             * @param  Service   $service
+             * @param  Service  $service
              * @param  \Closure  $next
              * @return bool
              */
-            public function execute(Service $service, Closure $next): bool
+            public function execute(Service $service, \Closure $next): bool
             {
                 return false;
             }
@@ -454,7 +453,7 @@ class ServiceTest extends TestCase
              * Create a new instance.
              *
              * @param  ServiceConcern  $concern
-             * @param  bool            $handleCalled
+             * @param  bool  $handleCalled
              */
             public function __construct(ServiceConcern $concern, bool &$handleCalled)
             {

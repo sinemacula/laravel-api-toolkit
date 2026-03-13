@@ -25,7 +25,7 @@ class TransactionConcern implements ServiceConcern
      * Execute the concern around the service lifecycle.
      *
      * @param  \SineMacula\ApiToolkit\Services\Service  $service
-     * @param  \Closure(): bool                         $next
+     * @param  \Closure(): bool  $next
      * @return bool
      */
     public function execute(Service $service, \Closure $next): bool

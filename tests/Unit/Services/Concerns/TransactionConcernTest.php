@@ -28,12 +28,8 @@ class TransactionConcernTest extends TestCase
     {
         DB::shouldReceive('transaction')
             ->once()
-            ->withArgs(function (\Closure $callback, int $retries): bool {
-                return $retries === 3;
-            })
-            ->andReturnUsing(function (\Closure $callback): bool {
-                return $callback();
-            });
+            ->withArgs(fn (\Closure $callback, int $retries): bool => $retries === 3)
+            ->andReturnUsing(fn (\Closure $callback): bool => $callback());
 
         $concern = new TransactionConcern;
         $service = $this->createMock(Service::class);
@@ -52,9 +48,7 @@ class TransactionConcernTest extends TestCase
     {
         DB::shouldReceive('transaction')
             ->once()
-            ->andReturnUsing(function (\Closure $callback): bool {
-                return $callback();
-            });
+            ->andReturnUsing(fn (\Closure $callback): bool => $callback());
 
         $concern = new TransactionConcern;
         $service = $this->createMock(Service::class);
@@ -73,9 +67,7 @@ class TransactionConcernTest extends TestCase
     {
         DB::shouldReceive('transaction')
             ->once()
-            ->andReturnUsing(function (\Closure $callback): bool {
-                return $callback();
-            });
+            ->andReturnUsing(fn (\Closure $callback): bool => $callback());
 
         $concern = new TransactionConcern;
         $service = $this->createMock(Service::class);

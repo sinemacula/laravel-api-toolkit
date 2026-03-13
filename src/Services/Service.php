@@ -163,13 +163,13 @@ abstract class Service implements LockKeyProvider, ServiceInterface
 
         $concerns = array_map(
             fn (string $class): ServiceConcern => app()->make($class),
-            $this->concerns()
+            $this->concerns(),
         );
 
         return array_reduce(
             array_reverse($concerns),
             fn (\Closure $next, ServiceConcern $concern): \Closure => fn (): bool => $concern->execute($this, $next),
-            $core
+            $core,
         );
     }
 

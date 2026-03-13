@@ -56,7 +56,7 @@ class ServiceConcernTest extends TestCase
         $nextParam = $parameters[1]->getType();
 
         static::assertInstanceOf(\ReflectionNamedType::class, $nextParam);
-        static::assertSame('Closure', $nextParam->getName());
+        static::assertSame(\Closure::class, $nextParam->getName());
 
         $returnType = $method->getReturnType();
 

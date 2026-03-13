@@ -24,7 +24,7 @@ interface ServiceConcern
      * short-circuit the pipeline.
      *
      * @param  \SineMacula\ApiToolkit\Services\Service  $service
-     * @param  \Closure(): bool                         $next
+     * @param  \Closure(): bool  $next
      * @return bool
      */
     public function execute(Service $service, \Closure $next): bool;
