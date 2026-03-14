@@ -5,7 +5,7 @@ namespace SineMacula\ApiToolkit\Exceptions;
 use Exception;
 use Illuminate\Support\Facades\Lang;
 use SineMacula\ApiToolkit\Contracts\ErrorCodeInterface;
-use SineMacula\ApiToolkit\Enums\HttpStatus;
+use SineMacula\Http\Enums\HttpStatus;
 
 /**
  * The base API exception.
@@ -63,7 +63,7 @@ abstract class ApiException extends \Exception
      */
     public static function getHttpStatusCode(): int
     {
-        return self::getHttpStatus()->getCode();
+        return self::getHttpStatus()->value;
     }
 
     /**
@@ -73,7 +73,15 @@ abstract class ApiException extends \Exception
      */
     public function getCustomTitle(): string
     {
-        return Lang::get($this->getTranslationKey('title'));
+        $key = $this->getTranslationKey('title');
+
+        if (Lang::has($key)) {
+            $translation = Lang::get($key);
+
+            return is_string($translation) ? $translation : '';
+        }
+
+        return $this->getDefaultTitle();
     }
 
     /**
@@ -123,7 +131,7 @@ abstract class ApiException extends \Exception
     /**
      * Get HTTP status.
      *
-     * @return \SineMacula\ApiToolkit\Enums\HttpStatus
+     * @return \SineMacula\Http\Enums\HttpStatus
      */
     private static function getHttpStatus(): HttpStatus
     {
@@ -132,6 +140,16 @@ abstract class ApiException extends \Exception
         }
 
         return static::HTTP_STATUS;
+    }
+
+    /**
+     * Derive a human-readable title from the HTTP status enum case name.
+     *
+     * @return string
+     */
+    private function getDefaultTitle(): string
+    {
+        return ucwords(strtolower(str_replace('_', ' ', self::getHttpStatus()->name)));
     }
 
     /**
