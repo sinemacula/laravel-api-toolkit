@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "9fef96051fbebc64a2e2220a65738ee9",
+    "content-hash": "df4cc59d0d0bd547c0178e0e6561799c",
     "packages": [
         {
             "name": "aws/aws-crt-php",
@@ -3417,6 +3417,67 @@
                 "source": "https://github.com/ramsey/uuid/tree/4.9.2"
             },
             "time": "2025-12-14T04:43:48+00:00"
+        },
+        {
+            "name": "sinemacula/http-primitives-php",
+            "version": "v1.0.2",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/sinemacula/http-primitives-php.git",
+                "reference": "3b224f93299e50737797d0b20d73b2e0960f0e6d"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/sinemacula/http-primitives-php/zipball/3b224f93299e50737797d0b20d73b2e0960f0e6d",
+                "reference": "3b224f93299e50737797d0b20d73b2e0960f0e6d",
+                "shasum": ""
+            },
+            "require": {
+                "php": "^8.3"
+            },
+            "require-dev": {
+                "brianium/paratest": "^7.8",
+                "friendsofphp/php-cs-fixer": "^3.85",
+                "phpstan/extension-installer": "^1.4",
+                "phpstan/phpdoc-parser": "^2.2",
+                "phpstan/phpstan": "^2.1",
+                "phpstan/phpstan-deprecation-rules": "^2.0",
+                "phpstan/phpstan-phpunit": "^2.0",
+                "phpstan/phpstan-strict-rules": "^2.0",
+                "phpunit/phpunit": "^11.5.3",
+                "slevomat/coding-standard": "^8.20",
+                "squizlabs/php_codesniffer": "^3.13",
+                "symfony/http-foundation": "^7.0"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "SineMacula\\Http\\": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "Apache-2.0"
+            ],
+            "authors": [
+                {
+                    "name": "Ben Carey",
+                    "email": "bdmc@sinemacula.co.uk"
+                }
+            ],
+            "description": "Standalone, framework-agnostic PHP 8.3+ package providing typed backed enums for HTTP protocol primitives with zero runtime dependencies.",
+            "keywords": [
+                "enums",
+                "http",
+                "php",
+                "sine macula",
+                "status codes"
+            ],
+            "support": {
+                "issues": "https://github.com/sinemacula/http-primitives-php/issues",
+                "source": "https://github.com/sinemacula/http-primitives-php/tree/v1.0.2"
+            },
+            "time": "2026-03-14T04:16:06+00:00"
         },
         {
             "name": "sinemacula/laravel-repositories",

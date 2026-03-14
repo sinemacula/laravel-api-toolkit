@@ -6,6 +6,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Facades\Config;
 use SineMacula\ApiToolkit\Contracts\ApiResourceInterface;
+use SineMacula\ApiToolkit\Exceptions\ResourceMappingException;
 
 /**
  * Polymorphic resource class for handling dynamic resource resolution in a
@@ -85,6 +86,10 @@ class PolymorphicResource extends JsonResource
             $resource->withAll();
         }
 
+        if ($this->excludedFields) {
+            $resource->withoutFields($this->excludedFields);
+        }
+
         return [
             '_type' => $resource::getResourceType(),
             ...$resource->resolve($request),
@@ -98,17 +103,23 @@ class PolymorphicResource extends JsonResource
      * @param  mixed  $resource
      * @return \SineMacula\ApiToolkit\Contracts\ApiResourceInterface
      *
-     * @throws \LogicException
+     * @throws \SineMacula\ApiToolkit\Exceptions\ResourceMappingException
      */
     private function mapResource(mixed $resource): ApiResourceInterface
     {
         $map   = Config::get('api-toolkit.resources.resource_map', []);
         $class = $resource::class;
 
-        if (isset($map[$class])) {
-            return new $map[$class]($resource, false, $this->fields ?? null);
+        if (!isset($map[$class]) || !is_string($map[$class])) {
+            throw new ResourceMappingException("Resource not found for: {$class}");
         }
 
-        throw new \LogicException("Resource not found for: {$class}");
+        $resourceClass = $map[$class];
+
+        if (!is_subclass_of($resourceClass, ApiResourceInterface::class)) {
+            throw new ResourceMappingException("Resource [{$resourceClass}] must implement " . ApiResourceInterface::class);
+        }
+
+        return new $resourceClass($resource, false, $this->fields ?? null);
     }
 }
