@@ -227,7 +227,7 @@ class RespondsWithStreamTest extends TestCase
     {
         $controller = $this->createControllerWithTrait();
 
-        $request = Request::create(self::TEST_URI, HttpMethod::Get->value,['limit' => '1']);
+        $request = Request::create(self::TEST_URI, HttpMethod::Get->value, ['limit' => '1']);
         ApiQuery::parse($request);
 
         $user1 = User::create(['name' => 'User1', 'email' => 'user1@stream.com']);
