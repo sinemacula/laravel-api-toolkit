@@ -3,7 +3,7 @@
 namespace SineMacula\ApiToolkit\Exceptions;
 
 use SineMacula\ApiToolkit\Enums\ErrorCode;
-use SineMacula\ApiToolkit\Enums\HttpStatus;
+use SineMacula\Http\Enums\HttpStatus;
 
 /**
  * Bad request exception.
@@ -16,6 +16,6 @@ class BadRequestException extends ApiException
     /** @var \SineMacula\ApiToolkit\Contracts\ErrorCodeInterface The internal error code */
     public const \SineMacula\ApiToolkit\Contracts\ErrorCodeInterface CODE = ErrorCode::BAD_REQUEST;
 
-    /** @var \SineMacula\ApiToolkit\Enums\HttpStatus The HTTP status code */
-    public const HttpStatus HTTP_STATUS = HttpStatus::BAD_REQUEST;
+    /** @var \SineMacula\Http\Enums\HttpStatus The HTTP status code */
+    public const HttpStatus HTTP_STATUS = HttpStatus::BadRequest;
 }

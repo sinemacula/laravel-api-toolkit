@@ -10,6 +10,7 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use SineMacula\ApiToolkit\Http\Resources\ApiResource;
 use SineMacula\ApiToolkit\Http\Resources\ApiResourceCollection;
+use SineMacula\Http\Enums\HttpMethod;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\SchemaCompiler;
 use SineMacula\ApiToolkit\Http\Resources\Schema\Count;
 use SineMacula\ApiToolkit\Http\Resources\Schema\Field;
@@ -148,7 +149,7 @@ class ApiResourceTest extends TestCase
         /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
         $parser = $this->app->make('api.query');
 
-        $request = Request::create('/', 'GET', [
+        $request = Request::create('/', HttpMethod::Get->value, [
             'fields' => ['users' => 'id,name,status'],
         ]);
 
@@ -171,7 +172,7 @@ class ApiResourceTest extends TestCase
         /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
         $parser = $this->app->make('api.query');
 
-        $request = Request::create('/', 'GET');
+        $request = Request::create('/', HttpMethod::Get->value);
 
         $parser->parse($request);
 
@@ -215,7 +216,7 @@ class ApiResourceTest extends TestCase
 
         /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
         $parser  = $this->app->make('api.query');
-        $request = Request::create('/', 'GET', [
+        $request = Request::create('/', HttpMethod::Get->value, [
             'fields' => ['users' => 'name'],
         ]);
 
@@ -246,7 +247,7 @@ class ApiResourceTest extends TestCase
 
         /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
         $parser  = $this->app->make('api.query');
-        $request = Request::create('/', 'GET', [
+        $request = Request::create('/', HttpMethod::Get->value, [
             'fields' => ['users' => 'id,name'],
         ]);
 
@@ -322,7 +323,7 @@ class ApiResourceTest extends TestCase
 
         /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
         $parser  = $this->app->make('api.query');
-        $request = Request::create('/', 'GET', [
+        $request = Request::create('/', HttpMethod::Get->value, [
             'fields' => ['users' => ':all'],
         ]);
 
@@ -709,7 +710,7 @@ class ApiResourceTest extends TestCase
 
         /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
         $parser  = $this->app->make('api.query');
-        $request = Request::create('/', 'GET', [
+        $request = Request::create('/', HttpMethod::Get->value, [
             'fields' => ['users' => 'id,name,counts'],
         ]);
 
@@ -741,7 +742,7 @@ class ApiResourceTest extends TestCase
 
         /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
         $parser  = $this->app->make('api.query');
-        $request = Request::create('/', 'GET', [
+        $request = Request::create('/', HttpMethod::Get->value, [
             'fields' => ['users' => 'id,name,counts'],
         ]);
 
@@ -934,7 +935,7 @@ class ApiResourceTest extends TestCase
 
         /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
         $parser  = $this->app->make('api.query');
-        $request = Request::create('/', 'GET', [
+        $request = Request::create('/', HttpMethod::Get->value, [
             'fields' => ['users' => 'id,name,email,status'],
         ]);
 
@@ -1075,7 +1076,7 @@ class ApiResourceTest extends TestCase
 
         /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
         $parser  = $this->app->make('api.query');
-        $request = Request::create('/', 'GET', [
+        $request = Request::create('/', HttpMethod::Get->value, [
             'fields' => ['users' => 'id,name,organization'],
         ]);
 
@@ -1103,7 +1104,7 @@ class ApiResourceTest extends TestCase
 
         /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
         $parser  = $this->app->make('api.query');
-        $request = Request::create('/', 'GET', [
+        $request = Request::create('/', HttpMethod::Get->value, [
             'fields' => [
                 'users' => 'id,posts',
                 'posts' => 'id,title,tags',
@@ -1362,7 +1363,7 @@ class ApiResourceTest extends TestCase
         ]);
 
         $resource = new UserResource($user);
-        $request  = Request::create('/', 'GET');
+        $request  = Request::create('/', HttpMethod::Get->value);
 
         $resolved = $resource->resolve($request);
         $array    = $resource->toArray($request);
@@ -1441,7 +1442,7 @@ class ApiResourceTest extends TestCase
 
         /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
         $parser  = $this->app->make('api.query');
-        $request = Request::create('/', 'GET');
+        $request = Request::create('/', HttpMethod::Get->value);
         $parser->parse($request);
 
         $resource = new UserResource($user, true, ':all');
@@ -1468,7 +1469,7 @@ class ApiResourceTest extends TestCase
 
         /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
         $parser  = $this->app->make('api.query');
-        $request = Request::create('/', 'GET');
+        $request = Request::create('/', HttpMethod::Get->value);
         $parser->parse($request);
 
         // 'counts' in included ensures shouldIncludeCountsField() returns true
@@ -1495,7 +1496,7 @@ class ApiResourceTest extends TestCase
 
         /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
         $parser  = $this->app->make('api.query');
-        $request = Request::create('/', 'GET', ['fields' => ['users' => self::COUNTS_FIELDS]]);
+        $request = Request::create('/', HttpMethod::Get->value, ['fields' => ['users' => self::COUNTS_FIELDS]]);
         $parser->parse($request);
 
         // Inner resource wraps null; outer resource wraps the inner resource.
@@ -1551,7 +1552,7 @@ class ApiResourceTest extends TestCase
 
         /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
         $parser  = $this->app->make('api.query');
-        $request = Request::create('/', 'GET', ['fields' => ['guarded_count_test' => self::COUNTS_FIELDS]]);
+        $request = Request::create('/', HttpMethod::Get->value, ['fields' => ['guarded_count_test' => self::COUNTS_FIELDS]]);
         $parser->parse($request);
 
         $resource = new $resource_class($user);
@@ -1720,7 +1721,7 @@ class ApiResourceTest extends TestCase
 
         /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
         $parser  = $this->app->make('api.query');
-        $request = Request::create('/', 'GET', ['fields' => ['users' => self::COUNTS_FIELDS]]);
+        $request = Request::create('/', HttpMethod::Get->value, ['fields' => ['users' => self::COUNTS_FIELDS]]);
         $parser->parse($request);
 
         // Wrap the user in an inner UserResource, then wrap THAT in an outer
@@ -2068,7 +2069,7 @@ class ApiResourceTest extends TestCase
 
         /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
         $parser  = $this->app->make('api.query');
-        $request = Request::create('/', 'GET', ['fields' => ['users' => 'id,counts']]);
+        $request = Request::create('/', HttpMethod::Get->value, ['fields' => ['users' => 'id,counts']]);
         $parser->parse($request);
 
         // A plain object with __isset/__get but no getAttributes(), so

@@ -5,6 +5,7 @@ namespace Tests\Unit\Facades;
 use Illuminate\Http\Request;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
+use SineMacula\Http\Enums\HttpMethod;
 use Tests\TestCase;
 
 /**
@@ -38,7 +39,7 @@ class ApiQueryTest extends TestCase
      */
     public function testFacadeProxiesParseMethodCalls(): void
     {
-        $request = Request::create('/test', 'GET');
+        $request = Request::create('/test', HttpMethod::Get->value);
 
         ApiQuery::shouldReceive('parse')
             ->once()

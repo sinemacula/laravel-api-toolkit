@@ -4,6 +4,8 @@ namespace SineMacula\ApiToolkit\Http\Middleware;
 
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use SineMacula\Http\Enums\HttpHeader;
+use SineMacula\Http\Enums\MediaType;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
@@ -47,9 +49,9 @@ class JsonPrettyPrint
             return;
         }
 
-        $contentType = (string) $response->headers->get('Content-Type');
+        $contentType = (string) $response->headers->get(HttpHeader::ContentType->value);
 
-        if (str_contains($contentType, 'application/json')) {
+        if (str_contains($contentType, MediaType::ApplicationJson->value)) {
             $this->prettyPrintPlainResponse($response);
         }
     }

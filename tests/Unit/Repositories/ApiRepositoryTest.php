@@ -9,6 +9,7 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Repositories\ApiRepository;
 use SineMacula\ApiToolkit\Repositories\Concerns\AttributeSetter;
 use SineMacula\ApiToolkit\Repositories\Criteria\ApiCriteria;
+use SineMacula\Http\Enums\HttpMethod;
 use Tests\Concerns\InteractsWithNonPublicMembers;
 use Tests\Fixtures\Enums\UserStatus;
 use Tests\Fixtures\Models\Organization;
@@ -155,7 +156,7 @@ class ApiRepositoryTest extends TestCase
     {
         User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL]);
 
-        $request = Request::create('/', 'GET', ['pagination' => 'cursor']);
+        $request = Request::create('/', HttpMethod::Get->value, ['pagination' => 'cursor']);
 
         assert($this->app !== null);
 

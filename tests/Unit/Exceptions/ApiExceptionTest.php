@@ -5,7 +5,7 @@ namespace Tests\Unit\Exceptions;
 use Orchestra\Testbench\TestCase;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Enums\ErrorCode;
-use SineMacula\ApiToolkit\Enums\HttpStatus;
+use SineMacula\Http\Enums\HttpStatus;
 use SineMacula\ApiToolkit\Exceptions\ApiException;
 use SineMacula\ApiToolkit\Exceptions\BadRequestException;
 
@@ -182,7 +182,7 @@ class ApiExceptionTest extends TestCase
 
         // Call static method directly on an anonymous class without instantiating
         $class = new class extends ApiException {
-            public const HttpStatus HTTP_STATUS = HttpStatus::BAD_REQUEST;
+            public const HttpStatus HTTP_STATUS = HttpStatus::BadRequest;
         };
 
         $class::getInternalErrorCode();
@@ -215,7 +215,7 @@ class ApiExceptionTest extends TestCase
     {
         $exception = new class extends ApiException {
             public const \SineMacula\ApiToolkit\Contracts\ErrorCodeInterface CODE = ErrorCode::NOT_FOUND;
-            public const HttpStatus HTTP_STATUS                                   = HttpStatus::NOT_FOUND;
+            public const HttpStatus HTTP_STATUS                                   = HttpStatus::NotFound;
         };
 
         static::assertSame(10103, $exception::getInternalErrorCode());

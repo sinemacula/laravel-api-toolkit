@@ -8,6 +8,7 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
 use SineMacula\ApiToolkit\Http\Concerns\RespondsWithStream;
 use SineMacula\ApiToolkit\Repositories\ApiRepository;
+use SineMacula\Http\Enums\HttpMethod;
 use SineMacula\Exporter\Facades\Exporter;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 use Tests\Fixtures\Models\User;
@@ -41,7 +42,7 @@ class RespondsWithStreamTest extends TestCase
     {
         $controller = $this->createControllerWithTrait();
 
-        $request = Request::create(self::TEST_URI, 'GET');
+        $request = Request::create(self::TEST_URI, HttpMethod::Get->value);
         ApiQuery::parse($request);
 
         /** @var \Mockery\MockInterface&\SineMacula\ApiToolkit\Repositories\ApiRepository<\Illuminate\Database\Eloquent\Model> $repository */
@@ -173,7 +174,7 @@ class RespondsWithStreamTest extends TestCase
     {
         $controller = $this->createControllerWithTrait();
 
-        $request = Request::create(self::TEST_URI, 'GET');
+        $request = Request::create(self::TEST_URI, HttpMethod::Get->value);
         ApiQuery::parse($request);
 
         $user = User::create(['name' => 'Streamed', 'email' => 'streamed@example.com']);
@@ -226,7 +227,7 @@ class RespondsWithStreamTest extends TestCase
     {
         $controller = $this->createControllerWithTrait();
 
-        $request = Request::create(self::TEST_URI, 'GET', ['limit' => '1']);
+        $request = Request::create(self::TEST_URI, HttpMethod::Get->value,['limit' => '1']);
         ApiQuery::parse($request);
 
         $user1 = User::create(['name' => 'User1', 'email' => 'user1@stream.com']);
@@ -279,7 +280,7 @@ class RespondsWithStreamTest extends TestCase
     {
         $controller = $this->createControllerWithTrait();
 
-        $request = Request::create(self::TEST_URI, 'GET');
+        $request = Request::create(self::TEST_URI, HttpMethod::Get->value);
         ApiQuery::parse($request);
 
         /** @var \Mockery\MockInterface&\SineMacula\ApiToolkit\Repositories\ApiRepository<\Illuminate\Database\Eloquent\Model> $repository */
@@ -302,7 +303,7 @@ class RespondsWithStreamTest extends TestCase
     {
         $controller = $this->createControllerWithTrait();
 
-        $request = Request::create(self::TEST_URI, 'GET');
+        $request = Request::create(self::TEST_URI, HttpMethod::Get->value);
         ApiQuery::parse($request);
 
         /** @var \Mockery\MockInterface&\SineMacula\ApiToolkit\Repositories\ApiRepository<\Illuminate\Database\Eloquent\Model> $repository */
@@ -328,7 +329,7 @@ class RespondsWithStreamTest extends TestCase
     {
         $controller = $this->createControllerWithTrait();
 
-        $request = Request::create(self::TEST_URI, 'GET');
+        $request = Request::create(self::TEST_URI, HttpMethod::Get->value);
         ApiQuery::parse($request);
 
         $user = User::create(['name' => 'Alice   ', 'email' => 'alice@example.com']);

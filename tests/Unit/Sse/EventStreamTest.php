@@ -3,7 +3,7 @@
 namespace Tests\Unit\Sse;
 
 use PHPUnit\Framework\Attributes\CoversClass;
-use SineMacula\ApiToolkit\Enums\HttpStatus;
+use SineMacula\Http\Enums\HttpStatus;
 use SineMacula\ApiToolkit\Sse\Emitter;
 use SineMacula\ApiToolkit\Sse\EventStream;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -104,7 +104,7 @@ class EventStreamTest extends TestCase
     {
         $stream = new EventStream;
 
-        $response = $stream->toResponse(fn () => null, status: HttpStatus::ACCEPTED);
+        $response = $stream->toResponse(fn () => null, status: HttpStatus::Accepted);
 
         static::assertSame(202, $response->getStatusCode());
     }

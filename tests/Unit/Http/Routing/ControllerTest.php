@@ -6,7 +6,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Http\Resources\Json\ResourceCollection;
 use PHPUnit\Framework\Attributes\CoversClass;
-use SineMacula\ApiToolkit\Enums\HttpStatus;
+use SineMacula\Http\Enums\HttpStatus;
 use SineMacula\ApiToolkit\Http\Routing\Controller;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 use Tests\Concerns\InteractsWithNonPublicMembers;
@@ -74,7 +74,7 @@ class ControllerTest extends TestCase
         $data = ['created' => true];
 
         /** @var \Illuminate\Http\JsonResponse $response */
-        $response = $this->invokeMethod($this->controller, 'respondWithData', $data, HttpStatus::CREATED);
+        $response = $this->invokeMethod($this->controller, 'respondWithData', $data, HttpStatus::Created);
 
         static::assertSame(201, $response->getStatusCode());
     }
@@ -90,7 +90,7 @@ class ControllerTest extends TestCase
         $headers = ['X-Custom-Header' => 'custom-value'];
 
         /** @var \Illuminate\Http\JsonResponse $response */
-        $response = $this->invokeMethod($this->controller, 'respondWithData', $data, HttpStatus::OK, $headers);
+        $response = $this->invokeMethod($this->controller, 'respondWithData', $data, HttpStatus::Ok, $headers);
 
         static::assertSame('custom-value', $response->headers->get('X-Custom-Header'));
     }
@@ -121,7 +121,7 @@ class ControllerTest extends TestCase
         $resource = new JsonResource(['id' => 1]);
 
         /** @var \Illuminate\Http\JsonResponse $response */
-        $response = $this->invokeMethod($this->controller, 'respondWithItem', $resource, HttpStatus::CREATED);
+        $response = $this->invokeMethod($this->controller, 'respondWithItem', $resource, HttpStatus::Created);
 
         static::assertSame(201, $response->getStatusCode());
     }
@@ -155,7 +155,7 @@ class ControllerTest extends TestCase
         $collection = new ResourceCollection(collect([]));
 
         /** @var \Illuminate\Http\JsonResponse $response */
-        $response = $this->invokeMethod($this->controller, 'respondWithCollection', $collection, HttpStatus::ACCEPTED);
+        $response = $this->invokeMethod($this->controller, 'respondWithCollection', $collection, HttpStatus::Accepted);
 
         static::assertSame(202, $response->getStatusCode());
     }
@@ -208,7 +208,7 @@ class ControllerTest extends TestCase
         /** @var \Symfony\Component\HttpFoundation\StreamedResponse $response */
         $response = $this->invokeMethod($this->controller, 'respondWithEventStream', static function (): void {
             // Stream callback placeholder
-        }, 1, HttpStatus::OK, $headers);
+        }, 1, HttpStatus::Ok, $headers);
 
         static::assertSame('abc123', $response->headers->get('X-Stream-Id'));
         static::assertSame('text/event-stream', $response->headers->get('Content-Type'));

@@ -11,6 +11,7 @@ use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterApplier;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\LimitApplier;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\OrderApplier;
+use SineMacula\Http\Enums\HttpMethod;
 use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\User;
 use Tests\TestCase;
@@ -310,7 +311,7 @@ class ApiCriteriaIntegrationTest extends TestCase
      */
     private function parseQuery(array $params): void
     {
-        $request = Request::create('/test', 'GET', $params);
+        $request = Request::create('/test', HttpMethod::Get->value, $params);
 
         ApiQuery::parse($request);
     }

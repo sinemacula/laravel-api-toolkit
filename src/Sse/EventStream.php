@@ -2,7 +2,10 @@
 
 namespace SineMacula\ApiToolkit\Sse;
 
-use SineMacula\ApiToolkit\Enums\HttpStatus;
+use SineMacula\Http\Enums\CacheDirective;
+use SineMacula\Http\Enums\HttpHeader;
+use SineMacula\Http\Enums\HttpStatus;
+use SineMacula\Http\Enums\MediaType;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
@@ -38,17 +41,17 @@ class EventStream
      *
      * @param  callable(): void|callable(\SineMacula\ApiToolkit\Sse\Emitter): void  $callback
      * @param  int  $interval
-     * @param  \SineMacula\ApiToolkit\Enums\HttpStatus  $status
+     * @param  \SineMacula\Http\Enums\HttpStatus  $status
      * @param  array<string, string>  $headers
      * @return \Symfony\Component\HttpFoundation\StreamedResponse
      */
-    public function toResponse(callable $callback, int $interval = 1, HttpStatus $status = HttpStatus::OK, array $headers = []): StreamedResponse
+    public function toResponse(callable $callback, int $interval = 1, HttpStatus $status = HttpStatus::Ok, array $headers = []): StreamedResponse
     {
         $headers = array_merge($headers, [
-            'Content-Type'      => 'text/event-stream',
-            'Cache-Control'     => 'no-cache, no-transform',
-            'Connection'        => 'keep-alive',
-            'X-Accel-Buffering' => 'no',
+            HttpHeader::ContentType->value     => MediaType::TextEventStream->value,
+            HttpHeader::CacheControl->value    => CacheDirective::NoCache->value . ', ' . CacheDirective::NoTransform->value,
+            HttpHeader::Connection->value      => 'keep-alive',
+            HttpHeader::XAccelBuffering->value => 'no',
         ]);
 
         $acceptsEmitter = (new \ReflectionFunction(\Closure::fromCallable($callback)))->getNumberOfParameters() >= 1;
@@ -56,7 +59,7 @@ class EventStream
 
         return new StreamedResponse(function () use ($callback, $interval, $emitter, $acceptsEmitter): void {
             $this->runEventStream($callback, $interval, $emitter, $acceptsEmitter);
-        }, $status->getCode(), $headers);
+        }, $status->value, $headers);
     }
 
     /**

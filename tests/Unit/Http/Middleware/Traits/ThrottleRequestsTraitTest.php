@@ -7,6 +7,7 @@ use Illuminate\Routing\Route;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 use SineMacula\ApiToolkit\Http\Middleware\Traits\ThrottleRequestsTrait;
+use SineMacula\Http\Enums\HttpMethod;
 
 /**
  * Tests for the ThrottleRequestsTrait.
@@ -32,7 +33,7 @@ class ThrottleRequestsTraitTest extends TestCase
         $this->expectExceptionMessage('Unable to generate the request signature. Route unavailable.');
 
         $trait   = $this->createTraitInstance();
-        $request = Request::create('/test', 'GET');
+        $request = Request::create('/test', HttpMethod::Get->value);
 
         $trait->resolveRequestSignature($request); // @phpstan-ignore method.notFound
     }
@@ -45,7 +46,7 @@ class ThrottleRequestsTraitTest extends TestCase
     public function testReturnsSha1Hash(): void
     {
         $trait   = $this->createTraitInstance();
-        $request = $this->createRequestWithRoute('/test', 'GET');
+        $request = $this->createRequestWithRoute('/test', HttpMethod::Get->value);
 
         $result = $trait->resolveRequestSignature($request); // @phpstan-ignore method.notFound
 
@@ -64,7 +65,7 @@ class ThrottleRequestsTraitTest extends TestCase
         $user = $this->createMock(\Illuminate\Contracts\Auth\Authenticatable::class);
         $user->method('getAuthIdentifier')->willReturn(42);
 
-        $request = $this->createRequestWithRoute(self::API_DATA_URI, 'GET', '10.0.0.1');
+        $request = $this->createRequestWithRoute(self::API_DATA_URI, HttpMethod::Get->value, '10.0.0.1');
         $request->setUserResolver(fn () => $user);
 
         $result   = $trait->resolveRequestSignature($request); // @phpstan-ignore method.notFound
@@ -85,7 +86,7 @@ class ThrottleRequestsTraitTest extends TestCase
     public function testSignatureHandlesUnauthenticatedUsers(): void
     {
         $trait   = $this->createTraitInstance();
-        $request = $this->createRequestWithRoute(self::API_DATA_URI, 'GET', '192.168.1.50');
+        $request = $this->createRequestWithRoute(self::API_DATA_URI, HttpMethod::Get->value, '192.168.1.50');
 
         $result   = $trait->resolveRequestSignature($request); // @phpstan-ignore method.notFound
         $expected = sha1('GET|localhost|api/data|');
@@ -102,8 +103,8 @@ class ThrottleRequestsTraitTest extends TestCase
     {
         $trait = $this->createTraitInstance();
 
-        $getRequest  = $this->createRequestWithRoute(self::API_DATA_URI, 'GET');
-        $postRequest = $this->createRequestWithRoute(self::API_DATA_URI, 'POST');
+        $getRequest  = $this->createRequestWithRoute(self::API_DATA_URI, HttpMethod::Get->value);
+        $postRequest = $this->createRequestWithRoute(self::API_DATA_URI, HttpMethod::Post->value);
 
         $getSignature  = $trait->resolveRequestSignature($getRequest); // @phpstan-ignore method.notFound
         $postSignature = $trait->resolveRequestSignature($postRequest); // @phpstan-ignore method.notFound
@@ -120,8 +121,8 @@ class ThrottleRequestsTraitTest extends TestCase
     {
         $trait = $this->createTraitInstance();
 
-        $request1 = $this->createRequestWithRoute('/api/users', 'GET');
-        $request2 = $this->createRequestWithRoute('/api/posts', 'GET');
+        $request1 = $this->createRequestWithRoute('/api/users', HttpMethod::Get->value);
+        $request2 = $this->createRequestWithRoute('/api/posts', HttpMethod::Get->value);
 
         $signature1 = $trait->resolveRequestSignature($request1); // @phpstan-ignore method.notFound
         $signature2 = $trait->resolveRequestSignature($request2); // @phpstan-ignore method.notFound
