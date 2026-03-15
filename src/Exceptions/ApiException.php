@@ -63,7 +63,7 @@ abstract class ApiException extends \Exception
      */
     public static function getHttpStatusCode(): int
     {
-        return self::getHttpStatus()->value;
+        return self::getHttpStatus()->getCode();
     }
 
     /**

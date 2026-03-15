@@ -17,5 +17,5 @@ class InvalidImageException extends ApiException
     public const \SineMacula\ApiToolkit\Contracts\ErrorCodeInterface CODE = ErrorCode::INVALID_IMAGE;
 
     /** @var \SineMacula\Http\Enums\HttpStatus The HTTP status code */
-    public const HttpStatus HTTP_STATUS = HttpStatus::UnprocessableContent;
+    public const HttpStatus HTTP_STATUS = HttpStatus::UNPROCESSABLE_CONTENT;
 }

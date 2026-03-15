@@ -17,5 +17,5 @@ class ForbiddenException extends ApiException
     public const \SineMacula\ApiToolkit\Contracts\ErrorCodeInterface CODE = ErrorCode::FORBIDDEN;
 
     /** @var \SineMacula\Http\Enums\HttpStatus The HTTP status code */
-    public const HttpStatus HTTP_STATUS = HttpStatus::Forbidden;
+    public const HttpStatus HTTP_STATUS = HttpStatus::FORBIDDEN;
 }

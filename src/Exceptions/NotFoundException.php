@@ -17,5 +17,5 @@ class NotFoundException extends ApiException
     public const \SineMacula\ApiToolkit\Contracts\ErrorCodeInterface CODE = ErrorCode::NOT_FOUND;
 
     /** @var \SineMacula\Http\Enums\HttpStatus The HTTP status code */
-    public const HttpStatus HTTP_STATUS = HttpStatus::NotFound;
+    public const HttpStatus HTTP_STATUS = HttpStatus::NOT_FOUND;
 }

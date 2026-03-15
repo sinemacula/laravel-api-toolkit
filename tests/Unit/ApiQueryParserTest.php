@@ -54,7 +54,7 @@ class ApiQueryParserTest extends TestCase
      */
     public function testGetFieldsReturnsNullWhenNoFieldsSet(): void
     {
-        $request = Request::create(self::TEST_URL, HttpMethod::Get->value);
+        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb());
         $this->parser->parse($request);
 
         static::assertNull($this->parser->getFields());
@@ -67,7 +67,7 @@ class ApiQueryParserTest extends TestCase
      */
     public function testGetFieldsParsesCommaSeparatedString(): void
     {
-        $request = Request::create(self::TEST_URL, HttpMethod::Get->value, ['fields' => 'first_name,last_name,email']);
+        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['fields' => 'first_name,last_name,email']);
         $this->parser->parse($request);
 
         static::assertSame(['first_name', 'last_name', 'email'], $this->parser->getFields());
@@ -80,7 +80,7 @@ class ApiQueryParserTest extends TestCase
      */
     public function testGetFieldsTrimsValues(): void
     {
-        $request = Request::create(self::TEST_URL, HttpMethod::Get->value, ['fields' => ' first_name , last_name ']);
+        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['fields' => ' first_name , last_name ']);
         $this->parser->parse($request);
 
         static::assertSame(['first_name', 'last_name'], $this->parser->getFields());
@@ -93,7 +93,7 @@ class ApiQueryParserTest extends TestCase
      */
     public function testGetFieldsWithResourceKeyReturnsSpecificFields(): void
     {
-        $request = Request::create(self::TEST_URL, HttpMethod::Get->value, [
+        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), [
             'fields' => [
                 'user' => self::FIELDS_NAME_EMAIL,
                 'post' => 'title,body',
@@ -112,7 +112,7 @@ class ApiQueryParserTest extends TestCase
      */
     public function testGetFieldsWithUnknownResourceReturnsNull(): void
     {
-        $request = Request::create(self::TEST_URL, HttpMethod::Get->value, [
+        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), [
             'fields' => ['user' => self::FIELDS_NAME_EMAIL],
         ]);
         $this->parser->parse($request);
@@ -127,7 +127,7 @@ class ApiQueryParserTest extends TestCase
      */
     public function testGetCountsReturnsNullWhenNoCountsSet(): void
     {
-        $request = Request::create(self::TEST_URL, HttpMethod::Get->value);
+        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb());
         $this->parser->parse($request);
 
         static::assertNull($this->parser->getCounts());
@@ -140,7 +140,7 @@ class ApiQueryParserTest extends TestCase
      */
     public function testGetCountsParsesCommaSeparatedCounts(): void
     {
-        $request = Request::create(self::TEST_URL, HttpMethod::Get->value, [
+        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), [
             'counts' => ['user' => 'posts,comments'],
         ]);
         $this->parser->parse($request);
@@ -155,7 +155,7 @@ class ApiQueryParserTest extends TestCase
      */
     public function testGetSumsParsesAggregationFormat(): void
     {
-        $request = Request::create(self::TEST_URL, HttpMethod::Get->value, [
+        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), [
             'sums' => [
                 'account' => [
                     'transaction' => 'amount,fee',
@@ -178,7 +178,7 @@ class ApiQueryParserTest extends TestCase
      */
     public function testGetSumsReturnsNullWhenNotSet(): void
     {
-        $request = Request::create(self::TEST_URL, HttpMethod::Get->value);
+        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb());
         $this->parser->parse($request);
 
         static::assertNull($this->parser->getSums());
@@ -191,7 +191,7 @@ class ApiQueryParserTest extends TestCase
      */
     public function testGetAveragesParsesAggregationFormat(): void
     {
-        $request = Request::create(self::TEST_URL, HttpMethod::Get->value, [
+        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), [
             'averages' => [
                 'account' => [
                     'transaction' => 'amount',
@@ -214,7 +214,7 @@ class ApiQueryParserTest extends TestCase
      */
     public function testGetFiltersReturnsEmptyArrayWhenNotSet(): void
     {
-        $request = Request::create(self::TEST_URL, HttpMethod::Get->value);
+        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb());
         $this->parser->parse($request);
 
         static::assertSame([], $this->parser->getFilters());
@@ -228,7 +228,7 @@ class ApiQueryParserTest extends TestCase
     public function testGetFiltersParsesJsonFilterString(): void
     {
         $filters = json_encode(['status' => 'active', 'role' => 'admin']);
-        $request = Request::create(self::TEST_URL, HttpMethod::Get->value, ['filters' => $filters]);
+        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['filters' => $filters]);
         $this->parser->parse($request);
 
         $result = $this->parser->getFilters();
@@ -246,7 +246,7 @@ class ApiQueryParserTest extends TestCase
     #[DataProvider('orderProvider')]
     public function testGetOrderParsesOrderWithDirection(string $orderString, array $expected): void
     {
-        $request = Request::create(self::TEST_URL, HttpMethod::Get->value, ['order' => $orderString]);
+        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['order' => $orderString]);
         $this->parser->parse($request);
 
         static::assertSame($expected, $this->parser->getOrder());
@@ -259,7 +259,7 @@ class ApiQueryParserTest extends TestCase
      */
     public function testGetOrderReturnsEmptyArrayWhenNotSet(): void
     {
-        $request = Request::create(self::TEST_URL, HttpMethod::Get->value);
+        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb());
         $this->parser->parse($request);
 
         static::assertSame([], $this->parser->getOrder());
@@ -272,7 +272,7 @@ class ApiQueryParserTest extends TestCase
      */
     public function testGetLimitReturnsPositiveInteger(): void
     {
-        $request = Request::create(self::TEST_URL, HttpMethod::Get->value, ['limit' => '25']);
+        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['limit' => '25']);
         $this->parser->parse($request);
 
         static::assertSame(25, $this->parser->getLimit());
@@ -285,7 +285,7 @@ class ApiQueryParserTest extends TestCase
      */
     public function testGetLimitReturnsNullForZero(): void
     {
-        $request = Request::create(self::TEST_URL, HttpMethod::Get->value);
+        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb());
         $this->parser->parse($request);
 
         static::assertNull($this->parser->getLimit());
@@ -298,7 +298,7 @@ class ApiQueryParserTest extends TestCase
      */
     public function testGetPageReturnsPositiveInteger(): void
     {
-        $request = Request::create(self::TEST_URL, HttpMethod::Get->value, ['page' => '5']);
+        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['page' => '5']);
         $this->parser->parse($request);
 
         static::assertSame(5, $this->parser->getPage());
@@ -311,7 +311,7 @@ class ApiQueryParserTest extends TestCase
      */
     public function testGetPageReturnsOneWhenNotSet(): void
     {
-        $request = Request::create(self::TEST_URL, HttpMethod::Get->value);
+        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb());
         $this->parser->parse($request);
 
         static::assertSame(1, $this->parser->getPage());
@@ -325,7 +325,7 @@ class ApiQueryParserTest extends TestCase
     public function testGetCursorReturnsCursorString(): void
     {
         $cursor  = 'eyJpZCI6MTAwfQ==';
-        $request = Request::create(self::TEST_URL, HttpMethod::Get->value, ['cursor' => $cursor]);
+        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['cursor' => $cursor]);
         $this->parser->parse($request);
 
         static::assertSame($cursor, $this->parser->getCursor());
@@ -338,7 +338,7 @@ class ApiQueryParserTest extends TestCase
      */
     public function testGetCursorReturnsEmptyStringWhenNotSet(): void
     {
-        $request = Request::create(self::TEST_URL, HttpMethod::Get->value);
+        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb());
         $this->parser->parse($request);
 
         static::assertSame('', $this->parser->getCursor());
@@ -353,7 +353,7 @@ class ApiQueryParserTest extends TestCase
     {
         $this->expectException(ValidationException::class);
 
-        $request = Request::create(self::TEST_URL, HttpMethod::Get->value, ['page' => 'not-a-number']);
+        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['page' => 'not-a-number']);
         $this->parser->parse($request);
     }
 
@@ -366,7 +366,7 @@ class ApiQueryParserTest extends TestCase
     {
         $this->expectException(ValidationException::class);
 
-        $request = Request::create(self::TEST_URL, HttpMethod::Get->value, ['limit' => 'abc']);
+        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['limit' => 'abc']);
         $this->parser->parse($request);
     }
 
@@ -379,7 +379,7 @@ class ApiQueryParserTest extends TestCase
     {
         $this->expectException(ValidationException::class);
 
-        $request = Request::create(self::TEST_URL, HttpMethod::Get->value, ['filters' => 'not-valid-json{']);
+        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['filters' => 'not-valid-json{']);
         $this->parser->parse($request);
     }
 
@@ -390,7 +390,7 @@ class ApiQueryParserTest extends TestCase
      */
     public function testParsingMultipleParametersSimultaneously(): void
     {
-        $request = Request::create(self::TEST_URL, HttpMethod::Get->value, [
+        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), [
             'fields'  => self::FIELDS_NAME_EMAIL,
             'order'   => 'name:asc',
             'page'    => '2',

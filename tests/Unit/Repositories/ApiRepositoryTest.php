@@ -156,7 +156,7 @@ class ApiRepositoryTest extends TestCase
     {
         User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL]);
 
-        $request = Request::create('/', HttpMethod::Get->value, ['pagination' => 'cursor']);
+        $request = Request::create('/', HttpMethod::GET->getVerb(), ['pagination' => 'cursor']);
 
         assert($this->app !== null);
 

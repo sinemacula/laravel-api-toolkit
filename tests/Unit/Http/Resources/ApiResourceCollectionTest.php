@@ -40,7 +40,7 @@ class ApiResourceCollectionTest extends TestCase
 
         $collection = new ApiResourceCollection(collect([$user1, $user2]), UserResource::class);
 
-        $request = Request::create('/', HttpMethod::Get->value);
+        $request = Request::create('/', HttpMethod::GET->getVerb());
         $result  = $collection->toArray($request);
 
         static::assertCount(2, $result);
@@ -61,7 +61,7 @@ class ApiResourceCollectionTest extends TestCase
         $collection = new ApiResourceCollection(collect([$user1, $user2]), UserResource::class);
         $collection->withFields(['name']);
 
-        $request = Request::create('/', HttpMethod::Get->value);
+        $request = Request::create('/', HttpMethod::GET->getVerb());
         $result  = $collection->toArray($request);
 
         foreach ($result as $item) {
@@ -84,7 +84,7 @@ class ApiResourceCollectionTest extends TestCase
         $collection = new ApiResourceCollection(collect([$user1, $user2]), UserResource::class);
         $collection->withoutFields(['email']);
 
-        $request = Request::create('/', HttpMethod::Get->value);
+        $request = Request::create('/', HttpMethod::GET->getVerb());
         $result  = $collection->toArray($request);
 
         foreach ($result as $item) {
@@ -133,7 +133,7 @@ class ApiResourceCollectionTest extends TestCase
 
         $collection = new ApiResourceCollection($paginator, UserResource::class);
 
-        $request  = Request::create('/', HttpMethod::Get->value);
+        $request  = Request::create('/', HttpMethod::GET->getVerb());
         $response = new JsonResponse([]);
 
         $collection->withResponse($request, $response);
@@ -150,7 +150,7 @@ class ApiResourceCollectionTest extends TestCase
     {
         $collection = new ApiResourceCollection(collect([]), UserResource::class);
 
-        $request  = Request::create('/', HttpMethod::Get->value);
+        $request  = Request::create('/', HttpMethod::GET->getVerb());
         $response = new JsonResponse([]);
 
         $collection->withResponse($request, $response);
@@ -173,7 +173,7 @@ class ApiResourceCollectionTest extends TestCase
 
         $collection = new ApiResourceCollection($paginator, UserResource::class);
 
-        $request = Request::create('/', HttpMethod::Get->value);
+        $request = Request::create('/', HttpMethod::GET->getVerb());
         $result  = $collection->paginationInformation($request, [], []);
 
         static::assertArrayHasKey('meta', $result);
@@ -203,7 +203,7 @@ class ApiResourceCollectionTest extends TestCase
 
         $collection = new ApiResourceCollection($paginator, UserResource::class);
 
-        $request = Request::create('/', HttpMethod::Get->value);
+        $request = Request::create('/', HttpMethod::GET->getVerb());
         $result  = $collection->paginationInformation($request, [], []);
 
         static::assertArrayHasKey('meta', $result);
@@ -223,7 +223,7 @@ class ApiResourceCollectionTest extends TestCase
     {
         $collection = new ApiResourceCollection(collect([]), UserResource::class);
 
-        $request = Request::create('/', HttpMethod::Get->value);
+        $request = Request::create('/', HttpMethod::GET->getVerb());
         $result  = $collection->paginationInformation($request, [], []);
 
         static::assertSame([], $result);
@@ -243,7 +243,7 @@ class ApiResourceCollectionTest extends TestCase
         ]);
 
         $collection_more = new ApiResourceCollection($has_more, UserResource::class);
-        $result_more     = $collection_more->paginationInformation(Request::create('/', HttpMethod::Get->value), [], []);
+        $result_more     = $collection_more->paginationInformation(Request::create('/', HttpMethod::GET->getVerb()), [], []);
 
         static::assertTrue($result_more['meta']['continue']);
 
@@ -252,7 +252,7 @@ class ApiResourceCollectionTest extends TestCase
         ]);
 
         $collection_last = new ApiResourceCollection($no_more, UserResource::class);
-        $result_last     = $collection_last->paginationInformation(Request::create('/', HttpMethod::Get->value), [], []);
+        $result_last     = $collection_last->paginationInformation(Request::create('/', HttpMethod::GET->getVerb()), [], []);
 
         static::assertFalse($result_last['meta']['continue']);
     }
@@ -283,7 +283,7 @@ class ApiResourceCollectionTest extends TestCase
         $reflection = new \ReflectionProperty($collection, 'collection');
         $reflection->setValue($collection, collect([$user])); // NOSONAR
 
-        $request = Request::create('/', HttpMethod::Get->value);
+        $request = Request::create('/', HttpMethod::GET->getVerb());
         $result  = $collection->toArray($request);
 
         static::assertCount(1, $result);
@@ -303,7 +303,7 @@ class ApiResourceCollectionTest extends TestCase
 
         $collection = new ApiResourceCollection(collect([$resource]), UserResource::class);
 
-        $request = Request::create('/', HttpMethod::Get->value);
+        $request = Request::create('/', HttpMethod::GET->getVerb());
         $result  = $collection->toArray($request);
 
         static::assertCount(1, $result);

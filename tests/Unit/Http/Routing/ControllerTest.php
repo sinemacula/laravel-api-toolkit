@@ -74,7 +74,7 @@ class ControllerTest extends TestCase
         $data = ['created' => true];
 
         /** @var \Illuminate\Http\JsonResponse $response */
-        $response = $this->invokeMethod($this->controller, 'respondWithData', $data, HttpStatus::Created);
+        $response = $this->invokeMethod($this->controller, 'respondWithData', $data, HttpStatus::CREATED);
 
         static::assertSame(201, $response->getStatusCode());
     }
@@ -90,7 +90,7 @@ class ControllerTest extends TestCase
         $headers = ['X-Custom-Header' => 'custom-value'];
 
         /** @var \Illuminate\Http\JsonResponse $response */
-        $response = $this->invokeMethod($this->controller, 'respondWithData', $data, HttpStatus::Ok, $headers);
+        $response = $this->invokeMethod($this->controller, 'respondWithData', $data, HttpStatus::OK, $headers);
 
         static::assertSame('custom-value', $response->headers->get('X-Custom-Header'));
     }
@@ -121,7 +121,7 @@ class ControllerTest extends TestCase
         $resource = new JsonResource(['id' => 1]);
 
         /** @var \Illuminate\Http\JsonResponse $response */
-        $response = $this->invokeMethod($this->controller, 'respondWithItem', $resource, HttpStatus::Created);
+        $response = $this->invokeMethod($this->controller, 'respondWithItem', $resource, HttpStatus::CREATED);
 
         static::assertSame(201, $response->getStatusCode());
     }
@@ -155,7 +155,7 @@ class ControllerTest extends TestCase
         $collection = new ResourceCollection(collect([]));
 
         /** @var \Illuminate\Http\JsonResponse $response */
-        $response = $this->invokeMethod($this->controller, 'respondWithCollection', $collection, HttpStatus::Accepted);
+        $response = $this->invokeMethod($this->controller, 'respondWithCollection', $collection, HttpStatus::ACCEPTED);
 
         static::assertSame(202, $response->getStatusCode());
     }
@@ -208,7 +208,7 @@ class ControllerTest extends TestCase
         /** @var \Symfony\Component\HttpFoundation\StreamedResponse $response */
         $response = $this->invokeMethod($this->controller, 'respondWithEventStream', static function (): void {
             // Stream callback placeholder
-        }, 1, HttpStatus::Ok, $headers);
+        }, 1, HttpStatus::OK, $headers);
 
         static::assertSame('abc123', $response->headers->get('X-Stream-Id'));
         static::assertSame('text/event-stream', $response->headers->get('Content-Type'));

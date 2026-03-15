@@ -80,7 +80,7 @@ class PreventRequestsDuringMaintenanceTest extends TestCase
         assert($this->app !== null);
 
         $middleware = new PreventRequestsDuringMaintenance($this->app);
-        $request    = Request::create('/test', HttpMethod::Get->value);
+        $request    = Request::create('/test', HttpMethod::GET->getVerb());
         $passed     = false;
 
         $middleware->handle($request, function () use (&$passed): string {
@@ -105,7 +105,7 @@ class PreventRequestsDuringMaintenanceTest extends TestCase
         $this->expectException(MaintenanceModeException::class);
 
         $middleware = new PreventRequestsDuringMaintenance($this->app);
-        $request    = Request::create('/test', HttpMethod::Get->value);
+        $request    = Request::create('/test', HttpMethod::GET->getVerb());
 
         $middleware->handle($request, function (): void {
             throw new HttpException(503, 'Service Unavailable');

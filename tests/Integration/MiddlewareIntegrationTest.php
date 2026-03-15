@@ -34,7 +34,7 @@ class MiddlewareIntegrationTest extends TestCase
      */
     public function testParseApiQueryMiddlewarePopulatesParser(): void
     {
-        $request = Request::create(self::TEST_URI, HttpMethod::Get->value, [
+        $request = Request::create(self::TEST_URI, HttpMethod::GET->getVerb(), [
             'page'  => '3',
             'limit' => '25',
             'order' => 'name:desc',
@@ -62,7 +62,7 @@ class MiddlewareIntegrationTest extends TestCase
      */
     public function testJsonPrettyPrintMiddlewarePrettyPrintsWhenRequested(): void
     {
-        $request = Request::create(self::TEST_URI, HttpMethod::Get->value, ['pretty' => '1']);
+        $request = Request::create(self::TEST_URI, HttpMethod::GET->getVerb(), ['pretty' => '1']);
 
         $middleware   = new JsonPrettyPrint;
         $jsonResponse = new JsonResponse(['key' => 'value']);
@@ -82,7 +82,7 @@ class MiddlewareIntegrationTest extends TestCase
      */
     public function testFullMiddlewareChainWorksEndToEnd(): void
     {
-        $request = Request::create(self::TEST_URI, HttpMethod::Get->value, [
+        $request = Request::create(self::TEST_URI, HttpMethod::GET->getVerb(), [
             'page'   => '2',
             'limit'  => '10',
             'pretty' => '1',

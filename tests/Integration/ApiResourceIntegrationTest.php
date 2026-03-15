@@ -49,7 +49,7 @@ class ApiResourceIntegrationTest extends TestCase
      */
     public function testUserResourceResolvesWithDefaultFields(): void
     {
-        $request = Request::create(self::TEST_URL, HttpMethod::Get->value);
+        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb());
         ApiQuery::parse($request);
 
         $user = User::first();
@@ -71,7 +71,7 @@ class ApiResourceIntegrationTest extends TestCase
      */
     public function testUserResourceResolvesWithSpecificRequestedFields(): void
     {
-        $request = Request::create(self::TEST_URL, HttpMethod::Get->value, [
+        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), [
             'fields' => ['users' => 'name,status'],
         ]);
         ApiQuery::parse($request);
@@ -95,7 +95,7 @@ class ApiResourceIntegrationTest extends TestCase
      */
     public function testUserResourceResolvesNestedOrganizationRelation(): void
     {
-        $request = Request::create(self::TEST_URL, HttpMethod::Get->value, [
+        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), [
             'fields' => ['users' => 'name,organization'],
         ]);
         ApiQuery::parse($request);
@@ -120,7 +120,7 @@ class ApiResourceIntegrationTest extends TestCase
      */
     public function testResourceCollectionResolvesCorrectly(): void
     {
-        $request = Request::create(self::TEST_URL, HttpMethod::Get->value);
+        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb());
         ApiQuery::parse($request);
 
         $users = User::all();
@@ -154,7 +154,7 @@ class ApiResourceIntegrationTest extends TestCase
      */
     public function testCountsAreIncludedInResponse(): void
     {
-        $request = Request::create(self::TEST_URL, HttpMethod::Get->value, [
+        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), [
             'fields' => ['users' => 'name,counts'],
             'counts' => ['users' => 'posts'],
         ]);

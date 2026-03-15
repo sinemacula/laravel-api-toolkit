@@ -17,5 +17,5 @@ class InvalidNotificationException extends ApiException
     public const \SineMacula\ApiToolkit\Contracts\ErrorCodeInterface CODE = ErrorCode::INVALID_NOTIFICATION;
 
     /** @var \SineMacula\Http\Enums\HttpStatus The HTTP status code */
-    public const HttpStatus HTTP_STATUS = HttpStatus::InternalServerError;
+    public const HttpStatus HTTP_STATUS = HttpStatus::INTERNAL_SERVER_ERROR;
 }

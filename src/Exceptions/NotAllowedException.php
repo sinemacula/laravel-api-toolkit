@@ -17,5 +17,5 @@ class NotAllowedException extends ApiException
     public const \SineMacula\ApiToolkit\Contracts\ErrorCodeInterface CODE = ErrorCode::NOT_ALLOWED;
 
     /** @var \SineMacula\Http\Enums\HttpStatus The HTTP status code */
-    public const HttpStatus HTTP_STATUS = HttpStatus::MethodNotAllowed;
+    public const HttpStatus HTTP_STATUS = HttpStatus::METHOD_NOT_ALLOWED;
 }

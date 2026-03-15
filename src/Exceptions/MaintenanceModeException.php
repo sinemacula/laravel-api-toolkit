@@ -17,5 +17,5 @@ class MaintenanceModeException extends ApiException
     public const \SineMacula\ApiToolkit\Contracts\ErrorCodeInterface CODE = ErrorCode::MAINTENANCE_MODE;
 
     /** @var \SineMacula\Http\Enums\HttpStatus The HTTP status code */
-    public const HttpStatus HTTP_STATUS = HttpStatus::ServiceUnavailable;
+    public const HttpStatus HTTP_STATUS = HttpStatus::SERVICE_UNAVAILABLE;
 }

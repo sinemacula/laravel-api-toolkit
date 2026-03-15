@@ -39,7 +39,7 @@ class ApiQueryTest extends TestCase
      */
     public function testFacadeProxiesParseMethodCalls(): void
     {
-        $request = Request::create('/test', HttpMethod::Get->value);
+        $request = Request::create('/test', HttpMethod::GET->getVerb());
 
         ApiQuery::shouldReceive('parse')
             ->once()

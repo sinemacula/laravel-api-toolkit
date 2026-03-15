@@ -104,7 +104,7 @@ class EventStreamTest extends TestCase
     {
         $stream = new EventStream;
 
-        $response = $stream->toResponse(fn () => null, status: HttpStatus::Accepted);
+        $response = $stream->toResponse(fn () => null, status: HttpStatus::ACCEPTED);
 
         static::assertSame(202, $response->getStatusCode());
     }

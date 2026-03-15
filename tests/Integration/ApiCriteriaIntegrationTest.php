@@ -311,7 +311,7 @@ class ApiCriteriaIntegrationTest extends TestCase
      */
     private function parseQuery(array $params): void
     {
-        $request = Request::create('/test', HttpMethod::Get->value, $params);
+        $request = Request::create('/test', HttpMethod::GET->getVerb(), $params);
 
         ApiQuery::parse($request);
     }

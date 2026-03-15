@@ -17,5 +17,5 @@ class TooManyRequestsException extends ApiException
     public const \SineMacula\ApiToolkit\Contracts\ErrorCodeInterface CODE = ErrorCode::TOO_MANY_REQUESTS;
 
     /** @var \SineMacula\Http\Enums\HttpStatus The HTTP status code */
-    public const HttpStatus HTTP_STATUS = HttpStatus::TooManyRequests;
+    public const HttpStatus HTTP_STATUS = HttpStatus::TOO_MANY_REQUESTS;
 }

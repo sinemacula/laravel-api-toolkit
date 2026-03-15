@@ -52,7 +52,7 @@ class ApiRepositoryIntegrationTest extends TestCase
      */
     public function testPaginateReturnsPaginatedCollection(): void
     {
-        $request = Request::create('/test', HttpMethod::Get->value, ['limit' => '2']);
+        $request = Request::create('/test', HttpMethod::GET->getVerb(), ['limit' => '2']);
         ApiQuery::parse($request);
 
         $results = $this->repository->paginate();
@@ -127,7 +127,7 @@ class ApiRepositoryIntegrationTest extends TestCase
      */
     public function testWithApiCriteriaAppliesCriteriaToQuery(): void
     {
-        $request = Request::create('/test', HttpMethod::Get->value, [
+        $request = Request::create('/test', HttpMethod::GET->getVerb(), [
             'filters' => json_encode(['name' => 'Alice']),
         ]);
         ApiQuery::parse($request);

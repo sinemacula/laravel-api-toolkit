@@ -182,7 +182,7 @@ class ApiExceptionTest extends TestCase
 
         // Call static method directly on an anonymous class without instantiating
         $class = new class extends ApiException {
-            public const HttpStatus HTTP_STATUS = HttpStatus::BadRequest;
+            public const HttpStatus HTTP_STATUS = HttpStatus::BAD_REQUEST;
         };
 
         $class::getInternalErrorCode();
@@ -215,7 +215,7 @@ class ApiExceptionTest extends TestCase
     {
         $exception = new class extends ApiException {
             public const \SineMacula\ApiToolkit\Contracts\ErrorCodeInterface CODE = ErrorCode::NOT_FOUND;
-            public const HttpStatus HTTP_STATUS                                   = HttpStatus::NotFound;
+            public const HttpStatus HTTP_STATUS                                   = HttpStatus::NOT_FOUND;
         };
 
         static::assertSame(10103, $exception::getInternalErrorCode());

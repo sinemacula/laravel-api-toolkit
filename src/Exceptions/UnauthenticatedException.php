@@ -17,5 +17,5 @@ class UnauthenticatedException extends ApiException
     public const \SineMacula\ApiToolkit\Contracts\ErrorCodeInterface CODE = ErrorCode::UNAUTHENTICATED;
 
     /** @var \SineMacula\Http\Enums\HttpStatus The HTTP status code */
-    public const HttpStatus HTTP_STATUS = HttpStatus::Unauthorized;
+    public const HttpStatus HTTP_STATUS = HttpStatus::UNAUTHORIZED;
 }

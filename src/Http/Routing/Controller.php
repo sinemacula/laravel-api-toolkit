@@ -33,9 +33,9 @@ abstract class Controller extends LaravelController
      * @param  array<string, string>  $headers
      * @return \Illuminate\Http\JsonResponse
      */
-    protected function respondWithData(array $data, HttpStatus $status = HttpStatus::Ok, array $headers = []): JsonResponse
+    protected function respondWithData(array $data, HttpStatus $status = HttpStatus::OK, array $headers = []): JsonResponse
     {
-        return Response::json(['data' => $data], $status->value, $headers);
+        return Response::json(['data' => $data], $status->getCode(), $headers);
     }
 
     /**
@@ -46,9 +46,9 @@ abstract class Controller extends LaravelController
      * @param  array<string, string>  $headers
      * @return \Illuminate\Http\JsonResponse
      */
-    protected function respondWithItem(JsonResource $resource, HttpStatus $status = HttpStatus::Ok, array $headers = []): JsonResponse
+    protected function respondWithItem(JsonResource $resource, HttpStatus $status = HttpStatus::OK, array $headers = []): JsonResponse
     {
-        return $resource->response()->setStatusCode($status->value)->withHeaders($headers);
+        return $resource->response()->setStatusCode($status->getCode())->withHeaders($headers);
     }
 
     /**
@@ -59,9 +59,9 @@ abstract class Controller extends LaravelController
      * @param  array<string, string>  $headers
      * @return \Illuminate\Http\JsonResponse
      */
-    protected function respondWithCollection(ResourceCollection $collection, HttpStatus $status = HttpStatus::Ok, array $headers = []): JsonResponse
+    protected function respondWithCollection(ResourceCollection $collection, HttpStatus $status = HttpStatus::OK, array $headers = []): JsonResponse
     {
-        return $collection->response()->setStatusCode($status->value)->withHeaders($headers);
+        return $collection->response()->setStatusCode($status->getCode())->withHeaders($headers);
     }
 
     /**
@@ -76,7 +76,7 @@ abstract class Controller extends LaravelController
      * @param  array<string, string>  $headers
      * @return \Symfony\Component\HttpFoundation\StreamedResponse
      */
-    protected function respondWithEventStream(callable $callback, int $interval = 1, HttpStatus $status = HttpStatus::Ok, array $headers = []): StreamedResponse
+    protected function respondWithEventStream(callable $callback, int $interval = 1, HttpStatus $status = HttpStatus::OK, array $headers = []): StreamedResponse
     {
         return (new EventStream(static::HEARTBEAT_INTERVAL))
             ->toResponse($callback, $interval, $status, $headers);

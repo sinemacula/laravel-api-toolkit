@@ -31,7 +31,7 @@ class ParseApiQueryTest extends TestCase
         ApiQuery::shouldReceive('parse')
             ->once();
 
-        $request          = Request::create('/test', HttpMethod::Get->value);
+        $request          = Request::create('/test', HttpMethod::GET->getVerb());
         $middleware       = new ParseApiQuery;
         $expectedResponse = new Response('ok');
         $receivedRequest  = null;
@@ -56,7 +56,7 @@ class ParseApiQueryTest extends TestCase
         ApiQuery::shouldReceive('parse')
             ->once();
 
-        $request          = Request::create('/test', HttpMethod::Get->value);
+        $request          = Request::create('/test', HttpMethod::GET->getVerb());
         $middleware       = new ParseApiQuery;
         $expectedResponse = new Response('expected content', 201);
 

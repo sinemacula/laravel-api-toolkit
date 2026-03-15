@@ -198,13 +198,13 @@ class ApiServiceProvider extends ServiceProvider
     {
         Request::macro('expectsExport', fn () => config('api-toolkit.exports.enabled') && ($this->expectsCsv() || $this->expectsXml()));
 
-        Request::macro('expectsCsv', fn () => strtolower($this->header(HttpHeader::Accept->value)) === MediaType::TextCsv->value
+        Request::macro('expectsCsv', fn () => strtolower($this->header(HttpHeader::ACCEPT->getName())) === MediaType::TEXT_CSV->getMimeType()
             && in_array('csv', config('api-toolkit.exports.supported_formats', []), true));
 
-        Request::macro('expectsXml', fn () => strtolower($this->header(HttpHeader::Accept->value)) === MediaType::ApplicationXml->value
+        Request::macro('expectsXml', fn () => strtolower($this->header(HttpHeader::ACCEPT->getName())) === MediaType::APPLICATION_XML->getMimeType()
             && in_array('xml', config('api-toolkit.exports.supported_formats', []), true));
 
-        Request::macro('expectsPdf', fn () => strtolower($this->header(HttpHeader::Accept->value)) === MediaType::ApplicationPdf->value);
+        Request::macro('expectsPdf', fn () => strtolower($this->header(HttpHeader::ACCEPT->getName())) === MediaType::APPLICATION_PDF->getMimeType());
     }
 
     /**
@@ -214,7 +214,7 @@ class ApiServiceProvider extends ServiceProvider
      */
     private function registerStreamMacros(): void
     {
-        Request::macro('expectsStream', fn () => strtolower($this->header(HttpHeader::Accept->value)) === MediaType::TextEventStream->value);
+        Request::macro('expectsStream', fn () => strtolower($this->header(HttpHeader::ACCEPT->getName())) === MediaType::TEXT_EVENT_STREAM->getMimeType());
     }
 
     /**
