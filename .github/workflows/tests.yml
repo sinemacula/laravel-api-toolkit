@@ -27,7 +27,7 @@ defaults:
 jobs:
 
     # ==========================================================================
-    # JOB: TESTS
+    # JOB: TESTS (SQLite — default, fast)
     # ==========================================================================
     tests:
         name: Test / PHP ${{ matrix.php }}
@@ -60,7 +60,7 @@ jobs:
                     path: ~/.composer/cache
                     key: composer-cache-${{ runner.os }}-${{ matrix.php }}-${{ hashFiles('**/composer.lock') }}
                     restore-keys: composer-cache-${{ runner.os }}-
-                    
+
             -   name: Cache vendor
                 uses: actions/cache@v4
                 with:
@@ -86,3 +86,98 @@ jobs:
                 with:
                     token: ${{ secrets.QLTY_COVERAGE_TOKEN }}
                     files: clover.xml
+
+    # ==========================================================================
+    # JOB: INTEGRATION TESTS (MySQL + PostgreSQL)
+    # ==========================================================================
+    integration:
+        name: Integration / ${{ matrix.database }}
+        runs-on: ubuntu-latest
+        if: github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/heads/feature/') || startsWith(github.ref, 'refs/heads/bugfix/')
+
+        strategy:
+            fail-fast: false
+            matrix:
+                include:
+                    -   database: mysql
+                        db_driver: mysql
+                        db_port: 3306
+                        db_username: root
+                        db_password: password
+                    -   database: pgsql
+                        db_driver: pgsql
+                        db_port: 5432
+                        db_username: postgres
+                        db_password: password
+
+        services:
+            mysql:
+                image: mysql:8.4
+                env:
+                    MYSQL_ROOT_PASSWORD: password
+                    MYSQL_DATABASE: api_toolkit_test
+                ports:
+                    - 3306:3306
+                options: >-
+                    --health-cmd="mysqladmin ping -h 127.0.0.1"
+                    --health-interval=10s
+                    --health-timeout=5s
+                    --health-retries=5
+                    --health-start-period=30s
+                    --health-start-interval=5s
+            postgres:
+                image: postgres:17
+                env:
+                    POSTGRES_USER: postgres
+                    POSTGRES_PASSWORD: password
+                    POSTGRES_DB: api_toolkit_test
+                ports:
+                    - 5432:5432
+                options: >-
+                    --health-cmd="pg_isready -U postgres"
+                    --health-interval=10s
+                    --health-timeout=5s
+                    --health-retries=5
+
+        concurrency:
+            group: integration-${{ matrix.database }}-${{ github.workflow }}-${{ github.ref }}
+            cancel-in-progress: true
+
+        steps:
+            -   name: Checkout
+                uses: actions/checkout@v4
+
+            -   name: Setup PHP
+                uses: shivammathur/setup-php@v2
+                with:
+                    php-version: '8.3'
+                    extensions: dom, pdo_mysql, pdo_pgsql
+                    tools: composer
+
+            -   name: Cache Composer cache
+                uses: actions/cache@v4
+                with:
+                    path: ~/.composer/cache
+                    key: composer-cache-${{ runner.os }}-8.3-${{ hashFiles('**/composer.lock') }}
+                    restore-keys: composer-cache-${{ runner.os }}-
+
+            -   name: Cache vendor
+                uses: actions/cache@v4
+                with:
+                    path: vendor
+                    key: vendor-${{ runner.os }}-8.3-${{ hashFiles('**/composer.lock') }}
+                    restore-keys: |
+                        vendor-${{ runner.os }}-8.3-
+
+            -   name: Install Composer dependencies
+                run: composer install --prefer-dist --no-interaction --no-progress
+
+            -   name: Run integration tests
+                env:
+                    DB_DRIVER: ${{ matrix.db_driver }}
+                    DB_HOST: 127.0.0.1
+                    DB_PORT: ${{ matrix.db_port }}
+                    DB_DATABASE: api_toolkit_test
+                    DB_USERNAME: ${{ matrix.db_username }}
+                    DB_PASSWORD: ${{ matrix.db_password }}
+                run: vendor/bin/phpunit --testsuite Integration
