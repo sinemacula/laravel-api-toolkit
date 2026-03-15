@@ -6,7 +6,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Http\Resources\Json\ResourceCollection;
 use PHPUnit\Framework\Attributes\CoversClass;
-use SineMacula\ApiToolkit\Enums\HttpStatus;
+use SineMacula\Http\Enums\HttpStatus;
 use SineMacula\ApiToolkit\Http\Routing\Controller;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 use Tests\Concerns\InteractsWithNonPublicMembers;

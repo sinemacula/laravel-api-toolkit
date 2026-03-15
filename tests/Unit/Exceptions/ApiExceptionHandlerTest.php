@@ -18,6 +18,7 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use Psr\Log\LoggerInterface;
 use SineMacula\ApiToolkit\Exceptions\ApiExceptionHandler;
 use SineMacula\ApiToolkit\Exceptions\BadRequestException;
+use SineMacula\Http\Enums\HttpMethod;
 use Symfony\Component\HttpKernel\Exception\MethodNotAllowedHttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\HttpKernel\Exception\TooManyRequestsHttpException;
@@ -125,7 +126,7 @@ class ApiExceptionHandlerTest extends TestCase
     #[DataProvider('exceptionMappingProvider')]
     public function testRenderMapsExceptionsCorrectly(\Throwable $inputException, int $expectedHttpCode): void
     {
-        $request = Request::create(self::API_PATH, 'GET');
+        $request = Request::create(self::API_PATH, HttpMethod::GET->getVerb());
         $request->headers->set('Accept', self::ACCEPT_JSON);
 
         config()->set('app.debug', false);
@@ -144,7 +145,7 @@ class ApiExceptionHandlerTest extends TestCase
      */
     public function testJsonRenderingIncludesErrorStructure(): void
     {
-        $request = Request::create(self::API_PATH, 'GET');
+        $request = Request::create(self::API_PATH, HttpMethod::GET->getVerb());
         $request->headers->set('Accept', self::ACCEPT_JSON);
 
         config()->set('app.debug', false);
@@ -170,7 +171,7 @@ class ApiExceptionHandlerTest extends TestCase
      */
     public function testDebugModeIncludesMetaWithTrace(): void
     {
-        $request = Request::create(self::API_PATH, 'GET');
+        $request = Request::create(self::API_PATH, HttpMethod::GET->getVerb());
         $request->headers->set('Accept', self::ACCEPT_JSON);
 
         config()->set('app.debug', true);
@@ -197,7 +198,7 @@ class ApiExceptionHandlerTest extends TestCase
      */
     public function testNonJsonRequestInDebugModeReturnsNull(): void
     {
-        $request = Request::create('/test', 'GET');
+        $request = Request::create('/test', HttpMethod::GET->getVerb());
         $request->headers->set('Accept', 'text/html');
 
         config()->set('app.debug', true);
@@ -215,7 +216,7 @@ class ApiExceptionHandlerTest extends TestCase
      */
     public function testApiExceptionIsRenderedDirectly(): void
     {
-        $request = Request::create(self::API_PATH, 'GET');
+        $request = Request::create(self::API_PATH, HttpMethod::GET->getVerb());
         $request->headers->set('Accept', self::ACCEPT_JSON);
 
         config()->set('app.debug', false);
@@ -243,7 +244,7 @@ class ApiExceptionHandlerTest extends TestCase
      */
     public function testValidationExceptionMapsToUnprocessableEntity(): void
     {
-        $request = Request::create(self::API_PATH, 'GET');
+        $request = Request::create(self::API_PATH, HttpMethod::GET->getVerb());
         $request->headers->set('Accept', self::ACCEPT_JSON);
 
         config()->set('app.debug', false);

@@ -6,6 +6,7 @@ use Illuminate\Http\Request;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
 use SineMacula\ApiToolkit\Repositories\ApiRepository;
+use SineMacula\Http\Enums\HttpMethod;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Repositories\UserRepository;
 use Tests\TestCase;
@@ -51,7 +52,7 @@ class ApiRepositoryIntegrationTest extends TestCase
      */
     public function testPaginateReturnsPaginatedCollection(): void
     {
-        $request = Request::create('/test', 'GET', ['limit' => '2']);
+        $request = Request::create('/test', HttpMethod::GET->getVerb(), ['limit' => '2']);
         ApiQuery::parse($request);
 
         $results = $this->repository->paginate();
@@ -126,7 +127,7 @@ class ApiRepositoryIntegrationTest extends TestCase
      */
     public function testWithApiCriteriaAppliesCriteriaToQuery(): void
     {
-        $request = Request::create('/test', 'GET', [
+        $request = Request::create('/test', HttpMethod::GET->getVerb(), [
             'filters' => json_encode(['name' => 'Alice']),
         ]);
         ApiQuery::parse($request);

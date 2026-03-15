@@ -3,7 +3,7 @@
 namespace SineMacula\ApiToolkit\Exceptions;
 
 use SineMacula\ApiToolkit\Enums\ErrorCode;
-use SineMacula\ApiToolkit\Enums\HttpStatus;
+use SineMacula\Http\Enums\HttpStatus;
 
 /**
  * Maintenance mode exception.
@@ -16,6 +16,6 @@ class MaintenanceModeException extends ApiException
     /** @var \SineMacula\ApiToolkit\Contracts\ErrorCodeInterface The internal error code */
     public const \SineMacula\ApiToolkit\Contracts\ErrorCodeInterface CODE = ErrorCode::MAINTENANCE_MODE;
 
-    /** @var \SineMacula\ApiToolkit\Enums\HttpStatus The HTTP status code */
+    /** @var \SineMacula\Http\Enums\HttpStatus The HTTP status code */
     public const HttpStatus HTTP_STATUS = HttpStatus::SERVICE_UNAVAILABLE;
 }

@@ -2,7 +2,10 @@
 
 namespace SineMacula\ApiToolkit\Sse;
 
-use SineMacula\ApiToolkit\Enums\HttpStatus;
+use SineMacula\Http\Enums\CacheDirective;
+use SineMacula\Http\Enums\HttpHeader;
+use SineMacula\Http\Enums\HttpStatus;
+use SineMacula\Http\Enums\MediaType;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
@@ -38,17 +41,17 @@ class EventStream
      *
      * @param  callable(): void|callable(\SineMacula\ApiToolkit\Sse\Emitter): void  $callback
      * @param  int  $interval
-     * @param  \SineMacula\ApiToolkit\Enums\HttpStatus  $status
+     * @param  \SineMacula\Http\Enums\HttpStatus  $status
      * @param  array<string, string>  $headers
      * @return \Symfony\Component\HttpFoundation\StreamedResponse
      */
     public function toResponse(callable $callback, int $interval = 1, HttpStatus $status = HttpStatus::OK, array $headers = []): StreamedResponse
     {
         $headers = array_merge($headers, [
-            'Content-Type'      => 'text/event-stream',
-            'Cache-Control'     => 'no-cache, no-transform',
-            'Connection'        => 'keep-alive',
-            'X-Accel-Buffering' => 'no',
+            HttpHeader::CONTENT_TYPE->getName()     => MediaType::TEXT_EVENT_STREAM->getMimeType(),
+            HttpHeader::CACHE_CONTROL->getName()    => CacheDirective::NO_CACHE->value . ', ' . CacheDirective::NO_TRANSFORM->value,
+            HttpHeader::CONNECTION->getName()        => 'keep-alive',
+            HttpHeader::X_ACCEL_BUFFERING->getName() => 'no',
         ]);
 
         $acceptsEmitter = (new \ReflectionFunction(\Closure::fromCallable($callback)))->getNumberOfParameters() >= 1;

@@ -61,9 +61,15 @@ class ApiExceptionHandler
      */
     private static function render(\Throwable $exception, Request $request): ?JsonResponse
     {
-        // We only render exceptions as JSON when specifically required and if
-        // the application is in debug mode.
-        if (!$request->expectsJson() && Config::get('app.debug')) {
+        $strategy = Config::get('api-toolkit.exceptions.render_strategy', 'auto');
+
+        if ($strategy === 'json_when_expected' && !$request->expectsJson()) {
+            return null;
+        }
+
+        // In auto mode, defer to Laravel's default rendering when the
+        // request does not expect JSON and debug mode is enabled
+        if ($strategy === 'auto' && !$request->expectsJson() && Config::get('app.debug')) {
             return null;
         }
 
@@ -153,9 +159,11 @@ class ApiExceptionHandler
      */
     private static function getApiExceptionMeta(ApiException $exception): ?array
     {
-        $previous = $exception->getPrevious();
+        $previous     = $exception->getPrevious();
+        $debugConfig  = Config::get('api-toolkit.exceptions.include_debug_info');
+        $includeDebug = $debugConfig ?? Config::get('app.debug');
 
-        return Config::get('app.debug') && $previous ? array_merge($exception->getCustomMeta() ?? [], [
+        return $includeDebug && $previous !== null ? array_merge($exception->getCustomMeta() ?? [], [
             'message'   => $previous->getMessage(),
             'exception' => $previous::class,
             'file'      => $previous->getFile(),

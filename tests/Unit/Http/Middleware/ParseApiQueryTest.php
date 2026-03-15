@@ -7,6 +7,7 @@ use Illuminate\Http\Response;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
 use SineMacula\ApiToolkit\Http\Middleware\ParseApiQuery;
+use SineMacula\Http\Enums\HttpMethod;
 use Tests\TestCase;
 
 /**
@@ -30,7 +31,7 @@ class ParseApiQueryTest extends TestCase
         ApiQuery::shouldReceive('parse')
             ->once();
 
-        $request          = Request::create('/test', 'GET');
+        $request          = Request::create('/test', HttpMethod::GET->getVerb());
         $middleware       = new ParseApiQuery;
         $expectedResponse = new Response('ok');
         $receivedRequest  = null;
@@ -55,7 +56,7 @@ class ParseApiQueryTest extends TestCase
         ApiQuery::shouldReceive('parse')
             ->once();
 
-        $request          = Request::create('/test', 'GET');
+        $request          = Request::create('/test', HttpMethod::GET->getVerb());
         $middleware       = new ParseApiQuery;
         $expectedResponse = new Response('expected content', 201);
 

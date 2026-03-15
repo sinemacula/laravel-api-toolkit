@@ -3,7 +3,7 @@
 namespace Tests\Unit\Sse;
 
 use PHPUnit\Framework\Attributes\CoversClass;
-use SineMacula\ApiToolkit\Enums\HttpStatus;
+use SineMacula\Http\Enums\HttpStatus;
 use SineMacula\ApiToolkit\Sse\Emitter;
 use SineMacula\ApiToolkit\Sse\EventStream;
 use Symfony\Component\HttpFoundation\StreamedResponse;
