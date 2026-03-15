@@ -9,6 +9,7 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\ApiQueryParser;
 use SineMacula\ApiToolkit\Http\Middleware\JsonPrettyPrint;
 use SineMacula\ApiToolkit\Http\Middleware\ParseApiQuery;
+use SineMacula\Http\Enums\HttpMethod;
 use Tests\TestCase;
 
 /**
@@ -33,7 +34,7 @@ class MiddlewareIntegrationTest extends TestCase
      */
     public function testParseApiQueryMiddlewarePopulatesParser(): void
     {
-        $request = Request::create(self::TEST_URI, 'GET', [
+        $request = Request::create(self::TEST_URI, HttpMethod::GET->getVerb(), [
             'page'  => '3',
             'limit' => '25',
             'order' => 'name:desc',
@@ -61,7 +62,7 @@ class MiddlewareIntegrationTest extends TestCase
      */
     public function testJsonPrettyPrintMiddlewarePrettyPrintsWhenRequested(): void
     {
-        $request = Request::create(self::TEST_URI, 'GET', ['pretty' => '1']);
+        $request = Request::create(self::TEST_URI, HttpMethod::GET->getVerb(), ['pretty' => '1']);
 
         $middleware   = new JsonPrettyPrint;
         $jsonResponse = new JsonResponse(['key' => 'value']);
@@ -81,7 +82,7 @@ class MiddlewareIntegrationTest extends TestCase
      */
     public function testFullMiddlewareChainWorksEndToEnd(): void
     {
-        $request = Request::create(self::TEST_URI, 'GET', [
+        $request = Request::create(self::TEST_URI, HttpMethod::GET->getVerb(), [
             'page'   => '2',
             'limit'  => '10',
             'pretty' => '1',

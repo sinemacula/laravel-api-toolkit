@@ -7,6 +7,9 @@ use Illuminate\Support\Facades\Response;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
 use SineMacula\ApiToolkit\Repositories\ApiRepository;
 use SineMacula\Exporter\Facades\Exporter;
+use SineMacula\Http\Enums\Charset;
+use SineMacula\Http\Enums\HttpHeader;
+use SineMacula\Http\Enums\MediaType;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
@@ -65,7 +68,7 @@ trait RespondsWithStream
             });
         };
 
-        return $this->createStreamedResponse($stream, 'text/csv; charset=utf-8', $filename);
+        return $this->createStreamedResponse($stream, MediaType::TEXT_CSV->withCharset(Charset::UTF_8), $filename);
     }
 
     /**
@@ -121,7 +124,7 @@ trait RespondsWithStream
     protected function createStreamedResponse(callable $callback, string $content_type, string $filename): StreamedResponse
     {
         return Response::streamDownload($callback, $filename, [
-            'Content-Type' => $content_type,
+            HttpHeader::CONTENT_TYPE->getName() => $content_type,
         ]);
     }
 }

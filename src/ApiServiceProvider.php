@@ -50,6 +50,8 @@ use SineMacula\ApiToolkit\Services\Validation\Rules\ValidateRelationClasses;
 use SineMacula\ApiToolkit\Services\Validation\Rules\ValidateRelationInterfaces;
 use SineMacula\ApiToolkit\Services\Validation\Rules\ValidateRelationMethods;
 use SineMacula\ApiToolkit\Services\Validation\Rules\ValidateTransformers;
+use SineMacula\Http\Enums\HttpHeader;
+use SineMacula\Http\Enums\MediaType;
 
 /**
  * API service provider.
@@ -196,13 +198,13 @@ class ApiServiceProvider extends ServiceProvider
     {
         Request::macro('expectsExport', fn () => config('api-toolkit.exports.enabled') && ($this->expectsCsv() || $this->expectsXml()));
 
-        Request::macro('expectsCsv', fn () => strtolower($this->header('Accept')) === 'text/csv'
+        Request::macro('expectsCsv', fn () => strtolower($this->header(HttpHeader::ACCEPT->getName())) === MediaType::TEXT_CSV->getMimeType()
             && in_array('csv', config('api-toolkit.exports.supported_formats', []), true));
 
-        Request::macro('expectsXml', fn () => strtolower($this->header('Accept')) === 'application/xml'
+        Request::macro('expectsXml', fn () => strtolower($this->header(HttpHeader::ACCEPT->getName())) === MediaType::APPLICATION_XML->getMimeType()
             && in_array('xml', config('api-toolkit.exports.supported_formats', []), true));
 
-        Request::macro('expectsPdf', fn () => strtolower($this->header('Accept')) === 'application/pdf');
+        Request::macro('expectsPdf', fn () => strtolower($this->header(HttpHeader::ACCEPT->getName())) === MediaType::APPLICATION_PDF->getMimeType());
     }
 
     /**
@@ -212,7 +214,7 @@ class ApiServiceProvider extends ServiceProvider
      */
     private function registerStreamMacros(): void
     {
-        Request::macro('expectsStream', fn () => strtolower($this->header('Accept')) === 'text/event-stream');
+        Request::macro('expectsStream', fn () => strtolower($this->header(HttpHeader::ACCEPT->getName())) === MediaType::TEXT_EVENT_STREAM->getMimeType());
     }
 
     /**
@@ -292,7 +294,7 @@ class ApiServiceProvider extends ServiceProvider
      */
     private function registerQueryParser(): void
     {
-        $this->app->singleton(Config::get('api-toolkit.parser.alias'), fn ($app) => new ApiQueryParser);
+        $this->app->scoped(Config::get('api-toolkit.parser.alias'), fn ($app) => new ApiQueryParser);
     }
 
     /**

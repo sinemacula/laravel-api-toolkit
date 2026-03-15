@@ -22,6 +22,38 @@ return [
 
     /*
     |---------------------------------------------------------------------------
+    | Exception Handling Configuration
+    |---------------------------------------------------------------------------
+    |
+    | This section controls how the API exception handler renders exceptions.
+    |
+    | 'render_strategy' determines when exceptions are rendered as JSON:
+    |
+    |   'always_json'        - Always render exceptions as JSON, regardless of
+    |                          the request's Accept header or debug mode.
+    |   'json_when_expected' - Only render as JSON when the request expects a
+    |                          JSON response (i.e. Accept: application/json).
+    |   'auto'               - Render as JSON unless the request does not expect
+    |                          JSON and the application is in debug mode, in
+    |                          which case Laravel's default rendering is used.
+    |
+    | 'include_debug_info' controls whether exception responses include debug
+    | metadata such as stack traces, file paths, and exception messages. When
+    | set to null, the value of 'app.debug' is used as a fallback. It is
+    | strongly recommended to set this to false in production environments.
+    |
+    */
+
+    'exceptions' => [
+
+        'render_strategy' => env('API_EXCEPTION_RENDER_STRATEGY', 'auto'),
+
+        'include_debug_info' => null,
+
+    ],
+
+    /*
+    |---------------------------------------------------------------------------
     | API Resource Configuration
     |---------------------------------------------------------------------------
     |

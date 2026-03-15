@@ -8,6 +8,7 @@ use Orchestra\Testbench\TestCase;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Exceptions\MaintenanceModeException;
 use SineMacula\ApiToolkit\Http\Middleware\PreventRequestsDuringMaintenance;
+use SineMacula\Http\Enums\HttpMethod;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 use Tests\Concerns\InteractsWithNonPublicMembers;
 
@@ -79,7 +80,7 @@ class PreventRequestsDuringMaintenanceTest extends TestCase
         assert($this->app !== null);
 
         $middleware = new PreventRequestsDuringMaintenance($this->app);
-        $request    = Request::create('/test', 'GET');
+        $request    = Request::create('/test', HttpMethod::GET->getVerb());
         $passed     = false;
 
         $middleware->handle($request, function () use (&$passed): string {
@@ -104,7 +105,7 @@ class PreventRequestsDuringMaintenanceTest extends TestCase
         $this->expectException(MaintenanceModeException::class);
 
         $middleware = new PreventRequestsDuringMaintenance($this->app);
-        $request    = Request::create('/test', 'GET');
+        $request    = Request::create('/test', HttpMethod::GET->getVerb());
 
         $middleware->handle($request, function (): void {
             throw new HttpException(503, 'Service Unavailable');

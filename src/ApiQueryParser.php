@@ -132,6 +132,16 @@ class ApiQueryParser
     }
 
     /**
+     * Reset the parser by clearing all parsed parameters.
+     *
+     * @return void
+     */
+    public function reset(): void
+    {
+        $this->parameters = [];
+    }
+
+    /**
      * Parse the given query string to obtain resource and value information.
      *
      * @param  \Illuminate\Http\Request  $request

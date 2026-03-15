@@ -9,6 +9,9 @@ use Illuminate\Support\Facades\Request;
 use Illuminate\Support\Facades\Response;
 use SineMacula\Exporter\Contracts\Exporter as ExporterContract;
 use SineMacula\Exporter\Facades\Exporter;
+use SineMacula\Http\Enums\Charset;
+use SineMacula\Http\Enums\HttpHeader;
+use SineMacula\Http\Enums\MediaType;
 
 /**
  * Responds with export trait.
@@ -20,12 +23,6 @@ use SineMacula\Exporter\Facades\Exporter;
  */
 trait RespondsWithExport
 {
-    /** @var string CSV content type header value. */
-    private const string CONTENT_TYPE_CSV = 'text/csv; charset=utf-8';
-
-    /** @var string XML content type header value. */
-    private const string CONTENT_TYPE_XML = 'application/xml';
-
     /** @var string Error message for unsupported export formats. */
     private const string UNSUPPORTED_FORMAT_MESSAGE = 'Unsupported export format';
 
@@ -60,7 +57,7 @@ trait RespondsWithExport
     {
         $csv = $this->buildExporter('csv')->exportArray($data);
 
-        return $this->createExportResponse($csv, self::CONTENT_TYPE_CSV, $download, $filename);
+        return $this->createExportResponse($csv, MediaType::TEXT_CSV->withCharset(Charset::UTF_8), $download, $filename);
     }
 
     /**
@@ -75,7 +72,7 @@ trait RespondsWithExport
     {
         $xml = $this->buildExporter('xml')->exportArray($data);
 
-        return $this->createExportResponse($xml, self::CONTENT_TYPE_XML, $download, $filename);
+        return $this->createExportResponse($xml, MediaType::APPLICATION_XML->getMimeType(), $download, $filename);
     }
 
     /**
@@ -109,7 +106,7 @@ trait RespondsWithExport
     {
         $csv = $this->buildExporter('csv')->exportCollection($collection);
 
-        return $this->createExportResponse($csv, self::CONTENT_TYPE_CSV, $download, $filename);
+        return $this->createExportResponse($csv, MediaType::TEXT_CSV->withCharset(Charset::UTF_8), $download, $filename);
     }
 
     /**
@@ -124,7 +121,7 @@ trait RespondsWithExport
     {
         $xml = $this->buildExporter('xml')->exportCollection($collection);
 
-        return $this->createExportResponse($xml, self::CONTENT_TYPE_XML, $download, $filename);
+        return $this->createExportResponse($xml, MediaType::APPLICATION_XML->getMimeType(), $download, $filename);
     }
 
     /**
@@ -158,7 +155,7 @@ trait RespondsWithExport
     {
         $csv = $this->buildExporter('csv')->exportItem($resource);
 
-        return $this->createExportResponse($csv, self::CONTENT_TYPE_CSV, $download, $filename);
+        return $this->createExportResponse($csv, MediaType::TEXT_CSV->withCharset(Charset::UTF_8), $download, $filename);
     }
 
     /**
@@ -173,7 +170,7 @@ trait RespondsWithExport
     {
         $xml = $this->buildExporter('xml')->exportItem($resource);
 
-        return $this->createExportResponse($xml, self::CONTENT_TYPE_XML, $download, $filename);
+        return $this->createExportResponse($xml, MediaType::APPLICATION_XML->getMimeType(), $download, $filename);
     }
 
     /**
@@ -188,11 +185,11 @@ trait RespondsWithExport
     protected function createExportResponse(string $data, string $content_type, bool $download, string $filename): HttpResponse
     {
         $response = Response::make($data)
-            ->header('Content-Type', $content_type)
-            ->header('Content-Length', strlen($data));
+            ->header(HttpHeader::CONTENT_TYPE->getName(), $content_type)
+            ->header(HttpHeader::CONTENT_LENGTH->getName(), strlen($data));
 
         if ($download) {
-            $response->header('Content-Disposition', 'attachment; filename="' . $filename . '"');
+            $response->header(HttpHeader::CONTENT_DISPOSITION->getName(), 'attachment; filename="' . $filename . '"');
         }
 
         return $response;

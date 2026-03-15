@@ -8,7 +8,7 @@ use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Http\Resources\Json\ResourceCollection;
 use Illuminate\Routing\Controller as LaravelController;
 use Illuminate\Support\Facades\Response;
-use SineMacula\ApiToolkit\Enums\HttpStatus;
+use SineMacula\Http\Enums\HttpStatus;
 use SineMacula\ApiToolkit\Sse\EventStream;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
@@ -29,7 +29,7 @@ abstract class Controller extends LaravelController
      * Respond with raw array data as a JSON response.
      *
      * @param  array<string, mixed>  $data
-     * @param  \SineMacula\ApiToolkit\Enums\HttpStatus  $status
+     * @param  \SineMacula\Http\Enums\HttpStatus  $status
      * @param  array<string, string>  $headers
      * @return \Illuminate\Http\JsonResponse
      */
@@ -42,7 +42,7 @@ abstract class Controller extends LaravelController
      * Respond with a JSON resource representing a single item.
      *
      * @param  \Illuminate\Http\Resources\Json\JsonResource  $resource
-     * @param  \SineMacula\ApiToolkit\Enums\HttpStatus  $status
+     * @param  \SineMacula\Http\Enums\HttpStatus  $status
      * @param  array<string, string>  $headers
      * @return \Illuminate\Http\JsonResponse
      */
@@ -55,7 +55,7 @@ abstract class Controller extends LaravelController
      * Respond with a JSON resource collection.
      *
      * @param  \Illuminate\Http\Resources\Json\ResourceCollection  $collection
-     * @param  \SineMacula\ApiToolkit\Enums\HttpStatus  $status
+     * @param  \SineMacula\Http\Enums\HttpStatus  $status
      * @param  array<string, string>  $headers
      * @return \Illuminate\Http\JsonResponse
      */
@@ -72,7 +72,7 @@ abstract class Controller extends LaravelController
      *
      * @param  callable(): void|callable(\SineMacula\ApiToolkit\Sse\Emitter): void  $callback
      * @param  int  $interval
-     * @param  \SineMacula\ApiToolkit\Enums\HttpStatus  $status
+     * @param  \SineMacula\Http\Enums\HttpStatus  $status
      * @param  array<string, string>  $headers
      * @return \Symfony\Component\HttpFoundation\StreamedResponse
      */

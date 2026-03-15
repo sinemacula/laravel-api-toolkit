@@ -4,6 +4,7 @@ namespace SineMacula\ApiToolkit\Cache;
 
 use Illuminate\Contracts\Container\Container;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Config;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Events\CacheFlushed;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\SchemaCompiler;
@@ -45,6 +46,24 @@ final class CacheManager
 
         $this->container->make(SchemaIntrospectionProvider::class)->flush();
 
+        $this->resetQueryParser();
+
         event(new CacheFlushed);
+    }
+
+    /**
+     * Reset the query parser if it is bound in the container.
+     *
+     * @return void
+     */
+    private function resetQueryParser(): void
+    {
+        $alias = Config::get('api-toolkit.parser.alias', 'api.query');
+
+        if ($this->container->bound($alias)) {
+            /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
+            $parser = $this->container->make($alias);
+            $parser->reset();
+        }
     }
 }
