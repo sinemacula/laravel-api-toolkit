@@ -305,39 +305,6 @@ The `NotificationListener` logs every `NotificationSending` and `NotificationSen
 
 ---
 
-## ISSUE-21: Test Suite Only Uses SQLite -- No Multi-Database Coverage
-
-**Severity:** Low
-**File(s):** `tests/TestCase.php`, `phpunit.xml.dist`
-
-### Problem
-
-The entire test suite runs against in-memory SQLite. Several features have database-specific behavior that is not
-tested:
-
-1. **The `$contains` filter operator** -- maps to `'contains'` in the operator map, which is not standard SQL. Its
-   behavior likely differs between MySQL (`JSON_CONTAINS`), PostgreSQL (`@>`), and SQLite.
-2. **Transaction handling** in `Service` -- the `TransactionConcern` wraps the lifecycle in `DB::transaction()` with
-   configurable retry count, but transaction behavior varies by database engine.
-3. **`inRandomOrder()`** -- uses `RANDOM()` on SQLite but `RAND()` on MySQL.
-4. **Cursor pagination** -- behavior varies by database.
-5. **`$between` operator** -- edge cases differ by database collation and type.
-
-### Desired Outcome
-
-1. Add a CI matrix that runs the integration test suite against MySQL and PostgreSQL in addition to SQLite.
-2. Tag database-specific tests with PHPUnit groups (`@group mysql`, `@group pgsql`) so they can be run selectively.
-3. Document which features are database-specific in the config and README.
-4. Add a database compatibility matrix to the documentation.
-
-### Constraints
-
-- The default test command (`composer test`) should remain fast and dependency-free (SQLite).
-- Multi-database CI can use Docker services (MySQL 8.x, PostgreSQL 16.x).
-- Must not increase test suite runtime significantly for the default case.
-
----
-
 ## ISSUE-22: WritePool Silently Drops Records on Insert Failure
 
 **Severity:** Medium
