@@ -26,7 +26,7 @@
         "illuminate/support": "^12.9",
         "illuminate/validation": "*",
         "phpnexus/cwh": "^3.0",
-        "sinemacula/http-primitives-php": "dev-master",
+        "sinemacula/http-primitives-php": "^2.0",
         "sinemacula/laravel-repositories": "^2.0",
         "sinemacula/laravel-resource-exporter": "^2.0"
     },
