@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "d4d324c31569e4902fb8eb48e0ea4452",
+    "content-hash": "6582d46ff03877068fc882662af2c6a8",
     "packages": [
         {
             "name": "aws/aws-crt-php",
@@ -3421,7 +3421,7 @@
         },
         {
             "name": "sinemacula/http-primitives-php",
-            "version": "dev-master",
+            "version": "v2.0.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/sinemacula/http-primitives-php.git",
@@ -3450,7 +3450,6 @@
                 "squizlabs/php_codesniffer": "^3.13",
                 "symfony/http-foundation": "^7.0"
             },
-            "default-branch": true,
             "type": "library",
             "autoload": {
                 "psr-4": {
@@ -3477,7 +3476,7 @@
             ],
             "support": {
                 "issues": "https://github.com/sinemacula/http-primitives-php/issues",
-                "source": "https://github.com/sinemacula/http-primitives-php/tree/master"
+                "source": "https://github.com/sinemacula/http-primitives-php/tree/v2.0.0"
             },
             "time": "2026-03-15T21:28:30+00:00"
         },
@@ -11255,9 +11254,7 @@
     ],
     "aliases": [],
     "minimum-stability": "stable",
-    "stability-flags": {
-        "sinemacula/http-primitives-php": 20
-    },
+    "stability-flags": {},
     "prefer-stable": false,
     "prefer-lowest": false,
     "platform": {
