@@ -4,6 +4,8 @@ namespace SineMacula\ApiToolkit\Repositories\Concerns;
 
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use SineMacula\ApiToolkit\Enums\FlushStrategy;
+use SineMacula\ApiToolkit\Exceptions\WritePoolFlushException;
 
 /**
  * Buffers insert attribute arrays in memory grouped by table
@@ -17,16 +19,28 @@ final class WritePool
     /** @var array<string, list<array<string, mixed>>> Records buffered by table name. */
     private array $buffer = [];
 
+    /** @var \SineMacula\ApiToolkit\Repositories\Concerns\WritePoolFlushResult|null The result from the most recent auto-flush. */
+    private ?WritePoolFlushResult $lastAutoFlushResult = null;
+
     /**
      * Create a new write pool instance.
      *
      * @param  int  $chunkSize
      * @param  int  $poolLimit
+     * @param  \SineMacula\ApiToolkit\Enums\FlushStrategy  $strategy
      * @return void
      */
     public function __construct(
+
+        /** The maximum number of records per bulk insert chunk. */
         private readonly int $chunkSize,
+
+        /** The record count threshold that triggers an automatic flush. */
         private readonly int $poolLimit,
+
+        /** The failure handling strategy for flush operations. */
+        private readonly FlushStrategy $strategy = FlushStrategy::LOG,
+
     ) {}
 
     /**
@@ -44,7 +58,12 @@ final class WritePool
         $this->buffer[$table][] = $attributes;
 
         if ($this->count() >= $this->poolLimit) {
-            $this->flush();
+
+            $autoStrategy = $this->strategy === FlushStrategy::LOG
+                ? FlushStrategy::LOG
+                : FlushStrategy::COLLECT;
+
+            $this->lastAutoFlushResult = $this->flush($autoStrategy);
         }
     }
 
@@ -52,37 +71,68 @@ final class WritePool
      * Flush all buffered records as chunked bulk INSERT statements.
      *
      * Records are grouped by table and split into chunks of at most
-     * the configured chunk size. If a chunk fails, the error is logged
-     * and remaining chunks are still attempted.
+     * the configured chunk size. The active strategy determines how
+     * chunk failures are handled and whether the buffer is retained.
      *
-     * @return void
+     * @param  \SineMacula\ApiToolkit\Enums\FlushStrategy|null  $strategy
+     * @return \SineMacula\ApiToolkit\Repositories\Concerns\WritePoolFlushResult
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\WritePoolFlushException
      */
-    public function flush(): void
+    public function flush(?FlushStrategy $strategy = null): WritePoolFlushResult
     {
         if ($this->isEmpty()) {
-            return;
+            return new WritePoolFlushResult(successCount: 0, failureCount: 0);
         }
 
-        foreach ($this->buffer as $table => $records) {
+        $activeStrategy = $strategy ?? $this->strategy;
 
-            $chunks = array_chunk($records, $this->chunkSize);
+        $successCount  = 0;
+        $failureCount  = 0;
+        $failures      = [];
+        $failedRecords = [];
 
-            foreach ($chunks as $chunk) {
+        $tables = array_keys($this->buffer);
+
+        foreach ($tables as $tableIndex => $table) {
+
+            $chunks = array_chunk($this->buffer[$table], $this->chunkSize);
+
+            foreach ($chunks as $chunkIndex => $chunk) {
 
                 try {
                     DB::table($table)->insert($chunk);
+                    $successCount++;
                 } catch (\Throwable $e) {
 
-                    Log::error("WritePool flush failed for table [{$table}]", [
-                        'table'      => $table,
-                        'chunk_size' => count($chunk),
-                        'error'      => $e->getMessage(),
-                    ]);
+                    $failureCount++;
+                    $failures[$table][] = ['records' => $chunk, 'exception' => $e->getMessage()];
+
+                    match ($activeStrategy) {
+                        FlushStrategy::LOG     => $this->logChunkFailure($table, $chunk, $e),
+                        FlushStrategy::THROW   => $this->throwFlushException($table, $chunk, $chunks, $chunkIndex, $tables, $tableIndex, new WritePoolFlushResult($successCount, $failureCount, $failures), $e),
+                        FlushStrategy::COLLECT => $this->collectFailedChunk($table, $chunk, $failedRecords),
+                    };
                 }
             }
         }
 
-        $this->buffer = [];
+        $this->buffer = $activeStrategy === FlushStrategy::COLLECT
+            ? $failedRecords
+            : [];
+
+        return new WritePoolFlushResult($successCount, $failureCount, $failures);
+    }
+
+    /**
+     * Return the result from the most recent auto-flush triggered
+     * by add(), or null if no auto-flush has occurred.
+     *
+     * @return \SineMacula\ApiToolkit\Repositories\Concerns\WritePoolFlushResult|null
+     */
+    public function lastAutoFlushResult(): ?WritePoolFlushResult
+    {
+        return $this->lastAutoFlushResult;
     }
 
     /**
@@ -109,5 +159,98 @@ final class WritePool
     public function isEmpty(): bool
     {
         return $this->count() === 0;
+    }
+
+    /**
+     * Log a chunk insertion failure.
+     *
+     * @param  string  $table
+     * @param  list<array<string, mixed>>  $chunk
+     * @param  \Throwable  $exception
+     * @return void
+     */
+    private function logChunkFailure(string $table, array $chunk, \Throwable $exception): void
+    {
+        Log::error("WritePool flush failed for table [{$table}]", [
+            'table'      => $table,
+            'chunk_size' => count($chunk),
+            'error'      => $exception->getMessage(),
+        ]);
+    }
+
+    /**
+     * Retain unprocessed records in the buffer and throw a flush exception.
+     *
+     * @param  string  $table
+     * @param  list<array<string, mixed>>  $chunk
+     * @param  list<list<array<string, mixed>>>  $chunks
+     * @param  int  $chunkIndex
+     * @param  list<string>  $tables
+     * @param  int  $tableIndex
+     * @param  \SineMacula\ApiToolkit\Repositories\Concerns\WritePoolFlushResult  $partialResult
+     * @param  \Throwable  $exception
+     * @return never
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\WritePoolFlushException
+     */
+    private function throwFlushException(
+        string $table,
+        array $chunk,
+        array $chunks,
+        int $chunkIndex,
+        array $tables,
+        int $tableIndex,
+        WritePoolFlushResult $partialResult,
+        \Throwable $exception,
+    ): never {
+
+        $this->retainUnprocessedRecords($table, $chunk, $chunks, $chunkIndex, $tables, $tableIndex);
+
+        throw new WritePoolFlushException($partialResult, $exception);
+    }
+
+    /**
+     * Collect the failed chunk records for later retry.
+     *
+     * @param  string  $table
+     * @param  list<array<string, mixed>>  $chunk
+     * @param  array<string, list<array<string, mixed>>>  &$failedRecords
+     * @return void
+     */
+    private function collectFailedChunk(string $table, array $chunk, array &$failedRecords): void
+    {
+        $failedRecords[$table] = array_merge($failedRecords[$table] ?? [], $chunk);
+    }
+
+    /**
+     * Retain the failed chunk and all unprocessed records in the buffer.
+     *
+     * @param  string  $table
+     * @param  list<array<string, mixed>>  $chunk
+     * @param  list<list<array<string, mixed>>>  $chunks
+     * @param  int  $chunkIndex
+     * @param  list<string>  $tables
+     * @param  int  $tableIndex
+     * @return void
+     */
+    private function retainUnprocessedRecords(
+        string $table,
+        array $chunk,
+        array $chunks,
+        int $chunkIndex,
+        array $tables,
+        int $tableIndex,
+    ): void {
+
+        $remainingChunks = array_slice($chunks, $chunkIndex + 1);
+        $retainedBuffer  = [];
+
+        $retainedBuffer[$table] = array_merge($chunk, ...$remainingChunks);
+
+        foreach (array_slice($tables, $tableIndex + 1) as $remainingTable) {
+            $retainedBuffer[$remainingTable] = $this->buffer[$remainingTable];
+        }
+
+        $this->buffer = $retainedBuffer;
     }
 }
