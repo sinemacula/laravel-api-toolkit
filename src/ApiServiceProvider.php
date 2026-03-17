@@ -14,6 +14,7 @@ use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Request;
 use Illuminate\Support\ServiceProvider;
 use SineMacula\ApiToolkit\Cache\CacheManager;
+use SineMacula\ApiToolkit\Enums\FlushStrategy;
 use SineMacula\ApiToolkit\Console\ValidateSchemasCommand;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Http\Middleware\JsonPrettyPrint;
@@ -404,6 +405,7 @@ class ApiServiceProvider extends ServiceProvider
         $this->app->scoped(WritePool::class, fn (): WritePool => new WritePool(
             (int) Config::get('api-toolkit.deferred_writes.chunk_size', 500),
             (int) Config::get('api-toolkit.deferred_writes.pool_limit', 10000),
+            FlushStrategy::from((string) Config::get('api-toolkit.deferred_writes.on_failure', 'log')),
         ));
     }
 

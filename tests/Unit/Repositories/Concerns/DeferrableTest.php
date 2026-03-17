@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\DB;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Repositories\Concerns\Deferrable;
 use SineMacula\ApiToolkit\Repositories\Concerns\WritePool;
+use SineMacula\ApiToolkit\Repositories\Concerns\WritePoolFlushResult;
 use Tests\Fixtures\Repositories\DeferrableUserRepository;
 use Tests\TestCase;
 
@@ -143,9 +144,11 @@ class DeferrableTest extends TestCase
         $this->repository->defer(['name' => 'Eve', 'email' => 'eve@example.com', 'password' => 'secret']);
         $this->repository->defer(['name' => 'Frank', 'email' => 'frank@example.com', 'password' => 'secret']);
 
-        $this->repository->flushWrites();
+        $flushResult = $this->repository->flushWrites();
 
         static::assertSame(2, DB::table('users')->count());
+        static::assertInstanceOf(WritePoolFlushResult::class, $flushResult);
+        static::assertTrue($flushResult->isSuccessful());
     }
 
     /**
@@ -157,10 +160,11 @@ class DeferrableTest extends TestCase
     {
         $this->repository->defer(['name' => 'Grace', 'email' => 'grace@example.com', 'password' => 'secret']);
 
-        $this->repository->flushWrites();
+        $flushResult = $this->repository->flushWrites();
         $this->repository->flushWrites();
 
         static::assertSame(1, DB::table('users')->count());
+        static::assertTrue($flushResult->isSuccessful());
     }
 
     /**
@@ -193,5 +197,20 @@ class DeferrableTest extends TestCase
         $this->repository->flushWrites();
 
         static::assertSame(5, DB::table('users')->count());
+    }
+
+    /**
+     * Test that flushWrites returns a WritePoolFlushResult.
+     *
+     * @return void
+     */
+    public function testFlushWritesReturnsWritePoolFlushResult(): void
+    {
+        $this->repository->defer(['name' => 'Iris', 'email' => 'iris@example.com', 'password' => 'secret']);
+        $this->repository->defer(['name' => 'Jack', 'email' => 'jack@example.com', 'password' => 'secret']);
+
+        $flushResult = $this->repository->flushWrites();
+
+        static::assertInstanceOf(WritePoolFlushResult::class, $flushResult);
     }
 }

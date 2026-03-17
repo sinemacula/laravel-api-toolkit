@@ -8,6 +8,8 @@ use Illuminate\Events\Dispatcher;
 use Illuminate\Foundation\Http\Events\RequestHandled;
 use Illuminate\Queue\Events\JobFailed;
 use Illuminate\Queue\Events\JobProcessed;
+use Illuminate\Support\Facades\Log;
+use SineMacula\ApiToolkit\Events\WritePoolFlushFailed;
 use SineMacula\ApiToolkit\Repositories\Concerns\WritePool;
 
 /**
@@ -47,15 +49,36 @@ final class WritePoolFlushSubscriber
     }
 
     /**
-     * Flush the write pool.
+     * Flush the write pool and handle any failures.
      *
      * The pool is resolved from the container at event time to ensure
      * the correct scoped instance is used in Octane environments.
+     * When the flush result indicates failures, a warning is logged
+     * and a WritePoolFlushFailed event is dispatched. All exceptions
+     * are caught to prevent lifecycle boundary disruption.
      *
      * @return void
      */
     public function handleFlush(): void
     {
-        $this->container->make(WritePool::class)->flush();
+        try {
+
+            $flushResult = $this->container->make(WritePool::class)->flush();
+
+            if ($flushResult->isSuccessful()) {
+                return;
+            }
+
+            Log::warning('WritePool flush completed with failures: ' . $flushResult->failureCount() . ' chunk(s) failed out of ' . $flushResult->totalCount() . ' total.', [
+                'failure_count' => $flushResult->failureCount(),
+                'total_count'   => $flushResult->totalCount(),
+                'tables'        => array_keys($flushResult->failures()),
+            ]);
+
+            event(new WritePoolFlushFailed($flushResult));
+        } catch (\Throwable $e) {
+
+            Log::error('WritePool flush subscriber failed', ['error' => $e->getMessage()]);
+        }
     }
 }

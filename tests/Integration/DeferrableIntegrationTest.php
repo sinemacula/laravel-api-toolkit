@@ -12,9 +12,12 @@ use Illuminate\Queue\Events\JobProcessed;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Log;
 use PHPUnit\Framework\Attributes\CoversClass;
+use SineMacula\ApiToolkit\Events\WritePoolFlushFailed;
 use SineMacula\ApiToolkit\Repositories\Concerns\Deferrable;
 use SineMacula\ApiToolkit\Repositories\Concerns\WritePool;
+use SineMacula\ApiToolkit\Repositories\Concerns\WritePoolFlushResult;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\NullOutput;
 use Tests\Fixtures\Repositories\DeferrableUserRepository;
@@ -268,5 +271,66 @@ class DeferrableIntegrationTest extends TestCase
         ]);
 
         static::assertSame(1, DB::table('users')->count());
+    }
+
+    /**
+     * Test that flushWrites returns a result with success details.
+     *
+     * @return void
+     */
+    public function testFlushWritesReturnsResultWithSuccessDetails(): void
+    {
+        $this->repository->defer(['name' => 'Oscar', 'email' => 'oscar@example.com', 'password' => 'secret']);
+        $this->repository->defer(['name' => 'Penny', 'email' => 'penny@example.com', 'password' => 'secret']);
+
+        $flushResult = $this->repository->flushWrites();
+
+        static::assertTrue($flushResult->isSuccessful());
+        static::assertGreaterThan(0, $flushResult->successCount());
+    }
+
+    /**
+     * Test that RequestHandled event dispatches WritePoolFlushFailed
+     * event on flush failure.
+     *
+     * @return void
+     */
+    public function testRequestHandledEventDispatchesFailedEventOnFlushFailure(): void
+    {
+        $pool = new WritePool(500, 10000);
+        $pool->add('nonexistent_table', ['col' => 'val']);
+
+        $this->app->scoped(WritePool::class, fn (): WritePool => $pool); // @phpstan-ignore method.nonObject
+
+        Event::fake([WritePoolFlushFailed::class]);
+
+        Log::shouldReceive('error')->once();
+        Log::shouldReceive('warning')->once();
+
+        Event::dispatch(new RequestHandled(new Request, new Response));
+
+        Event::assertDispatched(WritePoolFlushFailed::class, function (WritePoolFlushFailed $event): bool {
+
+            return $event->flushResult->failureCount() === 1;
+        });
+    }
+
+    /**
+     * Test that WritePoolFlushResult is propagated through Deferrable.
+     *
+     * @return void
+     */
+    public function testWritePoolFlushResultPropagatedThroughDeferrable(): void
+    {
+        $this->repository->defer(['name' => 'Quinn', 'email' => 'quinn@example.com', 'password' => 'secret']);
+        $this->repository->defer(['name' => 'Rita', 'email' => 'rita@example.com', 'password' => 'secret']);
+        $this->repository->defer(['name' => 'Sam', 'email' => 'sam@example.com', 'password' => 'secret']);
+
+        $flushResult = $this->repository->flushWrites();
+
+        static::assertInstanceOf(WritePoolFlushResult::class, $flushResult);
+        static::assertTrue($flushResult->isSuccessful());
+        static::assertSame(1, $flushResult->successCount());
+        static::assertSame(0, $flushResult->failureCount());
     }
 }
