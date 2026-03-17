@@ -16,6 +16,7 @@ use Illuminate\Support\ServiceProvider;
 use SineMacula\ApiToolkit\Cache\CacheManager;
 use SineMacula\ApiToolkit\Console\ValidateSchemasCommand;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
+use SineMacula\ApiToolkit\Http\Middleware\DetectsCapabilities;
 use SineMacula\ApiToolkit\Http\Middleware\JsonPrettyPrint;
 use SineMacula\ApiToolkit\Http\Middleware\ParseApiQuery;
 use SineMacula\ApiToolkit\Http\Middleware\PreventRequestsDuringMaintenance;
@@ -72,6 +73,7 @@ class ApiServiceProvider extends ServiceProvider
         $this->offerPublishing();
         $this->registerMorphMap();
         $this->validateSchemas();
+        $this->registerCapabilitiesMiddleware();
         $this->registerTrashedMacros();
         $this->registerExportMacros();
         $this->registerStreamMacros();
@@ -179,42 +181,156 @@ class ApiServiceProvider extends ServiceProvider
     }
 
     /**
-     * Register the trashed macros to the Request facade.
+     * Register the capabilities detection middleware.
+     *
+     * @return void
+     */
+    private function registerCapabilitiesMiddleware(): void
+    {
+        if (!Config::get('api-toolkit.capabilities.register_middleware', true)) {
+            return;
+        }
+
+        $kernel = $this->app->make(Kernel::class);
+        $kernel->pushMiddleware(DetectsCapabilities::class);
+    }
+
+    /**
+     * Register the deprecated trashed macros to the Request facade.
      *
      * @return void
      */
     private function registerTrashedMacros(): void
     {
-        Request::macro('includeTrashed', fn () => $this->get('include_trashed', false) === 'true');
-        Request::macro('onlyTrashed', fn () => $this->get('only_trashed', false) === 'true');
+        Request::macro('includeTrashed', function (): bool {
+
+            @trigger_error(
+                'Request::includeTrashed() is deprecated. Use RequestCapabilities::fromRequest($request)->includeTrashed() instead.',
+                E_USER_DEPRECATED,
+            );
+
+            $capabilities = $this->attributes->get(\SineMacula\ApiToolkit\Http\RequestCapabilities::class);
+
+            if ($capabilities instanceof \SineMacula\ApiToolkit\Http\RequestCapabilities) {
+                return $capabilities->includeTrashed();
+            }
+
+            return $this->get('include_trashed', false) === 'true';
+        });
+
+        Request::macro('onlyTrashed', function (): bool {
+
+            @trigger_error(
+                'Request::onlyTrashed() is deprecated. Use RequestCapabilities::fromRequest($request)->onlyTrashed() instead.',
+                E_USER_DEPRECATED,
+            );
+
+            $capabilities = $this->attributes->get(\SineMacula\ApiToolkit\Http\RequestCapabilities::class);
+
+            if ($capabilities instanceof \SineMacula\ApiToolkit\Http\RequestCapabilities) {
+                return $capabilities->onlyTrashed();
+            }
+
+            return $this->get('only_trashed', false) === 'true';
+        });
     }
 
     /**
-     * Register the export macros to the Request facade.
+     * Register the deprecated export macros to the Request facade.
      *
      * @return void
      */
     private function registerExportMacros(): void
     {
-        Request::macro('expectsExport', fn () => config('api-toolkit.exports.enabled') && ($this->expectsCsv() || $this->expectsXml()));
+        Request::macro('expectsExport', function (): bool {
 
-        Request::macro('expectsCsv', fn () => strtolower($this->header(HttpHeader::ACCEPT->getName())) === MediaType::TEXT_CSV->getMimeType()
-            && in_array('csv', config('api-toolkit.exports.supported_formats', []), true));
+            @trigger_error(
+                'Request::expectsExport() is deprecated. Use RequestCapabilities::fromRequest($request)->expectsExport() instead.',
+                E_USER_DEPRECATED,
+            );
 
-        Request::macro('expectsXml', fn () => strtolower($this->header(HttpHeader::ACCEPT->getName())) === MediaType::APPLICATION_XML->getMimeType()
-            && in_array('xml', config('api-toolkit.exports.supported_formats', []), true));
+            $capabilities = $this->attributes->get(\SineMacula\ApiToolkit\Http\RequestCapabilities::class);
 
-        Request::macro('expectsPdf', fn () => strtolower($this->header(HttpHeader::ACCEPT->getName())) === MediaType::APPLICATION_PDF->getMimeType());
+            if ($capabilities instanceof \SineMacula\ApiToolkit\Http\RequestCapabilities) {
+                return $capabilities->expectsExport();
+            }
+
+            return config('api-toolkit.exports.enabled') && ($this->expectsCsv() || $this->expectsXml());
+        });
+
+        Request::macro('expectsCsv', function (): bool {
+
+            @trigger_error(
+                'Request::expectsCsv() is deprecated. Use RequestCapabilities::fromRequest($request)->expectsCsv() instead.',
+                E_USER_DEPRECATED,
+            );
+
+            $capabilities = $this->attributes->get(\SineMacula\ApiToolkit\Http\RequestCapabilities::class);
+
+            if ($capabilities instanceof \SineMacula\ApiToolkit\Http\RequestCapabilities) {
+                return $capabilities->expectsCsv();
+            }
+
+            return strtolower($this->header(HttpHeader::ACCEPT->getName())) === MediaType::TEXT_CSV->getMimeType()
+                && in_array('csv', config('api-toolkit.exports.supported_formats', []), true);
+        });
+
+        Request::macro('expectsXml', function (): bool {
+
+            @trigger_error(
+                'Request::expectsXml() is deprecated. Use RequestCapabilities::fromRequest($request)->expectsXml() instead.',
+                E_USER_DEPRECATED,
+            );
+
+            $capabilities = $this->attributes->get(\SineMacula\ApiToolkit\Http\RequestCapabilities::class);
+
+            if ($capabilities instanceof \SineMacula\ApiToolkit\Http\RequestCapabilities) {
+                return $capabilities->expectsXml();
+            }
+
+            return strtolower($this->header(HttpHeader::ACCEPT->getName())) === MediaType::APPLICATION_XML->getMimeType()
+                && in_array('xml', config('api-toolkit.exports.supported_formats', []), true);
+        });
+
+        Request::macro('expectsPdf', function (): bool {
+
+            @trigger_error(
+                'Request::expectsPdf() is deprecated. Use RequestCapabilities::fromRequest($request)->expectsPdf() instead.',
+                E_USER_DEPRECATED,
+            );
+
+            $capabilities = $this->attributes->get(\SineMacula\ApiToolkit\Http\RequestCapabilities::class);
+
+            if ($capabilities instanceof \SineMacula\ApiToolkit\Http\RequestCapabilities) {
+                return $capabilities->expectsPdf();
+            }
+
+            return strtolower($this->header(HttpHeader::ACCEPT->getName())) === MediaType::APPLICATION_PDF->getMimeType();
+        });
     }
 
     /**
-     * Register the stream macros to the Request facade.
+     * Register the deprecated stream macros to the Request facade.
      *
      * @return void
      */
     private function registerStreamMacros(): void
     {
-        Request::macro('expectsStream', fn () => strtolower($this->header(HttpHeader::ACCEPT->getName())) === MediaType::TEXT_EVENT_STREAM->getMimeType());
+        Request::macro('expectsStream', function (): bool {
+
+            @trigger_error(
+                'Request::expectsStream() is deprecated. Use RequestCapabilities::fromRequest($request)->expectsStream() instead.',
+                E_USER_DEPRECATED,
+            );
+
+            $capabilities = $this->attributes->get(\SineMacula\ApiToolkit\Http\RequestCapabilities::class);
+
+            if ($capabilities instanceof \SineMacula\ApiToolkit\Http\RequestCapabilities) {
+                return $capabilities->expectsStream();
+            }
+
+            return strtolower($this->header(HttpHeader::ACCEPT->getName())) === MediaType::TEXT_EVENT_STREAM->getMimeType();
+        });
     }
 
     /**

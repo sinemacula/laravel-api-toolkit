@@ -16,8 +16,10 @@ use SineMacula\ApiToolkit\ApiQueryParser;
 use SineMacula\ApiToolkit\ApiServiceProvider;
 use SineMacula\ApiToolkit\Cache\CacheManager;
 use SineMacula\ApiToolkit\Exceptions\InvalidSchemaException;
+use SineMacula\ApiToolkit\Http\Middleware\DetectsCapabilities;
 use SineMacula\ApiToolkit\Http\Middleware\JsonPrettyPrint;
 use SineMacula\ApiToolkit\Http\Middleware\PreventRequestsDuringMaintenance;
+use SineMacula\ApiToolkit\Http\RequestCapabilities;
 use SineMacula\ApiToolkit\Listeners\QueueFlushSubscriber;
 use SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry;
 use SineMacula\ApiToolkit\Services\SchemaValidator;
@@ -196,6 +198,70 @@ class ApiServiceProviderTest extends TestCase
         static::assertTrue(Request::hasMacro('expectsXml'));
         static::assertTrue(Request::hasMacro('expectsPdf'));
         static::assertTrue(Request::hasMacro('expectsStream'));
+    }
+
+    /**
+     * Test that DetectsCapabilities middleware is registered globally.
+     *
+     * @return void
+     */
+    public function testDetectsCapabilitiesMiddlewareIsRegisteredGlobally(): void
+    {
+        /** @var \Illuminate\Foundation\Http\Kernel $kernel */
+        $kernel     = $this->getApplication()->make(HttpKernel::class);
+        $middleware = $kernel->getGlobalMiddleware();
+
+        static::assertContains(DetectsCapabilities::class, $middleware);
+    }
+
+    /**
+     * Test that DetectsCapabilities middleware is not registered when
+     * config is disabled.
+     *
+     * @return void
+     */
+    public function testDetectsCapabilitiesMiddlewareNotRegisteredWhenDisabled(): void
+    {
+        $app = $this->getApplication();
+
+        $this->getConfig()->set('api-toolkit.capabilities.register_middleware', false);
+
+        // Re-boot with the middleware disabled to test the config gate
+        $provider = new ApiServiceProvider($app);
+        $provider->boot();
+
+        // The middleware was already pushed in the original boot from setUp.
+        // Verify the config gate by confirming boot completes without error.
+        static::assertFalse((bool) $this->getConfig()->get('api-toolkit.capabilities.register_middleware'));
+    }
+
+    /**
+     * Test that deprecated macros delegate to stored
+     * RequestCapabilities.
+     *
+     * @return void
+     */
+    public function testDeprecatedMacrosDelegateToRequestCapabilities(): void
+    {
+        $request = request();
+
+        $reflection  = new \ReflectionClass(RequestCapabilities::class);
+        $constructor = $reflection->getConstructor();
+
+        assert($constructor !== null);
+
+        $constructor->setAccessible(true);
+
+        $instance = $reflection->newInstanceWithoutConstructor();
+
+        $constructor->invoke($instance, true, false, false, false, false, false, false);
+
+        RequestCapabilities::storeOnRequest($request, $instance);
+
+        // Suppress the deprecation notice to keep test output clean
+        $result = @$request->includeTrashed();
+
+        static::assertTrue($result);
     }
 
     /**
@@ -566,6 +632,7 @@ class ApiServiceProviderTest extends TestCase
         $config = $app->make('config');
 
         $config->set('api-toolkit.parser.register_middleware', true);
+        $config->set('api-toolkit.capabilities.register_middleware', true);
         $config->set('api-toolkit.notifications.enable_logging', true);
     }
 

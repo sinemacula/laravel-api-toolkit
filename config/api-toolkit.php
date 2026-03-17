@@ -123,6 +123,25 @@ return [
 
     /*
     |---------------------------------------------------------------------------
+    | Request Capabilities Configuration
+    |---------------------------------------------------------------------------
+    |
+    | This section controls how request capabilities are registered. When
+    | 'register_middleware' is true, the DetectsCapabilities middleware is
+    | pushed globally, making capabilities available on every request. Set
+    | to false if you want to apply the middleware to specific route groups
+    | only.
+    |
+    */
+
+    'capabilities' => [
+
+        'register_middleware' => env('API_CAPABILITIES_REGISTER_MIDDLEWARE', true),
+
+    ],
+
+    /*
+    |---------------------------------------------------------------------------
     | API Query Parser Configuration
     |---------------------------------------------------------------------------
     |
