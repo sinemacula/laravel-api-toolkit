@@ -19,8 +19,8 @@ abstract class Service implements ServiceInterface
 {
     use Lockable;
 
-    /** @var bool|null Service outcome status */
-    protected ?bool $status = null;
+    /** @var mixed Result data produced by the service */
+    protected mixed $data = null;
 
     /** @var bool Indicate whether to use database transactions for the service */
     protected bool $useTransaction = true;
@@ -42,16 +42,6 @@ abstract class Service implements ServiceInterface
         $this->payload = (!$payload instanceof Collection && !$payload instanceof \stdClass) ? collect($payload) : $payload;
 
         $this->initialize();
-    }
-
-    /**
-     * Get the service status.
-     *
-     * @return bool|null
-     */
-    public function getStatus(): ?bool
-    {
-        return $this->status;
     }
 
     /**
@@ -136,11 +126,16 @@ abstract class Service implements ServiceInterface
     /**
      * Run the service.
      *
-     * @return bool
+     * Returns a `ServiceResult` value object carrying the outcome status,
+     * optional result data, and optional exception context.
      *
-     * @throws \Throwable
+     * When the core lifecycle (`prepare()` or `handle()`) throws, the
+     * exception is passed to the `failed()` hook and captured in the
+     * returned `ServiceResult`. The exception is not rethrown.
+     *
+     * @return \SineMacula\ApiToolkit\Services\ServiceResult
      */
-    public function run(): bool
+    public function run(): ServiceResult
     {
         if ($this->useLock) {
             $this->lock();
@@ -152,13 +147,14 @@ abstract class Service implements ServiceInterface
             $this->prepare();
 
             // Execute the service handler
-            $this->status = $this->useTransaction
+            $status = $this->useTransaction
                 ? DB::transaction(fn () => $this->handle(), 3)
                 : $this->handle();
 
         } catch (\Throwable $exception) {
             $this->failed($exception);
-            throw $exception;
+
+            return ServiceResult::failure($exception, $this->data);
         } finally {
             $this->unlock();
         }
@@ -173,7 +169,9 @@ abstract class Service implements ServiceInterface
         // Call any success callbacks defined on traits used by the service
         $this->callTraitsSuccessCallbacks();
 
-        return $this->status;
+        return $status
+            ? ServiceResult::success($this->data)
+            : ServiceResult::failure(new \RuntimeException('Service handle returned false'), $this->data);
     }
 
     /**

@@ -4,7 +4,9 @@ namespace Tests\Unit\Services;
 
 use Illuminate\Support\Collection;
 use PHPUnit\Framework\Attributes\CoversClass;
+use SineMacula\ApiToolkit\Services\Enums\ServiceStatus;
 use SineMacula\ApiToolkit\Services\Service;
+use SineMacula\ApiToolkit\Services\ServiceResult;
 use Tests\Concerns\InteractsWithNonPublicMembers;
 use Tests\Fixtures\Services\FailingService;
 use Tests\Fixtures\Services\LockableService;
@@ -38,7 +40,8 @@ class ServiceTest extends TestCase
 
         $result = $service->run();
 
-        static::assertTrue($result);
+        static::assertInstanceOf(ServiceResult::class, $result);
+        static::assertTrue($result->succeeded());
     }
 
     /**
@@ -56,52 +59,69 @@ class ServiceTest extends TestCase
     }
 
     /**
-     * Test that run returns true for a successful service.
+     * Test that run returns a successful ServiceResult for a successful
+     * service.
      *
      * @return void
      */
-    public function testRunReturnsTrueForSuccessfulService(): void
+    public function testRunReturnsSuccessfulResultForSuccessfulService(): void
     {
         $service = new SimpleService;
 
         $result = $service->run();
 
-        static::assertTrue($result);
+        static::assertInstanceOf(ServiceResult::class, $result);
+        static::assertSame(ServiceStatus::Succeeded, $result->status);
+        static::assertTrue($result->succeeded());
+        static::assertFalse($result->failed());
     }
 
     /**
-     * Test that getStatus returns null before run and true after success.
+     * Test that run returns a failed ServiceResult when the service throws.
      *
      * @return void
      */
-    public function testGetStatusReturnsNullBeforeRunAndTrueAfterSuccess(): void
-    {
-        $service = new SimpleService;
-
-        static::assertNull($service->getStatus());
-
-        $service->run();
-
-        static::assertTrue($service->getStatus());
-    }
-
-    /**
-     * Test that run calls failed and rethrows the exception on failure.
-     *
-     * @return void
-     */
-    public function testRunCallsFailedAndRethrowsOnException(): void
+    public function testRunReturnsFailedResultOnException(): void
     {
         $service = new FailingService;
 
-        try {
-            $service->run();
-            static::fail('Expected RuntimeException was not thrown.');
-        } catch (\RuntimeException $exception) {
-            static::assertTrue($service->failedCalled);
-            static::assertSame($exception, $service->failedException);
-            static::assertSame('Service execution failed', $exception->getMessage());
-        }
+        $result = $service->run();
+
+        static::assertInstanceOf(ServiceResult::class, $result);
+        static::assertSame(ServiceStatus::Failed, $result->status);
+        static::assertTrue($result->failed());
+        static::assertFalse($result->succeeded());
+    }
+
+    /**
+     * Test that run calls failed and captures the exception on failure.
+     *
+     * @return void
+     */
+    public function testRunCallsFailedAndCapturesExceptionOnFailure(): void
+    {
+        $service = new FailingService;
+
+        $result = $service->run();
+
+        static::assertTrue($service->failedCalled);
+        static::assertNotNull($service->failedException);
+        static::assertSame('Service execution failed', $service->failedException->getMessage());
+        static::assertSame($service->failedException, $result->exception);
+    }
+
+    /**
+     * Test that a successful result has a null exception.
+     *
+     * @return void
+     */
+    public function testSuccessfulResultHasNullException(): void
+    {
+        $service = new SimpleService;
+
+        $result = $service->run();
+
+        static::assertNull($result->exception);
     }
 
     /**
@@ -113,12 +133,14 @@ class ServiceTest extends TestCase
     {
         $service = new SimpleService;
 
-        $result = $service->dontUseTransaction();
+        $returnedService = $service->dontUseTransaction();
 
-        static::assertSame($service, $result);
+        static::assertSame($service, $returnedService);
         static::assertFalse($this->getProperty($service, 'useTransaction'));
 
-        static::assertTrue($service->run());
+        $result = $service->run();
+
+        static::assertTrue($result->succeeded());
     }
 
     /**
@@ -134,9 +156,9 @@ class ServiceTest extends TestCase
 
         static::assertFalse($this->getProperty($service, 'useTransaction'));
 
-        $result = $service->useTransaction();
+        $returnedService = $service->useTransaction();
 
-        static::assertSame($service, $result);
+        static::assertSame($service, $returnedService);
         static::assertTrue($this->getProperty($service, 'useTransaction'));
     }
 
@@ -291,7 +313,7 @@ class ServiceTest extends TestCase
 
         $result = $service->run();
 
-        static::assertTrue($result);
+        static::assertTrue($result->succeeded());
     }
 
     /**
@@ -317,13 +339,12 @@ class ServiceTest extends TestCase
             }
         };
 
-        try {
-            $service->run();
-        } catch (\RuntimeException) {
-            // Base failed() was called and did nothing — no secondary exception
-        }
+        $result = $service->run();
 
-        static::assertFalse($service->getStatus() ?? false);
+        // Base failed() was called and did nothing — no secondary exception
+        static::assertTrue($result->failed());
+        static::assertNotNull($result->exception);
+        static::assertSame('handled', $result->exception->getMessage());
     }
 
     /**
@@ -379,5 +400,175 @@ class ServiceTest extends TestCase
         $service->run();
 
         static::assertTrue($service->traitSuccessRan);
+    }
+
+    /**
+     * Test that run captures result data from the service.
+     *
+     * @return void
+     */
+    public function testRunCapturesResultData(): void
+    {
+        $service = new class extends Service {
+            /**
+             * Handle the service execution.
+             *
+             * @return bool
+             */
+            protected function handle(): bool
+            {
+                $this->data = ['created' => true];
+
+                return true;
+            }
+        };
+
+        $result = $service->run();
+
+        static::assertTrue($result->succeeded());
+        static::assertSame(['created' => true], $result->data);
+    }
+
+    /**
+     * Test that run returns null data when the service produces no output.
+     *
+     * @return void
+     */
+    public function testRunReturnsNullDataWhenServiceProducesNoOutput(): void
+    {
+        $service = new SimpleService;
+
+        $result = $service->run();
+
+        static::assertTrue($result->succeeded());
+        static::assertNull($result->data);
+    }
+
+    /**
+     * Test that a failed result captures data set before the exception.
+     *
+     * @return void
+     */
+    public function testFailedResultCapturesDataSetBeforeException(): void
+    {
+        $service = new class extends Service {
+            /**
+             * Handle the service execution.
+             *
+             * @SuppressWarnings("php:S112")
+             *
+             * @return never
+             *
+             * @throws \RuntimeException
+             */
+            protected function handle(): bool
+            {
+                $this->data = 'partial';
+
+                throw new \RuntimeException('failed after setting data');
+            }
+        };
+
+        $result = $service->run();
+
+        static::assertTrue($result->failed());
+        static::assertSame('partial', $result->data);
+        static::assertNotNull($result->exception);
+        static::assertSame('failed after setting data', $result->exception->getMessage());
+    }
+
+    /**
+     * Test that the failed hook receives the exception on failure.
+     *
+     * @return void
+     */
+    public function testFailedHookReceivesExceptionOnFailure(): void
+    {
+        $service = new FailingService;
+
+        $result = $service->run();
+
+        static::assertTrue($service->failedCalled);
+        static::assertSame($result->exception, $service->failedException);
+    }
+
+    /**
+     * Test that handle returning false produces a failed result.
+     *
+     * @return void
+     */
+    public function testHandleReturningFalseProducesFailedResult(): void
+    {
+        $service = new class extends Service {
+            /**
+             * Handle the service execution.
+             *
+             * @return bool
+             */
+            protected function handle(): bool
+            {
+                return false;
+            }
+        };
+
+        $result = $service->run();
+
+        static::assertTrue($result->failed());
+        static::assertNotNull($result->exception);
+    }
+
+    /**
+     * Test that prepare exception produces a failed result.
+     *
+     * @return void
+     */
+    public function testPrepareExceptionProducesFailedResult(): void
+    {
+        $service = new class extends Service {
+            /** @var bool Track whether failed() was called */
+            public bool $failedCalled = false;
+
+            /**
+             * Prepare the service for execution.
+             *
+             * @SuppressWarnings("php:S112")
+             *
+             * @return void
+             *
+             * @throws \RuntimeException
+             */
+            public function prepare(): void
+            {
+                throw new \RuntimeException('prepare failed');
+            }
+
+            /**
+             * Method is triggered if the handle method failed.
+             *
+             * @param  \Throwable  $exception
+             * @return void
+             */
+            public function failed(\Throwable $exception): void
+            {
+                $this->failedCalled = true;
+            }
+
+            /**
+             * Handle the service execution.
+             *
+             * @return bool
+             */
+            protected function handle(): bool
+            {
+                return true;
+            }
+        };
+
+        $result = $service->run();
+
+        static::assertTrue($result->failed());
+        static::assertTrue($service->failedCalled);
+        static::assertNotNull($result->exception);
+        static::assertSame('prepare failed', $result->exception->getMessage());
     }
 }

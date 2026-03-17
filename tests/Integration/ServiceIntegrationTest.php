@@ -3,7 +3,9 @@
 namespace Tests\Integration;
 
 use PHPUnit\Framework\Attributes\CoversClass;
+use SineMacula\ApiToolkit\Services\Enums\ServiceStatus;
 use SineMacula\ApiToolkit\Services\Service;
+use SineMacula\ApiToolkit\Services\ServiceResult;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Services\FailingService;
 use Tests\Fixtures\Services\LockableService;
@@ -32,8 +34,9 @@ class ServiceIntegrationTest extends TestCase
 
         $result = $service->run();
 
-        static::assertTrue($result);
-        static::assertTrue($service->getStatus());
+        static::assertInstanceOf(ServiceResult::class, $result);
+        static::assertSame(ServiceStatus::Succeeded, $result->status);
+        static::assertTrue($result->succeeded());
         static::assertTrue($service->successCalled);
     }
 
@@ -49,15 +52,14 @@ class ServiceIntegrationTest extends TestCase
 
         $service = new FailingService;
 
-        try {
-            $service->run();
-        } catch (\RuntimeException) {
-            // Expected
-        }
+        $result = $service->run();
 
+        static::assertInstanceOf(ServiceResult::class, $result);
+        static::assertTrue($result->failed());
         static::assertTrue($service->failedCalled);
         static::assertNotNull($service->failedException);
         static::assertSame('Service execution failed', $service->failedException->getMessage());
+        static::assertSame($service->failedException, $result->exception);
 
         // User created before the service should still exist since
         // the failing service creates its own transaction
@@ -75,14 +77,14 @@ class ServiceIntegrationTest extends TestCase
 
         $result = $service->run();
 
-        static::assertTrue($result);
-        static::assertTrue($service->getStatus());
+        static::assertInstanceOf(ServiceResult::class, $result);
+        static::assertTrue($result->succeeded());
 
         // The lock should have been released; a new service with the same key should succeed
         $service2 = new LockableService;
         $result2  = $service2->run();
 
-        static::assertTrue($result2);
+        static::assertTrue($result2->succeeded());
     }
 
     /**
@@ -97,7 +99,7 @@ class ServiceIntegrationTest extends TestCase
 
         $result = $service->run();
 
-        static::assertTrue($result);
+        static::assertTrue($result->succeeded());
         static::assertTrue($service->successCalled);
     }
 
@@ -110,14 +112,11 @@ class ServiceIntegrationTest extends TestCase
     {
         $service = new FailingService;
 
-        $this->expectException(\RuntimeException::class);
+        $result = $service->run();
 
-        try {
-            $service->run();
-        } catch (\RuntimeException $e) {
-            static::assertTrue($service->failedCalled);
-
-            throw $e;
-        }
+        static::assertTrue($service->failedCalled);
+        static::assertTrue($result->failed());
+        static::assertNotNull($result->exception);
+        static::assertSame('Service execution failed', $result->exception->getMessage());
     }
 }

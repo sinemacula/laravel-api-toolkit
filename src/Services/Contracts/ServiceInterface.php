@@ -2,6 +2,8 @@
 
 namespace SineMacula\ApiToolkit\Services\Contracts;
 
+use SineMacula\ApiToolkit\Services\ServiceResult;
+
 /**
  * Service interface.
  *
@@ -13,14 +15,7 @@ interface ServiceInterface
     /**
      * Run the service.
      *
-     * @return bool
+     * @return \SineMacula\ApiToolkit\Services\ServiceResult
      */
-    public function run(): bool;
-
-    /**
-     * Get the service status.
-     *
-     * @return bool|null
-     */
-    public function getStatus(): ?bool;
+    public function run(): ServiceResult;
 }
