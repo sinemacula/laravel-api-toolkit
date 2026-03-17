@@ -269,6 +269,10 @@ class ApiServiceProvider extends ServiceProvider
      */
     private function registerCloudwatchLogger(): void
     {
+        if (!class_exists(\Aws\CloudWatchLogs\CloudWatchLogsClient::class)) {
+            return;
+        }
+
         $this->app->make(LogManager::class)->extend('cloudwatch', fn ($app, array $config) => (new CloudWatchLogger)->__invoke($config));
     }
 

@@ -11,7 +11,8 @@
       "Skill(build:*)",
       "WebFetch(domain:spatie.be)",
       "WebFetch(domain:github.com)",
-      "WebFetch(domain:martinjoo.dev)"
+      "WebFetch(domain:martinjoo.dev)",
+      "WebFetch(domain:bugs.mysql.com)"
     ]
   },
   "outputStyle": "default"
