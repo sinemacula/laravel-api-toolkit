@@ -42,6 +42,17 @@ class MiddlewareConfigCustomThrottleTest extends TestCase
     }
 
     /**
+     * Skip database migrations as these tests do not require a database.
+     *
+     * @return void
+     */
+    #[\Override]
+    protected function defineDatabaseMigrations(): void
+    {
+        // No database needed for middleware registration tests.
+    }
+
+    /**
      * Define the test environment configuration.
      *
      * @param  mixed  $app
