@@ -15,10 +15,12 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\ApiQueryParser;
 use SineMacula\ApiToolkit\ApiServiceProvider;
 use SineMacula\ApiToolkit\Cache\CacheManager;
+use SineMacula\ApiToolkit\Enums\FlushStrategy;
 use SineMacula\ApiToolkit\Exceptions\InvalidSchemaException;
 use SineMacula\ApiToolkit\Http\Middleware\JsonPrettyPrint;
 use SineMacula\ApiToolkit\Http\Middleware\PreventRequestsDuringMaintenance;
 use SineMacula\ApiToolkit\Listeners\QueueFlushSubscriber;
+use SineMacula\ApiToolkit\Repositories\Concerns\WritePool;
 use SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry;
 use SineMacula\ApiToolkit\Services\SchemaValidator;
 use Tests\TestCase;
@@ -546,6 +548,78 @@ class ApiServiceProviderTest extends TestCase
         // Since both subscribers listen to the same events, we verify the
         // disabled branch by confirming boot completes without error.
         static::assertFalse((bool) $this->getConfig()->get('api-toolkit.lifecycle.queue'));
+    }
+
+    /**
+     * Test that the on_failure config key is available with the default
+     * value.
+     *
+     * @return void
+     */
+    public function testOnFailureConfigKeyIsAvailable(): void
+    {
+        $value = $this->getConfig()->get('api-toolkit.deferred_writes.on_failure');
+
+        static::assertNotNull($value);
+        static::assertSame('log', $value);
+    }
+
+    /**
+     * Test that the WritePool receives the LOG strategy by default.
+     *
+     * @return void
+     */
+    public function testWritePoolReceivesLogStrategyByDefault(): void
+    {
+        $pool = $this->getApplication()->make(WritePool::class);
+
+        $reflection = new \ReflectionProperty(WritePool::class, 'strategy');
+        $strategy   = $reflection->getValue($pool);
+
+        static::assertSame(FlushStrategy::LOG, $strategy);
+    }
+
+    /**
+     * Test that the WritePool receives the configured strategy when
+     * on_failure is set to a non-default value.
+     *
+     * @return void
+     */
+    public function testWritePoolReceivesConfiguredStrategy(): void
+    {
+        $app = $this->getApplication();
+
+        $this->getConfig()->set('api-toolkit.deferred_writes.on_failure', 'throw');
+
+        $provider = new ApiServiceProvider($app);
+        $provider->register();
+
+        $pool = $app->make(WritePool::class);
+
+        $reflection = new \ReflectionProperty(WritePool::class, 'strategy');
+        $strategy   = $reflection->getValue($pool);
+
+        static::assertSame(FlushStrategy::THROW, $strategy);
+    }
+
+    /**
+     * Test that an invalid on_failure config value throws a ValueError
+     * when resolving the WritePool.
+     *
+     * @return void
+     */
+    public function testInvalidOnFailureConfigThrowsValueError(): void
+    {
+        $app = $this->getApplication();
+
+        $this->getConfig()->set('api-toolkit.deferred_writes.on_failure', 'invalid');
+
+        $provider = new ApiServiceProvider($app);
+        $provider->register();
+
+        $this->expectException(\ValueError::class);
+
+        $app->make(WritePool::class);
     }
 
     /**

@@ -41,11 +41,11 @@ trait Deferrable
     /**
      * Manually flush all deferred writes to the database.
      *
-     * @return void
+     * @return \SineMacula\ApiToolkit\Repositories\Concerns\WritePoolFlushResult
      */
-    public function flushWrites(): void
+    public function flushWrites(): WritePoolFlushResult
     {
-        $this->writePool->flush();
+        return $this->writePool->flush();
     }
 
     /**

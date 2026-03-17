@@ -206,6 +206,14 @@ return [
     | `pool_limit` sets the maximum number of total buffered records before
     | an automatic flush is triggered, preventing unbounded memory growth.
     |
+    | `on_failure` controls the behavior when a chunk insert fails during flush.
+    | Supported values: 'log' (default), 'throw', 'collect'.
+    |   - 'log': catch, log error, continue, clear buffer (backward compatible)
+    |   - 'throw': throw WritePoolFlushException on first failure, preserve
+    |     failed and unprocessed records in buffer
+    |   - 'collect': catch all failures, continue, preserve only failed records
+    |     in buffer
+    |
     */
 
     'deferred_writes' => [
@@ -213,6 +221,8 @@ return [
         'chunk_size' => (int) env('DEFERRED_WRITES_CHUNK_SIZE', 500),
 
         'pool_limit' => (int) env('DEFERRED_WRITES_POOL_LIMIT', 10000),
+
+        'on_failure' => env('DEFERRED_WRITES_ON_FAILURE', 'log'),
 
     ],
 
