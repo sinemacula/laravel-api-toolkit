@@ -133,6 +133,7 @@ abstract class TestCase extends OrchestraTestCase
      */
     private function createUsersTable(): void
     {
+        Schema::dropIfExists('users');
         Schema::create('users', function (Blueprint $table): void {
             $table->id();
             $table->unsignedBigInteger('organization_id')->nullable();
@@ -151,6 +152,7 @@ abstract class TestCase extends OrchestraTestCase
      */
     private function createOrganizationsTable(): void
     {
+        Schema::dropIfExists('organizations');
         Schema::create('organizations', function (Blueprint $table): void {
             $table->id();
             $table->string('name');
@@ -166,6 +168,7 @@ abstract class TestCase extends OrchestraTestCase
      */
     private function createPostsTable(): void
     {
+        Schema::dropIfExists('posts');
         Schema::create('posts', function (Blueprint $table): void {
             $table->id();
             $table->unsignedBigInteger('user_id');
@@ -183,6 +186,7 @@ abstract class TestCase extends OrchestraTestCase
      */
     private function createProfilesTable(): void
     {
+        Schema::dropIfExists('profiles');
         Schema::create('profiles', function (Blueprint $table): void {
             $table->id();
             $table->unsignedBigInteger('user_id')->unique();
@@ -198,6 +202,7 @@ abstract class TestCase extends OrchestraTestCase
      */
     private function createTagsTable(): void
     {
+        Schema::dropIfExists('tags');
         Schema::create('tags', function (Blueprint $table): void {
             $table->id();
             $table->string('name')->unique();
@@ -212,6 +217,7 @@ abstract class TestCase extends OrchestraTestCase
      */
     private function createPostTagTable(): void
     {
+        Schema::dropIfExists('post_tag');
         Schema::create('post_tag', function (Blueprint $table): void {
             $table->unsignedBigInteger('post_id');
             $table->unsignedBigInteger('tag_id');
@@ -226,6 +232,7 @@ abstract class TestCase extends OrchestraTestCase
      */
     private function createLogsTable(): void
     {
+        Schema::dropIfExists('logs');
         Schema::create('logs', function (Blueprint $table): void {
             $table->uuid('id')->primary();
             $table->string('level');
