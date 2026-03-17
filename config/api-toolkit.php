@@ -271,6 +271,60 @@ return [
 
     /*
     |---------------------------------------------------------------------------
+    | API Middleware Configuration
+    |---------------------------------------------------------------------------
+    |
+    | This section controls the middleware registrations performed by the API
+    | Toolkit service provider. Each middleware registration can be independently
+    | enabled, disabled, or customised. All options default to the current
+    | behavior, so no configuration changes are required for existing consumers.
+    |
+    | `maintenance_mode_swap`: Controls whether the toolkit replaces Laravel's
+    | built-in PreventRequestsDuringMaintenance middleware with the toolkit's
+    | version. When enabled, the toolkit's middleware is prepended to the global
+    | middleware stack, taking precedence over Laravel's default. Disable this
+    | if you manage maintenance mode middleware in your own bootstrap/app.php.
+    |   - `enabled`: true to swap (default), false to skip.
+    |
+    | `json_pretty_print`: Controls the registration of the JsonPrettyPrint
+    | middleware, which allows API consumers to request pretty-printed JSON
+    | responses via a query parameter.
+    |   - `enabled`: true to register (default), false to skip entirely.
+    |   - `scope`: 'global' to push to the global middleware stack (default),
+    |              'api' to append to the 'api' middleware group only.
+    |              Ignored when `enabled` is false.
+    |
+    | `throttle`: Controls the throttle middleware alias override. When enabled,
+    | the toolkit registers its own ThrottleRequests middleware (which provides
+    | API-friendly rate limit responses) as the 'throttle' alias, automatically
+    | selecting the Redis variant when the default cache driver is Redis.
+    |   - `enabled`: true to override the alias (default), false to skip.
+    |   - `class`: A fully-qualified class name to use as the throttle
+    |              middleware instead of the toolkit's default. Set to null
+    |              (default) for automatic detection.
+    |
+    */
+
+    'middleware' => [
+
+        'maintenance_mode_swap' => [
+            'enabled' => true,
+        ],
+
+        'json_pretty_print' => [
+            'enabled' => true,
+            'scope'   => 'global',
+        ],
+
+        'throttle' => [
+            'enabled' => true,
+            'class'   => null,
+        ],
+
+    ],
+
+    /*
+    |---------------------------------------------------------------------------
     | API Maintenance Mode Configuration
     |---------------------------------------------------------------------------
     |

@@ -6,7 +6,6 @@ use Illuminate\Contracts\Config\Repository as ConfigRepository;
 use Illuminate\Contracts\Http\Kernel as HttpKernel;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Foundation\Application;
-use Illuminate\Foundation\Http\Middleware\PreventRequestsDuringMaintenance;
 use Illuminate\Notifications\Events\NotificationSending;
 use Illuminate\Notifications\Events\NotificationSent;
 use Illuminate\Routing\Router;
@@ -19,6 +18,7 @@ use SineMacula\ApiToolkit\Cache\CacheManager;
 use SineMacula\ApiToolkit\Enums\FlushStrategy;
 use SineMacula\ApiToolkit\Exceptions\InvalidSchemaException;
 use SineMacula\ApiToolkit\Http\Middleware\JsonPrettyPrint;
+use SineMacula\ApiToolkit\Http\Middleware\PreventRequestsDuringMaintenance;
 use SineMacula\ApiToolkit\Listeners\QueueFlushSubscriber;
 use SineMacula\ApiToolkit\Repositories\Concerns\WritePool;
 use SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry;
@@ -94,7 +94,7 @@ class ApiServiceProviderTest extends TestCase
     }
 
     /**
-     * Test that JsonPrettyPrint middleware is registered globally.
+     * Test that JsonPrettyPrint middleware is registered globally by default.
      *
      * @return void
      */
@@ -108,24 +108,25 @@ class ApiServiceProviderTest extends TestCase
     }
 
     /**
-     * Test that PreventRequestsDuringMaintenance replaces default middleware.
+     * Test that the toolkit's PreventRequestsDuringMaintenance middleware
+     * is prepended to the global stack when enabled (default).
      *
      * @return void
      */
-    public function testPreventRequestsDuringMaintenanceReplacesDefault(): void
+    public function testMaintenanceModeMiddlewareIsPrependedWhenEnabled(): void
     {
         /** @var \Illuminate\Foundation\Http\Kernel $kernel */
         $kernel     = $this->getApplication()->make(HttpKernel::class);
         $middleware = $kernel->getGlobalMiddleware();
 
-        static::assertNotContains(
-            PreventRequestsDuringMaintenance::class,
-            $middleware,
-        );
+        static::assertContains(PreventRequestsDuringMaintenance::class, $middleware);
+
+        // It should be the first middleware in the stack
+        static::assertSame(PreventRequestsDuringMaintenance::class, $middleware[0]);
     }
 
     /**
-     * Test that throttle middleware alias is set.
+     * Test that throttle middleware alias is set by default.
      *
      * @return void
      */
@@ -134,6 +135,50 @@ class ApiServiceProviderTest extends TestCase
         /** @var \Illuminate\Routing\Router $router */
         $router = $this->getApplication()->make(Router::class);
 
+        $middleware = $router->getMiddleware();
+
+        static::assertArrayHasKey('throttle', $middleware);
+    }
+
+    /**
+     * Test that the middleware config section exists with correct defaults.
+     *
+     * @return void
+     */
+    public function testMiddlewareConfigSectionHasCorrectDefaults(): void
+    {
+        $config = $this->getConfig();
+
+        static::assertTrue($config->get('api-toolkit.middleware.maintenance_mode_swap.enabled'));
+        static::assertTrue($config->get('api-toolkit.middleware.json_pretty_print.enabled'));
+        static::assertSame('global', $config->get('api-toolkit.middleware.json_pretty_print.scope'));
+        static::assertTrue($config->get('api-toolkit.middleware.throttle.enabled'));
+        static::assertNull($config->get('api-toolkit.middleware.throttle.class'));
+    }
+
+    /**
+     * Test backward compatibility: default config produces the same behavior
+     * as the previous version.
+     *
+     * @return void
+     */
+    public function testDefaultConfigProducesBackwardCompatibleBehavior(): void
+    {
+        $app = $this->getApplication();
+
+        /** @var \Illuminate\Foundation\Http\Kernel $kernel */
+        $kernel = $app->make(HttpKernel::class);
+        $global = $kernel->getGlobalMiddleware();
+
+        // Maintenance mode middleware is prepended (first in the stack)
+        static::assertSame(PreventRequestsDuringMaintenance::class, $global[0]);
+
+        // JsonPrettyPrint is in the global stack
+        static::assertContains(JsonPrettyPrint::class, $global);
+
+        // Throttle alias is set
+        /** @var \Illuminate\Routing\Router $router */
+        $router     = $app->make(Router::class);
         $middleware = $router->getMiddleware();
 
         static::assertArrayHasKey('throttle', $middleware);
@@ -237,8 +282,7 @@ class ApiServiceProviderTest extends TestCase
 
     /**
      * Test that registerMorphMap skips resources that lack getResourceType,
-     * exercising the `return []` branch inside the mapWithKeys callback
-     * (line 128 in ApiServiceProvider.php).
+     * exercising the `return []` branch inside the mapWithKeys callback.
      *
      * @return void
      */
@@ -255,7 +299,7 @@ class ApiServiceProviderTest extends TestCase
         $provider->boot();
 
         // stdClass has no getResourceType; boot() must complete without error.
-        // The morph map may contain entries from earlier tests in the suite —
+        // The morph map may contain entries from earlier tests in the suite --
         // we assert only that stdClass did not produce a morph-map key.
         $morph_map = Relation::morphMap();
 
