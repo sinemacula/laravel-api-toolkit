@@ -309,10 +309,7 @@ class DeferrableIntegrationTest extends TestCase
 
         Event::dispatch(new RequestHandled(new Request, new Response));
 
-        Event::assertDispatched(WritePoolFlushFailed::class, function (WritePoolFlushFailed $event): bool {
-
-            return $event->flushResult->failureCount() === 1;
-        });
+        Event::assertDispatched(WritePoolFlushFailed::class, fn (WritePoolFlushFailed $event): bool => $event->flushResult->failureCount() === 1);
     }
 
     /**
