@@ -85,43 +85,7 @@ final class WritePool
             return new WritePoolFlushResult(successCount: 0, failureCount: 0);
         }
 
-        $activeStrategy = $strategy ?? $this->strategy;
-
-        $successCount  = 0;
-        $failureCount  = 0;
-        $failures      = [];
-        $failedRecords = [];
-
-        $tables = array_keys($this->buffer);
-
-        foreach ($tables as $tableIndex => $table) {
-
-            $chunks = array_chunk($this->buffer[$table], $this->chunkSize);
-
-            foreach ($chunks as $chunkIndex => $chunk) {
-
-                try {
-                    DB::table($table)->insert($chunk);
-                    $successCount++;
-                } catch (\Throwable $e) {
-
-                    $failureCount++;
-                    $failures[$table][] = ['records' => $chunk, 'exception' => $e->getMessage()];
-
-                    match ($activeStrategy) {
-                        FlushStrategy::LOG     => $this->logChunkFailure($table, $chunk, $e),
-                        FlushStrategy::THROW   => $this->throwFlushException($table, $chunk, $chunks, $chunkIndex, $tables, $tableIndex, new WritePoolFlushResult($successCount, $failureCount, $failures), $e),
-                        FlushStrategy::COLLECT => $this->collectFailedChunk($table, $chunk, $failedRecords),
-                    };
-                }
-            }
-        }
-
-        $this->buffer = $activeStrategy === FlushStrategy::COLLECT
-            ? $failedRecords
-            : [];
-
-        return new WritePoolFlushResult($successCount, $failureCount, $failures);
+        return $this->executeFlush($strategy ?? $this->strategy);
     }
 
     /**
@@ -162,6 +126,80 @@ final class WritePool
     }
 
     /**
+     * Execute the flush operation with the given strategy.
+     *
+     * @param  \SineMacula\ApiToolkit\Enums\FlushStrategy  $strategy
+     * @return \SineMacula\ApiToolkit\Repositories\Concerns\WritePoolFlushResult
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\WritePoolFlushException
+     */
+    private function executeFlush(FlushStrategy $strategy): WritePoolFlushResult
+    {
+        $successCount  = 0;
+        $failureCount  = 0;
+        $failures      = [];
+        $failedRecords = [];
+
+        $tables = array_keys($this->buffer);
+
+        foreach ($tables as $tableIndex => $table) {
+
+            $chunks = array_chunk($this->buffer[$table], $this->chunkSize);
+
+            foreach ($chunks as $chunkIndex => $chunk) {
+
+                try {
+                    DB::table($table)->insert($chunk);
+                    $successCount++;
+                } catch (\Throwable $e) {
+
+                    $failureCount++;
+                    $failures[$table][] = ['records' => $chunk, 'exception' => $e->getMessage()];
+
+                    if ($strategy === FlushStrategy::THROW) {
+                        $this->retainUnprocessedRecords($table, $chunk, $chunks, $chunkIndex, $tables, $tableIndex);
+
+                        throw new WritePoolFlushException(new WritePoolFlushResult($successCount, $failureCount, $failures), $e);
+                    }
+
+                    $this->handleNonThrowFailure($strategy, $table, $chunk, $e, $failedRecords);
+                }
+            }
+        }
+
+        $this->buffer = $strategy === FlushStrategy::COLLECT
+            ? $failedRecords
+            : [];
+
+        return new WritePoolFlushResult($successCount, $failureCount, $failures);
+    }
+
+    /**
+     * Handle a non-throw chunk failure by logging or collecting.
+     *
+     * @param  \SineMacula\ApiToolkit\Enums\FlushStrategy  $strategy
+     * @param  string  $table
+     * @param  list<array<string, mixed>>  $chunk
+     * @param  \Throwable  $exception
+     * @param  array<string, list<array<string, mixed>>>  &$failedRecords
+     * @return void
+     */
+    private function handleNonThrowFailure(
+        FlushStrategy $strategy,
+        string $table,
+        array $chunk,
+        \Throwable $exception,
+        array &$failedRecords,
+    ): void {
+
+        if ($strategy === FlushStrategy::LOG) {
+            $this->logChunkFailure($table, $chunk, $exception);
+        } else {
+            $this->collectFailedChunk($table, $chunk, $failedRecords);
+        }
+    }
+
+    /**
      * Log a chunk insertion failure.
      *
      * @param  string  $table
@@ -176,37 +214,6 @@ final class WritePool
             'chunk_size' => count($chunk),
             'error'      => $exception->getMessage(),
         ]);
-    }
-
-    /**
-     * Retain unprocessed records in the buffer and throw a flush exception.
-     *
-     * @param  string  $table
-     * @param  list<array<string, mixed>>  $chunk
-     * @param  list<list<array<string, mixed>>>  $chunks
-     * @param  int  $chunkIndex
-     * @param  list<string>  $tables
-     * @param  int  $tableIndex
-     * @param  \SineMacula\ApiToolkit\Repositories\Concerns\WritePoolFlushResult  $partialResult
-     * @param  \Throwable  $exception
-     * @return never
-     *
-     * @throws \SineMacula\ApiToolkit\Exceptions\WritePoolFlushException
-     */
-    private function throwFlushException(
-        string $table,
-        array $chunk,
-        array $chunks,
-        int $chunkIndex,
-        array $tables,
-        int $tableIndex,
-        WritePoolFlushResult $partialResult,
-        \Throwable $exception,
-    ): never {
-
-        $this->retainUnprocessedRecords($table, $chunk, $chunks, $chunkIndex, $tables, $tableIndex);
-
-        throw new WritePoolFlushException($partialResult, $exception);
     }
 
     /**

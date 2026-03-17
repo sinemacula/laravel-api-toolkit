@@ -14,7 +14,6 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Events\WritePoolFlushFailed;
 use SineMacula\ApiToolkit\Listeners\WritePoolFlushSubscriber;
 use SineMacula\ApiToolkit\Repositories\Concerns\WritePool;
-use SineMacula\ApiToolkit\Repositories\Concerns\WritePoolFlushResult;
 use Tests\TestCase;
 
 /**
@@ -130,15 +129,12 @@ class WritePoolFlushSubscriberTest extends TestCase
         Log::shouldReceive('error')->once();
         Log::shouldReceive('warning')
             ->once()
-            ->with(\Mockery::on(function (string $message): bool {
-
-                return str_contains($message, '1 chunk(s) failed out of 1 total.');
-            }), \Mockery::on(function (array $context): bool {
-
-                return $context['failure_count'] === 1
-                    && $context['total_count'] === 1
-                    && $context['tables'] === ['nonexistent_table'];
-            }));
+            ->with(
+                \Mockery::on(fn (string $message): bool => str_contains($message, '1 chunk(s) failed out of 1 total.')),
+                \Mockery::on(fn (array $context): bool => $context['failure_count'] === 1
+                    && $context['total_count']                                      === 1
+                    && $context['tables']                                           === ['nonexistent_table']),
+            );
 
         Event::fake([WritePoolFlushFailed::class]);
 
@@ -172,10 +168,7 @@ class WritePoolFlushSubscriberTest extends TestCase
 
         $subscriber->handleFlush();
 
-        Event::assertDispatched(WritePoolFlushFailed::class, function (WritePoolFlushFailed $event): bool {
-
-            return $event->flushResult->failureCount() === 1;
-        });
+        Event::assertDispatched(WritePoolFlushFailed::class, fn (WritePoolFlushFailed $event): bool => $event->flushResult->failureCount() === 1);
     }
 
     /**
