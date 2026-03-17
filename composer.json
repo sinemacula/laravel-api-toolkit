@@ -18,23 +18,27 @@
     ],
     "require": {
         "php": "^8.3",
-        "aws/aws-sdk-php": "^3.342",
         "illuminate/database": "*",
         "illuminate/http": "*",
         "illuminate/notifications": "*",
         "illuminate/routing": "*",
         "illuminate/support": "^12.9",
         "illuminate/validation": "*",
-        "phpnexus/cwh": "^3.0",
         "sinemacula/http-primitives-php": "^2.0",
         "sinemacula/laravel-repositories": "^2.0",
         "sinemacula/laravel-resource-exporter": "^2.0"
     },
+    "suggest": {
+        "aws/aws-sdk-php": "Required for CloudWatch logging (^3.342)",
+        "phpnexus/cwh": "Required for CloudWatch logging (^3.0)"
+    },
     "require-dev": {
+        "aws/aws-sdk-php": "^3.342",
         "brianium/paratest": "^7.8",
         "friendsofphp/php-cs-fixer": "^3.85",
         "mockery/mockery": "^1.6",
         "orchestra/testbench": "^9.0 || ^10.0",
+        "phpnexus/cwh": "^3.0",
         "phpstan/extension-installer": "^1.4",
         "phpstan/phpdoc-parser": "^2.2",
         "phpstan/phpstan": "^2.1",
