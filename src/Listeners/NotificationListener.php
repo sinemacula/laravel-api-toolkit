@@ -24,7 +24,7 @@ class NotificationListener
      */
     public function sending(NotificationSending $event): void
     {
-        $this->log('Notification Sending', $event->notification, $event->notifiable, $event->channel);
+        $this->log('debug', 'Notification Sending', $event->notification, $event->notifiable, $event->channel);
     }
 
     /**
@@ -35,31 +35,38 @@ class NotificationListener
      */
     public function sent(NotificationSent $event): void
     {
-        $this->log('Notification Sent', $event->notification, $event->notifiable, $event->channel);
+        $this->log('info', 'Notification Sent', $event->notification, $event->notifiable, $event->channel);
     }
 
     /**
      * Log the notification event.
      *
+     * @param  string  $level
      * @param  string  $message
      * @param  \Illuminate\Notifications\Notification  $notification
-     * @param  mixed  $notifiable
+     * @param  object  $notifiable
      * @param  string  $channel
      * @return void
      */
-    private function log(string $message, Notification $notification, mixed $notifiable, string $channel): void
+    private function log(string $level, string $message, Notification $notification, object $notifiable, string $channel): void
     {
+        $excludedClasses = config('api-toolkit.notifications.excluded_classes', []);
+
+        if (in_array($notification::class, $excludedClasses, true)) {
+            return;
+        }
+
         $payload = array_filter([
             'notification'    => $notification::class,
-            'notifiable_type' => is_object($notifiable) ? $notifiable::class : null,
+            'notifiable_type' => $notifiable::class,
             'notifiable_id'   => $notifiable instanceof Model ? $notifiable->getKey() : null,
             'channel'         => $channel,
-        ], static fn ($value): bool => (bool) $value);
+        ], static fn (mixed $value): bool => $value !== null);
 
-        Log::channel('notifications')->info($message, $payload);
+        Log::channel('notifications')->log($level, $message, $payload);
 
         if (config('api-toolkit.logging.cloudwatch.enabled', false)) {
-            Log::channel('cloudwatch-notifications')->info($message, $payload);
+            Log::channel('cloudwatch-notifications')->log($level, $message, $payload);
         }
     }
 }
