@@ -2,6 +2,11 @@
 
 namespace SineMacula\ApiToolkit\Services\Validation\Rules;
 
+use Illuminate\Database\Eloquent\Relations\Relation;
+use ReflectionMethod;
+use ReflectionNamedType;
+use ReflectionType;
+use ReflectionUnionType;
 use SineMacula\ApiToolkit\Contracts\SchemaValidationRule;
 use SineMacula\ApiToolkit\Http\Resources\Schema\CompiledSchema;
 use SineMacula\ApiToolkit\Services\Validation\SchemaValidationError;
@@ -39,26 +44,108 @@ final class ValidateRelationMethods implements SchemaValidationRule
                 continue;
             }
 
-            if (!method_exists($modelClass, $field->relation)) {
-                $errors[] = new SchemaValidationError(
-                    resourceClass: $resourceClass,
-                    fieldKey: $key,
-                    defect: sprintf('Relation method "%s" does not exist on model "%s"', $field->relation, $modelClass),
-                );
+            $error = $this->validateRelationMethod($resourceClass, $key, $modelClass, $field->relation);
+
+            if ($error !== null) {
+                $errors[] = $error;
             }
         }
 
         foreach ($schema->getCountDefinitions() as $count) {
 
-            if (!method_exists($modelClass, $count->relation)) {
-                $errors[] = new SchemaValidationError(
-                    resourceClass: $resourceClass,
-                    fieldKey: $count->presentKey,
-                    defect: sprintf('Relation method "%s" does not exist on model "%s"', $count->relation, $modelClass),
-                );
+            $error = $this->validateRelationMethod($resourceClass, $count->presentKey, $modelClass, $count->relation);
+
+            if ($error !== null) {
+                $errors[] = $error;
             }
         }
 
         return $errors;
+    }
+
+    /**
+     * Validate that a relation method exists and has a return type hinting
+     * to a Relation subclass.
+     *
+     * @param  string  $resourceClass
+     * @param  string  $fieldKey
+     * @param  string  $modelClass
+     * @param  string  $relationMethod
+     * @return \SineMacula\ApiToolkit\Services\Validation\SchemaValidationError|null
+     */
+    private function validateRelationMethod(string $resourceClass, string $fieldKey, string $modelClass, string $relationMethod): ?SchemaValidationError
+    {
+        if (!method_exists($modelClass, $relationMethod)) {
+            return new SchemaValidationError(
+                resourceClass: $resourceClass,
+                fieldKey: $fieldKey,
+                defect: sprintf('Relation method "%s" does not exist on model "%s"', $relationMethod, $modelClass),
+            );
+        }
+
+        $returnType = (new ReflectionMethod($modelClass, $relationMethod))->getReturnType();
+
+        if ($this->isRelationReturnType($returnType)) {
+            return null;
+        }
+
+        return new SchemaValidationError(
+            resourceClass: $resourceClass,
+            fieldKey: $fieldKey,
+            defect: $this->describeReturnTypeDefect($returnType, $relationMethod, $modelClass),
+        );
+    }
+
+    /**
+     * Determine whether the given reflection type is a Relation subclass.
+     *
+     * @param  \ReflectionType|null  $returnType
+     * @return bool
+     */
+    private function isRelationReturnType(?ReflectionType $returnType): bool
+    {
+        if ($returnType instanceof ReflectionNamedType) {
+            return is_subclass_of($returnType->getName(), Relation::class);
+        }
+
+        if ($returnType instanceof ReflectionUnionType) {
+            foreach ($returnType->getTypes() as $member) {
+                if ($member instanceof ReflectionNamedType && is_subclass_of($member->getName(), Relation::class)) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Build a human-readable defect message for a non-Relation return type.
+     *
+     * @param  \ReflectionType|null  $returnType
+     * @param  string  $relationMethod
+     * @param  string  $modelClass
+     * @return string
+     */
+    private function describeReturnTypeDefect(?ReflectionType $returnType, string $relationMethod, string $modelClass): string
+    {
+        if ($returnType === null) {
+            return sprintf('Relation method "%s" on model "%s" has no return type hint', $relationMethod, $modelClass);
+        }
+
+        if ($returnType instanceof ReflectionUnionType) {
+            return sprintf(
+                'Relation method "%s" on model "%s" has a union return type with no Relation subclass member',
+                $relationMethod,
+                $modelClass,
+            );
+        }
+
+        return sprintf(
+            'Relation method "%s" on model "%s" has return type "%s" which is not a Relation subclass',
+            $relationMethod,
+            $modelClass,
+            (string) $returnType,
+        );
     }
 }

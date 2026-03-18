@@ -4,6 +4,7 @@ namespace Tests\Unit\Services;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Log;
@@ -203,98 +204,177 @@ class SchemaIntrospectorTest extends TestCase
     }
 
     /**
-     * Test that isRelation catches ReflectionException and returns
-     * false.
+     * Test that isRelation returns true for a BelongsTo relation.
      *
      * @return void
      */
-    public function testIsRelationCatchesReflectionExceptionAndReturnsFalse(): void
+    public function testIsRelationReturnsTrueForBelongsToRelation(): void
     {
-        $model = new class extends Model {
-            /** @var string|null */
-            protected $table = 'users';
-
-            /**
-             * A method that throws a ReflectionException when invoked.
-             *
-             * @return never
-             */
-            public function brokenRelation(): never
-            {
-                throw new \ReflectionException('Test reflection failure');
-            }
-        };
-
-        Log::shouldReceive('error')
-            ->once()
-            ->withArgs(fn (string $message) => str_contains($message, 'brokenRelation') && str_contains($message, 'Test reflection failure'));
-
         $introspector = new SchemaIntrospector;
+        $model        = new User;
 
-        static::assertFalse($introspector->isRelation('brokenRelation', $model));
+        static::assertTrue($introspector->isRelation('organization', $model));
     }
 
     /**
-     * Test that isRelation catches LogicException and returns false.
+     * Test that isRelation returns true for a HasOne relation.
      *
      * @return void
      */
-    public function testIsRelationCatchesLogicExceptionAndReturnsFalse(): void
+    public function testIsRelationReturnsTrueForHasOneRelation(): void
     {
-        $model = new class extends Model {
-            /** @var string|null */
-            protected $table = 'users';
-
-            /**
-             * A method that throws a LogicException when invoked.
-             *
-             * @return never
-             */
-            public function brokenRelation(): never
-            {
-                throw new \LogicException('Test logic failure');
-            }
-        };
-
-        Log::shouldReceive('error')
-            ->once()
-            ->withArgs(fn (string $message) => str_contains($message, 'brokenRelation') && str_contains($message, 'Test logic failure'));
-
         $introspector = new SchemaIntrospector;
+        $model        = new User;
 
-        static::assertFalse($introspector->isRelation('brokenRelation', $model));
+        static::assertTrue($introspector->isRelation('profile', $model));
     }
 
     /**
-     * Test that isRelation does not catch generic exceptions.
-     *
-     * @SuppressWarnings("php:S112")
+     * Test that isRelation returns false for a method with a non-relation
+     * return type.
      *
      * @return void
      */
-    public function testIsRelationDoesNotCatchGenericExceptions(): void
+    public function testIsRelationReturnsFalseForNonRelationReturnType(): void
     {
         $model = new class extends Model {
             /** @var string|null */
             protected $table = 'users';
 
             /**
-             * A method that throws a RuntimeException when invoked.
+             * A method that returns a string, not a relation.
              *
-             * @return never
+             * @return string
              */
-            public function brokenRelation(): never
+            public function tags(): string
             {
-                throw new \RuntimeException('Unexpected failure');
+                return '';
             }
         };
 
         $introspector = new SchemaIntrospector;
 
-        $this->expectException(\RuntimeException::class);
-        $this->expectExceptionMessage('Unexpected failure');
+        static::assertFalse($introspector->isRelation('tags', $model));
+    }
 
-        $introspector->isRelation('brokenRelation', $model);
+    /**
+     * Test that isRelation returns false for a method without a return
+     * type declaration.
+     *
+     * @return void
+     */
+    public function testIsRelationReturnsFalseForMethodWithoutReturnType(): void
+    {
+        $model = new class extends Model {
+            /** @var string|null */
+            protected $table = 'users';
+
+            /**
+             * A method with no return type declaration.
+             *
+             * @return null
+             */
+            public function tags()
+            {
+                return null;
+            }
+        };
+
+        $introspector = new SchemaIntrospector;
+
+        static::assertFalse($introspector->isRelation('tags', $model));
+    }
+
+    /**
+     * Test that isRelation returns true for a union return type that
+     * contains a Relation subclass.
+     *
+     * @return void
+     */
+    public function testIsRelationReturnsTrueForUnionReturnTypeContainingRelation(): void
+    {
+        $model = new class extends Model {
+            /** @var string|null */
+            protected $table = 'users';
+
+            /**
+             * A method with a union return type containing relation types.
+             *
+             * @return \Illuminate\Database\Eloquent\Relations\HasMany|\Illuminate\Database\Eloquent\Relations\MorphMany
+             */
+            public function tags(): HasMany|MorphMany
+            {
+                return $this->hasMany(Post::class);
+            }
+        };
+
+        $introspector = new SchemaIntrospector;
+
+        static::assertTrue($introspector->isRelation('tags', $model));
+    }
+
+    /**
+     * Test that isRelation returns false for a union return type with no
+     * Relation subclass.
+     *
+     * @return void
+     */
+    public function testIsRelationReturnsFalseForUnionReturnTypeWithNoRelation(): void
+    {
+        $model = new class extends Model {
+            /** @var string|null */
+            protected $table = 'users';
+
+            /**
+             * A method with a union return type containing no relation types.
+             *
+             * @return string|int
+             */
+            public function tags(): string|int
+            {
+                return '';
+            }
+        };
+
+        $introspector = new SchemaIntrospector;
+
+        static::assertFalse($introspector->isRelation('tags', $model));
+    }
+
+    /**
+     * Test that isRelation returns true for a dynamically registered
+     * relation.
+     *
+     * @return void
+     */
+    public function testIsRelationReturnsTrueForDynamicRelation(): void
+    {
+        $property = new \ReflectionProperty(Model::class, 'relationResolvers');
+        $original = $property->getValue();
+
+        try {
+            User::resolveRelationUsing('dynamicPosts', fn (User $model) => $model->hasMany(Post::class));
+
+            $introspector = new SchemaIntrospector;
+
+            static::assertTrue($introspector->isRelation('dynamicPosts', new User));
+        } finally {
+            $property->setValue($original);
+        }
+    }
+
+    /**
+     * Test that isRelation returns false for an Eloquent attribute
+     * accessor.
+     *
+     * @return void
+     */
+    public function testIsRelationReturnsFalseForAttributeAccessor(): void
+    {
+        $introspector = new SchemaIntrospector;
+        $model        = new User;
+
+        static::assertFalse($introspector->isRelation('fullLabel', $model));
     }
 
     /**
@@ -453,5 +533,124 @@ class SchemaIntrospectorTest extends TestCase
 
         static::assertSame([], $this->getProperty($introspector, 'columns'));
         static::assertSame([], $this->getProperty($introspector, 'searchable'));
+    }
+
+    /**
+     * Test that resolveRelation returns null and logs a warning when the
+     * relation method throws a LogicException.
+     *
+     * @return void
+     */
+    public function testResolveRelationReturnsNullAndLogsWarningOnLogicException(): void
+    {
+        $model = new class extends Model {
+            /** @var string|null */
+            protected $table = 'users';
+
+            /**
+             * A relation method that throws a LogicException.
+             *
+             * @return \Illuminate\Database\Eloquent\Relations\HasMany<\Tests\Fixtures\Models\Post, $this>
+             */
+            public function broken(): HasMany
+            {
+                throw new \LogicException('Test logic failure');
+            }
+        };
+
+        Log::shouldReceive('warning')
+            ->once()
+            ->withArgs(fn (string $message) => str_contains($message, 'broken') && str_contains($message, 'Test logic failure'));
+
+        $introspector = new SchemaIntrospector;
+
+        static::assertNull($introspector->resolveRelation('broken', $model));
+    }
+
+    /**
+     * Test that resolveRelation returns null and logs a warning when the
+     * relation method throws a ReflectionException.
+     *
+     * @return void
+     */
+    public function testResolveRelationReturnsNullAndLogsWarningOnReflectionException(): void
+    {
+        $model = new class extends Model {
+            /** @var string|null */
+            protected $table = 'users';
+
+            /**
+             * A relation method that throws a ReflectionException.
+             *
+             * @return \Illuminate\Database\Eloquent\Relations\HasMany<\Tests\Fixtures\Models\Post, $this>
+             */
+            public function broken(): HasMany
+            {
+                throw new \ReflectionException('Test reflection failure');
+            }
+        };
+
+        Log::shouldReceive('warning')
+            ->once()
+            ->withArgs(fn (string $message) => str_contains($message, 'broken') && str_contains($message, 'Test reflection failure'));
+
+        $introspector = new SchemaIntrospector;
+
+        static::assertNull($introspector->resolveRelation('broken', $model));
+    }
+
+    /**
+     * Test that resolveRelation does not catch generic exceptions and
+     * allows them to propagate.
+     *
+     * @return void
+     */
+    public function testResolveRelationDoesNotCatchGenericExceptions(): void
+    {
+        $model = new class extends Model {
+            /** @var string|null */
+            protected $table = 'users';
+
+            /**
+             * A relation method that throws a RuntimeException.
+             *
+             * @return \Illuminate\Database\Eloquent\Relations\HasMany<\Tests\Fixtures\Models\Post, $this>
+             */
+            public function broken(): HasMany
+            {
+                throw new \RuntimeException('Unexpected failure');
+            }
+        };
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('Unexpected failure');
+
+        $introspector = new SchemaIntrospector;
+
+        $introspector->resolveRelation('broken', $model);
+    }
+
+    /**
+     * Test that resolveRelation returns a Relation instance for a
+     * dynamically registered relation.
+     *
+     * @return void
+     */
+    public function testResolveRelationReturnsDynamicRelationInstance(): void
+    {
+        $property = new \ReflectionProperty(Model::class, 'relationResolvers');
+        $original = $property->getValue();
+
+        try {
+            User::resolveRelationUsing('dynamicPosts', fn (User $model) => $model->hasMany(Post::class));
+
+            $introspector = new SchemaIntrospector;
+
+            $relation = $introspector->resolveRelation('dynamicPosts', new User);
+
+            static::assertInstanceOf(HasMany::class, $relation);
+        } finally {
+            $property->setValue($original);
+        }
     }
 }
