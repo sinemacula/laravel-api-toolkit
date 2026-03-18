@@ -8,6 +8,9 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
+use ReflectionMethod;
+use ReflectionNamedType;
+use ReflectionUnionType;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Enums\CacheKeys;
 
@@ -127,17 +130,11 @@ class SchemaIntrospector implements SchemaIntrospectionProvider
             $model::class,
             $key,
         ]), function () use ($key, $model) {
-            if (!method_exists($model, $key) || !is_callable([$model, $key])) {
-                return false;
+            if (method_exists($model, $key)) {
+                return $this->hasRelationReturnType(new ReflectionMethod($model, $key));
             }
 
-            try {
-                return $model->{$key}() instanceof Relation; // @phpstan-ignore method.dynamicName
-            } catch (\LogicException|\ReflectionException $e) {
-                Log::error("Failed to detect relation '{$key}' on " . $model::class . ": {$e->getMessage()}");
-
-                return false;
-            }
+            return $model->relationResolver($model::class, $key) !== null;
         });
     }
 
@@ -156,7 +153,17 @@ class SchemaIntrospector implements SchemaIntrospectionProvider
             return null;
         }
 
-        return $model->{$key}(); // @phpstan-ignore method.dynamicName
+        try {
+
+            return method_exists($model, $key)
+                ? $model->{$key}() // @phpstan-ignore method.dynamicName
+                : $model->relationResolver($model::class, $key)($model); // @phpstan-ignore callable.nonCallable
+        } catch (\LogicException|\ReflectionException $e) {
+
+            Log::warning("Failed to resolve relation '{$key}' on " . $model::class . ": {$e->getMessage()}");
+
+            return null;
+        }
     }
 
     /**
@@ -169,5 +176,31 @@ class SchemaIntrospector implements SchemaIntrospectionProvider
     {
         $this->columns    = [];
         $this->searchable = [];
+    }
+
+    /**
+     * Determine whether the given reflection method has a return type that
+     * is a subclass of Relation.
+     *
+     * @param  \ReflectionMethod  $method
+     * @return bool
+     */
+    private function hasRelationReturnType(ReflectionMethod $method): bool
+    {
+        $returnType = $method->getReturnType();
+
+        if ($returnType instanceof ReflectionNamedType) {
+            return is_subclass_of($returnType->getName(), Relation::class);
+        }
+
+        if ($returnType instanceof ReflectionUnionType) {
+            foreach ($returnType->getTypes() as $member) {
+                if ($member instanceof ReflectionNamedType && is_subclass_of($member->getName(), Relation::class)) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 }
