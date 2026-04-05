@@ -38,7 +38,8 @@ exclude_patterns = [
     "**/target/**",
     "**/templates/**",
     "**/testdata/**",
-    "**/vendor/**"
+    "**/vendor/**",
+    ".qlty/configs/**"
 ]
 
 test_patterns = [
@@ -63,6 +64,11 @@ mode = "comment"
 name = "default"
 default = true
 
+[[source]]
+name = "sinemacula"
+repository = "https://github.com/sinemacula/coding-standards"
+tag = "v1.0.0"
+
 [[plugin]]
 name = "actionlint"
 
@@ -81,10 +87,12 @@ name = "php-codesniffer"
 version = "3.13.5"
 mode = "comment"
 package_file = "composer.json"
-package_filters = ["slevomat", "dealerdirect"]
+package_filters = ["slevomat", "dealerdirect", "sinemacula"]
 
 [[plugin]]
 name = "php-cs-fixer"
+package_file = "composer.json"
+package_filters = ["sinemacula"]
 
 [[plugin]]
 name = "radarlint-php"
