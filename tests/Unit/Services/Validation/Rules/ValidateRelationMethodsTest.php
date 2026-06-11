@@ -278,14 +278,18 @@ class ValidateRelationMethodsTest extends TestCase
     public function testReportsFieldRelationMethodWithoutReturnTypeHint(): void
     {
         $model = new class extends Model {
-            /** @return mixed */
-            public function items()
+            // phpcs:disable Squiz.Commenting.FunctionComment.MissingReturn
+            /**
+             * A relation method with no return type declaration.
+             */
+            public function items() // @phpstan-ignore missingType.return
             {
-                return null;
+                return $this;
             }
+            // phpcs:enable Squiz.Commenting.FunctionComment.MissingReturn
         };
 
-        $modelClass = get_class($model);
+        $modelClass = $model::class;
 
         $schema = new CompiledSchema(
             fields: [
@@ -327,7 +331,7 @@ class ValidateRelationMethodsTest extends TestCase
                 return '';
             }
         };
-        $modelClass = get_class($model);
+        $modelClass = $model::class;
 
         $schema = new CompiledSchema(
             fields: [
@@ -362,16 +366,17 @@ class ValidateRelationMethodsTest extends TestCase
     public function testPassesFieldRelationMethodWithUnionTypeContainingRelation(): void
     {
         $model = new class extends Model {
+            // phpcs:disable Generic.Files.LineLength.TooLong
             /**
-             * @return \Illuminate\Database\Eloquent\Relations\HasMany|\Illuminate\Database\Eloquent\Relations\MorphMany
+             * @return \Illuminate\Database\Eloquent\Relations\HasMany<\Tests\Fixtures\Models\User, $this>|\Illuminate\Database\Eloquent\Relations\MorphMany<\Illuminate\Database\Eloquent\Model, $this>
              */
-            // @phpstan-ignore-next-line return.unusedType, missingType.generics (the union return type is the validation subject under test)
-            public function items(): HasMany|MorphMany
+            public function items(): HasMany|MorphMany // @phpstan-ignore return.unusedType
             {
-                return $this->hasMany(self::class);
+                return $this->hasMany(User::class);
             }
+            // phpcs:enable Generic.Files.LineLength.TooLong
         };
-        $modelClass = get_class($model);
+        $modelClass = $model::class;
 
         $schema = new CompiledSchema(
             fields: [
@@ -406,15 +411,14 @@ class ValidateRelationMethodsTest extends TestCase
     {
         $model = new class extends Model {
             /**
-             * @return string|int
+             * @return int|string
              */
-            // @phpstan-ignore-next-line return.unusedType (the non-relation union return type is the validation subject under test)
-            public function items(): string|int
+            public function items(): int|string // @phpstan-ignore return.unusedType (the non-relation union return type is the validation subject under test)
             {
                 return '';
             }
         };
-        $modelClass = get_class($model);
+        $modelClass = $model::class;
 
         $schema = new CompiledSchema(
             fields: [
@@ -448,14 +452,18 @@ class ValidateRelationMethodsTest extends TestCase
     public function testReportsCountDefinitionRelationMethodWithoutReturnTypeHint(): void
     {
         $model = new class extends Model {
-            /** @return mixed */
-            public function items()
+            // phpcs:disable Squiz.Commenting.FunctionComment.MissingReturn
+            /**
+             * A relation method with no return type declaration.
+             */
+            public function items() // @phpstan-ignore missingType.return
             {
-                return null;
+                return $this;
             }
+            // phpcs:enable Squiz.Commenting.FunctionComment.MissingReturn
         };
 
-        $modelClass = get_class($model);
+        $modelClass = $model::class;
 
         $schema = new CompiledSchema(
             fields: [],
@@ -496,7 +504,7 @@ class ValidateRelationMethodsTest extends TestCase
             }
         };
 
-        $modelClass = get_class($model);
+        $modelClass = $model::class;
 
         $schema = new CompiledSchema(
             fields: [],

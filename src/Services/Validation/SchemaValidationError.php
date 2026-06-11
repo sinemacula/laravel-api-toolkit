@@ -35,6 +35,7 @@ final readonly class SchemaValidationError
      *
      * @return string
      */
+    #[\Override]
     public function __toString(): string
     {
         return sprintf('[%s] Field "%s": %s', $this->resourceClass, $this->fieldKey, $this->defect);

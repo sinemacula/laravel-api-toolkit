@@ -26,6 +26,7 @@ class LockConcern implements ServiceConcern
      * @param  \Closure(): bool  $next
      * @return bool
      */
+    #[\Override]
     public function execute(Service $service, \Closure $next): bool
     {
         if (!in_array(Lockable::class, class_uses_recursive($service), true)) {

@@ -31,6 +31,7 @@ class ApiQuery extends Facade
      *
      * @return string
      */
+    #[\Override]
     protected static function getFacadeAccessor(): string
     {
         $alias = Config::get('api-toolkit.parser.alias');

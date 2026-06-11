@@ -4,6 +4,7 @@ namespace SineMacula\ApiToolkit\Http\Resources\Schema;
 
 use Carbon\CarbonInterface;
 use Illuminate\Contracts\Support\Arrayable;
+use SineMacula\ApiToolkit\Exceptions\DuplicateSchemaKeyException;
 
 /**
  * Field schema helpers for scalar and accessor fields.
@@ -132,6 +133,7 @@ final class Field extends BaseDefinition
      *
      * @return array<string, array<string, mixed>>
      */
+    #[\Override]
     public function toArray(): array
     {
         $key = $this->alias ?? $this->name;
@@ -153,7 +155,7 @@ final class Field extends BaseDefinition
      * @param  array<string, array<string, mixed>>|\Illuminate\Contracts\Support\Arrayable<string, array<string, mixed>>  ...$definitions
      * @return array<string, array<string, mixed>>
      *
-     * @throws \RuntimeException
+     * @throws \SineMacula\ApiToolkit\Exceptions\DuplicateSchemaKeyException
      */
     public static function set(array|Arrayable ...$definitions): array
     {
@@ -166,7 +168,7 @@ final class Field extends BaseDefinition
             foreach ($definition as $key => $value) {
 
                 if (array_key_exists($key, $compiled)) {
-                    throw new \RuntimeException(sprintf('Duplicate schema key "%s" detected in Field::set()', $key));
+                    throw new DuplicateSchemaKeyException(sprintf('Duplicate schema key "%s" detected in Field::set()', $key));
                 }
 
                 $compiled[$key] = $value;

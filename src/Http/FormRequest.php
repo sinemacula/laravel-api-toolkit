@@ -22,6 +22,7 @@ abstract class FormRequest extends LaravelFormRequest
      *
      * @throws \SineMacula\ApiToolkit\Exceptions\ApiException
      */
+    #[\Override]
     protected function failedValidation(Validator $validator): void
     {
         throw new InvalidInputException($validator->getMessageBag()->toArray());

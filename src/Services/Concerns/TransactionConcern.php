@@ -28,6 +28,7 @@ class TransactionConcern implements ServiceConcern
      * @param  \Closure(): bool  $next
      * @return bool
      */
+    #[\Override]
     public function execute(Service $service, \Closure $next): bool
     {
         return (bool) DB::transaction(fn () => $next(), self::DEFAULT_RETRIES);

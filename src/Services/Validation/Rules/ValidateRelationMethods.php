@@ -3,10 +3,6 @@
 namespace SineMacula\ApiToolkit\Services\Validation\Rules;
 
 use Illuminate\Database\Eloquent\Relations\Relation;
-use ReflectionMethod;
-use ReflectionNamedType;
-use ReflectionType;
-use ReflectionUnionType;
 use SineMacula\ApiToolkit\Contracts\SchemaValidationRule;
 use SineMacula\ApiToolkit\Http\Resources\Schema\CompiledSchema;
 use SineMacula\ApiToolkit\Services\Validation\SchemaValidationError;
@@ -83,7 +79,7 @@ final class ValidateRelationMethods implements SchemaValidationRule
             );
         }
 
-        $returnType = (new ReflectionMethod($modelClass, $relationMethod))->getReturnType();
+        $returnType = (new \ReflectionMethod($modelClass, $relationMethod))->getReturnType();
 
         if ($this->isRelationReturnType($returnType)) {
             return null;
@@ -102,15 +98,15 @@ final class ValidateRelationMethods implements SchemaValidationRule
      * @param  \ReflectionType|null  $returnType
      * @return bool
      */
-    private function isRelationReturnType(?ReflectionType $returnType): bool
+    private function isRelationReturnType(?\ReflectionType $returnType): bool
     {
-        if ($returnType instanceof ReflectionNamedType) {
+        if ($returnType instanceof \ReflectionNamedType) {
             return is_subclass_of($returnType->getName(), Relation::class);
         }
 
-        if ($returnType instanceof ReflectionUnionType) {
+        if ($returnType instanceof \ReflectionUnionType) {
             foreach ($returnType->getTypes() as $member) {
-                if ($member instanceof ReflectionNamedType && is_subclass_of($member->getName(), Relation::class)) {
+                if ($member instanceof \ReflectionNamedType && is_subclass_of($member->getName(), Relation::class)) {
                     return true;
                 }
             }
@@ -127,13 +123,13 @@ final class ValidateRelationMethods implements SchemaValidationRule
      * @param  string  $modelClass
      * @return string
      */
-    private function describeReturnTypeDefect(?ReflectionType $returnType, string $relationMethod, string $modelClass): string
+    private function describeReturnTypeDefect(?\ReflectionType $returnType, string $relationMethod, string $modelClass): string
     {
         if ($returnType === null) {
             return sprintf('Relation method "%s" on model "%s" has no return type hint', $relationMethod, $modelClass);
         }
 
-        if ($returnType instanceof ReflectionUnionType) {
+        if ($returnType instanceof \ReflectionUnionType) {
             return sprintf(
                 'Relation method "%s" on model "%s" has a union return type with no Relation subclass member',
                 $relationMethod,

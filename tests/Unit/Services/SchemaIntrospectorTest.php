@@ -360,15 +360,15 @@ class SchemaIntrospectorTest extends TestCase
             /** @var string|null */
             protected $table = 'users';
 
+            // phpcs:disable Squiz.Commenting.FunctionComment.MissingReturn
             /**
              * A method with no return type declaration.
-             *
-             * @return null
              */
-            public function tags()
+            public function tags() // @phpstan-ignore missingType.return
             {
-                return null;
+                return $this;
             }
+            // phpcs:enable Squiz.Commenting.FunctionComment.MissingReturn
         };
 
         $introspector = new SchemaIntrospector;
@@ -388,16 +388,17 @@ class SchemaIntrospectorTest extends TestCase
             /** @var string|null */
             protected $table = 'users';
 
+            // phpcs:disable Generic.Files.LineLength.TooLong
             /**
              * A method with a union return type containing relation types.
              *
-             * @return \Illuminate\Database\Eloquent\Relations\HasMany|\Illuminate\Database\Eloquent\Relations\MorphMany
+             * @return \Illuminate\Database\Eloquent\Relations\HasMany<\Tests\Fixtures\Models\Post, $this>|\Illuminate\Database\Eloquent\Relations\MorphMany<\Illuminate\Database\Eloquent\Model, $this>
              */
-            // @phpstan-ignore-next-line return.unusedType, missingType.generics (the union return type is the reflection subject under test)
-            public function tags(): HasMany|MorphMany
+            public function tags(): HasMany|MorphMany // @phpstan-ignore return.unusedType
             {
                 return $this->hasMany(Post::class);
             }
+            // phpcs:enable Generic.Files.LineLength.TooLong
         };
 
         $introspector = new SchemaIntrospector;
@@ -420,10 +421,9 @@ class SchemaIntrospectorTest extends TestCase
             /**
              * A method with a union return type containing no relation types.
              *
-             * @return string|int
+             * @return int|string
              */
-            // @phpstan-ignore-next-line return.unusedType (the non-relation union return type is the reflection subject under test)
-            public function tags(): string|int
+            public function tags(): int|string // @phpstan-ignore return.unusedType (the non-relation union return type is the reflection subject under test)
             {
                 return '';
             }
@@ -640,6 +640,7 @@ class SchemaIntrospectorTest extends TestCase
             /** @var string|null */
             protected $table = 'users';
 
+            // phpcs:disable Squiz.Commenting.FunctionComment.InvalidNoReturn
             /**
              * A relation method that throws a LogicException.
              *
@@ -649,6 +650,7 @@ class SchemaIntrospectorTest extends TestCase
             {
                 throw new \LogicException('Test logic failure');
             }
+            // phpcs:enable Squiz.Commenting.FunctionComment.InvalidNoReturn
         };
 
         Log::shouldReceive('warning')
@@ -672,6 +674,7 @@ class SchemaIntrospectorTest extends TestCase
             /** @var string|null */
             protected $table = 'users';
 
+            // phpcs:disable Squiz.Commenting.FunctionComment.InvalidNoReturn
             /**
              * A relation method that throws a ReflectionException.
              *
@@ -681,6 +684,7 @@ class SchemaIntrospectorTest extends TestCase
             {
                 throw new \ReflectionException('Test reflection failure');
             }
+            // phpcs:enable Squiz.Commenting.FunctionComment.InvalidNoReturn
         };
 
         Log::shouldReceive('warning')
@@ -704,6 +708,7 @@ class SchemaIntrospectorTest extends TestCase
             /** @var string|null */
             protected $table = 'users';
 
+            // phpcs:disable Squiz.Commenting.FunctionComment.InvalidNoReturn
             /**
              * A relation method that throws a RuntimeException.
              *
@@ -713,6 +718,7 @@ class SchemaIntrospectorTest extends TestCase
             {
                 throw new \RuntimeException('Unexpected failure');
             }
+            // phpcs:enable Squiz.Commenting.FunctionComment.InvalidNoReturn
         };
 
         $this->expectException(\RuntimeException::class);

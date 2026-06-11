@@ -5,6 +5,7 @@ namespace SineMacula\ApiToolkit\Traits;
 use Illuminate\Contracts\Cache\Lock;
 use Illuminate\Support\Facades\Cache;
 use SineMacula\ApiToolkit\Contracts\LockKeyProvider;
+use SineMacula\ApiToolkit\Exceptions\LockOperationException;
 use SineMacula\ApiToolkit\Exceptions\TooManyRequestsException;
 
 /**
@@ -76,12 +77,12 @@ trait Lockable
      *
      * @return string
      *
-     * @throws \RuntimeException
+     * @throws \SineMacula\ApiToolkit\Exceptions\LockOperationException
      */
     private function resolveLockKey(): string
     {
         return $this->lockKey ??= ($this instanceof LockKeyProvider
             ? $this->getLockKey()
-            : throw new \RuntimeException('The lock key must be provided via the LockKeyProvider contract or by setting the $lockKey property'));
+            : throw new LockOperationException('The lock key must be provided via the LockKeyProvider contract or by setting the $lockKey property'));
     }
 }

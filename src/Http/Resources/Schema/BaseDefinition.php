@@ -87,5 +87,6 @@ abstract class BaseDefinition implements Arrayable
      *
      * @return array<string, array<string, mixed>>
      */
+    #[\Override]
     abstract public function toArray(): array;
 }

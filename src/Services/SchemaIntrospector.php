@@ -8,9 +8,6 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
-use ReflectionMethod;
-use ReflectionNamedType;
-use ReflectionUnionType;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Enums\CacheKeys;
 
@@ -131,7 +128,7 @@ class SchemaIntrospector implements SchemaIntrospectionProvider
             $key,
         ]), function () use ($key, $model) {
             if (method_exists($model, $key)) {
-                return $this->hasRelationReturnType(new ReflectionMethod($model, $key));
+                return $this->hasRelationReturnType(new \ReflectionMethod($model, $key));
             }
 
             return $model->relationResolver($model::class, $key) !== null;
@@ -185,17 +182,17 @@ class SchemaIntrospector implements SchemaIntrospectionProvider
      * @param  \ReflectionMethod  $method
      * @return bool
      */
-    private function hasRelationReturnType(ReflectionMethod $method): bool
+    private function hasRelationReturnType(\ReflectionMethod $method): bool
     {
         $returnType = $method->getReturnType();
 
-        if ($returnType instanceof ReflectionNamedType) {
+        if ($returnType instanceof \ReflectionNamedType) {
             return is_subclass_of($returnType->getName(), Relation::class);
         }
 
-        if ($returnType instanceof ReflectionUnionType) {
+        if ($returnType instanceof \ReflectionUnionType) {
             foreach ($returnType->getTypes() as $member) {
-                if ($member instanceof ReflectionNamedType && is_subclass_of($member->getName(), Relation::class)) {
+                if ($member instanceof \ReflectionNamedType && is_subclass_of($member->getName(), Relation::class)) {
                     return true;
                 }
             }
