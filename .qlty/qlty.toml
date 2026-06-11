@@ -81,6 +81,7 @@ version = "3.89.0"
 [[plugin]]
 name = "phpstan"
 version = "2.1.46"
+package_file = "composer.json"
 
 [[plugin]]
 name = "radarlint-php"
@@ -98,12 +99,6 @@ name = "trufflehog"
 
 [[plugin]]
 name = "yamllint"
-
-# phpstan needs the project's dependencies installed in its sandbox to resolve
-# vendor symbols; without this, cloud runs report every third-party class as
-# undefined. Do not remove.
-[plugins.definitions.phpstan.drivers.lint]
-prepare_script = "~/.qlty/cache/tools/composer/generic-42cc848a9f5e/composer.phar install --no-scripts --ignore-platform-reqs"
 
 # Skip radarlint smell analysis on the test tree — reused fixture literals and
 # multi-branch data providers trip duplication/return-count rules without value.
