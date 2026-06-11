@@ -2,34 +2,22 @@
 
 namespace SineMacula\ApiToolkit\Repositories\Criteria\Operators;
 
-use Illuminate\Database\Eloquent\Builder;
-use SineMacula\ApiToolkit\Contracts\FilterOperator;
-use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext;
-
 /**
  * Filter operator handler for the $null token.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-final class NullOperator implements FilterOperator
+final class NullOperator extends NullityOperator
 {
     /**
-     * Apply the null constraint to the query builder.
+     * Return whether the constraint asserts the column is not null.
      *
-     * @param  \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>  $query
-     * @param  string  $column
-     * @param  mixed  $value
-     * @param  \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext  $context
-     * @return void
+     * @return bool
      */
     #[\Override]
-    public function apply(Builder $query, string $column, mixed $value, FilterContext $context): void
+    protected function negated(): bool
     {
-        if ($context->getLogicalOperator() === '$or') {
-            $query->getQuery()->orWhereNull($column);
-        } else {
-            $query->getQuery()->whereNull($column);
-        }
+        return false;
     }
 }

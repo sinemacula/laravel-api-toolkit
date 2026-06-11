@@ -2,9 +2,7 @@
 
 namespace SineMacula\ApiToolkit\Services\Validation\Rules;
 
-use SineMacula\ApiToolkit\Contracts\SchemaValidationRule;
-use SineMacula\ApiToolkit\Http\Resources\Schema\CompiledSchema;
-use SineMacula\ApiToolkit\Services\Validation\SchemaValidationError;
+use SineMacula\ApiToolkit\Http\Resources\Schema\CompiledFieldDefinition;
 
 /**
  * Validate that all transformer entries in the compiled schema are callable.
@@ -12,41 +10,28 @@ use SineMacula\ApiToolkit\Services\Validation\SchemaValidationError;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-final class ValidateTransformers implements SchemaValidationRule
+final class ValidateTransformers extends ValidatesCallableLists
 {
     /**
-     * Validate the compiled schema for the given resource class.
+     * Return the callable list to validate for the given field definition.
      *
-     * @param  string  $resourceClass
-     * @param  string|null  $modelClass
-     * @param  \SineMacula\ApiToolkit\Http\Resources\Schema\CompiledSchema  $schema
-     * @return array<int, \SineMacula\ApiToolkit\Services\Validation\SchemaValidationError>
+     * @param  \SineMacula\ApiToolkit\Http\Resources\Schema\CompiledFieldDefinition  $field
+     * @return array<int, callable(mixed, mixed): mixed>
      */
     #[\Override]
-    public function validate(string $resourceClass, ?string $modelClass, CompiledSchema $schema): array
+    protected function getCallables(CompiledFieldDefinition $field): array
     {
-        $errors = [];
+        return $field->transformers;
+    }
 
-        foreach ($schema->getFieldKeys() as $key) {
-
-            $field = $schema->getField($key);
-
-            if ($field === null) {
-                continue;
-            }
-
-            foreach ($field->transformers as $i => $transformer) {
-
-                if (!is_callable($transformer)) { // @phpstan-ignore function.alreadyNarrowedType
-                    $errors[] = new SchemaValidationError(
-                        resourceClass: $resourceClass,
-                        fieldKey: $key,
-                        defect: sprintf('Transformer at index %d is not callable', $i),
-                    );
-                }
-            }
-        }
-
-        return $errors;
+    /**
+     * Return the human-readable label used in defect messages.
+     *
+     * @return string
+     */
+    #[\Override]
+    protected function getLabel(): string
+    {
+        return 'Transformer';
     }
 }

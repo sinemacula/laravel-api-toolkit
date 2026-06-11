@@ -2,34 +2,22 @@
 
 namespace SineMacula\ApiToolkit\Repositories\Criteria\Operators;
 
-use Illuminate\Database\Eloquent\Builder;
-use SineMacula\ApiToolkit\Contracts\FilterOperator;
-use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext;
-
 /**
  * Filter operator handler for the $ge (greater than or equal) token.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-final class GreaterThanOrEqualOperator implements FilterOperator
+final class GreaterThanOrEqualOperator extends ComparisonOperator
 {
     /**
-     * Apply the greater than or equal constraint to the query builder.
+     * Return the SQL comparison operator symbol.
      *
-     * @param  \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>  $query
-     * @param  string  $column
-     * @param  mixed  $value
-     * @param  \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext  $context
-     * @return void
+     * @return string
      */
     #[\Override]
-    public function apply(Builder $query, string $column, mixed $value, FilterContext $context): void
+    protected function operator(): string
     {
-        if ($context->getLogicalOperator() === '$or') {
-            $query->orWhere($column, '>=', $value);
-        } else {
-            $query->where($column, '>=', $value);
-        }
+        return '>=';
     }
 }
