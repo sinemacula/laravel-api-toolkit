@@ -33,7 +33,7 @@ abstract class ApiException extends \Exception
         ?\Throwable $previous = null,
 
     ) {
-        parent::__construct($this->getCustomDetail(), static::getHttpStatusCode(), $previous);
+        parent::__construct($this->getCustomDetail(), $this->getStatusCode(), $previous);
     }
 
     /**
@@ -66,6 +66,34 @@ abstract class ApiException extends \Exception
     public static function getHttpStatusCode(): int
     {
         return self::getHttpStatus()->getCode();
+    }
+
+    /**
+     * Get the HTTP status code for this exception instance.
+     *
+     * Defaults to the static resolution (HTTP_STATUS constant or a static
+     * override for non-standard codes). Subclasses carrying a runtime
+     * status (e.g. the generic HttpException) may override this; the
+     * exception handler renders responses from this instance-level code.
+     *
+     * @return int
+     */
+    public function getStatusCode(): int
+    {
+        return static::getHttpStatusCode();
+    }
+
+    /**
+     * Get the HTTP status for this exception instance.
+     *
+     * Defaults to the HTTP_STATUS constant. Used to derive the default
+     * title when no translation exists for the error code.
+     *
+     * @return \SineMacula\Http\Enums\HttpStatus
+     */
+    public function getStatus(): HttpStatus
+    {
+        return self::getHttpStatus();
     }
 
     /**
@@ -157,7 +185,7 @@ abstract class ApiException extends \Exception
      */
     private function getDefaultTitle(): string
     {
-        return ucwords(strtolower(str_replace('_', ' ', self::getHttpStatus()->name)));
+        return ucwords(strtolower(str_replace('_', ' ', $this->getStatus()->name)));
     }
 
     /**

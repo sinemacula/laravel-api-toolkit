@@ -27,14 +27,20 @@ enum ErrorCode: int implements ErrorCodeInterface
     | HTTP Errors
     |---------------------------------------------------------------------------
     */
-    case BAD_REQUEST       = 10100;
-    case UNAUTHENTICATED   = 10101;
-    case FORBIDDEN         = 10102;
-    case NOT_FOUND         = 10103;
-    case NOT_ALLOWED       = 10104;
-    case TOKEN_MISMATCH    = 10105;
-    case INVALID_INPUT     = 10106;
-    case TOO_MANY_REQUESTS = 10107;
+    case BAD_REQUEST         = 10100;
+    case UNAUTHENTICATED     = 10101;
+    case FORBIDDEN           = 10102;
+    case NOT_FOUND           = 10103;
+    case NOT_ALLOWED         = 10104;
+    case TOKEN_MISMATCH      = 10105;
+    case INVALID_INPUT       = 10106;
+    case TOO_MANY_REQUESTS   = 10107;
+    case CONFLICT            = 10108;
+    case GONE                = 10109;
+    case PAYLOAD_TOO_LARGE   = 10110;
+    case LOCKED              = 10111;
+    case SERVICE_UNAVAILABLE = 10112;
+    case HTTP_ERROR          = 10113;
 
     /*
     |---------------------------------------------------------------------------
