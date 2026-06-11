@@ -191,6 +191,26 @@ class RequestCapabilitiesTest extends TestCase
     }
 
     /**
+     * Test that resolve matches the Accept header case-insensitively by
+     * lowercasing the raw header value before comparison.
+     *
+     * @return void
+     */
+    public function testResolveMatchesAcceptHeaderCaseInsensitively(): void
+    {
+        config()->set('api-toolkit.exports.enabled', true);
+        config()->set('api-toolkit.exports.supported_formats', ['csv']);
+
+        $request = Request::create('/test');
+        $request->headers->set(HttpHeader::ACCEPT->getName(), 'TEXT/CSV');
+
+        $capabilities = RequestCapabilities::resolve($request);
+
+        static::assertTrue($capabilities->expectsCsv());
+        static::assertTrue($capabilities->expectsExport());
+    }
+
+    /**
      * Test that storeOnRequest sets the attribute on the request.
      *
      * @return void

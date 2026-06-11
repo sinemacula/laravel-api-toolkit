@@ -284,6 +284,58 @@ class AttributeSetterTest extends TestCase
     }
 
     /**
+     * Test that persist syncing a Collection detaches relations that
+     * are not present in the new value.
+     *
+     * @return void
+     */
+    public function testPersistSyncWithCollectionDetachesExistingRelations(): void
+    {
+        $user = User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL]);
+        $post = Post::create(['user_id' => $user->id, 'title' => 'T', 'body' => 'B']);
+        $old  = Tag::create(['name' => 'old']);
+        $new  = Tag::create(['name' => 'new']);
+
+        $post->tags()->attach($old->getKey());
+
+        $this->setProperty($this->attributeSetter, 'casts', ['tags' => 'sync']);
+
+        $result = $this->attributeSetter->persist($post, ['tags' => collect([$new])], Post::class);
+
+        static::assertTrue($result);
+
+        $tagNames = $post->fresh()?->tags()->pluck('name')->all();
+
+        static::assertSame(['new'], $tagNames);
+    }
+
+    /**
+     * Test that persist syncing an array of IDs detaches relations
+     * that are not present in the new value.
+     *
+     * @return void
+     */
+    public function testPersistSyncWithArrayOfIdsDetachesExistingRelations(): void
+    {
+        $user = User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL]);
+        $post = Post::create(['user_id' => $user->id, 'title' => 'T', 'body' => 'B']);
+        $old  = Tag::create(['name' => 'stale']);
+        $new  = Tag::create(['name' => 'fresh']);
+
+        $post->tags()->attach($old->getKey());
+
+        $this->setProperty($this->attributeSetter, 'casts', ['tags' => 'sync']);
+
+        $result = $this->attributeSetter->persist($post, ['tags' => [$new->getKey()]], Post::class);
+
+        static::assertTrue($result);
+
+        $tagNames = $post->fresh()?->tags()->pluck('name')->all();
+
+        static::assertSame(['fresh'], $tagNames);
+    }
+
+    /**
      * Test that persist skips attributes whose cast resolves to
      * null.
      *
@@ -361,6 +413,60 @@ class AttributeSetterTest extends TestCase
 
         static::assertIsArray($casts);
         static::assertArrayHasKey('status', $casts);
+
+        $cached = Cache::memo()->get(CacheKeys::REPOSITORY_MODEL_CASTS->resolveKey([User::class]));
+
+        static::assertSame($casts, $cached);
+    }
+
+    /**
+     * Test that persist stores the resolved casts in the memo cache
+     * under the model class key.
+     *
+     * @return void
+     */
+    public function testPersistStoresResolvedCastsInCache(): void
+    {
+        $user = User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL]);
+
+        $this->setProperty($this->attributeSetter, 'casts', ['name' => 'string']);
+
+        $this->attributeSetter->persist($user, ['name' => 'Bob'], User::class);
+
+        $cached = Cache::memo()->get(CacheKeys::REPOSITORY_MODEL_CASTS->resolveKey([User::class]));
+
+        static::assertSame(['name' => 'string'], $cached);
+    }
+
+    /**
+     * Test that resolveCastForAttribute returns null when both the cast
+     * and the model are null.
+     *
+     * @return void
+     */
+    public function testResolveCastForAttributeWithNullCastAndModelReturnsNull(): void
+    {
+        $result = $this->invokeMethod($this->attributeSetter, 'resolveCastForAttribute', 'field', null, null);
+
+        static::assertNull($result);
+    }
+
+    /**
+     * Test that resolveCastForAttribute resolves the native cast key
+     * from the configured cast map.
+     *
+     * @return void
+     */
+    public function testResolveCastForAttributeResolvesNativeCastFromMap(): void
+    {
+        Config::set('api-toolkit.repositories.cast_map', [
+            'boolean' => ['bool', 'boolean'],
+            'integer' => ['integer', 'int'],
+        ]);
+
+        $result = $this->invokeMethod($this->attributeSetter, 'resolveCastForAttribute', 'field', 'integer', null);
+
+        static::assertSame('integer', $result);
     }
 
     /**
@@ -439,6 +545,25 @@ class AttributeSetterTest extends TestCase
     }
 
     /**
+     * Test that resolveCastForRelation returns null for a relation type
+     * that does not support associate or sync semantics.
+     *
+     * @return void
+     */
+    public function testResolveCastForRelationReturnsNullForUnsupportedRelationType(): void
+    {
+        $model    = new User;
+        $relation = $model->posts();
+
+        $this->schemaIntrospector->method('resolveRelation')
+            ->willReturnCallback(static fn (string $attribute, $subject) => $attribute === 'posts' && $subject === $model ? $relation : null);
+
+        $result = $this->invokeMethod($this->attributeSetter, 'resolveCastForRelation', 'posts', $model);
+
+        static::assertNull($result);
+    }
+
+    /**
      * Test that resolveCastForRelation returns 'sync' for a MorphToMany
      * relation.
      *
@@ -494,6 +619,32 @@ class AttributeSetterTest extends TestCase
         $result = $this->invokeMethod($this->attributeSetter, 'castMatchesLaravelCast', UserStatus::class, UserStatus::class);
 
         static::assertTrue($result);
+    }
+
+    /**
+     * Test that castMatchesLaravelCast matches a class-based cast that
+     * carries parameters.
+     *
+     * @return void
+     */
+    public function testCastMatchesLaravelCastClassMatchWithParameters(): void
+    {
+        $result = $this->invokeMethod($this->attributeSetter, 'castMatchesLaravelCast', UserStatus::class . ':foo', UserStatus::class);
+
+        static::assertTrue($result);
+    }
+
+    /**
+     * Test that castMatchesLaravelCast returns false when the Laravel
+     * cast is an existing class that does not match the base cast.
+     *
+     * @return void
+     */
+    public function testCastMatchesLaravelCastClassMismatchReturnsFalse(): void
+    {
+        $result = $this->invokeMethod($this->attributeSetter, 'castMatchesLaravelCast', 'string', UserStatus::class);
+
+        static::assertFalse($result);
     }
 
     /**

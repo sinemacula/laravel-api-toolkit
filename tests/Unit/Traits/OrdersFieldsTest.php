@@ -5,6 +5,7 @@ namespace Tests\Unit\Traits;
 use PHPUnit\Framework\Attributes\CoversTrait;
 use PHPUnit\Framework\Attributes\DataProvider;
 use SineMacula\ApiToolkit\Enums\FieldOrderingStrategy;
+use SineMacula\ApiToolkit\Http\Resources\ApiResource;
 use SineMacula\ApiToolkit\Traits\OrdersFields;
 use Tests\Concerns\InteractsWithNonPublicMembers;
 use Tests\TestCase;
@@ -192,6 +193,73 @@ class OrdersFieldsTest extends TestCase
         $requested_result = $this->invokeMethod($requested_consumer, 'orderResolvedFields', $data);
 
         static::assertSame('name', array_key_first($requested_result));
+    }
+
+    /**
+     * Test that the ordering helpers remain callable from subclasses of a
+     * trait consumer (protected visibility contract).
+     *
+     * @return void
+     */
+    public function testOrderingHelpersRemainProtectedForSubclasses(): void
+    {
+        $resource = new class (null) extends ApiResource {
+            /** @var string */
+            public const string RESOURCE_TYPE = 'visibility_probe';
+
+            /**
+             * Get the resource schema.
+             *
+             * @return array<string, array<string, mixed>>
+             */
+            public static function schema(): array
+            {
+                return [];
+            }
+
+            /**
+             * Call orderResolvedFields from the subclass scope.
+             *
+             * @param  array<string, mixed>  $data
+             * @return array<string, mixed>
+             */
+            public function exposeOrderResolvedFields(array $data): array
+            {
+                return $this->orderResolvedFields($data);
+            }
+
+            /**
+             * Call orderByDefault from the subclass scope.
+             *
+             * @param  array<string, mixed>  $data
+             * @return array<string, mixed>
+             */
+            public function exposeOrderByDefault(array $data): array
+            {
+                return $this->orderByDefault($data);
+            }
+
+            /**
+             * Call orderByRequestedFields from the subclass scope.
+             *
+             * @param  array<string, mixed>  $data
+             * @return array<string, mixed>
+             */
+            public function exposeOrderByRequestedFields(array $data): array
+            {
+                return $this->orderByRequestedFields($data);
+            }
+        };
+
+        $data = [
+            'id'    => 1,
+            '_type' => 'visibility_probe',
+            'name'  => 'Alice',
+        ];
+
+        static::assertSame(['_type', 'id', 'name'], array_keys($resource->exposeOrderResolvedFields($data)));
+        static::assertSame(['_type', 'id', 'name'], array_keys($resource->exposeOrderByDefault($data)));
+        static::assertSame($data, $resource->exposeOrderByRequestedFields($data));
     }
 
     /**

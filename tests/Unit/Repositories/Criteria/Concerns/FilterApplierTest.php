@@ -123,6 +123,7 @@ class FilterApplierTest extends TestCase
         static::assertNotEmpty($wheres);
         static::assertSame('name', $wheres[0]['column']);
         static::assertSame('Alice', $wheres[0]['value']);
+        static::assertSame('and', $wheres[0]['boolean']);
     }
 
     /**
@@ -344,6 +345,7 @@ class FilterApplierTest extends TestCase
 
         static::assertNotEmpty($wheres);
         static::assertSame('Exists', $wheres[0]['type']);
+        static::assertSame('and', $wheres[0]['boolean']);
     }
 
     /**
@@ -378,6 +380,15 @@ class FilterApplierTest extends TestCase
 
         static::assertNotEmpty($wheres);
         static::assertSame('Exists', $wheres[0]['type']);
+
+        /** @var \Illuminate\Database\Query\Builder $subQuery */
+        $subQuery = $wheres[0]['query'];
+
+        $subWheres = collect($subQuery->wheres);
+
+        static::assertTrue(
+            $subWheres->contains(fn (array $where): bool => ($where['column'] ?? null) === 'title' && ($where['value'] ?? null) === '%test%'),
+        );
     }
 
     /**
@@ -394,7 +405,20 @@ class FilterApplierTest extends TestCase
             ],
         ]);
 
-        static::assertNotEmpty($result->getQuery()->wheres);
+        $wheres = $result->getQuery()->wheres;
+
+        static::assertNotEmpty($wheres);
+        static::assertCount(1, $wheres);
+        static::assertSame('Nested', $wheres[0]['type']);
+        static::assertSame('or', $wheres[0]['boolean']);
+
+        $nested = $wheres[0]['query']->wheres;
+
+        static::assertCount(2, $nested);
+        static::assertSame('name', $nested[0]['column']);
+        static::assertSame('or', $nested[0]['boolean']);
+        static::assertSame('email', $nested[1]['column']);
+        static::assertSame('or', $nested[1]['boolean']);
     }
 
     /**
@@ -411,7 +435,18 @@ class FilterApplierTest extends TestCase
             ],
         ]);
 
-        static::assertNotEmpty($result->getQuery()->wheres);
+        $wheres = $result->getQuery()->wheres;
+
+        static::assertNotEmpty($wheres);
+        static::assertCount(1, $wheres);
+        static::assertSame('Nested', $wheres[0]['type']);
+        static::assertSame('and', $wheres[0]['boolean']);
+
+        $nested = $wheres[0]['query']->wheres;
+
+        static::assertCount(2, $nested);
+        static::assertSame('and', $nested[0]['boolean']);
+        static::assertSame('and', $nested[1]['boolean']);
     }
 
     /**
@@ -430,7 +465,24 @@ class FilterApplierTest extends TestCase
             ],
         ]);
 
-        static::assertNotEmpty($result->getQuery()->wheres);
+        $wheres = $result->getQuery()->wheres;
+
+        static::assertNotEmpty($wheres);
+        static::assertCount(1, $wheres);
+        static::assertSame('Nested', $wheres[0]['type']);
+        static::assertSame('and', $wheres[0]['boolean']);
+
+        $andGroup = $wheres[0]['query']->wheres;
+
+        static::assertCount(1, $andGroup);
+        static::assertSame('Nested', $andGroup[0]['type']);
+        static::assertSame('and', $andGroup[0]['boolean']);
+
+        $orGroup = $andGroup[0]['query']->wheres;
+
+        static::assertCount(2, $orGroup);
+        static::assertSame('or', $orGroup[0]['boolean']);
+        static::assertSame('or', $orGroup[1]['boolean']);
     }
 
     /**
@@ -448,6 +500,43 @@ class FilterApplierTest extends TestCase
 
         static::assertNotEmpty($wheres);
         static::assertSame('Exists', $wheres[0]['type']);
+        static::assertSame('and', $wheres[0]['boolean']);
+
+        /** @var \Illuminate\Database\Query\Builder $subQuery */
+        $subQuery = $wheres[0]['query'];
+
+        $subWheres = collect($subQuery->wheres);
+
+        static::assertTrue(
+            $subWheres->contains(fn (array $where): bool => ($where['column'] ?? null) === 'title' && ($where['value'] ?? null) === '%test%'),
+        );
+    }
+
+    /**
+     * Test that a relation filter under $or uses orWhereHas.
+     *
+     * @return void
+     */
+    public function testApplyWithRelationFilterUnderOrUsesOrWhereHas(): void
+    {
+        $result = $this->applyFilters([
+            '$or' => [
+                'posts' => [
+                    'organization' => ['name' => ['$eq' => 'Acme']],
+                ],
+            ],
+        ]);
+
+        $wheres = $result->getQuery()->wheres;
+
+        static::assertCount(1, $wheres);
+        static::assertSame('Nested', $wheres[0]['type']);
+
+        $nested = $wheres[0]['query']->wheres;
+
+        static::assertCount(1, $nested);
+        static::assertSame('Exists', $nested[0]['type']);
+        static::assertSame('or', $nested[0]['boolean']);
     }
 
     /**
@@ -461,11 +550,34 @@ class FilterApplierTest extends TestCase
             'posts' => [
                 '$or' => [
                     'title' => ['$like' => 'test'],
+                    'id'    => ['$eq' => 1],
                 ],
             ],
         ]);
 
-        static::assertNotEmpty($result->getQuery()->wheres);
+        $wheres = $result->getQuery()->wheres;
+
+        static::assertNotEmpty($wheres);
+        static::assertSame('Exists', $wheres[0]['type']);
+
+        /** @var \Illuminate\Database\Query\Builder $subQuery */
+        $subQuery = $wheres[0]['query'];
+
+        $subWheres = collect($subQuery->wheres);
+
+        /** @var array{type: string, boolean: string, query: \Illuminate\Database\Query\Builder}|null $group */
+        $group = $subWheres->first(fn (array $where): bool => $where['type'] === 'Nested');
+
+        static::assertNotNull($group);
+        static::assertSame('and', $group['boolean']);
+
+        $orWheres = $group['query']->wheres;
+
+        static::assertCount(2, $orWheres);
+        static::assertSame('title', $orWheres[0]['column']);
+        static::assertSame('%test%', $orWheres[0]['value']);
+        static::assertSame('or', $orWheres[0]['boolean']);
+        static::assertSame('or', $orWheres[1]['boolean']);
     }
 
     /**
@@ -481,7 +593,58 @@ class FilterApplierTest extends TestCase
             ],
         ]);
 
-        static::assertNotEmpty($result->getQuery()->wheres);
+        $wheres = $result->getQuery()->wheres;
+
+        static::assertNotEmpty($wheres);
+        static::assertSame('Nested', $wheres[0]['type']);
+
+        $nested = $wheres[0]['query']->wheres;
+
+        static::assertCount(1, $nested);
+        static::assertSame('Exists', $nested[0]['type']);
+        static::assertSame('or', $nested[0]['boolean']);
+    }
+
+    /**
+     * Test that $hasnt under $or adds whereDoesntHave inside the group.
+     *
+     * @return void
+     */
+    public function testApplyWithOrAndHasntAddsWhereDoesntHave(): void
+    {
+        $result = $this->applyFilters([
+            '$or' => [
+                '$hasnt' => ['posts'],
+            ],
+        ]);
+
+        $wheres = $result->getQuery()->wheres;
+
+        static::assertNotEmpty($wheres);
+        static::assertSame('Nested', $wheres[0]['type']);
+
+        $nested = $wheres[0]['query']->wheres;
+
+        static::assertCount(1, $nested);
+        static::assertSame('NotExists', $nested[0]['type']);
+    }
+
+    /**
+     * Test that a $has filter is not double-applied as a column
+     * condition when a handler happens to be registered for the
+     * $has token in the operator registry.
+     *
+     * @return void
+     */
+    public function testHasFilterIsNotReappliedAsColumnConditionWhenRegistered(): void
+    {
+        $this->operatorRegistry->register('$has', new EqualOperator);
+
+        $result = $this->applyFilters(['name' => ['$has' => 'posts']]);
+        $wheres = $result->getQuery()->wheres;
+
+        static::assertCount(1, $wheres);
+        static::assertSame('Exists', $wheres[0]['type']);
     }
 
     /**

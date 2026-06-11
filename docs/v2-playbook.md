@@ -83,6 +83,9 @@ contract and benefits from landing last, when the surface around it is stable.
   cohesive exception types under `Exceptions\`.
 - [ ] **Listener/driver signatures**: `OctaneFlushListener::handle($event)` and `DatabaseLogger($config)`
   carry unused parameters required by framework contracts — confirm and suppress or document.
+- [ ] **`JsonPrettyPrint` dead code**: the explicit `setData()` call after `setEncodingOptions()` is redundant —
+  `JsonResponse::setEncodingOptions()` already re-encodes via `setData($this->getData())`. Surfaced by mutation
+  testing; remove on the next pass through the middleware.
 
 ### 3. Extraction candidates
 
@@ -128,9 +131,10 @@ way a consuming application uses it**:
   shows headroom. Escaped mutants are a to-do list for missing assertions.
 - **Multi-database matrix.** Integration tests run against SQLite locally and MySQL + PostgreSQL in CI; anything
   touching query generation must hold across all three.
-- **Known integration gaps to close**: exception-handler rendering through a real route (`abort()` →
-  toolkit JSON), SSE streaming over an actual HTTP response, export content negotiation end-to-end, and the
-  deferred-write flush across a simulated request boundary.
+- **End-to-end feature coverage**: real-route integration tests now cover the request lifecycle
+  (`RequestLifecycleTest`), exception rendering (`ExceptionRenderingTest`), SSE streaming (`SseStreamingTest`),
+  export content negotiation (`ExportNegotiationTest`), and the deferred-write flush across a request boundary
+  (`DeferredWriteRequestBoundaryTest`). New consumer-facing behaviour should extend this suite.
 
 ## Quality gates
 

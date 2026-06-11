@@ -79,6 +79,24 @@ class CacheStoreTest extends TestCase
     }
 
     /**
+     * Test that getStatus reports a null age when the cache data is
+     * missing even though population metadata still exists.
+     *
+     * @return void
+     */
+    public function testGetStatusReportsNullAgeWhenCacheDataMissing(): void
+    {
+        $this->cacheStore->put(collect(['item']));
+
+        $this->cacheStore->getStore()->forget('api-toolkit:repository-cache:test-table');
+
+        $status = $this->cacheStore->getStatus();
+
+        static::assertFalse($status->isPopulated());
+        static::assertNull($status->getAge());
+    }
+
+    /**
      * Test that put stores the collection in the cache.
      *
      * @return void

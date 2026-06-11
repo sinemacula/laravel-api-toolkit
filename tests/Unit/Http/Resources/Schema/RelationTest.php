@@ -132,6 +132,23 @@ class RelationTest extends TestCase
     }
 
     /**
+     * Test that fields reindexes sequentially when deduplication removes an
+     * interior duplicate.
+     *
+     * @return void
+     */
+    public function testFieldsReindexesAfterInteriorDeduplication(): void
+    {
+        $relation = Relation::to('organization', OrganizationResource::class);
+
+        $relation->fields(['id', 'name', 'id', 'slug']);
+
+        $array = $relation->toArray();
+
+        static::assertSame(['id', 'name', 'slug'], $array['organization']['fields']);
+    }
+
+    /**
      * Test that constrain sets an eager-load constraint.
      *
      * @return void

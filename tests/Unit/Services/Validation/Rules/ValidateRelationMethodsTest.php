@@ -134,6 +134,114 @@ class ValidateRelationMethodsTest extends TestCase
     }
 
     /**
+     * Test that null field definitions are skipped without errors.
+     *
+     * @return void
+     */
+    public function testSkipsNullFieldDefinitions(): void
+    {
+        $reflection = new \ReflectionClass(CompiledSchema::class);
+        $schema     = $reflection->newInstanceWithoutConstructor();
+
+        $reflection->getProperty('fields')->setValue($schema, ['ghost' => null]);
+        $reflection->getProperty('counts')->setValue($schema, []);
+
+        $rule   = new ValidateRelationMethods;
+        $errors = [];
+
+        $warnings = $this->captureWarnings(fn () => $rule->validate(UserResource::class, User::class, $schema), $errors);
+
+        static::assertSame([], $warnings);
+        static::assertSame([], $errors);
+    }
+
+    /**
+     * Test that validation continues past fields without relations and still
+     * reports later defects.
+     *
+     * @return void
+     */
+    public function testContinuesPastFieldsWithoutRelations(): void
+    {
+        $schema = new CompiledSchema(
+            fields: [
+                'clean' => new CompiledFieldDefinition(
+                    accessor: 'name',
+                    compute: null,
+                    relation: null,
+                    resource: null,
+                    fields: null,
+                    constraint: null,
+                    extras: [],
+                    guards: [],
+                    transformers: [],
+                ),
+                'bad' => new CompiledFieldDefinition(
+                    accessor: 'bad',
+                    compute: null,
+                    relation: 'missing_relation',
+                    resource: OrganizationResource::class,
+                    fields: null,
+                    constraint: null,
+                    extras: [],
+                    guards: [],
+                    transformers: [],
+                ),
+            ],
+            counts: [],
+        );
+
+        $rule   = new ValidateRelationMethods;
+        $errors = $rule->validate(UserResource::class, User::class, $schema);
+
+        static::assertCount(1, $errors);
+        static::assertSame('bad', $errors[0]->fieldKey);
+    }
+
+    /**
+     * Test that every missing relation method is reported.
+     *
+     * @return void
+     */
+    public function testReportsAllMissingRelationMethods(): void
+    {
+        $schema = new CompiledSchema(
+            fields: [
+                'first' => new CompiledFieldDefinition(
+                    accessor: 'first',
+                    compute: null,
+                    relation: 'missing_first_relation',
+                    resource: OrganizationResource::class,
+                    fields: null,
+                    constraint: null,
+                    extras: [],
+                    guards: [],
+                    transformers: [],
+                ),
+                'second' => new CompiledFieldDefinition(
+                    accessor: 'second',
+                    compute: null,
+                    relation: 'missing_second_relation',
+                    resource: OrganizationResource::class,
+                    fields: null,
+                    constraint: null,
+                    extras: [],
+                    guards: [],
+                    transformers: [],
+                ),
+            ],
+            counts: [],
+        );
+
+        $rule   = new ValidateRelationMethods;
+        $errors = $rule->validate(UserResource::class, User::class, $schema);
+
+        static::assertCount(2, $errors);
+        static::assertSame('first', $errors[0]->fieldKey);
+        static::assertSame('second', $errors[1]->fieldKey);
+    }
+
+    /**
      * Test reports relation method missing on model for count definition.
      *
      * @return void
@@ -407,5 +515,31 @@ class ValidateRelationMethodsTest extends TestCase
         static::assertCount(1, $errors);
         static::assertStringContainsString('is not a Relation subclass', $errors[0]->defect);
         static::assertStringContainsString('string', $errors[0]->defect);
+    }
+
+    /**
+     * Run the given callback while capturing any raised PHP warnings.
+     *
+     * @param  callable(): array<int, \SineMacula\ApiToolkit\Services\Validation\SchemaValidationError>  $callback
+     * @param  array<int, \SineMacula\ApiToolkit\Services\Validation\SchemaValidationError>  $errors
+     * @return array<int, string>
+     */
+    private function captureWarnings(callable $callback, array &$errors): array
+    {
+        $warnings = [];
+
+        set_error_handler(static function (int $severity, string $message) use (&$warnings): bool {
+            $warnings[] = $message;
+
+            return true;
+        });
+
+        try {
+            $errors = $callback();
+        } finally {
+            restore_error_handler();
+        }
+
+        return $warnings;
     }
 }

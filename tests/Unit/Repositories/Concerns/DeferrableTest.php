@@ -57,6 +57,21 @@ class DeferrableTest extends TestCase
     }
 
     /**
+     * Test that boot invokes the parent boot chain so inherited
+     * repository collaborators are initialized.
+     *
+     * @return void
+     */
+    public function testBootInvokesParentBootChain(): void
+    {
+        $reflection = new \ReflectionClass(\SineMacula\ApiToolkit\Repositories\ApiRepository::class);
+
+        $attributeSetter = $reflection->getProperty('attributeSetter')->getValue($this->repository);
+
+        static::assertInstanceOf(\SineMacula\ApiToolkit\Repositories\Concerns\AttributeSetter::class, $attributeSetter);
+    }
+
+    /**
      * Test that defer buffers attributes without executing a database query.
      *
      * @return void

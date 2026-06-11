@@ -192,6 +192,22 @@ class FieldTest extends TestCase
     }
 
     /**
+     * Test that toArray includes extras when set.
+     *
+     * @return void
+     */
+    public function testToArrayIncludesExtrasWhenSet(): void
+    {
+        $field = Field::scalar('avatar');
+
+        $field->extras('media', 'media.thumbnails');
+
+        $array = $field->toArray();
+
+        static::assertSame(['media', 'media.thumbnails'], $array['avatar']['extras']);
+    }
+
+    /**
      * Test that toArray includes guards when set.
      *
      * @return void

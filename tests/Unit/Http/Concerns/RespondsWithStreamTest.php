@@ -11,6 +11,7 @@ use SineMacula\ApiToolkit\Repositories\ApiRepository;
 use SineMacula\Exporter\Facades\Exporter;
 use SineMacula\Http\Enums\HttpMethod;
 use Symfony\Component\HttpFoundation\StreamedResponse;
+use Tests\Fixtures\Controllers\TestingExportController;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Resources\UserResource;
 use Tests\Fixtures\Support\FunctionOverrides;
@@ -375,6 +376,355 @@ class RespondsWithStreamTest extends TestCase
 
         // Trailing newline must be stripped (chunk boundary prevention).
         static::assertStringEndsNotWith("\n", (string) $output);
+    }
+
+    /**
+     * Test that streamRepositoryToCsv chunks the repository with the default
+     * chunk size of fifteen hundred records.
+     *
+     * @return void
+     */
+    public function testStreamRepositoryToCsvUsesDefaultChunkSize(): void
+    {
+        $controller = $this->createControllerWithTrait();
+
+        $request = Request::create(self::TEST_URI, HttpMethod::GET->getVerb());
+        ApiQuery::parse($request);
+
+        $captured_size = null;
+
+        /** @var \Mockery\MockInterface&\SineMacula\ApiToolkit\Repositories\ApiRepository<\Illuminate\Database\Eloquent\Model> $repository */
+        $repository = \Mockery::mock(ApiRepository::class);
+        $repository->shouldReceive('addScope')->andReturnSelf();
+        $repository->shouldReceive('getResourceClass')->andReturn(UserResource::class);
+        $repository->shouldReceive('chunkById')
+            ->andReturnUsing(function (int $size) use (&$captured_size): bool {
+                $captured_size = $size;
+
+                return true;
+            });
+
+        $response = $controller->streamRepositoryToCsv($repository); // @phpstan-ignore method.notFound
+
+        ob_start();
+        $response->sendContent();
+        ob_end_clean();
+
+        static::assertSame(1500, $captured_size);
+    }
+
+    /**
+     * Test that streamRepositoryToCsv strips user-defined ordering by adding
+     * a scope that reorders the query before chunking begins.
+     *
+     * @return void
+     */
+    public function testStreamRepositoryToCsvStripsUserOrderingBeforeChunking(): void
+    {
+        $controller = $this->createControllerWithTrait();
+
+        $request = Request::create(self::TEST_URI, HttpMethod::GET->getVerb());
+        ApiQuery::parse($request);
+
+        $reordered = false;
+
+        /** @var \Mockery\MockInterface&\SineMacula\ApiToolkit\Repositories\ApiRepository<\Illuminate\Database\Eloquent\Model> $repository */
+        $repository = \Mockery::mock(ApiRepository::class);
+        $repository->shouldReceive('getResourceClass')->andReturn(UserResource::class);
+        $repository->shouldReceive('addScope')
+            ->once()
+            ->andReturnUsing(function (\Closure $scope) use (&$reordered, &$repository) {
+
+                /** @var \Mockery\MockInterface $query */
+                $query = \Mockery::mock();
+                $query->shouldReceive('reorder')->once()->andReturnSelf();
+
+                $scope($query);
+
+                $reordered = true;
+
+                return $repository;
+            });
+
+        $controller->streamRepositoryToCsv($repository); // @phpstan-ignore method.notFound
+
+        static::assertTrue($reordered);
+    }
+
+    /**
+     * Test the limit-capping behaviour of the chunk callback. With a query
+     * limit of three and chunks of [2, 2, 1] records, the stream must output
+     * the first three records only, include the CSV header exactly once, and
+     * stop chunking once the limit is reached.
+     *
+     * @SuppressWarnings("php:S1172")
+     *
+     * @return void
+     */
+    public function testStreamRepositoryToCsvCapsOutputAtQueryLimit(): void
+    {
+        $controller = $this->createControllerWithTrait();
+
+        $request = Request::create(self::TEST_URI, HttpMethod::GET->getVerb(), ['limit' => '3']);
+        ApiQuery::parse($request);
+
+        $users = collect(['UserA', 'UserB', 'UserC', 'UserD', 'UserE'])
+            ->map(fn (string $name) => User::create(['name' => $name, 'email' => strtolower($name) . '@stream.com']));
+
+        $chunks = [
+            collect([$users[0], $users[1]]),
+            collect([$users[2], $users[3]]),
+            collect([$users[4]]),
+        ];
+
+        $returns = [];
+
+        /** @var \Mockery\MockInterface&\SineMacula\ApiToolkit\Repositories\ApiRepository<\Illuminate\Database\Eloquent\Model> $repository */
+        $repository = \Mockery::mock(ApiRepository::class);
+        $repository->shouldReceive('addScope')->andReturnSelf();
+        $repository->shouldReceive('getResourceClass')->andReturn(UserResource::class);
+        $repository->shouldReceive('chunkById')
+            ->andReturnUsing(function (int $_size, callable $callback) use ($chunks, &$returns): bool {
+                foreach ($chunks as $chunk) {
+                    $returns[] = $callback($chunk);
+                }
+
+                return true;
+            });
+
+        $without_headers_calls = 0;
+
+        /** @var \Mockery\MockInterface $chain */
+        $chain = \Mockery::mock();
+        $chain->shouldReceive('withoutFields')->andReturnSelf();
+        $chain->shouldReceive('withoutHeaders')
+            ->andReturnUsing(function () use (&$without_headers_calls, &$chain) {
+                $without_headers_calls++;
+
+                return $chain;
+            });
+        $chain->shouldReceive('exportArray')
+            ->andReturnUsing(fn (array $rows): string => implode("\n", array_column($rows, 'name')) . "\n");
+
+        /** @var \Mockery\MockInterface $exporter */
+        $exporter = \Mockery::mock();
+        $exporter->shouldReceive('format')->andReturn($chain);
+
+        Exporter::swap($exporter);
+
+        FunctionOverrides::set('flush', fn () => null);
+        FunctionOverrides::set('ob_flush', fn () => null);
+
+        $response = $controller->streamRepositoryToCsv($repository); // @phpstan-ignore method.notFound
+
+        ob_start();
+        $response->sendContent();
+        $output = (string) ob_get_clean();
+
+        static::assertStringContainsString('UserA', $output);
+        static::assertStringContainsString('UserB', $output);
+        static::assertStringContainsString('UserC', $output);
+        static::assertStringNotContainsString('UserD', $output);
+        static::assertStringNotContainsString('UserE', $output);
+
+        static::assertSame([true, true, false], $returns);
+        static::assertSame(1, $without_headers_calls);
+    }
+
+    /**
+     * Test that the chunk callback flushes the active output buffer after
+     * emitting each chunk.
+     *
+     * @SuppressWarnings("php:S1172")
+     *
+     * @return void
+     */
+    public function testChunkOutputFlushesActiveOutputBuffer(): void
+    {
+        $counts = $this->streamSingleChunkWithBufferLevel(1);
+
+        static::assertSame(1, $counts['ob_flush']);
+        static::assertSame(1, $counts['flush']);
+    }
+
+    /**
+     * Test that the chunk callback skips ob_flush when no output buffer is
+     * active, while still flushing the system buffer.
+     *
+     * @SuppressWarnings("php:S1172")
+     *
+     * @return void
+     */
+    public function testChunkOutputSkipsObFlushWhenNoBufferIsActive(): void
+    {
+        $counts = $this->streamSingleChunkWithBufferLevel(0);
+
+        static::assertSame(0, $counts['ob_flush']);
+        static::assertSame(1, $counts['flush']);
+    }
+
+    /**
+     * Test that makeTransformer is callable from a subclass and produces a
+     * closure that resolves models through the repository resource class.
+     *
+     * @return void
+     */
+    public function testMakeTransformerIsCallableFromSubclass(): void
+    {
+        $request = Request::create(self::TEST_URI, HttpMethod::GET->getVerb());
+        ApiQuery::parse($request);
+
+        $user = User::create(['name' => 'Transformed', 'email' => 'transformed@example.com']);
+
+        /** @var \Mockery\MockInterface&\SineMacula\ApiToolkit\Repositories\ApiRepository<\Illuminate\Database\Eloquent\Model> $repository */
+        $repository = \Mockery::mock(ApiRepository::class);
+        $repository->shouldReceive('getResourceClass')->andReturn(UserResource::class);
+
+        $controller = new class extends TestingExportController {
+            /**
+             * @param  \SineMacula\ApiToolkit\Repositories\ApiRepository<\Illuminate\Database\Eloquent\Model>  $repository
+             * @return \Closure(mixed): array<int, mixed>
+             */
+            public function callMakeTransformer(ApiRepository $repository): \Closure
+            {
+                return $this->makeTransformer($repository);
+            }
+        };
+
+        $transformer = $controller->callMakeTransformer($repository);
+
+        /** @var array<int, array<string, mixed>> $rows */
+        $rows = $transformer([$user]);
+
+        static::assertSame('Transformed', $rows[0]['name']);
+    }
+
+    /**
+     * Test that formatChunkAsCsv is callable from a subclass and toggles the
+     * first-chunk flag.
+     *
+     * @return void
+     */
+    public function testFormatChunkAsCsvIsCallableFromSubclass(): void
+    {
+        /** @var \Mockery\MockInterface $chain_mock */
+        $chain_mock = \Mockery::mock();
+        $chain_mock->shouldReceive('withoutFields')->andReturnSelf();
+        $chain_mock->shouldReceive('exportArray')->once()->andReturn("name\nJohn\n");
+
+        /** @var \Mockery\MockInterface $facade_mock */
+        $facade_mock = \Mockery::mock();
+        $facade_mock->shouldReceive('format')->with('csv')->once()->andReturn($chain_mock);
+
+        Exporter::swap($facade_mock);
+
+        $controller = new class extends TestingExportController {
+            /**
+             * @param  array<int, array<string, mixed>>  $rows
+             * @param  bool  $is_first_chunk
+             * @return string
+             */
+            public function callFormatChunkAsCsv(array $rows, bool &$is_first_chunk): string
+            {
+                return $this->formatChunkAsCsv($rows, $is_first_chunk);
+            }
+        };
+
+        $is_first = true;
+
+        $result = $controller->callFormatChunkAsCsv([['name' => 'John']], $is_first);
+
+        static::assertStringContainsString('John', $result);
+        // @phpstan-ignore staticMethod.impossibleType
+        static::assertFalse($is_first);
+    }
+
+    /**
+     * Test that createStreamedResponse is callable from a subclass.
+     *
+     * @return void
+     */
+    public function testCreateStreamedResponseIsCallableFromSubclass(): void
+    {
+        $controller = new class extends TestingExportController {
+            /**
+             * @param  callable(): void  $callback
+             * @param  string  $content_type
+             * @param  string  $filename
+             * @return \Symfony\Component\HttpFoundation\StreamedResponse
+             */
+            public function callCreateStreamedResponse(callable $callback, string $content_type, string $filename): StreamedResponse
+            {
+                return $this->createStreamedResponse($callback, $content_type, $filename);
+            }
+        };
+
+        $response = $controller->callCreateStreamedResponse(static function (): void {
+            echo 'chunk';
+        }, 'text/csv', 'report.csv');
+
+        static::assertSame('text/csv', $response->headers->get('Content-Type'));
+        static::assertStringContainsString('report.csv', $response->headers->get('Content-Disposition') ?? '');
+    }
+
+    /**
+     * Stream a single chunk with the given simulated output buffer level and
+     * return the recorded flush call counts.
+     *
+     * @SuppressWarnings("php:S1172")
+     *
+     * @param  int  $buffer_level
+     * @return array{ob_flush: int, flush: int}
+     */
+    private function streamSingleChunkWithBufferLevel(int $buffer_level): array
+    {
+        $controller = $this->createControllerWithTrait();
+
+        $request = Request::create(self::TEST_URI, HttpMethod::GET->getVerb());
+        ApiQuery::parse($request);
+
+        $user = User::create(['name' => 'Flushed', 'email' => 'flushed@example.com']);
+
+        /** @var \Mockery\MockInterface&\SineMacula\ApiToolkit\Repositories\ApiRepository<\Illuminate\Database\Eloquent\Model> $repository */
+        $repository = \Mockery::mock(ApiRepository::class);
+        $repository->shouldReceive('addScope')->andReturnSelf();
+        $repository->shouldReceive('getResourceClass')->andReturn(UserResource::class);
+        $repository->shouldReceive('chunkById')
+            ->andReturnUsing(function (int $_size, callable $callback) use ($user): bool {
+                $callback(collect([$user]));
+
+                return true;
+            });
+
+        /** @var \Mockery\MockInterface $chain */
+        $chain = \Mockery::mock();
+        $chain->shouldReceive('withoutFields')->andReturnSelf();
+        $chain->shouldReceive('withoutHeaders')->andReturnSelf();
+        $chain->shouldReceive('exportArray')->andReturn("id,name\n1,Flushed\n");
+
+        /** @var \Mockery\MockInterface $exporter */
+        $exporter = \Mockery::mock();
+        $exporter->shouldReceive('format')->andReturn($chain);
+
+        Exporter::swap($exporter);
+
+        $counts = ['ob_flush' => 0, 'flush' => 0];
+
+        FunctionOverrides::set('ob_get_level', fn (): int => $buffer_level);
+        FunctionOverrides::set('ob_flush', function () use (&$counts): void {
+            $counts['ob_flush']++;
+        });
+        FunctionOverrides::set('flush', function () use (&$counts): void {
+            $counts['flush']++;
+        });
+
+        $response = $controller->streamRepositoryToCsv($repository); // @phpstan-ignore method.notFound
+
+        ob_start();
+        $response->sendContent();
+        ob_end_clean();
+
+        return $counts;
     }
 
     /**

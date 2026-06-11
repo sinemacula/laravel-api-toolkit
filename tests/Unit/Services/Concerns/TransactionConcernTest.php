@@ -59,6 +59,26 @@ class TransactionConcernTest extends TestCase
     }
 
     /**
+     * Test that execute coerces a truthy non-boolean transaction result to
+     * true.
+     *
+     * @return void
+     */
+    public function testExecuteCoercesTruthyTransactionResultToBoolean(): void
+    {
+        DB::shouldReceive('transaction')
+            ->once()
+            ->andReturn(['committed']);
+
+        $concern = new TransactionConcern;
+        $service = static::createStub(Service::class);
+
+        $result = $concern->execute($service, fn (): bool => true);
+
+        static::assertTrue($result);
+    }
+
+    /**
      * Test that execute propagates exceptions thrown by the next closure.
      *
      * @return void

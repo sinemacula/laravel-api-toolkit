@@ -51,6 +51,26 @@ function flush(): void
     \flush();
 }
 
+/**
+ * Override ob_get_level() within the Http\Concerns namespace.
+ *
+ * @SuppressWarnings("php:S100")
+ * @SuppressWarnings("php:S4144")
+ *
+ * @return int
+ */
+function ob_get_level(): int
+{
+    $override = FunctionOverrides::get('ob_get_level');
+
+    if ($override !== null) {
+        /** @phpstan-ignore cast.int */
+        return (int) $override();
+    }
+
+    return \ob_get_level();
+}
+
 namespace SineMacula\ApiToolkit\Http\Routing;
 
 use Tests\Fixtures\Support\FunctionOverrides;

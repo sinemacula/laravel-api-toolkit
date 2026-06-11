@@ -166,6 +166,100 @@ class LockableTest extends TestCase
     }
 
     /**
+     * Test that the lock conflict exception carries the rate limit meta.
+     *
+     * @return void
+     */
+    public function testLockConflictExceptionCarriesRateLimitMeta(): void
+    {
+        $consumer = $this->createConsumer('meta-lock-id');
+
+        $existingLock = Cache::lock($consumer->getLockKey(), 60);
+        $existingLock->get();
+
+        try {
+
+            $consumer->lock();
+
+            static::fail('Expected TooManyRequestsException was not thrown');
+        } catch (TooManyRequestsException $exception) {
+            static::assertSame(['X-RateLimit-Limit' => 1, 'X-RateLimit-Remaining' => 0], $exception->getCustomMeta());
+        } finally {
+            $existingLock->release();
+        }
+    }
+
+    /**
+     * Test that unlock is harmless when no lock has been acquired.
+     *
+     * @return void
+     */
+    public function testUnlockWithoutLockIsHarmless(): void
+    {
+        $consumer = $this->createConsumer('unlock-without-lock');
+
+        $consumer->unlock();
+
+        static::assertInstanceOf(Lock::class, $consumer->lock());
+
+        $consumer->unlock();
+    }
+
+    /**
+     * Test that getLockExpiration remains callable from a subclass of the
+     * trait consumer.
+     *
+     * @return void
+     */
+    public function testGetLockExpirationIsCallableFromSubclass(): void
+    {
+        $child = new class ('expiry-child', 90) extends StandaloneLockableFixture {
+            /**
+             * Expose the inherited lock expiration.
+             *
+             * @return int
+             */
+            public function exposeExpiration(): int
+            {
+                return $this->getLockExpiration();
+            }
+        };
+
+        static::assertSame(90, $child->exposeExpiration());
+    }
+
+    /**
+     * Test that a preset lock key property is respected without requiring
+     * the LockKeyProvider contract.
+     *
+     * @return void
+     */
+    public function testPresetLockKeyPropertyIsRespected(): void
+    {
+        $consumer = new class {
+            use Lockable;
+
+            /**
+             * Create the consumer with a preset lock key.
+             */
+            public function __construct()
+            {
+                $this->lockKey = 'preset-lock-key';
+            }
+        };
+
+        $lock = $consumer->lock();
+
+        static::assertInstanceOf(Lock::class, $lock);
+
+        $verificationLock = Cache::lock('preset-lock-key', 60);
+
+        static::assertFalse($verificationLock->get());
+
+        $consumer->unlock();
+    }
+
+    /**
      * Create a test consumer that uses the Lockable trait.
      *
      * @param  string  $lockId

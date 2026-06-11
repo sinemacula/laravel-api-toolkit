@@ -131,6 +131,36 @@ class ThrottleRequestsTraitTest extends TestCase
     }
 
     /**
+     * Test that resolveRequestSignature is callable from a middleware
+     * subclass, asserting the trait override remains compatible with the
+     * protected hook declared by Laravel's base ThrottleRequests middleware.
+     *
+     * @return void
+     */
+    public function testResolveRequestSignatureIsCallableFromMiddlewareSubclass(): void
+    {
+        $cache   = static::createStub(\Illuminate\Contracts\Cache\Repository::class);
+        $limiter = new \Illuminate\Cache\RateLimiter($cache);
+
+        $middleware = new class ($limiter) extends \SineMacula\ApiToolkit\Http\Middleware\ThrottleRequests {
+            /**
+             * @param  \Illuminate\Http\Request  $request
+             * @return string
+             */
+            public function callResolveRequestSignature(Request $request): string
+            {
+                return $this->resolveRequestSignature($request);
+            }
+        };
+
+        $request = $this->createRequestWithRoute(self::API_DATA_URI, HttpMethod::GET->getVerb());
+
+        $result = $middleware->callResolveRequestSignature($request);
+
+        static::assertSame(sha1('GET|localhost|api/data|'), $result);
+    }
+
+    /**
      * Create an anonymous class instance that uses the trait.
      *
      * @return object

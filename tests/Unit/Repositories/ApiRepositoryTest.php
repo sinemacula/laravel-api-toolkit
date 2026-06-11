@@ -5,6 +5,7 @@ namespace Tests\Unit\Repositories;
 use Illuminate\Contracts\Pagination\CursorPaginator;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Config;
+use Illuminate\Support\Facades\DB;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Repositories\ApiRepository;
 use SineMacula\ApiToolkit\Repositories\Concerns\AttributeSetter;
@@ -324,6 +325,145 @@ class ApiRepositoryTest extends TestCase
         $attributeSetter = $this->getAttributeSetter($this->repository);
 
         static::assertInstanceOf(AttributeSetter::class, $attributeSetter);
+
+        /** @var array<string, string|null> $casts */
+        $casts = $this->getProperty($attributeSetter, 'casts');
+
+        static::assertNotEmpty($casts);
+        static::assertArrayHasKey('status', $casts);
+    }
+
+    /**
+     * Test that usingResource propagates the resource class to every
+     * ApiCriteria already registered on the repository.
+     *
+     * @return void
+     */
+    public function testUsingResourceUpdatesExistingApiCriteriaInstances(): void
+    {
+        $this->repository->withApiCriteria();
+        $this->repository->usingResource(UserResource::class);
+
+        $criteria = $this->repository->getCriteria()->first(fn ($c) => $c instanceof ApiCriteria);
+
+        static::assertInstanceOf(ApiCriteria::class, $criteria);
+        static::assertSame(UserResource::class, $this->getProperty($criteria, 'customResourceClass'));
+    }
+
+    /**
+     * Test that withApiCriteria propagates an already-set custom
+     * resource class onto the newly created criteria instance.
+     *
+     * @return void
+     */
+    public function testWithApiCriteriaSetsResourceOnNewCriteriaInstance(): void
+    {
+        $this->repository->usingResource(UserResource::class);
+        $this->repository->withApiCriteria();
+
+        $criteria = $this->repository->getCriteria()->first(fn ($c) => $c instanceof ApiCriteria);
+
+        static::assertInstanceOf(ApiCriteria::class, $criteria);
+        static::assertSame(UserResource::class, $this->getProperty($criteria, 'customResourceClass'));
+    }
+
+    /**
+     * Test that paginate applies registered criteria to the query.
+     *
+     * @return void
+     */
+    public function testPaginateAppliesCriteria(): void
+    {
+        User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL]);
+        User::create(['name' => 'Bob', 'email' => self::BOB_EMAIL]);
+
+        $this->parseRequest(new Request([
+            'filters' => json_encode(['name' => 'Alice']),
+            'limit'   => '10',
+        ]));
+
+        $result = $this->repository->withApiCriteria()->paginate();
+
+        static::assertCount(1, $result);
+        static::assertInstanceOf(User::class, $result[0]);
+        static::assertSame('Alice', $result[0]->name);
+    }
+
+    /**
+     * Test that paginate applies registered scopes to the query.
+     *
+     * @return void
+     */
+    public function testPaginateAppliesScopes(): void
+    {
+        $alice = User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL]);
+        User::create(['name' => 'Bob', 'email' => self::BOB_EMAIL]);
+
+        $this->parseRequest(new Request(['limit' => '10']));
+
+        $this->repository->withApiCriteria();
+        $this->repository->scopeById($alice->id);
+
+        $result = $this->repository->paginate();
+
+        static::assertCount(1, $result);
+        static::assertInstanceOf(User::class, $result[0]);
+        static::assertSame($alice->id, $result[0]->id);
+    }
+
+    /**
+     * Test that paginate appends the current query string to the
+     * generated pagination URLs.
+     *
+     * @return void
+     */
+    public function testPaginateAppendsRequestQueryToPaginationUrls(): void
+    {
+        User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL]);
+
+        $request = Request::create('/', HttpMethod::GET->getVerb(), ['limit' => '1', 'marker' => 'xyz']);
+
+        assert($this->app !== null);
+
+        $this->app->instance('request', $request);
+
+        \Illuminate\Support\Facades\Request::clearResolvedInstance('request');
+
+        $this->parseRequest($request);
+
+        assert($this->app !== null);
+
+        $repository = $this->app->make(UserRepository::class);
+
+        /** @var \Illuminate\Pagination\LengthAwarePaginator<int, \Tests\Fixtures\Models\User> $result */
+        $result = $repository->paginate();
+
+        static::assertStringContainsString('marker=xyz', $result->url(1));
+    }
+
+    /**
+     * Test that scopeByIds de-duplicates the given ids before binding
+     * them into the query.
+     *
+     * @return void
+     */
+    public function testScopeByIdsDeduplicatesIds(): void
+    {
+        $alice = User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL]);
+
+        DB::enableQueryLog();
+
+        $result = $this->repository->scopeByIds([$alice->id, $alice->id])->get(); // @phpstan-ignore staticMethod.dynamicCall
+
+        $select = collect(DB::getQueryLog())->last(
+            fn (array $query): bool => str_starts_with($query['query'], 'select'),
+        );
+
+        DB::disableQueryLog();
+
+        static::assertCount(1, $result);
+        static::assertNotNull($select);
+        static::assertSame([$alice->id], $select['bindings']);
     }
 
     /**

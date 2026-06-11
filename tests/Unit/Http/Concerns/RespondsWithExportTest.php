@@ -11,6 +11,7 @@ use SineMacula\ApiToolkit\Http\Concerns\RespondsWithExport;
 use SineMacula\ApiToolkit\Http\RequestCapabilities;
 use SineMacula\Exporter\Contracts\Exporter as ExporterContract;
 use SineMacula\Exporter\Facades\Exporter;
+use Tests\Fixtures\Controllers\TestingExportController;
 use Tests\TestCase;
 
 /**
@@ -570,6 +571,144 @@ class RespondsWithExportTest extends TestCase
         $response = $controller->exportFromItem($resource, true, 'invoice.xml'); // @phpstan-ignore method.notFound
 
         static::assertStringContainsString('invoice.xml', $response->headers->get('Content-Disposition') ?? '');
+    }
+
+    /**
+     * Test that the array export methods default to a download response with
+     * the standard filename.
+     *
+     * @return void
+     */
+    public function testExportArrayMethodsDefaultToDownloadDisposition(): void
+    {
+        $controller = $this->createController();
+
+        Exporter::swap($this->createMockExporter('id,1'));
+
+        /** @var \Illuminate\Http\Response $csv */
+        $csv = $controller->exportArrayToCsv([['id' => 1]]); // @phpstan-ignore method.notFound
+
+        /** @var \Illuminate\Http\Response $xml */
+        $xml = $controller->exportArrayToXml([['id' => 1]]); // @phpstan-ignore method.notFound
+
+        static::assertSame('attachment; filename="export.csv"', $csv->headers->get('Content-Disposition'));
+        static::assertSame('attachment; filename="export.xml"', $xml->headers->get('Content-Disposition'));
+    }
+
+    /**
+     * Test that the collection export methods default to a download response
+     * with the standard filename.
+     *
+     * @return void
+     */
+    public function testExportCollectionMethodsDefaultToDownloadDisposition(): void
+    {
+        $controller = $this->createController();
+        $collection = new ResourceCollection(collect([]));
+
+        Exporter::swap($this->createMockExporter(self::MOCK_COLLECTION_CSV));
+
+        /** @var \Illuminate\Http\Response $csv */
+        $csv = $controller->exportCollectionToCsv($collection); // @phpstan-ignore method.notFound
+
+        /** @var \Illuminate\Http\Response $xml */
+        $xml = $controller->exportCollectionToXml($collection); // @phpstan-ignore method.notFound
+
+        static::assertSame('attachment; filename="export.csv"', $csv->headers->get('Content-Disposition'));
+        static::assertSame('attachment; filename="export.xml"', $xml->headers->get('Content-Disposition'));
+    }
+
+    /**
+     * Test that the item export methods default to a download response with
+     * the standard filename.
+     *
+     * @return void
+     */
+    public function testExportItemMethodsDefaultToDownloadDisposition(): void
+    {
+        $controller = $this->createController();
+        $resource   = new JsonResource(['id' => 1]);
+
+        Exporter::swap($this->createMockExporter('id,1'));
+
+        /** @var \Illuminate\Http\Response $csv */
+        $csv = $controller->exportItemToCsv($resource); // @phpstan-ignore method.notFound
+
+        /** @var \Illuminate\Http\Response $xml */
+        $xml = $controller->exportItemToXml($resource); // @phpstan-ignore method.notFound
+
+        static::assertSame('attachment; filename="export.csv"', $csv->headers->get('Content-Disposition'));
+        static::assertSame('attachment; filename="export.xml"', $xml->headers->get('Content-Disposition'));
+    }
+
+    /**
+     * Test that exportFromCollection defaults to a download response.
+     *
+     * @return void
+     */
+    public function testExportFromCollectionDefaultsToDownloadDisposition(): void
+    {
+        $controller = $this->createController();
+        $collection = new ResourceCollection(collect([]));
+
+        $this->setCapabilities(expects_csv: true);
+
+        Exporter::swap($this->createMockExporter(self::MOCK_COLLECTION_CSV));
+
+        /** @var \Illuminate\Http\Response $response */
+        $response = $controller->exportFromCollection($collection); // @phpstan-ignore method.notFound
+
+        static::assertSame('attachment; filename="export.csv"', $response->headers->get('Content-Disposition'));
+    }
+
+    /**
+     * Test that exportFromItem defaults to a download response.
+     *
+     * @return void
+     */
+    public function testExportFromItemDefaultsToDownloadDisposition(): void
+    {
+        $controller = $this->createController();
+        $resource   = new JsonResource(['id' => 1]);
+
+        $this->setCapabilities(expects_csv: true);
+
+        Exporter::swap($this->createMockExporter('id,1'));
+
+        /** @var \Illuminate\Http\Response $response */
+        $response = $controller->exportFromItem($resource); // @phpstan-ignore method.notFound
+
+        static::assertSame('attachment; filename="export.csv"', $response->headers->get('Content-Disposition'));
+    }
+
+    /**
+     * Test that createExportResponse is callable from a subclass, asserting
+     * the protected extension surface remains available to consuming
+     * controllers.
+     *
+     * @return void
+     */
+    public function testCreateExportResponseIsCallableFromSubclass(): void
+    {
+        $controller = new class extends TestingExportController {
+            /**
+             * @param  string  $data
+             * @param  string  $content_type
+             * @param  bool  $download
+             * @param  string  $filename
+             * @return \Illuminate\Http\Response
+             */
+            public function callCreateExportResponse(string $data, string $content_type, bool $download, string $filename): HttpResponse
+            {
+                return $this->createExportResponse($data, $content_type, $download, $filename);
+            }
+        };
+
+        $response = $controller->callCreateExportResponse('a,b', self::CONTENT_TYPE_CSV, true, 'report.csv');
+
+        static::assertSame('a,b', $response->getContent());
+        static::assertSame(self::CONTENT_TYPE_CSV, $response->headers->get('Content-Type'));
+        static::assertSame('attachment; filename="report.csv"', $response->headers->get('Content-Disposition'));
     }
 
     /**

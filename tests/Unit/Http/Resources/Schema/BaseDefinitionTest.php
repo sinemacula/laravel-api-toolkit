@@ -135,6 +135,24 @@ class BaseDefinitionTest extends TestCase
     }
 
     /**
+     * Test that extras reindexes sequentially when deduplication removes an
+     * interior duplicate.
+     *
+     * @return void
+     */
+    public function testExtrasReindexesAfterInteriorDeduplication(): void
+    {
+        $field = Field::scalar('name');
+
+        $field->extras('relation.a', 'relation.b');
+        $field->extras('relation.a', 'relation.c');
+
+        $array = $field->toArray();
+
+        static::assertSame(['relation.a', 'relation.b', 'relation.c'], $array['name']['extras']);
+    }
+
+    /**
      * Test that extras returns self for fluent chaining.
      *
      * @return void

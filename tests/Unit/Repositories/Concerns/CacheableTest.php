@@ -5,9 +5,12 @@ namespace Tests\Unit\Repositories\Concerns;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Config;
 use PHPUnit\Framework\Attributes\CoversTrait;
+use SineMacula\ApiToolkit\Repositories\ApiRepository;
+use SineMacula\ApiToolkit\Repositories\Concerns\AttributeSetter;
 use SineMacula\ApiToolkit\Repositories\Concerns\Cacheable;
 use Tests\Fixtures\Models\Tag;
 use Tests\Fixtures\Repositories\CacheableTagRepository;
+use Tests\Fixtures\Repositories\CustomPrefixCacheableTagRepository;
 use Tests\Fixtures\Repositories\CustomStoreCacheableTagRepository;
 use Tests\Fixtures\Repositories\ShortTtlTagRepository;
 use Tests\TestCase;
@@ -198,6 +201,81 @@ class CacheableTest extends TestCase
         $repository->get(); // @phpstan-ignore staticMethod.dynamicCall
 
         static::assertTrue($repository->getCacheStatus()->isPopulated());
+
+        /** @var \Illuminate\Cache\CacheManager $cacheManager */
+        $cacheManager = app('cache');
+
+        static::assertTrue($cacheManager->store('custom-test')->has('api-toolkit:repository-cache:tags'));
+    }
+
+    /**
+     * Test that a custom cache key prefix is used instead of the model
+     * table name.
+     *
+     * @return void
+     */
+    public function testCustomCacheKeyPrefixIsUsed(): void
+    {
+        assert($this->app !== null);
+
+        $repository = $this->app->make(CustomPrefixCacheableTagRepository::class);
+
+        $repository->get(); // @phpstan-ignore staticMethod.dynamicCall
+
+        /** @var \Illuminate\Cache\CacheManager $cacheManager */
+        $cacheManager = app('cache');
+
+        static::assertTrue($cacheManager->store('array')->has('api-toolkit:repository-cache:custom-prefix'));
+    }
+
+    /**
+     * Test that withoutCache reads fresh data from the database while
+     * the cached snapshot remains stale.
+     *
+     * @return void
+     */
+    public function testWithoutCacheReadsFreshDataFromDatabase(): void
+    {
+        $this->repository->get(); // @phpstan-ignore staticMethod.dynamicCall
+
+        Tag::create(['name' => 'vue']);
+
+        $result = $this->repository->withoutCache()->get(); // @phpstan-ignore staticMethod.dynamicCall
+
+        static::assertCount(3, $result);
+    }
+
+    /**
+     * Test that boot invokes the parent boot chain so inherited
+     * repository collaborators are initialized.
+     *
+     * @return void
+     */
+    public function testBootInvokesParentBootChain(): void
+    {
+        $reflection = new \ReflectionClass(ApiRepository::class);
+
+        $attributeSetter = $reflection->getProperty('attributeSetter')->getValue($this->repository);
+
+        static::assertInstanceOf(AttributeSetter::class, $attributeSetter);
+    }
+
+    /**
+     * Test that the default cache TTL is exactly one hour.
+     *
+     * @return void
+     */
+    public function testDefaultCacheTtlIsOneHour(): void
+    {
+        $this->repository->get(); // @phpstan-ignore staticMethod.dynamicCall
+
+        $this->travel(3599)->seconds();
+
+        static::assertTrue($this->repository->getCacheStatus()->isPopulated());
+
+        $this->travel(1)->seconds();
+
+        static::assertFalse($this->repository->getCacheStatus()->isPopulated());
     }
 
     /**

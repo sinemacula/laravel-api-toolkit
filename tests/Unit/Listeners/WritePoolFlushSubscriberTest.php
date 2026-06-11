@@ -4,8 +4,11 @@ namespace Tests\Unit\Listeners;
 
 use Illuminate\Console\Events\CommandFinished;
 use Illuminate\Contracts\Container\Container;
+use Illuminate\Contracts\Queue\Job;
 use Illuminate\Events\Dispatcher;
 use Illuminate\Foundation\Http\Events\RequestHandled;
+use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Queue\Events\JobFailed;
 use Illuminate\Queue\Events\JobProcessed;
 use Illuminate\Support\Facades\Event;
@@ -14,6 +17,8 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Events\WritePoolFlushFailed;
 use SineMacula\ApiToolkit\Listeners\WritePoolFlushSubscriber;
 use SineMacula\ApiToolkit\Repositories\Concerns\WritePool;
+use Symfony\Component\Console\Input\ArrayInput;
+use Symfony\Component\Console\Output\NullOutput;
 use Tests\TestCase;
 
 /**
@@ -88,6 +93,66 @@ class WritePoolFlushSubscriberTest extends TestCase
     }
 
     /**
+     * Test that dispatching RequestHandled flushes the pool through the
+     * registered listener.
+     *
+     * @return void
+     */
+    public function testDispatchingRequestHandledFlushesThePool(): void
+    {
+        [$events, $pool] = $this->subscribeWithPooledRow('request@example.com');
+
+        $events->dispatch(new RequestHandled(Request::create('/test', 'GET'), new Response));
+
+        static::assertTrue($pool->isEmpty());
+    }
+
+    /**
+     * Test that dispatching CommandFinished flushes the pool through the
+     * registered listener.
+     *
+     * @return void
+     */
+    public function testDispatchingCommandFinishedFlushesThePool(): void
+    {
+        [$events, $pool] = $this->subscribeWithPooledRow('command@example.com');
+
+        $events->dispatch(new CommandFinished('test:command', new ArrayInput([]), new NullOutput, 0));
+
+        static::assertTrue($pool->isEmpty());
+    }
+
+    /**
+     * Test that dispatching JobProcessed flushes the pool through the
+     * registered listener.
+     *
+     * @return void
+     */
+    public function testDispatchingJobProcessedFlushesThePool(): void
+    {
+        [$events, $pool] = $this->subscribeWithPooledRow('job@example.com');
+
+        $events->dispatch(new JobProcessed('sync', static::createStub(Job::class)));
+
+        static::assertTrue($pool->isEmpty());
+    }
+
+    /**
+     * Test that dispatching JobFailed flushes the pool through the
+     * registered listener.
+     *
+     * @return void
+     */
+    public function testDispatchingJobFailedFlushesThePool(): void
+    {
+        [$events, $pool] = $this->subscribeWithPooledRow('failed-job@example.com');
+
+        $events->dispatch(new JobFailed('sync', static::createStub(Job::class), new \RuntimeException('Job failure')));
+
+        static::assertTrue($pool->isEmpty());
+    }
+
+    /**
      * Test that handleFlush resolves the WritePool from the container
      * and calls flush.
      *
@@ -130,7 +195,7 @@ class WritePoolFlushSubscriberTest extends TestCase
         Log::shouldReceive('warning')
             ->once()
             ->with(
-                \Mockery::on(fn (string $message): bool => str_contains($message, '1 chunk(s) failed out of 1 total.')),
+                \Mockery::on(fn (string $message): bool => $message === 'WritePool flush completed with failures: 1 chunk(s) failed out of 1 total.'),
                 \Mockery::on(fn (array $context): bool => $context['failure_count'] === 1
                     && $context['total_count']                                      === 1
                     && $context['tables']                                           === ['nonexistent_table']),
@@ -262,5 +327,29 @@ class WritePoolFlushSubscriberTest extends TestCase
         $subscriber = new WritePoolFlushSubscriber($container);
 
         $subscriber->handleFlush();
+    }
+
+    /**
+     * Subscribe a fresh dispatcher with a pool containing one pending row.
+     *
+     * @param  string  $email
+     * @return array{0: \Illuminate\Events\Dispatcher, 1: \SineMacula\ApiToolkit\Repositories\Concerns\WritePool}
+     */
+    private function subscribeWithPooledRow(string $email): array
+    {
+        $pool = new WritePool(500, 10000);
+        $pool->add('users', ['name' => 'Dave', 'email' => $email, 'password' => 'secret']);
+
+        $container = \Mockery::mock(Container::class);
+        $container->shouldReceive('make')
+            ->with(WritePool::class)
+            ->andReturn($pool);
+
+        $events     = new Dispatcher;
+        $subscriber = new WritePoolFlushSubscriber($container);
+
+        $subscriber->subscribe($events);
+
+        return [$events, $pool];
     }
 }

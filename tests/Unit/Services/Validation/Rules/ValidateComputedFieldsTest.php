@@ -119,6 +119,119 @@ class ValidateComputedFieldsTest extends TestCase
     }
 
     /**
+     * Test that no errors are returned for a global function name compute
+     * value.
+     *
+     * @return void
+     */
+    public function testNoErrorsForGlobalFunctionCompute(): void
+    {
+        $schema = new CompiledSchema(
+            fields: [
+                'length' => $this->makeField('strlen'),
+            ],
+            counts: [],
+        );
+
+        $rule   = new ValidateComputedFields;
+        $errors = $rule->validate(UserResource::class, null, $schema);
+
+        static::assertSame([], $errors);
+    }
+
+    /**
+     * Test that validation continues past fields without compute values and
+     * still reports later defects.
+     *
+     * @return void
+     */
+    public function testContinuesPastFieldsWithoutCompute(): void
+    {
+        $schema = new CompiledSchema(
+            fields: [
+                'clean' => $this->makeField(null),
+                'bad'   => $this->makeField('nonExistentMethod'),
+            ],
+            counts: [],
+        );
+
+        $rule   = new ValidateComputedFields;
+        $errors = $rule->validate(UserResource::class, null, $schema);
+
+        static::assertCount(1, $errors);
+        static::assertSame('bad', $errors[0]->fieldKey);
+    }
+
+    /**
+     * Test that validation continues past fields with Closure compute values
+     * and still reports later defects.
+     *
+     * @return void
+     */
+    public function testContinuesPastClosureComputeFields(): void
+    {
+        $schema = new CompiledSchema(
+            fields: [
+                'clean' => $this->makeField(static fn ($resource) => $resource->name),
+                'bad'   => $this->makeField('nonExistentMethod'),
+            ],
+            counts: [],
+        );
+
+        $rule   = new ValidateComputedFields;
+        $errors = $rule->validate(UserResource::class, null, $schema);
+
+        static::assertCount(1, $errors);
+        static::assertSame('bad', $errors[0]->fieldKey);
+    }
+
+    /**
+     * Test that validation continues past fields with valid method name
+     * compute values and still reports later defects.
+     *
+     * @return void
+     */
+    public function testContinuesPastMethodNameComputeFields(): void
+    {
+        $schema = new CompiledSchema(
+            fields: [
+                'clean' => $this->makeField('schema'),
+                'bad'   => $this->makeField('nonExistentMethod'),
+            ],
+            counts: [],
+        );
+
+        $rule   = new ValidateComputedFields;
+        $errors = $rule->validate(UserResource::class, null, $schema);
+
+        static::assertCount(1, $errors);
+        static::assertSame('bad', $errors[0]->fieldKey);
+    }
+
+    /**
+     * Test that every invalid compute value is reported.
+     *
+     * @return void
+     */
+    public function testReportsAllInvalidComputes(): void
+    {
+        $schema = new CompiledSchema(
+            fields: [
+                'first'  => $this->makeField('nonExistentMethod'),
+                'second' => $this->makeField('anotherMissingMethod'),
+            ],
+            counts: [],
+        );
+
+        $rule   = new ValidateComputedFields;
+        $errors = $rule->validate(UserResource::class, null, $schema);
+
+        static::assertCount(2, $errors);
+        static::assertSame('first', $errors[0]->fieldKey);
+        static::assertSame('second', $errors[1]->fieldKey);
+    }
+
+    /**
      * Test that fields without compute values produce no errors.
      *
      * @return void
@@ -146,5 +259,26 @@ class ValidateComputedFieldsTest extends TestCase
         $errors = $rule->validate(UserResource::class, null, $schema);
 
         static::assertSame([], $errors);
+    }
+
+    /**
+     * Create a compiled field definition with the given compute value.
+     *
+     * @param  mixed  $compute
+     * @return \SineMacula\ApiToolkit\Http\Resources\Schema\CompiledFieldDefinition
+     */
+    private function makeField(mixed $compute): CompiledFieldDefinition
+    {
+        return new CompiledFieldDefinition(
+            accessor: null,
+            compute: $compute,
+            relation: null,
+            resource: null,
+            fields: null,
+            constraint: null,
+            extras: [],
+            guards: [],
+            transformers: [],
+        );
     }
 }

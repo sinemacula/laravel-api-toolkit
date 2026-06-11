@@ -169,6 +169,143 @@ class DatabaseHandlerTest extends TestCase
     }
 
     /**
+     * Test that write stores the record datetime as created_at.
+     *
+     * @return void
+     */
+    public function testWriteStoresRecordDatetimeAsCreatedAt(): void
+    {
+        Config::set('logging.channels.database.level', 'debug');
+
+        $handler  = new DatabaseHandler;
+        $datetime = new \DateTimeImmutable('2026-01-02 03:04:05.123456');
+
+        $record = new LogRecord(
+            datetime: $datetime,
+            channel: 'database',
+            level: Level::Info,
+            message: 'Dated log message',
+            context: [],
+        );
+
+        $handler->handle($record);
+
+        /** @phpstan-ignore staticMethod.notFound */
+        $log = LogMessage::first();
+
+        static::assertNotNull($log);
+        static::assertNotNull($log->created_at);
+        static::assertSame('2026-01-02 03:04:05.123456', $log->created_at->format('Y-m-d H:i:s.u'));
+    }
+
+    /**
+     * Test that write stores records at exactly the minimum level.
+     *
+     * @return void
+     */
+    public function testWriteStoresRecordAtExactMinimumLevel(): void
+    {
+        Config::set('logging.channels.database.level', 'error');
+
+        $handler = new DatabaseHandler;
+
+        $record = new LogRecord(
+            datetime: new \DateTimeImmutable,
+            channel: 'database',
+            level: Level::Error,
+            message: 'Error at threshold',
+            context: [],
+        );
+
+        $handler->handle($record);
+
+        $this->assertDatabaseHas('logs', [
+            'level'   => 'ERROR',
+            'message' => 'Error at threshold',
+        ]);
+    }
+
+    /**
+     * Test that the fallback uses the single channel when the fallback
+     * configuration is missing.
+     *
+     * @return void
+     */
+    public function testFallbackUsesSingleChannelWhenConfigMissing(): void
+    {
+        Config::set('logging.channels.database.level', 'debug');
+        Config::set('logging.channels.fallback', []);
+
+        Log::shouldReceive('stack')
+            ->twice()
+            ->with(['single'])
+            ->andReturnSelf();
+        Log::shouldReceive('debug')
+            ->twice();
+
+        // Drop the logs table so the insert fails
+        \Illuminate\Support\Facades\Schema::drop('logs');
+
+        $handler = new DatabaseHandler;
+
+        $record = new LogRecord(
+            datetime: new \DateTimeImmutable,
+            channel: 'database',
+            level: Level::Info,
+            message: 'Fallback without config',
+            context: [],
+        );
+
+        $handler->handle($record);
+    }
+
+    /**
+     * Test that the fallback logs the formatted record and the failure
+     * reason with the exception context.
+     *
+     * @return void
+     */
+    public function testFallbackLogsFormattedRecordAndExceptionContext(): void
+    {
+        Config::set('logging.channels.database.level', 'debug');
+        Config::set('logging.channels.fallback.channels', ['single']);
+
+        Log::shouldReceive('stack')
+            ->twice()
+            ->with(['single'])
+            ->andReturnSelf();
+
+        Log::shouldReceive('debug')
+            ->once()
+            ->withArgs(fn (mixed $message): bool => is_string($message)
+                && str_contains($message, 'database.INFO')
+                && str_contains($message, 'Should fall back'));
+
+        Log::shouldReceive('debug')
+            ->once()
+            ->withArgs(fn (mixed $message, mixed $context = null): bool => $message === 'Could not log to the database.'
+                && is_array($context)
+                && isset($context['exception'])
+                && is_string($context['exception'])
+                && $context['exception'] !== '');
+
+        // Drop the logs table so the insert fails
+        \Illuminate\Support\Facades\Schema::drop('logs');
+
+        $handler = new DatabaseHandler;
+
+        $record = new LogRecord(
+            datetime: new \DateTimeImmutable,
+            channel: 'database',
+            level: Level::Info,
+            message: 'Should fall back',
+            context: [],
+        );
+
+        $handler->handle($record);
+    }
+
+    /**
      * Test that high-level records pass shouldLog when minimum is debug.
      *
      * @return void
