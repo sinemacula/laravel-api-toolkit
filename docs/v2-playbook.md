@@ -123,9 +123,15 @@ Every PR to `2.x` must pass:
 
 ## PR ledger
 
-| PR   | Branch                                           | Scope                                   | Status |
-|------|--------------------------------------------------|-----------------------------------------|--------|
-| #232 | `feature/schema-introspector-relation-detection` | PRD 02 — return-type relation detection | Open   |
-| #236 | `chore/centralise-coding-standards-2x`           | Centralised coding standards on `2.x`   | Open   |
-| #237 | `chore/standards-compliance-sweep`               | Compliance sweep — 387 findings to zero | Open   |
-| —    | `chore/v2-playbook`                              | This playbook + PRD 04 archival         | Open   |
+| PR   | Branch                                           | Scope                                            | Status |
+|------|--------------------------------------------------|--------------------------------------------------|--------|
+| #232 | `feature/schema-introspector-relation-detection` | PRD 02 — return-type relation detection          | Open   |
+| #236 | `chore/centralise-coding-standards-2x`           | Centralised coding standards on `2.x`            | Open   |
+| #237 | `chore/standards-compliance-sweep`               | Compliance sweep — 387 findings to zero          | Open   |
+| #238 | `chore/v2-playbook`                              | This playbook + PRD 04 archival                  | Open   |
+| #239 | `feature/notification-listener-config-2x`        | PRD 05 — notification log levels and exclusion   | Open   |
+| #240 | `feature/exception-handler-coverage-2x`          | PRD 03 — handler coverage + status preservation  | Open   |
+| #241 | `feature/explicit-request-capabilities-2x`       | PRD 06 — typed RequestCapabilities API           | Open   |
+| #242 | `feature/service-result-value-object-2x`         | PRD 07 — ServiceResult value object              | Open   |
+
+PRs #236 through #242 form a linear stack; merge in order — each PR retargets automatically as its base merges.
