@@ -11,6 +11,7 @@ use SineMacula\ApiToolkit\Http\Middleware\JsonPrettyPrint;
 use SineMacula\ApiToolkit\Http\Middleware\PreventRequestsDuringMaintenance;
 use SineMacula\ApiToolkit\Http\Middleware\ThrottleRequests;
 use SineMacula\ApiToolkit\Http\Middleware\ThrottleRequestsWithRedis;
+use SineMacula\ApiToolkit\Providers\Registrars\MiddlewareRegistrar;
 use Tests\TestCase;
 
 /**
@@ -26,6 +27,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(ApiServiceProvider::class)]
+#[CoversClass(MiddlewareRegistrar::class)]
 class MiddlewareConfigDisabledTest extends TestCase
 {
     /**
