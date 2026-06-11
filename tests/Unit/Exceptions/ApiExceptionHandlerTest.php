@@ -404,7 +404,7 @@ class ApiExceptionHandlerTest extends TestCase
 
         $captured_callback = null;
 
-        $exceptions = $this->createMock(Exceptions::class);
+        $exceptions = static::createStub(Exceptions::class);
         $exceptions->method('report')
             ->willReturnCallback(function ($callback) use (&$captured_callback, $reportable) {
                 $captured_callback = $callback;

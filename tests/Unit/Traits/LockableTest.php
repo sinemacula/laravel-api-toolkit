@@ -4,7 +4,7 @@ namespace Tests\Unit\Traits;
 
 use Illuminate\Contracts\Cache\Lock;
 use Illuminate\Support\Facades\Cache;
-use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\CoversTrait;
 use SineMacula\ApiToolkit\Exceptions\TooManyRequestsException;
 use SineMacula\ApiToolkit\Traits\Lockable;
 use Tests\Fixtures\Traits\StandaloneLockableFixture;
@@ -18,7 +18,7 @@ use Tests\TestCase;
  *
  * @internal
  */
-#[CoversClass(Lockable::class)]
+#[CoversTrait(Lockable::class)]
 class LockableTest extends TestCase
 {
     /**

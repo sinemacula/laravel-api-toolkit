@@ -104,6 +104,21 @@ class ApiCriteriaTest extends TestCase
     }
 
     /**
+     * Provide condition operator test cases.
+     *
+     * @return iterable<string, array{string, string, mixed, string}>
+     */
+    public static function conditionOperatorProvider(): iterable
+    {
+        yield '$eq operator' => ['$eq', '=', 'Alice', 'Basic'];
+        yield '$neq operator' => ['$neq', '<>', 'Alice', 'Basic'];
+        yield '$gt operator' => ['$gt', '>', '10', 'Basic'];
+        yield '$lt operator' => ['$lt', '<', '10', 'Basic'];
+        yield '$ge operator' => ['$ge', '>=', '10', 'Basic'];
+        yield '$le operator' => ['$le', '<=', '10', 'Basic'];
+    }
+
+    /**
      * Test that apply with the $eq operator applies an equals condition.
      *
      * @param  string  $operator
@@ -128,21 +143,6 @@ class ApiCriteriaTest extends TestCase
 
         static::assertNotEmpty($wheres);
         static::assertSame($expectedType, $wheres[0]['type']);
-    }
-
-    /**
-     * Provide condition operator test cases.
-     *
-     * @return iterable<string, array{string, string, mixed, string}>
-     */
-    public static function conditionOperatorProvider(): iterable
-    {
-        yield '$eq operator' => ['$eq', '=', 'Alice', 'Basic'];
-        yield '$neq operator' => ['$neq', '<>', 'Alice', 'Basic'];
-        yield '$gt operator' => ['$gt', '>', '10', 'Basic'];
-        yield '$lt operator' => ['$lt', '<', '10', 'Basic'];
-        yield '$ge operator' => ['$ge', '>=', '10', 'Basic'];
-        yield '$le operator' => ['$le', '<=', '10', 'Basic'];
     }
 
     /**

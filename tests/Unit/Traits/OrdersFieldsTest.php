@@ -2,7 +2,7 @@
 
 namespace Tests\Unit\Traits;
 
-use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\CoversTrait;
 use PHPUnit\Framework\Attributes\DataProvider;
 use SineMacula\ApiToolkit\Enums\FieldOrderingStrategy;
 use SineMacula\ApiToolkit\Traits\OrdersFields;
@@ -17,7 +17,7 @@ use Tests\TestCase;
  *
  * @internal
  */
-#[CoversClass(OrdersFields::class)]
+#[CoversTrait(OrdersFields::class)]
 class OrdersFieldsTest extends TestCase
 {
     use InteractsWithNonPublicMembers;

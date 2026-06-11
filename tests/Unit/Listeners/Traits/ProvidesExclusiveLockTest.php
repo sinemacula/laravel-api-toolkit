@@ -3,7 +3,7 @@
 namespace Tests\Unit\Listeners\Traits;
 
 use Illuminate\Support\Facades\Cache;
-use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\CoversTrait;
 use SineMacula\ApiToolkit\Listeners\Traits\ProvidesExclusiveLock;
 use Tests\TestCase;
 
@@ -15,7 +15,7 @@ use Tests\TestCase;
  *
  * @internal
  */
-#[CoversClass(ProvidesExclusiveLock::class)]
+#[CoversTrait(ProvidesExclusiveLock::class)]
 class ProvidesExclusiveLockTest extends TestCase
 {
     /**

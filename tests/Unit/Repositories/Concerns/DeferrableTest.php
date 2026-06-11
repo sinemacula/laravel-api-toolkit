@@ -4,7 +4,7 @@ namespace Tests\Unit\Repositories\Concerns;
 
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
-use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\CoversTrait;
 use SineMacula\ApiToolkit\Repositories\Concerns\Deferrable;
 use SineMacula\ApiToolkit\Repositories\Concerns\WritePool;
 use SineMacula\ApiToolkit\Repositories\Concerns\WritePoolFlushResult;
@@ -19,7 +19,7 @@ use Tests\TestCase;
  *
  * @internal
  */
-#[CoversClass(Deferrable::class)]
+#[CoversTrait(Deferrable::class)]
 class DeferrableTest extends TestCase
 {
     private const TIMESTAMP_DEFERRAL = '2026-03-10 12:00:01';

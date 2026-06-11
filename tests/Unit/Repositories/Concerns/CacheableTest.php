@@ -4,7 +4,7 @@ namespace Tests\Unit\Repositories\Concerns;
 
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Config;
-use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\CoversTrait;
 use SineMacula\ApiToolkit\Repositories\Concerns\Cacheable;
 use Tests\Fixtures\Models\Tag;
 use Tests\Fixtures\Repositories\CacheableTagRepository;
@@ -20,7 +20,7 @@ use Tests\TestCase;
  *
  * @internal
  */
-#[CoversClass(Cacheable::class)]
+#[CoversTrait(Cacheable::class)]
 class CacheableTest extends TestCase
 {
     /** @var \Tests\Fixtures\Repositories\CacheableTagRepository The repository under test. */

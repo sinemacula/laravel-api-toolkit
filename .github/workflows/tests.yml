@@ -1,5 +1,5 @@
 # ==============================================================================
-# PIPELINE
+# TESTS
 # ==============================================================================
 name: Tests
 
@@ -8,14 +8,24 @@ name: Tests
 # ==============================================================================
 on:
     push:
-        branches:
-            - '**'
+        branches: [ master, 2.x ]
+    pull_request:
+        types: [ opened, synchronize, reopened, ready_for_review ]
+    workflow_dispatch:
+
+# ==============================================================================
+# CONCURRENCY
+# ==============================================================================
+concurrency:
+    group: tests-${{ github.event.pull_request.number || github.ref }}
+    cancel-in-progress: true
 
 # ==============================================================================
 # PERMISSIONS
 # ==============================================================================
 permissions:
     contents: read
+    id-token: write
 
 # ==============================================================================
 # DEFAULTS
@@ -27,64 +37,36 @@ defaults:
 jobs:
 
     # ==========================================================================
-    # JOB: TESTS (SQLite — default, fast)
+    # JOB: TESTS
     # ==========================================================================
     tests:
         name: Test / PHP ${{ matrix.php }}
         runs-on: ubuntu-latest
 
         strategy:
-            fail-fast: true
+            fail-fast: false
             matrix:
-                php: [ 8.3 ]
-
-        concurrency:
-            group: tests-${{ github.workflow }}-${{ github.ref }}
-            cancel-in-progress: true
+                php: [ 8.3, 8.4 ]
 
         steps:
             -   name: Checkout
-                uses: actions/checkout@v4
+                uses: actions/checkout@v5
+                with:
+                    persist-credentials: false
 
             -   name: Setup PHP
-                uses: shivammathur/setup-php@v2
+                uses: sinemacula/.github/.github/actions/setup-php@v1.1.1
                 with:
                     php-version: ${{ matrix.php }}
-                    extensions: dom
-                    coverage: pcov
-                    tools: composer
-
-            -   name: Cache Composer cache
-                uses: actions/cache@v4
-                with:
-                    path: ~/.composer/cache
-                    key: composer-cache-${{ runner.os }}-${{ matrix.php }}-${{ hashFiles('**/composer.lock') }}
-                    restore-keys: composer-cache-${{ runner.os }}-
-
-            -   name: Cache vendor
-                uses: actions/cache@v4
-                with:
-                    path: vendor
-                    key: vendor-${{ runner.os }}-${{ matrix.php }}-${{ hashFiles('**/composer.lock') }}
-                    restore-keys: |
-                        vendor-${{ runner.os }}-${{ matrix.php }}-
-
-            -   name: Install Composer dependencies
-                run: composer install --prefer-dist --no-interaction --no-progress
 
             -   name: PHPUnit
-                if: ${{ !(github.event_name == 'push' && github.ref == 'refs/heads/master') }}
-                run: composer test
-
-            -   name: PHPUnit + Coverage
-                if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
-                run: composer test-coverage
+                run: composer test:coverage
 
             -   name: Publish code coverage
-                if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
-                uses: qltysh/qlty-action/coverage@v1
+                if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' && matrix.php == '8.3' }}
+                uses: qltysh/qlty-action/coverage@v2
                 with:
-                    token: ${{ secrets.QLTY_COVERAGE_TOKEN }}
+                    oidc: true
                     files: clover.xml
 
     # ==========================================================================
@@ -93,7 +75,6 @@ jobs:
     integration:
         name: Integration / ${{ matrix.database }}
         runs-on: ubuntu-latest
-        if: github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/heads/feature/') || startsWith(github.ref, 'refs/heads/bugfix/')
 
         strategy:
             fail-fast: false
@@ -139,38 +120,17 @@ jobs:
                     --health-timeout=5s
                     --health-retries=5
 
-        concurrency:
-            group: integration-${{ matrix.database }}-${{ github.workflow }}-${{ github.ref }}
-            cancel-in-progress: true
-
         steps:
             -   name: Checkout
-                uses: actions/checkout@v4
+                uses: actions/checkout@v5
+                with:
+                    persist-credentials: false
 
             -   name: Setup PHP
-                uses: shivammathur/setup-php@v2
+                uses: sinemacula/.github/.github/actions/setup-php@v1.1.1
                 with:
-                    php-version: '8.3'
-                    extensions: dom, pdo_mysql, pdo_pgsql
-                    tools: composer
-
-            -   name: Cache Composer cache
-                uses: actions/cache@v4
-                with:
-                    path: ~/.composer/cache
-                    key: composer-cache-${{ runner.os }}-8.3-${{ hashFiles('**/composer.lock') }}
-                    restore-keys: composer-cache-${{ runner.os }}-
-
-            -   name: Cache vendor
-                uses: actions/cache@v4
-                with:
-                    path: vendor
-                    key: vendor-${{ runner.os }}-8.3-${{ hashFiles('**/composer.lock') }}
-                    restore-keys: |
-                        vendor-${{ runner.os }}-8.3-
-
-            -   name: Install Composer dependencies
-                run: composer install --prefer-dist --no-interaction --no-progress
+                    php-version: 8.3
+                    extensions: pdo_mysql, pdo_pgsql
 
             -   name: Run integration tests
                 env:

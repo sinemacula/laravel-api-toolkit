@@ -97,7 +97,7 @@ class LockConcernTest extends TestCase
      */
     public function testExecutePassesThroughWhenServiceDoesNotUseLockable(): void
     {
-        $service = $this->createMock(Service::class);
+        $service = static::createStub(Service::class);
         $concern = new LockConcern;
 
         $result = $concern->execute($service, fn (): bool => true);

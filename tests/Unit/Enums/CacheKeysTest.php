@@ -20,6 +20,21 @@ use SineMacula\ApiToolkit\Enums\CacheKeys;
 class CacheKeysTest extends TestCase
 {
     /**
+     * Provide all CacheKeys cases with their expected values.
+     *
+     * @return iterable<string, array{\SineMacula\ApiToolkit\Enums\CacheKeys, string}>
+     */
+    public static function caseProvider(): iterable
+    {
+        yield 'REPOSITORY_MODEL_CASTS' => [CacheKeys::REPOSITORY_MODEL_CASTS, 'repository-model-casts:%s'];
+        yield 'MODEL_SCHEMA_COLUMNS' => [CacheKeys::MODEL_SCHEMA_COLUMNS, 'model-schema-columns:%s'];
+        yield 'MODEL_RELATIONS' => [CacheKeys::MODEL_RELATIONS, 'model-relations:%s:%s'];
+        yield 'MODEL_RESOURCES' => [CacheKeys::MODEL_RESOURCES, 'model-resources:%s'];
+        yield 'REPOSITORY_CACHE' => [CacheKeys::REPOSITORY_CACHE, 'repository-cache:%s'];
+        yield 'REPOSITORY_CACHE_META' => [CacheKeys::REPOSITORY_CACHE_META, 'repository-cache-meta:%s'];
+    }
+
+    /**
      * Test that resolveKey returns a prefixed key with no replacements.
      *
      * @param  \SineMacula\ApiToolkit\Enums\CacheKeys  $case
@@ -99,20 +114,5 @@ class CacheKeysTest extends TestCase
     public function testExpectedCaseCount(): void
     {
         static::assertCount(6, CacheKeys::cases());
-    }
-
-    /**
-     * Provide all CacheKeys cases with their expected values.
-     *
-     * @return iterable<string, array{\SineMacula\ApiToolkit\Enums\CacheKeys, string}>
-     */
-    public static function caseProvider(): iterable
-    {
-        yield 'REPOSITORY_MODEL_CASTS' => [CacheKeys::REPOSITORY_MODEL_CASTS, 'repository-model-casts:%s'];
-        yield 'MODEL_SCHEMA_COLUMNS' => [CacheKeys::MODEL_SCHEMA_COLUMNS, 'model-schema-columns:%s'];
-        yield 'MODEL_RELATIONS' => [CacheKeys::MODEL_RELATIONS, 'model-relations:%s:%s'];
-        yield 'MODEL_RESOURCES' => [CacheKeys::MODEL_RESOURCES, 'model-resources:%s'];
-        yield 'REPOSITORY_CACHE' => [CacheKeys::REPOSITORY_CACHE, 'repository-cache:%s'];
-        yield 'REPOSITORY_CACHE_META' => [CacheKeys::REPOSITORY_CACHE_META, 'repository-cache-meta:%s'];
     }
 }

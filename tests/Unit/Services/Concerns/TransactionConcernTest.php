@@ -32,7 +32,7 @@ class TransactionConcernTest extends TestCase
             ->andReturnUsing(fn (\Closure $callback): bool => $callback());
 
         $concern = new TransactionConcern;
-        $service = $this->createMock(Service::class);
+        $service = static::createStub(Service::class);
 
         $result = $concern->execute($service, fn (): bool => true);
 
@@ -51,7 +51,7 @@ class TransactionConcernTest extends TestCase
             ->andReturnUsing(fn (\Closure $callback): bool => $callback());
 
         $concern = new TransactionConcern;
-        $service = $this->createMock(Service::class);
+        $service = static::createStub(Service::class);
 
         $result = $concern->execute($service, fn (): bool => false);
 
@@ -70,7 +70,7 @@ class TransactionConcernTest extends TestCase
             ->andReturnUsing(fn (\Closure $callback): bool => $callback());
 
         $concern = new TransactionConcern;
-        $service = $this->createMock(Service::class);
+        $service = static::createStub(Service::class);
 
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionMessage('fail');

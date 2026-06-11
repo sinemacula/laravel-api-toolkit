@@ -20,6 +20,35 @@ use SineMacula\ApiToolkit\Enums\ErrorCode;
 class ErrorCodeTest extends TestCase
 {
     /**
+     * Provide all ErrorCode cases with their expected values.
+     *
+     * @return iterable<string, array{\SineMacula\ApiToolkit\Enums\ErrorCode, int}>
+     */
+    public static function caseProvider(): iterable
+    {
+        yield 'UNHANDLED_ERROR' => [ErrorCode::UNHANDLED_ERROR, 10001];
+        yield 'BAD_REQUEST' => [ErrorCode::BAD_REQUEST, 10100];
+        yield 'UNAUTHENTICATED' => [ErrorCode::UNAUTHENTICATED, 10101];
+        yield 'FORBIDDEN' => [ErrorCode::FORBIDDEN, 10102];
+        yield 'NOT_FOUND' => [ErrorCode::NOT_FOUND, 10103];
+        yield 'NOT_ALLOWED' => [ErrorCode::NOT_ALLOWED, 10104];
+        yield 'TOKEN_MISMATCH' => [ErrorCode::TOKEN_MISMATCH, 10105];
+        yield 'INVALID_INPUT' => [ErrorCode::INVALID_INPUT, 10106];
+        yield 'TOO_MANY_REQUESTS' => [ErrorCode::TOO_MANY_REQUESTS, 10107];
+        yield 'CONFLICT' => [ErrorCode::CONFLICT, 10108];
+        yield 'GONE' => [ErrorCode::GONE, 10109];
+        yield 'PAYLOAD_TOO_LARGE' => [ErrorCode::PAYLOAD_TOO_LARGE, 10110];
+        yield 'LOCKED' => [ErrorCode::LOCKED, 10111];
+        yield 'SERVICE_UNAVAILABLE' => [ErrorCode::SERVICE_UNAVAILABLE, 10112];
+        yield 'HTTP_ERROR' => [ErrorCode::HTTP_ERROR, 10113];
+        yield 'MAINTENANCE_MODE' => [ErrorCode::MAINTENANCE_MODE, 10200];
+        yield 'FILE_UPLOAD_ERROR' => [ErrorCode::FILE_UPLOAD_ERROR, 10300];
+        yield 'INVALID_IMAGE' => [ErrorCode::INVALID_IMAGE, 10301];
+        yield 'INVALID_NOTIFICATION' => [ErrorCode::INVALID_NOTIFICATION, 10400];
+        yield 'FAILED_TO_SEND_SMS' => [ErrorCode::FAILED_TO_SEND_SMS, 10401];
+    }
+
+    /**
      * Test that getCode returns the enum backing value.
      *
      * @param  \SineMacula\ApiToolkit\Enums\ErrorCode  $case
@@ -79,34 +108,5 @@ class ErrorCodeTest extends TestCase
         }
 
         static::assertCount(count($expectedCases), ErrorCode::cases());
-    }
-
-    /**
-     * Provide all ErrorCode cases with their expected values.
-     *
-     * @return iterable<string, array{\SineMacula\ApiToolkit\Enums\ErrorCode, int}>
-     */
-    public static function caseProvider(): iterable
-    {
-        yield 'UNHANDLED_ERROR' => [ErrorCode::UNHANDLED_ERROR, 10001];
-        yield 'BAD_REQUEST' => [ErrorCode::BAD_REQUEST, 10100];
-        yield 'UNAUTHENTICATED' => [ErrorCode::UNAUTHENTICATED, 10101];
-        yield 'FORBIDDEN' => [ErrorCode::FORBIDDEN, 10102];
-        yield 'NOT_FOUND' => [ErrorCode::NOT_FOUND, 10103];
-        yield 'NOT_ALLOWED' => [ErrorCode::NOT_ALLOWED, 10104];
-        yield 'TOKEN_MISMATCH' => [ErrorCode::TOKEN_MISMATCH, 10105];
-        yield 'INVALID_INPUT' => [ErrorCode::INVALID_INPUT, 10106];
-        yield 'TOO_MANY_REQUESTS' => [ErrorCode::TOO_MANY_REQUESTS, 10107];
-        yield 'CONFLICT' => [ErrorCode::CONFLICT, 10108];
-        yield 'GONE' => [ErrorCode::GONE, 10109];
-        yield 'PAYLOAD_TOO_LARGE' => [ErrorCode::PAYLOAD_TOO_LARGE, 10110];
-        yield 'LOCKED' => [ErrorCode::LOCKED, 10111];
-        yield 'SERVICE_UNAVAILABLE' => [ErrorCode::SERVICE_UNAVAILABLE, 10112];
-        yield 'HTTP_ERROR' => [ErrorCode::HTTP_ERROR, 10113];
-        yield 'MAINTENANCE_MODE' => [ErrorCode::MAINTENANCE_MODE, 10200];
-        yield 'FILE_UPLOAD_ERROR' => [ErrorCode::FILE_UPLOAD_ERROR, 10300];
-        yield 'INVALID_IMAGE' => [ErrorCode::INVALID_IMAGE, 10301];
-        yield 'INVALID_NOTIFICATION' => [ErrorCode::INVALID_NOTIFICATION, 10400];
-        yield 'FAILED_TO_SEND_SMS' => [ErrorCode::FAILED_TO_SEND_SMS, 10401];
     }
 }

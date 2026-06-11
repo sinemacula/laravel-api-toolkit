@@ -112,6 +112,26 @@ template proves the need.
 - [ ] README refresh for v2 surface
 - [ ] Tag `v2.0.0-beta` once PRDs land; release after downstream projects validate
 
+## Testing strategy
+
+Line coverage is necessary but not sufficient. The quality bar for this package is **behavioural coverage of every
+way a consuming application uses it**:
+
+- **Integration-first for consumer paths.** Every public surface should have integration tests that exercise the
+  package the way an application does — real HTTP requests through the middleware stack, real database queries
+  through repositories and criteria, real serialization through resources (`tests/Integration/RequestLifecycleTest`
+  is the anchor for this pattern). New consumer-facing behaviour ships with an integration test, not only unit tests
+  of the collaborators.
+- **Mutation testing as the assertion-quality gate.** `composer test:mutation` enforces an MSI floor in CI
+  (Quality Gates workflow). The floor starts at the measured baseline (75%) and is ratcheted upward as escaped
+  mutants are killed — raise the threshold in `composer.json` whenever the full suite (`composer test:mutation:full`)
+  shows headroom. Escaped mutants are a to-do list for missing assertions.
+- **Multi-database matrix.** Integration tests run against SQLite locally and MySQL + PostgreSQL in CI; anything
+  touching query generation must hold across all three.
+- **Known integration gaps to close**: exception-handler rendering through a real route (`abort()` →
+  toolkit JSON), SSE streaming over an actual HTTP response, export content negotiation end-to-end, and the
+  deferred-write flush across a simulated request boundary.
+
 ## Quality gates
 
 Every PR to `2.x` must pass:

@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Config;
 use PHPUnit\Framework\Attributes\CoversClass;
-use PHPUnit\Framework\MockObject\MockObject;
+use PHPUnit\Framework\MockObject\Stub;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Enums\CacheKeys;
 use SineMacula\ApiToolkit\Repositories\Concerns\AttributeSetter;
@@ -37,8 +37,8 @@ class AttributeSetterTest extends TestCase
     /** @var string */
     private const string ALICE_EMAIL = 'alice@example.com';
 
-    /** @var \PHPUnit\Framework\MockObject\MockObject&\SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider */
-    private MockObject&SchemaIntrospectionProvider $schemaIntrospector;
+    /** @var \PHPUnit\Framework\MockObject\Stub&\SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider */
+    private SchemaIntrospectionProvider&Stub $schemaIntrospector;
 
     /** @var \SineMacula\ApiToolkit\Repositories\Concerns\AttributeSetter */
     private AttributeSetter $attributeSetter;
@@ -53,7 +53,7 @@ class AttributeSetterTest extends TestCase
     {
         parent::setUp();
 
-        $this->schemaIntrospector = $this->createMock(SchemaIntrospectionProvider::class);
+        $this->schemaIntrospector = static::createStub(SchemaIntrospectionProvider::class);
         $this->attributeSetter    = new AttributeSetter($this->schemaIntrospector);
     }
 
@@ -309,7 +309,7 @@ class AttributeSetterTest extends TestCase
      */
     public function testPersistReturnsSaveResult(): void
     {
-        $model = $this->createMock(Model::class);
+        $model = static::createStub(Model::class);
         $model->method('save')->willReturn(false);
         $model->method('getCasts')->willReturn([]);
 
@@ -375,8 +375,7 @@ class AttributeSetterTest extends TestCase
         $relation = $model->organization();
 
         $this->schemaIntrospector->method('resolveRelation')
-            ->with('organization', $model)
-            ->willReturn($relation);
+            ->willReturnCallback(static fn (string $attribute, $subject) => $attribute === 'organization' && $subject === $model ? $relation : null);
 
         $result = $this->invokeMethod($this->attributeSetter, 'resolveCastForRelation', 'organization', $model);
 
@@ -392,11 +391,10 @@ class AttributeSetterTest extends TestCase
     public function testResolveCastForRelationReturnsCastForMorphTo(): void
     {
         $model    = new User;
-        $relation = $this->createMock(MorphTo::class);
+        $relation = static::createStub(MorphTo::class);
 
         $this->schemaIntrospector->method('resolveRelation')
-            ->with('commentable', $model)
-            ->willReturn($relation);
+            ->willReturnCallback(static fn (string $attribute, $subject) => $attribute === 'commentable' && $subject === $model ? $relation : null);
 
         $result = $this->invokeMethod($this->attributeSetter, 'resolveCastForRelation', 'commentable', $model);
 
@@ -415,8 +413,7 @@ class AttributeSetterTest extends TestCase
         $relation = $model->tags();
 
         $this->schemaIntrospector->method('resolveRelation')
-            ->with('tags', $model)
-            ->willReturn($relation);
+            ->willReturnCallback(static fn (string $attribute, $subject) => $attribute === 'tags' && $subject === $model ? $relation : null);
 
         $result = $this->invokeMethod($this->attributeSetter, 'resolveCastForRelation', 'tags', $model);
 
@@ -434,7 +431,6 @@ class AttributeSetterTest extends TestCase
         $model = new User;
 
         $this->schemaIntrospector->method('resolveRelation')
-            ->with('nonexistent', $model)
             ->willReturn(null);
 
         $result = $this->invokeMethod($this->attributeSetter, 'resolveCastForRelation', 'nonexistent', $model);
@@ -454,8 +450,7 @@ class AttributeSetterTest extends TestCase
         $relation = $model->articles();
 
         $this->schemaIntrospector->method('resolveRelation')
-            ->with('articles', $model)
-            ->willReturn($relation);
+            ->willReturnCallback(static fn (string $attribute, $subject) => $attribute === 'articles' && $subject === $model ? $relation : null);
 
         $result = $this->invokeMethod($this->attributeSetter, 'resolveCastForRelation', 'articles', $model);
 

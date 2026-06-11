@@ -4,7 +4,7 @@ namespace Tests\Unit\Http\Concerns;
 
 use Illuminate\Http\Request;
 use InvalidArgumentException;
-use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\CoversTrait;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
 use SineMacula\ApiToolkit\Http\Concerns\RespondsWithStream;
 use SineMacula\ApiToolkit\Repositories\ApiRepository;
@@ -24,7 +24,7 @@ use Tests\TestCase;
  *
  * @internal
  */
-#[CoversClass(RespondsWithStream::class)]
+#[CoversTrait(RespondsWithStream::class)]
 class RespondsWithStreamTest extends TestCase
 {
     /** @var string */

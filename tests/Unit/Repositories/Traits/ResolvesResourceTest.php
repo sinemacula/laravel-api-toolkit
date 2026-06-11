@@ -4,7 +4,7 @@ namespace Tests\Unit\Repositories\Traits;
 
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Config;
-use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\CoversTrait;
 use SineMacula\ApiToolkit\Repositories\Traits\ResolvesResource;
 use Tests\Concerns\InteractsWithNonPublicMembers;
 use Tests\Fixtures\Models\User;
@@ -19,7 +19,7 @@ use Tests\TestCase;
  *
  * @internal
  */
-#[CoversClass(ResolvesResource::class)]
+#[CoversTrait(ResolvesResource::class)]
 class ResolvesResourceTest extends TestCase
 {
     use InteractsWithNonPublicMembers;

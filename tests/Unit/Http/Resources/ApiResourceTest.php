@@ -1379,6 +1379,19 @@ class ApiResourceTest extends TestCase
     }
 
     /**
+     * Provide resource class and expected type pairs.
+     *
+     * @return iterable<string, array{class-string, string}>
+     */
+    public static function resourceTypeProvider(): iterable
+    {
+        yield 'user resource' => [UserResource::class, 'users'];
+        yield 'organization resource' => [OrganizationResource::class, 'organizations'];
+        yield 'post resource' => [PostResource::class, 'posts'];
+        yield 'tag resource' => [TagResource::class, 'tags'];
+    }
+
+    /**
      * Test that different resource types produce correct types.
      *
      * @param  string  $resource_class
@@ -1392,16 +1405,15 @@ class ApiResourceTest extends TestCase
     }
 
     /**
-     * Provide resource class and expected type pairs.
+     * Provide resource classes with expected field lists.
      *
-     * @return iterable<string, array{class-string, string}>
+     * @return iterable<string, array{class-string, array<int, string>}>
      */
-    public static function resourceTypeProvider(): iterable
+    public static function allFieldsProvider(): iterable
     {
-        yield 'user resource' => [UserResource::class, 'users'];
-        yield 'organization resource' => [OrganizationResource::class, 'organizations'];
-        yield 'post resource' => [PostResource::class, 'posts'];
-        yield 'tag resource' => [TagResource::class, 'tags'];
+        yield 'organization fields' => [OrganizationResource::class, ['id', 'name', 'slug', 'created_at', 'updated_at']];
+        yield 'post fields' => [PostResource::class, ['id', 'title', 'body', 'published', 'created_at', 'updated_at', 'user', 'tags']];
+        yield 'tag fields' => [TagResource::class, ['id', 'name', 'created_at', 'updated_at']];
     }
 
     /**
@@ -1419,18 +1431,6 @@ class ApiResourceTest extends TestCase
         foreach ($expected_fields as $field) {
             static::assertContains($field, $all_fields);
         }
-    }
-
-    /**
-     * Provide resource classes with expected field lists.
-     *
-     * @return iterable<string, array{class-string, array<int, string>}>
-     */
-    public static function allFieldsProvider(): iterable
-    {
-        yield 'organization fields' => [OrganizationResource::class, ['id', 'name', 'slug', 'created_at', 'updated_at']];
-        yield 'post fields' => [PostResource::class, ['id', 'title', 'body', 'published', 'created_at', 'updated_at', 'user', 'tags']];
-        yield 'tag fields' => [TagResource::class, ['id', 'name', 'created_at', 'updated_at']];
     }
 
     /**

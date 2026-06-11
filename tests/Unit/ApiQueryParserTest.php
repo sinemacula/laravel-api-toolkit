@@ -237,6 +237,21 @@ class ApiQueryParserTest extends TestCase
     }
 
     /**
+     * Provide order string parsing scenarios.
+     *
+     * @return iterable<string, array{string, array<string, string>}>
+     */
+    public static function orderProvider(): iterable
+    {
+        yield 'single field ascending' => ['name:asc', ['name' => 'asc']];
+        yield 'single field descending' => ['name:desc', ['name' => 'desc']];
+        yield 'default ascending direction' => ['name', ['name' => 'asc']];
+        yield 'multiple fields' => ['name:asc,created_at:desc', ['name' => 'asc', 'created_at' => 'desc']];
+        yield 'mixed directions' => ['first_name,last_name:desc', ['first_name' => 'asc', 'last_name' => 'desc']];
+        yield 'random order' => ['random', ['random' => 'asc']];
+    }
+
+    /**
      * Test that getOrder parses order with direction.
      *
      * @param  string  $orderString
@@ -449,20 +464,5 @@ class ApiQueryParserTest extends TestCase
 
         static::assertArrayHasKey('valid', $result);
         static::assertArrayNotHasKey('invalid', $result);
-    }
-
-    /**
-     * Provide order string parsing scenarios.
-     *
-     * @return iterable<string, array{string, array<string, string>}>
-     */
-    public static function orderProvider(): iterable
-    {
-        yield 'single field ascending' => ['name:asc', ['name' => 'asc']];
-        yield 'single field descending' => ['name:desc', ['name' => 'desc']];
-        yield 'default ascending direction' => ['name', ['name' => 'asc']];
-        yield 'multiple fields' => ['name:asc,created_at:desc', ['name' => 'asc', 'created_at' => 'desc']];
-        yield 'mixed directions' => ['first_name,last_name:desc', ['first_name' => 'asc', 'last_name' => 'desc']];
-        yield 'random order' => ['random', ['random' => 'asc']];
     }
 }

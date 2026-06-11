@@ -6,7 +6,7 @@ use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Http\Resources\Json\ResourceCollection;
 use Illuminate\Http\Response as HttpResponse;
 use InvalidArgumentException;
-use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\CoversTrait;
 use SineMacula\ApiToolkit\Http\Concerns\RespondsWithExport;
 use SineMacula\ApiToolkit\Http\RequestCapabilities;
 use SineMacula\Exporter\Contracts\Exporter as ExporterContract;
@@ -23,7 +23,7 @@ use Tests\TestCase;
  *
  * @internal
  */
-#[CoversClass(RespondsWithExport::class)]
+#[CoversTrait(RespondsWithExport::class)]
 class RespondsWithExportTest extends TestCase
 {
     /** @var string */

@@ -30,7 +30,7 @@ class CloudWatchLoggerTest extends TestCase
 
         $config = $this->buildConfig();
 
-        $mockClient = $this->createMock(CloudWatchLogsClient::class);
+        $mockClient = static::createStub(CloudWatchLogsClient::class);
 
         assert($this->app !== null);
 
