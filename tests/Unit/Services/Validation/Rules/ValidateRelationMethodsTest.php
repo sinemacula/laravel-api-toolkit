@@ -365,6 +365,7 @@ class ValidateRelationMethodsTest extends TestCase
             /**
              * @return \Illuminate\Database\Eloquent\Relations\HasMany|\Illuminate\Database\Eloquent\Relations\MorphMany
              */
+            // @phpstan-ignore-next-line return.unusedType, missingType.generics (the union return type is the validation subject under test)
             public function items(): HasMany|MorphMany
             {
                 return $this->hasMany(self::class);
@@ -407,6 +408,7 @@ class ValidateRelationMethodsTest extends TestCase
             /**
              * @return string|int
              */
+            // @phpstan-ignore-next-line return.unusedType (the non-relation union return type is the validation subject under test)
             public function items(): string|int
             {
                 return '';

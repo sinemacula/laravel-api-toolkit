@@ -393,6 +393,7 @@ class SchemaIntrospectorTest extends TestCase
              *
              * @return \Illuminate\Database\Eloquent\Relations\HasMany|\Illuminate\Database\Eloquent\Relations\MorphMany
              */
+            // @phpstan-ignore-next-line return.unusedType, missingType.generics (the union return type is the reflection subject under test)
             public function tags(): HasMany|MorphMany
             {
                 return $this->hasMany(Post::class);
@@ -421,6 +422,7 @@ class SchemaIntrospectorTest extends TestCase
              *
              * @return string|int
              */
+            // @phpstan-ignore-next-line return.unusedType (the non-relation union return type is the reflection subject under test)
             public function tags(): string|int
             {
                 return '';
