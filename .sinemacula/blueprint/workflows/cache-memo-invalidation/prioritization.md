@@ -68,10 +68,12 @@ higher priority.
 Five P0 problems share a total score of 8 and three share a total score of 7. The within-tier ranking is based on implementation dependency:
 
 **Score 8 (Rank 1-5):**
+
 - Rank 1-2: Infrastructure problems (Centralized Flush, Lifecycle Events) are ranked first because they are **enablers** — without them, the Data Corruption problems cannot be systematically resolved. The centralized flush mechanism is ranked above lifecycle events because the mechanism must exist before it can be wired to events.
 - Rank 3-5: Data Corruption problems (Stale Relations, Stale Casts, Schema Columns) are ranked by severity signal from the problem map. All three are High severity / Occasionally frequency; they are ordered by the breadth of downstream impact (query filtering > attribute types > column metadata).
 
 **Score 7 (Rank 6-8):**
+
 - Rank 6: Static Property Flush APIs is ranked first because it is an **unblocker** — the centralized flush mechanism (Rank 1) cannot clear `ApiResource::$schemaCache` or `RepositoryResolver::$map` without public flush methods. Low effort makes it natural to address alongside Rank 1-2.
 - Rank 7-8: Remaining Data Corruption problems ordered by severity (Medium impact; Resource Mappings rarely encountered vs Schema Cache occasionally encountered).
 

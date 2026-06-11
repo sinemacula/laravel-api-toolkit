@@ -57,7 +57,7 @@ class ApiExceptionHandler
      *
      * @param  \Throwable  $exception
      * @param  \Illuminate\Http\Request  $request
-     * @return \Symfony\Component\HttpFoundation\Response|null
+     * @return \Illuminate\Http\JsonResponse|null
      */
     private static function render(\Throwable $exception, Request $request): ?JsonResponse
     {
@@ -69,7 +69,7 @@ class ApiExceptionHandler
 
         // In auto mode, defer to Laravel's default rendering when the
         // request does not expect JSON and debug mode is enabled
-        if ($strategy === 'auto' && !$request->expectsJson() && Config::get('app.debug')) {
+        if ($strategy === 'auto' && !$request->expectsJson() && (bool) Config::get('app.debug')) {
             return null;
         }
 
@@ -127,27 +127,27 @@ class ApiExceptionHandler
      */
     private static function renderApiExceptionWithJson(Request $request, ApiException $exception): JsonResponse
     {
-        $options = $request->get('pretty') ? JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES : JSON_UNESCAPED_SLASHES;
+        $options = (bool) $request->input('pretty') ? JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES : JSON_UNESCAPED_SLASHES;
 
-        return Response::json(self::convertApiExceptionToArray($exception), $exception->getHttpStatusCode(), $exception->getHeaders(), $options);
+        return Response::json(self::convertApiExceptionToArray($exception), $exception::getHttpStatusCode(), $exception->getHeaders(), $options);
     }
 
     /**
      * Convert the given API exception to an array.
      *
      * @param  \SineMacula\ApiToolkit\Exceptions\ApiException  $exception
-     * @return array
+     * @return array<string, array<string, mixed>>
      */
     private static function convertApiExceptionToArray(ApiException $exception): array
     {
         return [
             'error' => array_filter([
-                'status' => $exception->getHttpStatusCode(),
-                'code'   => $exception->getInternalErrorCode(),
+                'status' => $exception::getHttpStatusCode(),
+                'code'   => $exception::getInternalErrorCode(),
                 'title'  => $exception->getCustomTitle(),
                 'detail' => $exception->getCustomDetail(),
                 'meta'   => self::getApiExceptionMeta($exception),
-            ]),
+            ], static fn ($value): bool => (bool) $value),
         ];
     }
 
@@ -155,13 +155,13 @@ class ApiExceptionHandler
      * Extracts meta information for an API exception.
      *
      * @param  \SineMacula\ApiToolkit\Exceptions\ApiException  $exception
-     * @return array|null
+     * @return array<string, mixed>|null
      */
     private static function getApiExceptionMeta(ApiException $exception): ?array
     {
         $previous     = $exception->getPrevious();
         $debugConfig  = Config::get('api-toolkit.exceptions.include_debug_info');
-        $includeDebug = $debugConfig ?? Config::get('app.debug');
+        $includeDebug = (bool) ($debugConfig ?? Config::get('app.debug'));
 
         return $includeDebug && $previous !== null ? array_merge($exception->getCustomMeta() ?? [], [
             'message'   => $previous->getMessage(),
@@ -207,7 +207,7 @@ class ApiExceptionHandler
     /**
      * Retrieves context for logging an exception.
      *
-     * @return array
+     * @return array<string, mixed>
      */
     private static function getContext(): array
     {
@@ -222,6 +222,7 @@ class ApiExceptionHandler
                 array_merge($context, [
                     'user_id' => Auth::id(),
                 ]),
+                static fn ($value): bool => (bool) $value,
             );
         } catch (\Throwable $exception) {
             return $context;

@@ -218,9 +218,9 @@ return [
 
     'deferred_writes' => [
 
-        'chunk_size' => (int) env('DEFERRED_WRITES_CHUNK_SIZE', 500),
+        'chunk_size' => is_numeric($chunk_size = env('DEFERRED_WRITES_CHUNK_SIZE', 500)) ? (int) $chunk_size : 500,
 
-        'pool_limit' => (int) env('DEFERRED_WRITES_POOL_LIMIT', 10000),
+        'pool_limit' => is_numeric($pool_limit = env('DEFERRED_WRITES_POOL_LIMIT', 10000)) ? (int) $pool_limit : 10000,
 
         'on_failure' => env('DEFERRED_WRITES_ON_FAILURE', 'log'),
 

@@ -9,10 +9,12 @@ use Illuminate\Contracts\Support\Arrayable;
  *
  * @author      Ben Carey <ben.carey@verifast.com>
  * @copyright   2026 Sine Macula Limited.
+ *
+ * @implements \Illuminate\Contracts\Support\Arrayable<string, array<string, mixed>>
  */
 final class Count extends BaseDefinition implements Arrayable
 {
-    /** @var \Closure|null Optional eager-load constraint for this count */
+    /** @var (\Closure(\Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>): void)|null Optional eager-load constraint for this count */
     private ?\Closure $constraint = null;
 
     /** @var bool Whether this count should be included by default when metrics are requested */
@@ -62,7 +64,7 @@ final class Count extends BaseDefinition implements Arrayable
     /**
      * Apply an optional query constraint to this count.
      *
-     * @param  \Closure  $constraint
+     * @param  \Closure(\Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>): void  $constraint
      * @return self
      */
     public function constrain(\Closure $constraint): self

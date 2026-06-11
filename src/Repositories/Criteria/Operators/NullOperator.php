@@ -26,8 +26,10 @@ final class NullOperator implements FilterOperator
     #[\Override]
     public function apply(Builder $query, string $column, mixed $value, FilterContext $context): void
     {
-        $method = ($context->getLogicalOperator() === '$or' ? 'orWhere' : 'where') . 'Null';
-
-        $query->{$method}($column);
+        if ($context->getLogicalOperator() === '$or') {
+            $query->getQuery()->orWhereNull($column);
+        } else {
+            $query->getQuery()->whereNull($column);
+        }
     }
 }

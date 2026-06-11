@@ -34,12 +34,13 @@ enum CacheKeys: string
      * Resolves the cache key with the necessary prefix and replaces any
      * placeholders.
      *
-     * @param  array  $replacements
+     * @param  array<int, string>  $replacements
      * @return string
      */
     public function resolveKey(array $replacements = []): string
     {
         $prefix = Config::get('api-toolkit.cache.prefix', 'sm-api-toolkit');
+        $prefix = is_string($prefix) ? $prefix : 'sm-api-toolkit';
 
         $key = $prefix . ':' . $this->value;
 

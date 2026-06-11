@@ -229,10 +229,18 @@ final class AttributeSetter
      * @param  string  $attribute
      * @param  mixed  $value
      * @return void
+     *
+     * @throws \LogicException
      */
     private function setAssociateAttribute(Model $model, string $attribute, mixed $value): void
     {
-        $model->{Str::camel($attribute)}()->associate($value);
+        $relation = $this->resolveRelationInstance($model, $attribute);
+
+        if (!($relation instanceof BelongsTo)) {
+            throw new \LogicException(sprintf('Attribute "%s" on %s does not resolve to a BelongsTo relation', $attribute, $model::class));
+        }
+
+        $relation->associate($value);
     }
 
     /**
@@ -243,6 +251,8 @@ final class AttributeSetter
      * @param  string  $attribute
      * @param  mixed  $value
      * @return void
+     *
+     * @throws \LogicException
      */
     private function setSyncAttribute(Model $model, string $attribute, mixed $value): void
     {
@@ -259,7 +269,26 @@ final class AttributeSetter
         $values ??= $value;
         $detaching = $value['detaching'] ?? true;
 
-        $model->{Str::camel($attribute)}()->sync($values, $detaching);
+        $relation = $this->resolveRelationInstance($model, $attribute);
+
+        if (!($relation instanceof BelongsToMany)) {
+            throw new \LogicException(sprintf('Attribute "%s" on %s does not resolve to a BelongsToMany relation', $attribute, $model::class));
+        }
+
+        $relation->sync($values, $detaching);
+    }
+
+    /**
+     * Resolve the relation instance for the given attribute by
+     * invoking its camel-cased relation method on the model.
+     *
+     * @param  \Illuminate\Database\Eloquent\Model  $model
+     * @param  string  $attribute
+     * @return mixed
+     */
+    private function resolveRelationInstance(Model $model, string $attribute): mixed
+    {
+        return \Closure::fromCallable([$model, Str::camel($attribute)])();
     }
 
     /**

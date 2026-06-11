@@ -2,23 +2,22 @@
 
 namespace SineMacula\ApiToolkit\Facades;
 
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Facade;
 
 /**
  * API query facade.
  *
- * @method static array|null getFields(?string $resource = null)
- * @method static array|null getCounts(?string $resource = null)
- * @method static array|null getSums(?string $resource = null)
- * @method static array|null getAverages(?string $resource = null)
- * @method static array|null getFilters()
- * @method static array getOrder()
+ * @method static array<int, string>|null getFields(?string $resource = null)
+ * @method static array<int, string>|null getCounts(?string $resource = null)
+ * @method static array<string, mixed>|null getSums(?string $resource = null)
+ * @method static array<string, mixed>|null getAverages(?string $resource = null)
+ * @method static array<string, mixed>|null getFilters()
+ * @method static array<string, string> getOrder()
  * @method static int|null getLimit()
  * @method static int|null getPage()
  * @method static string|null getCursor()
- * @method static void parse(Request $request)
+ * @method static void parse(\Illuminate\Http\Request $request)
  *
  * @see         \SineMacula\ApiToolkit\ApiQueryParser
  *
@@ -34,6 +33,8 @@ class ApiQuery extends Facade
      */
     protected static function getFacadeAccessor(): string
     {
-        return Config::get('api-toolkit.parser.alias');
+        $alias = Config::get('api-toolkit.parser.alias');
+
+        return is_string($alias) ? $alias : 'api.query';
     }
 }

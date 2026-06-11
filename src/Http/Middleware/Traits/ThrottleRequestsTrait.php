@@ -13,7 +13,7 @@ trait ThrottleRequestsTrait
     /**
      * Resolve request signature.
      *
-     * phpcs:disable Squiz.Commenting.FunctionComment.ScalarTypeHintMissing
+     * phpcs:disable Squiz.Commenting.FunctionComment.ScalarTypeHintMissing,Squiz.Commenting.FunctionComment.TypeHintMissing
      *
      * @param  \Illuminate\Http\Request  $request
      * @return string
@@ -23,15 +23,21 @@ trait ThrottleRequestsTrait
     protected function resolveRequestSignature(#[\SensitiveParameter] $request): string
     {
         // phpcs:enable
-        if (!$request->route()) {
+        // Invoke the route resolver directly, as route() is documented as
+        // never returning null when called without arguments
+        $route = ($request->getRouteResolver())();
+
+        if ($route === null) {
             throw new \RuntimeException('Unable to generate the request signature. Route unavailable.');
         }
 
+        $server_name = $request->server('SERVER_NAME');
+
         return sha1(
             $request->method()
-            . '|' . $request->server('SERVER_NAME')
+            . '|' . (is_string($server_name) ? $server_name : '')
             . '|' . $request->path()
-            . '|' . $request->user()?->getAuthIdentifier() ?? $request->ip(),
+            . '|' . $request->user()?->getAuthIdentifier(),
         );
     }
 }

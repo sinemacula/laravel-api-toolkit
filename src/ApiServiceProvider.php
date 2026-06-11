@@ -92,11 +92,13 @@ class ApiServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->mergeConfigFrom(
-            __DIR__ . '/../config/api-toolkit.php', 'api-toolkit',
+            __DIR__ . '/../config/api-toolkit.php',
+            'api-toolkit',
         );
 
         $this->replaceConfigRecursivelyFrom(
-            __DIR__ . '/../config/logging.php', 'logging',
+            __DIR__ . '/../config/logging.php',
+            'logging',
         );
 
         $this->registerQueryParser();
@@ -120,7 +122,8 @@ class ApiServiceProvider extends ServiceProvider
     private function loadTranslationFiles(): void
     {
         $this->loadTranslationsFrom(
-            __DIR__ . '/../resources/lang', 'api-toolkit',
+            __DIR__ . '/../resources/lang',
+            'api-toolkit',
         );
 
         $this->publishes([
@@ -186,8 +189,17 @@ class ApiServiceProvider extends ServiceProvider
      */
     private function registerTrashedMacros(): void
     {
-        Request::macro('includeTrashed', fn () => $this->get('include_trashed', false) === 'true');
-        Request::macro('onlyTrashed', fn () => $this->get('only_trashed', false) === 'true');
+        Request::macro('includeTrashed', \Closure::bind(
+            fn (): bool => $this->input('include_trashed', false) === 'true',
+            new \Illuminate\Http\Request,
+            \Illuminate\Http\Request::class,
+        ));
+
+        Request::macro('onlyTrashed', \Closure::bind(
+            fn (): bool => $this->input('only_trashed', false) === 'true',
+            new \Illuminate\Http\Request,
+            \Illuminate\Http\Request::class,
+        ));
     }
 
     /**
@@ -197,15 +209,38 @@ class ApiServiceProvider extends ServiceProvider
      */
     private function registerExportMacros(): void
     {
-        Request::macro('expectsExport', fn () => config('api-toolkit.exports.enabled') && ($this->expectsCsv() || $this->expectsXml()));
+        Request::macro('expectsExport', \Closure::bind(fn (): bool => (bool) config('api-toolkit.exports.enabled')
+                && ($this->__call('expectsCsv', []) === true || $this->__call('expectsXml', []) === true), new \Illuminate\Http\Request, \Illuminate\Http\Request::class));
 
-        Request::macro('expectsCsv', fn () => strtolower($this->header(HttpHeader::ACCEPT->getName())) === MediaType::TEXT_CSV->getMimeType()
-            && in_array('csv', config('api-toolkit.exports.supported_formats', []), true));
+        Request::macro('expectsCsv', \Closure::bind(function (): bool {
 
-        Request::macro('expectsXml', fn () => strtolower($this->header(HttpHeader::ACCEPT->getName())) === MediaType::APPLICATION_XML->getMimeType()
-            && in_array('xml', config('api-toolkit.exports.supported_formats', []), true));
+            $accept  = $this->header(HttpHeader::ACCEPT->getName());
+            $formats = config('api-toolkit.exports.supported_formats', []);
 
-        Request::macro('expectsPdf', fn () => strtolower($this->header(HttpHeader::ACCEPT->getName())) === MediaType::APPLICATION_PDF->getMimeType());
+            return is_string($accept)
+                && strtolower($accept) === MediaType::TEXT_CSV->getMimeType()
+                && is_array($formats)
+                && in_array('csv', $formats, true);
+        }, new \Illuminate\Http\Request, \Illuminate\Http\Request::class));
+
+        Request::macro('expectsXml', \Closure::bind(function (): bool {
+
+            $accept  = $this->header(HttpHeader::ACCEPT->getName());
+            $formats = config('api-toolkit.exports.supported_formats', []);
+
+            return is_string($accept)
+                && strtolower($accept) === MediaType::APPLICATION_XML->getMimeType()
+                && is_array($formats)
+                && in_array('xml', $formats, true);
+        }, new \Illuminate\Http\Request, \Illuminate\Http\Request::class));
+
+        Request::macro('expectsPdf', \Closure::bind(function (): bool {
+
+            $accept = $this->header(HttpHeader::ACCEPT->getName());
+
+            return is_string($accept)
+                && strtolower($accept) === MediaType::APPLICATION_PDF->getMimeType();
+        }, new \Illuminate\Http\Request, \Illuminate\Http\Request::class));
     }
 
     /**
@@ -215,7 +250,13 @@ class ApiServiceProvider extends ServiceProvider
      */
     private function registerStreamMacros(): void
     {
-        Request::macro('expectsStream', fn () => strtolower($this->header(HttpHeader::ACCEPT->getName())) === MediaType::TEXT_EVENT_STREAM->getMimeType());
+        Request::macro('expectsStream', \Closure::bind(function (): bool {
+
+            $accept = $this->header(HttpHeader::ACCEPT->getName());
+
+            return is_string($accept)
+                && strtolower($accept) === MediaType::TEXT_EVENT_STREAM->getMimeType();
+        }, new \Illuminate\Http\Request, \Illuminate\Http\Request::class));
     }
 
     /**
@@ -462,11 +503,18 @@ class ApiServiceProvider extends ServiceProvider
      */
     private function registerWritePool(): void
     {
-        $this->app->scoped(WritePool::class, fn (): WritePool => new WritePool(
-            (int) Config::get('api-toolkit.deferred_writes.chunk_size', 500),
-            (int) Config::get('api-toolkit.deferred_writes.pool_limit', 10000),
-            FlushStrategy::from((string) Config::get('api-toolkit.deferred_writes.on_failure', 'log')),
-        ));
+        $this->app->scoped(WritePool::class, function (): WritePool {
+
+            $chunk_size = Config::get('api-toolkit.deferred_writes.chunk_size', 500);
+            $pool_limit = Config::get('api-toolkit.deferred_writes.pool_limit', 10000);
+            $on_failure = Config::get('api-toolkit.deferred_writes.on_failure', 'log');
+
+            return new WritePool(
+                is_numeric($chunk_size) ? (int) $chunk_size : 500,
+                is_numeric($pool_limit) ? (int) $pool_limit : 10000,
+                FlushStrategy::from(is_string($on_failure) ? $on_failure : 'log'),
+            );
+        });
     }
 
     /**

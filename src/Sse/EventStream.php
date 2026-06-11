@@ -48,8 +48,8 @@ class EventStream
     public function toResponse(callable $callback, int $interval = 1, HttpStatus $status = HttpStatus::OK, array $headers = []): StreamedResponse
     {
         $headers = array_merge($headers, [
-            HttpHeader::CONTENT_TYPE->getName()     => MediaType::TEXT_EVENT_STREAM->getMimeType(),
-            HttpHeader::CACHE_CONTROL->getName()    => CacheDirective::NO_CACHE->value . ', ' . CacheDirective::NO_TRANSFORM->value,
+            HttpHeader::CONTENT_TYPE->getName()      => MediaType::TEXT_EVENT_STREAM->getMimeType(),
+            HttpHeader::CACHE_CONTROL->getName()     => CacheDirective::NO_CACHE->value . ', ' . CacheDirective::NO_TRANSFORM->value,
             HttpHeader::CONNECTION->getName()        => 'keep-alive',
             HttpHeader::X_ACCEL_BUFFERING->getName() => 'no',
         ]);

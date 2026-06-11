@@ -26,8 +26,10 @@ final class NotNullOperator implements FilterOperator
     #[\Override]
     public function apply(Builder $query, string $column, mixed $value, FilterContext $context): void
     {
-        $method = ($context->getLogicalOperator() === '$or' ? 'orWhere' : 'where') . 'NotNull';
-
-        $query->{$method}($column);
+        if ($context->getLogicalOperator() === '$or') {
+            $query->getQuery()->orWhereNotNull($column);
+        } else {
+            $query->getQuery()->whereNotNull($column);
+        }
     }
 }

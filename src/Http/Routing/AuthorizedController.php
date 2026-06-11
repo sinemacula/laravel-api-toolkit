@@ -19,7 +19,7 @@ abstract class AuthorizedController extends Controller
      */
     public function __construct()
     {
-        $this->authorizeResource($this->getResourceModel(), $this->getRouteParameter(), ['except' => $this->getGuardExclusions()]);
+        $this->authorizeResource(static::getResourceModel(), static::getRouteParameter(), ['except' => $this->getGuardExclusions()]);
     }
 
     /**
@@ -33,7 +33,8 @@ abstract class AuthorizedController extends Controller
             throw new \LogicException('The RESOURCE_MODEL constant must be defined on the authorized controller');
         }
 
-        return static::RESOURCE_MODEL;
+        /** @var string */
+        return constant(static::class . '::RESOURCE_MODEL');
     }
 
     /**
@@ -49,10 +50,15 @@ abstract class AuthorizedController extends Controller
     /**
      * Get the guard exclusions.
      *
-     * @return array|null
+     * @return array<int, string>|null
      */
     private function getGuardExclusions(): ?array
     {
-        return defined(static::class . '::GUARD_EXCLUSIONS') ? constant(static::class . '::GUARD_EXCLUSIONS') : null;
+        if (!defined(static::class . '::GUARD_EXCLUSIONS')) {
+            return null;
+        }
+
+        /** @var array<int, string> */
+        return constant(static::class . '::GUARD_EXCLUSIONS');
     }
 }

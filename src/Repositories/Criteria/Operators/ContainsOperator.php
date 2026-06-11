@@ -30,7 +30,7 @@ final class ContainsOperator implements FilterOperator
     {
         if (is_array($value) || is_object($value) || (is_string($value) && !empty($value) && json_validate($value))) {
 
-            $query->whereJsonContains($column, $value);
+            $query->getQuery()->whereJsonContains($column, $value);
             return;
         }
 
@@ -41,7 +41,11 @@ final class ContainsOperator implements FilterOperator
             if (!empty($items)) {
                 $query->where(function (Builder $query) use ($column, $items): void {
                     foreach ($items as $index => $item) {
-                        $query->{$index === 0 ? 'whereJsonContains' : 'orWhereJsonContains'}($column, $item);
+                        if ($index === 0) {
+                            $query->getQuery()->whereJsonContains($column, $item);
+                        } else {
+                            $query->getQuery()->orWhereJsonContains($column, $item);
+                        }
                     }
                 });
             }
@@ -50,7 +54,7 @@ final class ContainsOperator implements FilterOperator
         }
 
         try {
-            $query->whereJsonContains($column, $value);
+            $query->getQuery()->whereJsonContains($column, $value);
         } catch (\Throwable) { // @codeCoverageIgnore
             // Silently discard: whereJsonContains may throw for non-JSON-compatible scalar values (e.g. null)
         } // @codeCoverageIgnore

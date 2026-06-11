@@ -5,7 +5,6 @@ namespace Tests\Unit\Traits;
 use Illuminate\Contracts\Cache\Lock;
 use Illuminate\Support\Facades\Cache;
 use PHPUnit\Framework\Attributes\CoversClass;
-use SineMacula\ApiToolkit\Contracts\LockKeyProvider;
 use SineMacula\ApiToolkit\Exceptions\TooManyRequestsException;
 use SineMacula\ApiToolkit\Traits\Lockable;
 use Tests\Fixtures\Traits\StandaloneLockableFixture;
@@ -167,38 +166,13 @@ class LockableTest extends TestCase
     }
 
     /**
-     * Create a test consumer class that uses the Lockable trait.
+     * Create a test consumer that uses the Lockable trait.
      *
      * @param  string  $lockId
-     * @return \SineMacula\ApiToolkit\Contracts\LockKeyProvider
+     * @return \Tests\Fixtures\Traits\StandaloneLockableFixture
      */
-    private function createConsumer(string $lockId): LockKeyProvider
+    private function createConsumer(string $lockId): StandaloneLockableFixture
     {
-        return new class ($lockId) implements LockKeyProvider {
-            use Lockable;
-
-            /**
-             * Create a new instance.
-             *
-             * @param  string  $lockId
-             */
-            public function __construct(
-
-                /** The identifier used when generating the cache lock key. */
-                private readonly string $lockId,
-
-            ) {}
-
-            /**
-             * Generate the cache lock key.
-             *
-             * @return string
-             */
-            #[\Override]
-            public function getLockKey(): string
-            {
-                return sha1(self::class . '|' . $this->lockId);
-            }
-        };
+        return new StandaloneLockableFixture($lockId);
     }
 }

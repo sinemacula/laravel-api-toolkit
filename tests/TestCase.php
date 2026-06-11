@@ -70,6 +70,22 @@ abstract class TestCase extends OrchestraTestCase
     }
 
     /**
+     * Define the database migrations.
+     *
+     * @return void
+     */
+    protected function defineDatabaseMigrations(): void
+    {
+        $this->createUsersTable();
+        $this->createOrganizationsTable();
+        $this->createPostsTable();
+        $this->createProfilesTable();
+        $this->createTagsTable();
+        $this->createPostTagTable();
+        $this->createLogsTable();
+    }
+
+    /**
      * Get the database connection configuration.
      *
      * Reads the DB_DRIVER environment variable to determine which database
@@ -108,22 +124,6 @@ abstract class TestCase extends OrchestraTestCase
                 'prefix'   => '',
             ],
         };
-    }
-
-    /**
-     * Define the database migrations.
-     *
-     * @return void
-     */
-    protected function defineDatabaseMigrations(): void
-    {
-        $this->createUsersTable();
-        $this->createOrganizationsTable();
-        $this->createPostsTable();
-        $this->createProfilesTable();
-        $this->createTagsTable();
-        $this->createPostTagTable();
-        $this->createLogsTable();
     }
 
     /**

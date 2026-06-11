@@ -21,6 +21,10 @@ final class LimitApplier
      */
     public function apply(Builder $query, ?int $limit): Builder
     {
-        return is_null($limit) ? $query : $query->limit($limit);
+        if (!is_null($limit)) {
+            $query->getQuery()->limit($limit);
+        }
+
+        return $query;
     }
 }
