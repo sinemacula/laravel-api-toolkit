@@ -20,6 +20,9 @@ use Tests\TestCase;
 #[CoversClass(RequestCapabilities::class)]
 class RequestCapabilitiesTest extends TestCase
 {
+    /** @var string */
+    private const string TEST_URL = '/test';
+
     /**
      * Test that fromRequest returns the stored instance.
      *
@@ -27,7 +30,7 @@ class RequestCapabilitiesTest extends TestCase
      */
     public function testFromRequestReturnsStoredInstance(): void
     {
-        $request      = Request::create('/test');
+        $request      = Request::create(self::TEST_URL);
         $capabilities = $this->createCapabilities(include_trashed: true);
 
         RequestCapabilities::storeOnRequest($request, $capabilities);
@@ -45,7 +48,7 @@ class RequestCapabilitiesTest extends TestCase
      */
     public function testFromRequestResolvesLazilyWhenAttributeNotSet(): void
     {
-        $request      = Request::create('/test');
+        $request      = Request::create(self::TEST_URL);
         $capabilities = RequestCapabilities::fromRequest($request);
 
         static::assertFalse($capabilities->includeTrashed());
@@ -65,7 +68,7 @@ class RequestCapabilitiesTest extends TestCase
      */
     public function testFromRequestResolvesFromRequestStateAndCaches(): void
     {
-        $request = Request::create('/test', 'GET', ['include_trashed' => 'true']);
+        $request = Request::create(self::TEST_URL, 'GET', ['include_trashed' => 'true']);
 
         $capabilities = RequestCapabilities::fromRequest($request);
 
@@ -80,7 +83,7 @@ class RequestCapabilitiesTest extends TestCase
      */
     public function testResolveDetectsIncludeTrashed(): void
     {
-        $request      = Request::create('/test', 'GET', ['include_trashed' => 'true']);
+        $request      = Request::create(self::TEST_URL, 'GET', ['include_trashed' => 'true']);
         $capabilities = RequestCapabilities::resolve($request);
 
         static::assertTrue($capabilities->includeTrashed());
@@ -94,7 +97,7 @@ class RequestCapabilitiesTest extends TestCase
      */
     public function testResolveDetectsOnlyTrashed(): void
     {
-        $request      = Request::create('/test', 'GET', ['only_trashed' => 'true']);
+        $request      = Request::create(self::TEST_URL, 'GET', ['only_trashed' => 'true']);
         $capabilities = RequestCapabilities::resolve($request);
 
         static::assertTrue($capabilities->onlyTrashed());
@@ -112,7 +115,7 @@ class RequestCapabilitiesTest extends TestCase
         config()->set('api-toolkit.exports.enabled', true);
         config()->set('api-toolkit.exports.supported_formats', ['csv', 'xml']);
 
-        $request = Request::create('/test');
+        $request = Request::create(self::TEST_URL);
         $request->headers->set(HttpHeader::ACCEPT->getName(), MediaType::TEXT_CSV->getMimeType());
 
         $capabilities = RequestCapabilities::resolve($request);
@@ -132,7 +135,7 @@ class RequestCapabilitiesTest extends TestCase
         config()->set('api-toolkit.exports.enabled', true);
         config()->set('api-toolkit.exports.supported_formats', ['csv', 'xml']);
 
-        $request = Request::create('/test');
+        $request = Request::create(self::TEST_URL);
         $request->headers->set(HttpHeader::ACCEPT->getName(), MediaType::APPLICATION_XML->getMimeType());
 
         $capabilities = RequestCapabilities::resolve($request);
@@ -152,7 +155,7 @@ class RequestCapabilitiesTest extends TestCase
         config()->set('api-toolkit.exports.enabled', true);
         config()->set('api-toolkit.exports.supported_formats', ['csv']);
 
-        $request = Request::create('/test');
+        $request = Request::create(self::TEST_URL);
         $request->headers->set(HttpHeader::ACCEPT->getName(), MediaType::TEXT_CSV->getMimeType());
 
         $capabilities = RequestCapabilities::resolve($request);
@@ -167,7 +170,7 @@ class RequestCapabilitiesTest extends TestCase
      */
     public function testResolveDetectsExpectsPdf(): void
     {
-        $request = Request::create('/test');
+        $request = Request::create(self::TEST_URL);
         $request->headers->set(HttpHeader::ACCEPT->getName(), MediaType::APPLICATION_PDF->getMimeType());
 
         $capabilities = RequestCapabilities::resolve($request);
@@ -182,7 +185,7 @@ class RequestCapabilitiesTest extends TestCase
      */
     public function testResolveDetectsExpectsStream(): void
     {
-        $request = Request::create('/test');
+        $request = Request::create(self::TEST_URL);
         $request->headers->set(HttpHeader::ACCEPT->getName(), MediaType::TEXT_EVENT_STREAM->getMimeType());
 
         $capabilities = RequestCapabilities::resolve($request);
@@ -201,7 +204,7 @@ class RequestCapabilitiesTest extends TestCase
         config()->set('api-toolkit.exports.enabled', true);
         config()->set('api-toolkit.exports.supported_formats', ['csv']);
 
-        $request = Request::create('/test');
+        $request = Request::create(self::TEST_URL);
         $request->headers->set(HttpHeader::ACCEPT->getName(), 'TEXT/CSV');
 
         $capabilities = RequestCapabilities::resolve($request);
@@ -217,7 +220,7 @@ class RequestCapabilitiesTest extends TestCase
      */
     public function testStoreOnRequestSetsAttribute(): void
     {
-        $request      = Request::create('/test');
+        $request      = Request::create(self::TEST_URL);
         $capabilities = $this->createCapabilities(expects_pdf: true);
 
         RequestCapabilities::storeOnRequest($request, $capabilities);
@@ -239,7 +242,7 @@ class RequestCapabilitiesTest extends TestCase
         config()->set('api-toolkit.exports.enabled', true);
         config()->set('api-toolkit.exports.supported_formats', ['xml']);
 
-        $request = Request::create('/test');
+        $request = Request::create(self::TEST_URL);
         $request->headers->set(HttpHeader::ACCEPT->getName(), MediaType::TEXT_CSV->getMimeType());
 
         $capabilities = RequestCapabilities::resolve($request);
@@ -258,7 +261,7 @@ class RequestCapabilitiesTest extends TestCase
         config()->set('api-toolkit.exports.enabled', false);
         config()->set('api-toolkit.exports.supported_formats', ['csv', 'xml']);
 
-        $request = Request::create('/test');
+        $request = Request::create(self::TEST_URL);
         $request->headers->set(HttpHeader::ACCEPT->getName(), MediaType::TEXT_CSV->getMimeType());
 
         $capabilities = RequestCapabilities::resolve($request);

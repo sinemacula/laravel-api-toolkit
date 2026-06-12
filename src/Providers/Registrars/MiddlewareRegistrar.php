@@ -56,8 +56,8 @@ final class MiddlewareRegistrar
         }
 
         $this->registerMaintenanceModeMiddleware($kernel);
-        $this->registerDetectsCapabilitiesMiddleware($kernel);
-        $this->registerJsonPrettyPrintMiddleware($kernel);
+        $this->registerScopedMiddleware($kernel, 'api-toolkit.middleware.detect_capabilities', DetectsCapabilities::class);
+        $this->registerScopedMiddleware($kernel, 'api-toolkit.middleware.json_pretty_print', JsonPrettyPrint::class);
         $this->registerThrottleMiddleware($router);
     }
 
@@ -82,57 +82,31 @@ final class MiddlewareRegistrar
     }
 
     /**
-     * Register the DetectsCapabilities middleware.
-     *
-     * When scope is 'global', the middleware is pushed to the global stack.
-     * When scope is 'api', it is appended to the 'api' middleware group.
-     * Capabilities still resolve lazily on first access when the middleware
-     * is not registered; registration simply precomputes them per request.
-     *
-     * @param  \Illuminate\Foundation\Http\Kernel  $kernel
-     * @return void
-     */
-    private function registerDetectsCapabilitiesMiddleware(HttpKernel $kernel): void
-    {
-        if (!Config::get('api-toolkit.middleware.detect_capabilities.enabled', true)) {
-            return;
-        }
-
-        $scope = Config::get('api-toolkit.middleware.detect_capabilities.scope', 'global');
-
-        if ($scope === 'api') {
-            $kernel->appendMiddlewareToGroup('api', DetectsCapabilities::class);
-
-            return;
-        }
-
-        $kernel->pushMiddleware(DetectsCapabilities::class);
-    }
-
-    /**
-     * Register the JsonPrettyPrint middleware.
+     * Register a middleware honouring its enabled gate and configured scope.
      *
      * When scope is 'global', the middleware is pushed to the global stack.
      * When scope is 'api', it is appended to the 'api' middleware group.
      *
      * @param  \Illuminate\Foundation\Http\Kernel  $kernel
+     * @param  string  $config
+     * @param  class-string  $middleware
      * @return void
      */
-    private function registerJsonPrettyPrintMiddleware(HttpKernel $kernel): void
+    private function registerScopedMiddleware(HttpKernel $kernel, string $config, string $middleware): void
     {
-        if (!Config::get('api-toolkit.middleware.json_pretty_print.enabled', true)) {
+        if (!Config::get($config . '.enabled', true)) {
             return;
         }
 
-        $scope = Config::get('api-toolkit.middleware.json_pretty_print.scope', 'global');
+        $scope = Config::get($config . '.scope', 'global');
 
         if ($scope === 'api') {
-            $kernel->appendMiddlewareToGroup('api', JsonPrettyPrint::class);
+            $kernel->appendMiddlewareToGroup('api', $middleware);
 
             return;
         }
 
-        $kernel->pushMiddleware(JsonPrettyPrint::class);
+        $kernel->pushMiddleware($middleware);
     }
 
     /**

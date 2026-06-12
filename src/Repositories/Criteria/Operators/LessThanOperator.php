@@ -2,34 +2,22 @@
 
 namespace SineMacula\ApiToolkit\Repositories\Criteria\Operators;
 
-use Illuminate\Database\Eloquent\Builder;
-use SineMacula\ApiToolkit\Contracts\FilterOperator;
-use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext;
-
 /**
  * Filter operator handler for the $lt (less than) token.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-final class LessThanOperator implements FilterOperator
+final class LessThanOperator extends ComparisonOperator
 {
     /**
-     * Apply the less than constraint to the query builder.
+     * Return the SQL comparison operator symbol.
      *
-     * @param  \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>  $query
-     * @param  string  $column
-     * @param  mixed  $value
-     * @param  \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext  $context
-     * @return void
+     * @return string
      */
     #[\Override]
-    public function apply(Builder $query, string $column, mixed $value, FilterContext $context): void
+    protected function operator(): string
     {
-        if ($context->getLogicalOperator() === '$or') {
-            $query->orWhere($column, '<', $value);
-        } else {
-            $query->where($column, '<', $value);
-        }
+        return '<';
     }
 }
