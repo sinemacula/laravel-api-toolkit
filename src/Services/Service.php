@@ -18,8 +18,8 @@ abstract class Service implements LockKeyProvider, ServiceInterface
 {
     use Lockable;
 
-    /** @var bool|null Service outcome status */
-    protected ?bool $status = null;
+    /** @var mixed Result data produced by the service */
+    protected mixed $data = null;
 
     /**
      * Constructor.
@@ -33,16 +33,6 @@ abstract class Service implements LockKeyProvider, ServiceInterface
 
     ) {
         $this->payload = (!$payload instanceof Collection && !$payload instanceof \stdClass) ? collect($payload) : $payload;
-    }
-
-    /**
-     * Get the service status.
-     *
-     * @return bool|null
-     */
-    public function getStatus(): ?bool
-    {
-        return $this->status;
     }
 
     /**
@@ -90,21 +80,31 @@ abstract class Service implements LockKeyProvider, ServiceInterface
      * (prepare, handle, success/failed). Concerns wrap around this
      * core in declaration order.
      *
-     * @return bool
+     * Returns a ServiceResult value object carrying the outcome status,
+     * optional result data, and optional exception context. When the core
+     * lifecycle throws, the exception is passed to the failed() hook,
+     * captured in the returned result, and not rethrown. When the handler
+     * returns false, the result is a failure with no exception.
      *
-     * @throws \Throwable
+     * @return \SineMacula\ApiToolkit\Services\ServiceResult
      */
-    public function run(): bool
+    public function run(): ServiceResult
     {
         $pipeline = $this->buildPipeline();
 
-        $status = $pipeline();
+        try {
+            $status = $pipeline();
+        } catch (\Throwable $exception) {
+            return ServiceResult::failure($exception, $this->data);
+        }
 
-        $this->status = $status;
+        if (!$status) {
+            return ServiceResult::failure(null, $this->data);
+        }
 
         $this->success();
 
-        return $status;
+        return ServiceResult::success($this->data);
     }
 
     /**

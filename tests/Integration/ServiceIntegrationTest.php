@@ -33,8 +33,8 @@ class ServiceIntegrationTest extends TestCase
 
         $result = $service->run();
 
-        static::assertTrue($result);
-        static::assertTrue($service->getStatus());
+        static::assertTrue($result->succeeded());
+        static::assertNull($result->exception);
         static::assertTrue($service->successCalled);
     }
 
@@ -50,12 +50,9 @@ class ServiceIntegrationTest extends TestCase
 
         $service = new FailingService;
 
-        try {
-            $service->run();
-        } catch (\RuntimeException) {
-            // Expected
-        }
+        $result = $service->run();
 
+        static::assertTrue($result->failed());
         static::assertTrue($service->failedCalled);
         static::assertNotNull($service->failedException);
         static::assertSame('Service execution failed', $service->failedException->getMessage());
@@ -76,14 +73,13 @@ class ServiceIntegrationTest extends TestCase
 
         $result = $service->run();
 
-        static::assertTrue($result);
-        static::assertTrue($service->getStatus());
+        static::assertTrue($result->succeeded());
 
         // The lock should have been released; a new service with the same key should succeed
         $service2 = new LockableService;
         $result2  = $service2->run();
 
-        static::assertTrue($result2);
+        static::assertTrue($result2->succeeded());
     }
 
     /**
@@ -97,12 +93,13 @@ class ServiceIntegrationTest extends TestCase
 
         $result = $service->run();
 
-        static::assertTrue($result);
+        static::assertTrue($result->succeeded());
         static::assertTrue($service->successCalled);
     }
 
     /**
-     * Test that FailingService triggers the failed callback.
+     * Test that FailingService triggers the failed callback and captures
+     * the exception in the result instead of rethrowing.
      *
      * @return void
      */
@@ -110,14 +107,11 @@ class ServiceIntegrationTest extends TestCase
     {
         $service = new FailingService;
 
-        $this->expectException(\RuntimeException::class);
+        $result = $service->run();
 
-        try {
-            $service->run();
-        } catch (\RuntimeException $e) {
-            static::assertTrue($service->failedCalled);
-
-            throw $e;
-        }
+        static::assertTrue($result->failed());
+        static::assertTrue($service->failedCalled);
+        static::assertInstanceOf(\RuntimeException::class, $result->exception);
+        static::assertSame('Service execution failed', $result->exception->getMessage());
     }
 }
