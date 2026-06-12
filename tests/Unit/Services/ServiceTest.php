@@ -7,6 +7,7 @@ use Illuminate\Support\Collection;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Contracts\LockKeyProvider;
 use SineMacula\ApiToolkit\Services\Contracts\ServiceConcern;
+use SineMacula\ApiToolkit\Services\Enums\ServiceStatus;
 use SineMacula\ApiToolkit\Services\Service;
 use Tests\Fixtures\Services\FailingService;
 use Tests\Fixtures\Services\LockableService;
@@ -40,54 +41,37 @@ class ServiceTest extends TestCase
     }
 
     /**
-     * Test that run returns true for a successful service.
+     * Test that run returns a successful result for a successful service.
      *
      * @return void
      */
-    public function testRunReturnsTrueForSuccessfulService(): void
+    public function testRunReturnsSuccessfulResultForSuccessfulService(): void
     {
         $service = new SimpleService;
 
         $result = $service->run();
 
-        static::assertTrue($result);
+        static::assertTrue($result->succeeded());
+        static::assertSame(ServiceStatus::SUCCEEDED, $result->status);
+        static::assertNull($result->exception);
     }
 
     /**
-     * Test that getStatus returns null before run and true after success.
+     * Test that run calls failed and captures the exception in the result.
      *
      * @return void
      */
-    public function testGetStatusReturnsNullBeforeRunAndTrueAfterSuccess(): void
-    {
-        $service = new SimpleService;
-
-        static::assertNull($service->getStatus());
-
-        $service->run();
-
-        static::assertTrue($service->getStatus());
-    }
-
-    /**
-     * Test that run calls failed and rethrows the exception on failure.
-     *
-     * @return void
-     */
-    public function testRunCallsFailedAndRethrowsOnException(): void
+    public function testRunCallsFailedAndCapturesExceptionInResult(): void
     {
         $service = new FailingService;
 
-        try {
+        $result = $service->run();
 
-            $service->run();
-            static::fail('Expected RuntimeException was not thrown.');
-
-        } catch (\RuntimeException $exception) {
-            static::assertTrue($service->failedCalled);
-            static::assertSame($exception, $service->failedException);
-            static::assertSame('Service execution failed', $exception->getMessage());
-        }
+        static::assertTrue($result->failed());
+        static::assertTrue($service->failedCalled);
+        static::assertSame($result->exception, $service->failedException);
+        static::assertInstanceOf(\RuntimeException::class, $result->exception);
+        static::assertSame('Service execution failed', $result->exception->getMessage());
     }
 
     /**
@@ -223,7 +207,7 @@ class ServiceTest extends TestCase
 
         $result = $service->run();
 
-        static::assertTrue($result);
+        static::assertTrue($result->succeeded());
     }
 
     /**
@@ -249,15 +233,11 @@ class ServiceTest extends TestCase
             }
         };
 
-        try {
+        $result = $service->run();
 
-            $service->run();
-
-        } catch (\RuntimeException) {
-            // Base failed() was called and did nothing — no secondary exception
-        }
-
-        static::assertFalse($service->getStatus() ?? false);
+        // Base failed() was called and did nothing — no secondary exception
+        static::assertTrue($result->failed());
+        static::assertInstanceOf(\RuntimeException::class, $result->exception);
     }
 
     /**
@@ -490,7 +470,8 @@ class ServiceTest extends TestCase
 
         $result = $service->run();
 
-        static::assertFalse($result);
+        static::assertTrue($result->failed());
+        static::assertNull($result->exception);
         static::assertFalse($handleCalled);
     }
 
@@ -505,7 +486,7 @@ class ServiceTest extends TestCase
 
         $result = $service->run();
 
-        static::assertTrue($result);
+        static::assertTrue($result->succeeded());
         static::assertTrue($service->successCalled);
     }
 

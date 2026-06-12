@@ -165,6 +165,47 @@ Any code that catches `ServiceLockException` should be updated
 to catch `TooManyRequestsException` instead (or removed if the
 catch block was unreachable).
 
+### Changed: Service::run() returns a ServiceResult value object
+
+`ServiceInterface::run()` now returns an immutable `ServiceResult`
+instead of `bool`, and `getStatus(): ?bool` has been removed. The
+result carries the outcome status (a `ServiceStatus` enum), optional
+result data, and the captured exception on failure.
+
+Exceptions thrown by the core lifecycle are no longer rethrown from
+`run()` — they are passed to the `failed()` hook and captured on the
+returned result. Transactions still roll back as before. The
+`success()` hook now only fires when the service actually succeeded.
+
+**Before (run returns bool, exceptions propagate):**
+
+    try {
+        $status = (new MyService($payload))->run();
+    } catch (Throwable $exception) {
+        // handle failure
+    }
+
+**After (self-describing result):**
+
+    $result = (new MyService($payload))->run();
+
+    if ($result->failed()) {
+        // $result->exception is the captured Throwable, or null when
+        // the handler signalled failure by returning false
+    }
+
+    $value = $result->data;
+
+Services expose output by assigning to the protected `$data`
+property inside `handle()`; the value is carried on the result.
+
+Code that relied on `run()` throwing must now inspect the result and
+rethrow explicitly if desired:
+
+    if ($result->failed() && $result->exception !== null) {
+        throw $result->exception;
+    }
+
 ### Default behavior
 
 A service subclass with no method overrides behaves identically to the previous default:
