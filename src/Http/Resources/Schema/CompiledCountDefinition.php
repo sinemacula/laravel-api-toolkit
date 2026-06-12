@@ -18,7 +18,7 @@ final readonly class CompiledCountDefinition
      *
      * @param  string  $presentKey
      * @param  string  $relation
-     * @param  \Closure(mixed): mixed|null  $constraint
+     * @param  (\Closure(\Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>): void)|null  $constraint
      * @param  bool  $isDefault
      * @param  array<int, callable(mixed, mixed): bool>  $guards
      */

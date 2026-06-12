@@ -44,6 +44,7 @@ Web search and documentation review covering:
 However, `Cache::memo()` is a **decorator** around the configured default cache store. When `Cache::memo()->rememberForever()` is called, the `rememberForever()` operation delegates to the underlying store (Redis, file, etc.). The memo layer flush clears the in-memory decorator, but the underlying store retains the `rememberForever()` value.
 
 This means:
+
 - **Within a single request:** Memo prevents repeated cache hits (performance optimization).
 - **Between requests:** Memo layer is cleared, but the underlying store returns the previously stored value on the next `rememberForever()` call.
 - **Staleness impact:** If the underlying store is `array` (process-lifetime in FPM, flushed by Octane), there is no cross-request staleness. If the underlying store is `redis` or `file`, `rememberForever()` values persist permanently until explicitly invalidated.

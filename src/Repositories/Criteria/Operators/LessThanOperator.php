@@ -26,8 +26,10 @@ final class LessThanOperator implements FilterOperator
     #[\Override]
     public function apply(Builder $query, string $column, mixed $value, FilterContext $context): void
     {
-        $method = $context->getLogicalOperator() === '$or' ? 'orWhere' : 'where';
-
-        $query->{$method}($column, '<', $value);
+        if ($context->getLogicalOperator() === '$or') {
+            $query->orWhere($column, '<', $value);
+        } else {
+            $query->where($column, '<', $value);
+        }
     }
 }

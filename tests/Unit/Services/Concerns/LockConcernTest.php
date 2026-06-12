@@ -171,7 +171,7 @@ class LockConcernTest extends TestCase
             use Lockable;
 
             /** @var array<int, string> */
-            private array $callOrder;
+            public array $callOrder;
 
             /**
              * Create a new instance.

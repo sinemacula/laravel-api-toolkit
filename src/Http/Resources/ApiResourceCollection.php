@@ -20,21 +20,22 @@ use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
  */
 class ApiResourceCollection extends AnonymousResourceCollection
 {
-    /** @var array|null Explicit list of fields to be returned in the collection */
+    /** @var array<int, string>|null Explicit list of fields to be returned in the collection */
     protected ?array $fields;
 
-    /** @var array|null Explicit list of fields to be excluded in the response */
+    /** @var array<int, string>|null Explicit list of fields to be excluded in the response */
     protected ?array $excludedFields;
 
     /**
      * Transform the resource collection into an array.
      *
      * @param  \Illuminate\Http\Request  $request
-     * @return array
+     * @return array<int|string, array<string, mixed>>
      */
     public function toArray(Request $request): array
     {
-        $resource_class = $this->collects ?? ApiResource::class;
+        /** @var class-string<\SineMacula\ApiToolkit\Http\Resources\ApiResource> $resource_class */
+        $resource_class = $this->collects;
 
         return collect($this->collection)->map(function ($item) use ($resource_class, $request) {
 
@@ -52,7 +53,6 @@ class ApiResourceCollection extends AnonymousResourceCollection
             }
 
             return (new $resource_class($item, false, $this->fields ?? null, $this->excludedFields ?? null))->resolve($request);
-
         })->all();
     }
 
@@ -60,7 +60,7 @@ class ApiResourceCollection extends AnonymousResourceCollection
      * Overrides the default fields and any requested fields with a provided
      * set.
      *
-     * @param  array|null  $fields
+     * @param  array<int, string>|null  $fields
      * @return static
      */
     public function withFields(?array $fields = null): static
@@ -73,7 +73,7 @@ class ApiResourceCollection extends AnonymousResourceCollection
     /**
      * Removes certain fields from the response.
      *
-     * @param  array|null  $fields
+     * @param  array<int, string>|null  $fields
      * @return static
      */
     public function withoutFields(?array $fields = null): static
@@ -101,9 +101,9 @@ class ApiResourceCollection extends AnonymousResourceCollection
      * Customize the pagination information for the resource.
      *
      * @param  \Illuminate\Http\Request  $request
-     * @param  array  $paginated
-     * @param  array  $default
-     * @return array
+     * @param  array<string, mixed>  $paginated
+     * @param  array<string, mixed>  $default
+     * @return array<string, array<string, mixed>>
      */
     public function paginationInformation(Request $request, array $paginated, array $default): array
     {
@@ -127,8 +127,8 @@ class ApiResourceCollection extends AnonymousResourceCollection
     /**
      * Build the meta for the paginated response.
      *
-     * @param  \Illuminate\Contracts\Pagination\LengthAwarePaginator  $paginator
-     * @return array
+     * @param  \Illuminate\Contracts\Pagination\LengthAwarePaginator<int|string, mixed>  $paginator
+     * @return array<string, bool|int>
      */
     private function buildPaginationMeta(LengthAwarePaginator $paginator): array
     {
@@ -142,8 +142,8 @@ class ApiResourceCollection extends AnonymousResourceCollection
     /**
      * Build the links for the paginated response.
      *
-     * @param  \Illuminate\Contracts\Pagination\LengthAwarePaginator  $paginator
-     * @return array
+     * @param  \Illuminate\Contracts\Pagination\LengthAwarePaginator<int|string, mixed>  $paginator
+     * @return array<string, string|null>
      */
     private function buildPaginationLinks(LengthAwarePaginator $paginator): array
     {
@@ -159,8 +159,8 @@ class ApiResourceCollection extends AnonymousResourceCollection
     /**
      * Build the meta for cursor-based pagination.
      *
-     * @param  \Illuminate\Contracts\Pagination\CursorPaginator  $paginator
-     * @return array
+     * @param  \Illuminate\Contracts\Pagination\CursorPaginator<int|string, mixed>  $paginator
+     * @return array<string, bool>
      */
     private function buildCursorPaginationMeta(CursorPaginator $paginator): array
     {
@@ -172,8 +172,8 @@ class ApiResourceCollection extends AnonymousResourceCollection
     /**
      * Build the links for cursor-based pagination.
      *
-     * @param  \Illuminate\Contracts\Pagination\CursorPaginator  $paginator
-     * @return array
+     * @param  \Illuminate\Contracts\Pagination\CursorPaginator<int|string, mixed>  $paginator
+     * @return array<string, string|null>
      */
     private function buildCursorPaginationLinks(CursorPaginator $paginator): array
     {

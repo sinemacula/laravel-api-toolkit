@@ -80,7 +80,7 @@ abstract class ApiResource extends JsonResource implements ApiResourceInterface
      * @param  mixed  $request
      * @return array<string, mixed>
      */
-    public function resolve(#[\SensitiveParameter] $request = null): array
+    public function resolve(#[\SensitiveParameter] mixed $request = null): array
     {
         $schema = SchemaCompiler::compile(static::class);
         $data   = ['_type' => static::getResourceType()];
@@ -249,7 +249,7 @@ abstract class ApiResource extends JsonResource implements ApiResourceInterface
      * @param  mixed  $resource
      * @return \SineMacula\ApiToolkit\Http\Resources\ApiResourceCollection
      */
-    protected static function newCollection(#[\SensitiveParameter] $resource): ApiResourceCollection
+    protected static function newCollection(#[\SensitiveParameter] mixed $resource): ApiResourceCollection
     {
         return new ApiResourceCollection($resource, static::class);
     }

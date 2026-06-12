@@ -18,8 +18,8 @@ abstract class ApiException extends \Exception
     /**
      * Constructor.
      *
-     * @param  array|null  $meta
-     * @param  array|null  $headers
+     * @param  array<string, mixed>|null  $meta
+     * @param  array<string, mixed>|null  $headers
      * @param  \Throwable|null  $previous
      */
     public function __construct(
@@ -33,7 +33,7 @@ abstract class ApiException extends \Exception
         ?\Throwable $previous = null,
 
     ) {
-        parent::__construct($this->getCustomDetail(), $this->getHttpStatusCode(), $previous);
+        parent::__construct($this->getCustomDetail(), static::getHttpStatusCode(), $previous);
     }
 
     /**
@@ -43,7 +43,9 @@ abstract class ApiException extends \Exception
      */
     public function getCustomDetail(): string
     {
-        return Lang::get($this->getTranslationKey('detail'));
+        $translation = Lang::get($this->getTranslationKey('detail'));
+
+        return is_string($translation) ? $translation : '';
     }
 
     /**
@@ -87,7 +89,7 @@ abstract class ApiException extends \Exception
     /**
      * Get custom Meta.
      *
-     * @return array|null
+     * @return array<string, mixed>|null
      */
     public function getCustomMeta(): ?array
     {
@@ -97,7 +99,7 @@ abstract class ApiException extends \Exception
     /**
      * Get headers.
      *
-     * @return array
+     * @return array<string, mixed>
      */
     public function getHeaders(): array
     {
@@ -125,7 +127,10 @@ abstract class ApiException extends \Exception
             throw new \LogicException('The CODE constant must be defined on the exception');
         }
 
-        return static::CODE;
+        /** @var \SineMacula\ApiToolkit\Contracts\ErrorCodeInterface $code */
+        $code = constant(static::class . '::CODE');
+
+        return $code;
     }
 
     /**
@@ -139,7 +144,10 @@ abstract class ApiException extends \Exception
             throw new \LogicException('The HTTP_STATUS constant must be defined on the exception');
         }
 
-        return static::HTTP_STATUS;
+        /** @var \SineMacula\Http\Enums\HttpStatus $status */
+        $status = constant(static::class . '::HTTP_STATUS');
+
+        return $status;
     }
 
     /**
@@ -160,6 +168,6 @@ abstract class ApiException extends \Exception
      */
     private function getTranslationKey(string $key): string
     {
-        return sprintf('%s::exceptions.%s.%s', $this->getNamespace(), $this->getInternalErrorCode(), $key);
+        return sprintf('%s::exceptions.%s.%s', $this->getNamespace(), static::getInternalErrorCode(), $key);
     }
 }

@@ -26,8 +26,12 @@ final class LikeOperator implements FilterOperator
     #[\Override]
     public function apply(Builder $query, string $column, mixed $value, FilterContext $context): void
     {
-        $method = $context->getLogicalOperator() === '$or' ? 'orWhere' : 'where';
+        $term = is_scalar($value) || $value instanceof \Stringable ? (string) $value : '';
 
-        $query->{$method}($column, 'like', "%{$value}%");
+        if ($context->getLogicalOperator() === '$or') {
+            $query->orWhere($column, 'like', "%{$term}%");
+        } else {
+            $query->where($column, 'like', "%{$term}%");
+        }
     }
 }

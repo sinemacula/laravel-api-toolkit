@@ -5,7 +5,6 @@ namespace SineMacula\ApiToolkit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\ValidationException;
-use SineMacula\ApiToolkit\Exceptions\InvalidInputException;
 
 /**
  * API query parser.
@@ -17,7 +16,7 @@ use SineMacula\ApiToolkit\Exceptions\InvalidInputException;
  */
 class ApiQueryParser
 {
-    /** @var array */
+    /** @var array<string, mixed> */
     protected array $parameters = [];
 
     /**
@@ -25,10 +24,11 @@ class ApiQueryParser
      *  - e.g. ?fields['user']=first_name,last_name.
      *
      * @param  string|null  $resource
-     * @return array|null
+     * @return array<int, string>|null
      */
     public function getFields(?string $resource = null): ?array
     {
+        /** @var array<int, string>|null $fields */
         $fields = $this->getParameters('fields', $resource);
 
         return is_array($fields) ? array_map('trim', $fields) : $fields;
@@ -39,10 +39,11 @@ class ApiQueryParser
      * - e.g. ?counts['user']=memberships.
      *
      * @param  string|null  $resource
-     * @return array|null
+     * @return array<int, string>|null
      */
     public function getCounts(?string $resource = null): ?array
     {
+        /** @var array<int, string>|null $counts */
         $counts = $this->getParameters('counts', $resource);
 
         return is_array($counts) ? array_map('trim', $counts) : $counts;
@@ -53,10 +54,11 @@ class ApiQueryParser
      * - e.g. ?sums['account'][transaction]=amount.
      *
      * @param  string|null  $resource
-     * @return array|null
+     * @return array<string, mixed>|null
      */
     public function getSums(?string $resource = null): ?array
     {
+        /** @var array<string, mixed>|null */
         return $this->getParameters('sums', $resource);
     }
 
@@ -65,21 +67,25 @@ class ApiQueryParser
      * - e.g. ?averages['account'][transaction]=amount.
      *
      * @param  string|null  $resource
-     * @return array|null
+     * @return array<string, mixed>|null
      */
     public function getAverages(?string $resource = null): ?array
     {
+        /** @var array<string, mixed>|null */
         return $this->getParameters('averages', $resource);
     }
 
     /**
      * Returns a list of filters set with the URL modifiers.
      *
-     * @return array|null
+     * @return array<string, mixed>|null
      */
     public function getFilters(): ?array
     {
-        return $this->getParameters('filters') ?? [];
+        /** @var array<string, mixed>|null $filters */
+        $filters = $this->getParameters('filters');
+
+        return $filters ?? [];
     }
 
     /**
@@ -87,11 +93,14 @@ class ApiQueryParser
      *  - e.g. ?order=first_name,last_name:desc
      *  - e.g. ?order=random.
      *
-     * @return array
+     * @return array<string, string>
      */
     public function getOrder(): array
     {
-        return $this->getParameters('order') ?? [];
+        /** @var array<string, string>|null $order */
+        $order = $this->getParameters('order');
+
+        return $order ?? [];
     }
 
     /**
@@ -102,7 +111,9 @@ class ApiQueryParser
      */
     public function getLimit(): ?int
     {
-        $limit = (int) $this->getParameters('limit');
+        $limit = $this->getParameters('limit');
+
+        $limit = is_numeric($limit) ? (int) $limit : 0;
 
         return $limit > 0 ? $limit : null;
     }
@@ -115,7 +126,9 @@ class ApiQueryParser
      */
     public function getPage(): ?int
     {
-        $page = (int) $this->getParameters('page');
+        $page = $this->getParameters('page');
+
+        $page = is_numeric($page) ? (int) $page : 0;
 
         return $page > 0 ? $page : 1;
     }
@@ -128,7 +141,9 @@ class ApiQueryParser
      */
     public function getCursor(): ?string
     {
-        return (string) $this->getParameters('cursor');
+        $cursor = $this->getParameters('cursor');
+
+        return is_scalar($cursor) ? (string) $cursor : '';
     }
 
     /**
@@ -158,7 +173,7 @@ class ApiQueryParser
      * Extract and parse all parameters from the request.
      *
      * @param  \Illuminate\Http\Request  $request
-     * @return array
+     * @return array<string, mixed>
      */
     private function extractParameters(Request $request): array
     {
@@ -204,7 +219,7 @@ class ApiQueryParser
     /**
      * Validate the incoming request.
      *
-     * @param  array  $parameters
+     * @param  array<string, mixed>  $parameters
      * @return void
      *
      * @throws \Illuminate\Validation\ValidationException
@@ -221,8 +236,8 @@ class ApiQueryParser
     /**
      * Extract the field parameters from the query string.
      *
-     * @param  array|string  $query
-     * @return array
+     * @param  array<string, string>|string  $query
+     * @return array<int, string>|array<string, array<int, string>>
      */
     private function parseFields(array|string $query): array
     {
@@ -232,8 +247,8 @@ class ApiQueryParser
     /**
      * Extract the count parameters from the query string.
      *
-     * @param  array|string  $query
-     * @return array<int, string>
+     * @param  array<string, string>|string  $query
+     * @return array<int, string>|array<string, array<int, string>>
      */
     private function parseCounts(array|string $query): array
     {
@@ -243,8 +258,8 @@ class ApiQueryParser
     /**
      * Parse comma-separated values from query parameters.
      *
-     * @param  array|string  $query
-     * @return array
+     * @param  array<string, string>|string  $query
+     * @return array<int, string>|array<string, array<int, string>>
      */
     private function parseCommaSeparatedValues(array|string $query): array
     {
@@ -259,7 +274,7 @@ class ApiQueryParser
      * Split a string by comma and trim each value.
      *
      * @param  string  $value
-     * @return array
+     * @return array<int, string>
      */
     private function splitAndTrim(string $value): array
     {
@@ -269,8 +284,8 @@ class ApiQueryParser
     /**
      * Extract the sum parameters from the query string.
      *
-     * @param  array  $query
-     * @return array
+     * @param  array<string, mixed>  $query
+     * @return array<string, mixed>
      */
     private function parseSums(array $query): array
     {
@@ -280,8 +295,8 @@ class ApiQueryParser
     /**
      * Extract the average parameters from the query string.
      *
-     * @param  array  $query
-     * @return array
+     * @param  array<string, mixed>  $query
+     * @return array<string, mixed>
      */
     private function parseAverages(array $query): array
     {
@@ -291,8 +306,8 @@ class ApiQueryParser
     /**
      * Parse aggregation parameters (sums, averages) from the query string.
      *
-     * @param  array  $query
-     * @return array
+     * @param  array<string, mixed>  $query
+     * @return array<string, mixed>
      */
     private function parseAggregations(array $query): array
     {
@@ -312,8 +327,8 @@ class ApiQueryParser
     /**
      * Parse relation fields for aggregations.
      *
-     * @param  array  $relations
-     * @return array
+     * @param  array<mixed>  $relations
+     * @return array<array<mixed>>
      */
     private function parseRelationFields(array $relations): array
     {
@@ -324,7 +339,7 @@ class ApiQueryParser
      * Normalize field values into an array format.
      *
      * @param  mixed  $fields
-     * @return array
+     * @return array<mixed>
      */
     private function normalizeFields(mixed $fields): array
     {
@@ -343,31 +358,28 @@ class ApiQueryParser
      * Extract the filter parameters from the query string.
      *
      * @param  string  $query
-     * @return array
-     *
-     * @throws \SineMacula\ApiToolkit\Exceptions\InvalidInputException
+     * @return array<string, mixed>
      */
     private function parseFilters(string $query): array
     {
-        try {
-            return json_decode($query, true) ?? [];
-        } catch (\Throwable $exception) { // @codeCoverageIgnore
-            throw new InvalidInputException; // @codeCoverageIgnore
-        } // @codeCoverageIgnore
+        /** @var array<string, mixed>|null $filters */
+        $filters = json_decode($query, true);
+
+        return $filters ?? [];
     }
 
     /**
      * Extract the order parameters from the query string.
      *
      * @param  string  $query
-     * @return array
+     * @return array<string, string>
      */
     private function parseOrder(string $query): array
     {
         $order  = [];
         $fields = explode(',', $query);
 
-        if (!empty(array_filter($fields))) {
+        if (!empty(array_filter($fields, static fn (string $value): bool => (bool) $value))) {
             foreach ($fields as $field) {
                 $order_parts    = explode(':', $field, 2);
                 $column         = $order_parts[0];
@@ -382,8 +394,8 @@ class ApiQueryParser
     /**
      * Build the validation rules from the given parameters.
      *
-     * @param  array  $parameters
-     * @return array
+     * @param  array<string, mixed>  $parameters
+     * @return array<string, string>
      */
     private function buildValidationRulesFromParameters(array $parameters): array
     {
@@ -406,7 +418,7 @@ class ApiQueryParser
     /**
      * Get the base validation rules for all parameters.
      *
-     * @return array
+     * @return array<string, string>
      */
     private function getBaseValidationRules(): array
     {
@@ -423,10 +435,10 @@ class ApiQueryParser
     /**
      * Apply validation rules for array parameters.
      *
-     * @param  array  $rules
-     * @param  array  $parameters
+     * @param  array<string, string>  $rules
+     * @param  array<string, mixed>  $parameters
      * @param  string  $key
-     * @param  array  $array_rules
+     * @param  array<string, string>  $array_rules
      * @return void
      */
     private function applyArrayValidationRules(array &$rules, array $parameters, string $key, array $array_rules): void

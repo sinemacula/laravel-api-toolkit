@@ -90,11 +90,12 @@ abstract class ApiRepository extends Repository
 
         $method = $this->resolvePaginationMethod();
         $limit  = ApiQuery::getLimit() ?? Config::get('api-toolkit.parser.defaults.limit');
+        $query  = $this->model instanceof Builder ? $this->model : $this->getModel()->newQuery();
 
         if ($method === 'cursorPaginate') {
-            $results = $this->model->cursorPaginate($limit, '*', 'cursor', ApiQuery::getCursor());
+            $results = $query->cursorPaginate($limit, '*', 'cursor', ApiQuery::getCursor());
         } else {
-            $results = $this->model->paginate($limit, '*', 'page', ApiQuery::getPage());
+            $results = $query->paginate($limit, '*', 'page', ApiQuery::getPage());
         }
 
         $results->appends(Request::query());
@@ -111,7 +112,7 @@ abstract class ApiRepository extends Repository
      * MorphToMany relations are synced after the model is saved.
      *
      * @param  \Illuminate\Database\Eloquent\Model  $model
-     * @param  array|\Illuminate\Support\Collection  $attributes
+     * @param  array<string, mixed>|\Illuminate\Support\Collection<string, mixed>  $attributes
      * @return bool
      */
     public function persist(Model $model, array|Collection $attributes): bool
@@ -136,14 +137,14 @@ abstract class ApiRepository extends Repository
     /**
      * Scopes the model by the given ids.
      *
-     * @param  array  $ids
+     * @param  array<int, int|string|null>  $ids
      * @param  string  $column
      * @return static
      */
     public function scopeByIds(array $ids, string $column = 'id'): static
     {
         return $this->addScope(function (Builder $query) use ($column, $ids): void {
-            $query->whereIn($column, array_unique($ids));
+            $query->getQuery()->whereIn($column, array_unique($ids));
         });
     }
 

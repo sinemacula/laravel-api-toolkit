@@ -34,28 +34,32 @@ final class FilterApplier
     /**
      * Apply filters to the query.
      *
-     * @param  \Illuminate\Database\Eloquent\Builder  $query
+     * @template TModel of \Illuminate\Database\Eloquent\Model
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder<TModel>  $query
      * @param  array<string, mixed>|null  $filters
      * @param  \SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider  $schemaIntrospector
      * @param  \SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry  $operatorRegistry
-     * @return \Illuminate\Database\Eloquent\Builder
+     * @return \Illuminate\Database\Eloquent\Builder<TModel>
      */
     public function apply(Builder $query, ?array $filters, SchemaIntrospectionProvider $schemaIntrospector, OperatorRegistry $operatorRegistry): Builder
     {
         $this->schemaIntrospector = $schemaIntrospector;
         $this->operatorRegistry   = $operatorRegistry;
 
-        return $this->applyFilters($query, $filters, null, FilterContext::root());
+        $this->applyFilters($query, $filters, null, FilterContext::root());
+
+        return $query;
     }
 
     /**
      * Apply filters recursively to the query.
      *
-     * @param  \Illuminate\Database\Eloquent\Builder  $query
+     * @param  \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>  $query
      * @param  array<string, mixed>|string|null  $filters
      * @param  string|null  $field
      * @param  \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext  $context
-     * @return \Illuminate\Database\Eloquent\Builder
+     * @return \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>
      */
     private function applyFilters(Builder $query, array|string|null $filters, ?string $field, FilterContext $context): Builder
     {
@@ -86,19 +90,21 @@ final class FilterApplier
     /**
      * Apply a simple equality filter.
      *
-     * @param  \Illuminate\Database\Eloquent\Builder  $query
+     * @param  \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>  $query
      * @param  string|null  $column
      * @param  string  $value
      * @param  \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext  $context
-     * @return \Illuminate\Database\Eloquent\Builder
+     * @return \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>
      */
     private function applySimpleFilter(Builder $query, ?string $column, string $value, FilterContext $context): Builder
     {
         if ($column && $this->schemaIntrospector->isSearchable($query->getModel(), $column)) {
 
-            $operator = $context->getLogicalOperator() ?? '$and';
-
-            $query->{$this->logicalOperatorMap[$operator]}($column, $value);
+            if ($context->getLogicalOperator() === '$or') {
+                $query->orWhere($column, $value);
+            } else {
+                $query->where($column, $value);
+            }
         }
 
         return $query;
@@ -107,7 +113,7 @@ final class FilterApplier
     /**
      * Dispatch a condition operator to the appropriate handler.
      *
-     * @param  \Illuminate\Database\Eloquent\Builder  $query
+     * @param  \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>  $query
      * @param  string  $operator
      * @param  mixed  $value
      * @param  string|null  $field
@@ -136,7 +142,7 @@ final class FilterApplier
     /**
      * Apply a logical operator group to the query.
      *
-     * @param  \Illuminate\Database\Eloquent\Builder  $query
+     * @param  \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>  $query
      * @param  string  $operator
      * @param  array<string, mixed>  $value
      * @param  \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext  $context
@@ -148,7 +154,7 @@ final class FilterApplier
             ? 'where' : $this->logicalOperatorMap[$operator];
         $nested = FilterContext::nested($operator, $context);
 
-        $query->{$method}(function (Builder $query) use ($value, $nested): void {
+        $callback = function (Builder $query) use ($value, $nested): void {
             foreach ($value as $subKey => $subValue) {
 
                 if ($subKey === '$has' || $subKey === self::OPERATOR_HASNT || $this->operatorRegistry->has($subKey)) {
@@ -159,13 +165,19 @@ final class FilterApplier
                     $this->applyFilters($query, $subValue, $subKey, $nested);
                 }
             }
-        });
+        };
+
+        if ($method === 'orWhere') {
+            $query->orWhere($callback);
+        } else {
+            $query->where($callback);
+        }
     }
 
     /**
      * Apply a relation filter using whereHas or orWhereHas.
      *
-     * @param  \Illuminate\Database\Eloquent\Builder  $query
+     * @param  \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>  $query
      * @param  string  $relation
      * @param  array<string, mixed>  $filters
      * @param  \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext  $context
@@ -176,7 +188,7 @@ final class FilterApplier
         $method          = ($context->getLogicalOperator() === '$or') ? 'orWhereHas' : 'whereHas';
         $relationContext = FilterContext::forRelation($context);
 
-        $query->{$method}($relation, function (Builder $query) use ($filters, $relationContext): void {
+        $this->applyRelationalMethod($query, $method, $relation, function (Builder $query) use ($filters, $relationContext): void {
             $this->processRelationFilters($query, $filters, $relationContext);
         });
     }
@@ -184,7 +196,7 @@ final class FilterApplier
     /**
      * Process filters inside a relation scope.
      *
-     * @param  \Illuminate\Database\Eloquent\Builder  $query
+     * @param  \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>  $query
      * @param  array<string, mixed>  $filters
      * @param  \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext  $context
      * @return void
@@ -192,8 +204,12 @@ final class FilterApplier
     private function processRelationFilters(Builder $query, array $filters, FilterContext $context): void
     {
         if (isset($filters['$or'])) {
-            $query->where(function ($nested) use ($filters, $context): void {
-                foreach ($filters['$or'] as $key => $value) {
+
+            /** @var array<string, mixed> $orFilters */
+            $orFilters = is_array($filters['$or']) ? $filters['$or'] : [];
+
+            $query->where(function (Builder $nested) use ($orFilters, $context): void {
+                foreach ($orFilters as $key => $value) {
                     $this->applyFilters($nested, $value, $key, FilterContext::nested('$or', $context));
                 }
             });
@@ -207,7 +223,7 @@ final class FilterApplier
     /**
      * Apply a $has or $hasnt relational filter.
      *
-     * @param  \Illuminate\Database\Eloquent\Builder  $query
+     * @param  \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>  $query
      * @param  array<int|string, mixed>|string  $relations
      * @param  string  $operator
      * @param  \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext  $context
@@ -222,13 +238,31 @@ final class FilterApplier
 
             if (is_int($relation)) {
                 if ($this->schemaIntrospector->isRelation($filters, $query->getModel())) {
-                    $query->{$method}($filters);
+                    $this->applyRelationalMethod($query, $method, $filters);
                 }
             } elseif ($this->schemaIntrospector->isRelation($relation, $query->getModel())) {
-                $query->{$method}($relation, function (Builder $query) use ($filters): void {
+                $this->applyRelationalMethod($query, $method, $relation, function (Builder $query) use ($filters): void {
                     $this->processRelationFilters($query, $filters, FilterContext::root());
                 });
             }
         }
+    }
+
+    /**
+     * Invoke the resolved relational existence method on the query.
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>  $query
+     * @param  string  $method
+     * @param  string  $relation
+     * @param  (\Closure(\Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>): void)|null  $callback
+     * @return void
+     */
+    private function applyRelationalMethod(Builder $query, string $method, string $relation, ?\Closure $callback = null): void
+    {
+        match ($method) {
+            'orWhereHas'      => $query->orWhereHas($relation, $callback),
+            'whereDoesntHave' => $query->whereDoesntHave($relation, $callback),
+            default           => $query->whereHas($relation, $callback),
+        };
     }
 }

@@ -171,8 +171,8 @@ final class EagerLoadPlanner
      * Wrap a constraint closure to safely handle MorphTo, EloquentRelation,
      * and Builder instances.
      *
-     * @param  \Closure(mixed): void  $constraint
-     * @return \Closure(mixed): void
+     * @param  \Closure(\Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>): void  $constraint
+     * @return \Closure(\Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>): void
      */
     private static function wrapConstraint(\Closure $constraint): \Closure
     {
@@ -318,7 +318,7 @@ final class EagerLoadPlanner
         }
 
         return array_values(
-            array_filter($requested, static fn ($f) => is_string($f) && $f !== ''),
+            array_filter($requested, static fn ($f) => $f !== ''),
         );
     }
 

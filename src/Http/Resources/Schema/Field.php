@@ -2,8 +2,8 @@
 
 namespace SineMacula\ApiToolkit\Http\Resources\Schema;
 
+use Carbon\CarbonInterface;
 use Illuminate\Contracts\Support\Arrayable;
-use Illuminate\Http\Resources\Json\JsonResource;
 
 /**
  * Field schema helpers for scalar and accessor fields.
@@ -55,7 +55,7 @@ final class Field extends BaseDefinition
      * Define an accessor field by name.
      *
      * @param  string  $field
-     * @param  callable|string  $accessor
+     * @param  (callable(\SineMacula\ApiToolkit\Http\Resources\ApiResource, \Illuminate\Http\Request|null): mixed)|string  $accessor
      * @param  string|null  $alias
      * @return self
      */
@@ -73,7 +73,12 @@ final class Field extends BaseDefinition
      */
     public static function timestamp(string $field, ?string $alias = null): self
     {
-        return self::accessor($field, static fn (JsonResource $resource) => $resource->{$field}?->toIso8601String(), $alias);
+        return self::accessor($field, static function ($resource) use ($field): ?string {
+
+            $value = data_get($resource, $field);
+
+            return $value instanceof CarbonInterface ? $value->toIso8601String() : null;
+        }, $alias);
     }
 
     /**
@@ -85,14 +90,19 @@ final class Field extends BaseDefinition
      */
     public static function date(string $field, ?string $alias = null): self
     {
-        return self::accessor($field, static fn (JsonResource $resource) => $resource->{$field}?->toDateString(), $alias);
+        return self::accessor($field, static function ($resource) use ($field): ?string {
+
+            $value = data_get($resource, $field);
+
+            return $value instanceof CarbonInterface ? $value->toDateString() : null;
+        }, $alias);
     }
 
     /**
      * Define a computed field by name.
      *
      * @param  string  $field
-     * @param  callable|string  $compute
+     * @param  (callable(\SineMacula\ApiToolkit\Http\Resources\ApiResource, \Illuminate\Http\Request|null): mixed)|string  $compute
      * @param  string|null  $alias
      * @return self
      */
@@ -140,8 +150,8 @@ final class Field extends BaseDefinition
     /**
      * Merge multiple field definitions into a single normalized array.
      *
-     * @param  array<int, array<string, array>|Arrayable>  ...$definitions
-     * @return array<string, array>
+     * @param  array<string, array<string, mixed>>|\Illuminate\Contracts\Support\Arrayable<string, array<string, mixed>>  ...$definitions
+     * @return array<string, array<string, mixed>>
      *
      * @throws \RuntimeException
      */

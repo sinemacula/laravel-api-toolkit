@@ -18,7 +18,7 @@ class DatabaseLogger
     /**
      * Invoke the custom logger instance.
      *
-     * @param  array  $config
+     * @param  array<string, mixed>  $config
      * @return \Monolog\Logger
      */
     public function __invoke(array $config): Logger

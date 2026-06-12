@@ -24,7 +24,7 @@ abstract class Service implements LockKeyProvider, ServiceInterface
     /**
      * Constructor.
      *
-     * @param  array|\Illuminate\Support\Collection|\stdClass  $payload
+     * @param  array<array-key, mixed>|\Illuminate\Support\Collection<array-key, mixed>|\stdClass  $payload
      */
     public function __construct(
 
@@ -98,11 +98,13 @@ abstract class Service implements LockKeyProvider, ServiceInterface
     {
         $pipeline = $this->buildPipeline();
 
-        $this->status = $pipeline();
+        $status = $pipeline();
+
+        $this->status = $status;
 
         $this->success();
 
-        return $this->status;
+        return $status;
     }
 
     /**

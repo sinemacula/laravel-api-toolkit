@@ -74,7 +74,7 @@ class PolymorphicResource extends JsonResource
      * @param  \Illuminate\Http\Request  $request
      * @return array<string, mixed>|null
      */
-    public function toArray(Request $request): ?array
+    public function toArray(Request $request): ?array // @phpstan-ignore method.childReturnType (parent docblock omits null, which resolve() casts to an empty array)
     {
         if (!$this->resource) {
             return null;
@@ -107,6 +107,10 @@ class PolymorphicResource extends JsonResource
      */
     private function mapResource(mixed $resource): ApiResourceInterface
     {
+        if (!is_object($resource)) {
+            throw new ResourceMappingException('Resource must be an object to be mapped');
+        }
+
         $map   = Config::get('api-toolkit.resources.resource_map', []);
         $class = $resource::class;
 

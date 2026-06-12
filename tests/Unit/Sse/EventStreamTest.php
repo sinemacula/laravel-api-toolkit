@@ -3,9 +3,9 @@
 namespace Tests\Unit\Sse;
 
 use PHPUnit\Framework\Attributes\CoversClass;
-use SineMacula\Http\Enums\HttpStatus;
 use SineMacula\ApiToolkit\Sse\Emitter;
 use SineMacula\ApiToolkit\Sse\EventStream;
+use SineMacula\Http\Enums\HttpStatus;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 use Tests\Fixtures\Support\FunctionOverrides;
 use Tests\TestCase;

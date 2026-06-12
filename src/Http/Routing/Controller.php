@@ -8,8 +8,8 @@ use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Http\Resources\Json\ResourceCollection;
 use Illuminate\Routing\Controller as LaravelController;
 use Illuminate\Support\Facades\Response;
-use SineMacula\Http\Enums\HttpStatus;
 use SineMacula\ApiToolkit\Sse\EventStream;
+use SineMacula\Http\Enums\HttpStatus;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**

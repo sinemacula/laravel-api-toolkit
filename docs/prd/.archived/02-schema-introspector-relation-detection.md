@@ -19,7 +19,7 @@ side-effect risks, and hidden errors.
 ---
 
 ## Background
- 
+
 `SchemaIntrospector::isRelation()` determines whether a key corresponds to an Eloquent relation on a model. It is called
 by `FilterApplier` during filter tree traversal (for every unrecognized key) and indirectly by `AttributeSetter` via
 `resolveRelation()`.
@@ -142,31 +142,31 @@ schema validation rule reports it as an error at boot time.
 ## Testing Strategy
 
 - **Unit tests for reflection-based detection:**
-    - Method with `HasMany` return type -> `true`
-    - Method with `BelongsTo` return type -> `true`
-    - Method with `MorphTo` return type -> `true`
-    - Method with `MorphToMany` return type -> `true`
-    - Method with union type `HasMany|MorphMany` -> `true`
-    - Method with `Builder` return type -> `false`
-    - Method with `void` return type -> `false`
-    - Method with `string` return type -> `false`
-    - Method with no return type -> `false` (no fallback)
-    - Non-existent method -> `false`
+  - Method with `HasMany` return type -> `true`
+  - Method with `BelongsTo` return type -> `true`
+  - Method with `MorphTo` return type -> `true`
+  - Method with `MorphToMany` return type -> `true`
+  - Method with union type `HasMany|MorphMany` -> `true`
+  - Method with `Builder` return type -> `false`
+  - Method with `void` return type -> `false`
+  - Method with `string` return type -> `false`
+  - Method with no return type -> `false` (no fallback)
+  - Non-existent method -> `false`
 - **Unit tests for dynamic relation detection:**
-    - Relation registered via `resolveRelationUsing()` -> `isRelation()` returns `true`
-    - Dynamic relation works with `resolveRelation()` -> returns Relation instance
+  - Relation registered via `resolveRelationUsing()` -> `isRelation()` returns `true`
+  - Dynamic relation works with `resolveRelation()` -> returns Relation instance
 - **Unit tests for error handling:**
-    - `isRelation()`: no catch block, no exceptions (reflection only)
-    - `resolveRelation()`: `LogicException` caught, returns `null`, logs warning
-    - `resolveRelation()`: `ReflectionException` caught, returns `null`, logs warning
-    - `resolveRelation()`: `RuntimeException` not caught, propagates
+  - `isRelation()`: no catch block, no exceptions (reflection only)
+  - `resolveRelation()`: `LogicException` caught, returns `null`, logs warning
+  - `resolveRelation()`: `ReflectionException` caught, returns `null`, logs warning
+  - `resolveRelation()`: `RuntimeException` not caught, propagates
 - **Unit tests for ValidateRelationMethods:**
-    - Relation method with correct return type -> no error
-    - Relation method with no return type -> validation error
-    - Relation method with non-Relation return type -> validation error
+  - Relation method with correct return type -> no error
+  - Relation method with no return type -> validation error
+  - Relation method with non-Relation return type -> validation error
 - **Integration tests:**
-    - `FilterApplier` correctly identifies relation filter keys using reflection
-    - `AttributeSetter` correctly resolves relation types via `resolveRelation()`
+  - `FilterApplier` correctly identifies relation filter keys using reflection
+  - `AttributeSetter` correctly resolves relation types via `resolveRelation()`
 - **Existing test updates:** Tests that assert fallback invocation behavior or exception catching in `isRelation()` are
   updated to reflect the new reflection-only approach
 

@@ -51,10 +51,10 @@ class NotificationListener
     {
         $payload = array_filter([
             'notification'    => $notification::class,
-            'notifiable_type' => $notifiable::class,
+            'notifiable_type' => is_object($notifiable) ? $notifiable::class : null,
             'notifiable_id'   => $notifiable instanceof Model ? $notifiable->getKey() : null,
             'channel'         => $channel,
-        ]);
+        ], static fn ($value): bool => (bool) $value);
 
         Log::channel('notifications')->info($message, $payload);
 

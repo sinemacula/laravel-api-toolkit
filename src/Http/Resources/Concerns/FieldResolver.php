@@ -80,6 +80,7 @@ final class FieldResolver
 
         $resolved = array_diff($this->fields, $this->excludedFields ?? []);
 
+        /** @var array<int, string> $configFixed */
         $configFixed = Config::get('api-toolkit.resources.fixed_fields', []);
         $allFixed    = array_merge($configFixed, $fixedFields);
         $merged      = array_merge($resolved, $allFixed);

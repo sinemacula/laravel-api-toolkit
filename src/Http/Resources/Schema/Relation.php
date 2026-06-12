@@ -14,26 +14,28 @@ use Illuminate\Contracts\Support\Arrayable;
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
+ *
+ * @implements \Illuminate\Contracts\Support\Arrayable<string, array<string, mixed>>
  */
 final class Relation extends BaseDefinition implements Arrayable
 {
     /** @var class-string|null Child ApiResource class */
     private ?string $resource = null;
 
-    /** @var \Closure|string|null */
+    /** @var (\Closure(\SineMacula\ApiToolkit\Http\Resources\ApiResource, \Illuminate\Http\Request|null): mixed)|string|null */
     private \Closure|string|null $accessor = null;
 
     /** @var array<int, string>|null Child field projection for eager-load planning */
     private ?array $fields = null;
 
-    /** @var callable|null Eager-load constraint callback */
+    /** @var (callable(\Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>): void)|null Eager-load constraint callback */
     private mixed $constraint = null;
 
     /**
      * Prevent direct instantiation.
      *
      * @param  string  $name
-     * @param  callable|string  $resource_or_accessor
+     * @param  (callable(\SineMacula\ApiToolkit\Http\Resources\ApiResource, \Illuminate\Http\Request|null): mixed)|string  $resource_or_accessor
      * @param  string|null  $alias
      */
     private function __construct(
@@ -51,7 +53,10 @@ final class Relation extends BaseDefinition implements Arrayable
         if (is_string($resource_or_accessor) && class_exists($resource_or_accessor)) {
             $this->resource = $resource_or_accessor;
         } else {
-            $this->accessor = $resource_or_accessor;
+            /** @var (\Closure(\SineMacula\ApiToolkit\Http\Resources\ApiResource, \Illuminate\Http\Request|null): mixed)|string $accessor */
+            $accessor = $resource_or_accessor;
+
+            $this->accessor = $accessor;
         }
     }
 
@@ -59,7 +64,7 @@ final class Relation extends BaseDefinition implements Arrayable
      * Create a relation definition for the given relation name.
      *
      * @param  string  $name
-     * @param  callable|string  $resource_or_accessor
+     * @param  (callable(\SineMacula\ApiToolkit\Http\Resources\ApiResource, \Illuminate\Http\Request|null): mixed)|string  $resource_or_accessor
      * @param  string|null  $alias
      * @return self
      */
@@ -99,7 +104,7 @@ final class Relation extends BaseDefinition implements Arrayable
      *
      * The callback receives the relation's query builder.
      *
-     * @param  callable  $constraint
+     * @param  callable(\Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>): void  $constraint
      * @return self
      */
     public function constrain(callable $constraint): self

@@ -41,7 +41,7 @@ class DatabaseHandler extends AbstractProcessingHandler
         }
 
         try {
-            LogMessage::create([
+            LogMessage::query()->create([
                 'level'      => $record->level->getName(),
                 'message'    => $record->message,
                 'context'    => empty($context) ? null : json_encode($context, JSON_THROW_ON_ERROR),
