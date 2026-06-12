@@ -19,6 +19,17 @@ use SineMacula\ApiToolkit\Enums\FieldOrderingStrategy;
 class FieldOrderingStrategyTest extends TestCase
 {
     /**
+     * Provide all FieldOrderingStrategy cases with their expected values.
+     *
+     * @return iterable<string, array{\SineMacula\ApiToolkit\Enums\FieldOrderingStrategy, string}>
+     */
+    public static function caseProvider(): iterable
+    {
+        yield 'DEFAULT' => [FieldOrderingStrategy::DEFAULT, 'default'];
+        yield 'BY_REQUESTED_FIELDS' => [FieldOrderingStrategy::BY_REQUESTED_FIELDS, 'by_requested_fields'];
+    }
+
+    /**
      * Test that each case has the expected string value.
      *
      * @param  \SineMacula\ApiToolkit\Enums\FieldOrderingStrategy  $case
@@ -59,16 +70,5 @@ class FieldOrderingStrategyTest extends TestCase
     public function testExpectedCaseCount(): void
     {
         static::assertCount(2, FieldOrderingStrategy::cases());
-    }
-
-    /**
-     * Provide all FieldOrderingStrategy cases with their expected values.
-     *
-     * @return iterable<string, array{\SineMacula\ApiToolkit\Enums\FieldOrderingStrategy, string}>
-     */
-    public static function caseProvider(): iterable
-    {
-        yield 'DEFAULT' => [FieldOrderingStrategy::DEFAULT, 'default'];
-        yield 'BY_REQUESTED_FIELDS' => [FieldOrderingStrategy::BY_REQUESTED_FIELDS, 'by_requested_fields'];
     }
 }

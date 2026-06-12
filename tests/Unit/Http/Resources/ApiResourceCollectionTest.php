@@ -9,6 +9,7 @@ use Illuminate\Pagination\LengthAwarePaginator;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Http\Resources\ApiResourceCollection;
 use SineMacula\Http\Enums\HttpMethod;
+use Tests\Fixtures\Models\Organization;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
@@ -288,6 +289,91 @@ class ApiResourceCollectionTest extends TestCase
 
         static::assertCount(1, $result);
         static::assertSame('users', $result[0]['_type']);
+    }
+
+    /**
+     * Test that toArray resolves pre-wrapped items using their own field
+     * configuration rather than re-wrapping them.
+     *
+     * @return void
+     */
+    public function testToArrayPreservesItemLevelFieldSelection(): void
+    {
+        $user = User::create(['name' => 'ItemFields', 'email' => 'itemfields@example.com']);
+
+        $item = new UserResource($user);
+        $item->withFields(['name']);
+
+        $collection = new ApiResourceCollection(collect([$item]), UserResource::class);
+
+        $request = Request::create('/', HttpMethod::GET->getVerb());
+        $result  = $collection->toArray($request);
+
+        static::assertCount(1, $result);
+        static::assertArrayHasKey('name', $result[0]);
+        static::assertArrayNotHasKey('email', $result[0]);
+    }
+
+    /**
+     * Test that toArray does not eager load missing relations when wrapping
+     * raw model items.
+     *
+     * @return void
+     */
+    public function testToArrayDoesNotEagerLoadRelationsForRawItems(): void
+    {
+        $organization = Organization::create([
+            'name' => 'Raw Corp',
+            'slug' => 'raw-corp',
+        ]);
+
+        $user = User::create([
+            'name'            => 'RawRelation',
+            'email'           => 'rawrelation@example.com',
+            'organization_id' => $organization->id,
+        ]);
+
+        assert($this->app !== null);
+
+        /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
+        $parser  = $this->app->make('api.query');
+        $request = Request::create('/', HttpMethod::GET->getVerb(), [
+            'fields' => ['users' => 'id,name,organization'],
+        ]);
+
+        $parser->parse($request);
+
+        $collection = new ApiResourceCollection(collect([]), UserResource::class);
+
+        $reflection = new \ReflectionProperty($collection, 'collection');
+        $reflection->setValue($collection, collect([$user])); // NOSONAR
+
+        $result = $collection->toArray($request);
+
+        static::assertFalse($user->relationLoaded('organization'));
+        static::assertArrayNotHasKey('organization', $result[0]);
+    }
+
+    /**
+     * Test that pagination links point at the correct page numbers.
+     *
+     * @return void
+     */
+    public function testPaginationLinksPointAtCorrectPages(): void
+    {
+        $items     = [User::create(['name' => 'LinkPages', 'email' => 'linkpages@example.com'])];
+        $paginator = new LengthAwarePaginator($items, 50, 15, 2, [
+            'path' => self::PAGINATION_PATH,
+        ]);
+
+        $collection = new ApiResourceCollection($paginator, UserResource::class);
+
+        $request = Request::create('/', HttpMethod::GET->getVerb());
+        $result  = $collection->paginationInformation($request, [], []);
+
+        static::assertSame(self::PAGINATION_PATH . '?page=1', $result['links']['first']);
+        static::assertSame(self::PAGINATION_PATH . '?page=2', $result['links']['self']);
+        static::assertSame(self::PAGINATION_PATH . '?page=4', $result['links']['last']);
     }
 
     /**

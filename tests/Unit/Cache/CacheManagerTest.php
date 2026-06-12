@@ -2,6 +2,7 @@
 
 namespace Tests\Unit\Cache;
 
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Event;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -109,6 +110,31 @@ class CacheManagerTest extends TestCase
 
         // Assert
         Event::assertDispatched(CacheFlushed::class);
+    }
+
+    /**
+     * Test that flush resets the bound query parser state.
+     *
+     * @return void
+     */
+    public function testFlushResetsBoundQueryParser(): void
+    {
+        // Arrange
+        Event::fake();
+
+        /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
+        $parser = $this->app->make('api.query'); // @phpstan-ignore method.nonObject
+
+        $parser->parse(Request::create('/test', 'GET', ['fields' => 'name,email']));
+
+        static::assertSame(['name', 'email'], $parser->getFields());
+
+        // Act
+        $manager = $this->app->make(CacheManager::class); // @phpstan-ignore method.nonObject
+        $manager->flush();
+
+        // Assert
+        static::assertNull($parser->getFields());
     }
 
     /**

@@ -4,9 +4,11 @@ namespace Tests\Unit\Http\Resources\Concerns;
 
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
+use SineMacula\ApiToolkit\Http\Resources\ApiResource;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\EagerLoadPlanner;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\SchemaCompiler;
 use Tests\Fixtures\Resources\OrganizationResource;
+use Tests\Fixtures\Resources\PostResource;
 use Tests\Fixtures\Resources\TagResource;
 use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
@@ -363,5 +365,264 @@ class EagerLoadPlannerTest extends TestCase
         $result = EagerLoadPlanner::buildEagerLoadMap(UserResource::class, ['organization']);
 
         static::assertContains('organization', $result);
+    }
+
+    /**
+     * Test that plain and scoped paths are merged into a single map when both
+     * are present.
+     *
+     * @return void
+     */
+    public function testBuildEagerLoadMapMergesPlainAndScopedPaths(): void
+    {
+
+        $mixedResource = new class {
+            public const string RESOURCE_TYPE = 'mixed_paths_test';
+
+            /**
+             * @return array<string, array<string, mixed>>
+             */
+            public static function schema(): array
+            {
+                return [
+                    'plain' => [
+                        'relation' => 'plain',
+                    ],
+                    'scoped' => [
+                        'relation'   => 'scoped',
+                        'constraint' => fn ($query) => $query,
+                    ],
+                ];
+            }
+        };
+
+        $resourceClass = $mixedResource::class;
+        $result        = EagerLoadPlanner::buildEagerLoadMap($resourceClass, ['plain', 'scoped']);
+
+        static::assertContains('plain', $result);
+        static::assertArrayHasKey('scoped', $result);
+        static::assertInstanceOf(\Closure::class, $result['scoped']);
+    }
+
+    /**
+     * Test that count definitions after an excluded one are still evaluated
+     * and that every matching count is returned.
+     *
+     * @return void
+     */
+    public function testBuildCountMapContinuesPastExcludedCounts(): void
+    {
+
+        $multiCountResource = new class {
+            public const string RESOURCE_TYPE = 'multi_count_test';
+
+            /**
+             * @return array<string, array<string, mixed>>
+             */
+            public static function schema(): array
+            {
+                return [
+                    '__count__:drafts' => [
+                        'metric'   => 'count',
+                        'relation' => 'drafts',
+                    ],
+                    '__count__:published' => [
+                        'metric'   => 'count',
+                        'relation' => 'published',
+                        'default'  => true,
+                    ],
+                    '__count__:archived' => [
+                        'metric'   => 'count',
+                        'relation' => 'archived',
+                        'default'  => true,
+                    ],
+                ];
+            }
+        };
+
+        $resourceClass = $multiCountResource::class;
+        $result        = EagerLoadPlanner::buildCountMap($resourceClass);
+
+        static::assertSame(['published', 'archived'], array_values($result));
+    }
+
+    /**
+     * Test that unknown fields are skipped while later relation fields are
+     * still planned.
+     *
+     * @return void
+     */
+    public function testBuildEagerLoadMapSkipsUnknownFieldsAndContinues(): void
+    {
+
+        ApiQuery::shouldReceive('getFields')
+            ->with('organizations')
+            ->andReturn(null);
+
+        $result = EagerLoadPlanner::buildEagerLoadMap(UserResource::class, ['nonexistent_field', 'organization']);
+
+        static::assertContains('organization', $result);
+    }
+
+    /**
+     * Test that an already-visited path is skipped while later fields are
+     * still traversed.
+     *
+     * @return void
+     */
+    public function testBuildEagerLoadMapContinuesAfterVisitedPath(): void
+    {
+
+        ApiQuery::shouldReceive('getFields')
+            ->with('organizations')
+            ->andReturn(null);
+
+        ApiQuery::shouldReceive('getFields')
+            ->with('posts')
+            ->andReturn(null);
+
+        $result = EagerLoadPlanner::buildEagerLoadMap(UserResource::class, ['organization', 'organization', 'posts']);
+
+        static::assertContains('organization', $result);
+        static::assertContains('posts', $result);
+    }
+
+    /**
+     * Test that relations pointing at non-ApiResource classes are not
+     * recursed into.
+     *
+     * @return void
+     */
+    public function testBuildEagerLoadMapDoesNotRecurseIntoNonResourceClasses(): void
+    {
+
+        $nonResourceChild = new class {
+            public const string RESOURCE_TYPE = 'non_resource_child_test';
+
+            /**
+             * @return array<string, array<string, mixed>>
+             */
+            public static function schema(): array
+            {
+                return [
+                    'organization' => [
+                        'relation' => 'organization',
+                        'resource' => \stdClass::class,
+                    ],
+                ];
+            }
+        };
+
+        $resourceClass = $nonResourceChild::class;
+        $result        = EagerLoadPlanner::buildEagerLoadMap($resourceClass, ['organization']);
+
+        static::assertSame(['organization'], $result);
+    }
+
+    /**
+     * Test that empty entries in an explicit child field projection are
+     * filtered out before recursion.
+     *
+     * @return void
+     */
+    public function testBuildEagerLoadMapFiltersEmptyExplicitChildFields(): void
+    {
+
+        ApiQuery::shouldReceive('getFields')
+            ->with('posts')
+            ->andReturn(null);
+
+        ApiQuery::shouldReceive('getFields')
+            ->with('tags')
+            ->andReturn(null);
+
+        $explicitFieldsResource = new class {
+            public const string RESOURCE_TYPE = 'blank_explicit_fields_test';
+
+            /**
+             * @return array<string, array<string, mixed>>
+             */
+            public static function schema(): array
+            {
+                return [
+                    'posts' => [
+                        'relation' => 'posts',
+                        'resource' => PostResource::class,
+                        'fields'   => ['', 'tags'],
+                    ],
+                ];
+            }
+        };
+
+        $resourceClass = $explicitFieldsResource::class;
+        $result        = EagerLoadPlanner::buildEagerLoadMap($resourceClass, ['posts']);
+
+        static::assertContains('posts', $result);
+        static::assertContains('posts.tags', $result);
+    }
+
+    /**
+     * Test that blank API-query fields for a child resource fall back to the
+     * child's default fields during recursion.
+     *
+     * @return void
+     */
+    public function testBuildEagerLoadMapFallsBackToChildDefaultsWhenRequestedFieldsAreBlank(): void
+    {
+
+        ApiQuery::shouldReceive('getFields')
+            ->with('blank_fields_child')
+            ->andReturn(['']);
+
+        ApiQuery::shouldReceive('getFields')
+            ->with('organizations')
+            ->andReturn(null);
+
+        $child = new class (null) extends ApiResource {
+            public const string RESOURCE_TYPE = 'blank_fields_child';
+
+            /** @var array<int, string> */
+            protected static array $default = ['organization'];
+
+            /**
+             * @return array<string, array<string, mixed>>
+             */
+            public static function schema(): array
+            {
+                return [
+                    'organization' => [
+                        'relation' => 'organization',
+                        'resource' => OrganizationResource::class,
+                    ],
+                ];
+            }
+        };
+
+        $parent = new class {
+            public const string RESOURCE_TYPE = 'blank_fields_parent';
+
+            /** @var string */
+            public static string $childClass = '';
+
+            /**
+             * @return array<string, array<string, mixed>>
+             */
+            public static function schema(): array
+            {
+                return [
+                    'rel' => [
+                        'relation' => 'rel',
+                        'resource' => self::$childClass,
+                    ],
+                ];
+            }
+        };
+
+        $parent::$childClass = $child::class;
+
+        $result = EagerLoadPlanner::buildEagerLoadMap($parent::class, ['rel']);
+
+        static::assertContains('rel', $result);
+        static::assertContains('rel.organization', $result);
     }
 }

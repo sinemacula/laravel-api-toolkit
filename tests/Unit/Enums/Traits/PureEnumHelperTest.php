@@ -2,7 +2,7 @@
 
 namespace Tests\Unit\Enums\Traits;
 
-use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\CoversTrait;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use SineMacula\ApiToolkit\Enums\Traits\PureEnumHelper;
@@ -16,7 +16,7 @@ use Tests\Fixtures\Enums\PureState;
  *
  * @internal
  */
-#[CoversClass(PureEnumHelper::class)]
+#[CoversTrait(PureEnumHelper::class)]
 class PureEnumHelperTest extends TestCase
 {
     /**
@@ -29,6 +29,19 @@ class PureEnumHelperTest extends TestCase
         $result = PureState::tryFrom('PENDING');
 
         static::assertSame(PureState::PENDING, $result);
+    }
+
+    /**
+     * Provide case-insensitive inputs and their expected results.
+     *
+     * @return iterable<string, array{string, \Tests\Fixtures\Enums\PureState}>
+     */
+    public static function caseInsensitiveProvider(): iterable
+    {
+        yield 'lowercase' => ['pending', PureState::PENDING];
+        yield 'mixed case' => ['Approved', PureState::APPROVED];
+        yield 'all caps' => ['REJECTED', PureState::REJECTED];
+        yield 'random casing' => ['rEjEcTeD', PureState::REJECTED];
     }
 
     /**
@@ -47,6 +60,19 @@ class PureEnumHelperTest extends TestCase
     }
 
     /**
+     * Provide invalid string inputs that should return null.
+     *
+     * @return iterable<string, array{string}>
+     */
+    public static function invalidStringProvider(): iterable
+    {
+        yield 'empty string' => [''];
+        yield 'nonexistent case' => ['INVALID'];
+        yield 'partial match' => ['PEND'];
+        yield 'extra whitespace' => [' PENDING '];
+    }
+
+    /**
      * Test that tryFrom with an invalid string returns null.
      *
      * @param  string  $input
@@ -58,60 +84,6 @@ class PureEnumHelperTest extends TestCase
         $result = PureState::tryFrom($input);
 
         static::assertNull($result);
-    }
-
-    /**
-     * Test that tryFrom with non-string values returns null.
-     *
-     * @param  mixed  $input
-     * @return void
-     */
-    #[DataProvider('nonStringProvider')]
-    public function testTryFromWithNonStringValuesReturnsNull(mixed $input): void
-    {
-        static::assertFalse(is_string($input), 'Input must be a non-string type');
-        static::assertNull(PureState::tryFrom($input));
-    }
-
-    /**
-     * Test that tryFrom matches all defined cases.
-     *
-     * @param  string  $name
-     * @param  \Tests\Fixtures\Enums\PureState  $expectedCase
-     * @return void
-     */
-    #[DataProvider('allCasesProvider')]
-    public function testTryFromMatchesAllDefinedCases(string $name, PureState $expectedCase): void
-    {
-        $result = PureState::tryFrom($name);
-
-        static::assertSame($expectedCase, $result);
-    }
-
-    /**
-     * Provide case-insensitive inputs and their expected results.
-     *
-     * @return iterable<string, array{string, \Tests\Fixtures\Enums\PureState}>
-     */
-    public static function caseInsensitiveProvider(): iterable
-    {
-        yield 'lowercase' => ['pending', PureState::PENDING];
-        yield 'mixed case' => ['Approved', PureState::APPROVED];
-        yield 'all caps' => ['REJECTED', PureState::REJECTED];
-        yield 'random casing' => ['rEjEcTeD', PureState::REJECTED];
-    }
-
-    /**
-     * Provide invalid string inputs that should return null.
-     *
-     * @return iterable<string, array{string}>
-     */
-    public static function invalidStringProvider(): iterable
-    {
-        yield 'empty string' => [''];
-        yield 'nonexistent case' => ['INVALID'];
-        yield 'partial match' => ['PEND'];
-        yield 'extra whitespace' => [' PENDING '];
     }
 
     /**
@@ -130,6 +102,19 @@ class PureEnumHelperTest extends TestCase
     }
 
     /**
+     * Test that tryFrom with non-string values returns null.
+     *
+     * @param  mixed  $input
+     * @return void
+     */
+    #[DataProvider('nonStringProvider')]
+    public function testTryFromWithNonStringValuesReturnsNull(mixed $input): void
+    {
+        static::assertFalse(is_string($input), 'Input must be a non-string type');
+        static::assertNull(PureState::tryFrom($input));
+    }
+
+    /**
      * Provide all defined PureState cases.
      *
      * @return iterable<string, array{string, \Tests\Fixtures\Enums\PureState}>
@@ -139,5 +124,20 @@ class PureEnumHelperTest extends TestCase
         yield 'PENDING' => ['PENDING', PureState::PENDING];
         yield 'APPROVED' => ['APPROVED', PureState::APPROVED];
         yield 'REJECTED' => ['REJECTED', PureState::REJECTED];
+    }
+
+    /**
+     * Test that tryFrom matches all defined cases.
+     *
+     * @param  string  $name
+     * @param  \Tests\Fixtures\Enums\PureState  $expectedCase
+     * @return void
+     */
+    #[DataProvider('allCasesProvider')]
+    public function testTryFromMatchesAllDefinedCases(string $name, PureState $expectedCase): void
+    {
+        $result = PureState::tryFrom($name);
+
+        static::assertSame($expectedCase, $result);
     }
 }

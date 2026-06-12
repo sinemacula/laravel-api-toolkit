@@ -257,6 +257,47 @@ class JsonPrettyPrintTest extends TestCase
     }
 
     /**
+     * Test that a JsonResponse stays compact when the pretty parameter is
+     * absent. Pretty printing must require an explicit opt-in.
+     *
+     * @return void
+     */
+    public function testJsonResponseStaysCompactWithoutPrettyParam(): void
+    {
+        $payload    = ['key' => 'value', 'nested' => ['a' => 1]];
+        $request    = Request::create(self::TEST_URI, HttpMethod::GET->getVerb());
+        $middleware = new JsonPrettyPrint;
+
+        $response = $middleware->handle($request, fn () => new JsonResponse($payload));
+
+        static::assertSame(json_encode($payload), $response->getContent());
+    }
+
+    /**
+     * Test that a plain response without a Content-Type header is handled
+     * without raising a deprecation for a null header value.
+     *
+     * @return void
+     */
+    public function testHandlesMissingContentTypeHeaderWithoutDeprecation(): void
+    {
+        $request    = Request::create(self::TEST_URI, HttpMethod::GET->getVerb(), ['pretty' => 'true']);
+        $middleware = new JsonPrettyPrint;
+
+        set_error_handler(static function (int $_severity, string $message): bool {
+            throw new \ErrorException($message);
+        }, E_DEPRECATED | E_USER_DEPRECATED);
+
+        try {
+            $response = $middleware->handle($request, fn () => new Response('plain text'));
+        } finally {
+            restore_error_handler();
+        }
+
+        static::assertSame('plain text', $response->getContent());
+    }
+
+    /**
      * Test that deeply nested JsonResponse data is correctly
      * pretty-printed.
      *

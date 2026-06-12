@@ -5,6 +5,7 @@ namespace Tests\Unit\Models;
 use Illuminate\Database\Eloquent\Casts\AsArrayObject;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\MassPrunable;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Config;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Models\LogMessage;
@@ -115,6 +116,85 @@ class LogMessageTest extends TestCase
 
         static::assertStringContainsString('created_at', $sql);
         static::assertStringContainsString('<=', $sql);
+    }
+
+    /**
+     * Test that prunable cuts off at exactly the configured number of days.
+     *
+     * @return void
+     */
+    public function testPrunableCutsOffAtConfiguredDays(): void
+    {
+        Carbon::setTestNow('2026-01-15 12:00:00');
+
+        try {
+
+            Config::set('logging.channels.database.days', 30);
+
+            /** @phpstan-ignore staticMethod.dynamicCall */
+            $binding = (new LogMessage)->prunable()->getBindings()[0];
+
+            static::assertInstanceOf(\DateTimeInterface::class, $binding);
+            static::assertSame(
+                Carbon::now()->subDays(30)->format('Y-m-d H:i:s.u'),
+                $binding->format('Y-m-d H:i:s.u'),
+            );
+        } finally {
+            Carbon::setTestNow();
+        }
+    }
+
+    /**
+     * Test that prunable truncates a fractional days value to whole days.
+     *
+     * @return void
+     */
+    public function testPrunableTruncatesFractionalDays(): void
+    {
+        Carbon::setTestNow('2026-01-15 12:00:00');
+
+        try {
+
+            Config::set('logging.channels.database.days', 30.75);
+
+            /** @phpstan-ignore staticMethod.dynamicCall */
+            $binding = (new LogMessage)->prunable()->getBindings()[0];
+
+            static::assertInstanceOf(\DateTimeInterface::class, $binding);
+            static::assertSame(
+                Carbon::now()->subDays(30)->format('Y-m-d H:i:s.u'),
+                $binding->format('Y-m-d H:i:s.u'),
+            );
+        } finally {
+            Carbon::setTestNow();
+        }
+    }
+
+    /**
+     * Test that prunable cuts off at the current time when the days value
+     * is not numeric.
+     *
+     * @return void
+     */
+    public function testPrunableCutsOffAtNowWhenDaysIsNotNumeric(): void
+    {
+        Carbon::setTestNow('2026-01-15 12:00:00');
+
+        try {
+
+            Config::set('logging.channels.database.days', 'not-a-number');
+
+            /** @phpstan-ignore staticMethod.dynamicCall */
+            $binding = (new LogMessage)->prunable()->getBindings()[0];
+
+            static::assertInstanceOf(\DateTimeInterface::class, $binding);
+            static::assertSame(
+                Carbon::now()->format('Y-m-d H:i:s.u'),
+                $binding->format('Y-m-d H:i:s.u'),
+            );
+        } finally {
+            Carbon::setTestNow();
+        }
     }
 
     /**

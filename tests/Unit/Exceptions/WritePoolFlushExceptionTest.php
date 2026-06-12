@@ -92,6 +92,21 @@ class WritePoolFlushExceptionTest extends TestCase
     }
 
     /**
+     * Test that the constructor sets the exception code to zero.
+     *
+     * @return void
+     */
+    public function testConstructorSetsExceptionCodeToZero(): void
+    {
+        $result = new WritePoolFlushResult(successCount: 0, failureCount: 1);
+
+        $previous  = new \RuntimeException('error');
+        $exception = new WritePoolFlushException($result, $previous);
+
+        static::assertSame(0, $exception->getCode());
+    }
+
+    /**
      * Test that the exception extends RuntimeException.
      *
      * @return void

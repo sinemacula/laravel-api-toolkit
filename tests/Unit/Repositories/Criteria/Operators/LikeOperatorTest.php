@@ -63,4 +63,55 @@ class LikeOperatorTest extends TestCase
         static::assertSame('%Ali%', $wheres[0]['value']);
         static::assertSame('or', $wheres[0]['boolean']);
     }
+
+    /**
+     * Test that apply with a Stringable value casts it to its string
+     * representation before wrapping with wildcards.
+     *
+     * @return void
+     */
+    public function testApplyWithStringableValueUsesStringRepresentation(): void
+    {
+        $query    = (new User)->newQuery();
+        $operator = new LikeOperator;
+
+        $value = new class implements \Stringable {
+            /**
+             * Render the value as a string.
+             *
+             * @return string
+             */
+            #[\Override]
+            public function __toString(): string
+            {
+                return 'Ali';
+            }
+        };
+
+        $operator->apply($query, 'name', $value, FilterContext::root());
+
+        $wheres = $query->getQuery()->wheres;
+
+        static::assertCount(1, $wheres);
+        static::assertSame('%Ali%', $wheres[0]['value']);
+    }
+
+    /**
+     * Test that apply with a non-scalar, non-Stringable value falls
+     * back to an empty search term.
+     *
+     * @return void
+     */
+    public function testApplyWithArrayValueFallsBackToEmptyTerm(): void
+    {
+        $query    = (new User)->newQuery();
+        $operator = new LikeOperator;
+
+        $operator->apply($query, 'name', ['Ali'], FilterContext::root());
+
+        $wheres = $query->getQuery()->wheres;
+
+        static::assertCount(1, $wheres);
+        static::assertSame('%%', $wheres[0]['value']);
+    }
 }

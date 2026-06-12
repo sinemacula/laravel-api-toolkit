@@ -306,6 +306,58 @@ class FieldResolverTest extends TestCase
     }
 
     /**
+     * Test that getFields returns a sequentially indexed list after
+     * deduplication removes an interior duplicate.
+     *
+     * @return void
+     */
+    public function testGetFieldsReindexesAfterDeduplication(): void
+    {
+
+        config()->set('api-toolkit.resources.fixed_fields', []);
+
+        $this->resolver->withFields(['name', 'id', 'name', 'email']);
+
+        $schema = new CompiledSchema([], []);
+
+        $result = $this->resolver->getFields($schema, 'users', [], []);
+
+        static::assertSame(['name', 'id', 'email'], $result);
+    }
+
+    /**
+     * Test that shouldIncludeCountsField returns false when the requested
+     * fields neither contain counts nor the :all token.
+     *
+     * @return void
+     */
+    public function testShouldIncludeCountsFieldReturnsFalseWhenRequestedFieldsLackCounts(): void
+    {
+
+        ApiQuery::shouldReceive('getFields')
+            ->with('users')
+            ->andReturn(['name']);
+
+        static::assertFalse($this->resolver->shouldIncludeCountsField('users', []));
+    }
+
+    /**
+     * Test that shouldIncludeCountsField returns false when counts is absent
+     * from the default fields and nothing was requested.
+     *
+     * @return void
+     */
+    public function testShouldIncludeCountsFieldReturnsFalseWhenDefaultsLackCounts(): void
+    {
+
+        ApiQuery::shouldReceive('getFields')
+            ->with('users')
+            ->andReturn(null);
+
+        static::assertFalse($this->resolver->shouldIncludeCountsField('users', ['name']));
+    }
+
+    /**
      * Create a CompiledSchema with the given field keys using stub
      * definitions.
      *

@@ -13,8 +13,11 @@ composer install              # Install dependencies
 composer check                # Run qlty static analysis (PHPStan level 8, PHP-CS-Fixer, CodeSniffer, etc.)
 composer check -- --all --no-cache --fix  # Checks with auto-fix
 composer format               # Format code via qlty
+composer smells               # Report code smells (duplication, complexity) via qlty
 composer test                 # Run tests (Paratest, parallel execution)
-composer test-coverage        # Run tests with clover coverage report
+composer test:coverage        # Run tests with clover coverage report
+composer test:mutation        # Run the Infection mutation-testing gate (MSI thresholds)
+composer test:mutation:full   # Run the full Infection mutation suite without thresholds
 
 # Single test file
 vendor/bin/phpunit tests/Unit/ApiQueryParserTest.php

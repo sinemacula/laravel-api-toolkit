@@ -201,7 +201,7 @@ class ResourceMetadataProviderTest extends TestCase
      */
     public function testResourceMetadataProviderIsImplementable(): void
     {
-        $mock = $this->createMock(ResourceMetadataProvider::class);
+        $mock = static::createStub(ResourceMetadataProvider::class);
 
         static::assertInstanceOf(ResourceMetadataProvider::class, $mock);
     }

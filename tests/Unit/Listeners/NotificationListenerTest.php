@@ -269,6 +269,64 @@ class NotificationListenerTest extends TestCase
     }
 
     /**
+     * Test that the payload omits the notifiable id when the notifiable is
+     * not an Eloquent model.
+     *
+     * @return void
+     */
+    public function testPayloadOmitsNotifiableIdForNonModelNotifiable(): void
+    {
+        Config::set('api-toolkit.logging.cloudwatch.enabled', false);
+        Config::set('api-toolkit.notifications.excluded_classes', []);
+
+        Log::shouldReceive('channel')
+            ->with('notifications')
+            ->once()
+            ->andReturnSelf();
+
+        Log::shouldReceive('log')
+            ->once()
+            ->withArgs(
+                fn (string $level, string $message, array $context) => !array_key_exists('notifiable_id', $context)
+                    && isset($context['notification'], $context['notifiable_type'], $context['channel']),
+            );
+
+        $listener = new NotificationListener;
+        $event    = $this->createSendingEvent();
+
+        $listener->sending($event);
+    }
+
+    /**
+     * Test that CloudWatch logging defaults to disabled when the
+     * configuration key is missing.
+     *
+     * @return void
+     */
+    public function testCloudWatchLoggingDefaultsToDisabledWhenConfigMissing(): void
+    {
+        Config::set('api-toolkit.logging.cloudwatch', []);
+        Config::set('api-toolkit.notifications.excluded_classes', []);
+
+        Log::shouldReceive('channel')
+            ->with('notifications')
+            ->once()
+            ->andReturnSelf();
+
+        Log::shouldReceive('channel')
+            ->with('cloudwatch-notifications')
+            ->never();
+
+        Log::shouldReceive('log')
+            ->once();
+
+        $listener = new NotificationListener;
+        $event    = $this->createSendingEvent();
+
+        $listener->sending($event);
+    }
+
+    /**
      * Create a NotificationSending event for testing.
      *
      * @return \Illuminate\Notifications\Events\NotificationSending

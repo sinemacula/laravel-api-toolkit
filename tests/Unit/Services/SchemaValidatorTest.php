@@ -82,7 +82,7 @@ class SchemaValidatorTest extends TestCase
     {
         $error = new SchemaValidationError(UserResource::class, 'id', 'Test defect');
 
-        $rule = $this->createMock(SchemaValidationRule::class);
+        $rule = static::createStub(SchemaValidationRule::class);
 
         $rule->method('validate')
             ->willReturn([$error]);
@@ -104,12 +104,12 @@ class SchemaValidatorTest extends TestCase
         $errorA = new SchemaValidationError(UserResource::class, 'id', 'Defect A');
         $errorB = new SchemaValidationError(UserResource::class, 'name', 'Defect B');
 
-        $ruleA = $this->createMock(SchemaValidationRule::class);
+        $ruleA = static::createStub(SchemaValidationRule::class);
 
         $ruleA->method('validate')
             ->willReturn([$errorA]);
 
-        $ruleB = $this->createMock(SchemaValidationRule::class);
+        $ruleB = static::createStub(SchemaValidationRule::class);
 
         $ruleB->method('validate')
             ->willReturn([$errorB]);
@@ -201,7 +201,7 @@ class SchemaValidatorTest extends TestCase
         $userError = new SchemaValidationError(UserResource::class, 'id', 'User defect');
         $postError = new SchemaValidationError(PostResource::class, 'title', 'Post defect');
 
-        $rule = $this->createMock(SchemaValidationRule::class);
+        $rule = static::createStub(SchemaValidationRule::class);
 
         $rule->method('validate')
             ->willReturnCallback(function (string $resourceClass) use ($userError, $postError): array {

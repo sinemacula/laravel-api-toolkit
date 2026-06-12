@@ -133,6 +133,31 @@ class AuthorizedControllerTest extends TestCase
     }
 
     /**
+     * Test that the constructor forwards the guard exclusions to every
+     * registered authorization middleware entry under the `except` option.
+     *
+     * @return void
+     */
+    public function testConstructorForwardsGuardExclusionsToMiddlewareOptions(): void
+    {
+        $reflection = new \ReflectionClass(TestingAuthorizedController::class);
+        $controller = $reflection->newInstanceWithoutConstructor(); // qlty-ignore: radarlint-php:php:S3011
+
+        $constructor = $reflection->getConstructor();
+        static::assertNotNull($constructor);
+        $constructor->invoke($controller);
+
+        /** @var array<int, array{middleware: string, options: array<string, mixed>}> $middleware */
+        $middleware = $this->getProperty($controller, 'middleware');
+
+        static::assertNotEmpty($middleware);
+
+        foreach ($middleware as $entry) {
+            static::assertSame(['index', 'show'], $entry['options']['except'] ?? null);
+        }
+    }
+
+    /**
      * Test that getGuardExclusions returns the GUARD_EXCLUSIONS constant value
      * when defined.
      *

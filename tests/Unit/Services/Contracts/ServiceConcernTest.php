@@ -2,7 +2,7 @@
 
 namespace Tests\Unit\Services\Contracts;
 
-use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\TestCase;
 use SineMacula\ApiToolkit\Services\Contracts\ServiceConcern;
 
@@ -14,7 +14,7 @@ use SineMacula\ApiToolkit\Services\Contracts\ServiceConcern;
  *
  * @internal
  */
-#[CoversClass(ServiceConcern::class)]
+#[CoversNothing]
 class ServiceConcernTest extends TestCase
 {
     /**

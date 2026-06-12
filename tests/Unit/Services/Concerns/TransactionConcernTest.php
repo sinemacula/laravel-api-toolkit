@@ -32,7 +32,7 @@ class TransactionConcernTest extends TestCase
             ->andReturnUsing(fn (\Closure $callback): bool => $callback());
 
         $concern = new TransactionConcern;
-        $service = $this->createMock(Service::class);
+        $service = static::createStub(Service::class);
 
         $result = $concern->execute($service, fn (): bool => true);
 
@@ -51,11 +51,31 @@ class TransactionConcernTest extends TestCase
             ->andReturnUsing(fn (\Closure $callback): bool => $callback());
 
         $concern = new TransactionConcern;
-        $service = $this->createMock(Service::class);
+        $service = static::createStub(Service::class);
 
         $result = $concern->execute($service, fn (): bool => false);
 
         static::assertFalse($result);
+    }
+
+    /**
+     * Test that execute coerces a truthy non-boolean transaction result to
+     * true.
+     *
+     * @return void
+     */
+    public function testExecuteCoercesTruthyTransactionResultToBoolean(): void
+    {
+        DB::shouldReceive('transaction')
+            ->once()
+            ->andReturn(['committed']);
+
+        $concern = new TransactionConcern;
+        $service = static::createStub(Service::class);
+
+        $result = $concern->execute($service, fn (): bool => true);
+
+        static::assertTrue($result);
     }
 
     /**
@@ -70,7 +90,7 @@ class TransactionConcernTest extends TestCase
             ->andReturnUsing(fn (\Closure $callback): bool => $callback());
 
         $concern = new TransactionConcern;
-        $service = $this->createMock(Service::class);
+        $service = static::createStub(Service::class);
 
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionMessage('fail');

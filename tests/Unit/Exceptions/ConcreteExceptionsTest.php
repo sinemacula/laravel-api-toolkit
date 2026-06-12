@@ -56,6 +56,34 @@ use SineMacula\ApiToolkit\Exceptions\UnhandledException;
 class ConcreteExceptionsTest extends TestCase
 {
     /**
+     * Provide all concrete exception classes with their expected codes.
+     *
+     * @return iterable<string, array{class-string<\SineMacula\ApiToolkit\Exceptions\ApiException>, int, int}>
+     */
+    public static function exceptionProvider(): iterable
+    {
+        yield 'BadRequestException' => [BadRequestException::class, 10100, 400];
+        yield 'ConflictException' => [ConflictException::class, 10108, 409];
+        yield 'FileUploadException' => [FileUploadException::class, 10300, 500];
+        yield 'ForbiddenException' => [ForbiddenException::class, 10102, 403];
+        yield 'GoneException' => [GoneException::class, 10109, 410];
+        yield 'InvalidImageException' => [InvalidImageException::class, 10301, 422];
+        yield 'InvalidInputException' => [InvalidInputException::class, 10106, 422];
+        yield 'InvalidNotificationException' => [InvalidNotificationException::class, 10400, 500];
+        yield 'LockedException' => [LockedException::class, 10111, 423];
+        yield 'MaintenanceModeException' => [MaintenanceModeException::class, 10200, 503];
+        yield 'NotAllowedException' => [NotAllowedException::class, 10104, 405];
+        yield 'NotFoundException' => [NotFoundException::class, 10103, 404];
+        yield 'PayloadTooLargeException' => [PayloadTooLargeException::class, 10110, 413];
+        yield 'ServiceUnavailableException' => [ServiceUnavailableException::class, 10112, 503];
+        yield 'SmsSendFailedException' => [SmsSendFailedException::class, 10401, 500];
+        yield 'TokenMismatchException' => [TokenMismatchException::class, 10105, 419];
+        yield 'TooManyRequestsException' => [TooManyRequestsException::class, 10107, 429];
+        yield 'UnauthenticatedException' => [UnauthenticatedException::class, 10101, 401];
+        yield 'UnhandledException' => [UnhandledException::class, 10001, 500];
+    }
+
+    /**
      * Test that the exception extends ApiException.
      *
      * @param  string  $class
@@ -97,33 +125,5 @@ class ConcreteExceptionsTest extends TestCase
     public function testGetHttpStatusCodeReturnsExpectedStatus(string $class, int $expectedInternalCode, int $expectedHttpCode): void
     {
         static::assertSame($expectedHttpCode, $class::getHttpStatusCode());
-    }
-
-    /**
-     * Provide all concrete exception classes with their expected codes.
-     *
-     * @return iterable<string, array{class-string<\SineMacula\ApiToolkit\Exceptions\ApiException>, int, int}>
-     */
-    public static function exceptionProvider(): iterable
-    {
-        yield 'BadRequestException' => [BadRequestException::class, 10100, 400];
-        yield 'ConflictException' => [ConflictException::class, 10108, 409];
-        yield 'FileUploadException' => [FileUploadException::class, 10300, 500];
-        yield 'ForbiddenException' => [ForbiddenException::class, 10102, 403];
-        yield 'GoneException' => [GoneException::class, 10109, 410];
-        yield 'InvalidImageException' => [InvalidImageException::class, 10301, 422];
-        yield 'InvalidInputException' => [InvalidInputException::class, 10106, 422];
-        yield 'InvalidNotificationException' => [InvalidNotificationException::class, 10400, 500];
-        yield 'LockedException' => [LockedException::class, 10111, 423];
-        yield 'MaintenanceModeException' => [MaintenanceModeException::class, 10200, 503];
-        yield 'NotAllowedException' => [NotAllowedException::class, 10104, 405];
-        yield 'NotFoundException' => [NotFoundException::class, 10103, 404];
-        yield 'PayloadTooLargeException' => [PayloadTooLargeException::class, 10110, 413];
-        yield 'ServiceUnavailableException' => [ServiceUnavailableException::class, 10112, 503];
-        yield 'SmsSendFailedException' => [SmsSendFailedException::class, 10401, 500];
-        yield 'TokenMismatchException' => [TokenMismatchException::class, 10105, 419];
-        yield 'TooManyRequestsException' => [TooManyRequestsException::class, 10107, 429];
-        yield 'UnauthenticatedException' => [UnauthenticatedException::class, 10101, 401];
-        yield 'UnhandledException' => [UnhandledException::class, 10001, 500];
     }
 }

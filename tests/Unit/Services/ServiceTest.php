@@ -134,6 +134,68 @@ class ServiceTest extends TestCase
     }
 
     /**
+     * Test that the constructor preserves a Collection payload instance.
+     *
+     * @return void
+     */
+    public function testConstructorPreservesCollectionPayloadInstance(): void
+    {
+        $collection = collect(['key' => 'value']);
+
+        $service = new SimpleService($collection);
+
+        $payload = (new \ReflectionProperty($service, 'payload'))->getValue($service);
+
+        static::assertSame($collection, $payload);
+    }
+
+    /**
+     * Test that the constructor preserves a stdClass payload.
+     *
+     * @return void
+     */
+    public function testConstructorPreservesStdClassPayload(): void
+    {
+        $object      = new \stdClass;
+        $object->key = 'value';
+
+        $service = new SimpleService($object);
+
+        $payload = (new \ReflectionProperty($service, 'payload'))->getValue($service);
+
+        static::assertSame($object, $payload);
+    }
+
+    /**
+     * Test that the lifecycle hook methods are part of the public API and
+     * are callable from outside the service.
+     *
+     * @return void
+     */
+    public function testLifecycleHooksArePublic(): void
+    {
+        $service = new class extends Service {
+            /**
+             * Handle the service execution.
+             *
+             * @return bool
+             */
+            protected function handle(): bool
+            {
+                return true;
+            }
+        };
+
+        $service->prepare();
+        $service->success();
+        $service->failed(new \RuntimeException('hook'));
+
+        static::assertTrue((new \ReflectionMethod(Service::class, 'prepare'))->isPublic());
+        static::assertTrue((new \ReflectionMethod(Service::class, 'success'))->isPublic());
+        static::assertTrue((new \ReflectionMethod(Service::class, 'failed'))->isPublic());
+    }
+
+    /**
      * Test that prepare is called before handle.
      *
      * @return void

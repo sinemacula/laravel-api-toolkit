@@ -22,9 +22,10 @@ final class FunctionOverrides
      *
      * @param  string  $name
      * @param  callable|null  $callback
-     * @return void
      *
      * @phpstan-param (callable(mixed...): mixed)|null $callback
+     *
+     * @return void
      */
     public static function set(string $name, ?callable $callback): void
     {
