@@ -18,6 +18,7 @@ use Tests\Fixtures\Enums\UserStatus;
  * @property string $email
  * @property string|null $password
  * @property string $status
+ * @property \Tests\Fixtures\Models\Organization|null $organization
  *
  * @formatter:off
  *

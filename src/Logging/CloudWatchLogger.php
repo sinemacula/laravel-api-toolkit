@@ -17,7 +17,7 @@ class CloudWatchLogger
     /**
      * Create a custom Monolog instance.
      *
-     * @param  array  $config
+     * @param  array<string, mixed>  $config
      * @return \Monolog\Logger
      */
     public function __invoke(array $config): Logger
@@ -28,12 +28,15 @@ class CloudWatchLogger
             'credentials' => $config['aws']['credentials'],
         ]);
 
+        $retention  = $config['retention']  ?? 7;
+        $batch_size = $config['batch_size'] ?? 1000;
+
         $handler = new CloudWatchHandler(
             $client,
             $config['log_group'],
             $config['log_stream'],
-            (int) ($config['retention'] ?? 7),
-            (int) ($config['batch_size'] ?? 1000),
+            is_numeric($retention) ? (int) $retention : 7,
+            is_numeric($batch_size) ? (int) $batch_size : 1000,
             [],
             Logger::toMonologLevel($config['level'] ?? 'debug'),
         );

@@ -22,6 +22,8 @@ use SineMacula\Repositories\Contracts\CriteriaInterface;
  * Thin orchestrator that delegates filtering, eager loading, limiting, and
  * ordering to single-responsibility concern classes.
  *
+ * @implements \SineMacula\Repositories\Contracts\CriteriaInterface<\Illuminate\Database\Eloquent\Model>
+ *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
@@ -80,7 +82,8 @@ class ApiCriteria implements CriteriaInterface
     #[\Override]
     public function apply(Builder|Model $model): Builder
     {
-        $query = $model instanceof Model ? $model->query() : $model;
+        /** @var \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model> $query */
+        $query = $model instanceof Model ? $model::query() : $model;
 
         $query = $this->filterApplier->apply($query, $this->getFilters(), $this->schemaIntrospector, $this->operatorRegistry);
         $query = $this->eagerLoadApplier->apply($query, $this->metadataProvider, $this->resolveResource($query->getModel()), $this->getResourceType($query->getModel()));
@@ -114,7 +117,7 @@ class ApiCriteria implements CriteriaInterface
     /**
      * Get the order to be applied to the query.
      *
-     * @return array
+     * @return array<string, string>
      */
     private function getOrder(): array
     {

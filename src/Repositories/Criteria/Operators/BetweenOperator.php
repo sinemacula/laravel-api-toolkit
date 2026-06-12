@@ -30,6 +30,6 @@ final class BetweenOperator implements FilterOperator
             return;
         }
 
-        $query->whereBetween($column, $value);
+        $query->getQuery()->whereBetween($column, $value);
     }
 }

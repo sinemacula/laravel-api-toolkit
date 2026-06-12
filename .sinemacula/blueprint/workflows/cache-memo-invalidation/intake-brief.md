@@ -54,12 +54,14 @@ Constraints: Must not degrade performance for standard PHP-FPM deployments where
 **Business context:** The toolkit is a foundational package used across Sine Macula's Laravel applications. As these applications adopt Octane and persistent queue workers for performance, the memo cache invalidation gap becomes a production blocker rather than a theoretical concern.
 
 **Constraints:**
+
 - Must not degrade performance for standard PHP-FPM deployments where process-lifetime caching is correct and desirable.
 - Cache invalidation must be opt-in, not forced on every request.
 - The existing `WritePoolFlushSubscriber` lifecycle hook pattern should be reused or extended rather than introducing a competing mechanism.
 - Changes must not break the `CacheKeys` enum contract or the existing `SchemaCompiler::clearCache()` API.
 
 **Assumptions:**
+
 - `Cache::memo()` stores are process-scoped and do not persist across PHP-FPM requests, so the problem is limited to long-running runtimes.
 - The five identified cache sites are the complete set of memo/static caches in the toolkit (this should be verified during discovery).
 - Laravel Octane's `RequestReceived` / `RequestHandled` events and queue worker's `JobProcessed` / `JobFailed` events are reliable lifecycle boundaries for cache flushing.

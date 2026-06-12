@@ -40,7 +40,7 @@ final class CacheManager
      */
     public function flush(): void
     {
-        Cache::memo()->flush();
+        Cache::memo()->getStore()->flush();
 
         SchemaCompiler::clearCache();
 

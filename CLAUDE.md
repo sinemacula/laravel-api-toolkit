@@ -1,4 +1,4 @@
-## Project Overview
+# Project Overview
 
 Laravel API Toolkit (`sinemacula/laravel-api-toolkit`) is a Laravel package for building consistent REST APIs.
 Namespace: `SineMacula\ApiToolkit\`, source in `src/`. Requires PHP ^8.3.

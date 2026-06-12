@@ -10,11 +10,11 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use SineMacula\ApiToolkit\Http\Resources\ApiResource;
 use SineMacula\ApiToolkit\Http\Resources\ApiResourceCollection;
-use SineMacula\Http\Enums\HttpMethod;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\SchemaCompiler;
 use SineMacula\ApiToolkit\Http\Resources\Schema\Count;
 use SineMacula\ApiToolkit\Http\Resources\Schema\Field;
 use SineMacula\ApiToolkit\Http\Resources\Schema\Relation;
+use SineMacula\Http\Enums\HttpMethod;
 use Tests\Fixtures\Models\Organization;
 use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\Profile;
@@ -550,7 +550,14 @@ class ApiResourceTest extends TestCase
             {
                 return Field::set(
                     Field::scalar('id'),
-                    Field::accessor('computed_accessor', fn ($resource) => 'custom:' . $resource->name),
+                    Field::accessor('computed_accessor', static function ($resource): string {
+
+                        $user = $resource->resource;
+
+                        assert($user instanceof User);
+
+                        return 'custom:' . $user->name;
+                    }),
                 );
             }
         };
@@ -1597,7 +1604,14 @@ class ApiResourceTest extends TestCase
             {
                 return Field::set(
                     Field::scalar('id'),
-                    Relation::to('organization', fn ($resource, $request) => $resource->resource?->organization?->name, 'org_name'),
+                    Relation::to('organization', static function ($resource): ?string {
+
+                        $user = $resource->resource;
+
+                        assert($user instanceof User);
+
+                        return $user->organization?->name;
+                    }, 'org_name'),
                 );
             }
         };

@@ -2,6 +2,7 @@
 
 namespace Tests\Unit\Services;
 
+use Illuminate\Foundation\Application;
 use Illuminate\Support\Collection;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Contracts\LockKeyProvider;
@@ -280,7 +281,7 @@ class ServiceTest extends TestCase
             /**
              * Expose the protected concerns() method for testing.
              *
-             * @return array<int, class-string<ServiceConcern>>
+             * @return array<int, class-string<\SineMacula\ApiToolkit\Services\Contracts\ServiceConcern>>
              */
             public function getConcerns(): array
             {
@@ -305,7 +306,7 @@ class ServiceTest extends TestCase
 
         $concernA = new class ($order) implements ServiceConcern {
             /** @var array<int, string> */
-            private array $order;
+            public array $order;
 
             /**
              * Create a new instance.
@@ -320,8 +321,8 @@ class ServiceTest extends TestCase
             /**
              * Execute the concern.
              *
-             * @param  Service  $service
-             * @param  \Closure  $next
+             * @param  \SineMacula\ApiToolkit\Services\Service  $service
+             * @param  \Closure(): bool  $next
              * @return bool
              */
             public function execute(Service $service, \Closure $next): bool
@@ -336,7 +337,7 @@ class ServiceTest extends TestCase
 
         $concernB = new class ($order) implements ServiceConcern {
             /** @var array<int, string> */
-            private array $order;
+            public array $order;
 
             /**
              * Create a new instance.
@@ -351,8 +352,8 @@ class ServiceTest extends TestCase
             /**
              * Execute the concern.
              *
-             * @param  Service  $service
-             * @param  \Closure  $next
+             * @param  \SineMacula\ApiToolkit\Services\Service  $service
+             * @param  \Closure(): bool  $next
              * @return bool
              */
             public function execute(Service $service, \Closure $next): bool
@@ -365,21 +366,21 @@ class ServiceTest extends TestCase
             }
         };
 
-        $this->app->instance($concernA::class, $concernA);
-        $this->app->instance($concernB::class, $concernB);
+        $this->getApplication()->instance($concernA::class, $concernA);
+        $this->getApplication()->instance($concernB::class, $concernB);
 
         $service = new class ($concernA, $concernB) extends Service {
-            /** @var class-string<ServiceConcern> */
+            /** @var class-string<\SineMacula\ApiToolkit\Services\Contracts\ServiceConcern> */
             private string $classA;
 
-            /** @var class-string<ServiceConcern> */
+            /** @var class-string<\SineMacula\ApiToolkit\Services\Contracts\ServiceConcern> */
             private string $classB;
 
             /**
              * Create a new instance.
              *
-             * @param  ServiceConcern  $concernA
-             * @param  ServiceConcern  $concernB
+             * @param  \SineMacula\ApiToolkit\Services\Contracts\ServiceConcern  $concernA
+             * @param  \SineMacula\ApiToolkit\Services\Contracts\ServiceConcern  $concernB
              */
             public function __construct(ServiceConcern $concernA, ServiceConcern $concernB)
             {
@@ -392,7 +393,7 @@ class ServiceTest extends TestCase
             /**
              * Return the ordered list of concern classes for this service.
              *
-             * @return array<int, class-string<ServiceConcern>>
+             * @return array<int, class-string<\SineMacula\ApiToolkit\Services\Contracts\ServiceConcern>>
              */
             #[\Override]
             protected function concerns(): array
@@ -430,8 +431,8 @@ class ServiceTest extends TestCase
             /**
              * Execute the concern, short-circuiting the pipeline.
              *
-             * @param  Service  $service
-             * @param  \Closure  $next
+             * @param  \SineMacula\ApiToolkit\Services\Service  $service
+             * @param  \Closure(): bool  $next
              * @return bool
              */
             public function execute(Service $service, \Closure $next): bool
@@ -440,19 +441,19 @@ class ServiceTest extends TestCase
             }
         };
 
-        $this->app->instance($concern::class, $concern);
+        $this->getApplication()->instance($concern::class, $concern);
 
         $service = new class ($concern, $handleCalled) extends Service {
-            /** @var class-string<ServiceConcern> */
+            /** @var class-string<\SineMacula\ApiToolkit\Services\Contracts\ServiceConcern> */
             private string $concernClass;
 
             /** @var bool */
-            private bool $handleCalled;
+            public bool $handleCalled;
 
             /**
              * Create a new instance.
              *
-             * @param  ServiceConcern  $concern
+             * @param  \SineMacula\ApiToolkit\Services\Contracts\ServiceConcern  $concern
              * @param  bool  $handleCalled
              */
             public function __construct(ServiceConcern $concern, bool &$handleCalled)
@@ -466,7 +467,7 @@ class ServiceTest extends TestCase
             /**
              * Return the ordered list of concern classes for this service.
              *
-             * @return array<int, class-string<ServiceConcern>>
+             * @return array<int, class-string<\SineMacula\ApiToolkit\Services\Contracts\ServiceConcern>>
              */
             #[\Override]
             protected function concerns(): array
@@ -506,5 +507,17 @@ class ServiceTest extends TestCase
 
         static::assertTrue($result);
         static::assertTrue($service->successCalled);
+    }
+
+    /**
+     * Get the application instance.
+     *
+     * @return \Illuminate\Foundation\Application
+     */
+    private function getApplication(): Application
+    {
+        assert($this->app !== null);
+
+        return $this->app;
     }
 }

@@ -4,6 +4,7 @@ namespace Tests\Unit\Console;
 
 use Illuminate\Contracts\Config\Repository as ConfigRepository;
 use Illuminate\Foundation\Application;
+use Illuminate\Testing\PendingCommand;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Console\ValidateSchemasCommand;
 use SineMacula\ApiToolkit\Contracts\SchemaValidationRule;
@@ -45,7 +46,7 @@ class ValidateSchemasCommandTest extends TestCase
             User::class => UserResource::class,
         ]);
 
-        $this->artisan(self::COMMAND) // @phpstan-ignore method.nonObject
+        $this->runCommand()
             ->expectsOutputToContain('All 1 resource schema(s) validated successfully.')
             ->assertExitCode(0);
     }
@@ -70,7 +71,7 @@ class ValidateSchemasCommandTest extends TestCase
             User::class => UserResource::class,
         ]);
 
-        $this->artisan(self::COMMAND) // @phpstan-ignore method.nonObject
+        $this->runCommand()
             ->expectsOutputToContain('Schema validation failed:')
             ->assertExitCode(1);
     }
@@ -84,7 +85,7 @@ class ValidateSchemasCommandTest extends TestCase
     {
         $this->getConfig()->set('api-toolkit.resources.resource_map', []);
 
-        $this->artisan(self::COMMAND) // @phpstan-ignore method.nonObject
+        $this->runCommand()
             ->expectsOutputToContain('No resources registered in the resource map.')
             ->assertExitCode(0);
     }
@@ -112,10 +113,24 @@ class ValidateSchemasCommandTest extends TestCase
             User::class => UserResource::class,
         ]);
 
-        $this->artisan(self::COMMAND) // @phpstan-ignore method.nonObject
+        $this->runCommand()
             ->expectsOutputToContain((string) $errors[0])
             ->expectsOutputToContain((string) $errors[1])
             ->assertExitCode(1);
+    }
+
+    /**
+     * Run the validate schemas command.
+     *
+     * @return \Illuminate\Testing\PendingCommand
+     */
+    private function runCommand(): PendingCommand
+    {
+        $command = $this->artisan(self::COMMAND);
+
+        assert($command instanceof PendingCommand);
+
+        return $command;
     }
 
     /**

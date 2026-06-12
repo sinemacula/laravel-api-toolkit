@@ -42,12 +42,12 @@ final class OrderApplier
         foreach ($order as $column => $direction) {
 
             if ($column === self::ORDER_BY_RANDOM) {
-                $query->inRandomOrder();
+                $query->getQuery()->inRandomOrder();
                 continue;
             }
 
             if ($schemaIntrospector->isSearchable($query->getModel(), $column) && in_array($direction, $this->directions, true)) {
-                $query->orderBy($column, $direction);
+                $query->getQuery()->orderBy($column, $direction);
             }
         }
 

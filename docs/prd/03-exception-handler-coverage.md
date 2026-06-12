@@ -20,7 +20,7 @@ business logic) that reach the handler remain 500 -- they indicate unhandled bug
 ---
 
 ## Background
- 
+
 The `ApiExceptionHandler::mapApiException()` method maps ~14 specific exception types to 8 `ApiException` subclasses.
 Any exception not in this list falls to the `default` branch and becomes `UnhandledException` (HTTP 500).
 
@@ -80,11 +80,11 @@ the toolkit's structured error format.
 **Acceptance criteria:**
 
 - New exception classes are added, each extending `ApiException` with `CODE` and `HTTP_STATUS` constants:
-    - `ConflictException` -- HTTP 409, error code `ErrorCode::CONFLICT`
-    - `GoneException` -- HTTP 410, error code `ErrorCode::GONE`
-    - `PayloadTooLargeException` -- HTTP 413, error code `ErrorCode::PAYLOAD_TOO_LARGE`
-    - `LockedException` -- HTTP 423, error code `ErrorCode::LOCKED`
-    - `ServiceUnavailableException` -- HTTP 503, error code `ErrorCode::SERVICE_UNAVAILABLE`
+  - `ConflictException` -- HTTP 409, error code `ErrorCode::CONFLICT`
+  - `GoneException` -- HTTP 410, error code `ErrorCode::GONE`
+  - `PayloadTooLargeException` -- HTTP 413, error code `ErrorCode::PAYLOAD_TOO_LARGE`
+  - `LockedException` -- HTTP 423, error code `ErrorCode::LOCKED`
+  - `ServiceUnavailableException` -- HTTP 503, error code `ErrorCode::SERVICE_UNAVAILABLE`
 - Each exception class follows the existing pattern (~20 lines, extends `ApiException`, defines constants)
 - New `ErrorCode` enum cases are added in the HTTP Errors category (10108+)
 - Translation keys are added for each new error code (`api-toolkit::exceptions.{code}.{title|detail}`)
@@ -159,7 +159,7 @@ uses the correct HTTP status code rather than falling through to 500.
 
 The `match(true)` block should be ordered from most specific to most general:
 
-```
+```text
 1.  NotFoundHttpException           -> NotFoundException             (404)
 2.  BackedEnumCaseNotFoundException -> NotFoundException             (404)
 3.  ModelNotFoundException          -> NotFoundException             (404)
@@ -204,18 +204,18 @@ Note: No database exception branches. `UniqueConstraintViolationException`, `Que
 - **Unit tests for each new exception class:** Verify `CODE`, `HTTP_STATUS`, `getInternalErrorCode()`,
   `getHttpStatusCode()`, translation key resolution.
 - **Unit tests for new mapper branches:**
-    - `BadRequestHttpException` -> 400 with BadRequestException error code
-    - `ServiceUnavailableHttpException` -> 503 with ServiceUnavailableException error code
-    - `PostTooLargeException` -> 413 with PayloadTooLargeException error code
+  - `BadRequestHttpException` -> 400 with BadRequestException error code
+  - `ServiceUnavailableHttpException` -> 503 with ServiceUnavailableException error code
+  - `PostTooLargeException` -> 413 with PayloadTooLargeException error code
 - **Unit tests for the generic HttpException catch-all:**
-    - `abort(409)` -> 409 response with toolkit JSON format
-    - `abort(423)` -> 423 response
-    - `abort(451)` -> 451 response
-    - `HttpException` with custom headers -> headers preserved in response
+  - `abort(409)` -> 409 response with toolkit JSON format
+  - `abort(423)` -> 423 response
+  - `abort(451)` -> 451 response
+  - `HttpException` with custom headers -> headers preserved in response
 - **Unit tests confirming application-layer exceptions remain 500:**
-    - `UniqueConstraintViolationException` -> 500 (not mapped to 409)
-    - `QueryException` -> 500
-    - Generic `\RuntimeException` -> 500
+  - `UniqueConstraintViolationException` -> 500 (not mapped to 409)
+  - `QueryException` -> 500
+  - Generic `\RuntimeException` -> 500
 - **Regression tests:** All existing mapper branch tests pass without modification
 - **Integration tests:** Full request lifecycle with `abort()` calls producing correct status codes
 

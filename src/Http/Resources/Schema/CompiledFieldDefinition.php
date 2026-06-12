@@ -21,7 +21,7 @@ final readonly class CompiledFieldDefinition
      * @param  string|null  $relation
      * @param  string|null  $resource
      * @param  array<int, string>|null  $fields
-     * @param  \Closure(mixed): mixed|null  $constraint
+     * @param  (\Closure(\Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>): void)|null  $constraint
      * @param  array<int, string>  $extras
      * @param  array<int, callable(mixed, mixed): bool>  $guards
      * @param  array<int, callable(mixed, mixed): mixed>  $transformers

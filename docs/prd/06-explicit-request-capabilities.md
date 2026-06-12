@@ -7,11 +7,11 @@ methods that support both global and route-group-scoped registration.
 
 ## Governance
 
-| Field     | Value                                                                                                                                              |
-|-----------|-----------------------------------------------------------------------------------------------------------------------------------------------------|
-| Created   | 2026-03-17                                                                                                                                          |
-| Status    | approved                                                                                                                                            |
-| Owned by  | Ben Carey                                                                                                                                           |
+| Field     | Value                                                                                                                                             |
+|-----------|---------------------------------------------------------------------------------------------------------------------------------------------------|
+| Created   | 2026-03-17                                                                                                                                        |
+| Status    | approved                                                                                                                                          |
+| Owned by  | Ben Carey                                                                                                                                         |
 | Traces to | [Prioritization](.sinemacula/blueprint/workflows/request-macro-explicit-api-surface/prioritization.md) — Ranks 1-5: All P0 problems (coordinated) |
 
 ---
@@ -38,12 +38,12 @@ request capability detection surface that middleware and controllers consume.
 
 ## Target Users
 
-| Persona                    | Description                                                                                    | Key Need                                                                            |
-|----------------------------|------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------|
-| Toolkit Consumer (API)     | Developer using the toolkit in a pure API application; relies on sensible defaults             | Request capabilities work out of the box, are visible in IDE, and pass PHPStan      |
-| Toolkit Consumer (Mixed)   | Developer using the toolkit in an application with both API and frontend routes                | Ability to scope request capabilities to API routes only                            |
-| Package Integrator         | Developer integrating the toolkit alongside other packages that may define their own macros    | No silent conflicts between toolkit capabilities and other package macros           |
-| New Adopter                | Developer evaluating or onboarding to the toolkit for the first time                           | Discoverable API surface that appears in autocomplete and has clear import paths    |
+| Persona                  | Description                                                                                 | Key Need                                                                         |
+|--------------------------|---------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------|
+| Toolkit Consumer (API)   | Developer using the toolkit in a pure API application; relies on sensible defaults          | Request capabilities work out of the box, are visible in IDE, and pass PHPStan   |
+| Toolkit Consumer (Mixed) | Developer using the toolkit in an application with both API and frontend routes             | Ability to scope request capabilities to API routes only                         |
+| Package Integrator       | Developer integrating the toolkit alongside other packages that may define their own macros | No silent conflicts between toolkit capabilities and other package macros        |
+| New Adopter              | Developer evaluating or onboarding to the toolkit for the first time                        | Discoverable API surface that appears in autocomplete and has clear import paths |
 
 **Primary user:** Toolkit Consumer (API)
 
@@ -147,58 +147,58 @@ calling convention.
 - **Typed request capability API:** Developer can access all 7 current capabilities (`includeTrashed`, `onlyTrashed`,
   `expectsExport`, `expectsCsv`, `expectsXml`, `expectsPdf`, `expectsStream`) through typed methods that return
   explicit `bool` values.
-    - **Acceptance criteria:** PHPStan level 8 validates all capability method calls without errors, custom extensions,
+  - **Acceptance criteria:** PHPStan level 8 validates all capability method calls without errors, custom extensions,
       stubs, or `ignoreErrors` patterns. Each method has an explicit `bool` return type declaration.
 
 - **IDE discoverability:** Developer can discover all available capability methods through standard IDE autocomplete
   when working with the typed API.
-    - **Acceptance criteria:** All capability methods appear in PhpStorm autocomplete without `_ide_helper.php` or
+  - **Acceptance criteria:** All capability methods appear in PhpStorm autocomplete without `_ide_helper.php` or
       PHPDoc `@mixin` annotations. Methods are accessible through standard PHP class/trait mechanisms that IDEs
       understand natively.
 
 - **Namespace isolation:** The typed capability API lives in the toolkit's PHP namespace, eliminating the possibility
   of silent naming collisions with consumer-defined macros or methods from other packages.
-    - **Acceptance criteria:** A consuming application that defines a Request macro named `expectsCsv()` does not
+  - **Acceptance criteria:** A consuming application that defines a Request macro named `expectsCsv()` does not
       affect the toolkit's capability detection. The toolkit's capabilities and the consumer's macro coexist without
       interference.
 
 - **Global registration:** Developer can register request capabilities globally so that they are available on every
   request in the application.
-    - **Acceptance criteria:** A pure API application with global registration can access all 7 capabilities from any
+  - **Acceptance criteria:** A pure API application with global registration can access all 7 capabilities from any
       controller, middleware, or form request without per-route configuration. This is the default behavior.
 
 - **Route-group scoped registration:** Developer can register request capabilities for specific route groups only.
-    - **Acceptance criteria:** A mixed API + web application can scope capabilities to the `api` middleware group.
+  - **Acceptance criteria:** A mixed API + web application can scope capabilities to the `api` middleware group.
       Requests to API routes can access all capabilities. Requests to non-API routes cannot access the capabilities
       (methods return defaults or the typed accessor is not available).
 
 - **Macro deprecation with delegation:** The existing 7 macros are deprecated but continue to work, internally
   delegating to the new typed API.
-    - **Acceptance criteria:** Calling a deprecated macro (e.g., `$request->expectsExport()`) produces a PHP
+  - **Acceptance criteria:** Calling a deprecated macro (e.g., `$request->expectsExport()`) produces a PHP
       deprecation notice and returns the same value as the equivalent typed API call. All existing tests that use
       macros continue to pass.
 
 - **Backward compatible defaults:** A fresh install or upgrade with no configuration changes produces identical
   behavior to the current version.
-    - **Acceptance criteria:** All existing tests pass without modification. The macros work as before. The default
+  - **Acceptance criteria:** All existing tests pass without modification. The macros work as before. The default
       registration mode is global.
 
 ### Should Have (P1)
 
 - **Migration guidance in deprecation notices:** Each deprecated macro's deprecation notice includes a clear reference
   to the replacement method and calling convention.
-    - **Acceptance criteria:** The deprecation notice text includes the replacement class/method name and a brief
+  - **Acceptance criteria:** The deprecation notice text includes the replacement class/method name and a brief
       usage example or reference.
 
 - **Ergonomic calling convention:** The typed API calling convention is no more verbose than the current macro
   convention for the most common use case (checking a single capability in a controller or middleware).
-    - **Acceptance criteria:** The most common usage pattern (e.g., checking whether a request expects an export)
+  - **Acceptance criteria:** The most common usage pattern (e.g., checking whether a request expects an export)
       requires no more than one additional line of code compared to the current macro approach, excluding the `use`
       import statement.
 
 - **Internal migration:** The toolkit's own internal usages of macros (in `RespondsWithExport` trait) are migrated
   to the new typed API.
-    - **Acceptance criteria:** No internal code in the toolkit calls the deprecated macros. All internal capability
+  - **Acceptance criteria:** No internal code in the toolkit calls the deprecated macros. All internal capability
       checks use the new typed API. `RespondsWithExport` works identically after migration.
 
 ### Nice to Have (P2)
@@ -213,14 +213,14 @@ calling convention.
 
 ## Success Criteria
 
-| Metric                                    | Baseline                                                              | Target                                                                | How Measured                                                                          |
-|-------------------------------------------|-----------------------------------------------------------------------|-----------------------------------------------------------------------|---------------------------------------------------------------------------------------|
-| PHPStan level 8 errors on capability calls | Unknown (macros produce `mixed` or undefined method errors)          | 0 errors on all capability method calls                               | Run `composer check` with PHPStan level 8; grep results for capability method names   |
-| IDE autocomplete coverage                 | 0 of 7 capabilities visible in autocomplete (macros not shown)       | 7 of 7 capabilities visible in PhpStorm autocomplete without helpers  | Manual verification in PhpStorm with no `_ide_helper.php` installed                   |
-| Naming collision risk                     | 7 macros in shared global namespace (high risk)                       | 0 methods in shared namespace (capabilities in toolkit namespace)     | Review source for `Request::macro()` calls; verify new API uses own namespace         |
-| Registration scope options                | 1 (global only)                                                       | 2 (global and route-group scoped)                                     | Review config/registration mechanism for both modes; test both in integration tests   |
-| Backward compatibility                    | N/A — new capability                                                  | 100% of existing tests pass without modification                      | Run `composer test` with default config and no code changes to tests                  |
-| Static analysis compliance                | Passes at PHPStan level 8                                             | Continues to pass at PHPStan level 8                                  | Run `composer check`                                                                  |
+| Metric                                     | Baseline                                                       | Target                                                               | How Measured                                                                        |
+|--------------------------------------------|----------------------------------------------------------------|----------------------------------------------------------------------|-------------------------------------------------------------------------------------|
+| PHPStan level 8 errors on capability calls | Unknown (macros produce `mixed` or undefined method errors)    | 0 errors on all capability method calls                              | Run `composer check` with PHPStan level 8; grep results for capability method names |
+| IDE autocomplete coverage                  | 0 of 7 capabilities visible in autocomplete (macros not shown) | 7 of 7 capabilities visible in PhpStorm autocomplete without helpers | Manual verification in PhpStorm with no `_ide_helper.php` installed                 |
+| Naming collision risk                      | 7 macros in shared global namespace (high risk)                | 0 methods in shared namespace (capabilities in toolkit namespace)    | Review source for `Request::macro()` calls; verify new API uses own namespace       |
+| Registration scope options                 | 1 (global only)                                                | 2 (global and route-group scoped)                                    | Review config/registration mechanism for both modes; test both in integration tests |
+| Backward compatibility                     | N/A — new capability                                           | 100% of existing tests pass without modification                     | Run `composer test` with default config and no code changes to tests                |
+| Static analysis compliance                 | Passes at PHPStan level 8                                      | Continues to pass at PHPStan level 8                                 | Run `composer check`                                                                |
 
 ---
 
@@ -252,13 +252,13 @@ calling convention.
 
 ## Risks
 
-| Risk                                                                                                  | Impact                                                                                                        | Likelihood | Mitigation                                                                                                                                                            |
-|-------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------|------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Ergonomics regression: the new API is more verbose than macros, discouraging adoption                 | Consumers continue using deprecated macros indefinitely; the toolkit carries dual API surfaces long-term       | Medium     | P1 requirement constrains verbosity. If the implementation pattern is too verbose, reconsider the pattern before shipping. Measure against the "one additional line" bar |
-| Migration burden on consumers is too high for the benefit                                             | Consumers defer migration; deprecation notices become noise                                                   | Medium     | Provide clear, mechanical migration path. Deprecation notices include direct replacement references. Consider a codemod or rector rule if adoption is slow            |
-| The typed API pattern does not fully support all 3 contexts (controller, middleware, form request)    | Consumers must use different patterns in different contexts, increasing cognitive load                         | Low        | Verify the chosen pattern works in all three contexts during design. The spike identified patterns that work across contexts                                           |
-| Consumers who depend on macro-based mocking in tests experience test breakage                          | Test suites in consuming applications fail after upgrade even though runtime behavior is unchanged              | Medium     | Deprecated macros delegate to the new API, so macro-based mocking continues to work. Document the new testing approach alongside migration guidance                    |
-| Route-group scoping interacts unexpectedly with PRD 04's middleware config                             | Conflicting or redundant configuration between middleware registration and capability scoping                  | Low        | Align config structure and naming conventions with PRD 04. Review both PRDs together during implementation design                                                      |
+| Risk                                                                                               | Impact                                                                                                   | Likelihood | Mitigation                                                                                                                                                               |
+|----------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------|------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Ergonomics regression: the new API is more verbose than macros, discouraging adoption              | Consumers continue using deprecated macros indefinitely; the toolkit carries dual API surfaces long-term | Medium     | P1 requirement constrains verbosity. If the implementation pattern is too verbose, reconsider the pattern before shipping. Measure against the "one additional line" bar |
+| Migration burden on consumers is too high for the benefit                                          | Consumers defer migration; deprecation notices become noise                                              | Medium     | Provide clear, mechanical migration path. Deprecation notices include direct replacement references. Consider a codemod or rector rule if adoption is slow               |
+| The typed API pattern does not fully support all 3 contexts (controller, middleware, form request) | Consumers must use different patterns in different contexts, increasing cognitive load                   | Low        | Verify the chosen pattern works in all three contexts during design. The spike identified patterns that work across contexts                                             |
+| Consumers who depend on macro-based mocking in tests experience test breakage                      | Test suites in consuming applications fail after upgrade even though runtime behavior is unchanged       | Medium     | Deprecated macros delegate to the new API, so macro-based mocking continues to work. Document the new testing approach alongside migration guidance                      |
+| Route-group scoping interacts unexpectedly with PRD 04's middleware config                         | Conflicting or redundant configuration between middleware registration and capability scoping            | Low        | Align config structure and naming conventions with PRD 04. Review both PRDs together during implementation design                                                        |
 
 ---
 
@@ -291,12 +291,12 @@ calling convention.
 
 ## Traceability
 
-| Artifact             | Path                                                                                                                                                                                   |
-|----------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Intake Brief         | `.sinemacula/blueprint/workflows/request-macro-explicit-api-surface/intake-brief.md`                                                                                                   |
-| Relevant Spikes      | `.sinemacula/blueprint/workflows/request-macro-explicit-api-surface/spikes/spike-request-extension-patterns.md`                                                                        |
+| Artifact             | Path                                                                                                                                                                                        |
+|----------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Intake Brief         | `.sinemacula/blueprint/workflows/request-macro-explicit-api-surface/intake-brief.md`                                                                                                        |
+| Relevant Spikes      | `.sinemacula/blueprint/workflows/request-macro-explicit-api-surface/spikes/spike-request-extension-patterns.md`                                                                             |
 | Problem Map Entry    | Cluster "Static Analysis Blindspot" > Problems 1, 2; Cluster "Discoverability Friction" > Problem 3; Cluster "Integration Safety" > Problem 5; Cluster "Deployment Flexibility" > Problem 7 |
-| Prioritization Entry | Ranks 1-5 (all P0): PHPStan Invisible, Silent Overwrite, IDE Absent, No Route-Group Scoping, Workarounds Undermine Analysis                                                          |
+| Prioritization Entry | Ranks 1-5 (all P0): PHPStan Invisible, Silent Overwrite, IDE Absent, No Route-Group Scoping, Workarounds Undermine Analysis                                                                 |
 
 ---
 

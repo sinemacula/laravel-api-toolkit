@@ -15,7 +15,7 @@ trait OrdersFields
     /**
      * The field-ordering strategy to use.
      *
-     * @var FieldOrderingStrategy
+     * @var \SineMacula\ApiToolkit\Enums\FieldOrderingStrategy
      */
     protected FieldOrderingStrategy $fieldOrderingStrategy = FieldOrderingStrategy::DEFAULT;
 
@@ -29,8 +29,8 @@ trait OrdersFields
     /**
      * Order the resolved fields based on the configured strategy.
      *
-     * @param  array  $data
-     * @return array
+     * @param  array<string, mixed>  $data
+     * @return array<string, mixed>
      */
     protected function orderResolvedFields(array $data): array
     {
@@ -83,8 +83,8 @@ trait OrdersFields
     /**
      * Order resolved fields in the order they were requested.
      *
-     * @param  array  $data
-     * @return array
+     * @param  array<string, mixed>  $data
+     * @return array<string, mixed>
      */
     protected function orderByRequestedFields(array $data): array
     {

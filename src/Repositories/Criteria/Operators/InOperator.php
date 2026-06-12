@@ -26,6 +26,6 @@ final class InOperator implements FilterOperator
     #[\Override]
     public function apply(Builder $query, string $column, mixed $value, FilterContext $context): void
     {
-        $query->whereIn($column, (array) $value);
+        $query->getQuery()->whereIn($column, (array) $value);
     }
 }

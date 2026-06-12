@@ -7,13 +7,13 @@ list, allowing consumers to filter out noise without losing the comprehensive au
 
 ## Governance
 
-| Field     | Value                                                                                                     |
-|-----------|-----------------------------------------------------------------------------------------------------------|
-| Created   | 2026-03-17                                                                                                |
-| Status    | approved                                                                                                  |
-| Owned by  | Product Analyst                                                                                           |
-| Traces to | [Prioritization](../../.sinemacula/blueprint/workflows/notification-listener-config/prioritization.md)    |
-| Problems  | P1 (log level correction), P2 (class exclusion)                                                           |
+| Field     | Value                                                                                                  |
+|-----------|--------------------------------------------------------------------------------------------------------|
+| Created   | 2026-03-17                                                                                             |
+| Status    | approved                                                                                               |
+| Owned by  | Product Analyst                                                                                        |
+| Traces to | [Prioritization](../../.sinemacula/blueprint/workflows/notification-listener-config/prioritization.md) |
+| Problems  | P1 (log level correction), P2 (class exclusion)                                                        |
 
 ---
 
@@ -78,9 +78,9 @@ notification audit log.
 
 ## Modified Classes
 
-| Class                    | Change                                                                                                                          |
-|--------------------------|---------------------------------------------------------------------------------------------------------------------------------|
-| `NotificationListener`  | Change `sending()` to log at `debug`; keep `sent()` at `info`; add exclusion check in `log()` before building payload          |
+| Class                  | Change                                                                                                                |
+|------------------------|-----------------------------------------------------------------------------------------------------------------------|
+| `NotificationListener` | Change `sending()` to log at `debug`; keep `sent()` at `info`; add exclusion check in `log()` before building payload |
 
 ---
 
@@ -103,12 +103,12 @@ notification audit log.
 
 ## Success Metrics
 
-| Metric | Baseline | Target | Measurement |
-|---|---|---|---|
-| NotificationSending log level | info | debug | Test: sending event logs at debug |
-| NotificationSent log level | info | info (unchanged) | Test: sent event logs at info |
-| Excluded class logging | All classes logged | Excluded classes produce no log entries | Test: excluded notification class is not logged |
-| Default behavior (no config changes) | All logged at info | All logged (sending at debug, sent at info) | Test: empty exclusion list logs everything |
+| Metric                               | Baseline           | Target                                      | Measurement                                     |
+|--------------------------------------|--------------------|---------------------------------------------|-------------------------------------------------|
+| NotificationSending log level        | info               | debug                                       | Test: sending event logs at debug               |
+| NotificationSent log level           | info               | info (unchanged)                            | Test: sent event logs at info                   |
+| Excluded class logging               | All classes logged | Excluded classes produce no log entries     | Test: excluded notification class is not logged |
+| Default behavior (no config changes) | All logged at info | All logged (sending at debug, sent at info) | Test: empty exclusion list logs everything      |
 
 ---
 

@@ -17,7 +17,7 @@ provider against internal Laravel API changes.
 ---
 
 ## Overview
- 
+
 The toolkit's service provider registers three middleware behaviors without consumer control: it swaps Laravel's
 maintenance mode middleware using non-contracted Kernel APIs, pushes `JsonPrettyPrint` globally, and unconditionally
 overrides the `throttle` middleware alias. Consumers cannot opt out of, configure, or scope any of these registrations.
@@ -125,43 +125,43 @@ uses a more resilient approach that aligns with patterns used by first-party Lar
 
 - **Configurable maintenance mode middleware swap:** Consumer can enable or disable the automatic replacement of
   Laravel's `PreventRequestsDuringMaintenance` middleware with the toolkit's version via a config flag.
-    - **Acceptance criteria:** When the config flag is set to `false`, the toolkit does not attempt to swap the
+  - **Acceptance criteria:** When the config flag is set to `false`, the toolkit does not attempt to swap the
       maintenance mode middleware. When set to `true` (default), the swap occurs as it does today.
 
 - **Elimination of non-contracted Kernel APIs for maintenance mode swap:** The service provider no longer calls
   `getGlobalMiddleware()` or `setGlobalMiddleware()` for the maintenance mode middleware replacement.
-    - **Acceptance criteria:** The `registerMiddleware()` method does not call `getGlobalMiddleware()` or
+  - **Acceptance criteria:** The `registerMiddleware()` method does not call `getGlobalMiddleware()` or
       `setGlobalMiddleware()`. The maintenance mode middleware swap uses only methods that are widely used by
       first-party Laravel packages (e.g., `pushMiddleware()`-style patterns) or delegates the swap to consumer
       configuration.
 
 - **Configurable JsonPrettyPrint scope:** Consumer can choose whether `JsonPrettyPrint` is registered globally or scoped
   to the API route group via config.
-    - **Acceptance criteria:** When scope is set to `global` (default), `JsonPrettyPrint` is pushed to the global
+  - **Acceptance criteria:** When scope is set to `global` (default), `JsonPrettyPrint` is pushed to the global
       middleware stack. When set to `api`, it is appended to the `api` middleware group. When set to `false` / disabled,
       it is not registered at all.
 
 - **Configurable throttle alias override:** Consumer can enable or disable the throttle middleware alias override, and
   optionally specify a custom throttle middleware class.
-    - **Acceptance criteria:** When the config flag is set to `false`, the toolkit does not override the `throttle`
+  - **Acceptance criteria:** When the config flag is set to `false`, the toolkit does not override the `throttle`
       alias. When set to `true` (default), the toolkit registers its throttle middleware as today. When a custom class
       is provided, that class is used instead of the toolkit's default.
 
 - **Backward compatible defaults:** All config options default to the current behavior so that existing consumers
   experience no change.
-    - **Acceptance criteria:** A fresh install with no config modifications produces identical middleware behavior to
+  - **Acceptance criteria:** A fresh install with no config modifications produces identical middleware behavior to
       the current version.
 
 ### Should Have (P1)
 
 - **FQCN assumption resilience:** The maintenance mode middleware swap does not rely on string comparison against a
   fully-qualified class name for detection.
-    - **Acceptance criteria:** If Laravel changes how it registers the maintenance mode middleware internally (e.g.,
+  - **Acceptance criteria:** If Laravel changes how it registers the maintenance mode middleware internally (e.g.,
       aliased), the swap either still works or gracefully falls back with a logged warning.
 
 - **Config section documentation:** The published `api-toolkit.php` config file includes inline documentation for all
   new middleware config options, following the existing documentation style.
-    - **Acceptance criteria:** Each new config key has a descriptive comment block explaining the option, its valid
+  - **Acceptance criteria:** Each new config key has a descriptive comment block explaining the option, its valid
       values, and its default.
 
 ### Nice to Have (P2)

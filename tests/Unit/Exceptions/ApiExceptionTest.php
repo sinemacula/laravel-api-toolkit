@@ -5,9 +5,9 @@ namespace Tests\Unit\Exceptions;
 use Orchestra\Testbench\TestCase;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Enums\ErrorCode;
-use SineMacula\Http\Enums\HttpStatus;
 use SineMacula\ApiToolkit\Exceptions\ApiException;
 use SineMacula\ApiToolkit\Exceptions\BadRequestException;
+use SineMacula\Http\Enums\HttpStatus;
 
 /**
  * Tests for the ApiException abstract class.

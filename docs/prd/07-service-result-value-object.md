@@ -8,12 +8,12 @@ self-describing return value.
 
 ## Governance
 
-| Field     | Value                                                                                                          |
-|-----------|----------------------------------------------------------------------------------------------------------------|
-| Created   | 2026-03-17                                                                                                     |
-| Status    | approved                                                                                                       |
-| Owned by  | Product Analyst                                                                                                |
-| Traces to | [Prioritization](../../.sinemacula/blueprint/workflows/service-result-value-object/prioritization.md)          |
+| Field     | Value                                                                                                                                         |
+|-----------|-----------------------------------------------------------------------------------------------------------------------------------------------|
+| Created   | 2026-03-17                                                                                                                                    |
+| Status    | approved                                                                                                                                      |
+| Owned by  | Product Analyst                                                                                                                               |
+| Traces to | [Prioritization](../../.sinemacula/blueprint/workflows/service-result-value-object/prioritization.md)                                         |
 | Problems  | P1 (no structured result data), P4 (tri-state ?bool undocumented), P2 (lost exception context), P5 (static analysis can't distinguish states) |
 
 ---
@@ -130,13 +130,13 @@ introduction of `ServiceResult`.
 
 ## Success Criteria
 
-| Metric | Baseline | Target | How Measured |
-|--------|----------|--------|--------------|
-| Workaround patterns for result access | Public properties, payload mutation, external catch (per consuming code) | Zero -- callers access data via `ServiceResult` | Code inspection: no public result properties on concrete services |
-| Status representation ambiguity | `?bool` with undocumented tri-state | Enum with self-documenting cases | Code inspection: `getStatus()` removed, `ServiceStatus` enum in use |
-| Exception context availability | Lost after `failed()` hook | Captured in `ServiceResult` | Test: failed result carries the original `Throwable` |
-| Concern pipeline changes | N/A | Zero changes to `ServiceConcern` interface | Code inspection: `ServiceConcern::execute()` signature unchanged |
-| PHPStan exhaustive matching | Not possible with `?bool` | Enum enables exhaustive `match` verification | PHPStan level 8 reports non-exhaustive match on `ServiceStatus` |
+| Metric                                | Baseline                                                                 | Target                                          | How Measured                                                        |
+|---------------------------------------|--------------------------------------------------------------------------|-------------------------------------------------|---------------------------------------------------------------------|
+| Workaround patterns for result access | Public properties, payload mutation, external catch (per consuming code) | Zero -- callers access data via `ServiceResult` | Code inspection: no public result properties on concrete services   |
+| Status representation ambiguity       | `?bool` with undocumented tri-state                                      | Enum with self-documenting cases                | Code inspection: `getStatus()` removed, `ServiceStatus` enum in use |
+| Exception context availability        | Lost after `failed()` hook                                               | Captured in `ServiceResult`                     | Test: failed result carries the original `Throwable`                |
+| Concern pipeline changes              | N/A                                                                      | Zero changes to `ServiceConcern` interface      | Code inspection: `ServiceConcern::execute()` signature unchanged    |
+| PHPStan exhaustive matching           | Not possible with `?bool`                                                | Enum enables exhaustive `match` verification    | PHPStan level 8 reports non-exhaustive match on `ServiceStatus`     |
 
 ---
 
@@ -154,12 +154,12 @@ introduction of `ServiceResult`.
 
 ## Risks
 
-| Risk | Impact | Likelihood | Mitigation |
-|------|--------|------------|------------|
-| Adoption friction from novel pattern | Developers unfamiliar with result objects may find the wrapper unnecessary compared to bare `bool` | Medium | Provide clear documentation, migration guide, and code examples in the changelog. Keep the API minimal (no monad methods). |
-| Exception propagation contract confusion | Callers may be unsure whether to check `ServiceResult` for failure or catch exceptions | Medium | The implementation must choose one contract (rethrow or return-only) and document it explicitly. Both are valid; ambiguity is not. |
-| Future metadata requirements force redesign | Deferring metadata (P3) may require breaking the result object's API later | Low | Design the value object to be extensible (e.g., constructor can accept additional fields in future) without breaking existing callers. |
-| Double interface break if concerns need results later | If a future PRD changes `ServiceConcern` to work with `ServiceResult`, all concern implementations break simultaneously with service implementations | Low | UC-4 explicitly preserves the concern pipeline. A future concern-result PRD would be a separate breaking change with its own migration path. |
+| Risk                                                  | Impact                                                                                                                                               | Likelihood | Mitigation                                                                                                                                   |
+|-------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------|------------|----------------------------------------------------------------------------------------------------------------------------------------------|
+| Adoption friction from novel pattern                  | Developers unfamiliar with result objects may find the wrapper unnecessary compared to bare `bool`                                                   | Medium     | Provide clear documentation, migration guide, and code examples in the changelog. Keep the API minimal (no monad methods).                   |
+| Exception propagation contract confusion              | Callers may be unsure whether to check `ServiceResult` for failure or catch exceptions                                                               | Medium     | The implementation must choose one contract (rethrow or return-only) and document it explicitly. Both are valid; ambiguity is not.           |
+| Future metadata requirements force redesign           | Deferring metadata (P3) may require breaking the result object's API later                                                                           | Low        | Design the value object to be extensible (e.g., constructor can accept additional fields in future) without breaking existing callers.       |
+| Double interface break if concerns need results later | If a future PRD changes `ServiceConcern` to work with `ServiceResult`, all concern implementations break simultaneously with service implementations | Low        | UC-4 explicitly preserves the concern pipeline. A future concern-result PRD would be a separate breaking change with its own migration path. |
 
 ---
 
@@ -176,13 +176,13 @@ introduction of `ServiceResult`.
 
 ## Traceability
 
-| Artifact | Path |
-|----------|------|
-| Intake Brief | .sinemacula/blueprint/workflows/service-result-value-object/intake-brief.md |
+| Artifact                      | Path                                                                                               |
+|-------------------------------|----------------------------------------------------------------------------------------------------|
+| Intake Brief                  | .sinemacula/blueprint/workflows/service-result-value-object/intake-brief.md                        |
 | Spike: Result Object Patterns | .sinemacula/blueprint/workflows/service-result-value-object/spikes/spike-result-object-patterns.md |
-| Problem Map | .sinemacula/blueprint/workflows/service-result-value-object/problem-map.md |
-| Prioritization | .sinemacula/blueprint/workflows/service-result-value-object/prioritization.md |
-| Source Issue | ISSUES.md (ISSUE-18) |
+| Problem Map                   | .sinemacula/blueprint/workflows/service-result-value-object/problem-map.md                         |
+| Prioritization                | .sinemacula/blueprint/workflows/service-result-value-object/prioritization.md                      |
+| Source Issue                  | ISSUES.md (ISSUE-18)                                                                               |
 
 ---
 
