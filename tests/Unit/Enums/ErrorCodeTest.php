@@ -59,6 +59,12 @@ class ErrorCodeTest extends TestCase
             'TOKEN_MISMATCH',
             'INVALID_INPUT',
             'TOO_MANY_REQUESTS',
+            'CONFLICT',
+            'GONE',
+            'PAYLOAD_TOO_LARGE',
+            'LOCKED',
+            'SERVICE_UNAVAILABLE',
+            'HTTP_ERROR',
             'MAINTENANCE_MODE',
             'FILE_UPLOAD_ERROR',
             'INVALID_IMAGE',
@@ -91,6 +97,12 @@ class ErrorCodeTest extends TestCase
         yield 'TOKEN_MISMATCH' => [ErrorCode::TOKEN_MISMATCH, 10105];
         yield 'INVALID_INPUT' => [ErrorCode::INVALID_INPUT, 10106];
         yield 'TOO_MANY_REQUESTS' => [ErrorCode::TOO_MANY_REQUESTS, 10107];
+        yield 'CONFLICT' => [ErrorCode::CONFLICT, 10108];
+        yield 'GONE' => [ErrorCode::GONE, 10109];
+        yield 'PAYLOAD_TOO_LARGE' => [ErrorCode::PAYLOAD_TOO_LARGE, 10110];
+        yield 'LOCKED' => [ErrorCode::LOCKED, 10111];
+        yield 'SERVICE_UNAVAILABLE' => [ErrorCode::SERVICE_UNAVAILABLE, 10112];
+        yield 'HTTP_ERROR' => [ErrorCode::HTTP_ERROR, 10113];
         yield 'MAINTENANCE_MODE' => [ErrorCode::MAINTENANCE_MODE, 10200];
         yield 'FILE_UPLOAD_ERROR' => [ErrorCode::FILE_UPLOAD_ERROR, 10300];
         yield 'INVALID_IMAGE' => [ErrorCode::INVALID_IMAGE, 10301];

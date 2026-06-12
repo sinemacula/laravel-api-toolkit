@@ -5,7 +5,9 @@ namespace Tests\Unit\Exceptions;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Foundation\Configuration\Exceptions;
+use Illuminate\Http\Exceptions\PostTooLargeException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -19,8 +21,11 @@ use Psr\Log\LoggerInterface;
 use SineMacula\ApiToolkit\Exceptions\ApiExceptionHandler;
 use SineMacula\ApiToolkit\Exceptions\BadRequestException;
 use SineMacula\Http\Enums\HttpMethod;
+use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
+use Symfony\Component\HttpKernel\Exception\HttpException as SymfonyHttpException;
 use Symfony\Component\HttpKernel\Exception\MethodNotAllowedHttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
+use Symfony\Component\HttpKernel\Exception\ServiceUnavailableHttpException;
 use Symfony\Component\HttpKernel\Exception\TooManyRequestsHttpException;
 
 /**
@@ -109,6 +114,41 @@ class ApiExceptionHandlerTest extends TestCase
             405,
         ];
 
+        yield 'BadRequestHttpException -> 400' => [
+            new BadRequestHttpException,
+            400,
+        ];
+
+        yield 'ServiceUnavailableHttpException -> 503' => [
+            new ServiceUnavailableHttpException,
+            503,
+        ];
+
+        yield 'PostTooLargeException -> 413' => [
+            new PostTooLargeException,
+            413,
+        ];
+
+        yield 'abort(409) -> 409' => [
+            new SymfonyHttpException(409),
+            409,
+        ];
+
+        yield 'abort(423) -> 423' => [
+            new SymfonyHttpException(423),
+            423,
+        ];
+
+        yield 'abort(451) -> 451' => [
+            new SymfonyHttpException(451),
+            451,
+        ];
+
+        yield 'HttpException with unknown status -> 500' => [
+            new SymfonyHttpException(599),
+            500,
+        ];
+
         yield 'Generic exception -> 500' => [
             new \RuntimeException(self::GENERIC_ERROR_MESSAGE),
             500,
@@ -136,6 +176,83 @@ class ApiExceptionHandlerTest extends TestCase
 
         static::assertInstanceOf(JsonResponse::class, $response);
         static::assertSame($expectedHttpCode, $response->getStatusCode());
+    }
+
+    /**
+     * Test that the generic catch-all preserves the original status code,
+     * derives the title from the HTTP status, and uses the generic error
+     * code.
+     *
+     * @return void
+     */
+    public function testGenericHttpExceptionCatchAllPreservesStatusAndDerivesTitle(): void
+    {
+        $request = Request::create(self::API_PATH, HttpMethod::GET->getVerb());
+        $request->headers->set('Accept', self::ACCEPT_JSON);
+
+        config()->set('app.debug', false);
+
+        $reflection = new \ReflectionMethod(ApiExceptionHandler::class, 'render');
+        $response   = $reflection->invoke(null, new SymfonyHttpException(409), $request);
+
+        static::assertInstanceOf(JsonResponse::class, $response);
+        static::assertSame(409, $response->getStatusCode());
+
+        $data = $response->getData(true);
+
+        static::assertIsArray($data);
+        static::assertSame(409, $data['error']['status']);
+        static::assertSame(10113, $data['error']['code']);
+        static::assertSame('Conflict', $data['error']['title']);
+    }
+
+    /**
+     * Test that the generic catch-all preserves headers from the original
+     * HTTP exception.
+     *
+     * @return void
+     */
+    public function testGenericHttpExceptionCatchAllPreservesHeaders(): void
+    {
+        $request = Request::create(self::API_PATH, HttpMethod::GET->getVerb());
+        $request->headers->set('Accept', self::ACCEPT_JSON);
+
+        config()->set('app.debug', false);
+
+        $exception = new SymfonyHttpException(429, 'Too many requests', null, ['Retry-After' => '120']);
+
+        $reflection = new \ReflectionMethod(ApiExceptionHandler::class, 'render');
+        $response   = $reflection->invoke(null, $exception, $request);
+
+        static::assertInstanceOf(JsonResponse::class, $response);
+        static::assertSame('120', $response->headers->get('Retry-After'));
+    }
+
+    /**
+     * Test that application-layer database exceptions are not mapped to
+     * HTTP semantics and remain 500.
+     *
+     * @return void
+     */
+    public function testUniqueConstraintViolationRemainsUnhandled(): void
+    {
+        $request = Request::create(self::API_PATH, HttpMethod::GET->getVerb());
+        $request->headers->set('Accept', self::ACCEPT_JSON);
+
+        config()->set('app.debug', false);
+
+        $exception = new UniqueConstraintViolationException(
+            'testing',
+            'insert into users',
+            [],
+            new \RuntimeException('Duplicate entry'),
+        );
+
+        $reflection = new \ReflectionMethod(ApiExceptionHandler::class, 'render');
+        $response   = $reflection->invoke(null, $exception, $request);
+
+        static::assertInstanceOf(JsonResponse::class, $response);
+        static::assertSame(500, $response->getStatusCode());
     }
 
     /**
