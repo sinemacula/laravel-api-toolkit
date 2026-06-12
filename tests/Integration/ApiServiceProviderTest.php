@@ -32,6 +32,11 @@ use SineMacula\ApiToolkit\Http\Resources\ResourceMetadataService;
 use SineMacula\ApiToolkit\Listeners\NotificationListener;
 use SineMacula\ApiToolkit\Listeners\QueueFlushSubscriber;
 use SineMacula\ApiToolkit\Listeners\WritePoolFlushSubscriber;
+use SineMacula\ApiToolkit\Providers\Registrars\ContainerBindingRegistrar;
+use SineMacula\ApiToolkit\Providers\Registrars\LifecycleRegistrar;
+use SineMacula\ApiToolkit\Providers\Registrars\LoggingRegistrar;
+use SineMacula\ApiToolkit\Providers\Registrars\MiddlewareRegistrar;
+use SineMacula\ApiToolkit\Providers\Registrars\RequestMacroRegistrar;
 use SineMacula\ApiToolkit\Repositories\Concerns\WritePool;
 use SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry;
 use SineMacula\ApiToolkit\Services\SchemaIntrospector;
@@ -47,6 +52,11 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(ApiServiceProvider::class)]
+#[CoversClass(ContainerBindingRegistrar::class)]
+#[CoversClass(LifecycleRegistrar::class)]
+#[CoversClass(LoggingRegistrar::class)]
+#[CoversClass(MiddlewareRegistrar::class)]
+#[CoversClass(RequestMacroRegistrar::class)]
 class ApiServiceProviderTest extends TestCase
 {
     /**
