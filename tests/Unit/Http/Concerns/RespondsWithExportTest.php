@@ -5,10 +5,10 @@ namespace Tests\Unit\Http\Concerns;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Http\Resources\Json\ResourceCollection;
 use Illuminate\Http\Response as HttpResponse;
-use Illuminate\Support\Facades\Request;
 use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Http\Concerns\RespondsWithExport;
+use SineMacula\ApiToolkit\Http\RequestCapabilities;
 use SineMacula\Exporter\Contracts\Exporter as ExporterContract;
 use SineMacula\Exporter\Facades\Exporter;
 use Tests\TestCase;
@@ -48,8 +48,7 @@ class RespondsWithExportTest extends TestCase
         $controller = $this->createController();
         $data       = [['id' => 1, 'name' => 'Alice']];
 
-        Request::macro('expectsCsv', fn () => true);
-        Request::macro('expectsXml', fn () => false);
+        $this->setCapabilities(expects_csv: true);
 
         $exporter = $this->createMockExporter("id,name\n1,Alice");
 
@@ -73,8 +72,7 @@ class RespondsWithExportTest extends TestCase
         $controller = $this->createController();
         $data       = [['id' => 1, 'name' => 'Alice']];
 
-        Request::macro('expectsCsv', fn () => false);
-        Request::macro('expectsXml', fn () => true);
+        $this->setCapabilities(expects_xml: true);
 
         $exporter = $this->createMockExporter('<root><item><id>1</id></item></root>');
 
@@ -98,8 +96,7 @@ class RespondsWithExportTest extends TestCase
         $controller = $this->createController();
         $data       = [['id' => 1, 'name' => 'Alice']];
 
-        Request::macro('expectsCsv', fn () => false);
-        Request::macro('expectsXml', fn () => false);
+        $this->setCapabilities();
 
         $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionMessage('Unsupported export format');
@@ -153,8 +150,7 @@ class RespondsWithExportTest extends TestCase
         $controller = $this->createController();
         $collection = new ResourceCollection(collect([]));
 
-        Request::macro('expectsCsv', fn () => true);
-        Request::macro('expectsXml', fn () => false);
+        $this->setCapabilities(expects_csv: true);
 
         Exporter::swap($this->createMockExporter(self::MOCK_COLLECTION_CSV));
 
@@ -213,8 +209,7 @@ class RespondsWithExportTest extends TestCase
         $controller = $this->createController();
         $collection = new ResourceCollection(collect([]));
 
-        Request::macro('expectsCsv', fn () => false);
-        Request::macro('expectsXml', fn () => false);
+        $this->setCapabilities();
 
         $this->expectException(\InvalidArgumentException::class);
 
@@ -231,8 +226,7 @@ class RespondsWithExportTest extends TestCase
         $controller = $this->createController();
         $resource   = new JsonResource(['id' => 1]);
 
-        Request::macro('expectsCsv', fn () => true);
-        Request::macro('expectsXml', fn () => false);
+        $this->setCapabilities(expects_csv: true);
 
         Exporter::swap($this->createMockExporter('id,1'));
 
@@ -291,8 +285,7 @@ class RespondsWithExportTest extends TestCase
         $controller = $this->createController();
         $resource   = new JsonResource(['id' => 1]);
 
-        Request::macro('expectsCsv', fn () => false);
-        Request::macro('expectsXml', fn () => false);
+        $this->setCapabilities();
 
         $this->expectException(\InvalidArgumentException::class);
 
@@ -422,8 +415,7 @@ class RespondsWithExportTest extends TestCase
         $controller = $this->createController();
         $data       = [['id' => 1]];
 
-        Request::macro('expectsCsv', fn () => true);
-        Request::macro('expectsXml', fn () => false);
+        $this->setCapabilities(expects_csv: true);
 
         Exporter::swap($this->createMockExporter('id,1'));
 
@@ -444,8 +436,7 @@ class RespondsWithExportTest extends TestCase
         $controller = $this->createController();
         $data       = [['id' => 1]];
 
-        Request::macro('expectsCsv', fn () => true);
-        Request::macro('expectsXml', fn () => false);
+        $this->setCapabilities(expects_csv: true);
 
         Exporter::swap($this->createMockExporter('id,1'));
 
@@ -466,8 +457,7 @@ class RespondsWithExportTest extends TestCase
         $controller = $this->createController();
         $collection = new ResourceCollection(collect([]));
 
-        Request::macro('expectsCsv', fn () => true);
-        Request::macro('expectsXml', fn () => false);
+        $this->setCapabilities(expects_csv: true);
 
         Exporter::swap($this->createMockExporter(self::MOCK_COLLECTION_CSV));
 
@@ -488,8 +478,7 @@ class RespondsWithExportTest extends TestCase
         $controller = $this->createController();
         $resource   = new JsonResource(['id' => 1]);
 
-        Request::macro('expectsCsv', fn () => true);
-        Request::macro('expectsXml', fn () => false);
+        $this->setCapabilities(expects_csv: true);
 
         Exporter::swap($this->createMockExporter('id,1'));
 
@@ -510,8 +499,7 @@ class RespondsWithExportTest extends TestCase
         $controller = $this->createController();
         $data       = [['id' => 1]];
 
-        Request::macro('expectsCsv', fn () => false);
-        Request::macro('expectsXml', fn () => true);
+        $this->setCapabilities(expects_xml: true);
 
         Exporter::swap($this->createMockExporter(self::MOCK_ITEM_XML));
 
@@ -532,8 +520,7 @@ class RespondsWithExportTest extends TestCase
         $controller = $this->createController();
         $data       = [['id' => 1]];
 
-        Request::macro('expectsCsv', fn () => false);
-        Request::macro('expectsXml', fn () => true);
+        $this->setCapabilities(expects_xml: true);
 
         Exporter::swap($this->createMockExporter(self::MOCK_ITEM_XML));
 
@@ -554,8 +541,7 @@ class RespondsWithExportTest extends TestCase
         $controller = $this->createController();
         $collection = new ResourceCollection(collect([]));
 
-        Request::macro('expectsCsv', fn () => false);
-        Request::macro('expectsXml', fn () => true);
+        $this->setCapabilities(expects_xml: true);
 
         Exporter::swap($this->createMockExporter(self::MOCK_ITEM_XML));
 
@@ -576,8 +562,7 @@ class RespondsWithExportTest extends TestCase
         $controller = $this->createController();
         $resource   = new JsonResource(['id' => 1]);
 
-        Request::macro('expectsCsv', fn () => false);
-        Request::macro('expectsXml', fn () => true);
+        $this->setCapabilities(expects_xml: true);
 
         Exporter::swap($this->createMockExporter(self::MOCK_ITEM_XML));
 
@@ -585,6 +570,29 @@ class RespondsWithExportTest extends TestCase
         $response = $controller->exportFromItem($resource, true, 'invoice.xml'); // @phpstan-ignore method.notFound
 
         static::assertStringContainsString('invoice.xml', $response->headers->get('Content-Disposition') ?? '');
+    }
+
+    /**
+     * Set the request capabilities for testing.
+     *
+     * @param  bool  $expects_csv
+     * @param  bool  $expects_xml
+     * @return void
+     */
+    private function setCapabilities(bool $expects_csv = false, bool $expects_xml = false): void
+    {
+        $reflection  = new \ReflectionClass(RequestCapabilities::class);
+        $constructor = $reflection->getConstructor();
+
+        assert($constructor !== null);
+
+        $constructor->setAccessible(true);
+
+        $instance = $reflection->newInstanceWithoutConstructor();
+
+        $constructor->invoke($instance, false, false, false, $expects_csv, $expects_xml, false, false);
+
+        RequestCapabilities::storeOnRequest(request(), $instance);
     }
 
     /**

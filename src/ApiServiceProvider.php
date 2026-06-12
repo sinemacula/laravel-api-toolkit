@@ -17,11 +17,13 @@ use SineMacula\ApiToolkit\Cache\CacheManager;
 use SineMacula\ApiToolkit\Console\ValidateSchemasCommand;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Enums\FlushStrategy;
+use SineMacula\ApiToolkit\Http\Middleware\DetectsCapabilities;
 use SineMacula\ApiToolkit\Http\Middleware\JsonPrettyPrint;
 use SineMacula\ApiToolkit\Http\Middleware\ParseApiQuery;
 use SineMacula\ApiToolkit\Http\Middleware\PreventRequestsDuringMaintenance;
 use SineMacula\ApiToolkit\Http\Middleware\ThrottleRequests;
 use SineMacula\ApiToolkit\Http\Middleware\ThrottleRequestsWithRedis;
+use SineMacula\ApiToolkit\Http\RequestCapabilities;
 use SineMacula\ApiToolkit\Listeners\NotificationListener;
 use SineMacula\ApiToolkit\Listeners\OctaneFlushListener;
 use SineMacula\ApiToolkit\Listeners\QueueFlushSubscriber;
@@ -51,8 +53,6 @@ use SineMacula\ApiToolkit\Services\Validation\Rules\ValidateRelationClasses;
 use SineMacula\ApiToolkit\Services\Validation\Rules\ValidateRelationInterfaces;
 use SineMacula\ApiToolkit\Services\Validation\Rules\ValidateRelationMethods;
 use SineMacula\ApiToolkit\Services\Validation\Rules\ValidateTransformers;
-use SineMacula\Http\Enums\HttpHeader;
-use SineMacula\Http\Enums\MediaType;
 
 /**
  * API service provider.
@@ -183,68 +183,83 @@ class ApiServiceProvider extends ServiceProvider
     }
 
     /**
-     * Register the trashed macros to the Request facade.
+     * Register the deprecated trashed macros to the Request facade.
      *
      * @return void
      */
     private function registerTrashedMacros(): void
     {
-        Request::macro('includeTrashed', \Closure::bind(
-            fn (): bool => $this->input('include_trashed', false) === 'true',
-            new \Illuminate\Http\Request,
-            \Illuminate\Http\Request::class,
-        ));
+        Request::macro('includeTrashed', \Closure::bind(function (): bool {
 
-        Request::macro('onlyTrashed', \Closure::bind(
-            fn (): bool => $this->input('only_trashed', false) === 'true',
-            new \Illuminate\Http\Request,
-            \Illuminate\Http\Request::class,
-        ));
+            @trigger_error(
+                'Request::includeTrashed() is deprecated, use RequestCapabilities::fromRequest($request)->includeTrashed() instead.',
+                E_USER_DEPRECATED,
+            );
+
+            return RequestCapabilities::fromRequest($this)->includeTrashed();
+        }, new \Illuminate\Http\Request, \Illuminate\Http\Request::class));
+
+        Request::macro('onlyTrashed', \Closure::bind(function (): bool {
+
+            @trigger_error(
+                'Request::onlyTrashed() is deprecated, use RequestCapabilities::fromRequest($request)->onlyTrashed() instead.',
+                E_USER_DEPRECATED,
+            );
+
+            return RequestCapabilities::fromRequest($this)->onlyTrashed();
+        }, new \Illuminate\Http\Request, \Illuminate\Http\Request::class));
     }
 
     /**
-     * Register the export macros to the Request facade.
+     * Register the deprecated export macros to the Request facade.
      *
      * @return void
      */
     private function registerExportMacros(): void
     {
-        Request::macro('expectsExport', \Closure::bind(fn (): bool => (bool) config('api-toolkit.exports.enabled')
-                && ($this->__call('expectsCsv', []) === true || $this->__call('expectsXml', []) === true), new \Illuminate\Http\Request, \Illuminate\Http\Request::class));
+        Request::macro('expectsExport', \Closure::bind(function (): bool {
+
+            @trigger_error(
+                'Request::expectsExport() is deprecated, use RequestCapabilities::fromRequest($request)->expectsExport() instead.',
+                E_USER_DEPRECATED,
+            );
+
+            return RequestCapabilities::fromRequest($this)->expectsExport();
+        }, new \Illuminate\Http\Request, \Illuminate\Http\Request::class));
 
         Request::macro('expectsCsv', \Closure::bind(function (): bool {
 
-            $accept  = $this->header(HttpHeader::ACCEPT->getName());
-            $formats = config('api-toolkit.exports.supported_formats', []);
+            @trigger_error(
+                'Request::expectsCsv() is deprecated, use RequestCapabilities::fromRequest($request)->expectsCsv() instead.',
+                E_USER_DEPRECATED,
+            );
 
-            return is_string($accept)
-                && strtolower($accept) === MediaType::TEXT_CSV->getMimeType()
-                && is_array($formats)
-                && in_array('csv', $formats, true);
+            return RequestCapabilities::fromRequest($this)->expectsCsv();
         }, new \Illuminate\Http\Request, \Illuminate\Http\Request::class));
 
         Request::macro('expectsXml', \Closure::bind(function (): bool {
 
-            $accept  = $this->header(HttpHeader::ACCEPT->getName());
-            $formats = config('api-toolkit.exports.supported_formats', []);
+            @trigger_error(
+                'Request::expectsXml() is deprecated, use RequestCapabilities::fromRequest($request)->expectsXml() instead.',
+                E_USER_DEPRECATED,
+            );
 
-            return is_string($accept)
-                && strtolower($accept) === MediaType::APPLICATION_XML->getMimeType()
-                && is_array($formats)
-                && in_array('xml', $formats, true);
+            return RequestCapabilities::fromRequest($this)->expectsXml();
         }, new \Illuminate\Http\Request, \Illuminate\Http\Request::class));
 
         Request::macro('expectsPdf', \Closure::bind(function (): bool {
 
-            $accept = $this->header(HttpHeader::ACCEPT->getName());
+            @trigger_error(
+                'Request::expectsPdf() is deprecated, use RequestCapabilities::fromRequest($request)->expectsPdf() instead.',
+                E_USER_DEPRECATED,
+            );
 
-            return is_string($accept)
-                && strtolower($accept) === MediaType::APPLICATION_PDF->getMimeType();
+            return RequestCapabilities::fromRequest($this)->expectsPdf();
         }, new \Illuminate\Http\Request, \Illuminate\Http\Request::class));
     }
 
     /**
-     * Register the stream macros to the Request facade.
+     * Register the deprecated stream macros to the Request facade.
      *
      * @return void
      */
@@ -252,10 +267,12 @@ class ApiServiceProvider extends ServiceProvider
     {
         Request::macro('expectsStream', \Closure::bind(function (): bool {
 
-            $accept = $this->header(HttpHeader::ACCEPT->getName());
+            @trigger_error(
+                'Request::expectsStream() is deprecated, use RequestCapabilities::fromRequest($request)->expectsStream() instead.',
+                E_USER_DEPRECATED,
+            );
 
-            return is_string($accept)
-                && strtolower($accept) === MediaType::TEXT_EVENT_STREAM->getMimeType();
+            return RequestCapabilities::fromRequest($this)->expectsStream();
         }, new \Illuminate\Http\Request, \Illuminate\Http\Request::class));
     }
 
@@ -276,6 +293,7 @@ class ApiServiceProvider extends ServiceProvider
         }
 
         $this->registerMaintenanceModeMiddleware($kernel);
+        $this->registerDetectsCapabilitiesMiddleware($kernel);
         $this->registerJsonPrettyPrintMiddleware($kernel);
         $this->registerThrottleMiddleware($router);
     }
@@ -298,6 +316,34 @@ class ApiServiceProvider extends ServiceProvider
         }
 
         $kernel->prependMiddleware(PreventRequestsDuringMaintenance::class);
+    }
+
+    /**
+     * Register the DetectsCapabilities middleware.
+     *
+     * When scope is 'global', the middleware is pushed to the global stack.
+     * When scope is 'api', it is appended to the 'api' middleware group.
+     * Capabilities still resolve lazily on first access when the middleware
+     * is not registered; registration simply precomputes them per request.
+     *
+     * @param  \Illuminate\Foundation\Http\Kernel  $kernel
+     * @return void
+     */
+    private function registerDetectsCapabilitiesMiddleware(HttpKernel $kernel): void
+    {
+        if (!Config::get('api-toolkit.middleware.detect_capabilities.enabled', true)) {
+            return;
+        }
+
+        $scope = Config::get('api-toolkit.middleware.detect_capabilities.scope', 'global');
+
+        if ($scope === 'api') {
+            $kernel->appendMiddlewareToGroup('api', DetectsCapabilities::class);
+
+            return;
+        }
+
+        $kernel->pushMiddleware(DetectsCapabilities::class);
     }
 
     /**
