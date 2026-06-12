@@ -261,11 +261,18 @@ return [
     | 'enable_logging' controls whether logging is enabled for notification
     | events.
     |
+    | 'excluded_classes' is an array of fully-qualified notification class
+    | names that should be excluded from the notification audit log.
+    |
     */
 
     'notifications' => [
 
         'enable_logging' => env('ENABLE_NOTIFICATION_LOGGING', true),
+
+        'excluded_classes' => [
+            // \App\Notifications\HeartbeatPing::class,
+        ],
 
     ],
 
