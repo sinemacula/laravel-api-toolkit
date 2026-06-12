@@ -92,6 +92,7 @@ final class Count extends BaseDefinition implements Arrayable
      *
      * @return array<string, array<string, mixed>>
      */
+    #[\Override]
     public function toArray(): array
     {
         $present = $this->alias ?? $this->name;

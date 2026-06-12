@@ -437,6 +437,7 @@ class RespondsWithStreamTest extends TestCase
 
                 /** @var \Mockery\MockInterface $query */
                 $query = \Mockery::mock();
+                $query->shouldReceive('getQuery')->once()->andReturnSelf();
                 $query->shouldReceive('reorder')->once()->andReturnSelf();
 
                 $scope($query);
@@ -583,7 +584,7 @@ class RespondsWithStreamTest extends TestCase
         $controller = new class extends TestingExportController {
             /**
              * @param  \SineMacula\ApiToolkit\Repositories\ApiRepository<\Illuminate\Database\Eloquent\Model>  $repository
-             * @return \Closure(mixed): array<int, mixed>
+             * @return \Closure(array<int, \Illuminate\Database\Eloquent\Model>): array<int, array<string, mixed>>
              */
             public function callMakeTransformer(ApiRepository $repository): \Closure
             {

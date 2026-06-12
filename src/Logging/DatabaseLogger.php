@@ -18,6 +18,11 @@ class DatabaseLogger
     /**
      * Invoke the custom logger instance.
      *
+     * The config parameter is unused but required by Laravel's custom
+     * logger factory contract.
+     *
+     * @SuppressWarnings("php:S1172")
+     *
      * @param  array<string, mixed>  $config
      * @return \Monolog\Logger
      */

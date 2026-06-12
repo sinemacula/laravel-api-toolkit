@@ -88,6 +88,7 @@ abstract class Service implements LockKeyProvider, ServiceInterface
      *
      * @return \SineMacula\ApiToolkit\Services\ServiceResult
      */
+    #[\Override]
     public function run(): ServiceResult
     {
         $pipeline = $this->buildPipeline();

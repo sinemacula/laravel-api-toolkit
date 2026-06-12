@@ -5,6 +5,7 @@ namespace Tests\Unit\Traits;
 use Illuminate\Contracts\Cache\Lock;
 use Illuminate\Support\Facades\Cache;
 use PHPUnit\Framework\Attributes\CoversTrait;
+use SineMacula\ApiToolkit\Exceptions\LockOperationException;
 use SineMacula\ApiToolkit\Exceptions\TooManyRequestsException;
 use SineMacula\ApiToolkit\Traits\Lockable;
 use Tests\Fixtures\Traits\StandaloneLockableFixture;
@@ -148,18 +149,18 @@ class LockableTest extends TestCase
     }
 
     /**
-     * Test that lock throws RuntimeException when no LockKeyProvider is
+     * Test that lock throws LockOperationException when no LockKeyProvider is
      * implemented.
      *
      * @return void
      */
-    public function testLockThrowsRuntimeExceptionWhenNoLockKeyProviderImplemented(): void
+    public function testLockThrowsLockOperationExceptionWhenNoLockKeyProviderImplemented(): void
     {
         $consumer = new class {
             use Lockable;
         };
 
-        $this->expectException(\RuntimeException::class);
+        $this->expectException(LockOperationException::class);
         $this->expectExceptionMessage('LockKeyProvider');
 
         $consumer->lock();

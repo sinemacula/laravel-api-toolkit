@@ -5,6 +5,7 @@ namespace Tests\Unit\Http\Resources\Schema;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
+use SineMacula\ApiToolkit\Exceptions\DuplicateSchemaKeyException;
 use SineMacula\ApiToolkit\Http\Resources\Schema\Field;
 
 /**
@@ -264,7 +265,7 @@ class FieldTest extends TestCase
      */
     public function testSetThrowsOnDuplicateKeyFromSeparateDefinitions(): void
     {
-        $this->expectException(\RuntimeException::class);
+        $this->expectException(DuplicateSchemaKeyException::class);
 
         Field::set(
             Field::scalar('name'),
@@ -279,7 +280,7 @@ class FieldTest extends TestCase
      */
     public function testSetThrowsOnDuplicateKeyFromArrayableAndScalar(): void
     {
-        $this->expectException(\RuntimeException::class);
+        $this->expectException(DuplicateSchemaKeyException::class);
 
         Field::set(
             Field::scalar('email'),
@@ -312,7 +313,7 @@ class FieldTest extends TestCase
      */
     public function testSetExceptionMessageContainsDuplicateKeyName(): void
     {
-        $this->expectException(\RuntimeException::class);
+        $this->expectException(DuplicateSchemaKeyException::class);
         $this->expectExceptionMessage('Duplicate schema key "title" detected in Field::set()');
 
         Field::set(

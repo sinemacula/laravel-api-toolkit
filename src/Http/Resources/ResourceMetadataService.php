@@ -22,6 +22,7 @@ class ResourceMetadataService implements ResourceMetadataProvider
      * @param  string  $resourceClass
      * @return string
      */
+    #[\Override]
     public function getResourceType(string $resourceClass): string
     {
         return $resourceClass::getResourceType();
@@ -33,6 +34,7 @@ class ResourceMetadataService implements ResourceMetadataProvider
      * @param  string  $resourceClass
      * @return array<int, string>
      */
+    #[\Override]
     public function resolveFields(string $resourceClass): array
     {
         return $resourceClass::resolveFields();
@@ -44,6 +46,7 @@ class ResourceMetadataService implements ResourceMetadataProvider
      * @param  string  $resourceClass
      * @return array<int, string>
      */
+    #[\Override]
     public function getAllFields(string $resourceClass): array
     {
         return $resourceClass::getAllFields();
@@ -56,6 +59,7 @@ class ResourceMetadataService implements ResourceMetadataProvider
      * @param  array<int, string>  $fields
      * @return array<int|string, mixed>
      */
+    #[\Override]
     public function eagerLoadMapFor(string $resourceClass, array $fields): array
     {
         return $resourceClass::eagerLoadMapFor($fields);
@@ -69,6 +73,7 @@ class ResourceMetadataService implements ResourceMetadataProvider
      * @param  array<int, string>|null  $requestedAliases
      * @return array<int|string, mixed>
      */
+    #[\Override]
     public function eagerLoadCountsFor(string $resourceClass, ?array $requestedAliases = null): array
     {
         return $resourceClass::eagerLoadCountsFor($requestedAliases);

@@ -32,6 +32,7 @@ class ApiResourceCollection extends AnonymousResourceCollection
      * @param  \Illuminate\Http\Request  $request
      * @return array<int|string, array<string, mixed>>
      */
+    #[\Override]
     public function toArray(Request $request): array
     {
         /** @var class-string<\SineMacula\ApiToolkit\Http\Resources\ApiResource> $resource_class */
@@ -90,6 +91,7 @@ class ApiResourceCollection extends AnonymousResourceCollection
      * @param  \Illuminate\Http\JsonResponse  $response
      * @return void
      */
+    #[\Override]
     public function withResponse(Request $request, JsonResponse $response): void
     {
         if ($this->resource instanceof LengthAwarePaginator) {

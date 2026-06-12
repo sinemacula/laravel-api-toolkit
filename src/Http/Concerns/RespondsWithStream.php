@@ -37,13 +37,14 @@ trait RespondsWithStream
         $transformer = $this->makeTransformer($repository);
 
         // Strip any user-defined ordering before chunking.
-        $repository->addScope(fn ($query) => $query->reorder());
+        $repository->addScope(fn ($query) => $query->getQuery()->reorder());
 
         $stream = function () use ($repository, $transformer, $chunk_size, $limit): void {
 
             $is_first_chunk = true;
             $processed      = 0;
 
+            // @phpstan-ignore staticMethod.dynamicCall (chunkById() is forwarded to the builder via Repository::__call())
             $repository->chunkById($chunk_size, function ($chunk) use ($transformer, &$is_first_chunk, &$processed, $limit): bool {
 
                 if ($limit && $processed >= $limit) {
@@ -75,7 +76,7 @@ trait RespondsWithStream
      * Create a transformer closure for the given repository.
      *
      * @param  \SineMacula\ApiToolkit\Repositories\ApiRepository<\Illuminate\Database\Eloquent\Model>  $repository
-     * @return \Closure
+     * @return \Closure(array<int, \Illuminate\Database\Eloquent\Model>): array<int, array<string, mixed>>
      *
      * @throws \InvalidArgumentException
      */
@@ -85,7 +86,8 @@ trait RespondsWithStream
             throw new \InvalidArgumentException('Unable to resolve resource class from repository.');
         }
 
-        return fn ($items) => $resource_class::collection($items)->resolve();
+        /** @var class-string<\Illuminate\Http\Resources\Json\JsonResource> $resource_class */
+        return fn (array $items): array => $resource_class::collection($items)->resolve();
     }
 
     /**
@@ -105,6 +107,7 @@ trait RespondsWithStream
             ->withoutFields(config('api-toolkit.exports.ignored_fields', []));
 
         if (!$is_first_chunk) {
+            // @phpstan-ignore method.notFound (withoutHeaders() exists on the CSV exporter but is not part of the Exporter contract)
             $exporter->withoutHeaders();
         }
 
@@ -116,7 +119,7 @@ trait RespondsWithStream
     /**
      * Create a streamed response.
      *
-     * @param  callable  $callback
+     * @param  callable(): void  $callback
      * @param  string  $content_type
      * @param  string  $filename
      * @return \Symfony\Component\HttpFoundation\StreamedResponse

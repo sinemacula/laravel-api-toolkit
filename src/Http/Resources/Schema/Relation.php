@@ -119,6 +119,7 @@ final class Relation extends BaseDefinition implements Arrayable
      *
      * @return array<string, array<string, mixed>>
      */
+    #[\Override]
     public function toArray(): array
     {
         $key = $this->alias ?? $this->name;
