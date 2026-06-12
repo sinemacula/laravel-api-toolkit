@@ -6,6 +6,7 @@ use Illuminate\Foundation\Application;
 use Illuminate\Routing\Router;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\ApiServiceProvider;
+use SineMacula\ApiToolkit\Providers\Registrars\MiddlewareRegistrar;
 use Tests\TestCase;
 
 /**
@@ -21,6 +22,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(ApiServiceProvider::class)]
+#[CoversClass(MiddlewareRegistrar::class)]
 class MiddlewareConfigCustomThrottleTest extends TestCase
 {
     /** @var string */
