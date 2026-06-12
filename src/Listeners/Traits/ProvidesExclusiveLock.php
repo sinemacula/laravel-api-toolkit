@@ -16,13 +16,13 @@ trait ProvidesExclusiveLock
      * Executes the given callback under an exclusive lock.
      *
      * @param  string  $id
-     * @param  callable  $callback
+     * @param  callable(): void  $callback
      * @param  string  $prefix
      * @return void
      */
     protected function handleWithLock(string $id, callable $callback, string $prefix = 'LISTENER_LOCK'): void
     {
-        $lock = Cache::lock(implode(':', array_filter([$prefix, $id])), 10);
+        $lock = Cache::lock(implode(':', array_filter([$prefix, $id], static fn (string $value): bool => (bool) $value)), 10);
 
         try {
             if ($lock->get()) {

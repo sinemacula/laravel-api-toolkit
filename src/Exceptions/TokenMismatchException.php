@@ -24,6 +24,7 @@ class TokenMismatchException extends ApiException
      *
      * @return int
      */
+    #[\Override]
     public static function getHttpStatusCode(): int
     {
         return 419;

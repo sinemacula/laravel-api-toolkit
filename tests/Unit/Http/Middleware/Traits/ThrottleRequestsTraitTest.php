@@ -6,6 +6,7 @@ use Illuminate\Http\Request;
 use Illuminate\Routing\Route;
 use PHPUnit\Framework\Attributes\CoversTrait;
 use PHPUnit\Framework\TestCase;
+use SineMacula\ApiToolkit\Exceptions\RequestSignatureException;
 use SineMacula\ApiToolkit\Http\Middleware\Traits\ThrottleRequestsTrait;
 use SineMacula\Http\Enums\HttpMethod;
 
@@ -23,13 +24,13 @@ class ThrottleRequestsTraitTest extends TestCase
     private const string API_DATA_URI = '/api/data';
 
     /**
-     * Test that resolveRequestSignature throws RuntimeException when route is null.
+     * Test that resolveRequestSignature throws RequestSignatureException when route is null.
      *
      * @return void
      */
-    public function testThrowsRuntimeExceptionWhenRouteIsNull(): void
+    public function testThrowsRequestSignatureExceptionWhenRouteIsNull(): void
     {
-        $this->expectException(\RuntimeException::class);
+        $this->expectException(RequestSignatureException::class);
         $this->expectExceptionMessage('Unable to generate the request signature. Route unavailable.');
 
         $trait   = $this->createTraitInstance();

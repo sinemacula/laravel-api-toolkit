@@ -2,38 +2,94 @@
 
 ## From 1.x to 2.x
 
-### Removed: Mutable service configuration methods
+### Composer dependency changes
 
-The following methods have been removed from the `Service` base class:
+The CloudWatch logging dependencies (`aws/aws-sdk-php` and `phpnexus/cwh`) have moved from `require` to
+`suggest`. Applications that use the CloudWatch logging driver must now require them directly:
+
+    composer require aws/aws-sdk-php phpnexus/cwh
+
+Applications that do not use CloudWatch logging require no action.
+
+The toolkit now depends on `sinemacula/http-primitives-php`, which is installed automatically and replaces
+the internal `HttpStatus` enum (see the next section).
+
+### Removed: HttpStatus enum
+
+The internal `SineMacula\ApiToolkit\Enums\HttpStatus` enum has been removed in favour of the shared
+`SineMacula\Http\Enums\HttpStatus` enum provided by `sinemacula/http-primitives-php`.
+
+**Before (1.x):**
+
+    use SineMacula\ApiToolkit\Enums\HttpStatus;
+
+    $code = HttpStatus::NOT_FOUND->getCode();
+
+**After (2.x):**
+
+    use SineMacula\Http\Enums\HttpStatus;
+
+    $code = HttpStatus::NOT_FOUND->getCode();
+
+Custom exceptions extending `ApiException` must type their `HTTP_STATUS` constant with the new enum:
+
+    use SineMacula\Http\Enums\HttpStatus;
+
+    class TeapotException extends ApiException
+    {
+        public const HttpStatus HTTP_STATUS = HttpStatus::IM_A_TEAPOT;
+    }
+
+The shared enum only defines standard HTTP status codes. The non-standard `419` code has no case, so
+`HttpStatus::TOKEN_MISMATCH` no longer exists -- `TokenMismatchException` now overrides `getStatusCode()`
+to return `419` directly. Custom exceptions that need a non-standard status code should override
+`getStatusCode()` in the same way.
+
+### Services: composable concern pipeline replaces transaction and lock configuration
+
+The following have been removed from the `Service` base class:
 
 - `useTransaction()`
 - `dontUseTransaction()`
 - `useLock()`
 - `dontUseLock()`
+- the `$useTransaction` and `$useLock` properties
+
+Transactions and locking are now cross-cutting concerns declared per service via the `concerns()` method.
+Each concern wraps the core lifecycle (`prepare()`, `handle()`, `success()`/`failed()`); the first concern
+in the array is the outermost wrapper.
 
 **Before (1.x):**
 
-Callers configured service behavior at runtime using fluent methods:
+Callers configured service behavior at runtime using fluent methods or property overrides:
 
     $service = new MyService($payload);
     $service->dontUseTransaction();
     $service->useLock();
     $service->run();
 
+    class MyService extends Service
+    {
+        protected bool $useTransaction = false;
+
+        protected bool $useLock = true;
+    }
+
 **After (2.x):**
 
-Configuration is declared at the class level via method overrides:
+Configuration is declared at the class level via the `concerns()` method:
+
+    use SineMacula\ApiToolkit\Services\Concerns\LockConcern;
+    use SineMacula\ApiToolkit\Services\Concerns\TransactionConcern;
 
     class MyService extends Service
     {
-        protected function shouldUseTransaction(): bool
+        protected function concerns(): array
         {
-            return false;
-        }
-
-        protected function shouldUseLock(): bool
-        {
-            return true;
+            return [
+                LockConcern::class,
+                TransactionConcern::class,
+            ];
         }
 
         protected function handle(): bool
@@ -52,118 +108,27 @@ The caller no longer needs to configure the service externally:
     $service = new MyService($payload);
     $service->run();
 
-### Immutable configuration properties
+**The default behavior has changed.** In 1.x every service ran inside a database transaction by default
+(`$useTransaction = true`). In 2.x the base `concerns()` returns an empty array, so a service with no
+override runs with no transaction and no locking. Services that relied on the implicit transaction must now
+declare `TransactionConcern::class` explicitly.
 
-The `$useTransaction` and `$useLock` properties on the `Service`
-base class are now `protected readonly bool`. They are initialized
-during construction via the `shouldUseTransaction()` and
-`shouldUseLock()` methods. This prevents any post-construction
-mutation of service configuration.
+Custom concerns implement the `ServiceConcern` contract and are resolved from the container, so they may
+declare their own constructor dependencies:
 
-Subclasses that previously redeclared these properties with
-different default values must now override the corresponding
-method instead. Code that attempts to reassign these properties
-after construction will produce a PHP error.
+    use SineMacula\ApiToolkit\Services\Contracts\ServiceConcern;
+    use SineMacula\ApiToolkit\Services\Service;
 
-**Before (property override -- this no longer works):**
-
-    class MyService extends Service
+    class RetryConcern implements ServiceConcern
     {
-        protected bool $useTransaction = false;
-
-        protected function handle(): bool
+        public function execute(Service $service, \Closure $next): bool
         {
-            // ...
+            return retry(3, $next);
         }
     }
 
-**After (method override):**
-
-    class MyService extends Service
-    {
-        protected function shouldUseTransaction(): bool
-        {
-            return false;
-        }
-
-        protected function handle(): bool
-        {
-            // ...
-        }
-    }
-
-### Lock key generation via LockKeyProvider contract
-
-The `Lockable` trait no longer declares
-`abstract generateLockKey()`. The `Service` class now implements
-`LockKeyProvider` with a `getLockKey()` method that contains the
-same logic.
-
-**Impact on Service subclasses:** Subclasses that previously
-overrode `generateLockKey()` must now override `getLockKey()`
-instead. The method visibility changes from `protected` to
-`public`.
-
-**Before:**
-
-    class MyService extends Service
-    {
-        protected function generateLockKey(): string
-        {
-            return sha1('custom-key');
-        }
-    }
-
-**After:**
-
-    class MyService extends Service
-    {
-        public function getLockKey(): string
-        {
-            return sha1('custom-key');
-        }
-    }
-
-**Impact on standalone Lockable consumers:** Classes using
-`Lockable` without extending `Service` should implement
-`LockKeyProvider` and provide a `getLockKey()` method instead of
-overriding `generateLockKey()`.
-
-**Before:**
-
-    class MyJob
-    {
-        use Lockable;
-
-        protected function generateLockKey(): string
-        {
-            return sha1('job-lock');
-        }
-    }
-
-**After:**
-
-    use SineMacula\ApiToolkit\Contracts\LockKeyProvider;
-
-    class MyJob implements LockKeyProvider
-    {
-        use Lockable;
-
-        public function getLockKey(): string
-        {
-            return sha1('job-lock');
-        }
-    }
-
-### Removed: ServiceLockException
-
-The `ServiceLockException` class has been removed. It was never
-thrown by the framework -- lock acquisition failures use
-`TooManyRequestsException`.
-
-Any code that catches `ServiceLockException` should be updated
-to catch `TooManyRequestsException` instead (or removed if the
-catch block was unreachable).
+`LockConcern` only takes effect on services whose class uses the `Lockable` trait; the base `Service`
+already uses it, so declaring the concern is sufficient.
 
 ### Changed: Service::run() returns a ServiceResult value object
 
@@ -206,9 +171,259 @@ rethrow explicitly if desired:
         throw $result->exception;
     }
 
-### Default behavior
+### Removed: Implicit trait lifecycle hooks on services
 
-A service subclass with no method overrides behaves identically to the previous default:
+In 1.x, traits used by a service participated in the lifecycle through naming conventions: a static
+`initialize{TraitName}()` method was invoked during service initialization, and a `{traitName}Success()`
+method was invoked after a successful run. This implicit discovery has been removed.
 
-- **Transactions:** enabled (`shouldUseTransaction()` returns `true`)
-- **Locking:** disabled (`shouldUseLock()` returns `false`)
+Move initialization logic into the constructor or `prepare()`, move post-success side effects into
+`success()`, or express the behavior as a `ServiceConcern` (see above).
+
+### Lock key generation via LockKeyProvider contract
+
+The `Lockable` trait no longer declares
+`abstract generateLockKey()`. The `Service` class now implements
+`LockKeyProvider` with a `getLockKey()` method that contains the
+same logic.
+
+**Impact on Service subclasses:** Subclasses that previously
+overrode `generateLockKey()` must now override `getLockKey()`
+instead. The method visibility changes from `protected` to
+`public`.
+
+**Before:**
+
+    class MyService extends Service
+    {
+        protected function generateLockKey(): string
+        {
+            return sha1('custom-key');
+        }
+    }
+
+**After:**
+
+    class MyService extends Service
+    {
+        public function getLockKey(): string
+        {
+            return sha1('custom-key');
+        }
+    }
+
+**Impact on standalone Lockable consumers:** Classes using
+`Lockable` without extending `Service` should implement
+`LockKeyProvider` and provide a `getLockKey()` method instead of
+overriding `generateLockKey()`. Alternatively, the `$lockKey`
+property may be set directly. The trait's `lock()` and `unlock()`
+methods are now `public` (previously `protected`).
+
+**Before:**
+
+    class MyJob
+    {
+        use Lockable;
+
+        protected function generateLockKey(): string
+        {
+            return sha1('job-lock');
+        }
+    }
+
+**After:**
+
+    use SineMacula\ApiToolkit\Contracts\LockKeyProvider;
+
+    class MyJob implements LockKeyProvider
+    {
+        use Lockable;
+
+        public function getLockKey(): string
+        {
+            return sha1('job-lock');
+        }
+    }
+
+### Removed: ServiceLockException
+
+The `ServiceLockException` class has been removed. It was never
+thrown by the framework -- lock acquisition failures use
+`TooManyRequestsException`.
+
+Any code that catches `ServiceLockException` should be updated
+to catch `TooManyRequestsException` instead (or removed if the
+catch block was unreachable).
+
+### Removed: RepositoryResolver and HasRepositories
+
+The static `RepositoryResolver`, the `HasRepositories` trait, and the `repositories.repository_map` config
+key have been removed. Repositories are now resolved through standard Laravel dependency injection.
+
+**Before (1.x):**
+
+    use SineMacula\ApiToolkit\Repositories\Traits\HasRepositories;
+
+    class UserController extends Controller
+    {
+        use HasRepositories;
+
+        public function index()
+        {
+            return $this->users()->all();
+        }
+    }
+
+**After (2.x):**
+
+    class UserController extends Controller
+    {
+        public function __construct(
+
+            private readonly UserRepository $users,
+
+        ) {}
+
+        public function index()
+        {
+            return $this->users->all();
+        }
+    }
+
+Direct calls to `RepositoryResolver::get('alias')` should be replaced with `app(UserRepository::class)` or,
+preferably, constructor injection. Remove any `repository_map` entries from a published
+`config/api-toolkit.php`; the key is no longer read.
+
+### Renamed: ApiRepository::setAttributes() to persist()
+
+The `setAttributes()` method on `ApiRepository` has been renamed to `persist()`. The signature and behavior
+are unchanged.
+
+**Before:**
+
+    $repository->setAttributes($model, $attributes);
+
+**After:**
+
+    $repository->persist($model, $attributes);
+
+### Changed: Relation detection requires return type declarations
+
+Relation detection -- used by filtering, attribute persistence, resource value resolution, and schema
+validation -- no longer
+invokes model methods to discover whether they return a `Relation`. The `SchemaIntrospector` now inspects
+declared return types via reflection. A model method is treated as a relation only when its return type (or
+one member of a union type) is a subclass of `Illuminate\Database\Eloquent\Relations\Relation`.
+
+**Before (1.x -- detected without a return type):**
+
+    public function posts()
+    {
+        return $this->hasMany(Post::class);
+    }
+
+**After (2.x -- return type required):**
+
+    public function posts(): HasMany
+    {
+        return $this->hasMany(Post::class);
+    }
+
+Relation methods without a `Relation` return type are silently no longer detected -- filters and eager loads
+referencing them stop working -- so audit your models before upgrading. Enabling the new opt-in boot-time
+schema validation (`api-toolkit.resources.validate_schemas`, or the `api:validate-schemas` command) surfaces
+schema relations that no longer resolve.
+
+Dynamic relations registered with `Model::resolveRelationUsing()` are now detected and resolved; 1.x did not
+support them.
+
+### Removed: BaseResource; ApiResource internals decomposed
+
+`SineMacula\ApiToolkit\Http\Resources\BaseResource` has been removed. `ApiResource` now extends
+`Illuminate\Http\Resources\Json\JsonResource` directly, and `withFields()`, `withoutFields()`, and
+`withAll()` live on `ApiResource` itself. Update any type hints or subclasses referencing `BaseResource` to
+use `ApiResource` (or `ApiResourceInterface`).
+
+The protected resolution hooks have been removed from `ApiResource` and moved into internal collaborator
+classes:
+
+- `getFields()`
+- `resolveFieldValue()`
+- `resolveSimpleProperty()`
+- `resolveComputedValue()`
+- `resolveAccessorValue()`
+- `resolveRelationValue()`
+- `passesGuards()`
+- `resolveCountsPayload()`
+
+Subclasses that overrode these methods must express the behavior through the resource schema definition
+(fields, computed values, accessors, guards) instead.
+
+`ApiResourceInterface` now declares the full field-resolution surface (`schema()`, `getAllFields()`,
+`resolveFields()`, `eagerLoadMapFor()`, `eagerLoadCountsFor()`, `resolve()`, `withFields()`,
+`withoutFields()`, and `withAll()`). Classes implementing the interface directly -- rather than extending
+`ApiResource` -- must implement the new methods.
+
+Parameter names have also been normalized to camelCase (`$load_missing` is now `$loadMissing` on the
+constructor, `$requested_aliases` is now `$requestedAliases` on `eagerLoadCountsFor()`); update any
+named-argument call sites.
+
+### Changed: ApiCriteria decomposed; filter operators are extensible
+
+The protected `applyFilters()`, `applyEagerLoading()`, `applyLimit()`, and `applyOrder()` hooks have been
+removed from `ApiCriteria`; the logic now lives in dedicated internal concern classes. Subclasses that
+overrode these hooks to add custom filter behavior should instead register a custom operator.
+
+Filter operators are now first-class: implement the `SineMacula\ApiToolkit\Contracts\FilterOperator`
+contract and register it on the `OperatorRegistry` singleton (for example, in a service provider):
+
+    use SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry;
+
+    app(OperatorRegistry::class)->register('$regex', new RegexOperator);
+
+The registry also exposes `override()` and `remove()` for adjusting the built-in operator set.
+
+### Deprecated: Request macros in favour of RequestCapabilities
+
+The request macros registered by the toolkit -- `includeTrashed()`, `onlyTrashed()`, `expectsExport()`,
+`expectsCsv()`, `expectsXml()`, `expectsPdf()`, and `expectsStream()` -- are deprecated. They continue to
+work in 2.x but emit deprecation notices and will be removed in a future release. Use the typed
+`RequestCapabilities` value object instead.
+
+**Before:**
+
+    if ($request->expectsCsv()) {
+        // ...
+    }
+
+**After:**
+
+    use SineMacula\ApiToolkit\Http\RequestCapabilities;
+
+    $capabilities = RequestCapabilities::fromRequest($request);
+
+    if ($capabilities->expectsCsv()) {
+        // ...
+    }
+
+The new `DetectsCapabilities` middleware (registered globally by default, configurable via the
+`api-toolkit.middleware` config section) precomputes the capabilities once per request; `fromRequest()`
+falls back to resolving them lazily when the middleware has not run.
+
+### Exception handling changes
+
+These changes are largely additive but include behavioral fixes worth noting:
+
+- New exception classes are available: `ConflictException` (409), `GoneException` (410),
+  `PayloadTooLargeException` (413), `LockedException` (423), `ServiceUnavailableException` (503), and a
+  generic `HttpException` carrying an arbitrary `HttpStatus`.
+- Unmapped HTTP-layer exceptions (any Symfony `HttpExceptionInterface`) now preserve their original status
+  code via the generic `HttpException` instead of rendering as a `500` unhandled error.
+- Session token mismatches converted by Laravel to a generic `419` HTTP exception are now mapped back to
+  `TokenMismatchException` and render as `419`; in 1.x they rendered as a `500` unhandled error.
+- `PolymorphicResource` now throws `ResourceMappingException` (a `\LogicException` subclass) instead of a
+  bare `\LogicException`; existing catch blocks for `\LogicException` continue to work.
+- The new `api-toolkit.exceptions` config section controls rendering (`render_strategy`) and debug metadata
+  (`include_debug_info`). The defaults preserve the 1.x behavior.
+- `ApiException` exposes a new instance-level `getStatusCode()` method, which the handler now uses when
+  rendering; the static `getHttpStatusCode()` remains available.

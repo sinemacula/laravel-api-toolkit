@@ -27,6 +27,7 @@ class DatabaseHandler extends AbstractProcessingHandler
      * @param  \Monolog\LogRecord  $record
      * @return void
      */
+    #[\Override]
     protected function write(LogRecord $record): void
     {
         if (!$this->shouldLog($record)) {

@@ -80,6 +80,7 @@ abstract class ApiResource extends JsonResource implements ApiResourceInterface
      * @param  mixed  $request
      * @return array<string, mixed>
      */
+    #[\Override]
     public function resolve(#[\SensitiveParameter] mixed $request = null): array
     {
         $schema = SchemaCompiler::compile(static::class);
@@ -125,6 +126,7 @@ abstract class ApiResource extends JsonResource implements ApiResourceInterface
      * @param  array<int, string>  $fields
      * @return array<int|string, mixed>
      */
+    #[\Override]
     public static function eagerLoadMapFor(array $fields): array
     {
         return EagerLoadPlanner::buildEagerLoadMap(static::class, $fields);
@@ -136,6 +138,7 @@ abstract class ApiResource extends JsonResource implements ApiResourceInterface
      * @param  array<int, string>|null  $requestedAliases
      * @return array<int|string, mixed>
      */
+    #[\Override]
     public static function eagerLoadCountsFor(?array $requestedAliases = null): array
     {
         return EagerLoadPlanner::buildCountMap(static::class, $requestedAliases);
@@ -146,6 +149,7 @@ abstract class ApiResource extends JsonResource implements ApiResourceInterface
      *
      * @return string
      */
+    #[\Override]
     public static function getResourceType(): string
     {
         if (!defined(static::class . '::RESOURCE_TYPE')) {
@@ -160,6 +164,7 @@ abstract class ApiResource extends JsonResource implements ApiResourceInterface
      *
      * @return array<int, string>
      */
+    #[\Override]
     public static function getDefaultFields(): array
     {
         return static::$default;
@@ -170,6 +175,7 @@ abstract class ApiResource extends JsonResource implements ApiResourceInterface
      *
      * @return array<int, string>
      */
+    #[\Override]
     public static function getAllFields(): array
     {
         $schema = SchemaCompiler::compile(static::class);
@@ -182,6 +188,7 @@ abstract class ApiResource extends JsonResource implements ApiResourceInterface
      *
      * @return array<string, array<string, mixed>>
      */
+    #[\Override]
     abstract public static function schema(): array;
 
     /**
@@ -190,6 +197,7 @@ abstract class ApiResource extends JsonResource implements ApiResourceInterface
      * @param  \Illuminate\Http\Request  $request
      * @return array<string, mixed>
      */
+    #[\Override]
     public function toArray(Request $request): array
     {
         return $this->resolve($request);
@@ -200,6 +208,7 @@ abstract class ApiResource extends JsonResource implements ApiResourceInterface
      *
      * @return array<int, string>
      */
+    #[\Override]
     public static function resolveFields(): array
     {
         return ApiQuery::getFields(static::getResourceType()) ?? static::getDefaultFields();
@@ -211,6 +220,7 @@ abstract class ApiResource extends JsonResource implements ApiResourceInterface
      * @param  array<int, string>|null  $fields
      * @return static
      */
+    #[\Override]
     public function withFields(?array $fields = null): static
     {
         $this->fieldResolver->withFields($fields);
@@ -224,6 +234,7 @@ abstract class ApiResource extends JsonResource implements ApiResourceInterface
      * @param  array<int, string>|null  $fields
      * @return static
      */
+    #[\Override]
     public function withoutFields(?array $fields = null): static
     {
         $this->fieldResolver->withoutFields($fields);
@@ -236,6 +247,7 @@ abstract class ApiResource extends JsonResource implements ApiResourceInterface
      *
      * @return static
      */
+    #[\Override]
     public function withAll(): static
     {
         $this->fieldResolver->withAll();
@@ -249,6 +261,7 @@ abstract class ApiResource extends JsonResource implements ApiResourceInterface
      * @param  mixed  $resource
      * @return \SineMacula\ApiToolkit\Http\Resources\ApiResourceCollection
      */
+    #[\Override]
     protected static function newCollection(#[\SensitiveParameter] mixed $resource): ApiResourceCollection
     {
         return new ApiResourceCollection($resource, static::class);

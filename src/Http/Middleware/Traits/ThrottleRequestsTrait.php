@@ -2,6 +2,8 @@
 
 namespace SineMacula\ApiToolkit\Http\Middleware\Traits;
 
+use SineMacula\ApiToolkit\Exceptions\RequestSignatureException;
+
 /**
  * Throttle requests trait.
  *
@@ -18,7 +20,7 @@ trait ThrottleRequestsTrait
      * @param  \Illuminate\Http\Request  $request
      * @return string
      *
-     * @throws \RuntimeException
+     * @throws \SineMacula\ApiToolkit\Exceptions\RequestSignatureException
      */
     protected function resolveRequestSignature(#[\SensitiveParameter] $request): string
     {
@@ -28,7 +30,7 @@ trait ThrottleRequestsTrait
         $route = ($request->getRouteResolver())();
 
         if ($route === null) {
-            throw new \RuntimeException('Unable to generate the request signature. Route unavailable.');
+            throw new RequestSignatureException('Unable to generate the request signature. Route unavailable.');
         }
 
         $server_name = $request->server('SERVER_NAME');
