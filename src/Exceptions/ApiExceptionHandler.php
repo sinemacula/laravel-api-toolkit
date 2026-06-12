@@ -7,6 +7,7 @@ use Illuminate\Auth\AuthenticationException;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Database\RecordsNotFoundException;
 use Illuminate\Foundation\Configuration\Exceptions;
+use Illuminate\Http\Exceptions\PostTooLargeException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Exceptions\BackedEnumCaseNotFoundException;
@@ -19,11 +20,15 @@ use Illuminate\Support\Facades\Request as RequestFacade;
 use Illuminate\Support\Facades\Response;
 use Illuminate\Validation\UnauthorizedException as LaravelUnauthorizedException;
 use Illuminate\Validation\ValidationException;
+use SineMacula\Http\Enums\HttpStatus;
 use Symfony\Component\HttpFoundation\Exception\RequestExceptionInterface;
 use Symfony\Component\HttpFoundation\Exception\SuspiciousOperationException;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
+use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
+use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface as SymfonyHttpExceptionInterface;
 use Symfony\Component\HttpKernel\Exception\MethodNotAllowedHttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
+use Symfony\Component\HttpKernel\Exception\ServiceUnavailableHttpException;
 use Symfony\Component\HttpKernel\Exception\TooManyRequestsHttpException;
 
 /**
@@ -104,6 +109,7 @@ class ApiExceptionHandler
             $exception instanceof SuspiciousOperationException    => NotFoundException::class,
             $exception instanceof RecordsNotFoundException        => NotFoundException::class,
             $exception instanceof MethodNotAllowedHttpException   => NotAllowedException::class,
+            $exception instanceof BadRequestHttpException         => BadRequestException::class,
             $exception instanceof RequestExceptionInterface       => BadRequestException::class,
             $exception instanceof LaravelUnauthorizedException    => ForbiddenException::class,
             $exception instanceof AuthorizationException          => ForbiddenException::class,
@@ -112,10 +118,37 @@ class ApiExceptionHandler
             $exception instanceof LaravelTokenMismatchException   => TokenMismatchException::class,
             $exception instanceof ValidationException             => InvalidInputException::class,
             $exception instanceof TooManyRequestsHttpException    => TooManyRequestsException::class,
+            $exception instanceof ServiceUnavailableHttpException => ServiceUnavailableException::class,
+            $exception instanceof PostTooLargeException           => PayloadTooLargeException::class,
+            $exception instanceof SymfonyHttpExceptionInterface   => HttpException::class,
             default                                               => UnhandledException::class,
         };
 
+        if ($mapped === HttpException::class && $exception instanceof SymfonyHttpExceptionInterface) {
+            return self::mapGenericHttpException($exception, $meta, $headers);
+        }
+
         return new $mapped($meta, $headers, $previous);
+    }
+
+    /**
+     * Map an unrecognised HTTP-layer exception, preserving its status code
+     * and headers. Unknown status codes fall back to an unhandled error.
+     *
+     * @param  \Symfony\Component\HttpKernel\Exception\HttpExceptionInterface  $exception
+     * @param  array<string, mixed>|null  $meta
+     * @param  array<string, mixed>  $headers
+     * @return \SineMacula\ApiToolkit\Exceptions\ApiException
+     */
+    private static function mapGenericHttpException(SymfonyHttpExceptionInterface $exception, ?array $meta, array $headers): ApiException
+    {
+        $status = HttpStatus::tryFrom($exception->getStatusCode());
+
+        if ($status === null) {
+            return new UnhandledException($meta, $headers, $exception);
+        }
+
+        return new HttpException($status, $meta, $headers, $exception);
     }
 
     /**
@@ -129,7 +162,7 @@ class ApiExceptionHandler
     {
         $options = (bool) $request->input('pretty') ? JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES : JSON_UNESCAPED_SLASHES;
 
-        return Response::json(self::convertApiExceptionToArray($exception), $exception::getHttpStatusCode(), $exception->getHeaders(), $options);
+        return Response::json(self::convertApiExceptionToArray($exception), $exception->getStatusCode(), $exception->getHeaders(), $options);
     }
 
     /**
@@ -142,7 +175,7 @@ class ApiExceptionHandler
     {
         return [
             'error' => array_filter([
-                'status' => $exception::getHttpStatusCode(),
+                'status' => $exception->getStatusCode(),
                 'code'   => $exception::getInternalErrorCode(),
                 'title'  => $exception->getCustomTitle(),
                 'detail' => $exception->getCustomDetail(),

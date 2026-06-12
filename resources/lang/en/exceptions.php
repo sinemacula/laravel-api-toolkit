@@ -61,6 +61,38 @@ return [
         'detail' => 'The resource was requested too frequently',
     ],
 
+    ErrorCode::CONFLICT->getCode() => [
+        'title'  => 'Conflict',
+        'detail' => 'The request could not be completed due to a conflict with the current state of the resource',
+    ],
+
+    ErrorCode::GONE->getCode() => [
+        'title'  => 'Gone',
+        'detail' => 'The requested resource is no longer available',
+    ],
+
+    ErrorCode::PAYLOAD_TOO_LARGE->getCode() => [
+        'title'  => 'Payload Too Large',
+        'detail' => 'The request payload exceeds the maximum permitted size',
+    ],
+
+    ErrorCode::LOCKED->getCode() => [
+        'title'  => 'Locked',
+        'detail' => 'The requested resource is locked',
+    ],
+
+    ErrorCode::SERVICE_UNAVAILABLE->getCode() => [
+        'title'  => 'Service Unavailable',
+        'detail' => 'The service is temporarily unavailable, please try again a little later',
+    ],
+
+    // No title is defined for the generic HTTP error; the handler derives
+    // it from the runtime HTTP status so the response reflects the original
+    // status phrase (e.g. "Conflict" for an abort(409))
+    ErrorCode::HTTP_ERROR->getCode() => [
+        'detail' => 'The request could not be completed',
+    ],
+
     /*
     |---------------------------------------------------------------------------
     | App Errors
