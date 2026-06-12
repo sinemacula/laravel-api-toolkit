@@ -5,8 +5,8 @@ namespace SineMacula\ApiToolkit\Http\Concerns;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Http\Resources\Json\ResourceCollection;
 use Illuminate\Http\Response as HttpResponse;
-use Illuminate\Support\Facades\Request;
 use Illuminate\Support\Facades\Response;
+use SineMacula\ApiToolkit\Http\RequestCapabilities;
 use SineMacula\Exporter\Contracts\Exporter as ExporterContract;
 use SineMacula\Exporter\Facades\Exporter;
 use SineMacula\Http\Enums\Charset;
@@ -38,10 +38,12 @@ trait RespondsWithExport
      */
     public function exportFromArray(array $data, bool $download = true, ?string $filename = null): HttpResponse
     {
+        $capabilities = RequestCapabilities::fromRequest(request());
+
         return match (true) {
-            Request::expectsCsv() => $this->exportArrayToCsv($data, $download, $filename ?? 'export.csv'),
-            Request::expectsXml() => $this->exportArrayToXml($data, $download, $filename ?? 'export.xml'),
-            default               => throw new \InvalidArgumentException(self::UNSUPPORTED_FORMAT_MESSAGE),
+            $capabilities->expectsCsv() => $this->exportArrayToCsv($data, $download, $filename ?? 'export.csv'),
+            $capabilities->expectsXml() => $this->exportArrayToXml($data, $download, $filename ?? 'export.xml'),
+            default                     => throw new \InvalidArgumentException(self::UNSUPPORTED_FORMAT_MESSAGE),
         };
     }
 
@@ -87,10 +89,12 @@ trait RespondsWithExport
      */
     public function exportFromCollection(ResourceCollection $collection, bool $download = true, ?string $filename = null): HttpResponse
     {
+        $capabilities = RequestCapabilities::fromRequest(request());
+
         return match (true) {
-            Request::expectsCsv() => $this->exportCollectionToCsv($collection, $download, $filename ?? 'export.csv'),
-            Request::expectsXml() => $this->exportCollectionToXml($collection, $download, $filename ?? 'export.xml'),
-            default               => throw new \InvalidArgumentException(self::UNSUPPORTED_FORMAT_MESSAGE),
+            $capabilities->expectsCsv() => $this->exportCollectionToCsv($collection, $download, $filename ?? 'export.csv'),
+            $capabilities->expectsXml() => $this->exportCollectionToXml($collection, $download, $filename ?? 'export.xml'),
+            default                     => throw new \InvalidArgumentException(self::UNSUPPORTED_FORMAT_MESSAGE),
         };
     }
 
@@ -136,10 +140,12 @@ trait RespondsWithExport
      */
     public function exportFromItem(JsonResource $resource, bool $download = true, ?string $filename = null): HttpResponse
     {
+        $capabilities = RequestCapabilities::fromRequest(request());
+
         return match (true) {
-            Request::expectsCsv() => $this->exportItemToCsv($resource, $download, $filename ?? 'export.csv'),
-            Request::expectsXml() => $this->exportItemToXml($resource, $download, $filename ?? 'export.xml'),
-            default               => throw new \InvalidArgumentException(self::UNSUPPORTED_FORMAT_MESSAGE),
+            $capabilities->expectsCsv() => $this->exportItemToCsv($resource, $download, $filename ?? 'export.csv'),
+            $capabilities->expectsXml() => $this->exportItemToXml($resource, $download, $filename ?? 'export.xml'),
+            default                     => throw new \InvalidArgumentException(self::UNSUPPORTED_FORMAT_MESSAGE),
         };
     }
 
