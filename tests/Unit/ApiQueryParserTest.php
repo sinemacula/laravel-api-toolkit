@@ -7,6 +7,7 @@ use Illuminate\Validation\ValidationException;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use SineMacula\ApiToolkit\ApiQueryParser;
+use SineMacula\ApiToolkit\Concerns\QueryParameterExtractor;
 use SineMacula\Http\Enums\HttpMethod;
 use Tests\Concerns\InteractsWithNonPublicMembers;
 use Tests\TestCase;
@@ -433,7 +434,7 @@ class ApiQueryParserTest extends TestCase
      */
     public function testNormalizeFieldsPreservesArrayInput(): void
     {
-        $result = $this->invokeMethod($this->parser, 'normalizeFields', ['amount', 'fee']);
+        $result = $this->invokeMethod(new QueryParameterExtractor, 'normalizeFields', ['amount', 'fee']);
 
         static::assertSame(['amount', 'fee'], $result);
     }
@@ -445,7 +446,7 @@ class ApiQueryParserTest extends TestCase
      */
     public function testNormalizeFieldsWrapsOtherInputInArray(): void
     {
-        $result = $this->invokeMethod($this->parser, 'normalizeFields', 42);
+        $result = $this->invokeMethod(new QueryParameterExtractor, 'normalizeFields', 42);
 
         static::assertSame([42], $result);
     }
@@ -457,7 +458,7 @@ class ApiQueryParserTest extends TestCase
      */
     public function testParseAggregationsSkipsNonArrayRelations(): void
     {
-        $result = $this->invokeMethod($this->parser, 'parseAggregations', [
+        $result = $this->invokeMethod(new QueryParameterExtractor, 'parseAggregations', [
             'valid'   => ['fields' => 'amount'],
             'invalid' => 'not_an_array',
         ]);
@@ -474,7 +475,7 @@ class ApiQueryParserTest extends TestCase
      */
     public function testParseAggregationsContinuesPastNonArrayRelations(): void
     {
-        $result = $this->invokeMethod($this->parser, 'parseAggregations', [
+        $result = $this->invokeMethod(new QueryParameterExtractor, 'parseAggregations', [
             'invalid' => 'not_an_array',
             'valid'   => ['fields' => 'amount'],
         ]);
