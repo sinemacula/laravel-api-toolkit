@@ -11,6 +11,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
+use SineMacula\ApiToolkit\Enums\CacheKeys;
 use SineMacula\ApiToolkit\Services\SchemaIntrospector;
 use Tests\Concerns\InteractsWithNonPublicMembers;
 use Tests\Fixtures\Models\Post;
@@ -68,6 +69,63 @@ class SchemaIntrospectorTest extends TestCase
     }
 
     /**
+     * Test that getColumns serves the instance cache without consulting the
+     * memo cache or the schema again.
+     *
+     * @return void
+     */
+    public function testGetColumnsServesInstanceCacheWithoutSchemaLookup(): void
+    {
+        $introspector = new SchemaIntrospector;
+        $model        = new User;
+
+        $first = $introspector->getColumns($model);
+
+        Cache::memo()->flush(); // @phpstan-ignore method.notFound
+
+        Schema::shouldReceive('getColumnListing')
+            ->never();
+
+        static::assertSame($first, $introspector->getColumns($model));
+    }
+
+    /**
+     * Test that getColumns stores the result in the memo cache under a key
+     * scoped to the model class.
+     *
+     * @return void
+     */
+    public function testGetColumnsStoresResultInMemoCacheUnderModelKey(): void
+    {
+        $introspector = new SchemaIntrospector;
+        $model        = new User;
+
+        $columns = $introspector->getColumns($model);
+
+        $key = CacheKeys::MODEL_SCHEMA_COLUMNS->resolveKey([User::class]);
+
+        static::assertSame($columns, Cache::memo()->get($key));
+    }
+
+    /**
+     * Test that getColumns keeps the cached columns of different models
+     * separate.
+     *
+     * @return void
+     */
+    public function testGetColumnsKeepsModelCachesSeparate(): void
+    {
+        $introspector = new SchemaIntrospector;
+
+        $userColumns = $introspector->getColumns(new User);
+        $postColumns = $introspector->getColumns(new Post);
+
+        static::assertSame(Schema::getColumnListing('users'), $userColumns);
+        static::assertSame(Schema::getColumnListing('posts'), $postColumns);
+        static::assertNotSame($userColumns, $postColumns);
+    }
+
+    /**
      * Test that getSearchableColumns returns columns with exclusions
      * applied.
      *
@@ -121,6 +179,22 @@ class SchemaIntrospectorTest extends TestCase
         $allColumns = Schema::getColumnListing('posts');
 
         static::assertCount(count($allColumns), $searchable);
+    }
+
+    /**
+     * Test that getSearchableColumns keeps a column when a table-specific
+     * exclusion targets another table.
+     *
+     * @return void
+     */
+    public function testGetSearchableColumnsKeepsColumnWhenExclusionTargetsAnotherTable(): void
+    {
+        Config::set('api-toolkit.repositories.searchable_exclusions', ['posts.name']);
+
+        $introspector = new SchemaIntrospector;
+        $model        = new User;
+
+        static::assertContains('name', $introspector->getSearchableColumns($model));
     }
 
     /**
@@ -197,6 +271,23 @@ class SchemaIntrospectorTest extends TestCase
      */
     public function testIsRelationReturnsFalseForNonExistentMethod(): void
     {
+        $introspector = new SchemaIntrospector;
+        $model        = new User;
+
+        static::assertFalse($introspector->isRelation('nonExistent', $model));
+    }
+
+    /**
+     * Test that isRelation does not attempt to invoke, or log a failure
+     * for, a non-existent method.
+     *
+     * @return void
+     */
+    public function testIsRelationDoesNotLogForNonExistentMethod(): void
+    {
+        Log::shouldReceive('error')
+            ->never();
+
         $introspector = new SchemaIntrospector;
         $model        = new User;
 
@@ -302,6 +393,7 @@ class SchemaIntrospectorTest extends TestCase
              *
              * @return \Illuminate\Database\Eloquent\Relations\HasMany|\Illuminate\Database\Eloquent\Relations\MorphMany
              */
+            // @phpstan-ignore-next-line return.unusedType, missingType.generics (the union return type is the reflection subject under test)
             public function tags(): HasMany|MorphMany
             {
                 return $this->hasMany(Post::class);
@@ -330,6 +422,7 @@ class SchemaIntrospectorTest extends TestCase
              *
              * @return string|int
              */
+            // @phpstan-ignore-next-line return.unusedType (the non-relation union return type is the reflection subject under test)
             public function tags(): string|int
             {
                 return '';

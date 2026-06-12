@@ -491,6 +491,332 @@ class EventStreamTest extends TestCase
     }
 
     /**
+     * Test that the Cache-Control header is the exact comma-separated
+     * directive list required for SSE responses. Symfony's header bag
+     * appends the computed `private` directive.
+     *
+     * @return void
+     */
+    public function testCacheControlHeaderUsesCommaSeparatedDirectives(): void
+    {
+        $stream = new EventStream;
+
+        $response = $stream->toResponse(fn () => null);
+
+        static::assertSame('no-cache, no-transform, private', $response->headers->get('Cache-Control'));
+    }
+
+    /**
+     * Test that the default heartbeat fires exactly at the twenty-second
+     * boundary. Exactly twenty elapsed seconds must emit a heartbeat in
+     * addition to the initial keep-alive comment.
+     *
+     * @return void
+     */
+    public function testDefaultHeartbeatFiresExactlyAtTwentySecondBoundary(): void
+    {
+        $this->travelTo(now());
+
+        $abortCount = 0;
+
+        FunctionOverrides::set('connection_aborted', function () use (&$abortCount): int {
+            return ++$abortCount >= 3 ? 1 : 0;
+        });
+
+        $stream   = new EventStream;
+        $response = $stream->toResponse(function (): void {
+            $this->travel(20)->seconds();
+        });
+
+        ob_start();
+        $response->sendContent();
+        $output = ob_get_clean();
+
+        $commentCount = substr_count((string) $output, self::SSE_COMMENT);
+
+        static::assertSame(2, $commentCount);
+    }
+
+    /**
+     * Test that the loop sleeps exactly once per full iteration and that
+     * the default polling interval of one second is forwarded to sleep.
+     *
+     * @return void
+     */
+    public function testSleepReceivesDefaultIntervalOncePerIteration(): void
+    {
+        $abortCount = 0;
+
+        FunctionOverrides::set('connection_aborted', function () use (&$abortCount): int {
+            return ++$abortCount >= 3 ? 1 : 0;
+        });
+
+        $sleepArgs = [];
+
+        FunctionOverrides::set('sleep', function (int $seconds) use (&$sleepArgs): int {
+            $sleepArgs[] = $seconds;
+
+            return 0;
+        });
+
+        $stream   = new EventStream;
+        $response = $stream->toResponse(fn () => null);
+
+        ob_start();
+        $response->sendContent();
+        ob_get_clean();
+
+        static::assertSame([1], $sleepArgs);
+    }
+
+    /**
+     * Test that the loop terminates immediately after the first abort
+     * check signals a disconnect and never polls the connection again.
+     *
+     * @return void
+     */
+    public function testStreamDoesNotRecheckConnectionAfterFirstAbort(): void
+    {
+        $abortCount = 0;
+
+        FunctionOverrides::set('connection_aborted', function () use (&$abortCount): int {
+            if (++$abortCount > 1) {
+                throw new \LogicException('Connection polled again after abort');
+            }
+
+            return 1;
+        });
+
+        $callbackRan = false;
+
+        $stream   = new EventStream;
+        $response = $stream->toResponse(function () use (&$callbackRan): void {
+            $callbackRan = true;
+        });
+
+        ob_start();
+        $response->sendContent();
+        $output = ob_get_clean();
+
+        static::assertSame(self::SSE_COMMENT, $output);
+        static::assertFalse($callbackRan);
+    }
+
+    /**
+     * Test that the second per-iteration abort check terminates the loop
+     * entirely rather than skipping to a further iteration. The abort
+     * sequence reports a disconnect on the second check only; the callback
+     * must therefore run exactly once.
+     *
+     * @return void
+     */
+    public function testStreamDoesNotResumeAfterBreakOnSecondAbortCheck(): void
+    {
+        $aborts = [0, 1, 0, 0, 1];
+        $index  = 0;
+
+        FunctionOverrides::set('connection_aborted', function () use (&$index, $aborts): int {
+            return $aborts[$index++] ?? 1;
+        });
+
+        $callCount = 0;
+
+        $stream   = new EventStream;
+        $response = $stream->toResponse(function () use (&$callCount): void {
+            $callCount++;
+        });
+
+        ob_start();
+        $response->sendContent();
+        ob_get_clean();
+
+        static::assertSame(1, $callCount);
+    }
+
+    /**
+     * Test that each iteration flushes the active output buffer via
+     * ob_flush when a buffer level is active.
+     *
+     * @return void
+     */
+    public function testFlushOutputFlushesActiveOutputBuffer(): void
+    {
+        $abortCount = 0;
+
+        FunctionOverrides::set('connection_aborted', function () use (&$abortCount): int {
+            return ++$abortCount >= 2 ? 1 : 0;
+        });
+
+        FunctionOverrides::set('ob_get_level', fn (): int => 1);
+
+        $obFlushCount = 0;
+
+        FunctionOverrides::set('ob_flush', function () use (&$obFlushCount): void {
+            $obFlushCount++;
+        });
+
+        $stream   = new EventStream;
+        $response = $stream->toResponse(fn () => null);
+
+        ob_start();
+        $response->sendContent();
+        ob_get_clean();
+
+        static::assertSame(1, $obFlushCount);
+    }
+
+    /**
+     * Test that ob_flush is not called when no output buffer is active.
+     *
+     * @return void
+     */
+    public function testFlushOutputSkipsObFlushWhenNoBufferIsActive(): void
+    {
+        $abortCount = 0;
+
+        FunctionOverrides::set('connection_aborted', function () use (&$abortCount): int {
+            return ++$abortCount >= 2 ? 1 : 0;
+        });
+
+        FunctionOverrides::set('ob_get_level', fn (): int => 0);
+
+        $obFlushCount = 0;
+
+        FunctionOverrides::set('ob_flush', function () use (&$obFlushCount): void {
+            $obFlushCount++;
+        });
+
+        $stream   = new EventStream;
+        $response = $stream->toResponse(fn () => null);
+
+        ob_start();
+        $response->sendContent();
+        ob_get_clean();
+
+        static::assertSame(0, $obFlushCount);
+    }
+
+    /**
+     * Test that the system output buffer is flushed once per iteration in
+     * addition to the flush performed by the initial keep-alive comment.
+     *
+     * @return void
+     */
+    public function testFlushOutputFlushesSystemBufferEachIteration(): void
+    {
+        $abortCount = 0;
+
+        FunctionOverrides::set('connection_aborted', function () use (&$abortCount): int {
+            return ++$abortCount >= 2 ? 1 : 0;
+        });
+
+        $flushCount = 0;
+
+        FunctionOverrides::set('flush', function () use (&$flushCount): void {
+            $flushCount++;
+        });
+
+        $stream   = new EventStream;
+        $response = $stream->toResponse(fn () => null);
+
+        ob_start();
+        $response->sendContent();
+        ob_get_clean();
+
+        static::assertSame(2, $flushCount);
+    }
+
+    /**
+     * Test that handleStreamError is callable from a subclass, reports the
+     * exception through the application exception handler, emits the
+     * generic error event, and signals the loop to stop.
+     *
+     * @return void
+     */
+    public function testHandleStreamErrorReportsExceptionAndIsCallableFromSubclass(): void
+    {
+        $exception = new \RuntimeException('Simulated stream failure');
+
+        /** @var \Illuminate\Contracts\Debug\ExceptionHandler&\Mockery\MockInterface $handler */
+        $handler = \Mockery::mock(\Illuminate\Contracts\Debug\ExceptionHandler::class);
+        $handler->shouldReceive('report')->once()->with($exception);
+
+        assert($this->app !== null);
+
+        $this->app->instance(\Illuminate\Contracts\Debug\ExceptionHandler::class, $handler);
+
+        $stream = new class extends EventStream {
+            /**
+             * @param  \Throwable  $exception
+             * @param  \SineMacula\ApiToolkit\Sse\Emitter  $emitter
+             * @return bool
+             */
+            public function exposeHandleStreamError(\Throwable $exception, Emitter $emitter): bool
+            {
+                return $this->handleStreamError($exception, $emitter);
+            }
+        };
+
+        ob_start();
+        $result = $stream->exposeHandleStreamError($exception, new Emitter);
+        $output = ob_get_clean();
+
+        static::assertFalse($result);
+        static::assertStringContainsString("event: error\ndata: An error occurred\n\n", (string) $output);
+    }
+
+    /**
+     * Test that onStreamStart is callable from a subclass and emits the
+     * initial keep-alive comment by default.
+     *
+     * @return void
+     */
+    public function testOnStreamStartIsCallableFromSubclass(): void
+    {
+        $stream = new class extends EventStream {
+            /**
+             * @param  \SineMacula\ApiToolkit\Sse\Emitter  $emitter
+             * @return void
+             */
+            public function exposeOnStreamStart(Emitter $emitter): void
+            {
+                $this->onStreamStart($emitter);
+            }
+        };
+
+        ob_start();
+        $stream->exposeOnStreamStart(new Emitter);
+        $output = ob_get_clean();
+
+        static::assertSame(self::SSE_COMMENT, $output);
+    }
+
+    /**
+     * Test that onStreamEnd is callable from a subclass and produces no
+     * output by default.
+     *
+     * @return void
+     */
+    public function testOnStreamEndIsCallableFromSubclass(): void
+    {
+        $stream = new class extends EventStream {
+            /**
+             * @return void
+             */
+            public function exposeOnStreamEnd(): void
+            {
+                $this->onStreamEnd();
+            }
+        };
+
+        ob_start();
+        $stream->exposeOnStreamEnd();
+        $output = ob_get_clean();
+
+        static::assertSame('', $output);
+    }
+
+    /**
      * Test that the loop breaks on the second abort check within an
      * iteration. The first and second checks pass, allowing the callback
      * to run, then the third check (second per-iteration check) triggers

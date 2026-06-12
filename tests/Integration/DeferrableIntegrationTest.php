@@ -13,7 +13,7 @@ use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Log;
-use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\CoversTrait;
 use SineMacula\ApiToolkit\Events\WritePoolFlushFailed;
 use SineMacula\ApiToolkit\Repositories\Concerns\Deferrable;
 use SineMacula\ApiToolkit\Repositories\Concerns\WritePool;
@@ -31,7 +31,7 @@ use Tests\TestCase;
  *
  * @internal
  */
-#[CoversClass(Deferrable::class)]
+#[CoversTrait(Deferrable::class)]
 class DeferrableIntegrationTest extends TestCase
 {
     private const TIMESTAMP_DEFERRAL = '2026-03-10 12:00:01';

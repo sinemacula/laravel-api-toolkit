@@ -35,6 +35,43 @@ class SchemaCompilerTest extends TestCase
     }
 
     /**
+     * Test that relation and resource entries are only extracted when they are
+     * strings, and malformed values are normalized to null.
+     *
+     * NOTE: This test is intentionally declared first in the class. Mutations
+     * to the isset/is_string narrowing in buildFieldDefinition emit PHP
+     * warnings, which stop the mutation test run at the first defect; the
+     * first executed test must therefore be the one that fails.
+     *
+     * @return void
+     */
+    public function testCompileNormalizesRelationAndResourceExtraction(): void
+    {
+        $resourceClass = $this->createStubResourceClass([
+            'organization' => [
+                'relation' => 'organization',
+                'resource' => self::STUB_ORGANIZATION_RESOURCE,
+            ],
+            'malformed' => [
+                'relation' => 123,
+                'resource' => 456,
+            ],
+        ]);
+
+        $schema = SchemaCompiler::compile($resourceClass);
+
+        $organization = $schema->getField('organization');
+        static::assertInstanceOf(CompiledFieldDefinition::class, $organization);
+        static::assertSame('organization', $organization->relation);
+        static::assertSame(self::STUB_ORGANIZATION_RESOURCE, $organization->resource);
+
+        $malformed = $schema->getField('malformed');
+        static::assertInstanceOf(CompiledFieldDefinition::class, $malformed);
+        static::assertNull($malformed->relation);
+        static::assertNull($malformed->resource);
+    }
+
+    /**
      * Test that compile returns a CompiledSchema from a raw schema array.
      *
      * @return void
@@ -272,6 +309,118 @@ class SchemaCompilerTest extends TestCase
         static::assertArrayHasKey('comments', $counts);
         static::assertSame('comments', $counts['comments']->presentKey);
         static::assertSame('comments', $counts['comments']->relation);
+    }
+
+    /**
+     * Test that field entries declared after a count entry are still compiled.
+     *
+     * @return void
+     */
+    public function testCompileProcessesFieldsDeclaredAfterCountEntries(): void
+    {
+        $resourceClass = $this->createStubResourceClass([
+            '__count__:posts' => [
+                'metric'   => 'count',
+                'relation' => 'posts',
+            ],
+            'name' => [],
+        ]);
+
+        $schema = SchemaCompiler::compile($resourceClass);
+
+        static::assertInstanceOf(CompiledFieldDefinition::class, $schema->getField('name'));
+        static::assertArrayHasKey('posts', $schema->getCountDefinitions());
+    }
+
+    /**
+     * Test that an explicit count key overrides the prefix-stripped schema key
+     * while the relation is taken from the definition.
+     *
+     * @return void
+     */
+    public function testCompileUsesExplicitCountKeyOverSchemaKey(): void
+    {
+        $resourceClass = $this->createStubResourceClass([
+            '__count__:posts' => [
+                'key'      => 'published_posts',
+                'metric'   => 'count',
+                'relation' => 'posts',
+            ],
+        ]);
+
+        $schema = SchemaCompiler::compile($resourceClass);
+        $counts = $schema->getCountDefinitions();
+
+        static::assertArrayHasKey('published_posts', $counts);
+        static::assertSame('published_posts', $counts['published_posts']->presentKey);
+        static::assertSame('posts', $counts['published_posts']->relation);
+    }
+
+    /**
+     * Test that counts without a default flag compile as non-default and that
+     * count guards are preserved.
+     *
+     * @return void
+     */
+    public function testCompileDefaultsCountToNonDefaultAndPreservesGuards(): void
+    {
+        $guard = fn ($resource, $request) => true;
+
+        $resourceClass = $this->createStubResourceClass([
+            '__count__:comments' => [
+                'metric'   => 'count',
+                'relation' => 'comments',
+                'guards'   => [$guard],
+            ],
+        ]);
+
+        $schema = SchemaCompiler::compile($resourceClass);
+        $count  = $schema->getCountDefinitions()['comments'];
+
+        static::assertFalse($count->isDefault);
+        static::assertSame([$guard], $count->guards);
+    }
+
+    /**
+     * Test that a truthy non-boolean count default is normalized to a real
+     * boolean.
+     *
+     * @return void
+     */
+    public function testCompileCastsTruthyCountDefaultToBoolean(): void
+    {
+        $resourceClass = $this->createStubResourceClass([
+            '__count__:likes' => [
+                'metric'   => 'count',
+                'relation' => 'likes',
+                'default'  => ['truthy'],
+            ],
+        ]);
+
+        $schema = SchemaCompiler::compile($resourceClass);
+
+        static::assertTrue($schema->getCountDefinitions()['likes']->isDefault);
+    }
+
+    /**
+     * Test that a scalar extras entry is normalized to an array on the
+     * compiled field definition.
+     *
+     * @return void
+     */
+    public function testCompileNormalizesExtrasToArray(): void
+    {
+        $resourceClass = $this->createStubResourceClass([
+            'avatar' => [
+                'extras' => 'media',
+            ],
+        ]);
+
+        $schema = SchemaCompiler::compile($resourceClass);
+        $field  = $schema->getField('avatar');
+
+        static::assertInstanceOf(CompiledFieldDefinition::class, $field);
+        static::assertSame(['media'], $field->extras);
     }
 
     /**

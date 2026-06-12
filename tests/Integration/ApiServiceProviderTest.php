@@ -2,28 +2,39 @@
 
 namespace Tests\Integration;
 
+use Illuminate\Console\Events\CommandFinished;
 use Illuminate\Contracts\Config\Repository as ConfigRepository;
 use Illuminate\Contracts\Http\Kernel as HttpKernel;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Foundation\Application;
+use Illuminate\Foundation\Http\Events\RequestHandled;
+use Illuminate\Log\LogManager;
 use Illuminate\Notifications\Events\NotificationSending;
 use Illuminate\Notifications\Events\NotificationSent;
 use Illuminate\Routing\Router;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Request;
+use Illuminate\Support\ServiceProvider;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\ApiQueryParser;
 use SineMacula\ApiToolkit\ApiServiceProvider;
 use SineMacula\ApiToolkit\Cache\CacheManager;
+use SineMacula\ApiToolkit\Contracts\ResourceMetadataProvider;
+use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Enums\FlushStrategy;
 use SineMacula\ApiToolkit\Exceptions\InvalidSchemaException;
 use SineMacula\ApiToolkit\Http\Middleware\DetectsCapabilities;
 use SineMacula\ApiToolkit\Http\Middleware\JsonPrettyPrint;
+use SineMacula\ApiToolkit\Http\Middleware\ParseApiQuery;
 use SineMacula\ApiToolkit\Http\Middleware\PreventRequestsDuringMaintenance;
 use SineMacula\ApiToolkit\Http\RequestCapabilities;
+use SineMacula\ApiToolkit\Http\Resources\ResourceMetadataService;
+use SineMacula\ApiToolkit\Listeners\NotificationListener;
 use SineMacula\ApiToolkit\Listeners\QueueFlushSubscriber;
+use SineMacula\ApiToolkit\Listeners\WritePoolFlushSubscriber;
 use SineMacula\ApiToolkit\Repositories\Concerns\WritePool;
 use SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry;
+use SineMacula\ApiToolkit\Services\SchemaIntrospector;
 use SineMacula\ApiToolkit\Services\SchemaValidator;
 use Tests\TestCase;
 
@@ -711,6 +722,462 @@ class ApiServiceProviderTest extends TestCase
     }
 
     /**
+     * Test that the ParseApiQuery middleware is pushed to the global stack
+     * when parser middleware registration is enabled.
+     *
+     * @return void
+     */
+    public function testParseApiQueryMiddlewareIsRegisteredGlobally(): void
+    {
+        /** @var \Illuminate\Foundation\Http\Kernel $kernel */
+        $kernel     = $this->getApplication()->make(HttpKernel::class);
+        $middleware = $kernel->getGlobalMiddleware();
+
+        static::assertContains(ParseApiQuery::class, $middleware);
+    }
+
+    /**
+     * Test that all middleware registrations fall back to enabled defaults
+     * when the relevant config keys are missing entirely.
+     *
+     * A fresh kernel and router are resolved so the assertions observe only
+     * what this boot registers.
+     *
+     * @return void
+     */
+    public function testMiddlewareRegistrationDefaultsApplyWhenConfigKeysAreMissing(): void
+    {
+        $app    = $this->getApplication();
+        $config = $this->getConfig();
+
+        $config->set('api-toolkit.parser', []);
+        $config->set('api-toolkit.middleware', []);
+
+        $app->forgetInstance(HttpKernel::class);
+        $app->forgetInstance(Router::class);
+        $app->forgetInstance('router');
+
+        $provider = new ApiServiceProvider($app);
+        $provider->boot();
+
+        /** @var \Illuminate\Foundation\Http\Kernel $kernel */
+        $kernel     = $app->make(HttpKernel::class);
+        $middleware = $kernel->getGlobalMiddleware();
+
+        static::assertContains(ParseApiQuery::class, $middleware);
+        static::assertContains(PreventRequestsDuringMaintenance::class, $middleware);
+        static::assertContains(DetectsCapabilities::class, $middleware);
+        static::assertContains(JsonPrettyPrint::class, $middleware);
+
+        /** @var \Illuminate\Routing\Router $router */
+        $router  = $app->make(Router::class);
+        $aliases = $router->getMiddleware();
+
+        static::assertArrayHasKey('throttle', $aliases);
+        static::assertSame(\SineMacula\ApiToolkit\Http\Middleware\ThrottleRequests::class, $aliases['throttle']);
+    }
+
+    /**
+     * Test that the DetectsCapabilities middleware is not registered on a
+     * fresh kernel when disabled via config.
+     *
+     * @return void
+     */
+    public function testDetectsCapabilitiesMiddlewareIsNotRegisteredOnFreshKernelWhenDisabled(): void
+    {
+        $app = $this->getApplication();
+
+        $this->getConfig()->set('api-toolkit.middleware.detect_capabilities.enabled', false);
+
+        $app->forgetInstance(HttpKernel::class);
+
+        $provider = new ApiServiceProvider($app);
+        $provider->boot();
+
+        /** @var \Illuminate\Foundation\Http\Kernel $kernel */
+        $kernel = $app->make(HttpKernel::class);
+        $groups = $kernel->getMiddlewareGroups();
+
+        static::assertNotContains(DetectsCapabilities::class, $kernel->getGlobalMiddleware());
+        static::assertNotContains(DetectsCapabilities::class, $groups['api'] ?? []);
+    }
+
+    /**
+     * Test that the DetectsCapabilities middleware scoped to the api group
+     * is not also pushed to the global stack.
+     *
+     * @return void
+     */
+    public function testDetectsCapabilitiesMiddlewareScopedToApiIsNotPushedGlobally(): void
+    {
+        $app = $this->getApplication();
+
+        $this->getConfig()->set('api-toolkit.middleware.detect_capabilities.scope', 'api');
+
+        $app->forgetInstance(HttpKernel::class);
+
+        $provider = new ApiServiceProvider($app);
+        $provider->boot();
+
+        /** @var \Illuminate\Foundation\Http\Kernel $kernel */
+        $kernel = $app->make(HttpKernel::class);
+        $groups = $kernel->getMiddlewareGroups();
+
+        static::assertContains(DetectsCapabilities::class, $groups['api'] ?? []);
+        static::assertNotContains(DetectsCapabilities::class, $kernel->getGlobalMiddleware());
+    }
+
+    /**
+     * Test that the package config file is publishable under the config
+     * group with the expected source and destination paths.
+     *
+     * @return void
+     */
+    public function testConfigIsPublishableUnderConfigGroup(): void
+    {
+        $paths = ServiceProvider::pathsToPublish(ApiServiceProvider::class, 'config');
+
+        static::assertSame(
+            [$this->getProviderPath('/../config/api-toolkit.php') => config_path('api-toolkit.php')],
+            $paths,
+        );
+    }
+
+    /**
+     * Test that the logs table stub is publishable under the migrations
+     * group with a timestamped destination filename.
+     *
+     * @return void
+     */
+    public function testMigrationStubIsPublishableUnderMigrationsGroup(): void
+    {
+        $paths = ServiceProvider::pathsToPublish(ApiServiceProvider::class, 'migrations');
+        $stub  = $this->getProviderPath('/../stubs/logs-table.stub');
+
+        static::assertCount(1, $paths);
+        static::assertArrayHasKey($stub, $paths);
+        static::assertIsString($paths[$stub]);
+        static::assertStringStartsWith(database_path('migrations/'), $paths[$stub]);
+        static::assertMatchesRegularExpression(
+            '#/migrations/\d{4}_\d{2}_\d{2}_\d{6}_create_logs_table\.php$#',
+            $paths[$stub],
+        );
+    }
+
+    /**
+     * Test that the package translations are publishable under the
+     * translations group with the expected source and destination paths.
+     *
+     * @return void
+     */
+    public function testTranslationsArePublishableUnderTranslationsGroup(): void
+    {
+        $paths = ServiceProvider::pathsToPublish(ApiServiceProvider::class, 'translations');
+
+        static::assertSame(
+            [$this->getProviderPath('/../resources/lang') => resource_path('lang/vendor/api-toolkit')],
+            $paths,
+        );
+    }
+
+    /**
+     * Test that no morph map is enforced when dynamic morph mapping is
+     * disabled, even when a valid resource map is configured.
+     *
+     * @return void
+     */
+    public function testMorphMapIsNotEnforcedWhenDynamicMorphMappingIsDisabled(): void
+    {
+        $app = $this->getApplication();
+
+        $this->getConfig()->set('api-toolkit.resources.enable_dynamic_morph_mapping', false);
+        $this->getConfig()->set('api-toolkit.resources.resource_map', [
+            \Tests\Fixtures\Models\User::class => \Tests\Fixtures\Resources\UserResource::class,
+        ]);
+
+        $provider = new ApiServiceProvider($app);
+        $provider->boot();
+
+        static::assertArrayNotHasKey('users', Relation::morphMap());
+    }
+
+    /**
+     * Test that schema validation defaults to disabled when the
+     * validate_schemas config key is missing entirely.
+     *
+     * Boot must complete without throwing even though the resource map
+     * contains an invalid schema, proving the default gate is off.
+     *
+     * @return void
+     */
+    public function testValidateSchemasDefaultsToDisabledWhenConfigKeyIsMissing(): void
+    {
+        $app = $this->getApplication();
+
+        $this->getConfig()->set('api-toolkit.resources', [
+            'resource_map' => [
+                \Tests\Fixtures\Models\User::class => \Tests\Fixtures\Resources\BrokenResource::class,
+            ],
+            'fixed_fields' => ['id', '_type'],
+        ]);
+
+        $provider = new ApiServiceProvider($app);
+        $provider->boot();
+
+        static::assertNull($this->getConfig()->get('api-toolkit.resources.validate_schemas'));
+    }
+
+    /**
+     * Test that schema validation is skipped when the resource map is not
+     * an array, completing boot without error.
+     *
+     * @return void
+     */
+    public function testValidateSchemasSkippedWhenResourceMapIsNotAnArray(): void
+    {
+        $app = $this->getApplication();
+
+        $this->getConfig()->set('api-toolkit.resources.validate_schemas', true);
+        $this->getConfig()->set('api-toolkit.resources.resource_map', 'not-an-array');
+
+        $provider = new ApiServiceProvider($app);
+        $provider->boot();
+
+        static::assertSame('not-an-array', $this->getConfig()->get('api-toolkit.resources.resource_map'));
+    }
+
+    /**
+     * Test that the cloudwatch log driver is registered with the log
+     * manager and produces a CloudWatch-backed Monolog logger.
+     *
+     * @return void
+     */
+    public function testCloudwatchLogDriverIsRegistered(): void
+    {
+        if (!class_exists(\Aws\CloudWatchLogs\CloudWatchLogsClient::class)) {
+            static::markTestSkipped('The AWS SDK is not installed.');
+        }
+
+        $this->getConfig()->set('logging.channels.cloudwatch.aws.credentials', [
+            'key'    => 'testing',
+            'secret' => 'testing',
+        ]);
+
+        /** @var \Illuminate\Log\LogManager $manager */
+        $manager = $this->getApplication()->make(LogManager::class);
+
+        $channel = $manager->channel('cloudwatch');
+
+        static::assertInstanceOf(\Illuminate\Log\Logger::class, $channel);
+
+        $monolog = $channel->getLogger();
+
+        static::assertInstanceOf(\Monolog\Logger::class, $monolog);
+        static::assertSame('cloudwatch', $monolog->getName());
+        static::assertInstanceOf(\PhpNexus\Cwh\Handler\CloudWatch::class, $monolog->getHandlers()[0] ?? null);
+    }
+
+    /**
+     * Test that notification logging defaults to enabled when the
+     * enable_logging config key is missing entirely.
+     *
+     * @return void
+     */
+    public function testNotificationLoggingDefaultsToEnabledWhenConfigKeyIsMissing(): void
+    {
+        $app = $this->getApplication();
+
+        $this->getConfig()->set('api-toolkit.notifications', []);
+
+        $before = $this->countRawListeners(NotificationSending::class);
+
+        $provider = new ApiServiceProvider($app);
+        $provider->boot();
+
+        static::assertSame($before + 1, $this->countRawListeners(NotificationSending::class));
+    }
+
+    /**
+     * Test that no notification listeners are added when notification
+     * logging is disabled.
+     *
+     * @return void
+     */
+    public function testNotificationListenersAreNotAddedWhenLoggingDisabled(): void
+    {
+        $app = $this->getApplication();
+
+        $this->getConfig()->set('api-toolkit.notifications.enable_logging', false);
+
+        $sending = $this->countRawListeners(NotificationSending::class);
+        $sent    = $this->countRawListeners(NotificationSent::class);
+
+        $provider = new ApiServiceProvider($app);
+        $provider->boot();
+
+        static::assertSame($sending, $this->countRawListeners(NotificationSending::class));
+        static::assertSame($sent, $this->countRawListeners(NotificationSent::class));
+    }
+
+    /**
+     * Test that the notification events are wired to the NotificationListener
+     * sending and sent handlers.
+     *
+     * @return void
+     */
+    public function testNotificationListenersDelegateToNotificationListener(): void
+    {
+        $raw = $this->getEventDispatcher()->getRawListeners();
+
+        static::assertContains([NotificationListener::class, 'sending'], $raw[NotificationSending::class] ?? []);
+        static::assertContains([NotificationListener::class, 'sent'], $raw[NotificationSent::class] ?? []);
+    }
+
+    /**
+     * Test that the ResourceMetadataProvider contract is bound to the
+     * ResourceMetadataService as a singleton.
+     *
+     * @return void
+     */
+    public function testResourceMetadataProviderIsBoundAsSingleton(): void
+    {
+        $app   = $this->getApplication();
+        $first = $app->make(ResourceMetadataProvider::class);
+
+        static::assertInstanceOf(ResourceMetadataService::class, $first);
+        static::assertSame($first, $app->make(ResourceMetadataProvider::class));
+    }
+
+    /**
+     * Test that the SchemaIntrospectionProvider contract is bound to the
+     * SchemaIntrospector as a singleton.
+     *
+     * @return void
+     */
+    public function testSchemaIntrospectorIsBoundAsSingleton(): void
+    {
+        $app   = $this->getApplication();
+        $first = $app->make(SchemaIntrospectionProvider::class);
+
+        static::assertInstanceOf(SchemaIntrospector::class, $first);
+        static::assertSame($first, $app->make(SchemaIntrospectionProvider::class));
+    }
+
+    /**
+     * Test that the write pool flush subscriber is subscribed to the HTTP
+     * and console lifecycle events.
+     *
+     * @return void
+     */
+    public function testWritePoolFlushSubscriberIsSubscribedToLifecycleEvents(): void
+    {
+        static::assertTrue($this->eventHasSubscriberListener(RequestHandled::class, WritePoolFlushSubscriber::class));
+        static::assertTrue($this->eventHasSubscriberListener(CommandFinished::class, WritePoolFlushSubscriber::class));
+    }
+
+    /**
+     * Test that the queue flush subscriber is subscribed when the queue
+     * lifecycle is enabled.
+     *
+     * @return void
+     */
+    public function testQueueFlushSubscriberIsSubscribedWhenQueueLifecycleEnabled(): void
+    {
+        $app = $this->getApplication();
+
+        $this->getConfig()->set('api-toolkit.lifecycle.queue', true);
+
+        $provider = new ApiServiceProvider($app);
+        $provider->boot();
+
+        static::assertTrue($this->eventHasSubscriberListener(\Illuminate\Queue\Events\JobProcessed::class, QueueFlushSubscriber::class));
+        static::assertTrue($this->eventHasSubscriberListener(\Illuminate\Queue\Events\JobFailed::class, QueueFlushSubscriber::class));
+    }
+
+    /**
+     * Test that the queue flush subscriber is not subscribed when the queue
+     * lifecycle is disabled.
+     *
+     * @return void
+     */
+    public function testQueueFlushSubscriberIsNotSubscribedWhenQueueLifecycleDisabled(): void
+    {
+        $app = $this->getApplication();
+
+        $this->getConfig()->set('api-toolkit.lifecycle.queue', false);
+
+        $provider = new ApiServiceProvider($app);
+        $provider->boot();
+
+        static::assertFalse($this->eventHasSubscriberListener(\Illuminate\Queue\Events\JobProcessed::class, QueueFlushSubscriber::class));
+        static::assertFalse($this->eventHasSubscriberListener(\Illuminate\Queue\Events\JobFailed::class, QueueFlushSubscriber::class));
+    }
+
+    /**
+     * Test that the WritePool falls back to the default sizes when the
+     * config keys are missing entirely.
+     *
+     * @return void
+     */
+    public function testWritePoolUsesDefaultSizesWhenConfigKeysAreMissing(): void
+    {
+        $app = $this->getApplication();
+
+        $this->getConfig()->set('api-toolkit.deferred_writes', ['on_failure' => 'log']);
+
+        $provider = new ApiServiceProvider($app);
+        $provider->register();
+
+        $pool = $app->make(WritePool::class);
+
+        static::assertSame(500, (new \ReflectionProperty(WritePool::class, 'chunkSize'))->getValue($pool));
+        static::assertSame(10000, (new \ReflectionProperty(WritePool::class, 'poolLimit'))->getValue($pool));
+    }
+
+    /**
+     * Test that the WritePool falls back to the default sizes when the
+     * configured values are not numeric.
+     *
+     * @return void
+     */
+    public function testWritePoolFallsBackToDefaultSizesWhenConfigValuesAreNotNumeric(): void
+    {
+        $app = $this->getApplication();
+
+        $this->getConfig()->set('api-toolkit.deferred_writes.chunk_size', 'not-numeric');
+        $this->getConfig()->set('api-toolkit.deferred_writes.pool_limit', 'not-numeric');
+
+        $provider = new ApiServiceProvider($app);
+        $provider->register();
+
+        $pool = $app->make(WritePool::class);
+
+        static::assertSame(500, (new \ReflectionProperty(WritePool::class, 'chunkSize'))->getValue($pool));
+        static::assertSame(10000, (new \ReflectionProperty(WritePool::class, 'poolLimit'))->getValue($pool));
+    }
+
+    /**
+     * Test that the WritePool receives the configured numeric sizes.
+     *
+     * @return void
+     */
+    public function testWritePoolUsesConfiguredNumericSizes(): void
+    {
+        $app = $this->getApplication();
+
+        $this->getConfig()->set('api-toolkit.deferred_writes.chunk_size', 250);
+        $this->getConfig()->set('api-toolkit.deferred_writes.pool_limit', 5000);
+
+        $provider = new ApiServiceProvider($app);
+        $provider->register();
+
+        $pool = $app->make(WritePool::class);
+
+        static::assertSame(250, (new \ReflectionProperty(WritePool::class, 'chunkSize'))->getValue($pool));
+        static::assertSame(5000, (new \ReflectionProperty(WritePool::class, 'poolLimit'))->getValue($pool));
+    }
+
+    /**
      * Define the test environment configuration.
      *
      * @param  mixed  $app
@@ -753,5 +1220,72 @@ class ApiServiceProviderTest extends TestCase
     {
         /** @var \Illuminate\Contracts\Config\Repository */
         return $this->getApplication()->make('config');
+    }
+
+    /**
+     * Get the event dispatcher instance.
+     *
+     * @return \Illuminate\Events\Dispatcher
+     */
+    private function getEventDispatcher(): \Illuminate\Events\Dispatcher
+    {
+        /** @var \Illuminate\Events\Dispatcher */
+        return $this->getApplication()->make('events');
+    }
+
+    /**
+     * Resolve a path relative to the service provider source directory.
+     *
+     * Mirrors the __DIR__-relative paths used by the provider when
+     * registering publishable assets.
+     *
+     * @param  string  $path
+     * @return string
+     */
+    private function getProviderPath(string $path): string
+    {
+        $file = (new \ReflectionClass(ApiServiceProvider::class))->getFileName();
+
+        static::assertIsString($file);
+
+        return dirname($file) . $path;
+    }
+
+    /**
+     * Count the raw listeners registered for the given event.
+     *
+     * @param  class-string  $event
+     * @return int
+     */
+    private function countRawListeners(string $event): int
+    {
+        $listeners = $this->getEventDispatcher()->getRawListeners()[$event] ?? [];
+
+        return is_countable($listeners) ? count($listeners) : 0;
+    }
+
+    /**
+     * Determine whether the given event has a listener belonging to the
+     * given subscriber class.
+     *
+     * @param  class-string  $event
+     * @param  class-string  $subscriber
+     * @return bool
+     */
+    private function eventHasSubscriberListener(string $event, string $subscriber): bool
+    {
+        $listeners = $this->getEventDispatcher()->getRawListeners()[$event] ?? [];
+
+        if (!is_iterable($listeners)) {
+            return false;
+        }
+
+        foreach ($listeners as $listener) {
+            if (is_array($listener) && ($listener[0] ?? null) instanceof $subscriber) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

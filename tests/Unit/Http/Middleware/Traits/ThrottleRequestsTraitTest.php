@@ -4,7 +4,7 @@ namespace Tests\Unit\Http\Middleware\Traits;
 
 use Illuminate\Http\Request;
 use Illuminate\Routing\Route;
-use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\CoversTrait;
 use PHPUnit\Framework\TestCase;
 use SineMacula\ApiToolkit\Http\Middleware\Traits\ThrottleRequestsTrait;
 use SineMacula\Http\Enums\HttpMethod;
@@ -17,7 +17,7 @@ use SineMacula\Http\Enums\HttpMethod;
  *
  * @internal
  */
-#[CoversClass(ThrottleRequestsTrait::class)]
+#[CoversTrait(ThrottleRequestsTrait::class)]
 class ThrottleRequestsTraitTest extends TestCase
 {
     private const string API_DATA_URI = '/api/data';
@@ -62,7 +62,7 @@ class ThrottleRequestsTraitTest extends TestCase
     {
         $trait = $this->createTraitInstance();
 
-        $user = $this->createMock(\Illuminate\Contracts\Auth\Authenticatable::class);
+        $user = static::createStub(\Illuminate\Contracts\Auth\Authenticatable::class);
         $user->method('getAuthIdentifier')->willReturn(42);
 
         $request = $this->createRequestWithRoute(self::API_DATA_URI, HttpMethod::GET->getVerb(), '10.0.0.1');
@@ -128,6 +128,36 @@ class ThrottleRequestsTraitTest extends TestCase
         $signature2 = $trait->resolveRequestSignature($request2); // @phpstan-ignore method.notFound
 
         static::assertNotSame($signature1, $signature2);
+    }
+
+    /**
+     * Test that resolveRequestSignature is callable from a middleware
+     * subclass, asserting the trait override remains compatible with the
+     * protected hook declared by Laravel's base ThrottleRequests middleware.
+     *
+     * @return void
+     */
+    public function testResolveRequestSignatureIsCallableFromMiddlewareSubclass(): void
+    {
+        $cache   = static::createStub(\Illuminate\Contracts\Cache\Repository::class);
+        $limiter = new \Illuminate\Cache\RateLimiter($cache);
+
+        $middleware = new class ($limiter) extends \SineMacula\ApiToolkit\Http\Middleware\ThrottleRequests {
+            /**
+             * @param  \Illuminate\Http\Request  $request
+             * @return string
+             */
+            public function callResolveRequestSignature(Request $request): string
+            {
+                return $this->resolveRequestSignature($request);
+            }
+        };
+
+        $request = $this->createRequestWithRoute(self::API_DATA_URI, HttpMethod::GET->getVerb());
+
+        $result = $middleware->callResolveRequestSignature($request);
+
+        static::assertSame(sha1('GET|localhost|api/data|'), $result);
     }
 
     /**

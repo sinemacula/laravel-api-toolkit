@@ -41,7 +41,7 @@ class FormRequestTest extends TestCase
         $messages   = ['email' => ['The email field is required.']];
         $messageBag = new MessageBag($messages);
 
-        $validator = $this->createMock(Validator::class);
+        $validator = static::createStub(Validator::class);
         $validator->method('getMessageBag')->willReturn($messageBag);
 
         $formRequest = $this->createConcreteFormRequest();
@@ -66,7 +66,7 @@ class FormRequestTest extends TestCase
     {
         $messageBag = new MessageBag;
 
-        $validator = $this->createMock(Validator::class);
+        $validator = static::createStub(Validator::class);
         $validator->method('getMessageBag')->willReturn($messageBag);
 
         $formRequest = $this->createConcreteFormRequest();
@@ -92,7 +92,7 @@ class FormRequestTest extends TestCase
 
         $messageBag = new MessageBag($messages);
 
-        $validator = $this->createMock(Validator::class);
+        $validator = static::createStub(Validator::class);
         $validator->method('getMessageBag')->willReturn($messageBag);
 
         $formRequest = $this->createConcreteFormRequest();

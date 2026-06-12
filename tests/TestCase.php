@@ -2,6 +2,7 @@
 
 namespace Tests;
 
+use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Schema;
@@ -25,11 +26,17 @@ abstract class TestCase extends OrchestraTestCase
     /**
      * Clean up the testing environment before the next test.
      *
+     * Resets the morph map enforcement that registerMorphMap() applies as
+     * process-global static state, so tests remain order-independent.
+     *
      * @return void
      */
     protected function tearDown(): void
     {
         FunctionOverrides::reset();
+
+        Relation::morphMap([], false);
+        Relation::requireMorphMap(false);
 
         parent::tearDown();
     }

@@ -2,6 +2,7 @@
 
 namespace Tests\Unit\Http\Resources;
 
+use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use LogicException;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -252,6 +253,43 @@ class PolymorphicResourceTest extends TestCase
         $result = $resource->withoutFields(['email']);
 
         static::assertSame($resource, $result);
+    }
+
+    /**
+     * Test that mapping a resource does not eager load missing relations on
+     * the underlying model.
+     *
+     * @return void
+     */
+    public function testToArrayDoesNotEagerLoadMissingRelations(): void
+    {
+        $organization = Organization::create([
+            'name' => 'PolyLazy Corp',
+            'slug' => 'polylazy-corp',
+        ]);
+
+        $user = User::create([
+            'name'            => 'PolyLazy',
+            'email'           => 'polylazy@example.com',
+            'organization_id' => $organization->id,
+        ]);
+
+        assert($this->app !== null);
+
+        /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
+        $parser  = $this->app->make('api.query');
+        $request = Request::create('/', 'GET', [
+            'fields' => ['users' => 'id,name,organization'],
+        ]);
+
+        $parser->parse($request);
+
+        $resource = new PolymorphicResource($user);
+        $result   = $resource->toArray(request());
+
+        static::assertIsArray($result);
+        static::assertFalse($user->relationLoaded('organization'));
+        static::assertArrayNotHasKey('organization', $result);
     }
 
     /**

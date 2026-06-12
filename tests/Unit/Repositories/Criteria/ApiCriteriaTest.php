@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\Schema;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use SineMacula\ApiToolkit\Contracts\ResourceMetadataProvider;
+use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Repositories\Criteria\ApiCriteria;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\EagerLoadApplier;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterApplier;
@@ -104,6 +105,21 @@ class ApiCriteriaTest extends TestCase
     }
 
     /**
+     * Provide condition operator test cases.
+     *
+     * @return iterable<string, array{string, string, mixed, string}>
+     */
+    public static function conditionOperatorProvider(): iterable
+    {
+        yield '$eq operator' => ['$eq', '=', 'Alice', 'Basic'];
+        yield '$neq operator' => ['$neq', '<>', 'Alice', 'Basic'];
+        yield '$gt operator' => ['$gt', '>', '10', 'Basic'];
+        yield '$lt operator' => ['$lt', '<', '10', 'Basic'];
+        yield '$ge operator' => ['$ge', '>=', '10', 'Basic'];
+        yield '$le operator' => ['$le', '<=', '10', 'Basic'];
+    }
+
+    /**
      * Test that apply with the $eq operator applies an equals condition.
      *
      * @param  string  $operator
@@ -128,21 +144,6 @@ class ApiCriteriaTest extends TestCase
 
         static::assertNotEmpty($wheres);
         static::assertSame($expectedType, $wheres[0]['type']);
-    }
-
-    /**
-     * Provide condition operator test cases.
-     *
-     * @return iterable<string, array{string, string, mixed, string}>
-     */
-    public static function conditionOperatorProvider(): iterable
-    {
-        yield '$eq operator' => ['$eq', '=', 'Alice', 'Basic'];
-        yield '$neq operator' => ['$neq', '<>', 'Alice', 'Basic'];
-        yield '$gt operator' => ['$gt', '>', '10', 'Basic'];
-        yield '$lt operator' => ['$lt', '<', '10', 'Basic'];
-        yield '$ge operator' => ['$ge', '>=', '10', 'Basic'];
-        yield '$le operator' => ['$le', '<=', '10', 'Basic'];
     }
 
     /**
@@ -991,6 +992,31 @@ class ApiCriteriaTest extends TestCase
         ]));
 
         $criteria->apply(new User);
+    }
+
+    /**
+     * Test that getResourceType returns null when the resolved resource
+     * class is not an ApiResource subclass.
+     *
+     * @return void
+     */
+    public function testGetResourceTypeReturnsNullForNonApiResourceClass(): void
+    {
+        $metadataProvider = static::createStub(ResourceMetadataProvider::class);
+        $metadataProvider->method('getResourceType')->willReturn('users');
+
+        $criteria = new ApiCriteria(
+            new \Illuminate\Http\Request,
+            $metadataProvider,
+            static::createStub(SchemaIntrospectionProvider::class),
+            new \SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry,
+        );
+
+        $criteria->usingResource(\stdClass::class);
+
+        $reflection = new \ReflectionMethod($criteria, 'getResourceType');
+
+        static::assertNull($reflection->invoke($criteria, new User));
     }
 
     /**

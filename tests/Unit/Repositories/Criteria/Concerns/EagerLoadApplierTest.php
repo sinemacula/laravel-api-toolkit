@@ -185,7 +185,7 @@ class EagerLoadApplierTest extends TestCase
             'fields' => ['users' => 'id,name,organization'],
         ]));
 
-        $provider = $this->createMock(ResourceMetadataProvider::class);
+        $provider = static::createStub(ResourceMetadataProvider::class);
 
         $provider->method('resolveFields')
             ->willReturn(['id', 'name', 'organization']);
@@ -214,7 +214,7 @@ class EagerLoadApplierTest extends TestCase
             'fields' => ['users' => self::STUB_USER_FIELDS],
         ]));
 
-        $provider = $this->createMock(ResourceMetadataProvider::class);
+        $provider = static::createStub(ResourceMetadataProvider::class);
 
         $provider->method('resolveFields')
             ->willReturn(['id', 'name']);
@@ -276,7 +276,7 @@ class EagerLoadApplierTest extends TestCase
             'fields' => ['users' => self::STUB_USER_FIELDS],
         ]));
 
-        $provider = $this->createMock(ResourceMetadataProvider::class);
+        $provider = static::createStub(ResourceMetadataProvider::class);
 
         $provider->method('resolveFields')
             ->willReturn(['id', 'name']);

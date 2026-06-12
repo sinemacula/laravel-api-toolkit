@@ -201,7 +201,10 @@ class WritePoolTest extends TestCase
         Log::shouldReceive('error')
             ->once()
             ->withArgs(fn (string $message, array $context): bool => str_contains($message, 'WritePool flush failed for table [nonexistent_table]')
-                    && $context['table'] === 'nonexistent_table');
+                    && $context['table']      === 'nonexistent_table'
+                    && $context['chunk_size'] === 1
+                    && is_string($context['error'] ?? null)
+                    && $context['error'] !== '');
 
         $pool->add('nonexistent_table', ['col' => 'val']);
         $pool->add('test_records', ['name' => 'foo', 'value' => 'bar']);
@@ -622,6 +625,52 @@ class WritePoolTest extends TestCase
     }
 
     /**
+     * Test that flush with COLLECT strategy accumulates multiple failed
+     * chunks for the same table in the retained buffer.
+     *
+     * @return void
+     */
+    public function testFlushWithCollectStrategyAccumulatesFailedChunksForSameTable(): void
+    {
+        $pool = new WritePool(chunkSize: 1, poolLimit: 10000, strategy: FlushStrategy::COLLECT);
+
+        $pool->add('nonexistent_table', ['col' => 'a']);
+        $pool->add('nonexistent_table', ['col' => 'b']);
+
+        $pool->flush();
+
+        static::assertSame(2, $pool->count());
+    }
+
+    /**
+     * Test that flush with THROW strategy retains exactly the failed
+     * chunk, the remaining chunks of the failing table, and the
+     * untouched subsequent tables.
+     *
+     * @return void
+     */
+    public function testFlushWithThrowStrategyRetainsExactRemainingRecords(): void
+    {
+        $pool = new WritePool(chunkSize: 1, poolLimit: 10000, strategy: FlushStrategy::THROW);
+
+        $pool->add('test_unique', ['name' => 'alpha']);
+        $pool->add('test_unique', ['name' => 'alpha']);
+        $pool->add('test_unique', ['name' => 'beta']);
+        $pool->add('test_records', ['name' => 'foo', 'value' => 'bar']);
+
+        try {
+            $pool->flush();
+            static::fail('Expected WritePoolFlushException was not thrown');
+        } catch (WritePoolFlushException) {
+            // Exception intentionally caught to inspect buffer state below
+        }
+
+        static::assertSame(1, DB::table('test_unique')->count());
+        static::assertSame(0, DB::table('test_records')->count());
+        static::assertSame(3, $pool->count());
+    }
+
+    /**
      * Define the database migrations.
      *
      * @return void
@@ -640,6 +689,11 @@ class WritePoolTest extends TestCase
         Schema::create('test_other', function (Blueprint $table): void {
             $table->id();
             $table->string('label');
+        });
+
+        Schema::create('test_unique', function (Blueprint $table): void {
+            $table->id();
+            $table->string('name')->unique();
         });
     }
 }

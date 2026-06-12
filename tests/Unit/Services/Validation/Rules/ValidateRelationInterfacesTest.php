@@ -115,4 +115,123 @@ class ValidateRelationInterfacesTest extends TestCase
 
         static::assertSame([], $errors);
     }
+
+    /**
+     * Test that null field definitions are skipped without errors.
+     *
+     * @return void
+     */
+    public function testSkipsNullFieldDefinitions(): void
+    {
+        $reflection = new \ReflectionClass(CompiledSchema::class);
+        $schema     = $reflection->newInstanceWithoutConstructor();
+
+        $reflection->getProperty('fields')->setValue($schema, [
+            'ghost' => null,
+            'bad'   => $this->makeField(\stdClass::class),
+        ]);
+        $reflection->getProperty('counts')->setValue($schema, []);
+
+        $rule   = new ValidateRelationInterfaces;
+        $errors = [];
+
+        $warnings = $this->captureWarnings(fn () => $rule->validate('App\Http\Resources\UserResource', null, $schema), $errors);
+
+        static::assertSame([], $warnings);
+        static::assertCount(1, $errors);
+        static::assertSame('bad', $errors[0]->fieldKey);
+    }
+
+    /**
+     * Test that validation continues past non-existent classes and still
+     * reports later defects.
+     *
+     * @return void
+     */
+    public function testContinuesPastNonExistentClasses(): void
+    {
+        $schema = new CompiledSchema(
+            fields: [
+                'missing' => $this->makeField('App\NonExistent\Resource'),
+                'bad'     => $this->makeField(\stdClass::class),
+            ],
+            counts: [],
+        );
+
+        $rule   = new ValidateRelationInterfaces;
+        $errors = $rule->validate('App\Http\Resources\UserResource', null, $schema);
+
+        static::assertCount(1, $errors);
+        static::assertSame('bad', $errors[0]->fieldKey);
+    }
+
+    /**
+     * Test that every non-conforming relation class is reported.
+     *
+     * @return void
+     */
+    public function testReportsAllNonConformingRelationClasses(): void
+    {
+        $schema = new CompiledSchema(
+            fields: [
+                'first'  => $this->makeField(\stdClass::class),
+                'second' => $this->makeField(\SplStack::class),
+            ],
+            counts: [],
+        );
+
+        $rule   = new ValidateRelationInterfaces;
+        $errors = $rule->validate('App\Http\Resources\UserResource', null, $schema);
+
+        static::assertCount(2, $errors);
+        static::assertSame('first', $errors[0]->fieldKey);
+        static::assertSame('second', $errors[1]->fieldKey);
+    }
+
+    /**
+     * Run the given callback while capturing any raised PHP warnings.
+     *
+     * @param  callable(): array<int, \SineMacula\ApiToolkit\Services\Validation\SchemaValidationError>  $callback
+     * @param  array<int, \SineMacula\ApiToolkit\Services\Validation\SchemaValidationError>  $errors
+     * @return array<int, string>
+     */
+    private function captureWarnings(callable $callback, array &$errors): array
+    {
+        $warnings = [];
+
+        set_error_handler(static function (int $severity, string $message) use (&$warnings): bool {
+            $warnings[] = $message;
+
+            return true;
+        });
+
+        try {
+            $errors = $callback();
+        } finally {
+            restore_error_handler();
+        }
+
+        return $warnings;
+    }
+
+    /**
+     * Create a compiled field definition with the given resource class.
+     *
+     * @param  string  $resource
+     * @return \SineMacula\ApiToolkit\Http\Resources\Schema\CompiledFieldDefinition
+     */
+    private function makeField(string $resource): CompiledFieldDefinition
+    {
+        return new CompiledFieldDefinition(
+            accessor: 'relation',
+            compute: null,
+            relation: 'relation',
+            resource: $resource,
+            fields: null,
+            constraint: null,
+            extras: [],
+            guards: [],
+            transformers: [],
+        );
+    }
 }

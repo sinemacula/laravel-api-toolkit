@@ -1379,6 +1379,19 @@ class ApiResourceTest extends TestCase
     }
 
     /**
+     * Provide resource class and expected type pairs.
+     *
+     * @return iterable<string, array{class-string, string}>
+     */
+    public static function resourceTypeProvider(): iterable
+    {
+        yield 'user resource' => [UserResource::class, 'users'];
+        yield 'organization resource' => [OrganizationResource::class, 'organizations'];
+        yield 'post resource' => [PostResource::class, 'posts'];
+        yield 'tag resource' => [TagResource::class, 'tags'];
+    }
+
+    /**
      * Test that different resource types produce correct types.
      *
      * @param  string  $resource_class
@@ -1392,16 +1405,15 @@ class ApiResourceTest extends TestCase
     }
 
     /**
-     * Provide resource class and expected type pairs.
+     * Provide resource classes with expected field lists.
      *
-     * @return iterable<string, array{class-string, string}>
+     * @return iterable<string, array{class-string, array<int, string>}>
      */
-    public static function resourceTypeProvider(): iterable
+    public static function allFieldsProvider(): iterable
     {
-        yield 'user resource' => [UserResource::class, 'users'];
-        yield 'organization resource' => [OrganizationResource::class, 'organizations'];
-        yield 'post resource' => [PostResource::class, 'posts'];
-        yield 'tag resource' => [TagResource::class, 'tags'];
+        yield 'organization fields' => [OrganizationResource::class, ['id', 'name', 'slug', 'created_at', 'updated_at']];
+        yield 'post fields' => [PostResource::class, ['id', 'title', 'body', 'published', 'created_at', 'updated_at', 'user', 'tags']];
+        yield 'tag fields' => [TagResource::class, ['id', 'name', 'created_at', 'updated_at']];
     }
 
     /**
@@ -1419,18 +1431,6 @@ class ApiResourceTest extends TestCase
         foreach ($expected_fields as $field) {
             static::assertContains($field, $all_fields);
         }
-    }
-
-    /**
-     * Provide resource classes with expected field lists.
-     *
-     * @return iterable<string, array{class-string, array<int, string>}>
-     */
-    public static function allFieldsProvider(): iterable
-    {
-        yield 'organization fields' => [OrganizationResource::class, ['id', 'name', 'slug', 'created_at', 'updated_at']];
-        yield 'post fields' => [PostResource::class, ['id', 'title', 'body', 'published', 'created_at', 'updated_at', 'user', 'tags']];
-        yield 'tag fields' => [TagResource::class, ['id', 'name', 'created_at', 'updated_at']];
     }
 
     /**
@@ -2156,6 +2156,280 @@ class ApiResourceTest extends TestCase
         // MorphTo branch (lines 633-634) where the constraint is called directly.
         $morph_to = \Mockery::mock(MorphTo::class);
         ($map['organization'])($morph_to);
+    }
+
+    /**
+     * Test that getResourceType lowercases a mixed-case RESOURCE_TYPE
+     * constant.
+     *
+     * @return void
+     */
+    public function testGetResourceTypeLowercasesMixedCaseConstant(): void
+    {
+        $resource_class = new class (null) extends ApiResource {
+            /** @var string */
+            public const string RESOURCE_TYPE = 'MixedCase';
+
+            /**
+             * Get the resource schema.
+             *
+             * @return array<string, array<string, mixed>>
+             */
+            public static function schema(): array
+            {
+                return [];
+            }
+        };
+
+        static::assertSame('mixedcase', $resource_class::getResourceType());
+    }
+
+    /**
+     * Test that resolve skips fields missing from the schema and still
+     * resolves the remaining fields.
+     *
+     * @return void
+     */
+    public function testResolveSkipsUnknownFieldsAndContinuesResolving(): void
+    {
+        $user = User::create([
+            'name'  => 'SkipUnknown',
+            'email' => 'skipunknown@example.com',
+        ]);
+
+        $resource = new UserResource($user);
+        $resource->withFields(['unknown_field', 'name']);
+
+        $result = $resource->resolve();
+
+        static::assertArrayNotHasKey('unknown_field', $result);
+        static::assertArrayHasKey('name', $result);
+        static::assertArrayHasKey('id', $result);
+    }
+
+    /**
+     * Test that the constructor does not eager load relations by default.
+     *
+     * @return void
+     */
+    public function testConstructorDoesNotEagerLoadRelationsByDefault(): void
+    {
+        $org = Organization::create([
+            'name' => 'Lazy Corp',
+            'slug' => 'lazy-corp',
+        ]);
+
+        $user = User::create([
+            'name'            => 'Lazy',
+            'email'           => 'lazy@example.com',
+            'organization_id' => $org->id,
+        ]);
+
+        assert($this->app !== null);
+
+        /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
+        $parser  = $this->app->make('api.query');
+        $request = Request::create('/', HttpMethod::GET->getVerb(), [
+            'fields' => ['users' => 'id,name,organization'],
+        ]);
+
+        $parser->parse($request);
+
+        $resource = new UserResource($user);
+        $result   = $resource->resolve();
+
+        static::assertFalse($user->relationLoaded('organization'));
+        static::assertArrayNotHasKey('organization', $result);
+    }
+
+    /**
+     * Test that load_missing in all-fields mode eager loads schema relations
+     * that are absent from the resolved field list.
+     *
+     * @return void
+     */
+    public function testConstructorWithLoadMissingAndAllEagerLoadsSchemaRelations(): void
+    {
+        $org = Organization::create([
+            'name' => 'All Corp',
+            'slug' => 'all-corp',
+        ]);
+
+        $user = User::create([
+            'name'            => 'AllLoad',
+            'email'           => 'allload@example.com',
+            'organization_id' => $org->id,
+        ]);
+
+        assert($this->app !== null);
+
+        /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
+        $parser  = $this->app->make('api.query');
+        $request = Request::create('/', HttpMethod::GET->getVerb());
+
+        $parser->parse($request);
+
+        // The default fields contain no relations, so the eager-load map is
+        // only non-empty when all-fields mode resolves the full schema.
+        new UserResource($user, true, ':all');
+
+        static::assertTrue($user->relationLoaded('organization'));
+    }
+
+    /**
+     * Test that load_missing does not load counts when the counts field is
+     * not requested.
+     *
+     * @return void
+     */
+    public function testConstructorWithLoadMissingSkipsCountsWhenNotRequested(): void
+    {
+        $user = User::create([
+            'name'  => 'NoCountLoad',
+            'email' => 'nocountload@example.com',
+        ]);
+
+        assert($this->app !== null);
+
+        /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
+        $parser  = $this->app->make('api.query');
+        $request = Request::create('/', HttpMethod::GET->getVerb(), [
+            'fields' => ['users' => 'id,name'],
+        ]);
+
+        $parser->parse($request);
+
+        new UserResource($user, true);
+
+        static::assertArrayNotHasKey('posts_count', $user->getAttributes());
+    }
+
+    /**
+     * Test that load_missing loads default counts and resolves them into the
+     * counts payload when the counts field is requested.
+     *
+     * @return void
+     */
+    public function testConstructorWithLoadMissingLoadsRequestedCounts(): void
+    {
+        $user = User::create([
+            'name'  => 'CountLoader',
+            'email' => 'countloader@example.com',
+        ]);
+
+        Post::create([
+            'user_id'   => $user->id,
+            'title'     => 'Counted One',
+            'body'      => 'Body',
+            'published' => true,
+        ]);
+
+        Post::create([
+            'user_id'   => $user->id,
+            'title'     => 'Counted Two',
+            'body'      => 'Body',
+            'published' => false,
+        ]);
+
+        assert($this->app !== null);
+
+        /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
+        $parser  = $this->app->make('api.query');
+        $request = Request::create('/', HttpMethod::GET->getVerb(), [
+            'fields' => ['users' => self::COUNTS_FIELDS],
+        ]);
+
+        $parser->parse($request);
+
+        $resource = new UserResource($user, true);
+        $result   = $resource->resolve();
+
+        static::assertArrayHasKey('counts', $result);
+        static::assertSame(2, $result['counts']['posts']);
+    }
+
+    /**
+     * Test that load_missing honours explicitly requested count aliases from
+     * the API query.
+     *
+     * @return void
+     */
+    public function testConstructorWithLoadMissingHonoursRequestedCountAliases(): void
+    {
+        $org = Organization::create([
+            'name' => 'Counted Corp',
+            'slug' => 'counted-corp',
+        ]);
+
+        User::create([
+            'name'            => 'Member',
+            'email'           => 'member@example.com',
+            'organization_id' => $org->id,
+        ]);
+
+        assert($this->app !== null);
+
+        /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
+        $parser  = $this->app->make('api.query');
+        $request = Request::create('/', HttpMethod::GET->getVerb(), [
+            'fields' => ['organizations' => self::COUNTS_FIELDS],
+            'counts' => ['organizations' => 'users'],
+        ]);
+
+        $parser->parse($request);
+
+        $resource = new OrganizationResource($org, true);
+        $result   = $resource->resolve();
+
+        static::assertArrayHasKey('counts', $result);
+        static::assertSame(1, $result['counts']['users']);
+    }
+
+    /**
+     * Test that fields declared on the resource's fixed property are merged
+     * with the config-driven fixed fields.
+     *
+     * @return void
+     */
+    public function testResolveMergesResourceFixedPropertyWithConfigFixedFields(): void
+    {
+        $resource_class = new class (null) extends ApiResource {
+            /** @var string */
+            public const string RESOURCE_TYPE = 'fixed_prop_test';
+
+            /** @var array<int, string> */
+            protected static array $default = ['id', 'name'];
+
+            /** @var array<int, string> */
+            protected array $fixed = ['email'];
+
+            /**
+             * Get the resource schema.
+             *
+             * @return array<string, array<string, mixed>>
+             */
+            public static function schema(): array
+            {
+                return Field::set(
+                    Field::scalar('id'),
+                    Field::scalar('name'),
+                    Field::scalar('email'),
+                );
+            }
+        };
+
+        $user = User::create([
+            'name'  => 'FixedProp',
+            'email' => 'fixedprop@example.com',
+        ]);
+
+        $resource = new $resource_class($user);
+        $resource->withFields(['name']);
+
+        $result = $resource->resolve();
+
+        static::assertArrayHasKey('email', $result, 'resource-level fixed fields must be included');
+        static::assertArrayHasKey('id', $result, 'config-level fixed fields must be included');
     }
 
     /**

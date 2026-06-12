@@ -333,6 +333,113 @@ class ControllerTest extends TestCase
     }
 
     /**
+     * Test that respondWithData is callable from a subclass, asserting the
+     * protected extension surface remains available to consuming
+     * controllers.
+     *
+     * @return void
+     */
+    public function testRespondWithDataIsCallableFromSubclass(): void
+    {
+        $data = ['name' => 'Test'];
+
+        $response = $this->createSubclassedController()->callData($data); // @phpstan-ignore method.notFound
+
+        static::assertSame(200, $response->getStatusCode());
+
+        $content = json_decode((string) $response->getContent(), true);
+
+        static::assertSame($data, $content['data']);
+    }
+
+    /**
+     * Test that respondWithItem is callable from a subclass.
+     *
+     * @return void
+     */
+    public function testRespondWithItemIsCallableFromSubclass(): void
+    {
+        $resource = new JsonResource(['id' => 1]);
+
+        $response = $this->createSubclassedController()->callItem($resource); // @phpstan-ignore method.notFound
+
+        static::assertInstanceOf(JsonResponse::class, $response);
+        static::assertSame(200, $response->getStatusCode());
+    }
+
+    /**
+     * Test that respondWithCollection is callable from a subclass.
+     *
+     * @return void
+     */
+    public function testRespondWithCollectionIsCallableFromSubclass(): void
+    {
+        $collection = new ResourceCollection(collect([
+            new JsonResource(['id' => 1]),
+        ]));
+
+        $response = $this->createSubclassedController()->callCollection($collection); // @phpstan-ignore method.notFound
+
+        static::assertInstanceOf(JsonResponse::class, $response);
+        static::assertSame(200, $response->getStatusCode());
+    }
+
+    /**
+     * Test that respondWithEventStream is callable from a subclass.
+     *
+     * @return void
+     */
+    public function testRespondWithEventStreamIsCallableFromSubclass(): void
+    {
+        $callback = static function (): void {
+            // Stream callback placeholder
+        };
+
+        $response = $this->createSubclassedController()->callEventStream($callback); // @phpstan-ignore method.notFound
+
+        static::assertInstanceOf(StreamedResponse::class, $response);
+        static::assertSame('text/event-stream', $response->headers->get('Content-Type'));
+    }
+
+    /**
+     * Test that respondWithEventStream polls with a one-second interval by
+     * default. The abort sequence allows a single full iteration, so sleep
+     * must be invoked exactly once with the default interval.
+     *
+     * @return void
+     */
+    public function testRespondWithEventStreamDefaultsToOneSecondPollingInterval(): void
+    {
+        $abort_count = 0;
+
+        FunctionOverrides::set('connection_aborted', function () use (&$abort_count): int {
+            return ++$abort_count >= 3 ? 1 : 0;
+        });
+        FunctionOverrides::set('flush', fn () => null);
+        FunctionOverrides::set('ob_flush', fn () => null);
+
+        $sleep_args = [];
+
+        FunctionOverrides::set('sleep', function (int $seconds) use (&$sleep_args): int {
+            $sleep_args[] = $seconds;
+
+            return 0;
+        });
+
+        $callback = static function (): void {
+            // Stream callback placeholder
+        };
+
+        $response = $this->createSubclassedController()->callEventStream($callback); // @phpstan-ignore method.notFound
+
+        ob_start();
+        $response->sendContent();
+        ob_end_clean();
+
+        static::assertSame([1], $sleep_args);
+    }
+
+    /**
      * Test that the stream loop breaks on the first abort check at the start
      * of the second iteration.
      *
@@ -369,5 +476,54 @@ class ControllerTest extends TestCase
         ob_end_clean();
 
         static::assertInstanceOf(StreamedResponse::class, $response);
+    }
+
+    /**
+     * Create a controller subclass exposing the protected response helpers.
+     *
+     * Calling the helpers from a subclass scope asserts they remain part of
+     * the protected extension surface available to consuming controllers.
+     *
+     * @return object
+     */
+    private function createSubclassedController(): object
+    {
+        return new class extends TestingController {
+            /**
+             * @param  array<string, mixed>  $data
+             * @return \Illuminate\Http\JsonResponse
+             */
+            public function callData(array $data): JsonResponse
+            {
+                return $this->respondWithData($data);
+            }
+
+            /**
+             * @param  \Illuminate\Http\Resources\Json\JsonResource  $resource
+             * @return \Illuminate\Http\JsonResponse
+             */
+            public function callItem(JsonResource $resource): JsonResponse
+            {
+                return $this->respondWithItem($resource);
+            }
+
+            /**
+             * @param  \Illuminate\Http\Resources\Json\ResourceCollection  $collection
+             * @return \Illuminate\Http\JsonResponse
+             */
+            public function callCollection(ResourceCollection $collection): JsonResponse
+            {
+                return $this->respondWithCollection($collection);
+            }
+
+            /**
+             * @param  callable(): void  $callback
+             * @return \Symfony\Component\HttpFoundation\StreamedResponse
+             */
+            public function callEventStream(callable $callback): StreamedResponse
+            {
+                return $this->respondWithEventStream($callback);
+            }
+        };
     }
 }

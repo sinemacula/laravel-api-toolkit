@@ -35,7 +35,7 @@ class ValidateSchemasCommandTest extends TestCase
      */
     public function testCommandReportsSuccessForValidSchemas(): void
     {
-        $rule = $this->createMock(SchemaValidationRule::class);
+        $rule = static::createStub(SchemaValidationRule::class);
 
         $rule->method('validate')
             ->willReturn([]);
@@ -60,7 +60,7 @@ class ValidateSchemasCommandTest extends TestCase
     {
         $error = new SchemaValidationError(UserResource::class, 'id', 'Test defect');
 
-        $rule = $this->createMock(SchemaValidationRule::class);
+        $rule = static::createStub(SchemaValidationRule::class);
 
         $rule->method('validate')
             ->willReturn([$error]);
@@ -91,6 +91,22 @@ class ValidateSchemasCommandTest extends TestCase
     }
 
     /**
+     * Test that the command stops after warning when no resources are
+     * registered and does not run validation.
+     *
+     * @return void
+     */
+    public function testCommandStopsAfterWarningWhenNoResourcesRegistered(): void
+    {
+        $this->getConfig()->set('api-toolkit.resources.resource_map', []);
+
+        $this->runCommand()
+            ->expectsOutputToContain('No resources registered in the resource map.')
+            ->doesntExpectOutputToContain('validated successfully')
+            ->assertExitCode(0);
+    }
+
+    /**
      * Test that the command output contains error details.
      *
      * @return void
@@ -102,7 +118,7 @@ class ValidateSchemasCommandTest extends TestCase
             new SchemaValidationError(UserResource::class, 'name', 'Second defect'),
         ];
 
-        $rule = $this->createMock(SchemaValidationRule::class);
+        $rule = static::createStub(SchemaValidationRule::class);
 
         $rule->method('validate')
             ->willReturn($errors);

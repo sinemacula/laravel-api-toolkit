@@ -2,9 +2,11 @@
 
 namespace Tests\Unit\Listeners\Traits;
 
+use Illuminate\Contracts\Cache\Lock;
 use Illuminate\Support\Facades\Cache;
-use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\CoversTrait;
 use SineMacula\ApiToolkit\Listeners\Traits\ProvidesExclusiveLock;
+use Tests\Fixtures\Listeners\ChildExclusiveLockListenerFixture;
 use Tests\TestCase;
 
 /**
@@ -15,7 +17,7 @@ use Tests\TestCase;
  *
  * @internal
  */
-#[CoversClass(ProvidesExclusiveLock::class)]
+#[CoversTrait(ProvidesExclusiveLock::class)]
 class ProvidesExclusiveLockTest extends TestCase
 {
     /**
@@ -132,6 +134,82 @@ class ProvidesExclusiveLockTest extends TestCase
         static::assertTrue($lock->get());
 
         $lock->release();
+    }
+
+    /**
+     * Test that handleWithLock remains callable from a subclass of the
+     * listener that uses the trait.
+     *
+     * @return void
+     */
+    public function testHandleWithLockIsCallableFromSubclass(): void
+    {
+        $child    = new ChildExclusiveLockListenerFixture;
+        $executed = false;
+
+        $child->run('subclass-id', function () use (&$executed): void {
+            $executed = true;
+        });
+
+        static::assertTrue($executed);
+    }
+
+    /**
+     * Test that an empty prefix is excluded from the lock key.
+     *
+     * @return void
+     */
+    public function testEmptyPrefixIsExcludedFromLockKey(): void
+    {
+        // Hold the lock under the bare id; with an empty prefix the trait
+        // must target this exact key rather than a ':' prefixed variant
+        $lock = Cache::lock('prefix-free-id', 10);
+        $lock->get();
+
+        $instance = $this->createTraitInstance();
+        $executed = false;
+
+        // @phpstan-ignore method.notFound
+        $instance->callHandleWithLock('prefix-free-id', function () use (&$executed): void {
+            $executed = true;
+        }, '');
+
+        static::assertFalse($executed);
+
+        $lock->release();
+    }
+
+    /**
+     * Test that handleWithLock acquires the lock with a ten second
+     * expiration.
+     *
+     * @return void
+     */
+    public function testHandleWithLockUsesTenSecondExpiration(): void
+    {
+        $lock = \Mockery::mock(Lock::class);
+
+        $lock->shouldReceive('get')
+            ->once()
+            ->andReturnTrue();
+
+        $lock->shouldReceive('release')
+            ->once();
+
+        Cache::shouldReceive('lock')
+            ->once()
+            ->with('LISTENER_LOCK:ttl-id', 10)
+            ->andReturn($lock);
+
+        $instance = $this->createTraitInstance();
+        $executed = false;
+
+        // @phpstan-ignore method.notFound
+        $instance->callHandleWithLock('ttl-id', function () use (&$executed): void {
+            $executed = true;
+        });
+
+        static::assertTrue($executed);
     }
 
     /**

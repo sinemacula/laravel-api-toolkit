@@ -114,4 +114,71 @@ class ValidateRelationClassesTest extends TestCase
 
         static::assertSame([], $errors);
     }
+
+    /**
+     * Test that validation continues past fields without resources and still
+     * reports later defects.
+     *
+     * @return void
+     */
+    public function testContinuesPastFieldsWithoutResource(): void
+    {
+        $schema = new CompiledSchema(
+            fields: [
+                'clean' => $this->makeField(null),
+                'bad'   => $this->makeField('App\NonExistent\Resource'),
+            ],
+            counts: [],
+        );
+
+        $rule   = new ValidateRelationClasses;
+        $errors = $rule->validate('App\Http\Resources\UserResource', null, $schema);
+
+        static::assertCount(1, $errors);
+        static::assertSame('bad', $errors[0]->fieldKey);
+    }
+
+    /**
+     * Test that every non-existent relation class is reported.
+     *
+     * @return void
+     */
+    public function testReportsAllNonExistentRelationClasses(): void
+    {
+        $schema = new CompiledSchema(
+            fields: [
+                'first'  => $this->makeField('App\NonExistent\FirstResource'),
+                'second' => $this->makeField('App\NonExistent\SecondResource'),
+            ],
+            counts: [],
+        );
+
+        $rule   = new ValidateRelationClasses;
+        $errors = $rule->validate('App\Http\Resources\UserResource', null, $schema);
+
+        static::assertCount(2, $errors);
+        static::assertSame('first', $errors[0]->fieldKey);
+        static::assertSame('second', $errors[1]->fieldKey);
+    }
+
+    /**
+     * Create a compiled field definition with the given resource class.
+     *
+     * @param  string|null  $resource
+     * @return \SineMacula\ApiToolkit\Http\Resources\Schema\CompiledFieldDefinition
+     */
+    private function makeField(?string $resource): CompiledFieldDefinition
+    {
+        return new CompiledFieldDefinition(
+            accessor: 'relation',
+            compute: null,
+            relation: $resource === null ? null : 'relation',
+            resource: $resource,
+            fields: null,
+            constraint: null,
+            extras: [],
+            guards: [],
+            transformers: [],
+        );
+    }
 }

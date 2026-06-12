@@ -36,7 +36,7 @@ class OrderApplierTest extends TestCase
     {
         parent::setUp();
 
-        $this->schemaIntrospector = $this->createMock(SchemaIntrospectionProvider::class);
+        $this->schemaIntrospector = static::createStub(SchemaIntrospectionProvider::class);
         $this->schemaIntrospector->method('isSearchable')->willReturnCallback(
             fn (Model $model, string $column) => in_array($column, ['name', 'email', 'created_at'], true),
         );

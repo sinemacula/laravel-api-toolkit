@@ -221,4 +221,98 @@ class ApiExceptionTest extends TestCase
         static::assertSame(10103, $exception::getInternalErrorCode());
         static::assertSame(404, $exception::getHttpStatusCode());
     }
+
+    /**
+     * Test that getStatusCode is publicly callable on instances.
+     *
+     * @return void
+     */
+    public function testGetStatusCodeIsPubliclyCallableOnInstances(): void
+    {
+        $exception = new BadRequestException;
+
+        static::assertSame(400, $exception->getStatusCode());
+    }
+
+    /**
+     * Test that getStatus is publicly callable on instances.
+     *
+     * @return void
+     */
+    public function testGetStatusIsPubliclyCallableOnInstances(): void
+    {
+        $exception = new BadRequestException;
+
+        static::assertSame(HttpStatus::BAD_REQUEST, $exception->getStatus());
+    }
+
+    /**
+     * Test that subclasses can override the translation namespace used to
+     * resolve exception messages.
+     *
+     * @return void
+     */
+    public function testSubclassesCanOverrideTheTranslationNamespace(): void
+    {
+        $exception = new class extends ApiException {
+            public const \SineMacula\ApiToolkit\Contracts\ErrorCodeInterface CODE = ErrorCode::BAD_REQUEST;
+            public const HttpStatus HTTP_STATUS                                   = HttpStatus::BAD_REQUEST;
+
+            /**
+             * Get the namespace of the current exception.
+             *
+             * @return string
+             */
+            #[\Override]
+            protected function getNamespace(): string
+            {
+                return 'custom-namespace';
+            }
+        };
+
+        // No translations are registered for the custom namespace, so the
+        // raw translation key is returned, proving the override was used
+        static::assertSame('custom-namespace::exceptions.10100.detail', $exception->getCustomDetail());
+    }
+
+    /**
+     * Test that getNamespace is accessible to subclasses.
+     *
+     * @return void
+     */
+    public function testGetNamespaceIsAccessibleToSubclasses(): void
+    {
+        $exception = new class extends ApiException {
+            public const \SineMacula\ApiToolkit\Contracts\ErrorCodeInterface CODE = ErrorCode::BAD_REQUEST;
+            public const HttpStatus HTTP_STATUS                                   = HttpStatus::BAD_REQUEST;
+
+            /**
+             * Expose the inherited namespace for assertion.
+             *
+             * @return string|null
+             */
+            public function exposedNamespace(): ?string
+            {
+                return $this->getNamespace();
+            }
+        };
+
+        static::assertSame('api-toolkit', $exception->exposedNamespace());
+    }
+
+    /**
+     * Test that getCustomTitle derives a multi-word title from the HTTP
+     * status enum case name when no translation exists.
+     *
+     * @return void
+     */
+    public function testGetCustomTitleDerivesMultiWordTitleFromStatusName(): void
+    {
+        $exception = new class extends ApiException {
+            public const \SineMacula\ApiToolkit\Contracts\ErrorCodeInterface CODE = ErrorCode::HTTP_ERROR;
+            public const HttpStatus HTTP_STATUS                                   = HttpStatus::UNAVAILABLE_FOR_LEGAL_REASONS;
+        };
+
+        static::assertSame('Unavailable For Legal Reasons', $exception->getCustomTitle());
+    }
 }

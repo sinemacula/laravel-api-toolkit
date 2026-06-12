@@ -83,6 +83,9 @@ contract and benefits from landing last, when the surface around it is stable.
   cohesive exception types under `Exceptions\`.
 - [ ] **Listener/driver signatures**: `OctaneFlushListener::handle($event)` and `DatabaseLogger($config)`
   carry unused parameters required by framework contracts — confirm and suppress or document.
+- [ ] **`JsonPrettyPrint` dead code**: the explicit `setData()` call after `setEncodingOptions()` is redundant —
+  `JsonResponse::setEncodingOptions()` already re-encodes via `setData($this->getData())`. Surfaced by mutation
+  testing; remove on the next pass through the middleware.
 
 ### 3. Extraction candidates
 
@@ -111,6 +114,27 @@ template proves the need.
 - [ ] `UPGRADE.md` completeness pass once PRDs 06/07 land (macro deprecations, `ServiceResult` migration)
 - [ ] README refresh for v2 surface
 - [ ] Tag `v2.0.0-beta` once PRDs land; release after downstream projects validate
+
+## Testing strategy
+
+Line coverage is necessary but not sufficient. The quality bar for this package is **behavioural coverage of every
+way a consuming application uses it**:
+
+- **Integration-first for consumer paths.** Every public surface should have integration tests that exercise the
+  package the way an application does — real HTTP requests through the middleware stack, real database queries
+  through repositories and criteria, real serialization through resources (`tests/Integration/RequestLifecycleTest`
+  is the anchor for this pattern). New consumer-facing behaviour ships with an integration test, not only unit tests
+  of the collaborators.
+- **Mutation testing as the assertion-quality gate.** `composer test:mutation` enforces an MSI floor in CI
+  (Quality Gates workflow). The floor starts at the measured baseline (75%) and is ratcheted upward as escaped
+  mutants are killed — raise the threshold in `composer.json` whenever the full suite (`composer test:mutation:full`)
+  shows headroom. Escaped mutants are a to-do list for missing assertions.
+- **Multi-database matrix.** Integration tests run against SQLite locally and MySQL + PostgreSQL in CI; anything
+  touching query generation must hold across all three.
+- **End-to-end feature coverage**: real-route integration tests now cover the request lifecycle
+  (`RequestLifecycleTest`), exception rendering (`ExceptionRenderingTest`), SSE streaming (`SseStreamingTest`),
+  export content negotiation (`ExportNegotiationTest`), and the deferred-write flush across a request boundary
+  (`DeferredWriteRequestBoundaryTest`). New consumer-facing behaviour should extend this suite.
 
 ## Quality gates
 
