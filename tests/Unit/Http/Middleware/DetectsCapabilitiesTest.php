@@ -22,6 +22,9 @@ use Tests\TestCase;
 #[CoversClass(DetectsCapabilities::class)]
 class DetectsCapabilitiesTest extends TestCase
 {
+    /** @var string */
+    private const string TEST_URL = '/test';
+
     /**
      * Test that the middleware stores capabilities on the request.
      *
@@ -30,7 +33,7 @@ class DetectsCapabilitiesTest extends TestCase
     public function testHandleStoresCapabilitiesOnRequest(): void
     {
         $middleware = new DetectsCapabilities;
-        $request    = Request::create('/test', 'GET', ['include_trashed' => 'true']);
+        $request    = Request::create(self::TEST_URL, 'GET', ['include_trashed' => 'true']);
 
         $middleware->handle($request, function (Request $request): Response {
 
@@ -51,7 +54,7 @@ class DetectsCapabilitiesTest extends TestCase
     public function testHandlePassesRequestToNextMiddleware(): void
     {
         $middleware       = new DetectsCapabilities;
-        $request          = Request::create('/test');
+        $request          = Request::create(self::TEST_URL);
         $expectedResponse = new Response('OK');
 
         $response = $middleware->handle($request, fn (): Response => $expectedResponse);
@@ -72,7 +75,7 @@ class DetectsCapabilitiesTest extends TestCase
 
         $middleware = new DetectsCapabilities;
 
-        $request = Request::create('/test', 'GET', ['include_trashed' => 'true']);
+        $request = Request::create(self::TEST_URL, 'GET', ['include_trashed' => 'true']);
         $request->headers->set(HttpHeader::ACCEPT->getName(), MediaType::TEXT_CSV->getMimeType());
 
         $middleware->handle($request, function (Request $request): Response {
