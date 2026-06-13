@@ -28,6 +28,17 @@ interface SchemaIntrospectionProvider
     public function getColumns(Model $model): array;
 
     /**
+     * Get the per-column type and nullability definitions for the given
+     * model, keyed by column name.
+     *
+     * Results are cached forever per model, mirroring getColumns().
+     *
+     * @param  \Illuminate\Database\Eloquent\Model  $model
+     * @return array<string, \SineMacula\ApiToolkit\Services\Introspection\ColumnDefinition>
+     */
+    public function getColumnDefinitions(Model $model): array;
+
+    /**
      * Get the searchable columns for the given model, with configured
      * exclusions applied.
      *

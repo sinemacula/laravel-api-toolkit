@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Enums\CacheKeys;
+use SineMacula\ApiToolkit\Services\Introspection\ColumnDefinition;
 
 /**
  * Schema introspector.
@@ -24,6 +25,9 @@ class SchemaIntrospector implements SchemaIntrospectionProvider
 {
     /** @var array<string, array<int, string>> */
     private array $columns = [];
+
+    /** @var array<string, array<string, \SineMacula\ApiToolkit\Services\Introspection\ColumnDefinition>> */
+    private array $columnDefinitions = [];
 
     /** @var array<string, array<int, string>> */
     private array $searchable = [];
@@ -61,6 +65,42 @@ class SchemaIntrospector implements SchemaIntrospectionProvider
         $this->columns[$model::class] = $columns;
 
         return $columns;
+    }
+
+    /**
+     * Get the per-column type and nullability definitions for the given
+     * model, keyed by column name.
+     *
+     * Results are cached forever per model, mirroring getColumns().
+     *
+     * @param  \Illuminate\Database\Eloquent\Model  $model
+     * @return array<string, \SineMacula\ApiToolkit\Services\Introspection\ColumnDefinition>
+     */
+    #[\Override]
+    public function getColumnDefinitions(Model $model): array
+    {
+        if (isset($this->columnDefinitions[$model::class])) {
+            return $this->columnDefinitions[$model::class];
+        }
+
+        $cacheKey = CacheKeys::MODEL_SCHEMA_COLUMN_DEFINITIONS->resolveKey([$model::class]);
+
+        /** @var array<string, \SineMacula\ApiToolkit\Services\Introspection\ColumnDefinition> $cached */
+        $cached = Cache::memo()->get($cacheKey, []);
+
+        if (!empty($cached)) {
+            $this->columnDefinitions[$model::class] = $cached;
+
+            return $cached;
+        }
+
+        $definitions = $this->mapColumnDefinitions(Schema::getColumns($model->getTable()));
+
+        Cache::memo()->rememberForever($cacheKey, fn () => $definitions);
+
+        $this->columnDefinitions[$model::class] = $definitions;
+
+        return $definitions;
     }
 
     /**
@@ -171,8 +211,34 @@ class SchemaIntrospector implements SchemaIntrospectionProvider
     #[\Override]
     public function flush(): void
     {
-        $this->columns    = [];
-        $this->searchable = [];
+        $this->columns           = [];
+        $this->columnDefinitions = [];
+        $this->searchable        = [];
+    }
+
+    /**
+     * Map the raw Schema::getColumns() rows into column definitions keyed by
+     * column name.
+     *
+     * @param  array<int, array<string, mixed>>  $columns
+     * @return array<string, \SineMacula\ApiToolkit\Services\Introspection\ColumnDefinition>
+     */
+    private function mapColumnDefinitions(array $columns): array
+    {
+        $definitions = [];
+
+        foreach ($columns as $column) {
+
+            $name = (string) $column['name'];
+
+            $definitions[$name] = new ColumnDefinition(
+                name    : $name,
+                typeName: strtolower((string) $column['type_name']),
+                nullable: (bool) $column['nullable'],
+            );
+        }
+
+        return $definitions;
     }
 
     /**

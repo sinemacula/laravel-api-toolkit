@@ -12,6 +12,7 @@ use Illuminate\Support\Facades\Schema;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Enums\CacheKeys;
+use SineMacula\ApiToolkit\Services\Introspection\ColumnDefinition;
 use SineMacula\ApiToolkit\Services\SchemaIntrospector;
 use Tests\Concerns\InteractsWithNonPublicMembers;
 use Tests\Fixtures\Models\Post;
@@ -123,6 +124,117 @@ class SchemaIntrospectorTest extends TestCase
         static::assertSame(Schema::getColumnListing('users'), $userColumns);
         static::assertSame(Schema::getColumnListing('posts'), $postColumns);
         static::assertNotSame($userColumns, $postColumns);
+    }
+
+    /**
+     * Test that getColumnDefinitions returns one ColumnDefinition per column
+     * keyed by column name, carrying its type and nullability.
+     *
+     * @return void
+     */
+    public function testGetColumnDefinitionsReturnsDefinitionsKeyedByColumnName(): void
+    {
+        $introspector = new SchemaIntrospector;
+        $model        = new User;
+
+        $definitions = $introspector->getColumnDefinitions($model);
+
+        static::assertArrayHasKey('id', $definitions);
+        static::assertArrayHasKey('email', $definitions);
+        static::assertContainsOnlyInstancesOf(ColumnDefinition::class, $definitions);
+        static::assertSame('id', $definitions['id']->name);
+    }
+
+    /**
+     * Test that getColumnDefinitions reports a non-nullable column as not
+     * nullable and a nullable column as nullable.
+     *
+     * @return void
+     */
+    public function testGetColumnDefinitionsReportsNullability(): void
+    {
+        $introspector = new SchemaIntrospector;
+        $model        = new User;
+
+        $definitions = $introspector->getColumnDefinitions($model);
+
+        static::assertFalse($definitions['email']->nullable);
+        static::assertTrue($definitions['organization_id']->nullable);
+    }
+
+    /**
+     * Test that getColumnDefinitions normalises the driver type name to
+     * lower case.
+     *
+     * @return void
+     */
+    public function testGetColumnDefinitionsLowerCasesTypeName(): void
+    {
+        $introspector = new SchemaIntrospector;
+        $model        = new User;
+
+        $typeName = $introspector->getColumnDefinitions($model)['id']->typeName;
+
+        static::assertSame(strtolower($typeName), $typeName);
+    }
+
+    /**
+     * Test that getColumnDefinitions serves the instance cache without
+     * consulting Schema again.
+     *
+     * @return void
+     */
+    public function testGetColumnDefinitionsServesInstanceCacheWithoutSchemaLookup(): void
+    {
+        $introspector = new SchemaIntrospector;
+        $model        = new User;
+
+        $first = $introspector->getColumnDefinitions($model);
+
+        Cache::memo()->flush(); // @phpstan-ignore method.notFound
+
+        Schema::shouldReceive('getColumns')
+            ->never();
+
+        static::assertSame($first, $introspector->getColumnDefinitions($model));
+    }
+
+    /**
+     * Test that getColumnDefinitions stores the result in the memo cache
+     * under a key scoped to the model class.
+     *
+     * @return void
+     */
+    public function testGetColumnDefinitionsStoresResultInMemoCacheUnderModelKey(): void
+    {
+        $introspector = new SchemaIntrospector;
+        $model        = new User;
+
+        $definitions = $introspector->getColumnDefinitions($model);
+
+        $key = CacheKeys::MODEL_SCHEMA_COLUMN_DEFINITIONS->resolveKey([User::class]);
+
+        static::assertSame($definitions, Cache::memo()->get($key));
+    }
+
+    /**
+     * Test that flush clears cached column definitions so the next call
+     * re-queries the schema.
+     *
+     * @return void
+     */
+    public function testFlushClearsColumnDefinitions(): void
+    {
+        $introspector = new SchemaIntrospector;
+        $model        = new User;
+
+        $original = $introspector->getColumnDefinitions($model);
+
+        static::assertNotEmpty($original);
+
+        $introspector->flush();
+
+        static::assertSame([], $this->getProperty($introspector, 'columnDefinitions'));
     }
 
     /**
