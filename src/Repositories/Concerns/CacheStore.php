@@ -2,94 +2,138 @@
 
 namespace SineMacula\ApiToolkit\Repositories\Concerns;
 
-use Carbon\CarbonImmutable;
+use Illuminate\Cache\Repository as ConcreteRepository;
 use Illuminate\Contracts\Cache\Repository as CacheContract;
-use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use SineMacula\ApiToolkit\Enums\CacheKeys;
 
 /**
- * Encapsulates all interactions with the Laravel cache contract
- * for managing cached repository data and metadata.
+ * Encapsulates all interactions with the Laravel cache contract for managing
+ * per-query repository cache entries and their invalidation.
+ *
+ * Each executed query is stored under a key derived from its fingerprint, so a
+ * filtered or by-id read never returns the full-table collection. Invalidation
+ * is performed per table — via cache tags when the store supports them, or via
+ * a tracked key registry otherwise.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-final class CacheStore
+final readonly class CacheStore
 {
     /** @var \Illuminate\Contracts\Cache\Repository The underlying cache store instance. */
-    private readonly CacheContract $store;
+    private CacheContract $store;
 
-    /** @var string The resolved cache key for the repository data. */
-    private readonly string $cacheKey;
+    /** @var \SineMacula\ApiToolkit\Repositories\Concerns\CacheKeyRegistry|null The per-table live key registry, or null when disabled. */
+    private ?CacheKeyRegistry $registry;
+
+    /** @var string The cache tag scoping all per-query entries for the table. */
+    private string $tag;
 
     /** @var string The resolved cache key for the repository metadata. */
-    private readonly string $metaKey;
+    private string $metaKey;
 
-    /** @var string The Laravel cache store name. */
-    private readonly string $cacheStore;
-
-    /** @var string The prefix used for cache key generation. */
-    private readonly string $cacheKeyPrefix;
-
-    /** @var int The cache duration in seconds. */
-    private readonly int $ttl;
+    /** @var \Illuminate\Cache\Repository|null The concrete store when it supports tags, otherwise null. */
+    private ?ConcreteRepository $taggableStore;
 
     /**
      * Create a new cache store instance.
      *
      * @param  string  $cacheStore
-     * @param  string  $cacheKeyPrefix
-     * @param  int  $ttl
+     * @param  string  $table
+     * @param  \SineMacula\ApiToolkit\Repositories\Concerns\CacheStoreOptions  $options
      * @return void
      */
-    public function __construct(string $cacheStore, string $cacheKeyPrefix, int $ttl)
-    {
-        $this->cacheStore     = $cacheStore;
-        $this->cacheKeyPrefix = $cacheKeyPrefix;
-        $this->ttl            = $ttl;
+    public function __construct(
 
-        $this->store    = Cache::store($this->cacheStore);
-        $this->cacheKey = CacheKeys::REPOSITORY_CACHE->resolveKey([$this->cacheKeyPrefix]);
-        $this->metaKey  = CacheKeys::REPOSITORY_CACHE_META->resolveKey([$this->cacheKeyPrefix]);
+        /** The Laravel cache store name. */
+        private string $cacheStore,
+
+        /** The repository table used to namespace cache keys. */
+        private string $table,
+
+        /** The lifetime, size guard, and registry behaviour for the store. */
+        private CacheStoreOptions $options,
+
+    ) {
+        $store = Cache::store($this->cacheStore);
+
+        $this->store         = $store;
+        $this->taggableStore = $store instanceof ConcreteRepository && $store->supportsTags() ? $store : null;
+        $this->tag           = 'repo-table:' . $this->table;
+        $this->metaKey       = CacheKeys::REPOSITORY_CACHE_META->resolveKey([$this->table]);
+        $this->registry      = $this->options->registryEnabled
+            ? new CacheKeyRegistry($this->store, $this->table, $this->options->ttl)
+            : null;
     }
 
     /**
-     * Get the cached collection, or null on a cache miss.
+     * Get the cached result for the given query fingerprint, or null on a miss.
      *
-     * @return \Illuminate\Support\Collection<int, mixed>|null
+     * @param  string  $hash
+     * @return mixed
      */
-    public function get(): ?Collection
+    public function get(string $hash): mixed
     {
-        /** @var \Illuminate\Support\Collection<int, mixed>|null */
-        return $this->store->get($this->cacheKey);
+        return $this->scopedStore()->get($this->keyFor($hash));
     }
 
     /**
-     * Store the given collection in the cache and record metadata.
+     * Determine whether a cached entry exists for the given fingerprint.
      *
-     * @param  \Illuminate\Support\Collection<int, mixed>  $items
-     * @return void
+     * @param  string  $hash
+     * @return bool
      */
-    public function put(Collection $items): void
+    public function has(string $hash): bool
     {
-        $this->store->put($this->cacheKey, $items, $this->ttl);
-        $this->store->put($this->metaKey, ['populated_at' => now()->timestamp], $this->ttl);
+        return $this->scopedStore()->has($this->keyFor($hash));
     }
 
     /**
-     * Remove the cached data and record an invalidation timestamp.
+     * Store the given result for a query fingerprint, subject to the size guard.
+     *
+     * @param  string  $hash
+     * @param  mixed  $result
+     * @param  int  $rows
+     * @return void
+     */
+    public function put(string $hash, mixed $result, int $rows): void
+    {
+        if (!$this->options->sizeGuard->allows($result, $rows)) {
+            return;
+        }
+
+        $key = $this->keyFor($hash);
+
+        $this->scopedStore()->put($key, $result, $this->options->ttl);
+        $this->store->put($this->metaKey, ['populated_at' => now()->timestamp], $this->options->ttl);
+
+        $this->registry?->track($key);
+    }
+
+    /**
+     * Invalidate every per-query entry for the repository table.
      *
      * @return void
      */
-    public function flush(): void
+    public function flushTable(): void
     {
-        $this->store->forget($this->cacheKey);
-        $this->store->put($this->metaKey, ['invalidated_at' => now()->timestamp], $this->ttl);
+        if ($this->taggableStore !== null) {
+            $this->taggableStore->tags([$this->tag])->flush();
+        } else {
+            $this->registry?->flush();
+        }
+
+        $this->store->put($this->metaKey, ['invalidated_at' => now()->timestamp], $this->options->ttl);
     }
 
     /**
      * Get the current cache status.
+     *
+     * Note: the returned status reflects stored metadata, not a guaranteed data
+     * presence. An external or shared-store flush can remove data without going
+     * through flushTable(), leaving isPopulated() returning true while the
+     * underlying entries are gone.
      *
      * @return \SineMacula\ApiToolkit\Repositories\Concerns\CacheStatus
      */
@@ -97,17 +141,9 @@ final class CacheStore
     {
         /** @var array{populated_at?: int, invalidated_at?: int}|null $meta */
         $meta      = $this->store->get($this->metaKey);
-        $populated = $this->store->has($this->cacheKey);
+        $populated = isset($meta['populated_at']) && !isset($meta['invalidated_at']);
 
-        $age = ($populated && isset($meta['populated_at']))
-            ? (int) now()->timestamp - $meta['populated_at']
-            : null;
-
-        $lastInvalidatedAt = isset($meta['invalidated_at'])
-            ? CarbonImmutable::createFromTimestamp($meta['invalidated_at'])
-            : null;
-
-        return new CacheStatus($populated, $age, $lastInvalidatedAt);
+        return CacheStatus::fromMeta($meta, $populated);
     }
 
     /**
@@ -118,5 +154,28 @@ final class CacheStore
     public function getStore(): CacheContract
     {
         return $this->store;
+    }
+
+    /**
+     * Resolve the cache key for a query fingerprint.
+     *
+     * @param  string  $hash
+     * @return string
+     */
+    private function keyFor(string $hash): string
+    {
+        return CacheKeys::REPOSITORY_QUERY_CACHE->resolveKey([$this->table, $hash]);
+    }
+
+    /**
+     * Get the cache repository scoped to the table tag where supported.
+     *
+     * @return \Illuminate\Contracts\Cache\Repository
+     */
+    private function scopedStore(): CacheContract
+    {
+        return $this->taggableStore !== null
+            ? $this->taggableStore->tags([$this->tag])
+            : $this->store;
     }
 }

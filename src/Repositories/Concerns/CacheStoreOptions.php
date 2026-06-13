@@ -1,0 +1,37 @@
+<?php
+
+namespace SineMacula\ApiToolkit\Repositories\Concerns;
+
+/**
+ * Immutable configuration bundle for a per-query repository cache store.
+ *
+ * Groups the correlated tuning parameters — lifetime, size guard, and registry
+ * behaviour — so the cache store constructor stays within the parameter limit
+ * and the options can be resolved once at boot.
+ *
+ * @author      Ben Carey <bdmc@sinemacula.co.uk>
+ * @copyright   2026 Sine Macula Limited.
+ */
+final readonly class CacheStoreOptions
+{
+    /**
+     * Create a new cache store options instance.
+     *
+     * @param  int  $ttl
+     * @param  \SineMacula\ApiToolkit\Repositories\Concerns\CacheSizeGuard  $sizeGuard
+     * @param  bool  $registryEnabled
+     * @return void
+     */
+    public function __construct(
+
+        /** The cache duration in seconds. */
+        public int $ttl,
+
+        /** The guard deciding whether a result is small enough to store. */
+        public CacheSizeGuard $sizeGuard,
+
+        /** Whether non-taggable stores track live keys for precise invalidation. */
+        public bool $registryEnabled,
+
+    ) {}
+}

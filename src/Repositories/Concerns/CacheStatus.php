@@ -2,6 +2,7 @@
 
 namespace SineMacula\ApiToolkit\Repositories\Concerns;
 
+use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
 
 /**
@@ -35,7 +36,31 @@ final readonly class CacheStatus
     ) {}
 
     /**
+     * Build a cache status from the stored metadata and population flag.
+     *
+     * @param  array{populated_at?: int, invalidated_at?: int}|null  $meta
+     * @param  bool  $populated
+     * @return self
+     */
+    public static function fromMeta(?array $meta, bool $populated): self
+    {
+        $age = ($populated && isset($meta['populated_at']))
+            ? (int) now()->timestamp - $meta['populated_at']
+            : null;
+
+        $lastInvalidatedAt = isset($meta['invalidated_at'])
+            ? CarbonImmutable::createFromTimestamp($meta['invalidated_at'])
+            : null;
+
+        return new self($populated, $age, $lastInvalidatedAt);
+    }
+
+    /**
      * Determine whether the cache currently holds data.
+     *
+     * Note: this reflects stored metadata, not a guaranteed data presence. An
+     * external or shared-store flush can remove entries without going through
+     * flushTable(), leaving this returning true while the underlying data is gone.
      *
      * @return bool
      */
