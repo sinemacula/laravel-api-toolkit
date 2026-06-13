@@ -64,7 +64,11 @@ class ErrorCatalogueReader
             return $this->exceptionMap;
         }
 
-        $files = glob(self::EXCEPTIONS_DIR . '/*.php') ?: [];
+        $files = glob(self::EXCEPTIONS_DIR . '/*.php');
+
+        if ($files === false) {
+            throw new \RuntimeException('Unable to scan the exceptions directory: ' . self::EXCEPTIONS_DIR);
+        }
 
         foreach ($files as $file) {
             $class = self::EXCEPTION_NAMESPACE . basename($file, '.php');

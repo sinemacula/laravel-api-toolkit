@@ -290,6 +290,47 @@ class OpenApiExporterValidityTest extends TestCase
     }
 
     /**
+     * Test that the opis-adapted meta-schema still rejects invalid documents, so
+     * the in-test compatibility transforms cannot silently hollow out the
+     * headline validity signal if opis or the meta-schema changes.
+     *
+     * @return void
+     */
+    public function testAdaptedMetaSchemaStillRejectsInvalidDocuments(): void
+    {
+        $valid = $this->export()->document;
+
+        static::assertTrue(
+            $this->validateAgainstMetaSchema($valid)->isValid(),
+            'The real emitted document must validate as OpenAPI 3.1.',
+        );
+
+        $threeZero            = $valid;
+        $threeZero['openapi'] = '3.0.3';
+
+        static::assertFalse(
+            $this->validateAgainstMetaSchema($threeZero)->isValid(),
+            'A 3.0 version string must be rejected by the 3.1 meta-schema.',
+        );
+
+        $missingInfo = $valid;
+        unset($missingInfo['info']);
+
+        static::assertFalse(
+            $this->validateAgainstMetaSchema($missingInfo)->isValid(),
+            'A document missing the required info object must be rejected.',
+        );
+
+        $malformedParameter                                       = $valid;
+        $malformedParameter['components']['parameters']['Broken'] = ['description' => 'no name or in'];
+
+        static::assertFalse(
+            $this->validateAgainstMetaSchema($malformedParameter)->isValid(),
+            'A parameter missing its required name/in must be rejected.',
+        );
+    }
+
+    /**
      * Run the export use case against the container-resolved graph.
      *
      * @return \SineMacula\ApiToolkit\OpenApi\ExportResult
