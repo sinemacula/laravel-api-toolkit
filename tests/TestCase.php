@@ -90,13 +90,14 @@ abstract class TestCase extends OrchestraTestCase
         $this->createTagsTable();
         $this->createPostTagTable();
         $this->createLogsTable();
+        $this->createArticlesTable();
     }
 
     /**
      * Get the database connection configuration.
      *
-     * Reads the DB_DRIVER environment variable to determine which database
-     * to use. Defaults to in-memory SQLite for fast local testing.
+     * Reads the DB_DRIVER environment variable to determine which database to
+     * use. Defaults to in-memory SQLite for fast local testing.
      *
      * @return array<string, mixed>
      */
@@ -246,6 +247,31 @@ abstract class TestCase extends OrchestraTestCase
             $table->text('message');
             $table->json('context')->nullable();
             $table->timestamp('created_at', 6)->nullable();
+        });
+    }
+
+    /**
+     * Create the articles table.
+     *
+     * Wide, soft-deleting table backing the Article fixture used by the
+     * column-narrowing integration suite.
+     *
+     * @return void
+     */
+    private function createArticlesTable(): void
+    {
+        Schema::dropIfExists('articles');
+        Schema::create('articles', function (Blueprint $table): void {
+            $table->id();
+            $table->unsignedBigInteger('user_id');
+            $table->string('title');
+            $table->string('slug')->unique();
+            $table->text('body');
+            $table->text('summary');
+            $table->string('status')->default('draft');
+            $table->unsignedInteger('views')->default(0);
+            $table->timestamps();
+            $table->softDeletes();
         });
     }
 }

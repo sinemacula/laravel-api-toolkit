@@ -44,6 +44,14 @@ class UserResource extends ApiResource
 
                 return $user->name . ' <' . $user->email . '>';
             }),
+            Field::accessor('display_label', static function ($resource): string {
+
+                $user = $resource->resource;
+
+                assert($user instanceof User);
+
+                return $user->name . ' <' . $user->email . '>';
+            })->needs('name', 'email'),
             Relation::to('organization', OrganizationResource::class),
             Relation::to('profile', 'bio', 'profile_bio'),
             Relation::to('posts', PostResource::class),
