@@ -143,6 +143,7 @@ final class Field extends BaseDefinition
                 'accessor'     => $this->accessor,
                 'compute'      => $this->compute,
                 'extras'       => $this->extras ?: null,
+                'needs'        => $this->needs ?: null,
                 'guards'       => $this->getGuards() ?: null,
                 'transformers' => $this->getTransformers() ?: null,
             ], static fn ($value) => $value !== null && $value !== []),

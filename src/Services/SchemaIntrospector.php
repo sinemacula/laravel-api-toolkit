@@ -3,7 +3,12 @@
 namespace SineMacula\ApiToolkit\Services;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasOneOrMany;
+use Illuminate\Database\Eloquent\Relations\MorphOneOrMany;
+use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Illuminate\Database\Eloquent\Relations\Relation;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Log;
@@ -164,6 +169,42 @@ class SchemaIntrospector implements SchemaIntrospectionProvider
     }
 
     /**
+     * Get the soft-delete column for the model, or null when it does not use SoftDeletes.
+     *
+     * @param  \Illuminate\Database\Eloquent\Model  $model
+     * @return string|null
+     */
+    #[\Override]
+    public function getDeletedAtColumn(Model $model): ?string
+    {
+        if (!in_array(SoftDeletes::class, class_uses_recursive($model), true)) {
+            return null;
+        }
+
+        return $model->getDeletedAtColumn(); // @phpstan-ignore method.notFound, return.type
+    }
+
+    /**
+     * Get the parent-side key columns for the given relation, including morph type/id columns.
+     *
+     * @param  \Illuminate\Database\Eloquent\Relations\Relation<\Illuminate\Database\Eloquent\Model, \Illuminate\Database\Eloquent\Model, mixed>  $relation
+     * @return array<int, string>
+     */
+    #[\Override]
+    public function parentKeysFor(Relation $relation): array
+    {
+        $keys = match (true) {
+            $relation instanceof MorphTo        => [$relation->getForeignKeyName(), $relation->getMorphType()],
+            $relation instanceof BelongsTo      => [$relation->getForeignKeyName()],
+            $relation instanceof MorphOneOrMany => [$relation->getLocalKeyName()],
+            $relation instanceof HasOneOrMany   => [$relation->getLocalKeyName()],
+            default                             => [],
+        };
+
+        return array_values(array_unique(array_filter($keys, static fn (string $key): bool => $key !== '')));
+    }
+
+    /**
      * Clear all internally cached schema data.
      *
      * @return void
@@ -176,8 +217,8 @@ class SchemaIntrospector implements SchemaIntrospectionProvider
     }
 
     /**
-     * Determine whether the given reflection method has a return type that
-     * is a subclass of Relation.
+     * Determine whether the given reflection method has a return type that is a
+     * subclass of Relation.
      *
      * @param  \ReflectionMethod  $method
      * @return bool
