@@ -190,21 +190,16 @@ class WritePoolTest extends TestCase
     }
 
     /**
-     * Test that flush logs error and continues on chunk failure.
+     * Test that the default strategy continues past a chunk failure
+     * without logging an error and persists the healthy chunk.
      *
      * @return void
      */
-    public function testFlushLogsErrorAndContinuesOnChunkFailure(): void
+    public function testDefaultStrategyContinuesOnChunkFailureWithoutErrorLog(): void
     {
         $pool = new WritePool(chunkSize: 2, poolLimit: 10000);
 
-        Log::shouldReceive('error')
-            ->once()
-            ->withArgs(fn (string $message, array $context): bool => str_contains($message, 'WritePool flush failed for table [nonexistent_table]')
-                    && $context['table']      === 'nonexistent_table'
-                    && $context['chunk_size'] === 1
-                    && is_string($context['error'] ?? null)
-                    && $context['error'] !== '');
+        Log::shouldReceive('error')->never();
 
         $pool->add('nonexistent_table', ['col' => 'val']);
         $pool->add('test_records', ['name' => 'foo', 'value' => 'bar']);
@@ -217,20 +212,42 @@ class WritePoolTest extends TestCase
     }
 
     /**
-     * Test that flush clears the buffer even after partial failure.
+     * Test that the default strategy retains failed records in the
+     * buffer rather than dropping them after a partial failure.
      *
      * @return void
      */
-    public function testFlushClearsBufferEvenAfterPartialFailure(): void
+    public function testDefaultStrategyRetainsBufferAfterPartialFailure(): void
     {
-        Log::shouldReceive('error')->once()->withAnyArgs();
+        Log::shouldReceive('error')->never();
 
         $this->pool->add('nonexistent_table', ['col' => 'val']);
 
         $this->pool->flush();
 
-        static::assertSame(0, $this->pool->count());
-        static::assertTrue($this->pool->isEmpty());
+        static::assertSame(1, $this->pool->count());
+        static::assertFalse($this->pool->isEmpty());
+    }
+
+    /**
+     * Test that the default strategy is collect, surfacing failures
+     * loudly in the result with zero dropped records.
+     *
+     * @return void
+     */
+    public function testDefaultStrategyIsCollectAndDropsNoRecords(): void
+    {
+        Log::shouldReceive('error')->never();
+
+        $this->pool->add('nonexistent_table', ['col' => 'val']);
+        $this->pool->add('test_records', ['name' => 'foo', 'value' => 'bar']);
+
+        $flushResult = $this->pool->flush();
+
+        static::assertFalse($flushResult->isSuccessful());
+        static::assertSame(0, $flushResult->droppedRecordCount());
+        static::assertSame(1, $flushResult->retainedRecordCount());
+        static::assertSame(1, $this->pool->count());
     }
 
     /**
@@ -520,19 +537,20 @@ class WritePoolTest extends TestCase
     }
 
     /**
-     * Test that auto-flush uses COLLECT strategy when the pool is
-     * configured with THROW, preventing exceptions from add().
+     * Test that memory-pressure auto-flush honours the throw strategy,
+     * raising a WritePoolFlushException out of add().
      *
      * @return void
      */
-    public function testAutoFlushUsesCollectStrategyWhenConfiguredAsThrow(): void
+    public function testAutoFlushThrowsWhenConfiguredAsThrow(): void
     {
         $pool = new WritePool(chunkSize: 500, poolLimit: 2, strategy: FlushStrategy::THROW);
 
         $pool->add('nonexistent_table', ['col' => 'val']);
-        $pool->add('test_records', ['name' => 'foo', 'value' => 'bar']);
 
-        static::assertNotNull($pool->lastAutoFlushResult());
+        $this->expectException(WritePoolFlushException::class);
+
+        $pool->add('test_records', ['name' => 'foo', 'value' => 'bar']);
     }
 
     /**
@@ -668,6 +686,162 @@ class WritePoolTest extends TestCase
         static::assertSame(1, DB::table('test_unique')->count());
         static::assertSame(0, DB::table('test_records')->count());
         static::assertSame(3, $pool->count());
+    }
+
+    /**
+     * Test that a transactional flush rolls back the entire table when
+     * any chunk fails, leaving none of that table's rows persisted.
+     *
+     * @return void
+     */
+    public function testTransactionalFlushRollsBackWholeTableOnChunkFailure(): void
+    {
+        $pool = new WritePool(chunkSize: 1, poolLimit: 10000, strategy: FlushStrategy::COLLECT, transactional: true);
+
+        $pool->add('test_unique', ['name' => 'alpha']);
+        $pool->add('test_unique', ['name' => 'alpha']);
+
+        $pool->flush();
+
+        static::assertSame(0, DB::table('test_unique')->count());
+    }
+
+    /**
+     * Test that a non-transactional flush persists the healthy chunk
+     * even when a later chunk in the same table fails.
+     *
+     * @return void
+     */
+    public function testNonTransactionalFlushPersistsHealthyChunkOnLaterFailure(): void
+    {
+        $pool = new WritePool(chunkSize: 1, poolLimit: 10000, strategy: FlushStrategy::COLLECT);
+
+        $pool->add('test_unique', ['name' => 'alpha']);
+        $pool->add('test_unique', ['name' => 'alpha']);
+
+        $pool->flush();
+
+        static::assertSame(1, DB::table('test_unique')->count());
+    }
+
+    /**
+     * Test that a transactional collect flush retains every record of a
+     * rolled-back table for retry, including the rows that committed
+     * before the failing chunk.
+     *
+     * @return void
+     */
+    public function testTransactionalCollectRetainsWholeRolledBackTable(): void
+    {
+        $pool = new WritePool(chunkSize: 1, poolLimit: 10000, strategy: FlushStrategy::COLLECT, transactional: true);
+
+        $pool->add('test_unique', ['name' => 'alpha']);
+        $pool->add('test_unique', ['name' => 'alpha']);
+
+        $flushResult = $pool->flush();
+
+        static::assertSame(2, $pool->count());
+        static::assertSame(0, $flushResult->flushedRecordCount());
+        static::assertSame(2, $flushResult->retainedRecordCount());
+        static::assertSame(0, $flushResult->droppedRecordCount());
+    }
+
+    /**
+     * Test that a transactional throw flush raises and retains the
+     * whole rolled-back table along with subsequent tables.
+     *
+     * @return void
+     */
+    public function testTransactionalThrowRollsBackAndRetainsWholeTable(): void
+    {
+        $pool = new WritePool(chunkSize: 1, poolLimit: 10000, strategy: FlushStrategy::THROW, transactional: true);
+
+        $pool->add('test_unique', ['name' => 'alpha']);
+        $pool->add('test_unique', ['name' => 'alpha']);
+        $pool->add('test_records', ['name' => 'foo', 'value' => 'bar']);
+
+        try {
+            $pool->flush();
+            static::fail('Expected WritePoolFlushException was not thrown');
+        } catch (WritePoolFlushException) {
+            // Exception intentionally caught to inspect buffer state below
+        }
+
+        static::assertSame(0, DB::table('test_unique')->count());
+        static::assertSame(3, $pool->count());
+    }
+
+    /**
+     * Test that the collect strategy reports record-level counts for a
+     * partially failing flush.
+     *
+     * @return void
+     */
+    public function testCollectStrategyReportsRecordLevelCounts(): void
+    {
+        $pool = new WritePool(chunkSize: 500, poolLimit: 10000, strategy: FlushStrategy::COLLECT);
+
+        $pool->add('nonexistent_table', ['col' => 'a']);
+        $pool->add('test_records', ['name' => 'foo', 'value' => 'bar']);
+        $pool->add('test_records', ['name' => 'baz', 'value' => 'qux']);
+
+        $flushResult = $pool->flush();
+
+        static::assertSame(2, $flushResult->flushedRecordCount());
+        static::assertSame(1, $flushResult->failedRecordCount());
+        static::assertSame(1, $flushResult->retainedRecordCount());
+        static::assertSame(0, $flushResult->droppedRecordCount());
+    }
+
+    /**
+     * Test that the throw strategy reports record-level counts covering
+     * both the failed chunk and the unprocessed records.
+     *
+     * @return void
+     */
+    public function testThrowStrategyReportsRecordLevelCounts(): void
+    {
+        $pool = new WritePool(chunkSize: 1, poolLimit: 10000, strategy: FlushStrategy::THROW);
+
+        $pool->add('nonexistent_table', ['col' => 'a']);
+        $pool->add('nonexistent_table', ['col' => 'b']);
+        $pool->add('test_records', ['name' => 'foo', 'value' => 'bar']);
+
+        try {
+            $pool->flush();
+            static::fail('Expected WritePoolFlushException was not thrown');
+        } catch (WritePoolFlushException $exception) {
+
+            $partialResult = $exception->flushResult();
+
+            static::assertSame(0, $partialResult->flushedRecordCount());
+            static::assertSame(1, $partialResult->failedRecordCount());
+            static::assertSame(3, $partialResult->retainedRecordCount());
+            static::assertSame(0, $partialResult->droppedRecordCount());
+        }
+    }
+
+    /**
+     * Test that the log strategy reports the failed records as dropped
+     * rather than retained.
+     *
+     * @return void
+     */
+    public function testLogStrategyReportsDroppedRecordCounts(): void
+    {
+        $pool = new WritePool(chunkSize: 500, poolLimit: 10000, strategy: FlushStrategy::LOG);
+
+        Log::shouldReceive('error')->once()->withAnyArgs();
+
+        $pool->add('nonexistent_table', ['col' => 'a']);
+        $pool->add('test_records', ['name' => 'foo', 'value' => 'bar']);
+
+        $flushResult = $pool->flush();
+
+        static::assertSame(1, $flushResult->flushedRecordCount());
+        static::assertSame(1, $flushResult->failedRecordCount());
+        static::assertSame(0, $flushResult->retainedRecordCount());
+        static::assertSame(1, $flushResult->droppedRecordCount());
     }
 
     /**
