@@ -5,6 +5,7 @@ namespace SineMacula\ApiToolkit\Http\Resources\Concerns;
 use SineMacula\ApiToolkit\Http\Resources\Schema\CompiledCountDefinition;
 use SineMacula\ApiToolkit\Http\Resources\Schema\CompiledFieldDefinition;
 use SineMacula\ApiToolkit\Http\Resources\Schema\CompiledSchema;
+use SineMacula\ApiToolkit\Http\Resources\Schema\OpenApiFieldSchema;
 
 /**
  * Compiles raw resource schema arrays into typed CompiledSchema objects.
@@ -128,6 +129,8 @@ final class SchemaCompiler
         $relations  = (array) ($definition['relation'] ?? null);
         $relation   = isset($relations[0]) && is_string($relations[0]) ? $relations[0] : null;
 
+        $openApi = $definition['openapi'] ?? null;
+
         return new CompiledFieldDefinition(
             accessor    : $definition['accessor'] ?? null,
             compute     : $definition['compute']  ?? null,
@@ -138,6 +141,7 @@ final class SchemaCompiler
             extras      : (array) ($definition['extras'] ?? []),
             guards      : $definition['guards']       ?? [],
             transformers: $definition['transformers'] ?? [],
+            openApi     : $openApi instanceof OpenApiFieldSchema ? $openApi : null,
         );
     }
 }

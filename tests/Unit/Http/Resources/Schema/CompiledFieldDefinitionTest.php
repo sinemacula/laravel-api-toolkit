@@ -5,6 +5,7 @@ namespace Tests\Unit\Http\Resources\Schema;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 use SineMacula\ApiToolkit\Http\Resources\Schema\CompiledFieldDefinition;
+use SineMacula\ApiToolkit\Http\Resources\Schema\OpenApiFieldSchema;
 
 /**
  * Tests for the CompiledFieldDefinition value object.
@@ -29,6 +30,8 @@ class CompiledFieldDefinitionTest extends TestCase
         $transformer = fn ($resource, $value) => strtoupper($value);
         $compute     = fn ($resource) => 'computed_value';
 
+        $openApi = new OpenApiFieldSchema(type: 'string');
+
         $definition = new CompiledFieldDefinition(
             accessor: 'profile.name',
             compute: $compute,
@@ -39,6 +42,7 @@ class CompiledFieldDefinitionTest extends TestCase
             extras: ['profile.avatar'],
             guards: [$guard],
             transformers: [$transformer],
+            openApi: $openApi,
         );
 
         static::assertSame('profile.name', $definition->accessor);
@@ -50,6 +54,7 @@ class CompiledFieldDefinitionTest extends TestCase
         static::assertSame(['profile.avatar'], $definition->extras);
         static::assertSame([$guard], $definition->guards);
         static::assertSame([$transformer], $definition->transformers);
+        static::assertSame($openApi, $definition->openApi);
     }
 
     /**
@@ -77,6 +82,53 @@ class CompiledFieldDefinitionTest extends TestCase
         static::assertNull($definition->resource);
         static::assertNull($definition->fields);
         static::assertNull($definition->constraint);
+    }
+
+    /**
+     * Test that the openApi property defaults to null when omitted.
+     *
+     * @return void
+     */
+    public function testOpenApiDefaultsToNullWhenOmitted(): void
+    {
+        $definition = new CompiledFieldDefinition(
+            accessor: null,
+            compute: null,
+            relation: null,
+            resource: null,
+            fields: null,
+            constraint: null,
+            extras: [],
+            guards: [],
+            transformers: [],
+        );
+
+        static::assertNull($definition->openApi);
+    }
+
+    /**
+     * Test that an explicit openApi schema is stored and accessible.
+     *
+     * @return void
+     */
+    public function testOpenApiSchemaIsStored(): void
+    {
+        $openApi = new OpenApiFieldSchema(type: 'integer', nullable: true);
+
+        $definition = new CompiledFieldDefinition(
+            accessor: null,
+            compute: null,
+            relation: null,
+            resource: null,
+            fields: null,
+            constraint: null,
+            extras: [],
+            guards: [],
+            transformers: [],
+            openApi: $openApi,
+        );
+
+        static::assertSame($openApi, $definition->openApi);
     }
 
     /**

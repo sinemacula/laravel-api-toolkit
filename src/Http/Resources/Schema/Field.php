@@ -145,6 +145,7 @@ final class Field extends BaseDefinition
                 'extras'       => $this->extras ?: null,
                 'guards'       => $this->getGuards() ?: null,
                 'transformers' => $this->getTransformers() ?: null,
+                'openapi'      => $this->getOpenApiDeclaration()?->toSchema(),
             ], static fn ($value) => $value !== null && $value !== []),
         ];
     }

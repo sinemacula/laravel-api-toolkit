@@ -4,6 +4,7 @@ namespace Tests\Unit\Http\Resources\Schema;
 
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
+use SineMacula\ApiToolkit\Http\Resources\Schema\OpenApiFieldSchema;
 use SineMacula\ApiToolkit\Http\Resources\Schema\Relation;
 use Tests\Fixtures\Resources\OrganizationResource;
 
@@ -224,5 +225,39 @@ class RelationTest extends TestCase
         $array = $relation->toArray();
 
         static::assertSame(['organization.owner'], $array['organization']['extras']);
+    }
+
+    /**
+     * Test that the openapi key is absent when no declaration was made.
+     *
+     * Backward-compatibility oracle (AC-11): a relation with no openapi() call
+     * must serialize without the new key.
+     *
+     * @return void
+     */
+    public function testToArrayOmitsOpenApiWhenNotDeclared(): void
+    {
+        $relation = Relation::to('organization', OrganizationResource::class);
+
+        $array = $relation->toArray();
+
+        static::assertArrayNotHasKey('openapi', $array['organization']);
+    }
+
+    /**
+     * Test that the openapi key is emitted when a declaration was made.
+     *
+     * @return void
+     */
+    public function testToArrayIncludesOpenApiWhenDeclared(): void
+    {
+        $relation = Relation::to('organization', OrganizationResource::class);
+        $relation->openapi()->type('object')->description('The owning organization');
+
+        $array = $relation->toArray();
+
+        static::assertArrayHasKey('openapi', $array['organization']);
+        static::assertInstanceOf(OpenApiFieldSchema::class, $array['organization']['openapi']);
+        static::assertSame('object', $array['organization']['openapi']->type);
     }
 }

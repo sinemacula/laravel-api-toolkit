@@ -5,6 +5,7 @@ namespace Tests\Unit\Http\Resources\Schema;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 use SineMacula\ApiToolkit\Http\Resources\Schema\Count;
+use SineMacula\ApiToolkit\Http\Resources\Schema\OpenApiFieldSchema;
 
 /**
  * Tests for the Count schema definition.
@@ -173,5 +174,39 @@ class CountTest extends TestCase
         static::assertSame([$guard], $data['guards']);
         static::assertSame([$transformer], $data['transformers']);
         static::assertSame(['posts.comments'], $data['extras']);
+    }
+
+    /**
+     * Test that the openapi key is absent when no declaration was made.
+     *
+     * Backward-compatibility oracle (AC-11): a count with no openapi() call
+     * must serialize without the new key.
+     *
+     * @return void
+     */
+    public function testToArrayOmitsOpenApiWhenNotDeclared(): void
+    {
+        $count = Count::of('posts');
+
+        $array = $count->toArray();
+
+        static::assertArrayNotHasKey('openapi', $array[self::COUNT_KEY_POSTS]);
+    }
+
+    /**
+     * Test that the openapi key is emitted when a declaration was made.
+     *
+     * @return void
+     */
+    public function testToArrayIncludesOpenApiWhenDeclared(): void
+    {
+        $count = Count::of('posts');
+        $count->openapi()->type('integer')->description('Number of posts');
+
+        $array = $count->toArray();
+
+        static::assertArrayHasKey('openapi', $array[self::COUNT_KEY_POSTS]);
+        static::assertInstanceOf(OpenApiFieldSchema::class, $array[self::COUNT_KEY_POSTS]['openapi']);
+        static::assertSame('integer', $array[self::COUNT_KEY_POSTS]['openapi']->type);
     }
 }

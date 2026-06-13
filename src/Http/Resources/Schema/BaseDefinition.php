@@ -23,6 +23,9 @@ abstract class BaseDefinition implements Arrayable
     /** @var array<int, string> Extra eager-load paths */
     protected array $extras = [];
 
+    /** @var \SineMacula\ApiToolkit\Http\Resources\Schema\OpenApiFieldDeclaration|null Declared OpenAPI contract; null until openapi() is called */
+    protected ?OpenApiFieldDeclaration $openApiDeclaration = null;
+
     /**
      * Add a guard condition — return false to suppress the field.
      *
@@ -80,6 +83,30 @@ abstract class BaseDefinition implements Arrayable
         $this->extras = array_values(array_unique([...$this->extras, ...$paths]));
 
         return $this;
+    }
+
+    /**
+     * Begin (or continue) declaring this field's OpenAPI contract.
+     *
+     * Returns the carrier for chaining; call end() to return to the
+     * definition. The carrier is created lazily on first use, so a definition
+     * that never calls openapi() carries no declaration and is unaffected.
+     *
+     * @return \SineMacula\ApiToolkit\Http\Resources\Schema\OpenApiFieldDeclaration
+     */
+    public function openapi(): OpenApiFieldDeclaration
+    {
+        return $this->openApiDeclaration ??= new OpenApiFieldDeclaration($this);
+    }
+
+    /**
+     * Get the declared OpenAPI carrier, or null when no declaration was made.
+     *
+     * @return \SineMacula\ApiToolkit\Http\Resources\Schema\OpenApiFieldDeclaration|null
+     */
+    public function getOpenApiDeclaration(): ?OpenApiFieldDeclaration
+    {
+        return $this->openApiDeclaration;
     }
 
     /**

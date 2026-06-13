@@ -25,6 +25,7 @@ final readonly class CompiledFieldDefinition
      * @param  array<int, string>  $extras
      * @param  array<int, callable(mixed, mixed): bool>  $guards
      * @param  array<int, callable(mixed, mixed): mixed>  $transformers
+     * @param  \SineMacula\ApiToolkit\Http\Resources\Schema\OpenApiFieldSchema|null  $openApi
      */
     public function __construct(
 
@@ -54,6 +55,9 @@ final readonly class CompiledFieldDefinition
 
         /** Value transformer closures */
         public array $transformers,
+
+        /** Declared OpenAPI contract for this field; read only by the exporter */
+        public ?OpenApiFieldSchema $openApi = null,
 
     ) {}
 }
