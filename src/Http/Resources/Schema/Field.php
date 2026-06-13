@@ -74,12 +74,16 @@ final class Field extends BaseDefinition
      */
     public static function timestamp(string $field, ?string $alias = null): self
     {
-        return self::accessor($field, static function ($resource) use ($field): ?string {
+        $definition = self::accessor($field, static function ($resource) use ($field): ?string {
 
             $value = data_get($resource, $field);
 
             return $value instanceof CarbonInterface ? $value->toIso8601String() : null;
         }, $alias);
+
+        $definition->openapi()->type('string')->format('date-time')->nullable();
+
+        return $definition;
     }
 
     /**
@@ -91,12 +95,16 @@ final class Field extends BaseDefinition
      */
     public static function date(string $field, ?string $alias = null): self
     {
-        return self::accessor($field, static function ($resource) use ($field): ?string {
+        $definition = self::accessor($field, static function ($resource) use ($field): ?string {
 
             $value = data_get($resource, $field);
 
             return $value instanceof CarbonInterface ? $value->toDateString() : null;
         }, $alias);
+
+        $definition->openapi()->type('string')->format('date')->nullable();
+
+        return $definition;
     }
 
     /**

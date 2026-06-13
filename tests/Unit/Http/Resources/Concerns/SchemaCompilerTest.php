@@ -488,28 +488,32 @@ class SchemaCompilerTest extends TestCase
     }
 
     /**
-     * Test that a real fixture resource declaring no openapi() carrier compiles
-     * with the openapi key absent from its raw schema and a null openApi on
-     * every compiled field.
+     * Test that a real fixture resource carries no author-declared openapi on its
+     * plain scalar/compute/relation fields, while the toolkit's own timestamp()
+     * factory auto-declares a date-time format.
      *
-     * This is the resource-level byte-for-byte backward-compatibility oracle
-     * (AC-11): the new declaration is absent from every required call path when
-     * unused.
+     * This is the resource-level backward-compatibility oracle (AC-11): a field
+     * the author did not annotate compiles with a null openApi, so the new
+     * declaration is absent from every author-required call path. The timestamp()
+     * factory's built-in date-time format (AC-07) is the only auto-declaration and
+     * it never affects runtime serialization (the runtime path ignores openapi).
      *
      * @return void
      */
-    public function testRealResourceWithoutOpenapiCompilesWithNullOpenApi(): void
+    public function testRealResourceCompilesScalarsNullAndTimestampsWithDateTimeFormat(): void
     {
-        $rawSchema = UserResource::schema();
-
-        foreach ($rawSchema as $definition) {
-            static::assertArrayNotHasKey('openapi', $definition);
-        }
-
         $schema = SchemaCompiler::compile(UserResource::class);
 
         foreach ($schema->getFieldKeys() as $key) {
-            static::assertNull($schema->getField($key)?->openApi);
+            $openApi = $schema->getField($key)?->openApi;
+
+            if (in_array($key, ['created_at', 'updated_at'], true)) {
+                static::assertNotNull($openApi, "Timestamp field {$key} should auto-declare an openapi format");
+                static::assertSame('string', $openApi->type);
+                static::assertSame('date-time', $openApi->format);
+            } else {
+                static::assertNull($openApi, "Author-undeclared field {$key} should compile with a null openApi");
+            }
         }
     }
 
