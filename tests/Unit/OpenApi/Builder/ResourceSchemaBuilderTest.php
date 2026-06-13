@@ -136,7 +136,8 @@ class ResourceSchemaBuilderTest extends TestCase
         static::assertSame(['$ref' => '#/components/schemas/Organization'], $property['oneOf'][0]);
         static::assertSame('array', $property['oneOf'][1]['type']);
         static::assertSame(['$ref' => '#/components/schemas/Organization'], $property['oneOf'][1]['items']);
-        static::assertTrue($property['nullable']);
+        static::assertSame(['type' => 'null'], $property['oneOf'][2]);
+        static::assertArrayNotHasKey('nullable', $property);
         static::assertSame('unknown', $property['x-cardinality']);
     }
 

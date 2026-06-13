@@ -113,8 +113,12 @@ class ResourceSchemaBuilder
 
     /**
      * Build the conservative relation property: a reference to the related
-     * component valid for both a single object and an array, nullable, and
-     * flagged as having an unknown cardinality.
+     * component valid for a single object, an array, or null (cardinality is
+     * unknowable without a model instance), flagged as unknown cardinality.
+     *
+     * Nullability is expressed with a JSON Schema 2020-12 `{"type": "null"}`
+     * member rather than the OpenAPI 3.0 `nullable` keyword, which is an inert
+     * unknown keyword under 3.1 / JSON Schema 2020-12.
      *
      * @param  class-string  $childResource
      * @return array<string, mixed>
@@ -127,8 +131,8 @@ class ResourceSchemaBuilder
             'oneOf' => [
                 ['$ref' => $ref],
                 ['type' => 'array', 'items' => ['$ref' => $ref]],
+                ['type' => 'null'],
             ],
-            'nullable'      => true,
             'x-cardinality' => 'unknown',
         ];
     }
