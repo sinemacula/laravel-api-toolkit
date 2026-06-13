@@ -23,6 +23,7 @@ final readonly class CompiledFieldDefinition
      * @param  array<int, string>|null  $fields
      * @param  (\Closure(\Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>): void)|null  $constraint
      * @param  array<int, string>  $extras
+     * @param  array<int, string>  $needs
      * @param  array<int, callable(mixed, mixed): bool>  $guards
      * @param  array<int, callable(mixed, mixed): mixed>  $transformers
      */
@@ -48,6 +49,9 @@ final readonly class CompiledFieldDefinition
 
         /** Additional eager-load paths */
         public array $extras,
+
+        /** Declared base-table column reads for this field */
+        public array $needs,
 
         /** Guard closures that control visibility */
         public array $guards,

@@ -36,6 +36,7 @@ class ValidateTransformersTest extends TestCase
             fields: null,
             constraint: null,
             extras: [],
+            needs: [],
             guards: [],
             transformers: [fn ($value, $model) => strtoupper($value)],
         );
@@ -66,6 +67,7 @@ class ValidateTransformersTest extends TestCase
             fields: null,
             constraint: null,
             extras: [],
+            needs: [],
             guards: [],
             transformers: ['not_a_function'],
         );
@@ -99,6 +101,7 @@ class ValidateTransformersTest extends TestCase
             fields: null,
             constraint: null,
             extras: [],
+            needs: [],
             guards: [],
             transformers: ['invalid_one', 'invalid_two'],
         );
@@ -131,6 +134,7 @@ class ValidateTransformersTest extends TestCase
             fields: null,
             constraint: null,
             extras: [],
+            needs: [],
             guards: [],
             transformers: [],
         );

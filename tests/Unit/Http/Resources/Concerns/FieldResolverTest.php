@@ -238,8 +238,8 @@ class FieldResolverTest extends TestCase
     }
 
     /**
-     * Test that shouldIncludeCountsField returns true when counts is in the
-     * API query fields.
+     * Test that shouldIncludeCountsField returns true when counts is in the API
+     * query fields.
      *
      * @return void
      */
@@ -254,8 +254,8 @@ class FieldResolverTest extends TestCase
     }
 
     /**
-     * Test that shouldIncludeCountsField returns false when counts is
-     * excluded via withoutFields.
+     * Test that shouldIncludeCountsField returns false when counts is excluded
+     * via withoutFields.
      *
      * @return void
      */
@@ -288,8 +288,8 @@ class FieldResolverTest extends TestCase
     }
 
     /**
-     * Test that shouldIncludeCountsField returns true in all-fields mode
-     * when counts is not excluded.
+     * Test that shouldIncludeCountsField returns true in all-fields mode when
+     * counts is not excluded.
      *
      * @return void
      */
@@ -358,8 +358,7 @@ class FieldResolverTest extends TestCase
     }
 
     /**
-     * Create a CompiledSchema with the given field keys using stub
-     * definitions.
+     * Create a CompiledSchema with the given field keys using stub definitions.
      *
      * @param  array<int, string>  $keys
      * @return \SineMacula\ApiToolkit\Http\Resources\Schema\CompiledSchema
@@ -375,6 +374,7 @@ class FieldResolverTest extends TestCase
             fields: null,
             constraint: null,
             extras: [],
+            needs: [],
             guards: [],
             transformers: [],
         );
