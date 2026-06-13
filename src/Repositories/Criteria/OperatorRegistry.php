@@ -97,6 +97,16 @@ final class OperatorRegistry
     }
 
     /**
+     * Return all registered operator tokens.
+     *
+     * @return array<int, string>
+     */
+    public function tokens(): array
+    {
+        return array_keys($this->operators);
+    }
+
+    /**
      * Wrap a closure in an anonymous FilterOperator implementation.
      *
      * @param  \Closure  $closure
