@@ -38,6 +38,7 @@
         "friendsofphp/php-cs-fixer": "^3.94",
         "infection/infection": "^0.33.2",
         "mockery/mockery": "^1.6",
+        "opis/json-schema": "^2.4",
         "orchestra/testbench": "^9.0 || ^10.0",
         "phpnexus/cwh": "^3.0",
         "phpstan/extension-installer": "^1.4",
