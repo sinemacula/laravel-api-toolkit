@@ -329,6 +329,30 @@ class WritePoolTest extends TestCase
     }
 
     /**
+     * Test that a LOG strategy chunk failure logs the failing table name and
+     * the underlying error message in the log context.
+     *
+     * @return void
+     */
+    public function testLogStrategyFailureLogsTableAndErrorContext(): void
+    {
+        $pool = new WritePool(chunkSize: 500, poolLimit: 10000, strategy: FlushStrategy::LOG);
+
+        Log::shouldReceive('error')
+            ->once()
+            ->with(
+                \Mockery::type('string'),
+                \Mockery::on(fn (array $context): bool => ($context['table'] ?? null) === 'nonexistent_table'
+                    && is_string($context['error'] ?? null)
+                    && $context['error'] !== ''),
+            );
+
+        $pool->add('nonexistent_table', ['col' => 'val']);
+
+        $pool->flush();
+    }
+
+    /**
      * Test that flush with THROW strategy throws on the first
      * chunk failure.
      *
