@@ -8,11 +8,14 @@ use PHPUnit\Framework\Attributes\CoversTrait;
 use SineMacula\ApiToolkit\Repositories\ApiRepository;
 use SineMacula\ApiToolkit\Repositories\Concerns\AttributeSetter;
 use SineMacula\ApiToolkit\Repositories\Concerns\Cacheable;
+use SineMacula\ApiToolkit\Repositories\Concerns\CacheSizeGuard;
+use SineMacula\ApiToolkit\Repositories\Concerns\CacheStoreOptions;
 use Tests\Fixtures\Models\Tag;
 use Tests\Fixtures\Repositories\CacheableTagRepository;
 use Tests\Fixtures\Repositories\CustomPrefixCacheableTagRepository;
 use Tests\Fixtures\Repositories\CustomStoreCacheableTagRepository;
 use Tests\Fixtures\Repositories\ShortTtlTagRepository;
+use Tests\Fixtures\Repositories\TunedCacheableTagRepository;
 use Tests\TestCase;
 
 /**
@@ -410,5 +413,66 @@ class CacheableTest extends TestCase
         $found = $this->repository->scopeById($created?->id)->first(); // @phpstan-ignore staticMethod.dynamicCall, property.notFound
 
         static::assertInstanceOf(Tag::class, $found);
+    }
+
+    /**
+     * Test that the row count used by the size guard is the collection size for
+     * a collection, exactly one for a single model, and zero otherwise.
+     *
+     * @return void
+     */
+    public function testRowCountReflectsResultShape(): void
+    {
+        $rowCount = new \ReflectionMethod($this->repository, 'rowCount');
+
+        static::assertSame(2, $rowCount->invoke($this->repository, new Collection(['a', 'b'])));
+        static::assertSame(1, $rowCount->invoke($this->repository, new Tag));
+        static::assertSame(0, $rowCount->invoke($this->repository, 'not-a-model'));
+        static::assertSame(0, $rowCount->invoke($this->repository, null));
+    }
+
+    /**
+     * Test that the reference-mode key argument is taken from the first
+     * argument, defaults to zero, and preserves integer and string keys while
+     * casting any other type to a string.
+     *
+     * @return void
+     */
+    public function testReferenceIdResolvesPrimaryKeyArgument(): void
+    {
+        $referenceId = new \ReflectionMethod($this->repository, 'referenceId');
+
+        static::assertSame(5, $referenceId->invoke($this->repository, [5, 99]));
+        static::assertSame('php', $referenceId->invoke($this->repository, ['php']));
+        static::assertSame(0, $referenceId->invoke($this->repository, []));
+        static::assertSame('1.5', $referenceId->invoke($this->repository, [1.5]));
+    }
+
+    /**
+     * Test that the repository's cache tuning properties take precedence over
+     * the package configuration when resolving the store options.
+     *
+     * @return void
+     */
+    public function testTuningPropertiesTakePrecedenceOverConfig(): void
+    {
+        assert($this->app !== null);
+
+        $repository = $this->app->make(TunedCacheableTagRepository::class);
+
+        $resolveTtl          = new \ReflectionMethod($repository, 'resolveTtl');
+        $resolveReferenceTtl = new \ReflectionMethod($repository, 'resolveReferenceTtl');
+        $resolveStoreOptions = new \ReflectionMethod($repository, 'resolveStoreOptions');
+
+        static::assertSame(120, $resolveTtl->invoke($repository));
+        static::assertSame(240, $resolveReferenceTtl->invoke($repository));
+
+        $options = $resolveStoreOptions->invoke($repository);
+
+        static::assertInstanceOf(CacheStoreOptions::class, $options);
+        static::assertSame(120, $options->ttl);
+        static::assertFalse($options->registryEnabled);
+        static::assertSame(50, (new \ReflectionProperty(CacheSizeGuard::class, 'maxRows'))->getValue($options->sizeGuard));
+        static::assertSame(2048, (new \ReflectionProperty(CacheSizeGuard::class, 'maxBytes'))->getValue($options->sizeGuard));
     }
 }

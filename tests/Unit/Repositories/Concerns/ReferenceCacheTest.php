@@ -2,6 +2,7 @@
 
 namespace Tests\Unit\Repositories\Concerns;
 
+use Carbon\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -33,10 +34,25 @@ class ReferenceCacheTest extends TestCase
     {
         parent::setUp();
 
+        Carbon::setTestNow(Carbon::parse('2026-03-09 12:00:00'));
+
         Tag::create(['name' => 'php']);
         Tag::create(['name' => 'laravel']);
 
         $this->referenceCache = new ReferenceCache('array', 'tags', 3600);
+    }
+
+    /**
+     * Clean up the testing environment before the next test.
+     *
+     * @return void
+     */
+    #[\Override]
+    protected function tearDown(): void
+    {
+        Carbon::setTestNow();
+
+        parent::tearDown();
     }
 
     /**
@@ -132,5 +148,54 @@ class ReferenceCacheTest extends TestCase
         $this->referenceCache->all(new Tag);
 
         static::assertTrue($this->referenceCache->getStatus()->isPopulated());
+    }
+
+    /**
+     * Test that the snapshot and metadata cache keys are scoped to the table,
+     * so two reference caches for different tables never collide.
+     *
+     * @return void
+     */
+    public function testCacheKeysAreScopedToTable(): void
+    {
+        $this->referenceCache->all(new Tag);
+
+        static::assertTrue($this->referenceCache->getStore()->has('api-toolkit:repository-cache:tags'));
+        static::assertTrue($this->referenceCache->getStore()->has('api-toolkit:repository-cache-meta:tags'));
+    }
+
+    /**
+     * Test that loading the table records the populated_at timestamp in the
+     * reference metadata.
+     *
+     * @return void
+     */
+    public function testLoadRecordsPopulatedAtMetadata(): void
+    {
+        $this->referenceCache->all(new Tag);
+
+        $meta = $this->referenceCache->getStore()->get('api-toolkit:repository-cache-meta:tags');
+
+        static::assertIsArray($meta);
+        static::assertArrayHasKey('populated_at', $meta);
+        static::assertSame(now()->timestamp, $meta['populated_at']);
+    }
+
+    /**
+     * Test that a flush records the invalidated_at timestamp in the reference
+     * metadata.
+     *
+     * @return void
+     */
+    public function testFlushRecordsInvalidatedAtMetadata(): void
+    {
+        $this->referenceCache->all(new Tag);
+        $this->referenceCache->flush();
+
+        $meta = $this->referenceCache->getStore()->get('api-toolkit:repository-cache-meta:tags');
+
+        static::assertIsArray($meta);
+        static::assertArrayHasKey('invalidated_at', $meta);
+        static::assertSame(now()->timestamp, $meta['invalidated_at']);
     }
 }
