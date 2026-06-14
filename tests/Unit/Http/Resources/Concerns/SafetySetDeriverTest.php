@@ -186,6 +186,78 @@ class SafetySetDeriverTest extends TestCase
     }
 
     /**
+     * Test that an unresolvable relation is skipped so a later resolvable
+     * relation still contributes its parent keys.
+     *
+     * @return void
+     */
+    public function testSkipsUnresolvableRelationButProcessesLaterOnes(): void
+    {
+        $model    = $this->makeModel('id');
+        $relation = static::createStub(Relation::class);
+
+        $this->introspector->method('getDeletedAtColumn')->willReturn(null);
+        $this->introspector->method('resolveRelation')->willReturnCallback(
+            fn (string $key): ?Relation => $key === 'author' ? $relation : null,
+        );
+        $this->introspector->method('parentKeysFor')->willReturn(['author_id']);
+        $this->introspector->method('getColumns')->willReturn(['id', 'author_id', 'name']);
+
+        $columns = $this->deriver->derive($model, ['missing', 'author'], [], []);
+
+        static::assertContains('author_id', $columns);
+    }
+
+    /**
+     * Test that parent keys accumulate across every resolvable relation rather
+     * than only retaining the last one's keys.
+     *
+     * @return void
+     */
+    public function testAccumulatesParentKeysAcrossMultipleRelations(): void
+    {
+        $model     = $this->makeModel('id');
+        $relationA = static::createStub(Relation::class);
+        $relationB = static::createStub(Relation::class);
+
+        $this->introspector->method('getDeletedAtColumn')->willReturn(null);
+        $this->introspector->method('resolveRelation')->willReturnCallback(
+            fn (string $key): ?Relation => match ($key) {
+                'author'   => $relationA,
+                'category' => $relationB,
+                default    => null,
+            },
+        );
+        $this->introspector->method('parentKeysFor')->willReturnCallback(
+            fn (Relation $relation): array => $relation === $relationA ? ['author_id'] : ['category_id'],
+        );
+        $this->introspector->method('getColumns')->willReturn(['id', 'author_id', 'category_id', 'name']);
+
+        $columns = $this->deriver->derive($model, ['author', 'category'], [], []);
+
+        static::assertContains('author_id', $columns);
+        static::assertContains('category_id', $columns);
+    }
+
+    /**
+     * Test that the derived safety set is de-duplicated and re-indexed into a
+     * contiguous list.
+     *
+     * @return void
+     */
+    public function testDeduplicatesAndReindexesColumns(): void
+    {
+        $model = $this->makeModel('id');
+
+        $this->introspector->method('getDeletedAtColumn')->willReturn(null);
+        $this->introspector->method('getColumns')->willReturn(['id', 'name']);
+
+        $columns = $this->deriver->derive($model, [], [], ['id', 'ghost', 'name']);
+
+        static::assertSame(['id', 'name'], $columns);
+    }
+
+    /**
      * Build a Model mock stub with the given primary key name and appended attributes.
      *
      * @param  string  $keyName
