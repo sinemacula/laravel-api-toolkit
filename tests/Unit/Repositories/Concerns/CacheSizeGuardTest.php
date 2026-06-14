@@ -76,4 +76,31 @@ class CacheSizeGuardTest extends TestCase
 
         static::assertTrue($guard->allows(str_repeat('x', 100000), 1));
     }
+
+    /**
+     * Test that a result whose row count exactly equals the ceiling is
+     * allowed, pinning the bound as exclusive rather than inclusive.
+     *
+     * @return void
+     */
+    public function testRowCountEqualToCeilingIsAllowed(): void
+    {
+        $guard = new CacheSizeGuard(5, 262144);
+
+        static::assertTrue($guard->allows(collect(['a']), 5));
+    }
+
+    /**
+     * Test that a result whose serialized size exactly equals the byte ceiling
+     * is allowed, pinning the bound as exclusive rather than inclusive.
+     *
+     * @return void
+     */
+    public function testByteSizeEqualToCeilingIsAllowed(): void
+    {
+        $result = collect(['a', 'b']);
+        $guard  = new CacheSizeGuard(1000, strlen(serialize($result)));
+
+        static::assertTrue($guard->allows($result, 2));
+    }
 }
