@@ -9,8 +9,8 @@ use SineMacula\ApiToolkit\Http\Resources\Schema\CompiledSchema;
 /**
  * Compiles raw resource schema arrays into typed CompiledSchema objects.
  *
- * Manages a per-class static cache so that each resource class is compiled
- * only once per request lifecycle.
+ * Manages a per-class static cache so that each resource class is compiled only
+ * once per request lifecycle.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -136,6 +136,7 @@ final class SchemaCompiler
             fields      : $definition['fields'] ?? null,
             constraint  : $constraint instanceof \Closure ? $constraint : null,
             extras      : (array) ($definition['extras'] ?? []),
+            needs       : (array) ($definition['needs'] ?? []),
             guards      : $definition['guards']       ?? [],
             transformers: $definition['transformers'] ?? [],
         );

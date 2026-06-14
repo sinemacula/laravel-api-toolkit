@@ -1,0 +1,121 @@
+<?php
+
+namespace SineMacula\ApiToolkit\Repositories\Criteria\Concerns;
+
+use Illuminate\Contracts\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\Config;
+use SineMacula\ApiToolkit\Contracts\ResourceMetadataProvider;
+use SineMacula\ApiToolkit\Facades\ApiQuery;
+use SineMacula\ApiToolkit\Http\Resources\ApiResource;
+use SineMacula\ApiToolkit\Http\Resources\Concerns\FieldColumnMapper;
+use SineMacula\ApiToolkit\Http\Resources\Concerns\SafetySetDeriver;
+use SineMacula\ApiToolkit\Http\Resources\Schema\ColumnNarrower;
+
+/**
+ * Applies base-table column narrowing to an Eloquent query builder.
+ *
+ * Composes the resolved field set, the field-column map, and the per-model
+ * safety set, asks the narrower for a decision, and applies a single `select()`
+ * only when every resolved field is provably column-mapped. On every other path
+ * the builder's columns are left untouched so the downstream default `'*'`
+ * selection flows through unchanged.
+ *
+ * @author      Ben Carey <bdmc@sinemacula.co.uk>
+ * @copyright   2026 Sine Macula Limited.
+ */
+final class ColumnProjectionApplier
+{
+    /**
+     * Create a new column projection applier instance.
+     *
+     * @param  \SineMacula\ApiToolkit\Http\Resources\Concerns\SafetySetDeriver  $safetySetDeriver
+     */
+    public function __construct(
+
+        /** Derives the per-model safety set a narrowed query must retain. */
+        private readonly SafetySetDeriver $safetySetDeriver,
+
+    ) {}
+
+    /**
+     * Apply base-table column narrowing to the query when safe and enabled.
+     *
+     * @param  \Illuminate\Contracts\Database\Eloquent\Builder  $query
+     * @param  \SineMacula\ApiToolkit\Contracts\ResourceMetadataProvider  $metadataProvider
+     * @param  string|null  $resourceClass
+     * @param  array<string, string>  $order
+     * @return \Illuminate\Contracts\Database\Eloquent\Builder
+     */
+    public function apply(Builder $query, ResourceMetadataProvider $metadataProvider, ?string $resourceClass, array $order): Builder
+    {
+        if (
+            !Config::get('api-toolkit.resources.narrow_columns', false)
+            || $resourceClass === null
+            || !is_subclass_of($resourceClass, ApiResource::class)
+        ) {
+            return $query;
+        }
+
+        $fields = $this->resolveFields($metadataProvider, $resourceClass);
+
+        if (empty($fields)) {
+            return $query;
+        }
+
+        $relationKeys = array_keys($metadataProvider->eagerLoadMapFor($resourceClass, $fields));
+        $safety       = $this->deriveSafetySet($query, $relationKeys, $order);
+        $decision     = (new ColumnNarrower)->decide(FieldColumnMapper::for($resourceClass), $fields, $safety);
+
+        if ($decision->shouldNarrow()) {
+            $query->getQuery()->select($decision->columns());
+        }
+
+        return $query;
+    }
+
+    /**
+     * Resolve the rendered field set for the resource class.
+     *
+     * @param  \SineMacula\ApiToolkit\Contracts\ResourceMetadataProvider  $metadataProvider
+     * @param  string  $resourceClass
+     * @return array<int, string>
+     */
+    private function resolveFields(ResourceMetadataProvider $metadataProvider, string $resourceClass): array
+    {
+        $resourceType = $metadataProvider->getResourceType($resourceClass);
+
+        return in_array(':all', ApiQuery::getFields($resourceType) ?? [], true)
+            ? $metadataProvider->getAllFields($resourceClass)
+            : $metadataProvider->resolveFields($resourceClass);
+    }
+
+    /**
+     * Derive the per-model safety set of columns the narrowed query must retain.
+     *
+     * @param  \Illuminate\Contracts\Database\Eloquent\Builder  $query
+     * @param  array<int, string>  $relationKeys
+     * @param  array<string, string>  $order
+     * @return array<int, string>
+     */
+    private function deriveSafetySet(Builder $query, array $relationKeys, array $order): array
+    {
+        // Aliased scalars are omitted for this iteration: the resolved field set
+        // uses canonical schema keys, and the safety set is additive, so the
+        // narrower already unions every needed column from the field-column map.
+        return $this->safetySetDeriver->derive($query->getModel(), $relationKeys, [], $this->orderColumns($order));
+    }
+
+    /**
+     * Extract the order column names, excluding the random-ordering keyword.
+     *
+     * @param  array<string, string>  $order
+     * @return array<int, string>
+     */
+    private function orderColumns(array $order): array
+    {
+        return array_values(array_filter(
+            array_keys($order),
+            static fn (string $column): bool => $column !== OrderApplier::ORDER_BY_RANDOM,
+        ));
+    }
+}

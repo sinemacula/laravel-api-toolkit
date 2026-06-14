@@ -34,6 +34,7 @@ class CompiledSchemaTest extends TestCase
             fields: null,
             constraint: null,
             extras: [],
+            needs: [],
             guards: [],
             transformers: [],
         );
@@ -70,6 +71,7 @@ class CompiledSchemaTest extends TestCase
             fields: null,
             constraint: null,
             extras: [],
+            needs: [],
             guards: [],
             transformers: [],
         );
@@ -146,6 +148,7 @@ class CompiledSchemaTest extends TestCase
             fields: null,
             constraint: null,
             extras: [],
+            needs: [],
             guards: [],
             transformers: [],
         );

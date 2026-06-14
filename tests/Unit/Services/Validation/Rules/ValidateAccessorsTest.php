@@ -38,6 +38,7 @@ class ValidateAccessorsTest extends TestCase
                     fields: null,
                     constraint: null,
                     extras: [],
+                    needs: [],
                     guards: [],
                     transformers: [],
                 ),
@@ -68,6 +69,7 @@ class ValidateAccessorsTest extends TestCase
                     fields: null,
                     constraint: null,
                     extras: [],
+                    needs: [],
                     guards: [],
                     transformers: [],
                 ),
@@ -100,6 +102,7 @@ class ValidateAccessorsTest extends TestCase
                     fields: null,
                     constraint: null,
                     extras: [],
+                    needs: [],
                     guards: [],
                     transformers: [],
                 ),
@@ -136,8 +139,8 @@ class ValidateAccessorsTest extends TestCase
     }
 
     /**
-     * Test that validation continues past fields with null accessors and
-     * still reports later defects.
+     * Test that validation continues past fields with null accessors and still
+     * reports later defects.
      *
      * @return void
      */
@@ -221,6 +224,7 @@ class ValidateAccessorsTest extends TestCase
                     fields: null,
                     constraint: null,
                     extras: [],
+                    needs: [],
                     guards: [],
                     transformers: [],
                 ),
@@ -250,6 +254,7 @@ class ValidateAccessorsTest extends TestCase
             fields: null,
             constraint: null,
             extras: [],
+            needs: [],
             guards: [],
             transformers: [],
         );
@@ -282,8 +287,8 @@ class ValidateAccessorsTest extends TestCase
     }
 
     /**
-     * Create a CompiledSchema with a raw fields array, bypassing the
-     * documented element type via reflection.
+     * Create a CompiledSchema with a raw fields array, bypassing the documented
+     * element type via reflection.
      *
      * @param  array<string, mixed>  $fields
      * @return \SineMacula\ApiToolkit\Http\Resources\Schema\CompiledSchema

@@ -181,8 +181,8 @@ class ValueResolverTest extends TestCase
     }
 
     /**
-     * Test that a MissingValue is returned when the resource wraps a
-     * non-object value for simple property resolution.
+     * Test that a MissingValue is returned when the resource wraps a non-object
+     * value for simple property resolution.
      *
      * @return void
      */
@@ -367,8 +367,8 @@ class ValueResolverTest extends TestCase
     }
 
     /**
-     * Test that a failing guard suppresses a value that would otherwise
-     * resolve successfully.
+     * Test that a failing guard suppresses a value that would otherwise resolve
+     * successfully.
      *
      * @return void
      */
@@ -476,6 +476,7 @@ class ValueResolverTest extends TestCase
             fields: null,
             constraint: null,
             extras: [],
+            needs: [],
             guards: [],
             transformers: [],
         );
@@ -486,8 +487,8 @@ class ValueResolverTest extends TestCase
     }
 
     /**
-     * Test that a non-string, non-callable accessor resolves to a
-     * MissingValue rather than erroring.
+     * Test that a non-string, non-callable accessor resolves to a MissingValue
+     * rather than erroring.
      *
      * @return void
      */
@@ -503,6 +504,7 @@ class ValueResolverTest extends TestCase
             fields: null,
             constraint: null,
             extras: [],
+            needs: [],
             guards: [],
             transformers: [],
         );
@@ -717,8 +719,8 @@ class ValueResolverTest extends TestCase
     }
 
     /**
-     * Test that a relation definition resolves to a MissingValue when the
-     * owner cannot report relation load state.
+     * Test that a relation definition resolves to a MissingValue when the owner
+     * cannot report relation load state.
      *
      * @return void
      */
@@ -877,6 +879,7 @@ class ValueResolverTest extends TestCase
      * @param  array<int, string>|null  $fields
      * @param  \Closure(mixed): mixed|null  $constraint
      * @param  array<int, string>  $extras
+     * @param  array<int, string>  $needs
      * @param  array<int, callable(mixed, mixed): bool>  $guards
      * @param  array<int, callable(mixed, mixed): mixed>  $transformers
      * @return \SineMacula\ApiToolkit\Http\Resources\Schema\CompiledFieldDefinition
@@ -889,6 +892,7 @@ class ValueResolverTest extends TestCase
         ?array $fields = null,
         ?\Closure $constraint = null,
         array $extras = [],
+        array $needs = [],
         array $guards = [],
         array $transformers = [],
     ): CompiledFieldDefinition {
@@ -900,6 +904,7 @@ class ValueResolverTest extends TestCase
             fields: $fields,
             constraint: $constraint,
             extras: $extras,
+            needs: $needs,
             guards: $guards,
             transformers: $transformers,
         );

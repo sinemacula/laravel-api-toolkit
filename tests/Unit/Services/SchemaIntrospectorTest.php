@@ -5,6 +5,9 @@ namespace Tests\Unit\Services;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
+use Illuminate\Database\Eloquent\Relations\MorphTo;
+use Illuminate\Database\Eloquent\Relations\Relation;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Log;
@@ -48,8 +51,8 @@ class SchemaIntrospectorTest extends TestCase
     }
 
     /**
-     * Test that getColumns returns the cached result on a second call
-     * without hitting Schema again.
+     * Test that getColumns returns the cached result on a second call without
+     * hitting Schema again.
      *
      * @return void
      */
@@ -126,8 +129,7 @@ class SchemaIntrospectorTest extends TestCase
     }
 
     /**
-     * Test that getSearchableColumns returns columns with exclusions
-     * applied.
+     * Test that getSearchableColumns returns columns with exclusions applied.
      *
      * @return void
      */
@@ -163,8 +165,8 @@ class SchemaIntrospectorTest extends TestCase
     }
 
     /**
-     * Test that getSearchableColumns ignores table-specific exclusions
-     * intended for other tables.
+     * Test that getSearchableColumns ignores table-specific exclusions intended
+     * for other tables.
      *
      * @return void
      */
@@ -278,8 +280,8 @@ class SchemaIntrospectorTest extends TestCase
     }
 
     /**
-     * Test that isRelation does not attempt to invoke, or log a failure
-     * for, a non-existent method.
+     * Test that isRelation does not attempt to invoke, or log a failure for, a
+     * non-existent method.
      *
      * @return void
      */
@@ -349,8 +351,8 @@ class SchemaIntrospectorTest extends TestCase
     }
 
     /**
-     * Test that isRelation returns false for a method without a return
-     * type declaration.
+     * Test that isRelation returns false for a method without a return type
+     * declaration.
      *
      * @return void
      */
@@ -377,8 +379,8 @@ class SchemaIntrospectorTest extends TestCase
     }
 
     /**
-     * Test that isRelation returns true for a union return type that
-     * contains a Relation subclass.
+     * Test that isRelation returns true for a union return type that contains a
+     * Relation subclass.
      *
      * @return void
      */
@@ -435,8 +437,7 @@ class SchemaIntrospectorTest extends TestCase
     }
 
     /**
-     * Test that isRelation returns true for a dynamically registered
-     * relation.
+     * Test that isRelation returns true for a dynamically registered relation.
      *
      * @return void
      */
@@ -457,8 +458,7 @@ class SchemaIntrospectorTest extends TestCase
     }
 
     /**
-     * Test that isRelation returns false for an Eloquent attribute
-     * accessor.
+     * Test that isRelation returns false for an Eloquent attribute accessor.
      *
      * @return void
      */
@@ -530,8 +530,8 @@ class SchemaIntrospectorTest extends TestCase
     }
 
     /**
-     * Test that the service provider registers SchemaIntrospectionProvider
-     * as a singleton bound to SchemaIntrospector.
+     * Test that the service provider registers SchemaIntrospectionProvider as a
+     * singleton bound to SchemaIntrospector.
      *
      * @return void
      */
@@ -613,8 +613,8 @@ class SchemaIntrospectorTest extends TestCase
     }
 
     /**
-     * Test that calling flush on a freshly constructed introspector with
-     * no prior calls does not throw an exception.
+     * Test that calling flush on a freshly constructed introspector with no
+     * prior calls does not throw an exception.
      *
      * @return void
      */
@@ -697,8 +697,8 @@ class SchemaIntrospectorTest extends TestCase
     }
 
     /**
-     * Test that resolveRelation does not catch generic exceptions and
-     * allows them to propagate.
+     * Test that resolveRelation does not catch generic exceptions and allows
+     * them to propagate.
      *
      * @return void
      */
@@ -730,8 +730,8 @@ class SchemaIntrospectorTest extends TestCase
     }
 
     /**
-     * Test that resolveRelation returns a Relation instance for a
-     * dynamically registered relation.
+     * Test that resolveRelation returns a Relation instance for a dynamically
+     * registered relation.
      *
      * @return void
      */
@@ -751,5 +751,105 @@ class SchemaIntrospectorTest extends TestCase
         } finally {
             $property->setValue($original);
         }
+    }
+
+    /**
+     * Test that getDeletedAtColumn returns null for a model that does not use
+     * SoftDeletes.
+     *
+     * @return void
+     */
+    public function testGetDeletedAtColumnReturnsNullWithoutSoftDeletes(): void
+    {
+        $introspector = new SchemaIntrospector;
+
+        static::assertNull($introspector->getDeletedAtColumn(new User));
+    }
+
+    /**
+     * Test that getDeletedAtColumn returns the configured soft-delete column for
+     * a model that uses SoftDeletes.
+     *
+     * @return void
+     */
+    public function testGetDeletedAtColumnReturnsColumnWithSoftDeletes(): void
+    {
+        $model = new class extends Model {
+            use SoftDeletes;
+
+            /** @var string|null */
+            protected $table = 'users';
+        };
+
+        $introspector = new SchemaIntrospector;
+
+        static::assertSame('deleted_at', $introspector->getDeletedAtColumn($model));
+    }
+
+    /**
+     * Test that parentKeysFor returns the foreign key for a BelongsTo relation.
+     *
+     * @return void
+     */
+    public function testParentKeysForBelongsToReturnsForeignKey(): void
+    {
+        $introspector = new SchemaIntrospector;
+        $relation     = (new User)->organization();
+
+        $keys = $introspector->parentKeysFor($relation);
+
+        static::assertContains('organization_id', $keys);
+    }
+
+    /**
+     * Test that parentKeysFor returns the local key for a HasMany relation.
+     *
+     * @return void
+     */
+    public function testParentKeysForHasManyReturnsLocalKey(): void
+    {
+        $introspector = new SchemaIntrospector;
+        $relation     = (new User)->posts();
+
+        $keys = $introspector->parentKeysFor($relation);
+
+        static::assertContains('id', $keys);
+    }
+
+    /**
+     * Test that parentKeysFor returns both the morph type and morph id columns
+     * for a MorphTo relation.
+     *
+     * @return void
+     */
+    public function testParentKeysForMorphToReturnsTypeAndId(): void
+    {
+        $morphTo = static::createStub(MorphTo::class);
+
+        $morphTo->method('getForeignKeyName')->willReturn('taggable_id');
+        $morphTo->method('getMorphType')->willReturn('taggable_type');
+
+        $introspector = new SchemaIntrospector;
+
+        $keys = $introspector->parentKeysFor($morphTo);
+
+        static::assertContains('taggable_id', $keys);
+        static::assertContains('taggable_type', $keys);
+        static::assertCount(2, $keys);
+    }
+
+    /**
+     * Test that parentKeysFor returns an empty array for an unrecognised
+     * relation type without throwing.
+     *
+     * @return void
+     */
+    public function testParentKeysForUnknownRelationReturnsEmpty(): void
+    {
+        $unknown = static::createStub(Relation::class);
+
+        $introspector = new SchemaIntrospector;
+
+        static::assertSame([], $introspector->parentKeysFor($unknown));
     }
 }

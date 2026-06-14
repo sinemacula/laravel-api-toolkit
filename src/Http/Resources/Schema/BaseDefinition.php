@@ -23,6 +23,9 @@ abstract class BaseDefinition implements Arrayable
     /** @var array<int, string> Extra eager-load paths */
     protected array $extras = [];
 
+    /** @var array<int, string> Declared base-table column reads for this field */
+    protected array $needs = [];
+
     /**
      * Add a guard condition — return false to suppress the field.
      *
@@ -78,6 +81,19 @@ abstract class BaseDefinition implements Arrayable
     public function extras(string ...$paths): self
     {
         $this->extras = array_values(array_unique([...$this->extras, ...$paths]));
+
+        return $this;
+    }
+
+    /**
+     * Declare the base-table columns this field reads so a narrowed SELECT can include them.
+     *
+     * @param  string  ...$columns
+     * @return static
+     */
+    public function needs(string ...$columns): static
+    {
+        $this->needs = array_values(array_unique([...$this->needs, ...$columns]));
 
         return $this;
     }
