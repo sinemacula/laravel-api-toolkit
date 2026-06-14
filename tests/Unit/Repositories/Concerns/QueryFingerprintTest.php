@@ -60,6 +60,21 @@ class QueryFingerprintTest extends TestCase
     }
 
     /**
+     * Test that two queries with identical bindings but differing SQL yield
+     * distinct fingerprints, proving the compiled SQL is part of the digest
+     * independently of the bindings.
+     *
+     * @return void
+     */
+    public function testSameBindingsDifferentSqlYieldDistinctFingerprint(): void
+    {
+        $equals    = QueryFingerprint::for(Tag::query()->where('name', 'php'));
+        $notEquals = QueryFingerprint::for(Tag::query()->where('name', '!=', 'php'));
+
+        static::assertNotSame($equals, $notEquals);
+    }
+
+    /**
      * Test that a Carbon binding produces a stable fingerprint across
      * equivalent instances.
      *

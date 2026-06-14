@@ -286,4 +286,44 @@ class CacheStoreTest extends TestCase
     {
         static::assertInstanceOf(CacheContract::class, $this->cacheStore->getStore());
     }
+
+    /**
+     * Test that a taggable store flushes through its tag even when the key
+     * registry is disabled, proving the tag path is selected for taggable
+     * stores rather than the registry.
+     *
+     * @return void
+     */
+    public function testTaggableStoreFlushesViaTagsWhenRegistryDisabled(): void
+    {
+        $store = new CacheStore('array', 'test-table', new CacheStoreOptions(3600, new CacheSizeGuard(1000, 262144), false));
+
+        $store->put(self::HASH, collect(['item']), 1);
+
+        static::assertNotNull($store->get(self::HASH));
+
+        $store->flushTable();
+
+        static::assertNull($store->get(self::HASH));
+    }
+
+    /**
+     * Test that the per-table tag isolates entries between tables, so flushing
+     * one table never invalidates another table's cached entries.
+     *
+     * @return void
+     */
+    public function testTagIsolatesEntriesBetweenTables(): void
+    {
+        $tableA = new CacheStore('array', 'table-a', new CacheStoreOptions(3600, new CacheSizeGuard(1000, 262144), true));
+        $tableB = new CacheStore('array', 'table-b', new CacheStoreOptions(3600, new CacheSizeGuard(1000, 262144), true));
+
+        $tableA->put(self::HASH, collect(['a']), 1);
+        $tableB->put(self::HASH, collect(['b']), 1);
+
+        $tableA->flushTable();
+
+        static::assertNull($tableA->get(self::HASH));
+        static::assertNotNull($tableB->get(self::HASH));
+    }
 }
