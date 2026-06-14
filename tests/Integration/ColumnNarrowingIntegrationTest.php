@@ -86,7 +86,7 @@ class ColumnNarrowingIntegrationTest extends TestCase
         $sql      = $this->captureUserSql($fields, 'users');
 
         static::assertSame(['*'], $columns);
-        static::assertStringContainsString('users".*', $sql);
+        static::assertStringContainsString('users.*', $this->unquote($sql));
         static::assertSame($baseline, $this->serialiseUsers($fields));
     }
 
@@ -180,7 +180,7 @@ class ColumnNarrowingIntegrationTest extends TestCase
 
         static::assertNotNull($user);
         static::assertSame(['*'], $this->normaliseColumns($query->getQuery()->columns));
-        static::assertStringContainsString('users".*', $sql);
+        static::assertStringContainsString('users.*', $this->unquote($sql));
 
         $resource = (new UserResource($user))->withFields(['status']);
         $data     = $resource->resolve(Request::create(self::TEST_URL));
@@ -206,7 +206,7 @@ class ColumnNarrowingIntegrationTest extends TestCase
 
         $sql = $this->lastSelectSql();
 
-        static::assertStringContainsString('"name"', $sql);
+        static::assertStringContainsString('name', $this->unquote($sql));
         static::assertStringNotContainsString('select *', $sql);
     }
 
@@ -425,12 +425,24 @@ class ColumnNarrowingIntegrationTest extends TestCase
         foreach (array_reverse($log) as $entry) {
             $query = (string) $entry['query'];
 
-            if (str_starts_with($query, 'select') && ($table === '' || str_contains($query, '"' . $table . '"'))) {
+            if (str_starts_with($query, 'select') && ($table === '' || str_contains($this->unquote($query), 'from ' . $table))) {
                 return $query;
             }
         }
 
         return '';
+    }
+
+    /**
+     * Strip identifier quote characters so SQL assertions are driver-agnostic:
+     * SQLite and PostgreSQL double-quote identifiers, MySQL backticks them.
+     *
+     * @param  string  $sql
+     * @return string
+     */
+    private function unquote(string $sql): string
+    {
+        return str_replace(['`', '"'], '', $sql);
     }
 
     /**
