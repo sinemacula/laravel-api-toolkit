@@ -45,16 +45,9 @@ final readonly class CacheStore
      * @return void
      */
     public function __construct(
-
-        /** The Laravel cache store name. */
         private string $cacheStore,
-
-        /** The repository table used to namespace cache keys. */
         private string $table,
-
-        /** The lifetime, size guard, and registry behaviour for the store. */
         private CacheStoreOptions $options,
-
     ) {
         $store = Cache::store($this->cacheStore);
 

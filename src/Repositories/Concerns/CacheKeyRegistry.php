@@ -29,16 +29,9 @@ final readonly class CacheKeyRegistry
      * @return void
      */
     public function __construct(
-
-        /** The underlying cache store the registry persists to. */
         private CacheContract $store,
-
-        /** The repository table the tracked keys belong to. */
         private string $table,
-
-        /** The lifetime, in seconds, of the registry entry. */
         private int $ttl,
-
     ) {
         $this->registryKey = CacheKeys::REPOSITORY_CACHE_REGISTRY->resolveKey([$this->table]);
     }

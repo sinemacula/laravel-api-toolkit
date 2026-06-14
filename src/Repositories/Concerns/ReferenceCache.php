@@ -41,16 +41,9 @@ final readonly class ReferenceCache
      * @return void
      */
     public function __construct(
-
-        /** The Laravel cache store name. */
         private string $cacheStore,
-
-        /** The repository table used to namespace cache keys. */
         private string $table,
-
-        /** The cache duration in seconds. */
         private int $ttl,
-
     ) {
         $this->store    = Cache::store($this->cacheStore);
         $this->cacheKey = CacheKeys::REPOSITORY_CACHE->resolveKey([$this->table]);

@@ -23,16 +23,9 @@ final readonly class CacheStatus
      * @return void
      */
     public function __construct(
-
-        /** Whether the cache currently holds data. */
         private bool $populated,
-
-        /** Seconds since the cache was last populated. */
         private ?int $age,
-
-        /** When the cache was last invalidated. */
         private ?CarbonInterface $lastInvalidatedAt,
-
     ) {}
 
     /**

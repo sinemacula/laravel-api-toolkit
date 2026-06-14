@@ -23,15 +23,8 @@ final readonly class CacheStoreOptions
      * @return void
      */
     public function __construct(
-
-        /** The cache duration in seconds. */
         public int $ttl,
-
-        /** The guard deciding whether a result is small enough to store. */
         public CacheSizeGuard $sizeGuard,
-
-        /** Whether non-taggable stores track live keys for precise invalidation. */
         public bool $registryEnabled,
-
     ) {}
 }
