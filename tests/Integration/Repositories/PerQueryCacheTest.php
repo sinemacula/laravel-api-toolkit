@@ -5,7 +5,7 @@ namespace Tests\Integration\Repositories;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\DB;
-use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\CoversTrait;
 use SineMacula\ApiToolkit\Cache\CacheManager;
 use SineMacula\ApiToolkit\Repositories\Concerns\Cacheable;
 use Tests\Fixtures\Models\Tag;
@@ -24,7 +24,7 @@ use Tests\TestCase;
  *
  * @internal
  */
-#[CoversClass(Cacheable::class)]
+#[CoversTrait(Cacheable::class)]
 class PerQueryCacheTest extends TestCase
 {
     /**
