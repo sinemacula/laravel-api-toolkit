@@ -225,4 +225,49 @@ class RelationTest extends TestCase
 
         static::assertSame(['organization.owner'], $array['organization']['extras']);
     }
+
+    /**
+     * Test that toArray emits the needs key when declared.
+     *
+     * @return void
+     */
+    public function testToArrayEmitsNeedsWhenDeclared(): void
+    {
+        $relation = Relation::to('organization', OrganizationResource::class)
+            ->needs('owner_id', 'owner_type');
+
+        $array = $relation->toArray();
+
+        static::assertSame(['owner_id', 'owner_type'], $array['organization']['needs']);
+    }
+
+    /**
+     * Test that toArray omits the needs key when not declared.
+     *
+     * @return void
+     */
+    public function testToArrayOmitsNeedsWhenNotDeclared(): void
+    {
+        $relation = Relation::to('organization', OrganizationResource::class);
+
+        $array = $relation->toArray();
+
+        static::assertArrayNotHasKey('needs', $array['organization']);
+    }
+
+    /**
+     * Test that needs deduplicates across multiple calls.
+     *
+     * @return void
+     */
+    public function testNeedsDeduplicatesAcrossCalls(): void
+    {
+        $relation = Relation::to('organization', OrganizationResource::class)
+            ->needs('a')
+            ->needs('a', 'b');
+
+        $array = $relation->toArray();
+
+        static::assertSame(['a', 'b'], $array['organization']['needs']);
+    }
 }

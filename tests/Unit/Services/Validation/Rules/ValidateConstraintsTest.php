@@ -41,6 +41,7 @@ class ValidateConstraintsTest extends TestCase
                     fields: null,
                     constraint: fn () => true,
                     extras: [],
+                    needs: [],
                     guards: [],
                     transformers: [],
                 ),
@@ -97,6 +98,7 @@ class ValidateConstraintsTest extends TestCase
                     fields: null,
                     constraint: null,
                     extras: [],
+                    needs: [],
                     guards: [],
                     transformers: [],
                 ),
@@ -141,8 +143,8 @@ class ValidateConstraintsTest extends TestCase
     }
 
     /**
-     * Test that validation continues past counts without constraints and
-     * still reports later defects.
+     * Test that validation continues past counts without constraints and still
+     * reports later defects.
      *
      * @return void
      */
@@ -214,8 +216,8 @@ class ValidateConstraintsTest extends TestCase
 
     /**
      * Create a CompiledSchema containing a single count definition with an
-     * untyped constraint value, bypassing the ?\Closure type enforcement
-     * via reflection.
+     * untyped constraint value, bypassing the ?\Closure type enforcement via
+     * reflection.
      *
      * @param  string  $presentKey
      * @param  mixed  $constraint

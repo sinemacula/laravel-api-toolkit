@@ -9,6 +9,8 @@ use SineMacula\ApiToolkit\Contracts\ResourceMetadataProvider;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
 use SineMacula\ApiToolkit\Http\Resources\ApiResource;
+use SineMacula\ApiToolkit\Http\Resources\Concerns\SafetySetDeriver;
+use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\ColumnProjectionApplier;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\EagerLoadApplier;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterApplier;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\LimitApplier;
@@ -43,6 +45,9 @@ class ApiCriteria implements CriteriaInterface
     /** @var \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\LimitApplier */
     private readonly LimitApplier $limitApplier;
 
+    /** @var \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\ColumnProjectionApplier */
+    private readonly ColumnProjectionApplier $columnProjectionApplier;
+
     /**
      * Constructor.
      *
@@ -67,10 +72,11 @@ class ApiCriteria implements CriteriaInterface
         private readonly OperatorRegistry $operatorRegistry,
 
     ) {
-        $this->filterApplier    = new FilterApplier;
-        $this->orderApplier     = new OrderApplier;
-        $this->eagerLoadApplier = new EagerLoadApplier;
-        $this->limitApplier     = new LimitApplier;
+        $this->filterApplier           = new FilterApplier;
+        $this->orderApplier            = new OrderApplier;
+        $this->eagerLoadApplier        = new EagerLoadApplier;
+        $this->limitApplier            = new LimitApplier;
+        $this->columnProjectionApplier = new ColumnProjectionApplier(new SafetySetDeriver($this->schemaIntrospector));
     }
 
     /**
@@ -91,7 +97,26 @@ class ApiCriteria implements CriteriaInterface
         $query = $this->limitApplier->apply($query, $this->getLimit());
 
         /** @var \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model> $query */
-        return $this->orderApplier->apply($query, $this->getOrder(), $this->schemaIntrospector);
+        return $this->applyOrderingAndProjection($query);
+    }
+
+    /**
+     * Apply ordering, then narrow the base-table projection as the final step.
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>  $query
+     * @return \Illuminate\Contracts\Database\Eloquent\Builder
+     */
+    private function applyOrderingAndProjection(Builder $query): Builder
+    {
+        /** @var \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model> $query */
+        $query = $this->orderApplier->apply($query, $this->getOrder(), $this->schemaIntrospector);
+
+        return $this->columnProjectionApplier->apply(
+            $query,
+            $this->metadataProvider,
+            $this->resolveResource($query->getModel()),
+            $this->getOrder(),
+        );
     }
 
     /**

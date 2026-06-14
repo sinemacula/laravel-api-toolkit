@@ -37,6 +37,7 @@ class ValidateGuardsTest extends TestCase
             fields: null,
             constraint: null,
             extras: [],
+            needs: [],
             guards: [fn ($value, $model) => true],
             transformers: [],
         );
@@ -67,6 +68,7 @@ class ValidateGuardsTest extends TestCase
             fields: null,
             constraint: null,
             extras: [],
+            needs: [],
             guards: ['not_a_function'],
             transformers: [],
         );
@@ -129,6 +131,7 @@ class ValidateGuardsTest extends TestCase
             fields: null,
             constraint: null,
             extras: [],
+            needs: [],
             guards: ['invalid_one', 'invalid_two'],
             transformers: [],
         );
@@ -161,6 +164,7 @@ class ValidateGuardsTest extends TestCase
             fields: null,
             constraint: null,
             extras: [],
+            needs: [],
             guards: [],
             transformers: [],
         );

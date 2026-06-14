@@ -475,4 +475,23 @@ class CacheableTest extends TestCase
         static::assertSame(50, (new \ReflectionProperty(CacheSizeGuard::class, 'maxRows'))->getValue($options->sizeGuard));
         static::assertSame(2048, (new \ReflectionProperty(CacheSizeGuard::class, 'maxBytes'))->getValue($options->sizeGuard));
     }
+
+    /**
+     * Test that the per-query and reference cache TTLs fall back to one hour
+     * when neither a repository property nor numeric configuration is present.
+     *
+     * @return void
+     */
+    public function testCacheTtlsFallBackToOneHourForNonNumericConfig(): void
+    {
+        assert($this->app !== null);
+
+        Config::set('api-toolkit.repositories.cache.ttl', 'not-numeric');
+        Config::set('api-toolkit.repositories.cache.reference_ttl', 'not-numeric');
+
+        $repository = $this->app->make(CacheableTagRepository::class);
+
+        static::assertSame(3600, (new \ReflectionMethod($repository, 'resolveTtl'))->invoke($repository));
+        static::assertSame(3600, (new \ReflectionMethod($repository, 'resolveReferenceTtl'))->invoke($repository));
+    }
 }
