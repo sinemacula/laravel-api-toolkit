@@ -25,25 +25,12 @@ final class WritePoolFlushContext
      * @return void
      */
     public function __construct(
-
-        /** The failure handling strategy for the flush operation. */
         private readonly FlushStrategy $strategy,
-
-        /** The name of the table being flushed. */
         private readonly string $table,
-
-        /** The chunked records for the table being flushed. */
         private readonly array $chunks,
-
-        /** The ordered list of all table names in the flush. */
         private readonly array $tables,
-
-        /** The index of the current table within the table list. */
         private readonly int $tableIndex,
-
-        /** The index of the chunk currently being processed, set during per-chunk iteration. */
         private readonly ?int $chunkIndex = null,
-
     ) {}
 
     /**

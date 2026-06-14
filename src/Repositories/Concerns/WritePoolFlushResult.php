@@ -24,28 +24,13 @@ final class WritePoolFlushResult
      * @return void
      */
     public function __construct(
-
-        /** The number of successfully inserted chunks. */
         private readonly int $successCount,
-
-        /** The number of failed chunks. */
         private readonly int $failureCount,
-
-        /** Failed chunk details keyed by table name. */
         private readonly array $failures = [],
-
-        /** The number of records persisted to the database. */
         private readonly int $flushedRecordCount = 0,
-
-        /** The number of records contained in failed chunks. */
         private readonly int $failedRecordCount = 0,
-
-        /** The number of records retained in the buffer for retry. */
         private readonly int $retainedRecordCount = 0,
-
-        /** The number of records discarded without retry. */
         private readonly int $droppedRecordCount = 0,
-
     ) {}
 
     /**

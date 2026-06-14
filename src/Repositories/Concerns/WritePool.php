@@ -32,19 +32,10 @@ final class WritePool
      * @return void
      */
     public function __construct(
-
-        /** The maximum number of records per bulk insert chunk. */
         private readonly int $chunkSize,
-
-        /** The record count threshold that triggers an automatic flush. */
         private readonly int $poolLimit,
-
-        /** The failure handling strategy for flush operations. */
         private readonly FlushStrategy $strategy = FlushStrategy::COLLECT,
-
-        /** Whether each table's chunk set is flushed inside a transaction. */
         private readonly bool $transactional = false,
-
     ) {}
 
     /**
