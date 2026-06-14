@@ -5,6 +5,8 @@ namespace Tests\Unit\Repositories\Concerns;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use PHPUnit\Framework\Attributes\CoversTrait;
+use SineMacula\ApiToolkit\Enums\FlushStrategy;
+use SineMacula\ApiToolkit\Exceptions\WritePoolFlushException;
 use SineMacula\ApiToolkit\Repositories\Concerns\Deferrable;
 use SineMacula\ApiToolkit\Repositories\Concerns\WritePool;
 use SineMacula\ApiToolkit\Repositories\Concerns\WritePoolFlushResult;
@@ -227,5 +229,22 @@ class DeferrableTest extends TestCase
         $flushResult = $this->repository->flushWrites();
 
         static::assertInstanceOf(WritePoolFlushResult::class, $flushResult);
+    }
+
+    /**
+     * Test that defer propagates a WritePoolFlushException when a
+     * memory-pressure auto-flush fails under the throw strategy.
+     *
+     * @return void
+     */
+    public function testDeferPropagatesThrowExceptionOnAutoFlushFailure(): void
+    {
+        $this->app->scoped(WritePool::class, fn (): WritePool => new WritePool(500, 1, FlushStrategy::THROW)); // @phpstan-ignore method.nonObject
+
+        $repository = $this->app->make(DeferrableUserRepository::class); // @phpstan-ignore method.nonObject
+
+        $this->expectException(WritePoolFlushException::class);
+
+        $repository->defer(['name' => 'Kim', 'email' => 'kim@example.com', 'password' => 'secret', 'nonexistent_column' => 'x']);
     }
 }

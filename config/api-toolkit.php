@@ -242,12 +242,29 @@ return [
     | an automatic flush is triggered, preventing unbounded memory growth.
     |
     | `on_failure` controls the behavior when a chunk insert fails during flush.
-    | Supported values: 'log' (default), 'throw', 'collect'.
-    |   - 'log': catch, log error, continue, clear buffer (backward compatible)
-    |   - 'throw': throw WritePoolFlushException on first failure, preserve
-    |     failed and unprocessed records in buffer
-    |   - 'collect': catch all failures, continue, preserve only failed records
-    |     in buffer
+    | Supported values: 'collect' (default), 'throw', 'log'.
+    |   - 'collect' (safe default): catch all failures, continue, and retain
+    |     the failed records in the buffer for the next flush attempt. No
+    |     record is dropped and no exception escapes, so a boundary flush
+    |     surfaces failures loudly without disrupting the lifecycle.
+    |   - 'throw': throw WritePoolFlushException on the first failure, carrying
+    |     the partial result, and preserve the failed and unprocessed records
+    |     in the buffer. Best for callers that own an explicit flush site.
+    |   - 'log' (opt-in best-effort): catch, log error, continue, and clear the
+    |     buffer. Failed records are dropped, so use this only for genuinely
+    |     disposable writes such as audit, analytics, or telemetry.
+    |
+    | `transactional` wraps each table's chunk set in a database transaction so
+    | that table's inserts are applied all-or-nothing. Disabled by default to
+    | preserve per-chunk performance and the existing partial-persist behavior.
+    |
+    | `rethrow_at_boundary` re-throws a WritePoolFlushException after escalating
+    | it at the lifecycle boundary. Only applies under the 'throw' strategy and
+    | is disabled by default so the boundary is never hard-crashed.
+    |
+    | Durability window: buffered writes live only in PHP memory until the
+    | boundary flush. A crash, out-of-memory condition, or SIGKILL before the
+    | flush loses any unflushed records. For true durability use a real queue.
     |
     */
 
@@ -257,7 +274,11 @@ return [
 
         'pool_limit' => is_numeric($pool_limit = env('DEFERRED_WRITES_POOL_LIMIT', 10000)) ? (int) $pool_limit : 10000,
 
-        'on_failure' => env('DEFERRED_WRITES_ON_FAILURE', 'log'),
+        'on_failure' => env('DEFERRED_WRITES_ON_FAILURE', 'collect'),
+
+        'transactional' => (bool) env('DEFERRED_WRITES_TRANSACTIONAL', false),
+
+        'rethrow_at_boundary' => (bool) env('DEFERRED_WRITES_RETHROW_AT_BOUNDARY', false),
 
     ],
 
