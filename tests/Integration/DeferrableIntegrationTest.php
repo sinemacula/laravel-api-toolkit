@@ -14,6 +14,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Log;
 use PHPUnit\Framework\Attributes\CoversTrait;
+use SineMacula\ApiToolkit\Enums\FlushStrategy;
 use SineMacula\ApiToolkit\Events\WritePoolFlushFailed;
 use SineMacula\ApiToolkit\Repositories\Concerns\Deferrable;
 use SineMacula\ApiToolkit\Repositories\Concerns\WritePool;
@@ -304,12 +305,63 @@ class DeferrableIntegrationTest extends TestCase
 
         Event::fake([WritePoolFlushFailed::class]);
 
-        Log::shouldReceive('error')->once();
+        Log::shouldReceive('error')->never();
         Log::shouldReceive('warning')->once();
 
         Event::dispatch(new RequestHandled(new Request, new Response));
 
         Event::assertDispatched(WritePoolFlushFailed::class, fn (WritePoolFlushFailed $event): bool => $event->flushResult->failureCount() === 1);
+    }
+
+    /**
+     * Test that the default collect strategy retains failed records in
+     * the pool when a boundary flush fails, without dropping them.
+     *
+     * @return void
+     */
+    public function testBoundaryFailureRetainsRecordsUnderDefaultStrategy(): void
+    {
+        $pool = new WritePool(500, 10000);
+        $pool->add('nonexistent_table', ['col' => 'val']);
+
+        $this->app->scoped(WritePool::class, fn (): WritePool => $pool); // @phpstan-ignore method.nonObject
+
+        Event::fake([WritePoolFlushFailed::class]);
+
+        Log::shouldReceive('error')->never();
+        Log::shouldReceive('warning')->once();
+
+        Event::dispatch(new RequestHandled(new Request, new Response));
+
+        static::assertSame(1, $pool->count());
+        static::assertFalse($pool->isEmpty());
+    }
+
+    /**
+     * Test that a transactional boundary flush rolls back a table whose
+     * chunk set contains a failure and dispatches the failure event.
+     *
+     * @return void
+     */
+    public function testTransactionalBoundaryFlushRollsBackTableAndDispatchesEvent(): void
+    {
+        $pool = new WritePool(1, 10000, FlushStrategy::COLLECT, transactional: true);
+        $pool->add('users', ['name' => 'Tess', 'email' => 'tess@example.com', 'password' => 'secret']);
+        $pool->add('users', ['name' => 'Tess', 'email' => 'tess@example.com', 'password' => 'secret']);
+
+        $this->app->scoped(WritePool::class, fn (): WritePool => $pool); // @phpstan-ignore method.nonObject
+
+        Event::fake([WritePoolFlushFailed::class]);
+
+        Log::shouldReceive('error')->never();
+        Log::shouldReceive('warning')->once();
+
+        Event::dispatch(new RequestHandled(new Request, new Response));
+
+        static::assertSame(0, DB::table('users')->count());
+        static::assertSame(2, $pool->count());
+
+        Event::assertDispatched(WritePoolFlushFailed::class);
     }
 
     /**

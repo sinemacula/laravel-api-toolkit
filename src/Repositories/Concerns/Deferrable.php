@@ -9,6 +9,16 @@ namespace SineMacula\ApiToolkit\Repositories\Concerns;
  * operations to be collected in memory and flushed as bulk INSERT
  * statements at the end of the request lifecycle.
  *
+ * Durability window: deferred writes live only in PHP memory until the
+ * boundary flush performed by the WritePoolFlushSubscriber on
+ * RequestHandled, CommandFinished, JobProcessed, or JobFailed. A crash,
+ * out-of-memory condition, or SIGKILL in that window loses any unflushed
+ * records. This is inherent to in-memory deferral; for true durability
+ * use a real queue, which is out of scope for this trait. Under the
+ * default collect strategy a failed flush retains the records in the
+ * pool for the next boundary; use the log strategy for fire-and-forget
+ * writes that may be dropped.
+ *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
@@ -22,10 +32,14 @@ trait Deferrable
      *
      * The attributes are buffered in memory and flushed as a bulk
      * INSERT at the end of the request lifecycle. Timestamps are
-     * captured at the time of deferral, not at flush time.
+     * captured at the time of deferral, not at flush time. When the pool
+     * reaches its limit an automatic flush is triggered, which under the
+     * throw strategy may raise a WritePoolFlushException from this call.
      *
      * @param  array<string, mixed>  $attributes
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\WritePoolFlushException
      */
     public function defer(array $attributes): void
     {

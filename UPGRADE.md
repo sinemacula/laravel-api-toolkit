@@ -467,3 +467,56 @@ These changes are largely additive but include behavioral fixes worth noting:
   (`include_debug_info`). The defaults preserve the 1.x behavior.
 - `ApiException` exposes a new instance-level `getStatusCode()` method, which the handler now uses when
   rendering; the static `getHttpStatusCode()` remains available.
+
+### Changed: Deferred writes are safe-by-default
+
+The deferred-write pool (the `Deferrable` trait, backed by `WritePool`) no longer drops records
+silently on a flush failure. The default `on_failure` strategy has changed from `log` to `collect`.
+
+**Before (1.x / earlier 2.x -- log and drop):** a chunk insert failure during flush was logged at
+error level, the rest of the buffer continued, and the **entire buffer was cleared**, discarding the
+failed records. A configured `throw` was also swallowed by the boundary subscriber and downgraded to
+a log line, and a memory-pressure auto-flush silently switched `throw` to `collect`.
+
+**After (2.x -- collect and retain):** the three strategies now mean:
+
+- `collect` (new default, safe): catch every chunk failure, accumulate it in the returned
+  `WritePoolFlushResult`, and **retain the failed records in the buffer** for the next flush attempt.
+  No record is dropped and no exception escapes. The boundary subscriber logs a warning and dispatches
+  the `WritePoolFlushFailed` event.
+- `throw` (safe, explicit): raise `WritePoolFlushException` on the first failure, carrying the partial
+  result, and preserve the failed and unprocessed records. The memory-pressure auto-flush now honours
+  this -- `defer()` / `add()` may raise when the pool limit is crossed.
+- `log` (opt-in best-effort): catch, log at error level, continue, and **clear the buffer** (the old
+  default behaviour). Failed records are dropped; use this only for genuinely disposable writes such
+  as audit, analytics, or telemetry.
+
+**Restore the previous behaviour** by opting back into the log strategy:
+
+    DEFERRED_WRITES_ON_FAILURE=log
+
+**New, behaviour-preserving config keys (both default off):**
+
+    # Wrap each table's chunk set in a transaction (all-or-nothing per table).
+    DEFERRED_WRITES_TRANSACTIONAL=true
+
+    # Re-throw a WritePoolFlushException at the lifecycle boundary after
+    # escalating it (only applies under the 'throw' strategy).
+    DEFERRED_WRITES_RETHROW_AT_BOUNDARY=true
+
+**Boundary 500s.** The default was deliberately set to `collect` rather than `throw`: the boundary
+flush runs on `RequestHandled` *after* the response is built, so a default-throw would turn a single
+constraint violation in a buffered batch into a 500 for an already-completed request. Consumers that
+want a raised exception should call `flushWrites()` explicitly under the `throw` strategy, or enable
+`DEFERRED_WRITES_RETHROW_AT_BOUNDARY` in a context (such as a queue job) that can absorb it.
+
+**Crash window.** Buffered writes live only in PHP memory until the boundary flush. A crash,
+out-of-memory condition, or SIGKILL before the flush loses any unflushed records. This is inherent to
+in-memory deferral; for true durability use a real queue. Under Octane the pool is request-scoped, so
+retained records are a within-request retry and are discarded when the scope resets between requests --
+use `log` for fire-and-forget writes that must never be retained.
+
+**New observability on `WritePoolFlushResult`.** The result now exposes record-level counts --
+`flushedRecordCount()`, `failedRecordCount()`, `retainedRecordCount()`, and `droppedRecordCount()` --
+alongside the existing chunk counters. Subscribe to the `WritePoolFlushFailed` event to escalate
+retained failures to a dead-letter sink, alerting, or metrics.

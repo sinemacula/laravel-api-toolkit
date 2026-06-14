@@ -17,19 +17,20 @@ final class WritePoolFlushResult
      * @param  int  $successCount
      * @param  int  $failureCount
      * @param  array<string, list<array{records: list<array<string, mixed>>, exception: string}>>  $failures
+     * @param  int  $flushedRecordCount
+     * @param  int  $failedRecordCount
+     * @param  int  $retainedRecordCount
+     * @param  int  $droppedRecordCount
      * @return void
      */
     public function __construct(
-
-        /** The number of successfully inserted chunks. */
         private readonly int $successCount,
-
-        /** The number of failed chunks. */
         private readonly int $failureCount,
-
-        /** Failed chunk details keyed by table name. */
         private readonly array $failures = [],
-
+        private readonly int $flushedRecordCount = 0,
+        private readonly int $failedRecordCount = 0,
+        private readonly int $retainedRecordCount = 0,
+        private readonly int $droppedRecordCount = 0,
     ) {}
 
     /**
@@ -80,5 +81,45 @@ final class WritePoolFlushResult
     public function failures(): array
     {
         return $this->failures;
+    }
+
+    /**
+     * Get the number of records persisted to the database.
+     *
+     * @return int
+     */
+    public function flushedRecordCount(): int
+    {
+        return $this->flushedRecordCount;
+    }
+
+    /**
+     * Get the number of records contained in failed chunks.
+     *
+     * @return int
+     */
+    public function failedRecordCount(): int
+    {
+        return $this->failedRecordCount;
+    }
+
+    /**
+     * Get the number of records retained in the buffer for retry.
+     *
+     * @return int
+     */
+    public function retainedRecordCount(): int
+    {
+        return $this->retainedRecordCount;
+    }
+
+    /**
+     * Get the number of records discarded without retry.
+     *
+     * @return int
+     */
+    public function droppedRecordCount(): int
+    {
+        return $this->droppedRecordCount;
     }
 }
