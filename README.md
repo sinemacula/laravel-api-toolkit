@@ -18,7 +18,9 @@ development faster and more reliable.
 - **Queryable Models**: Allows fine-tuned control over which fields, filters, relations, and orderings are exposed via
   your API endpoints, enhancing security and customization.
 - **Data Repositories**: Abstracts database interactions into repositories to promote a cleaner and more maintainable
-  codebase, with opt-in deferred writes and transparent caching.
+  codebase, with safe-by-default deferred writes (failed flushes retain records rather than dropping them) and per-query
+  caching (each query is cached against its own fingerprint, so a cache hit performs zero database queries and a filtered
+  read never returns the full table).
 - **Data Resources**: Schema-driven resources ensure consistent presentation of data across different API endpoints,
   simplifying client-side data integration.
 - **Services**: A composable service layer with immutable configuration, cross-cutting concerns (transactions,

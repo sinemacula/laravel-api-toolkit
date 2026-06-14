@@ -6,11 +6,13 @@ use Carbon\Carbon;
 use Illuminate\Contracts\Cache\Repository as CacheContract;
 use Illuminate\Support\Collection;
 use PHPUnit\Framework\Attributes\CoversClass;
+use SineMacula\ApiToolkit\Repositories\Concerns\CacheSizeGuard;
 use SineMacula\ApiToolkit\Repositories\Concerns\CacheStore;
+use SineMacula\ApiToolkit\Repositories\Concerns\CacheStoreOptions;
 use Tests\TestCase;
 
 /**
- * Tests for the CacheStore collaborator.
+ * Tests for the per-query CacheStore collaborator.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -20,6 +22,9 @@ use Tests\TestCase;
 #[CoversClass(CacheStore::class)]
 class CacheStoreTest extends TestCase
 {
+    /** @var string A representative query fingerprint. */
+    private const string HASH = 'abc123';
+
     /** @var \SineMacula\ApiToolkit\Repositories\Concerns\CacheStore The cache store instance under test. */
     private CacheStore $cacheStore;
 
@@ -35,7 +40,7 @@ class CacheStoreTest extends TestCase
 
         Carbon::setTestNow(Carbon::parse('2026-03-09 12:00:00'));
 
-        $this->cacheStore = new CacheStore('array', 'test-table', 3600);
+        $this->cacheStore = new CacheStore('array', 'test-table', new CacheStoreOptions(3600, new CacheSizeGuard(1000, 262144), true));
     }
 
     /**
@@ -52,17 +57,17 @@ class CacheStoreTest extends TestCase
     }
 
     /**
-     * Test that get returns the cached collection when populated.
+     * Test that a stored result round-trips for the same fingerprint.
      *
      * @return void
      */
-    public function testGetReturnsCachedCollectionWhenPopulated(): void
+    public function testPutAndGetRoundTripForSameFingerprint(): void
     {
         $items = collect(['foo', 'bar', 'baz']);
 
-        $this->cacheStore->put($items);
+        $this->cacheStore->put(self::HASH, $items, $items->count());
 
-        $cached = $this->cacheStore->get();
+        $cached = $this->cacheStore->get(self::HASH);
 
         static::assertInstanceOf(Collection::class, $cached);
         static::assertSame(['foo', 'bar', 'baz'], $cached->all());
@@ -75,43 +80,40 @@ class CacheStoreTest extends TestCase
      */
     public function testGetReturnsNullOnCacheMiss(): void
     {
-        static::assertNull($this->cacheStore->get());
+        static::assertNull($this->cacheStore->get(self::HASH));
     }
 
     /**
-     * Test that getStatus reports a null age when the cache data is
-     * missing even though population metadata still exists.
+     * Test that has reflects whether an entry exists for a fingerprint.
      *
      * @return void
      */
-    public function testGetStatusReportsNullAgeWhenCacheDataMissing(): void
+    public function testHasReflectsEntryPresence(): void
     {
-        $this->cacheStore->put(collect(['item']));
+        static::assertFalse($this->cacheStore->has(self::HASH));
 
-        $this->cacheStore->getStore()->forget('api-toolkit:repository-cache:test-table');
+        $this->cacheStore->put(self::HASH, collect(['item']), 1);
 
-        $status = $this->cacheStore->getStatus();
-
-        static::assertFalse($status->isPopulated());
-        static::assertNull($status->getAge());
+        static::assertTrue($this->cacheStore->has(self::HASH));
     }
 
     /**
-     * Test that put stores the collection in the cache.
+     * Test that distinct fingerprints map to distinct cache entries.
      *
      * @return void
      */
-    public function testPutStoresCollectionInCache(): void
+    public function testDistinctFingerprintsAreIsolated(): void
     {
-        $items = collect(['alpha', 'beta']);
+        $this->cacheStore->put('hash-a', collect(['a']), 1);
+        $this->cacheStore->put('hash-b', collect(['b', 'c']), 2);
 
-        $this->cacheStore->put($items);
+        $first  = $this->cacheStore->get('hash-a');
+        $second = $this->cacheStore->get('hash-b');
 
-        $store  = $this->cacheStore->getStore();
-        $cached = $store->get('api-toolkit:repository-cache:test-table');
-
-        static::assertInstanceOf(Collection::class, $cached);
-        static::assertSame(['alpha', 'beta'], $cached->all());
+        static::assertInstanceOf(Collection::class, $first);
+        static::assertInstanceOf(Collection::class, $second);
+        static::assertSame(['a'], $first->all());
+        static::assertSame(['b', 'c'], $second->all());
     }
 
     /**
@@ -121,10 +123,9 @@ class CacheStoreTest extends TestCase
      */
     public function testPutRecordsPopulatedAtMetadata(): void
     {
-        $this->cacheStore->put(collect(['item']));
+        $this->cacheStore->put(self::HASH, collect(['item']), 1);
 
-        $store = $this->cacheStore->getStore();
-        $meta  = $store->get('api-toolkit:repository-cache-meta:test-table');
+        $meta = $this->cacheStore->getStore()->get('api-toolkit:repository-cache-meta:test-table');
 
         static::assertIsArray($meta);
         static::assertArrayHasKey('populated_at', $meta);
@@ -132,29 +133,96 @@ class CacheStoreTest extends TestCase
     }
 
     /**
-     * Test that flush removes the cached data.
+     * Test that the size guard skips storing when the row count exceeds the
+     * configured ceiling, while a get still misses.
      *
      * @return void
      */
-    public function testFlushRemovesCachedData(): void
+    public function testSizeGuardSkipsStoringWhenRowCountExceeded(): void
     {
-        $this->cacheStore->put(collect(['item']));
-        $this->cacheStore->flush();
+        $store = new CacheStore('array', 'test-table', new CacheStoreOptions(3600, new CacheSizeGuard(2, 262144), true));
 
-        static::assertNull($this->cacheStore->get());
+        $store->put(self::HASH, collect(['a', 'b', 'c']), 3);
+
+        static::assertNull($store->get(self::HASH));
+        static::assertFalse($store->has(self::HASH));
     }
 
     /**
-     * Test that flush records invalidated_at metadata.
+     * Test that the size guard skips storing when the serialized byte size
+     * exceeds the configured ceiling.
      *
      * @return void
      */
-    public function testFlushRecordsInvalidatedAtMetadata(): void
+    public function testSizeGuardSkipsStoringWhenByteSizeExceeded(): void
     {
-        $this->cacheStore->flush();
+        $store = new CacheStore('array', 'test-table', new CacheStoreOptions(3600, new CacheSizeGuard(1000, 8), true));
 
-        $store = $this->cacheStore->getStore();
-        $meta  = $store->get('api-toolkit:repository-cache-meta:test-table');
+        $store->put(self::HASH, collect([str_repeat('x', 256)]), 1);
+
+        static::assertNull($store->get(self::HASH));
+    }
+
+    /**
+     * Test that flushTable removes a stored entry on a taggable store.
+     *
+     * @return void
+     */
+    public function testFlushTableRemovesStoredEntryOnTaggableStore(): void
+    {
+        $this->cacheStore->put(self::HASH, collect(['item']), 1);
+
+        $this->cacheStore->flushTable();
+
+        static::assertNull($this->cacheStore->get(self::HASH));
+    }
+
+    /**
+     * Test that flushTable removes a stored entry via the registry on a
+     * non-taggable store.
+     *
+     * @return void
+     */
+    public function testFlushTableRemovesEntryViaRegistryOnNonTaggableStore(): void
+    {
+        $store = new CacheStore('file', 'test-table', new CacheStoreOptions(3600, new CacheSizeGuard(1000, 262144), true));
+
+        $store->put(self::HASH, collect(['item']), 1);
+
+        static::assertNotNull($store->get(self::HASH));
+
+        $store->flushTable();
+
+        static::assertNull($store->get(self::HASH));
+    }
+
+    /**
+     * Test that, with the registry disabled, flushTable leaves a non-taggable
+     * entry in place so staleness is governed by TTL only.
+     *
+     * @return void
+     */
+    public function testFlushTableLeavesEntryWhenRegistryDisabledOnNonTaggableStore(): void
+    {
+        $store = new CacheStore('file', 'test-table', new CacheStoreOptions(3600, new CacheSizeGuard(1000, 262144), false));
+
+        $store->put(self::HASH, collect(['item']), 1);
+
+        $store->flushTable();
+
+        static::assertNotNull($store->get(self::HASH));
+    }
+
+    /**
+     * Test that flushTable records invalidated_at metadata.
+     *
+     * @return void
+     */
+    public function testFlushTableRecordsInvalidatedAtMetadata(): void
+    {
+        $this->cacheStore->flushTable();
+
+        $meta = $this->cacheStore->getStore()->get('api-toolkit:repository-cache-meta:test-table');
 
         static::assertIsArray($meta);
         static::assertArrayHasKey('invalidated_at', $meta);
@@ -162,14 +230,13 @@ class CacheStoreTest extends TestCase
     }
 
     /**
-     * Test that getStatus returns a populated status when the cache
-     * holds data.
+     * Test that getStatus reports a populated state after a put.
      *
      * @return void
      */
-    public function testGetStatusReturnsPopulatedStatusWhenCacheHasData(): void
+    public function testGetStatusReportsPopulatedStateAfterPut(): void
     {
-        $this->cacheStore->put(collect(['item']));
+        $this->cacheStore->put(self::HASH, collect(['item']), 1);
 
         Carbon::setTestNow(Carbon::parse('2026-03-09 12:00:30'));
 
@@ -181,12 +248,11 @@ class CacheStoreTest extends TestCase
     }
 
     /**
-     * Test that getStatus returns an unpopulated status on a cache
-     * miss.
+     * Test that getStatus reports an unpopulated state on a cache miss.
      *
      * @return void
      */
-    public function testGetStatusReturnsUnpopulatedStatusOnCacheMiss(): void
+    public function testGetStatusReportsUnpopulatedStateOnCacheMiss(): void
     {
         $status = $this->cacheStore->getStatus();
 
@@ -195,17 +261,18 @@ class CacheStoreTest extends TestCase
     }
 
     /**
-     * Test that getStatus returns lastInvalidatedAt after a flush.
+     * Test that getStatus reports lastInvalidatedAt after a flush.
      *
      * @return void
      */
-    public function testGetStatusReturnsLastInvalidatedAtAfterFlush(): void
+    public function testGetStatusReportsLastInvalidatedAtAfterFlush(): void
     {
-        $this->cacheStore->put(collect(['item']));
-        $this->cacheStore->flush();
+        $this->cacheStore->put(self::HASH, collect(['item']), 1);
+        $this->cacheStore->flushTable();
 
         $status = $this->cacheStore->getStatus();
 
+        static::assertFalse($status->isPopulated());
         static::assertNotNull($status->getLastInvalidatedAt());
         static::assertSame(now()->timestamp, $status->getLastInvalidatedAt()->timestamp);
     }
@@ -218,5 +285,45 @@ class CacheStoreTest extends TestCase
     public function testGetStoreReturnsUnderlyingCacheRepository(): void
     {
         static::assertInstanceOf(CacheContract::class, $this->cacheStore->getStore());
+    }
+
+    /**
+     * Test that a taggable store flushes through its tag even when the key
+     * registry is disabled, proving the tag path is selected for taggable
+     * stores rather than the registry.
+     *
+     * @return void
+     */
+    public function testTaggableStoreFlushesViaTagsWhenRegistryDisabled(): void
+    {
+        $store = new CacheStore('array', 'test-table', new CacheStoreOptions(3600, new CacheSizeGuard(1000, 262144), false));
+
+        $store->put(self::HASH, collect(['item']), 1);
+
+        static::assertNotNull($store->get(self::HASH));
+
+        $store->flushTable();
+
+        static::assertNull($store->get(self::HASH));
+    }
+
+    /**
+     * Test that the per-table tag isolates entries between tables, so flushing
+     * one table never invalidates another table's cached entries.
+     *
+     * @return void
+     */
+    public function testTagIsolatesEntriesBetweenTables(): void
+    {
+        $tableA = new CacheStore('array', 'table-a', new CacheStoreOptions(3600, new CacheSizeGuard(1000, 262144), true));
+        $tableB = new CacheStore('array', 'table-b', new CacheStoreOptions(3600, new CacheSizeGuard(1000, 262144), true));
+
+        $tableA->put(self::HASH, collect(['a']), 1);
+        $tableB->put(self::HASH, collect(['b']), 1);
+
+        $tableA->flushTable();
+
+        static::assertNull($tableA->get(self::HASH));
+        static::assertNotNull($tableB->get(self::HASH));
     }
 }

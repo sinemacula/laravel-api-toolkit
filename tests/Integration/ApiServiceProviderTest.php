@@ -670,22 +670,37 @@ class ApiServiceProviderTest extends TestCase
         $value = $this->getConfig()->get('api-toolkit.deferred_writes.on_failure');
 
         static::assertNotNull($value);
-        static::assertSame('log', $value);
+        static::assertSame('collect', $value);
     }
 
     /**
-     * Test that the WritePool receives the LOG strategy by default.
+     * Test that the WritePool receives the COLLECT strategy by default.
      *
      * @return void
      */
-    public function testWritePoolReceivesLogStrategyByDefault(): void
+    public function testWritePoolReceivesCollectStrategyByDefault(): void
     {
         $pool = $this->getApplication()->make(WritePool::class);
 
         $reflection = new \ReflectionProperty(WritePool::class, 'strategy');
         $strategy   = $reflection->getValue($pool);
 
-        static::assertSame(FlushStrategy::LOG, $strategy);
+        static::assertSame(FlushStrategy::COLLECT, $strategy);
+    }
+
+    /**
+     * Test that the WritePool is non-transactional by default.
+     *
+     * @return void
+     */
+    public function testWritePoolIsNonTransactionalByDefault(): void
+    {
+        $pool = $this->getApplication()->make(WritePool::class);
+
+        $reflection    = new \ReflectionProperty(WritePool::class, 'transactional');
+        $transactional = $reflection->getValue($pool);
+
+        static::assertFalse($transactional);
     }
 
     /**
