@@ -32,6 +32,8 @@ class CacheKeysTest extends TestCase
         yield 'MODEL_RESOURCES' => [CacheKeys::MODEL_RESOURCES, 'model-resources:%s'];
         yield 'REPOSITORY_CACHE' => [CacheKeys::REPOSITORY_CACHE, 'repository-cache:%s'];
         yield 'REPOSITORY_CACHE_META' => [CacheKeys::REPOSITORY_CACHE_META, 'repository-cache-meta:%s'];
+        yield 'REPOSITORY_QUERY_CACHE' => [CacheKeys::REPOSITORY_QUERY_CACHE, 'repository-query:%s:%s'];
+        yield 'REPOSITORY_CACHE_REGISTRY' => [CacheKeys::REPOSITORY_CACHE_REGISTRY, 'repository-cache-registry:%s'];
     }
 
     /**
@@ -113,6 +115,6 @@ class CacheKeysTest extends TestCase
      */
     public function testExpectedCaseCount(): void
     {
-        static::assertCount(6, CacheKeys::cases());
+        static::assertCount(8, CacheKeys::cases());
     }
 }
