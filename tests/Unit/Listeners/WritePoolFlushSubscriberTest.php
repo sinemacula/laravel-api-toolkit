@@ -11,10 +11,13 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Queue\Events\JobFailed;
 use Illuminate\Queue\Events\JobProcessed;
+use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Log;
 use PHPUnit\Framework\Attributes\CoversClass;
+use SineMacula\ApiToolkit\Enums\FlushStrategy;
 use SineMacula\ApiToolkit\Events\WritePoolFlushFailed;
+use SineMacula\ApiToolkit\Exceptions\WritePoolFlushException;
 use SineMacula\ApiToolkit\Listeners\WritePoolFlushSubscriber;
 use SineMacula\ApiToolkit\Repositories\Concerns\WritePool;
 use Symfony\Component\Console\Input\ArrayInput;
@@ -191,7 +194,7 @@ class WritePoolFlushSubscriberTest extends TestCase
             ->with(WritePool::class)
             ->andReturn($pool);
 
-        Log::shouldReceive('error')->once();
+        Log::shouldReceive('error')->never();
         Log::shouldReceive('warning')
             ->once()
             ->with(
@@ -224,7 +227,7 @@ class WritePoolFlushSubscriberTest extends TestCase
             ->with(WritePool::class)
             ->andReturn($pool);
 
-        Log::shouldReceive('error')->once();
+        Log::shouldReceive('error')->never();
         Log::shouldReceive('warning')->once();
 
         Event::fake([WritePoolFlushFailed::class]);
@@ -297,7 +300,7 @@ class WritePoolFlushSubscriberTest extends TestCase
             ->with(WritePool::class)
             ->andReturn($pool);
 
-        Log::shouldReceive('error')->twice();
+        Log::shouldReceive('error')->once();
         Log::shouldReceive('warning')->once();
 
         Event::shouldReceive('dispatch')
@@ -309,11 +312,12 @@ class WritePoolFlushSubscriberTest extends TestCase
     }
 
     /**
-     * Test that handleFlush does not throw when flush throws.
+     * Test that an unexpected throwable during pool resolution is
+     * caught and logged at error level without crashing the boundary.
      *
      * @return void
      */
-    public function testHandleFlushDoesNotThrowWhenFlushThrows(): void
+    public function testHandleFlushLogsErrorWhenPoolResolutionThrows(): void
     {
         $container = \Mockery::mock(Container::class);
         $container->shouldReceive('make')
@@ -325,6 +329,93 @@ class WritePoolFlushSubscriberTest extends TestCase
             ->with('WritePool flush subscriber failed', ['error' => 'Database connection lost']);
 
         $subscriber = new WritePoolFlushSubscriber($container);
+
+        $subscriber->handleFlush();
+    }
+
+    /**
+     * Test that a WritePoolFlushException raised by the throw strategy
+     * is escalated loudly with a warning and a dispatched event rather
+     * than being swallowed into a generic error log.
+     *
+     * @return void
+     */
+    public function testHandleFlushEscalatesThrowStrategyFailureLoudly(): void
+    {
+        $pool = new WritePool(500, 10000, FlushStrategy::THROW);
+        $pool->add('nonexistent_table', ['col' => 'val']);
+
+        $container = \Mockery::mock(Container::class);
+        $container->shouldReceive('make')
+            ->with(WritePool::class)
+            ->andReturn($pool);
+
+        Log::shouldReceive('error')->never();
+        Log::shouldReceive('warning')->once();
+
+        Event::fake([WritePoolFlushFailed::class]);
+
+        $subscriber = new WritePoolFlushSubscriber($container);
+
+        $subscriber->handleFlush();
+
+        Event::assertDispatched(WritePoolFlushFailed::class, fn (WritePoolFlushFailed $event): bool => $event->flushResult->failureCount() === 1);
+    }
+
+    /**
+     * Test that the subscriber does not re-throw a flush exception when
+     * the rethrow_at_boundary flag is disabled.
+     *
+     * @return void
+     */
+    public function testHandleFlushDoesNotRethrowWhenRethrowDisabled(): void
+    {
+        Config::set('api-toolkit.deferred_writes.rethrow_at_boundary', false);
+
+        $pool = new WritePool(500, 10000, FlushStrategy::THROW);
+        $pool->add('nonexistent_table', ['col' => 'val']);
+
+        $container = \Mockery::mock(Container::class);
+        $container->shouldReceive('make')
+            ->with(WritePool::class)
+            ->andReturn($pool);
+
+        Log::shouldReceive('warning')->once();
+
+        Event::fake([WritePoolFlushFailed::class]);
+
+        $subscriber = new WritePoolFlushSubscriber($container);
+
+        $subscriber->handleFlush();
+
+        Event::assertDispatched(WritePoolFlushFailed::class);
+    }
+
+    /**
+     * Test that the subscriber re-throws a flush exception after
+     * escalating it when the rethrow_at_boundary flag is enabled.
+     *
+     * @return void
+     */
+    public function testHandleFlushRethrowsWhenRethrowEnabled(): void
+    {
+        Config::set('api-toolkit.deferred_writes.rethrow_at_boundary', true);
+
+        $pool = new WritePool(500, 10000, FlushStrategy::THROW);
+        $pool->add('nonexistent_table', ['col' => 'val']);
+
+        $container = \Mockery::mock(Container::class);
+        $container->shouldReceive('make')
+            ->with(WritePool::class)
+            ->andReturn($pool);
+
+        Log::shouldReceive('warning')->once();
+
+        Event::fake([WritePoolFlushFailed::class]);
+
+        $subscriber = new WritePoolFlushSubscriber($container);
+
+        $this->expectException(WritePoolFlushException::class);
 
         $subscriber->handleFlush();
     }

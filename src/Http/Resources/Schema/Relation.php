@@ -7,10 +7,9 @@ use Illuminate\Contracts\Support\Arrayable;
 /**
  * Relation schema helper for nested resource fields.
  *
- * Examples:
- *  Relation::to('organization', OrganizationResource::class)
- *  Relation::to('organization', 'name')
- *  Relation::to('organization', 'name', 'organization_name')
+ * Examples: Relation::to('organization', OrganizationResource::class)
+ * Relation::to('organization', 'name') Relation::to('organization', 'name',
+ * 'organization_name')
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -87,7 +86,8 @@ final class Relation extends BaseDefinition implements Arrayable
     }
 
     /**
-     * Specify the child fields to be considered when planning nested eager loads.
+     * Specify the child fields to be considered when planning nested eager
+     * loads.
      *
      * @param  array<int, string>  $fields
      * @return self
@@ -130,6 +130,7 @@ final class Relation extends BaseDefinition implements Arrayable
                 'resource'     => $this->resource,
                 'accessor'     => $this->accessor,
                 'extras'       => $this->extras ?: null,
+                'needs'        => $this->needs ?: null,
                 'fields'       => $this->fields,
                 'constraint'   => $this->constraint,
                 'guards'       => $this->getGuards() ?: null,

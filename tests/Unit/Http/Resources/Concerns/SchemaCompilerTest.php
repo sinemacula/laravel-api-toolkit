@@ -42,8 +42,8 @@ class SchemaCompilerTest extends TestCase
      *
      * NOTE: This test is intentionally declared first in the class. Mutations
      * to the isset/is_string narrowing in buildFieldDefinition emit PHP
-     * warnings, which stop the mutation test run at the first defect; the
-     * first executed test must therefore be the one that fails.
+     * warnings, which stop the mutation test run at the first defect; the first
+     * executed test must therefore be the one that fails.
      *
      * @return void
      */
@@ -213,8 +213,8 @@ class SchemaCompilerTest extends TestCase
     }
 
     /**
-     * Test that an empty schema produces a CompiledSchema with no fields and
-     * no counts.
+     * Test that an empty schema produces a CompiledSchema with no fields and no
+     * counts.
      *
      * @return void
      */
@@ -405,8 +405,48 @@ class SchemaCompilerTest extends TestCase
     }
 
     /**
-     * Test that a scalar extras entry is normalized to an array on the
-     * compiled field definition.
+     * Test that a needs declaration is threaded through to the compiled field
+     * definition.
+     *
+     * @return void
+     */
+    public function testCompilePreservesNeedsColumns(): void
+    {
+        $resourceClass = $this->createStubResourceClass([
+            'profile' => [
+                'needs' => ['profile_id', 'user_id'],
+            ],
+        ]);
+
+        $schema = SchemaCompiler::compile($resourceClass);
+        $field  = $schema->getField('profile');
+
+        static::assertInstanceOf(CompiledFieldDefinition::class, $field);
+        static::assertSame(['profile_id', 'user_id'], $field->needs);
+    }
+
+    /**
+     * Test that a field without a needs declaration compiles to an empty needs
+     * array.
+     *
+     * @return void
+     */
+    public function testCompileDefaultsNeedsToEmptyArrayWhenAbsent(): void
+    {
+        $resourceClass = $this->createStubResourceClass([
+            'name' => [],
+        ]);
+
+        $schema = SchemaCompiler::compile($resourceClass);
+        $field  = $schema->getField('name');
+
+        static::assertInstanceOf(CompiledFieldDefinition::class, $field);
+        static::assertSame([], $field->needs);
+    }
+
+    /**
+     * Test that a scalar extras entry is normalized to an array on the compiled
+     * field definition.
      *
      * @return void
      */

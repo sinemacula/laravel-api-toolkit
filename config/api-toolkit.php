@@ -96,6 +96,12 @@ return [
 
         'fixed_fields' => ['id', '_type'],
 
+        // When enabled, the repository-driven query narrows the base-table SELECT to
+        // only the columns the resolved field set needs plus a per-model safety set,
+        // falling back to SELECT * whenever any resolved field's column reads are
+        // unknown. Default OFF; retained as a per-environment kill switch.
+        'narrow_columns' => env('API_TOOLKIT_NARROW_COLUMNS', false),
+
     ],
 
     /*
@@ -178,10 +184,45 @@ return [
     | how various Laravel casts should be handled in the repository to ensure
     | data integrity and type safety before model-level casting is applied.
     |
+    | The `cache` block configures the opt-in repository cache (enabled per
+    | repository via the Cacheable trait). The default mode keys cache entries
+    | per executed query, so a filtered or by-id read never returns the full
+    | table. Each option may be overridden per repository via a property:
+    |
+    |   - `ttl`             → `protected int $cacheTtl`
+    |   - `store`           → `protected ?string $cacheStoreName`
+    |   - `max_rows`        → `protected ?int $cacheMaxRows`
+    |   - `max_bytes`       → `protected ?int $cacheMaxBytes`
+    |   - `reference_ttl`   → `protected int $cacheReferenceTtl`
+    |   - (key prefix)      → `protected ?string $cacheKeyPrefix`
+    |   - (reference mode)  → `protected bool $cacheReferenceTable`
+    |
+    | `max_rows` and `max_bytes` form the size guard: results larger than either
+    | limit are still fetched and returned, but not stored. Set either to null
+    | to disable that bound. `registry_enabled` controls how non-taggable stores
+    | invalidate per-query entries: when true a per-table key registry is kept so
+    | every live entry can be forgotten on a write; when false invalidation falls
+    | back to TTL expiry only (a documented degraded behaviour).
     |
     */
 
     'repositories' => [
+
+        'cache' => [
+
+            'ttl' => is_numeric($cache_ttl = env('API_TOOLKIT_REPOSITORY_CACHE_TTL', 3600)) ? (int) $cache_ttl : 3600,
+
+            'store' => env('API_TOOLKIT_REPOSITORY_CACHE_STORE'),
+
+            'max_rows' => is_numeric($cache_max_rows = env('API_TOOLKIT_REPOSITORY_CACHE_MAX_ROWS', 1000)) ? (int) $cache_max_rows : 1000,
+
+            'max_bytes' => is_numeric($cache_max_bytes = env('API_TOOLKIT_REPOSITORY_CACHE_MAX_BYTES', 262144)) ? (int) $cache_max_bytes : 262144,
+
+            'reference_ttl' => is_numeric($cache_reference_ttl = env('API_TOOLKIT_REPOSITORY_CACHE_REFERENCE_TTL', 3600)) ? (int) $cache_reference_ttl : 3600,
+
+            'registry_enabled' => env('API_TOOLKIT_REPOSITORY_CACHE_REGISTRY_ENABLED', true),
+
+        ],
 
         'cast_map' => [
             'string' => [
@@ -229,12 +270,29 @@ return [
     | an automatic flush is triggered, preventing unbounded memory growth.
     |
     | `on_failure` controls the behavior when a chunk insert fails during flush.
-    | Supported values: 'log' (default), 'throw', 'collect'.
-    |   - 'log': catch, log error, continue, clear buffer (backward compatible)
-    |   - 'throw': throw WritePoolFlushException on first failure, preserve
-    |     failed and unprocessed records in buffer
-    |   - 'collect': catch all failures, continue, preserve only failed records
-    |     in buffer
+    | Supported values: 'collect' (default), 'throw', 'log'.
+    |   - 'collect' (safe default): catch all failures, continue, and retain
+    |     the failed records in the buffer for the next flush attempt. No
+    |     record is dropped and no exception escapes, so a boundary flush
+    |     surfaces failures loudly without disrupting the lifecycle.
+    |   - 'throw': throw WritePoolFlushException on the first failure, carrying
+    |     the partial result, and preserve the failed and unprocessed records
+    |     in the buffer. Best for callers that own an explicit flush site.
+    |   - 'log' (opt-in best-effort): catch, log error, continue, and clear the
+    |     buffer. Failed records are dropped, so use this only for genuinely
+    |     disposable writes such as audit, analytics, or telemetry.
+    |
+    | `transactional` wraps each table's chunk set in a database transaction so
+    | that table's inserts are applied all-or-nothing. Disabled by default to
+    | preserve per-chunk performance and the existing partial-persist behavior.
+    |
+    | `rethrow_at_boundary` re-throws a WritePoolFlushException after escalating
+    | it at the lifecycle boundary. Only applies under the 'throw' strategy and
+    | is disabled by default so the boundary is never hard-crashed.
+    |
+    | Durability window: buffered writes live only in PHP memory until the
+    | boundary flush. A crash, out-of-memory condition, or SIGKILL before the
+    | flush loses any unflushed records. For true durability use a real queue.
     |
     */
 
@@ -244,7 +302,11 @@ return [
 
         'pool_limit' => is_numeric($pool_limit = env('DEFERRED_WRITES_POOL_LIMIT', 10000)) ? (int) $pool_limit : 10000,
 
-        'on_failure' => env('DEFERRED_WRITES_ON_FAILURE', 'log'),
+        'on_failure' => env('DEFERRED_WRITES_ON_FAILURE', 'collect'),
+
+        'transactional' => (bool) env('DEFERRED_WRITES_TRANSACTIONAL', false),
+
+        'rethrow_at_boundary' => (bool) env('DEFERRED_WRITES_RETHROW_AT_BOUNDARY', false),
 
     ],
 

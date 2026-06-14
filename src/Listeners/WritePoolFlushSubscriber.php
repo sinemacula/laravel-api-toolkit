@@ -8,9 +8,12 @@ use Illuminate\Events\Dispatcher;
 use Illuminate\Foundation\Http\Events\RequestHandled;
 use Illuminate\Queue\Events\JobFailed;
 use Illuminate\Queue\Events\JobProcessed;
+use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Log;
 use SineMacula\ApiToolkit\Events\WritePoolFlushFailed;
+use SineMacula\ApiToolkit\Exceptions\WritePoolFlushException;
 use SineMacula\ApiToolkit\Repositories\Concerns\WritePool;
+use SineMacula\ApiToolkit\Repositories\Concerns\WritePoolFlushResult;
 
 /**
  * Flushes the deferred write pool at lifecycle boundaries.
@@ -52,12 +55,18 @@ final class WritePoolFlushSubscriber
      * Flush the write pool and handle any failures.
      *
      * The pool is resolved from the container at event time to ensure
-     * the correct scoped instance is used in Octane environments.
-     * When the flush result indicates failures, a warning is logged
-     * and a WritePoolFlushFailed event is dispatched. All exceptions
-     * are caught to prevent lifecycle boundary disruption.
+     * the correct scoped instance is used in Octane environments. When
+     * the flush returns a result with failures, or raises a
+     * WritePoolFlushException under the throw strategy, the failure is
+     * escalated loudly: a warning is logged and a WritePoolFlushFailed
+     * event is dispatched. The exception is only re-thrown when the
+     * rethrow_at_boundary config flag is enabled, so the lifecycle
+     * boundary is never hard-crashed by default. Any other throwable is
+     * unexpected and logged at error level.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\WritePoolFlushException
      */
     public function handleFlush(): void
     {
@@ -69,16 +78,35 @@ final class WritePoolFlushSubscriber
                 return;
             }
 
-            Log::warning('WritePool flush completed with failures: ' . $flushResult->failureCount() . ' chunk(s) failed out of ' . $flushResult->totalCount() . ' total.', [
-                'failure_count' => $flushResult->failureCount(),
-                'total_count'   => $flushResult->totalCount(),
-                'tables'        => array_keys($flushResult->failures()),
-            ]);
+            $this->escalate($flushResult);
+        } catch (WritePoolFlushException $exception) {
 
-            event(new WritePoolFlushFailed($flushResult));
+            $this->escalate($exception->flushResult());
+
+            if (Config::get('api-toolkit.deferred_writes.rethrow_at_boundary', false)) {
+                throw $exception;
+            }
         } catch (\Throwable $e) {
 
             Log::error('WritePool flush subscriber failed', ['error' => $e->getMessage()]);
         }
+    }
+
+    /**
+     * Escalate a flush failure with a warning log and a dispatched
+     * WritePoolFlushFailed event.
+     *
+     * @param  \SineMacula\ApiToolkit\Repositories\Concerns\WritePoolFlushResult  $flushResult
+     * @return void
+     */
+    private function escalate(WritePoolFlushResult $flushResult): void
+    {
+        Log::warning('WritePool flush completed with failures: ' . $flushResult->failureCount() . ' chunk(s) failed out of ' . $flushResult->totalCount() . ' total.', [
+            'failure_count' => $flushResult->failureCount(),
+            'total_count'   => $flushResult->totalCount(),
+            'tables'        => array_keys($flushResult->failures()),
+        ]);
+
+        event(new WritePoolFlushFailed($flushResult));
     }
 }

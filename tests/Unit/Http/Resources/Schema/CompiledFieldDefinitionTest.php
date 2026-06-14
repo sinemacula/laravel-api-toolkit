@@ -40,6 +40,7 @@ class CompiledFieldDefinitionTest extends TestCase
             fields: ['name', 'email'],
             constraint: $constraint,
             extras: ['profile.avatar'],
+            needs: ['profile_id'],
             guards: [$guard],
             transformers: [$transformer],
             openApi: $openApi,
@@ -52,6 +53,7 @@ class CompiledFieldDefinitionTest extends TestCase
         static::assertSame(['name', 'email'], $definition->fields);
         static::assertSame($constraint, $definition->constraint);
         static::assertSame(['profile.avatar'], $definition->extras);
+        static::assertSame(['profile_id'], $definition->needs);
         static::assertSame([$guard], $definition->guards);
         static::assertSame([$transformer], $definition->transformers);
         static::assertSame($openApi, $definition->openApi);
@@ -72,6 +74,7 @@ class CompiledFieldDefinitionTest extends TestCase
             fields: null,
             constraint: null,
             extras: [],
+            needs: [],
             guards: [],
             transformers: [],
         );
@@ -146,11 +149,13 @@ class CompiledFieldDefinitionTest extends TestCase
             fields: null,
             constraint: null,
             extras: [],
+            needs: [],
             guards: [],
             transformers: [],
         );
 
         static::assertSame([], $definition->extras);
+        static::assertSame([], $definition->needs);
         static::assertSame([], $definition->guards);
         static::assertSame([], $definition->transformers);
     }

@@ -38,6 +38,7 @@ class ValidateComputedFieldsTest extends TestCase
                     fields: null,
                     constraint: null,
                     extras: [],
+                    needs: [],
                     guards: [],
                     transformers: [],
                 ),
@@ -52,8 +53,8 @@ class ValidateComputedFieldsTest extends TestCase
     }
 
     /**
-     * Test that no errors are returned for a schema with a string compute
-     * value matching a method on the resource class.
+     * Test that no errors are returned for a schema with a string compute value
+     * matching a method on the resource class.
      *
      * @return void
      */
@@ -69,6 +70,7 @@ class ValidateComputedFieldsTest extends TestCase
                     fields: null,
                     constraint: null,
                     extras: [],
+                    needs: [],
                     guards: [],
                     transformers: [],
                 ),
@@ -100,6 +102,7 @@ class ValidateComputedFieldsTest extends TestCase
                     fields: null,
                     constraint: null,
                     extras: [],
+                    needs: [],
                     guards: [],
                     transformers: [],
                 ),
@@ -186,8 +189,8 @@ class ValidateComputedFieldsTest extends TestCase
     }
 
     /**
-     * Test that validation continues past fields with valid method name
-     * compute values and still reports later defects.
+     * Test that validation continues past fields with valid method name compute
+     * values and still reports later defects.
      *
      * @return void
      */
@@ -248,6 +251,7 @@ class ValidateComputedFieldsTest extends TestCase
                     fields: null,
                     constraint: null,
                     extras: [],
+                    needs: [],
                     guards: [],
                     transformers: [],
                 ),
@@ -277,6 +281,7 @@ class ValidateComputedFieldsTest extends TestCase
             fields: null,
             constraint: null,
             extras: [],
+            needs: [],
             guards: [],
             transformers: [],
         );

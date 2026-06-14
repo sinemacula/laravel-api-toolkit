@@ -150,4 +150,44 @@ class WritePoolFlushResultTest extends TestCase
         static::assertTrue($result->isSuccessful());
         static::assertSame(0, $result->totalCount());
     }
+
+    /**
+     * Test that the record-level count getters default to zero when no
+     * record counts are provided.
+     *
+     * @return void
+     */
+    public function testRecordLevelCountsDefaultToZero(): void
+    {
+        $result = new WritePoolFlushResult(successCount: 1, failureCount: 0);
+
+        static::assertSame(0, $result->flushedRecordCount());
+        static::assertSame(0, $result->failedRecordCount());
+        static::assertSame(0, $result->retainedRecordCount());
+        static::assertSame(0, $result->droppedRecordCount());
+    }
+
+    /**
+     * Test that the record-level count getters return the values
+     * provided to the constructor.
+     *
+     * @return void
+     */
+    public function testRecordLevelCountsReturnConstructorValues(): void
+    {
+        $result = new WritePoolFlushResult(
+            successCount: 2,
+            failureCount: 1,
+            failures: [],
+            flushedRecordCount: 7,
+            failedRecordCount: 3,
+            retainedRecordCount: 3,
+            droppedRecordCount: 0,
+        );
+
+        static::assertSame(7, $result->flushedRecordCount());
+        static::assertSame(3, $result->failedRecordCount());
+        static::assertSame(3, $result->retainedRecordCount());
+        static::assertSame(0, $result->droppedRecordCount());
+    }
 }
