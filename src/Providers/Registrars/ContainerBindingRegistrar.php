@@ -26,6 +26,24 @@ use SineMacula\ApiToolkit\Repositories\Criteria\Operators\LikeOperator;
 use SineMacula\ApiToolkit\Repositories\Criteria\Operators\NotEqualOperator;
 use SineMacula\ApiToolkit\Repositories\Criteria\Operators\NotNullOperator;
 use SineMacula\ApiToolkit\Repositories\Criteria\Operators\NullOperator;
+use SineMacula\ApiToolkit\RouteLinting\Configuration\ConfigRuleConfiguration;
+use SineMacula\ApiToolkit\RouteLinting\Contracts\Inflector;
+use SineMacula\ApiToolkit\RouteLinting\Contracts\RouteSource;
+use SineMacula\ApiToolkit\RouteLinting\Contracts\RuleConfiguration;
+use SineMacula\ApiToolkit\RouteLinting\Inflection\FrameworkInflector;
+use SineMacula\ApiToolkit\RouteLinting\RouteLintEngine;
+use SineMacula\ApiToolkit\RouteLinting\Rules\ApiResourceAlignmentRule;
+use SineMacula\ApiToolkit\RouteLinting\Rules\KebabCaseRule;
+use SineMacula\ApiToolkit\RouteLinting\Rules\LowercaseRule;
+use SineMacula\ApiToolkit\RouteLinting\Rules\NestingDepthRule;
+use SineMacula\ApiToolkit\RouteLinting\Rules\PluralCollectionsRule;
+use SineMacula\ApiToolkit\RouteLinting\Rules\RouteNameRule;
+use SineMacula\ApiToolkit\RouteLinting\Rules\SlashSanityRule;
+use SineMacula\ApiToolkit\RouteLinting\Rules\StandardMethodsRule;
+use SineMacula\ApiToolkit\RouteLinting\Rules\Support\SegmentNormaliser;
+use SineMacula\ApiToolkit\RouteLinting\Rules\Support\VerbDenylist;
+use SineMacula\ApiToolkit\RouteLinting\Rules\VerbInPathRule;
+use SineMacula\ApiToolkit\RouteLinting\Sources\RouterRouteSource;
 use SineMacula\ApiToolkit\Services\SchemaIntrospector;
 use SineMacula\ApiToolkit\Services\SchemaValidator;
 use SineMacula\ApiToolkit\Services\Validation\Rules\ValidateAccessors;
@@ -77,6 +95,7 @@ final class ContainerBindingRegistrar
         $this->registerWritePool();
         $this->registerCacheManager();
         $this->registerOpenApiExporter();
+        $this->registerRouteLinter();
     }
 
     /**
@@ -208,5 +227,55 @@ final class ContainerBindingRegistrar
     {
         $this->container->singleton(MetadataCatalogue::class, ConfigMetadataCatalogue::class);
         $this->container->singleton(DocumentWriter::class, FilesystemDocumentWriter::class);
+    }
+
+    /**
+     * Bind the route-linter ports to their default adapters.
+     *
+     * Binds the four ports as singletons and assembles the RouteLintEngine with
+     * the rule set in a fixed declared order (R1, R2, R3, R4, R5, R7, R8, R9,
+     * R11). The LintRoutes use case is auto-resolved through constructor
+     * injection from these bindings; no explicit binding for it is required.
+     *
+     * @return void
+     */
+    private function registerRouteLinter(): void
+    {
+        $this->container->singleton(RouteSource::class, fn ($app) => new RouterRouteSource($app['router']));
+
+        $this->container->singleton(RuleConfiguration::class, ConfigRuleConfiguration::class);
+
+        $this->container->singleton(Inflector::class, function (): FrameworkInflector {
+
+            $uncountables = Config::get('api-toolkit.route_linting.uncountables');
+
+            return new FrameworkInflector(is_array($uncountables) ? $uncountables : []);
+        });
+
+        $this->container->singleton(RouteLintEngine::class, function (): RouteLintEngine {
+
+            $inflector = $this->container->make(Inflector::class);
+
+            $denylist = Config::get('api-toolkit.route_linting.verb_denylist');
+            $hints    = Config::get('api-toolkit.route_linting.remediation_hints');
+
+            return new RouteLintEngine(
+                new VerbInPathRule(
+                    new SegmentNormaliser($inflector),
+                    new VerbDenylist(
+                        is_array($denylist) ? $denylist : [],
+                        is_array($hints) ? $hints : [],
+                    ),
+                ),
+                new KebabCaseRule,
+                new LowercaseRule,
+                new PluralCollectionsRule($inflector),
+                new SlashSanityRule,
+                new StandardMethodsRule,
+                new RouteNameRule,
+                new ApiResourceAlignmentRule,
+                new NestingDepthRule,
+            );
+        });
     }
 }

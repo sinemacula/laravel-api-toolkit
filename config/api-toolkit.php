@@ -468,4 +468,79 @@ return [
 
     ],
 
+    /*
+    |---------------------------------------------------------------------------
+    | RESTful Route Linter Configuration
+    |---------------------------------------------------------------------------
+    |
+    | This section configures the opt-in RESTful route convention linter, which
+    | is invoked explicitly via the `api-toolkit:lint-routes` Artisan command
+    | and never runs as part of normal request handling.
+    |
+    | `verb_denylist`: Action verbs that flag a URI path segment. This list is
+    | tunable — add or remove words to control which segments trigger rule R1.
+    | Removing a word is rule tuning (not a per-route exemption).
+    |
+    | `remediation_hints`: Per-verb RESTful rewrite hints surfaced alongside
+    | each verb violation, keyed by the denylisted verb string.
+    |
+    | `exemptions`: Per-route exemption allowlist — ships EMPTY. Each entry
+    | waives one route and MUST carry a non-empty written reason. Entries are
+    | keyed by route name or URI pattern. Example:
+    |   ['match' => 'legacy.export', 'reason' => 'BL-123 frozen contract'].
+    |
+    | `uncountables`: Nouns honoured by the plural-collections rule (R4) and
+    | the verb-rule singularisation step. Words in this list are never
+    | mis-singularised or incorrectly flagged as singular collections.
+    |
+    */
+
+    'route_linting' => [
+
+        'verb_denylist' => [
+            'get', 'create', 'update', 'delete', 'edit', 'store', 'fetch', 'list',
+            'show', 'cancel', 'activate', 'deactivate', 'login', 'logout', 'register',
+            'search', 'add', 'remove', 'check', 'process', 'submit', 'send', 'transfer',
+            'download', 'upload', 'import', 'export', 'validate', 'generate', 'refresh',
+        ],
+
+        'remediation_hints' => [
+            'login'      => 'POST /sessions',
+            'logout'     => 'DELETE /sessions/{session}',
+            'register'   => 'POST /users',
+            'get'        => 'GET /{resources}',
+            'list'       => 'GET /{resources}',
+            'fetch'      => 'GET /{resources}/{resource}',
+            'show'       => 'GET /{resources}/{resource}',
+            'create'     => 'POST /{resources} (create a new resource)',
+            'add'        => 'POST /{resources} (add a resource)',
+            'store'      => 'POST /{resources} (store a resource)',
+            'update'     => 'PUT /{resources}/{resource} or PATCH /{resources}/{resource}',
+            'edit'       => 'PUT /{resources}/{resource} or PATCH /{resources}/{resource}',
+            'delete'     => 'DELETE /{resources}/{resource}',
+            'remove'     => 'DELETE /{resources}/{resource}',
+            'cancel'     => 'POST /{resources}/{resource}/cancellations',
+            'activate'   => 'POST /{resources}/{resource}/activations',
+            'deactivate' => 'POST /{resources}/{resource}/deactivations',
+            'search'     => 'GET /{resources}?q=',
+            'check'      => 'GET /{resources}/{resource}/status',
+            'process'    => 'POST /{resources}/{resource}/processings',
+            'submit'     => 'POST /{resources}/{resource}/submissions',
+            'send'       => 'POST /{resources}/{resource}/deliveries',
+            'transfer'   => 'POST /{resources}/{resource}/transfers',
+            'download'   => 'GET /{resources}/{resource}/download',
+            'upload'     => 'POST /{resources}/{resource}/uploads',
+            'import'     => 'POST /{resources}/imports',
+            'export'     => 'GET /{resources}/exports',
+            'validate'   => 'POST /{resources}/validations',
+            'generate'   => 'POST /{resources}/generations',
+            'refresh'    => 'POST /{resources}/{resource}/refreshes',
+        ],
+
+        'exemptions' => [],
+
+        'uncountables' => ['media', 'data', 'series', 'information', 'news', 'feedback', 'metadata'],
+
+    ],
+
 ];
