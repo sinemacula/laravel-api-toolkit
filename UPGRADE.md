@@ -307,6 +307,46 @@ are unchanged.
 
     $repository->persist($model, $attributes);
 
+### Changed: Repository caching is now per-query
+
+The `Cacheable` trait previously cached every read against a single whole-table snapshot. A filtered or
+by-id read could therefore be served the entire table from the cache, and populating the cache issued a
+second query. The trait now caches **per query**: each executed query is fingerprinted and stored under its
+own key, so a filtered read never returns the full-table collection, and a cache hit performs zero database
+queries.
+
+**What changed:**
+
+- The default cache key changed from `repository-cache:<table>` (whole table) to
+  `repository-query:<table>:<hash>` (per query). The old keys are retained for reference mode only.
+- Write invalidation is now driven by an explicit write-verb list (`create`, `forceCreate`, `firstOrCreate`,
+  `updateOrCreate`, `updateOrInsert`, `update`, `delete`, `forceDelete`, `save`, `insert`, `insertGetId`,
+  `upsert`, `increment`, `decrement`, `restore`) instead of sniffing the return type. `create()` returning
+  a model now correctly invalidates the cache; `count()` returning an integer no longer does.
+- A size guard (`max_rows` / `max_bytes`) skips storing oversized results; the read still executes and
+  returns normally.
+
+The public API is unchanged: `withoutCache()`, `flushCache()`, and `getCacheStatus()` behave as before.
+
+**Action required:** none for most applications. If you relied on the old whole-table behaviour — a small,
+static reference table served entirely from cache with cross-request persistence — opt back into it per
+repository:
+
+    protected bool $cacheReferenceTable = true;
+
+**Recommendation:** use a taggable cache store (Redis, Memcached) for precise per-table invalidation. On a
+non-taggable store (file, database) the toolkit keeps a per-table registry of live keys so writes can
+invalidate them; set `api-toolkit.repositories.cache.registry_enabled` to `false` to fall back to TTL-only
+staleness.
+
+**Staleness boundary:** a by-id read that misses (returns `null`) is **not cached** — the query re-executes
+until the row exists. Empty Collections are cached normally. Writes made outside the repository (raw Eloquent
+inserts) are not observed for cached non-null results until the TTL expires or a repository write flushes the
+table.
+
+New configuration lives under `repositories.cache` (`ttl`, `store`, `max_rows`, `max_bytes`,
+`reference_ttl`, `registry_enabled`); each value is overridable per repository via a protected property.
+
 ### Changed: Relation detection requires return type declarations
 
 Relation detection -- used by filtering, attribute persistence, resource value resolution, and schema
