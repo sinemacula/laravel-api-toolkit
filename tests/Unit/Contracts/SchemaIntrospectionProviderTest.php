@@ -61,6 +61,35 @@ class SchemaIntrospectionProviderTest extends TestCase
     }
 
     /**
+     * Test that getColumnDefinitions is declared with the correct signature.
+     *
+     * @return void
+     */
+    public function testInterfaceDeclaresGetColumnDefinitionsMethod(): void
+    {
+        $reflection = new \ReflectionClass(SchemaIntrospectionProvider::class);
+        $method     = $reflection->getMethod('getColumnDefinitions');
+
+        static::assertTrue($method->isPublic());
+        static::assertFalse($method->isStatic());
+
+        $parameters = $method->getParameters();
+
+        static::assertCount(1, $parameters);
+        static::assertSame('model', $parameters[0]->getName());
+
+        $paramType = $parameters[0]->getType();
+
+        static::assertInstanceOf(\ReflectionNamedType::class, $paramType);
+        static::assertSame(Model::class, $paramType->getName());
+
+        $returnType = $method->getReturnType();
+
+        static::assertInstanceOf(\ReflectionNamedType::class, $returnType);
+        static::assertSame('array', $returnType->getName());
+    }
+
+    /**
      * Test that getSearchableColumns is declared with the correct
      * signature.
      *

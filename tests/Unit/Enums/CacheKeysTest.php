@@ -28,6 +28,7 @@ class CacheKeysTest extends TestCase
     {
         yield 'REPOSITORY_MODEL_CASTS' => [CacheKeys::REPOSITORY_MODEL_CASTS, 'repository-model-casts:%s'];
         yield 'MODEL_SCHEMA_COLUMNS' => [CacheKeys::MODEL_SCHEMA_COLUMNS, 'model-schema-columns:%s'];
+        yield 'MODEL_SCHEMA_COLUMN_DEFINITIONS' => [CacheKeys::MODEL_SCHEMA_COLUMN_DEFINITIONS, 'model-schema-column-definitions:%s'];
         yield 'MODEL_RELATIONS' => [CacheKeys::MODEL_RELATIONS, 'model-relations:%s:%s'];
         yield 'MODEL_RESOURCES' => [CacheKeys::MODEL_RESOURCES, 'model-resources:%s'];
         yield 'REPOSITORY_CACHE' => [CacheKeys::REPOSITORY_CACHE, 'repository-cache:%s'];
@@ -115,6 +116,6 @@ class CacheKeysTest extends TestCase
      */
     public function testExpectedCaseCount(): void
     {
-        static::assertCount(8, CacheKeys::cases());
+        static::assertCount(9, CacheKeys::cases());
     }
 }

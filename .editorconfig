@@ -14,3 +14,8 @@ indent_size = unset
 
 [*.{yml,yaml}]
 indent_size = 2
+
+# Vendored meta-schemas committed byte-for-byte from upstream; their
+# indentation is not ours to normalise.
+[tests/Fixtures/openapi/*.json]
+indent_size = unset

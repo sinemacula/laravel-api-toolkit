@@ -108,6 +108,7 @@ final class Count extends BaseDefinition implements Arrayable
                 'extras'       => $this->extras ?: null,
                 'guards'       => $this->getGuards() ?: null,
                 'transformers' => $this->getTransformers() ?: null,
+                'openapi'      => $this->getOpenApiDeclaration()?->toSchema(),
             ], static fn ($value) => $value !== null),
         ];
     }

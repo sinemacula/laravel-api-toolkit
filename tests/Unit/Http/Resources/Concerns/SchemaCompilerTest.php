@@ -8,6 +8,8 @@ use SineMacula\ApiToolkit\Http\Resources\Concerns\SchemaCompiler;
 use SineMacula\ApiToolkit\Http\Resources\Schema\CompiledCountDefinition;
 use SineMacula\ApiToolkit\Http\Resources\Schema\CompiledFieldDefinition;
 use SineMacula\ApiToolkit\Http\Resources\Schema\CompiledSchema;
+use SineMacula\ApiToolkit\Http\Resources\Schema\OpenApiFieldSchema;
+use Tests\Fixtures\Resources\UserResource;
 
 /**
  * Tests for the SchemaCompiler static compilation and caching class.
@@ -461,6 +463,98 @@ class SchemaCompilerTest extends TestCase
 
         static::assertInstanceOf(CompiledFieldDefinition::class, $field);
         static::assertSame(['media'], $field->extras);
+    }
+
+    /**
+     * Test that an openapi schema is threaded into the compiled field
+     * definition's openApi property.
+     *
+     * @return void
+     */
+    public function testCompileThreadsOpenApiSchemaIntoFieldDefinition(): void
+    {
+        $openApi = new OpenApiFieldSchema(type: 'string', format: 'email');
+
+        $resourceClass = $this->createStubResourceClass([
+            'email' => [
+                'openapi' => $openApi,
+            ],
+        ]);
+
+        $schema = SchemaCompiler::compile($resourceClass);
+        $field  = $schema->getField('email');
+
+        static::assertInstanceOf(CompiledFieldDefinition::class, $field);
+        static::assertSame($openApi, $field->openApi);
+    }
+
+    /**
+     * Test that a field with no openapi key compiles with a null openApi
+     * property.
+     *
+     * @return void
+     */
+    public function testCompileLeavesOpenApiNullWhenAbsent(): void
+    {
+        $resourceClass = $this->createStubResourceClass([
+            'name' => [],
+        ]);
+
+        $schema = SchemaCompiler::compile($resourceClass);
+        $field  = $schema->getField('name');
+
+        static::assertInstanceOf(CompiledFieldDefinition::class, $field);
+        static::assertNull($field->openApi);
+    }
+
+    /**
+     * Test that a malformed (non-schema) openapi value is normalized to null.
+     *
+     * @return void
+     */
+    public function testCompileNormalizesMalformedOpenApiToNull(): void
+    {
+        $resourceClass = $this->createStubResourceClass([
+            'name' => [
+                'openapi' => 'not-a-schema',
+            ],
+        ]);
+
+        $schema = SchemaCompiler::compile($resourceClass);
+        $field  = $schema->getField('name');
+
+        static::assertInstanceOf(CompiledFieldDefinition::class, $field);
+        static::assertNull($field->openApi);
+    }
+
+    /**
+     * Test that a real fixture resource carries no author-declared openapi on its
+     * plain scalar/compute/relation fields, while the toolkit's own timestamp()
+     * factory auto-declares a date-time format.
+     *
+     * This is the resource-level backward-compatibility oracle (AC-11): a field
+     * the author did not annotate compiles with a null openApi, so the new
+     * declaration is absent from every author-required call path. The timestamp()
+     * factory's built-in date-time format (AC-07) is the only auto-declaration and
+     * it never affects runtime serialization (the runtime path ignores openapi).
+     *
+     * @return void
+     */
+    public function testRealResourceCompilesScalarsNullAndTimestampsWithDateTimeFormat(): void
+    {
+        $schema = SchemaCompiler::compile(UserResource::class);
+
+        foreach ($schema->getFieldKeys() as $key) {
+            $openApi = $schema->getField($key)?->openApi;
+
+            if (in_array($key, ['created_at', 'updated_at'], true)) {
+                static::assertNotNull($openApi, "Timestamp field {$key} should auto-declare an openapi format");
+                static::assertSame('string', $openApi->type);
+                static::assertSame('date-time', $openApi->format);
+            } else {
+                static::assertNull($openApi, "Author-undeclared field {$key} should compile with a null openApi");
+            }
+        }
     }
 
     /**

@@ -7,6 +7,7 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use SineMacula\ApiToolkit\Exceptions\DuplicateSchemaKeyException;
 use SineMacula\ApiToolkit\Http\Resources\Schema\Field;
+use SineMacula\ApiToolkit\Http\Resources\Schema\OpenApiFieldSchema;
 
 /**
  * Tests for the Field schema definition.
@@ -369,5 +370,41 @@ class FieldTest extends TestCase
         $array = $field->toArray();
 
         static::assertArrayHasKey($expectedKey, $array);
+    }
+
+    /**
+     * Test that the openapi key is absent when no declaration was made.
+     *
+     * This is the byte-for-byte backward-compatibility oracle (AC-11): a
+     * scalar field with no openapi() call must serialize identically.
+     *
+     * @return void
+     */
+    public function testToArrayOmitsOpenApiWhenNotDeclared(): void
+    {
+        $field = Field::scalar('name');
+
+        $array = $field->toArray();
+
+        static::assertArrayNotHasKey('openapi', $array['name']);
+        static::assertSame(['name' => []], $array);
+    }
+
+    /**
+     * Test that the openapi key is emitted when a declaration was made.
+     *
+     * @return void
+     */
+    public function testToArrayIncludesOpenApiWhenDeclared(): void
+    {
+        $field = Field::scalar('status');
+        $field->openapi()->type('string')->enum(['draft', 'published']);
+
+        $array = $field->toArray();
+
+        static::assertArrayHasKey('openapi', $array['status']);
+        static::assertInstanceOf(OpenApiFieldSchema::class, $array['status']['openapi']);
+        static::assertSame('string', $array['status']['openapi']->type);
+        static::assertSame(['draft', 'published'], $array['status']['openapi']->enum);
     }
 }

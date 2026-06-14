@@ -18,6 +18,9 @@ enum CacheKeys: string
     // Store the columns associated with each model
     case MODEL_SCHEMA_COLUMNS = 'model-schema-columns:%s';
 
+    // Store the per-column type/nullability definitions for each model
+    case MODEL_SCHEMA_COLUMN_DEFINITIONS = 'model-schema-column-definitions:%s';
+
     // Store the relations associated with each model
     case MODEL_RELATIONS = 'model-relations:%s:%s';
 

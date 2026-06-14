@@ -6,6 +6,7 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 use SineMacula\ApiToolkit\Http\Resources\Schema\BaseDefinition;
 use SineMacula\ApiToolkit\Http\Resources\Schema\Field;
+use SineMacula\ApiToolkit\Http\Resources\Schema\OpenApiFieldDeclaration;
 
 /**
  * Tests for the BaseDefinition abstract class.
@@ -197,5 +198,99 @@ class BaseDefinitionTest extends TestCase
         $field->guard($guard1)->guard($guard2)->guard($guard3);
 
         static::assertCount(3, $field->getGuards());
+    }
+
+    /**
+     * Test that openapi returns a declaration carrier.
+     *
+     * @return void
+     */
+    public function testOpenapiReturnsDeclarationCarrier(): void
+    {
+        $field = Field::scalar('name');
+
+        $declaration = $field->openapi();
+
+        static::assertInstanceOf(OpenApiFieldDeclaration::class, $declaration);
+    }
+
+    /**
+     * Test that openapi returns the same carrier on repeated calls.
+     *
+     * @return void
+     */
+    public function testOpenapiReturnsSameCarrierOnRepeatedCalls(): void
+    {
+        $field = Field::scalar('name');
+
+        static::assertSame($field->openapi(), $field->openapi());
+    }
+
+    /**
+     * Test that the carrier end() chains back to the owning definition.
+     *
+     * @return void
+     */
+    public function testOpenapiCarrierEndReturnsOwningDefinition(): void
+    {
+        $field = Field::scalar('name');
+
+        static::assertSame($field, $field->openapi()->end());
+    }
+
+    /**
+     * Test that getOpenApiDeclaration returns null until openapi is called.
+     *
+     * @return void
+     */
+    public function testGetOpenApiDeclarationReturnsNullByDefault(): void
+    {
+        $field = Field::scalar('name');
+
+        static::assertNull($field->getOpenApiDeclaration());
+    }
+
+    /**
+     * Test that getOpenApiDeclaration returns the carrier after openapi is
+     * called.
+     *
+     * @return void
+     */
+    public function testGetOpenApiDeclarationReturnsCarrierAfterDeclaration(): void
+    {
+        $field = Field::scalar('name');
+
+        $declaration = $field->openapi();
+
+        static::assertSame($declaration, $field->getOpenApiDeclaration());
+    }
+
+    /**
+     * Test that a definition with no openapi declaration serializes identically
+     * to the pre-feature output.
+     *
+     * This is the byte-for-byte backward-compatibility oracle (AC-11): the
+     * openapi key must never appear unless openapi() was explicitly called.
+     *
+     * @return void
+     */
+    public function testToArrayIsUnchangedWhenOpenapiNotDeclared(): void
+    {
+        $guard       = fn () => true;
+        $transformer = fn ($resource, $value) => $value;
+
+        $field = Field::accessor('display_name', 'name')
+            ->extras('profile')
+            ->guard($guard)
+            ->transform($transformer);
+
+        static::assertSame([
+            'display_name' => [
+                'accessor'     => 'name',
+                'extras'       => ['profile'],
+                'guards'       => [$guard],
+                'transformers' => [$transformer],
+            ],
+        ], $field->toArray());
     }
 }
