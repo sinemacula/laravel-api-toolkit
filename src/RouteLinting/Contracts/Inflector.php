@@ -16,18 +16,18 @@ namespace SineMacula\ApiToolkit\RouteLinting\Contracts;
 interface Inflector
 {
     /**
-     * Return the singular form of a segment, honouring configured uncountables.
+     * Return the singular form of a word, honouring configured uncountables.
      *
-     * @param  string  $value
+     * @param  string  $word
      * @return string
      */
-    public function singular(string $value): string;
+    public function singular(string $word): string;
 
     /**
-     * Determine whether a segment is already plural (uncountables are treated as plural-safe).
+     * Determine whether a word is already plural (uncountables are treated as plural-safe).
      *
-     * @param  string  $value
+     * @param  string  $word
      * @return bool
      */
-    public function isPlural(string $value): bool;
+    public function isPlural(string $word): bool;
 }

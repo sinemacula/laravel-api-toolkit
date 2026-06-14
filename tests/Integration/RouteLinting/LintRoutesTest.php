@@ -9,8 +9,10 @@ use SineMacula\ApiToolkit\RouteLinting\Inflection\FrameworkInflector;
 use SineMacula\ApiToolkit\RouteLinting\LintRoutes;
 use SineMacula\ApiToolkit\RouteLinting\RouteLintEngine;
 use SineMacula\ApiToolkit\RouteLinting\RouteLintReport;
+use SineMacula\ApiToolkit\RouteLinting\Rules\ApiResourceAlignmentRule;
 use SineMacula\ApiToolkit\RouteLinting\Rules\KebabCaseRule;
 use SineMacula\ApiToolkit\RouteLinting\Rules\LowercaseRule;
+use SineMacula\ApiToolkit\RouteLinting\Rules\NestingDepthRule;
 use SineMacula\ApiToolkit\RouteLinting\Rules\PluralCollectionsRule;
 use SineMacula\ApiToolkit\RouteLinting\Rules\RouteNameRule;
 use SineMacula\ApiToolkit\RouteLinting\Rules\SlashSanityRule;
@@ -214,6 +216,8 @@ class LintRoutesTest extends TestCase
             new SlashSanityRule,
             new StandardMethodsRule,
             new RouteNameRule,
+            new ApiResourceAlignmentRule,
+            new NestingDepthRule,
         );
 
         return new LintRoutes(

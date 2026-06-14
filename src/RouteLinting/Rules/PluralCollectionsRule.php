@@ -88,7 +88,7 @@ final class PluralCollectionsRule implements Rule
 
             $violations[] = new Violation(
                 ruleId: $this->id(),
-                severity: Severity::ERROR,
+                severity: $this->severity(),
                 routeIdentity: $route->identity(),
                 offendingSurface: $segment,
                 remediationHint: null,

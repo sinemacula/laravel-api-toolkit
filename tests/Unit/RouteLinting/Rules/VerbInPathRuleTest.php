@@ -45,21 +45,21 @@ class VerbInPathRuleTest extends TestCase
         // Stub inflector: strips a trailing 's' to singularise, returns word unchanged otherwise
         $inflector = new class implements Inflector {
             /**
-             * @param  string  $value
+             * @param  string  $word
              * @return string
              */
-            public function singular(string $value): string
+            public function singular(string $word): string
             {
-                return str_ends_with($value, 's') ? substr($value, 0, -1) : $value;
+                return str_ends_with($word, 's') ? substr($word, 0, -1) : $word;
             }
 
             /**
-             * @param  string  $value
+             * @param  string  $word
              * @return bool
              */
-            public function isPlural(string $value): bool
+            public function isPlural(string $word): bool
             {
-                return str_ends_with($value, 's');
+                return str_ends_with($word, 's');
             }
         };
 
@@ -236,7 +236,7 @@ class VerbInPathRuleTest extends TestCase
 
         // Assert
         static::assertCount(1, $violations);
-        static::assertSame($route->identity(), $violations[0]->routeIdentity);
+        static::assertSame('GET login', $violations[0]->routeIdentity);
     }
 
     /**

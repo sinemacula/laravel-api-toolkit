@@ -69,7 +69,7 @@ final class SlashSanityRule implements Rule
         return [
             new Violation(
                 ruleId: $this->id(),
-                severity: Severity::ERROR,
+                severity: $this->severity(),
                 routeIdentity: $route->identity(),
                 offendingSurface: $uri,
                 remediationHint: null,

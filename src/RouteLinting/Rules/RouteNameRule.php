@@ -66,7 +66,7 @@ final class RouteNameRule implements Rule
             : [
                 new Violation(
                     ruleId: $this->id(),
-                    severity: Severity::WARNING,
+                    severity: $this->severity(),
                     routeIdentity: $route->identity(),
                     offendingSurface: $route->name,
                     remediationHint: null,

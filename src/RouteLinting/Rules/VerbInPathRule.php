@@ -80,8 +80,8 @@ final class VerbInPathRule implements Rule
 
             $seen[$word]  = true;
             $violations[] = new Violation(
-                ruleId: 'R1',
-                severity: Severity::ERROR,
+                ruleId: $this->id(),
+                severity: $this->severity(),
                 routeIdentity: $route->identity(),
                 offendingSurface: $word,
                 remediationHint: $this->denylist->hint($word),

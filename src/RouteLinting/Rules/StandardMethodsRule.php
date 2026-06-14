@@ -70,7 +70,7 @@ final class StandardMethodsRule implements Rule
         return [
             new Violation(
                 ruleId: $this->id(),
-                severity: Severity::ERROR,
+                severity: $this->severity(),
                 routeIdentity: $route->identity(),
                 offendingSurface: implode(', ', $nonStandard),
                 remediationHint: null,

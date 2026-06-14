@@ -26,45 +26,45 @@ final class FrameworkInflector implements Inflector
     public function __construct(private readonly array $uncountables = []) {}
 
     /**
-     * Return the singular form of a segment, honouring configured uncountables.
+     * Return the singular form of a word, honouring configured uncountables.
      *
-     * Returns the value unchanged when it is an uncountable word; otherwise
+     * Returns the word unchanged when it is an uncountable word; otherwise
      * delegates to `Str::singular()`. An empty string is returned as-is.
      *
-     * @param  string  $value
+     * @param  string  $word
      * @return string
      */
     #[\Override]
-    public function singular(string $value): string
+    public function singular(string $word): string
     {
-        if ($value === '' || in_array(strtolower($value), $this->uncountables, true)) {
-            return $value;
+        if ($word === '' || in_array(strtolower($word), $this->uncountables, true)) {
+            return $word;
         }
 
-        return Str::singular($value);
+        return Str::singular($word);
     }
 
     /**
-     * Determine whether a segment is already plural.
+     * Determine whether a word is already plural.
      *
      * Uncountables are always treated as plural-safe and return `true`. For
      * other words, a word is considered plural when its singular form differs
      * from the original. An empty string always returns `false`.
      *
-     * @param  string  $value
+     * @param  string  $word
      * @return bool
      */
     #[\Override]
-    public function isPlural(string $value): bool
+    public function isPlural(string $word): bool
     {
-        if ($value === '') {
+        if ($word === '') {
             return false;
         }
 
-        if (in_array(strtolower($value), $this->uncountables, true)) {
+        if (in_array(strtolower($word), $this->uncountables, true)) {
             return true;
         }
 
-        return Str::singular($value) !== $value;
+        return Str::singular($word) !== $word;
     }
 }

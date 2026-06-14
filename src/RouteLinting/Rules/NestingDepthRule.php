@@ -70,7 +70,7 @@ final class NestingDepthRule implements Rule
         return [
             new Violation(
                 ruleId: $this->id(),
-                severity: Severity::WARNING,
+                severity: $this->severity(),
                 routeIdentity: $route->identity(),
                 offendingSurface: $route->uri,
                 remediationHint: null,

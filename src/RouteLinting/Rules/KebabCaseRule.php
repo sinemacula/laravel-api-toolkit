@@ -62,7 +62,7 @@ final class KebabCaseRule implements Rule
             if (!preg_match('/^[a-z0-9]+(-[a-z0-9]+)*$/', $segment)) {
                 $violations[] = new Violation(
                     ruleId: $this->id(),
-                    severity: Severity::ERROR,
+                    severity: $this->severity(),
                     routeIdentity: $route->identity(),
                     offendingSurface: $segment,
                     remediationHint: null,

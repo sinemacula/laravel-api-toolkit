@@ -96,16 +96,15 @@ class RouterRouteSourceTest extends TestCase
     }
 
     /**
-     * Test that the returned app-owned route set is identical whether the
-     * route cache is warm or cold (REQ-02 cache indifference).
+     * Test that calling appRoutes() twice on the same router returns an identical set of descriptors.
      *
-     * The adapter reads `Router::getRoutes()` which returns the same table
-     * in both states after a full boot — this test proves that calling
-     * `appRoutes()` twice on the same booted router returns an identical set.
+     * Verifies that enumeration is idempotent: the URIs returned by consecutive
+     * calls are sorted-equal, confirming the adapter produces a deterministic
+     * result without requiring route-cache warming or clearing.
      *
      * @return void
      */
-    public function testRouteSetIsIdenticalWarmAndColdCache(): void
+    public function testEnumerationIsIdempotent(): void
     {
         $router = $this->getRouter();
 

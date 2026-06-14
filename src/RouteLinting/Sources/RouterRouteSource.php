@@ -94,7 +94,7 @@ final class RouterRouteSource implements RouteSource
     /**
      * Determine whether a closure-backed route's defining file is under vendor.
      *
-     * @param  \Closure(): mixed  $closure
+     * @param  \Closure(): void  $closure
      * @return bool
      */
     private function isClosureVendor(\Closure $closure): bool

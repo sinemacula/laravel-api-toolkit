@@ -67,7 +67,7 @@ final class ApiResourceAlignmentRule implements Rule
         return [
             new Violation(
                 ruleId: $this->id(),
-                severity: Severity::WARNING,
+                severity: $this->severity(),
                 routeIdentity: $route->identity(),
                 offendingSurface: $lastLiteral,
                 remediationHint: null,

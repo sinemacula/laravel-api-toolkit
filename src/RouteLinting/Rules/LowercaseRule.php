@@ -62,7 +62,7 @@ final class LowercaseRule implements Rule
             if ($segment !== strtolower($segment)) {
                 $violations[] = new Violation(
                     ruleId: $this->id(),
-                    severity: Severity::ERROR,
+                    severity: $this->severity(),
                     routeIdentity: $route->identity(),
                     offendingSurface: $segment,
                     remediationHint: null,
