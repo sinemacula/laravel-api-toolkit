@@ -102,6 +102,7 @@ class CompiledFieldDefinitionTest extends TestCase
             fields: null,
             constraint: null,
             extras: [],
+            needs: [],
             guards: [],
             transformers: [],
         );
@@ -126,6 +127,7 @@ class CompiledFieldDefinitionTest extends TestCase
             fields: null,
             constraint: null,
             extras: [],
+            needs: [],
             guards: [],
             transformers: [],
             openApi: $openApi,

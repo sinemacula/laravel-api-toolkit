@@ -401,6 +401,7 @@ class FieldTypeResolverTest extends TestCase
             fields      : null,
             constraint  : null,
             extras      : [],
+            needs       : [],
             guards      : $guards,
             transformers: $transformers,
             openApi     : $openApi,

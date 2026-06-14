@@ -136,11 +136,11 @@ class ErrorResponseBuilderTest extends TestCase
         $error = $envelope['properties']['error'];
 
         static::assertSame('object', $error['type']);
-        static::assertArrayHasKey('status', $error['properties']);
-        static::assertArrayHasKey('code', $error['properties']);
-        static::assertArrayHasKey('title', $error['properties']);
-        static::assertArrayHasKey('detail', $error['properties']);
-        static::assertArrayHasKey('meta', $error['properties']);
+        static::assertSame(['type' => 'integer'], $error['properties']['status']);
+        static::assertSame(['type' => 'integer'], $error['properties']['code']);
+        static::assertSame(['type' => 'string'], $error['properties']['title']);
+        static::assertSame(['type' => 'string'], $error['properties']['detail']);
+        static::assertSame(['type' => 'object', 'additionalProperties' => true], $error['properties']['meta']);
         static::assertSame(['status', 'code', 'detail'], $error['required']);
     }
 
