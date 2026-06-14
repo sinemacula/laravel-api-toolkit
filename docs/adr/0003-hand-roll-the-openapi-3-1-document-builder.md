@@ -34,11 +34,13 @@ test time, not by the builder (see ADR 0004).
 ## Consequences
 
 ### Positive
+
 - Zero new runtime dependency for a public package; the package's public dependency footprint is unchanged.
 - The builder is a thin, pure array transformer -- trivial to unit-test and to swap later if requirements change.
 - No annotation/attribute-scanning machinery (swagger-php's model) is pulled in for what is plain array assembly.
 
 ### Negative
+
 - The package owns the correctness of the 3.1 array shape itself rather than delegating to a library, which is why a
   test-time meta-schema validator (ADR 0004) is mandatory rather than optional.
 - Future OpenAPI specification-version changes require manual array updates rather than a library bump.
@@ -46,14 +48,17 @@ test time, not by the builder (see ADR 0004).
 ## Alternatives Considered
 
 ### Option A -- zircote/swagger-php v6
+
 The only maintained native-3.1 PHP builder, but its value is annotation/attribute scanning of controllers and DTOs --
 irrelevant here because the source of truth is already-compiled toolkit metadata (`CompiledSchema`, `OperatorRegistry`,
 `ErrorCode`), not docblocks. It would add runtime weight to a public package for no structural benefit. Rejected.
 
 ### Option B -- goldspecdigital/oooas
+
 OpenAPI 3.0 only and unmaintained; cannot emit 3.1 / JSON Schema 2020-12. Rejected.
 
 ## References
+
 - Traces to: .sinemacula/build/workflows/openapi-exporter/
 - PRD: docs/prd/14-openapi-exporter.md
 - Architecture: .sinemacula/build/workflows/openapi-exporter/architecture.md
