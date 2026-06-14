@@ -81,11 +81,11 @@ final class FieldColumnMapper
             return true;
         }
 
-        return $definition->accessor     === null
-            && $definition->compute      === null
-            && $definition->relation     === null
-            && $definition->guards       === []
-            && $definition->transformers === [];
+        if ($definition->accessor !== null || $definition->compute !== null || $definition->relation !== null) {
+            return false;
+        }
+
+        return $definition->guards === [] && $definition->transformers === [];
     }
 
     /**

@@ -21,14 +21,8 @@ final readonly class NarrowingDecision
      * @param  string|null  $reason
      */
     private function __construct(
-
-        /** Whether the query should be narrowed to the given columns */
         private bool $shouldNarrow,
-
-        /** The column projection to apply when narrowing */
         private array $columns,
-
-        /** The field key that forced the fall-back, or null */
         private ?string $reason,
     ) {}
 

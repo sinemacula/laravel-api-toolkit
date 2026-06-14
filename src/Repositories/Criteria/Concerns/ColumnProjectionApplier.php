@@ -48,11 +48,11 @@ final class ColumnProjectionApplier
      */
     public function apply(Builder $query, ResourceMetadataProvider $metadataProvider, ?string $resourceClass, array $order): Builder
     {
-        if (!Config::get('api-toolkit.resources.narrow_columns', false)) {
-            return $query;
-        }
-
-        if ($resourceClass === null || !is_subclass_of($resourceClass, ApiResource::class)) {
+        if (
+            !Config::get('api-toolkit.resources.narrow_columns', false)
+            || $resourceClass === null
+            || !is_subclass_of($resourceClass, ApiResource::class)
+        ) {
             return $query;
         }
 
