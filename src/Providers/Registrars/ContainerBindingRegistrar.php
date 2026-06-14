@@ -8,6 +8,10 @@ use SineMacula\ApiToolkit\ApiQueryParser;
 use SineMacula\ApiToolkit\Cache\CacheManager;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Enums\FlushStrategy;
+use SineMacula\ApiToolkit\OpenApi\Contracts\DocumentWriter;
+use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
+use SineMacula\ApiToolkit\OpenApi\Metadata\ConfigMetadataCatalogue;
+use SineMacula\ApiToolkit\OpenApi\Output\FilesystemDocumentWriter;
 use SineMacula\ApiToolkit\Repositories\Concerns\WritePool;
 use SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry;
 use SineMacula\ApiToolkit\Repositories\Criteria\Operators\BetweenOperator;
@@ -72,6 +76,7 @@ final class ContainerBindingRegistrar
         $this->registerSchemaValidator();
         $this->registerWritePool();
         $this->registerCacheManager();
+        $this->registerOpenApiExporter();
     }
 
     /**
@@ -188,5 +193,20 @@ final class ContainerBindingRegistrar
     private function registerCacheManager(): void
     {
         $this->container->singleton(CacheManager::class);
+    }
+
+    /**
+     * Bind the OpenAPI exporter ports to their default adapters.
+     *
+     * The metadata catalogue and document-writer ports bind to their
+     * filesystem/config adapters; the use case, builders, and assembler are
+     * auto-resolved through constructor injection from these bindings.
+     *
+     * @return void
+     */
+    private function registerOpenApiExporter(): void
+    {
+        $this->container->singleton(MetadataCatalogue::class, ConfigMetadataCatalogue::class);
+        $this->container->singleton(DocumentWriter::class, FilesystemDocumentWriter::class);
     }
 }

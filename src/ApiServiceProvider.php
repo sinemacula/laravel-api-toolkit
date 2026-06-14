@@ -5,6 +5,7 @@ namespace SineMacula\ApiToolkit;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\ServiceProvider;
+use SineMacula\ApiToolkit\Console\ExportOpenApiCommand;
 use SineMacula\ApiToolkit\Console\ValidateSchemasCommand;
 use SineMacula\ApiToolkit\Providers\Registrars\ContainerBindingRegistrar;
 use SineMacula\ApiToolkit\Providers\Registrars\LifecycleRegistrar;
@@ -66,6 +67,7 @@ class ApiServiceProvider extends ServiceProvider
 
         $this->commands([
             ValidateSchemasCommand::class,
+            ExportOpenApiCommand::class,
         ]);
     }
 

@@ -106,6 +106,28 @@ return [
 
     /*
     |---------------------------------------------------------------------------
+    | OpenAPI Exporter Configuration
+    |---------------------------------------------------------------------------
+    |
+    | This section controls the opt-in OpenAPI 3.1 components exporter. The
+    | exporter walks the registered resource map, the operator grammar, and the
+    | error catalogue to emit a schema-valid components document. It is invoked
+    | explicitly via the `api-toolkit:export-openapi` Artisan command and never
+    | runs as part of normal request handling.
+    |
+    | `output`: The default filesystem path the exported document is written to
+    | when the command is run without an explicit `--output` option.
+    |
+    */
+
+    'openapi' => [
+
+        'output' => env('API_OPENAPI_OUTPUT', base_path('openapi.json')),
+
+    ],
+
+    /*
+    |---------------------------------------------------------------------------
     | Resource Export Configuration
     |---------------------------------------------------------------------------
     |
