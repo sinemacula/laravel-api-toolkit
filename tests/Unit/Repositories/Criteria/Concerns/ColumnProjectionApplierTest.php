@@ -192,6 +192,30 @@ class ColumnProjectionApplierTest extends TestCase
     }
 
     /**
+     * Test that the ':all' fields token resolves the full declared field set via
+     * getAllFields rather than the request-narrowed resolveFields.
+     *
+     * @return void
+     */
+    public function testAllFieldsTokenResolvesViaGetAllFields(): void
+    {
+        Config::set('api-toolkit.resources.narrow_columns', true);
+
+        $this->parseRequest(new Request(['fields' => ['users' => ':all']]));
+
+        $provider = static::createStub(ResourceMetadataProvider::class);
+        $provider->method('getResourceType')->willReturn('users');
+        $provider->method('getAllFields')->willReturn(['id', 'name']);
+        $provider->method('resolveFields')->willReturn(['id', 'email']);
+        $provider->method('eagerLoadMapFor')->willReturn([]);
+
+        $query  = (new User)->newQuery();
+        $result = $this->makeApplier()->apply($query, $provider, UserResource::class, []);
+
+        static::assertSame(['id', 'name'], $result->getQuery()->columns);
+    }
+
+    /**
      * Build a column projection applier over a stubbed introspection provider
      * reporting the fixture user columns.
      *

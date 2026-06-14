@@ -136,4 +136,23 @@ class ColumnNarrowerTest extends TestCase
         static::assertTrue($decision->shouldNarrow());
         static::assertSame(['id'], $decision->columns());
     }
+
+    /**
+     * Test that columns shared across fields and the safety set are
+     * de-duplicated and the result is re-indexed into a contiguous list.
+     *
+     * @return void
+     */
+    public function testNarrowDeduplicatesAndReindexesColumns(): void
+    {
+        $map = FieldColumnMap::make(
+            ['a' => ['x', 'y'], 'b' => ['y', 'z']],
+            ['a', 'b'],
+        );
+
+        $decision = $this->narrower->decide($map, ['a', 'b'], ['x']);
+
+        static::assertTrue($decision->shouldNarrow());
+        static::assertSame(['x', 'y', 'z'], $decision->columns());
+    }
 }

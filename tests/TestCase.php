@@ -4,6 +4,7 @@ namespace Tests;
 
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Filesystem\Filesystem;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Schema;
 use Orchestra\Testbench\TestCase as OrchestraTestCase;
@@ -23,11 +24,15 @@ abstract class TestCase extends OrchestraTestCase
 {
     use RefreshDatabase;
 
+    /** @var string|null The per-test isolated file-cache directory, if one was provisioned. */
+    private ?string $fileCachePath = null;
+
     /**
      * Clean up the testing environment before the next test.
      *
      * Resets the morph map enforcement that registerMorphMap() applies as
-     * process-global static state, so tests remain order-independent.
+     * process-global static state, so tests remain order-independent, and
+     * removes the per-test file-cache directory.
      *
      * @return void
      */
@@ -37,6 +42,10 @@ abstract class TestCase extends OrchestraTestCase
 
         Relation::morphMap([], false);
         Relation::requireMorphMap(false);
+
+        if ($this->fileCachePath !== null) {
+            (new Filesystem)->deleteDirectory($this->fileCachePath);
+        }
 
         parent::tearDown();
     }
@@ -64,6 +73,13 @@ abstract class TestCase extends OrchestraTestCase
     {
         /** @var \Illuminate\Config\Repository $config */
         $config = $app['config'];
+
+        // Isolate the file cache per test so parallel mutation runs (each
+        // mutant is a separate process) never collide on a shared cache
+        // directory, which otherwise makes TTL/expiry-sensitive cache
+        // assertions flap and the mutation score non-deterministic.
+        $this->fileCachePath = sys_get_temp_dir() . '/api-toolkit-test-cache-' . getmypid() . '-' . uniqid('', true);
+        $config->set('cache.stores.file.path', $this->fileCachePath);
 
         $config->set('database.default', 'testing');
         $config->set('database.connections.testing', $this->getDatabaseConnection());
