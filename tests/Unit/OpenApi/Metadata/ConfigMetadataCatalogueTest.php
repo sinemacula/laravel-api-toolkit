@@ -2,6 +2,7 @@
 
 namespace Tests\Unit\OpenApi\Metadata;
 
+use Illuminate\Support\Facades\Config;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Enums\ErrorCode;
 use SineMacula\ApiToolkit\OpenApi\Metadata\ConfigMetadataCatalogue;
@@ -32,7 +33,7 @@ class ConfigMetadataCatalogueTest extends TestCase
      */
     public function testGetResourceMapReturnsConfiguredMap(): void
     {
-        $this->app['config']->set('api-toolkit.resources.resource_map', [
+        Config::set('api-toolkit.resources.resource_map', [
             User::class => UserResource::class,
         ]);
 
@@ -48,7 +49,7 @@ class ConfigMetadataCatalogueTest extends TestCase
      */
     public function testGetResourceMapReturnsEmptyArrayWhenUnconfigured(): void
     {
-        $this->app['config']->set('api-toolkit.resources.resource_map', null);
+        Config::set('api-toolkit.resources.resource_map', null);
 
         $catalogue = $this->makeCatalogue();
 
@@ -79,6 +80,8 @@ class ConfigMetadataCatalogueTest extends TestCase
      */
     public function testGetOperatorTokensCoversAllDefaultTokens(): void
     {
+        assert($this->app !== null);
+
         /** @var \SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry $registry */
         $registry  = $this->app->make(OperatorRegistry::class);
         $catalogue = $this->makeCatalogueWithRegistry($registry);
@@ -151,6 +154,8 @@ class ConfigMetadataCatalogueTest extends TestCase
      */
     private function makeCatalogue(): ConfigMetadataCatalogue
     {
+        assert($this->app !== null);
+
         /** @var \SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry $registry */
         $registry = $this->app->make(OperatorRegistry::class);
 
