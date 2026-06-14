@@ -5,10 +5,13 @@ These fixtures back the OpenAPI exporter validity test
 unmodified meta-schemas vendored for offline, deterministic validation per
 ADR 0004.
 
-| File | Source | Purpose |
-|------|--------|---------|
-| `openapi-3.1-schema.json` | <https://spec.openapis.org/oas/3.1/schema/2022-10-07> | The official OpenAPI 3.1 meta-schema (the "without schema validation" variant). The emitted document is validated against this. |
-| `json-schema-2020-12.json` | <https://json-schema.org/draft/2020-12/schema> | The JSON Schema 2020-12 dialect the OpenAPI 3.1 meta-schema is built on, registered with the resolver so the dialect `$id` resolves offline. |
+- `openapi-3.1-schema.json` — the official OpenAPI 3.1 meta-schema (the
+  "without schema validation" variant), from
+  <https://spec.openapis.org/oas/3.1/schema/2022-10-07>. The emitted document is
+  validated against this.
+- `json-schema-2020-12.json` — the JSON Schema 2020-12 dialect the OpenAPI 3.1
+  meta-schema is built on, from <https://json-schema.org/draft/2020-12/schema>,
+  registered with the resolver so the dialect `$id` resolves offline.
 
 Both files are committed **byte-for-byte as published** — they are not hand-edited.
 
