@@ -6,6 +6,7 @@ use Illuminate\Support\Facades\Lang;
 use SineMacula\ApiToolkit\Enums\ErrorCode;
 use SineMacula\ApiToolkit\Exceptions\ApiException;
 use SineMacula\ApiToolkit\Exceptions\TokenMismatchException;
+use SineMacula\ApiToolkit\OpenApi\Exceptions\MetadataReadException;
 
 /**
  * Resolves each ErrorCode enum case to its HTTP status, title, and detail.
@@ -67,7 +68,7 @@ class ErrorCatalogueReader
         $files = glob(self::EXCEPTIONS_DIR . '/*.php');
 
         if ($files === false) {
-            throw new \RuntimeException('Unable to scan the exceptions directory: ' . self::EXCEPTIONS_DIR);
+            throw new MetadataReadException('Unable to scan the exceptions directory: ' . self::EXCEPTIONS_DIR);
         }
 
         foreach ($files as $file) {

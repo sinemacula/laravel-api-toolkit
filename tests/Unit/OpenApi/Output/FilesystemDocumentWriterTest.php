@@ -5,6 +5,7 @@ namespace Tests\Unit\OpenApi\Output;
 use Illuminate\Filesystem\Filesystem;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
+use SineMacula\ApiToolkit\OpenApi\Exceptions\DocumentWriteException;
 use SineMacula\ApiToolkit\OpenApi\Output\FilesystemDocumentWriter;
 
 /**
@@ -78,7 +79,7 @@ class FilesystemDocumentWriterTest extends TestCase
     }
 
     /**
-     * Test that a write failure surfaces as a RuntimeException.
+     * Test that a write failure surfaces as a DocumentWriteException.
      *
      * @return void
      */
@@ -88,13 +89,13 @@ class FilesystemDocumentWriterTest extends TestCase
         $files->method('isDirectory')->willReturn(true);
         $files->method('put')->willReturn(false);
 
-        $this->expectException(\RuntimeException::class);
+        $this->expectException(DocumentWriteException::class);
 
         (new FilesystemDocumentWriter($files))->write($this->directory . '/openapi.json', 'contents');
     }
 
     /**
-     * Test that an un-creatable directory surfaces as a RuntimeException.
+     * Test that an un-creatable directory surfaces as a DocumentWriteException.
      *
      * @return void
      */
@@ -104,7 +105,7 @@ class FilesystemDocumentWriterTest extends TestCase
         $files->method('isDirectory')->willReturn(false);
         $files->method('makeDirectory')->willReturn(false);
 
-        $this->expectException(\RuntimeException::class);
+        $this->expectException(DocumentWriteException::class);
 
         (new FilesystemDocumentWriter($files))->write($this->directory . '/openapi.json', 'contents');
     }

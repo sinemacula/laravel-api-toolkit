@@ -42,7 +42,12 @@ class ConfigMetadataCatalogue implements MetadataCatalogue
     {
         $resourceMap = Config::get('api-toolkit.resources.resource_map');
 
-        return is_array($resourceMap) ? $resourceMap : [];
+        if (!is_array($resourceMap)) {
+            return [];
+        }
+
+        /** @var array<class-string, class-string> $resourceMap */
+        return $resourceMap;
     }
 
     /**

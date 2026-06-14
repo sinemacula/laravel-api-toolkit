@@ -229,11 +229,15 @@ class SchemaIntrospector implements SchemaIntrospectionProvider
 
         foreach ($columns as $column) {
 
-            $name = (string) $column['name'];
+            /** @var string $name */
+            $name = $column['name'];
+
+            /** @var string $typeName */
+            $typeName = $column['type_name'];
 
             $definitions[$name] = new ColumnDefinition(
                 name    : $name,
-                typeName: strtolower((string) $column['type_name']),
+                typeName: strtolower($typeName),
                 nullable: (bool) $column['nullable'],
             );
         }
