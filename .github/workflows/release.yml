@@ -1,0 +1,41 @@
+# ==============================================================================
+# RELEASE
+# ==============================================================================
+# Trunk-based release automation. release-please maintains a standing Release PR
+# on `master`; merging it tags the release and cuts a GitHub Release. Packagist
+# updates from the new tag via its webhook (no publish step needed here).
+#
+# Delegates to the org reusable workflow. Pin `@master` to a tagged release of
+# sinemacula/.github once one is cut.
+# ==============================================================================
+name: Release
+
+# ==============================================================================
+# TRIGGER
+# ==============================================================================
+on:
+    push:
+        branches: [ master ]
+
+# ==============================================================================
+# CONCURRENCY
+# ==============================================================================
+concurrency:
+    group: release-${{ github.ref }}
+    cancel-in-progress: false
+
+# ==============================================================================
+# PERMISSIONS
+# ==============================================================================
+permissions:
+    contents: write
+    pull-requests: write
+
+jobs:
+
+    # ==========================================================================
+    # JOB: RELEASE
+    # ==========================================================================
+    release:
+        uses: sinemacula/.github/.github/workflows/release.yml@master
+        secrets: inherit
