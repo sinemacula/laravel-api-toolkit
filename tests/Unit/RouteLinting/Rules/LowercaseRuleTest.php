@@ -161,6 +161,67 @@ class LowercaseRuleTest extends TestCase
     }
 
     /**
+     * Test that a route-parameter segment preceding an uppercase literal still produces a violation.
+     *
+     * Kills the Continue_->break mutant (#44): if the loop breaks instead of continuing on a
+     * param/empty segment, any literal that follows is never reached. With a param first
+     * then an uppercase literal, the original produces a violation while the mutant produces none.
+     *
+     * @return void
+     */
+    public function testUppercaseSegmentAfterParameterIsFlagged(): void
+    {
+        // Arrange — '{user}' is first; 'Users' follows and must still be inspected
+        $route = new NormalisedRoute(
+            uri: '{user}/Users',
+            methods: ['GET'],
+            name: null,
+            segments: ['{user}', 'Users'],
+            parameters: ['user'],
+        );
+
+        // Act
+        $violations = $this->rule->inspect($route, $this->config);
+
+        // Assert — 'Users' is uppercase and must be flagged despite the leading param
+        static::assertCount(1, $violations);
+        static::assertSame('R3', $violations[0]->ruleId);
+        static::assertSame(Severity::ERROR, $violations[0]->severity);
+        static::assertSame('Users', $violations[0]->offendingSurface);
+    }
+
+    /**
+     * Test that two uppercase segments each produce their own R3 violation.
+     *
+     * Kills the ArrayOneItem mutant (#45): when more than one violation is produced, the mutant
+     * returns only the first element. Asserting count = 2 and both offendingSurface values
+     * ensures the complete violations array is returned.
+     *
+     * @return void
+     */
+    public function testTwoUppercaseSegmentsProduceTwoViolations(): void
+    {
+        // Arrange — both 'Users' and 'Posts' contain uppercase letters
+        $route = new NormalisedRoute(
+            uri: 'Users/Posts',
+            methods: ['GET'],
+            name: null,
+            segments: ['Users', 'Posts'],
+            parameters: [],
+        );
+
+        // Act
+        $violations = $this->rule->inspect($route, $this->config);
+
+        // Assert — two violations, one per offending segment, in segment order
+        static::assertCount(2, $violations);
+        static::assertSame('R3', $violations[0]->ruleId);
+        static::assertSame('Users', $violations[0]->offendingSurface);
+        static::assertSame('R3', $violations[1]->ruleId);
+        static::assertSame('Posts', $violations[1]->offendingSurface);
+    }
+
+    /**
      * Test that rule id() returns 'R3' and severity() returns Severity::ERROR.
      *
      * @return void

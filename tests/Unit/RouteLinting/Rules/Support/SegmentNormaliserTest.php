@@ -198,4 +198,118 @@ class SegmentNormaliserTest extends TestCase
         // Assert — '{user?}' is a route parameter and must be discarded
         static::assertSame(['user', 'post'], $words);
     }
+
+    /**
+     * Test that a segment containing '{' but not ending at '}' is kept as a
+     * literal — step 2 regex requires the segment to end exactly at '}'.
+     *
+     * Targets PregMatchRemoveDollar on the step-2 pattern: without '$' the
+     * mutant would drop '{id}extra' (it starts with '{' and contains '}'),
+     * but the original keeps it because '{}' is not at the end of the string.
+     *
+     * @return void
+     */
+    public function testSegmentWithBraceSuffixIsNotDroppedAsParameter(): void
+    {
+        // Arrange — '{id}extra' starts with '{' and contains '}' but is not a pure
+        // route parameter; step 2 must keep it; `posts` is a normal resource segment
+        $uri = '{id}extra/posts';
+
+        // Act
+        $words = $this->normaliser->normalise($uri, []);
+
+        // Assert — '{id}extra' survives step 2 and passes through as a word;
+        // step 4 treats it as a single segment (no camelCase/kebab/snake boundary),
+        // step 5 lowercases it, step 6 singularises it (no trailing 's' so unchanged);
+        // 'posts' → 'post' via stub singulariser
+        static::assertSame(['{id}extra', 'post'], $words);
+    }
+
+    /**
+     * Test that version-like prefix strings that contain digits but do not
+     * start with 'v' are not dropped — step 3 regex requires the '^' anchor.
+     *
+     * Targets PregMatchRemoveCaret on the step-3 pattern: without '^' the
+     * mutant matches any segment ending in 'v<digits>', dropping 'av2' even
+     * though it is not a version prefix.
+     *
+     * @return void
+     */
+    public function testSegmentContainingVersionPatternMidstringIsKept(): void
+    {
+        // Arrange — 'av2' contains 'v2' but does not start with 'v', so it is
+        // a real resource segment and must survive step 3
+        $uri = 'av2/users';
+
+        // Act
+        $words = $this->normaliser->normalise($uri, []);
+
+        // Assert — 'av2' is kept; 'users' singularises to 'user'
+        static::assertSame(['av2', 'user'], $words);
+    }
+
+    /**
+     * Test that a version segment with trailing literal characters is not dropped
+     * — step 3 regex requires the '$' anchor so only pure version tokens are removed.
+     *
+     * Targets PregMatchRemoveDollar on the step-3 pattern: without '$' the
+     * mutant matches 'v1more' (starts with 'v' followed by digits), dropping it
+     * even though it is not a pure version prefix.
+     *
+     * @return void
+     */
+    public function testSegmentStartingWithVersionPatternButHasSuffixIsKept(): void
+    {
+        // Arrange — 'v1more' starts with 'v1' but has extra text, so it is not a
+        // pure version segment and must survive step 3
+        $uri = 'v1more/users';
+
+        // Act
+        $words = $this->normaliser->normalise($uri, []);
+
+        // Assert — 'v1more' is kept; 'users' singularises to 'user'
+        static::assertSame(['v1more', 'user'], $words);
+    }
+
+    /**
+     * Test that version segments in uppercase are still dropped — step 3 uses
+     * the 'i' flag for case-insensitive matching.
+     *
+     * Targets PregMatchRemoveFlags on the step-3 pattern: without 'i' the mutant
+     * keeps 'V1' because the pattern '/^v\d+$/' does not match an uppercase 'V'.
+     *
+     * @return void
+     */
+    public function testUppercaseVersionSegmentIsDropped(): void
+    {
+        // Arrange — 'V1' is a version prefix in uppercase; must be dropped
+        $uri = 'V1/users';
+
+        // Act
+        $words = $this->normaliser->normalise($uri, []);
+
+        // Assert — 'V1' is dropped; only 'users' → 'user' survives
+        static::assertSame(['user'], $words);
+    }
+
+    /**
+     * Test that the 'api' prefix is dropped case-insensitively — step 3
+     * applies strtolower() before comparing to 'api'.
+     *
+     * Targets UnwrapStrToLower on the step-3 strtolower(): without lowercasing,
+     * 'API' would not equal 'api' and would be kept as a segment.
+     *
+     * @return void
+     */
+    public function testUppercaseApiPrefixIsDropped(): void
+    {
+        // Arrange — 'API' in uppercase must be treated as the API prefix and dropped
+        $uri = 'API/users';
+
+        // Act
+        $words = $this->normaliser->normalise($uri, []);
+
+        // Assert — 'API' is dropped case-insensitively; only 'users' → 'user' survives
+        static::assertSame(['user'], $words);
+    }
 }

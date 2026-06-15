@@ -74,7 +74,7 @@ final class VerbInPathRule implements Rule
         $seen       = [];
 
         foreach ($words as $word) {
-            if (isset($seen[$word]) || !$this->denylist->contains($word)) {
+            if (($seen[$word] ?? false) || !$this->denylist->contains($word)) {
                 continue;
             }
 

@@ -159,4 +159,63 @@ class RouteLintReportTest extends TestCase
         static::assertSame([], $report->warnings());
         static::assertSame([], $report->staleWaivers());
     }
+
+    /**
+     * Test the third sort key (offendingSurface ASC) in the deterministic order
+     * (kills Spaceship mutant #39: `$a->offendingSurface <=> $b->offendingSurface`
+     * reversed to `$b->offendingSurface <=> $a->offendingSurface`).
+     *
+     * Two violations share the same routeIdentity AND the same ruleId; the only
+     * distinguishing key is offendingSurface. The mutant reverses this comparison,
+     * producing descending order instead of ascending.
+     *
+     * @return void
+     */
+    public function testThirdSortKeyIsOffendingSurfaceAscending(): void
+    {
+        // Arrange — same routeIdentity and ruleId, different offendingSurface
+        $report = new RouteLintReport;
+
+        $report->addViolation(new Violation('R1', Severity::ERROR, 'GET users', 'zebra', null));
+        $report->addViolation(new Violation('R1', Severity::ERROR, 'GET users', 'apple', null));
+        $report->addViolation(new Violation('R1', Severity::ERROR, 'GET users', 'mango', null));
+
+        // Act
+        $errors = $report->errors();
+
+        // Assert — must be ascending by offendingSurface
+        static::assertCount(3, $errors);
+        static::assertSame('apple', $errors[0]->offendingSurface);
+        static::assertSame('mango', $errors[1]->offendingSurface);
+        static::assertSame('zebra', $errors[2]->offendingSurface);
+    }
+
+    /**
+     * Test that violations inserted in reverse offendingSurface order still sort
+     * ascending (complements the spaceship test with reversed insertion order).
+     *
+     * @return void
+     */
+    public function testOffendingSurfaceSortIsStableAcrossInsertionOrders(): void
+    {
+        // Report A: inserted ascending
+        $reportA = new RouteLintReport;
+        $reportA->addViolation(new Violation('R2', Severity::ERROR, 'POST orders', 'alpha-surface', null));
+        $reportA->addViolation(new Violation('R2', Severity::ERROR, 'POST orders', 'omega-surface', null));
+
+        // Report B: inserted descending
+        $reportB = new RouteLintReport;
+        $reportB->addViolation(new Violation('R2', Severity::ERROR, 'POST orders', 'omega-surface', null));
+        $reportB->addViolation(new Violation('R2', Severity::ERROR, 'POST orders', 'alpha-surface', null));
+
+        // Act
+        $errorsA = $reportA->errors();
+        $errorsB = $reportB->errors();
+
+        // Assert — both produce the same ascending order
+        static::assertSame('alpha-surface', $errorsA[0]->offendingSurface);
+        static::assertSame('omega-surface', $errorsA[1]->offendingSurface);
+        static::assertSame('alpha-surface', $errorsB[0]->offendingSurface);
+        static::assertSame('omega-surface', $errorsB[1]->offendingSurface);
+    }
 }

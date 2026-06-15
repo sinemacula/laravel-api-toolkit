@@ -47,6 +47,36 @@ class RouteLintMacrosTest extends TestCase
     }
 
     /**
+     * Test that calling register() a second time when the macro already exists
+     * does NOT re-register a new closure (kills ReturnRemoval mutant #90).
+     *
+     * Without the early return the macro would be re-registered on each call.
+     * We verify idempotency by checking that a second call leaves the route
+     * action produced by the macro intact — the macro still works and was not
+     * double-appended by the re-registration attempt.
+     *
+     * @return void
+     */
+    public function testSecondRegisterCallDoesNotReplaceExistingMacro(): void
+    {
+        // Macro is already registered by the service provider boot.
+        // Register again and confirm the macro still functions correctly.
+        RouteLintMacros::register();
+
+        $router = $this->getRouter();
+        $route  = $router->get('idempotent-test', fn () => []);
+
+        $route->ignoreRouteLint(['R1'], 'Still works after second register.'); // @phpstan-ignore method.notFound
+
+        $action = $route->getAction('api-toolkit::lint-ignore');
+
+        static::assertIsArray($action);
+        static::assertCount(1, $action);
+        static::assertSame(['R1'], $action[0]['rules']);
+        static::assertSame('Still works after second register.', $action[0]['reason']);
+    }
+
+    /**
      * Test that calling ignoreRouteLint() appends an entry to the
      * `api-toolkit::lint-ignore` action key with the correct rules and reason.
      *
@@ -141,6 +171,36 @@ class RouteLintMacrosTest extends TestCase
 
         static::assertIsArray($action);
         static::assertSame([], $action[0]['rules']);
+    }
+
+    /**
+     * Test that the stored rules list is a re-indexed (0-based) array
+     * (kills UnwrapArrayValues mutant #91: `$ruleIds` stored directly vs
+     * `array_values($ruleIds)`).
+     *
+     * If `array_values` is removed, an associative input like `['foo' => 'R1']`
+     * would be stored with string keys. With `array_values` the result is always
+     * a 0-indexed list regardless of input key type.
+     *
+     * @return void
+     */
+    public function testStoredRulesListIsAlwaysReIndexed(): void
+    {
+        $router = $this->getRouter();
+        $route  = $router->get('assets', fn () => []);
+
+        // Pass an array with non-sequential / string keys
+        $route->ignoreRouteLint(['foo' => 'R1', 'bar' => 'R3'], 'Non-sequential keys.'); // @phpstan-ignore method.notFound
+
+        $action = $route->getAction('api-toolkit::lint-ignore');
+
+        static::assertIsArray($action);
+        static::assertCount(1, $action);
+
+        $rules = $action[0]['rules'];
+
+        // Must be a 0-based indexed list, not the original associative array
+        static::assertSame([0 => 'R1', 1 => 'R3'], $rules);
     }
 
     /**

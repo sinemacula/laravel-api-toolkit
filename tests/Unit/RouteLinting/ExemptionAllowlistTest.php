@@ -229,4 +229,119 @@ class ExemptionAllowlistTest extends TestCase
         static::assertStringContainsString('a-route', $unused[0]);
         static::assertStringContainsString('z-route', $unused[1]);
     }
+
+    /**
+     * Test that observe() records a match so the entry does NOT appear in
+     * unmatched() (kills TrueValue mutant #6: `$this->matched[$index] = false`).
+     *
+     * If `matched[$index]` is stored as false instead of true, the entry would
+     * appear in unmatched() even though observe() was called for a matching route.
+     *
+     * @return void
+     */
+    public function testObserveMarksEntryAsMatchedSoItDoesNotAppearInUnmatched(): void
+    {
+        // Arrange
+        $allowlist = new ExemptionAllowlist([
+            new AllowlistEntry('users.index', 'Should be matched.'),
+        ]);
+
+        // Act — observe the matching route
+        $allowlist->observe('users.index', 'users');
+
+        // Assert — entry must NOT appear in unmatched()
+        static::assertSame([], $allowlist->unmatched());
+    }
+
+    /**
+     * Test that suppresses() iterates all entries, not just the first matching one
+     * (kills Continue_→break mutant #7).
+     *
+     * With `break` instead of `continue`, iteration stops on the first
+     * non-matching entry, leaving subsequent matching entries unchecked.
+     *
+     * @return void
+     */
+    public function testSuppressesChecksAllEntriesNotJustFirst(): void
+    {
+        // Arrange — first entry does NOT match; second entry DOES match
+        $allowlist = new ExemptionAllowlist([
+            new AllowlistEntry('orders.index', 'First entry, non-matching.', ['R1']),
+            new AllowlistEntry('users.store', 'Second entry, matching.', ['R1']),
+        ]);
+
+        // Act & Assert — the matching second entry must suppress the violation
+        static::assertTrue($allowlist->suppresses('users.store', 'users', 'R1'));
+    }
+
+    /**
+     * Test that suppresses() marks a matched entry so it does NOT appear in
+     * unmatched() (kills TrueValue mutant #8: `$this->matched[$index] = false`).
+     *
+     * The suppresses() method also records match state. If it stores false, the
+     * entry would appear in unmatched() even when suppresses() was called for a
+     * matching route.
+     *
+     * @return void
+     */
+    public function testSuppressesMarksEntryAsMatchedSoItDoesNotAppearInUnmatched(): void
+    {
+        // Arrange
+        $allowlist = new ExemptionAllowlist([
+            new AllowlistEntry('users.store', 'Legacy endpoint.', ['R1']),
+        ]);
+
+        // Act — call suppresses() (not observe()) for a matching route
+        $allowlist->suppresses('users.store', 'users', 'R1');
+
+        // Assert — entry was matched via suppresses(), must not appear in unmatched()
+        static::assertSame([], $allowlist->unmatched());
+    }
+
+    /**
+     * Test that suppresses() marks an entry as used so it does NOT appear in
+     * unused() (kills TrueValue mutant #9: `$this->used[$index] = false`).
+     *
+     * If `used[$index]` is stored as false instead of true, the entry would
+     * appear in unused() even after it has suppressed a violation.
+     *
+     * @return void
+     */
+    public function testSuppressesMarksEntryAsUsedSoItDoesNotAppearInUnused(): void
+    {
+        // Arrange
+        $allowlist = new ExemptionAllowlist([
+            new AllowlistEntry('users.store', 'Legacy endpoint.', ['R1']),
+        ]);
+
+        // Act — call suppresses() so the entry covers the violation
+        $result = $allowlist->suppresses('users.store', 'users', 'R1');
+
+        // Assert — suppresses() returned true and entry is not in unused()
+        static::assertTrue($result);
+        static::assertSame([], $allowlist->unused());
+    }
+
+    /**
+     * Test the exact descriptive format of an unused() string entry.
+     *
+     * The format must be: "<match> (suppressed nothing): <reason>".
+     * This pins the sprintf template against simple substring checks.
+     *
+     * @return void
+     */
+    public function testUnusedEntryHasExactFormat(): void
+    {
+        // Arrange
+        $allowlist = new ExemptionAllowlist([
+            new AllowlistEntry('legacy.route', 'Migration period waiver.', ['R5']),
+        ]);
+
+        $allowlist->observe('legacy.route', 'legacy/route');
+
+        // Assert exact string format
+        $unused = $allowlist->unused();
+        static::assertCount(1, $unused);
+        static::assertSame('legacy.route (suppressed nothing): Migration period waiver.', $unused[0]);
+    }
 }

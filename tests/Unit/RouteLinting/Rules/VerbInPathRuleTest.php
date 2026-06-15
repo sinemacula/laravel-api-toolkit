@@ -203,6 +203,66 @@ class VerbInPathRuleTest extends TestCase
     }
 
     /**
+     * Test that a denylisted verb appearing in two separate segments produces exactly one R1 violation.
+     *
+     * Kills the `$seen[$word] = true` → `false` dedup mutant: under the mutant the
+     * seen-flag is stored as false so the guard `$seen[$word] ?? false` always reads
+     * false, allowing the same verb to be emitted once per segment it appears in.
+     * Asserting `assertCount(1, $violations)` on a route where `get` normalises from
+     * two distinct segments catches the double-emission introduced by the mutant.
+     *
+     * @return void
+     */
+    public function testSameVerbInTwoSegmentsProducesExactlyOneViolation(): void
+    {
+        // Arrange — 'get-users/get-items' decomposes to words [get, user, get, item];
+        // 'get' appears twice but must produce exactly one R1 violation
+        $route  = $this->makeRoute('get-users/get-items');
+        $config = $this->makeConfig();
+
+        // Act
+        $violations = $this->rule->inspect($route, $config);
+
+        // Assert — total violation count must be exactly 1 (deduplicated)
+        static::assertCount(1, $violations);
+        static::assertSame('get', $violations[0]->offendingSurface);
+        static::assertSame('R1', $violations[0]->ruleId);
+    }
+
+    /**
+     * Test that two distinct denylisted verbs in the same route each produce their own R1 violation.
+     *
+     * Kills the ArrayOneItem mutant (#84): when a route produces two or more violations,
+     * the mutant returns only the first element. Asserting both violations by count and
+     * by their exact offendingSurface values forces the full array to be present.
+     *
+     * @return void
+     */
+    public function testTwoDistinctVerbsProduceTwoViolations(): void
+    {
+        // Arrange — 'getUsers/deleteItems' normalises to words including 'get' and 'delete',
+        // both of which are in the denylist
+        $route  = $this->makeRoute('getUsers/deleteItems');
+        $config = $this->makeConfig();
+
+        // Act
+        $violations = $this->rule->inspect($route, $config);
+
+        // Assert — exactly two violations, one per distinct verb
+        static::assertCount(2, $violations);
+
+        $surfaces = array_map(fn (Violation $v): string => $v->offendingSurface, $violations);
+        static::assertContains('get', $surfaces);
+        static::assertContains('delete', $surfaces);
+
+        // Both must carry R1 ERROR severity
+        foreach ($violations as $violation) {
+            static::assertSame('R1', $violation->ruleId);
+            static::assertSame(Severity::ERROR, $violation->severity);
+        }
+    }
+
+    /**
      * Test that a route consisting only of parameters normalises to empty and produces no violations.
      *
      * @return void

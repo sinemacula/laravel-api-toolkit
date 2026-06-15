@@ -8,6 +8,7 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\RouteLinting\Dto\RouteDescriptor;
 use SineMacula\ApiToolkit\RouteLinting\Dto\RouteSuppression;
 use SineMacula\ApiToolkit\RouteLinting\Sources\RouterRouteSource;
+use Tests\Fixtures\Controllers\RouteLintController;
 use Tests\TestCase;
 
 /**
@@ -255,6 +256,280 @@ class RouterRouteSourceTest extends TestCase
 
         static::assertArrayHasKey('categories.index', $byName);
         static::assertSame([], $byName['categories.index']->suppressions);
+    }
+
+    /**
+     * Test that a suppression entry with a non-array `rules` value is skipped
+     * and the valid entry alongside it is still mapped
+     * (kills LogicalAnd mutant #85: `isset($entry['rules']) || is_array(...)` vs `&&`).
+     *
+     * With `||` instead of `&&`, a missing `rules` key combined with `is_array`
+     * being false would still satisfy the condition (because `isset` is true when
+     * the key exists). Here we assert the final parsed RouteSuppression reflects
+     * only the conforming rules array.
+     *
+     * @return void
+     */
+    public function testSuppressionWithMissingRulesKeyYieldsEmptyRulesOnSuppression(): void
+    {
+        $router = $this->getRouter();
+
+        // Manually inject an action entry where 'rules' is absent
+        $route = $router->get('billing', fn () => [])->name('billing.index');
+        $route->setAction(array_merge($route->getAction(), [
+            'api-toolkit::lint-ignore' => [
+                ['reason' => 'No rules key present.'],
+            ],
+        ]));
+
+        $source      = new RouterRouteSource($router);
+        $descriptors = $source->appRoutes();
+
+        $byName = [];
+
+        foreach ($descriptors as $descriptor) {
+            if ($descriptor->name !== null) {
+                $byName[$descriptor->name] = $descriptor;
+            }
+        }
+
+        static::assertArrayHasKey('billing.index', $byName);
+
+        $descriptor = $byName['billing.index'];
+
+        // The missing-rules entry still produces a RouteSuppression with empty rules
+        static::assertCount(1, $descriptor->suppressions);
+        static::assertSame([], $descriptor->suppressions[0]->rules);
+        static::assertSame('No rules key present.', $descriptor->suppressions[0]->reason);
+    }
+
+    /**
+     * Test that a suppression entry where `rules` is not an array yields empty
+     * rules on the RouteSuppression (kills LogicalAnd mutant #85 second angle).
+     *
+     * @return void
+     */
+    public function testSuppressionWithNonArrayRulesYieldsEmptyRulesOnSuppression(): void
+    {
+        $router = $this->getRouter();
+
+        $route = $router->get('analytics', fn () => [])->name('analytics.index');
+        $route->setAction(array_merge($route->getAction(), [
+            'api-toolkit::lint-ignore' => [
+                ['rules' => 'not-an-array', 'reason' => 'Non-array rules value.'],
+            ],
+        ]));
+
+        $source      = new RouterRouteSource($router);
+        $descriptors = $source->appRoutes();
+
+        $byName = [];
+
+        foreach ($descriptors as $descriptor) {
+            if ($descriptor->name !== null) {
+                $byName[$descriptor->name] = $descriptor;
+            }
+        }
+
+        static::assertArrayHasKey('analytics.index', $byName);
+
+        $suppression = $byName['analytics.index']->suppressions[0];
+
+        // Non-array rules must be treated as empty
+        static::assertSame([], $suppression->rules);
+    }
+
+    /**
+     * Test that the rules list on a RouteSuppression is re-indexed (kills
+     * UnwrapArrayValues mutant #86: `array_values($entry['rules'])` vs raw value).
+     *
+     * Without `array_values`, an associative input array would be stored with
+     * string keys instead of a 0-based list.
+     *
+     * @return void
+     */
+    public function testSuppressionRulesListIsReIndexed(): void
+    {
+        $router = $this->getRouter();
+
+        $route = $router->get('reports', fn () => [])->name('reports.index');
+        $route->setAction(array_merge($route->getAction(), [
+            'api-toolkit::lint-ignore' => [
+                ['rules' => ['foo' => 'R1', 'bar' => 'R3'], 'reason' => 'Re-index test.'],
+            ],
+        ]));
+
+        $source      = new RouterRouteSource($router);
+        $descriptors = $source->appRoutes();
+
+        $byName = [];
+
+        foreach ($descriptors as $descriptor) {
+            if ($descriptor->name !== null) {
+                $byName[$descriptor->name] = $descriptor;
+            }
+        }
+
+        static::assertArrayHasKey('reports.index', $byName);
+
+        $rules = $byName['reports.index']->suppressions[0]->rules;
+
+        // Must be a 0-based indexed list
+        static::assertSame([0 => 'R1', 1 => 'R3'], $rules);
+    }
+
+    /**
+     * Test that a suppression entry where `reason` is not a string defaults to
+     * an empty string (kills LogicalAnd mutant #87:
+     * `isset($entry['reason']) || is_string(...)` vs `&&`).
+     *
+     * With `||`, a non-string reason value would still satisfy the condition
+     * (because isset is true when the key exists), causing a type error when
+     * RouteSuppression stores it. With `&&` the fallback empty string is used.
+     *
+     * @return void
+     */
+    public function testSuppressionWithNonStringReasonDefaultsToEmptyString(): void
+    {
+        $router = $this->getRouter();
+
+        $route = $router->get('exports', fn () => [])->name('exports.index');
+        $route->setAction(array_merge($route->getAction(), [
+            'api-toolkit::lint-ignore' => [
+                ['rules' => ['R1'], 'reason' => 12345],
+            ],
+        ]));
+
+        $source      = new RouterRouteSource($router);
+        $descriptors = $source->appRoutes();
+
+        $byName = [];
+
+        foreach ($descriptors as $descriptor) {
+            if ($descriptor->name !== null) {
+                $byName[$descriptor->name] = $descriptor;
+            }
+        }
+
+        static::assertArrayHasKey('exports.index', $byName);
+
+        $suppression = $byName['exports.index']->suppressions[0];
+
+        // Non-string reason must fall back to empty string
+        static::assertSame('', $suppression->reason);
+    }
+
+    /**
+     * Test that two valid suppression entries both survive (kills ArrayOneItem
+     * mutant #88: returns only the first suppression when count > 1).
+     *
+     * @return void
+     */
+    public function testMultipleSuppressionsAreAllMapped(): void
+    {
+        $router = $this->getRouter();
+
+        $router->get('notifications', fn () => [])
+            ->name('notifications.index')
+            ->ignoreRouteLint(['R1'], 'First suppression reason.') // @phpstan-ignore method.notFound
+            ->ignoreRouteLint(['R3'], 'Second suppression reason.') // @phpstan-ignore method.notFound
+            ->ignoreRouteLint([], 'Third suppression, all rules.'); // @phpstan-ignore method.notFound
+
+        $source      = new RouterRouteSource($router);
+        $descriptors = $source->appRoutes();
+
+        $byName = [];
+
+        foreach ($descriptors as $descriptor) {
+            if ($descriptor->name !== null) {
+                $byName[$descriptor->name] = $descriptor;
+            }
+        }
+
+        static::assertArrayHasKey('notifications.index', $byName);
+
+        $suppressions = $byName['notifications.index']->suppressions;
+
+        static::assertCount(3, $suppressions);
+        static::assertSame(['R1'], $suppressions[0]->rules);
+        static::assertSame('First suppression reason.', $suppressions[0]->reason);
+        static::assertSame(['R3'], $suppressions[1]->rules);
+        static::assertSame('Second suppression reason.', $suppressions[1]->reason);
+        static::assertSame([], $suppressions[2]->rules);
+        static::assertSame('Third suppression, all rules.', $suppressions[2]->reason);
+    }
+
+    /**
+     * Test that an app-owned controller route registered as a string action
+     * appears in appRoutes() with isVendor === false.
+     *
+     * Kills the `is_string($uses) && isControllerVendor` → `||` mutant: under the
+     * mutant a string controller action is evaluated with the short-circuit OR so the
+     * vendor check fires even for non-string uses values, and conversely a string
+     * action that resolves to an app-owned file may be wrongly excluded. Registering
+     * a string controller action whose class file lives under tests/ (not vendor/)
+     * and asserting it is present with isVendor false proves the AND guard is intact.
+     *
+     * @return void
+     */
+    public function testAppOwnedControllerRouteIsNotTreatedAsVendor(): void
+    {
+        $router = $this->getRouter();
+
+        // Register using the string controller@method notation so `uses` is a string.
+        // RouteLintController lives under tests/, so ReflectionClass resolves a
+        // non-vendor file — the adapter must return it with isVendor === false.
+        $router->get('widgets', [RouteLintController::class, 'index'])->name('widgets.index');
+
+        $source      = new RouterRouteSource($router);
+        $descriptors = $source->appRoutes();
+
+        $byName = [];
+
+        foreach ($descriptors as $descriptor) {
+            if ($descriptor->name !== null) {
+                $byName[$descriptor->name] = $descriptor;
+            }
+        }
+
+        static::assertArrayHasKey('widgets.index', $byName, 'App-owned controller route must appear in appRoutes().');
+        static::assertFalse($byName['widgets.index']->isVendor, 'Controller whose file is under tests/ must not be flagged as vendor.');
+    }
+
+    /**
+     * Test that a route without a string `uses` action value and without a
+     * Closure is treated as app-owned (kills LogicalAnd mutant #89:
+     * `is_string($uses) || $this->isControllerVendor($route)` vs `&&`).
+     *
+     * With `||`, a non-string `uses` value would still trigger isControllerVendor
+     * (which could return true and incorrectly mark the route as vendor). The
+     * `&&` guard ensures isControllerVendor is only called for string uses values.
+     *
+     * @return void
+     */
+    public function testRouteWithNonStringUsesActionIsNotTreatedAsVendor(): void
+    {
+        $router = $this->getRouter();
+
+        // A route registered with a Closure is handled by the Closure branch
+        // (not the string branch). Register a named closure route that we own —
+        // this is the canonical non-string-uses scenario for app-owned routes.
+        $router->get('health', fn () => ['status' => 'ok'])->name('health.check');
+
+        $source      = new RouterRouteSource($router);
+        $descriptors = $source->appRoutes();
+
+        $names = array_map(static fn (RouteDescriptor $d) => $d->name, $descriptors);
+
+        // The closure-backed app route must appear in the results
+        static::assertContains('health.check', $names);
+
+        // Confirm the returned descriptor is not flagged as vendor
+        foreach ($descriptors as $descriptor) {
+            if ($descriptor->name === 'health.check') {
+                static::assertFalse($descriptor->isVendor);
+            }
+        }
     }
 
     /**

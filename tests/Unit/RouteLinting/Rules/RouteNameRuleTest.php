@@ -162,6 +162,92 @@ class RouteNameRuleTest extends TestCase
     }
 
     /**
+     * Test that a name whose only dot is at position zero (empty resource part) is flagged.
+     *
+     * A name such as '.index' has $lastDot === 0, making the resource part empty; the rule
+     * must flag it. This pins the $lastDot === 0 boundary and the consequent return false.
+     *
+     * @return void
+     */
+    public function testNameWithLeadingDotIsFlagged(): void
+    {
+        // Arrange — '.index' has the dot at position 0; resource would be empty
+        $route = new NormalisedRoute(
+            uri: 'index',
+            methods: ['GET'],
+            name: '.index',
+            segments: ['index'],
+            parameters: [],
+        );
+
+        // Act
+        $violations = $this->rule->inspect($route, $this->config);
+
+        // Assert — the name must be flagged: offendingSurface is the full name
+        static::assertCount(1, $violations);
+        static::assertSame('R8', $violations[0]->ruleId);
+        static::assertSame(Severity::WARNING, $violations[0]->severity);
+        static::assertSame('.index', $violations[0]->offendingSurface);
+    }
+
+    /**
+     * Test that every canonical REST action is accepted without an R8 violation.
+     *
+     * Pins each element of the ALLOWED_ACTIONS set so that mutations swapping or
+     * extending the set are caught by at least one assertion.
+     *
+     * @return void
+     */
+    public function testAllAllowedActionsAreAccepted(): void
+    {
+        // Arrange — the seven canonical actions
+        $allowedActions = ['index', 'show', 'store', 'update', 'destroy', 'create', 'edit'];
+
+        foreach ($allowedActions as $action) {
+            $route = new NormalisedRoute(
+                uri: 'resources',
+                methods: ['GET'],
+                name: 'resources.' . $action,
+                segments: ['resources'],
+                parameters: [],
+            );
+
+            $violations = $this->rule->inspect($route, $this->config);
+
+            static::assertEmpty($violations, "Action '{$action}' should be accepted but produced a violation.");
+        }
+    }
+
+    /**
+     * Test that a disallowed action produces an R8 violation with the full name as the offending surface.
+     *
+     * Pins the in_array(action, ALLOWED_ACTIONS) check. Using a single-segment resource
+     * ('a') ensures the resource part is non-empty after any plausible substr variant.
+     *
+     * @return void
+     */
+    public function testDisallowedActionOnShortResourceIsFlagged(): void
+    {
+        // Arrange — 'a.list': resource='a' (one char), action='list' (not allowed)
+        $route = new NormalisedRoute(
+            uri: 'a',
+            methods: ['GET'],
+            name: 'a.list',
+            segments: ['a'],
+            parameters: [],
+        );
+
+        // Act
+        $violations = $this->rule->inspect($route, $this->config);
+
+        // Assert
+        static::assertCount(1, $violations);
+        static::assertSame('R8', $violations[0]->ruleId);
+        static::assertSame(Severity::WARNING, $violations[0]->severity);
+        static::assertSame('a.list', $violations[0]->offendingSurface);
+    }
+
+    /**
      * Test that rule id() returns 'R8' and severity() returns Severity::WARNING.
      *
      * @return void

@@ -73,6 +73,8 @@ class ConsoleLintReporterTest extends TestCase
         static::assertStringContainsString('GET /get-users', $output);
         static::assertStringContainsString('get', $output);
         static::assertStringContainsString('use a noun-based path instead', $output);
+        // Hint segment must use the exact label
+        static::assertStringContainsString('Hint: use a noun-based path instead', $output);
     }
 
     /**
@@ -204,5 +206,180 @@ class ConsoleLintReporterTest extends TestCase
         static::assertStringContainsString('Route linting warnings', $output);
         static::assertStringNotContainsString('Route linting errors', $output);
         static::assertStringNotContainsString('Stale waivers / unused suppressions', $output);
+    }
+
+    /**
+     * Test that a clean report does NOT render error/warning/stale sections
+     * (kills ReturnRemoval mutant #37: early return omitted in the clean-report branch).
+     *
+     * Without the early return the reporter would fall through to
+     * renderErrors/renderWarnings/renderStaleWaivers even on a clean report.
+     * Those inner methods have their own empty-array guards and would emit
+     * nothing extra — but we confirm the success line is the ONLY output and
+     * none of the section headers bleed through.
+     *
+     * @return void
+     */
+    public function testCleanReportOutputContainsOnlySuccessLine(): void
+    {
+        // Arrange — completely empty report
+        $report = new RouteLintReport;
+
+        // Act
+        $this->reporter->report($report);
+        $output = $this->buffer->fetch();
+
+        // Assert — success line is present
+        static::assertStringContainsString('All routes conform to the RESTful conventions.', $output);
+
+        // Assert — none of the section headers are present (early-return guard)
+        static::assertStringNotContainsString('Route linting errors', $output);
+        static::assertStringNotContainsString('Route linting warnings', $output);
+        static::assertStringNotContainsString('Stale waivers', $output);
+    }
+
+    /**
+     * Test that a report with only warnings does NOT render the success line
+     * (kills ReturnRemoval mutant #37 from another angle).
+     *
+     * If the early return is removed, a clean-report check passes through and
+     * the success line would appear even alongside finding sections. This test
+     * confirms the two branches are mutually exclusive.
+     *
+     * @return void
+     */
+    public function testReportWithWarningsDoesNotRenderSuccessLine(): void
+    {
+        // Arrange
+        $report = new RouteLintReport;
+        $report->addViolation(new Violation(
+            ruleId: 'R8',
+            severity: Severity::WARNING,
+            routeIdentity: 'GET users',
+            offendingSurface: 'users',
+            remediationHint: null,
+        ));
+
+        // Act
+        $this->reporter->report($report);
+        $output = $this->buffer->fetch();
+
+        // Assert — success line must NOT appear when there are warnings
+        static::assertStringNotContainsString('All routes conform to the RESTful conventions.', $output);
+        static::assertStringContainsString('Route linting warnings', $output);
+    }
+
+    /**
+     * Test that an empty warnings list does not render the warnings section header
+     * (kills ReturnRemoval mutant #38: early return in renderWarnings omitted).
+     *
+     * Without the early return in renderWarnings(), an empty array still causes
+     * the warning header and foreach (which emits nothing) to execute.
+     * Specifically, the warning header "Route linting warnings:" would appear
+     * in the output even with an empty warnings list when the report has errors.
+     *
+     * @return void
+     */
+    public function testEmptyWarningsSectionIsNotRendered(): void
+    {
+        // Arrange — error only; warnings list is empty
+        $report = new RouteLintReport;
+        $report->addViolation(new Violation(
+            ruleId: 'R1',
+            severity: Severity::ERROR,
+            routeIdentity: 'GET getUsers',
+            offendingSurface: 'getUsers',
+            remediationHint: null,
+        ));
+
+        // Act
+        $this->reporter->report($report);
+        $output = $this->buffer->fetch();
+
+        // Assert — errors section is rendered; warnings section is NOT
+        static::assertStringContainsString('Route linting errors', $output);
+        static::assertStringNotContainsString('Route linting warnings', $output);
+    }
+
+    /**
+     * Test the exact rendered format of a violation line with a hint.
+     *
+     * Pins the sprintf template: "  [<ruleId>] <routeIdentity> (<offendingSurface>) -- Hint: <hint>".
+     *
+     * @return void
+     */
+    public function testViolationLineExactFormatWithHint(): void
+    {
+        // Arrange
+        $report = new RouteLintReport;
+        $report->addViolation(new Violation(
+            ruleId: 'R5',
+            severity: Severity::ERROR,
+            routeIdentity: 'GET /fetch-items',
+            offendingSurface: 'fetch',
+            remediationHint: 'rename to /items',
+        ));
+
+        // Act
+        $this->reporter->report($report);
+        $output = $this->buffer->fetch();
+
+        // Assert exact line content
+        static::assertStringContainsString(
+            '  [R5] GET /fetch-items (fetch) -- Hint: rename to /items',
+            $output,
+        );
+    }
+
+    /**
+     * Test the exact rendered format of a violation line without a hint.
+     *
+     * Pins the sprintf template: "  [<ruleId>] <routeIdentity> (<offendingSurface>)" — no hint segment.
+     *
+     * @return void
+     */
+    public function testViolationLineExactFormatWithoutHint(): void
+    {
+        // Arrange
+        $report = new RouteLintReport;
+        $report->addViolation(new Violation(
+            ruleId: 'R3',
+            severity: Severity::ERROR,
+            routeIdentity: 'POST UserItems',
+            offendingSurface: 'UserItems',
+            remediationHint: null,
+        ));
+
+        // Act
+        $this->reporter->report($report);
+        $output = $this->buffer->fetch();
+
+        // Assert exact line content — no " -- Hint:" suffix
+        static::assertStringContainsString('  [R3] POST UserItems (UserItems)', $output);
+        static::assertStringNotContainsString('Hint:', $output);
+    }
+
+    /**
+     * Test the exact rendered format of a stale-waiver line.
+     *
+     * Pins the sprintf template: "  - <entry>".
+     *
+     * @return void
+     */
+    public function testStaleWaiverLineExactFormat(): void
+    {
+        // Arrange
+        $report = new RouteLintReport;
+        $report->addStaleWaiver('orders.legacy (suppressed nothing): Old migration waiver.');
+
+        // Act
+        $this->reporter->report($report);
+        $output = $this->buffer->fetch();
+
+        // Assert exact line content
+        static::assertStringContainsString(
+            '  - orders.legacy (suppressed nothing): Old migration waiver.',
+            $output,
+        );
     }
 }

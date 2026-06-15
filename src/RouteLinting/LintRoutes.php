@@ -16,9 +16,10 @@ use SineMacula\ApiToolkit\RouteLinting\Dto\RouteDescriptor;
  * entries — entries that matched no live route — are recorded on the report.
  *
  * This class carries no framework dependency; all I/O is mediated through the
- * injected ports. Determinism (NFR-01) is achieved by sorting descriptors by a
- * stable identity key before inspection so two runs over the same route table
- * and configuration produce byte-identical verdicts.
+ * injected ports. Determinism (NFR-01) is owned by RouteLintReport, which
+ * returns violations and stale entries in a stable total order regardless of
+ * the order routes are inspected, so two runs over the same route table and
+ * configuration produce byte-identical verdicts.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -45,10 +46,9 @@ final class LintRoutes
      * 1. Load the RuleConfig (may throw StaleWaiverException; propagates to caller).
      * 2. Build the ExemptionAllowlist from config exemptions.
      * 3. Source app-owned RouteDescriptors.
-     * 4. Sort descriptors deterministically by stable identity key (NFR-01).
-     * 5. Observe every descriptor so allowlist pattern-match tracking covers all live routes.
-     * 6. For each descriptor: normalise, run the engine, apply per-rule suppression.
-     * 7. Record stale inline suppressions, unmatched allowlist entries, and unused allowlist entries.
+     * 4. Observe every descriptor so allowlist pattern-match tracking covers all live routes.
+     * 5. For each descriptor: normalise, run the engine, apply per-rule suppression.
+     * 6. Record stale inline suppressions, unmatched allowlist entries, and unused allowlist entries.
      *
      * @return \SineMacula\ApiToolkit\RouteLinting\RouteLintReport
      *
@@ -61,7 +61,6 @@ final class LintRoutes
         $report    = new RouteLintReport;
 
         $descriptors = $this->routeSource->appRoutes();
-        $descriptors = $this->sortDescriptors($descriptors);
 
         foreach ($descriptors as $descriptor) {
             $allowlist->observe($descriptor->name, $descriptor->uri);
@@ -74,7 +73,7 @@ final class LintRoutes
             $inlineUsed = $this->applyViolations($descriptor, $allowlist, $report, $violations);
 
             foreach ($descriptor->suppressions as $suppression) {
-                if (!isset($inlineUsed[spl_object_id($suppression)])) {
+                if (!($inlineUsed[spl_object_id($suppression)] ?? false)) {
                     $rules = $suppression->rules === [] ? 'all rules' : implode(', ', $suppression->rules);
                     $report->addStaleWaiver(sprintf(
                         '%s (suppressed nothing, rules: %s): %s',
@@ -140,47 +139,6 @@ final class LintRoutes
         }
 
         return $inlineUsed;
-    }
-
-    /**
-     * Sort a list of route descriptors by their stable identity key.
-     *
-     * The identity key is: sorted HTTP methods joined by comma, space, the URI,
-     * and (when named) space and the name — matching NormalisedRoute::identity().
-     * Sorting here before normalisation ensures the traversal order is stable
-     * regardless of the router's enumeration order (NFR-01).
-     *
-     * @param  array<int, \SineMacula\ApiToolkit\RouteLinting\Dto\RouteDescriptor>  $descriptors
-     * @return array<int, \SineMacula\ApiToolkit\RouteLinting\Dto\RouteDescriptor>
-     */
-    private function sortDescriptors(array $descriptors): array
-    {
-        usort($descriptors, fn (RouteDescriptor $a, RouteDescriptor $b): int => $this->descriptorKey($a) <=> $this->descriptorKey($b));
-
-        return $descriptors;
-    }
-
-    /**
-     * Build the stable sort key for a RouteDescriptor.
-     *
-     * Mirrors the identity key produced by NormalisedRoute::identity() so
-     * sorting before and after normalisation yields the same order.
-     *
-     * @param  \SineMacula\ApiToolkit\RouteLinting\Dto\RouteDescriptor  $descriptor
-     * @return string
-     */
-    private function descriptorKey(RouteDescriptor $descriptor): string
-    {
-        $methods = $descriptor->methods;
-        sort($methods);
-
-        $key = implode(',', $methods) . ' ' . $descriptor->uri;
-
-        if ($descriptor->name !== null) {
-            $key .= ' ' . $descriptor->name;
-        }
-
-        return $key;
     }
 
     /**

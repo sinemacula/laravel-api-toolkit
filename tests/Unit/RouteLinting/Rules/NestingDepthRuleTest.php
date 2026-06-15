@@ -140,6 +140,155 @@ class NestingDepthRuleTest extends TestCase
     }
 
     /**
+     * Test that a route with four literals but fewer route parameters is correctly flagged.
+     *
+     * This kills the LogicalOrNegation mutant (#46) that inverts the segment-skip condition
+     * so that literals are skipped and parameters are counted instead. With only two
+     * parameters but four literal segments, the original produces a violation while
+     * the mutant (counting params, not literals) produces none.
+     *
+     * @return void
+     */
+    public function testFourLiteralsWithFewerParamsIsFlagged(): void
+    {
+        // Arrange — four literal segments (users, posts, comments, tags) and two params
+        $uri   = 'users/{user}/posts/comments/tags';
+        $route = new NormalisedRoute(
+            uri: $uri,
+            methods: ['GET'],
+            name: null,
+            segments: ['users', '{user}', 'posts', 'comments', 'tags'],
+            parameters: ['user'],
+        );
+
+        // Act
+        $violations = $this->rule->inspect($route, $this->config);
+
+        // Assert — four literal segments exceeds the threshold of three
+        static::assertCount(1, $violations);
+        static::assertSame('R11', $violations[0]->ruleId);
+        static::assertSame(Severity::WARNING, $violations[0]->severity);
+        static::assertSame($uri, $violations[0]->offendingSurface);
+    }
+
+    /**
+     * Test that route-parameter segments are not counted toward nesting depth.
+     *
+     * This kills the LogicalOrSingleSubExprNegation mutant (#47) that changes the
+     * condition so non-parameter segments (literals) are skipped and parameters
+     * are counted. Four parameters with only three literal segments: original
+     * counts three (no violation), mutant counts four (violation).
+     *
+     * @return void
+     */
+    public function testParameterSegmentsAreNotCountedTowardDepth(): void
+    {
+        // Arrange — three literal segments (users, posts, comments) and four params
+        $route = new NormalisedRoute(
+            uri: '{a}/{b}/users/{c}/posts/comments/{d}',
+            methods: ['GET'],
+            name: null,
+            segments: ['{a}', '{b}', 'users', '{c}', 'posts', 'comments', '{d}'],
+            parameters: ['a', 'b', 'c', 'd'],
+        );
+
+        // Act
+        $violations = $this->rule->inspect($route, $this->config);
+
+        // Assert — only three literal segments; must not trigger R11
+        static::assertEmpty($violations);
+    }
+
+    /**
+     * Test that a segment containing 'v2' in a non-prefix position is counted in the depth.
+     *
+     * Kills PregMatchRemoveCaret mutant (#48): without the leading anchor the regex
+     * '/v\d+$/i' would also match 'xv2', causing that segment to be skipped. With the
+     * correct anchored regex '/^v\d+$/i' only pure version tokens are excluded.
+     *
+     * @return void
+     */
+    public function testSegmentContainingVersionStringIsCountedAsLiteral(): void
+    {
+        // Arrange — 'xv2' looks version-like but is not a pure version token;
+        // four literals including 'xv2' must all be counted to trigger R11
+        $uri   = 'users/posts/comments/xv2';
+        $route = new NormalisedRoute(
+            uri: $uri,
+            methods: ['GET'],
+            name: null,
+            segments: ['users', 'posts', 'comments', 'xv2'],
+            parameters: [],
+        );
+
+        // Act
+        $violations = $this->rule->inspect($route, $this->config);
+
+        // Assert — all four segments are literal, depth = 4 > 3
+        static::assertCount(1, $violations);
+        static::assertSame('R11', $violations[0]->ruleId);
+        static::assertSame($uri, $violations[0]->offendingSurface);
+    }
+
+    /**
+     * Test that a segment beginning with a version token but having a suffix is counted as a literal.
+     *
+     * Kills PregMatchRemoveDollar mutant (#49): without the trailing anchor the regex
+     * '/^v\d+/i' would match 'v2extra', skipping that segment. With the correct
+     * fully-anchored regex '/^v\d+$/i', 'v2extra' is not a version prefix and is counted.
+     *
+     * @return void
+     */
+    public function testVersionPrefixWithSuffixIsCountedAsLiteral(): void
+    {
+        // Arrange — 'v2extra' starts with a version-like token but is not a pure version;
+        // four literals including 'v2extra' must all be counted to trigger R11
+        $uri   = 'users/posts/comments/v2extra';
+        $route = new NormalisedRoute(
+            uri: $uri,
+            methods: ['GET'],
+            name: null,
+            segments: ['users', 'posts', 'comments', 'v2extra'],
+            parameters: [],
+        );
+
+        // Act
+        $violations = $this->rule->inspect($route, $this->config);
+
+        // Assert — depth = 4 > 3; 'v2extra' must not be excluded
+        static::assertCount(1, $violations);
+        static::assertSame($uri, $violations[0]->offendingSurface);
+    }
+
+    /**
+     * Test that an uppercase version token (e.g. 'V2') is excluded from the depth count.
+     *
+     * Kills PregMatchRemoveFlags mutant (#50): without the 'i' flag, the regex
+     * '/^v\d+$/' would not match 'V2', causing it to be counted as a literal segment.
+     * With the case-insensitive flag, 'V2' is a valid version prefix and is excluded.
+     *
+     * @return void
+     */
+    public function testUppercaseVersionTokenIsExcludedFromDepth(): void
+    {
+        // Arrange — three literal resource segments plus uppercase 'V2' prefix;
+        // 'V2' must be excluded so depth = 3, which is exactly the threshold (no violation)
+        $route = new NormalisedRoute(
+            uri: 'V2/users/posts/comments',
+            methods: ['GET'],
+            name: null,
+            segments: ['V2', 'users', 'posts', 'comments'],
+            parameters: [],
+        );
+
+        // Act
+        $violations = $this->rule->inspect($route, $this->config);
+
+        // Assert — 'V2' excluded; depth = 3; must not produce a violation
+        static::assertEmpty($violations);
+    }
+
+    /**
      * Test that rule id() returns 'R11' and severity() returns Severity::WARNING.
      *
      * @return void

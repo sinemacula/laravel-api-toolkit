@@ -82,4 +82,47 @@ class FrameworkInflectorTest extends TestCase
         static::assertSame('Media', $inflector->singular('Media'));
         static::assertTrue($inflector->isPlural('MEDIA'));
     }
+
+    /**
+     * Test that an uncountable word where Str::singular() returns the same
+     * value is still reported as plural-safe by isPlural().
+     *
+     * Targets ReturnRemoval on the uncountable `return true` in isPlural():
+     * without that return, 'data' would fall through to
+     * `Str::singular($word) !== $word`, which evaluates to 'data' !== 'data'
+     * = false, incorrectly reporting 'data' as not plural.
+     *
+     * @return void
+     */
+    public function testUncountableWhoseSingularFormMatchesItselfIsPlural(): void
+    {
+        // `Str::singular('data')` returns 'data' (unchanged), so without the
+        // early return the result would be false.
+        $inflector = new FrameworkInflector(['data']);
+
+        static::assertTrue($inflector->isPlural('data'));
+    }
+
+    /**
+     * Test that isPlural() is case-insensitive for uncountable matching —
+     * 'DATA' (uppercase) must be treated as plural-safe when 'data' is configured.
+     *
+     * Targets UnwrapStrToLower on the uncountable in_array check in isPlural():
+     * without strtolower(), in_array('DATA', ['data']) returns false; the
+     * method then delegates to Str::singular('DATA') which returns 'DATA'
+     * (unchanged), so Str::singular != word evaluates false — isPlural returns
+     * false instead of the expected true.
+     *
+     * @return void
+     */
+    public function testUncountableMatchingIsCaseInsensitiveForWordsThatDoNotChangeSingular(): void
+    {
+        // 'data' is an uncountable whose Str::singular() == itself.
+        // Without strtolower(), 'DATA' would not be found in ['data'] and
+        // Str::singular('DATA') === 'DATA' would make isPlural return false.
+        $inflector = new FrameworkInflector(['data']);
+
+        static::assertTrue($inflector->isPlural('DATA'));
+        static::assertTrue($inflector->isPlural('Data'));
+    }
 }

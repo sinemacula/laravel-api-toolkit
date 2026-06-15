@@ -183,4 +183,131 @@ class ConfigRuleConfigurationTest extends TestCase
         static::assertCount(1, $result->exemptions);
         static::assertSame([], $result->exemptions[0]->rules);
     }
+
+    /**
+     * Test that load() throws StaleWaiverException when an exemption entry is a
+     * non-array scalar (kills LogicalOr mutant #1: `!is_array($item) && ...`).
+     *
+     * The original guard `!is_array($item) || !isset($item['match']) || ...`
+     * must throw when the item is a plain string — a non-array value can never
+     * have a `match` key but the mutant changes `||` to `&&` before the second
+     * clause, allowing a non-array to pass silently.
+     *
+     * @return void
+     */
+    public function testNonArrayExemptionItemThrowsStaleWaiverException(): void
+    {
+        config()->set('api-toolkit.route_linting.exemptions', [
+            'this-is-a-string-not-an-array',
+        ]);
+
+        $this->expectException(StaleWaiverException::class);
+        $this->expectExceptionMessage('Allowlist entry is missing a required match key.');
+
+        $adapter = new ConfigRuleConfiguration;
+        $adapter->load();
+    }
+
+    /**
+     * Test that an array exemption item with no 'match' key throws
+     * StaleWaiverException (kills LogicalOr mutant #2: `... && !is_string($item['match'])`).
+     *
+     * The original guard requires `isset($item['match'])` as well as
+     * `is_string($item['match'])`. The mutant changes the second `||` to `&&`,
+     * which lets a missing-match entry through when `is_string` is also false.
+     *
+     * @return void
+     */
+    public function testArrayExemptionItemWithoutMatchKeyThrowsStaleWaiverException(): void
+    {
+        config()->set('api-toolkit.route_linting.exemptions', [
+            ['reason' => 'Has a reason but no match key.'],
+        ]);
+
+        $this->expectException(StaleWaiverException::class);
+        $this->expectExceptionMessage('Allowlist entry is missing a required match key.');
+
+        $adapter = new ConfigRuleConfiguration;
+        $adapter->load();
+    }
+
+    /**
+     * Test that a `rules` list containing non-string values has those values
+     * filtered out, keeping only string entries (kills UnwrapArrayFilter mutant).
+     *
+     * `array_filter($rawRules, 'is_string')` must remove the integer; without the
+     * filter the mutant returns the integer entry inside `AllowlistEntry::$rules`.
+     *
+     * @return void
+     */
+    public function testNonStringRuleValuesAreFilteredOut(): void
+    {
+        config()->set('api-toolkit.route_linting.exemptions', [
+            ['match' => 'orders.store', 'reason' => 'Mixed rules.', 'rules' => ['R1', 42, 'R3', null]],
+        ]);
+
+        $adapter = new ConfigRuleConfiguration;
+        $result  = $adapter->load();
+
+        static::assertCount(1, $result->exemptions);
+
+        $rules = $result->exemptions[0]->rules;
+
+        // Only the two string values should survive
+        static::assertSame(['R1', 'R3'], $rules);
+    }
+
+    /**
+     * Test that the filtered rules list is re-indexed from zero (kills
+     * UnwrapArrayValues mutant: `array_values(array_filter(...))` vs just the filter).
+     *
+     * After filtering, `array_values` guarantees integer keys 0, 1, 2... even
+     * when the source array had gaps. Without `array_values` the mutant returns a
+     * non-contiguous array that fails an assertSame against [0 => 'R1', 1 => 'R3'].
+     *
+     * @return void
+     */
+    public function testFilteredRulesListIsReIndexed(): void
+    {
+        // Place a non-string at index 0 so after filtering index 1 would remain 1
+        // without array_values — with array_values it becomes index 0.
+        config()->set('api-toolkit.route_linting.exemptions', [
+            ['match' => 'users.index', 'reason' => 'Reindex test.', 'rules' => [0 => 99, 1 => 'R1', 2 => 'R3']],
+        ]);
+
+        $adapter = new ConfigRuleConfiguration;
+        $result  = $adapter->load();
+
+        static::assertCount(1, $result->exemptions);
+
+        $rules = $result->exemptions[0]->rules;
+
+        // Must be a contiguous 0-based list
+        static::assertSame([0 => 'R1', 1 => 'R3'], $rules);
+    }
+
+    /**
+     * Test that two valid exemption entries both survive (kills ArrayOneItem mutant).
+     *
+     * The ArrayOneItem mutant returns `array_slice($entries, 0, 1)` when count > 1,
+     * truncating to the first entry only.
+     *
+     * @return void
+     */
+    public function testMultipleExemptionEntriesAreAllReturned(): void
+    {
+        config()->set('api-toolkit.route_linting.exemptions', [
+            ['match' => 'users.index', 'reason' => 'First waiver.'],
+            ['match' => 'orders.index', 'reason' => 'Second waiver.'],
+            ['match' => 'products.index', 'reason' => 'Third waiver.'],
+        ]);
+
+        $adapter = new ConfigRuleConfiguration;
+        $result  = $adapter->load();
+
+        static::assertCount(3, $result->exemptions);
+        static::assertSame('users.index', $result->exemptions[0]->match);
+        static::assertSame('orders.index', $result->exemptions[1]->match);
+        static::assertSame('products.index', $result->exemptions[2]->match);
+    }
 }

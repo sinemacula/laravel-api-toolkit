@@ -109,7 +109,7 @@ final class ExemptionAllowlist
         $stale = [];
 
         foreach ($this->entries as $index => $entry) {
-            if (!isset($this->matched[$index])) {
+            if (!($this->matched[$index] ?? false)) {
                 $stale[] = $entry->match;
             }
         }
@@ -133,7 +133,7 @@ final class ExemptionAllowlist
         $stale = [];
 
         foreach ($this->entries as $index => $entry) {
-            if (isset($this->matched[$index]) && !isset($this->used[$index])) {
+            if (($this->matched[$index] ?? false) && !($this->used[$index] ?? false)) {
                 $stale[] = sprintf('%s (suppressed nothing): %s', $entry->match, $entry->reason);
             }
         }

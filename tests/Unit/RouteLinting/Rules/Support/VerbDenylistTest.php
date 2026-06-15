@@ -132,4 +132,28 @@ class VerbDenylistTest extends TestCase
         static::assertNull($denylist->hint('fetch'));
         static::assertNull($denylist->hint('unknown'));
     }
+
+    /**
+     * Test that hint() is case-insensitive — the lookup applies strtolower() so
+     * that 'LOGIN' resolves to the same hint as 'login'.
+     *
+     * Targets UnwrapStrToLower on hint(): without lowercasing, 'LOGIN' would not
+     * match the 'login' key in the hints array and would return null instead of
+     * the configured hint string.
+     *
+     * @return void
+     */
+    public function testHintIsCaseInsensitive(): void
+    {
+        // Arrange
+        $denylist = new VerbDenylist(
+            ['login'],
+            ['login' => 'Use POST /sessions instead.'],
+        );
+
+        // Act & Assert — uppercase lookup must resolve the same hint as lowercase
+        static::assertSame('Use POST /sessions instead.', $denylist->hint('LOGIN'));
+        static::assertSame('Use POST /sessions instead.', $denylist->hint('Login'));
+        static::assertSame('Use POST /sessions instead.', $denylist->hint('login'));
+    }
 }
