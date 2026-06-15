@@ -114,4 +114,73 @@ class ConfigRuleConfigurationTest extends TestCase
         static::assertSame([], $result->exemptions);
         static::assertSame([], $result->uncountables);
     }
+
+    /**
+     * Test that an exemption entry with a `rules` key produces an AllowlistEntry
+     * whose covers() is scoped to those rule IDs only.
+     *
+     * @return void
+     */
+    public function testExemptionWithRulesKeyProducesScopedEntry(): void
+    {
+        config()->set('api-toolkit.route_linting.exemptions', [
+            ['match' => 'users.store', 'reason' => 'Scoped waiver.', 'rules' => ['R9', 'R3']],
+        ]);
+
+        $adapter = new ConfigRuleConfiguration;
+        $result  = $adapter->load();
+
+        static::assertCount(1, $result->exemptions);
+
+        $entry = $result->exemptions[0];
+
+        static::assertSame(['R9', 'R3'], $entry->rules);
+        static::assertTrue($entry->covers('R9'));
+        static::assertTrue($entry->covers('R3'));
+        static::assertFalse($entry->covers('R1'));
+    }
+
+    /**
+     * Test that an exemption entry without a `rules` key produces an
+     * AllowlistEntry that covers all rules (backward-compatible default).
+     *
+     * @return void
+     */
+    public function testExemptionWithoutRulesKeyCoversAllRules(): void
+    {
+        config()->set('api-toolkit.route_linting.exemptions', [
+            ['match' => 'orders.index', 'reason' => 'All-rules waiver.'],
+        ]);
+
+        $adapter = new ConfigRuleConfiguration;
+        $result  = $adapter->load();
+
+        static::assertCount(1, $result->exemptions);
+
+        $entry = $result->exemptions[0];
+
+        static::assertSame([], $entry->rules);
+        static::assertTrue($entry->covers('R9'));
+        static::assertTrue($entry->covers('R1'));
+    }
+
+    /**
+     * Test that a non-array `rules` value in an exemption config entry is
+     * treated as empty (all rules covered), so a corrupt config key does not
+     * crash the adapter.
+     *
+     * @return void
+     */
+    public function testNonArrayRulesValueDefaultsToEmpty(): void
+    {
+        config()->set('api-toolkit.route_linting.exemptions', [
+            ['match' => 'reports.index', 'reason' => 'Fallback waiver.', 'rules' => 'not-an-array'],
+        ]);
+
+        $adapter = new ConfigRuleConfiguration;
+        $result  = $adapter->load();
+
+        static::assertCount(1, $result->exemptions);
+        static::assertSame([], $result->exemptions[0]->rules);
+    }
 }

@@ -46,8 +46,9 @@ final class LintRoutes
      * 2. Build the ExemptionAllowlist from config exemptions.
      * 3. Source app-owned RouteDescriptors.
      * 4. Sort descriptors deterministically by stable identity key (NFR-01).
-     * 5. For each descriptor: normalise, run the engine, suppress exempt violations.
-     * 6. Record unmatched allowlist entries as stale waivers on the report.
+     * 5. Observe every descriptor so allowlist pattern-match tracking covers all live routes.
+     * 6. For each descriptor: normalise, run the engine, apply per-rule suppression.
+     * 7. Record stale inline suppressions, unmatched allowlist entries, and unused allowlist entries.
      *
      * @return \SineMacula\ApiToolkit\RouteLinting\RouteLintReport
      *
@@ -63,16 +64,25 @@ final class LintRoutes
         $descriptors = $this->sortDescriptors($descriptors);
 
         foreach ($descriptors as $descriptor) {
+            $allowlist->observe($descriptor->name, $descriptor->uri);
+        }
+
+        foreach ($descriptors as $descriptor) {
             $normalised = $this->normalise($descriptor);
             $violations = $this->engine->inspect($normalised, $config);
-            $exempt     = $allowlist->isExempt($descriptor->name, $descriptor->uri);
 
-            if ($exempt) {
-                continue;
-            }
+            $inlineUsed = $this->applyViolations($descriptor, $allowlist, $report, $violations);
 
-            foreach ($violations as $violation) {
-                $report->addViolation($violation);
+            foreach ($descriptor->suppressions as $suppression) {
+                if (!isset($inlineUsed[spl_object_id($suppression)])) {
+                    $rules = $suppression->rules === [] ? 'all rules' : implode(', ', $suppression->rules);
+                    $report->addStaleWaiver(sprintf(
+                        '%s (suppressed nothing, rules: %s): %s',
+                        $normalised->identity(),
+                        $rules,
+                        $suppression->reason,
+                    ));
+                }
             }
         }
 
@@ -80,7 +90,56 @@ final class LintRoutes
             $report->addStaleWaiver($key);
         }
 
+        foreach ($allowlist->unused() as $entry) {
+            $report->addStaleWaiver($entry);
+        }
+
         return $report;
+    }
+
+    /**
+     * Apply per-rule suppression to a set of violations for one descriptor.
+     *
+     * For each violation, checks inline suppressions first (in declaration order),
+     * then falls back to the config allowlist. Violations that pass both checks
+     * are added to the report. Returns an object-ID map of inline suppressions
+     * that fired on at least one violation, keyed by `spl_object_id`.
+     *
+     * @param  \SineMacula\ApiToolkit\RouteLinting\Dto\RouteDescriptor  $descriptor
+     * @param  \SineMacula\ApiToolkit\RouteLinting\ExemptionAllowlist  $allowlist
+     * @param  \SineMacula\ApiToolkit\RouteLinting\RouteLintReport  $report
+     * @param  array<int, \SineMacula\ApiToolkit\RouteLinting\Violation>  $violations
+     * @return array<int, true>
+     */
+    private function applyViolations(
+        RouteDescriptor $descriptor,
+        ExemptionAllowlist $allowlist,
+        RouteLintReport $report,
+        array $violations,
+    ): array {
+        $inlineUsed = [];
+
+        foreach ($violations as $violation) {
+            $suppressed = false;
+
+            foreach ($descriptor->suppressions as $suppression) {
+                if ($suppression->covers($violation->ruleId)) {
+                    $inlineUsed[spl_object_id($suppression)] = true;
+                    $suppressed                              = true;
+                    break;
+                }
+            }
+
+            if (!$suppressed && $allowlist->suppresses($descriptor->name, $descriptor->uri, $violation->ruleId)) {
+                $suppressed = true;
+            }
+
+            if (!$suppressed) {
+                $report->addViolation($violation);
+            }
+        }
+
+        return $inlineUsed;
     }
 
     /**

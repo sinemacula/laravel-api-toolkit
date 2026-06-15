@@ -167,6 +167,132 @@ class LintRoutesTest extends TestCase
     }
 
     /**
+     * Test that an inline suppression on a route drops exactly that rule's error while
+     * a different rule on the same route still reports (per-rule inline suppression).
+     *
+     * Route /getUsers triggers R1 (verb in path) and R2 (camelCase).
+     * Suppressing only R1 inline leaves R2 still reported.
+     *
+     * @return void
+     */
+    public function testInlineSuppressionDropsOnlyTargetedRule(): void
+    {
+        $this->seedDefaultConfig();
+
+        $router = $this->getRouter();
+        $router->get('getUsers', fn () => [])
+            ->name('get-users')
+            // @phpstan-ignore method.notFound
+            ->ignoreRouteLint(['R1'], 'Verb in path is intentional for this legacy endpoint.');
+
+        $report = $this->buildUseCase($router)->lint();
+
+        // R1 is suppressed inline; it must not appear in the report
+        $r1Violations = array_values(array_filter($report->errors(), fn ($v) => $v->ruleId === 'R1'));
+        static::assertSame([], $r1Violations, 'R1 must be suppressed by the inline suppression.');
+
+        // R2 (camelCase) is NOT covered by the inline suppression and must still be reported
+        $r2Violations = array_values(array_filter(
+            array_merge($report->errors(), $report->warnings()),
+            fn ($v) => $v->ruleId === 'R2',
+        ));
+        static::assertNotEmpty($r2Violations, 'R2 must still be reported on the same route.');
+    }
+
+    /**
+     * Test that a config allowlist entry with an explicit rules list suppresses
+     * only the listed rules (per-rule config suppression).
+     *
+     * @return void
+     */
+    public function testConfigExemptionWithRulesIsPerRule(): void
+    {
+        $this->seedDefaultConfig([
+            [
+                'match'  => 'login',
+                'reason' => 'Legacy auth endpoint; R1 only waived.',
+                'rules'  => ['R1'],
+            ],
+        ]);
+
+        $router = $this->getRouter();
+        $router->post('login', fn () => [])->name('auth.login');
+
+        $report = $this->buildUseCase($router)->lint();
+
+        // R1 is waived by the config entry; it must not appear in errors
+        $r1Violations = array_values(array_filter($report->errors(), fn ($v) => $v->ruleId === 'R1'));
+        static::assertSame([], $r1Violations, 'R1 must be suppressed by the config exemption.');
+
+        // Other rules on /login are NOT waived and must still appear
+        $otherViolations = array_values(array_filter(
+            array_merge($report->errors(), $report->warnings()),
+            fn ($v) => $v->ruleId !== 'R1',
+        ));
+        static::assertNotEmpty($otherViolations, 'Non-R1 violations on /login must still be reported.');
+    }
+
+    /**
+     * Test that an inline suppression that suppresses no violation produces a
+     * stale entry on the report (unused inline suppression detection).
+     *
+     * Route /users is clean; the inline suppression for R1 fires on nothing.
+     *
+     * @return void
+     */
+    public function testUnusedInlineSuppressionIsReportedAsStale(): void
+    {
+        $this->seedDefaultConfig();
+
+        $router = $this->getRouter();
+        $router->get('users', fn () => [])
+            ->name('users.index')
+            // @phpstan-ignore method.notFound
+            ->ignoreRouteLint(['R1'], 'Pre-emptive suppression that turns out to be unnecessary.');
+
+        $report = $this->buildUseCase($router)->lint();
+
+        // The route is clean (no R1 violation), so the inline suppression is stale
+        $staleWaivers = $report->staleWaivers();
+        static::assertNotEmpty($staleWaivers, 'An unused inline suppression must appear as a stale entry.');
+
+        $staleString = implode(' ', $staleWaivers);
+        static::assertStringContainsString('suppressed nothing', $staleString);
+        static::assertStringContainsString('Pre-emptive suppression that turns out to be unnecessary.', $staleString);
+    }
+
+    /**
+     * Test that a config entry without a rules list suppresses all violations on
+     * its route (backward-compatibility: omitting rules means all rules).
+     *
+     * @return void
+     */
+    public function testConfigExemptionWithoutRulesSuppressesAllViolations(): void
+    {
+        $this->seedDefaultConfig([
+            [
+                'match'  => 'login',
+                'reason' => 'Legacy endpoint kept for backward compatibility.',
+            ],
+        ]);
+
+        $router = $this->getRouter();
+        $router->post('login', fn () => [])->name('auth.login');
+
+        $report = $this->buildUseCase($router)->lint();
+
+        // All violations on /login are suppressed; no errors or warnings expected for that route
+        $loginViolations = array_values(array_filter(
+            array_merge($report->errors(), $report->warnings()),
+            fn ($v) => str_contains($v->routeIdentity, 'login'),
+        ));
+        static::assertSame([], $loginViolations, 'All violations on an all-rules-waived route must be suppressed.');
+
+        // The allowlist entry matched a live route and suppressed violations — not stale
+        static::assertSame([], $report->staleWaivers(), 'A used config entry must not appear as stale.');
+    }
+
+    /**
      * Test that two runs over the same route table and config produce byte-identical verdicts (TAC-15-05 / NFR-01).
      *
      * @return void

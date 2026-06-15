@@ -486,8 +486,12 @@ return [
     |
     | `exemptions`: Per-route exemption allowlist — ships EMPTY. Each entry
     | waives one route and MUST carry a non-empty written reason. Entries are
-    | keyed by route name or URI pattern. Example:
-    |   ['match' => 'legacy.export', 'reason' => 'BL-123 frozen contract'].
+    | keyed by route name or URI pattern. The optional `rules` key restricts the
+    | waiver to specific rule IDs (omit or set to [] to waive all rules). Example:
+    |   ['match' => 'legacy.export', 'reason' => 'BL-123 frozen contract',
+    |    'rules' => ['R1', 'R2']].
+    | Routes can also be waived inline at registration via the `ignoreRouteLint`
+    | macro: `->ignoreRouteLint(['R9'], 'reason')` (co-located with the route).
     |
     | `uncountables`: Nouns honoured by the plural-collections rule (R4) and
     | the verb-rule singularisation step. Words in this list are never

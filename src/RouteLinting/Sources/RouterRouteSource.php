@@ -6,6 +6,7 @@ use Illuminate\Routing\Route;
 use Illuminate\Routing\Router;
 use SineMacula\ApiToolkit\RouteLinting\Contracts\RouteSource;
 use SineMacula\ApiToolkit\RouteLinting\Dto\RouteDescriptor;
+use SineMacula\ApiToolkit\RouteLinting\Dto\RouteSuppression;
 
 /**
  * Route-source adapter backed by the Laravel router.
@@ -65,7 +66,43 @@ final class RouterRouteSource implements RouteSource
             methods: $route->methods(),
             name: $route->getName(),
             isVendor: $this->isVendorRoute($route),
+            suppressions: $this->buildSuppressions($route),
         );
+    }
+
+    /**
+     * Extract inline suppressions from the route action array.
+     *
+     * Reads the `api-toolkit::lint-ignore` key written by the `ignoreRouteLint`
+     * macro. Each entry must be an array with a `rules` array and a `reason`
+     * string; entries that do not conform to this shape are silently skipped so
+     * a corrupt route cache never crashes the linter.
+     *
+     * @param  \Illuminate\Routing\Route  $route
+     * @return list<\SineMacula\ApiToolkit\RouteLinting\Dto\RouteSuppression>
+     */
+    private function buildSuppressions(Route $route): array
+    {
+        $raw = $route->getAction('api-toolkit::lint-ignore');
+
+        if (!is_array($raw)) {
+            return [];
+        }
+
+        $suppressions = [];
+
+        foreach ($raw as $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+
+            $rules  = isset($entry['rules'])  && is_array($entry['rules']) ? array_values($entry['rules']) : [];
+            $reason = isset($entry['reason']) && is_string($entry['reason']) ? $entry['reason'] : '';
+
+            $suppressions[] = new RouteSuppression($rules, $reason);
+        }
+
+        return $suppressions;
     }
 
     /**

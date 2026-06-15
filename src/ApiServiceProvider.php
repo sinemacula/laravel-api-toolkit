@@ -13,6 +13,7 @@ use SineMacula\ApiToolkit\Providers\Registrars\LifecycleRegistrar;
 use SineMacula\ApiToolkit\Providers\Registrars\LoggingRegistrar;
 use SineMacula\ApiToolkit\Providers\Registrars\MiddlewareRegistrar;
 use SineMacula\ApiToolkit\Providers\Registrars\RequestMacroRegistrar;
+use SineMacula\ApiToolkit\RouteLinting\Support\RouteLintMacros;
 use SineMacula\ApiToolkit\Services\SchemaValidator;
 
 /**
@@ -40,6 +41,7 @@ class ApiServiceProvider extends ServiceProvider
         $this->registerMorphMap();
         $this->validateSchemas();
 
+        RouteLintMacros::register();
         (new RequestMacroRegistrar)->register();
         (new MiddlewareRegistrar($this->app))->register();
         (new LoggingRegistrar($this->app))->register();

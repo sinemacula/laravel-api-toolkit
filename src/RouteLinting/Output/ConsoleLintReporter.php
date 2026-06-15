@@ -99,7 +99,7 @@ final class ConsoleLintReporter implements LintReporter
             return;
         }
 
-        $this->output->warning('Stale allowlist entries (matched no live route):');
+        $this->output->warning('Stale waivers / unused suppressions:');
 
         foreach ($staleWaivers as $entry) {
             $this->output->writeln(sprintf('  - %s', $entry));

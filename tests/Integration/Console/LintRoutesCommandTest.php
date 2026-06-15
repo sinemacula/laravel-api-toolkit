@@ -109,6 +109,48 @@ class LintRoutesCommandTest extends TestCase
     }
 
     /**
+     * Test that a route whose only error is inline-suppressed exits zero, and
+     * that the unused suppression (the route is otherwise clean) is surfaced in
+     * the output but does not change the exit code.
+     *
+     * @return void
+     */
+    public function testInlineSuppressedRouteExitsZeroAndSurfacesStaleSuppression(): void
+    {
+        $this->seedConfig();
+
+        // /users is a clean route; the inline suppression for R1 fires on nothing
+        $this->getRouter()->get('users', fn () => [])
+            ->name('users.index')
+            // @phpstan-ignore method.notFound
+            ->ignoreRouteLint(['R1'], 'Unnecessary waiver added for demonstration.');
+
+        $this->runCommand()
+            ->expectsOutputToContain('Stale waivers / unused suppressions')
+            ->expectsOutputToContain('suppressed nothing')
+            ->assertExitCode(0);
+    }
+
+    /**
+     * Test that a route whose only error is fully suppressed by an inline
+     * suppression (all rules) exits zero.
+     *
+     * @return void
+     */
+    public function testFullyInlineSuppressedRouteExitsZero(): void
+    {
+        $this->seedConfig();
+
+        // /getUsers triggers R1; inline suppression covers all rules
+        $this->getRouter()->get('getUsers', fn () => [])
+            ->name('get-users')
+            // @phpstan-ignore method.notFound
+            ->ignoreRouteLint([], 'All rules suppressed for this legacy route.');
+
+        $this->runCommand()->assertExitCode(0);
+    }
+
+    /**
      * Run the lint-routes command.
      *
      * @return \Illuminate\Testing\PendingCommand

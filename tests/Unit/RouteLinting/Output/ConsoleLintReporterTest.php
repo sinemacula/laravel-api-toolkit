@@ -123,7 +123,7 @@ class ConsoleLintReporterTest extends TestCase
         $output = $this->buffer->fetch();
 
         // Assert — stale-waivers header and entry key are present
-        static::assertStringContainsString('Stale allowlist entries', $output);
+        static::assertStringContainsString('Stale waivers / unused suppressions', $output);
         static::assertStringContainsString('users.legacy', $output);
     }
 
@@ -146,7 +146,7 @@ class ConsoleLintReporterTest extends TestCase
         static::assertStringContainsString('All routes conform to the RESTful conventions.', $output);
         static::assertStringNotContainsString('Route linting errors', $output);
         static::assertStringNotContainsString('Route linting warnings', $output);
-        static::assertStringNotContainsString('Stale allowlist entries', $output);
+        static::assertStringNotContainsString('Stale waivers / unused suppressions', $output);
     }
 
     /**
@@ -203,6 +203,6 @@ class ConsoleLintReporterTest extends TestCase
         // Assert — only the warning section header appears
         static::assertStringContainsString('Route linting warnings', $output);
         static::assertStringNotContainsString('Route linting errors', $output);
-        static::assertStringNotContainsString('Stale allowlist entries', $output);
+        static::assertStringNotContainsString('Stale waivers / unused suppressions', $output);
     }
 }

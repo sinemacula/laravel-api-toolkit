@@ -6,6 +6,7 @@ use Illuminate\Routing\Route;
 use Illuminate\Routing\Router;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\RouteLinting\Dto\RouteDescriptor;
+use SineMacula\ApiToolkit\RouteLinting\Dto\RouteSuppression;
 use SineMacula\ApiToolkit\RouteLinting\Sources\RouterRouteSource;
 use Tests\TestCase;
 
@@ -192,6 +193,68 @@ class RouterRouteSourceTest extends TestCase
         $source = new RouterRouteSource($this->getRouter());
 
         static::assertSame([], $source->appRoutes());
+    }
+
+    /**
+     * Test that a route decorated with ignoreRouteLint() yields a descriptor
+     * whose suppressions property carries a matching RouteSuppression.
+     *
+     * @return void
+     */
+    public function testRouteWithIgnoreRouteLintYieldsSuppressionOnDescriptor(): void
+    {
+        $router = $this->getRouter();
+
+        $router->get('invoices', fn () => [])
+            ->name('invoices.index')
+            ->ignoreRouteLint(['R9'], 'Legacy naming kept for migration period.'); // @phpstan-ignore method.notFound
+
+        $source      = new RouterRouteSource($router);
+        $descriptors = $source->appRoutes();
+
+        $byName = [];
+
+        foreach ($descriptors as $descriptor) {
+            if ($descriptor->name !== null) {
+                $byName[$descriptor->name] = $descriptor;
+            }
+        }
+
+        static::assertArrayHasKey('invoices.index', $byName);
+
+        $descriptor = $byName['invoices.index'];
+
+        static::assertCount(1, $descriptor->suppressions);
+        static::assertInstanceOf(RouteSuppression::class, $descriptor->suppressions[0]);
+        static::assertSame(['R9'], $descriptor->suppressions[0]->rules);
+        static::assertSame('Legacy naming kept for migration period.', $descriptor->suppressions[0]->reason);
+    }
+
+    /**
+     * Test that a route without ignoreRouteLint() yields a descriptor with an
+     * empty suppressions list.
+     *
+     * @return void
+     */
+    public function testRouteWithoutSuppressionYieldsEmptySuppressionsOnDescriptor(): void
+    {
+        $router = $this->getRouter();
+
+        $router->get('categories', fn () => [])->name('categories.index');
+
+        $source      = new RouterRouteSource($router);
+        $descriptors = $source->appRoutes();
+
+        $byName = [];
+
+        foreach ($descriptors as $descriptor) {
+            if ($descriptor->name !== null) {
+                $byName[$descriptor->name] = $descriptor;
+            }
+        }
+
+        static::assertArrayHasKey('categories.index', $byName);
+        static::assertSame([], $byName['categories.index']->suppressions);
     }
 
     /**

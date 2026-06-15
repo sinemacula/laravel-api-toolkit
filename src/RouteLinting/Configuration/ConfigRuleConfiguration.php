@@ -73,7 +73,10 @@ final class ConfigRuleConfiguration implements RuleConfiguration
                 throw new StaleWaiverException(sprintf('Allowlist entry "%s" is missing a required reason.', $match));
             }
 
-            $entries[] = new AllowlistEntry($match, $reason);
+            $rawRules = $item['rules'] ?? [];
+            $rules    = is_array($rawRules) ? array_values(array_filter($rawRules, 'is_string')) : [];
+
+            $entries[] = new AllowlistEntry($match, $reason, $rules);
         }
 
         return $entries;
