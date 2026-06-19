@@ -66,6 +66,12 @@ Version 2.0 is in development on the `2.x` branch. See [UPGRADE.md](UPGRADE.md) 
 - The whole-table reference cache now applies the configured size guard before caching the table
   snapshot, so reference mode on an unexpectedly large table returns the rows but falls back to
   querying rather than serialising a huge snapshot into the cache
+- Per-query cache invalidation on non-taggable stores (`database`/`file`/`array`) no longer maintains
+  a tracked key set rewritten in full on every cache write (O(K) per write, plus a read-modify-write
+  race that dropped and leaked keys `flushTable` could then never clear, causing stale reads). Each
+  per-query key now embeds a generational table version, and invalidation bumps it with a single
+  atomic increment - O(1) and race-free; orphaned old-version entries expire by TTL. The taggable
+  (cache-tag) path is unchanged.
 
 ### Security
 
