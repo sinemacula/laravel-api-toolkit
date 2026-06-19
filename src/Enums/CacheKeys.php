@@ -36,8 +36,8 @@ enum CacheKeys: string
     // Store a per-query cached result for a repository (table, query hash)
     case REPOSITORY_QUERY_CACHE = 'repository-query:%s:%s';
 
-    // Store the registry of live per-query cache keys for a repository table
-    case REPOSITORY_CACHE_REGISTRY = 'repository-cache-registry:%s';
+    // Store the generational version that scopes a repository table's per-query keys
+    case REPOSITORY_CACHE_VERSION = 'repository-cache-version:%s';
 
     /**
      * Resolves the cache key with the necessary prefix and replaces any
