@@ -49,6 +49,16 @@ class Post extends Model
     }
 
     /**
+     * Get the countries associated with the post via a non-`id` related key.
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\BelongsToMany<\Tests\Fixtures\Models\Country, $this>
+     */
+    public function countries(): BelongsToMany
+    {
+        return $this->belongsToMany(Country::class, 'country_post', 'post_id', 'country_code', 'id', 'code');
+    }
+
+    /**
      * Get the attributes that should be cast.
      *
      * @return array<string, string>

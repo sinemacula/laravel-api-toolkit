@@ -105,6 +105,8 @@ abstract class TestCase extends OrchestraTestCase
         $this->createProfilesTable();
         $this->createTagsTable();
         $this->createPostTagTable();
+        $this->createCountriesTable();
+        $this->createCountryPostTable();
         $this->createLogsTable();
         $this->createArticlesTable();
     }
@@ -246,6 +248,36 @@ abstract class TestCase extends OrchestraTestCase
             $table->unsignedBigInteger('post_id');
             $table->unsignedBigInteger('tag_id');
             $table->primary(['post_id', 'tag_id']);
+        });
+    }
+
+    /**
+     * Create the countries table with a non-incrementing string primary key.
+     *
+     * @return void
+     */
+    private function createCountriesTable(): void
+    {
+        Schema::dropIfExists('countries');
+        Schema::create('countries', function (Blueprint $table): void {
+            $table->string('code')->primary();
+            $table->string('name');
+            $table->timestamps();
+        });
+    }
+
+    /**
+     * Create the country_post pivot table keyed by the country code.
+     *
+     * @return void
+     */
+    private function createCountryPostTable(): void
+    {
+        Schema::dropIfExists('country_post');
+        Schema::create('country_post', function (Blueprint $table): void {
+            $table->unsignedBigInteger('post_id');
+            $table->string('country_code');
+            $table->primary(['post_id', 'country_code']);
         });
     }
 

@@ -13,6 +13,7 @@ use SineMacula\ApiToolkit\Enums\CacheKeys;
 use SineMacula\ApiToolkit\Repositories\Concerns\AttributeSetter;
 use Tests\Concerns\InteractsWithNonPublicMembers;
 use Tests\Fixtures\Enums\UserStatus;
+use Tests\Fixtures\Models\Country;
 use Tests\Fixtures\Models\Organization;
 use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\Tag;
@@ -241,6 +242,33 @@ class AttributeSetterTest extends TestCase
 
         static::assertTrue($result);
         static::assertCount(1, $post->fresh()?->tags()->get() ?? collect([]));
+    }
+
+    /**
+     * Test that syncing a collection of related models with a non-`id` primary
+     * key plucks the related model's key name rather than a hardcoded `id`, so
+     * the relation is synced instead of attaching null keys.
+     *
+     * @return void
+     */
+    public function testPersistSyncWithCollectionUsesRelatedModelKeyForNonIdPrimaryKey(): void
+    {
+        $user = User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL]);
+        $post = Post::create(['user_id' => $user->id, 'title' => 'T', 'body' => 'B']);
+        $us   = Country::create(['code' => 'US', 'name' => 'United States']);
+        $gb   = Country::create(['code' => 'GB', 'name' => 'United Kingdom']);
+
+        $this->setProperty($this->attributeSetter, 'casts', ['countries' => 'sync']);
+
+        $result = $this->attributeSetter->persist($post, ['countries' => collect([$us, $gb])], Post::class);
+
+        static::assertTrue($result);
+
+        $synced = $post->fresh()?->countries()->pluck('code')->all() ?? [];
+
+        sort($synced);
+
+        static::assertSame(['GB', 'US'], $synced);
     }
 
     /**
