@@ -2,6 +2,7 @@
 
 namespace Tests\Unit\Repositories\Criteria\Concerns;
 
+use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Config;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -213,6 +214,87 @@ class ColumnProjectionApplierTest extends TestCase
         $result = $this->makeApplier()->apply($query, $provider, UserResource::class, []);
 
         static::assertSame(['id', 'name'], $result->getQuery()->columns);
+    }
+
+    /**
+     * Test that the parent key of every list-keyed (plain or extra) relation in
+     * the eager-load map is retained, not just the first. The relation name of a
+     * list entry lives in the value, so deriving keys via array_keys would yield
+     * integer indices that resolve to no relation.
+     *
+     * @return void
+     */
+    public function testRetainsParentKeysForEveryListKeyedRelation(): void
+    {
+        Config::set('api-toolkit.resources.narrow_columns', true);
+
+        $this->parseRequest(new Request);
+
+        $provider = static::createStub(ResourceMetadataProvider::class);
+        $provider->method('getResourceType')->willReturn('users');
+        $provider->method('resolveFields')->willReturn(self::USER_DEFAULT_FIELDS);
+        $provider->method('eagerLoadMapFor')->willReturn(['author', 'editor']);
+
+        $author = static::createStub(Relation::class);
+        $editor = static::createStub(Relation::class);
+
+        $introspector = static::createStub(SchemaIntrospectionProvider::class);
+        $introspector->method('getColumns')->willReturn([...self::USER_COLUMNS, 'author_id', 'editor_id']);
+        $introspector->method('getDeletedAtColumn')->willReturn(null);
+        $introspector->method('resolveRelation')->willReturnCallback(
+            static fn (string $key): ?Relation => match ($key) {
+                'author' => $author,
+                'editor' => $editor,
+                default  => null,
+            },
+        );
+        $introspector->method('parentKeysFor')->willReturnCallback(
+            static fn (Relation $relation): array => $relation === $author ? ['author_id'] : ['editor_id'],
+        );
+
+        $applier = new ColumnProjectionApplier(new SafetySetDeriver($introspector));
+
+        $columns = $applier->apply((new User)->newQuery(), $provider, UserResource::class, [])->getQuery()->columns;
+
+        static::assertNotNull($columns);
+        static::assertContains('author_id', $columns);
+        static::assertContains('editor_id', $columns);
+    }
+
+    /**
+     * Test that a dotted relation path is reduced to its first segment - the
+     * relation declared on the base model - so the base-model parent key is
+     * resolved rather than the whole path, which matches no relation.
+     *
+     * @return void
+     */
+    public function testStripsDottedPathToBaseRelationForParentKey(): void
+    {
+        Config::set('api-toolkit.resources.narrow_columns', true);
+
+        $this->parseRequest(new Request);
+
+        $provider = static::createStub(ResourceMetadataProvider::class);
+        $provider->method('getResourceType')->willReturn('users');
+        $provider->method('resolveFields')->willReturn(self::USER_DEFAULT_FIELDS);
+        $provider->method('eagerLoadMapFor')->willReturn(['posts.comments']);
+
+        $relation = static::createStub(Relation::class);
+
+        $introspector = static::createStub(SchemaIntrospectionProvider::class);
+        $introspector->method('getColumns')->willReturn(self::USER_COLUMNS);
+        $introspector->method('getDeletedAtColumn')->willReturn(null);
+        $introspector->method('resolveRelation')->willReturnCallback(
+            static fn (string $key): ?Relation => $key === 'posts' ? $relation : null,
+        );
+        $introspector->method('parentKeysFor')->willReturn(['organization_id']);
+
+        $applier = new ColumnProjectionApplier(new SafetySetDeriver($introspector));
+
+        $columns = $applier->apply((new User)->newQuery(), $provider, UserResource::class, [])->getQuery()->columns;
+
+        static::assertNotNull($columns);
+        static::assertContains('organization_id', $columns);
     }
 
     /**
