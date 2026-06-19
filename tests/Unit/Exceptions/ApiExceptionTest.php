@@ -2,6 +2,7 @@
 
 namespace Tests\Unit\Exceptions;
 
+use Illuminate\Support\Facades\Lang;
 use Orchestra\Testbench\TestCase;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Enums\ErrorCode;
@@ -254,6 +255,12 @@ class ApiExceptionTest extends TestCase
      */
     public function testSubclassesCanOverrideTheTranslationNamespace(): void
     {
+        // Register a detail translation under a custom namespace so the override
+        // can be proven by resolution. A missing key now yields '' (see
+        // testGetCustomDetailReturnsEmptyStringWhenTranslationMissing) rather
+        // than leaking the raw translation key, so resolution is the oracle.
+        Lang::addLines(['exceptions.10100.detail' => 'Custom namespace detail'], 'en', 'custom-namespace');
+
         $exception = new class extends ApiException {
             public const \SineMacula\ApiToolkit\Contracts\ErrorCodeInterface CODE = ErrorCode::BAD_REQUEST;
             public const HttpStatus HTTP_STATUS                                   = HttpStatus::BAD_REQUEST;
@@ -270,9 +277,37 @@ class ApiExceptionTest extends TestCase
             }
         };
 
-        // No translations are registered for the custom namespace, so the
-        // raw translation key is returned, proving the override was used
-        static::assertSame('custom-namespace::exceptions.10100.detail', $exception->getCustomDetail());
+        // The translation registered under the custom namespace resolves,
+        // proving the override changed the translation key.
+        static::assertSame('Custom namespace detail', $exception->getCustomDetail());
+    }
+
+    /**
+     * Test that getCustomDetail returns an empty string when the detail
+     * translation key is missing from every locale, rather than leaking the
+     * raw translation key.
+     *
+     * @return void
+     */
+    public function testGetCustomDetailReturnsEmptyStringWhenTranslationMissing(): void
+    {
+        $exception = new class extends ApiException {
+            public const \SineMacula\ApiToolkit\Contracts\ErrorCodeInterface CODE = ErrorCode::BAD_REQUEST;
+            public const HttpStatus HTTP_STATUS                                   = HttpStatus::BAD_REQUEST;
+
+            /**
+             * Resolve from a namespace with no registered translations.
+             *
+             * @return string
+             */
+            #[\Override]
+            protected function getNamespace(): string
+            {
+                return 'missing-namespace';
+            }
+        };
+
+        static::assertSame('', $exception->getCustomDetail());
     }
 
     /**
@@ -314,5 +349,22 @@ class ApiExceptionTest extends TestCase
         };
 
         static::assertSame('Unavailable For Legal Reasons', $exception->getCustomTitle());
+    }
+
+    /**
+     * Define the test environment.
+     *
+     * Loads the package's exception translations so getCustomDetail resolves
+     * real translations rather than the (now-fixed) raw-key fallback.
+     *
+     * @param  mixed  $app
+     * @return void
+     */
+    protected function defineEnvironment(mixed $app): void
+    {
+        /** @var \Illuminate\Translation\Translator $translator */
+        $translator = $app['translator'];
+
+        $translator->addNamespace('api-toolkit', __DIR__ . '/../../../resources/lang');
     }
 }

@@ -192,7 +192,7 @@ trait Cacheable
     private function resolveCachedRead(string $method, array $arguments): mixed
     {
         $query = $this->prepareQueryBuilder();
-        $hash  = QueryFingerprint::for($query);
+        $hash  = QueryFingerprint::for($query, $method, $arguments);
 
         if ($this->cacheStore->has($hash)) {
             return parent::resetAndReturn($this->cacheStore->get($hash));
