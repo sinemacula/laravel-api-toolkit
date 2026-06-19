@@ -835,7 +835,7 @@ class ApiResourceTest extends TestCase
     {
         $counts = UserResource::eagerLoadCountsFor(['posts']);
 
-        static::assertContains('posts', $counts);
+        static::assertContains('posts as posts_count', $counts);
     }
 
     /**
@@ -847,7 +847,7 @@ class ApiResourceTest extends TestCase
     {
         $counts = UserResource::eagerLoadCountsFor(null);
 
-        static::assertContains('posts', $counts);
+        static::assertContains('posts as posts_count', $counts);
     }
 
     /**
@@ -871,7 +871,7 @@ class ApiResourceTest extends TestCase
     {
         $counts = OrganizationResource::eagerLoadCountsFor(['users']);
 
-        static::assertContains('users', $counts);
+        static::assertContains('users as users_count', $counts);
     }
 
     /**
@@ -1326,8 +1326,8 @@ class ApiResourceTest extends TestCase
 
         $counts = $resource_class::eagerLoadCountsFor(null);
 
-        static::assertArrayHasKey('items', $counts);
-        static::assertIsCallable($counts['items']);
+        static::assertArrayHasKey('items as items_count', $counts);
+        static::assertIsCallable($counts['items as items_count']);
     }
 
     /**

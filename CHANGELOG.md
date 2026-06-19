@@ -27,6 +27,10 @@ Version 2.0 is in development on the `2.x` branch. See [UPGRADE.md](UPGRADE.md) 
 
 ### Fixed
 
+- Duplicate relation counts no longer collide. `EagerLoadPlanner::buildCountMap()` now aliases each
+  count as `{relation} as {presentKey}_count` and `ValueResolver` reads it back by presentation key,
+  so two counts on the same relation (e.g. a total and a constrained subset) resolve to distinct
+  values instead of both reporting the same one
 - `AttributeSetter` relation sync now plucks the related model's primary key (`getKeyName()`) instead
   of a hardcoded `id`, so syncing a model or collection into a `BelongsToMany` whose related model
   uses a non-`id` primary key attaches the correct keys rather than null
@@ -66,3 +70,6 @@ Version 2.0 is in development on the `2.x` branch. See [UPGRADE.md](UPGRADE.md) 
   (`password`, `*token*`, `*secret*`, and `authorization` by default, matched case-insensitively
   and recursively) are redacted from the request data written to the `api-exceptions` log context,
   preventing credentials from leaking to logs and CloudWatch (CWE-532)
+- API query `limit` values are now clamped to a configurable hard ceiling (`parser.max_limit`,
+  default 100) instead of being honoured unbounded, so a request such as `?limit=100000000` can no
+  longer force an unbounded page size that exhausts memory
