@@ -24,3 +24,9 @@ Version 2.0 is in development on the `2.x` branch. See [UPGRADE.md](UPGRADE.md) 
 - Opt-in deferred repository writes with a write pool, and opt-in transparent repository caching
 - Exception handler coverage for all HTTP-layer exceptions, preserving `abort()` status codes
 - Configurable middleware registration and notification logging exclusions
+
+### Fixed
+
+- `AttributeSetter` relation sync now plucks the related model's primary key (`getKeyName()`) instead
+  of a hardcoded `id`, so syncing a model or collection into a `BelongsToMany` whose related model
+  uses a non-`id` primary key attaches the correct keys rather than null
