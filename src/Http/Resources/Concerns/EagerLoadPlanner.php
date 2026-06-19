@@ -71,12 +71,17 @@ final class EagerLoadPlanner
                 continue;
             }
 
+            // Alias each count by its presentation key so two counts on the
+            // same relation (e.g. all + constrained) resolve to distinct
+            // `{presentKey}_count` attributes instead of colliding on one.
+            $aliased = $definition->relation . ' as ' . $definition->presentKey . '_count';
+
             $constraint = $definition->constraint;
 
             if ($constraint instanceof \Closure) {
-                $with[$definition->relation] = $constraint;
+                $with[$aliased] = $constraint;
             } else {
-                $with[] = $definition->relation;
+                $with[] = $aliased;
             }
         }
 
