@@ -71,16 +71,22 @@ final class SchemaCompiler
                 continue;
             }
 
-            if (isset($definition['filterable']) && is_string($definition['filterable'])) {
-                $filterable[] = $definition['filterable'];
+            $filterableMarker = $definition['filterable'] ?? null;
+
+            if (is_string($filterableMarker)) {
+                $filterable[] = $filterableMarker;
             }
 
-            if (isset($definition['sortable']) && is_string($definition['sortable'])) {
-                $sortable[] = $definition['sortable'];
+            $sortableMarker = $definition['sortable'] ?? null;
+
+            if (is_string($sortableMarker)) {
+                $sortable[] = $sortableMarker;
             }
 
-            if (isset($definition['traversable']) && is_string($definition['traversable'])) {
-                $traversable[] = $definition['traversable'];
+            $traversableMarker = $definition['traversable'] ?? null;
+
+            if (is_string($traversableMarker)) {
+                $traversable[] = $traversableMarker;
             }
 
             $fields[$schemaKey] = self::buildFieldDefinition($definition);

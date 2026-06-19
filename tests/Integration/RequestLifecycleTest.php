@@ -2,10 +2,12 @@
 
 namespace Tests\Integration;
 
+use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Route;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Http\Middleware\ParseApiQuery;
 use SineMacula\ApiToolkit\Http\Resources\ApiResourceCollection;
+use SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Repositories\UserRepository;
 use Tests\Fixtures\Resources\UserResource;
@@ -36,6 +38,13 @@ class RequestLifecycleTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+
+        // This test verifies the request-lifecycle wiring (middleware ->
+        // repository -> resource), not the query posture. Pin the blocklist
+        // posture so the route's empty-surface criteria follows the legacy
+        // isSearchable contract; the allowlist default is verified end-to-end
+        // in QuerySurfaceIntegrationTest.
+        Config::set('api-toolkit.repositories.query_posture', QuerySurface::POSTURE_BLOCKLIST);
 
         Route::middleware(ParseApiQuery::class)->get('/api/users', function (UserRepository $repository) {
 

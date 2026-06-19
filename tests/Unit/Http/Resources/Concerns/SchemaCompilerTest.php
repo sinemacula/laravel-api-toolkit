@@ -113,6 +113,48 @@ class SchemaCompilerTest extends TestCase
     }
 
     /**
+     * Test that query-surface markers that are present but not strings are
+     * ignored: only a string marker contributes a column or relation.
+     *
+     * @return void
+     */
+    public function testCompileIgnoresNonStringQuerySurfaceMarkers(): void
+    {
+        $schema = SchemaCompiler::compile($this->createStubResourceClass([
+            'a' => ['filterable' => 123],
+            'b' => ['sortable' => true],
+            'c' => ['traversable' => ['organization']],
+        ]));
+
+        static::assertSame([], $schema->getFilterableColumns());
+        static::assertSame([], $schema->getSortableColumns());
+        static::assertSame([], $schema->getTraversableRelations());
+    }
+
+    /**
+     * Test that duplicate markers are de-duplicated and the resulting sets are
+     * reindexed to clean zero-based lists.
+     *
+     * The same column is declared on two fields before a distinct one, so
+     * array_unique removes a non-trailing duplicate (leaving a key gap) and
+     * array_values reindexes the result.
+     *
+     * @return void
+     */
+    public function testCompileDeduplicatesAndReindexesQuerySurfaceSets(): void
+    {
+        $schema = SchemaCompiler::compile($this->createStubResourceClass([
+            'status_a' => ['filterable' => 'status', 'sortable' => 'status', 'traversable' => 'posts'],
+            'status_b' => ['filterable' => 'status', 'sortable' => 'status', 'traversable' => 'posts'],
+            'email'    => ['filterable' => 'email', 'sortable' => 'created_at', 'traversable' => 'tags'],
+        ]));
+
+        static::assertSame(['status', 'email'], $schema->getFilterableColumns());
+        static::assertSame(['status', 'created_at'], $schema->getSortableColumns());
+        static::assertSame(['posts', 'tags'], $schema->getTraversableRelations());
+    }
+
+    /**
      * Test that compile returns a CompiledSchema from a raw schema array.
      *
      * @return void

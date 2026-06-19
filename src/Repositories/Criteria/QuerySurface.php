@@ -107,7 +107,7 @@ final readonly class QuerySurface
      * @param  \Illuminate\Database\Eloquent\Model  $model
      * @return bool
      */
-    public function permitsFilter(string $column, Model $model): bool
+    private function permitsFilter(string $column, Model $model): bool
     {
         return $this->governsRoot($model)
             ? in_array($column, $this->filterableColumns, true)
@@ -121,7 +121,7 @@ final readonly class QuerySurface
      * @param  \Illuminate\Database\Eloquent\Model  $model
      * @return bool
      */
-    public function permitsSort(string $column, Model $model): bool
+    private function permitsSort(string $column, Model $model): bool
     {
         return $this->governsRoot($model)
             ? in_array($column, $this->sortableColumns, true)
@@ -135,7 +135,7 @@ final readonly class QuerySurface
      * @param  \Illuminate\Database\Eloquent\Model  $model
      * @return bool
      */
-    public function permitsRelation(string $relation, Model $model): bool
+    private function permitsRelation(string $relation, Model $model): bool
     {
         return $this->governsRoot($model)
             ? in_array($relation, $this->traversableRelations, true)
