@@ -6,6 +6,7 @@ use Carbon\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use PHPUnit\Framework\Attributes\CoversClass;
+use SineMacula\ApiToolkit\Repositories\Concerns\CacheSizeGuard;
 use SineMacula\ApiToolkit\Repositories\Concerns\ReferenceCache;
 use Tests\Fixtures\Models\Tag;
 use Tests\TestCase;
@@ -39,7 +40,7 @@ class ReferenceCacheTest extends TestCase
         Tag::create(['name' => 'php']);
         Tag::create(['name' => 'laravel']);
 
-        $this->referenceCache = new ReferenceCache('array', 'tags', 3600);
+        $this->referenceCache = new ReferenceCache('array', 'tags', 3600, new CacheSizeGuard(null, null));
     }
 
     /**
@@ -85,6 +86,30 @@ class ReferenceCacheTest extends TestCase
 
         static::assertInstanceOf(Collection::class, $result);
         static::assertCount(2, $result);
+    }
+
+    /**
+     * Test that a table exceeding the size guard is returned in full but never
+     * cached, so reference mode on an over-large table falls back to querying
+     * rather than holding a huge serialized snapshot.
+     *
+     * @return void
+     */
+    public function testDoesNotCacheTableExceedingSizeGuard(): void
+    {
+        $reference = new ReferenceCache('array', 'tags', 3600, new CacheSizeGuard(1, null));
+
+        DB::enableQueryLog();
+
+        $first  = $reference->all(new Tag);
+        $second = $reference->all(new Tag);
+
+        static::assertCount(2, $first);
+        static::assertCount(2, $second);
+        static::assertCount(2, DB::getQueryLog());
+        static::assertFalse($reference->getStatus()->isPopulated());
+
+        DB::disableQueryLog();
     }
 
     /**
