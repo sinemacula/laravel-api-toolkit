@@ -58,6 +58,11 @@ Version 2.0 is in development on the `2.x` branch. See [UPGRADE.md](UPGRADE.md) 
 - `ApiException::getCustomDetail()` now returns an empty detail instead of leaking the raw
   translation key when no `detail` translation is registered, matching the existing
   `getCustomTitle()` guard
+- The `Cacheable` and `Deferrable` repository concerns can now be used on the same repository.
+  Both previously declared `boot()`, so combining them raised a fatal trait-method collision; each
+  now boots through a dedicated `bootCacheable()` / `bootDeferrable()` hook invoked by the base
+  repository. (Deferred writes still bypass the per-query cache - flush it manually or rely on its
+  TTL; this is documented on the `Deferrable` trait.)
 
 ### Security
 

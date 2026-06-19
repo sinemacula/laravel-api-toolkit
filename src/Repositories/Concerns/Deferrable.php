@@ -19,6 +19,14 @@ namespace SineMacula\ApiToolkit\Repositories\Concerns;
  * pool for the next boundary; use the log strategy for fire-and-forget
  * writes that may be dropped.
  *
+ * Cache interaction: this concern now coexists with Cacheable on the same
+ * repository (each boots via its own boot{Concern} hook). Note, however, that
+ * deferred writes are persisted through the write pool's bulk INSERT, which
+ * bypasses the per-query cache invalidation that fires only on the repository's
+ * own write verbs. A deferred write therefore leaves any per-query cache for
+ * that table stale until its TTL; call flushCache() after the boundary flush,
+ * or rely on the TTL, when read-after-deferred-write consistency is required.
+ *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
@@ -63,15 +71,16 @@ trait Deferrable
     }
 
     /**
-     * Boot the repository instance.
+     * Boot the deferrable concern.
+     *
+     * Invoked by ApiRepository::bootConcerns() rather than overriding boot()
+     * directly, so the concern can coexist with other bootable concerns (e.g.
+     * Cacheable) without a fatal trait collision.
      *
      * @return void
      */
-    #[\Override]
-    protected function boot(): void
+    protected function bootDeferrable(): void
     {
-        parent::boot();
-
         $this->writePool = $this->app->make(WritePool::class);
     }
 }

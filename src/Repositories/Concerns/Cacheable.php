@@ -108,18 +108,19 @@ trait Cacheable
     }
 
     /**
-     * Boot the repository instance.
+     * Boot the cacheable concern.
+     *
+     * Invoked by ApiRepository::bootConcerns() rather than overriding boot()
+     * directly, so the concern can coexist with other bootable concerns (e.g.
+     * Deferrable) without a fatal trait collision.
      *
      * @return void
      *
      * @throws \Illuminate\Contracts\Container\BindingResolutionException
      * @throws \SineMacula\Repositories\Exceptions\RepositoryException
      */
-    #[\Override]
-    protected function boot(): void
+    protected function bootCacheable(): void
     {
-        parent::boot();
-
         $table = $this->getModel()->getTable();
         $store = $this->resolveProperty('cacheStoreName') ?? Config::get('api-toolkit.repositories.cache.store') ?? Config::get('cache.default');
         $store = is_string($store) ? $store : 'array';
