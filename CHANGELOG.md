@@ -33,3 +33,15 @@ Version 2.0 is in development on the `2.x` branch. See [UPGRADE.md](UPGRADE.md) 
   failure accumulator records the `exception_class` alongside the message. The Octane cache-flush
   listener now wraps the flush in an error boundary, so a flush failure is logged instead of
   propagating into Octane's dispatch and crashing the worker
+- Column narrowing now retains the parent foreign key for every eager-loaded relation, not only
+  scoped ones. Plain and `extras` relations are stored as list entries in the eager-load map, so
+  deriving relation names via `array_keys()` yielded integer indices that resolved to no relation
+  and dropped the parent key - a narrowed query then silently returned `null` for the relation.
+  Dotted relation paths are reduced to their base-model segment for the same lookup
+- The transparent repository cache now folds the read verb, its arguments, and the registered
+  eager loads into the per-query cache key, so reads that share a base builder but differ only at
+  execution time - `find(1)` vs `find(2)`, `value()` vs `get()`, column projections, and
+  `with(...)`-eager-loaded vs plain reads - no longer collide on a single cache entry
+- `ApiException::getCustomDetail()` now returns an empty detail instead of leaking the raw
+  translation key when no `detail` translation is registered, matching the existing
+  `getCustomTitle()` guard

@@ -46,6 +46,14 @@ class ArticleResource extends ApiResource
 
                 return mb_substr($article->summary, 0, 20);
             })->needs('summary'),
+            Field::accessor('author_name', static function ($resource): ?string {
+
+                $article = $resource->resource;
+
+                assert($article instanceof Article);
+
+                return $article->author?->name;
+            })->needs('status')->extras('author'),
             Relation::to('author', UserResource::class),
         );
     }
