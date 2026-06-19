@@ -163,6 +163,30 @@ abstract class ApiRepository extends Repository
 
         $this->attributeSetter = new AttributeSetter($schemaIntrospector);
         $this->attributeSetter->resolveAttributeCasts($this->model, $this->model());
+
+        $this->bootConcerns();
+    }
+
+    /**
+     * Boot each used concern that exposes a boot{Concern} hook.
+     *
+     * Concerns such as Cacheable and Deferrable each need boot-time setup but
+     * cannot both override boot() without a fatal trait collision, so the base
+     * repository invokes their dedicated boot hooks here instead. This lets a
+     * single repository safely use more than one bootable concern.
+     *
+     * @return void
+     */
+    private function bootConcerns(): void
+    {
+        foreach (class_uses_recursive(static::class) as $concern) {
+
+            $method = 'boot' . class_basename($concern);
+
+            if (method_exists($this, $method)) {
+                $this->{$method}(); // @phpstan-ignore method.dynamicName
+            }
+        }
     }
 
     /**
