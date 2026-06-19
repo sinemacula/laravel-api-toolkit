@@ -63,6 +63,9 @@ Version 2.0 is in development on the `2.x` branch. See [UPGRADE.md](UPGRADE.md) 
   now boots through a dedicated `bootCacheable()` / `bootDeferrable()` hook invoked by the base
   repository. (Deferred writes still bypass the per-query cache - flush it manually or rely on its
   TTL; this is documented on the `Deferrable` trait.)
+- The whole-table reference cache now applies the configured size guard before caching the table
+  snapshot, so reference mode on an unexpectedly large table returns the rows but falls back to
+  querying rather than serialising a huge snapshot into the cache
 
 ### Security
 
