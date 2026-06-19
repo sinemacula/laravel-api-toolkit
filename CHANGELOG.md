@@ -27,6 +27,12 @@ Version 2.0 is in development on the `2.x` branch. See [UPGRADE.md](UPGRADE.md) 
 
 ### Fixed
 
+- Lifecycle and error boundaries now preserve the full throwable (type, stack, cause) rather than
+  only its message: the write-pool flush subscriber, the database log handler's fallback, and the
+  write-pool chunk-failure logger log the throwable under an `exception` key, and the write-pool
+  failure accumulator records the `exception_class` alongside the message. The Octane cache-flush
+  listener now wraps the flush in an error boundary, so a flush failure is logged instead of
+  propagating into Octane's dispatch and crashing the worker
 - Column narrowing now retains the parent foreign key for every eager-loaded relation, not only
   scoped ones. Plain and `extras` relations are stored as list entries in the eager-load map, so
   deriving relation names via `array_keys()` yielded integer indices that resolved to no relation

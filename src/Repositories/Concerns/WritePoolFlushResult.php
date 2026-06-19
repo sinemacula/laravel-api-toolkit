@@ -16,7 +16,7 @@ final class WritePoolFlushResult
      *
      * @param  int  $successCount
      * @param  int  $failureCount
-     * @param  array<string, list<array{records: list<array<string, mixed>>, exception: string}>>  $failures
+     * @param  array<string, list<array{records: list<array<string, mixed>>, exception: string, exception_class: string}>>  $failures
      * @param  int  $flushedRecordCount
      * @param  int  $failedRecordCount
      * @param  int  $retainedRecordCount
@@ -76,7 +76,7 @@ final class WritePoolFlushResult
     /**
      * Get the failure details keyed by table name.
      *
-     * @return array<string, list<array{records: list<array<string, mixed>>, exception: string}>>
+     * @return array<string, list<array{records: list<array<string, mixed>>, exception: string, exception_class: string}>>
      */
     public function failures(): array
     {
