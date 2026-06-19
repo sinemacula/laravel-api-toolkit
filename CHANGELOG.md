@@ -27,6 +27,10 @@ Version 2.0 is in development on the `2.x` branch. See [UPGRADE.md](UPGRADE.md) 
 
 ### Fixed
 
+- Duplicate relation counts no longer collide. `EagerLoadPlanner::buildCountMap()` now aliases each
+  count as `{relation} as {presentKey}_count` and `ValueResolver` reads it back by presentation key,
+  so two counts on the same relation (e.g. a total and a constrained subset) resolve to distinct
+  values instead of both reporting the same one
 - `AttributeSetter` relation sync now plucks the related model's primary key (`getKeyName()`) instead
   of a hardcoded `id`, so syncing a model or collection into a `BelongsToMany` whose related model
   uses a non-`id` primary key attaches the correct keys rather than null

@@ -247,6 +247,57 @@ class ValueResolverTest extends TestCase
     }
 
     /**
+     * Test that two counts on the same relation but with different presentation
+     * keys resolve to their own `{presentKey}_count` attributes rather than
+     * colliding on a single `{relation}_count` value.
+     *
+     * @return void
+     */
+    public function testResolveCountsPayloadDisambiguatesCountsOnTheSameRelation(): void
+    {
+
+        ApiQuery::shouldReceive('getCounts')
+            ->with('users')
+            ->andReturn(null);
+
+        $model = new class {
+            /** @var array<string, mixed> */
+            private array $attributes = ['posts_count' => 10, 'active_posts_count' => 3];
+
+            /**
+             * Return the attributes array.
+             *
+             * @return array<string, mixed>
+             */
+            public function getAttributes(): array
+            {
+                return $this->attributes;
+            }
+
+            /**
+             * Magic getter to resolve attributes.
+             *
+             * @param  string  $key
+             * @return mixed
+             */
+            public function __get(string $key): mixed
+            {
+                return $this->attributes[$key] ?? null;
+            }
+        };
+
+        $resource = new JsonResource($model);
+        $schema   = new CompiledSchema([], [
+            'posts'        => new CompiledCountDefinition('posts', 'posts', null, true, []),
+            'active_posts' => new CompiledCountDefinition('active_posts', 'posts', null, true, []),
+        ]);
+
+        $result = $this->resolver->resolveCountsPayload($resource, $schema, 'users', null);
+
+        static::assertSame(['posts' => 10, 'active_posts' => 3], $result);
+    }
+
+    /**
      * Test that only explicitly requested count aliases are included.
      *
      * @return void
