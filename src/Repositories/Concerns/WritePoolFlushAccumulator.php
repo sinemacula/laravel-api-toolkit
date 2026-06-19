@@ -28,7 +28,7 @@ final class WritePoolFlushAccumulator
     /** @var int The number of records contained in failed chunks. */
     private int $failedRecordCount = 0;
 
-    /** @var array<string, list<array{records: list<array<string, mixed>>, exception: string}>> Failure details keyed by table name. */
+    /** @var array<string, list<array{records: list<array<string, mixed>>, exception: string, exception_class: string}>> Failure details keyed by table name. */
     private array $failures = [];
 
     /** @var array<string, list<array<string, mixed>>> Records retained in the buffer for retry, keyed by table name. */
@@ -51,15 +51,19 @@ final class WritePoolFlushAccumulator
      *
      * @param  string  $table
      * @param  list<array<string, mixed>>  $chunk
-     * @param  string  $exception
+     * @param  \Throwable  $exception
      * @return void
      */
-    public function recordFailure(string $table, array $chunk, string $exception): void
+    public function recordFailure(string $table, array $chunk, \Throwable $exception): void
     {
         $this->failureCount++;
         $this->failedRecordCount += count($chunk);
 
-        $this->failures[$table][] = ['records' => $chunk, 'exception' => $exception];
+        $this->failures[$table][] = [
+            'records'         => $chunk,
+            'exception'       => $exception->getMessage(),
+            'exception_class' => $exception::class,
+        ];
     }
 
     /**
