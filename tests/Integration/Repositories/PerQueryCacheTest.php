@@ -255,12 +255,12 @@ class PerQueryCacheTest extends TestCase
     }
 
     /**
-     * Test that a repeated null find re-queries the database each time (null
-     * results are not cached).
+     * Test that a repeated null find is served from the negative cache without
+     * re-querying the database.
      *
      * @return void
      */
-    public function testNullFindReQueriesOnEveryCall(): void
+    public function testNullFindIsServedFromNegativeCache(): void
     {
         $repository = $this->makeRepository(CacheableTagRepository::class);
 
@@ -271,7 +271,7 @@ class PerQueryCacheTest extends TestCase
         $result = $repository->find(999); // @phpstan-ignore staticMethod.dynamicCall
 
         static::assertNull($result);
-        static::assertCount(1, DB::getQueryLog());
+        static::assertCount(0, DB::getQueryLog());
     }
 
     /**

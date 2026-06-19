@@ -67,12 +67,17 @@ final class CacheStore
     /**
      * Get the cached result for the given query fingerprint, or null on a miss.
      *
+     * A negatively cached read is stored as a CacheMiss marker and translated
+     * back to null here, so callers see a transparent null on a negative hit.
+     *
      * @param  string  $hash
      * @return mixed
      */
     public function get(string $hash): mixed
     {
-        return $this->scopedStore()->get($this->keyFor($hash));
+        $value = $this->scopedStore()->get($this->keyFor($hash));
+
+        return $value instanceof CacheMiss ? null : $value;
     }
 
     /**
@@ -102,6 +107,23 @@ final class CacheStore
 
         $this->scopedStore()->put($this->keyFor($hash), $result, $this->options->ttl);
         $this->store->put($this->metaKey, ['populated_at' => now()->timestamp], $this->options->ttl);
+    }
+
+    /**
+     * Store a negative (null/miss) marker for a query fingerprint under the
+     * shorter negative TTL.
+     *
+     * The marker is scoped to the table tag/version like any other entry, so a
+     * write still invalidates it; it bypasses the size guard because it is a
+     * constant-size sentinel, and it does not touch the populated_at metadata
+     * because it represents the absence of data rather than cached data.
+     *
+     * @param  string  $hash
+     * @return void
+     */
+    public function putMiss(string $hash): void
+    {
+        $this->scopedStore()->put($this->keyFor($hash), new CacheMiss, $this->options->negativeTtl);
     }
 
     /**
