@@ -16,6 +16,10 @@ Version 2.0 is in development on the `2.x` branch. See [UPGRADE.md](UPGRADE.md) 
 - `Service::run()` returns an immutable `ServiceResult` value object instead of `bool`
 - HTTP enums are provided by `sinemacula/http-primitives-php`
 - Request capabilities are exposed through the typed `RequestCapabilities` API; the request macros are deprecated
+- The transparent repository cache now negatively caches null/miss reads under a separate, shorter
+  `negative_ttl` (default 10s), so a repeated lookup for a missing key is served from cache instead of
+  re-querying every time. The short TTL bounds stale-null visibility and probe-fill memory, and a write
+  still invalidates the negative entry like any other
 - Resource serialization memoises its hot-path lookups: `ValueResolver` caches the per-`(class, field)`
   cast-accessor reflection result and the per-definition child field set, and `EagerLoadPlanner` caches the
   eager-load and count maps per request. The memos are static but request-scoped - `CacheManager::flush()` clears

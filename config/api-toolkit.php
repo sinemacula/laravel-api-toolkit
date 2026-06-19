@@ -204,6 +204,7 @@ return [
     |   - `max_rows`        → `protected ?int $cacheMaxRows`
     |   - `max_bytes`       → `protected ?int $cacheMaxBytes`
     |   - `reference_ttl`   → `protected int $cacheReferenceTtl`
+    |   - `negative_ttl`    → `protected ?int $cacheNegativeTtl`
     |   - (key prefix)      → `protected ?string $cacheKeyPrefix`
     |   - (reference mode)  → `protected bool $cacheReferenceTable`
     |
@@ -212,7 +213,10 @@ return [
     | to disable that bound. `registry_enabled` controls how non-taggable stores
     | invalidate per-query entries: when true a per-table key registry is kept so
     | every live entry can be forgotten on a write; when false invalidation falls
-    | back to TTL expiry only (a documented degraded behaviour).
+    | back to TTL expiry only (a documented degraded behaviour). `negative_ttl` is
+    | the shorter lifetime applied to negatively cached null/miss reads, bounding
+    | how long a stale "not found" is served and how much memory probe-fill can
+    | occupy; it defaults to 10 seconds.
     |
     */
 
@@ -229,6 +233,8 @@ return [
             'max_bytes' => is_numeric($cache_max_bytes = env('API_TOOLKIT_REPOSITORY_CACHE_MAX_BYTES', 262144)) ? (int) $cache_max_bytes : 262144,
 
             'reference_ttl' => is_numeric($cache_reference_ttl = env('API_TOOLKIT_REPOSITORY_CACHE_REFERENCE_TTL', 3600)) ? (int) $cache_reference_ttl : 3600,
+
+            'negative_ttl' => is_numeric($cache_negative_ttl = env('API_TOOLKIT_REPOSITORY_CACHE_NEGATIVE_TTL', 10)) ? (int) $cache_negative_ttl : 10,
 
             'registry_enabled' => env('API_TOOLKIT_REPOSITORY_CACHE_REGISTRY_ENABLED', true),
 

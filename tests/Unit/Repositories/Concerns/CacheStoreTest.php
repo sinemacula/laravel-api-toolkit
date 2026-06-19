@@ -40,7 +40,7 @@ class CacheStoreTest extends TestCase
 
         Carbon::setTestNow(Carbon::parse('2026-03-09 12:00:00'));
 
-        $this->cacheStore = new CacheStore('array', 'test-table', new CacheStoreOptions(3600, new CacheSizeGuard(1000, 262144), true));
+        $this->cacheStore = new CacheStore('array', 'test-table', new CacheStoreOptions(3600, new CacheSizeGuard(1000, 262144), true, 10));
     }
 
     /**
@@ -71,6 +71,54 @@ class CacheStoreTest extends TestCase
 
         static::assertInstanceOf(Collection::class, $cached);
         static::assertSame(['foo', 'bar', 'baz'], $cached->all());
+    }
+
+    /**
+     * Test that a negatively cached miss is present yet reads back as null.
+     *
+     * @return void
+     */
+    public function testPutMissStoresMarkerThatReadsBackAsNull(): void
+    {
+        $this->cacheStore->putMiss(self::HASH);
+
+        static::assertTrue($this->cacheStore->has(self::HASH));
+        static::assertNull($this->cacheStore->get(self::HASH));
+    }
+
+    /**
+     * Test that a negative entry expires after the shorter negative TTL while a
+     * positive entry stored at the same moment survives on the full TTL.
+     *
+     * @return void
+     */
+    public function testPutMissExpiresAfterNegativeTtlNotFullTtl(): void
+    {
+        $this->cacheStore->putMiss(self::HASH);
+        $this->cacheStore->put('positive', collect(['x']), 1);
+
+        static::assertTrue($this->cacheStore->has(self::HASH));
+
+        // 11 seconds on: past the 10s negative TTL but well within the 3600s TTL.
+        Carbon::setTestNow(Carbon::parse('2026-03-09 12:00:11'));
+
+        static::assertFalse($this->cacheStore->has(self::HASH));
+        static::assertTrue($this->cacheStore->has('positive'));
+    }
+
+    /**
+     * Test that a negative entry is invalidated by a table flush, so a write
+     * does not leave a stale "not found" behind.
+     *
+     * @return void
+     */
+    public function testPutMissIsInvalidatedByFlushTable(): void
+    {
+        $this->cacheStore->putMiss(self::HASH);
+
+        $this->cacheStore->flushTable();
+
+        static::assertFalse($this->cacheStore->has(self::HASH));
     }
 
     /**
@@ -140,7 +188,7 @@ class CacheStoreTest extends TestCase
      */
     public function testSizeGuardSkipsStoringWhenRowCountExceeded(): void
     {
-        $store = new CacheStore('array', 'test-table', new CacheStoreOptions(3600, new CacheSizeGuard(2, 262144), true));
+        $store = new CacheStore('array', 'test-table', new CacheStoreOptions(3600, new CacheSizeGuard(2, 262144), true, 10));
 
         $store->put(self::HASH, collect(['a', 'b', 'c']), 3);
 
@@ -156,7 +204,7 @@ class CacheStoreTest extends TestCase
      */
     public function testSizeGuardSkipsStoringWhenByteSizeExceeded(): void
     {
-        $store = new CacheStore('array', 'test-table', new CacheStoreOptions(3600, new CacheSizeGuard(1000, 8), true));
+        $store = new CacheStore('array', 'test-table', new CacheStoreOptions(3600, new CacheSizeGuard(1000, 8), true, 10));
 
         $store->put(self::HASH, collect([str_repeat('x', 256)]), 1);
 
@@ -185,7 +233,7 @@ class CacheStoreTest extends TestCase
      */
     public function testFlushTableInvalidatesEntryViaVersionBumpOnNonTaggableStore(): void
     {
-        $store = new CacheStore('file', 'test-table', new CacheStoreOptions(3600, new CacheSizeGuard(1000, 262144), true));
+        $store = new CacheStore('file', 'test-table', new CacheStoreOptions(3600, new CacheSizeGuard(1000, 262144), true, 10));
 
         $store->put(self::HASH, collect(['item']), 1);
 
@@ -205,7 +253,7 @@ class CacheStoreTest extends TestCase
      */
     public function testFlushTableBumpsGenerationalVersionOnNonTaggableStore(): void
     {
-        $store      = new CacheStore('file', 'versioned-table', new CacheStoreOptions(3600, new CacheSizeGuard(1000, 262144), true));
+        $store      = new CacheStore('file', 'versioned-table', new CacheStoreOptions(3600, new CacheSizeGuard(1000, 262144), true, 10));
         $versionKey = 'api-toolkit:repository-cache-version:versioned-table';
 
         $store->put(self::HASH, collect(['first']), 1);
@@ -235,7 +283,7 @@ class CacheStoreTest extends TestCase
      */
     public function testFlushTableLeavesEntryWhenRegistryDisabledOnNonTaggableStore(): void
     {
-        $store = new CacheStore('file', 'test-table', new CacheStoreOptions(3600, new CacheSizeGuard(1000, 262144), false));
+        $store = new CacheStore('file', 'test-table', new CacheStoreOptions(3600, new CacheSizeGuard(1000, 262144), false, 10));
 
         $store->put(self::HASH, collect(['item']), 1);
 
@@ -327,7 +375,7 @@ class CacheStoreTest extends TestCase
      */
     public function testTaggableStoreFlushesViaTagsWhenRegistryDisabled(): void
     {
-        $store = new CacheStore('array', 'test-table', new CacheStoreOptions(3600, new CacheSizeGuard(1000, 262144), false));
+        $store = new CacheStore('array', 'test-table', new CacheStoreOptions(3600, new CacheSizeGuard(1000, 262144), false, 10));
 
         $store->put(self::HASH, collect(['item']), 1);
 
@@ -346,8 +394,8 @@ class CacheStoreTest extends TestCase
      */
     public function testTagIsolatesEntriesBetweenTables(): void
     {
-        $tableA = new CacheStore('array', 'table-a', new CacheStoreOptions(3600, new CacheSizeGuard(1000, 262144), true));
-        $tableB = new CacheStore('array', 'table-b', new CacheStoreOptions(3600, new CacheSizeGuard(1000, 262144), true));
+        $tableA = new CacheStore('array', 'table-a', new CacheStoreOptions(3600, new CacheSizeGuard(1000, 262144), true, 10));
+        $tableB = new CacheStore('array', 'table-b', new CacheStoreOptions(3600, new CacheSizeGuard(1000, 262144), true, 10));
 
         $tableA->put(self::HASH, collect(['a']), 1);
         $tableB->put(self::HASH, collect(['b']), 1);
