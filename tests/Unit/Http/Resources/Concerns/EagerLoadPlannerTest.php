@@ -224,7 +224,7 @@ class EagerLoadPlannerTest extends TestCase
     {
         $result = EagerLoadPlanner::buildCountMap(UserResource::class);
 
-        static::assertContains('posts', $result);
+        static::assertContains('posts as posts_count', $result);
     }
 
     /**
@@ -236,11 +236,11 @@ class EagerLoadPlannerTest extends TestCase
     {
         $result = EagerLoadPlanner::buildCountMap(UserResource::class, ['posts']);
 
-        static::assertContains('posts', $result);
+        static::assertContains('posts as posts_count', $result);
 
         $nonDefaultResult = EagerLoadPlanner::buildCountMap(OrganizationResource::class, ['users']);
 
-        static::assertContains('users', $nonDefaultResult);
+        static::assertContains('users as users_count', $nonDefaultResult);
     }
 
     /**
@@ -274,8 +274,8 @@ class EagerLoadPlannerTest extends TestCase
         $resourceClass = $constrainedCountResource::class;
         $result        = EagerLoadPlanner::buildCountMap($resourceClass);
 
-        static::assertArrayHasKey('posts', $result);
-        static::assertInstanceOf(\Closure::class, $result['posts']);
+        static::assertArrayHasKey('posts as active_posts_count', $result);
+        static::assertInstanceOf(\Closure::class, $result['posts as active_posts_count']);
     }
 
     /**
@@ -443,7 +443,7 @@ class EagerLoadPlannerTest extends TestCase
         $resourceClass = $multiCountResource::class;
         $result        = EagerLoadPlanner::buildCountMap($resourceClass);
 
-        static::assertSame(['published', 'archived'], array_values($result));
+        static::assertSame(['published as published_count', 'archived as archived_count'], array_values($result));
     }
 
     /**

@@ -27,6 +27,10 @@ Version 2.0 is in development on the `2.x` branch. See [UPGRADE.md](UPGRADE.md) 
 
 ### Fixed
 
+- Duplicate relation counts no longer collide. `EagerLoadPlanner::buildCountMap()` now aliases each
+  count as `{relation} as {presentKey}_count` and `ValueResolver` reads it back by presentation key,
+  so two counts on the same relation (e.g. a total and a constrained subset) resolve to distinct
+  values instead of both reporting the same one
 - Lifecycle and error boundaries now preserve the full throwable (type, stack, cause) rather than
   only its message: the write-pool flush subscriber, the database log handler's fallback, and the
   write-pool chunk-failure logger log the throwable under an `exception` key, and the write-pool
