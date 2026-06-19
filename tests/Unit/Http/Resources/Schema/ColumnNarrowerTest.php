@@ -4,8 +4,8 @@ namespace Tests\Unit\Http\Resources\Schema;
 
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
-use SineMacula\ApiToolkit\Http\Resources\Schema\ColumnNarrower;
-use SineMacula\ApiToolkit\Http\Resources\Schema\FieldColumnMap;
+use SineMacula\ApiToolkit\Schema\ColumnNarrower;
+use SineMacula\ApiToolkit\Schema\FieldColumnMap;
 
 /**
  * Tests for the ColumnNarrower domain rule.
@@ -18,7 +18,7 @@ use SineMacula\ApiToolkit\Http\Resources\Schema\FieldColumnMap;
 #[CoversClass(ColumnNarrower::class)]
 class ColumnNarrowerTest extends TestCase
 {
-    /** @var \SineMacula\ApiToolkit\Http\Resources\Schema\ColumnNarrower */
+    /** @var \SineMacula\ApiToolkit\Schema\ColumnNarrower */
     private ColumnNarrower $narrower;
 
     /**

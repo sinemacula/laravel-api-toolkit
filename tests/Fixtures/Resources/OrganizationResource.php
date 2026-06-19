@@ -3,8 +3,8 @@
 namespace Tests\Fixtures\Resources;
 
 use SineMacula\ApiToolkit\Http\Resources\ApiResource;
-use SineMacula\ApiToolkit\Http\Resources\Schema\Count;
-use SineMacula\ApiToolkit\Http\Resources\Schema\Field;
+use SineMacula\ApiToolkit\Schema\Count;
+use SineMacula\ApiToolkit\Schema\Field;
 
 /**
  * Fixture organization resource.

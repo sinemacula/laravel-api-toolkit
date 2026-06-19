@@ -5,8 +5,8 @@ namespace Tests\Unit\Http\Resources\Concerns;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\FieldResolver;
-use SineMacula\ApiToolkit\Http\Resources\Schema\CompiledFieldDefinition;
-use SineMacula\ApiToolkit\Http\Resources\Schema\CompiledSchema;
+use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
+use SineMacula\ApiToolkit\Schema\CompiledSchema;
 use Tests\TestCase;
 
 /**
@@ -361,7 +361,7 @@ class FieldResolverTest extends TestCase
      * Create a CompiledSchema with the given field keys using stub definitions.
      *
      * @param  array<int, string>  $keys
-     * @return \SineMacula\ApiToolkit\Http\Resources\Schema\CompiledSchema
+     * @return \SineMacula\ApiToolkit\Schema\CompiledSchema
      */
     private function createSchemaWithFieldKeys(array $keys): CompiledSchema
     {

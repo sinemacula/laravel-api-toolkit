@@ -11,9 +11,9 @@ use SineMacula\ApiToolkit\Facades\ApiQuery;
 use SineMacula\ApiToolkit\Http\Resources\ApiResourceCollection;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\GuardEvaluator;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\ValueResolver;
-use SineMacula\ApiToolkit\Http\Resources\Schema\CompiledCountDefinition;
-use SineMacula\ApiToolkit\Http\Resources\Schema\CompiledFieldDefinition;
-use SineMacula\ApiToolkit\Http\Resources\Schema\CompiledSchema;
+use SineMacula\ApiToolkit\Schema\CompiledCountDefinition;
+use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
+use SineMacula\ApiToolkit\Schema\CompiledSchema;
 use Tests\Concerns\InteractsWithNonPublicMembers;
 use Tests\Fixtures\Models\Organization;
 use Tests\Fixtures\Models\Post;
@@ -1119,7 +1119,7 @@ class ValueResolverTest extends TestCase
      * @param  array<int, string>  $needs
      * @param  array<int, callable(mixed, mixed): bool>  $guards
      * @param  array<int, callable(mixed, mixed): mixed>  $transformers
-     * @return \SineMacula\ApiToolkit\Http\Resources\Schema\CompiledFieldDefinition
+     * @return \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition
      */
     private function makeFieldDefinition(
         ?string $accessor = null,

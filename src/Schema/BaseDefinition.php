@@ -1,6 +1,6 @@
 <?php
 
-namespace SineMacula\ApiToolkit\Http\Resources\Schema;
+namespace SineMacula\ApiToolkit\Schema;
 
 use Illuminate\Contracts\Support\Arrayable;
 
@@ -23,7 +23,7 @@ abstract class BaseDefinition implements Arrayable
     /** @var array<int, string> Extra eager-load paths */
     protected array $extras = [];
 
-    /** @var \SineMacula\ApiToolkit\Http\Resources\Schema\OpenApiFieldDeclaration|null Declared OpenAPI contract; null until openapi() is called */
+    /** @var \SineMacula\ApiToolkit\Schema\OpenApiFieldDeclaration|null Declared OpenAPI contract; null until openapi() is called */
     protected ?OpenApiFieldDeclaration $openApiDeclaration = null;
 
     /** @var array<int, string> Declared base-table column reads for this field */
@@ -95,7 +95,7 @@ abstract class BaseDefinition implements Arrayable
      * definition. The carrier is created lazily on first use, so a definition
      * that never calls openapi() carries no declaration and is unaffected.
      *
-     * @return \SineMacula\ApiToolkit\Http\Resources\Schema\OpenApiFieldDeclaration
+     * @return \SineMacula\ApiToolkit\Schema\OpenApiFieldDeclaration
      */
     public function openapi(): OpenApiFieldDeclaration
     {
@@ -105,7 +105,7 @@ abstract class BaseDefinition implements Arrayable
     /**
      * Get the declared OpenAPI carrier, or null when no declaration was made.
      *
-     * @return \SineMacula\ApiToolkit\Http\Resources\Schema\OpenApiFieldDeclaration|null
+     * @return \SineMacula\ApiToolkit\Schema\OpenApiFieldDeclaration|null
      */
     public function getOpenApiDeclaration(): ?OpenApiFieldDeclaration
     {

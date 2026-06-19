@@ -6,7 +6,7 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
 use SineMacula\ApiToolkit\Http\Resources\ApiResource;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\EagerLoadPlanner;
-use SineMacula\ApiToolkit\Http\Resources\Concerns\SchemaCompiler;
+use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 use Tests\Concerns\InteractsWithNonPublicMembers;
 use Tests\Fixtures\Resources\OrganizationResource;
 use Tests\Fixtures\Resources\PostResource;
@@ -433,7 +433,7 @@ class EagerLoadPlannerTest extends TestCase
      */
     public function testBuildEagerLoadMapReturnsMemoisedResultForKey(): void
     {
-        $this->setStaticProperty(EagerLoadPlanner::class, 'eagerLoadCache', [UserResource::class . '|' . 'organization' => ['sentinel_relation']]);
+        $this->setStaticProperty(EagerLoadPlanner::class, 'eagerLoadCache', [UserResource::class . '|organization' => ['sentinel_relation']]);
 
         $result = EagerLoadPlanner::buildEagerLoadMap(UserResource::class, ['organization']);
 

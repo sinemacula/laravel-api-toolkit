@@ -4,9 +4,9 @@ namespace Tests\Unit\Services\Validation\Rules;
 
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
-use SineMacula\ApiToolkit\Http\Resources\Schema\CompiledCountDefinition;
-use SineMacula\ApiToolkit\Http\Resources\Schema\CompiledFieldDefinition;
-use SineMacula\ApiToolkit\Http\Resources\Schema\CompiledSchema;
+use SineMacula\ApiToolkit\Schema\CompiledCountDefinition;
+use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
+use SineMacula\ApiToolkit\Schema\CompiledSchema;
 use SineMacula\ApiToolkit\Services\Validation\Rules\ValidateConstraints;
 
 /**
@@ -221,7 +221,7 @@ class ValidateConstraintsTest extends TestCase
      *
      * @param  string  $presentKey
      * @param  mixed  $constraint
-     * @return \SineMacula\ApiToolkit\Http\Resources\Schema\CompiledSchema
+     * @return \SineMacula\ApiToolkit\Schema\CompiledSchema
      */
     private function createSchemaWithUntypedCount(string $presentKey, mixed $constraint): CompiledSchema
     {
@@ -235,7 +235,7 @@ class ValidateConstraintsTest extends TestCase
      * bypassing the element type enforcement via reflection.
      *
      * @param  array<string, mixed>  $counts
-     * @return \SineMacula\ApiToolkit\Http\Resources\Schema\CompiledSchema
+     * @return \SineMacula\ApiToolkit\Schema\CompiledSchema
      */
     private function createSchemaWithUntypedCounts(array $counts): CompiledSchema
     {

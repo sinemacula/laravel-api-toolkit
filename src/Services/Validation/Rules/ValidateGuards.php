@@ -2,8 +2,8 @@
 
 namespace SineMacula\ApiToolkit\Services\Validation\Rules;
 
-use SineMacula\ApiToolkit\Http\Resources\Schema\CompiledFieldDefinition;
-use SineMacula\ApiToolkit\Http\Resources\Schema\CompiledSchema;
+use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
+use SineMacula\ApiToolkit\Schema\CompiledSchema;
 
 /**
  * Validate that all guard entries in the compiled schema are callable.
@@ -18,7 +18,7 @@ final class ValidateGuards extends ValidatesCallableLists
      *
      * @param  string  $resourceClass
      * @param  string|null  $modelClass
-     * @param  \SineMacula\ApiToolkit\Http\Resources\Schema\CompiledSchema  $schema
+     * @param  \SineMacula\ApiToolkit\Schema\CompiledSchema  $schema
      * @return array<int, \SineMacula\ApiToolkit\Services\Validation\SchemaValidationError>
      */
     #[\Override]
@@ -36,7 +36,7 @@ final class ValidateGuards extends ValidatesCallableLists
     /**
      * Return the callable list to validate for the given field definition.
      *
-     * @param  \SineMacula\ApiToolkit\Http\Resources\Schema\CompiledFieldDefinition  $field
+     * @param  \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition  $field
      * @return array<int, callable(mixed, mixed): bool>
      */
     #[\Override]

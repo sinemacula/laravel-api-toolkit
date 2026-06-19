@@ -3,7 +3,6 @@
 namespace Tests\Unit\OpenApi;
 
 use PHPUnit\Framework\Attributes\CoversClass;
-use SineMacula\ApiToolkit\Http\Resources\Concerns\SchemaCompiler;
 use SineMacula\ApiToolkit\OpenApi\Builder\ErrorResponseBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\QueryParameterBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\ResourceSchemaBuilder;
@@ -14,6 +13,7 @@ use SineMacula\ApiToolkit\OpenApi\Metadata\ErrorDescriptor;
 use SineMacula\ApiToolkit\OpenApi\OpenApiAssembler;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ColumnTypeMapper;
 use SineMacula\ApiToolkit\OpenApi\Resolution\FieldTypeResolver;
+use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 use SineMacula\ApiToolkit\Services\SchemaIntrospector;
 use Tests\Fixtures\Models\Organization;
 use Tests\Fixtures\Models\User;

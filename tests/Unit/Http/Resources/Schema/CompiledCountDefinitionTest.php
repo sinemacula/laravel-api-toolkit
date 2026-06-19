@@ -4,7 +4,7 @@ namespace Tests\Unit\Http\Resources\Schema;
 
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
-use SineMacula\ApiToolkit\Http\Resources\Schema\CompiledCountDefinition;
+use SineMacula\ApiToolkit\Schema\CompiledCountDefinition;
 
 /**
  * Tests for the CompiledCountDefinition value object.

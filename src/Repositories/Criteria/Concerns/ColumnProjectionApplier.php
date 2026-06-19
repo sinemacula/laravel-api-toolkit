@@ -4,12 +4,12 @@ namespace SineMacula\ApiToolkit\Repositories\Criteria\Concerns;
 
 use Illuminate\Contracts\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Config;
+use SineMacula\ApiToolkit\Contracts\ApiResourceInterface;
 use SineMacula\ApiToolkit\Contracts\ResourceMetadataProvider;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
-use SineMacula\ApiToolkit\Http\Resources\ApiResource;
-use SineMacula\ApiToolkit\Http\Resources\Concerns\FieldColumnMapper;
-use SineMacula\ApiToolkit\Http\Resources\Concerns\SafetySetDeriver;
-use SineMacula\ApiToolkit\Http\Resources\Schema\ColumnNarrower;
+use SineMacula\ApiToolkit\Schema\ColumnNarrower;
+use SineMacula\ApiToolkit\Schema\FieldColumnMapper;
+use SineMacula\ApiToolkit\Schema\SafetySetDeriver;
 
 /**
  * Applies base-table column narrowing to an Eloquent query builder.
@@ -28,7 +28,7 @@ final class ColumnProjectionApplier
     /**
      * Create a new column projection applier instance.
      *
-     * @param  \SineMacula\ApiToolkit\Http\Resources\Concerns\SafetySetDeriver  $safetySetDeriver
+     * @param  \SineMacula\ApiToolkit\Schema\SafetySetDeriver  $safetySetDeriver
      */
     public function __construct(
 
@@ -51,7 +51,7 @@ final class ColumnProjectionApplier
         if (
             !Config::get('api-toolkit.resources.narrow_columns', false)
             || $resourceClass === null
-            || !is_subclass_of($resourceClass, ApiResource::class)
+            || !is_subclass_of($resourceClass, ApiResourceInterface::class)
         ) {
             return $query;
         }

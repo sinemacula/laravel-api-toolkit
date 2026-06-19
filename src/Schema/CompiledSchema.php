@@ -1,6 +1,6 @@
 <?php
 
-namespace SineMacula\ApiToolkit\Http\Resources\Schema;
+namespace SineMacula\ApiToolkit\Schema;
 
 /**
  * Typed value object holding compiled field and count definitions.
@@ -16,8 +16,8 @@ final readonly class CompiledSchema
     /**
      * Create a new compiled schema.
      *
-     * @param  array<string, \SineMacula\ApiToolkit\Http\Resources\Schema\CompiledFieldDefinition>  $fields
-     * @param  array<string, \SineMacula\ApiToolkit\Http\Resources\Schema\CompiledCountDefinition>  $counts
+     * @param  array<string, \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition>  $fields
+     * @param  array<string, \SineMacula\ApiToolkit\Schema\CompiledCountDefinition>  $counts
      */
     public function __construct(
 
@@ -34,7 +34,7 @@ final readonly class CompiledSchema
      * present.
      *
      * @param  string  $key
-     * @return \SineMacula\ApiToolkit\Http\Resources\Schema\CompiledFieldDefinition|null
+     * @return \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition|null
      */
     public function getField(string $key): ?CompiledFieldDefinition
     {
@@ -55,7 +55,7 @@ final readonly class CompiledSchema
      * Return the full associative array of count definitions keyed by present
      * key.
      *
-     * @return array<string, \SineMacula\ApiToolkit\Http\Resources\Schema\CompiledCountDefinition>
+     * @return array<string, \SineMacula\ApiToolkit\Schema\CompiledCountDefinition>
      */
     public function getCountDefinitions(): array
     {

@@ -1,11 +1,6 @@
 <?php
 
-namespace SineMacula\ApiToolkit\Http\Resources\Concerns;
-
-use SineMacula\ApiToolkit\Http\Resources\Schema\CompiledCountDefinition;
-use SineMacula\ApiToolkit\Http\Resources\Schema\CompiledFieldDefinition;
-use SineMacula\ApiToolkit\Http\Resources\Schema\CompiledSchema;
-use SineMacula\ApiToolkit\Http\Resources\Schema\OpenApiFieldSchema;
+namespace SineMacula\ApiToolkit\Schema;
 
 /**
  * Compiles raw resource schema arrays into typed CompiledSchema objects.
@@ -18,14 +13,14 @@ use SineMacula\ApiToolkit\Http\Resources\Schema\OpenApiFieldSchema;
  */
 final class SchemaCompiler
 {
-    /** @var array<string, \SineMacula\ApiToolkit\Http\Resources\Schema\CompiledSchema> */
+    /** @var array<string, \SineMacula\ApiToolkit\Schema\CompiledSchema> */
     private static array $cache = [];
 
     /**
      * Compile and cache the schema for the given resource class.
      *
      * @param  string  $resourceClass
-     * @return \SineMacula\ApiToolkit\Http\Resources\Schema\CompiledSchema
+     * @return \SineMacula\ApiToolkit\Schema\CompiledSchema
      */
     public static function compile(string $resourceClass): CompiledSchema
     {
@@ -55,14 +50,14 @@ final class SchemaCompiler
      * CompiledCountDefinition based on the presence of a count metric.
      *
      * @param  array<string, array<string, mixed>>  $rawSchema
-     * @return \SineMacula\ApiToolkit\Http\Resources\Schema\CompiledSchema
+     * @return \SineMacula\ApiToolkit\Schema\CompiledSchema
      */
     private static function buildCompiledSchema(array $rawSchema): CompiledSchema
     {
-        /** @var array<string, \SineMacula\ApiToolkit\Http\Resources\Schema\CompiledFieldDefinition> $fields */
+        /** @var array<string, \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition> $fields */
         $fields = [];
 
-        /** @var array<string, \SineMacula\ApiToolkit\Http\Resources\Schema\CompiledCountDefinition> $counts */
+        /** @var array<string, \SineMacula\ApiToolkit\Schema\CompiledCountDefinition> $counts */
         $counts = [];
 
         foreach ($rawSchema as $schemaKey => $definition) {
@@ -101,7 +96,7 @@ final class SchemaCompiler
      *
      * @param  string  $schemaKey
      * @param  array<string, mixed>  $definition
-     * @return \SineMacula\ApiToolkit\Http\Resources\Schema\CompiledCountDefinition
+     * @return \SineMacula\ApiToolkit\Schema\CompiledCountDefinition
      */
     private static function buildCountDefinition(string $schemaKey, array $definition): CompiledCountDefinition
     {
@@ -121,7 +116,7 @@ final class SchemaCompiler
      * Build a CompiledFieldDefinition from a raw definition array.
      *
      * @param  array<string, mixed>  $definition
-     * @return \SineMacula\ApiToolkit\Http\Resources\Schema\CompiledFieldDefinition
+     * @return \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition
      */
     private static function buildFieldDefinition(array $definition): CompiledFieldDefinition
     {

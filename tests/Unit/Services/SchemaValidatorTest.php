@@ -5,7 +5,7 @@ namespace Tests\Unit\Services;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Contracts\SchemaValidationRule;
 use SineMacula\ApiToolkit\Exceptions\InvalidSchemaException;
-use SineMacula\ApiToolkit\Http\Resources\Concerns\SchemaCompiler;
+use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 use SineMacula\ApiToolkit\Services\SchemaValidator;
 use SineMacula\ApiToolkit\Services\Validation\SchemaValidationError;
 use Tests\Fixtures\Models\Post;

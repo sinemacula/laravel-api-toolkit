@@ -1,10 +1,6 @@
 <?php
 
-namespace SineMacula\ApiToolkit\Http\Resources\Concerns;
-
-use SineMacula\ApiToolkit\Http\Resources\Schema\CompiledFieldDefinition;
-use SineMacula\ApiToolkit\Http\Resources\Schema\CompiledSchema;
-use SineMacula\ApiToolkit\Http\Resources\Schema\FieldColumnMap;
+namespace SineMacula\ApiToolkit\Schema;
 
 /**
  * Builds a per-resource-type FieldColumnMap from a compiled schema.
@@ -20,14 +16,14 @@ use SineMacula\ApiToolkit\Http\Resources\Schema\FieldColumnMap;
  */
 final class FieldColumnMapper
 {
-    /** @var array<string, \SineMacula\ApiToolkit\Http\Resources\Schema\FieldColumnMap> */
+    /** @var array<string, \SineMacula\ApiToolkit\Schema\FieldColumnMap> */
     private static array $cache = [];
 
     /**
      * Build and cache the field-column map for the given resource class.
      *
      * @param  string  $resourceClass
-     * @return \SineMacula\ApiToolkit\Http\Resources\Schema\FieldColumnMap
+     * @return \SineMacula\ApiToolkit\Schema\FieldColumnMap
      */
     public static function for(string $resourceClass): FieldColumnMap
     {
@@ -37,8 +33,8 @@ final class FieldColumnMapper
     /**
      * Build a field-column map directly from a compiled schema.
      *
-     * @param  \SineMacula\ApiToolkit\Http\Resources\Schema\CompiledSchema  $schema
-     * @return \SineMacula\ApiToolkit\Http\Resources\Schema\FieldColumnMap
+     * @param  \SineMacula\ApiToolkit\Schema\CompiledSchema  $schema
+     * @return \SineMacula\ApiToolkit\Schema\FieldColumnMap
      */
     public static function build(CompiledSchema $schema): FieldColumnMap
     {
@@ -72,7 +68,7 @@ final class FieldColumnMapper
     /**
      * Determine whether a field is provably mapped to base-table columns.
      *
-     * @param  \SineMacula\ApiToolkit\Http\Resources\Schema\CompiledFieldDefinition  $definition
+     * @param  \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition  $definition
      * @return bool
      */
     private static function isProvablyMapped(CompiledFieldDefinition $definition): bool
@@ -92,7 +88,7 @@ final class FieldColumnMapper
      * Resolve the declared columns for a provably-mapped field.
      *
      * @param  string  $field
-     * @param  \SineMacula\ApiToolkit\Http\Resources\Schema\CompiledFieldDefinition  $definition
+     * @param  \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition  $definition
      * @return array<int, string>
      */
     private static function columnsForDefinition(string $field, CompiledFieldDefinition $definition): array

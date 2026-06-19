@@ -4,7 +4,7 @@ namespace SineMacula\ApiToolkit\Services;
 
 use SineMacula\ApiToolkit\Contracts\SchemaValidationRule;
 use SineMacula\ApiToolkit\Exceptions\InvalidSchemaException;
-use SineMacula\ApiToolkit\Http\Resources\Concerns\SchemaCompiler;
+use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 
 /**
  * Orchestrates schema validation across all registered resources.
