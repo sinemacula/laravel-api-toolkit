@@ -178,12 +178,12 @@ class CacheStoreTest extends TestCase
     }
 
     /**
-     * Test that flushTable removes a stored entry via the registry on a
-     * non-taggable store.
+     * Test that flushTable invalidates a stored entry via a generational
+     * version bump on a non-taggable store.
      *
      * @return void
      */
-    public function testFlushTableRemovesEntryViaRegistryOnNonTaggableStore(): void
+    public function testFlushTableInvalidatesEntryViaVersionBumpOnNonTaggableStore(): void
     {
         $store = new CacheStore('file', 'test-table', new CacheStoreOptions(3600, new CacheSizeGuard(1000, 262144), true));
 
@@ -197,7 +197,38 @@ class CacheStoreTest extends TestCase
     }
 
     /**
-     * Test that, with the registry disabled, flushTable leaves a non-taggable
+     * Test that flushTable bumps the table's generational version on each call,
+     * orphaning entries stored under the previous version while leaving newer
+     * entries reachable - an O(1) invalidation with no tracked key set.
+     *
+     * @return void
+     */
+    public function testFlushTableBumpsGenerationalVersionOnNonTaggableStore(): void
+    {
+        $store      = new CacheStore('file', 'versioned-table', new CacheStoreOptions(3600, new CacheSizeGuard(1000, 262144), true));
+        $versionKey = 'api-toolkit:repository-cache-version:versioned-table';
+
+        $store->put(self::HASH, collect(['first']), 1);
+
+        static::assertNull($store->getStore()->get($versionKey));
+
+        $store->flushTable();
+
+        static::assertSame(1, $store->getStore()->get($versionKey));
+        static::assertNull($store->get(self::HASH));
+
+        $store->put(self::HASH, collect(['second']), 1);
+
+        static::assertNotNull($store->get(self::HASH));
+
+        $store->flushTable();
+
+        static::assertSame(2, $store->getStore()->get($versionKey));
+        static::assertNull($store->get(self::HASH));
+    }
+
+    /**
+     * Test that, with invalidation disabled, flushTable leaves a non-taggable
      * entry in place so staleness is governed by TTL only.
      *
      * @return void
