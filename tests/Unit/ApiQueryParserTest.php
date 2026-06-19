@@ -295,6 +295,54 @@ class ApiQueryParserTest extends TestCase
     }
 
     /**
+     * Test that getLimit clamps a request above the configured maximum to that
+     * ceiling, so an unbounded page size cannot exhaust memory.
+     *
+     * @return void
+     */
+    public function testGetLimitClampsToConfiguredMaximum(): void
+    {
+        config()->set('api-toolkit.parser.max_limit', 100);
+
+        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['limit' => '100000']);
+        $this->parser->parse($request);
+
+        static::assertSame(100, $this->parser->getLimit());
+    }
+
+    /**
+     * Test that getLimit leaves the requested value untouched when the maximum
+     * ceiling is disabled (zero).
+     *
+     * @return void
+     */
+    public function testGetLimitIsNotClampedWhenMaximumDisabled(): void
+    {
+        config()->set('api-toolkit.parser.max_limit', 0);
+
+        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['limit' => '100000']);
+        $this->parser->parse($request);
+
+        static::assertSame(100000, $this->parser->getLimit());
+    }
+
+    /**
+     * Test that a non-numeric maximum configuration disables clamping rather
+     * than capping the limit to an unintended value.
+     *
+     * @return void
+     */
+    public function testGetLimitTreatsNonNumericMaximumAsDisabled(): void
+    {
+        config()->set('api-toolkit.parser.max_limit', 'not-a-number');
+
+        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['limit' => '100000']);
+        $this->parser->parse($request);
+
+        static::assertSame(100000, $this->parser->getLimit());
+    }
+
+    /**
      * Test that getLimit returns null for zero.
      *
      * @return void
