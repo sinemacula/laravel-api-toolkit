@@ -27,6 +27,10 @@ Version 2.0 is in development on the `2.x` branch. See [UPGRADE.md](UPGRADE.md) 
 
 ### Fixed
 
+- The transparent repository cache now folds the read verb, its arguments, and the registered
+  eager loads into the per-query cache key, so reads that share a base builder but differ only at
+  execution time - `find(1)` vs `find(2)`, `value()` vs `get()`, column projections, and
+  `with(...)`-eager-loaded vs plain reads - no longer collide on a single cache entry
 - `ApiException::getCustomDetail()` now returns an empty detail instead of leaking the raw
   translation key when no `detail` translation is registered, matching the existing
   `getCustomTitle()` guard
