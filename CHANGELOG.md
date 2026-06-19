@@ -27,6 +27,12 @@ Version 2.0 is in development on the `2.x` branch. See [UPGRADE.md](UPGRADE.md) 
 
 ### Fixed
 
+- The SSE `Emitter::emit()` now encodes array payloads with `JSON_THROW_ON_ERROR`, so an
+  unencodable payload raises a `JsonException` (which the event stream's error handler can act on)
+  instead of silently writing a single blank `data:` frame
+- `SchemaIntrospector::getColumns()` now caches an empty column listing instead of re-querying the
+  schema on every request, by gating the cache hit on the cache key's presence rather than on a
+  non-empty cached value
 - Lifecycle and error boundaries now preserve the full throwable (type, stack, cause) rather than
   only its message: the write-pool flush subscriber, the database log handler's fallback, and the
   write-pool chunk-failure logger log the throwable under an `exception` key, and the write-pool

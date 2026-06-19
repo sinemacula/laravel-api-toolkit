@@ -107,6 +107,19 @@ class EmitterTest extends TestCase
     }
 
     /**
+     * Test that emit raises a JsonException for unencodable array data instead
+     * of silently writing a blank data frame.
+     *
+     * @return void
+     */
+    public function testEmitThrowsJsonExceptionForUnencodableArrayData(): void
+    {
+        $this->expectException(\JsonException::class);
+
+        $this->emitter->emit(['invalid' => "\xB1\x31"]);
+    }
+
+    /**
      * Test that comment writes an empty comment line.
      *
      * @return void
