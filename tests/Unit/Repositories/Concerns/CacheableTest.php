@@ -345,6 +345,44 @@ class CacheableTest extends TestCase
     }
 
     /**
+     * Test that find() does not collide across distinct ids. The by-id
+     * constraint is applied at execution time - after the base builder is
+     * fingerprinted - so without folding the verb arguments into the cache key
+     * find(2) would be served the cached find(1) record.
+     *
+     * @return void
+     */
+    public function testFindDoesNotCollideAcrossDistinctIds(): void
+    {
+        $first  = $this->repository->find(1); // @phpstan-ignore staticMethod.dynamicCall
+        $second = $this->repository->find(2); // @phpstan-ignore staticMethod.dynamicCall
+
+        static::assertInstanceOf(Tag::class, $first);
+        static::assertInstanceOf(Tag::class, $second);
+        static::assertSame('php', $first->name);      // @phpstan-ignore property.notFound
+        static::assertSame('laravel', $second->name); // @phpstan-ignore property.notFound
+    }
+
+    /**
+     * Test that a scalar value() read does not collide with a cached get(). The
+     * two reads share an identical base builder, so without folding the verb
+     * into the cache key value('name') would be served the cached get()
+     * collection instead of the scalar column value.
+     *
+     * @return void
+     */
+    public function testScalarValueReadDoesNotCollideWithCachedGet(): void
+    {
+        $this->repository->get(); // @phpstan-ignore staticMethod.dynamicCall
+
+        $cached = $this->repository->value('name');                 // @phpstan-ignore staticMethod.dynamicCall
+        $fresh  = $this->repository->withoutCache()->value('name'); // @phpstan-ignore staticMethod.dynamicCall
+
+        static::assertIsString($cached);     // a scalar column value, never the cached get() collection
+        static::assertSame($fresh, $cached); // and the same value the database returns uncached
+    }
+
+    /**
      * Test that create() returning a Model invalidates the cache.
      *
      * @return void
