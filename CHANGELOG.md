@@ -61,3 +61,6 @@ Version 2.0 is in development on the `2.x` branch. See [UPGRADE.md](UPGRADE.md) 
   (`password`, `*token*`, `*secret*`, and `authorization` by default, matched case-insensitively
   and recursively) are redacted from the request data written to the `api-exceptions` log context,
   preventing credentials from leaking to logs and CloudWatch (CWE-532)
+- The request throttle key now includes the client IP for unauthenticated requests, so anonymous
+  callers no longer share a single rate-limit bucket per endpoint - one caller could previously
+  exhaust it and 429-lock every other anonymous caller

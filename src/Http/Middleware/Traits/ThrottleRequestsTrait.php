@@ -35,11 +35,14 @@ trait ThrottleRequestsTrait
 
         $server_name = $request->server('SERVER_NAME');
 
+        // Key by the authenticated user when present, otherwise by the client
+        // IP, so anonymous callers do not all share a single throttle bucket
+        // (which would let one caller rate-limit every other anonymous caller).
         return sha1(
             $request->method()
             . '|' . (is_string($server_name) ? $server_name : '')
             . '|' . $request->path()
-            . '|' . $request->user()?->getAuthIdentifier(),
+            . '|' . ($request->user()?->getAuthIdentifier() ?? $request->ip()),
         );
     }
 }
