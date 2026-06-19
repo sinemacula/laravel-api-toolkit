@@ -9,6 +9,8 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Cache\CacheManager;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Events\CacheFlushed;
+use SineMacula\ApiToolkit\Http\Resources\Concerns\EagerLoadPlanner;
+use SineMacula\ApiToolkit\Http\Resources\Concerns\ValueResolver;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 use Tests\Concerns\InteractsWithNonPublicMembers;
 use Tests\TestCase;
@@ -70,6 +72,50 @@ class CacheManagerTest extends TestCase
 
         // Assert
         static::assertSame([], $this->getStaticProperty(SchemaCompiler::class, 'cache'));
+    }
+
+    /**
+     * Test that flush clears the ValueResolver serialization memo caches.
+     *
+     * @return void
+     */
+    public function testFlushClearsValueResolverCache(): void
+    {
+        // Arrange
+        Event::fake();
+
+        $this->setStaticProperty(ValueResolver::class, 'castAccessorCache', ['FakeModel' => ['field' => true]]);
+
+        static::assertNotEmpty($this->getStaticProperty(ValueResolver::class, 'castAccessorCache'));
+
+        // Act
+        $manager = $this->app->make(CacheManager::class); // @phpstan-ignore method.nonObject
+        $manager->flush();
+
+        // Assert
+        static::assertSame([], $this->getStaticProperty(ValueResolver::class, 'castAccessorCache'));
+    }
+
+    /**
+     * Test that flush clears the EagerLoadPlanner static memo caches.
+     *
+     * @return void
+     */
+    public function testFlushClearsEagerLoadPlannerCache(): void
+    {
+        // Arrange
+        Event::fake();
+
+        $this->setStaticProperty(EagerLoadPlanner::class, 'eagerLoadCache', ['FakeResource|fields' => ['relation']]);
+
+        static::assertNotEmpty($this->getStaticProperty(EagerLoadPlanner::class, 'eagerLoadCache'));
+
+        // Act
+        $manager = $this->app->make(CacheManager::class); // @phpstan-ignore method.nonObject
+        $manager->flush();
+
+        // Assert
+        static::assertSame([], $this->getStaticProperty(EagerLoadPlanner::class, 'eagerLoadCache'));
     }
 
     /**

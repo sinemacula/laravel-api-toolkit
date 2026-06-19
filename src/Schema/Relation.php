@@ -21,7 +21,7 @@ final class Relation extends BaseDefinition implements Arrayable
     /** @var class-string|null Child ApiResource class */
     private ?string $resource = null;
 
-    /** @var (\Closure(\SineMacula\ApiToolkit\Contracts\ApiResourceInterface, \Illuminate\Http\Request|null): mixed)|string|null */
+    /** @var (\Closure(\SineMacula\ApiToolkit\Http\Resources\ApiResource, \Illuminate\Http\Request|null): mixed)|string|null */
     private \Closure|string|null $accessor = null;
 
     /** @var array<int, string>|null Child field projection for eager-load planning */
@@ -34,7 +34,7 @@ final class Relation extends BaseDefinition implements Arrayable
      * Prevent direct instantiation.
      *
      * @param  string  $name
-     * @param  (callable(\SineMacula\ApiToolkit\Contracts\ApiResourceInterface, \Illuminate\Http\Request|null): mixed)|string  $resource_or_accessor
+     * @param  (callable(\SineMacula\ApiToolkit\Http\Resources\ApiResource, \Illuminate\Http\Request|null): mixed)|string  $resource_or_accessor
      * @param  string|null  $alias
      */
     private function __construct(
@@ -52,7 +52,7 @@ final class Relation extends BaseDefinition implements Arrayable
         if (is_string($resource_or_accessor) && class_exists($resource_or_accessor)) {
             $this->resource = $resource_or_accessor;
         } else {
-            /** @var (\Closure(\SineMacula\ApiToolkit\Contracts\ApiResourceInterface, \Illuminate\Http\Request|null): mixed)|string $accessor */
+            /** @var (\Closure(\SineMacula\ApiToolkit\Http\Resources\ApiResource, \Illuminate\Http\Request|null): mixed)|string $accessor */
             $accessor = $resource_or_accessor;
 
             $this->accessor = $accessor;
@@ -63,7 +63,7 @@ final class Relation extends BaseDefinition implements Arrayable
      * Create a relation definition for the given relation name.
      *
      * @param  string  $name
-     * @param  (callable(\SineMacula\ApiToolkit\Contracts\ApiResourceInterface, \Illuminate\Http\Request|null): mixed)|string  $resource_or_accessor
+     * @param  (callable(\SineMacula\ApiToolkit\Http\Resources\ApiResource, \Illuminate\Http\Request|null): mixed)|string  $resource_or_accessor
      * @param  string|null  $alias
      * @return self
      */

@@ -56,7 +56,7 @@ final class Field extends BaseDefinition
      * Define an accessor field by name.
      *
      * @param  string  $field
-     * @param  (callable(\SineMacula\ApiToolkit\Contracts\ApiResourceInterface, \Illuminate\Http\Request|null): mixed)|string  $accessor
+     * @param  (callable(\SineMacula\ApiToolkit\Http\Resources\ApiResource, \Illuminate\Http\Request|null): mixed)|string  $accessor
      * @param  string|null  $alias
      * @return self
      */
@@ -111,7 +111,7 @@ final class Field extends BaseDefinition
      * Define a computed field by name.
      *
      * @param  string  $field
-     * @param  (callable(\SineMacula\ApiToolkit\Contracts\ApiResourceInterface, \Illuminate\Http\Request|null): mixed)|string  $compute
+     * @param  (callable(\SineMacula\ApiToolkit\Http\Resources\ApiResource, \Illuminate\Http\Request|null): mixed)|string  $compute
      * @param  string|null  $alias
      * @return self
      */

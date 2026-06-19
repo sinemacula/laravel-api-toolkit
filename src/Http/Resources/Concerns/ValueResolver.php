@@ -25,6 +25,12 @@ use SineMacula\ApiToolkit\Schema\CompiledSchema;
  */
 final class ValueResolver
 {
+    /** @var array<string, array<string, bool>> Memo of cast-accessor reflection results, keyed by [class][field]. */
+    private static array $castAccessorCache = [];
+
+    /** @var \WeakMap<\SineMacula\ApiToolkit\Schema\CompiledFieldDefinition, array<int, string>|null>|null Memo of resolved child field sets, keyed by compiled definition. */
+    private static ?\WeakMap $relationFieldsCache = null;
+
     /**
      * Create a new value resolver instance.
      *
@@ -36,6 +42,22 @@ final class ValueResolver
         private readonly GuardEvaluator $guardEvaluator,
 
     ) {}
+
+    /**
+     * Clear the static serialization memo caches.
+     *
+     * Invoked by CacheManager::flush() at request and worker boundaries so the
+     * per-(class, field) cast-accessor results and per-definition child field
+     * sets do not leak across requests under long-running runtimes (Octane,
+     * queues).
+     *
+     * @return void
+     */
+    public static function clearCache(): void
+    {
+        self::$castAccessorCache   = [];
+        self::$relationFieldsCache = null;
+    }
 
     /**
      * Resolve a single field's value from the schema definition.
@@ -194,6 +216,23 @@ final class ValueResolver
      */
     private function isCastAccessor(object $model, string $field): bool
     {
+        return self::$castAccessorCache[$model::class][$field] ??= $this->computeIsCastAccessor($model, $field);
+    }
+
+    /**
+     * Determine, via reflection, whether the field is an Eloquent cast accessor
+     * (returns Attribute).
+     *
+     * Isolated from isCastAccessor() so the expensive ReflectionMethod
+     * construction runs at most once per (class, field) on the serialization
+     * hot path.
+     *
+     * @param  object  $model
+     * @param  string  $field
+     * @return bool
+     */
+    private function computeIsCastAccessor(object $model, string $field): bool
+    {
         if (!method_exists($model, $field)) {
             return false;
         }
@@ -332,15 +371,24 @@ final class ValueResolver
      */
     private function getRelationFields(CompiledFieldDefinition $definition): ?array
     {
-        $fields = $definition->fields;
+        self::$relationFieldsCache ??= new \WeakMap;
 
-        if (!is_array($fields)) {
-            return null;
+        if (isset(self::$relationFieldsCache[$definition])) {
+            return self::$relationFieldsCache[$definition];
         }
 
-        $fields = array_values(array_filter($fields, static fn ($f) => is_string($f) && $f !== '')); // @phpstan-ignore function.alreadyNarrowedType
+        $fields = $definition->fields;
 
-        return $fields === [] ? [] : $fields;
+        // Resolve once per compiled definition rather than once per parent
+        // record on the serialization hot path; null when no explicit child
+        // field set was declared.
+        if (is_array($fields)) {
+            $fields = array_values(array_filter($fields, static fn ($f) => is_string($f) && $f !== '')); // @phpstan-ignore function.alreadyNarrowedType
+        } else {
+            $fields = null;
+        }
+
+        return self::$relationFieldsCache[$definition] = $fields;
     }
 
     /**
