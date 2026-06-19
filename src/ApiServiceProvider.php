@@ -11,14 +11,13 @@ use SineMacula\ApiToolkit\Providers\Registrars\ContainerBindingRegistrar;
 use SineMacula\ApiToolkit\Providers\Registrars\LifecycleRegistrar;
 use SineMacula\ApiToolkit\Providers\Registrars\LoggingRegistrar;
 use SineMacula\ApiToolkit\Providers\Registrars\MiddlewareRegistrar;
-use SineMacula\ApiToolkit\Providers\Registrars\RequestMacroRegistrar;
 use SineMacula\ApiToolkit\Services\SchemaValidator;
 
 /**
  * API service provider.
  *
  * Thin coordinator that merges the package configuration, handles publishing
- * and schema validation, and delegates registration of macros, middleware,
+ * and schema validation, and delegates registration of middleware,
  * logging, lifecycle listeners, and container bindings to single-
  * responsibility registrars.
  *
@@ -39,7 +38,6 @@ class ApiServiceProvider extends ServiceProvider
         $this->registerMorphMap();
         $this->validateSchemas();
 
-        (new RequestMacroRegistrar)->register();
         (new MiddlewareRegistrar($this->app))->register();
         (new LoggingRegistrar($this->app))->register();
         (new LifecycleRegistrar)->register();
