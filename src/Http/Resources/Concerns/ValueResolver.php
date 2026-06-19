@@ -104,7 +104,7 @@ final class ValueResolver
                 continue;
             }
 
-            $attribute = $definition->relation . '_count';
+            $attribute = $definition->presentKey . '_count';
             $value     = $this->getAttributeIfLoaded($owner, $attribute);
 
             if ($value !== null) {
