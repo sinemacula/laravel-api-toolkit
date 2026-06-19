@@ -3,7 +3,7 @@
 namespace SineMacula\ApiToolkit\Services\Validation\Rules;
 
 use SineMacula\ApiToolkit\Contracts\SchemaValidationRule;
-use SineMacula\ApiToolkit\Http\Resources\Schema\CompiledSchema;
+use SineMacula\ApiToolkit\Schema\CompiledSchema;
 use SineMacula\ApiToolkit\Services\Validation\SchemaValidationError;
 
 /**
@@ -19,7 +19,7 @@ final class ValidateAccessors implements SchemaValidationRule
      *
      * @param  string  $resourceClass
      * @param  string|null  $modelClass
-     * @param  \SineMacula\ApiToolkit\Http\Resources\Schema\CompiledSchema  $schema
+     * @param  \SineMacula\ApiToolkit\Schema\CompiledSchema  $schema
      * @return array<int, \SineMacula\ApiToolkit\Services\Validation\SchemaValidationError>
      */
     #[\Override]

@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
-use SineMacula\ApiToolkit\Http\Resources\Concerns\SafetySetDeriver;
+use SineMacula\ApiToolkit\Schema\SafetySetDeriver;
 use Tests\TestCase;
 
 /**
@@ -23,7 +23,7 @@ class SafetySetDeriverTest extends TestCase
     /** @var \PHPUnit\Framework\MockObject\Stub&\SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider */
     private SchemaIntrospectionProvider $introspector;
 
-    /** @var \SineMacula\ApiToolkit\Http\Resources\Concerns\SafetySetDeriver */
+    /** @var \SineMacula\ApiToolkit\Schema\SafetySetDeriver */
     private SafetySetDeriver $deriver;
 
     /**

@@ -6,7 +6,7 @@ use Illuminate\Http\Request;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
 use SineMacula\ApiToolkit\Http\Resources\ApiResource;
-use SineMacula\ApiToolkit\Http\Resources\Concerns\SchemaCompiler;
+use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 use SineMacula\Http\Enums\HttpMethod;
 use Tests\Fixtures\Models\Organization;
 use Tests\Fixtures\Models\Post;

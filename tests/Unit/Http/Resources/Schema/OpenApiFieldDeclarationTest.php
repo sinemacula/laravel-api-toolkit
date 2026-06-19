@@ -4,9 +4,9 @@ namespace Tests\Unit\Http\Resources\Schema;
 
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
-use SineMacula\ApiToolkit\Http\Resources\Schema\Field;
-use SineMacula\ApiToolkit\Http\Resources\Schema\OpenApiFieldDeclaration;
-use SineMacula\ApiToolkit\Http\Resources\Schema\OpenApiFieldSchema;
+use SineMacula\ApiToolkit\Schema\Field;
+use SineMacula\ApiToolkit\Schema\OpenApiFieldDeclaration;
+use SineMacula\ApiToolkit\Schema\OpenApiFieldSchema;
 
 /**
  * Tests for the OpenApiFieldDeclaration fluent carrier.

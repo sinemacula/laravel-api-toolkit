@@ -7,7 +7,7 @@ use Illuminate\Foundation\Application;
 use Illuminate\Testing\PendingCommand;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Console\ExportOpenApiCommand;
-use SineMacula\ApiToolkit\Http\Resources\Concerns\SchemaCompiler;
+use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 use Tests\Fixtures\Models\Organization;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Resources\OrganizationResource;

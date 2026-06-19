@@ -1,6 +1,6 @@
 <?php
 
-namespace SineMacula\ApiToolkit\Http\Resources\Schema;
+namespace SineMacula\ApiToolkit\Schema;
 
 use Carbon\CarbonInterface;
 use Illuminate\Contracts\Support\Arrayable;

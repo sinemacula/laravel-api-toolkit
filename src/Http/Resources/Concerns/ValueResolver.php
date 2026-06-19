@@ -8,9 +8,9 @@ use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Http\Resources\MissingValue;
 use Illuminate\Support\Collection;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
-use SineMacula\ApiToolkit\Http\Resources\Schema\CompiledCountDefinition;
-use SineMacula\ApiToolkit\Http\Resources\Schema\CompiledFieldDefinition;
-use SineMacula\ApiToolkit\Http\Resources\Schema\CompiledSchema;
+use SineMacula\ApiToolkit\Schema\CompiledCountDefinition;
+use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
+use SineMacula\ApiToolkit\Schema\CompiledSchema;
 
 /**
  * Resolves individual field values and counts payload from compiled schema
@@ -28,7 +28,7 @@ final class ValueResolver
     /** @var array<string, array<string, bool>> Memo of cast-accessor reflection results, keyed by [class][field]. */
     private static array $castAccessorCache = [];
 
-    /** @var \WeakMap<\SineMacula\ApiToolkit\Http\Resources\Schema\CompiledFieldDefinition, array<int, string>|null>|null Memo of resolved child field sets, keyed by compiled definition. */
+    /** @var \WeakMap<\SineMacula\ApiToolkit\Schema\CompiledFieldDefinition, array<int, string>|null>|null Memo of resolved child field sets, keyed by compiled definition. */
     private static ?\WeakMap $relationFieldsCache = null;
 
     /**
@@ -67,7 +67,7 @@ final class ValueResolver
      * evaluated first, and transformers are applied to the resolved value.
      *
      * @param  string  $field
-     * @param  \SineMacula\ApiToolkit\Http\Resources\Schema\CompiledFieldDefinition  $definition
+     * @param  \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition  $definition
      * @param  mixed  $resource
      * @param  \Illuminate\Http\Request|null  $request
      * @return mixed
@@ -100,7 +100,7 @@ final class ValueResolver
      * evaluation.
      *
      * @param  mixed  $resource
-     * @param  \SineMacula\ApiToolkit\Http\Resources\Schema\CompiledSchema  $schema
+     * @param  \SineMacula\ApiToolkit\Schema\CompiledSchema  $schema
      * @param  string  $resourceType
      * @param  \Illuminate\Http\Request|null  $request
      * @return array<string, int>
@@ -287,7 +287,7 @@ final class ValueResolver
      * related model is null, or wraps the related model with the appropriate
      * child resource class.
      *
-     * @param  \SineMacula\ApiToolkit\Http\Resources\Schema\CompiledFieldDefinition  $definition
+     * @param  \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition  $definition
      * @param  mixed  $resource
      * @param  \Illuminate\Http\Request|null  $request
      * @return mixed
@@ -310,7 +310,7 @@ final class ValueResolver
      * Resolve the final value for a loaded relation, dispatching to accessor
      * resolution or child resource wrapping as appropriate.
      *
-     * @param  \SineMacula\ApiToolkit\Http\Resources\Schema\CompiledFieldDefinition  $definition
+     * @param  \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition  $definition
      * @param  mixed  $related
      * @param  mixed  $resource
      * @param  \Illuminate\Http\Request|null  $request
@@ -366,7 +366,7 @@ final class ValueResolver
     /**
      * Get explicit child fields from a relation definition, if provided.
      *
-     * @param  \SineMacula\ApiToolkit\Http\Resources\Schema\CompiledFieldDefinition  $definition
+     * @param  \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition  $definition
      * @return array<int, string>|null
      */
     private function getRelationFields(CompiledFieldDefinition $definition): ?array
@@ -435,7 +435,7 @@ final class ValueResolver
      *
      * @param  string  $presentKey
      * @param  array<int, string>|null  $requested
-     * @param  \SineMacula\ApiToolkit\Http\Resources\Schema\CompiledCountDefinition  $definition
+     * @param  \SineMacula\ApiToolkit\Schema\CompiledCountDefinition  $definition
      * @return bool
      */
     private function shouldIncludeCount(string $presentKey, ?array $requested, CompiledCountDefinition $definition): bool

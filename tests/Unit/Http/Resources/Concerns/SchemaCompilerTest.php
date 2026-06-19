@@ -4,11 +4,11 @@ namespace Tests\Unit\Http\Resources\Concerns;
 
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
-use SineMacula\ApiToolkit\Http\Resources\Concerns\SchemaCompiler;
-use SineMacula\ApiToolkit\Http\Resources\Schema\CompiledCountDefinition;
-use SineMacula\ApiToolkit\Http\Resources\Schema\CompiledFieldDefinition;
-use SineMacula\ApiToolkit\Http\Resources\Schema\CompiledSchema;
-use SineMacula\ApiToolkit\Http\Resources\Schema\OpenApiFieldSchema;
+use SineMacula\ApiToolkit\Schema\CompiledCountDefinition;
+use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
+use SineMacula\ApiToolkit\Schema\CompiledSchema;
+use SineMacula\ApiToolkit\Schema\OpenApiFieldSchema;
+use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 use Tests\Fixtures\Resources\UserResource;
 
 /**

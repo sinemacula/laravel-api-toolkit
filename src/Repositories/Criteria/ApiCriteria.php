@@ -5,17 +5,17 @@ namespace SineMacula\ApiToolkit\Repositories\Criteria;
 use Illuminate\Contracts\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
+use SineMacula\ApiToolkit\Contracts\ApiResourceInterface;
 use SineMacula\ApiToolkit\Contracts\ResourceMetadataProvider;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
-use SineMacula\ApiToolkit\Http\Resources\ApiResource;
-use SineMacula\ApiToolkit\Http\Resources\Concerns\SafetySetDeriver;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\ColumnProjectionApplier;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\EagerLoadApplier;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterApplier;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\LimitApplier;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\OrderApplier;
 use SineMacula\ApiToolkit\Repositories\Traits\ResolvesResource;
+use SineMacula\ApiToolkit\Schema\SafetySetDeriver;
 use SineMacula\Repositories\Contracts\CriteriaInterface;
 
 /**
@@ -159,7 +159,7 @@ class ApiCriteria implements CriteriaInterface
     {
         $resource = $this->resolveResource($model);
 
-        if (!$resource || !is_subclass_of($resource, ApiResource::class)) {
+        if (!$resource || !is_subclass_of($resource, ApiResourceInterface::class)) {
             return null;
         }
 

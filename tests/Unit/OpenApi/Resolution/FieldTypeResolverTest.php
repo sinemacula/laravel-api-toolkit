@@ -5,10 +5,10 @@ namespace Tests\Unit\OpenApi\Resolution;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
-use SineMacula\ApiToolkit\Http\Resources\Schema\CompiledFieldDefinition;
-use SineMacula\ApiToolkit\Http\Resources\Schema\OpenApiFieldSchema;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ColumnTypeMapper;
 use SineMacula\ApiToolkit\OpenApi\Resolution\FieldTypeResolver;
+use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
+use SineMacula\ApiToolkit\Schema\OpenApiFieldSchema;
 use SineMacula\ApiToolkit\Services\Introspection\ColumnDefinition;
 use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\Tag;
@@ -381,8 +381,8 @@ class FieldTypeResolverTest extends TestCase
      * @param  string|null  $resource
      * @param  array<int, callable(mixed, mixed): bool>  $guards
      * @param  array<int, callable(mixed, mixed): mixed>  $transformers
-     * @param  \SineMacula\ApiToolkit\Http\Resources\Schema\OpenApiFieldSchema|null  $openApi
-     * @return \SineMacula\ApiToolkit\Http\Resources\Schema\CompiledFieldDefinition
+     * @param  \SineMacula\ApiToolkit\Schema\OpenApiFieldSchema|null  $openApi
+     * @return \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition
      */
     private function field(
         mixed $accessor = null,
@@ -412,7 +412,7 @@ class FieldTypeResolverTest extends TestCase
      * Assert that a schema is a permissive, flagged-undocumented schema that
      * carries no concrete type.
      *
-     * @param  \SineMacula\ApiToolkit\Http\Resources\Schema\OpenApiFieldSchema  $schema
+     * @param  \SineMacula\ApiToolkit\Schema\OpenApiFieldSchema  $schema
      * @return void
      */
     private function assertFlagged(OpenApiFieldSchema $schema): void

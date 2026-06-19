@@ -1,6 +1,6 @@
 <?php
 
-namespace SineMacula\ApiToolkit\Http\Resources\Schema;
+namespace SineMacula\ApiToolkit\Schema;
 
 /**
  * Pure domain rule that decides whether to narrow the base-table SELECT.
@@ -18,10 +18,10 @@ final class ColumnNarrower
      * Decide whether to narrow the base-table select for the resolved field
      * set.
      *
-     * @param  \SineMacula\ApiToolkit\Http\Resources\Schema\FieldColumnMap  $map
+     * @param  \SineMacula\ApiToolkit\Schema\FieldColumnMap  $map
      * @param  array<int, string>  $resolvedFields
      * @param  array<int, string>  $safetySetColumns
-     * @return \SineMacula\ApiToolkit\Http\Resources\Schema\NarrowingDecision
+     * @return \SineMacula\ApiToolkit\Schema\NarrowingDecision
      */
     public function decide(FieldColumnMap $map, array $resolvedFields, array $safetySetColumns): NarrowingDecision
     {

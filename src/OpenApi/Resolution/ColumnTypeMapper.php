@@ -2,7 +2,7 @@
 
 namespace SineMacula\ApiToolkit\OpenApi\Resolution;
 
-use SineMacula\ApiToolkit\Http\Resources\Schema\OpenApiFieldSchema;
+use SineMacula\ApiToolkit\Schema\OpenApiFieldSchema;
 use SineMacula\ApiToolkit\Services\Introspection\ColumnDefinition;
 
 /**
@@ -40,7 +40,7 @@ class ColumnTypeMapper
      *
      * @param  \SineMacula\ApiToolkit\Services\Introspection\ColumnDefinition  $column
      * @param  string|null  $cast
-     * @return \SineMacula\ApiToolkit\Http\Resources\Schema\OpenApiFieldSchema
+     * @return \SineMacula\ApiToolkit\Schema\OpenApiFieldSchema
      */
     public function map(ColumnDefinition $column, ?string $cast = null): OpenApiFieldSchema
     {

@@ -1,6 +1,6 @@
 <?php
 
-namespace SineMacula\ApiToolkit\Http\Resources\Schema;
+namespace SineMacula\ApiToolkit\Schema;
 
 /**
  * Per-resource-type map of field key to declared column reads.

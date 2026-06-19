@@ -5,8 +5,8 @@ namespace Tests\Unit\OpenApi\Resolution;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
-use SineMacula\ApiToolkit\Http\Resources\Schema\OpenApiFieldSchema;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ColumnTypeMapper;
+use SineMacula\ApiToolkit\Schema\OpenApiFieldSchema;
 use SineMacula\ApiToolkit\Services\Introspection\ColumnDefinition;
 
 /**

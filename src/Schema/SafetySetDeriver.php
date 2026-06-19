@@ -1,6 +1,6 @@
 <?php
 
-namespace SineMacula\ApiToolkit\Http\Resources\Concerns;
+namespace SineMacula\ApiToolkit\Schema;
 
 use Illuminate\Database\Eloquent\Model;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;

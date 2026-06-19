@@ -4,8 +4,8 @@ namespace Tests\Unit\Services\Validation\Rules;
 
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
-use SineMacula\ApiToolkit\Http\Resources\Schema\CompiledFieldDefinition;
-use SineMacula\ApiToolkit\Http\Resources\Schema\CompiledSchema;
+use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
+use SineMacula\ApiToolkit\Schema\CompiledSchema;
 use SineMacula\ApiToolkit\Services\Validation\Rules\ValidateAccessors;
 
 /**
@@ -242,7 +242,7 @@ class ValidateAccessorsTest extends TestCase
      * Create a compiled field definition with the given accessor.
      *
      * @param  mixed  $accessor
-     * @return \SineMacula\ApiToolkit\Http\Resources\Schema\CompiledFieldDefinition
+     * @return \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition
      */
     private function makeField(mixed $accessor): CompiledFieldDefinition
     {
@@ -291,7 +291,7 @@ class ValidateAccessorsTest extends TestCase
      * element type via reflection.
      *
      * @param  array<string, mixed>  $fields
-     * @return \SineMacula\ApiToolkit\Http\Resources\Schema\CompiledSchema
+     * @return \SineMacula\ApiToolkit\Schema\CompiledSchema
      */
     private function createSchemaWithRawFields(array $fields): CompiledSchema
     {
