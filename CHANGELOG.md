@@ -24,3 +24,10 @@ Version 2.0 is in development on the `2.x` branch. See [UPGRADE.md](UPGRADE.md) 
 - Opt-in deferred repository writes with a write pool, and opt-in transparent repository caching
 - Exception handler coverage for all HTTP-layer exceptions, preserving `abort()` status codes
 - Configurable middleware registration and notification logging exclusions
+
+### Security
+
+- The API exception handler no longer logs the raw request body. Configured sensitive keys
+  (`password`, `*token*`, `*secret*`, and `authorization` by default, matched case-insensitively
+  and recursively) are redacted from the request data written to the `api-exceptions` log context,
+  preventing credentials from leaking to logs and CloudWatch (CWE-532)
