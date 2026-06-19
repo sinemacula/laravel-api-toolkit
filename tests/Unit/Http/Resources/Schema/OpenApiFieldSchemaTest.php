@@ -4,7 +4,7 @@ namespace Tests\Unit\Http\Resources\Schema;
 
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
-use SineMacula\ApiToolkit\Http\Resources\Schema\OpenApiFieldSchema;
+use SineMacula\ApiToolkit\Schema\OpenApiFieldSchema;
 
 /**
  * Tests for the OpenApiFieldSchema value object.

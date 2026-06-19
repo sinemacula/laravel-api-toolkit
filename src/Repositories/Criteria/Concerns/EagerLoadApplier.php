@@ -3,9 +3,9 @@
 namespace SineMacula\ApiToolkit\Repositories\Criteria\Concerns;
 
 use Illuminate\Contracts\Database\Eloquent\Builder;
+use SineMacula\ApiToolkit\Contracts\ApiResourceInterface;
 use SineMacula\ApiToolkit\Contracts\ResourceMetadataProvider;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
-use SineMacula\ApiToolkit\Http\Resources\ApiResource;
 
 /**
  * Applies eager loading to an Eloquent query builder.
@@ -30,7 +30,7 @@ final class EagerLoadApplier
      */
     public function apply(Builder $query, ResourceMetadataProvider $metadataProvider, ?string $resourceClass, ?string $resourceType): Builder
     {
-        if ($resourceClass === null || !is_subclass_of($resourceClass, ApiResource::class)) {
+        if ($resourceClass === null || !is_subclass_of($resourceClass, ApiResourceInterface::class)) {
             return $query;
         }
 

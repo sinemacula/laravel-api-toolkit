@@ -2,10 +2,10 @@
 
 namespace SineMacula\ApiToolkit\OpenApi\Builder;
 
-use SineMacula\ApiToolkit\Http\Resources\Concerns\SchemaCompiler;
-use SineMacula\ApiToolkit\Http\Resources\Schema\CompiledFieldDefinition;
 use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
 use SineMacula\ApiToolkit\OpenApi\Resolution\FieldTypeResolver;
+use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
+use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 
 /**
  * Builds one components.schemas entry per registered resource.
@@ -98,7 +98,7 @@ class ResourceSchemaBuilder
      * fields are resolved through the correctness gate.
      *
      * @param  string  $fieldKey
-     * @param  \SineMacula\ApiToolkit\Http\Resources\Schema\CompiledFieldDefinition  $field
+     * @param  \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition  $field
      * @param  class-string<\Illuminate\Database\Eloquent\Model>  $modelClass
      * @return array<string, mixed>
      */
@@ -178,7 +178,7 @@ class ResourceSchemaBuilder
      * conditionally present so are always optional. Only a plain, non-guarded
      * scalar contributes to the required list.
      *
-     * @param  \SineMacula\ApiToolkit\Http\Resources\Schema\CompiledFieldDefinition  $field
+     * @param  \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition  $field
      * @return bool
      */
     private function isRequired(CompiledFieldDefinition $field): bool

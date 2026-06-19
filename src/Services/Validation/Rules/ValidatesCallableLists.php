@@ -3,8 +3,8 @@
 namespace SineMacula\ApiToolkit\Services\Validation\Rules;
 
 use SineMacula\ApiToolkit\Contracts\SchemaValidationRule;
-use SineMacula\ApiToolkit\Http\Resources\Schema\CompiledFieldDefinition;
-use SineMacula\ApiToolkit\Http\Resources\Schema\CompiledSchema;
+use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
+use SineMacula\ApiToolkit\Schema\CompiledSchema;
 use SineMacula\ApiToolkit\Services\Validation\SchemaValidationError;
 
 /**
@@ -24,7 +24,7 @@ abstract class ValidatesCallableLists implements SchemaValidationRule
      *
      * @param  string  $resourceClass
      * @param  string|null  $modelClass
-     * @param  \SineMacula\ApiToolkit\Http\Resources\Schema\CompiledSchema  $schema
+     * @param  \SineMacula\ApiToolkit\Schema\CompiledSchema  $schema
      * @return array<int, \SineMacula\ApiToolkit\Services\Validation\SchemaValidationError>
      */
     #[\Override]
@@ -49,7 +49,7 @@ abstract class ValidatesCallableLists implements SchemaValidationRule
     /**
      * Return the callable list to validate for the given field definition.
      *
-     * @param  \SineMacula\ApiToolkit\Http\Resources\Schema\CompiledFieldDefinition  $field
+     * @param  \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition  $field
      * @return array<int, callable(mixed, mixed): mixed>
      */
     abstract protected function getCallables(CompiledFieldDefinition $field): array;

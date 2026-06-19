@@ -2,7 +2,7 @@
 
 namespace SineMacula\ApiToolkit\Contracts;
 
-use SineMacula\ApiToolkit\Http\Resources\Schema\CompiledSchema;
+use SineMacula\ApiToolkit\Schema\CompiledSchema;
 
 /**
  * Schema validation rule contract.
@@ -17,7 +17,7 @@ interface SchemaValidationRule
      *
      * @param  string  $resourceClass
      * @param  string|null  $modelClass
-     * @param  \SineMacula\ApiToolkit\Http\Resources\Schema\CompiledSchema  $schema
+     * @param  \SineMacula\ApiToolkit\Schema\CompiledSchema  $schema
      * @return array<int, \SineMacula\ApiToolkit\Services\Validation\SchemaValidationError>
      */
     public function validate(string $resourceClass, ?string $modelClass, CompiledSchema $schema): array;

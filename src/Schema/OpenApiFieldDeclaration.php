@@ -1,6 +1,6 @@
 <?php
 
-namespace SineMacula\ApiToolkit\Http\Resources\Schema;
+namespace SineMacula\ApiToolkit\Schema;
 
 /**
  * Fluent carrier for an author-declared OpenAPI field contract.
@@ -38,7 +38,7 @@ final class OpenApiFieldDeclaration
     /**
      * Constructor.
      *
-     * @param  \SineMacula\ApiToolkit\Http\Resources\Schema\BaseDefinition  $parent
+     * @param  \SineMacula\ApiToolkit\Schema\BaseDefinition  $parent
      */
     public function __construct(
 
@@ -128,7 +128,7 @@ final class OpenApiFieldDeclaration
     /**
      * Return to the owning definition to continue the schema chain.
      *
-     * @return \SineMacula\ApiToolkit\Http\Resources\Schema\BaseDefinition
+     * @return \SineMacula\ApiToolkit\Schema\BaseDefinition
      */
     public function end(): BaseDefinition
     {
@@ -138,7 +138,7 @@ final class OpenApiFieldDeclaration
     /**
      * Freeze the declared values into an immutable resolved schema.
      *
-     * @return \SineMacula\ApiToolkit\Http\Resources\Schema\OpenApiFieldSchema
+     * @return \SineMacula\ApiToolkit\Schema\OpenApiFieldSchema
      */
     public function toSchema(): OpenApiFieldSchema
     {

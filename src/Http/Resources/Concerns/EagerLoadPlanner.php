@@ -8,8 +8,9 @@ use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Illuminate\Database\Eloquent\Relations\Relation as EloquentRelation;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
 use SineMacula\ApiToolkit\Http\Resources\ApiResource;
-use SineMacula\ApiToolkit\Http\Resources\Schema\CompiledCountDefinition;
-use SineMacula\ApiToolkit\Http\Resources\Schema\CompiledFieldDefinition;
+use SineMacula\ApiToolkit\Schema\CompiledCountDefinition;
+use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
+use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 
 /**
  * Builds eager-load maps and count maps by traversing compiled schema relation
@@ -136,7 +137,7 @@ final class EagerLoadPlanner
     /**
      * Collect extra eager-load paths from a field definition.
      *
-     * @param  \SineMacula\ApiToolkit\Http\Resources\Schema\CompiledFieldDefinition  $definition
+     * @param  \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition  $definition
      * @param  string  $prefix
      * @param  array<int, string>  $plain
      * @return void
@@ -153,7 +154,7 @@ final class EagerLoadPlanner
     /**
      * Add the relation path as either a scoped or plain eager-load entry.
      *
-     * @param  \SineMacula\ApiToolkit\Http\Resources\Schema\CompiledFieldDefinition  $definition
+     * @param  \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition  $definition
      * @param  string  $fullPath
      * @param  array<int, string>  $plain
      * @param  array<string, mixed>  $scoped
@@ -200,7 +201,7 @@ final class EagerLoadPlanner
     /**
      * If the definition points to a child resource, recurse into it.
      *
-     * @param  \SineMacula\ApiToolkit\Http\Resources\Schema\CompiledFieldDefinition  $definition
+     * @param  \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition  $definition
      * @param  string  $fullPath
      * @param  array<int, string>  $plain
      * @param  array<string, mixed>  $scoped
@@ -264,7 +265,7 @@ final class EagerLoadPlanner
      * Determine whether the definition points to a child ApiResource that
      * should be recursed into.
      *
-     * @param  \SineMacula\ApiToolkit\Http\Resources\Schema\CompiledFieldDefinition  $definition
+     * @param  \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition  $definition
      * @return bool
      */
     private static function shouldRecurseIntoChild(CompiledFieldDefinition $definition): bool
@@ -280,7 +281,7 @@ final class EagerLoadPlanner
      * Reads from: (1) explicit fields on the definition, (2) API query for the
      * child resource type, (3) child default fields or all-fields.
      *
-     * @param  \SineMacula\ApiToolkit\Http\Resources\Schema\CompiledFieldDefinition  $definition
+     * @param  \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition  $definition
      * @param  string  $resource
      * @return array<int, string>
      */
@@ -333,7 +334,7 @@ final class EagerLoadPlanner
      *
      * @param  string  $presentKey
      * @param  array<int, string>|null  $requested
-     * @param  \SineMacula\ApiToolkit\Http\Resources\Schema\CompiledCountDefinition  $definition
+     * @param  \SineMacula\ApiToolkit\Schema\CompiledCountDefinition  $definition
      * @return bool
      */
     private static function shouldIncludeCount(string $presentKey, ?array $requested, CompiledCountDefinition $definition): bool

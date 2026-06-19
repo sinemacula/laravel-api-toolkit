@@ -3,10 +3,10 @@
 namespace Tests\Unit\Http\Resources\Concerns;
 
 use PHPUnit\Framework\Attributes\CoversClass;
-use SineMacula\ApiToolkit\Http\Resources\Concerns\FieldColumnMapper;
-use SineMacula\ApiToolkit\Http\Resources\Concerns\SchemaCompiler;
-use SineMacula\ApiToolkit\Http\Resources\Schema\CompiledFieldDefinition;
-use SineMacula\ApiToolkit\Http\Resources\Schema\CompiledSchema;
+use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
+use SineMacula\ApiToolkit\Schema\CompiledSchema;
+use SineMacula\ApiToolkit\Schema\FieldColumnMapper;
+use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 use Tests\TestCase;
 
 /**
@@ -167,8 +167,8 @@ class FieldColumnMapperTest extends TestCase
     /**
      * Build a compiled schema from the given field definitions.
      *
-     * @param  array<string, \SineMacula\ApiToolkit\Http\Resources\Schema\CompiledFieldDefinition>  $fields
-     * @return \SineMacula\ApiToolkit\Http\Resources\Schema\CompiledSchema
+     * @param  array<string, \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition>  $fields
+     * @return \SineMacula\ApiToolkit\Schema\CompiledSchema
      */
     private function makeSchema(array $fields): CompiledSchema
     {
@@ -183,7 +183,7 @@ class FieldColumnMapperTest extends TestCase
      * @param  string|null  $relation
      * @param  array<int, string>  $needs
      * @param  array<int, callable(mixed, mixed): bool>  $guards
-     * @return \SineMacula\ApiToolkit\Http\Resources\Schema\CompiledFieldDefinition
+     * @return \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition
      */
     private function makeDefinition(mixed $accessor = null, mixed $compute = null, ?string $relation = null, array $needs = [], array $guards = []): CompiledFieldDefinition
     {

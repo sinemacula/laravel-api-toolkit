@@ -2,7 +2,7 @@
 
 namespace SineMacula\ApiToolkit\Services\Validation\Rules;
 
-use SineMacula\ApiToolkit\Http\Resources\Schema\CompiledFieldDefinition;
+use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
 
 /**
  * Validate that all transformer entries in the compiled schema are callable.
@@ -15,7 +15,7 @@ final class ValidateTransformers extends ValidatesCallableLists
     /**
      * Return the callable list to validate for the given field definition.
      *
-     * @param  \SineMacula\ApiToolkit\Http\Resources\Schema\CompiledFieldDefinition  $field
+     * @param  \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition  $field
      * @return array<int, callable(mixed, mixed): mixed>
      */
     #[\Override]

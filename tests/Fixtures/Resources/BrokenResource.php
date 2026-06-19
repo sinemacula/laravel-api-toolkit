@@ -3,8 +3,8 @@
 namespace Tests\Fixtures\Resources;
 
 use SineMacula\ApiToolkit\Http\Resources\ApiResource;
-use SineMacula\ApiToolkit\Http\Resources\Schema\Field;
-use SineMacula\ApiToolkit\Http\Resources\Schema\Relation;
+use SineMacula\ApiToolkit\Schema\Field;
+use SineMacula\ApiToolkit\Schema\Relation;
 
 /**
  * Fixture resource with a deliberately broken schema for testing.

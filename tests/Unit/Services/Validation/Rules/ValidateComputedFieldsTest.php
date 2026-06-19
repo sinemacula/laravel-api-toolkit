@@ -4,8 +4,8 @@ namespace Tests\Unit\Services\Validation\Rules;
 
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
-use SineMacula\ApiToolkit\Http\Resources\Schema\CompiledFieldDefinition;
-use SineMacula\ApiToolkit\Http\Resources\Schema\CompiledSchema;
+use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
+use SineMacula\ApiToolkit\Schema\CompiledSchema;
 use SineMacula\ApiToolkit\Services\Validation\Rules\ValidateComputedFields;
 use Tests\Fixtures\Resources\UserResource;
 
@@ -269,7 +269,7 @@ class ValidateComputedFieldsTest extends TestCase
      * Create a compiled field definition with the given compute value.
      *
      * @param  mixed  $compute
-     * @return \SineMacula\ApiToolkit\Http\Resources\Schema\CompiledFieldDefinition
+     * @return \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition
      */
     private function makeField(mixed $compute): CompiledFieldDefinition
     {

@@ -4,7 +4,7 @@ namespace SineMacula\ApiToolkit\Http\Resources\Concerns;
 
 use Illuminate\Support\Facades\Config;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
-use SineMacula\ApiToolkit\Http\Resources\Schema\CompiledSchema;
+use SineMacula\ApiToolkit\Schema\CompiledSchema;
 
 /**
  * Consolidates field state and resolution logic for API resources.
@@ -66,7 +66,7 @@ final class FieldResolver
      * fixed fields into a deduplicated list. Excluded fields are removed before
      * fixed fields are appended.
      *
-     * @param  \SineMacula\ApiToolkit\Http\Resources\Schema\CompiledSchema  $schema
+     * @param  \SineMacula\ApiToolkit\Schema\CompiledSchema  $schema
      * @param  string  $resourceType
      * @param  array<int, string>  $defaultFields
      * @param  array<int, string>  $fixedFields

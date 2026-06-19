@@ -4,8 +4,8 @@ namespace SineMacula\ApiToolkit\OpenApi\Resolution;
 
 use Illuminate\Database\Eloquent\Model;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
-use SineMacula\ApiToolkit\Http\Resources\Schema\CompiledFieldDefinition;
-use SineMacula\ApiToolkit\Http\Resources\Schema\OpenApiFieldSchema;
+use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
+use SineMacula\ApiToolkit\Schema\OpenApiFieldSchema;
 
 /**
  * Resolves a single compiled field to its emitted OpenAPI schema.
@@ -38,9 +38,9 @@ class FieldTypeResolver
      * then flagged.
      *
      * @param  string  $fieldKey
-     * @param  \SineMacula\ApiToolkit\Http\Resources\Schema\CompiledFieldDefinition  $field
+     * @param  \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition  $field
      * @param  class-string<\Illuminate\Database\Eloquent\Model>  $modelClass
-     * @return \SineMacula\ApiToolkit\Http\Resources\Schema\OpenApiFieldSchema
+     * @return \SineMacula\ApiToolkit\Schema\OpenApiFieldSchema
      */
     public function resolve(string $fieldKey, CompiledFieldDefinition $field, string $modelClass): OpenApiFieldSchema
     {
@@ -63,7 +63,7 @@ class FieldTypeResolver
      * callback, or a relation, or when a guard or transformer intervenes
      * between the column and the emitted value.
      *
-     * @param  \SineMacula\ApiToolkit\Http\Resources\Schema\CompiledFieldDefinition  $field
+     * @param  \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition  $field
      * @return bool
      */
     private function isOpaque(CompiledFieldDefinition $field): bool
@@ -81,7 +81,7 @@ class FieldTypeResolver
      *
      * @param  string  $fieldKey
      * @param  class-string<\Illuminate\Database\Eloquent\Model>  $modelClass
-     * @return \SineMacula\ApiToolkit\Http\Resources\Schema\OpenApiFieldSchema
+     * @return \SineMacula\ApiToolkit\Schema\OpenApiFieldSchema
      */
     private function inferScalar(string $fieldKey, string $modelClass): OpenApiFieldSchema
     {

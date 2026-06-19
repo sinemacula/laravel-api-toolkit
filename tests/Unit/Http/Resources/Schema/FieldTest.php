@@ -6,8 +6,8 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use SineMacula\ApiToolkit\Exceptions\DuplicateSchemaKeyException;
-use SineMacula\ApiToolkit\Http\Resources\Schema\Field;
-use SineMacula\ApiToolkit\Http\Resources\Schema\OpenApiFieldSchema;
+use SineMacula\ApiToolkit\Schema\Field;
+use SineMacula\ApiToolkit\Schema\OpenApiFieldSchema;
 
 /**
  * Tests for the Field schema definition.
@@ -342,7 +342,7 @@ class FieldTest extends TestCase
     /**
      * Provide factory method variations.
      *
-     * @return iterable<string, array{\SineMacula\ApiToolkit\Http\Resources\Schema\Field, string}>
+     * @return iterable<string, array{\SineMacula\ApiToolkit\Schema\Field, string}>
      */
     public static function factoryMethodProvider(): iterable
     {
@@ -360,7 +360,7 @@ class FieldTest extends TestCase
     /**
      * Test static factory methods create Field instances.
      *
-     * @param  \SineMacula\ApiToolkit\Http\Resources\Schema\Field  $field
+     * @param  \SineMacula\ApiToolkit\Schema\Field  $field
      * @param  string  $expectedKey
      * @return void
      */

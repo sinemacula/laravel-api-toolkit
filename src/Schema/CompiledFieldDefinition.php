@@ -1,6 +1,6 @@
 <?php
 
-namespace SineMacula\ApiToolkit\Http\Resources\Schema;
+namespace SineMacula\ApiToolkit\Schema;
 
 /**
  * Typed representation of a single compiled field definition.
@@ -26,7 +26,7 @@ final readonly class CompiledFieldDefinition
      * @param  array<int, string>  $needs
      * @param  array<int, callable(mixed, mixed): bool>  $guards
      * @param  array<int, callable(mixed, mixed): mixed>  $transformers
-     * @param  \SineMacula\ApiToolkit\Http\Resources\Schema\OpenApiFieldSchema|null  $openApi
+     * @param  \SineMacula\ApiToolkit\Schema\OpenApiFieldSchema|null  $openApi
      */
     public function __construct(
 
