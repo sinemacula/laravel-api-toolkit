@@ -925,4 +925,22 @@ class ApiExceptionHandlerTest extends TestCase
         static::assertArrayHasKey('method', $result);
         static::assertSame(['method', 'path', 'data'], array_keys($result));
     }
+
+    /**
+     * Define the test environment.
+     *
+     * Loads the package's exception translations so rendered error responses
+     * include a non-empty detail rather than relying on the (now-fixed)
+     * raw-key fallback.
+     *
+     * @param  mixed  $app
+     * @return void
+     */
+    protected function defineEnvironment(mixed $app): void
+    {
+        /** @var \Illuminate\Translation\Translator $translator */
+        $translator = $app['translator'];
+
+        $translator->addNamespace('api-toolkit', __DIR__ . '/../../../resources/lang');
+    }
 }
