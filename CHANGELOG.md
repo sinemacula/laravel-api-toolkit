@@ -27,6 +27,9 @@ Version 2.0 is in development on the `2.x` branch. See [UPGRADE.md](UPGRADE.md) 
 
 ### Fixed
 
+- `AttributeSetter` relation sync now plucks the related model's primary key (`getKeyName()`) instead
+  of a hardcoded `id`, so syncing a model or collection into a `BelongsToMany` whose related model
+  uses a non-`id` primary key attaches the correct keys rather than null
 - The SSE `Emitter::emit()` now encodes array payloads with `JSON_THROW_ON_ERROR`, so an
   unencodable payload raises a `JsonException` (which the event stream's error handler can act on)
   instead of silently writing a single blank `data:` frame
