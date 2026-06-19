@@ -25,6 +25,9 @@ class TunedCacheableTagRepository extends ApiRepository
     /** @var int Reference-mode cache duration in seconds. */
     protected int $cacheReferenceTtl = 240;
 
+    /** @var int Negative-lookup cache duration in seconds. */
+    protected int $cacheNegativeTtl = 30;
+
     /** @var int The maximum cacheable row count. */
     protected int $cacheMaxRows = 50;
 
