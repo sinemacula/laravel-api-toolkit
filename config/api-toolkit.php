@@ -50,6 +50,11 @@ return [
 
         'include_debug_info' => null,
 
+        // Lower-case substrings used to redact matching request keys (e.g.
+        // password, *_token, *secret*) from the request data written to the
+        // exception log context, preventing credentials from leaking to logs.
+        'sensitive_keys' => ['password', 'token', 'secret', 'authorization'],
+
     ],
 
     /*

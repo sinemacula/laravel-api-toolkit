@@ -15,6 +15,7 @@ use Illuminate\Routing\Exceptions\BackedEnumCaseNotFoundException;
 use Illuminate\Session\TokenMismatchException as LaravelTokenMismatchException;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Request as RequestFacade;
 use Illuminate\Validation\UnauthorizedException as LaravelUnauthorizedException;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Validation\Validator;
@@ -927,6 +928,95 @@ class ApiExceptionHandlerTest extends TestCase
     }
 
     /**
+     * Test that getContext redacts sensitive request keys - matched as
+     * case-insensitive substrings, recursively through nested arrays - so
+     * credentials never reach the exception log.
+     *
+     * @return void
+     */
+    public function testGetContextRedactsSensitiveRequestKeys(): void
+    {
+        $request = Request::create(self::API_PATH, 'POST', [
+            'email'     => 'alice@example.com',
+            'password'  => 'super-secret',
+            'API_TOKEN' => 'tok_live_123',
+            'nested'    => ['client_secret' => 'shh', 'keep' => 'visible'],
+        ]);
+
+        assert($this->app !== null);
+
+        $this->app->instance('request', $request);
+        RequestFacade::clearResolvedInstance('request');
+
+        $reflection = new \ReflectionMethod(ApiExceptionHandler::class, 'getContext');
+
+        $result = $reflection->invoke(null);
+
+        static::assertIsArray($result);
+
+        $data = $result['data'];
+
+        static::assertIsArray($data);
+        static::assertSame('alice@example.com', $data['email']);
+        static::assertSame('[redacted]', $data['password']);
+        static::assertSame('[redacted]', $data['API_TOKEN']);
+
+        $nested = $data['nested'];
+
+        static::assertIsArray($nested);
+        static::assertSame('[redacted]', $nested['client_secret']);
+        static::assertSame('visible', $nested['keep']);
+    }
+
+    /**
+     * Test that configured sensitive keys are matched case-insensitively, so an
+     * upper-case denylist entry still redacts a lower-case request key.
+     *
+     * @return void
+     */
+    public function testGetContextRedactsCaseInsensitiveConfiguredKeys(): void
+    {
+        config()->set('api-toolkit.exceptions.sensitive_keys', ['SECRET']);
+
+        $data = $this->contextDataForRequest(['my_secret' => 'shh', 'email' => 'a@b.com']);
+
+        static::assertSame('[redacted]', $data['my_secret']);
+        static::assertSame('a@b.com', $data['email']);
+    }
+
+    /**
+     * Test that a non-array sensitive-keys config falls back to the default
+     * denylist rather than disabling redaction.
+     *
+     * @return void
+     */
+    public function testGetContextFallsBackToDefaultSensitiveKeysForNonArrayConfig(): void
+    {
+        config()->set('api-toolkit.exceptions.sensitive_keys', 'password');
+
+        $data = $this->contextDataForRequest(['password' => 'super-secret', 'email' => 'a@b.com']);
+
+        static::assertSame('[redacted]', $data['password']);
+        static::assertSame('a@b.com', $data['email']);
+    }
+
+    /**
+     * Test that an empty configured key is ignored rather than matching - and
+     * therefore redacting - every request key.
+     *
+     * @return void
+     */
+    public function testGetContextIgnoresEmptyConfiguredSensitiveKeys(): void
+    {
+        config()->set('api-toolkit.exceptions.sensitive_keys', ['', 'password']);
+
+        $data = $this->contextDataForRequest(['password' => 'super-secret', 'email' => 'a@b.com']);
+
+        static::assertSame('[redacted]', $data['password']);
+        static::assertSame('a@b.com', $data['email']);
+    }
+
+    /**
      * Define the test environment.
      *
      * Loads the package's exception translations so rendered error responses
@@ -942,5 +1032,31 @@ class ApiExceptionHandlerTest extends TestCase
         $translator = $app['translator'];
 
         $translator->addNamespace('api-toolkit', __DIR__ . '/../../../resources/lang');
+    }
+
+    /**
+     * Resolve getContext()'s redacted request data for a POST body.
+     *
+     * @param  array<string, mixed>  $body
+     * @return array<array-key, mixed>
+     */
+    private function contextDataForRequest(array $body): array
+    {
+        $request = Request::create(self::API_PATH, 'POST', $body);
+
+        assert($this->app !== null);
+
+        $this->app->instance('request', $request);
+        RequestFacade::clearResolvedInstance('request');
+
+        $result = (new \ReflectionMethod(ApiExceptionHandler::class, 'getContext'))->invoke(null);
+
+        static::assertIsArray($result);
+
+        $data = $result['data'];
+
+        static::assertIsArray($data);
+
+        return $data;
     }
 }

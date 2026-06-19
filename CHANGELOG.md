@@ -54,3 +54,10 @@ Version 2.0 is in development on the `2.x` branch. See [UPGRADE.md](UPGRADE.md) 
 - `ApiException::getCustomDetail()` now returns an empty detail instead of leaking the raw
   translation key when no `detail` translation is registered, matching the existing
   `getCustomTitle()` guard
+
+### Security
+
+- The API exception handler no longer logs the raw request body. Configured sensitive keys
+  (`password`, `*token*`, `*secret*`, and `authorization` by default, matched case-insensitively
+  and recursively) are redacted from the request data written to the `api-exceptions` log context,
+  preventing credentials from leaking to logs and CloudWatch (CWE-532)
