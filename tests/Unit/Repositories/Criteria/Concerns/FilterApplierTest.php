@@ -20,6 +20,7 @@ use SineMacula\ApiToolkit\Repositories\Criteria\Operators\LikeOperator;
 use SineMacula\ApiToolkit\Repositories\Criteria\Operators\NotEqualOperator;
 use SineMacula\ApiToolkit\Repositories\Criteria\Operators\NotNullOperator;
 use SineMacula\ApiToolkit\Repositories\Criteria\Operators\NullOperator;
+use SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface;
 use Tests\Fixtures\Models\User;
 use Tests\TestCase;
 
@@ -689,6 +690,19 @@ class FilterApplierTest extends TestCase
             $filters,
             $this->schemaIntrospector,
             $this->operatorRegistry,
+            $this->surface(),
         );
+    }
+
+    /**
+     * Build a blocklist query surface that delegates to the stubbed
+     * introspector, preserving the legacy shape-derived gating these tests
+     * assert.
+     *
+     * @return \SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface
+     */
+    private function surface(): QuerySurface
+    {
+        return new QuerySurface([], [], [], QuerySurface::POSTURE_BLOCKLIST, true, $this->schemaIntrospector, new User);
     }
 }

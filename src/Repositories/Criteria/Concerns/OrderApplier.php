@@ -3,14 +3,14 @@
 namespace SineMacula\ApiToolkit\Repositories\Criteria\Concerns;
 
 use Illuminate\Database\Eloquent\Builder;
-use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
+use SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface;
 
 /**
  * Applies ordering to an Eloquent query builder.
  *
  * Supports single and multiple column ordering, random ordering via the
- * `ORDER_BY_RANDOM` keyword, direction validation, and searchable column
- * validation via the schema introspection provider.
+ * `ORDER_BY_RANDOM` keyword, direction validation, and sortable-column
+ * enforcement via the declared query surface.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -30,10 +30,10 @@ final class OrderApplier
      *
      * @param  \Illuminate\Database\Eloquent\Builder<TModel>  $query
      * @param  array<string, string>  $order
-     * @param  \SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider  $schemaIntrospector
+     * @param  \SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface  $querySurface
      * @return \Illuminate\Database\Eloquent\Builder<TModel>
      */
-    public function apply(Builder $query, array $order, SchemaIntrospectionProvider $schemaIntrospector): Builder
+    public function apply(Builder $query, array $order, QuerySurface $querySurface): Builder
     {
         if (empty($order)) {
             return $query;
@@ -46,7 +46,7 @@ final class OrderApplier
                 continue;
             }
 
-            if ($schemaIntrospector->isSearchable($query->getModel(), $column) && in_array($direction, $this->directions, true)) {
+            if ($querySurface->guardSort($column, $query->getModel()) && in_array($direction, $this->directions, true)) {
                 $query->getQuery()->orderBy($column, $direction);
             }
         }

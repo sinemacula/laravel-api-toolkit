@@ -5,6 +5,7 @@ namespace SineMacula\ApiToolkit\Repositories\Criteria\Concerns;
 use Illuminate\Database\Eloquent\Builder;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry;
+use SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface;
 
 /**
  * Applies filter trees to an Eloquent query builder.
@@ -31,6 +32,9 @@ final class FilterApplier
     /** @var \SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry */
     private OperatorRegistry $operatorRegistry;
 
+    /** @var \SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface */
+    private QuerySurface $querySurface;
+
     /**
      * Apply filters to the query.
      *
@@ -40,12 +44,14 @@ final class FilterApplier
      * @param  array<string, mixed>|null  $filters
      * @param  \SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider  $schemaIntrospector
      * @param  \SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry  $operatorRegistry
+     * @param  \SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface  $querySurface
      * @return \Illuminate\Database\Eloquent\Builder<TModel>
      */
-    public function apply(Builder $query, ?array $filters, SchemaIntrospectionProvider $schemaIntrospector, OperatorRegistry $operatorRegistry): Builder
+    public function apply(Builder $query, ?array $filters, SchemaIntrospectionProvider $schemaIntrospector, OperatorRegistry $operatorRegistry, QuerySurface $querySurface): Builder
     {
         $this->schemaIntrospector = $schemaIntrospector;
         $this->operatorRegistry   = $operatorRegistry;
+        $this->querySurface       = $querySurface;
 
         $this->applyFilters($query, $filters, null, FilterContext::root());
 
@@ -78,7 +84,9 @@ final class FilterApplier
             } elseif (array_key_exists($key, $this->logicalOperatorMap)) {
                 $this->applyLogicalOperator($query, $key, $value, $context);
             } elseif ($this->schemaIntrospector->isRelation($key, $query->getModel())) {
-                $this->applyRelationFilter($query, $key, $value, $context);
+                if ($this->querySurface->guardRelation($key, $query->getModel())) {
+                    $this->applyRelationFilter($query, $key, $value, $context);
+                }
             } else {
                 $this->applyFilters($query, $value, $key, $context);
             }
@@ -98,7 +106,7 @@ final class FilterApplier
      */
     private function applySimpleFilter(Builder $query, ?string $column, string $value, FilterContext $context): Builder
     {
-        if ($column && $this->schemaIntrospector->isSearchable($query->getModel(), $column)) {
+        if ($column && $this->querySurface->guardFilter($column, $query->getModel())) {
 
             if ($context->getLogicalOperator() === '$or') {
                 $query->orWhere($column, $value);
@@ -128,7 +136,7 @@ final class FilterApplier
             return;
         }
 
-        if (!$field || !$this->schemaIntrospector->isSearchable($query->getModel(), $field)) {
+        if (!$field || !$this->querySurface->guardFilter($field, $query->getModel())) {
             return;
         }
 
@@ -237,10 +245,10 @@ final class FilterApplier
         foreach ((array) $relations as $relation => $filters) {
 
             if (is_int($relation)) {
-                if ($this->schemaIntrospector->isRelation($filters, $query->getModel())) {
+                if ($this->querySurface->guardRelation($filters, $query->getModel())) {
                     $this->applyRelationalMethod($query, $method, $filters);
                 }
-            } elseif ($this->schemaIntrospector->isRelation($relation, $query->getModel())) {
+            } elseif ($this->querySurface->guardRelation($relation, $query->getModel())) {
                 $this->applyRelationalMethod($query, $method, $relation, function (Builder $query) use ($filters): void {
                     $this->processRelationFilters($query, $filters, FilterContext::root());
                 });

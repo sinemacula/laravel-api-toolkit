@@ -2,11 +2,12 @@
 
 namespace Tests\Unit\Repositories\Criteria;
 
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Validation\ValidationException;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface;
+use Tests\Fixtures\Models\Post;
+use Tests\Fixtures\Models\User;
 use Tests\TestCase;
 
 /**
@@ -21,7 +22,7 @@ use Tests\TestCase;
 class QuerySurfaceTest extends TestCase
 {
     /**
-     * Test that the allowlist posture permits a declared filter column and
+     * Test that the allowlist posture permits a declared root filter column and
      * rejects an undeclared one with a validation error naming the key.
      *
      * @return void
@@ -30,10 +31,10 @@ class QuerySurfaceTest extends TestCase
     {
         $surface = $this->make(filterable: ['email']);
 
-        static::assertTrue($surface->guardFilter('email'));
+        static::assertTrue($surface->guardFilter('email', new User));
 
         try {
-            $surface->guardFilter('password');
+            $surface->guardFilter('password', new User);
             static::fail('Expected a ValidationException for an undeclared filter key.');
         } catch (ValidationException $exception) {
             static::assertArrayHasKey('filters.password', $exception->errors());
@@ -51,11 +52,11 @@ class QuerySurfaceTest extends TestCase
     {
         $surface = $this->make(sortable: ['created_at'], relations: ['posts']);
 
-        static::assertTrue($surface->guardSort('created_at'));
-        static::assertTrue($surface->guardRelation('posts'));
+        static::assertTrue($surface->guardSort('created_at', new User));
+        static::assertTrue($surface->guardRelation('posts', new User));
 
-        $this->assertRejects(fn () => $surface->guardSort('secret'), 'order.secret');
-        $this->assertRejects(fn () => $surface->guardRelation('audits'), 'filters.audits');
+        $this->assertRejects(fn () => $surface->guardSort('secret', new User), 'order.secret');
+        $this->assertRejects(fn () => $surface->guardRelation('audits', new User), 'filters.audits');
     }
 
     /**
@@ -67,12 +68,12 @@ class QuerySurfaceTest extends TestCase
     {
         $surface = $this->make(filterable: ['email'], reject: false);
 
-        static::assertFalse($surface->guardFilter('password'));
+        static::assertFalse($surface->guardFilter('password', new User));
     }
 
     /**
-     * Test that a resource with no declared surface rejects every key under the
-     * default allowlist posture (secure by default).
+     * Test that a resource with no declared surface rejects every root key under
+     * the default allowlist posture (secure by default).
      *
      * @return void
      */
@@ -80,7 +81,26 @@ class QuerySurfaceTest extends TestCase
     {
         $surface = $this->make();
 
-        $this->assertRejects(fn () => $surface->guardFilter('email'), 'filters.email');
+        $this->assertRejects(fn () => $surface->guardFilter('email', new User), 'filters.email');
+    }
+
+    /**
+     * Test that a key targeting a nested/related model falls back to the legacy
+     * searchable predicate rather than the root allowlist, and is never rejected
+     * (nested-column granularity is deferred to P2).
+     *
+     * @return void
+     */
+    public function testNestedRelatedModelFallsBackToLegacySearchable(): void
+    {
+        $introspector = \Mockery::mock(SchemaIntrospectionProvider::class);
+        $introspector->shouldReceive('isSearchable')->with(\Mockery::type(Post::class), 'title')->andReturnTrue();
+        $introspector->shouldReceive('isSearchable')->with(\Mockery::type(Post::class), 'secret')->andReturnFalse();
+
+        $surface = $this->make(filterable: ['email'], introspector: $introspector);
+
+        static::assertTrue($surface->guardFilter('title', new Post));
+        static::assertFalse($surface->guardFilter('secret', new Post));
     }
 
     /**
@@ -98,9 +118,9 @@ class QuerySurfaceTest extends TestCase
 
         $surface = $this->make(posture: QuerySurface::POSTURE_BLOCKLIST, introspector: $introspector);
 
-        static::assertTrue($surface->guardFilter('email'));
-        static::assertTrue($surface->guardRelation('posts'));
-        static::assertFalse($surface->guardFilter('secret'));
+        static::assertTrue($surface->guardFilter('email', new User));
+        static::assertTrue($surface->guardRelation('posts', new User));
+        static::assertFalse($surface->guardFilter('secret', new User));
     }
 
     /**
@@ -129,7 +149,7 @@ class QuerySurfaceTest extends TestCase
             $posture,
             $reject,
             $introspector ?? \Mockery::mock(SchemaIntrospectionProvider::class),
-            \Mockery::mock(Model::class),
+            new User,
         );
     }
 
