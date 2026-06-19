@@ -43,9 +43,15 @@ abstract class ApiException extends \Exception
      */
     public function getCustomDetail(): string
     {
-        $translation = Lang::get($this->getTranslationKey('detail'));
+        $key = $this->getTranslationKey('detail');
 
-        return is_string($translation) ? $translation : '';
+        if (Lang::has($key)) {
+            $translation = Lang::get($key);
+
+            return is_string($translation) ? $translation : '';
+        }
+
+        return '';
     }
 
     /**

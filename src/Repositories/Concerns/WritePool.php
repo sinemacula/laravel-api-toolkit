@@ -228,7 +228,7 @@ final class WritePool
 
         $records = array_merge(...$context->chunks());
 
-        $accumulator->recordFailure($context->table(), $records, $exception->getMessage());
+        $accumulator->recordFailure($context->table(), $records, $exception);
 
         if ($context->strategy() === FlushStrategy::THROW) {
             // Whole-table retain: set buffer to the merged records + all remaining tables.
@@ -293,7 +293,7 @@ final class WritePool
         \Throwable $exception,
     ): void {
 
-        $accumulator->recordFailure($context->table(), $chunk, $exception->getMessage());
+        $accumulator->recordFailure($context->table(), $chunk, $exception);
 
         if ($context->strategy() === FlushStrategy::THROW) {
             // Per-chunk retain: failed chunk + remaining chunks + remaining tables.
@@ -324,6 +324,7 @@ final class WritePool
             'table'      => $table,
             'chunk_size' => count($chunk),
             'error'      => $exception->getMessage(),
+            'exception'  => $exception,
         ]);
     }
 
