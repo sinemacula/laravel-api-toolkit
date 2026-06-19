@@ -24,3 +24,11 @@ Version 2.0 is in development on the `2.x` branch. See [UPGRADE.md](UPGRADE.md) 
 - Opt-in deferred repository writes with a write pool, and opt-in transparent repository caching
 - Exception handler coverage for all HTTP-layer exceptions, preserving `abort()` status codes
 - Configurable middleware registration and notification logging exclusions
+
+### Fixed
+
+- Column narrowing now retains the parent foreign key for every eager-loaded relation, not only
+  scoped ones. Plain and `extras` relations are stored as list entries in the eager-load map, so
+  deriving relation names via `array_keys()` yielded integer indices that resolved to no relation
+  and dropped the parent key - a narrowed query then silently returned `null` for the relation.
+  Dotted relation paths are reduced to their base-model segment for the same lookup
