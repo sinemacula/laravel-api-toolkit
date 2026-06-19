@@ -7,6 +7,7 @@ use SineMacula\ApiToolkit\Facades\ApiQuery;
 use SineMacula\ApiToolkit\Http\Resources\ApiResource;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\EagerLoadPlanner;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\SchemaCompiler;
+use Tests\Concerns\InteractsWithNonPublicMembers;
 use Tests\Fixtures\Resources\OrganizationResource;
 use Tests\Fixtures\Resources\PostResource;
 use Tests\Fixtures\Resources\TagResource;
@@ -24,8 +25,10 @@ use Tests\TestCase;
 #[CoversClass(EagerLoadPlanner::class)]
 class EagerLoadPlannerTest extends TestCase
 {
+    use InteractsWithNonPublicMembers;
+
     /**
-     * Clear the schema compiler cache before each test.
+     * Clear the schema compiler and planner caches before each test.
      *
      * @return void
      */
@@ -34,16 +37,18 @@ class EagerLoadPlannerTest extends TestCase
         parent::setUp();
 
         SchemaCompiler::clearCache();
+        EagerLoadPlanner::clearCache();
     }
 
     /**
-     * Clear the schema compiler cache after each test.
+     * Clear the schema compiler and planner caches after each test.
      *
      * @return void
      */
     protected function tearDown(): void
     {
         SchemaCompiler::clearCache();
+        EagerLoadPlanner::clearCache();
 
         parent::tearDown();
     }
@@ -365,6 +370,74 @@ class EagerLoadPlannerTest extends TestCase
         $result = EagerLoadPlanner::buildEagerLoadMap(UserResource::class, ['organization']);
 
         static::assertContains('organization', $result);
+    }
+
+    /**
+     * Test that repeated calls with the same class and fields are served from
+     * the memo, so the child field lookup runs only once.
+     *
+     * @return void
+     */
+    public function testBuildEagerLoadMapIsMemoisedAcrossRepeatedCalls(): void
+    {
+
+        ApiQuery::shouldReceive('getFields')
+            ->once()
+            ->with('organizations')
+            ->andReturn(['id']);
+
+        $first  = EagerLoadPlanner::buildEagerLoadMap(UserResource::class, ['organization']);
+        $second = EagerLoadPlanner::buildEagerLoadMap(UserResource::class, ['organization']);
+
+        static::assertSame($first, $second);
+    }
+
+    /**
+     * Test that clearing the cache forces a full rebuild on the next call, so
+     * the child field lookup runs again.
+     *
+     * @return void
+     */
+    public function testClearCacheForcesEagerLoadMapRebuild(): void
+    {
+
+        ApiQuery::shouldReceive('getFields')
+            ->twice()
+            ->with('organizations')
+            ->andReturn(['id']);
+
+        EagerLoadPlanner::buildEagerLoadMap(UserResource::class, ['organization']);
+        EagerLoadPlanner::clearCache();
+        EagerLoadPlanner::buildEagerLoadMap(UserResource::class, ['organization']);
+    }
+
+    /**
+     * Test that a memoised count map is returned without rebuilding.
+     *
+     * @return void
+     */
+    public function testBuildCountMapReturnsMemoisedResult(): void
+    {
+        $this->setStaticProperty(EagerLoadPlanner::class, 'countCache', [UserResource::class . '|*' => ['sentinel_count']]);
+
+        $result = EagerLoadPlanner::buildCountMap(UserResource::class);
+
+        static::assertSame(['sentinel_count'], $result);
+    }
+
+    /**
+     * Test that the eager-load memo is keyed by resource class and field
+     * signature, so a seeded entry is returned only for the exact key.
+     *
+     * @return void
+     */
+    public function testBuildEagerLoadMapReturnsMemoisedResultForKey(): void
+    {
+        $this->setStaticProperty(EagerLoadPlanner::class, 'eagerLoadCache', [UserResource::class . '|' . 'organization' => ['sentinel_relation']]);
+
+        $result = EagerLoadPlanner::buildEagerLoadMap(UserResource::class, ['organization']);
+
+        static::assertSame(['sentinel_relation'], $result);
     }
 
     /**
