@@ -131,7 +131,7 @@ trait Cacheable
         $this->cacheReferenceMode = (bool) ($this->resolveProperty('cacheReferenceTable') ?? false);
 
         $this->cacheStore     = new CacheStore($store, $prefix, $this->resolveStoreOptions());
-        $this->referenceCache = new ReferenceCache($store, $prefix, $this->resolveReferenceTtl());
+        $this->referenceCache = new ReferenceCache($store, $prefix, $this->resolveReferenceTtl(), $this->resolveSizeGuard());
     }
 
     /**

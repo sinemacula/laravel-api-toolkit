@@ -38,12 +38,14 @@ final readonly class ReferenceCache
      * @param  string  $cacheStore
      * @param  string  $table
      * @param  int  $ttl
+     * @param  \SineMacula\ApiToolkit\Repositories\Concerns\CacheSizeGuard  $sizeGuard
      * @return void
      */
     public function __construct(
         private string $cacheStore,
         private string $table,
         private int $ttl,
+        private CacheSizeGuard $sizeGuard,
     ) {
         $this->store    = Cache::store($this->cacheStore);
         $this->cacheKey = CacheKeys::REPOSITORY_CACHE->resolveKey([$this->table]);
@@ -67,8 +69,13 @@ final readonly class ReferenceCache
         /** @var \Illuminate\Support\Collection<int, \Illuminate\Database\Eloquent\Model> $rows */
         $rows = $model->newQuery()->get();
 
-        $this->store->put($this->cacheKey, $rows, $this->ttl);
-        $this->store->put($this->metaKey, ['populated_at' => now()->timestamp], $this->ttl);
+        // Skip caching a table that exceeds the size guard, so reference mode on
+        // an unexpectedly large table falls back to querying rather than holding
+        // a huge serialized snapshot in the cache.
+        if ($this->sizeGuard->allows($rows, $rows->count())) {
+            $this->store->put($this->cacheKey, $rows, $this->ttl);
+            $this->store->put($this->metaKey, ['populated_at' => now()->timestamp], $this->ttl);
+        }
 
         return $rows;
     }
