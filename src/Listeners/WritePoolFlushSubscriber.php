@@ -88,7 +88,7 @@ final class WritePoolFlushSubscriber
             }
         } catch (\Throwable $e) {
 
-            Log::error('WritePool flush subscriber failed', ['error' => $e->getMessage()]);
+            Log::error('WritePool flush subscriber failed', ['error' => $e->getMessage(), 'exception' => $e]);
         }
     }
 

@@ -286,8 +286,7 @@ class DatabaseHandlerTest extends TestCase
             ->withArgs(fn (mixed $message, mixed $context = null): bool => $message === 'Could not log to the database.'
                 && is_array($context)
                 && isset($context['exception'])
-                && is_string($context['exception'])
-                && $context['exception'] !== '');
+                && $context['exception'] instanceof \Throwable);
 
         // Drop the logs table so the insert fails
         \Illuminate\Support\Facades\Schema::drop('logs');

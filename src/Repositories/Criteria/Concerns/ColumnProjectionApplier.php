@@ -62,7 +62,7 @@ final class ColumnProjectionApplier
             return $query;
         }
 
-        $relationKeys = array_keys($metadataProvider->eagerLoadMapFor($resourceClass, $fields));
+        $relationKeys = $this->relationNames($metadataProvider->eagerLoadMapFor($resourceClass, $fields));
         $safety       = $this->deriveSafetySet($query, $relationKeys, $order);
         $decision     = (new ColumnNarrower)->decide(FieldColumnMapper::for($resourceClass), $fields, $safety);
 
@@ -87,6 +87,37 @@ final class ColumnProjectionApplier
         return in_array(':all', ApiQuery::getFields($resourceType) ?? [], true)
             ? $metadataProvider->getAllFields($resourceClass)
             : $metadataProvider->resolveFields($resourceClass);
+    }
+
+    /**
+     * Extract the base-model relation names from an eager-load map.
+     *
+     * The map mixes plain and extra relations - stored as list entries whose
+     * relation path is the value - with scoped relations stored under a string
+     * key carrying a constraint closure. The relation name is therefore taken
+     * from the value for integer keys and from the key for string keys. Each
+     * path is reduced to its first segment: the relation declared on the base
+     * model, whose parent-side key the narrowed query must retain.
+     *
+     * @param  array<int|string, mixed>  $map
+     * @return array<int, string>
+     */
+    private function relationNames(array $map): array
+    {
+        $names = [];
+
+        foreach ($map as $key => $value) {
+
+            $path = is_string($key) ? $key : $value;
+
+            if (!is_string($path)) {
+                continue;
+            }
+
+            $names[] = explode('.', $path)[0];
+        }
+
+        return $names;
     }
 
     /**

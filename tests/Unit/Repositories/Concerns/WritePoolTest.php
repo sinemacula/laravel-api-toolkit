@@ -326,6 +326,7 @@ class WritePoolTest extends TestCase
         static::assertArrayHasKey('nonexistent_table', $flushResult->failures());
         static::assertSame([['col' => 'val']], $flushResult->failures()['nonexistent_table'][0]['records']);
         static::assertNotEmpty($flushResult->failures()['nonexistent_table'][0]['exception']);
+        static::assertSame(\Illuminate\Database\QueryException::class, $flushResult->failures()['nonexistent_table'][0]['exception_class']);
     }
 
     /**

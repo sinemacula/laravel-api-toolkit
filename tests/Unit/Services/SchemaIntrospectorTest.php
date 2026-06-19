@@ -94,6 +94,30 @@ class SchemaIntrospectorTest extends TestCase
     }
 
     /**
+     * Test that an empty column listing is served from the memo cache on a
+     * later instance rather than being re-queried every time, since an empty
+     * array is a valid cached result.
+     *
+     * @return void
+     */
+    public function testGetColumnsCachesEmptyColumnListAcrossInstances(): void
+    {
+        Cache::memo()->flush(); // @phpstan-ignore method.notFound
+
+        Schema::shouldReceive('getColumnListing')
+            ->once()
+            ->andReturn([]);
+
+        $model = new User;
+
+        $first  = (new SchemaIntrospector)->getColumns($model);
+        $second = (new SchemaIntrospector)->getColumns($model);
+
+        static::assertSame([], $first);
+        static::assertSame([], $second);
+    }
+
+    /**
      * Test that getColumns stores the result in the memo cache under a key
      * scoped to the model class.
      *

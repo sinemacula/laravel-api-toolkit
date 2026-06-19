@@ -25,6 +25,36 @@ Version 2.0 is in development on the `2.x` branch. See [UPGRADE.md](UPGRADE.md) 
 - Exception handler coverage for all HTTP-layer exceptions, preserving `abort()` status codes
 - Configurable middleware registration and notification logging exclusions
 
+### Fixed
+
+- `AttributeSetter` relation sync now plucks the related model's primary key (`getKeyName()`) instead
+  of a hardcoded `id`, so syncing a model or collection into a `BelongsToMany` whose related model
+  uses a non-`id` primary key attaches the correct keys rather than null
+- The SSE `Emitter::emit()` now encodes array payloads with `JSON_THROW_ON_ERROR`, so an
+  unencodable payload raises a `JsonException` (which the event stream's error handler can act on)
+  instead of silently writing a single blank `data:` frame
+- `SchemaIntrospector::getColumns()` now caches an empty column listing instead of re-querying the
+  schema on every request, by gating the cache hit on the cache key's presence rather than on a
+  non-empty cached value
+- Lifecycle and error boundaries now preserve the full throwable (type, stack, cause) rather than
+  only its message: the write-pool flush subscriber, the database log handler's fallback, and the
+  write-pool chunk-failure logger log the throwable under an `exception` key, and the write-pool
+  failure accumulator records the `exception_class` alongside the message. The Octane cache-flush
+  listener now wraps the flush in an error boundary, so a flush failure is logged instead of
+  propagating into Octane's dispatch and crashing the worker
+- Column narrowing now retains the parent foreign key for every eager-loaded relation, not only
+  scoped ones. Plain and `extras` relations are stored as list entries in the eager-load map, so
+  deriving relation names via `array_keys()` yielded integer indices that resolved to no relation
+  and dropped the parent key - a narrowed query then silently returned `null` for the relation.
+  Dotted relation paths are reduced to their base-model segment for the same lookup
+- The transparent repository cache now folds the read verb, its arguments, and the registered
+  eager loads into the per-query cache key, so reads that share a base builder but differ only at
+  execution time - `find(1)` vs `find(2)`, `value()` vs `get()`, column projections, and
+  `with(...)`-eager-loaded vs plain reads - no longer collide on a single cache entry
+- `ApiException::getCustomDetail()` now returns an empty detail instead of leaking the raw
+  translation key when no `detail` translation is registered, matching the existing
+  `getCustomTitle()` guard
+
 ### Security
 
 - The API exception handler no longer logs the raw request body. Configured sensitive keys

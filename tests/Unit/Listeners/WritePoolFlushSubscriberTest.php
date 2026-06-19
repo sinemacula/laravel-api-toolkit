@@ -326,7 +326,11 @@ class WritePoolFlushSubscriberTest extends TestCase
 
         Log::shouldReceive('error')
             ->once()
-            ->with('WritePool flush subscriber failed', ['error' => 'Database connection lost']);
+            ->with('WritePool flush subscriber failed', \Mockery::on(
+                static fn (array $context): bool => $context['error'] === 'Database connection lost'
+                    && $context['exception'] instanceof \RuntimeException
+                    && $context['exception']->getMessage() === 'Database connection lost',
+            ));
 
         $subscriber = new WritePoolFlushSubscriber($container);
 

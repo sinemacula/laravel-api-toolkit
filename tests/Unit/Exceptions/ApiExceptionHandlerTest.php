@@ -1017,6 +1017,24 @@ class ApiExceptionHandlerTest extends TestCase
     }
 
     /**
+     * Define the test environment.
+     *
+     * Loads the package's exception translations so rendered error responses
+     * include a non-empty detail rather than relying on the (now-fixed)
+     * raw-key fallback.
+     *
+     * @param  mixed  $app
+     * @return void
+     */
+    protected function defineEnvironment(mixed $app): void
+    {
+        /** @var \Illuminate\Translation\Translator $translator */
+        $translator = $app['translator'];
+
+        $translator->addNamespace('api-toolkit', __DIR__ . '/../../../resources/lang');
+    }
+
+    /**
      * Resolve getContext()'s redacted request data for a POST body.
      *
      * @param  array<string, mixed>  $body
