@@ -24,11 +24,22 @@ use SineMacula\ApiToolkit\Http\Resources\Schema\CompiledFieldDefinition;
  */
 final class EagerLoadPlanner
 {
+    /** @var array<string, array<int|string, mixed>> Memo of eager-load maps, keyed by resource class + field signature. */
+    private static array $eagerLoadCache = [];
+
+    /** @var array<string, array<int|string, mixed>> Memo of count maps, keyed by resource class + alias signature. */
+    private static array $countCache = [];
+
     /**
      * Build a with()-ready eager-load map for the given fields.
      *
      * Returns a mixed array where numeric keys are plain eager-load paths and
      * string keys are scoped paths with constraint closures.
+     *
+     * The result is memoised per (resource class, field signature); the memo is
+     * request-scoped because CacheManager::flush() clears it at request and
+     * worker boundaries, so it never serves a map built against a different
+     * request's child field selection.
      *
      * @param  string  $resourceClass
      * @param  array<int, string>  $fields
@@ -36,17 +47,34 @@ final class EagerLoadPlanner
      */
     public static function buildEagerLoadMap(string $resourceClass, array $fields): array
     {
+        $key = $resourceClass . '|' . implode("\0", $fields);
+
+        if (isset(self::$eagerLoadCache[$key])) {
+            return self::$eagerLoadCache[$key];
+        }
+
         $plain   = [];
         $scoped  = [];
         $visited = [];
 
         self::walkRelations($resourceClass, $fields, '', $plain, $scoped, $visited);
 
-        if ($plain === [] && $scoped === []) {
-            return [];
-        }
+        $map = $plain === [] && $scoped === [] ? [] : array_merge($plain, $scoped);
 
-        return array_merge($plain, $scoped);
+        return self::$eagerLoadCache[$key] = $map;
+    }
+
+    /**
+     * Clear the static eager-load and count map memos.
+     *
+     * Invoked by CacheManager::flush() at request and worker boundaries.
+     *
+     * @return void
+     */
+    public static function clearCache(): void
+    {
+        self::$eagerLoadCache = [];
+        self::$countCache     = [];
     }
 
     /**
@@ -61,6 +89,11 @@ final class EagerLoadPlanner
      */
     public static function buildCountMap(string $resourceClass, ?array $requestedAliases = null): array
     {
+        $key = $resourceClass . '|' . ($requestedAliases === null ? '*' : implode("\0", $requestedAliases));
+
+        if (isset(self::$countCache[$key])) {
+            return self::$countCache[$key];
+        }
 
         $schema = SchemaCompiler::compile($resourceClass);
         $with   = [];
@@ -85,7 +118,7 @@ final class EagerLoadPlanner
             }
         }
 
-        return $with;
+        return self::$countCache[$key] = $with;
     }
 
     /**
