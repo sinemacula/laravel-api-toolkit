@@ -256,6 +256,12 @@ final class AttributeSetter
      */
     private function setSyncAttribute(Model $model, string $attribute, mixed $value): void
     {
+        $relation = $this->resolveRelationInstance($model, $attribute);
+
+        if (!($relation instanceof BelongsToMany)) {
+            throw new \LogicException(sprintf('Attribute "%s" on %s does not resolve to a BelongsToMany relation', $attribute, $model::class));
+        }
+
         if ($value instanceof Model || $value instanceof Collection) {
 
             $value = [
@@ -263,17 +269,11 @@ final class AttributeSetter
                 'detaching' => true,
             ];
 
-            $values = $value['values']->pluck('id');
+            $values = $value['values']->pluck($relation->getRelated()->getKeyName());
         }
 
         $values ??= $value;
         $detaching = $value['detaching'] ?? true;
-
-        $relation = $this->resolveRelationInstance($model, $attribute);
-
-        if (!($relation instanceof BelongsToMany)) {
-            throw new \LogicException(sprintf('Attribute "%s" on %s does not resolve to a BelongsToMany relation', $attribute, $model::class));
-        }
 
         $relation->sync($values, $detaching);
     }
