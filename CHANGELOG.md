@@ -15,7 +15,7 @@ Version 2.0 is in development on the `2.x` branch. See [UPGRADE.md](UPGRADE.md) 
 - Service configuration is immutable, with cross-cutting behaviour composed through a concern pipeline
 - `Service::run()` returns an immutable `ServiceResult` value object instead of `bool`
 - HTTP enums are provided by `sinemacula/http-primitives-php`
-- Request capabilities are exposed through the typed `RequestCapabilities` API; the request macros are deprecated
+- Request capabilities are exposed through the typed `RequestCapabilities` API
 
 ### Added
 

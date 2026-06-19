@@ -13,7 +13,6 @@ use Illuminate\Notifications\Events\NotificationSending;
 use Illuminate\Notifications\Events\NotificationSent;
 use Illuminate\Routing\Router;
 use Illuminate\Support\Facades\Artisan;
-use Illuminate\Support\Facades\Request;
 use Illuminate\Support\ServiceProvider;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\ApiQueryParser;
@@ -27,7 +26,6 @@ use SineMacula\ApiToolkit\Http\Middleware\DetectsCapabilities;
 use SineMacula\ApiToolkit\Http\Middleware\JsonPrettyPrint;
 use SineMacula\ApiToolkit\Http\Middleware\ParseApiQuery;
 use SineMacula\ApiToolkit\Http\Middleware\PreventRequestsDuringMaintenance;
-use SineMacula\ApiToolkit\Http\RequestCapabilities;
 use SineMacula\ApiToolkit\Http\Resources\ResourceMetadataService;
 use SineMacula\ApiToolkit\Listeners\NotificationListener;
 use SineMacula\ApiToolkit\Listeners\QueueFlushSubscriber;
@@ -36,7 +34,6 @@ use SineMacula\ApiToolkit\Providers\Registrars\ContainerBindingRegistrar;
 use SineMacula\ApiToolkit\Providers\Registrars\LifecycleRegistrar;
 use SineMacula\ApiToolkit\Providers\Registrars\LoggingRegistrar;
 use SineMacula\ApiToolkit\Providers\Registrars\MiddlewareRegistrar;
-use SineMacula\ApiToolkit\Providers\Registrars\RequestMacroRegistrar;
 use SineMacula\ApiToolkit\Repositories\Concerns\WritePool;
 use SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry;
 use SineMacula\ApiToolkit\Services\SchemaIntrospector;
@@ -56,7 +53,6 @@ use Tests\TestCase;
 #[CoversClass(LifecycleRegistrar::class)]
 #[CoversClass(LoggingRegistrar::class)]
 #[CoversClass(MiddlewareRegistrar::class)]
-#[CoversClass(RequestMacroRegistrar::class)]
 class ApiServiceProviderTest extends TestCase
 {
     /**
@@ -208,22 +204,6 @@ class ApiServiceProviderTest extends TestCase
     }
 
     /**
-     * Test that Request macros are registered.
-     *
-     * @return void
-     */
-    public function testRequestMacrosAreRegistered(): void
-    {
-        static::assertTrue(Request::hasMacro('includeTrashed'));
-        static::assertTrue(Request::hasMacro('onlyTrashed'));
-        static::assertTrue(Request::hasMacro('expectsExport'));
-        static::assertTrue(Request::hasMacro('expectsCsv'));
-        static::assertTrue(Request::hasMacro('expectsXml'));
-        static::assertTrue(Request::hasMacro('expectsPdf'));
-        static::assertTrue(Request::hasMacro('expectsStream'));
-    }
-
-    /**
      * Test that DetectsCapabilities middleware is registered globally.
      *
      * @return void
@@ -278,35 +258,6 @@ class ApiServiceProviderTest extends TestCase
         // The middleware was already pushed in the original boot from setUp.
         // Verify the config gate by confirming boot completes without error.
         static::assertFalse((bool) $this->getConfig()->get('api-toolkit.middleware.detect_capabilities.enabled'));
-    }
-
-    /**
-     * Test that deprecated macros delegate to stored
-     * RequestCapabilities.
-     *
-     * @return void
-     */
-    public function testDeprecatedMacrosDelegateToRequestCapabilities(): void
-    {
-        $request = request();
-
-        $reflection  = new \ReflectionClass(RequestCapabilities::class);
-        $constructor = $reflection->getConstructor();
-
-        assert($constructor !== null);
-
-        $constructor->setAccessible(true);
-
-        $instance = $reflection->newInstanceWithoutConstructor();
-
-        $constructor->invoke($instance, true, false, false, false, false, false, false);
-
-        RequestCapabilities::storeOnRequest($request, $instance);
-
-        // Suppress the deprecation notice to keep test output clean
-        $result = @$request->includeTrashed(); // @phpstan-ignore method.notFound (deprecated macro exercised deliberately)
-
-        static::assertTrue($result);
     }
 
     /**
