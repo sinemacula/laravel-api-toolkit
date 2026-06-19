@@ -78,9 +78,8 @@ class ThrottleRequestsTraitTest extends TestCase
     /**
      * Test that the signature handles unauthenticated users.
      *
-     * Due to operator precedence, the null coalescing operator applies to the
-     * entire concatenated string when user is null. Since string concatenation
-     * with null produces a non-null string, the IP fallback is not used.
+     * An unauthenticated request is keyed by its client IP, so anonymous
+     * callers each get their own throttle bucket instead of sharing one.
      *
      * @return void
      */
@@ -90,9 +89,29 @@ class ThrottleRequestsTraitTest extends TestCase
         $request = $this->createRequestWithRoute(self::API_DATA_URI, HttpMethod::GET->getVerb(), '192.168.1.50');
 
         $result   = $trait->resolveRequestSignature($request); // @phpstan-ignore method.notFound
-        $expected = sha1('GET|localhost|api/data|');
+        $expected = sha1('GET|localhost|api/data|192.168.1.50');
 
         static::assertSame($expected, $result);
+    }
+
+    /**
+     * Test that two unauthenticated requests to the same endpoint from
+     * different client IPs produce different signatures, so one anonymous
+     * caller cannot exhaust the shared throttle bucket for everyone.
+     *
+     * @return void
+     */
+    public function testSignatureDiffersByClientIpForUnauthenticatedRequests(): void
+    {
+        $trait = $this->createTraitInstance();
+
+        $first  = $this->createRequestWithRoute(self::API_DATA_URI, HttpMethod::GET->getVerb(), '203.0.113.1');
+        $second = $this->createRequestWithRoute(self::API_DATA_URI, HttpMethod::GET->getVerb(), '203.0.113.2');
+
+        $firstSignature  = $trait->resolveRequestSignature($first);  // @phpstan-ignore method.notFound
+        $secondSignature = $trait->resolveRequestSignature($second); // @phpstan-ignore method.notFound
+
+        static::assertNotSame($firstSignature, $secondSignature);
     }
 
     /**
@@ -158,7 +177,7 @@ class ThrottleRequestsTraitTest extends TestCase
 
         $result = $middleware->callResolveRequestSignature($request);
 
-        static::assertSame(sha1('GET|localhost|api/data|'), $result);
+        static::assertSame(sha1('GET|localhost|api/data|127.0.0.1'), $result);
     }
 
     /**
