@@ -158,6 +158,27 @@ class ColumnNarrowingIntegrationTest extends TestCase
     }
 
     /**
+     * With the flag on, a column-mapped field that pulls a `belongsTo` via
+     * `extras` retains the relation's parent foreign key in the narrowed
+     * select, so the eager-loaded relation still hydrates instead of silently
+     * resolving to null.
+     *
+     * @return void
+     */
+    public function testSafetySetRetainsParentKeyForExtrasEagerLoadedBelongsTo(): void
+    {
+        $off = $this->serialiseArticles('id,author_name', null);
+
+        Config::set('api-toolkit.resources.narrow_columns', true);
+
+        $columns = $this->captureArticleColumns('id,author_name', null);
+
+        static::assertNotContains('*', $columns);
+        static::assertContains('user_id', $columns);
+        static::assertSame($off, $this->serialiseArticles('id,author_name', null));
+    }
+
+    /**
      * A field set changed imperatively after the query executes cannot reach the
      * built query, so an opaque field set leaves the executed query selecting all
      * columns while the late field set still renders correctly.

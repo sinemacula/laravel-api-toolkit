@@ -2,6 +2,7 @@
 
 namespace SineMacula\ApiToolkit\Listeners;
 
+use Illuminate\Support\Facades\Log;
 use SineMacula\ApiToolkit\Cache\CacheManager;
 
 /**
@@ -41,6 +42,10 @@ final class OctaneFlushListener
      */
     public function handle(object $event): void
     {
-        $this->cacheManager->flush();
+        try {
+            $this->cacheManager->flush();
+        } catch (\Throwable $exception) {
+            Log::error('Octane cache flush failed', ['exception' => $exception]);
+        }
     }
 }
