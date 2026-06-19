@@ -4,6 +4,7 @@ namespace Tests\Unit\Repositories\Concerns;
 
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Config;
+use Illuminate\Support\Facades\DB;
 use PHPUnit\Framework\Attributes\CoversTrait;
 use SineMacula\ApiToolkit\Repositories\ApiRepository;
 use SineMacula\ApiToolkit\Repositories\Concerns\AttributeSetter;
@@ -454,6 +455,26 @@ class CacheableTest extends TestCase
     }
 
     /**
+     * Test that a null/miss read is negatively cached, so a repeated read for
+     * the same missing key is served from the cache without a database query.
+     *
+     * @return void
+     */
+    public function testMissingReadIsServedFromNegativeCacheWithoutRequery(): void
+    {
+        static::assertNull($this->repository->find(999)); // @phpstan-ignore staticMethod.dynamicCall
+
+        DB::enableQueryLog();
+
+        $result = $this->repository->find(999); // @phpstan-ignore staticMethod.dynamicCall
+
+        DB::disableQueryLog();
+
+        static::assertNull($result);
+        static::assertCount(0, DB::getQueryLog());
+    }
+
+    /**
      * Test that the row count used by the size guard is the collection size for
      * a collection, exactly one for a single model, and zero otherwise.
      *
@@ -500,15 +521,18 @@ class CacheableTest extends TestCase
 
         $resolveTtl          = new \ReflectionMethod($repository, 'resolveTtl');
         $resolveReferenceTtl = new \ReflectionMethod($repository, 'resolveReferenceTtl');
+        $resolveNegativeTtl  = new \ReflectionMethod($repository, 'resolveNegativeTtl');
         $resolveStoreOptions = new \ReflectionMethod($repository, 'resolveStoreOptions');
 
         static::assertSame(120, $resolveTtl->invoke($repository));
         static::assertSame(240, $resolveReferenceTtl->invoke($repository));
+        static::assertSame(30, $resolveNegativeTtl->invoke($repository));
 
         $options = $resolveStoreOptions->invoke($repository);
 
         static::assertInstanceOf(CacheStoreOptions::class, $options);
         static::assertSame(120, $options->ttl);
+        static::assertSame(30, $options->negativeTtl);
         static::assertFalse($options->registryEnabled);
         static::assertSame(50, (new \ReflectionProperty(CacheSizeGuard::class, 'maxRows'))->getValue($options->sizeGuard));
         static::assertSame(2048, (new \ReflectionProperty(CacheSizeGuard::class, 'maxBytes'))->getValue($options->sizeGuard));
@@ -531,5 +555,27 @@ class CacheableTest extends TestCase
 
         static::assertSame(3600, (new \ReflectionMethod($repository, 'resolveTtl'))->invoke($repository));
         static::assertSame(3600, (new \ReflectionMethod($repository, 'resolveReferenceTtl'))->invoke($repository));
+    }
+
+    /**
+     * Test that the negative-lookup TTL casts a numeric configuration value to
+     * an int and falls back to ten seconds for a non-numeric value.
+     *
+     * @return void
+     */
+    public function testNegativeTtlCastsNumericConfigAndFallsBackForNonNumeric(): void
+    {
+        assert($this->app !== null);
+
+        $repository = $this->app->make(CacheableTagRepository::class);
+        $resolve    = new \ReflectionMethod($repository, 'resolveNegativeTtl');
+
+        Config::set('api-toolkit.repositories.cache.negative_ttl', '25');
+
+        static::assertSame(25, $resolve->invoke($repository));
+
+        Config::set('api-toolkit.repositories.cache.negative_ttl', 'not-numeric');
+
+        static::assertSame(10, $resolve->invoke($repository));
     }
 }

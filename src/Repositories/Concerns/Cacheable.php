@@ -24,6 +24,7 @@ use Illuminate\Support\Facades\Config;
  *   - `protected ?int $cacheMaxRows` — size guard row ceiling
  *   - `protected ?int $cacheMaxBytes` — size guard byte ceiling
  *   - `protected int $cacheReferenceTtl` — reference-mode cache duration
+ *   - `protected ?int $cacheNegativeTtl` — null/miss cache duration
  *   - `protected bool $cacheReferenceTable = true` — opt into whole-table mode
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
@@ -203,6 +204,8 @@ trait Cacheable
 
         if ($result !== null) {
             $this->cacheStore->put($hash, $result, $this->rowCount($result));
+        } else {
+            $this->cacheStore->putMiss($hash);
         }
 
         return parent::resetAndReturn($result);
@@ -321,6 +324,18 @@ trait Cacheable
     }
 
     /**
+     * Resolve the configured negative-lookup (null/miss) cache TTL.
+     *
+     * @return int
+     */
+    private function resolveNegativeTtl(): int
+    {
+        $ttl = $this->resolveProperty('cacheNegativeTtl') ?? Config::get('api-toolkit.repositories.cache.negative_ttl', 10);
+
+        return is_numeric($ttl) ? (int) $ttl : 10;
+    }
+
+    /**
      * Resolve the per-query cache store options from properties and config.
      *
      * @return \SineMacula\ApiToolkit\Repositories\Concerns\CacheStoreOptions
@@ -330,7 +345,7 @@ trait Cacheable
         $registryEnabled = $this->resolveProperty('cacheRegistryEnabled')
             ?? Config::get('api-toolkit.repositories.cache.registry_enabled', true);
 
-        return new CacheStoreOptions($this->resolveTtl(), $this->resolveSizeGuard(), (bool) $registryEnabled);
+        return new CacheStoreOptions($this->resolveTtl(), $this->resolveSizeGuard(), (bool) $registryEnabled, $this->resolveNegativeTtl());
     }
 
     /**
