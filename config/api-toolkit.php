@@ -172,6 +172,11 @@ return [
 
         'register_middleware' => env('API_PARSER_REGISTER_MIDDLEWARE', true),
 
+        // Hard ceiling for a client-supplied `limit`. Requests above it are
+        // clamped (not rejected) to prevent unbounded page sizes exhausting
+        // memory. Set to 0 (or null) to disable the ceiling.
+        'max_limit' => env('API_PARSER_MAX_LIMIT', 100),
+
         'defaults' => [
             'limit' => env('API_PARSER_DEFAULT_LIMIT', 50),
         ],
