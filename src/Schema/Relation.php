@@ -30,6 +30,9 @@ final class Relation extends BaseDefinition implements Arrayable
     /** @var (callable(\Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>): void)|null Eager-load constraint callback */
     private mixed $constraint = null;
 
+    /** @var bool Whether this relation is declared externally traversable */
+    private bool $traversable = false;
+
     /**
      * Prevent direct instantiation.
      *
@@ -115,6 +118,19 @@ final class Relation extends BaseDefinition implements Arrayable
     }
 
     /**
+     * Declare this relation as externally traversable via $has/$hasnt and
+     * nested relation filters.
+     *
+     * @return self
+     */
+    public function traversable(): self
+    {
+        $this->traversable = true;
+
+        return $this;
+    }
+
+    /**
      * Convert this definition to a normalized array.
      *
      * @return array<string, array<string, mixed>>
@@ -127,6 +143,7 @@ final class Relation extends BaseDefinition implements Arrayable
         return [
             $key => array_filter([
                 'relation'     => $this->name,
+                'traversable'  => $this->traversable ? $this->name : null,
                 'resource'     => $this->resource,
                 'accessor'     => $this->accessor,
                 'extras'       => $this->extras ?: null,

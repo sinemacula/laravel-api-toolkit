@@ -74,6 +74,45 @@ class SchemaCompilerTest extends TestCase
     }
 
     /**
+     * Test that compile aggregates the declared filterable, sortable, and
+     * traversable markers into the CompiledSchema query-surface sets,
+     * de-duplicated and column-named.
+     *
+     * @return void
+     */
+    public function testCompileAggregatesQuerySurfaceSets(): void
+    {
+        $resourceClass = $this->createStubResourceClass([
+            'email'        => ['filterable' => 'email', 'sortable' => 'email'],
+            'name'         => ['filterable' => 'name'],
+            'created_at'   => ['sortable' => 'created_at'],
+            'organization' => ['relation' => 'organization', 'traversable' => 'organization'],
+        ]);
+
+        $schema = SchemaCompiler::compile($resourceClass);
+
+        static::assertSame(['email', 'name'], $schema->getFilterableColumns());
+        static::assertSame(['email', 'created_at'], $schema->getSortableColumns());
+        static::assertSame(['organization'], $schema->getTraversableRelations());
+    }
+
+    /**
+     * Test that a schema declaring no markers yields empty query-surface sets.
+     *
+     * @return void
+     */
+    public function testCompileYieldsEmptyQuerySurfaceWhenNothingDeclared(): void
+    {
+        $schema = SchemaCompiler::compile($this->createStubResourceClass([
+            'email' => [],
+        ]));
+
+        static::assertSame([], $schema->getFilterableColumns());
+        static::assertSame([], $schema->getSortableColumns());
+        static::assertSame([], $schema->getTraversableRelations());
+    }
+
+    /**
      * Test that compile returns a CompiledSchema from a raw schema array.
      *
      * @return void

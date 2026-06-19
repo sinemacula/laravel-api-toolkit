@@ -20,6 +20,12 @@ final class Field extends BaseDefinition
     /** @var mixed Compute callable for dynamic field values */
     private mixed $compute = null;
 
+    /** @var bool Whether this field's column is declared filterable */
+    private bool $filterable = false;
+
+    /** @var bool Whether this field's column is declared sortable */
+    private bool $sortable = false;
+
     /**
      * Prevent direct instantiation.
      *
@@ -137,6 +143,30 @@ final class Field extends BaseDefinition
     }
 
     /**
+     * Declare this field's column as filterable.
+     *
+     * @return self
+     */
+    public function filterable(): self
+    {
+        $this->filterable = true;
+
+        return $this;
+    }
+
+    /**
+     * Declare this field's column as sortable.
+     *
+     * @return self
+     */
+    public function sortable(): self
+    {
+        $this->sortable = true;
+
+        return $this;
+    }
+
+    /**
      * Convert this definition to a normalized array.
      *
      * @return array<string, array<string, mixed>>
@@ -150,6 +180,8 @@ final class Field extends BaseDefinition
             $key => array_filter([
                 'accessor'     => $this->accessor,
                 'compute'      => $this->compute,
+                'filterable'   => $this->filterable ? $this->name : null,
+                'sortable'     => $this->sortable ? $this->name : null,
                 'extras'       => $this->extras ?: null,
                 'needs'        => $this->needs ?: null,
                 'guards'       => $this->getGuards() ?: null,

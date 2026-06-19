@@ -51,6 +51,45 @@ class FieldTest extends TestCase
     }
 
     /**
+     * Test that filterable() and sortable() emit the field's column name.
+     *
+     * @return void
+     */
+    public function testFilterableAndSortableMarkersEmitTheColumnName(): void
+    {
+        $array = Field::scalar('email')->filterable()->sortable()->toArray();
+
+        static::assertSame('email', $array['email']['filterable']);
+        static::assertSame('email', $array['email']['sortable']);
+    }
+
+    /**
+     * Test that the filterable marker declares the underlying column, not the
+     * presentation alias.
+     *
+     * @return void
+     */
+    public function testFilterableMarkerDeclaresColumnNotAlias(): void
+    {
+        $array = Field::scalar('email_address', 'email')->filterable()->toArray();
+
+        static::assertSame('email_address', $array['email']['filterable']);
+    }
+
+    /**
+     * Test that a field without markers omits them.
+     *
+     * @return void
+     */
+    public function testFieldWithoutMarkersOmitsThem(): void
+    {
+        $array = Field::scalar('email')->toArray();
+
+        static::assertArrayNotHasKey('filterable', $array['email']);
+        static::assertArrayNotHasKey('sortable', $array['email']);
+    }
+
+    /**
      * Test that accessor creates a field with a string accessor.
      *
      * @return void
