@@ -24,3 +24,12 @@ Version 2.0 is in development on the `2.x` branch. See [UPGRADE.md](UPGRADE.md) 
 - Opt-in deferred repository writes with a write pool, and opt-in transparent repository caching
 - Exception handler coverage for all HTTP-layer exceptions, preserving `abort()` status codes
 - Configurable middleware registration and notification logging exclusions
+
+### Fixed
+
+- Lifecycle and error boundaries now preserve the full throwable (type, stack, cause) rather than
+  only its message: the write-pool flush subscriber, the database log handler's fallback, and the
+  write-pool chunk-failure logger log the throwable under an `exception` key, and the write-pool
+  failure accumulator records the `exception_class` alongside the message. The Octane cache-flush
+  listener now wraps the flush in an error boundary, so a flush failure is logged instead of
+  propagating into Octane's dispatch and crashing the worker
