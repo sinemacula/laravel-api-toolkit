@@ -63,6 +63,12 @@ Version 2.0 is in development on the `2.x` branch. See [UPGRADE.md](UPGRADE.md) 
   now boots through a dedicated `bootCacheable()` / `bootDeferrable()` hook invoked by the base
   repository. (Deferred writes still bypass the per-query cache - flush it manually or rely on its
   TTL; this is documented on the `Deferrable` trait.)
+- Per-query cache invalidation on non-taggable stores (`database`/`file`/`array`) no longer maintains
+  a tracked key set rewritten in full on every cache write (O(K) per write, plus a read-modify-write
+  race that dropped and leaked keys `flushTable` could then never clear, causing stale reads). Each
+  per-query key now embeds a generational table version, and invalidation bumps it with a single
+  atomic increment - O(1) and race-free; orphaned old-version entries expire by TTL. The taggable
+  (cache-tag) path is unchanged.
 
 ### Security
 

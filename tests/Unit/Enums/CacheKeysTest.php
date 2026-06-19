@@ -34,7 +34,7 @@ class CacheKeysTest extends TestCase
         yield 'REPOSITORY_CACHE' => [CacheKeys::REPOSITORY_CACHE, 'repository-cache:%s'];
         yield 'REPOSITORY_CACHE_META' => [CacheKeys::REPOSITORY_CACHE_META, 'repository-cache-meta:%s'];
         yield 'REPOSITORY_QUERY_CACHE' => [CacheKeys::REPOSITORY_QUERY_CACHE, 'repository-query:%s:%s'];
-        yield 'REPOSITORY_CACHE_REGISTRY' => [CacheKeys::REPOSITORY_CACHE_REGISTRY, 'repository-cache-registry:%s'];
+        yield 'REPOSITORY_CACHE_VERSION' => [CacheKeys::REPOSITORY_CACHE_VERSION, 'repository-cache-version:%s'];
     }
 
     /**

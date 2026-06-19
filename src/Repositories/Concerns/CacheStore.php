@@ -13,28 +13,34 @@ use SineMacula\ApiToolkit\Enums\CacheKeys;
  *
  * Each executed query is stored under a key derived from its fingerprint, so a
  * filtered or by-id read never returns the full-table collection. Invalidation
- * is performed per table — via cache tags when the store supports them, or via
- * a tracked key registry otherwise.
+ * is performed per table - via cache tags when the store supports them, or via a
+ * generational table version otherwise: every per-query key embeds the current
+ * table version, and a write bumps the version with a single atomic increment.
+ * Invalidation is therefore O(1) and free of the read-modify-write races a
+ * tracked key set suffers; orphaned old-version entries simply expire by TTL.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-final readonly class CacheStore
+final class CacheStore
 {
     /** @var \Illuminate\Contracts\Cache\Repository The underlying cache store instance. */
-    private CacheContract $store;
-
-    /** @var \SineMacula\ApiToolkit\Repositories\Concerns\CacheKeyRegistry|null The per-table live key registry, or null when disabled. */
-    private ?CacheKeyRegistry $registry;
+    private readonly CacheContract $store;
 
     /** @var string The cache tag scoping all per-query entries for the table. */
-    private string $tag;
+    private readonly string $tag;
 
     /** @var string The resolved cache key for the repository metadata. */
-    private string $metaKey;
+    private readonly string $metaKey;
+
+    /** @var string The resolved cache key holding the table's generational version. */
+    private readonly string $versionKey;
 
     /** @var \Illuminate\Cache\Repository|null The concrete store when it supports tags, otherwise null. */
-    private ?ConcreteRepository $taggableStore;
+    private readonly ?ConcreteRepository $taggableStore;
+
+    /** @var int|null The memoised table version for the non-taggable generational scheme. */
+    private ?int $version = null;
 
     /**
      * Create a new cache store instance.
@@ -45,9 +51,9 @@ final readonly class CacheStore
      * @return void
      */
     public function __construct(
-        private string $cacheStore,
-        private string $table,
-        private CacheStoreOptions $options,
+        private readonly string $cacheStore,
+        private readonly string $table,
+        private readonly CacheStoreOptions $options,
     ) {
         $store = Cache::store($this->cacheStore);
 
@@ -55,9 +61,7 @@ final readonly class CacheStore
         $this->taggableStore = $store instanceof ConcreteRepository && $store->supportsTags() ? $store : null;
         $this->tag           = 'repo-table:' . $this->table;
         $this->metaKey       = CacheKeys::REPOSITORY_CACHE_META->resolveKey([$this->table]);
-        $this->registry      = $this->options->registryEnabled
-            ? new CacheKeyRegistry($this->store, $this->table, $this->options->ttl)
-            : null;
+        $this->versionKey    = CacheKeys::REPOSITORY_CACHE_VERSION->resolveKey([$this->table]);
     }
 
     /**
@@ -96,12 +100,8 @@ final readonly class CacheStore
             return;
         }
 
-        $key = $this->keyFor($hash);
-
-        $this->scopedStore()->put($key, $result, $this->options->ttl);
+        $this->scopedStore()->put($this->keyFor($hash), $result, $this->options->ttl);
         $this->store->put($this->metaKey, ['populated_at' => now()->timestamp], $this->options->ttl);
-
-        $this->registry?->track($key);
     }
 
     /**
@@ -113,8 +113,8 @@ final readonly class CacheStore
     {
         if ($this->taggableStore !== null) {
             $this->taggableStore->tags([$this->tag])->flush();
-        } else {
-            $this->registry?->flush();
+        } elseif ($this->options->registryEnabled) {
+            $this->bumpVersion();
         }
 
         $this->store->put($this->metaKey, ['invalidated_at' => now()->timestamp], $this->options->ttl);
@@ -152,12 +152,18 @@ final readonly class CacheStore
     /**
      * Resolve the cache key for a query fingerprint.
      *
+     * On taggable stores the tag handles invalidation, so the key is the bare
+     * table/fingerprint pair. Otherwise the current generational version is
+     * folded in, so a version bump orphans every previously stored key.
+     *
      * @param  string  $hash
      * @return string
      */
     private function keyFor(string $hash): string
     {
-        return CacheKeys::REPOSITORY_QUERY_CACHE->resolveKey([$this->table, $hash]);
+        $scopedHash = $this->taggableStore !== null ? $hash : $this->tableVersion() . ':' . $hash;
+
+        return CacheKeys::REPOSITORY_QUERY_CACHE->resolveKey([$this->table, $scopedHash]);
     }
 
     /**
@@ -170,5 +176,35 @@ final readonly class CacheStore
         return $this->taggableStore !== null
             ? $this->taggableStore->tags([$this->tag])
             : $this->store;
+    }
+
+    /**
+     * Resolve the table's current generational version, memoised for the
+     * lifetime of this store instance.
+     *
+     * @return int
+     */
+    private function tableVersion(): int
+    {
+        if ($this->version !== null) {
+            return $this->version;
+        }
+
+        $value = $this->store->get($this->versionKey);
+
+        return $this->version = is_int($value) ? $value : 0;
+    }
+
+    /**
+     * Bump the table's generational version, orphaning every existing per-query
+     * key for the table in a single atomic write.
+     *
+     * @return void
+     */
+    private function bumpVersion(): void
+    {
+        $bumped = $this->store->increment($this->versionKey);
+
+        $this->version = is_int($bumped) ? $bumped : $this->tableVersion() + 1;
     }
 }
