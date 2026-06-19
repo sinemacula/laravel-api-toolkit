@@ -2,6 +2,7 @@
 
 namespace Tests\Unit\Http\Resources\Concerns;
 
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Http\Resources\MissingValue;
@@ -13,6 +14,7 @@ use SineMacula\ApiToolkit\Http\Resources\Concerns\ValueResolver;
 use SineMacula\ApiToolkit\Http\Resources\Schema\CompiledCountDefinition;
 use SineMacula\ApiToolkit\Http\Resources\Schema\CompiledFieldDefinition;
 use SineMacula\ApiToolkit\Http\Resources\Schema\CompiledSchema;
+use Tests\Concerns\InteractsWithNonPublicMembers;
 use Tests\Fixtures\Models\Organization;
 use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\User;
@@ -32,6 +34,8 @@ use Tests\TestCase;
 #[CoversClass(ValueResolver::class)]
 class ValueResolverTest extends TestCase
 {
+    use InteractsWithNonPublicMembers;
+
     /** @var \SineMacula\ApiToolkit\Http\Resources\Concerns\ValueResolver */
     private ValueResolver $resolver;
 
@@ -45,7 +49,189 @@ class ValueResolverTest extends TestCase
     {
         parent::setUp();
 
+        ValueResolver::clearCache();
+
         $this->resolver = new ValueResolver(new GuardEvaluator);
+    }
+
+    /**
+     * Clear the static memo caches after each test.
+     *
+     * @return void
+     */
+    #[\Override]
+    protected function tearDown(): void
+    {
+        ValueResolver::clearCache();
+
+        parent::tearDown();
+    }
+
+    /**
+     * Test that the cast-accessor reflection result is memoised per class and
+     * field after the first resolution.
+     *
+     * @return void
+     */
+    public function testCastAccessorReflectionIsMemoisedPerClassAndField(): void
+    {
+
+        $model = new class {
+            /**
+             * A cast accessor returning an Attribute instance.
+             *
+             * @return \Illuminate\Database\Eloquent\Casts\Attribute
+             */
+            public function nickname(): Attribute
+            {
+                return Attribute::make(get: fn () => 'Nick');
+            }
+
+            /**
+             * Return the attributes array.
+             *
+             * @return array<string, mixed>
+             */
+            public function getAttributes(): array
+            {
+                return [];
+            }
+
+            /**
+             * Magic getter resolving the cast accessor value.
+             *
+             * @param  string  $key
+             * @return mixed
+             */
+            public function __get(string $key): mixed
+            {
+                return 'Nick';
+            }
+        };
+
+        $result = $this->resolver->resolveFieldValue('nickname', $this->makeFieldDefinition(), new JsonResource($model), null);
+
+        static::assertSame('Nick', $result);
+
+        $cache = $this->getStaticProperty(ValueResolver::class, 'castAccessorCache');
+
+        static::assertTrue($cache[$model::class]['nickname']);
+    }
+
+    /**
+     * Test that a seeded cast-accessor memo short-circuits the reflection, so
+     * the cached decision is honoured rather than recomputed.
+     *
+     * @return void
+     */
+    public function testCastAccessorMemoShortCircuitsReflection(): void
+    {
+
+        $model = new class {
+            /**
+             * A plain method whose return type is not an Attribute.
+             *
+             * @return string
+             */
+            public function label(): string
+            {
+                return 'real';
+            }
+
+            /**
+             * Return the attributes array.
+             *
+             * @return array<string, mixed>
+             */
+            public function getAttributes(): array
+            {
+                return [];
+            }
+
+            /**
+             * Magic getter used when the field resolves via the memoised path.
+             *
+             * @param  string  $key
+             * @return mixed
+             */
+            public function __get(string $key): mixed
+            {
+                return 'from-memo';
+            }
+        };
+
+        // Seed a decision reflection would never produce: label() returns string,
+        // not Attribute, so an honoured memo yields the __get value while a
+        // recomputation would yield MissingValue.
+        $this->setStaticProperty(ValueResolver::class, 'castAccessorCache', [$model::class => ['label' => true]]);
+
+        $result = $this->resolver->resolveFieldValue('label', $this->makeFieldDefinition(), new JsonResource($model), null);
+
+        static::assertSame('from-memo', $result);
+    }
+
+    /**
+     * Test that the resolved child field set is memoised per compiled
+     * definition.
+     *
+     * @return void
+     */
+    public function testRelationFieldsAreMemoisedPerDefinition(): void
+    {
+        // A leading empty entry makes the array_values re-index observable: a
+        // plain array_filter would leave the kept entries on keys 1 and 2.
+        $definition = $this->makeFieldDefinition(fields: ['', 'id', 'name']);
+
+        $first  = $this->invokeMethod($this->resolver, 'getRelationFields', $definition);
+        $second = $this->invokeMethod($this->resolver, 'getRelationFields', $definition);
+
+        static::assertSame(['id', 'name'], $first);
+        static::assertSame($first, $second);
+
+        $cache = $this->getStaticProperty(ValueResolver::class, 'relationFieldsCache');
+
+        static::assertInstanceOf(\WeakMap::class, $cache);
+        static::assertCount(1, $cache);
+        static::assertTrue($cache->offsetExists($definition));
+    }
+
+    /**
+     * Test that a seeded child-field memo is consulted rather than recomputed.
+     *
+     * @return void
+     */
+    public function testRelationFieldsMemoIsConsulted(): void
+    {
+        $definition = $this->makeFieldDefinition(fields: ['id', 'name']);
+
+        $weakMap              = new \WeakMap;
+        $weakMap[$definition] = ['sentinel_field'];
+
+        $this->setStaticProperty(ValueResolver::class, 'relationFieldsCache', $weakMap);
+
+        $result = $this->invokeMethod($this->resolver, 'getRelationFields', $definition);
+
+        static::assertSame(['sentinel_field'], $result);
+    }
+
+    /**
+     * Test that clearing the cache empties both serialization memo caches.
+     *
+     * @return void
+     */
+    public function testClearCacheEmptiesMemoCaches(): void
+    {
+        $definition           = $this->makeFieldDefinition(fields: ['id']);
+        $weakMap              = new \WeakMap;
+        $weakMap[$definition] = ['id'];
+
+        $this->setStaticProperty(ValueResolver::class, 'castAccessorCache', ['Foo' => ['bar' => true]]);
+        $this->setStaticProperty(ValueResolver::class, 'relationFieldsCache', $weakMap);
+
+        ValueResolver::clearCache();
+
+        static::assertSame([], $this->getStaticProperty(ValueResolver::class, 'castAccessorCache'));
+        static::assertNull($this->getStaticProperty(ValueResolver::class, 'relationFieldsCache'));
     }
 
     /**

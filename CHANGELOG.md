@@ -16,6 +16,11 @@ Version 2.0 is in development on the `2.x` branch. See [UPGRADE.md](UPGRADE.md) 
 - `Service::run()` returns an immutable `ServiceResult` value object instead of `bool`
 - HTTP enums are provided by `sinemacula/http-primitives-php`
 - Request capabilities are exposed through the typed `RequestCapabilities` API; the request macros are deprecated
+- Resource serialization memoises its hot-path lookups: `ValueResolver` caches the per-`(class, field)`
+  cast-accessor reflection result and the per-definition child field set, and `EagerLoadPlanner` caches the
+  eager-load and count maps per request. The memos are static but request-scoped - `CacheManager::flush()` clears
+  them at request and worker boundaries (Octane, queues) - so repeated reads no longer re-reflect or rebuild the
+  same map once per record
 
 ### Added
 

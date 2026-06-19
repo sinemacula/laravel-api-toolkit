@@ -7,7 +7,9 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Config;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Events\CacheFlushed;
+use SineMacula\ApiToolkit\Http\Resources\Concerns\EagerLoadPlanner;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\SchemaCompiler;
+use SineMacula\ApiToolkit\Http\Resources\Concerns\ValueResolver;
 
 /**
  * Centralized orchestrator for flushing all toolkit caches.
@@ -43,6 +45,8 @@ final class CacheManager
         Cache::memo()->getStore()->flush();
 
         SchemaCompiler::clearCache();
+        ValueResolver::clearCache();
+        EagerLoadPlanner::clearCache();
 
         $this->container->make(SchemaIntrospectionProvider::class)->flush();
 
