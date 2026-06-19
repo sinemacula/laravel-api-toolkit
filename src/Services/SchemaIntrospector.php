@@ -54,10 +54,11 @@ class SchemaIntrospector implements SchemaIntrospectionProvider
 
         $cacheKey = CacheKeys::MODEL_SCHEMA_COLUMNS->resolveKey([$model::class]);
 
-        /** @var array<int, string> $cached */
-        $cached = Cache::memo()->get($cacheKey, []);
+        if (Cache::memo()->has($cacheKey)) {
 
-        if (!empty($cached)) {
+            /** @var array<int, string> $cached */
+            $cached = Cache::memo()->get($cacheKey, []);
+
             $this->columns[$model::class] = $cached;
 
             return $cached;
