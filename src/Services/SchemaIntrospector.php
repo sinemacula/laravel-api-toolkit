@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
+use SineMacula\ApiToolkit\Cache\MetadataCacheWriter;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Enums\CacheKeys;
 use SineMacula\ApiToolkit\Services\Introspection\ColumnDefinition;
@@ -66,7 +67,7 @@ class SchemaIntrospector implements SchemaIntrospectionProvider
 
         $columns = Schema::getColumnListing($model->getTable());
 
-        Cache::memo()->rememberForever($cacheKey, fn () => $columns);
+        $this->metadataCacheWriter()->rememberMetadataForever($cacheKey, fn () => $columns);
 
         $this->columns[$model::class] = $columns;
 
@@ -102,7 +103,7 @@ class SchemaIntrospector implements SchemaIntrospectionProvider
 
         $definitions = $this->mapColumnDefinitions(Schema::getColumns($model->getTable()));
 
-        Cache::memo()->rememberForever($cacheKey, fn () => $definitions);
+        $this->metadataCacheWriter()->rememberMetadataForever($cacheKey, fn () => $definitions);
 
         $this->columnDefinitions[$model::class] = $definitions;
 
@@ -169,7 +170,7 @@ class SchemaIntrospector implements SchemaIntrospectionProvider
     #[\Override]
     public function isRelation(string $key, Model $model): bool
     {
-        return Cache::memo()->rememberForever(CacheKeys::MODEL_RELATIONS->resolveKey([
+        return $this->metadataCacheWriter()->rememberMetadataForever(CacheKeys::MODEL_RELATIONS->resolveKey([
             $model::class,
             $key,
         ]), function () use ($key, $model) {
@@ -256,6 +257,16 @@ class SchemaIntrospector implements SchemaIntrospectionProvider
         $this->columns           = [];
         $this->columnDefinitions = [];
         $this->searchable        = [];
+    }
+
+    /**
+     * Resolve the metadata cache writer from the container.
+     *
+     * @return \SineMacula\ApiToolkit\Cache\MetadataCacheWriter
+     */
+    private function metadataCacheWriter(): MetadataCacheWriter
+    {
+        return app(MetadataCacheWriter::class);
     }
 
     /**

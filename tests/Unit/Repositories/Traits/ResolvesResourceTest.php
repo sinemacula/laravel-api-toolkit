@@ -6,6 +6,8 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Config;
 use PHPUnit\Framework\Attributes\CoversTrait;
+use SineMacula\ApiToolkit\Cache\MetadataKeyRegistry;
+use SineMacula\ApiToolkit\Enums\CacheKeys;
 use SineMacula\ApiToolkit\Repositories\Traits\ResolvesResource;
 use Tests\Concerns\InteractsWithNonPublicMembers;
 use Tests\Fixtures\Models\Tag;
@@ -205,6 +207,28 @@ class ResolvesResourceTest extends TestCase
 
         static::assertSame(UserResource::class, $repository->exposeResolveResource(new User));
         static::assertSame(UserResource::class, $repository->exposeGetResourceFromModel(new User));
+    }
+
+    /**
+     * Test that resolving a model resource registers the MODEL_RESOURCES key
+     * in the MetadataKeyRegistry.
+     *
+     * @return void
+     */
+    public function testResolveResourceRegistersResourcesKey(): void
+    {
+        Config::set('api-toolkit.resources.resource_map.' . User::class, UserResource::class);
+
+        assert($this->app !== null);
+
+        $consumer = $this->createConsumer();
+
+        $this->invokeMethod($consumer, 'resolveResource', new User);
+
+        $registry    = $this->app->make(MetadataKeyRegistry::class);
+        $expectedKey = CacheKeys::MODEL_RESOURCES->resolveKey([User::class]);
+
+        static::assertContains($expectedKey, $registry->keys());
     }
 
     /**

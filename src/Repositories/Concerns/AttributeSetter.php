@@ -11,6 +11,7 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Str;
+use SineMacula\ApiToolkit\Cache\MetadataCacheWriter;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Enums\CacheKeys;
 
@@ -300,7 +301,17 @@ final class AttributeSetter
      */
     private function storeCastsInCache(string $modelClass): void
     {
-        Cache::memo()->rememberForever(CacheKeys::REPOSITORY_MODEL_CASTS->resolveKey([$modelClass]), fn () => $this->casts);
+        $this->metadataCacheWriter()->rememberMetadataForever(CacheKeys::REPOSITORY_MODEL_CASTS->resolveKey([$modelClass]), fn () => $this->casts);
+    }
+
+    /**
+     * Resolve the metadata cache writer from the container.
+     *
+     * @return \SineMacula\ApiToolkit\Cache\MetadataCacheWriter
+     */
+    private function metadataCacheWriter(): MetadataCacheWriter
+    {
+        return app(MetadataCacheWriter::class);
     }
 
     /**

@@ -6,6 +6,8 @@ use Illuminate\Contracts\Container\Container;
 use Illuminate\Support\Facades\Config;
 use SineMacula\ApiToolkit\ApiQueryParser;
 use SineMacula\ApiToolkit\Cache\CacheManager;
+use SineMacula\ApiToolkit\Cache\MetadataCacheWriter;
+use SineMacula\ApiToolkit\Cache\MetadataKeyRegistry;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Enums\FlushStrategy;
 use SineMacula\ApiToolkit\OpenApi\Contracts\DocumentWriter;
@@ -26,6 +28,7 @@ use SineMacula\ApiToolkit\Repositories\Criteria\Operators\LikeOperator;
 use SineMacula\ApiToolkit\Repositories\Criteria\Operators\NotEqualOperator;
 use SineMacula\ApiToolkit\Repositories\Criteria\Operators\NotNullOperator;
 use SineMacula\ApiToolkit\Repositories\Criteria\Operators\NullOperator;
+use SineMacula\ApiToolkit\Runtime\RuntimeContext;
 use SineMacula\ApiToolkit\Services\SchemaIntrospector;
 use SineMacula\ApiToolkit\Services\SchemaValidator;
 use SineMacula\ApiToolkit\Services\Validation\Rules\ValidateAccessors;
@@ -76,6 +79,7 @@ final class ContainerBindingRegistrar
         $this->registerSchemaValidator();
         $this->registerWritePool();
         $this->registerCacheManager();
+        $this->registerLifecycleRuntime();
         $this->registerOpenApiExporter();
     }
 
@@ -193,6 +197,22 @@ final class ContainerBindingRegistrar
     private function registerCacheManager(): void
     {
         $this->container->singleton(CacheManager::class);
+    }
+
+    /**
+     * Bind the lifecycle runtime collaborators to the service container.
+     *
+     * RuntimeContext, MetadataKeyRegistry, and MetadataCacheWriter are each
+     * bound as singletons so write-time and flush-time share one live instance
+     * within a worker process.
+     *
+     * @return void
+     */
+    private function registerLifecycleRuntime(): void
+    {
+        $this->container->singleton(RuntimeContext::class);
+        $this->container->singleton(MetadataKeyRegistry::class);
+        $this->container->singleton(MetadataCacheWriter::class);
     }
 
     /**

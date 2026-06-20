@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Config;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\MockObject\Stub;
+use SineMacula\ApiToolkit\Cache\MetadataKeyRegistry;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Enums\CacheKeys;
 use SineMacula\ApiToolkit\Repositories\Concerns\AttributeSetter;
@@ -758,5 +759,28 @@ class AttributeSetterTest extends TestCase
         $result = $this->invokeMethod($this->attributeSetter, 'resolveCastForAttribute', 'field', 'custom_type', null);
 
         static::assertSame('string', $result);
+    }
+
+    /**
+     * Test that persist registers the REPOSITORY_MODEL_CASTS key in the
+     * metadata key registry.
+     *
+     * @return void
+     */
+    public function testStoreCastsRegistersModelCastsKey(): void
+    {
+        // Arrange
+        $registry = app(MetadataKeyRegistry::class);
+        $user     = User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL]);
+
+        $this->setProperty($this->attributeSetter, 'casts', ['name' => 'string']);
+
+        // Act
+        $this->attributeSetter->persist($user, ['name' => 'Bob'], User::class);
+
+        // Assert
+        $expectedKey = CacheKeys::REPOSITORY_MODEL_CASTS->resolveKey([User::class]);
+
+        static::assertContains($expectedKey, $registry->keys());
     }
 }
