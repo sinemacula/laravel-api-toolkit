@@ -1080,6 +1080,10 @@ class ApiServiceProviderTest extends TestCase
     {
         $app = $this->getApplication();
 
+        // Reset the dispatcher so the boot-time wiring (now default-on) does not
+        // pollute the baseline being tested.
+        \Illuminate\Support\Facades\Event::swap(new \Illuminate\Events\Dispatcher($app));
+
         $this->getConfig()->set('api-toolkit.lifecycle.queue', false);
 
         $provider = new ApiServiceProvider($app);

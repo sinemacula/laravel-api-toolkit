@@ -31,9 +31,20 @@ Version 2.0 is in development on the `2.x` branch. See [UPGRADE.md](UPGRADE.md) 
   eager-load and count maps per request. The memos are static but request-scoped - `CacheManager::flush()` clears
   them at request and worker boundaries (Octane, queues) - so repeated reads no longer re-reflect or rebuild the
   same map once per record
+- The cross-request metadata cache flush is now enabled by default when the application is actively serving
+  under Octane or as a queue worker (php-fpm and CLI commands are unaffected). Operators who need to opt out
+  can set `API_TOOLKIT_LIFECYCLE_OCTANE=false` or `API_TOOLKIT_LIFECYCLE_QUEUE=false`. See
+  [UPGRADE.md](UPGRADE.md) for migration steps
+- The lifecycle flush is now scoped to the toolkit's own metadata keys via a per-key registry, so non-toolkit
+  application cache entries and repository result caches are no longer cleared at the request boundary
 
 ### Added
 
+- Serving-runtime detection that discriminates between a runtime merely having Octane or a queue driver
+  installed versus actively serving requests, gating the lifecycle flush to only fire when the process is
+  inside a live Octane worker or a non-`sync` queue worker
+- A non-silent off-state diagnostic: when a serving runtime is detected but the lifecycle flush is opted-out,
+  an `info`-level log entry is emitted so operators know the flush is intentionally disabled
 - Declared-intent query-surface markers on the schema DSL -- `Field::filterable()`, `Field::sortable()`,
   and `Relation::traversable()` -- compiled into the resource's allowlist of queryable columns and
   traversable relations

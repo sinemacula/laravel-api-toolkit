@@ -26,12 +26,16 @@ final class CacheManager
      * Create a new cache manager instance.
      *
      * @param  \Illuminate\Contracts\Container\Container  $container
+     * @param  \SineMacula\ApiToolkit\Cache\MetadataKeyRegistry  $registry
      * @return void
      */
     public function __construct(
 
         /** The service container for resolving cache site instances. */
         private readonly Container $container,
+
+        /** The registry of toolkit metadata keys to forget on flush. */
+        private readonly MetadataKeyRegistry $registry,
 
     ) {}
 
@@ -42,7 +46,11 @@ final class CacheManager
      */
     public function flush(): void
     {
-        Cache::memo()->getStore()->flush();
+        foreach ($this->registry->keys() as $key) {
+            Cache::memo()->forget($key); // @phpstan-ignore method.notFound
+        }
+
+        $this->registry->clear();
 
         SchemaCompiler::clearCache();
         ValueResolver::clearCache();

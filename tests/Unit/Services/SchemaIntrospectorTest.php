@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use PHPUnit\Framework\Attributes\CoversClass;
+use SineMacula\ApiToolkit\Cache\MetadataKeyRegistry;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Enums\CacheKeys;
 use SineMacula\ApiToolkit\Services\Introspection\ColumnDefinition;
@@ -457,6 +458,25 @@ class SchemaIntrospectorTest extends TestCase
         $model        = new User;
 
         static::assertTrue($introspector->isRelation('profile', $model));
+    }
+
+    /**
+     * Test that parentKeysFor returns the foreign key for a BelongsTo relation
+     * and the local key for a HasOneOrMany relation.
+     *
+     * @return void
+     */
+    public function testParentKeysForReturnsRelationParentKeys(): void
+    {
+        $introspector = new SchemaIntrospector;
+        $user         = new User;
+
+        // BelongsTo resolves to the owning foreign key on the child table.
+        static::assertSame(['organization_id'], $introspector->parentKeysFor($user->organization()));
+
+        // HasOne and HasMany (HasOneOrMany) resolve to the parent's local key.
+        static::assertSame([$user->getKeyName()], $introspector->parentKeysFor($user->posts()));
+        static::assertSame([$user->getKeyName()], $introspector->parentKeysFor($user->profile()));
     }
 
     /**
@@ -988,5 +1008,71 @@ class SchemaIntrospectorTest extends TestCase
         $introspector = new SchemaIntrospector;
 
         static::assertSame([], $introspector->parentKeysFor($unknown));
+    }
+
+    /**
+     * Test that getColumns registers the MODEL_SCHEMA_COLUMNS key in the
+     * metadata key registry.
+     *
+     * @return void
+     */
+    public function testGetColumnsRegistersSchemaColumnsKey(): void
+    {
+        // Arrange
+        $registry     = app(MetadataKeyRegistry::class);
+        $introspector = new SchemaIntrospector;
+        $model        = new User;
+
+        // Act
+        $introspector->getColumns($model);
+
+        // Assert
+        $expectedKey = CacheKeys::MODEL_SCHEMA_COLUMNS->resolveKey([User::class]);
+
+        static::assertContains($expectedKey, $registry->keys());
+    }
+
+    /**
+     * Test that getColumnDefinitions registers the MODEL_SCHEMA_COLUMN_DEFINITIONS
+     * key in the metadata key registry.
+     *
+     * @return void
+     */
+    public function testGetColumnDefinitionsRegistersColumnDefinitionsKey(): void
+    {
+        // Arrange
+        $registry     = app(MetadataKeyRegistry::class);
+        $introspector = new SchemaIntrospector;
+        $model        = new User;
+
+        // Act
+        $introspector->getColumnDefinitions($model);
+
+        // Assert
+        $expectedKey = CacheKeys::MODEL_SCHEMA_COLUMN_DEFINITIONS->resolveKey([User::class]);
+
+        static::assertContains($expectedKey, $registry->keys());
+    }
+
+    /**
+     * Test that isRelation registers the MODEL_RELATIONS key in the metadata
+     * key registry.
+     *
+     * @return void
+     */
+    public function testIsRelationRegistersRelationsKey(): void
+    {
+        // Arrange
+        $registry     = app(MetadataKeyRegistry::class);
+        $introspector = new SchemaIntrospector;
+        $model        = new User;
+
+        // Act
+        $introspector->isRelation('posts', $model);
+
+        // Assert
+        $expectedKey = CacheKeys::MODEL_RELATIONS->resolveKey([User::class, 'posts']);
+
+        static::assertContains($expectedKey, $registry->keys());
     }
 }
