@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Event;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Cache\CacheManager;
+use SineMacula\ApiToolkit\Cache\MetadataKeyRegistry;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Events\CacheFlushed;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\EagerLoadPlanner;
@@ -29,7 +30,7 @@ class CacheManagerTest extends TestCase
     use InteractsWithNonPublicMembers;
 
     /**
-     * Test that flush clears the memo cache.
+     * Test that flush forgets a registered toolkit memo key.
      *
      * @return void
      */
@@ -40,16 +41,22 @@ class CacheManagerTest extends TestCase
 
         $key = 'test-memo-key';
 
-        Cache::memo()->rememberForever($key, fn () => 'cached-value');
+        /** @var \SineMacula\ApiToolkit\Cache\MetadataKeyRegistry $registry */
+        $registry = $this->app->make(MetadataKeyRegistry::class); // @phpstan-ignore method.nonObject
 
-        static::assertSame('cached-value', Cache::memo()->get($key));
+        $registry->register($key);
+
+        Cache::memo()->rememberForever($key, fn () => 'cached-value'); // @phpstan-ignore method.notFound
+
+        static::assertSame('cached-value', Cache::memo()->get($key)); // @phpstan-ignore method.notFound
 
         // Act
+        /** @var \SineMacula\ApiToolkit\Cache\CacheManager $manager */
         $manager = $this->app->make(CacheManager::class); // @phpstan-ignore method.nonObject
         $manager->flush();
 
         // Assert
-        static::assertNull(Cache::memo()->get($key));
+        static::assertNull(Cache::memo()->get($key)); // @phpstan-ignore method.notFound
     }
 
     /**
@@ -198,8 +205,62 @@ class CacheManagerTest extends TestCase
         $manager->flush();
 
         // Assert
-        static::assertNull(Cache::memo()->get('nonexistent'));
+        static::assertNull(Cache::memo()->get('nonexistent')); // @phpstan-ignore method.notFound
         static::assertSame([], $this->getStaticProperty(SchemaCompiler::class, 'cache'));
         Event::assertDispatched(CacheFlushed::class);
+    }
+
+    /**
+     * Test that flush leaves an unregistered non-toolkit key intact.
+     *
+     * Pins NFR-01/AC-08: keys written directly to the memo store without going
+     * through the MetadataKeyRegistry must survive the scoped flush.
+     *
+     * @return void
+     */
+    public function testFlushLeavesUnregisteredNonToolkitKeyIntact(): void
+    {
+        // Arrange
+        Event::fake();
+
+        Cache::memo()->rememberForever('non-toolkit-key', fn () => 'survivor'); // @phpstan-ignore method.notFound
+
+        // Act
+        /** @var \SineMacula\ApiToolkit\Cache\CacheManager $manager */
+        $manager = $this->app->make(CacheManager::class); // @phpstan-ignore method.nonObject
+        $manager->flush();
+
+        // Assert
+        static::assertSame('survivor', Cache::memo()->get('non-toolkit-key')); // @phpstan-ignore method.notFound
+    }
+
+    /**
+     * Test that flush forgets all registered toolkit keys and empties the registry.
+     *
+     * @return void
+     */
+    public function testFlushForgetsRegisteredToolkitKeysAndClearsRegistry(): void
+    {
+        // Arrange
+        Event::fake();
+
+        /** @var \SineMacula\ApiToolkit\Cache\MetadataKeyRegistry $registry */
+        $registry = $this->app->make(MetadataKeyRegistry::class); // @phpstan-ignore method.nonObject
+
+        $registry->register('toolkit-key-one');
+        $registry->register('toolkit-key-two');
+
+        Cache::memo()->rememberForever('toolkit-key-one', fn () => 'value-one'); // @phpstan-ignore method.notFound
+        Cache::memo()->rememberForever('toolkit-key-two', fn () => 'value-two'); // @phpstan-ignore method.notFound
+
+        // Act
+        /** @var \SineMacula\ApiToolkit\Cache\CacheManager $manager */
+        $manager = $this->app->make(CacheManager::class); // @phpstan-ignore method.nonObject
+        $manager->flush();
+
+        // Assert
+        static::assertNull(Cache::memo()->get('toolkit-key-one')); // @phpstan-ignore method.notFound
+        static::assertNull(Cache::memo()->get('toolkit-key-two')); // @phpstan-ignore method.notFound
+        static::assertSame([], $registry->keys());
     }
 }
