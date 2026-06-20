@@ -185,6 +185,10 @@ class LifecycleFlushDefaultsTest extends TestCase
      */
     public function testOptOutDisablesLifecycleFlushSubscription(): void
     {
+        // Reset the dispatcher so the boot-time wiring (now default-on) does not
+        // pollute the baseline being tested.
+        \Illuminate\Support\Facades\Event::swap(new \Illuminate\Events\Dispatcher($this->app));
+
         // Opt-out: the flag is off, so the registrar must not wire the subscriber.
         Config::set('api-toolkit.lifecycle.queue', false);
 

@@ -336,16 +336,20 @@ return [
     | the toolkit automatically flushes all cached metadata at the appropriate
     | lifecycle boundaries to prevent stale data.
     |
-    | Both options are disabled by default, meaning standard PHP-FPM
-    | deployments incur no additional overhead.
+    | Both options are enabled by default. Engagement is gated on runtime
+    | detection (LARAVEL_OCTANE server variable / non-sync queue connection),
+    | so standard PHP-FPM deployments incur no additional overhead - detection
+    | returns false and the flush is skipped. Operators running Octane or queue
+    | workers who wish to opt out may set API_TOOLKIT_LIFECYCLE_OCTANE=false
+    | or API_TOOLKIT_LIFECYCLE_QUEUE=false in their environment.
     |
     */
 
     'lifecycle' => [
 
-        'octane' => env('API_TOOLKIT_LIFECYCLE_OCTANE', false),
+        'octane' => env('API_TOOLKIT_LIFECYCLE_OCTANE', true),
 
-        'queue' => env('API_TOOLKIT_LIFECYCLE_QUEUE', false),
+        'queue' => env('API_TOOLKIT_LIFECYCLE_QUEUE', true),
 
     ],
 
