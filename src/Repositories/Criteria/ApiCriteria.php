@@ -5,6 +5,7 @@ namespace SineMacula\ApiToolkit\Repositories\Criteria;
 use Illuminate\Contracts\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Config;
 use SineMacula\ApiToolkit\Contracts\ApiResourceInterface;
 use SineMacula\ApiToolkit\Contracts\ResourceMetadataProvider;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
@@ -16,6 +17,7 @@ use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\LimitApplier;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\OrderApplier;
 use SineMacula\ApiToolkit\Repositories\Traits\ResolvesResource;
 use SineMacula\ApiToolkit\Schema\SafetySetDeriver;
+use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 use SineMacula\Repositories\Contracts\CriteriaInterface;
 
 /**
@@ -91,25 +93,28 @@ class ApiCriteria implements CriteriaInterface
         /** @var \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model> $query */
         $query = $model instanceof Model ? $model::query() : $model;
 
-        $query = $this->filterApplier->apply($query, $this->getFilters(), $this->schemaIntrospector, $this->operatorRegistry);
+        $surface = $this->buildQuerySurface($query->getModel());
+
+        $query = $this->filterApplier->apply($query, $this->getFilters(), $this->schemaIntrospector, $this->operatorRegistry, $surface);
         $query = $this->eagerLoadApplier->apply($query, $this->metadataProvider, $this->resolveResource($query->getModel()), $this->getResourceType($query->getModel()));
 
         $query = $this->limitApplier->apply($query, $this->getLimit());
 
         /** @var \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model> $query */
-        return $this->applyOrderingAndProjection($query);
+        return $this->applyOrderingAndProjection($query, $surface);
     }
 
     /**
      * Apply ordering, then narrow the base-table projection as the final step.
      *
      * @param  \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>  $query
+     * @param  \SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface  $surface
      * @return \Illuminate\Contracts\Database\Eloquent\Builder
      */
-    private function applyOrderingAndProjection(Builder $query): Builder
+    private function applyOrderingAndProjection(Builder $query, QuerySurface $surface): Builder
     {
         /** @var \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model> $query */
-        $query = $this->orderApplier->apply($query, $this->getOrder(), $this->schemaIntrospector);
+        $query = $this->orderApplier->apply($query, $this->getOrder(), $surface);
 
         return $this->columnProjectionApplier->apply(
             $query,
@@ -164,5 +169,35 @@ class ApiCriteria implements CriteriaInterface
         }
 
         return $this->metadataProvider->getResourceType($resource);
+    }
+
+    /**
+     * Build the declared query surface for the resolved resource, honouring the
+     * configured posture. A model with no mapped resource yields an empty
+     * surface, so the allowlist posture rejects every key.
+     *
+     * @param  \Illuminate\Database\Eloquent\Model  $model
+     * @return \SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface
+     */
+    private function buildQuerySurface(Model $model): QuerySurface
+    {
+        $resource = $this->resolveResource($model);
+
+        $schema = $resource && is_subclass_of($resource, ApiResourceInterface::class)
+            ? SchemaCompiler::compile($resource)
+            : null;
+
+        $posture = Config::get('api-toolkit.repositories.query_posture', QuerySurface::POSTURE_ALLOWLIST);
+        $reject  = Config::get('api-toolkit.repositories.reject_undeclared', true);
+
+        return new QuerySurface(
+            $schema?->getFilterableColumns()    ?? [],
+            $schema?->getSortableColumns()      ?? [],
+            $schema?->getTraversableRelations() ?? [],
+            is_string($posture) ? $posture : QuerySurface::POSTURE_ALLOWLIST,
+            (bool) $reject,
+            $this->schemaIntrospector,
+            $model,
+        );
     }
 }

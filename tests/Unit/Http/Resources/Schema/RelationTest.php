@@ -36,6 +36,30 @@ class RelationTest extends TestCase
     }
 
     /**
+     * Test that traversable() emits the relation name.
+     *
+     * @return void
+     */
+    public function testTraversableMarkerEmitsTheRelationName(): void
+    {
+        $array = Relation::to('organization', OrganizationResource::class)->traversable()->toArray();
+
+        static::assertSame('organization', $array['organization']['traversable']);
+    }
+
+    /**
+     * Test that a relation without the traversable marker omits it.
+     *
+     * @return void
+     */
+    public function testRelationWithoutTraversableOmitsIt(): void
+    {
+        $array = Relation::to('organization', OrganizationResource::class)->toArray();
+
+        static::assertArrayNotHasKey('traversable', $array['organization']);
+    }
+
+    /**
      * Test that to with a non-class string sets the accessor.
      *
      * @return void

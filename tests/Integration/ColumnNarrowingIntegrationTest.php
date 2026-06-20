@@ -10,6 +10,7 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
 use SineMacula\ApiToolkit\Repositories\Criteria\ApiCriteria;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\ColumnProjectionApplier;
+use SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface;
 use SineMacula\ApiToolkit\Schema\FieldColumnMapper;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 use SineMacula\Http\Enums\HttpMethod;
@@ -51,6 +52,11 @@ class ColumnNarrowingIntegrationTest extends TestCase
 
         FieldColumnMapper::clearCache();
         SchemaCompiler::clearCache();
+
+        // Pin the blocklist posture so ordering follows the legacy isSearchable
+        // contract; this test asserts column-narrowing mechanics, not the
+        // allowlist posture (covered in QuerySurfaceIntegrationTest).
+        Config::set('api-toolkit.repositories.query_posture', QuerySurface::POSTURE_BLOCKLIST);
 
         $this->seedData();
     }

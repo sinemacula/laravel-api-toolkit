@@ -3,6 +3,7 @@
 namespace Tests\Integration;
 
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Config;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
 use SineMacula\ApiToolkit\Repositories\Criteria\ApiCriteria;
@@ -11,6 +12,7 @@ use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterApplier;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\LimitApplier;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\OrderApplier;
+use SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface;
 use SineMacula\Http\Enums\HttpMethod;
 use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\User;
@@ -41,6 +43,12 @@ class ApiCriteriaIntegrationTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+
+        // These tests assert posture-independent applier mechanics end-to-end
+        // against a real database. Pin the blocklist posture so column gating
+        // follows the legacy isSearchable contract; the allowlist default has
+        // dedicated coverage in QuerySurfaceIntegrationTest.
+        Config::set('api-toolkit.repositories.query_posture', QuerySurface::POSTURE_BLOCKLIST);
 
         $this->seedData();
     }

@@ -10,6 +10,7 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Repositories\ApiRepository;
 use SineMacula\ApiToolkit\Repositories\Concerns\AttributeSetter;
 use SineMacula\ApiToolkit\Repositories\Criteria\ApiCriteria;
+use SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface;
 use SineMacula\Http\Enums\HttpMethod;
 use Tests\Concerns\InteractsWithNonPublicMembers;
 use Tests\Fixtures\Enums\UserStatus;
@@ -58,6 +59,11 @@ class ApiRepositoryTest extends TestCase
         parent::setUp();
 
         assert($this->app !== null);
+
+        // Pin the blocklist posture so criteria filtering follows the legacy
+        // isSearchable contract these mechanics tests assert; the allowlist
+        // default has dedicated coverage in QuerySurfaceIntegrationTest.
+        Config::set('api-toolkit.repositories.query_posture', QuerySurface::POSTURE_BLOCKLIST);
 
         $this->repository = $this->app->make(UserRepository::class);
     }
