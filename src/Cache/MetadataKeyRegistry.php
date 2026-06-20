@@ -11,7 +11,7 @@ namespace SineMacula\ApiToolkit\Cache;
  */
 final class MetadataKeyRegistry
 {
-    /** @var array<string, bool> The registered keys, keyed by the key string for O(1) deduplication. */
+    /** @var array<string, string> The registered keys, mapped to themselves for O(1) deduplication. */
     private array $keys = [];
 
     /**
@@ -25,7 +25,7 @@ final class MetadataKeyRegistry
      */
     public function register(string $key): void
     {
-        $this->keys[$key] = true;
+        $this->keys[$key] = $key;
     }
 
     /**
@@ -35,7 +35,7 @@ final class MetadataKeyRegistry
      */
     public function keys(): array
     {
-        return array_keys($this->keys);
+        return array_values($this->keys);
     }
 
     /**

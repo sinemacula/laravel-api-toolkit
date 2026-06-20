@@ -135,4 +135,21 @@ class RuntimeContextTest extends TestCase
 
         static::assertFalse($context->isServingAsQueueWorker('nonexistent-connection'));
     }
+
+    /**
+     * Test that an empty default connection name is treated as not-a-worker,
+     * even when a connection registered under the empty name resolves a
+     * non-sync driver.
+     *
+     * @return void
+     */
+    public function testIsServingAsQueueWorkerReturnsFalseForEmptyDefaultConnection(): void
+    {
+        Config::set('queue.default', '');
+        Config::set('queue.connections..driver', 'database');
+
+        $context = new RuntimeContext;
+
+        static::assertFalse($context->isServingAsQueueWorker());
+    }
 }

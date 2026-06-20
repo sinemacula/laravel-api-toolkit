@@ -461,6 +461,25 @@ class SchemaIntrospectorTest extends TestCase
     }
 
     /**
+     * Test that parentKeysFor returns the foreign key for a BelongsTo relation
+     * and the local key for a HasOneOrMany relation.
+     *
+     * @return void
+     */
+    public function testParentKeysForReturnsRelationParentKeys(): void
+    {
+        $introspector = new SchemaIntrospector;
+        $user         = new User;
+
+        // BelongsTo resolves to the owning foreign key on the child table.
+        static::assertSame(['organization_id'], $introspector->parentKeysFor($user->organization()));
+
+        // HasOne and HasMany (HasOneOrMany) resolve to the parent's local key.
+        static::assertSame([$user->getKeyName()], $introspector->parentKeysFor($user->posts()));
+        static::assertSame([$user->getKeyName()], $introspector->parentKeysFor($user->profile()));
+    }
+
+    /**
      * Test that isRelation returns false for a method with a non-relation
      * return type.
      *
