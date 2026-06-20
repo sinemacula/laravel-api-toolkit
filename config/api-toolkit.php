@@ -262,9 +262,33 @@ return [
             'object'  => ['object', 'encrypted:object'],
         ],
 
-        // This configuration allows both columns, and columns for specific
-        // tables e.g. users.password
-        'searchable_exclusions' => ['password'],
+        // Query-access posture for filtering and sorting. 'allowlist' (the 2.0
+        // default) exposes only the columns/relations a resource declares
+        // filterable/sortable/traversable and rejects everything else;
+        // 'blocklist' restores the prior opt-out behaviour where every column
+        // except the searchable_exclusions below is queryable.
+        'query_posture' => env('API_TOOLKIT_QUERY_POSTURE', 'allowlist'),
+
+        // When true (the default), an undeclared filter/sort/relation key under
+        // the allowlist posture is rejected with a validation error naming the
+        // key (fail-closed). Set to false to silently drop undeclared keys
+        // instead (the prior fail-quiet behaviour).
+        'reject_undeclared' => env('API_TOOLKIT_REJECT_UNDECLARED', true),
+
+        // Columns excluded from the blocklist posture's searchable set. Allows
+        // both bare columns and table-scoped columns e.g. users.password. The
+        // default covers the stock Laravel + Fortify auth column family so the
+        // filter layer's sensitive set stays a superset of the export layer's
+        // ignored_fields even under the blocklist opt-out.
+        'searchable_exclusions' => [
+            'password',
+            'token',
+            'remember_token',
+            'two_factor_secret',
+            'two_factor_recovery_codes',
+            'two_factor_confirmed_at',
+            'email_verified_at',
+        ],
 
     ],
 

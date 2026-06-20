@@ -18,6 +18,9 @@ final readonly class CompiledSchema
      *
      * @param  array<string, \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition>  $fields
      * @param  array<string, \SineMacula\ApiToolkit\Schema\CompiledCountDefinition>  $counts
+     * @param  array<int, string>  $filterableColumns
+     * @param  array<int, string>  $sortableColumns
+     * @param  array<int, string>  $traversableRelations
      */
     public function __construct(
 
@@ -26,6 +29,15 @@ final readonly class CompiledSchema
 
         /** The compiled count definitions keyed by present key */
         private array $counts,
+
+        /** Declared filterable column names */
+        private array $filterableColumns = [],
+
+        /** Declared sortable column names */
+        private array $sortableColumns = [],
+
+        /** Declared externally-traversable relation names */
+        private array $traversableRelations = [],
 
     ) {}
 
@@ -71,5 +83,35 @@ final readonly class CompiledSchema
     public function hasField(string $key): bool
     {
         return isset($this->fields[$key]);
+    }
+
+    /**
+     * Return the declared filterable column names.
+     *
+     * @return array<int, string>
+     */
+    public function getFilterableColumns(): array
+    {
+        return $this->filterableColumns;
+    }
+
+    /**
+     * Return the declared sortable column names.
+     *
+     * @return array<int, string>
+     */
+    public function getSortableColumns(): array
+    {
+        return $this->sortableColumns;
+    }
+
+    /**
+     * Return the declared externally-traversable relation names.
+     *
+     * @return array<int, string>
+     */
+    public function getTraversableRelations(): array
+    {
+        return $this->traversableRelations;
     }
 }

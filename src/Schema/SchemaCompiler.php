@@ -60,6 +60,10 @@ final class SchemaCompiler
         /** @var array<string, \SineMacula\ApiToolkit\Schema\CompiledCountDefinition> $counts */
         $counts = [];
 
+        $filterable  = [];
+        $sortable    = [];
+        $traversable = [];
+
         foreach ($rawSchema as $schemaKey => $definition) {
 
             if (($definition['metric'] ?? null) === 'count') {
@@ -67,10 +71,34 @@ final class SchemaCompiler
                 continue;
             }
 
+            $filterableMarker = $definition['filterable'] ?? null;
+
+            if (is_string($filterableMarker)) {
+                $filterable[] = $filterableMarker;
+            }
+
+            $sortableMarker = $definition['sortable'] ?? null;
+
+            if (is_string($sortableMarker)) {
+                $sortable[] = $sortableMarker;
+            }
+
+            $traversableMarker = $definition['traversable'] ?? null;
+
+            if (is_string($traversableMarker)) {
+                $traversable[] = $traversableMarker;
+            }
+
             $fields[$schemaKey] = self::buildFieldDefinition($definition);
         }
 
-        return new CompiledSchema($fields, $counts);
+        return new CompiledSchema(
+            $fields,
+            $counts,
+            array_values(array_unique($filterable)),
+            array_values(array_unique($sortable)),
+            array_values(array_unique($traversable)),
+        );
     }
 
     /**

@@ -14,6 +14,7 @@ use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterApplier;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\LimitApplier;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\OrderApplier;
+use SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
@@ -59,6 +60,12 @@ class ApiCriteriaTest extends TestCase
         parent::setUp();
 
         assert($this->app !== null);
+
+        // These tests assert posture-independent applier mechanics (operators,
+        // logical groups, relations, ordering, limits). Pin the blocklist
+        // posture so column gating follows the legacy isSearchable contract;
+        // the allowlist default has dedicated integration coverage.
+        Config::set('api-toolkit.repositories.query_posture', QuerySurface::POSTURE_BLOCKLIST);
 
         /** @var \SineMacula\ApiToolkit\Repositories\Criteria\ApiCriteria $criteria */
         $criteria       = $this->app->make(ApiCriteria::class);

@@ -423,6 +423,63 @@ contract and register it on the `OperatorRegistry` singleton (for example, in a 
 
 The registry also exposes `override()` and `remove()` for adjusting the built-in operator set.
 
+### Changed: Filtering and sorting are allowlist-by-default
+
+API query filtering and sorting are now **allowlist-by-default**. A resource declares which columns are
+filterable and sortable, and which relations may be traversed, in its schema. Any filter, sort, or
+relation key the resource has not declared is rejected with a `422` validation error.
+
+In 1.x and earlier 2.x builds the posture was the opposite: every column the model exposed was
+filterable and sortable unless it was named in `searchable_exclusions` (a blocklist). The exclusion list
+was the only line of defence, so a newly added column was queryable the moment it reached the table. The
+posture is now inverted -- a key is queryable only when the schema declares it intentionally.
+
+**Declare the query surface** with the fluent markers on the schema DSL:
+
+    use SineMacula\ApiToolkit\Schema\Field;
+    use SineMacula\ApiToolkit\Schema\Relation;
+
+    public static function schema(): array
+    {
+        return Field::set(
+            Field::scalar('id')->filterable()->sortable(),
+            Field::scalar('name')->filterable()->sortable(),
+            Field::scalar('email')->filterable(),
+            Relation::to('posts', PostResource::class)->traversable(),
+        );
+    }
+
+A field's filter and sort key is its **column name**, not its presentation alias.
+`Field::scalar('email_address', 'email')->filterable()` declares `email_address` as the filterable
+column even though the field is presented to clients as `email`.
+
+**Action required.** Audit every API resource and add `filterable()`, `sortable()`, and `traversable()`
+to the fields and relations clients are expected to query. Keys that clients currently rely on but the
+schema does not declare will start returning `422` until they are declared. A resource with no declared
+surface rejects every filter and sort key.
+
+**Restore the previous behaviour** by switching back to the blocklist posture:
+
+    API_TOOLKIT_QUERY_POSTURE=blocklist
+
+Under `blocklist` the legacy shape-derived behaviour applies: every model column is filterable and
+sortable unless excluded via `searchable_exclusions`. This is a transitional escape hatch; new
+applications should adopt the allowlist posture.
+
+**Fail-closed vs fail-quiet.** By default an undeclared key on the root resource is rejected with a named
+`422` validation error so clients learn immediately which key is not permitted (`reject_undeclared`,
+default `true`). Switch it off to silently drop undeclared keys instead:
+
+    API_TOOLKIT_REJECT_UNDECLARED=false
+
+A dropped key applies no constraint, so a filter the client believes is active is silently ignored --
+prefer the default fail-closed behaviour unless a quiet drop is specifically required.
+
+**Widened default exclusions.** The default `searchable_exclusions` (used under the blocklist posture)
+now also covers `two_factor_secret`, `two_factor_recovery_codes`, `two_factor_confirmed_at`, and
+`email_verified_at` alongside the existing `password`, `token`, and `remember_token`, so even the legacy
+posture leaks fewer sensitive columns out of the box.
+
 ### Deprecated: Request macros in favour of RequestCapabilities
 
 The request macros registered by the toolkit -- `includeTrashed()`, `onlyTrashed()`, `expectsExport()`,
