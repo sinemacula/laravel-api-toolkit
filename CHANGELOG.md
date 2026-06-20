@@ -11,6 +11,12 @@ Version 2.0 is in development on the `2.x` branch. See [UPGRADE.md](UPGRADE.md) 
 
 ### Changed
 
+- Filtering and sorting are now allowlist-by-default: a resource declares which columns are
+  filterable/sortable and which relations are traversable in its schema, and an undeclared filter, sort,
+  or relation key on the root resource is rejected with a `422` validation error. The legacy blocklist
+  behaviour (every column queryable unless excluded) remains available via
+  `API_TOOLKIT_QUERY_POSTURE=blocklist`, and fail-quiet dropping of undeclared keys via
+  `API_TOOLKIT_REJECT_UNDECLARED=false`. See [UPGRADE.md](UPGRADE.md) for the migration steps
 - `ApiResource`, `ApiCriteria`, and `ApiRepository` decomposed into single-responsibility collaborators
 - Service configuration is immutable, with cross-cutting behaviour composed through a concern pipeline
 - `Service::run()` returns an immutable `ServiceResult` value object instead of `bool`
@@ -39,6 +45,11 @@ Version 2.0 is in development on the `2.x` branch. See [UPGRADE.md](UPGRADE.md) 
   inside a live Octane worker or a non-`sync` queue worker
 - A non-silent off-state diagnostic: when a serving runtime is detected but the lifecycle flush is opted-out,
   an `info`-level log entry is emitted so operators know the flush is intentionally disabled
+- Declared-intent query-surface markers on the schema DSL -- `Field::filterable()`, `Field::sortable()`,
+  and `Relation::traversable()` -- compiled into the resource's allowlist of queryable columns and
+  traversable relations
+- `API_TOOLKIT_QUERY_POSTURE` (`allowlist` default, `blocklist` opt-out) and `API_TOOLKIT_REJECT_UNDECLARED`
+  (`true` default) config keys governing filter/sort enforcement
 - Extensible filter operator registry
 - Schema introspection service and boot-time schema validation
 - Opt-in deferred repository writes with a write pool, and opt-in transparent repository caching

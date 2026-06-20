@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\OrderApplier;
+use SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface;
 use Tests\Fixtures\Models\User;
 use Tests\TestCase;
 
@@ -53,7 +54,7 @@ class OrderApplierTest extends TestCase
     public function testApplyWithEmptyOrderReturnsUnmodifiedQuery(): void
     {
         $query  = (new User)->newQuery();
-        $result = $this->applier->apply($query, [], $this->schemaIntrospector);
+        $result = $this->applier->apply($query, [], $this->surface());
 
         static::assertEmpty($result->getQuery()->orders ?? []);
     }
@@ -66,7 +67,7 @@ class OrderApplierTest extends TestCase
     public function testApplyWithSingleColumnAddsOrderBy(): void
     {
         $query  = (new User)->newQuery();
-        $result = $this->applier->apply($query, ['name' => 'asc'], $this->schemaIntrospector);
+        $result = $this->applier->apply($query, ['name' => 'asc'], $this->surface());
 
         $orders = $result->getQuery()->orders ?? [];
 
@@ -84,7 +85,7 @@ class OrderApplierTest extends TestCase
     public function testApplyWithMultipleColumnsAddsMultipleOrderBy(): void
     {
         $query  = (new User)->newQuery();
-        $result = $this->applier->apply($query, ['name' => 'asc', 'email' => 'desc'], $this->schemaIntrospector);
+        $result = $this->applier->apply($query, ['name' => 'asc', 'email' => 'desc'], $this->surface());
 
         $orders = $result->getQuery()->orders ?? [];
 
@@ -103,7 +104,7 @@ class OrderApplierTest extends TestCase
     public function testApplyWithRandomOrderAppliesInRandomOrder(): void
     {
         $query  = (new User)->newQuery();
-        $result = $this->applier->apply($query, ['random' => 'asc'], $this->schemaIntrospector);
+        $result = $this->applier->apply($query, ['random' => 'asc'], $this->surface());
 
         $orders = $result->getQuery()->orders ?? [];
 
@@ -120,7 +121,7 @@ class OrderApplierTest extends TestCase
     public function testApplyWithInvalidDirectionSkipsColumn(): void
     {
         $query  = (new User)->newQuery();
-        $result = $this->applier->apply($query, ['name' => 'invalid'], $this->schemaIntrospector);
+        $result = $this->applier->apply($query, ['name' => 'invalid'], $this->surface());
 
         static::assertEmpty($result->getQuery()->orders ?? []);
     }
@@ -134,7 +135,7 @@ class OrderApplierTest extends TestCase
     public function testApplyWithNonSearchableColumnSkipsColumn(): void
     {
         $query  = (new User)->newQuery();
-        $result = $this->applier->apply($query, ['nonexistent' => 'asc'], $this->schemaIntrospector);
+        $result = $this->applier->apply($query, ['nonexistent' => 'asc'], $this->surface());
 
         static::assertEmpty($result->getQuery()->orders ?? []);
     }
@@ -148,7 +149,7 @@ class OrderApplierTest extends TestCase
     public function testApplyWithRandomAndRegularColumnsAppliesBoth(): void
     {
         $query  = (new User)->newQuery();
-        $result = $this->applier->apply($query, ['random' => 'asc', 'name' => 'desc'], $this->schemaIntrospector);
+        $result = $this->applier->apply($query, ['random' => 'asc', 'name' => 'desc'], $this->surface());
 
         $orders = $result->getQuery()->orders ?? [];
 
@@ -166,5 +167,16 @@ class OrderApplierTest extends TestCase
     public function testOrderByRandomConstantValue(): void
     {
         static::assertSame('random', OrderApplier::ORDER_BY_RANDOM);
+    }
+
+    /**
+     * Build a blocklist query surface that delegates to the stubbed
+     * introspector, preserving the legacy searchable gating these tests assert.
+     *
+     * @return \SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface
+     */
+    private function surface(): QuerySurface
+    {
+        return new QuerySurface([], [], [], QuerySurface::POSTURE_BLOCKLIST, true, $this->schemaIntrospector, new User);
     }
 }
