@@ -2,15 +2,19 @@
 
 namespace Tests\Unit\Listeners;
 
+use Illuminate\Contracts\Queue\Job;
 use Illuminate\Events\Dispatcher;
 use Illuminate\Queue\Events\JobFailed;
 use Illuminate\Queue\Events\JobProcessed;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Event;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Cache\CacheManager;
+use SineMacula\ApiToolkit\Cache\MetadataKeyRegistry;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Listeners\QueueFlushSubscriber;
+use SineMacula\ApiToolkit\Runtime\RuntimeContext;
 use Tests\TestCase;
 
 /**
@@ -34,7 +38,7 @@ class QueueFlushSubscriberTest extends TestCase
         // Arrange
         $cacheManager = $this->app->make(CacheManager::class); // @phpstan-ignore method.nonObject
         $dispatcher   = \Mockery::mock(Dispatcher::class);
-        $subscriber   = new QueueFlushSubscriber($cacheManager);
+        $subscriber   = new QueueFlushSubscriber($cacheManager, new RuntimeContext);
 
         $dispatcher->shouldReceive('listen')
             ->once()
@@ -49,32 +53,109 @@ class QueueFlushSubscriberTest extends TestCase
     }
 
     /**
-     * Test that handleFlush delegates to CacheManager::flush.
+     * Test that handleFlush flushes toolkit caches for a real worker connection.
      *
      * @return void
      */
-    public function testHandleFlushDelegatesToCacheManager(): void
+    public function testHandleFlushEngagesOnRealWorkerConnection(): void
     {
         // Arrange
+        Config::set('queue.connections.database.driver', 'database');
+
         Event::fake();
 
         $this->mock(SchemaIntrospectionProvider::class)
             ->shouldReceive('flush')
             ->once();
 
+        /** @var \SineMacula\ApiToolkit\Cache\MetadataKeyRegistry $registry */
+        $registry = $this->app->make(MetadataKeyRegistry::class); // @phpstan-ignore method.nonObject
+
+        $key = 'queue-engage-test';
+        $registry->register($key);
+        Cache::memo()->rememberForever($key, fn () => 'cached'); // @phpstan-ignore method.notFound
+
+        static::assertSame('cached', Cache::memo()->get($key)); // @phpstan-ignore method.notFound
+
         $cacheManager = $this->app->make(CacheManager::class); // @phpstan-ignore method.nonObject
-        $subscriber   = new QueueFlushSubscriber($cacheManager);
-
-        $key = 'queue-flush-test';
-
-        Cache::memo()->rememberForever($key, fn () => 'cached');
-
-        static::assertSame('cached', Cache::memo()->get($key));
+        $subscriber   = new QueueFlushSubscriber($cacheManager, new RuntimeContext);
+        $event        = new JobProcessed('database', static::createStub(Job::class));
 
         // Act
-        $subscriber->handleFlush();
+        $subscriber->handleFlush($event);
 
         // Assert
-        static::assertNull(Cache::memo()->get($key));
+        static::assertNull(Cache::memo()->get($key)); // @phpstan-ignore method.notFound
+    }
+
+    /**
+     * Test that handleFlush does not flush for a sync connection (in-request job).
+     *
+     * Pins AC-06: sync jobs run within the HTTP request and must not trigger
+     * a metadata flush at the job boundary.
+     *
+     * @return void
+     */
+    public function testHandleFlushDoesNotEngageOnSyncConnection(): void
+    {
+        // Arrange
+        Config::set('queue.connections.sync.driver', 'sync');
+
+        Event::fake();
+
+        /** @var \SineMacula\ApiToolkit\Cache\MetadataKeyRegistry $registry */
+        $registry = $this->app->make(MetadataKeyRegistry::class); // @phpstan-ignore method.nonObject
+
+        $key = 'queue-no-flush-test';
+        $registry->register($key);
+        Cache::memo()->rememberForever($key, fn () => 'cached'); // @phpstan-ignore method.notFound
+
+        static::assertSame('cached', Cache::memo()->get($key)); // @phpstan-ignore method.notFound
+
+        $cacheManager = $this->app->make(CacheManager::class); // @phpstan-ignore method.nonObject
+        $subscriber   = new QueueFlushSubscriber($cacheManager, new RuntimeContext);
+        $event        = new JobProcessed('sync', static::createStub(Job::class));
+
+        // Act
+        $subscriber->handleFlush($event);
+
+        // Assert
+        static::assertSame('cached', Cache::memo()->get($key)); // @phpstan-ignore method.notFound
+    }
+
+    /**
+     * Test that handleFlush delegates to CacheManager::flush for a non-sync connection.
+     *
+     * @return void
+     */
+    public function testHandleFlushDelegatesToCacheManager(): void
+    {
+        // Arrange
+        Config::set('queue.connections.database.driver', 'database');
+
+        Event::fake();
+
+        $this->mock(SchemaIntrospectionProvider::class)
+            ->shouldReceive('flush')
+            ->once();
+
+        /** @var \SineMacula\ApiToolkit\Cache\MetadataKeyRegistry $registry */
+        $registry = $this->app->make(MetadataKeyRegistry::class); // @phpstan-ignore method.nonObject
+
+        $key = 'queue-flush-test';
+        $registry->register($key);
+        Cache::memo()->rememberForever($key, fn () => 'cached'); // @phpstan-ignore method.notFound
+
+        static::assertSame('cached', Cache::memo()->get($key)); // @phpstan-ignore method.notFound
+
+        $cacheManager = $this->app->make(CacheManager::class); // @phpstan-ignore method.nonObject
+        $subscriber   = new QueueFlushSubscriber($cacheManager, new RuntimeContext);
+        $event        = new JobProcessed('database', static::createStub(Job::class));
+
+        // Act
+        $subscriber->handleFlush($event);
+
+        // Assert
+        static::assertNull(Cache::memo()->get($key)); // @phpstan-ignore method.notFound
     }
 }
