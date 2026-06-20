@@ -53,6 +53,11 @@ Version 2.0 is in development on the `2.x` branch. See [UPGRADE.md](UPGRADE.md) 
 - Extensible filter operator registry
 - Schema introspection service and boot-time schema validation
 - Opt-in deferred repository writes with a write pool, and opt-in transparent repository caching
+- Deferred write-pool flushes now invalidate the per-query repository cache for every table they
+  persist at the lifecycle boundary, so a deferred insert no longer leaves a stale cached collection
+  behind. Best-effort: it covers default-config `Cacheable` repositories; a repository on a custom
+  cache store or key prefix invalidates manually. Toggle with
+  `DEFERRED_WRITES_INVALIDATE_QUERY_CACHE` (`true` default)
 - Exception handler coverage for all HTTP-layer exceptions, preserving `abort()` status codes
 - Configurable middleware registration and notification logging exclusions
 
@@ -92,8 +97,9 @@ Version 2.0 is in development on the `2.x` branch. See [UPGRADE.md](UPGRADE.md) 
 - The `Cacheable` and `Deferrable` repository concerns can now be used on the same repository.
   Both previously declared `boot()`, so combining them raised a fatal trait-method collision; each
   now boots through a dedicated `bootCacheable()` / `bootDeferrable()` hook invoked by the base
-  repository. (Deferred writes still bypass the per-query cache - flush it manually or rely on its
-  TTL; this is documented on the `Deferrable` trait.)
+  repository. (Deferred writes bypass the per-query cache invalidation that fires on the repository's
+  own write verbs, but the lifecycle-boundary flush now compensates by invalidating the per-query
+  cache for each persisted table; see the Added entry below.)
 - The whole-table reference cache now applies the configured size guard before caching the table
   snapshot, so reference mode on an unexpectedly large table returns the rows but falls back to
   querying rather than serialising a huge snapshot into the cache
