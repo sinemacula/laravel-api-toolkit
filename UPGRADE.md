@@ -520,3 +520,61 @@ use `log` for fire-and-forget writes that must never be retained.
 `flushedRecordCount()`, `failedRecordCount()`, `retainedRecordCount()`, and `droppedRecordCount()` --
 alongside the existing chunk counters. Subscribe to the `WritePoolFlushFailed` event to escalate
 retained failures to a dead-letter sink, alerting, or metrics.
+
+### Changed: Lifecycle metadata flush is now on by default on serving runtimes
+
+Under 2.x, the cross-request metadata flush ships **enabled by default** on runtimes that are actively
+serving requests under Octane or running as a queue worker. php-fpm is unaffected because each request
+already starts with a clean process; the runtime detector gates engagement and does not fire under
+php-fpm even when Octane is installed.
+
+**Runtime detection.** Serving is discriminated from mere installation:
+
+- Octane: the `$_SERVER['LARAVEL_OCTANE']` superglobal is set by a booted Octane worker, not by
+  package installation, so the flush only engages when the worker is actually serving.
+- Queue worker: `JobProcessed` and `JobFailed` fire inside a real worker loop. A job dispatched over
+  the `sync` driver fires the same events within the originating HTTP request; the toolkit checks the
+  connection driver and treats `sync` as a non-worker boundary, leaving php-fpm unaffected.
+
+**What survives across requests (the cache-site inventory).** Three in-process metadata caches
+accumulate state across requests under a long-lived runtime:
+
+- The process-static schema compile cache (`SchemaCompiler::$cache`), cleared by
+  `SchemaCompiler::clearCache()`.
+- The `SchemaIntrospector` singleton's in-memory arrays (column definitions, relations, resources),
+  cleared by its `flush()` method.
+- The `Cache::memo()` `rememberForever` metadata store -- the toolkit metadata keys: model schema
+  columns, column definitions, relations, resources, and repository model casts.
+
+The single surface that clears all three is `CacheManager::flush()`, invoked automatically by the
+Octane and queue lifecycle listeners at every request/job boundary.
+
+**Scoped flush -- what is NOT cleared.** The flush is scoped to the toolkit's own metadata keys via
+a key registry and per-key `Cache::memo()->forget()` calls. It does **not** issue a whole-store
+clear. Non-toolkit application keys and repository result caches on a shared cache store survive the
+flush. Any new toolkit metadata key must be written through the `MetadataCacheWriter` chokepoint so
+it is registered and cleared at the next boundary.
+
+**Re-warm trade-off.** Clearing metadata at the serving boundary means the next request re-warms
+that metadata from the database (a small, bounded re-introspection cost). This is the price of
+correct schema and cast data after a deploy without a worker restart. Operators who accept potential
+staleness in exchange for zero re-warm cost should use the opt-out below.
+
+**Action required.** No action is needed for most applications. The flush is additive on Octane and
+queue-worker runtimes; php-fpm behaviour is unchanged.
+
+**Restore the previous behaviour** (metadata is not flushed at boundaries -- staleness risk on
+long-lived runtimes after a deploy):
+
+    API_TOOLKIT_LIFECYCLE_OCTANE=false
+    API_TOOLKIT_LIFECYCLE_QUEUE=false
+
+Or set the equivalent config keys to `false` in a published `config/api-toolkit.php`:
+
+    'lifecycle' => [
+        'octane' => false,
+        'queue'  => false,
+    ],
+
+When a serving runtime is detected but the flush is opted out, the toolkit logs a one-line
+`Log::info` diagnostic so the disabled state is not silent.
