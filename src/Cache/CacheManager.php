@@ -72,10 +72,12 @@ final class CacheManager
     {
         $alias = Config::get('api-toolkit.parser.alias', 'api.query');
 
-        if ($this->container->bound($alias)) {
-            /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
-            $parser = $this->container->make($alias);
-            $parser->reset();
+        if (!$this->container->bound($alias)) {
+            return;
         }
+
+        /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
+        $parser = $this->container->make($alias);
+        $parser->reset();
     }
 }

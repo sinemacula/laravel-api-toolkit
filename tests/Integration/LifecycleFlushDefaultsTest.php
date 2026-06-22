@@ -15,6 +15,7 @@ use SineMacula\ApiToolkit\Listeners\QueueFlushSubscriber;
 use SineMacula\ApiToolkit\Providers\Registrars\LifecycleRegistrar;
 use SineMacula\ApiToolkit\Runtime\RuntimeContext;
 use Tests\TestCase;
+use Illuminate\Events\Dispatcher;
 
 /**
  * Integration harness: cross-request metadata staleness under Octane and queue.
@@ -187,7 +188,7 @@ class LifecycleFlushDefaultsTest extends TestCase
     {
         // Reset the dispatcher so the boot-time wiring (now default-on) does not
         // pollute the baseline being tested.
-        \Illuminate\Support\Facades\Event::swap(new \Illuminate\Events\Dispatcher($this->app));
+        Event::swap(new Dispatcher($this->app));
 
         // Opt-out: the flag is off, so the registrar must not wire the subscriber.
         Config::set('api-toolkit.lifecycle.queue', false);

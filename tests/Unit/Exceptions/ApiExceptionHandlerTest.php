@@ -224,8 +224,11 @@ class ApiExceptionHandlerTest extends TestCase
      * @return void
      */
     #[DataProvider('exceptionMappingProvider')]
-    public function testRenderMapsExceptionsCorrectly(\Throwable $inputException, int $expectedHttpCode, int $expectedErrorCode): void
-    {
+    public function testRenderMapsExceptionsCorrectly(
+        \Throwable $inputException,
+        int $expectedHttpCode,
+        int $expectedErrorCode
+    ): void {
         $request = Request::create(self::API_PATH, HttpMethod::GET->getVerb());
         $request->headers->set('Accept', self::ACCEPT_JSON);
 

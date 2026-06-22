@@ -3,7 +3,6 @@
 namespace Tests\Unit\Repositories\Criteria;
 
 use Illuminate\Support\Facades\Config;
-use Illuminate\Support\Facades\Schema;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use SineMacula\ApiToolkit\Contracts\ResourceMetadataProvider;
@@ -18,6 +17,10 @@ use SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
+use Illuminate\Http\Request;
+use Illuminate\Database\Eloquent\Builder;
+use SineMacula\ApiToolkit\Http\Resources\ApiResource;
+use SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry;
 
 /**
  * Tests for the ApiCriteria class.
@@ -80,7 +83,7 @@ class ApiCriteriaTest extends TestCase
      */
     public function testApplyWithNoFiltersOrderOrLimitReturnsUnmodifiedQuery(): void
     {
-        $this->parseRequest(new \Illuminate\Http\Request);
+        $this->parseRequest(new Request);
 
         $model = new User;
         $query = $this->criteria->apply($model);
@@ -97,7 +100,7 @@ class ApiCriteriaTest extends TestCase
      */
     public function testApplyWithSimpleFilterAppliesWhereClause(): void
     {
-        $this->parseRequest(new \Illuminate\Http\Request([
+        $this->parseRequest(new Request([
             'filters' => json_encode(['name' => 'Alice']),
         ]));
 
@@ -136,11 +139,15 @@ class ApiCriteriaTest extends TestCase
      * @return void
      */
     #[DataProvider('conditionOperatorProvider')]
-    public function testApplyWithConditionOperator(string $operator, string $expectedSqlOperator, mixed $value, string $expectedType): void
-    {
+    public function testApplyWithConditionOperator(
+        string $operator,
+        string $expectedSqlOperator,
+        mixed $value,
+        string $expectedType
+    ): void {
         $filter = ['name' => [$operator => $value]];
 
-        $this->parseRequest(new \Illuminate\Http\Request([
+        $this->parseRequest(new Request([
             'filters' => json_encode($filter),
         ]));
 
@@ -160,7 +167,7 @@ class ApiCriteriaTest extends TestCase
      */
     public function testApplyWithLikeOperatorWrapsValueWithPercent(): void
     {
-        $this->parseRequest(new \Illuminate\Http\Request([
+        $this->parseRequest(new Request([
             'filters' => json_encode(['name' => [self::OPERATOR_LIKE => 'Ali']]),
         ]));
 
@@ -180,7 +187,7 @@ class ApiCriteriaTest extends TestCase
      */
     public function testApplyWithInOperatorUsesWhereIn(): void
     {
-        $this->parseRequest(new \Illuminate\Http\Request([
+        $this->parseRequest(new Request([
             'filters' => json_encode(['name' => ['$in' => ['Alice', 'Bob']]]),
         ]));
 
@@ -201,7 +208,7 @@ class ApiCriteriaTest extends TestCase
      */
     public function testApplyWithBetweenOperatorUsesWhereBetween(): void
     {
-        $this->parseRequest(new \Illuminate\Http\Request([
+        $this->parseRequest(new Request([
             'filters' => json_encode(['id' => ['$between' => [1, 10]]]),
         ]));
 
@@ -221,7 +228,7 @@ class ApiCriteriaTest extends TestCase
      */
     public function testApplyWithNullOperatorAddsWhereNull(): void
     {
-        $this->parseRequest(new \Illuminate\Http\Request([
+        $this->parseRequest(new Request([
             'filters' => json_encode(['organization_id' => ['$null' => true]]),
         ]));
 
@@ -242,7 +249,7 @@ class ApiCriteriaTest extends TestCase
      */
     public function testApplyWithNotNullOperatorAddsWhereNotNull(): void
     {
-        $this->parseRequest(new \Illuminate\Http\Request([
+        $this->parseRequest(new Request([
             'filters' => json_encode(['organization_id' => ['$notNull' => true]]),
         ]));
 
@@ -262,7 +269,7 @@ class ApiCriteriaTest extends TestCase
      */
     public function testApplyWithHasOperatorAddsWhereHas(): void
     {
-        $this->parseRequest(new \Illuminate\Http\Request([
+        $this->parseRequest(new Request([
             'filters' => json_encode(['$has' => ['posts']]),
         ]));
 
@@ -282,7 +289,7 @@ class ApiCriteriaTest extends TestCase
      */
     public function testApplyWithHasntOperatorAddsWhereDoesntHave(): void
     {
-        $this->parseRequest(new \Illuminate\Http\Request([
+        $this->parseRequest(new Request([
             'filters' => json_encode(['$hasnt' => ['posts']]),
         ]));
 
@@ -302,7 +309,7 @@ class ApiCriteriaTest extends TestCase
      */
     public function testApplyWithOrLogicalOperator(): void
     {
-        $this->parseRequest(new \Illuminate\Http\Request([
+        $this->parseRequest(new Request([
             'filters' => json_encode([
                 '$or' => [
                     'name'  => 'Alice',
@@ -326,7 +333,7 @@ class ApiCriteriaTest extends TestCase
      */
     public function testApplyWithAndLogicalOperator(): void
     {
-        $this->parseRequest(new \Illuminate\Http\Request([
+        $this->parseRequest(new Request([
             'filters' => json_encode([
                 '$and' => [
                     'name'  => 'Alice',
@@ -351,7 +358,7 @@ class ApiCriteriaTest extends TestCase
      */
     public function testApplyWithNestedRelationFilters(): void
     {
-        $this->parseRequest(new \Illuminate\Http\Request([
+        $this->parseRequest(new Request([
             'filters' => json_encode([
                 'posts' => [
                     'title' => [self::OPERATOR_LIKE => 'test'],
@@ -375,7 +382,7 @@ class ApiCriteriaTest extends TestCase
      */
     public function testApplyWithOrderAppliesOrderBy(): void
     {
-        $this->parseRequest(new \Illuminate\Http\Request([
+        $this->parseRequest(new Request([
             'order' => 'name:asc',
         ]));
 
@@ -396,7 +403,7 @@ class ApiCriteriaTest extends TestCase
      */
     public function testApplyWithRandomOrderAppliesInRandomOrder(): void
     {
-        $this->parseRequest(new \Illuminate\Http\Request([
+        $this->parseRequest(new Request([
             'order' => 'random',
         ]));
 
@@ -416,7 +423,7 @@ class ApiCriteriaTest extends TestCase
      */
     public function testApplyWithLimitAppliesQueryLimit(): void
     {
-        $this->parseRequest(new \Illuminate\Http\Request([
+        $this->parseRequest(new Request([
             'limit' => '5',
         ]));
 
@@ -435,7 +442,7 @@ class ApiCriteriaTest extends TestCase
     {
         Config::set('api-toolkit.resources.resource_map.' . User::class, UserResource::class);
 
-        $this->parseRequest(new \Illuminate\Http\Request([
+        $this->parseRequest(new Request([
             'fields' => ['users' => 'id,name,organization'],
         ]));
 
@@ -458,7 +465,7 @@ class ApiCriteriaTest extends TestCase
     {
         Config::set('api-toolkit.repositories.searchable_exclusions', ['password']);
 
-        $this->parseRequest(new \Illuminate\Http\Request([
+        $this->parseRequest(new Request([
             'filters' => json_encode(['password' => 'secret']),
         ]));
 
@@ -482,7 +489,7 @@ class ApiCriteriaTest extends TestCase
      */
     public function testInvalidColumnsAreIgnored(): void
     {
-        $this->parseRequest(new \Illuminate\Http\Request([
+        $this->parseRequest(new Request([
             'filters' => json_encode(['nonexistent_column' => 'value']),
         ]));
 
@@ -501,7 +508,7 @@ class ApiCriteriaTest extends TestCase
      */
     public function testOrderWithInvalidDirectionIsIgnored(): void
     {
-        $this->parseRequest(new \Illuminate\Http\Request([
+        $this->parseRequest(new Request([
             'order' => 'name:invalid',
         ]));
 
@@ -522,7 +529,7 @@ class ApiCriteriaTest extends TestCase
     {
         Config::set('api-toolkit.resources.resource_map.' . User::class, UserResource::class);
 
-        $this->parseRequest(new \Illuminate\Http\Request([
+        $this->parseRequest(new Request([
             'fields' => ['users' => ':all'],
         ]));
 
@@ -532,7 +539,7 @@ class ApiCriteriaTest extends TestCase
         $query = $this->criteria->apply($model);
 
         static::assertNotNull($query->getQuery());
-        static::assertInstanceOf(\Illuminate\Database\Eloquent\Builder::class, $query);
+        static::assertInstanceOf(Builder::class, $query);
     }
 
     /**
@@ -542,14 +549,14 @@ class ApiCriteriaTest extends TestCase
      */
     public function testConditionOperatorInsideLogicalGroupIsHandled(): void
     {
-        $this->parseRequest(new \Illuminate\Http\Request([
+        $this->parseRequest(new Request([
             'filters' => json_encode(['$or' => ['$eq' => 'anything']]),
         ]));
 
         $model = new User;
         $query = $this->criteria->apply($model);
 
-        static::assertInstanceOf(\Illuminate\Database\Eloquent\Builder::class, $query);
+        static::assertInstanceOf(Builder::class, $query);
         static::assertIsArray($query->getQuery()->wheres);
     }
 
@@ -560,7 +567,7 @@ class ApiCriteriaTest extends TestCase
      */
     public function testNestedLogicalOperatorInsideLogicalGroupIsHandled(): void
     {
-        $this->parseRequest(new \Illuminate\Http\Request([
+        $this->parseRequest(new Request([
             'filters' => json_encode([
                 '$and' => [
                     '$or' => [
@@ -584,7 +591,7 @@ class ApiCriteriaTest extends TestCase
      */
     public function testOrInsideRelationFilterCreatesOrWhereGroup(): void
     {
-        $this->parseRequest(new \Illuminate\Http\Request([
+        $this->parseRequest(new Request([
             'filters' => json_encode([
                 'posts' => [
                     '$or' => [
@@ -608,7 +615,7 @@ class ApiCriteriaTest extends TestCase
      */
     public function testHasFilterWithNamedRelationAndConditions(): void
     {
-        $this->parseRequest(new \Illuminate\Http\Request([
+        $this->parseRequest(new Request([
             'filters' => json_encode([
                 '$has' => [
                     'posts' => ['title' => [self::OPERATOR_LIKE => 'test']],
@@ -633,7 +640,7 @@ class ApiCriteriaTest extends TestCase
      */
     public function testHasntFilterWithNamedRelationAndConditions(): void
     {
-        $this->parseRequest(new \Illuminate\Http\Request([
+        $this->parseRequest(new Request([
             'filters' => json_encode([
                 '$hasnt' => [
                     'posts' => ['title' => [self::OPERATOR_LIKE => 'test']],
@@ -657,7 +664,7 @@ class ApiCriteriaTest extends TestCase
      */
     public function testOrWithHasOperatorUsesOrWhereHas(): void
     {
-        $this->parseRequest(new \Illuminate\Http\Request([
+        $this->parseRequest(new Request([
             'filters' => json_encode([
                 '$or' => [
                     '$has' => ['posts'],
@@ -678,7 +685,7 @@ class ApiCriteriaTest extends TestCase
      */
     public function testBetweenWithWrongArraySizeIsIgnored(): void
     {
-        $this->parseRequest(new \Illuminate\Http\Request([
+        $this->parseRequest(new Request([
             'filters' => json_encode(['id' => ['$between' => [1]]]),
         ]));
 
@@ -695,7 +702,7 @@ class ApiCriteriaTest extends TestCase
      */
     public function testContainsWithArrayValueUsesWhereJsonContains(): void
     {
-        $this->parseRequest(new \Illuminate\Http\Request([
+        $this->parseRequest(new Request([
             'filters' => json_encode(['name' => [self::OPERATOR_CONTAINS => ['Alice']]]),
         ]));
 
@@ -713,7 +720,7 @@ class ApiCriteriaTest extends TestCase
      */
     public function testContainsWithCommaSeparatedStringCreatesMultipleConditions(): void
     {
-        $this->parseRequest(new \Illuminate\Http\Request([
+        $this->parseRequest(new Request([
             'filters' => json_encode(['name' => [self::OPERATOR_CONTAINS => 'Alice,Bob']]),
         ]));
 
@@ -730,7 +737,7 @@ class ApiCriteriaTest extends TestCase
      */
     public function testContainsWithPlainStringUsesWhereJsonContains(): void
     {
-        $this->parseRequest(new \Illuminate\Http\Request([
+        $this->parseRequest(new Request([
             'filters' => json_encode(['name' => [self::OPERATOR_CONTAINS => 'Alice']]),
         ]));
 
@@ -749,7 +756,7 @@ class ApiCriteriaTest extends TestCase
     {
         Config::set('api-toolkit.repositories.searchable_exclusions', ['users.password']);
 
-        $this->parseRequest(new \Illuminate\Http\Request([
+        $this->parseRequest(new Request([
             'filters' => json_encode(['password' => 'secret']),
         ]));
 
@@ -771,7 +778,7 @@ class ApiCriteriaTest extends TestCase
      */
     public function testNotNullWithOrLogicalOperatorUsesOrWhereNotNull(): void
     {
-        $this->parseRequest(new \Illuminate\Http\Request([
+        $this->parseRequest(new Request([
             'filters' => json_encode([
                 '$or' => [
                     'organization_id' => ['$notNull' => true],
@@ -793,7 +800,7 @@ class ApiCriteriaTest extends TestCase
      */
     public function testContainsWithNullValueIsHandledGracefully(): void
     {
-        $this->parseRequest(new \Illuminate\Http\Request([
+        $this->parseRequest(new Request([
             'filters' => json_encode(['name' => [self::OPERATOR_CONTAINS => null]]),
         ]));
 
@@ -813,7 +820,7 @@ class ApiCriteriaTest extends TestCase
      */
     public function testApplyEagerLoadingReturnsEarlyWhenFieldsAreEmpty(): void
     {
-        $resourceClass = new class (null) extends \SineMacula\ApiToolkit\Http\Resources\ApiResource {
+        $resourceClass = new class (null) extends ApiResource {
             /** @var string */
             public const string RESOURCE_TYPE = 'empty_res';
 
@@ -837,7 +844,7 @@ class ApiCriteriaTest extends TestCase
         $criteria = $this->app->make(ApiCriteria::class);
         $criteria->usingResource($resourceClass::class);
 
-        $this->parseRequest(new \Illuminate\Http\Request);
+        $this->parseRequest(new Request);
 
         $model = new User;
         $query = $criteria->apply($model);
@@ -877,7 +884,7 @@ class ApiCriteriaTest extends TestCase
         $criteria = $this->app->make(ApiCriteria::class);
         $criteria->usingResource(UserResource::class);
 
-        $this->parseRequest(new \Illuminate\Http\Request([
+        $this->parseRequest(new Request([
             'fields' => ['users' => self::STUB_USER_FIELDS],
         ]));
 
@@ -916,7 +923,7 @@ class ApiCriteriaTest extends TestCase
         $criteria = $this->app->make(ApiCriteria::class);
         $criteria->usingResource(UserResource::class);
 
-        $this->parseRequest(new \Illuminate\Http\Request([
+        $this->parseRequest(new Request([
             'fields' => ['users' => self::STUB_USER_FIELDS],
         ]));
 
@@ -955,7 +962,7 @@ class ApiCriteriaTest extends TestCase
         $criteria = $this->app->make(ApiCriteria::class);
         $criteria->usingResource(UserResource::class);
 
-        $this->parseRequest(new \Illuminate\Http\Request([
+        $this->parseRequest(new Request([
             'fields' => ['users' => 'id,name,organization'],
         ]));
 
@@ -994,7 +1001,7 @@ class ApiCriteriaTest extends TestCase
         $criteria = $this->app->make(ApiCriteria::class);
         $criteria->usingResource(UserResource::class);
 
-        $this->parseRequest(new \Illuminate\Http\Request([
+        $this->parseRequest(new Request([
             'fields' => ['users' => self::STUB_USER_FIELDS],
         ]));
 
@@ -1013,10 +1020,10 @@ class ApiCriteriaTest extends TestCase
         $metadataProvider->method('getResourceType')->willReturn('users');
 
         $criteria = new ApiCriteria(
-            new \Illuminate\Http\Request,
+            new Request,
             $metadataProvider,
             static::createStub(SchemaIntrospectionProvider::class),
-            new \SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry,
+            new OperatorRegistry,
         );
 
         $criteria->usingResource(\stdClass::class);
@@ -1032,7 +1039,7 @@ class ApiCriteriaTest extends TestCase
      * @param  \Illuminate\Http\Request  $request
      * @return void
      */
-    private function parseRequest(\Illuminate\Http\Request $request): void
+    private function parseRequest(Request $request): void
     {
         assert($this->app !== null);
 

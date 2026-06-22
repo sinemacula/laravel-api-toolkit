@@ -39,6 +39,8 @@ use SineMacula\ApiToolkit\Services\Validation\Rules\ValidateRelationClasses;
 use SineMacula\ApiToolkit\Services\Validation\Rules\ValidateRelationInterfaces;
 use SineMacula\ApiToolkit\Services\Validation\Rules\ValidateRelationMethods;
 use SineMacula\ApiToolkit\Services\Validation\Rules\ValidateTransformers;
+use SineMacula\ApiToolkit\Contracts\ResourceMetadataProvider;
+use SineMacula\ApiToolkit\Http\Resources\ResourceMetadataService;
 
 /**
  * Registers the toolkit container bindings.
@@ -101,8 +103,8 @@ final class ContainerBindingRegistrar
     private function registerResourceMetadataProvider(): void
     {
         $this->container->singleton(
-            \SineMacula\ApiToolkit\Contracts\ResourceMetadataProvider::class,
-            \SineMacula\ApiToolkit\Http\Resources\ResourceMetadataService::class,
+            ResourceMetadataProvider::class,
+            ResourceMetadataService::class,
         );
     }
 

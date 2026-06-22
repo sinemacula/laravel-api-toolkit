@@ -13,6 +13,7 @@ use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
+use Tests\Fixtures\Resources\OrganizationResource;
 
 /**
  * Integration tests for ApiResource resolution with real models.
@@ -106,7 +107,7 @@ class ApiResourceIntegrationTest extends TestCase
         $data     = $resource->resolve();
 
         static::assertArrayHasKey('organization', $data);
-        static::assertInstanceOf(\Tests\Fixtures\Resources\OrganizationResource::class, $data['organization']);
+        static::assertInstanceOf(OrganizationResource::class, $data['organization']);
 
         $org_data = $data['organization']->resolve();
 

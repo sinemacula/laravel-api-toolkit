@@ -185,8 +185,13 @@ class FieldColumnMapperTest extends TestCase
      * @param  array<int, callable(mixed, mixed): bool>  $guards
      * @return \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition
      */
-    private function makeDefinition(mixed $accessor = null, mixed $compute = null, ?string $relation = null, array $needs = [], array $guards = []): CompiledFieldDefinition
-    {
+    private function makeDefinition(
+        mixed $accessor = null,
+        mixed $compute = null,
+        ?string $relation = null,
+        array $needs = [],
+        array $guards = []
+    ): CompiledFieldDefinition {
         return new CompiledFieldDefinition(
             accessor    : $accessor,
             compute     : $compute,

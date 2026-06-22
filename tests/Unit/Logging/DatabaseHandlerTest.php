@@ -10,6 +10,7 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Logging\DatabaseHandler;
 use SineMacula\ApiToolkit\Models\LogMessage;
 use Tests\TestCase;
+use Illuminate\Support\Facades\Schema;
 
 /**
  * Tests for the DatabaseHandler.
@@ -151,7 +152,7 @@ class DatabaseHandlerTest extends TestCase
             ->twice();
 
         // Drop the logs table so the insert fails
-        \Illuminate\Support\Facades\Schema::drop('logs');
+        Schema::drop('logs');
 
         $handler = new DatabaseHandler;
 
@@ -244,7 +245,7 @@ class DatabaseHandlerTest extends TestCase
             ->twice();
 
         // Drop the logs table so the insert fails
-        \Illuminate\Support\Facades\Schema::drop('logs');
+        Schema::drop('logs');
 
         $handler = new DatabaseHandler;
 
@@ -289,7 +290,7 @@ class DatabaseHandlerTest extends TestCase
                 && $context['exception'] instanceof \Throwable);
 
         // Drop the logs table so the insert fails
-        \Illuminate\Support\Facades\Schema::drop('logs');
+        Schema::drop('logs');
 
         $handler = new DatabaseHandler;
 

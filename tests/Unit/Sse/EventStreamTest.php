@@ -9,6 +9,7 @@ use SineMacula\Http\Enums\HttpStatus;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 use Tests\Fixtures\Support\FunctionOverrides;
 use Tests\TestCase;
+use Illuminate\Contracts\Debug\ExceptionHandler;
 
 /**
  * Tests for the SSE EventStream.
@@ -343,9 +344,11 @@ class EventStreamTest extends TestCase
         $response = $stream->toResponse(function () use (&$iteration): void {
             $iteration++;
 
-            if ($iteration === 1) {
-                $this->travel(19)->seconds();
+            if ($iteration !== 1) {
+                return;
             }
+
+            $this->travel(19)->seconds();
         });
 
         ob_start();
@@ -738,12 +741,12 @@ class EventStreamTest extends TestCase
         $exception = new \RuntimeException('Simulated stream failure');
 
         /** @var \Illuminate\Contracts\Debug\ExceptionHandler&\Mockery\MockInterface $handler */
-        $handler = \Mockery::mock(\Illuminate\Contracts\Debug\ExceptionHandler::class);
+        $handler = \Mockery::mock(ExceptionHandler::class);
         $handler->shouldReceive('report')->once()->with($exception);
 
         assert($this->app !== null);
 
-        $this->app->instance(\Illuminate\Contracts\Debug\ExceptionHandler::class, $handler);
+        $this->app->instance(ExceptionHandler::class, $handler);
 
         $stream = new class extends EventStream {
             /**

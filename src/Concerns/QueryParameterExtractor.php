@@ -39,9 +39,11 @@ final class QueryParameterExtractor
         ];
 
         foreach ($parsers as $key => $parser) {
-            if ($request->has($key)) {
-                $parameters[$key] = $parser($request->input($key));
+            if (!$request->has($key)) {
+                continue;
             }
+
+            $parameters[$key] = $parser($request->input($key));
         }
 
         return $parameters;

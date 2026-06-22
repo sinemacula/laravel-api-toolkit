@@ -94,9 +94,11 @@ class ApiResourceCollection extends AnonymousResourceCollection
     #[\Override]
     public function withResponse(Request $request, JsonResponse $response): void
     {
-        if ($this->resource instanceof LengthAwarePaginator) {
-            $response->headers->set('Total-Count', $this->resource->total());
+        if (!($this->resource instanceof LengthAwarePaginator)) {
+            return;
         }
+
+        $response->headers->set('Total-Count', $this->resource->total());
     }
 
     /**

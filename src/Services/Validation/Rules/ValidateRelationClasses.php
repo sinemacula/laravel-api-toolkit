@@ -35,13 +35,15 @@ final class ValidateRelationClasses implements SchemaValidationRule
                 continue;
             }
 
-            if (!class_exists($field->resource)) {
-                $errors[] = new SchemaValidationError(
-                    resourceClass: $resourceClass,
-                    fieldKey: $key,
-                    defect: sprintf('Relation resource class "%s" does not exist', $field->resource),
-                );
+            if (class_exists($field->resource)) {
+                continue;
             }
+
+            $errors[] = new SchemaValidationError(
+                resourceClass: $resourceClass,
+                fieldKey: $key,
+                defect: sprintf('Relation resource class "%s" does not exist', $field->resource),
+            );
         }
 
         return $errors;

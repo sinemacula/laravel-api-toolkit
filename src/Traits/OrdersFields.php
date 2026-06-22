@@ -97,9 +97,11 @@ trait OrdersFields
         $ordered = [];
 
         foreach ($requested_fields as $field) {
-            if (array_key_exists($field, $data)) {
-                $ordered[$field] = $data[$field];
+            if (!array_key_exists($field, $data)) {
+                continue;
             }
+
+            $ordered[$field] = $data[$field];
         }
 
         return $ordered + $data;

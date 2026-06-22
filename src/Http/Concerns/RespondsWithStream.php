@@ -2,7 +2,6 @@
 
 namespace SineMacula\ApiToolkit\Http\Concerns;
 
-use Closure;
 use Illuminate\Support\Facades\Response;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
 use SineMacula\ApiToolkit\Repositories\ApiRepository;
@@ -30,8 +29,11 @@ trait RespondsWithStream
      * @param  string  $filename
      * @return \Symfony\Component\HttpFoundation\StreamedResponse
      */
-    public function streamRepositoryToCsv(ApiRepository $repository, int $chunk_size = 1500, string $filename = 'export.csv'): StreamedResponse
-    {
+    public function streamRepositoryToCsv(
+        ApiRepository $repository,
+        int $chunk_size = 1500,
+        string $filename = 'export.csv'
+    ): StreamedResponse {
         $limit = ApiQuery::getLimit();
 
         $transformer = $this->makeTransformer($repository);
@@ -124,8 +126,11 @@ trait RespondsWithStream
      * @param  string  $filename
      * @return \Symfony\Component\HttpFoundation\StreamedResponse
      */
-    protected function createStreamedResponse(callable $callback, string $content_type, string $filename): StreamedResponse
-    {
+    protected function createStreamedResponse(
+        callable $callback,
+        string $content_type,
+        string $filename
+    ): StreamedResponse {
         return Response::streamDownload($callback, $filename, [
             HttpHeader::CONTENT_TYPE->getName() => $content_type,
         ]);

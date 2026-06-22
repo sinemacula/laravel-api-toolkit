@@ -58,15 +58,17 @@ final class AttributeSetter
 
             $cast = $this->casts[$attribute] ?? $this->resolveCastForAttribute($attribute, null, $model);
 
-            if ($cast) {
+            if (!$cast) {
+                continue;
+            }
 
-                $this->casts[$attribute] = $cast;
 
-                if ($cast === 'sync') {
-                    $syncAttributes[$attribute] = $value;
-                } else {
-                    $this->setAttribute($model, $attribute, $value, $cast);
-                }
+            $this->casts[$attribute] = $cast;
+
+            if ($cast === 'sync') {
+                $syncAttributes[$attribute] = $value;
+            } else {
+                $this->setAttribute($model, $attribute, $value, $cast);
             }
         }
 

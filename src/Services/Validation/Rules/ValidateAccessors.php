@@ -39,13 +39,15 @@ final class ValidateAccessors implements SchemaValidationRule
                 continue;
             }
 
-            if (is_string($field->accessor) && $field->accessor === '') {
-                $errors[] = new SchemaValidationError(
-                    resourceClass: $resourceClass,
-                    fieldKey: $key,
-                    defect: 'Accessor path must not be empty',
-                );
+            if (!is_string($field->accessor) || $field->accessor !== '') {
+                continue;
             }
+
+            $errors[] = new SchemaValidationError(
+                resourceClass: $resourceClass,
+                fieldKey: $key,
+                defect: 'Accessor path must not be empty',
+            );
         }
 
         return $errors;

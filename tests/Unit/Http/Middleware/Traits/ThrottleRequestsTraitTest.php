@@ -9,6 +9,10 @@ use PHPUnit\Framework\TestCase;
 use SineMacula\ApiToolkit\Exceptions\RequestSignatureException;
 use SineMacula\ApiToolkit\Http\Middleware\Traits\ThrottleRequestsTrait;
 use SineMacula\Http\Enums\HttpMethod;
+use Illuminate\Contracts\Auth\Authenticatable;
+use Illuminate\Contracts\Cache\Repository;
+use Illuminate\Cache\RateLimiter;
+use SineMacula\ApiToolkit\Http\Middleware\ThrottleRequests;
 
 /**
  * Tests for the ThrottleRequestsTrait.
@@ -63,7 +67,7 @@ class ThrottleRequestsTraitTest extends TestCase
     {
         $trait = $this->createTraitInstance();
 
-        $user = static::createStub(\Illuminate\Contracts\Auth\Authenticatable::class);
+        $user = static::createStub(Authenticatable::class);
         $user->method('getAuthIdentifier')->willReturn(42);
 
         $request = $this->createRequestWithRoute(self::API_DATA_URI, HttpMethod::GET->getVerb(), '10.0.0.1');
@@ -159,10 +163,10 @@ class ThrottleRequestsTraitTest extends TestCase
      */
     public function testResolveRequestSignatureIsCallableFromMiddlewareSubclass(): void
     {
-        $cache   = static::createStub(\Illuminate\Contracts\Cache\Repository::class);
-        $limiter = new \Illuminate\Cache\RateLimiter($cache);
+        $cache   = static::createStub(Repository::class);
+        $limiter = new RateLimiter($cache);
 
-        $middleware = new class ($limiter) extends \SineMacula\ApiToolkit\Http\Middleware\ThrottleRequests {
+        $middleware = new class ($limiter) extends ThrottleRequests {
             /**
              * @param  \Illuminate\Http\Request  $request
              * @return string

@@ -2,7 +2,6 @@
 
 namespace SineMacula\ApiToolkit\Http\Resources\Concerns;
 
-use Closure;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Illuminate\Database\Eloquent\Relations\Relation as EloquentRelation;
@@ -134,8 +133,14 @@ final class EagerLoadPlanner
      * @param  array<string, bool>  $visited
      * @return void
      */
-    private static function walkRelations(string $resourceClass, array $fields, string $prefix, array &$plain, array &$scoped, array &$visited): void
-    {
+    private static function walkRelations(
+        string $resourceClass,
+        array $fields,
+        string $prefix,
+        array &$plain,
+        array &$scoped,
+        array &$visited
+    ): void {
 
         $schema = SchemaCompiler::compile($resourceClass);
 
@@ -178,9 +183,11 @@ final class EagerLoadPlanner
     private static function collectExtraPaths(CompiledFieldDefinition $definition, string $prefix, array &$plain): void
     {
         foreach ($definition->extras as $extra) {
-            if ($extra !== '') {
-                $plain[] = self::makePrefixedPath($prefix, $extra);
+            if ($extra === '') {
+                continue;
             }
+
+            $plain[] = self::makePrefixedPath($prefix, $extra);
         }
     }
 
@@ -193,8 +200,12 @@ final class EagerLoadPlanner
      * @param  array<string, mixed>  $scoped
      * @return void
      */
-    private static function addEagerLoadPath(CompiledFieldDefinition $definition, string $fullPath, array &$plain, array &$scoped): void
-    {
+    private static function addEagerLoadPath(
+        CompiledFieldDefinition $definition,
+        string $fullPath,
+        array &$plain,
+        array &$scoped
+    ): void {
         $constraint = $definition->constraint;
 
         if (!($constraint instanceof \Closure)) {
@@ -225,9 +236,11 @@ final class EagerLoadPlanner
 
             $builder = $query instanceof EloquentRelation ? $query->getQuery() : $query;
 
-            if ($builder instanceof Builder) {
-                $constraint($builder);
+            if (!($builder instanceof Builder)) {
+                return;
             }
+
+            $constraint($builder);
         };
     }
 
@@ -241,8 +254,13 @@ final class EagerLoadPlanner
      * @param  array<string, bool>  $visited
      * @return void
      */
-    private static function recurseIntoChild(CompiledFieldDefinition $definition, string $fullPath, array &$plain, array &$scoped, array &$visited): void
-    {
+    private static function recurseIntoChild(
+        CompiledFieldDefinition $definition,
+        string $fullPath,
+        array &$plain,
+        array &$scoped,
+        array &$visited
+    ): void {
         if (!self::shouldRecurseIntoChild($definition)) {
             return;
         }
@@ -251,9 +269,11 @@ final class EagerLoadPlanner
         $childResource = $definition->resource;
         $childFields   = self::resolveChildFields($definition, $childResource);
 
-        if ($childFields !== []) {
-            self::walkRelations($childResource, $childFields, $fullPath, $plain, $scoped, $visited);
+        if ($childFields === []) {
+            return;
         }
+
+        self::walkRelations($childResource, $childFields, $fullPath, $plain, $scoped, $visited);
     }
 
     /**
@@ -370,8 +390,11 @@ final class EagerLoadPlanner
      * @param  \SineMacula\ApiToolkit\Schema\CompiledCountDefinition  $definition
      * @return bool
      */
-    private static function shouldIncludeCount(string $presentKey, ?array $requested, CompiledCountDefinition $definition): bool
-    {
+    private static function shouldIncludeCount(
+        string $presentKey,
+        ?array $requested,
+        CompiledCountDefinition $definition
+    ): bool {
         if (is_array($requested) && $requested !== []) {
             return in_array($presentKey, $requested, true);
         }

@@ -12,6 +12,7 @@ use SineMacula\Http\Enums\HttpMethod;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Repositories\UserRepository;
 use Tests\TestCase;
+use Illuminate\Pagination\LengthAwarePaginator;
 
 /**
  * Integration tests for ApiRepository with a real database.
@@ -65,7 +66,7 @@ class ApiRepositoryIntegrationTest extends TestCase
         $results = $this->repository->paginate();
 
         static::assertCount(2, $results);
-        static::assertInstanceOf(\Illuminate\Pagination\LengthAwarePaginator::class, $results);
+        static::assertInstanceOf(LengthAwarePaginator::class, $results);
     }
 
     /**

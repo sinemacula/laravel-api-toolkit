@@ -48,8 +48,13 @@ class NotificationListener
      * @param  string  $channel
      * @return void
      */
-    private function log(string $level, string $message, Notification $notification, object $notifiable, string $channel): void
-    {
+    private function log(
+        string $level,
+        string $message,
+        Notification $notification,
+        object $notifiable,
+        string $channel
+    ): void {
         $excludedClasses = config('api-toolkit.notifications.excluded_classes', []);
 
         if (in_array($notification::class, $excludedClasses, true)) {
@@ -65,8 +70,10 @@ class NotificationListener
 
         Log::channel('notifications')->log($level, $message, $payload);
 
-        if (config('api-toolkit.logging.cloudwatch.enabled', false)) {
-            Log::channel('cloudwatch-notifications')->log($level, $message, $payload);
+        if (!config('api-toolkit.logging.cloudwatch.enabled', false)) {
+            return;
         }
+
+        Log::channel('cloudwatch-notifications')->log($level, $message, $payload);
     }
 }

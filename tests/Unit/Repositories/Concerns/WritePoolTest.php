@@ -12,6 +12,7 @@ use SineMacula\ApiToolkit\Exceptions\WritePoolFlushException;
 use SineMacula\ApiToolkit\Repositories\Concerns\WritePool;
 use SineMacula\ApiToolkit\Repositories\Concerns\WritePoolFlushResult;
 use Tests\TestCase;
+use Illuminate\Database\QueryException;
 
 /**
  * Tests for the WritePool collaborator.
@@ -326,7 +327,7 @@ class WritePoolTest extends TestCase
         static::assertArrayHasKey('nonexistent_table', $flushResult->failures());
         static::assertSame([['col' => 'val']], $flushResult->failures()['nonexistent_table'][0]['records']);
         static::assertNotEmpty($flushResult->failures()['nonexistent_table'][0]['exception']);
-        static::assertSame(\Illuminate\Database\QueryException::class, $flushResult->failures()['nonexistent_table'][0]['exception_class']);
+        static::assertSame(QueryException::class, $flushResult->failures()['nonexistent_table'][0]['exception_class']);
     }
 
     /**

@@ -4,8 +4,6 @@ namespace Tests\Unit\Http\Resources;
 
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Illuminate\Http\Request;
-use Illuminate\Http\Resources\MissingValue;
-use LogicException;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use SineMacula\ApiToolkit\Http\Resources\ApiResource;
@@ -24,6 +22,8 @@ use Tests\Fixtures\Resources\PostResource;
 use Tests\Fixtures\Resources\TagResource;
 use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 
 /**
  * Tests for the base API resource.
@@ -601,7 +601,7 @@ class ApiResourceTest extends TestCase
         $result = $resource->resolve();
 
         static::assertArrayHasKey('organization', $result);
-        static::assertInstanceOf(\SineMacula\ApiToolkit\Http\Resources\ApiResource::class, $result['organization']);
+        static::assertInstanceOf(ApiResource::class, $result['organization']);
 
         $nested = $result['organization']->resolve();
 
@@ -1093,7 +1093,7 @@ class ApiResourceTest extends TestCase
         $result   = $resource->resolve();
 
         static::assertArrayHasKey('organization', $result);
-        static::assertInstanceOf(\SineMacula\ApiToolkit\Http\Resources\ApiResource::class, $result['organization']);
+        static::assertInstanceOf(ApiResource::class, $result['organization']);
 
         $nested = $result['organization']->resolve();
 
@@ -2026,7 +2026,7 @@ class ApiResourceTest extends TestCase
     {
         $this->clearSchemaCache();
 
-        $model = new class extends \Illuminate\Database\Eloquent\Model {
+        $model = new class extends Model {
             /** @var string|null The database table backing the model. */
             protected $table = 'users';
 
@@ -2035,9 +2035,9 @@ class ApiResourceTest extends TestCase
              *
              * @return \Illuminate\Database\Eloquent\Casts\Attribute
              */
-            public function label(): \Illuminate\Database\Eloquent\Casts\Attribute
+            public function label(): Attribute
             {
-                return \Illuminate\Database\Eloquent\Casts\Attribute::make(
+                return Attribute::make(
                     get: fn () => 'attr_value',
                 );
             }

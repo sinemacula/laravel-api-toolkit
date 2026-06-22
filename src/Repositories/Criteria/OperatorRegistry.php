@@ -2,7 +2,6 @@
 
 namespace SineMacula\ApiToolkit\Repositories\Criteria;
 
-use Closure;
 use Illuminate\Database\Eloquent\Builder;
 use SineMacula\ApiToolkit\Contracts\FilterOperator;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext;

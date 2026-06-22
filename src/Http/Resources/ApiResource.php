@@ -49,8 +49,12 @@ abstract class ApiResource extends JsonResource implements ApiResourceInterface
      * @param  array<int, string>|string|null  $included
      * @param  array<int, string>|null  $excluded
      */
-    public function __construct(mixed $resource, mixed $loadMissing = false, array|string|null $included = null, ?array $excluded = null)
-    {
+    public function __construct(
+        mixed $resource,
+        mixed $loadMissing = false,
+        array|string|null $included = null,
+        ?array $excluded = null
+    ) {
         parent::__construct($resource);
 
         $guardEvaluator      = new GuardEvaluator;
@@ -69,9 +73,11 @@ abstract class ApiResource extends JsonResource implements ApiResourceInterface
             $this->fieldResolver->withoutFields($excluded);
         }
 
-        if ($loadMissing === true && is_object($resource)) {
-            $this->loadMissingRelations($resource);
+        if ($loadMissing !== true || !is_object($resource)) {
+            return;
         }
+
+        $this->loadMissingRelations($resource);
     }
 
     /**
@@ -102,9 +108,11 @@ abstract class ApiResource extends JsonResource implements ApiResourceInterface
 
             $value = $this->valueResolver->resolveFieldValue($field, $definition, $this, $request);
 
-            if (!($value instanceof MissingValue)) {
-                $data[$field] = $value;
+            if ($value instanceof MissingValue) {
+                continue;
             }
+
+            $data[$field] = $value;
         }
 
         if ($this->fieldResolver->shouldIncludeCountsField(static::getResourceType(), static::getDefaultFields())) {
@@ -288,15 +296,19 @@ abstract class ApiResource extends JsonResource implements ApiResourceInterface
             }
         }
 
-        if (method_exists($resource, 'loadCount') && $this->fieldResolver->shouldIncludeCountsField(static::getResourceType(), static::getDefaultFields())) {
-
-            $requestedCounts = ApiQuery::getCounts(static::getResourceType()) ?? [];
-            $withCounts      = EagerLoadPlanner::buildCountMap(static::class, $requestedCounts);
-
-            if ($withCounts !== []) {
-                $resource->loadCount($withCounts);
-            }
+        if (!method_exists($resource, 'loadCount') || !$this->fieldResolver->shouldIncludeCountsField(static::getResourceType(), static::getDefaultFields())) {
+            return;
         }
+
+
+        $requestedCounts = ApiQuery::getCounts(static::getResourceType()) ?? [];
+        $withCounts      = EagerLoadPlanner::buildCountMap(static::class, $requestedCounts);
+
+        if ($withCounts === []) {
+            return;
+        }
+
+        $resource->loadCount($withCounts);
     }
 
     /**

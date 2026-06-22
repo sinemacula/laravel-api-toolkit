@@ -13,6 +13,7 @@ use SineMacula\ApiToolkit\Listeners\OctaneFlushListener;
 use SineMacula\ApiToolkit\Listeners\QueueFlushSubscriber;
 use SineMacula\ApiToolkit\Runtime\RuntimeContext;
 use Tests\TestCase;
+use Illuminate\Support\Facades\Config;
 
 /**
  * Proves that the SHIPPED DEFAULT config engages the lifecycle flush.
@@ -115,7 +116,7 @@ class LifecycleDefaultEngagementTest extends TestCase
         static::assertTrue((bool) config('api-toolkit.lifecycle.queue'));
 
         // Arrange: configure a non-sync connection to signal a real worker.
-        \Illuminate\Support\Facades\Config::set('queue.connections.database.driver', 'database');
+        Config::set('queue.connections.database.driver', 'database');
 
         Event::fake();
 

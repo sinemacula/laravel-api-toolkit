@@ -23,6 +23,7 @@ use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\NullOutput;
 use Tests\Fixtures\Repositories\DeferrableUserRepository;
 use Tests\TestCase;
+use Illuminate\Contracts\Queue\Job;
 
 /**
  * Integration tests for the deferred writes feature.
@@ -210,7 +211,7 @@ class DeferrableIntegrationTest extends TestCase
         $this->repository->defer(['name' => 'Judy', 'email' => 'judy@example.com', 'password' => 'secret']);
         $this->repository->defer(['name' => 'Karl', 'email' => 'karl@example.com', 'password' => 'secret']);
 
-        $job = \Mockery::mock(\Illuminate\Contracts\Queue\Job::class);
+        $job = \Mockery::mock(Job::class);
 
         Event::dispatch(new JobProcessed('sync', $job));
 
@@ -227,7 +228,7 @@ class DeferrableIntegrationTest extends TestCase
         $this->repository->defer(['name' => 'Leo', 'email' => 'leo@example.com', 'password' => 'secret']);
         $this->repository->defer(['name' => 'Mia', 'email' => 'mia@example.com', 'password' => 'secret']);
 
-        $job = \Mockery::mock(\Illuminate\Contracts\Queue\Job::class);
+        $job = \Mockery::mock(Job::class);
 
         Event::dispatch(new JobFailed('sync', $job, new \RuntimeException('test')));
 

@@ -39,6 +39,18 @@ use SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry;
 use SineMacula\ApiToolkit\Services\SchemaIntrospector;
 use SineMacula\ApiToolkit\Services\SchemaValidator;
 use Tests\TestCase;
+use Tests\Fixtures\Models\User;
+use Tests\Fixtures\Resources\UserResource;
+use Tests\Fixtures\Resources\BrokenResource;
+use Laravel\Octane\Events\OperationTerminated;
+use Illuminate\Queue\Events\JobProcessed;
+use SineMacula\ApiToolkit\Http\Middleware\ThrottleRequests;
+use Aws\CloudWatchLogs\CloudWatchLogsClient;
+use Illuminate\Log\Logger;
+use PhpNexus\Cwh\Handler\CloudWatch;
+use Illuminate\Queue\Events\JobFailed;
+use Illuminate\Support\Facades\Event;
+use Illuminate\Events\Dispatcher;
 
 /**
  * Integration tests for the ApiServiceProvider.
@@ -329,7 +341,7 @@ class ApiServiceProviderTest extends TestCase
 
         $this->getConfig()->set('api-toolkit.resources.enable_dynamic_morph_mapping', true);
         $this->getConfig()->set('api-toolkit.resources.resource_map', [
-            \Tests\Fixtures\Models\User::class => \Tests\Fixtures\Resources\UserResource::class,
+            User::class => UserResource::class,
         ]);
 
         $provider = new ApiServiceProvider($app);
@@ -352,7 +364,7 @@ class ApiServiceProviderTest extends TestCase
 
         $this->getConfig()->set('api-toolkit.resources.enable_dynamic_morph_mapping', true);
         $this->getConfig()->set('api-toolkit.resources.resource_map', [
-            \Tests\Fixtures\Models\User::class => \stdClass::class,
+            User::class => \stdClass::class,
         ]);
 
         $provider = new ApiServiceProvider($app);
@@ -408,7 +420,7 @@ class ApiServiceProviderTest extends TestCase
 
         $this->getConfig()->set('api-toolkit.resources.validate_schemas', true);
         $this->getConfig()->set('api-toolkit.resources.resource_map', [
-            \Tests\Fixtures\Models\User::class => \Tests\Fixtures\Resources\UserResource::class,
+            User::class => UserResource::class,
         ]);
 
         $provider = new ApiServiceProvider($app);
@@ -430,7 +442,7 @@ class ApiServiceProviderTest extends TestCase
 
         $this->getConfig()->set('api-toolkit.resources.validate_schemas', false);
         $this->getConfig()->set('api-toolkit.resources.resource_map', [
-            \Tests\Fixtures\Models\User::class => \Tests\Fixtures\Resources\UserResource::class,
+            User::class => UserResource::class,
         ]);
 
         $provider = new ApiServiceProvider($app);
@@ -452,7 +464,7 @@ class ApiServiceProviderTest extends TestCase
 
         $this->getConfig()->set('api-toolkit.resources.validate_schemas', true);
         $this->getConfig()->set('api-toolkit.resources.resource_map', [
-            \Tests\Fixtures\Models\User::class => \Tests\Fixtures\Resources\BrokenResource::class,
+            User::class => BrokenResource::class,
         ]);
 
         $provider = new ApiServiceProvider($app);
@@ -526,7 +538,7 @@ class ApiServiceProviderTest extends TestCase
      */
     public function testOctaneFlushListenerRegisteredWhenConfigEnabled(): void
     {
-        if (!class_exists(\Laravel\Octane\Events\OperationTerminated::class)) {
+        if (!class_exists(OperationTerminated::class)) {
             static::markTestSkipped('Laravel Octane is not installed.');
         }
 
@@ -540,7 +552,7 @@ class ApiServiceProviderTest extends TestCase
         /** @var \Illuminate\Contracts\Events\Dispatcher $events */
         $events = $app->make('events');
 
-        static::assertTrue($events->hasListeners(\Laravel\Octane\Events\OperationTerminated::class));
+        static::assertTrue($events->hasListeners(OperationTerminated::class));
     }
 
     /**
@@ -561,7 +573,7 @@ class ApiServiceProviderTest extends TestCase
         /** @var \Illuminate\Contracts\Events\Dispatcher $events */
         $events = $app->make('events');
 
-        static::assertFalse($events->hasListeners(\Laravel\Octane\Events\OperationTerminated::class)); // @phpstan-ignore class.notFound
+        static::assertFalse($events->hasListeners(OperationTerminated::class)); // @phpstan-ignore class.notFound
     }
 
     /**
@@ -582,7 +594,7 @@ class ApiServiceProviderTest extends TestCase
         /** @var \Illuminate\Contracts\Events\Dispatcher $events */
         $events = $app->make('events');
 
-        static::assertTrue($events->hasListeners(\Illuminate\Queue\Events\JobProcessed::class));
+        static::assertTrue($events->hasListeners(JobProcessed::class));
     }
 
     /**
@@ -750,7 +762,7 @@ class ApiServiceProviderTest extends TestCase
         $aliases = $router->getMiddleware();
 
         static::assertArrayHasKey('throttle', $aliases);
-        static::assertSame(\SineMacula\ApiToolkit\Http\Middleware\ThrottleRequests::class, $aliases['throttle']);
+        static::assertSame(ThrottleRequests::class, $aliases['throttle']);
     }
 
     /**
@@ -868,7 +880,7 @@ class ApiServiceProviderTest extends TestCase
 
         $this->getConfig()->set('api-toolkit.resources.enable_dynamic_morph_mapping', false);
         $this->getConfig()->set('api-toolkit.resources.resource_map', [
-            \Tests\Fixtures\Models\User::class => \Tests\Fixtures\Resources\UserResource::class,
+            User::class => UserResource::class,
         ]);
 
         $provider = new ApiServiceProvider($app);
@@ -892,7 +904,7 @@ class ApiServiceProviderTest extends TestCase
 
         $this->getConfig()->set('api-toolkit.resources', [
             'resource_map' => [
-                \Tests\Fixtures\Models\User::class => \Tests\Fixtures\Resources\BrokenResource::class,
+                User::class => BrokenResource::class,
             ],
             'fixed_fields' => ['id', '_type'],
         ]);
@@ -930,7 +942,7 @@ class ApiServiceProviderTest extends TestCase
      */
     public function testCloudwatchLogDriverIsRegistered(): void
     {
-        if (!class_exists(\Aws\CloudWatchLogs\CloudWatchLogsClient::class)) {
+        if (!class_exists(CloudWatchLogsClient::class)) {
             static::markTestSkipped('The AWS SDK is not installed.');
         }
 
@@ -944,13 +956,13 @@ class ApiServiceProviderTest extends TestCase
 
         $channel = $manager->channel('cloudwatch');
 
-        static::assertInstanceOf(\Illuminate\Log\Logger::class, $channel);
+        static::assertInstanceOf(Logger::class, $channel);
 
         $monolog = $channel->getLogger();
 
         static::assertInstanceOf(\Monolog\Logger::class, $monolog);
         static::assertSame('cloudwatch', $monolog->getName());
-        static::assertInstanceOf(\PhpNexus\Cwh\Handler\CloudWatch::class, $monolog->getHandlers()[0] ?? null);
+        static::assertInstanceOf(CloudWatch::class, $monolog->getHandlers()[0] ?? null);
     }
 
     /**
@@ -1066,8 +1078,8 @@ class ApiServiceProviderTest extends TestCase
         $provider = new ApiServiceProvider($app);
         $provider->boot();
 
-        static::assertTrue($this->eventHasSubscriberListener(\Illuminate\Queue\Events\JobProcessed::class, QueueFlushSubscriber::class));
-        static::assertTrue($this->eventHasSubscriberListener(\Illuminate\Queue\Events\JobFailed::class, QueueFlushSubscriber::class));
+        static::assertTrue($this->eventHasSubscriberListener(JobProcessed::class, QueueFlushSubscriber::class));
+        static::assertTrue($this->eventHasSubscriberListener(JobFailed::class, QueueFlushSubscriber::class));
     }
 
     /**
@@ -1082,15 +1094,15 @@ class ApiServiceProviderTest extends TestCase
 
         // Reset the dispatcher so the boot-time wiring (now default-on) does not
         // pollute the baseline being tested.
-        \Illuminate\Support\Facades\Event::swap(new \Illuminate\Events\Dispatcher($app));
+        Event::swap(new Dispatcher($app));
 
         $this->getConfig()->set('api-toolkit.lifecycle.queue', false);
 
         $provider = new ApiServiceProvider($app);
         $provider->boot();
 
-        static::assertFalse($this->eventHasSubscriberListener(\Illuminate\Queue\Events\JobProcessed::class, QueueFlushSubscriber::class));
-        static::assertFalse($this->eventHasSubscriberListener(\Illuminate\Queue\Events\JobFailed::class, QueueFlushSubscriber::class));
+        static::assertFalse($this->eventHasSubscriberListener(JobProcessed::class, QueueFlushSubscriber::class));
+        static::assertFalse($this->eventHasSubscriberListener(JobFailed::class, QueueFlushSubscriber::class));
     }
 
     /**
@@ -1168,7 +1180,7 @@ class ApiServiceProviderTest extends TestCase
     {
         parent::defineEnvironment($app);
 
-        assert($app instanceof \Illuminate\Foundation\Application);
+        assert($app instanceof Application);
 
         // Enable middleware registration for these tests
         /** @var \Illuminate\Contracts\Config\Repository $config */
@@ -1207,7 +1219,7 @@ class ApiServiceProviderTest extends TestCase
      *
      * @return \Illuminate\Events\Dispatcher
      */
-    private function getEventDispatcher(): \Illuminate\Events\Dispatcher
+    private function getEventDispatcher(): Dispatcher
     {
         /** @var \Illuminate\Events\Dispatcher */
         return $this->getApplication()->make('events');

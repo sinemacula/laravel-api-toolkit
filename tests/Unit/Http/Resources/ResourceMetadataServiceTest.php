@@ -7,6 +7,7 @@ use SineMacula\ApiToolkit\Contracts\ResourceMetadataProvider;
 use SineMacula\ApiToolkit\Http\Resources\ResourceMetadataService;
 use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
+use Illuminate\Foundation\Application;
 
 /**
  * Tests for the ResourceMetadataService.
@@ -121,7 +122,7 @@ class ResourceMetadataServiceTest extends TestCase
      *
      * @return \Illuminate\Foundation\Application
      */
-    private function getApplication(): \Illuminate\Foundation\Application
+    private function getApplication(): Application
     {
         assert($this->app !== null);
 

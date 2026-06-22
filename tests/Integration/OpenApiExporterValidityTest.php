@@ -436,9 +436,11 @@ class OpenApiExporterValidityTest extends TestCase
         }
 
         foreach ($node as &$value) {
-            if (is_array($value)) {
-                $this->adaptForOpis($value);
+            if (!is_array($value)) {
+                continue;
             }
+
+            $this->adaptForOpis($value);
         }
     }
 

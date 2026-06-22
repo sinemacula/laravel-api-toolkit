@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Event;
 use SineMacula\ApiToolkit\Listeners\NotificationListener;
 use SineMacula\ApiToolkit\Logging\CloudWatchLogger;
+use Aws\CloudWatchLogs\CloudWatchLogsClient;
 
 /**
  * Registers the toolkit logging functionality.
@@ -53,7 +54,7 @@ final class LoggingRegistrar
      */
     private function registerCloudwatchLogger(): void
     {
-        if (!class_exists(\Aws\CloudWatchLogs\CloudWatchLogsClient::class)) {
+        if (!class_exists(CloudWatchLogsClient::class)) {
             return;
         }
 

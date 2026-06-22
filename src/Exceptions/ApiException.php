@@ -2,7 +2,6 @@
 
 namespace SineMacula\ApiToolkit\Exceptions;
 
-use Exception;
 use Illuminate\Support\Facades\Lang;
 use SineMacula\ApiToolkit\Contracts\ErrorCodeInterface;
 use SineMacula\Http\Enums\HttpStatus;

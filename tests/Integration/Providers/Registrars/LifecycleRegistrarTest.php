@@ -10,6 +10,7 @@ use SineMacula\ApiToolkit\Listeners\QueueFlushSubscriber;
 use SineMacula\ApiToolkit\Listeners\WritePoolFlushSubscriber;
 use SineMacula\ApiToolkit\Providers\Registrars\LifecycleRegistrar;
 use Tests\TestCase;
+use Illuminate\Queue\Events\JobProcessed;
 
 /**
  * Integration tests for the LifecycleRegistrar.
@@ -77,7 +78,7 @@ class LifecycleRegistrarTest extends TestCase
         (new LifecycleRegistrar)->register();
 
         static::assertTrue($this->eventHasSubscriberListener(RequestHandled::class, WritePoolFlushSubscriber::class));
-        static::assertTrue($this->eventHasSubscriberListener(\Illuminate\Queue\Events\JobProcessed::class, QueueFlushSubscriber::class));
+        static::assertTrue($this->eventHasSubscriberListener(JobProcessed::class, QueueFlushSubscriber::class));
     }
 
     /**

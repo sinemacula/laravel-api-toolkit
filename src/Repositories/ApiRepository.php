@@ -42,9 +42,11 @@ abstract class ApiRepository extends Repository
         $this->customResourceClass = $resource_class;
 
         foreach ($this->getCriteria() as $criteria) {
-            if ($criteria instanceof ApiCriteria) {
-                $criteria->usingResource($resource_class);
+            if (!($criteria instanceof ApiCriteria)) {
+                continue;
             }
+
+            $criteria->usingResource($resource_class);
         }
 
         return $this;
@@ -183,9 +185,11 @@ abstract class ApiRepository extends Repository
 
             $method = 'boot' . class_basename($concern);
 
-            if (method_exists($this, $method)) {
-                $this->{$method}(); // @phpstan-ignore method.dynamicName
+            if (!method_exists($this, $method)) {
+                continue;
             }
+
+            $this->{$method}(); // @phpstan-ignore method.dynamicName
         }
     }
 

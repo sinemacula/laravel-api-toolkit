@@ -3,7 +3,6 @@
 namespace Tests\Unit\Http\Concerns;
 
 use Illuminate\Http\Request;
-use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\CoversTrait;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
 use SineMacula\ApiToolkit\Http\Concerns\RespondsWithStream;
@@ -654,8 +653,11 @@ class RespondsWithStreamTest extends TestCase
              * @param  string  $filename
              * @return \Symfony\Component\HttpFoundation\StreamedResponse
              */
-            public function callCreateStreamedResponse(callable $callback, string $content_type, string $filename): StreamedResponse
-            {
+            public function callCreateStreamedResponse(
+                callable $callback,
+                string $content_type,
+                string $filename
+            ): StreamedResponse {
                 return $this->createStreamedResponse($callback, $content_type, $filename);
             }
         };

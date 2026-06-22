@@ -5,7 +5,6 @@ namespace Tests\Unit\Http\Concerns;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Http\Resources\Json\ResourceCollection;
 use Illuminate\Http\Response as HttpResponse;
-use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\CoversTrait;
 use SineMacula\ApiToolkit\Http\Concerns\RespondsWithExport;
 use SineMacula\ApiToolkit\Http\RequestCapabilities;
@@ -698,8 +697,12 @@ class RespondsWithExportTest extends TestCase
              * @param  string  $filename
              * @return \Illuminate\Http\Response
              */
-            public function callCreateExportResponse(string $data, string $content_type, bool $download, string $filename): HttpResponse
-            {
+            public function callCreateExportResponse(
+                string $data,
+                string $content_type,
+                bool $download,
+                string $filename
+            ): HttpResponse {
                 return $this->createExportResponse($data, $content_type, $download, $filename);
             }
         };
@@ -755,17 +758,14 @@ class RespondsWithExportTest extends TestCase
     private function createMockExporter(string $output): object
     {
         return new class ($output) implements ExporterContract {
-            /** @var string */
-            private string $output;
-
             /**
              * Create a new instance.
              *
              * @param  string  $output
              */
-            public function __construct(string $output)
-            {
-                $this->output = $output;
+            public function __construct(
+                private string $output
+            ) {
             }
 
             /**

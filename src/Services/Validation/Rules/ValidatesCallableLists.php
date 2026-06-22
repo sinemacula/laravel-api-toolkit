@@ -75,13 +75,15 @@ abstract class ValidatesCallableLists implements SchemaValidationRule
 
         foreach ($callables as $i => $callable) {
 
-            if (!is_callable($callable)) { // @phpstan-ignore function.alreadyNarrowedType
-                $errors[] = new SchemaValidationError(
-                    resourceClass: $resourceClass,
-                    fieldKey: $fieldKey,
-                    defect: sprintf('%s at index %d is not callable', $this->getLabel(), $i),
-                );
+            if (is_callable($callable)) {
+                continue;
             }
+            // @phpstan-ignore function.alreadyNarrowedType
+            $errors[] = new SchemaValidationError(
+                resourceClass: $resourceClass,
+                fieldKey: $fieldKey,
+                defect: sprintf('%s at index %d is not callable', $this->getLabel(), $i),
+            );
         }
 
         return $errors;

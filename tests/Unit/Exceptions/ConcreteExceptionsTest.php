@@ -108,8 +108,11 @@ class ConcreteExceptionsTest extends TestCase
      * @return void
      */
     #[DataProvider('exceptionProvider')]
-    public function testGetInternalErrorCodeReturnsExpectedCode(string $class, int $expectedInternalCode, int $expectedHttpCode): void
-    {
+    public function testGetInternalErrorCodeReturnsExpectedCode(
+        string $class,
+        int $expectedInternalCode,
+        int $expectedHttpCode
+    ): void {
         static::assertSame($expectedInternalCode, $class::getInternalErrorCode());
     }
 
@@ -122,8 +125,11 @@ class ConcreteExceptionsTest extends TestCase
      * @return void
      */
     #[DataProvider('exceptionProvider')]
-    public function testGetHttpStatusCodeReturnsExpectedStatus(string $class, int $expectedInternalCode, int $expectedHttpCode): void
-    {
+    public function testGetHttpStatusCodeReturnsExpectedStatus(
+        string $class,
+        int $expectedInternalCode,
+        int $expectedHttpCode
+    ): void {
         static::assertSame($expectedHttpCode, $class::getHttpStatusCode());
     }
 }

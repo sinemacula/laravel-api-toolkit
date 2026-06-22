@@ -12,6 +12,8 @@ use SineMacula\ApiToolkit\Repositories\Concerns\WritePool;
 use SineMacula\ApiToolkit\Repositories\Concerns\WritePoolFlushResult;
 use Tests\Fixtures\Repositories\DeferrableUserRepository;
 use Tests\TestCase;
+use SineMacula\ApiToolkit\Repositories\ApiRepository;
+use SineMacula\ApiToolkit\Repositories\Concerns\AttributeSetter;
 
 /**
  * Tests for the Deferrable trait.
@@ -66,11 +68,11 @@ class DeferrableTest extends TestCase
      */
     public function testBootInvokesParentBootChain(): void
     {
-        $reflection = new \ReflectionClass(\SineMacula\ApiToolkit\Repositories\ApiRepository::class);
+        $reflection = new \ReflectionClass(ApiRepository::class);
 
         $attributeSetter = $reflection->getProperty('attributeSetter')->getValue($this->repository);
 
-        static::assertInstanceOf(\SineMacula\ApiToolkit\Repositories\Concerns\AttributeSetter::class, $attributeSetter);
+        static::assertInstanceOf(AttributeSetter::class, $attributeSetter);
     }
 
     /**

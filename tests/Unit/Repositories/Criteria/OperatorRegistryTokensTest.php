@@ -5,6 +5,9 @@ namespace Tests\Unit\Repositories\Criteria;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 use SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry;
+use SineMacula\ApiToolkit\Contracts\FilterOperator;
+use Illuminate\Database\Eloquent\Builder;
+use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext;
 
 /**
  * Tests for the OperatorRegistry::tokens() method.
@@ -81,7 +84,7 @@ class OperatorRegistryTokensTest extends TestCase
      *
      * @return \SineMacula\ApiToolkit\Contracts\FilterOperator
      */
-    private function makeStub(): \SineMacula\ApiToolkit\Contracts\FilterOperator
+    private function makeStub(): FilterOperator
     {
         /**
          * No-op stub FilterOperator for tokens tests.
@@ -89,7 +92,7 @@ class OperatorRegistryTokensTest extends TestCase
          * @author      Ben Carey <bdmc@sinemacula.co.uk>
          * @copyright   2026 Sine Macula Limited.
          */
-        return new class implements \SineMacula\ApiToolkit\Contracts\FilterOperator {
+        return new class implements FilterOperator {
             /**
              * No-op apply for stub.
              *
@@ -99,12 +102,7 @@ class OperatorRegistryTokensTest extends TestCase
              * @param  \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext  $context
              * @return void
              */
-            public function apply(
-                \Illuminate\Database\Eloquent\Builder $query,
-                string $column,
-                mixed $value,
-                \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext $context,
-            ): void {}
+            public function apply(Builder $query, string $column, mixed $value, FilterContext $context,): void {}
         };
     }
 }

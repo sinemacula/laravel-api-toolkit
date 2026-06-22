@@ -4,7 +4,6 @@ namespace Tests\Unit\Http\Resources;
 
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
-use LogicException;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Http\Resources\PolymorphicResource;
 use Tests\Fixtures\Models\Organization;
@@ -14,6 +13,7 @@ use Tests\Fixtures\Resources\OrganizationResource;
 use Tests\Fixtures\Resources\PostResource;
 use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
+use Illuminate\Foundation\Application;
 
 /**
  * Tests for the polymorphic resource.
@@ -302,7 +302,7 @@ class PolymorphicResourceTest extends TestCase
     {
         parent::defineEnvironment($app);
 
-        assert($app instanceof \Illuminate\Foundation\Application);
+        assert($app instanceof Application);
 
         /** @var \Illuminate\Config\Repository $config */
         $config = $app['config'];

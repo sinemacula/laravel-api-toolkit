@@ -35,13 +35,15 @@ final class ValidateConstraints implements SchemaValidationRule
                 continue;
             }
 
-            if (!($field->constraint instanceof \Closure)) { // @phpstan-ignore instanceof.alwaysTrue
-                $errors[] = new SchemaValidationError(
-                    resourceClass: $resourceClass,
-                    fieldKey: $key,
-                    defect: 'Constraint must be a Closure',
-                );
+            if ($field->constraint instanceof \Closure) {
+                continue;
             }
+            // @phpstan-ignore instanceof.alwaysTrue
+            $errors[] = new SchemaValidationError(
+                resourceClass: $resourceClass,
+                fieldKey: $key,
+                defect: 'Constraint must be a Closure',
+            );
         }
 
         foreach ($schema->getCountDefinitions() as $count) {
@@ -50,13 +52,15 @@ final class ValidateConstraints implements SchemaValidationRule
                 continue;
             }
 
-            if (!($count->constraint instanceof \Closure)) { // @phpstan-ignore instanceof.alwaysTrue
-                $errors[] = new SchemaValidationError(
-                    resourceClass: $resourceClass,
-                    fieldKey: $count->presentKey,
-                    defect: 'Constraint must be a Closure',
-                );
+            if ($count->constraint instanceof \Closure) {
+                continue;
             }
+            // @phpstan-ignore instanceof.alwaysTrue
+            $errors[] = new SchemaValidationError(
+                resourceClass: $resourceClass,
+                fieldKey: $count->presentKey,
+                defect: 'Constraint must be a Closure',
+            );
         }
 
         return $errors;

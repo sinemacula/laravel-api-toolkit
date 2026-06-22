@@ -12,17 +12,14 @@ use SineMacula\ApiToolkit\Services\Validation\SchemaValidationError;
  */
 final class InvalidSchemaException extends \RuntimeException
 {
-    /** @var array<int, \SineMacula\ApiToolkit\Services\Validation\SchemaValidationError> */
-    private array $errors;
-
     /**
      * Create a new invalid schema exception.
      *
      * @param  array<int, \SineMacula\ApiToolkit\Services\Validation\SchemaValidationError>  $errors
      */
-    public function __construct(array $errors)
-    {
-        $this->errors = $errors;
+    public function __construct(
+        private array $errors
+    ) {
 
         parent::__construct($this->buildMessage());
     }

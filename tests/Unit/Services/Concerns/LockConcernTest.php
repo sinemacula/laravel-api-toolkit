@@ -9,6 +9,7 @@ use SineMacula\ApiToolkit\Services\Concerns\LockConcern;
 use SineMacula\ApiToolkit\Services\Service;
 use SineMacula\ApiToolkit\Traits\Lockable;
 use Tests\TestCase;
+use Illuminate\Contracts\Cache\Lock;
 
 /**
  * Tests for the LockConcern class.
@@ -124,7 +125,7 @@ class LockConcernTest extends TestCase
              * @throws \SineMacula\ApiToolkit\Exceptions\TooManyRequestsException
              */
             #[\Override]
-            public function lock(): \Illuminate\Contracts\Cache\Lock
+            public function lock(): Lock
             {
                 throw new TooManyRequestsException;
             }
@@ -191,11 +192,11 @@ class LockConcernTest extends TestCase
              * @return \Illuminate\Contracts\Cache\Lock
              */
             #[\Override]
-            public function lock(): \Illuminate\Contracts\Cache\Lock
+            public function lock(): Lock
             {
                 $this->callOrder[] = 'lock';
 
-                return \Mockery::mock(\Illuminate\Contracts\Cache\Lock::class);
+                return \Mockery::mock(Lock::class);
             }
 
             /**

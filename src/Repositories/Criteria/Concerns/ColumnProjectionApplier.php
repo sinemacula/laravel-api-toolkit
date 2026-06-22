@@ -46,8 +46,12 @@ final class ColumnProjectionApplier
      * @param  array<string, string>  $order
      * @return \Illuminate\Contracts\Database\Eloquent\Builder
      */
-    public function apply(Builder $query, ResourceMetadataProvider $metadataProvider, ?string $resourceClass, array $order): Builder
-    {
+    public function apply(
+        Builder $query,
+        ResourceMetadataProvider $metadataProvider,
+        ?string $resourceClass,
+        array $order
+    ): Builder {
         if (
             !Config::get('api-toolkit.resources.narrow_columns', false)
             || $resourceClass === null

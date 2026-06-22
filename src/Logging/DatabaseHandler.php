@@ -2,7 +2,6 @@
 
 namespace SineMacula\ApiToolkit\Logging;
 
-use Exception;
 use Illuminate\Support\Facades\Log;
 use Monolog\Handler\AbstractProcessingHandler;
 use Monolog\Level;

@@ -146,8 +146,11 @@ class ApiExceptionHandler
      * @param  array<string, mixed>  $headers
      * @return \SineMacula\ApiToolkit\Exceptions\ApiException
      */
-    private static function mapGenericHttpException(SymfonyHttpExceptionInterface $exception, ?array $meta, array $headers): ApiException
-    {
+    private static function mapGenericHttpException(
+        SymfonyHttpExceptionInterface $exception,
+        ?array $meta,
+        array $headers
+    ): ApiException {
         // Laravel's handler converts session token mismatches to a generic
         // 419 HttpException before render callbacks run; 419 has no
         // HttpStatus case, so map it back to the dedicated exception
@@ -228,9 +231,11 @@ class ApiExceptionHandler
     {
         Log::channel('api-exceptions')->error(self::convertExceptionToString($exception), self::getContext());
 
-        if (config('api-toolkit.logging.cloudwatch.enabled', false)) {
-            Log::channel('cloudwatch-api-exceptions')->error(self::convertExceptionToString($exception), self::getContext());
+        if (!config('api-toolkit.logging.cloudwatch.enabled', false)) {
+            return;
         }
+
+        Log::channel('cloudwatch-api-exceptions')->error(self::convertExceptionToString($exception), self::getContext());
     }
 
     /**
@@ -315,9 +320,11 @@ class ApiExceptionHandler
                 continue;
             }
 
-            if (is_array($value)) {
-                $data[$key] = self::redactArray($value, $needles);
+            if (!is_array($value)) {
+                continue;
             }
+
+            $data[$key] = self::redactArray($value, $needles);
         }
 
         return $data;

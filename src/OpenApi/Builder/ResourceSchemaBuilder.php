@@ -75,9 +75,11 @@ class ResourceSchemaBuilder
 
             $properties[$fieldKey] = $this->buildFieldProperty($fieldKey, $field, $modelClass);
 
-            if ($this->isRequired($field)) {
-                $required[] = $fieldKey;
+            if (!$this->isRequired($field)) {
+                continue;
             }
+
+            $required[] = $fieldKey;
         }
 
         foreach (array_keys($compiled->getCountDefinitions()) as $presentKey) {

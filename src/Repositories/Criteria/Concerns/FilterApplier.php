@@ -47,8 +47,13 @@ final class FilterApplier
      * @param  \SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface  $querySurface
      * @return \Illuminate\Database\Eloquent\Builder<TModel>
      */
-    public function apply(Builder $query, ?array $filters, SchemaIntrospectionProvider $schemaIntrospector, OperatorRegistry $operatorRegistry, QuerySurface $querySurface): Builder
-    {
+    public function apply(
+        Builder $query,
+        ?array $filters,
+        SchemaIntrospectionProvider $schemaIntrospector,
+        OperatorRegistry $operatorRegistry,
+        QuerySurface $querySurface
+    ): Builder {
         $this->schemaIntrospector = $schemaIntrospector;
         $this->operatorRegistry   = $operatorRegistry;
         $this->querySurface       = $querySurface;
@@ -67,8 +72,12 @@ final class FilterApplier
      * @param  \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext  $context
      * @return \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>
      */
-    private function applyFilters(Builder $query, array|string|null $filters, ?string $field, FilterContext $context): Builder
-    {
+    private function applyFilters(
+        Builder $query,
+        array|string|null $filters,
+        ?string $field,
+        FilterContext $context
+    ): Builder {
         if (empty($filters)) {
             return $query;
         }
@@ -128,8 +137,13 @@ final class FilterApplier
      * @param  \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext  $context
      * @return void
      */
-    private function applyConditionOperator(Builder $query, string $operator, mixed $value, ?string $field, FilterContext $context): void
-    {
+    private function applyConditionOperator(
+        Builder $query,
+        string $operator,
+        mixed $value,
+        ?string $field,
+        FilterContext $context
+    ): void {
         if (in_array($operator, ['$has', self::OPERATOR_HASNT], true)) {
 
             $this->applyHasFilter($query, $value, $operator, $context);
@@ -142,9 +156,11 @@ final class FilterApplier
 
         $handler = $this->operatorRegistry->resolve($operator);
 
-        if ($handler !== null) {
-            $handler->apply($query, $field, $value, $context);
+        if ($handler === null) {
+            return;
         }
+
+        $handler->apply($query, $field, $value, $context);
     }
 
     /**
@@ -237,8 +253,12 @@ final class FilterApplier
      * @param  \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext  $context
      * @return void
      */
-    private function applyHasFilter(Builder $query, array|string $relations, string $operator, FilterContext $context): void
-    {
+    private function applyHasFilter(
+        Builder $query,
+        array|string $relations,
+        string $operator,
+        FilterContext $context
+    ): void {
         $baseMethod = $this->relationalMethodMap[$operator];
         $method     = ($context->getLogicalOperator() === '$or' && $operator === '$has') ? 'orWhereHas' : $baseMethod;
 
@@ -265,8 +285,12 @@ final class FilterApplier
      * @param  (\Closure(\Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>): void)|null  $callback
      * @return void
      */
-    private function applyRelationalMethod(Builder $query, string $method, string $relation, ?\Closure $callback = null): void
-    {
+    private function applyRelationalMethod(
+        Builder $query,
+        string $method,
+        string $relation,
+        ?\Closure $callback = null
+    ): void {
         match ($method) {
             'orWhereHas'      => $query->orWhereHas($relation, $callback),
             'whereDoesntHave' => $query->whereDoesntHave($relation, $callback),

@@ -51,9 +51,11 @@ class JsonPrettyPrint
 
         $contentType = (string) $response->headers->get(HttpHeader::CONTENT_TYPE->getName());
 
-        if (str_contains($contentType, MediaType::APPLICATION_JSON->getMimeType())) {
-            $this->prettyPrintPlainResponse($response);
+        if (!str_contains($contentType, MediaType::APPLICATION_JSON->getMimeType())) {
+            return;
         }
+
+        $this->prettyPrintPlainResponse($response);
     }
 
     /**
