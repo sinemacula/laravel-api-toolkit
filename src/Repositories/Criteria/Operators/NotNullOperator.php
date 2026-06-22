@@ -16,7 +16,7 @@ final class NotNullOperator extends NullityOperator
      * @return bool
      */
     #[\Override]
-    protected function negated(): bool
+    protected function isNegated(): bool
     {
         return true;
     }

@@ -32,7 +32,7 @@ abstract class NullityOperator implements FilterOperator
     {
         $boolean = $context->getLogicalOperator() === '$or' ? 'or' : 'and';
 
-        $query->getQuery()->whereNull($column, $boolean, $this->negated());
+        $query->getQuery()->whereNull($column, $boolean, $this->isNegated());
     }
 
     /**
@@ -40,5 +40,5 @@ abstract class NullityOperator implements FilterOperator
      *
      * @return bool
      */
-    abstract protected function negated(): bool;
+    abstract protected function isNegated(): bool;
 }

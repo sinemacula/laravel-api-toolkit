@@ -196,7 +196,7 @@ class LifecycleFlushDefaultsTest extends TestCase
         (new LifecycleRegistrar)->register();
 
         static::assertFalse(
-            $this->eventHasSubscriberListener(JobProcessed::class, QueueFlushSubscriber::class),
+            $this->hasSubscriberListener(JobProcessed::class, QueueFlushSubscriber::class),
             'QueueFlushSubscriber must not be wired when lifecycle.queue is false',
         );
 
@@ -207,7 +207,7 @@ class LifecycleFlushDefaultsTest extends TestCase
         (new LifecycleRegistrar)->register();
 
         static::assertTrue(
-            $this->eventHasSubscriberListener(JobProcessed::class, QueueFlushSubscriber::class),
+            $this->hasSubscriberListener(JobProcessed::class, QueueFlushSubscriber::class),
             'QueueFlushSubscriber must be wired when lifecycle.queue is true',
         );
     }
@@ -258,7 +258,7 @@ class LifecycleFlushDefaultsTest extends TestCase
      * @param  class-string  $subscriber
      * @return bool
      */
-    private function eventHasSubscriberListener(string $event, string $subscriber): bool
+    private function hasSubscriberListener(string $event, string $subscriber): bool
     {
         assert($this->app !== null);
 

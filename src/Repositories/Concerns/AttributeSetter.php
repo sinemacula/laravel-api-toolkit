@@ -139,7 +139,7 @@ final class AttributeSetter
 
             foreach ($laravelCasts as $laravelCast) {
 
-                if ($this->castMatchesLaravelCast($cast, $laravelCast)) {
+                if ($this->matchesLaravelCast($cast, $laravelCast)) {
                     return $nativeCast;
                 }
             }
@@ -186,7 +186,7 @@ final class AttributeSetter
      * @param  string  $laravelCast
      * @return bool
      */
-    private function castMatchesLaravelCast(string $cast, string $laravelCast): bool
+    private function matchesLaravelCast(string $cast, string $laravelCast): bool
     {
         $baseCast = explode(':', $cast)[0];
 

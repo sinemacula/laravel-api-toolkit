@@ -1059,8 +1059,8 @@ class ApiServiceProviderTest extends TestCase
      */
     public function testWritePoolFlushSubscriberIsSubscribedToLifecycleEvents(): void
     {
-        static::assertTrue($this->eventHasSubscriberListener(RequestHandled::class, WritePoolFlushSubscriber::class));
-        static::assertTrue($this->eventHasSubscriberListener(CommandFinished::class, WritePoolFlushSubscriber::class));
+        static::assertTrue($this->hasSubscriberListener(RequestHandled::class, WritePoolFlushSubscriber::class));
+        static::assertTrue($this->hasSubscriberListener(CommandFinished::class, WritePoolFlushSubscriber::class));
     }
 
     /**
@@ -1078,8 +1078,8 @@ class ApiServiceProviderTest extends TestCase
         $provider = new ApiServiceProvider($app);
         $provider->boot();
 
-        static::assertTrue($this->eventHasSubscriberListener(JobProcessed::class, QueueFlushSubscriber::class));
-        static::assertTrue($this->eventHasSubscriberListener(JobFailed::class, QueueFlushSubscriber::class));
+        static::assertTrue($this->hasSubscriberListener(JobProcessed::class, QueueFlushSubscriber::class));
+        static::assertTrue($this->hasSubscriberListener(JobFailed::class, QueueFlushSubscriber::class));
     }
 
     /**
@@ -1101,8 +1101,8 @@ class ApiServiceProviderTest extends TestCase
         $provider = new ApiServiceProvider($app);
         $provider->boot();
 
-        static::assertFalse($this->eventHasSubscriberListener(JobProcessed::class, QueueFlushSubscriber::class));
-        static::assertFalse($this->eventHasSubscriberListener(JobFailed::class, QueueFlushSubscriber::class));
+        static::assertFalse($this->hasSubscriberListener(JobProcessed::class, QueueFlushSubscriber::class));
+        static::assertFalse($this->hasSubscriberListener(JobFailed::class, QueueFlushSubscriber::class));
     }
 
     /**
@@ -1264,7 +1264,7 @@ class ApiServiceProviderTest extends TestCase
      * @param  class-string  $subscriber
      * @return bool
      */
-    private function eventHasSubscriberListener(string $event, string $subscriber): bool
+    private function hasSubscriberListener(string $event, string $subscriber): bool
     {
         $listeners = $this->getEventDispatcher()->getRawListeners()[$event] ?? [];
 

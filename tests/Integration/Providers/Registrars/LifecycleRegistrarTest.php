@@ -77,8 +77,8 @@ class LifecycleRegistrarTest extends TestCase
 
         (new LifecycleRegistrar)->register();
 
-        static::assertTrue($this->eventHasSubscriberListener(RequestHandled::class, WritePoolFlushSubscriber::class));
-        static::assertTrue($this->eventHasSubscriberListener(JobProcessed::class, QueueFlushSubscriber::class));
+        static::assertTrue($this->hasSubscriberListener(RequestHandled::class, WritePoolFlushSubscriber::class));
+        static::assertTrue($this->hasSubscriberListener(JobProcessed::class, QueueFlushSubscriber::class));
     }
 
     /**
@@ -166,7 +166,7 @@ class LifecycleRegistrarTest extends TestCase
      * @param  class-string  $subscriber
      * @return bool
      */
-    private function eventHasSubscriberListener(string $event, string $subscriber): bool
+    private function hasSubscriberListener(string $event, string $subscriber): bool
     {
         /** @var \Illuminate\Events\Dispatcher $events */
         $events = $this->getApplication()->make('events');

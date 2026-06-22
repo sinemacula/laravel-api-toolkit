@@ -619,7 +619,7 @@ class AttributeSetterTest extends TestCase
      */
     public function testCastMatchesLaravelCastExactMatch(): void
     {
-        $result = $this->invokeMethod($this->attributeSetter, 'castMatchesLaravelCast', 'string', 'string');
+        $result = $this->invokeMethod($this->attributeSetter, 'matchesLaravelCast', 'string', 'string');
 
         static::assertTrue($result);
     }
@@ -632,7 +632,7 @@ class AttributeSetterTest extends TestCase
      */
     public function testCastMatchesLaravelCastWildcardMatch(): void
     {
-        $result = $this->invokeMethod($this->attributeSetter, 'castMatchesLaravelCast', 'decimal:2', 'decimal*');
+        $result = $this->invokeMethod($this->attributeSetter, 'matchesLaravelCast', 'decimal:2', 'decimal*');
 
         static::assertTrue($result);
     }
@@ -645,7 +645,7 @@ class AttributeSetterTest extends TestCase
      */
     public function testCastMatchesLaravelCastClassMatch(): void
     {
-        $result = $this->invokeMethod($this->attributeSetter, 'castMatchesLaravelCast', UserStatus::class, UserStatus::class);
+        $result = $this->invokeMethod($this->attributeSetter, 'matchesLaravelCast', UserStatus::class, UserStatus::class);
 
         static::assertTrue($result);
     }
@@ -658,7 +658,7 @@ class AttributeSetterTest extends TestCase
      */
     public function testCastMatchesLaravelCastClassMatchWithParameters(): void
     {
-        $result = $this->invokeMethod($this->attributeSetter, 'castMatchesLaravelCast', UserStatus::class . ':foo', UserStatus::class);
+        $result = $this->invokeMethod($this->attributeSetter, 'matchesLaravelCast', UserStatus::class . ':foo', UserStatus::class);
 
         static::assertTrue($result);
     }
@@ -671,7 +671,7 @@ class AttributeSetterTest extends TestCase
      */
     public function testCastMatchesLaravelCastClassMismatchReturnsFalse(): void
     {
-        $result = $this->invokeMethod($this->attributeSetter, 'castMatchesLaravelCast', 'string', UserStatus::class);
+        $result = $this->invokeMethod($this->attributeSetter, 'matchesLaravelCast', 'string', UserStatus::class);
 
         static::assertFalse($result);
     }
@@ -684,7 +684,7 @@ class AttributeSetterTest extends TestCase
      */
     public function testCastMatchesLaravelCastNoMatch(): void
     {
-        $result = $this->invokeMethod($this->attributeSetter, 'castMatchesLaravelCast', 'string', 'integer');
+        $result = $this->invokeMethod($this->attributeSetter, 'matchesLaravelCast', 'string', 'integer');
 
         static::assertFalse($result);
     }
