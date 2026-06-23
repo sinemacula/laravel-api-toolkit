@@ -69,9 +69,40 @@ final class CacheStore implements CacheInvalidator
 
         $this->store         = $store;
         $this->taggableStore = $store instanceof ConcreteRepository && $store->supportsTags() ? $store : null;
-        $this->tag           = 'repo-table:' . $this->table;
+        $this->tag           = self::tagFor($this->table);
         $this->metaKey       = CacheKeys::REPOSITORY_CACHE_META->resolveKey([$this->table]);
-        $this->versionKey    = CacheKeys::REPOSITORY_CACHE_VERSION->resolveKey([$this->table]);
+        $this->versionKey    = self::versionKeyFor($this->table);
+    }
+
+    /**
+     * Invalidate every per-query cache entry for a table without a configured
+     * store instance, for cross-cutting callers (such as the deferred-write
+     * boundary flush) that only need to drop a table's cache.
+     *
+     * This is the invalidation half of flushTable(): it flushes the table tag
+     * on a taggable store, or bumps the generational version on a non-taggable
+     * store when the registry is enabled. It deliberately omits the metadata
+     * write flushTable() performs, because the caller is not the owning
+     * repository and does not track that table's cache status.
+     *
+     * @param  string  $cacheStore
+     * @param  string  $table
+     * @param  bool  $registryEnabled
+     * @return void
+     */
+    public static function invalidateTable(string $cacheStore, string $table, bool $registryEnabled): void
+    {
+        $store = Cache::store($cacheStore);
+
+        if ($store instanceof ConcreteRepository && $store->supportsTags()) {
+            $store->tags([self::tagFor($table)])->flush();
+
+            return;
+        }
+
+        if ($registryEnabled) {
+            $store->increment(self::versionKeyFor($table));
+        }
     }
 
     /**
@@ -240,5 +271,27 @@ final class CacheStore implements CacheInvalidator
         $bumped = $this->store->increment($this->versionKey);
 
         $this->version = is_int($bumped) ? $bumped : $this->tableVersion() + 1;
+    }
+
+    /**
+     * Resolve the cache tag scoping all per-query entries for a table.
+     *
+     * @param  string  $table
+     * @return string
+     */
+    private static function tagFor(string $table): string
+    {
+        return 'repo-table:' . $table;
+    }
+
+    /**
+     * Resolve the cache key holding a table's generational version.
+     *
+     * @param  string  $table
+     * @return string
+     */
+    private static function versionKeyFor(string $table): string
+    {
+        return CacheKeys::REPOSITORY_CACHE_VERSION->resolveKey([$table]);
     }
 }

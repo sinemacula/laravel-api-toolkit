@@ -21,6 +21,7 @@ use SineMacula\ApiToolkit\Enums\FlushStrategy;
 use SineMacula\ApiToolkit\Events\WritePoolFlushFailed;
 use SineMacula\ApiToolkit\Exceptions\WritePoolFlushException;
 use SineMacula\ApiToolkit\Listeners\WritePoolFlushSubscriber;
+use SineMacula\ApiToolkit\Repositories\Concerns\DeferredWriteCacheInvalidator;
 use SineMacula\ApiToolkit\Repositories\Concerns\WritePool;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\NullOutput;
@@ -37,6 +38,24 @@ use Tests\TestCase;
 #[CoversClass(WritePoolFlushSubscriber::class)]
 final class WritePoolFlushSubscriberTest extends TestCase
 {
+    /**
+     * Set up the test environment.
+     *
+     * The per-query cache invalidation path is covered by its own
+     * dedicated tests below; disable it here so the flush and escalation
+     * assertions observe the subscriber in isolation without the
+     * container being asked for the invalidator.
+     *
+     * @return void
+     */
+    #[\Override]
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        Config::set('api-toolkit.deferred_writes.invalidate_query_cache', false);
+    }
+
     /**
      * Test that subscribe registers a listener for RequestHandled.
      *
@@ -424,6 +443,114 @@ final class WritePoolFlushSubscriberTest extends TestCase
         $this->expectException(WritePoolFlushException::class);
 
         $subscriber->handleFlush();
+    }
+
+    /**
+     * Test that, when invalidation is enabled, the subscriber invalidates
+     * the per-query cache for every table the flush persisted.
+     *
+     * @return void
+     */
+    public function testHandleFlushInvalidatesQueryCacheForFlushedTables(): void
+    {
+        Config::set('api-toolkit.deferred_writes.invalidate_query_cache', true);
+
+        $pool = new WritePool(500, 10000);
+        $pool->add('users', ['name' => 'Alice', 'email' => 'alice@example.com', 'password' => 'secret']);
+
+        $invalidator = new class {
+            /** @var list<array<int, string>> The arguments of each invalidate() call. */
+            public array $calls = [];
+
+            /**
+             * @param  array<int, string>  $tables
+             * @return void
+             */
+            public function invalidate(array $tables): void
+            {
+                $this->calls[] = $tables;
+            }
+        };
+
+        $container = \Mockery::mock(Container::class);
+        $container->shouldReceive('make')->with(WritePool::class)->andReturn($pool);
+        $container->shouldReceive('make')->with(DeferredWriteCacheInvalidator::class)->andReturn($invalidator);
+
+        $subscriber = new WritePoolFlushSubscriber($container);
+
+        $subscriber->handleFlush();
+
+        static::assertTrue($pool->isEmpty());
+        static::assertSame([['users']], $invalidator->calls);
+    }
+
+    /**
+     * Test that, when invalidation is disabled, the subscriber never
+     * resolves the invalidator from the container.
+     *
+     * @return void
+     */
+    public function testHandleFlushDoesNotInvalidateQueryCacheWhenDisabled(): void
+    {
+        Config::set('api-toolkit.deferred_writes.invalidate_query_cache', false);
+
+        $pool = new WritePool(500, 10000);
+        $pool->add('users', ['name' => 'Bob', 'email' => 'bob@example.com', 'password' => 'secret']);
+
+        $container = \Mockery::mock(Container::class);
+        $container->shouldReceive('make')->with(WritePool::class)->andReturn($pool);
+        $container->shouldReceive('make')->with(DeferredWriteCacheInvalidator::class)->never();
+
+        $subscriber = new WritePoolFlushSubscriber($container);
+
+        $subscriber->handleFlush();
+
+        static::assertTrue($pool->isEmpty());
+    }
+
+    /**
+     * Test that a throw-strategy failure still invalidates the per-query
+     * cache for every attempted table before the failure is escalated.
+     *
+     * @return void
+     */
+    public function testHandleFlushInvalidatesQueryCacheOnFlushException(): void
+    {
+        Config::set('api-toolkit.deferred_writes.invalidate_query_cache', true);
+        Config::set('api-toolkit.deferred_writes.rethrow_at_boundary', false);
+
+        $pool = new WritePool(500, 10000, FlushStrategy::THROW);
+        $pool->add('users', ['name' => 'Carol', 'email' => 'carol@example.com', 'password' => 'secret']);
+        $pool->add('nonexistent_table', ['col' => 'val']);
+
+        $invalidator = new class {
+            /** @var list<array<int, string>> The arguments of each invalidate() call. */
+            public array $calls = [];
+
+            /**
+             * @param  array<int, string>  $tables
+             * @return void
+             */
+            public function invalidate(array $tables): void
+            {
+                $this->calls[] = $tables;
+            }
+        };
+
+        $container = \Mockery::mock(Container::class);
+        $container->shouldReceive('make')->with(WritePool::class)->andReturn($pool);
+        $container->shouldReceive('make')->with(DeferredWriteCacheInvalidator::class)->andReturn($invalidator);
+
+        Log::shouldReceive('warning')->once();
+
+        Event::fake([WritePoolFlushFailed::class]);
+
+        $subscriber = new WritePoolFlushSubscriber($container);
+
+        $subscriber->handleFlush();
+
+        Event::assertDispatched(WritePoolFlushFailed::class);
+        static::assertSame([['users', 'nonexistent_table']], $invalidator->calls);
     }
 
     /**

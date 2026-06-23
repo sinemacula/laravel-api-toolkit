@@ -873,6 +873,57 @@ final class WritePoolTest extends TestCase
     }
 
     /**
+     * Test that a successful flush reports every table it attempted to
+     * persist, so the boundary can invalidate each table's downstream
+     * per-query cache.
+     *
+     * @return void
+     */
+    public function testFlushResultReportsEveryAttemptedTable(): void
+    {
+        $this->pool->add('test_records', ['name' => 'foo', 'value' => 'bar']);
+        $this->pool->add('test_other', ['label' => 'baz']);
+
+        $flushResult = $this->pool->flush();
+
+        static::assertSame(['test_records', 'test_other'], $flushResult->flushedTables());
+    }
+
+    /**
+     * Test that an empty flush reports no attempted tables.
+     *
+     * @return void
+     */
+    public function testEmptyFlushReportsNoAttemptedTables(): void
+    {
+        $flushResult = $this->pool->flush();
+
+        static::assertSame([], $flushResult->flushedTables());
+    }
+
+    /**
+     * Test that the partial result carried by the throw exception reports
+     * every attempted table, so the boundary still invalidates the cache
+     * for tables that persisted before the failure.
+     *
+     * @return void
+     */
+    public function testThrowResultReportsEveryAttemptedTable(): void
+    {
+        $pool = new WritePool(chunkSize: 1, poolLimit: 10000, strategy: FlushStrategy::THROW);
+
+        $pool->add('test_records', ['name' => 'foo', 'value' => 'bar']);
+        $pool->add('nonexistent_table', ['col' => 'val']);
+
+        try {
+            $pool->flush();
+            static::fail('Expected WritePoolFlushException was not thrown');
+        } catch (WritePoolFlushException $exception) {
+            static::assertSame(['test_records', 'nonexistent_table'], $exception->flushResult()->flushedTables());
+        }
+    }
+
+    /**
      * Define the database migrations.
      *
      * @return void

@@ -97,14 +97,15 @@ final class WritePoolFlushAccumulator
      * for LOG every failed record is dropped instead of retained.
      *
      * @param  \SineMacula\ApiToolkit\Enums\FlushStrategy  $strategy
+     * @param  array<int, string>  $flushedTables
      * @return \SineMacula\ApiToolkit\Repositories\Concerns\WritePoolFlushResult
      */
-    public function toResult(FlushStrategy $strategy): WritePoolFlushResult
+    public function toResult(FlushStrategy $strategy, array $flushedTables = []): WritePoolFlushResult
     {
         $retained = $strategy === FlushStrategy::LOG ? 0 : $this->failedRecordCount;
         $dropped  = $strategy === FlushStrategy::LOG ? $this->failedRecordCount : 0;
 
-        return $this->buildResult($retained, $dropped);
+        return $this->buildResult($retained, $dropped, $flushedTables);
     }
 
     /**
@@ -112,11 +113,12 @@ final class WritePoolFlushAccumulator
      * where retained records include both failed and unprocessed rows.
      *
      * @param  int  $retainedRecordCount
+     * @param  array<int, string>  $flushedTables
      * @return \SineMacula\ApiToolkit\Repositories\Concerns\WritePoolFlushResult
      */
-    public function toThrowResult(int $retainedRecordCount): WritePoolFlushResult
+    public function toThrowResult(int $retainedRecordCount, array $flushedTables = []): WritePoolFlushResult
     {
-        return $this->buildResult($retainedRecordCount, 0);
+        return $this->buildResult($retainedRecordCount, 0, $flushedTables);
     }
 
     /**
@@ -125,9 +127,10 @@ final class WritePoolFlushAccumulator
      *
      * @param  int  $retainedRecordCount
      * @param  int  $droppedRecordCount
+     * @param  array<int, string>  $flushedTables
      * @return \SineMacula\ApiToolkit\Repositories\Concerns\WritePoolFlushResult
      */
-    private function buildResult(int $retainedRecordCount, int $droppedRecordCount): WritePoolFlushResult
+    private function buildResult(int $retainedRecordCount, int $droppedRecordCount, array $flushedTables = []): WritePoolFlushResult
     {
         return new WritePoolFlushResult(
             successCount: $this->successCount,
@@ -137,6 +140,7 @@ final class WritePoolFlushAccumulator
             failedRecordCount: $this->failedRecordCount,
             retainedRecordCount: $retainedRecordCount,
             droppedRecordCount: $droppedRecordCount,
+            flushedTables: $flushedTables,
         );
     }
 }

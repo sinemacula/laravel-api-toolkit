@@ -23,6 +23,7 @@ final class WritePoolFlushResult
      * @param  int  $failedRecordCount
      * @param  int  $retainedRecordCount
      * @param  int  $droppedRecordCount
+     * @param  array<int, string>  $flushedTables
      * @return void
      */
     public function __construct(
@@ -47,7 +48,19 @@ final class WritePoolFlushResult
 
         /** The number of records discarded without retry. */
         private readonly int $droppedRecordCount = 0,
+        private readonly array $flushedTables = [],
     ) {}
+
+    /**
+     * Get the distinct tables whose buffered records this flush attempted to
+     * persist. Used to invalidate each table's downstream per-query cache.
+     *
+     * @return array<int, string>
+     */
+    public function flushedTables(): array
+    {
+        return $this->flushedTables;
+    }
 
     /**
      * Determine whether the flush completed without any failures.

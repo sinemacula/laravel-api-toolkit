@@ -21,13 +21,16 @@ namespace SineMacula\ApiToolkit\Repositories\Concerns;
  * pool for the next boundary; use the log strategy for fire-and-forget
  * writes that may be dropped.
  *
- * Cache interaction: this concern now coexists with Cacheable on the same
- * repository (each boots via its own boot{Concern} hook). Note, however, that
- * deferred writes are persisted through the write pool's bulk INSERT, which
- * bypasses the per-query cache invalidation that fires only on the repository's
- * own write verbs. A deferred write therefore leaves any per-query cache for
- * that table stale until its TTL; call flushCache() after the boundary flush,
- * or rely on the TTL, when read-after-deferred-write consistency is required.
+ * Cache interaction: this concern coexists with Cacheable on the same
+ * repository (each boots via its own boot{Concern} hook). Deferred writes are
+ * persisted through the write pool's bulk INSERT, which bypasses the per-query
+ * cache invalidation that fires on the repository's own write verbs. The
+ * lifecycle-boundary flush compensates: it invalidates the per-query cache for
+ * every persisted table (controlled by
+ * `api-toolkit.deferred_writes.invalidate_query_cache`, on by default). This is
+ * best-effort and covers default-config Cacheable repositories; a repository on
+ * a custom cache store or key prefix is not reached, so call flushCache() after
+ * the boundary flush, or rely on the TTL, for those.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.

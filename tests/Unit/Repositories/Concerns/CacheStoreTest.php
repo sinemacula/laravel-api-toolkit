@@ -7,7 +7,9 @@ namespace Tests\Unit\Repositories\Concerns;
 use Carbon\Carbon;
 use Illuminate\Contracts\Cache\Repository as CacheContract;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Cache;
 use PHPUnit\Framework\Attributes\CoversClass;
+use SineMacula\ApiToolkit\Enums\CacheKeys;
 use SineMacula\ApiToolkit\Repositories\Concerns\CacheSizeGuard;
 use SineMacula\ApiToolkit\Repositories\Concerns\CacheStore;
 use SineMacula\ApiToolkit\Repositories\Concerns\CacheStoreOptions;
@@ -407,5 +409,55 @@ final class CacheStoreTest extends TestCase
 
         self::assertNull($tableA->get(self::HASH));
         self::assertNotNull($tableB->get(self::HASH));
+    }
+
+    /**
+     * Test that invalidateTable flushes a taggable store's table tag and,
+     * because the taggable path returns early, never bumps the generational
+     * version.
+     *
+     * @return void
+     */
+    public function testInvalidateTableFlushesTaggableStoreWithoutBumpingVersion(): void
+    {
+        $this->cacheStore->put(self::HASH, collect(['a', 'b']), 2);
+
+        CacheStore::invalidateTable('array', 'test-table', true);
+
+        static::assertNull($this->cacheStore->get(self::HASH));
+        static::assertNull(Cache::store('array')->get(CacheKeys::REPOSITORY_CACHE_VERSION->resolveKey(['test-table'])));
+    }
+
+    /**
+     * Test that invalidateTable bumps the generational version on a
+     * non-taggable store when the registry is enabled, so a previously
+     * cached entry reads back as a miss.
+     *
+     * @return void
+     */
+    public function testInvalidateTableBumpsVersionOnNonTaggableStoreWhenRegistryEnabled(): void
+    {
+        $options = new CacheStoreOptions(3600, new CacheSizeGuard(1000, 262144), true, 10);
+        (new CacheStore('file', 'file-table', $options))->put(self::HASH, collect(['a']), 1);
+
+        CacheStore::invalidateTable('file', 'file-table', true);
+
+        static::assertNull((new CacheStore('file', 'file-table', $options))->get(self::HASH));
+    }
+
+    /**
+     * Test that invalidateTable leaves a non-taggable store's entry intact
+     * when the registry is disabled, because it cannot bump the version.
+     *
+     * @return void
+     */
+    public function testInvalidateTableLeavesEntryOnNonTaggableStoreWhenRegistryDisabled(): void
+    {
+        $options = new CacheStoreOptions(3600, new CacheSizeGuard(1000, 262144), true, 10);
+        (new CacheStore('file', 'file-table', $options))->put(self::HASH, collect(['a']), 1);
+
+        CacheStore::invalidateTable('file', 'file-table', false);
+
+        static::assertNotNull((new CacheStore('file', 'file-table', $options))->get(self::HASH));
     }
 }
