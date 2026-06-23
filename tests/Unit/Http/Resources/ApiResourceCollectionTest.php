@@ -242,23 +242,23 @@ final class ApiResourceCollectionTest extends TestCase
     {
         $items = [User::create(['name' => 'ContinueTest', 'email' => 'continue@example.com'])];
 
-        $has_more = new LengthAwarePaginator($items, 50, 15, 1, [
+        $hasMore = new LengthAwarePaginator($items, 50, 15, 1, [
             'path' => self::PAGINATION_PATH,
         ]);
 
-        $collection_more = new ApiResourceCollection($has_more, UserResource::class);
-        $result_more     = $collection_more->paginationInformation(Request::create('/', HttpMethod::GET->getVerb()), [], []);
+        $collectionMore = new ApiResourceCollection($hasMore, UserResource::class);
+        $resultMore     = $collectionMore->paginationInformation(Request::create('/', HttpMethod::GET->getVerb()), [], []);
 
-        static::assertTrue($result_more['meta']['continue']);
+        static::assertTrue($resultMore['meta']['continue']);
 
-        $no_more = new LengthAwarePaginator($items, 1, 15, 1, [
+        $noMore = new LengthAwarePaginator($items, 1, 15, 1, [
             'path' => self::PAGINATION_PATH,
         ]);
 
-        $collection_last = new ApiResourceCollection($no_more, UserResource::class);
-        $result_last     = $collection_last->paginationInformation(Request::create('/', HttpMethod::GET->getVerb()), [], []);
+        $collectionLast = new ApiResourceCollection($noMore, UserResource::class);
+        $resultLast     = $collectionLast->paginationInformation(Request::create('/', HttpMethod::GET->getVerb()), [], []);
 
-        static::assertFalse($result_last['meta']['continue']);
+        static::assertFalse($resultLast['meta']['continue']);
     }
 
     /**

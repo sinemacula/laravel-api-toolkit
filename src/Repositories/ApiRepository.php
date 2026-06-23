@@ -36,19 +36,19 @@ abstract class ApiRepository extends Repository
     /**
      * Set a custom resource class to be used.
      *
-     * @param  string|null  $resource_class
+     * @param  string|null  $resourceClass
      * @return $this
      */
-    public function usingResource(?string $resource_class): static
+    public function usingResource(?string $resourceClass): static
     {
-        $this->customResourceClass = $resource_class;
+        $this->customResourceClass = $resourceClass;
 
         foreach ($this->getCriteria() as $criteria) {
             if (!($criteria instanceof ApiCriteria)) {
                 continue;
             }
 
-            $criteria->usingResource($resource_class);
+            $criteria->usingResource($resourceClass);
         }
 
         return $this;

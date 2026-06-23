@@ -50,7 +50,7 @@ final class RespondsWithExportTest extends TestCase
         $controller = $this->createController();
         $data       = [['id' => 1, 'name' => 'Alice']];
 
-        $this->setCapabilities(expects_csv: true);
+        $this->setCapabilities(expectsCsv: true);
 
         $exporter = $this->createMockExporter("id,name\n1,Alice");
 
@@ -74,7 +74,7 @@ final class RespondsWithExportTest extends TestCase
         $controller = $this->createController();
         $data       = [['id' => 1, 'name' => 'Alice']];
 
-        $this->setCapabilities(expects_xml: true);
+        $this->setCapabilities(expectsXml: true);
 
         $exporter = $this->createMockExporter('<root><item><id>1</id></item></root>');
 
@@ -152,7 +152,7 @@ final class RespondsWithExportTest extends TestCase
         $controller = $this->createController();
         $collection = new ResourceCollection(collect([]));
 
-        $this->setCapabilities(expects_csv: true);
+        $this->setCapabilities(expectsCsv: true);
 
         Exporter::swap($this->createMockExporter(self::MOCK_COLLECTION_CSV));
 
@@ -228,7 +228,7 @@ final class RespondsWithExportTest extends TestCase
         $controller = $this->createController();
         $resource   = new JsonResource(['id' => 1]);
 
-        $this->setCapabilities(expects_csv: true);
+        $this->setCapabilities(expectsCsv: true);
 
         Exporter::swap($this->createMockExporter('id,1'));
 
@@ -417,7 +417,7 @@ final class RespondsWithExportTest extends TestCase
         $controller = $this->createController();
         $data       = [['id' => 1]];
 
-        $this->setCapabilities(expects_csv: true);
+        $this->setCapabilities(expectsCsv: true);
 
         Exporter::swap($this->createMockExporter('id,1'));
 
@@ -438,7 +438,7 @@ final class RespondsWithExportTest extends TestCase
         $controller = $this->createController();
         $data       = [['id' => 1]];
 
-        $this->setCapabilities(expects_csv: true);
+        $this->setCapabilities(expectsCsv: true);
 
         Exporter::swap($this->createMockExporter('id,1'));
 
@@ -459,7 +459,7 @@ final class RespondsWithExportTest extends TestCase
         $controller = $this->createController();
         $collection = new ResourceCollection(collect([]));
 
-        $this->setCapabilities(expects_csv: true);
+        $this->setCapabilities(expectsCsv: true);
 
         Exporter::swap($this->createMockExporter(self::MOCK_COLLECTION_CSV));
 
@@ -480,7 +480,7 @@ final class RespondsWithExportTest extends TestCase
         $controller = $this->createController();
         $resource   = new JsonResource(['id' => 1]);
 
-        $this->setCapabilities(expects_csv: true);
+        $this->setCapabilities(expectsCsv: true);
 
         Exporter::swap($this->createMockExporter('id,1'));
 
@@ -501,7 +501,7 @@ final class RespondsWithExportTest extends TestCase
         $controller = $this->createController();
         $data       = [['id' => 1]];
 
-        $this->setCapabilities(expects_xml: true);
+        $this->setCapabilities(expectsXml: true);
 
         Exporter::swap($this->createMockExporter(self::MOCK_ITEM_XML));
 
@@ -522,7 +522,7 @@ final class RespondsWithExportTest extends TestCase
         $controller = $this->createController();
         $data       = [['id' => 1]];
 
-        $this->setCapabilities(expects_xml: true);
+        $this->setCapabilities(expectsXml: true);
 
         Exporter::swap($this->createMockExporter(self::MOCK_ITEM_XML));
 
@@ -543,7 +543,7 @@ final class RespondsWithExportTest extends TestCase
         $controller = $this->createController();
         $collection = new ResourceCollection(collect([]));
 
-        $this->setCapabilities(expects_xml: true);
+        $this->setCapabilities(expectsXml: true);
 
         Exporter::swap($this->createMockExporter(self::MOCK_ITEM_XML));
 
@@ -564,7 +564,7 @@ final class RespondsWithExportTest extends TestCase
         $controller = $this->createController();
         $resource   = new JsonResource(['id' => 1]);
 
-        $this->setCapabilities(expects_xml: true);
+        $this->setCapabilities(expectsXml: true);
 
         Exporter::swap($this->createMockExporter(self::MOCK_ITEM_XML));
 
@@ -652,7 +652,7 @@ final class RespondsWithExportTest extends TestCase
         $controller = $this->createController();
         $collection = new ResourceCollection(collect([]));
 
-        $this->setCapabilities(expects_csv: true);
+        $this->setCapabilities(expectsCsv: true);
 
         Exporter::swap($this->createMockExporter(self::MOCK_COLLECTION_CSV));
 
@@ -672,7 +672,7 @@ final class RespondsWithExportTest extends TestCase
         $controller = $this->createController();
         $resource   = new JsonResource(['id' => 1]);
 
-        $this->setCapabilities(expects_csv: true);
+        $this->setCapabilities(expectsCsv: true);
 
         Exporter::swap($this->createMockExporter('id,1'));
 
@@ -694,18 +694,18 @@ final class RespondsWithExportTest extends TestCase
         $controller = new class extends TestingExportController {
             /**
              * @param  string  $data
-             * @param  string  $content_type
+             * @param  string  $contentType
              * @param  bool  $download
              * @param  string  $filename
              * @return \Illuminate\Http\Response
              */
             public function callCreateExportResponse(
                 string $data,
-                string $content_type,
+                string $contentType,
                 bool $download,
                 string $filename
             ): HttpResponse {
-                return $this->createExportResponse($data, $content_type, $download, $filename);
+                return $this->createExportResponse($data, $contentType, $download, $filename);
             }
         };
 
@@ -719,11 +719,11 @@ final class RespondsWithExportTest extends TestCase
     /**
      * Set the request capabilities for testing.
      *
-     * @param  bool  $expects_csv
-     * @param  bool  $expects_xml
+     * @param  bool  $expectsCsv
+     * @param  bool  $expectsXml
      * @return void
      */
-    private function setCapabilities(bool $expects_csv = false, bool $expects_xml = false): void
+    private function setCapabilities(bool $expectsCsv = false, bool $expectsXml = false): void
     {
         $reflection  = new \ReflectionClass(RequestCapabilities::class);
         $constructor = $reflection->getConstructor();
@@ -734,7 +734,7 @@ final class RespondsWithExportTest extends TestCase
 
         $instance = $reflection->newInstanceWithoutConstructor();
 
-        $constructor->invoke($instance, false, false, false, $expects_csv, $expects_xml, false, false);
+        $constructor->invoke($instance, false, false, false, $expectsCsv, $expectsXml, false, false);
 
         RequestCapabilities::storeOnRequest(request(), $instance);
     }

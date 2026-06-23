@@ -35,12 +35,12 @@ trait ResolvesResource
     /**
      * Set a custom resource class to be used.
      *
-     * @param  string|null  $resource_class
+     * @param  string|null  $resourceClass
      * @return $this
      */
-    public function usingResource(?string $resource_class): static
+    public function usingResource(?string $resourceClass): static
     {
-        $this->customResourceClass = $resource_class;
+        $this->customResourceClass = $resourceClass;
 
         return $this;
     }

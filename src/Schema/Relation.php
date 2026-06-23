@@ -39,7 +39,7 @@ final class Relation extends BaseDefinition implements Arrayable
      * Prevent direct instantiation.
      *
      * @param  string  $name
-     * @param  (callable(\SineMacula\ApiToolkit\Http\Resources\ApiResource, \Illuminate\Http\Request|null): mixed)|string  $resource_or_accessor
+     * @param  (callable(\SineMacula\ApiToolkit\Http\Resources\ApiResource, \Illuminate\Http\Request|null): mixed)|string  $resourceOrAccessor
      * @param  string|null  $alias
      */
     private function __construct(
@@ -48,17 +48,17 @@ final class Relation extends BaseDefinition implements Arrayable
         private readonly string $name,
 
         // Child ApiResource class or relation-local accessor (e.g. "name")
-        callable|string $resource_or_accessor,
+        callable|string $resourceOrAccessor,
 
         /** Optional alias to expose this field under */
         private ?string $alias = null,
 
     ) {
-        if (is_string($resource_or_accessor) && class_exists($resource_or_accessor)) {
-            $this->resource = $resource_or_accessor;
+        if (is_string($resourceOrAccessor) && class_exists($resourceOrAccessor)) {
+            $this->resource = $resourceOrAccessor;
         } else {
             /** @var (\Closure(\SineMacula\ApiToolkit\Http\Resources\ApiResource, \Illuminate\Http\Request|null): mixed)|string $accessor */
-            $accessor = $resource_or_accessor;
+            $accessor = $resourceOrAccessor;
 
             $this->accessor = $accessor;
         }
@@ -68,13 +68,13 @@ final class Relation extends BaseDefinition implements Arrayable
      * Create a relation definition for the given relation name.
      *
      * @param  string  $name
-     * @param  (callable(\SineMacula\ApiToolkit\Http\Resources\ApiResource, \Illuminate\Http\Request|null): mixed)|string  $resource_or_accessor
+     * @param  (callable(\SineMacula\ApiToolkit\Http\Resources\ApiResource, \Illuminate\Http\Request|null): mixed)|string  $resourceOrAccessor
      * @param  string|null  $alias
      * @return self
      */
-    public static function to(string $name, callable|string $resource_or_accessor, ?string $alias = null): self
+    public static function to(string $name, callable|string $resourceOrAccessor, ?string $alias = null): self
     {
-        return new self($name, $resource_or_accessor, $alias);
+        return new self($name, $resourceOrAccessor, $alias);
     }
 
     /**

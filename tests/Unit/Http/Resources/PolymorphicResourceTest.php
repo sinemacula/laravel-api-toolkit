@@ -151,16 +151,16 @@ final class PolymorphicResourceTest extends TestCase
             'published' => true,
         ]);
 
-        $user_resource = new PolymorphicResource($user);
-        $post_resource = new PolymorphicResource($post);
+        $userResource = new PolymorphicResource($user);
+        $postResource = new PolymorphicResource($post);
 
-        $user_result = $user_resource->toArray(request());
-        $post_result = $post_resource->toArray(request());
+        $userResult = $userResource->toArray(request());
+        $postResult = $postResource->toArray(request());
 
-        static::assertIsArray($user_result);
-        static::assertIsArray($post_result);
-        static::assertSame('users', $user_result['_type']);
-        static::assertSame('posts', $post_result['_type']);
+        static::assertIsArray($userResult);
+        static::assertIsArray($postResult);
+        static::assertSame('users', $userResult['_type']);
+        static::assertSame('posts', $postResult['_type']);
     }
 
     /**

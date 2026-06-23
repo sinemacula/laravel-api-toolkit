@@ -350,9 +350,9 @@ final class ApiServiceProviderTest extends TestCase
         $provider = new ApiServiceProvider($app);
         $provider->boot();
 
-        $morph_map = Relation::morphMap();
+        $morphMap = Relation::morphMap();
 
-        static::assertArrayHasKey('users', $morph_map);
+        static::assertArrayHasKey('users', $morphMap);
     }
 
     /**
@@ -377,9 +377,9 @@ final class ApiServiceProviderTest extends TestCase
         // error. The morph map may contain entries from earlier tests in the
         // suite -- we assert only that stdClass did not produce a morph-map
         // key.
-        $morph_map = Relation::morphMap();
+        $morphMap = Relation::morphMap();
 
-        static::assertArrayNotHasKey(\stdClass::class, $morph_map);
+        static::assertArrayNotHasKey(\stdClass::class, $morphMap);
     }
 
     /**

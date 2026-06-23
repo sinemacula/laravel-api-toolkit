@@ -203,19 +203,19 @@ trait RespondsWithExport
      * Create a response for the exported data.
      *
      * @param  string  $data
-     * @param  string  $content_type
+     * @param  string  $contentType
      * @param  bool  $download
      * @param  string  $filename
      * @return \Illuminate\Http\Response
      */
     protected function createExportResponse(
         string $data,
-        string $content_type,
+        string $contentType,
         bool $download,
         string $filename
     ): HttpResponse {
         $response = Response::make($data)
-            ->header(HttpHeader::CONTENT_TYPE->getName(), $content_type)
+            ->header(HttpHeader::CONTENT_TYPE->getName(), $contentType)
             ->header(HttpHeader::CONTENT_LENGTH->getName(), strlen($data));
 
         if ($download) {

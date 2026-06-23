@@ -737,12 +737,12 @@ final class ApiExceptionHandlerTest extends TestCase
                 'sensitive-value',
             );
 
-            $frames_with_args = array_filter(
+            $framesWithArgs = array_filter(
                 $previous->getTrace(),
                 static fn (array $frame): bool => array_key_exists('args', $frame),
             );
 
-            static::assertNotEmpty($frames_with_args);
+            static::assertNotEmpty($framesWithArgs);
 
             $reflection = new \ReflectionMethod(ApiExceptionHandler::class, 'render');
             $response   = $reflection->invoke(null, $previous, $request);
@@ -773,13 +773,13 @@ final class ApiExceptionHandlerTest extends TestCase
      */
     public function testHandlesReportCallbackInvokesLogApiException(): void
     {
-        $mock_channel = \Mockery::mock(LoggerInterface::class);
-        $mock_channel->shouldReceive('error')->once()->withAnyArgs();
+        $mockChannel = \Mockery::mock(LoggerInterface::class);
+        $mockChannel->shouldReceive('error')->once()->withAnyArgs();
 
         Log::shouldReceive('channel')
             ->with('api-exceptions')
             ->once()
-            ->andReturn($mock_channel);
+            ->andReturn($mockChannel);
 
         $reportable = new class {
             /**
@@ -791,12 +791,12 @@ final class ApiExceptionHandlerTest extends TestCase
             }
         };
 
-        $captured_callback = null;
+        $capturedCallback = null;
 
         $exceptions = static::createStub(Exceptions::class);
         $exceptions->method('report')
-            ->willReturnCallback(function ($callback) use (&$captured_callback, $reportable): object {
-                $captured_callback = $callback;
+            ->willReturnCallback(function ($callback) use (&$capturedCallback, $reportable): object {
+                $capturedCallback = $callback;
 
                 return $reportable;
             });
@@ -804,9 +804,9 @@ final class ApiExceptionHandlerTest extends TestCase
 
         ApiExceptionHandler::handles($exceptions);
 
-        static::assertNotNull($captured_callback);
+        static::assertNotNull($capturedCallback);
 
-        $captured_callback(new BadRequestException);
+        $capturedCallback(new BadRequestException);
     }
 
     /**
@@ -816,13 +816,13 @@ final class ApiExceptionHandlerTest extends TestCase
      */
     public function testLogApiExceptionLogsToApiExceptionsChannel(): void
     {
-        $mock_channel = \Mockery::mock(LoggerInterface::class);
-        $mock_channel->shouldReceive('error')->once()->withAnyArgs();
+        $mockChannel = \Mockery::mock(LoggerInterface::class);
+        $mockChannel->shouldReceive('error')->once()->withAnyArgs();
 
         Log::shouldReceive('channel')
             ->with('api-exceptions')
             ->once()
-            ->andReturn($mock_channel);
+            ->andReturn($mockChannel);
 
         $exception  = new BadRequestException;
         $reflection = new \ReflectionMethod(ApiExceptionHandler::class, 'logApiException');
@@ -839,21 +839,21 @@ final class ApiExceptionHandlerTest extends TestCase
     {
         config()->set('api-toolkit.logging.cloudwatch.enabled', true);
 
-        $mock_api_channel = \Mockery::mock(LoggerInterface::class);
-        $mock_api_channel->shouldReceive('error')->once()->withAnyArgs();
+        $mockApiChannel = \Mockery::mock(LoggerInterface::class);
+        $mockApiChannel->shouldReceive('error')->once()->withAnyArgs();
 
-        $mock_cw_channel = \Mockery::mock(LoggerInterface::class);
-        $mock_cw_channel->shouldReceive('error')->once()->withAnyArgs();
+        $mockCwChannel = \Mockery::mock(LoggerInterface::class);
+        $mockCwChannel->shouldReceive('error')->once()->withAnyArgs();
 
         Log::shouldReceive('channel')
             ->with('api-exceptions')
             ->once()
-            ->andReturn($mock_api_channel);
+            ->andReturn($mockApiChannel);
 
         Log::shouldReceive('channel')
             ->with('cloudwatch-api-exceptions')
             ->once()
-            ->andReturn($mock_cw_channel);
+            ->andReturn($mockCwChannel);
 
         $exception  = new BadRequestException;
         $reflection = new \ReflectionMethod(ApiExceptionHandler::class, 'logApiException');

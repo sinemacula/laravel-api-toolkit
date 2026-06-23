@@ -62,9 +62,9 @@ final class DatabaseHandler extends AbstractProcessingHandler
      */
     private function shouldLog(LogRecord $record): bool
     {
-        $minimum_level = Level::fromName(config('logging.channels.database.level', 'debug'));
+        $minimumLevel = Level::fromName(config('logging.channels.database.level', 'debug'));
 
-        return $record->level->value >= $minimum_level->value;
+        return $record->level->value >= $minimumLevel->value;
     }
 
     /**
@@ -76,10 +76,10 @@ final class DatabaseHandler extends AbstractProcessingHandler
      */
     private function logToFallback(LogRecord $record, \Exception $exception): void
     {
-        $fallback_channels = config('logging.channels.fallback.channels', ['single']);
+        $fallbackChannels = config('logging.channels.fallback.channels', ['single']);
 
-        Log::stack($fallback_channels)->debug($record->formatted ?? $record->message);
-        Log::stack($fallback_channels)->debug('Could not log to the database.', [
+        Log::stack($fallbackChannels)->debug($record->formatted ?? $record->message);
+        Log::stack($fallbackChannels)->debug('Could not log to the database.', [
             'exception' => $exception,
         ]);
     }

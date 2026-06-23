@@ -86,9 +86,9 @@ final class ExportNegotiationTest extends TestCase
         $response->assertOk();
         $response->assertHeader('Content-Disposition', 'attachment; filename="export.xml"');
 
-        $content_type = (string) $response->headers->get('Content-Type');
+        $contentType = (string) $response->headers->get('Content-Type');
 
-        static::assertStringStartsWith('application/xml', $content_type);
+        static::assertStringStartsWith('application/xml', $contentType);
 
         $content = (string) $response->baseResponse->getContent();
 
@@ -126,9 +126,9 @@ final class ExportNegotiationTest extends TestCase
 
         $response->assertOk();
 
-        $content_type = (string) $response->headers->get('Content-Type');
+        $contentType = (string) $response->headers->get('Content-Type');
 
-        static::assertStringStartsWith('application/json', $content_type);
+        static::assertStringStartsWith('application/json', $contentType);
     }
 
     /**

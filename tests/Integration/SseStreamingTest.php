@@ -48,10 +48,10 @@ final class SseStreamingTest extends TestCase
         FunctionOverrides::set('ob_get_level', fn () => 0);
         FunctionOverrides::set('sleep', fn (int $_s) => 0);
 
-        $abort_count = 0;
+        $abortCount = 0;
 
-        FunctionOverrides::set('connection_aborted', function () use (&$abort_count): int {
-            return ++$abort_count >= 2 ? 1 : 0;
+        FunctionOverrides::set('connection_aborted', function () use (&$abortCount): int {
+            return ++$abortCount >= 2 ? 1 : 0;
         });
     }
 
@@ -69,14 +69,14 @@ final class SseStreamingTest extends TestCase
 
         static::assertInstanceOf(StreamedResponse::class, $response->baseResponse);
 
-        $content_type = (string) $response->baseResponse->headers->get('Content-Type');
+        $contentType = (string) $response->baseResponse->headers->get('Content-Type');
 
-        static::assertStringStartsWith('text/event-stream', $content_type);
+        static::assertStringStartsWith('text/event-stream', $contentType);
 
-        $cache_control = (string) $response->baseResponse->headers->get('Cache-Control');
+        $cacheControl = (string) $response->baseResponse->headers->get('Cache-Control');
 
-        static::assertStringContainsString('no-cache', $cache_control);
-        static::assertStringContainsString('no-transform', $cache_control);
+        static::assertStringContainsString('no-cache', $cacheControl);
+        static::assertStringContainsString('no-transform', $cacheControl);
         static::assertSame('keep-alive', $response->baseResponse->headers->get('Connection'));
         static::assertSame('no', $response->baseResponse->headers->get('X-Accel-Buffering'));
     }

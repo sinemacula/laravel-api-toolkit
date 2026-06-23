@@ -31,14 +31,14 @@ final class CloudWatchLogger
         ]);
 
         $retention  = $config['retention']  ?? 7;
-        $batch_size = $config['batch_size'] ?? 1000;
+        $batchSize = $config['batch_size'] ?? 1000;
 
         $handler = new CloudWatchHandler(
             $client,
             $config['log_group'],
             $config['log_stream'],
             is_numeric($retention) ? (int) $retention : 7,
-            is_numeric($batch_size) ? (int) $batch_size : 1000,
+            is_numeric($batchSize) ? (int) $batchSize : 1000,
             [],
             Logger::toMonologLevel($config['level'] ?? 'debug'),
         );

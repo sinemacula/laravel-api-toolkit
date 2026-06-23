@@ -111,28 +111,28 @@ final class RespondsWithStreamTest extends TestCase
     {
         $controller = $this->createControllerWithTrait();
 
-        /** @var \Mockery\MockInterface $chain_mock */
-        $chain_mock = \Mockery::mock();
-        $chain_mock->shouldReceive('withoutFields')->andReturnSelf();
-        $chain_mock->shouldReceive('exportArray')->once()->andReturn("name,email\nJohn,john@example.com\n");
+        /** @var \Mockery\MockInterface $chainMock */
+        $chainMock = \Mockery::mock();
+        $chainMock->shouldReceive('withoutFields')->andReturnSelf();
+        $chainMock->shouldReceive('exportArray')->once()->andReturn("name,email\nJohn,john@example.com\n");
 
-        /** @var \Mockery\MockInterface $facade_mock */
-        $facade_mock = \Mockery::mock();
-        $facade_mock->shouldReceive('format')->with('csv')->once()->andReturn($chain_mock);
+        /** @var \Mockery\MockInterface $facadeMock */
+        $facadeMock = \Mockery::mock();
+        $facadeMock->shouldReceive('format')->with('csv')->once()->andReturn($chainMock);
 
-        Exporter::swap($facade_mock);
+        Exporter::swap($facadeMock);
 
         $reflection = new \ReflectionMethod($controller, 'formatChunkAsCsv');
 
-        $is_first = true;
-        $args     = [[['name' => 'John', 'email' => 'john@example.com']], &$is_first];
+        $isFirst = true;
+        $args     = [[['name' => 'John', 'email' => 'john@example.com']], &$isFirst];
 
         /** @var string $result */
         $result = $reflection->invokeArgs($controller, $args);
 
         static::assertStringContainsString('name', $result);
         // @phpstan-ignore staticMethod.impossibleType
-        static::assertFalse($is_first);
+        static::assertFalse($isFirst);
     }
 
     /**
@@ -144,22 +144,22 @@ final class RespondsWithStreamTest extends TestCase
     {
         $controller = $this->createControllerWithTrait();
 
-        /** @var \Mockery\MockInterface $chain_mock */
-        $chain_mock = \Mockery::mock();
-        $chain_mock->shouldReceive('withoutFields')->andReturnSelf();
-        $chain_mock->shouldReceive('withoutHeaders')->once()->andReturnSelf();
-        $chain_mock->shouldReceive('exportArray')->once()->andReturn("Jane,jane@example.com\n");
+        /** @var \Mockery\MockInterface $chainMock */
+        $chainMock = \Mockery::mock();
+        $chainMock->shouldReceive('withoutFields')->andReturnSelf();
+        $chainMock->shouldReceive('withoutHeaders')->once()->andReturnSelf();
+        $chainMock->shouldReceive('exportArray')->once()->andReturn("Jane,jane@example.com\n");
 
-        /** @var \Mockery\MockInterface $facade_mock */
-        $facade_mock = \Mockery::mock();
-        $facade_mock->shouldReceive('format')->with('csv')->once()->andReturn($chain_mock);
+        /** @var \Mockery\MockInterface $facadeMock */
+        $facadeMock = \Mockery::mock();
+        $facadeMock->shouldReceive('format')->with('csv')->once()->andReturn($chainMock);
 
-        Exporter::swap($facade_mock);
+        Exporter::swap($facadeMock);
 
         $reflection = new \ReflectionMethod($controller, 'formatChunkAsCsv');
 
-        $is_first = false;
-        $args     = [[['name' => 'Jane', 'email' => 'jane@example.com']], &$is_first];
+        $isFirst = false;
+        $args     = [[['name' => 'Jane', 'email' => 'jane@example.com']], &$isFirst];
 
         /** @var string $result */
         $result = $reflection->invokeArgs($controller, $args);
@@ -394,15 +394,15 @@ final class RespondsWithStreamTest extends TestCase
         $request = Request::create(self::TEST_URI, HttpMethod::GET->getVerb());
         ApiQuery::parse($request);
 
-        $captured_size = null;
+        $capturedSize = null;
 
         /** @var \Mockery\MockInterface&\SineMacula\ApiToolkit\Repositories\ApiRepository<\Illuminate\Database\Eloquent\Model> $repository */
         $repository = \Mockery::mock(ApiRepository::class);
         $repository->shouldReceive('addScope')->andReturnSelf();
         $repository->shouldReceive('getResourceClass')->andReturn(UserResource::class);
         $repository->shouldReceive('chunkById')
-            ->andReturnUsing(function (int $size) use (&$captured_size): bool {
-                $captured_size = $size;
+            ->andReturnUsing(function (int $size) use (&$capturedSize): bool {
+                $capturedSize = $size;
 
                 return true;
             });
@@ -413,7 +413,7 @@ final class RespondsWithStreamTest extends TestCase
         $response->sendContent();
         ob_end_clean();
 
-        static::assertSame(1500, $captured_size);
+        static::assertSame(1500, $capturedSize);
     }
 
     /**
@@ -496,14 +496,14 @@ final class RespondsWithStreamTest extends TestCase
                 return true;
             });
 
-        $without_headers_calls = 0;
+        $withoutHeadersCalls = 0;
 
         /** @var \Mockery\MockInterface $chain */
         $chain = \Mockery::mock();
         $chain->shouldReceive('withoutFields')->andReturnSelf();
         $chain->shouldReceive('withoutHeaders')
-            ->andReturnUsing(function () use (&$without_headers_calls, &$chain): MockInterface {
-                $without_headers_calls++;
+            ->andReturnUsing(function () use (&$withoutHeadersCalls, &$chain): MockInterface {
+                $withoutHeadersCalls++;
 
                 return $chain;
             });
@@ -532,7 +532,7 @@ final class RespondsWithStreamTest extends TestCase
         static::assertStringNotContainsString('UserE', $output);
 
         static::assertSame([true, true, false], $returns);
-        static::assertSame(1, $without_headers_calls);
+        static::assertSame(1, $withoutHeadersCalls);
     }
 
     /**
@@ -611,36 +611,36 @@ final class RespondsWithStreamTest extends TestCase
      */
     public function testFormatChunkAsCsvIsCallableFromSubclass(): void
     {
-        /** @var \Mockery\MockInterface $chain_mock */
-        $chain_mock = \Mockery::mock();
-        $chain_mock->shouldReceive('withoutFields')->andReturnSelf();
-        $chain_mock->shouldReceive('exportArray')->once()->andReturn("name\nJohn\n");
+        /** @var \Mockery\MockInterface $chainMock */
+        $chainMock = \Mockery::mock();
+        $chainMock->shouldReceive('withoutFields')->andReturnSelf();
+        $chainMock->shouldReceive('exportArray')->once()->andReturn("name\nJohn\n");
 
-        /** @var \Mockery\MockInterface $facade_mock */
-        $facade_mock = \Mockery::mock();
-        $facade_mock->shouldReceive('format')->with('csv')->once()->andReturn($chain_mock);
+        /** @var \Mockery\MockInterface $facadeMock */
+        $facadeMock = \Mockery::mock();
+        $facadeMock->shouldReceive('format')->with('csv')->once()->andReturn($chainMock);
 
-        Exporter::swap($facade_mock);
+        Exporter::swap($facadeMock);
 
         $controller = new class extends TestingExportController {
             /**
              * @param  array<int, array<string, mixed>>  $rows
-             * @param  bool  $is_first_chunk
+             * @param  bool  $isFirstChunk
              * @return string
              */
-            public function callFormatChunkAsCsv(array $rows, bool &$is_first_chunk): string
+            public function callFormatChunkAsCsv(array $rows, bool &$isFirstChunk): string
             {
-                return $this->formatChunkAsCsv($rows, $is_first_chunk);
+                return $this->formatChunkAsCsv($rows, $isFirstChunk);
             }
         };
 
-        $is_first = true;
+        $isFirst = true;
 
-        $result = $controller->callFormatChunkAsCsv([['name' => 'John']], $is_first);
+        $result = $controller->callFormatChunkAsCsv([['name' => 'John']], $isFirst);
 
         static::assertStringContainsString('John', $result);
         // @phpstan-ignore staticMethod.impossibleType
-        static::assertFalse($is_first);
+        static::assertFalse($isFirst);
     }
 
     /**
@@ -653,16 +653,16 @@ final class RespondsWithStreamTest extends TestCase
         $controller = new class extends TestingExportController {
             /**
              * @param  callable(): void  $callback
-             * @param  string  $content_type
+             * @param  string  $contentType
              * @param  string  $filename
              * @return \Symfony\Component\HttpFoundation\StreamedResponse
              */
             public function callCreateStreamedResponse(
                 callable $callback,
-                string $content_type,
+                string $contentType,
                 string $filename
             ): StreamedResponse {
-                return $this->createStreamedResponse($callback, $content_type, $filename);
+                return $this->createStreamedResponse($callback, $contentType, $filename);
             }
         };
 
@@ -680,10 +680,10 @@ final class RespondsWithStreamTest extends TestCase
      *
      * @SuppressWarnings("php:S1172")
      *
-     * @param  int  $buffer_level
+     * @param  int  $bufferLevel
      * @return array{ob_flush: int, flush: int}
      */
-    private function streamSingleChunkWithBufferLevel(int $buffer_level): array
+    private function streamSingleChunkWithBufferLevel(int $bufferLevel): array
     {
         $controller = $this->createControllerWithTrait();
 
@@ -717,7 +717,7 @@ final class RespondsWithStreamTest extends TestCase
 
         $counts = ['ob_flush' => 0, 'flush' => 0];
 
-        FunctionOverrides::set('ob_get_level', fn (): int => $buffer_level);
+        FunctionOverrides::set('ob_get_level', fn (): int => $bufferLevel);
         FunctionOverrides::set('ob_flush', function () use (&$counts): void {
             $counts['ob_flush']++;
         });

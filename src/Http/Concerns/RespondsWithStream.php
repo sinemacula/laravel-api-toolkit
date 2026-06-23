@@ -27,13 +27,13 @@ trait RespondsWithStream
      * Stream a repository's data as a CSV file.
      *
      * @param  \SineMacula\ApiToolkit\Repositories\ApiRepository<\Illuminate\Database\Eloquent\Model>  $repository
-     * @param  int  $chunk_size
+     * @param  int  $chunkSize
      * @param  string  $filename
      * @return \Symfony\Component\HttpFoundation\StreamedResponse
      */
     public function streamRepositoryToCsv(
         ApiRepository $repository,
-        int $chunk_size = 1500,
+        int $chunkSize = 1500,
         string $filename = 'export.csv'
     ): StreamedResponse {
         $limit = ApiQuery::getLimit();
@@ -43,13 +43,13 @@ trait RespondsWithStream
         // Strip any user-defined ordering before chunking.
         $repository->addScope(fn ($query) => $query->getQuery()->reorder());
 
-        $stream = function () use ($repository, $transformer, $chunk_size, $limit): void {
+        $stream = function () use ($repository, $transformer, $chunkSize, $limit): void {
 
-            $is_first_chunk = true;
+            $isFirstChunk = true;
             $processed      = 0;
 
             // @phpstan-ignore staticMethod.dynamicCall (chunkById() is forwarded to the builder via Repository::__call())
-            $repository->chunkById($chunk_size, function ($chunk) use ($transformer, &$is_first_chunk, &$processed, $limit): bool {
+            $repository->chunkById($chunkSize, function ($chunk) use ($transformer, &$isFirstChunk, &$processed, $limit): bool {
 
                 if ($limit && $processed >= $limit) {
                     return false; // Stop chunking
@@ -58,7 +58,7 @@ trait RespondsWithStream
                 $items = $limit ? $chunk->take($limit - $processed) : $chunk;
                 $processed += $items->count();
 
-                $csv = $this->formatChunkAsCsv($transformer($items->all()), $is_first_chunk);
+                $csv = $this->formatChunkAsCsv($transformer($items->all()), $isFirstChunk);
 
                 // Remove trailing newline to prevent blank lines between chunks
                 echo rtrim($csv, "\n");
@@ -86,12 +86,12 @@ trait RespondsWithStream
      */
     protected function makeTransformer(ApiRepository $repository): \Closure
     {
-        if (!$resource_class = $repository->getResourceClass()) {
+        if (!$resourceClass = $repository->getResourceClass()) {
             throw new \InvalidArgumentException('Unable to resolve resource class from repository.');
         }
 
-        /** @var class-string<\Illuminate\Http\Resources\Json\JsonResource> $resource_class */
-        return fn (array $items): array => $resource_class::collection($items)->resolve();
+        /** @var class-string<\Illuminate\Http\Resources\Json\JsonResource> $resourceClass */
+        return fn (array $items): array => $resourceClass::collection($items)->resolve();
     }
 
     /**
@@ -102,20 +102,20 @@ trait RespondsWithStream
      * duplicates per chunk.
      *
      * @param  array<int, array<string, mixed>>  $rows
-     * @param  bool  $is_first_chunk
+     * @param  bool  $isFirstChunk
      * @return string
      */
-    protected function formatChunkAsCsv(array $rows, bool &$is_first_chunk): string
+    protected function formatChunkAsCsv(array $rows, bool &$isFirstChunk): string
     {
         $exporter = Exporter::format('csv')
             ->withoutFields(config('api-toolkit.exports.ignored_fields', []));
 
-        if (!$is_first_chunk) {
+        if (!$isFirstChunk) {
             // @phpstan-ignore method.notFound (withoutHeaders() exists on the CSV exporter but is not part of the Exporter contract)
             $exporter->withoutHeaders();
         }
 
-        $is_first_chunk = false;
+        $isFirstChunk = false;
 
         return $exporter->exportArray($rows);
     }
@@ -124,17 +124,17 @@ trait RespondsWithStream
      * Create a streamed response.
      *
      * @param  callable(): void  $callback
-     * @param  string  $content_type
+     * @param  string  $contentType
      * @param  string  $filename
      * @return \Symfony\Component\HttpFoundation\StreamedResponse
      */
     protected function createStreamedResponse(
         callable $callback,
-        string $content_type,
+        string $contentType,
         string $filename
     ): StreamedResponse {
         return Response::streamDownload($callback, $filename, [
-            HttpHeader::CONTENT_TYPE->getName() => $content_type,
+            HttpHeader::CONTENT_TYPE->getName() => $contentType,
         ]);
     }
 }

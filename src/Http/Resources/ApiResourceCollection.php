@@ -37,10 +37,10 @@ final class ApiResourceCollection extends AnonymousResourceCollection
     #[\Override]
     public function toArray(Request $request): array
     {
-        /** @var class-string<\SineMacula\ApiToolkit\Http\Resources\ApiResource> $resource_class */
-        $resource_class = $this->collects;
+        /** @var class-string<\SineMacula\ApiToolkit\Http\Resources\ApiResource> $resourceClass */
+        $resourceClass = $this->collects;
 
-        return collect($this->collection)->map(function ($item) use ($resource_class, $request): array {
+        return collect($this->collection)->map(function ($item) use ($resourceClass, $request): array {
 
             if ($item instanceof ApiResource) {
 
@@ -55,7 +55,7 @@ final class ApiResourceCollection extends AnonymousResourceCollection
                 return $item->resolve($request);
             }
 
-            return (new $resource_class($item, false, $this->fields ?? null, $this->excludedFields ?? null))->resolve($request);
+            return (new $resourceClass($item, false, $this->fields ?? null, $this->excludedFields ?? null))->resolve($request);
         })->all();
     }
 

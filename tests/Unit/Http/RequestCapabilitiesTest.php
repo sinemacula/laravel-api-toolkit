@@ -33,7 +33,7 @@ final class RequestCapabilitiesTest extends TestCase
     public function testFromRequestReturnsStoredInstance(): void
     {
         $request      = Request::create(self::TEST_URL);
-        $capabilities = $this->createCapabilities(include_trashed: true);
+        $capabilities = $this->createCapabilities(includeTrashed: true);
 
         RequestCapabilities::storeOnRequest($request, $capabilities);
 
@@ -223,7 +223,7 @@ final class RequestCapabilitiesTest extends TestCase
     public function testStoreOnRequestSetsAttribute(): void
     {
         $request      = Request::create(self::TEST_URL);
-        $capabilities = $this->createCapabilities(expects_pdf: true);
+        $capabilities = $this->createCapabilities(expectsPdf: true);
 
         RequestCapabilities::storeOnRequest($request, $capabilities);
 
@@ -281,13 +281,13 @@ final class RequestCapabilitiesTest extends TestCase
     public function testAllAccessorsReturnCorrectValues(): void
     {
         $capabilities = $this->createCapabilities(
-            include_trashed: true,
-            only_trashed: true,
-            expects_export: true,
-            expects_csv: true,
-            expects_xml: true,
-            expects_pdf: true,
-            expects_stream: true,
+            includeTrashed: true,
+            onlyTrashed: true,
+            expectsExport: true,
+            expectsCsv: true,
+            expectsXml: true,
+            expectsPdf: true,
+            expectsStream: true,
         );
 
         static::assertTrue($capabilities->includeTrashed());
@@ -302,23 +302,23 @@ final class RequestCapabilitiesTest extends TestCase
     /**
      * Create a RequestCapabilities instance via reflection for testing.
      *
-     * @param  bool  $include_trashed
-     * @param  bool  $only_trashed
-     * @param  bool  $expects_export
-     * @param  bool  $expects_csv
-     * @param  bool  $expects_xml
-     * @param  bool  $expects_pdf
-     * @param  bool  $expects_stream
+     * @param  bool  $includeTrashed
+     * @param  bool  $onlyTrashed
+     * @param  bool  $expectsExport
+     * @param  bool  $expectsCsv
+     * @param  bool  $expectsXml
+     * @param  bool  $expectsPdf
+     * @param  bool  $expectsStream
      * @return \SineMacula\ApiToolkit\Http\RequestCapabilities
      */
     private function createCapabilities(
-        bool $include_trashed = false,
-        bool $only_trashed = false,
-        bool $expects_export = false,
-        bool $expects_csv = false,
-        bool $expects_xml = false,
-        bool $expects_pdf = false,
-        bool $expects_stream = false,
+        bool $includeTrashed = false,
+        bool $onlyTrashed = false,
+        bool $expectsExport = false,
+        bool $expectsCsv = false,
+        bool $expectsXml = false,
+        bool $expectsPdf = false,
+        bool $expectsStream = false,
     ): RequestCapabilities {
 
         $reflection  = new \ReflectionClass(RequestCapabilities::class);
@@ -332,13 +332,13 @@ final class RequestCapabilitiesTest extends TestCase
 
         $constructor->invoke(
             $instance,
-            $include_trashed,
-            $only_trashed,
-            $expects_export,
-            $expects_csv,
-            $expects_xml,
-            $expects_pdf,
-            $expects_stream,
+            $includeTrashed,
+            $onlyTrashed,
+            $expectsExport,
+            $expectsCsv,
+            $expectsXml,
+            $expectsPdf,
+            $expectsStream,
         );
 
         return $instance;

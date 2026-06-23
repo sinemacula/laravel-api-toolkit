@@ -199,9 +199,9 @@ final class QueryParameterExtractor
 
         if (!empty(array_filter($fields, static fn (string $value): bool => (bool) $value))) {
             foreach ($fields as $field) {
-                $order_parts    = explode(':', $field, 2);
-                $column         = $order_parts[0];
-                $direction      = $order_parts[1] ?? 'asc';
+                $orderParts    = explode(':', $field, 2);
+                $column         = $orderParts[0];
+                $direction      = $orderParts[1] ?? 'asc';
                 $order[$column] = $direction;
             }
         }

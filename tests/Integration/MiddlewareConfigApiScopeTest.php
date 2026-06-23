@@ -52,9 +52,9 @@ final class MiddlewareConfigApiScopeTest extends TestCase
     {
         /** @var \Illuminate\Routing\Router $router */
         $router    = $this->getApplication()->make(Router::class);
-        $api_group = $router->getMiddlewareGroups()['api'] ?? [];
+        $apiGroup = $router->getMiddlewareGroups()['api'] ?? [];
 
-        static::assertContains(JsonPrettyPrint::class, $api_group);
+        static::assertContains(JsonPrettyPrint::class, $apiGroup);
     }
 
     /**

@@ -28,9 +28,9 @@ final class DatabaseLoggerTest extends TestCase
      */
     public function testInvokeReturnsLoggerInstance(): void
     {
-        $logger_factory = new DatabaseLogger;
+        $loggerFactory = new DatabaseLogger;
 
-        $logger = $logger_factory([]);
+        $logger = $loggerFactory([]);
 
         static::assertInstanceOf(Logger::class, $logger);
     }
@@ -42,9 +42,9 @@ final class DatabaseLoggerTest extends TestCase
      */
     public function testLoggerHasDatabaseChannelName(): void
     {
-        $logger_factory = new DatabaseLogger;
+        $loggerFactory = new DatabaseLogger;
 
-        $logger = $logger_factory([]);
+        $logger = $loggerFactory([]);
 
         static::assertSame('database', $logger->getName());
     }
@@ -56,9 +56,9 @@ final class DatabaseLoggerTest extends TestCase
      */
     public function testLoggerHasDatabaseHandler(): void
     {
-        $logger_factory = new DatabaseLogger;
+        $loggerFactory = new DatabaseLogger;
 
-        $logger = $logger_factory([]);
+        $logger = $loggerFactory([]);
 
         $handlers = $logger->getHandlers();
 

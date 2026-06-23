@@ -82,10 +82,10 @@ final class QueryParameterValidator
      * @param  array<string, string>  $rules
      * @param  array<string, mixed>  $parameters
      * @param  string  $key
-     * @param  array<string, string>  $array_rules
+     * @param  array<string, string>  $arrayRules
      * @return void
      */
-    private function applyArrayValidationRules(array &$rules, array $parameters, string $key, array $array_rules): void
+    private function applyArrayValidationRules(array &$rules, array $parameters, string $key, array $arrayRules): void
     {
         if (!isset($parameters[$key]) || !is_array($parameters[$key])) {
             return;
@@ -93,8 +93,8 @@ final class QueryParameterValidator
 
         $rules[$key] = 'array';
 
-        foreach ($array_rules as $rule_key => $rule_value) {
-            $rules[$rule_key] = $rule_value;
+        foreach ($arrayRules as $ruleKey => $ruleValue) {
+            $rules[$ruleKey] = $ruleValue;
         }
     }
 }

@@ -112,9 +112,9 @@ final class ApiResourceIntegrationTest extends TestCase
         static::assertArrayHasKey('organization', $data);
         static::assertInstanceOf(OrganizationResource::class, $data['organization']);
 
-        $org_data = $data['organization']->resolve();
+        $orgData = $data['organization']->resolve();
 
-        static::assertArrayHasKey('name', $org_data);
+        static::assertArrayHasKey('name', $orgData);
     }
 
     /**

@@ -191,9 +191,9 @@ final class ControllerTest extends TestCase
         });
 
         static::assertSame('text/event-stream', $response->headers->get('Content-Type'));
-        $cache_control = $response->headers->get('Cache-Control');
-        static::assertStringContainsString('no-cache', $cache_control);
-        static::assertStringContainsString('no-transform', $cache_control);
+        $cacheControl = $response->headers->get('Cache-Control');
+        static::assertStringContainsString('no-cache', $cacheControl);
+        static::assertStringContainsString('no-transform', $cacheControl);
         static::assertSame('keep-alive', $response->headers->get('Connection'));
         static::assertSame('no', $response->headers->get('X-Accel-Buffering'));
     }
@@ -231,26 +231,26 @@ final class ControllerTest extends TestCase
     {
         $this->travelTo(now());
 
-        $abort_count = 0;
+        $abortCount = 0;
 
         // 4 calls: 0, 0, 0 → full iteration + sleep; 0 → second iteration
         // enters; heartbeat fires; call 4 at the second abort-check → break
         // (line 110).
-        FunctionOverrides::set('connection_aborted', function () use (&$abort_count): int {
-            return ++$abort_count >= 4 ? 1 : 0;
+        FunctionOverrides::set('connection_aborted', function () use (&$abortCount): int {
+            return ++$abortCount >= 4 ? 1 : 0;
         });
         FunctionOverrides::set('flush', fn () => null);
         FunctionOverrides::set('ob_flush', fn () => null);
         FunctionOverrides::set('sleep', fn (int $_s) => 0);
 
-        $callback_ran = false;
+        $callbackRan = false;
 
         /** @var \Symfony\Component\HttpFoundation\StreamedResponse $response */
         $response = $this->invokeMethod(
             $this->controller,
             'respondWithEventStream',
-            function () use (&$callback_ran): void {
-                $callback_ran = true;
+            function () use (&$callbackRan): void {
+                $callbackRan = true;
                 $this->travel(25)->seconds();
             },
         );
@@ -259,7 +259,7 @@ final class ControllerTest extends TestCase
         $response->sendContent();
         ob_end_clean();
 
-        static::assertTrue($callback_ran);
+        static::assertTrue($callbackRan);
     }
 
     /**
@@ -316,14 +316,14 @@ final class ControllerTest extends TestCase
         FunctionOverrides::set('ob_flush', fn () => null);
         FunctionOverrides::set('sleep', fn (int $_s) => 0);
 
-        $call_count = 0;
+        $callCount = 0;
 
         /** @var \Symfony\Component\HttpFoundation\StreamedResponse $response */
         $response = $this->invokeMethod(
             $this->controller,
             'respondWithEventStream',
-            function () use (&$call_count): void {
-                $call_count++;
+            function () use (&$callCount): void {
+                $callCount++;
                 throw new \RuntimeException('Simulated stream failure');
             },
         );
@@ -333,7 +333,7 @@ final class ControllerTest extends TestCase
         $output = ob_get_clean();
 
         static::assertStringContainsString("event: error\ndata: An error occurred\n\n", (string) $output);
-        static::assertSame(1, $call_count);
+        static::assertSame(1, $callCount);
     }
 
     /**
@@ -414,18 +414,18 @@ final class ControllerTest extends TestCase
      */
     public function testRespondWithEventStreamDefaultsToOneSecondPollingInterval(): void
     {
-        $abort_count = 0;
+        $abortCount = 0;
 
-        FunctionOverrides::set('connection_aborted', function () use (&$abort_count): int {
-            return ++$abort_count >= 3 ? 1 : 0;
+        FunctionOverrides::set('connection_aborted', function () use (&$abortCount): int {
+            return ++$abortCount >= 3 ? 1 : 0;
         });
         FunctionOverrides::set('flush', fn () => null);
         FunctionOverrides::set('ob_flush', fn () => null);
 
-        $sleep_args = [];
+        $sleepArgs = [];
 
-        FunctionOverrides::set('sleep', function (int $seconds) use (&$sleep_args): int {
-            $sleep_args[] = $seconds;
+        FunctionOverrides::set('sleep', function (int $seconds) use (&$sleepArgs): int {
+            $sleepArgs[] = $seconds;
 
             return 0;
         });
@@ -440,7 +440,7 @@ final class ControllerTest extends TestCase
         $response->sendContent();
         ob_end_clean();
 
-        static::assertSame([1], $sleep_args);
+        static::assertSame([1], $sleepArgs);
     }
 
     /**
@@ -457,10 +457,10 @@ final class ControllerTest extends TestCase
     {
         $this->travelTo(now());
 
-        $abort_count = 0;
+        $abortCount = 0;
 
-        FunctionOverrides::set('connection_aborted', function () use (&$abort_count): int {
-            return ++$abort_count >= 3 ? 1 : 0;
+        FunctionOverrides::set('connection_aborted', function () use (&$abortCount): int {
+            return ++$abortCount >= 3 ? 1 : 0;
         });
         FunctionOverrides::set('flush', fn () => null);
         FunctionOverrides::set('ob_flush', fn () => null);

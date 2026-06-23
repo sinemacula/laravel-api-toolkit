@@ -179,15 +179,15 @@ final class ContainerBindingRegistrar
     {
         $this->container->scoped(WritePool::class, function (): WritePool {
 
-            $chunk_size    = Config::get('api-toolkit.deferred_writes.chunk_size', 500);
-            $pool_limit    = Config::get('api-toolkit.deferred_writes.pool_limit', 10000);
-            $on_failure    = Config::get('api-toolkit.deferred_writes.on_failure', 'collect');
+            $chunkSize    = Config::get('api-toolkit.deferred_writes.chunk_size', 500);
+            $poolLimit    = Config::get('api-toolkit.deferred_writes.pool_limit', 10000);
+            $onFailure    = Config::get('api-toolkit.deferred_writes.on_failure', 'collect');
             $transactional = Config::get('api-toolkit.deferred_writes.transactional', false);
 
             return new WritePool(
-                is_numeric($chunk_size) ? (int) $chunk_size : 500,
-                is_numeric($pool_limit) ? (int) $pool_limit : 10000,
-                FlushStrategy::from(is_string($on_failure) ? $on_failure : 'collect'),
+                is_numeric($chunkSize) ? (int) $chunkSize : 500,
+                is_numeric($poolLimit) ? (int) $poolLimit : 10000,
+                FlushStrategy::from(is_string($onFailure) ? $onFailure : 'collect'),
                 (bool) $transactional,
             );
         });
