@@ -100,8 +100,8 @@ class.
 
 **Evidence:**
 
-- [Spike: Responsibility Mapping](.blueprint/workflows/apiresource-decomposition/spikes/spike-responsibility-mapping.md) --
-  Finding 7: line budget distribution across five groups; Findings 1-5: individual group mappings
+- [Spike: Responsibility Mapping](.blueprint/workflows/apiresource-decomposition/spikes/spike-responsibility-mapping.md)
+  -- Finding 7: line budget distribution across five groups; Findings 1-5: individual group mappings
 - [Spike: Dependency Analysis](.blueprint/workflows/apiresource-decomposition/spikes/spike-dependency-analysis.md) --
   Finding 2: compiled schema as central untyped hub; Finding 8: no circular dependencies (DAG); Finding 10: implicit
   schema contract

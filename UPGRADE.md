@@ -575,8 +575,23 @@ use `log` for fire-and-forget writes that must never be retained.
 
 **New observability on `WritePoolFlushResult`.** The result now exposes record-level counts --
 `flushedRecordCount()`, `failedRecordCount()`, `retainedRecordCount()`, and `droppedRecordCount()` --
-alongside the existing chunk counters. Subscribe to the `WritePoolFlushFailed` event to escalate
-retained failures to a dead-letter sink, alerting, or metrics.
+alongside the existing chunk counters, plus `flushedTables()` listing every table the flush attempted
+to persist. Subscribe to the `WritePoolFlushFailed` event to escalate retained failures to a
+dead-letter sink, alerting, or metrics.
+
+**Per-query cache invalidation at the boundary (on by default).** A deferred insert is persisted
+through the write pool's bulk INSERT, which bypasses the per-query cache invalidation that fires on a
+repository's own write verbs. To keep read-after-deferred-write consistent, the lifecycle-boundary
+flush now invalidates the per-query repository cache for every table it persisted, mirroring what an
+immediate write does. This is **best-effort**: it covers `Cacheable` repositories on the default cache
+configuration (the configured repository cache store, keyed by table name). A repository on a custom
+cache store (`cacheStoreName`) or key prefix (`cacheKeyPrefix`) is not reached and must invalidate
+manually -- call `flushCache()` after the boundary flush, or rely on the cache TTL.
+
+Disable the automatic invalidation (for example if every Cacheable repository invalidates manually, or
+none of the deferred tables are cached) with:
+
+    DEFERRED_WRITES_INVALIDATE_QUERY_CACHE=false
 
 ### Changed: Lifecycle metadata flush is now on by default on serving runtimes
 

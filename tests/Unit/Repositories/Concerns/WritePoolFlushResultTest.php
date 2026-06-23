@@ -190,4 +190,34 @@ class WritePoolFlushResultTest extends TestCase
         static::assertSame(3, $result->retainedRecordCount());
         static::assertSame(0, $result->droppedRecordCount());
     }
+
+    /**
+     * Test that flushedTables defaults to an empty array when no tables
+     * are provided.
+     *
+     * @return void
+     */
+    public function testFlushedTablesDefaultsToEmptyArray(): void
+    {
+        $result = new WritePoolFlushResult(successCount: 1, failureCount: 0);
+
+        static::assertSame([], $result->flushedTables());
+    }
+
+    /**
+     * Test that flushedTables returns the table list provided to the
+     * constructor.
+     *
+     * @return void
+     */
+    public function testFlushedTablesReturnsConstructorValue(): void
+    {
+        $result = new WritePoolFlushResult(
+            successCount: 2,
+            failureCount: 0,
+            flushedTables: ['orders', 'payments'],
+        );
+
+        static::assertSame(['orders', 'payments'], $result->flushedTables());
+    }
 }
