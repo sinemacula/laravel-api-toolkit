@@ -330,6 +330,12 @@ return [
     | it at the lifecycle boundary. Only applies under the 'throw' strategy and
     | is disabled by default so the boundary is never hard-crashed.
     |
+    | `invalidate_query_cache` invalidates the per-query repository cache for
+    | every table the boundary flush touched, so a deferred insert never leaves
+    | a stale cached collection behind. Best-effort: it covers default-config
+    | Cacheable repositories; a repository on a custom cache store or key prefix
+    | must invalidate manually. Enabled by default.
+    |
     | Durability window: buffered writes live only in PHP memory until the
     | boundary flush. A crash, out-of-memory condition, or SIGKILL before the
     | flush loses any unflushed records. For true durability use a real queue.
@@ -347,6 +353,8 @@ return [
         'transactional' => (bool) env('DEFERRED_WRITES_TRANSACTIONAL', false),
 
         'rethrow_at_boundary' => (bool) env('DEFERRED_WRITES_RETHROW_AT_BOUNDARY', false),
+
+        'invalidate_query_cache' => (bool) env('DEFERRED_WRITES_INVALIDATE_QUERY_CACHE', true),
 
     ],
 

@@ -145,7 +145,7 @@ final class WritePool
             ? $accumulator->failedRecords()
             : [];
 
-        return $accumulator->toResult($strategy);
+        return $accumulator->toResult($strategy, $tables);
     }
 
     /**
@@ -240,7 +240,7 @@ final class WritePool
             }
             $this->buffer = $retainedBuffer;
 
-            throw new WritePoolFlushException($accumulator->toThrowResult($this->count()), $exception);
+            throw new WritePoolFlushException($accumulator->toThrowResult($this->count(), $context->tables()), $exception);
         }
 
         if ($context->strategy() === FlushStrategy::LOG) {
@@ -300,7 +300,7 @@ final class WritePool
             // Mirror of whole-table retain in handleTableRollback — keep in sync if either path changes.
             $this->retainUnprocessedRecords($context, $chunk);
 
-            throw new WritePoolFlushException($accumulator->toThrowResult($this->count()), $exception);
+            throw new WritePoolFlushException($accumulator->toThrowResult($this->count(), $context->tables()), $exception);
         }
 
         if ($context->strategy() === FlushStrategy::LOG) {
