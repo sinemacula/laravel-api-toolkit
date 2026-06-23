@@ -2,7 +2,7 @@
 
 declare(strict_types = 1);
 
-namespace SineMacula\ApiToolkit\Http\Middleware\Traits;
+namespace SineMacula\ApiToolkit\Http\Middleware\Concerns;
 
 use SineMacula\ApiToolkit\Exceptions\RequestSignatureException;
 

@@ -9,7 +9,7 @@ use SineMacula\ApiToolkit\Contracts\LockKeyProvider;
 use SineMacula\ApiToolkit\Exceptions\TooManyRequestsException;
 use SineMacula\ApiToolkit\Services\Concerns\LockConcern;
 use SineMacula\ApiToolkit\Services\Service;
-use SineMacula\ApiToolkit\Traits\Lockable;
+use SineMacula\ApiToolkit\Concerns\Lockable;
 use Tests\TestCase;
 use Illuminate\Contracts\Cache\Lock;
 

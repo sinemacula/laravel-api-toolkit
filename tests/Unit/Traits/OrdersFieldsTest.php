@@ -8,7 +8,7 @@ use PHPUnit\Framework\Attributes\CoversTrait;
 use PHPUnit\Framework\Attributes\DataProvider;
 use SineMacula\ApiToolkit\Enums\FieldOrderingStrategy;
 use SineMacula\ApiToolkit\Http\Resources\ApiResource;
-use SineMacula\ApiToolkit\Traits\OrdersFields;
+use SineMacula\ApiToolkit\Concerns\OrdersFields;
 use Tests\Concerns\InteractsWithNonPublicMembers;
 use Tests\TestCase;
 

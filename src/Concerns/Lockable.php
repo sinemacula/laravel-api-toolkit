@@ -2,7 +2,7 @@
 
 declare(strict_types = 1);
 
-namespace SineMacula\ApiToolkit\Traits;
+namespace SineMacula\ApiToolkit\Concerns;
 
 use Illuminate\Contracts\Cache\Lock;
 use Illuminate\Support\Facades\Cache;

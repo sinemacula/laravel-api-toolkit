@@ -6,7 +6,7 @@ namespace Tests\Fixtures\Traits;
 
 use Illuminate\Contracts\Cache\Lock;
 use SineMacula\ApiToolkit\Contracts\LockKeyProvider;
-use SineMacula\ApiToolkit\Traits\Lockable;
+use SineMacula\ApiToolkit\Concerns\Lockable;
 
 /**
  * Fixture class using Lockable without extending Service.

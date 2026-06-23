@@ -15,7 +15,7 @@ use SineMacula\ApiToolkit\Http\Resources\Concerns\FieldResolver;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\GuardEvaluator;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\ValueResolver;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
-use SineMacula\ApiToolkit\Traits\OrdersFields;
+use SineMacula\ApiToolkit\Concerns\OrdersFields;
 
 /**
  * The base API resource.

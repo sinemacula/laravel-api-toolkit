@@ -5,7 +5,7 @@ declare(strict_types = 1);
 namespace SineMacula\ApiToolkit\Enums;
 
 use SineMacula\ApiToolkit\Contracts\ErrorCodeInterface;
-use SineMacula\ApiToolkit\Enums\Traits\ProvidesCode;
+use SineMacula\ApiToolkit\Enums\Concerns\ProvidesCode;
 
 /**
  * Error code enumeration.

@@ -8,7 +8,7 @@ use Illuminate\Support\Collection;
 use SineMacula\ApiToolkit\Contracts\LockKeyProvider;
 use SineMacula\ApiToolkit\Services\Contracts\ServiceConcern;
 use SineMacula\ApiToolkit\Services\Contracts\ServiceInterface;
-use SineMacula\ApiToolkit\Traits\Lockable;
+use SineMacula\ApiToolkit\Concerns\Lockable;
 
 /**
  * Base API service.

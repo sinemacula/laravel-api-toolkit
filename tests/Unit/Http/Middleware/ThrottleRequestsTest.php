@@ -8,7 +8,7 @@ use Illuminate\Routing\Middleware\ThrottleRequests as BaseThrottleRequests;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 use SineMacula\ApiToolkit\Http\Middleware\ThrottleRequests;
-use SineMacula\ApiToolkit\Http\Middleware\Traits\ThrottleRequestsTrait;
+use SineMacula\ApiToolkit\Http\Middleware\Concerns\ThrottleRequestsTrait;
 
 /**
  * Tests for the ThrottleRequests middleware.

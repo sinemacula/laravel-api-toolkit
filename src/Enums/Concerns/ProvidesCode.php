@@ -2,7 +2,7 @@
 
 declare(strict_types = 1);
 
-namespace SineMacula\ApiToolkit\Enums\Traits;
+namespace SineMacula\ApiToolkit\Enums\Concerns;
 
 /**
  * Provides code trait.

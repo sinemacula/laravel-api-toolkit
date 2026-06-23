@@ -17,7 +17,7 @@ use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\EagerLoadApplier;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterApplier;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\LimitApplier;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\OrderApplier;
-use SineMacula\ApiToolkit\Repositories\Traits\ResolvesResource;
+use SineMacula\ApiToolkit\Repositories\Concerns\ResolvesResource;
 use SineMacula\ApiToolkit\Schema\SafetySetDeriver;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 use SineMacula\Repositories\Contracts\CriteriaInterface;

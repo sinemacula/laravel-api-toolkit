@@ -6,7 +6,7 @@ namespace SineMacula\ApiToolkit\Services\Concerns;
 
 use SineMacula\ApiToolkit\Services\Contracts\ServiceConcern;
 use SineMacula\ApiToolkit\Services\Service;
-use SineMacula\ApiToolkit\Traits\Lockable;
+use SineMacula\ApiToolkit\Concerns\Lockable;
 
 /**
  * Cache-based atomic locking concern.

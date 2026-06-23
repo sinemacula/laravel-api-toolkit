@@ -10,7 +10,7 @@ use Illuminate\Support\Facades\Config;
 use PHPUnit\Framework\Attributes\CoversTrait;
 use SineMacula\ApiToolkit\Cache\MetadataKeyRegistry;
 use SineMacula\ApiToolkit\Enums\CacheKeys;
-use SineMacula\ApiToolkit\Repositories\Traits\ResolvesResource;
+use SineMacula\ApiToolkit\Repositories\Concerns\ResolvesResource;
 use Tests\Concerns\InteractsWithNonPublicMembers;
 use Tests\Fixtures\Models\Tag;
 use Tests\Fixtures\Models\User;

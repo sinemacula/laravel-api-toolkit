@@ -9,7 +9,7 @@ use Illuminate\Routing\Route;
 use PHPUnit\Framework\Attributes\CoversTrait;
 use PHPUnit\Framework\TestCase;
 use SineMacula\ApiToolkit\Exceptions\RequestSignatureException;
-use SineMacula\ApiToolkit\Http\Middleware\Traits\ThrottleRequestsTrait;
+use SineMacula\ApiToolkit\Http\Middleware\Concerns\ThrottleRequestsTrait;
 use SineMacula\Http\Enums\HttpMethod;
 use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Contracts\Cache\Repository;

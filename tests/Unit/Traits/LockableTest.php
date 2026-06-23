@@ -9,7 +9,7 @@ use Illuminate\Support\Facades\Cache;
 use PHPUnit\Framework\Attributes\CoversTrait;
 use SineMacula\ApiToolkit\Exceptions\LockOperationException;
 use SineMacula\ApiToolkit\Exceptions\TooManyRequestsException;
-use SineMacula\ApiToolkit\Traits\Lockable;
+use SineMacula\ApiToolkit\Concerns\Lockable;
 use Tests\Fixtures\Traits\StandaloneLockableFixture;
 use Tests\TestCase;
 

@@ -4,7 +4,7 @@ declare(strict_types = 1);
 
 namespace Tests\Fixtures\Listeners;
 
-use SineMacula\ApiToolkit\Listeners\Traits\ProvidesExclusiveLock;
+use SineMacula\ApiToolkit\Listeners\Concerns\ProvidesExclusiveLock;
 
 /**
  * Fixture base listener exposing the exclusive lock trait to subclasses.

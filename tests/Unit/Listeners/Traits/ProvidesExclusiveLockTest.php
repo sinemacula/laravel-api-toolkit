@@ -7,7 +7,7 @@ namespace Tests\Unit\Listeners\Traits;
 use Illuminate\Contracts\Cache\Lock;
 use Illuminate\Support\Facades\Cache;
 use PHPUnit\Framework\Attributes\CoversTrait;
-use SineMacula\ApiToolkit\Listeners\Traits\ProvidesExclusiveLock;
+use SineMacula\ApiToolkit\Listeners\Concerns\ProvidesExclusiveLock;
 use Tests\Fixtures\Listeners\ChildExclusiveLockListenerFixture;
 use Tests\TestCase;
 

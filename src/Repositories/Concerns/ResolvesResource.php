@@ -2,7 +2,7 @@
 
 declare(strict_types = 1);
 
-namespace SineMacula\ApiToolkit\Repositories\Traits;
+namespace SineMacula\ApiToolkit\Repositories\Concerns;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Cache;

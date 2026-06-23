@@ -5,7 +5,7 @@ declare(strict_types = 1);
 namespace Tests\Fixtures\Enums;
 
 use SineMacula\ApiToolkit\Contracts\PureEnumInterface;
-use SineMacula\ApiToolkit\Enums\Traits\PureEnumHelper;
+use SineMacula\ApiToolkit\Enums\Concerns\PureEnumHelper;
 
 /**
  * Fixture pure enum implementing the PureEnumInterface.

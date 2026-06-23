@@ -7,7 +7,7 @@ namespace Tests\Unit\Enums\Traits;
 use PHPUnit\Framework\Attributes\CoversTrait;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
-use SineMacula\ApiToolkit\Enums\Traits\PureEnumHelper;
+use SineMacula\ApiToolkit\Enums\Concerns\PureEnumHelper;
 use Tests\Fixtures\Enums\PureState;
 
 /**

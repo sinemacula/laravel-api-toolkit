@@ -5,7 +5,7 @@ declare(strict_types = 1);
 namespace SineMacula\ApiToolkit\Http\Middleware;
 
 use Illuminate\Routing\Middleware\ThrottleRequests as BaseThrottleRequests;
-use SineMacula\ApiToolkit\Http\Middleware\Traits\ThrottleRequestsTrait;
+use SineMacula\ApiToolkit\Http\Middleware\Concerns\ThrottleRequestsTrait;
 
 /**
  * Throttle requests middleware.

@@ -8,7 +8,7 @@ use PHPUnit\Framework\Attributes\CoversTrait;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use SineMacula\ApiToolkit\Enums\ErrorCode;
-use SineMacula\ApiToolkit\Enums\Traits\ProvidesCode;
+use SineMacula\ApiToolkit\Enums\Concerns\ProvidesCode;
 
 /**
  * Tests for the ProvidesCode trait.
