@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Request;
+use SineMacula\ApiToolkit\Cache\MetadataCacheWriter;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
 use SineMacula\ApiToolkit\Repositories\Concerns\AttributeSetter;
@@ -165,10 +166,21 @@ abstract class ApiRepository extends Repository
     {
         $schemaIntrospector = $this->app->make(SchemaIntrospectionProvider::class);
 
-        $this->attributeSetter = new AttributeSetter($schemaIntrospector);
+        $this->attributeSetter = new AttributeSetter($schemaIntrospector, $this->app->make(MetadataCacheWriter::class));
         $this->attributeSetter->resolveAttributeCasts($this->model, $this->model());
 
         $this->bootConcerns();
+    }
+
+    /**
+     * Get the metadata cache writer used by the ResolvesResource concern.
+     *
+     * @return \SineMacula\ApiToolkit\Cache\MetadataCacheWriter
+     */
+    #[\Override]
+    protected function metadataCacheWriter(): MetadataCacheWriter
+    {
+        return $this->app->make(MetadataCacheWriter::class);
     }
 
     /**

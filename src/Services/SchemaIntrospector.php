@@ -41,6 +41,19 @@ final class SchemaIntrospector implements SchemaIntrospectionProvider
     private array $searchable = [];
 
     /**
+     * Create a new schema introspector.
+     *
+     * @param  \SineMacula\ApiToolkit\Cache\MetadataCacheWriter  $metadataCacheWriter
+     * @return void
+     */
+    public function __construct(
+
+        /** Writes resolved schema metadata to the persistent cache. */
+        private readonly MetadataCacheWriter $metadataCacheWriter,
+
+    ) {}
+
+    /**
      * Get the database columns for the given model.
      *
      * Results are cached for the duration of the request.
@@ -264,13 +277,13 @@ final class SchemaIntrospector implements SchemaIntrospectionProvider
     }
 
     /**
-     * Resolve the metadata cache writer from the container.
+     * Get the injected metadata cache writer.
      *
      * @return \SineMacula\ApiToolkit\Cache\MetadataCacheWriter
      */
     private function metadataCacheWriter(): MetadataCacheWriter
     {
-        return app(MetadataCacheWriter::class);
+        return $this->metadataCacheWriter;
     }
 
     /**

@@ -23,6 +23,13 @@ trait ResolvesResource
     private ?string $customResourceClass = null;
 
     /**
+     * Get the metadata cache writer used to persist resolved resource mappings.
+     *
+     * @return \SineMacula\ApiToolkit\Cache\MetadataCacheWriter
+     */
+    abstract protected function metadataCacheWriter(): MetadataCacheWriter;
+
+    /**
      * Flush all memo-cached resource mappings.
      *
      * @return void
@@ -66,7 +73,7 @@ trait ResolvesResource
     {
         $class = $model::class;
 
-        return app(MetadataCacheWriter::class)->rememberMetadataForever(CacheKeys::MODEL_RESOURCES->resolveKey([$class]), function () use ($class): ?string {
+        return $this->metadataCacheWriter()->rememberMetadataForever(CacheKeys::MODEL_RESOURCES->resolveKey([$class]), function () use ($class): ?string {
 
             $resource = Config::get('api-toolkit.resources.resource_map.' . $class);
 

@@ -8,6 +8,7 @@ use Illuminate\Contracts\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Config;
+use SineMacula\ApiToolkit\Cache\MetadataCacheWriter;
 use SineMacula\ApiToolkit\Contracts\ApiResourceInterface;
 use SineMacula\ApiToolkit\Contracts\ResourceMetadataProvider;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
@@ -59,6 +60,7 @@ final class ApiCriteria implements CriteriaInterface
      * @param  \SineMacula\ApiToolkit\Contracts\ResourceMetadataProvider  $metadataProvider
      * @param  \SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider  $schemaIntrospector
      * @param  \SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry  $operatorRegistry
+     * @param  \SineMacula\ApiToolkit\Cache\MetadataCacheWriter  $metadataCacheWriter
      * @return void
      */
     public function __construct(
@@ -74,6 +76,9 @@ final class ApiCriteria implements CriteriaInterface
 
         /** Registry of filter operator handlers */
         private readonly OperatorRegistry $operatorRegistry,
+
+        /** Writes resolved resource metadata to the persistent cache */
+        private readonly MetadataCacheWriter $metadataCacheWriter,
 
     ) {
         $this->filterApplier           = new FilterApplier;
@@ -104,6 +109,17 @@ final class ApiCriteria implements CriteriaInterface
 
         /** @var \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model> $query */
         return $this->applyOrderingAndProjection($query, $surface);
+    }
+
+    /**
+     * Get the metadata cache writer used by the ResolvesResource concern.
+     *
+     * @return \SineMacula\ApiToolkit\Cache\MetadataCacheWriter
+     */
+    #[\Override]
+    protected function metadataCacheWriter(): MetadataCacheWriter
+    {
+        return $this->metadataCacheWriter;
     }
 
     /**

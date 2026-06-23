@@ -7,6 +7,7 @@ namespace Tests\Unit\Repositories\Criteria;
 use Illuminate\Support\Facades\Config;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
+use SineMacula\ApiToolkit\Cache\MetadataCacheWriter;
 use SineMacula\ApiToolkit\Contracts\ResourceMetadataProvider;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Repositories\Criteria\ApiCriteria;
@@ -1022,11 +1023,14 @@ final class ApiCriteriaTest extends TestCase
         $metadataProvider = static::createStub(ResourceMetadataProvider::class);
         $metadataProvider->method('getResourceType')->willReturn('users');
 
+        assert($this->app !== null);
+
         $criteria = new ApiCriteria(
             new Request,
             $metadataProvider,
             static::createStub(SchemaIntrospectionProvider::class),
             new OperatorRegistry,
+            $this->app->make(MetadataCacheWriter::class),
         );
 
         $criteria->usingResource(\stdClass::class);

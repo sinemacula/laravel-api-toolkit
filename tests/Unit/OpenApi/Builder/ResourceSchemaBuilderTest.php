@@ -272,7 +272,9 @@ final class ResourceSchemaBuilderTest extends TestCase
      */
     private function resolver(): FieldTypeResolver
     {
-        return new FieldTypeResolver(new SchemaIntrospector, new ColumnTypeMapper);
+        assert($this->app !== null);
+
+        return new FieldTypeResolver($this->app->make(SchemaIntrospector::class), new ColumnTypeMapper);
     }
 
     /**

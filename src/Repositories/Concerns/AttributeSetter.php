@@ -34,12 +34,16 @@ final class AttributeSetter
      * for resolving model relation types.
      *
      * @param  \SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider  $schemaIntrospector
+     * @param  \SineMacula\ApiToolkit\Cache\MetadataCacheWriter  $metadataCacheWriter
      * @return void
      */
     public function __construct(
 
         /** The schema introspection provider for relation resolution. */
         private readonly SchemaIntrospectionProvider $schemaIntrospector,
+
+        /** Writes resolved cast metadata to the persistent cache. */
+        private readonly MetadataCacheWriter $metadataCacheWriter,
 
     ) {}
 
@@ -309,13 +313,13 @@ final class AttributeSetter
     }
 
     /**
-     * Resolve the metadata cache writer from the container.
+     * Get the injected metadata cache writer.
      *
      * @return \SineMacula\ApiToolkit\Cache\MetadataCacheWriter
      */
     private function metadataCacheWriter(): MetadataCacheWriter
     {
-        return app(MetadataCacheWriter::class);
+        return $this->metadataCacheWriter;
     }
 
     /**

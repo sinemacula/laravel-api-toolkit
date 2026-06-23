@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Config;
 use PHPUnit\Framework\Attributes\CoversTrait;
+use SineMacula\ApiToolkit\Cache\MetadataCacheWriter;
 use SineMacula\ApiToolkit\Cache\MetadataKeyRegistry;
 use SineMacula\ApiToolkit\Enums\CacheKeys;
 use SineMacula\ApiToolkit\Repositories\Concerns\ResolvesResource;
@@ -240,8 +241,34 @@ final class ResolvesResourceTest extends TestCase
      */
     private function createConsumer(): object
     {
-        return new class {
+        assert($this->app !== null);
+
+        return new class ($this->app->make(MetadataCacheWriter::class)) {
             use ResolvesResource;
+
+            /**
+             * Create the consumer with the injected metadata cache writer.
+             *
+             * @param  \SineMacula\ApiToolkit\Cache\MetadataCacheWriter  $writer
+             * @return void
+             */
+            public function __construct(
+
+                /** The metadata cache writer backing the trait. */
+                private readonly MetadataCacheWriter $writer,
+
+            ) {}
+
+            /**
+             * Get the injected metadata cache writer.
+             *
+             * @return \SineMacula\ApiToolkit\Cache\MetadataCacheWriter
+             */
+            #[\Override]
+            protected function metadataCacheWriter(): MetadataCacheWriter
+            {
+                return $this->writer;
+            }
         };
     }
 }

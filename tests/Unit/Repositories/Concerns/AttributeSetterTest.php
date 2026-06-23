@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Config;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\MockObject\Stub;
+use SineMacula\ApiToolkit\Cache\MetadataCacheWriter;
 use SineMacula\ApiToolkit\Cache\MetadataKeyRegistry;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Enums\CacheKeys;
@@ -57,8 +58,10 @@ final class AttributeSetterTest extends TestCase
     {
         parent::setUp();
 
+        assert($this->app !== null);
+
         $this->schemaIntrospector = static::createStub(SchemaIntrospectionProvider::class);
-        $this->attributeSetter    = new AttributeSetter($this->schemaIntrospector);
+        $this->attributeSetter    = new AttributeSetter($this->schemaIntrospector, $this->app->make(MetadataCacheWriter::class));
     }
 
     /**
