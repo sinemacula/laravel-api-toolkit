@@ -114,9 +114,9 @@ final class ContainsOperator implements FilterOperator
     {
         try {
             $query->getQuery()->whereJsonContains($column, $value);
-        } catch (\Throwable) { // @codeCoverageIgnore
-            // Silently discard: whereJsonContains may throw for
-            // non-JSON-compatible scalar values (e.g. null)
+        } catch (\RuntimeException) { // @codeCoverageIgnore
+            // Silently discard: the active grammar may reject a JSON-contains
+            // clause for non-JSON-compatible scalar values (e.g. null)
         } // @codeCoverageIgnore
     }
 }
