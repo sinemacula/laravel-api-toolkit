@@ -375,6 +375,7 @@ trait Cacheable
      */
     private function resolveProperty(string $name): mixed
     {
+        // @phpstan-ignore property.dynamicName (guarded by property_exists; reads optional overridable config props)
         return property_exists($this, $name) ? $this->{$name} : null;
     }
 }
