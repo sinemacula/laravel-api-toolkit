@@ -17,7 +17,7 @@ use SineMacula\Http\Enums\HttpStatus;
  * @internal
  */
 #[CoversClass(HttpException::class)]
-class HttpExceptionTest extends TestCase
+final class HttpExceptionTest extends TestCase
 {
     /**
      * Test that the exception extends ApiException.

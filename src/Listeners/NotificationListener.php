@@ -14,7 +14,7 @@ use Illuminate\Support\Facades\Log;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-class NotificationListener
+final class NotificationListener
 {
     /**
      * Handle the notification 'sending' event.

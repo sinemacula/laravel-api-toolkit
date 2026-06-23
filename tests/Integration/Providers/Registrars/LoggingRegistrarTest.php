@@ -23,7 +23,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(LoggingRegistrar::class)]
-class LoggingRegistrarTest extends TestCase
+final class LoggingRegistrarTest extends TestCase
 {
     /**
      * Test that the notification logging listeners are registered when the

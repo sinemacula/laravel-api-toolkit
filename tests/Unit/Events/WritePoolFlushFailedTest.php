@@ -16,7 +16,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(WritePoolFlushFailed::class)]
-class WritePoolFlushFailedTest extends TestCase
+final class WritePoolFlushFailedTest extends TestCase
 {
     /**
      * Test that the flushResult property is accessible and returns the

@@ -20,7 +20,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(CacheStore::class)]
-class CacheStoreTest extends TestCase
+final class CacheStoreTest extends TestCase
 {
     /** @var string A representative query fingerprint. */
     private const string HASH = 'abc123';

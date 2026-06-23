@@ -35,7 +35,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(ApiRepository::class)]
-class ApiRepositoryTest extends TestCase
+final class ApiRepositoryTest extends TestCase
 {
     use InteractsWithNonPublicMembers;
 

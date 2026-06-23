@@ -28,7 +28,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(ApiExceptionHandler::class)]
-class ExceptionRenderingTest extends TestCase
+final class ExceptionRenderingTest extends TestCase
 {
     /**
      * Set up the test environment.

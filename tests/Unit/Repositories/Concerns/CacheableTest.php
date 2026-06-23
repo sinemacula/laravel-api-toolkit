@@ -28,7 +28,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversTrait(Cacheable::class)]
-class CacheableTest extends TestCase
+final class CacheableTest extends TestCase
 {
     /** @var \Tests\Fixtures\Repositories\CacheableTagRepository The repository under test. */
     private CacheableTagRepository $repository;

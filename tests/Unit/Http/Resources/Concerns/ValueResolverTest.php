@@ -32,7 +32,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(ValueResolver::class)]
-class ValueResolverTest extends TestCase
+final class ValueResolverTest extends TestCase
 {
     use InteractsWithNonPublicMembers;
 

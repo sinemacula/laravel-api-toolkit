@@ -15,7 +15,7 @@ use SineMacula\ApiToolkit\Schema\NarrowingDecision;
  * @internal
  */
 #[CoversClass(NarrowingDecision::class)]
-class NarrowingDecisionTest extends TestCase
+final class NarrowingDecisionTest extends TestCase
 {
     /**
      * Test that narrow carries the given columns and no reason.

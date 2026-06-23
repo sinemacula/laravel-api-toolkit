@@ -16,7 +16,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(CacheStatus::class)]
-class CacheStatusTest extends TestCase
+final class CacheStatusTest extends TestCase
 {
     /**
      * Test that isPopulated returns true when the cache is populated.

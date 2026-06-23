@@ -27,7 +27,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(ContainerBindingRegistrar::class)]
-class ContainerBindingRegistrarTest extends TestCase
+final class ContainerBindingRegistrarTest extends TestCase
 {
     /**
      * Test that all toolkit container bindings resolve after the registrar

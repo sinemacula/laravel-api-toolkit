@@ -17,7 +17,7 @@ use SineMacula\ApiToolkit\Http\Middleware\Traits\ThrottleRequestsTrait;
  * @internal
  */
 #[CoversClass(ThrottleRequests::class)]
-class ThrottleRequestsTest extends TestCase
+final class ThrottleRequestsTest extends TestCase
 {
     /**
      * Test that the middleware extends Laravel's ThrottleRequests.

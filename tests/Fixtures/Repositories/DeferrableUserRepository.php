@@ -16,7 +16,7 @@ use Tests\Fixtures\Models\User;
  *
  * @extends \SineMacula\ApiToolkit\Repositories\ApiRepository<\Tests\Fixtures\Models\User>
  */
-class DeferrableUserRepository extends ApiRepository
+final class DeferrableUserRepository extends ApiRepository
 {
     use Deferrable;
 

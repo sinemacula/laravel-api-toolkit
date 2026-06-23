@@ -17,7 +17,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(TransactionConcern::class)]
-class TransactionConcernTest extends TestCase
+final class TransactionConcernTest extends TestCase
 {
     /**
      * Test that execute wraps the next closure in a database transaction.

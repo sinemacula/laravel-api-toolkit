@@ -17,7 +17,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(MetadataCacheWriter::class)]
-class MetadataCacheWriterTest extends TestCase
+final class MetadataCacheWriterTest extends TestCase
 {
     /**
      * Test that rememberMetadataForever returns the value produced by the callback.

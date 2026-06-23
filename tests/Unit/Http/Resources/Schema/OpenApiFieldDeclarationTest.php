@@ -17,7 +17,7 @@ use SineMacula\ApiToolkit\Schema\OpenApiFieldSchema;
  * @internal
  */
 #[CoversClass(OpenApiFieldDeclaration::class)]
-class OpenApiFieldDeclarationTest extends TestCase
+final class OpenApiFieldDeclarationTest extends TestCase
 {
     /**
      * Test that the fluent setters chain and freeze into a schema.

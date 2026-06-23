@@ -18,7 +18,7 @@ use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-class ApiResourceCollection extends AnonymousResourceCollection
+final class ApiResourceCollection extends AnonymousResourceCollection
 {
     /** @var array<int, string>|null Explicit list of fields to be returned in the collection */
     protected ?array $fields;

@@ -35,7 +35,7 @@ use Tests\TestCase;
 #[CoversClass(FilterApplier::class)]
 #[CoversClass(OrderApplier::class)]
 #[CoversClass(QuerySurface::class)]
-class QuerySurfaceIntegrationTest extends TestCase
+final class QuerySurfaceIntegrationTest extends TestCase
 {
     /**
      * Seed users and posts for integration tests.

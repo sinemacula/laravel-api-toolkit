@@ -19,7 +19,7 @@ use SineMacula\ApiToolkit\Services\Validation\Rules\ValidateAccessors;
  * @internal
  */
 #[CoversClass(ValidateAccessors::class)]
-class ValidateAccessorsTest extends TestCase
+final class ValidateAccessorsTest extends TestCase
 {
     /**
      * Test that no errors are returned for valid non-empty string accessors.

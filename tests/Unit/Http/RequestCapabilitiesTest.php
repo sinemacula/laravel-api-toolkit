@@ -18,7 +18,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(RequestCapabilities::class)]
-class RequestCapabilitiesTest extends TestCase
+final class RequestCapabilitiesTest extends TestCase
 {
     /** @var string */
     private const string TEST_URL = '/test';

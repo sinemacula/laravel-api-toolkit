@@ -33,7 +33,7 @@ use Illuminate\Events\Dispatcher;
  * @internal
  */
 #[CoversClass(CacheManager::class)]
-class LifecycleFlushDefaultsTest extends TestCase
+final class LifecycleFlushDefaultsTest extends TestCase
 {
     /** @var bool Whether LARAVEL_OCTANE was set before each test. */
     private bool $octaneWasSet;

@@ -18,7 +18,7 @@ use Tests\Fixtures\Resources\UserResource;
  * @internal
  */
 #[CoversClass(ValidateComputedFields::class)]
-class ValidateComputedFieldsTest extends TestCase
+final class ValidateComputedFieldsTest extends TestCase
 {
     /**
      * Test that no errors are returned for a schema with a callable compute

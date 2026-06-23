@@ -16,7 +16,7 @@ use SineMacula\ApiToolkit\Schema\OpenApiFieldSchema;
  * @internal
  */
 #[CoversClass(Count::class)]
-class CountTest extends TestCase
+final class CountTest extends TestCase
 {
     private const string COUNT_KEY_POSTS      = '__count__:posts';
     private const string COUNT_KEY_POST_COUNT = '__count__:post_count';

@@ -23,7 +23,7 @@ use Tests\TestCase;
  */
 #[CoversClass(ApiServiceProvider::class)]
 #[CoversClass(MiddlewareRegistrar::class)]
-class MiddlewareConfigCustomThrottleTest extends TestCase
+final class MiddlewareConfigCustomThrottleTest extends TestCase
 {
     /** @var string */
     private const CUSTOM_THROTTLE_CLASS = 'App\Http\Middleware\CustomThrottle';

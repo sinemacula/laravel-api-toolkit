@@ -23,7 +23,7 @@ use SineMacula\ApiToolkit\Http\Middleware\ThrottleRequests;
  * @internal
  */
 #[CoversTrait(ThrottleRequestsTrait::class)]
-class ThrottleRequestsTraitTest extends TestCase
+final class ThrottleRequestsTraitTest extends TestCase
 {
     private const string API_DATA_URI = '/api/data';
 

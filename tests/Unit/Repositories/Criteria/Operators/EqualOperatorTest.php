@@ -17,7 +17,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(EqualOperator::class)]
-class EqualOperatorTest extends TestCase
+final class EqualOperatorTest extends TestCase
 {
     /**
      * Test that apply adds a where clause with the equals operator.

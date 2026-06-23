@@ -21,7 +21,7 @@ use Tests\Concerns\InteractsWithNonPublicMembers;
  * @internal
  */
 #[CoversClass(PreventRequestsDuringMaintenance::class)]
-class PreventRequestsDuringMaintenanceTest extends TestCase
+final class PreventRequestsDuringMaintenanceTest extends TestCase
 {
     use InteractsWithNonPublicMembers;
 

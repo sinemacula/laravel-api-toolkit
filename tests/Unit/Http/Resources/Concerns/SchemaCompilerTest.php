@@ -20,7 +20,7 @@ use Tests\Fixtures\Resources\UserResource;
  * @internal
  */
 #[CoversClass(SchemaCompiler::class)]
-class SchemaCompilerTest extends TestCase
+final class SchemaCompilerTest extends TestCase
 {
     private const STUB_ORGANIZATION_RESOURCE = 'App\Http\Resources\OrganizationResource';
 

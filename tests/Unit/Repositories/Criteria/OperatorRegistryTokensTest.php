@@ -18,7 +18,7 @@ use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext;
  * @internal
  */
 #[CoversClass(OperatorRegistry::class)]
-class OperatorRegistryTokensTest extends TestCase
+final class OperatorRegistryTokensTest extends TestCase
 {
     /**
      * Test that tokens returns an empty array when no operators are registered.

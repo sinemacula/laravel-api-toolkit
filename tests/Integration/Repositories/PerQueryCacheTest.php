@@ -25,7 +25,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversTrait(Cacheable::class)]
-class PerQueryCacheTest extends TestCase
+final class PerQueryCacheTest extends TestCase
 {
     /**
      * Set up the test environment.

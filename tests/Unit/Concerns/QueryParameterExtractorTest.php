@@ -18,7 +18,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(QueryParameterExtractor::class)]
-class QueryParameterExtractorTest extends TestCase
+final class QueryParameterExtractorTest extends TestCase
 {
     /** @var string */
     private const string TEST_URL = '/test';

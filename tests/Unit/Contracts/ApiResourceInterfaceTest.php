@@ -15,7 +15,7 @@ use SineMacula\ApiToolkit\Contracts\ApiResourceInterface;
  * @internal
  */
 #[CoversNothing]
-class ApiResourceInterfaceTest extends TestCase
+final class ApiResourceInterfaceTest extends TestCase
 {
     /**
      * Test that the interface defines getResourceType as a static method.

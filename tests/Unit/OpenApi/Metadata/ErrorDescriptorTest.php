@@ -15,7 +15,7 @@ use SineMacula\ApiToolkit\OpenApi\Metadata\ErrorDescriptor;
  * @internal
  */
 #[CoversClass(ErrorDescriptor::class)]
-class ErrorDescriptorTest extends TestCase
+final class ErrorDescriptorTest extends TestCase
 {
     /**
      * Test that all constructor properties are stored and accessible.

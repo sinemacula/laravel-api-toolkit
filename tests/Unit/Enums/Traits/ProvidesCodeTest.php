@@ -17,7 +17,7 @@ use SineMacula\ApiToolkit\Enums\Traits\ProvidesCode;
  * @internal
  */
 #[CoversTrait(ProvidesCode::class)]
-class ProvidesCodeTest extends TestCase
+final class ProvidesCodeTest extends TestCase
 {
     /**
      * Provide ErrorCode cases for testing the trait.

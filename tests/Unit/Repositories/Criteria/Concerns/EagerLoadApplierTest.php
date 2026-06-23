@@ -19,7 +19,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(EagerLoadApplier::class)]
-class EagerLoadApplierTest extends TestCase
+final class EagerLoadApplierTest extends TestCase
 {
     /** @var string */
     private const string STUB_USER_FIELDS = 'id,name';

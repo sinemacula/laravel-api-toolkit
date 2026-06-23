@@ -18,7 +18,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(ErrorCatalogueReader::class)]
-class ErrorCatalogueReaderTest extends TestCase
+final class ErrorCatalogueReaderTest extends TestCase
 {
     /**
      * Test that read returns exactly one descriptor per ErrorCode case.

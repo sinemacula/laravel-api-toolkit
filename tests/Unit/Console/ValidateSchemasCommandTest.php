@@ -23,7 +23,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(ValidateSchemasCommand::class)]
-class ValidateSchemasCommandTest extends TestCase
+final class ValidateSchemasCommandTest extends TestCase
 {
     /** @var string The command signature. */
     private const string COMMAND = 'api-toolkit:validate-schemas';

@@ -17,7 +17,7 @@ use SineMacula\ApiToolkit\Schema\CompiledSchema;
  * @internal
  */
 #[CoversClass(CompiledSchema::class)]
-class CompiledSchemaTest extends TestCase
+final class CompiledSchemaTest extends TestCase
 {
     /**
      * Test that getField returns the definition for a known key.

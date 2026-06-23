@@ -22,7 +22,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(OperatorRegistry::class)]
-class OperatorRegistryTest extends TestCase
+final class OperatorRegistryTest extends TestCase
 {
     /** @var string */
     private const string OPERATOR_CUSTOM = '$custom';

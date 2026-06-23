@@ -40,7 +40,7 @@ use Symfony\Component\HttpKernel\Exception\TooManyRequestsHttpException;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-class ApiExceptionHandler
+final class ApiExceptionHandler
 {
     /** @var array<int, string> Lower-case substrings that mark a request key as sensitive in logged context. */
     private const array DEFAULT_SENSITIVE_KEYS = ['password', 'token', 'secret', 'authorization'];

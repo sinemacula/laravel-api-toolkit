@@ -18,7 +18,7 @@ use SineMacula\ApiToolkit\Services\Validation\SchemaValidationError;
  * @internal
  */
 #[CoversClass(InvalidSchemaException::class)]
-class InvalidSchemaExceptionTest extends TestCase
+final class InvalidSchemaExceptionTest extends TestCase
 {
     /**
      * Test that the constructor accepts errors.

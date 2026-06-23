@@ -45,7 +45,7 @@ use Tests\TestCase;
  */
 #[CoversClass(ExportOpenApiComponents::class)]
 #[CoversClass(ExportOpenApiCommand::class)]
-class OpenApiExporterValidityTest extends TestCase
+final class OpenApiExporterValidityTest extends TestCase
 {
     /** @var string The identifier under which the OpenAPI 3.1 meta-schema is registered. */
     private const string META_SCHEMA_ID = 'https://spec.openapis.org/oas/3.1/schema/2022-10-07';

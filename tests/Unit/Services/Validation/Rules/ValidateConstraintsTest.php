@@ -21,7 +21,7 @@ use SineMacula\ApiToolkit\Services\Validation\Rules\ValidateConstraints;
  * @internal
  */
 #[CoversClass(ValidateConstraints::class)]
-class ValidateConstraintsTest extends TestCase
+final class ValidateConstraintsTest extends TestCase
 {
     /**
      * Test that no errors are returned for Closure constraints on fields and

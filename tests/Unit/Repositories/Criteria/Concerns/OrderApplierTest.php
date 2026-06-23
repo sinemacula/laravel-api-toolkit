@@ -19,7 +19,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(OrderApplier::class)]
-class OrderApplierTest extends TestCase
+final class OrderApplierTest extends TestCase
 {
     /** @var \SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider */
     private SchemaIntrospectionProvider $schemaIntrospector;

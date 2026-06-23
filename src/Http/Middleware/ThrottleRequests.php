@@ -10,6 +10,8 @@ use SineMacula\ApiToolkit\Http\Middleware\Traits\ThrottleRequestsTrait;
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
+ *
+ * @inheritable
  */
 class ThrottleRequests extends BaseThrottleRequests
 {

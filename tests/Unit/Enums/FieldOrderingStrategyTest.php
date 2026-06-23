@@ -16,7 +16,7 @@ use SineMacula\ApiToolkit\Enums\FieldOrderingStrategy;
  * @internal
  */
 #[CoversClass(FieldOrderingStrategy::class)]
-class FieldOrderingStrategyTest extends TestCase
+final class FieldOrderingStrategyTest extends TestCase
 {
     /**
      * Provide all FieldOrderingStrategy cases with their expected values.

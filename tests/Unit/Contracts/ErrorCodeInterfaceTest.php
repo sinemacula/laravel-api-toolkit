@@ -15,7 +15,7 @@ use SineMacula\ApiToolkit\Contracts\ErrorCodeInterface;
  * @internal
  */
 #[CoversNothing]
-class ErrorCodeInterfaceTest extends TestCase
+final class ErrorCodeInterfaceTest extends TestCase
 {
     /**
      * Test that the interface defines getCode as a public method.

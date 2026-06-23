@@ -38,7 +38,7 @@ use SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry;
 #[CoversClass(OrderApplier::class)]
 #[CoversClass(EagerLoadApplier::class)]
 #[CoversClass(LimitApplier::class)]
-class ApiCriteriaTest extends TestCase
+final class ApiCriteriaTest extends TestCase
 {
     /** @var string */
     private const STUB_USER_FIELDS = 'id,name';

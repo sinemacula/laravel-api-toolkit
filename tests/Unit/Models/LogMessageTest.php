@@ -20,7 +20,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(LogMessage::class)]
-class LogMessageTest extends TestCase
+final class LogMessageTest extends TestCase
 {
     /**
      * Test that the model uses the 'logs' table.

@@ -20,7 +20,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(Service::class)]
-class ServiceIntegrationTest extends TestCase
+final class ServiceIntegrationTest extends TestCase
 {
     /**
      * Test that a successful service runs within a transaction.

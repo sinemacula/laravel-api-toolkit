@@ -23,7 +23,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(SchemaValidator::class)]
-class SchemaValidatorTest extends TestCase
+final class SchemaValidatorTest extends TestCase
 {
     /**
      * Clear the schema compiler cache before each test.

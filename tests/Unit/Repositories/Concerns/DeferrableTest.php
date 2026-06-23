@@ -24,7 +24,7 @@ use SineMacula\ApiToolkit\Repositories\Concerns\AttributeSetter;
  * @internal
  */
 #[CoversTrait(Deferrable::class)]
-class DeferrableTest extends TestCase
+final class DeferrableTest extends TestCase
 {
     private const TIMESTAMP_DEFERRAL = '2026-03-10 12:00:01';
     private const TIMESTAMP_EXPLICIT = '2026-03-10 09:00:00';

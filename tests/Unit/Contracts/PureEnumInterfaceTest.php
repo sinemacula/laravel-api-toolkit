@@ -15,7 +15,7 @@ use SineMacula\ApiToolkit\Contracts\PureEnumInterface;
  * @internal
  */
 #[CoversNothing]
-class PureEnumInterfaceTest extends TestCase
+final class PureEnumInterfaceTest extends TestCase
 {
     /**
      * Test that the interface defines tryFrom as a static method.

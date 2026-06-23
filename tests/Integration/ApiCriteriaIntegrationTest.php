@@ -32,7 +32,7 @@ use Tests\TestCase;
 #[CoversClass(OrderApplier::class)]
 #[CoversClass(EagerLoadApplier::class)]
 #[CoversClass(LimitApplier::class)]
-class ApiCriteriaIntegrationTest extends TestCase
+final class ApiCriteriaIntegrationTest extends TestCase
 {
     /**
      * Seed users and posts for integration tests.

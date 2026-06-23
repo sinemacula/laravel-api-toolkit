@@ -21,7 +21,7 @@ use SineMacula\ApiToolkit\Schema\SchemaCompiler;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-class ResourceSchemaBuilder
+final class ResourceSchemaBuilder
 {
     /** The path prefix under which resource component schemas are referenced */
     private const string SCHEMA_REF_PREFIX = '#/components/schemas/';

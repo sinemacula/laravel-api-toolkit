@@ -17,7 +17,7 @@ use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
  * @internal
  */
 #[CoversNothing]
-class SchemaIntrospectionProviderTest extends TestCase
+final class SchemaIntrospectionProviderTest extends TestCase
 {
     /**
      * Test that the SchemaIntrospectionProvider interface exists.

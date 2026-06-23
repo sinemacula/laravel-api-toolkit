@@ -17,7 +17,7 @@ use SineMacula\ApiToolkit\Traits\Lockable;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-class LockConcern implements ServiceConcern
+final class LockConcern implements ServiceConcern
 {
     /**
      * Execute the concern around the service lifecycle.

@@ -18,7 +18,7 @@ use SineMacula\ApiToolkit\Models\LogMessage;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-class DatabaseHandler extends AbstractProcessingHandler
+final class DatabaseHandler extends AbstractProcessingHandler
 {
     /**
      * Write a log record to the database.

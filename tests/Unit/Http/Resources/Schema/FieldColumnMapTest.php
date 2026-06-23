@@ -15,7 +15,7 @@ use SineMacula\ApiToolkit\Schema\FieldColumnMap;
  * @internal
  */
 #[CoversClass(FieldColumnMap::class)]
-class FieldColumnMapTest extends TestCase
+final class FieldColumnMapTest extends TestCase
 {
     /**
      * Test that columnsFor returns the declared columns for a mapped field and

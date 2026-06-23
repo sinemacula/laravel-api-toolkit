@@ -25,7 +25,7 @@ use Illuminate\Queue\Events\JobProcessed;
  * @internal
  */
 #[CoversClass(LifecycleRegistrar::class)]
-class LifecycleRegistrarTest extends TestCase
+final class LifecycleRegistrarTest extends TestCase
 {
     /** @var bool Whether LARAVEL_OCTANE was set before each test. */
     private bool $octaneWasSet;

@@ -24,7 +24,7 @@ use Illuminate\Foundation\Application;
  * @internal
  */
 #[CoversClass(PolymorphicResource::class)]
-class PolymorphicResourceTest extends TestCase
+final class PolymorphicResourceTest extends TestCase
 {
     /**
      * Test that toArray returns null when resource is null.

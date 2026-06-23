@@ -14,7 +14,7 @@ use SineMacula\ApiToolkit\Contracts\ResourceMetadataProvider;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-class ResourceMetadataService implements ResourceMetadataProvider
+final class ResourceMetadataService implements ResourceMetadataProvider
 {
     /**
      * Get the resource type identifier for the given resource class.

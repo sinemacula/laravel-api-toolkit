@@ -17,7 +17,7 @@ use SineMacula\ApiToolkit\Services\Validation\SchemaValidationError;
  * @internal
  */
 #[CoversClass(SchemaValidationError::class)]
-class SchemaValidationErrorTest extends TestCase
+final class SchemaValidationErrorTest extends TestCase
 {
     /**
      * Test that the constructor sets properties.

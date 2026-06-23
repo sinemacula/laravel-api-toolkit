@@ -18,7 +18,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversTrait(ProvidesExclusiveLock::class)]
-class ProvidesExclusiveLockTest extends TestCase
+final class ProvidesExclusiveLockTest extends TestCase
 {
     /**
      * Test that handleWithLock acquires lock and executes callback.

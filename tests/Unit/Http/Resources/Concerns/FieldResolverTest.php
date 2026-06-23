@@ -18,7 +18,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(FieldResolver::class)]
-class FieldResolverTest extends TestCase
+final class FieldResolverTest extends TestCase
 {
     /** @var \SineMacula\ApiToolkit\Http\Resources\Concerns\FieldResolver */
     private FieldResolver $resolver;

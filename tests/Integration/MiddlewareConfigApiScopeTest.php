@@ -25,7 +25,7 @@ use Tests\TestCase;
  */
 #[CoversClass(ApiServiceProvider::class)]
 #[CoversClass(MiddlewareRegistrar::class)]
-class MiddlewareConfigApiScopeTest extends TestCase
+final class MiddlewareConfigApiScopeTest extends TestCase
 {
     /**
      * Test that JsonPrettyPrint is not in the global middleware stack.

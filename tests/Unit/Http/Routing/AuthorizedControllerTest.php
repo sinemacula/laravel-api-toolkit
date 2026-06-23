@@ -20,7 +20,7 @@ use Tests\Fixtures\Models\User;
  * @internal
  */
 #[CoversClass(AuthorizedController::class)]
-class AuthorizedControllerTest extends TestCase
+final class AuthorizedControllerTest extends TestCase
 {
     use InteractsWithNonPublicMembers;
 

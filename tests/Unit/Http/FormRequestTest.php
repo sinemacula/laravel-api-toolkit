@@ -19,7 +19,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(FormRequest::class)]
-class FormRequestTest extends TestCase
+final class FormRequestTest extends TestCase
 {
     /**
      * Test that FormRequest extends Laravel's FormRequest.

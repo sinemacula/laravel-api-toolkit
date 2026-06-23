@@ -65,7 +65,7 @@ use Illuminate\Events\Dispatcher;
 #[CoversClass(LifecycleRegistrar::class)]
 #[CoversClass(LoggingRegistrar::class)]
 #[CoversClass(MiddlewareRegistrar::class)]
-class ApiServiceProviderTest extends TestCase
+final class ApiServiceProviderTest extends TestCase
 {
     /**
      * Test that the package config is merged.

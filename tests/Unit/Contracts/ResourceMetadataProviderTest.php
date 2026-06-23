@@ -15,7 +15,7 @@ use SineMacula\ApiToolkit\Contracts\ResourceMetadataProvider;
  * @internal
  */
 #[CoversNothing]
-class ResourceMetadataProviderTest extends TestCase
+final class ResourceMetadataProviderTest extends TestCase
 {
     /**
      * Test that the ResourceMetadataProvider interface exists and is an

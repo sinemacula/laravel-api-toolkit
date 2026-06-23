@@ -14,7 +14,7 @@ use Tests\Fixtures\Models\User;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-class UserResource extends ApiResource
+final class UserResource extends ApiResource
 {
     /** @var string */
     public const string RESOURCE_TYPE = 'users';

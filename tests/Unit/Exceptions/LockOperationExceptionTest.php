@@ -15,7 +15,7 @@ use SineMacula\ApiToolkit\Exceptions\LockOperationException;
  * @internal
  */
 #[CoversClass(LockOperationException::class)]
-class LockOperationExceptionTest extends TestCase
+final class LockOperationExceptionTest extends TestCase
 {
     /**
      * Test that the exception extends RuntimeException.

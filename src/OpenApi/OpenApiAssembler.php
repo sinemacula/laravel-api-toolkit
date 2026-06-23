@@ -19,7 +19,7 @@ use SineMacula\ApiToolkit\OpenApi\Builder\ResourceSchemaBuilder;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-class OpenApiAssembler
+final class OpenApiAssembler
 {
     /** The emitted OpenAPI specification version */
     private const string OPENAPI_VERSION = '3.1.0';

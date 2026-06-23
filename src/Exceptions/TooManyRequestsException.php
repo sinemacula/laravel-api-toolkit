@@ -11,7 +11,7 @@ use SineMacula\Http\Enums\HttpStatus;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-class TooManyRequestsException extends ApiException
+final class TooManyRequestsException extends ApiException
 {
     /** @var \SineMacula\ApiToolkit\Contracts\ErrorCodeInterface The internal error code */
     public const \SineMacula\ApiToolkit\Contracts\ErrorCodeInterface CODE = ErrorCode::TOO_MANY_REQUESTS;

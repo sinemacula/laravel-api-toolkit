@@ -17,7 +17,7 @@ use SineMacula\ApiToolkit\OpenApi\Metadata\ErrorDescriptor;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-class ErrorResponseBuilder
+final class ErrorResponseBuilder
 {
     /** The component name of the shared error-envelope schema */
     public const string ENVELOPE_SCHEMA_NAME = 'ErrorEnvelope';

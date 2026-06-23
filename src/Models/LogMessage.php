@@ -14,7 +14,7 @@ use Illuminate\Database\Eloquent\Model;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-class LogMessage extends Model
+final class LogMessage extends Model
 {
     use HasUuids, MassPrunable;
 

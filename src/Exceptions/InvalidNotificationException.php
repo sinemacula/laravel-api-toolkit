@@ -11,7 +11,7 @@ use SineMacula\Http\Enums\HttpStatus;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-class InvalidNotificationException extends ApiException
+final class InvalidNotificationException extends ApiException
 {
     /** @var \SineMacula\ApiToolkit\Contracts\ErrorCodeInterface The internal error code */
     public const \SineMacula\ApiToolkit\Contracts\ErrorCodeInterface CODE = ErrorCode::INVALID_NOTIFICATION;

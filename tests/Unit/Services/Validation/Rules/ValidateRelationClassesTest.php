@@ -20,7 +20,7 @@ use Tests\Fixtures\Resources\OrganizationResource;
  * @internal
  */
 #[CoversClass(ValidateRelationClasses::class)]
-class ValidateRelationClassesTest extends TestCase
+final class ValidateRelationClassesTest extends TestCase
 {
     /**
      * Test no errors for schema with existing relation classes.

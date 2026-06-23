@@ -30,7 +30,7 @@ use Tests\TestCase;
 #[CoversClass(WritePool::class)]
 #[CoversClass(WritePoolFlushSubscriber::class)]
 #[CoversTrait(Deferrable::class)]
-class DeferredWriteRequestBoundaryTest extends TestCase
+final class DeferredWriteRequestBoundaryTest extends TestCase
 {
     /**
      * Set up each test.

@@ -23,7 +23,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(ExportOpenApiCommand::class)]
-class ExportOpenApiCommandTest extends TestCase
+final class ExportOpenApiCommandTest extends TestCase
 {
     /** @var string The console command signature. */
     private const string COMMAND = 'api-toolkit:export-openapi';

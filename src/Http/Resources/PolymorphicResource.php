@@ -19,7 +19,7 @@ use SineMacula\ApiToolkit\Exceptions\ResourceMappingException;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-class PolymorphicResource extends JsonResource
+final class PolymorphicResource extends JsonResource
 {
     /** @var bool Whether to return all fields in the response */
     protected bool $all = false;

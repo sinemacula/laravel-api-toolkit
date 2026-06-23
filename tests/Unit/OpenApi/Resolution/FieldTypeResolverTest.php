@@ -23,7 +23,7 @@ use Tests\Fixtures\Models\User;
  * @internal
  */
 #[CoversClass(FieldTypeResolver::class)]
-class FieldTypeResolverTest extends TestCase
+final class FieldTypeResolverTest extends TestCase
 {
     /**
      * Test that a declared schema is returned verbatim and is never overridden

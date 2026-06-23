@@ -25,7 +25,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversTrait(RespondsWithExport::class)]
-class ExportNegotiationTest extends TestCase
+final class ExportNegotiationTest extends TestCase
 {
     /** @var string The export endpoint under test. */
     private const string USERS_URI = '/api/users';

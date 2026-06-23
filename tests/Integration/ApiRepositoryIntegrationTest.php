@@ -23,7 +23,7 @@ use Illuminate\Pagination\LengthAwarePaginator;
  * @internal
  */
 #[CoversClass(ApiRepository::class)]
-class ApiRepositoryIntegrationTest extends TestCase
+final class ApiRepositoryIntegrationTest extends TestCase
 {
     /** @var \Tests\Fixtures\Repositories\UserRepository */
     private UserRepository $repository;

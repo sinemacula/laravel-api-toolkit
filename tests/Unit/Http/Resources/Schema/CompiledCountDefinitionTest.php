@@ -15,7 +15,7 @@ use SineMacula\ApiToolkit\Schema\CompiledCountDefinition;
  * @internal
  */
 #[CoversClass(CompiledCountDefinition::class)]
-class CompiledCountDefinitionTest extends TestCase
+final class CompiledCountDefinitionTest extends TestCase
 {
     /**
      * Test that all constructor properties are stored and accessible.

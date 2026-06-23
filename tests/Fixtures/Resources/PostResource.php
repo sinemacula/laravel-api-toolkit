@@ -13,7 +13,7 @@ use SineMacula\ApiToolkit\Schema\Relation;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-class PostResource extends ApiResource
+final class PostResource extends ApiResource
 {
     /** @var string */
     public const string RESOURCE_TYPE = 'posts';

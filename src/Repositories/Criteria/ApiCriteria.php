@@ -31,7 +31,7 @@ use SineMacula\Repositories\Contracts\CriteriaInterface;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-class ApiCriteria implements CriteriaInterface
+final class ApiCriteria implements CriteriaInterface
 {
     use ResolvesResource;
 

@@ -15,7 +15,7 @@ use SineMacula\ApiToolkit\Services\Introspection\ColumnDefinition;
  * @internal
  */
 #[CoversClass(ColumnDefinition::class)]
-class ColumnDefinitionTest extends TestCase
+final class ColumnDefinitionTest extends TestCase
 {
     /**
      * Test that constructor properties are stored and accessible.

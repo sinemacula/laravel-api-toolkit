@@ -17,7 +17,7 @@ use Tests\Fixtures\Enums\PureState;
  * @internal
  */
 #[CoversTrait(PureEnumHelper::class)]
-class PureEnumHelperTest extends TestCase
+final class PureEnumHelperTest extends TestCase
 {
     /**
      * Test that tryFrom with exact case name returns the matching case.

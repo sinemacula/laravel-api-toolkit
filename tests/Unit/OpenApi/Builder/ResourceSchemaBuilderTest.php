@@ -27,7 +27,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(ResourceSchemaBuilder::class)]
-class ResourceSchemaBuilderTest extends TestCase
+final class ResourceSchemaBuilderTest extends TestCase
 {
     /**
      * Test that exactly one schema is emitted per registered resource, keyed by

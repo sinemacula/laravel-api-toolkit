@@ -19,7 +19,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(QuerySurface::class)]
-class QuerySurfaceTest extends TestCase
+final class QuerySurfaceTest extends TestCase
 {
     /**
      * Test that the allowlist posture permits a declared root filter column and

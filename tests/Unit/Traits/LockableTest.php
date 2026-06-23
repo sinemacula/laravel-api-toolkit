@@ -20,7 +20,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversTrait(Lockable::class)]
-class LockableTest extends TestCase
+final class LockableTest extends TestCase
 {
     /**
      * Test that lock acquires a cache lock successfully.

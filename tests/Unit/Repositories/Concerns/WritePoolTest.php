@@ -23,7 +23,7 @@ use Illuminate\Database\QueryException;
  * @internal
  */
 #[CoversClass(WritePool::class)]
-class WritePoolTest extends TestCase
+final class WritePoolTest extends TestCase
 {
     /** @var \SineMacula\ApiToolkit\Repositories\Concerns\WritePool The write pool instance under test. */
     private WritePool $pool;

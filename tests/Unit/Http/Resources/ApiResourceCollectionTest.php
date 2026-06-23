@@ -25,7 +25,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(ApiResourceCollection::class)]
-class ApiResourceCollectionTest extends TestCase
+final class ApiResourceCollectionTest extends TestCase
 {
     private const string PAGINATION_PATH = 'http://localhost/api/users';
 

@@ -27,7 +27,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(ParseApiQuery::class)]
-class RequestLifecycleTest extends TestCase
+final class RequestLifecycleTest extends TestCase
 {
     /**
      * Set up each test.

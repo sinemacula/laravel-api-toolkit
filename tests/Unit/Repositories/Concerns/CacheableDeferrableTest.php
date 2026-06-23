@@ -20,7 +20,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(ApiRepository::class)]
-class CacheableDeferrableTest extends TestCase
+final class CacheableDeferrableTest extends TestCase
 {
     /**
      * Set up the test environment.

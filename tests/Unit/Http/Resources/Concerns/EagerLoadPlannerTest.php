@@ -23,7 +23,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(EagerLoadPlanner::class)]
-class EagerLoadPlannerTest extends TestCase
+final class EagerLoadPlannerTest extends TestCase
 {
     use InteractsWithNonPublicMembers;
 

@@ -15,7 +15,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(CacheFlushed::class)]
-class CacheFlushedTest extends TestCase
+final class CacheFlushedTest extends TestCase
 {
     /**
      * Test that the event can be instantiated with no arguments.

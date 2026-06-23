@@ -17,7 +17,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(NotEqualOperator::class)]
-class NotEqualOperatorTest extends TestCase
+final class NotEqualOperatorTest extends TestCase
 {
     /**
      * Test that apply adds a where clause with the not-equals operator.

@@ -36,7 +36,7 @@ use Illuminate\Database\Eloquent\Casts\Attribute;
  * @internal
  */
 #[CoversClass(ApiResource::class)]
-class ApiResourceTest extends TestCase
+final class ApiResourceTest extends TestCase
 {
     /** @var string Email address used in fluent-return test fixtures. */
     private const string FLUENT_EMAIL = 'fluent@example.com';

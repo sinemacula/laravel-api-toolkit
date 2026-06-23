@@ -15,7 +15,7 @@ use SineMacula\ApiToolkit\Repositories\Concerns\WritePoolFlushResult;
  * @internal
  */
 #[CoversClass(WritePoolFlushResult::class)]
-class WritePoolFlushResultTest extends TestCase
+final class WritePoolFlushResultTest extends TestCase
 {
     /**
      * Test that isSuccessful returns true when there are no failures.

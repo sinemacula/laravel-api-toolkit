@@ -18,7 +18,7 @@ use SineMacula\ApiToolkit\Services\Introspection\ColumnDefinition;
  * @internal
  */
 #[CoversClass(ColumnTypeMapper::class)]
-class ColumnTypeMapperTest extends TestCase
+final class ColumnTypeMapperTest extends TestCase
 {
     /**
      * Provide each documented type-name row with its expected mapping.

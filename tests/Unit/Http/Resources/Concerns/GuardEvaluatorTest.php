@@ -16,7 +16,7 @@ use SineMacula\ApiToolkit\Http\Resources\Concerns\GuardEvaluator;
  * @internal
  */
 #[CoversClass(GuardEvaluator::class)]
-class GuardEvaluatorTest extends TestCase
+final class GuardEvaluatorTest extends TestCase
 {
     /** @var \SineMacula\ApiToolkit\Http\Resources\Concerns\GuardEvaluator */
     private GuardEvaluator $evaluator;

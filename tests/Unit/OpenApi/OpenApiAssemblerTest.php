@@ -27,7 +27,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(OpenApiAssembler::class)]
-class OpenApiAssemblerTest extends TestCase
+final class OpenApiAssemblerTest extends TestCase
 {
     /**
      * Test that the assembled document declares a 3.1.x OpenAPI version.

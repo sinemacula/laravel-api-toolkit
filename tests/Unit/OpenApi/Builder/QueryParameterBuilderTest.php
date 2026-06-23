@@ -16,7 +16,7 @@ use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
  * @internal
  */
 #[CoversClass(QueryParameterBuilder::class)]
-class QueryParameterBuilderTest extends TestCase
+final class QueryParameterBuilderTest extends TestCase
 {
     /** @var array<int, string> The twelve registered operator tokens */
     private const array OPERATOR_TOKENS = [

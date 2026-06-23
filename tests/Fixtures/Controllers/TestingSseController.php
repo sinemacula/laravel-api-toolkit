@@ -12,7 +12,7 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-class TestingSseController extends Controller
+final class TestingSseController extends Controller
 {
     /**
      * Stream a single update event over SSE.

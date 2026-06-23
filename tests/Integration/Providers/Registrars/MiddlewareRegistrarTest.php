@@ -26,7 +26,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(MiddlewareRegistrar::class)]
-class MiddlewareRegistrarTest extends TestCase
+final class MiddlewareRegistrarTest extends TestCase
 {
     /**
      * Test that the registrar pushes the kernel middleware and aliases the

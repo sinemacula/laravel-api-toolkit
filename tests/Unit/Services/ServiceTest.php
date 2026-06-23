@@ -24,7 +24,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(Service::class)]
-class ServiceTest extends TestCase
+final class ServiceTest extends TestCase
 {
     /**
      * Test that run calls success on successful execution.

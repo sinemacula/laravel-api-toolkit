@@ -17,7 +17,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(InOperator::class)]
-class InOperatorTest extends TestCase
+final class InOperatorTest extends TestCase
 {
     /**
      * Test that apply uses whereIn.

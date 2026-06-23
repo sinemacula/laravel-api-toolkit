@@ -16,7 +16,7 @@ use SineMacula\ApiToolkit\Schema\OpenApiFieldSchema;
  * @internal
  */
 #[CoversClass(CompiledFieldDefinition::class)]
-class CompiledFieldDefinitionTest extends TestCase
+final class CompiledFieldDefinitionTest extends TestCase
 {
     /**
      * Test that all constructor properties are stored and accessible.

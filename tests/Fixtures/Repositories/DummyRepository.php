@@ -13,7 +13,7 @@ use Tests\Fixtures\Models\Post;
  *
  * @extends \SineMacula\ApiToolkit\Repositories\ApiRepository<\Tests\Fixtures\Models\Post>
  */
-class DummyRepository extends ApiRepository
+final class DummyRepository extends ApiRepository
 {
     /**
      * Return the model class.

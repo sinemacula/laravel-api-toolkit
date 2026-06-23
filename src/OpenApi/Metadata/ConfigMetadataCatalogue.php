@@ -16,7 +16,7 @@ use SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-class ConfigMetadataCatalogue implements MetadataCatalogue
+final class ConfigMetadataCatalogue implements MetadataCatalogue
 {
     /** @var array<int, string> The four structural filter operators */
     private const array STRUCTURAL_OPERATORS = ['$and', '$or', '$has', '$hasnt'];

@@ -22,7 +22,7 @@ use Tests\TestCase;
  */
 #[CoversClass(ParseApiQuery::class)]
 #[CoversClass(JsonPrettyPrint::class)]
-class MiddlewareIntegrationTest extends TestCase
+final class MiddlewareIntegrationTest extends TestCase
 {
     /** @var string The shared test URI. */
     private const TEST_URI = '/test';

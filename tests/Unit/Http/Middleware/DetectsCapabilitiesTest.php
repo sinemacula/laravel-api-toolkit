@@ -20,7 +20,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(DetectsCapabilities::class)]
-class DetectsCapabilitiesTest extends TestCase
+final class DetectsCapabilitiesTest extends TestCase
 {
     /** @var string */
     private const string TEST_URL = '/test';

@@ -19,7 +19,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(CloudWatchLogger::class)]
-class CloudWatchLoggerTest extends TestCase
+final class CloudWatchLoggerTest extends TestCase
 {
     /**
      * Test that __invoke returns a Monolog Logger instance.

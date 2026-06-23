@@ -20,7 +20,7 @@ use Illuminate\Contracts\Debug\ExceptionHandler;
  * @internal
  */
 #[CoversClass(EventStream::class)]
-class EventStreamTest extends TestCase
+final class EventStreamTest extends TestCase
 {
     /** @var string The SSE comment wire format used for keep-alive signals. */
     private const string SSE_COMMENT = ":\n\n";

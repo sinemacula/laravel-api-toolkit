@@ -15,7 +15,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(MetadataKeyRegistry::class)]
-class MetadataKeyRegistryTest extends TestCase
+final class MetadataKeyRegistryTest extends TestCase
 {
     /**
      * Test that register adds a key to the set.

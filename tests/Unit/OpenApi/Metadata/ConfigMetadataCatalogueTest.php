@@ -24,7 +24,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(ConfigMetadataCatalogue::class)]
-class ConfigMetadataCatalogueTest extends TestCase
+final class ConfigMetadataCatalogueTest extends TestCase
 {
     /**
      * Test that getResourceMap returns the resource map from config.

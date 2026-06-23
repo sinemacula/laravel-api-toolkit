@@ -16,7 +16,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(RuntimeContext::class)]
-class RuntimeContextTest extends TestCase
+final class RuntimeContextTest extends TestCase
 {
     /** @var bool|null Whether LARAVEL_OCTANE was set before each test ran. */
     private ?bool $octaneWasSet = null;

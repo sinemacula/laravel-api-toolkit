@@ -25,7 +25,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversTrait(RespondsWithStream::class)]
-class RespondsWithStreamTest extends TestCase
+final class RespondsWithStreamTest extends TestCase
 {
     /** @var string */
     private const string CONTENT_TYPE_CSV = 'text/csv; charset=utf-8';

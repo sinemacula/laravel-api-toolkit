@@ -15,7 +15,7 @@ use SineMacula\ApiToolkit\Services\Contracts\ServiceConcern;
  * @internal
  */
 #[CoversNothing]
-class ServiceConcernTest extends TestCase
+final class ServiceConcernTest extends TestCase
 {
     /**
      * Test that the ServiceConcern interface exists and is an interface.

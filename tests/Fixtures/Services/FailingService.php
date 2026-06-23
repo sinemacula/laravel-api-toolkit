@@ -12,7 +12,7 @@ use Tests\Fixtures\Exceptions\ServiceExecutionException;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-class FailingService extends Service
+final class FailingService extends Service
 {
     /** @var bool Track whether failed() was called */
     public bool $failedCalled = false;

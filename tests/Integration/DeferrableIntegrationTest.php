@@ -34,7 +34,7 @@ use Illuminate\Contracts\Queue\Job;
  * @internal
  */
 #[CoversTrait(Deferrable::class)]
-class DeferrableIntegrationTest extends TestCase
+final class DeferrableIntegrationTest extends TestCase
 {
     private const TIMESTAMP_DEFERRAL = '2026-03-10 12:00:01';
 

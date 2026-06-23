@@ -36,7 +36,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(FilterApplier::class)]
-class FilterApplierTest extends TestCase
+final class FilterApplierTest extends TestCase
 {
     /** @var string */
     private const string OPERATOR_CONTAINS = '$contains';

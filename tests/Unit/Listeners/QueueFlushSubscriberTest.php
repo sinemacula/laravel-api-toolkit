@@ -26,7 +26,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(QueueFlushSubscriber::class)]
-class QueueFlushSubscriberTest extends TestCase
+final class QueueFlushSubscriberTest extends TestCase
 {
     /**
      * Test that subscribe registers JobProcessed and JobFailed listeners.

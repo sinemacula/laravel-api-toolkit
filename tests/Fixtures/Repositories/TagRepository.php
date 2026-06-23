@@ -13,7 +13,7 @@ use Tests\Fixtures\Models\Tag;
  *
  * @extends \SineMacula\ApiToolkit\Repositories\ApiRepository<\Tests\Fixtures\Models\Tag>
  */
-class TagRepository extends ApiRepository
+final class TagRepository extends ApiRepository
 {
     /**
      * Return the model class.

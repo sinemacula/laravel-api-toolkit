@@ -21,7 +21,7 @@ use SineMacula\Http\Enums\HttpStatus;
  * @internal
  */
 #[CoversClass(ApiException::class)]
-class ApiExceptionTest extends TestCase
+final class ApiExceptionTest extends TestCase
 {
     /**
      * Test that the constructor sets the code from the HTTP status.

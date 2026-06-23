@@ -12,6 +12,8 @@ use Tests\Fixtures\Models\User;
  * @copyright   2026 Sine Macula Limited.
  *
  * @extends \SineMacula\ApiToolkit\Repositories\ApiRepository<\Tests\Fixtures\Models\User>
+ *
+ * @inheritable
  */
 class UserRepository extends ApiRepository
 {

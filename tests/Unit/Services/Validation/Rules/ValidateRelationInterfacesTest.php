@@ -21,7 +21,7 @@ use Tests\Fixtures\Resources\OrganizationResource;
  * @internal
  */
 #[CoversClass(ValidateRelationInterfaces::class)]
-class ValidateRelationInterfacesTest extends TestCase
+final class ValidateRelationInterfacesTest extends TestCase
 {
     /**
      * Test no errors when relation class implements interface.

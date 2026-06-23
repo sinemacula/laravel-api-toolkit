@@ -17,7 +17,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(BetweenOperator::class)]
-class BetweenOperatorTest extends TestCase
+final class BetweenOperatorTest extends TestCase
 {
     /**
      * Test that apply uses whereBetween with two elements.

@@ -32,7 +32,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(AttributeSetter::class)]
-class AttributeSetterTest extends TestCase
+final class AttributeSetterTest extends TestCase
 {
     use InteractsWithNonPublicMembers;
 

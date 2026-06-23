@@ -15,7 +15,7 @@ use SineMacula\ApiToolkit\Enums\FlushStrategy;
  * @internal
  */
 #[CoversClass(FlushStrategy::class)]
-class FlushStrategyTest extends TestCase
+final class FlushStrategyTest extends TestCase
 {
     /**
      * Test that LOG has backing value 'log'.

@@ -12,7 +12,7 @@ use SineMacula\ApiToolkit\Schema\Field;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-class OrganizationResource extends ApiResource
+final class OrganizationResource extends ApiResource
 {
     /** @var string */
     public const string RESOURCE_TYPE = 'organizations';

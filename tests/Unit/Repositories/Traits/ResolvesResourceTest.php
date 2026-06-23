@@ -26,7 +26,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversTrait(ResolvesResource::class)]
-class ResolvesResourceTest extends TestCase
+final class ResolvesResourceTest extends TestCase
 {
     use InteractsWithNonPublicMembers;
 

@@ -18,7 +18,7 @@ use Illuminate\Foundation\Application;
  * @internal
  */
 #[CoversClass(ResourceMetadataService::class)]
-class ResourceMetadataServiceTest extends TestCase
+final class ResourceMetadataServiceTest extends TestCase
 {
     /** @var \SineMacula\ApiToolkit\Http\Resources\ResourceMetadataService */
     private ResourceMetadataService $service;

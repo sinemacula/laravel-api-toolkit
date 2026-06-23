@@ -8,4 +8,4 @@ namespace Tests\Fixtures\Exceptions;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-class ServiceExecutionException extends \RuntimeException {}
+final class ServiceExecutionException extends \RuntimeException {}

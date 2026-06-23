@@ -12,7 +12,7 @@ use SineMacula\ApiToolkit\Services\Service;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-class LockableService extends Service
+final class LockableService extends Service
 {
     /**
      * Return the ordered list of concern classes for this service.

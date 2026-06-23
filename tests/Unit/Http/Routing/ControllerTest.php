@@ -23,7 +23,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(Controller::class)]
-class ControllerTest extends TestCase
+final class ControllerTest extends TestCase
 {
     use InteractsWithNonPublicMembers;
 

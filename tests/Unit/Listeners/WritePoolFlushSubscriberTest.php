@@ -33,7 +33,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(WritePoolFlushSubscriber::class)]
-class WritePoolFlushSubscriberTest extends TestCase
+final class WritePoolFlushSubscriberTest extends TestCase
 {
     /**
      * Test that subscribe registers a listener for RequestHandled.

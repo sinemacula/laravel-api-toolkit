@@ -18,7 +18,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(QueryFingerprint::class)]
-class QueryFingerprintTest extends TestCase
+final class QueryFingerprintTest extends TestCase
 {
     /**
      * Test that an identical query yields a stable fingerprint.

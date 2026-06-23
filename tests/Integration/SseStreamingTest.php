@@ -24,7 +24,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(EventStream::class)]
-class SseStreamingTest extends TestCase
+final class SseStreamingTest extends TestCase
 {
     /** @var string The SSE endpoint under test. */
     private const string SSE_URI = '/events';

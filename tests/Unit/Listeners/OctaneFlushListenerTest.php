@@ -22,7 +22,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(OctaneFlushListener::class)]
-class OctaneFlushListenerTest extends TestCase
+final class OctaneFlushListenerTest extends TestCase
 {
     /** @var bool Whether LARAVEL_OCTANE was set before each test. */
     private bool $octaneWasSet;

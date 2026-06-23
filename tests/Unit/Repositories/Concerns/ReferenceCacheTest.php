@@ -20,7 +20,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(ReferenceCache::class)]
-class ReferenceCacheTest extends TestCase
+final class ReferenceCacheTest extends TestCase
 {
     /** @var \SineMacula\ApiToolkit\Repositories\Concerns\ReferenceCache The reference cache under test. */
     private ReferenceCache $referenceCache;

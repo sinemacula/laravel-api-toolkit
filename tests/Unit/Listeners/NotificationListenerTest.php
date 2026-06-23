@@ -20,7 +20,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(NotificationListener::class)]
-class NotificationListenerTest extends TestCase
+final class NotificationListenerTest extends TestCase
 {
     /**
      * Test that sending logs notification sending event at debug level.

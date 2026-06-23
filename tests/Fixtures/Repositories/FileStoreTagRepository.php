@@ -14,7 +14,7 @@ use Tests\Fixtures\Models\Tag;
  *
  * @extends \SineMacula\ApiToolkit\Repositories\ApiRepository<\Tests\Fixtures\Models\Tag>
  */
-class FileStoreTagRepository extends ApiRepository
+final class FileStoreTagRepository extends ApiRepository
 {
     use Cacheable;
 

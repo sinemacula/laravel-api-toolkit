@@ -36,7 +36,7 @@ use Tests\TestCase;
  */
 #[CoversClass(ColumnProjectionApplier::class)]
 #[CoversClass(ApiCriteria::class)]
-class ColumnNarrowingIntegrationTest extends TestCase
+final class ColumnNarrowingIntegrationTest extends TestCase
 {
     private const string TEST_URL = '/test';
 

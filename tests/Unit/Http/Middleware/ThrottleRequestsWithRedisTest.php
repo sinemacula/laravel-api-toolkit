@@ -17,7 +17,7 @@ use SineMacula\ApiToolkit\Http\Middleware\Traits\ThrottleRequestsTrait;
  * @internal
  */
 #[CoversClass(ThrottleRequestsWithRedis::class)]
-class ThrottleRequestsWithRedisTest extends TestCase
+final class ThrottleRequestsWithRedisTest extends TestCase
 {
     /**
      * Test that the middleware extends Laravel's ThrottleRequestsWithRedis.

@@ -23,7 +23,7 @@ use Tests\TestCase;
  */
 #[CoversClass(ApiServiceProvider::class)]
 #[CoversClass(MiddlewareRegistrar::class)]
-class MiddlewareConfigRedisThrottleTest extends TestCase
+final class MiddlewareConfigRedisThrottleTest extends TestCase
 {
     /**
      * Test that the throttle middleware uses the Redis variant when the cache

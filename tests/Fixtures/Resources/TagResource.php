@@ -11,7 +11,7 @@ use SineMacula\ApiToolkit\Schema\Field;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-class TagResource extends ApiResource
+final class TagResource extends ApiResource
 {
     /** @var string */
     public const string RESOURCE_TYPE = 'tags';

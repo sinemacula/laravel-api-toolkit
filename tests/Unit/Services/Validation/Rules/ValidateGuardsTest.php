@@ -20,7 +20,7 @@ use SineMacula\ApiToolkit\Services\Validation\Rules\ValidateGuards;
  * @internal
  */
 #[CoversClass(ValidateGuards::class)]
-class ValidateGuardsTest extends TestCase
+final class ValidateGuardsTest extends TestCase
 {
     /**
      * Test no errors for schema with callable guards.

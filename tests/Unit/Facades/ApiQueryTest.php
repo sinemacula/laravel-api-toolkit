@@ -18,7 +18,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(ApiQuery::class)]
-class ApiQueryTest extends TestCase
+final class ApiQueryTest extends TestCase
 {
     /**
      * Test that the facade accessor returns the config-based alias.

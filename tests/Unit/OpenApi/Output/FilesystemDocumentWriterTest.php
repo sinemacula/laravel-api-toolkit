@@ -17,7 +17,7 @@ use SineMacula\ApiToolkit\OpenApi\Output\FilesystemDocumentWriter;
  * @internal
  */
 #[CoversClass(FilesystemDocumentWriter::class)]
-class FilesystemDocumentWriterTest extends TestCase
+final class FilesystemDocumentWriterTest extends TestCase
 {
     /** @var string The temporary directory used for write assertions. */
     private string $directory;

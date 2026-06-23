@@ -23,7 +23,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(ApiQueryParser::class)]
-class ApiQueryParserTest extends TestCase
+final class ApiQueryParserTest extends TestCase
 {
     use InteractsWithNonPublicMembers;
 

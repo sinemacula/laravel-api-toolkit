@@ -31,7 +31,7 @@ use Tests\TestCase;
  */
 #[CoversClass(ExportOpenApiComponents::class)]
 #[CoversClass(ExportResult::class)]
-class ExportOpenApiComponentsTest extends TestCase
+final class ExportOpenApiComponentsTest extends TestCase
 {
     /**
      * Set up each test.

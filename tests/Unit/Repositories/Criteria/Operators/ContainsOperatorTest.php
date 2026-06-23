@@ -20,7 +20,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(ContainsOperator::class)]
-class ContainsOperatorTest extends TestCase
+final class ContainsOperatorTest extends TestCase
 {
     /** @var string */
     private const string TYPE_JSON_CONTAINS = 'JsonContains';

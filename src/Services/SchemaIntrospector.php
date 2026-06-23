@@ -27,7 +27,7 @@ use SineMacula\ApiToolkit\Services\Introspection\ColumnDefinition;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-class SchemaIntrospector implements SchemaIntrospectionProvider
+final class SchemaIntrospector implements SchemaIntrospectionProvider
 {
     /** @var array<string, array<int, string>> */
     private array $columns = [];

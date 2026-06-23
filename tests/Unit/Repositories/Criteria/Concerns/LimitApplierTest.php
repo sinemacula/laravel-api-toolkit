@@ -16,7 +16,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(LimitApplier::class)]
-class LimitApplierTest extends TestCase
+final class LimitApplierTest extends TestCase
 {
     /**
      * Test that a null limit returns the query unmodified.

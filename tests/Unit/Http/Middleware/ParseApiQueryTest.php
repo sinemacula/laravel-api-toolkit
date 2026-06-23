@@ -19,7 +19,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(ParseApiQuery::class)]
-class ParseApiQueryTest extends TestCase
+final class ParseApiQueryTest extends TestCase
 {
     /**
      * Test that the middleware calls ApiQuery::parse and passes request to next.

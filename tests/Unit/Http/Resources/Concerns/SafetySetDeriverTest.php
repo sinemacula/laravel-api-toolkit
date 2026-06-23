@@ -18,7 +18,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(SafetySetDeriver::class)]
-class SafetySetDeriverTest extends TestCase
+final class SafetySetDeriverTest extends TestCase
 {
     /** @var \PHPUnit\Framework\MockObject\Stub&\SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider */
     private SchemaIntrospectionProvider $introspector;

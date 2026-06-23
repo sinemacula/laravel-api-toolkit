@@ -17,7 +17,7 @@ use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext;
  * @internal
  */
 #[CoversNothing]
-class FilterOperatorTest extends TestCase
+final class FilterOperatorTest extends TestCase
 {
     /**
      * Test that the FilterOperator interface declares the apply method

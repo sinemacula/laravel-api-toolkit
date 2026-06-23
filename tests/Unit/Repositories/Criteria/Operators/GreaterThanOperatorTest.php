@@ -17,7 +17,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(GreaterThanOperator::class)]
-class GreaterThanOperatorTest extends TestCase
+final class GreaterThanOperatorTest extends TestCase
 {
     /**
      * Test that apply adds a where clause with the greater-than operator.

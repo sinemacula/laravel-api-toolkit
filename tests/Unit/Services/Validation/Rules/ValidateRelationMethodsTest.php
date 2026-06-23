@@ -27,7 +27,7 @@ use Tests\Fixtures\Resources\UserResource;
  * @internal
  */
 #[CoversClass(ValidateRelationMethods::class)]
-class ValidateRelationMethodsTest extends TestCase
+final class ValidateRelationMethodsTest extends TestCase
 {
     /**
      * Test no errors for relation methods that exist on model.

@@ -17,7 +17,7 @@ use SineMacula\ApiToolkit\OpenApi\Exceptions\DocumentWriteException;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-class FilesystemDocumentWriter implements DocumentWriter
+final class FilesystemDocumentWriter implements DocumentWriter
 {
     /**
      * Create a new filesystem document writer.

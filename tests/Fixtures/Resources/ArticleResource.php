@@ -17,7 +17,7 @@ use Tests\Fixtures\Models\Article;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-class ArticleResource extends ApiResource
+final class ArticleResource extends ApiResource
 {
     /** @var string */
     public const string RESOURCE_TYPE = 'articles';

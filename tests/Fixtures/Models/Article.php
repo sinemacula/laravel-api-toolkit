@@ -29,7 +29,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-class Article extends Model
+final class Article extends Model
 {
     use SoftDeletes;
 

@@ -18,7 +18,7 @@ use SineMacula\ApiToolkit\Schema\OpenApiFieldSchema;
  * @internal
  */
 #[CoversClass(Field::class)]
-class FieldTest extends TestCase
+final class FieldTest extends TestCase
 {
     /**
      * Test that scalar creates a field with the given name.

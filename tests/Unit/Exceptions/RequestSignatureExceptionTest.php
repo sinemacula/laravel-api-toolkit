@@ -15,7 +15,7 @@ use SineMacula\ApiToolkit\Exceptions\RequestSignatureException;
  * @internal
  */
 #[CoversClass(RequestSignatureException::class)]
-class RequestSignatureExceptionTest extends TestCase
+final class RequestSignatureExceptionTest extends TestCase
 {
     /**
      * Test that the exception extends RuntimeException.

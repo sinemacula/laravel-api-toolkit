@@ -16,7 +16,7 @@ use SineMacula\ApiToolkit\Schema\FieldColumnMap;
  * @internal
  */
 #[CoversClass(ColumnNarrower::class)]
-class ColumnNarrowerTest extends TestCase
+final class ColumnNarrowerTest extends TestCase
 {
     /** @var \SineMacula\ApiToolkit\Schema\ColumnNarrower */
     private ColumnNarrower $narrower;

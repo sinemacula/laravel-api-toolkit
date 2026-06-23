@@ -17,7 +17,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(LikeOperator::class)]
-class LikeOperatorTest extends TestCase
+final class LikeOperatorTest extends TestCase
 {
     /**
      * Test that apply wraps value with wildcards.

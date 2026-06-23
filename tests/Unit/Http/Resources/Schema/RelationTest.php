@@ -17,7 +17,7 @@ use Tests\Fixtures\Resources\OrganizationResource;
  * @internal
  */
 #[CoversClass(Relation::class)]
-class RelationTest extends TestCase
+final class RelationTest extends TestCase
 {
     /**
      * Test that to with a class string sets the resource.

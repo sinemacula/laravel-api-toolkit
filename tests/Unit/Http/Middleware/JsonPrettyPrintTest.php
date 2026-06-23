@@ -21,7 +21,7 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
  * @internal
  */
 #[CoversClass(JsonPrettyPrint::class)]
-class JsonPrettyPrintTest extends TestCase
+final class JsonPrettyPrintTest extends TestCase
 {
     /** @var string The shared test URI. */
     private const string TEST_URI = '/test';

@@ -15,7 +15,7 @@ use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext;
  * @internal
  */
 #[CoversClass(FilterContext::class)]
-class FilterContextTest extends TestCase
+final class FilterContextTest extends TestCase
 {
     /**
      * Test that root returns null operator, not in relation, and depth zero.

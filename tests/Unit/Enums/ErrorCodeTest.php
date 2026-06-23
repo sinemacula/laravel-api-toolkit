@@ -17,7 +17,7 @@ use SineMacula\ApiToolkit\Enums\ErrorCode;
  * @internal
  */
 #[CoversClass(ErrorCode::class)]
-class ErrorCodeTest extends TestCase
+final class ErrorCodeTest extends TestCase
 {
     /**
      * Provide all ErrorCode cases with their expected values.

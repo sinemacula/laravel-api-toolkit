@@ -17,7 +17,7 @@ use SineMacula\ApiToolkit\OpenApi\Metadata\ErrorDescriptor;
  * @internal
  */
 #[CoversClass(ErrorResponseBuilder::class)]
-class ErrorResponseBuilderTest extends TestCase
+final class ErrorResponseBuilderTest extends TestCase
 {
     /**
      * Test that exactly one response component is emitted per error descriptor.

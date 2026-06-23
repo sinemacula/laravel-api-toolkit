@@ -17,7 +17,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(QueryParameterValidator::class)]
-class QueryParameterValidatorTest extends TestCase
+final class QueryParameterValidatorTest extends TestCase
 {
     /** @var \SineMacula\ApiToolkit\Concerns\QueryParameterValidator */
     private QueryParameterValidator $validator;

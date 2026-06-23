@@ -25,7 +25,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(ColumnProjectionApplier::class)]
-class ColumnProjectionApplierTest extends TestCase
+final class ColumnProjectionApplierTest extends TestCase
 {
     /** @var array<int, string> */
     private const array USER_DEFAULT_FIELDS = ['id', 'name', 'email'];

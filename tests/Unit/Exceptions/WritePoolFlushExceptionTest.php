@@ -16,7 +16,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(WritePoolFlushException::class)]
-class WritePoolFlushExceptionTest extends TestCase
+final class WritePoolFlushExceptionTest extends TestCase
 {
     /**
      * Test that the constructor sets a message containing the failure

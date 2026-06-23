@@ -15,7 +15,7 @@ use SineMacula\ApiToolkit\Repositories\Concerns\CacheSizeGuard;
  * @internal
  */
 #[CoversClass(CacheSizeGuard::class)]
-class CacheSizeGuardTest extends TestCase
+final class CacheSizeGuardTest extends TestCase
 {
     /**
      * Test that a result within both ceilings is allowed.

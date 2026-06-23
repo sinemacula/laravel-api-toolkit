@@ -21,7 +21,7 @@ use Illuminate\Support\Facades\Schema;
  * @internal
  */
 #[CoversClass(DatabaseHandler::class)]
-class DatabaseHandlerTest extends TestCase
+final class DatabaseHandlerTest extends TestCase
 {
     /**
      * Test that write creates a LogMessage record in the database.

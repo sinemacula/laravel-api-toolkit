@@ -17,7 +17,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(DatabaseLogger::class)]
-class DatabaseLoggerTest extends TestCase
+final class DatabaseLoggerTest extends TestCase
 {
     /**
      * Test that __invoke returns a Monolog Logger instance.

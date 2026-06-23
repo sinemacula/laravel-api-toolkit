@@ -32,7 +32,7 @@ use Illuminate\Support\Facades\Config;
 #[CoversClass(CacheManager::class)]
 #[CoversClass(OctaneFlushListener::class)]
 #[CoversClass(QueueFlushSubscriber::class)]
-class LifecycleDefaultEngagementTest extends TestCase
+final class LifecycleDefaultEngagementTest extends TestCase
 {
     /** @var bool Whether LARAVEL_OCTANE was set before each test. */
     private bool $octaneWasSet;

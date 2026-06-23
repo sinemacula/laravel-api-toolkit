@@ -17,7 +17,7 @@ use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-class ExportOpenApiComponents
+final class ExportOpenApiComponents
 {
     /**
      * Create a new export use case.

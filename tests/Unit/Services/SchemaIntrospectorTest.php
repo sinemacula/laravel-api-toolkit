@@ -32,7 +32,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(SchemaIntrospector::class)]
-class SchemaIntrospectorTest extends TestCase
+final class SchemaIntrospectorTest extends TestCase
 {
     use InteractsWithNonPublicMembers;
 

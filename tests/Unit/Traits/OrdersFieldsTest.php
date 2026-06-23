@@ -19,7 +19,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversTrait(OrdersFields::class)]
-class OrdersFieldsTest extends TestCase
+final class OrdersFieldsTest extends TestCase
 {
     use InteractsWithNonPublicMembers;
 

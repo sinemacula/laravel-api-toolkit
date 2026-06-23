@@ -18,7 +18,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(FieldColumnMapper::class)]
-class FieldColumnMapperTest extends TestCase
+final class FieldColumnMapperTest extends TestCase
 {
     /**
      * Reset both static caches before each test to avoid cross-test bleed.

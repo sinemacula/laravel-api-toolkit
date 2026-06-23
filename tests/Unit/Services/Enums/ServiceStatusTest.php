@@ -15,7 +15,7 @@ use SineMacula\ApiToolkit\Services\Enums\ServiceStatus;
  * @internal
  */
 #[CoversClass(ServiceStatus::class)]
-class ServiceStatusTest extends TestCase
+final class ServiceStatusTest extends TestCase
 {
     /**
      * Test that the enum defines exactly the expected cases.

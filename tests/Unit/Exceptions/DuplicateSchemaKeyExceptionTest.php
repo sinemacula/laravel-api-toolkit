@@ -15,7 +15,7 @@ use SineMacula\ApiToolkit\Exceptions\DuplicateSchemaKeyException;
  * @internal
  */
 #[CoversClass(DuplicateSchemaKeyException::class)]
-class DuplicateSchemaKeyExceptionTest extends TestCase
+final class DuplicateSchemaKeyExceptionTest extends TestCase
 {
     /**
      * Test that the exception extends RuntimeException.

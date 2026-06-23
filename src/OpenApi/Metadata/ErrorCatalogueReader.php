@@ -20,7 +20,7 @@ use SineMacula\ApiToolkit\OpenApi\Exceptions\MetadataReadException;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-class ErrorCatalogueReader
+final class ErrorCatalogueReader
 {
     /** @var string The base namespace for all ApiException subclasses */
     private const string EXCEPTION_NAMESPACE = 'SineMacula\ApiToolkit\Exceptions\\';

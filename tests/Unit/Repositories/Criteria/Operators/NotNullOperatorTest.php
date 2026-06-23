@@ -17,7 +17,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(NotNullOperator::class)]
-class NotNullOperatorTest extends TestCase
+final class NotNullOperatorTest extends TestCase
 {
     /** @var \SineMacula\ApiToolkit\Repositories\Criteria\Operators\NotNullOperator */
     private NotNullOperator $operator;

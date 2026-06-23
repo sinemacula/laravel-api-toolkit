@@ -11,7 +11,7 @@ use SineMacula\Http\Enums\HttpStatus;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-class MaintenanceModeException extends ApiException
+final class MaintenanceModeException extends ApiException
 {
     /** @var \SineMacula\ApiToolkit\Contracts\ErrorCodeInterface The internal error code */
     public const \SineMacula\ApiToolkit\Contracts\ErrorCodeInterface CODE = ErrorCode::MAINTENANCE_MODE;

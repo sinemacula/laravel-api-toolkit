@@ -12,7 +12,7 @@ use Symfony\Component\HttpFoundation\Response;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-class ParseApiQuery
+final class ParseApiQuery
 {
     /**
      * Handle an incoming request.

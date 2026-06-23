@@ -53,7 +53,7 @@ use SineMacula\ApiToolkit\Exceptions\UnhandledException;
 #[CoversClass(TooManyRequestsException::class)]
 #[CoversClass(UnauthenticatedException::class)]
 #[CoversClass(UnhandledException::class)]
-class ConcreteExceptionsTest extends TestCase
+final class ConcreteExceptionsTest extends TestCase
 {
     /**
      * Provide all concrete exception classes with their expected codes.

@@ -28,7 +28,7 @@ use Tests\TestCase;
  */
 #[CoversClass(ApiServiceProvider::class)]
 #[CoversClass(MiddlewareRegistrar::class)]
-class MiddlewareConfigDisabledTest extends TestCase
+final class MiddlewareConfigDisabledTest extends TestCase
 {
     /**
      * Test that the maintenance mode middleware swap is skipped when disabled.

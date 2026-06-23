@@ -19,7 +19,7 @@ use SineMacula\ApiToolkit\Services\Validation\Rules\ValidateTransformers;
  * @internal
  */
 #[CoversClass(ValidateTransformers::class)]
-class ValidateTransformersTest extends TestCase
+final class ValidateTransformersTest extends TestCase
 {
     /**
      * Test no errors for schema with callable transformers.

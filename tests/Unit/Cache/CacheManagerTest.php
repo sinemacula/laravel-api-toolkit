@@ -25,7 +25,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(CacheManager::class)]
-class CacheManagerTest extends TestCase
+final class CacheManagerTest extends TestCase
 {
     use InteractsWithNonPublicMembers;
 

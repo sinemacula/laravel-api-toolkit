@@ -17,7 +17,7 @@ use SineMacula\ApiToolkit\Enums\CacheKeys;
  * @internal
  */
 #[CoversClass(CacheKeys::class)]
-class CacheKeysTest extends TestCase
+final class CacheKeysTest extends TestCase
 {
     /**
      * Provide all CacheKeys cases with their expected values.

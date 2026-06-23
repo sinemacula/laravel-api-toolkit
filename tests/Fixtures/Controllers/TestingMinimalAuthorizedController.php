@@ -11,7 +11,7 @@ use Tests\Fixtures\Models\User;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-class TestingMinimalAuthorizedController extends AuthorizedController
+final class TestingMinimalAuthorizedController extends AuthorizedController
 {
     /** @var string */
     public const string RESOURCE_MODEL = User::class;

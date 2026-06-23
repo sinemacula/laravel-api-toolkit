@@ -46,7 +46,7 @@ use Symfony\Component\HttpKernel\Exception\TooManyRequestsHttpException;
  * @internal
  */
 #[CoversClass(ApiExceptionHandler::class)]
-class ApiExceptionHandlerTest extends TestCase
+final class ApiExceptionHandlerTest extends TestCase
 {
     /** @var string Test API endpoint path. */
     private const string API_PATH = '/api/test';

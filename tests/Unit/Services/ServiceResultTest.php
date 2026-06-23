@@ -16,7 +16,7 @@ use SineMacula\ApiToolkit\Services\ServiceResult;
  * @internal
  */
 #[CoversClass(ServiceResult::class)]
-class ServiceResultTest extends TestCase
+final class ServiceResultTest extends TestCase
 {
     /**
      * Test that success creates a succeeded result with no exception.

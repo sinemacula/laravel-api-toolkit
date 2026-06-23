@@ -32,7 +32,7 @@ use Tests\Fixtures\Enums\UserStatus;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-class User extends Model
+final class User extends Model
 {
     /** @var string|null */
     protected $table = 'users';

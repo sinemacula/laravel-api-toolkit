@@ -19,7 +19,7 @@ use SineMacula\ApiToolkit\Schema\OpenApiFieldDeclaration;
  * @internal
  */
 #[CoversClass(BaseDefinition::class)]
-class BaseDefinitionTest extends TestCase
+final class BaseDefinitionTest extends TestCase
 {
     /**
      * Test that guard adds a callable and returns self for fluent chaining.

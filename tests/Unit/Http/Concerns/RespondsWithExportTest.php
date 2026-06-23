@@ -24,7 +24,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversTrait(RespondsWithExport::class)]
-class RespondsWithExportTest extends TestCase
+final class RespondsWithExportTest extends TestCase
 {
     /** @var string */
     private const string CONTENT_TYPE_CSV = 'text/csv; charset=utf-8';

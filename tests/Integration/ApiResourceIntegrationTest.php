@@ -24,7 +24,7 @@ use Tests\Fixtures\Resources\OrganizationResource;
  * @internal
  */
 #[CoversClass(ApiResource::class)]
-class ApiResourceIntegrationTest extends TestCase
+final class ApiResourceIntegrationTest extends TestCase
 {
     private const TEST_URL = '/test';
 

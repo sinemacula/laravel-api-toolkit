@@ -20,7 +20,7 @@ use Illuminate\Contracts\Cache\Lock;
  * @internal
  */
 #[CoversClass(LockConcern::class)]
-class LockConcernTest extends TestCase
+final class LockConcernTest extends TestCase
 {
     /**
      * Test that execute acquires the lock before calling the next closure.
