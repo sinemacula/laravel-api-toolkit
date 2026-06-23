@@ -12,6 +12,7 @@ use SineMacula\ApiToolkit\ApiQueryParser;
 use SineMacula\ApiToolkit\Http\Middleware\JsonPrettyPrint;
 use SineMacula\ApiToolkit\Http\Middleware\ParseApiQuery;
 use SineMacula\Http\Enums\HttpMethod;
+use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 use Tests\TestCase;
 
 /**
@@ -93,7 +94,7 @@ final class MiddlewareIntegrationTest extends TestCase
         $parseMiddleware  = new ParseApiQuery;
         $prettyMiddleware = new JsonPrettyPrint;
 
-        $response = $parseMiddleware->handle($request, function ($request) use ($prettyMiddleware): JsonResponse {
+        $response = $parseMiddleware->handle($request, function ($request) use ($prettyMiddleware): SymfonyResponse {
             return $prettyMiddleware->handle($request, function (): JsonResponse {
                 /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
                 $parser = app('api.query');

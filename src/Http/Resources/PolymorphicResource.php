@@ -75,9 +75,11 @@ final class PolymorphicResource extends JsonResource
      *
      * @param  \Illuminate\Http\Request  $request
      * @return array<string, mixed>|null
+     *
+     * @phpstan-ignore method.childReturnType
      */
     #[\Override]
-    public function toArray(Request $request): ?array // @phpstan-ignore method.childReturnType (parent docblock omits null, which resolve() casts to an empty array)
+    public function toArray(Request $request): ?array
     {
         if (!$this->resource) {
             return null;
