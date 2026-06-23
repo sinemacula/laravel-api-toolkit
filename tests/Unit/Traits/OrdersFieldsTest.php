@@ -214,6 +214,7 @@ final class OrdersFieldsTest extends TestCase
              *
              * @return array<string, array<string, mixed>>
              */
+            #[\Override]
             public static function schema(): array
             {
                 return [];
@@ -296,6 +297,7 @@ final class OrdersFieldsTest extends TestCase
              *
              * @return array<int, string>
              */
+            #[\Override]
             public static function resolveFields(): array
             {
                 return self::$staticFields;

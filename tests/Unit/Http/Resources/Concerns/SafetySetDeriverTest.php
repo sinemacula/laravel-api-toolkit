@@ -33,6 +33,7 @@ final class SafetySetDeriverTest extends TestCase
      *
      * @return void
      */
+    #[\Override]
     protected function setUp(): void
     {
         parent::setUp();

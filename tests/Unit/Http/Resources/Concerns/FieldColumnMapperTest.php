@@ -27,6 +27,7 @@ final class FieldColumnMapperTest extends TestCase
      *
      * @return void
      */
+    #[\Override]
     protected function setUp(): void
     {
         parent::setUp();
@@ -40,6 +41,7 @@ final class FieldColumnMapperTest extends TestCase
      *
      * @return void
      */
+    #[\Override]
     protected function tearDown(): void
     {
         FieldColumnMapper::clearCache();

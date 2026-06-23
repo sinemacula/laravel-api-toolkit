@@ -232,6 +232,7 @@ final class OperatorRegistryTest extends TestCase
              * @param  \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext  $context
              * @return void
              */
+            #[\Override]
             public function apply(Builder $query, string $column, mixed $value, FilterContext $context): void
             {
                 // Intentionally empty — stub for registry tests

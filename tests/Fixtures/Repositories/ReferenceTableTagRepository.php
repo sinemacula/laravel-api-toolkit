@@ -28,6 +28,7 @@ final class ReferenceTableTagRepository extends ApiRepository
      *
      * @return class-string<\Tests\Fixtures\Models\Tag>
      */
+    #[\Override]
     public function model(): string
     {
         return Tag::class;

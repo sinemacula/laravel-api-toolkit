@@ -789,6 +789,7 @@ final class RespondsWithExportTest extends TestCase
             /**
              * @return array<string, mixed>
              */
+            #[\Override]
             public function getConfig(): array
             {
                 return [];
@@ -800,6 +801,7 @@ final class RespondsWithExportTest extends TestCase
              * @param  array<int, string>|string  $_fields
              * @return static
              */
+            #[\Override]
             public function withoutFields(array|string $_fields): static
             {
                 return $this;
@@ -811,6 +813,7 @@ final class RespondsWithExportTest extends TestCase
              * @param  array<int, array<string, mixed>>  $_data
              * @return string
              */
+            #[\Override]
             public function exportArray(array $_data): string
             {
                 return $this->output;
@@ -822,6 +825,7 @@ final class RespondsWithExportTest extends TestCase
              * @param  \Illuminate\Http\Resources\Json\ResourceCollection  $_collection
              * @return string
              */
+            #[\Override]
             public function exportCollection(ResourceCollection $_collection): string
             {
                 return $this->output;
@@ -833,6 +837,7 @@ final class RespondsWithExportTest extends TestCase
              * @param  \Illuminate\Http\Resources\Json\JsonResource  $_item
              * @return string
              */
+            #[\Override]
             public function exportItem(JsonResource $_item): string
             {
                 return $this->output;

@@ -43,6 +43,7 @@ final class ApiQueryParserTest extends TestCase
      *
      * @return void
      */
+    #[\Override]
     protected function setUp(): void
     {
         parent::setUp();

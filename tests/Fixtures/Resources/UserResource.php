@@ -29,6 +29,7 @@ final class UserResource extends ApiResource
      *
      * @return array<string, array<string, mixed>>
      */
+    #[\Override]
     public static function schema(): array
     {
         return Field::set(

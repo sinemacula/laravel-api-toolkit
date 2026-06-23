@@ -104,6 +104,7 @@ final class OperatorRegistryTokensTest extends TestCase
              * @param  \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext  $context
              * @return void
              */
+            #[\Override]
             public function apply(Builder $query, string $column, mixed $value, FilterContext $context,): void {}
         };
     }

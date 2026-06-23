@@ -92,6 +92,7 @@ final class ApiResourceTest extends TestCase
              *
              * @return array<string, array<string, mixed>>
              */
+            #[\Override]
             public static function schema(): array
             {
                 return [];
@@ -359,6 +360,7 @@ final class ApiResourceTest extends TestCase
              *
              * @return array<string, array<string, mixed>>
              */
+            #[\Override]
             public static function schema(): array
             {
                 return Field::set(
@@ -402,6 +404,7 @@ final class ApiResourceTest extends TestCase
              *
              * @return array<string, array<string, mixed>>
              */
+            #[\Override]
             public static function schema(): array
             {
                 return Field::set(
@@ -446,6 +449,7 @@ final class ApiResourceTest extends TestCase
              *
              * @return array<string, array<string, mixed>>
              */
+            #[\Override]
             public static function schema(): array
             {
                 return Field::set(
@@ -507,6 +511,7 @@ final class ApiResourceTest extends TestCase
              *
              * @return array<string, array<string, mixed>>
              */
+            #[\Override]
             public static function schema(): array
             {
                 return Field::set(
@@ -548,6 +553,7 @@ final class ApiResourceTest extends TestCase
              *
              * @return array<string, array<string, mixed>>
              */
+            #[\Override]
             public static function schema(): array
             {
                 return Field::set(
@@ -811,6 +817,7 @@ final class ApiResourceTest extends TestCase
              *
              * @return array<string, array<string, mixed>>
              */
+            #[\Override]
             public static function schema(): array
             {
                 return Field::set(
@@ -1148,6 +1155,7 @@ final class ApiResourceTest extends TestCase
              *
              * @return array<string, array<string, mixed>>
              */
+            #[\Override]
             public static function schema(): array
             {
                 return Field::set(
@@ -1191,6 +1199,7 @@ final class ApiResourceTest extends TestCase
              *
              * @return array<string, array<string, mixed>>
              */
+            #[\Override]
             public static function schema(): array
             {
                 return Field::set(
@@ -1317,6 +1326,7 @@ final class ApiResourceTest extends TestCase
              *
              * @return array<string, array<string, mixed>>
              */
+            #[\Override]
             public static function schema(): array
             {
                 return Field::set(
@@ -1541,6 +1551,7 @@ final class ApiResourceTest extends TestCase
              *
              * @return array<string, array<string, mixed>>
              */
+            #[\Override]
             public static function schema(): array
             {
                 return Field::set(
@@ -1602,6 +1613,7 @@ final class ApiResourceTest extends TestCase
              *
              * @return array<string, array<string, mixed>>
              */
+            #[\Override]
             public static function schema(): array
             {
                 return Field::set(
@@ -1649,6 +1661,7 @@ final class ApiResourceTest extends TestCase
              *
              * @return array<string, array<string, mixed>>
              */
+            #[\Override]
             public static function schema(): array
             {
                 return Field::set(
@@ -1700,6 +1713,7 @@ final class ApiResourceTest extends TestCase
              *
              * @return array<string, array<string, mixed>>
              */
+            #[\Override]
             public static function schema(): array
             {
                 return Field::set(
@@ -1822,6 +1836,7 @@ final class ApiResourceTest extends TestCase
              *
              * @return array<string, array<string, mixed>>
              */
+            #[\Override]
             public static function schema(): array
             {
                 return Field::set(
@@ -1876,6 +1891,7 @@ final class ApiResourceTest extends TestCase
              *
              * @return array<string, array<string, mixed>>
              */
+            #[\Override]
             public static function schema(): array
             {
                 return Field::set(
@@ -1902,6 +1918,7 @@ final class ApiResourceTest extends TestCase
              *
              * @return array<string, array<string, mixed>>
              */
+            #[\Override]
             public static function schema(): array
             {
                 return Field::set(
@@ -1947,6 +1964,7 @@ final class ApiResourceTest extends TestCase
              *
              * @return array<string, array<string, mixed>>
              */
+            #[\Override]
             public static function schema(): array
             {
                 return Field::set(
@@ -1996,6 +2014,7 @@ final class ApiResourceTest extends TestCase
              *
              * @return array<string, array<string, mixed>>
              */
+            #[\Override]
             public static function schema(): array
             {
                 return Field::set(
@@ -2058,6 +2077,7 @@ final class ApiResourceTest extends TestCase
              *
              * @return array<string, array<string, mixed>>
              */
+            #[\Override]
             public static function schema(): array
             {
                 return Field::set(
@@ -2140,6 +2160,7 @@ final class ApiResourceTest extends TestCase
              *
              * @return array<string, array<string, mixed>>
              */
+            #[\Override]
             public static function schema(): array
             {
                 return Field::set(
@@ -2179,6 +2200,7 @@ final class ApiResourceTest extends TestCase
              *
              * @return array<string, array<string, mixed>>
              */
+            #[\Override]
             public static function schema(): array
             {
                 return [];
@@ -2412,6 +2434,7 @@ final class ApiResourceTest extends TestCase
              *
              * @return array<string, array<string, mixed>>
              */
+            #[\Override]
             public static function schema(): array
             {
                 return Field::set(

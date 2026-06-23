@@ -22,6 +22,7 @@ final class DummyRepository extends ApiRepository
      *
      * @return class-string<\Tests\Fixtures\Models\Post>
      */
+    #[\Override]
     public function model(): string
     {
         return Post::class;

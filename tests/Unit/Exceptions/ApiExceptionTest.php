@@ -384,6 +384,7 @@ final class ApiExceptionTest extends TestCase
      * @param  mixed  $app
      * @return void
      */
+    #[\Override]
     protected function defineEnvironment(mixed $app): void
     {
         /** @var \Illuminate\Translation\Translator $translator */

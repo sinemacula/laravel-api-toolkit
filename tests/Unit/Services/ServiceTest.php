@@ -182,6 +182,7 @@ final class ServiceTest extends TestCase
              *
              * @return bool
              */
+            #[\Override]
             protected function handle(): bool
             {
                 return true;
@@ -227,6 +228,7 @@ final class ServiceTest extends TestCase
              *
              * @return void
              */
+            #[\Override]
             public function prepare(): void
             {
                 $this->callOrder[] = 'prepare';
@@ -237,6 +239,7 @@ final class ServiceTest extends TestCase
              *
              * @return bool
              */
+            #[\Override]
             protected function handle(): bool
             {
                 $this->callOrder[] = 'handle';
@@ -291,6 +294,7 @@ final class ServiceTest extends TestCase
              *
              * @throws \RuntimeException
              */
+            #[\Override]
             protected function handle(): bool
             {
                 throw new \RuntimeException('handled');
@@ -317,6 +321,7 @@ final class ServiceTest extends TestCase
              *
              * @return bool
              */
+            #[\Override]
             protected function handle(): bool
             {
                 return true;
@@ -369,6 +374,7 @@ final class ServiceTest extends TestCase
              * @param  \Closure(): bool  $next
              * @return bool
              */
+            #[\Override]
             public function execute(Service $service, \Closure $next): bool
             {
                 $this->order[] = 'A:before';
@@ -400,6 +406,7 @@ final class ServiceTest extends TestCase
              * @param  \Closure(): bool  $next
              * @return bool
              */
+            #[\Override]
             public function execute(Service $service, \Closure $next): bool
             {
                 $this->order[] = 'B:before';
@@ -450,6 +457,7 @@ final class ServiceTest extends TestCase
              *
              * @return bool
              */
+            #[\Override]
             protected function handle(): bool
             {
                 return true;
@@ -479,6 +487,7 @@ final class ServiceTest extends TestCase
              * @param  \Closure(): bool  $next
              * @return bool
              */
+            #[\Override]
             public function execute(Service $service, \Closure $next): bool
             {
                 return false;
@@ -524,6 +533,7 @@ final class ServiceTest extends TestCase
              *
              * @return bool
              */
+            #[\Override]
             protected function handle(): bool
             {
                 $this->handleCalled = true;

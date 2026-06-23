@@ -38,6 +38,7 @@ abstract class TestCase extends OrchestraTestCase
      *
      * @return void
      */
+    #[\Override]
     protected function tearDown(): void
     {
         FunctionOverrides::reset();
@@ -58,6 +59,7 @@ abstract class TestCase extends OrchestraTestCase
      * @param  mixed  $app
      * @return array<int, class-string>
      */
+    #[\Override]
     protected function getPackageProviders(mixed $app): array
     {
         return [
@@ -71,6 +73,7 @@ abstract class TestCase extends OrchestraTestCase
      * @param  mixed  $app
      * @return void
      */
+    #[\Override]
     protected function defineEnvironment(mixed $app): void
     {
         /** @var \Illuminate\Config\Repository $config */
@@ -99,6 +102,7 @@ abstract class TestCase extends OrchestraTestCase
      *
      * @return void
      */
+    #[\Override]
     protected function defineDatabaseMigrations(): void
     {
         $this->createUsersTable();

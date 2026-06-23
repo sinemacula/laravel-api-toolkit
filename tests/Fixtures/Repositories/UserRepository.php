@@ -24,6 +24,7 @@ class UserRepository extends ApiRepository
      *
      * @return class-string<\Tests\Fixtures\Models\User>
      */
+    #[\Override]
     public function model(): string
     {
         return User::class;

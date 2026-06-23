@@ -45,6 +45,7 @@ final class PreventRequestsDuringMaintenance extends Middleware
      *
      * @throws \SineMacula\ApiToolkit\Exceptions\MaintenanceModeException
      */
+    #[\Override]
     public function handle(#[\SensitiveParameter] $request, \Closure $next): mixed // @phpstan-ignore method.childParameterType (parent declares a signatureless closure)
     {
         // phpcs:enable

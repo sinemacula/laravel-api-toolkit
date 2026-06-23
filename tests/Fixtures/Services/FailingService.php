@@ -28,6 +28,7 @@ final class FailingService extends Service
      * @param  \Throwable  $exception
      * @return void
      */
+    #[\Override]
     public function failed(\Throwable $exception): void
     {
         $this->failedCalled    = true;
@@ -52,6 +53,7 @@ final class FailingService extends Service
      *
      * @throws \Tests\Fixtures\Exceptions\ServiceExecutionException
      */
+    #[\Override]
     protected function handle(): bool
     {
         throw new ServiceExecutionException('Service execution failed');

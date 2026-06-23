@@ -34,6 +34,7 @@ final class EagerLoadPlannerTest extends TestCase
      *
      * @return void
      */
+    #[\Override]
     protected function setUp(): void
     {
         parent::setUp();
@@ -47,6 +48,7 @@ final class EagerLoadPlannerTest extends TestCase
      *
      * @return void
      */
+    #[\Override]
     protected function tearDown(): void
     {
         SchemaCompiler::clearCache();
@@ -672,6 +674,7 @@ final class EagerLoadPlannerTest extends TestCase
             /**
              * @return array<string, array<string, mixed>>
              */
+            #[\Override]
             public static function schema(): array
             {
                 return [

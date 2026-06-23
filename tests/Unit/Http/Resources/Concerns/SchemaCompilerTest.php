@@ -32,6 +32,7 @@ final class SchemaCompilerTest extends TestCase
      *
      * @return void
      */
+    #[\Override]
     protected function tearDown(): void
     {
         SchemaCompiler::clearCache();
