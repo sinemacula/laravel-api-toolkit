@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Unit\Contracts;
 
 use Illuminate\Database\Eloquent\Builder;

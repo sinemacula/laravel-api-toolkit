@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Unit\Repositories\Criteria\Concerns;
 
 use PHPUnit\Framework\Attributes\CoversClass;

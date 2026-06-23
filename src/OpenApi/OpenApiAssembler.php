@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace SineMacula\ApiToolkit\OpenApi;
 
 use SineMacula\ApiToolkit\OpenApi\Builder\ErrorResponseBuilder;

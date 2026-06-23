@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace SineMacula\ApiToolkit\Exceptions;
 
 use Illuminate\Auth\Access\AuthorizationException;

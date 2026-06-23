@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace SineMacula\ApiToolkit\Models;
 
 use Illuminate\Database\Eloquent\Builder;

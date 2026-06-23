@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Fixtures\Repositories;
 
 use SineMacula\ApiToolkit\Repositories\ApiRepository;

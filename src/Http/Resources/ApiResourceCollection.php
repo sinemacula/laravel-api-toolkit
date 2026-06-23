@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace SineMacula\ApiToolkit\Http\Resources;
 
 use Illuminate\Contracts\Pagination\CursorPaginator;
@@ -98,7 +100,7 @@ final class ApiResourceCollection extends AnonymousResourceCollection
             return;
         }
 
-        $response->headers->set('Total-Count', $this->resource->total());
+        $response->headers->set('Total-Count', (string) $this->resource->total());
     }
 
     /**

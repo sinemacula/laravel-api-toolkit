@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace SineMacula\ApiToolkit\Services\Validation\Rules;
 
 use Illuminate\Database\Eloquent\Relations\Relation;

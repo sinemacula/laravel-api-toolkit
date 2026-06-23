@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace SineMacula\ApiToolkit\Http\Routing;
 
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;

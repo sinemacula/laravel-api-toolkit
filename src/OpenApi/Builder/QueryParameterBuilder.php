@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace SineMacula\ApiToolkit\OpenApi\Builder;
 
 use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;

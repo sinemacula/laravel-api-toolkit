@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace SineMacula\ApiToolkit\Http\Middleware\Traits;
 
 use SineMacula\ApiToolkit\Exceptions\RequestSignatureException;

@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Unit\Listeners\Traits;
 
 use Illuminate\Contracts\Cache\Lock;

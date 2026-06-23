@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Fixtures\Controllers;
 
 use SineMacula\ApiToolkit\Http\Routing\AuthorizedController;

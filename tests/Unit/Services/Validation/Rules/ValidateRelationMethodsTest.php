@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Unit\Services\Validation\Rules;
 
 use Illuminate\Database\Eloquent\Model;

@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Fixtures\Services;
 
 use SineMacula\ApiToolkit\Services\Concerns\LockConcern;
