@@ -49,13 +49,13 @@ abstract class ApiResource extends JsonResource implements ApiResourceInterface
      * Create a new resource instance.
      *
      * @param  mixed  $resource
-     * @param  mixed  $loadMissing
+     * @param  bool  $loadMissing
      * @param  array<int, string>|string|null  $included
      * @param  array<int, string>|null  $excluded
      */
     public function __construct(
         mixed $resource,
-        mixed $loadMissing = false,
+        bool $loadMissing = false,
         array|string|null $included = null,
         ?array $excluded = null
     ) {
