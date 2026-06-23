@@ -156,7 +156,7 @@ final class ReferenceCacheTest extends TestCase
 
         Tag::create(['name' => 'vue']);
 
-        $this->referenceCache->flush();
+        $this->referenceCache->flushTable();
 
         $result = $this->referenceCache->all(new Tag);
 
@@ -217,7 +217,7 @@ final class ReferenceCacheTest extends TestCase
     public function testFlushRecordsInvalidatedAtMetadata(): void
     {
         $this->referenceCache->all(new Tag);
-        $this->referenceCache->flush();
+        $this->referenceCache->flushTable();
 
         $meta = $this->referenceCache->getStore()->get('api-toolkit:repository-cache-meta:tags');
 

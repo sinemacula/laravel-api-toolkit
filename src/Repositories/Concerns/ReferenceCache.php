@@ -8,6 +8,7 @@ use Illuminate\Contracts\Cache\Repository as CacheContract;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
+use SineMacula\ApiToolkit\Contracts\CacheInvalidator;
 use SineMacula\ApiToolkit\Enums\CacheKeys;
 
 /**
@@ -23,7 +24,7 @@ use SineMacula\ApiToolkit\Enums\CacheKeys;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-final readonly class ReferenceCache
+final readonly class ReferenceCache implements CacheInvalidator
 {
     /** @var \Illuminate\Contracts\Cache\Repository The underlying cache store instance. */
     private CacheContract $store;
@@ -108,7 +109,8 @@ final readonly class ReferenceCache
      *
      * @return void
      */
-    public function flush(): void
+    #[\Override]
+    public function flushTable(): void
     {
         $this->store->forget($this->cacheKey);
         $this->store->put($this->metaKey, ['invalidated_at' => now()->timestamp], $this->ttl);

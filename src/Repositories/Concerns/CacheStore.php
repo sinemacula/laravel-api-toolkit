@@ -7,6 +7,7 @@ namespace SineMacula\ApiToolkit\Repositories\Concerns;
 use Illuminate\Cache\Repository as ConcreteRepository;
 use Illuminate\Contracts\Cache\Repository as CacheContract;
 use Illuminate\Support\Facades\Cache;
+use SineMacula\ApiToolkit\Contracts\CacheInvalidator;
 use SineMacula\ApiToolkit\Enums\CacheKeys;
 
 /**
@@ -25,7 +26,7 @@ use SineMacula\ApiToolkit\Enums\CacheKeys;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-final class CacheStore
+final class CacheStore implements CacheInvalidator
 {
     /** @var \Illuminate\Contracts\Cache\Repository The underlying cache store instance. */
     private readonly CacheContract $store;
@@ -142,6 +143,7 @@ final class CacheStore
      *
      * @return void
      */
+    #[\Override]
     public function flushTable(): void
     {
         if ($this->taggableStore !== null) {
