@@ -31,6 +31,7 @@ abstract class ApiException extends \Exception
         /** Exception headers */
         private readonly ?array $headers = null,
 
+        // The previous throwable
         ?\Throwable $previous = null,
 
     ) {

@@ -39,10 +39,13 @@ final class HttpException extends ApiException
         /** The runtime HTTP status */
         private readonly HttpStatus $status,
 
+        // The error metadata
         ?array $meta = null,
 
+        // The response headers
         ?array $headers = null,
 
+        // The previous throwable
         ?\Throwable $previous = null,
 
     ) {

@@ -10,6 +10,9 @@ use Illuminate\Support\Facades\Facade;
 /**
  * API query facade.
  *
+ * @author      Ben Carey <bdmc@sinemacula.co.uk>
+ * @copyright   2026 Sine Macula Limited.
+ *
  * @method static array<int, string>|null getFields(?string $resource = null)
  * @method static array<int, string>|null getCounts(?string $resource = null)
  * @method static array<string, mixed>|null getSums(?string $resource = null)
@@ -22,9 +25,6 @@ use Illuminate\Support\Facades\Facade;
  * @method static void parse(\Illuminate\Http\Request $request)
  *
  * @see         \SineMacula\ApiToolkit\ApiQueryParser
- *
- * @author      Ben Carey <bdmc@sinemacula.co.uk>
- * @copyright   2026 Sine Macula Limited.
  */
 final class ApiQuery extends Facade
 {
