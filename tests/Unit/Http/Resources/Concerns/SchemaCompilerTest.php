@@ -6,6 +6,7 @@ namespace Tests\Unit\Http\Resources\Concerns;
 
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
+use SineMacula\ApiToolkit\Exceptions\InvalidSchemaException;
 use SineMacula\ApiToolkit\Schema\CompiledCountDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledSchema;
@@ -372,6 +373,107 @@ final class SchemaCompilerTest extends TestCase
 
         $counts = $schema->getCountDefinitions();
         static::assertSame($countConstraint, $counts['articles']->constraint);
+    }
+
+    /**
+     * Test that a non-Closure field constraint causes compile to throw an
+     * InvalidSchemaException reporting the defect.
+     *
+     * @return void
+     */
+    public function testCompileThrowsForNonClosureFieldConstraint(): void
+    {
+        $resourceClass = $this->createStubResourceClass([
+            'organization' => [
+                'relation'   => 'organization',
+                'resource'   => self::STUB_ORGANIZATION_RESOURCE,
+                'constraint' => 'not-a-closure',
+            ],
+        ]);
+
+        try {
+            SchemaCompiler::compile($resourceClass);
+            static::fail('Expected InvalidSchemaException to be thrown.');
+        } catch (InvalidSchemaException $exception) {
+            $errors = $exception->getErrors();
+            static::assertCount(1, $errors);
+            static::assertSame('organization', $errors[0]->fieldKey);
+            static::assertSame('Constraint must be a Closure', $errors[0]->defect);
+        }
+    }
+
+    /**
+     * Test that a non-Closure count constraint causes compile to throw an
+     * InvalidSchemaException reporting the defect.
+     *
+     * @return void
+     */
+    public function testCompileThrowsForNonClosureCountConstraint(): void
+    {
+        $resourceClass = $this->createStubResourceClass([
+            'metric' => [
+                'metric'     => 'count',
+                'relation'   => 'posts',
+                'constraint' => 'not-a-closure',
+            ],
+        ]);
+
+        try {
+            SchemaCompiler::compile($resourceClass);
+            static::fail('Expected InvalidSchemaException to be thrown.');
+        } catch (InvalidSchemaException $exception) {
+            $errors = $exception->getErrors();
+            static::assertCount(1, $errors);
+            static::assertSame('metric', $errors[0]->fieldKey);
+            static::assertSame('Constraint must be a Closure', $errors[0]->defect);
+        }
+    }
+
+    /**
+     * Test that Closure constraints on both field and count definitions compile
+     * without throwing.
+     *
+     * @return void
+     */
+    public function testCompileSucceedsForClosureConstraints(): void
+    {
+        $resourceClass = $this->createStubResourceClass([
+            'organization' => [
+                'relation'   => 'organization',
+                'resource'   => self::STUB_ORGANIZATION_RESOURCE,
+                'constraint' => fn ($query) => $query,
+            ],
+            '__count__:articles' => [
+                'metric'     => 'count',
+                'relation'   => 'articles',
+                'constraint' => fn ($query) => $query,
+            ],
+        ]);
+
+        $schema = SchemaCompiler::compile($resourceClass);
+
+        static::assertInstanceOf(CompiledSchema::class, $schema);
+    }
+
+    /**
+     * Test that null and absent constraints compile without throwing.
+     *
+     * @return void
+     */
+    public function testCompileSucceedsForNullOrAbsentConstraints(): void
+    {
+        $resourceClass = $this->createStubResourceClass([
+            'name'           => [],
+            'organization'   => ['constraint' => null],
+            '__count__:posts' => [
+                'metric'   => 'count',
+                'relation' => 'posts',
+            ],
+        ]);
+
+        $schema = SchemaCompiler::compile($resourceClass);
+
+        static::assertInstanceOf(CompiledSchema::class, $schema);
     }
 
     /**

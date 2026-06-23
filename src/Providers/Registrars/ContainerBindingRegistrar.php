@@ -35,7 +35,6 @@ use SineMacula\ApiToolkit\Services\SchemaIntrospector;
 use SineMacula\ApiToolkit\Services\SchemaValidator;
 use SineMacula\ApiToolkit\Services\Validation\Rules\ValidateAccessors;
 use SineMacula\ApiToolkit\Services\Validation\Rules\ValidateComputedFields;
-use SineMacula\ApiToolkit\Services\Validation\Rules\ValidateConstraints;
 use SineMacula\ApiToolkit\Services\Validation\Rules\ValidateGuards;
 use SineMacula\ApiToolkit\Services\Validation\Rules\ValidateRelationClasses;
 use SineMacula\ApiToolkit\Services\Validation\Rules\ValidateRelationInterfaces;
@@ -165,7 +164,6 @@ final class ContainerBindingRegistrar
             new ValidateRelationInterfaces,
             new ValidateRelationMethods,
             new ValidateComputedFields,
-            new ValidateConstraints,
             new ValidateAccessors,
         ));
     }

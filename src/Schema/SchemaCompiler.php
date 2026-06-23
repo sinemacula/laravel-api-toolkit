@@ -4,6 +4,9 @@ declare(strict_types = 1);
 
 namespace SineMacula\ApiToolkit\Schema;
 
+use SineMacula\ApiToolkit\Exceptions\InvalidSchemaException;
+use SineMacula\ApiToolkit\Services\Validation\SchemaValidationError;
+
 /**
  * Compiles raw resource schema arrays into typed CompiledSchema objects.
  *
@@ -25,6 +28,8 @@ final class SchemaCompiler
      *
      * @param  string  $resourceClass
      * @return \SineMacula\ApiToolkit\Schema\CompiledSchema
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\InvalidSchemaException
      */
     public static function compile(string $resourceClass): CompiledSchema
     {
@@ -34,7 +39,42 @@ final class SchemaCompiler
 
         $rawSchema = $resourceClass::schema();
 
+        self::assertValidConstraints($rawSchema, $resourceClass);
+
         return self::$cache[$resourceClass] = self::buildCompiledSchema($rawSchema);
+    }
+
+    /**
+     * Assert that every constraint in the raw schema is a Closure or absent.
+     *
+     * @param  array<string, array<string, mixed>>  $rawSchema
+     * @param  string  $resourceClass
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\InvalidSchemaException
+     */
+    private static function assertValidConstraints(array $rawSchema, string $resourceClass): void
+    {
+        $errors = [];
+
+        foreach ($rawSchema as $key => $definition) {
+
+            $constraint = $definition['constraint'] ?? null;
+
+            if ($constraint === null || $constraint instanceof \Closure) {
+                continue;
+            }
+
+            $errors[] = new SchemaValidationError(
+                resourceClass: $resourceClass,
+                fieldKey: $key,
+                defect: 'Constraint must be a Closure',
+            );
+        }
+
+        if ($errors !== []) {
+            throw new InvalidSchemaException($errors);
+        }
     }
 
     /**
