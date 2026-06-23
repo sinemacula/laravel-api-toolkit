@@ -237,7 +237,8 @@ final class CacheManagerTest extends TestCase
     }
 
     /**
-     * Test that flush forgets all registered toolkit keys and empties the registry.
+     * Test that flush forgets all registered toolkit keys and empties the
+     * registry.
      *
      * @return void
      */

@@ -73,7 +73,8 @@ final class LogMessageTest extends TestCase
     }
 
     /**
-     * Test that fillable fields include level, message, context, and created_at.
+     * Test that fillable fields include level, message, context, and
+     * created_at.
      *
      * @return void
      */

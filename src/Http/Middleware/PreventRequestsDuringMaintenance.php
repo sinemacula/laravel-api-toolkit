@@ -43,7 +43,7 @@ final class PreventRequestsDuringMaintenance extends Middleware
      * @param  \Closure(\Illuminate\Http\Request): mixed  $next
      * @return mixed
      *
-     * @throws \SineMacula\ApiToolkit\Exceptions\ApiException
+     * @throws \SineMacula\ApiToolkit\Exceptions\MaintenanceModeException
      */
     public function handle(#[\SensitiveParameter] $request, \Closure $next): mixed // @phpstan-ignore method.childParameterType (parent declares a signatureless closure)
     {

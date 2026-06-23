@@ -127,7 +127,8 @@ final class OctaneFlushListenerTest extends TestCase
     }
 
     /**
-     * Test that handle delegates to CacheManager::flush when serving under Octane.
+     * Test that handle delegates to CacheManager::flush when serving under
+     * Octane.
      *
      * @return void
      */

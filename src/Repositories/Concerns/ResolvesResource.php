@@ -66,13 +66,15 @@ trait ResolvesResource
     {
         $class = $model::class;
 
-        return app(MetadataCacheWriter::class)->rememberMetadataForever(CacheKeys::MODEL_RESOURCES->resolveKey([$class]), function () use ($class) {
+        return app(MetadataCacheWriter::class)->rememberMetadataForever(CacheKeys::MODEL_RESOURCES->resolveKey([$class]), function () use ($class): ?string {
 
             $resource = Config::get('api-toolkit.resources.resource_map.' . $class);
 
             if ($resource && class_exists($resource) && in_array(ApiResourceInterface::class, class_implements($resource) ?: [], true)) {
                 return $resource;
             }
+
+            return null;
         });
     }
 }

@@ -29,6 +29,7 @@ use Tests\TestCase;
 #[CoversClass(ApiResourceCollection::class)]
 final class ApiResourceCollectionTest extends TestCase
 {
+    /** @var string Base path used to build paginator links in tests */
     private const string PAGINATION_PATH = 'http://localhost/api/users';
 
     /**

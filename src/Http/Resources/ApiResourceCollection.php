@@ -40,7 +40,7 @@ final class ApiResourceCollection extends AnonymousResourceCollection
         /** @var class-string<\SineMacula\ApiToolkit\Http\Resources\ApiResource> $resource_class */
         $resource_class = $this->collects;
 
-        return collect($this->collection)->map(function ($item) use ($resource_class, $request) {
+        return collect($this->collection)->map(function ($item) use ($resource_class, $request): array {
 
             if ($item instanceof ApiResource) {
 

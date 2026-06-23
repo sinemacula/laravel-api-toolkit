@@ -54,7 +54,8 @@ final class ProvidesExclusiveLockTest extends TestCase
             // Noop
         });
 
-        // Acquire the same lock again; it should succeed if the previous lock was released
+        // Acquire the same lock again; it should succeed if the previous lock
+        // was released
         $lock = Cache::lock('LISTENER_LOCK:release-test', 10);
 
         static::assertTrue($lock->get());

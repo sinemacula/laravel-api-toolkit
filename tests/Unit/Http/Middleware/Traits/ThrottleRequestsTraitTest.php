@@ -27,10 +27,12 @@ use SineMacula\ApiToolkit\Http\Middleware\ThrottleRequests;
 #[CoversTrait(ThrottleRequestsTrait::class)]
 final class ThrottleRequestsTraitTest extends TestCase
 {
+    /** @var string The request URI used to drive the throttling tests. */
     private const string API_DATA_URI = '/api/data';
 
     /**
-     * Test that resolveRequestSignature throws RequestSignatureException when route is null.
+     * Test that resolveRequestSignature throws RequestSignatureException when
+     * route is null.
      *
      * @return void
      */

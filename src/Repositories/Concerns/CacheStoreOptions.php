@@ -27,9 +27,18 @@ final readonly class CacheStoreOptions
      * @return void
      */
     public function __construct(
+
+        /** The lifetime, in seconds, for positive cache entries. */
         public int $ttl,
+
+        /** The guard that enforces the per-store cache size limit. */
         public CacheSizeGuard $sizeGuard,
+
+        /** Whether cache keys are tracked in the flush registry. */
         public bool $registryEnabled,
+
+        /** The lifetime, in seconds, for cached negative lookups. */
         public int $negativeTtl,
+
     ) {}
 }

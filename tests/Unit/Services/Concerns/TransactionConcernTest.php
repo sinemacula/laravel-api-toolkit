@@ -84,6 +84,8 @@ final class TransactionConcernTest extends TestCase
      * Test that execute propagates exceptions thrown by the next closure.
      *
      * @return void
+     *
+     * @throws \RuntimeException
      */
     public function testExecutePropagatesExceptionFromNext(): void
     {

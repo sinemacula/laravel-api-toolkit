@@ -24,7 +24,8 @@ use Tests\TestCase;
 final class ParseApiQueryTest extends TestCase
 {
     /**
-     * Test that the middleware calls ApiQuery::parse and passes request to next.
+     * Test that the middleware calls ApiQuery::parse and passes request to
+     * next.
      *
      * @return void
      */
@@ -38,7 +39,7 @@ final class ParseApiQueryTest extends TestCase
         $expectedResponse = new Response('ok');
         $receivedRequest  = null;
 
-        $result = $middleware->handle($request, function ($req) use (&$receivedRequest, $expectedResponse) {
+        $result = $middleware->handle($request, function ($req) use (&$receivedRequest, $expectedResponse): Response {
             $receivedRequest = $req;
 
             return $expectedResponse;

@@ -101,7 +101,8 @@ final class CacheStoreTest extends TestCase
 
         static::assertTrue($this->cacheStore->has(self::HASH));
 
-        // 11 seconds on: past the 10s negative TTL but well within the 3600s TTL.
+        // 11 seconds on: past the 10s negative TTL but well within the 3600s
+        // TTL.
         Carbon::setTestNow(Carbon::parse('2026-03-09 12:00:11'));
 
         static::assertFalse($this->cacheStore->has(self::HASH));

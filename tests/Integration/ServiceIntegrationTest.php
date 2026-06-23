@@ -77,7 +77,8 @@ final class ServiceIntegrationTest extends TestCase
 
         static::assertTrue($result->succeeded());
 
-        // The lock should have been released; a new service with the same key should succeed
+        // The lock should have been released; a new service with the same key
+        // should succeed
         $service2 = new LockableService;
         $result2  = $service2->run();
 

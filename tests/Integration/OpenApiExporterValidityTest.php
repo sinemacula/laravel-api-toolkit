@@ -292,8 +292,8 @@ final class OpenApiExporterValidityTest extends TestCase
     }
 
     /**
-     * Test that the opis-adapted meta-schema still rejects invalid documents, so
-     * the in-test compatibility transforms cannot silently hollow out the
+     * Test that the opis-adapted meta-schema still rejects invalid documents,
+     * so the in-test compatibility transforms cannot silently hollow out the
      * headline validity signal if opis or the meta-schema changes.
      *
      * @return void

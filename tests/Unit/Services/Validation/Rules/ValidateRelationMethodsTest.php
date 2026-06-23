@@ -288,7 +288,7 @@ final class ValidateRelationMethodsTest extends TestCase
     public function testReportsFieldRelationMethodWithoutReturnTypeHint(): void
     {
         $model = new class extends Model {
-            // phpcs:disable Squiz.Commenting.FunctionComment.MissingReturn
+            // phpcs:disable Squiz.Commenting.FunctionComment.MissingReturn, SineMaculaLaravel.TypeHints.ReturnTypeHint.MissingNativeTypeHint
             /**
              * A relation method with no return type declaration.
              */
@@ -296,7 +296,7 @@ final class ValidateRelationMethodsTest extends TestCase
             {
                 return $this;
             }
-            // phpcs:enable Squiz.Commenting.FunctionComment.MissingReturn
+            // phpcs:enable Squiz.Commenting.FunctionComment.MissingReturn, SineMaculaLaravel.TypeHints.ReturnTypeHint.MissingNativeTypeHint
         };
 
         $modelClass = $model::class;
@@ -466,7 +466,7 @@ final class ValidateRelationMethodsTest extends TestCase
     public function testReportsCountDefinitionRelationMethodWithoutReturnTypeHint(): void
     {
         $model = new class extends Model {
-            // phpcs:disable Squiz.Commenting.FunctionComment.MissingReturn
+            // phpcs:disable Squiz.Commenting.FunctionComment.MissingReturn, SineMaculaLaravel.TypeHints.ReturnTypeHint.MissingNativeTypeHint
             /**
              * A relation method with no return type declaration.
              */
@@ -474,7 +474,7 @@ final class ValidateRelationMethodsTest extends TestCase
             {
                 return $this;
             }
-            // phpcs:enable Squiz.Commenting.FunctionComment.MissingReturn
+            // phpcs:enable Squiz.Commenting.FunctionComment.MissingReturn, SineMaculaLaravel.TypeHints.ReturnTypeHint.MissingNativeTypeHint
         };
 
         $modelClass = $model::class;

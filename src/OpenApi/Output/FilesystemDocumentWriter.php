@@ -27,7 +27,10 @@ final class FilesystemDocumentWriter implements DocumentWriter
      * @param  \Illuminate\Filesystem\Filesystem  $files
      */
     public function __construct(
+
+        /** The filesystem used to write the document to disk. */
         private readonly Filesystem $files,
+
     ) {}
 
     /**

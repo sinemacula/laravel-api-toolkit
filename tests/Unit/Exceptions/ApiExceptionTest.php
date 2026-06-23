@@ -174,7 +174,8 @@ final class ApiExceptionTest extends TestCase
     }
 
     /**
-     * Test that getInternalErrorCode throws LogicException without CODE constant.
+     * Test that getInternalErrorCode throws LogicException without CODE
+     * constant.
      *
      * @return void
      */
@@ -183,8 +184,10 @@ final class ApiExceptionTest extends TestCase
         $this->expectException(\LogicException::class);
         $this->expectExceptionMessage('The CODE constant must be defined on the exception');
 
-        // Call static method directly on an anonymous class without instantiating
+        // Call static method directly on an anonymous class without
+        // instantiating
         $class = new class extends ApiException {
+            /** The mapped HTTP status for the test exception. */
             public const HttpStatus HTTP_STATUS = HttpStatus::BAD_REQUEST;
         };
 
@@ -192,7 +195,8 @@ final class ApiExceptionTest extends TestCase
     }
 
     /**
-     * Test that getHttpStatusCode throws LogicException without HTTP_STATUS constant.
+     * Test that getHttpStatusCode throws LogicException without HTTP_STATUS
+     * constant.
      *
      * @return void
      */
@@ -201,8 +205,10 @@ final class ApiExceptionTest extends TestCase
         $this->expectException(\LogicException::class);
         $this->expectExceptionMessage('The HTTP_STATUS constant must be defined on the exception');
 
-        // Call static method directly on an anonymous class without instantiating
+        // Call static method directly on an anonymous class without
+        // instantiating
         $class = new class extends ApiException {
+            /** The internal error code for the test exception. */
             public const \SineMacula\ApiToolkit\Contracts\ErrorCodeInterface CODE = ErrorCode::BAD_REQUEST;
         };
 
@@ -217,8 +223,11 @@ final class ApiExceptionTest extends TestCase
     public function testCustomExceptionWithConstantsWorks(): void
     {
         $exception = new class extends ApiException {
+            /** The internal error code for the test exception. */
             public const \SineMacula\ApiToolkit\Contracts\ErrorCodeInterface CODE = ErrorCode::NOT_FOUND;
-            public const HttpStatus HTTP_STATUS                                   = HttpStatus::NOT_FOUND;
+
+            /** The mapped HTTP status for the test exception. */
+            public const HttpStatus HTTP_STATUS = HttpStatus::NOT_FOUND;
         };
 
         static::assertSame(10103, $exception::getInternalErrorCode());
@@ -257,15 +266,19 @@ final class ApiExceptionTest extends TestCase
      */
     public function testSubclassesCanOverrideTheTranslationNamespace(): void
     {
-        // Register a detail translation under a custom namespace so the override
-        // can be proven by resolution. A missing key now yields '' (see
-        // testGetCustomDetailReturnsEmptyStringWhenTranslationMissing) rather
-        // than leaking the raw translation key, so resolution is the oracle.
+        // Register a detail translation under a custom namespace so the
+        // override can be proven by resolution. A missing key now yields ''
+        // (see testGetCustomDetailReturnsEmptyStringWhenTranslationMissing)
+        // rather than leaking the raw translation key, so resolution is the
+        // oracle.
         Lang::addLines(['exceptions.10100.detail' => 'Custom namespace detail'], 'en', 'custom-namespace');
 
         $exception = new class extends ApiException {
+            /** The internal error code for the test exception. */
             public const \SineMacula\ApiToolkit\Contracts\ErrorCodeInterface CODE = ErrorCode::BAD_REQUEST;
-            public const HttpStatus HTTP_STATUS                                   = HttpStatus::BAD_REQUEST;
+
+            /** The mapped HTTP status for the test exception. */
+            public const HttpStatus HTTP_STATUS = HttpStatus::BAD_REQUEST;
 
             /**
              * Get the namespace of the current exception.
@@ -294,8 +307,11 @@ final class ApiExceptionTest extends TestCase
     public function testGetCustomDetailReturnsEmptyStringWhenTranslationMissing(): void
     {
         $exception = new class extends ApiException {
+            /** The internal error code for the test exception. */
             public const \SineMacula\ApiToolkit\Contracts\ErrorCodeInterface CODE = ErrorCode::BAD_REQUEST;
-            public const HttpStatus HTTP_STATUS                                   = HttpStatus::BAD_REQUEST;
+
+            /** The mapped HTTP status for the test exception. */
+            public const HttpStatus HTTP_STATUS = HttpStatus::BAD_REQUEST;
 
             /**
              * Resolve from a namespace with no registered translations.
@@ -320,8 +336,11 @@ final class ApiExceptionTest extends TestCase
     public function testGetNamespaceIsAccessibleToSubclasses(): void
     {
         $exception = new class extends ApiException {
+            /** The internal error code for the test exception. */
             public const \SineMacula\ApiToolkit\Contracts\ErrorCodeInterface CODE = ErrorCode::BAD_REQUEST;
-            public const HttpStatus HTTP_STATUS                                   = HttpStatus::BAD_REQUEST;
+
+            /** The mapped HTTP status for the test exception. */
+            public const HttpStatus HTTP_STATUS = HttpStatus::BAD_REQUEST;
 
             /**
              * Expose the inherited namespace for assertion.
@@ -346,8 +365,11 @@ final class ApiExceptionTest extends TestCase
     public function testGetCustomTitleDerivesMultiWordTitleFromStatusName(): void
     {
         $exception = new class extends ApiException {
+            /** The internal error code for the test exception. */
             public const \SineMacula\ApiToolkit\Contracts\ErrorCodeInterface CODE = ErrorCode::HTTP_ERROR;
-            public const HttpStatus HTTP_STATUS                                   = HttpStatus::UNAVAILABLE_FOR_LEGAL_REASONS;
+
+            /** The mapped HTTP status for the test exception. */
+            public const HttpStatus HTTP_STATUS = HttpStatus::UNAVAILABLE_FOR_LEGAL_REASONS;
         };
 
         static::assertSame('Unavailable For Legal Reasons', $exception->getCustomTitle());

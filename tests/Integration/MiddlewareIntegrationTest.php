@@ -93,8 +93,8 @@ final class MiddlewareIntegrationTest extends TestCase
         $parseMiddleware  = new ParseApiQuery;
         $prettyMiddleware = new JsonPrettyPrint;
 
-        $response = $parseMiddleware->handle($request, function ($request) use ($prettyMiddleware) {
-            return $prettyMiddleware->handle($request, function () {
+        $response = $parseMiddleware->handle($request, function ($request) use ($prettyMiddleware): JsonResponse {
+            return $prettyMiddleware->handle($request, function (): JsonResponse {
                 /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
                 $parser = app('api.query');
 

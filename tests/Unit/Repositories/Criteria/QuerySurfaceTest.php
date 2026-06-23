@@ -74,8 +74,8 @@ final class QuerySurfaceTest extends TestCase
     }
 
     /**
-     * Test that a resource with no declared surface rejects every root key under
-     * the default allowlist posture (secure by default).
+     * Test that a resource with no declared surface rejects every root key
+     * under the default allowlist posture (secure by default).
      *
      * @return void
      */
@@ -88,8 +88,8 @@ final class QuerySurfaceTest extends TestCase
 
     /**
      * Test that a key targeting a nested/related model falls back to the legacy
-     * searchable predicate rather than the root allowlist, and is never rejected
-     * (nested-column granularity is deferred to P2).
+     * searchable predicate rather than the root allowlist, and is never
+     * rejected (nested-column granularity is deferred to P2).
      *
      * @return void
      */

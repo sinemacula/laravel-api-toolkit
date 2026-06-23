@@ -81,7 +81,8 @@ final class LifecycleDefaultEngagementTest extends TestCase
      */
     public function testShippedDefaultEngagesOctaneFlushOnServingRuntime(): void
     {
-        // Assert the shipped defaults are on - kills the default-value mutation.
+        // Assert the shipped defaults are on - kills the default-value
+        // mutation.
         static::assertTrue((bool) config('api-toolkit.lifecycle.octane'));
         static::assertTrue((bool) config('api-toolkit.lifecycle.queue'));
 

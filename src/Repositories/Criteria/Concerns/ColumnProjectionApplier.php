@@ -127,7 +127,8 @@ final class ColumnProjectionApplier
     }
 
     /**
-     * Derive the per-model safety set of columns the narrowed query must retain.
+     * Derive the per-model safety set of columns the narrowed query must
+     * retain.
      *
      * @param  \Illuminate\Contracts\Database\Eloquent\Builder  $query
      * @param  array<int, string>  $relationKeys
@@ -136,9 +137,10 @@ final class ColumnProjectionApplier
      */
     private function deriveSafetySet(Builder $query, array $relationKeys, array $order): array
     {
-        // Aliased scalars are omitted for this iteration: the resolved field set
-        // uses canonical schema keys, and the safety set is additive, so the
-        // narrower already unions every needed column from the field-column map.
+        // Aliased scalars are omitted for this iteration: the resolved field
+        // set uses canonical schema keys, and the safety set is additive, so
+        // the narrower already unions every needed column from the
+        // field-column map.
         return $this->safetySetDeriver->derive($query->getModel(), $relationKeys, [], $this->orderColumns($order));
     }
 

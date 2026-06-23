@@ -49,13 +49,28 @@ final readonly class QuerySurface
      * @param  \Illuminate\Database\Eloquent\Model  $rootModel
      */
     public function __construct(
+
+        /** Declared filterable columns for the root resource. */
         private array $filterableColumns,
+
+        /** Declared sortable columns for the root resource. */
         private array $sortableColumns,
+
+        /** Declared traversable relations for the root resource. */
         private array $traversableRelations,
+
+        /** The active enforcement posture (allowlist or blocklist). */
         private string $posture,
+
+        /** Whether to reject undeclared root keys (fail-closed). */
         private bool $rejectUndeclared,
+
+        /** Schema introspection provider for the root model. */
         private SchemaIntrospectionProvider $introspector,
+
+        /** The root query's Eloquent model instance. */
         private Model $rootModel,
+
     ) {}
 
     /**

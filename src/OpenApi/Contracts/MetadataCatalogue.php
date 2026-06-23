@@ -21,8 +21,9 @@ interface MetadataCatalogue
     /**
      * Return the registered resource map (model class → resource class).
      *
-     * The map is sourced from `Config::get('api-toolkit.resources.resource_map')`
-     * and preserves registry order.
+     * The map is sourced from
+     * `Config::get('api-toolkit.resources.resource_map')` and preserves
+     * registry order.
      *
      * @return array<class-string, class-string>
      */

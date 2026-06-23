@@ -305,7 +305,8 @@ final class ApiServiceProviderTest extends TestCase
         $provider->register();
 
         // We can check that the current listeners include the notification ones
-        // (they were already registered in setUp, but this test validates the config gate)
+        // (they were already registered in setUp, but this test validates the
+        // config gate)
         static::assertTrue(true);
     }
 
@@ -372,9 +373,10 @@ final class ApiServiceProviderTest extends TestCase
         $provider = new ApiServiceProvider($app);
         $provider->boot();
 
-        // stdClass has no getResourceType; boot() must complete without error.
-        // The morph map may contain entries from earlier tests in the suite --
-        // we assert only that stdClass did not produce a morph-map key.
+        // A stdClass has no getResourceType; boot() must complete without
+        // error. The morph map may contain entries from earlier tests in the
+        // suite -- we assert only that stdClass did not produce a morph-map
+        // key.
         $morph_map = Relation::morphMap();
 
         static::assertArrayNotHasKey(\stdClass::class, $morph_map);
@@ -1094,8 +1096,8 @@ final class ApiServiceProviderTest extends TestCase
     {
         $app = $this->getApplication();
 
-        // Reset the dispatcher so the boot-time wiring (now default-on) does not
-        // pollute the baseline being tested.
+        // Reset the dispatcher so the boot-time wiring (now default-on) does
+        // not pollute the baseline being tested.
         Event::swap(new Dispatcher($app));
 
         $this->getConfig()->set('api-toolkit.lifecycle.queue', false);

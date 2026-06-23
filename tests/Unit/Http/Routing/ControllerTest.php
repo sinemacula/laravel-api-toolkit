@@ -233,8 +233,9 @@ final class ControllerTest extends TestCase
 
         $abort_count = 0;
 
-        // 4 calls: 0, 0, 0 → full iteration + sleep; 0 → second iteration enters;
-        // heartbeat fires; call 4 at the second abort-check → break (line 110).
+        // 4 calls: 0, 0, 0 → full iteration + sleep; 0 → second iteration
+        // enters; heartbeat fires; call 4 at the second abort-check → break
+        // (line 110).
         FunctionOverrides::set('connection_aborted', function () use (&$abort_count): int {
             return ++$abort_count >= 4 ? 1 : 0;
         });
@@ -288,6 +289,7 @@ final class ControllerTest extends TestCase
     public function testHeartbeatIntervalConstantCanBeOverriddenBySubclass(): void
     {
         $sub = new class extends TestingController {
+            /** @var int The overridden heartbeat interval in seconds. */
             protected const int HEARTBEAT_INTERVAL = 5;
         };
 

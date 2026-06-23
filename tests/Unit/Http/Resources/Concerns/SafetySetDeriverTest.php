@@ -42,7 +42,8 @@ final class SafetySetDeriverTest extends TestCase
     }
 
     /**
-     * Test that the safety set contains the model's declared primary key, not the assumed 'id'.
+     * Test that the safety set contains the model's declared primary key, not
+     * the assumed 'id'.
      *
      * @return void
      */
@@ -60,7 +61,8 @@ final class SafetySetDeriverTest extends TestCase
     }
 
     /**
-     * Test that the soft-delete column is included when the port reports it as non-null.
+     * Test that the soft-delete column is included when the port reports it as
+     * non-null.
      *
      * @return void
      */
@@ -94,7 +96,8 @@ final class SafetySetDeriverTest extends TestCase
     }
 
     /**
-     * Test that parent-side relation keys, including morph type and id, are unioned for eager-loaded relations.
+     * Test that parent-side relation keys, including morph type and id, are
+     * unioned for eager-loaded relations.
      *
      * @return void
      */
@@ -115,7 +118,8 @@ final class SafetySetDeriverTest extends TestCase
     }
 
     /**
-     * Test that an unresolvable relation contributes nothing and does not throw.
+     * Test that an unresolvable relation contributes nothing and does not
+     * throw.
      *
      * @return void
      */
@@ -133,7 +137,8 @@ final class SafetySetDeriverTest extends TestCase
     }
 
     /**
-     * Test that aliased-scalar columns and order columns that are real columns appear in the result.
+     * Test that aliased-scalar columns and order columns that are real columns
+     * appear in the result.
      *
      * @return void
      */
@@ -152,7 +157,8 @@ final class SafetySetDeriverTest extends TestCase
     }
 
     /**
-     * Test that a column name not present in the model's real columns is dropped from the result.
+     * Test that a column name not present in the model's real columns is
+     * dropped from the result.
      *
      * @return void
      */
@@ -170,7 +176,8 @@ final class SafetySetDeriverTest extends TestCase
     }
 
     /**
-     * Test that an appends entry backed by a real column is retained and a virtual append is dropped.
+     * Test that an appends entry backed by a real column is retained and a
+     * virtual append is dropped.
      *
      * @return void
      */
@@ -260,7 +267,8 @@ final class SafetySetDeriverTest extends TestCase
     }
 
     /**
-     * Build a Model mock stub with the given primary key name and appended attributes.
+     * Build a Model mock stub with the given primary key name and appended
+     * attributes.
      *
      * @param  string  $keyName
      * @param  array<int, string>  $appendedAttributes

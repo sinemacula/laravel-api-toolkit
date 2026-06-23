@@ -41,8 +41,8 @@ final class CacheableDeferrableTest extends TestCase
     }
 
     /**
-     * Test that a repository using both Cacheable and Deferrable boots without a
-     * trait collision and that both concerns are functional: the cache is
+     * Test that a repository using both Cacheable and Deferrable boots without
+     * a trait collision and that both concerns are functional: the cache is
      * populated on read and a deferred write is persisted on flush.
      *
      * @return void

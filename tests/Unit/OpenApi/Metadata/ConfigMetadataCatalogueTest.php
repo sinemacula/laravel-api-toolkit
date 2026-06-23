@@ -106,7 +106,8 @@ final class ConfigMetadataCatalogueTest extends TestCase
     }
 
     /**
-     * Test that getStructuralOperators returns the four fixed structural tokens.
+     * Test that getStructuralOperators returns the four fixed structural
+     * tokens.
      *
      * @return void
      */

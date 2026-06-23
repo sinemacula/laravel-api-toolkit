@@ -28,6 +28,8 @@ abstract class AuthorizedController extends Controller
      * Get the resource model.
      *
      * @return string
+     *
+     * @throws \LogicException
      */
     public static function getResourceModel(): string
     {

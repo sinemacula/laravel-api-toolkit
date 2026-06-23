@@ -155,6 +155,8 @@ abstract class ApiException extends \Exception
      * Get internal error.
      *
      * @return \SineMacula\ApiToolkit\Contracts\ErrorCodeInterface
+     *
+     * @throws \LogicException
      */
     private static function getInternalError(): ErrorCodeInterface
     {
@@ -170,6 +172,8 @@ abstract class ApiException extends \Exception
      * Get HTTP status.
      *
      * @return \SineMacula\Http\Enums\HttpStatus
+     *
+     * @throws \LogicException
      */
     private static function getHttpStatus(): HttpStatus
     {

@@ -5,6 +5,7 @@ declare(strict_types = 1);
 namespace Tests\Unit\Http\Concerns;
 
 use Illuminate\Http\Request;
+use Mockery\MockInterface;
 use PHPUnit\Framework\Attributes\CoversTrait;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
 use SineMacula\ApiToolkit\Http\Concerns\RespondsWithStream;
@@ -61,7 +62,8 @@ final class RespondsWithStreamTest extends TestCase
     }
 
     /**
-     * Test that makeTransformer throws InvalidArgumentException when no resource class.
+     * Test that makeTransformer throws InvalidArgumentException when no
+     * resource class.
      *
      * @return void
      */
@@ -434,7 +436,7 @@ final class RespondsWithStreamTest extends TestCase
         $repository->shouldReceive('getResourceClass')->andReturn(UserResource::class);
         $repository->shouldReceive('addScope')
             ->once()
-            ->andReturnUsing(function (\Closure $scope) use (&$reordered, &$repository) {
+            ->andReturnUsing(function (\Closure $scope) use (&$reordered, &$repository): ApiRepository {
 
                 /** @var \Mockery\MockInterface $query */
                 $query = \Mockery::mock();
@@ -500,7 +502,7 @@ final class RespondsWithStreamTest extends TestCase
         $chain = \Mockery::mock();
         $chain->shouldReceive('withoutFields')->andReturnSelf();
         $chain->shouldReceive('withoutHeaders')
-            ->andReturnUsing(function () use (&$without_headers_calls, &$chain) {
+            ->andReturnUsing(function () use (&$without_headers_calls, &$chain): MockInterface {
                 $without_headers_calls++;
 
                 return $chain;

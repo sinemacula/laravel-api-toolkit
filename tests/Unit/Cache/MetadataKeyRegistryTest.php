@@ -56,7 +56,8 @@ final class MetadataKeyRegistryTest extends TestCase
     }
 
     /**
-     * Test that keys returns all distinct registered keys as an integer-indexed list.
+     * Test that keys returns all distinct registered keys as an
+     * integer-indexed list.
      *
      * @return void
      */

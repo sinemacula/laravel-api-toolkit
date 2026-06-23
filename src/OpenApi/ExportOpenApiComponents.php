@@ -28,8 +28,13 @@ final class ExportOpenApiComponents
      * @param  \SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue  $catalogue
      */
     public function __construct(
+
+        /** The assembler that builds the OpenAPI components document. */
         private readonly OpenApiAssembler $assembler,
+
+        /** The catalogue of resource metadata to export. */
         private readonly MetadataCatalogue $catalogue,
+
     ) {}
 
     /**

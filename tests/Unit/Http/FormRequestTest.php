@@ -34,7 +34,8 @@ final class FormRequestTest extends TestCase
     }
 
     /**
-     * Test that failedValidation throws InvalidInputException with validator messages.
+     * Test that failedValidation throws InvalidInputException with validator
+     * messages.
      *
      * @return void
      */
@@ -60,7 +61,8 @@ final class FormRequestTest extends TestCase
     }
 
     /**
-     * Test that failedValidation throws InvalidInputException with empty messages.
+     * Test that failedValidation throws InvalidInputException with empty
+     * messages.
      *
      * @return void
      */

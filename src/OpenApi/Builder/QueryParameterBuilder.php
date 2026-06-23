@@ -27,7 +27,10 @@ final class QueryParameterBuilder
      * @param  \SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue  $catalogue
      */
     public function __construct(
+
+        /** The catalogue providing query parameter metadata. */
         private readonly MetadataCatalogue $catalogue,
+
     ) {}
 
     /**

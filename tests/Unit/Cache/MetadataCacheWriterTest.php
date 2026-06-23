@@ -22,7 +22,8 @@ use Tests\TestCase;
 final class MetadataCacheWriterTest extends TestCase
 {
     /**
-     * Test that rememberMetadataForever returns the value produced by the callback.
+     * Test that rememberMetadataForever returns the value produced by the
+     * callback.
      *
      * @return void
      */
@@ -40,7 +41,8 @@ final class MetadataCacheWriterTest extends TestCase
     }
 
     /**
-     * Test that rememberMetadataForever registers the key in the injected registry.
+     * Test that rememberMetadataForever registers the key in the injected
+     * registry.
      *
      * @return void
      */
@@ -92,7 +94,8 @@ final class MetadataCacheWriterTest extends TestCase
         $registry = new MetadataKeyRegistry;
         $writer   = new MetadataCacheWriter($registry);
 
-        // Act — callback would not be called because the key is already memoised
+        // Act — callback would not be called because the key is already
+        // memoised
         $writer->rememberMetadataForever($key, fn () => 'should-not-be-called');
 
         // Assert

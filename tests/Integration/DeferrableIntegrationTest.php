@@ -38,6 +38,7 @@ use Illuminate\Contracts\Queue\Job;
 #[CoversTrait(Deferrable::class)]
 final class DeferrableIntegrationTest extends TestCase
 {
+    /** @var string The timestamp used to assert deferred dispatch timing. */
     private const string TIMESTAMP_DEFERRAL = '2026-03-10 12:00:01';
 
     /** @var \Tests\Fixtures\Repositories\DeferrableUserRepository The repository instance under test. */

@@ -55,7 +55,8 @@ final class QueueFlushSubscriberTest extends TestCase
     }
 
     /**
-     * Test that handleFlush flushes toolkit caches for a real worker connection.
+     * Test that handleFlush flushes toolkit caches for a real worker
+     * connection.
      *
      * @return void
      */
@@ -91,7 +92,8 @@ final class QueueFlushSubscriberTest extends TestCase
     }
 
     /**
-     * Test that handleFlush does not flush for a sync connection (in-request job).
+     * Test that handleFlush does not flush for a sync connection (in-request
+     * job).
      *
      * Pins AC-06: sync jobs run within the HTTP request and must not trigger
      * a metadata flush at the job boundary.
@@ -126,7 +128,8 @@ final class QueueFlushSubscriberTest extends TestCase
     }
 
     /**
-     * Test that handleFlush delegates to CacheManager::flush for a non-sync connection.
+     * Test that handleFlush delegates to CacheManager::flush for a non-sync
+     * connection.
      *
      * @return void
      */

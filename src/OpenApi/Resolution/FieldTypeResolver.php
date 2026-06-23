@@ -31,8 +31,13 @@ final class FieldTypeResolver
      * @param  \SineMacula\ApiToolkit\OpenApi\Resolution\ColumnTypeMapper  $mapper
      */
     public function __construct(
+
+        /** The provider used to introspect schema metadata. */
         private readonly SchemaIntrospectionProvider $introspector,
+
+        /** The mapper that converts column types to schema types. */
         private readonly ColumnTypeMapper $mapper,
+
     ) {}
 
     /**

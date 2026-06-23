@@ -24,6 +24,7 @@ use Tests\Fixtures\Resources\UserResource;
 #[CoversClass(SchemaCompiler::class)]
 final class SchemaCompilerTest extends TestCase
 {
+    /** @var string A stub resource class name used as a compiler fixture. */
     private const string STUB_ORGANIZATION_RESOURCE = 'App\Http\Resources\OrganizationResource';
 
     /**
@@ -611,15 +612,16 @@ final class SchemaCompilerTest extends TestCase
     }
 
     /**
-     * Test that a real fixture resource carries no author-declared openapi on its
-     * plain scalar/compute/relation fields, while the toolkit's own timestamp()
-     * factory auto-declares a date-time format.
+     * Test that a real fixture resource carries no author-declared openapi on
+     * its plain scalar/compute/relation fields, while the toolkit's own
+     * timestamp() factory auto-declares a date-time format.
      *
      * This is the resource-level backward-compatibility oracle (AC-11): a field
      * the author did not annotate compiles with a null openApi, so the new
-     * declaration is absent from every author-required call path. The timestamp()
-     * factory's built-in date-time format (AC-07) is the only auto-declaration and
-     * it never affects runtime serialization (the runtime path ignores openapi).
+     * declaration is absent from every author-required call path. The
+     * timestamp() factory's built-in date-time format (AC-07) is the only
+     * auto-declaration and it never affects runtime serialization (the runtime
+     * path ignores openapi).
      *
      * @return void
      */

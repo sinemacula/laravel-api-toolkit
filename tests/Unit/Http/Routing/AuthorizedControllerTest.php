@@ -39,7 +39,8 @@ final class AuthorizedControllerTest extends TestCase
     }
 
     /**
-     * Test that getResourceModel throws LogicException when constant is not defined.
+     * Test that getResourceModel throws LogicException when the constant is
+     * not defined.
      *
      * @return void
      */
@@ -86,7 +87,8 @@ final class AuthorizedControllerTest extends TestCase
     }
 
     /**
-     * Test that getResourceModel works for minimal controller with RESOURCE_MODEL.
+     * Test that getResourceModel works for minimal controller with
+     * RESOURCE_MODEL.
      *
      * @return void
      */

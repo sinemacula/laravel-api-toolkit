@@ -598,8 +598,8 @@ final class ApiRepositoryTest extends TestCase
         $org  = Organization::create(['name' => 'AutoOrg', 'slug' => 'auto-org']);
         $user = User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL]);
 
-        // No 'organization' pre-set in casts — resolveCastForAttribute discovers
-        // it through resolveCastForRelation (line 220).
+        // No 'organization' pre-set in casts - resolveCastForAttribute
+        // discovers it through resolveCastForRelation (line 220).
         $result = $this->repository->persist($user, ['organization' => $org->id]);
 
         static::assertTrue($result);

@@ -44,10 +44,19 @@ final readonly class ReferenceCache
      * @return void
      */
     public function __construct(
+
+        /** The name of the cache store to use. */
         private string $cacheStore,
+
+        /** The database table the snapshot belongs to. */
         private string $table,
+
+        /** The time-to-live, in seconds, for cached snapshots. */
         private int $ttl,
+
+        /** The guard that limits the size of cached snapshots. */
         private CacheSizeGuard $sizeGuard,
+
     ) {
         $this->store    = Cache::store($this->cacheStore);
         $this->cacheKey = CacheKeys::REPOSITORY_CACHE->resolveKey([$this->table]);
@@ -71,9 +80,9 @@ final readonly class ReferenceCache
         /** @var \Illuminate\Support\Collection<int, \Illuminate\Database\Eloquent\Model> $rows */
         $rows = $model->newQuery()->get();
 
-        // Skip caching a table that exceeds the size guard, so reference mode on
-        // an unexpectedly large table falls back to querying rather than holding
-        // a huge serialized snapshot in the cache.
+        // Skip caching a table that exceeds the size guard, so reference
+        // mode on an unexpectedly large table falls back to querying rather
+        // than holding a huge serialized snapshot in the cache.
         if ($this->sizeGuard->allows($rows, $rows->count())) {
             $this->store->put($this->cacheKey, $rows, $this->ttl);
             $this->store->put($this->metaKey, ['populated_at' => now()->timestamp], $this->ttl);

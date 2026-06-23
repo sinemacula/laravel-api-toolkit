@@ -40,9 +40,16 @@ final class OpenApiAssembler
      * @param  \SineMacula\ApiToolkit\OpenApi\Builder\ErrorResponseBuilder  $responseBuilder
      */
     public function __construct(
+
+        /** The builder for resource component schemas. */
         private readonly ResourceSchemaBuilder $schemaBuilder,
+
+        /** The builder for reusable query parameter definitions. */
         private readonly QueryParameterBuilder $parameterBuilder,
+
+        /** The builder for shared error response definitions. */
         private readonly ErrorResponseBuilder $responseBuilder,
+
     ) {}
 
     /**

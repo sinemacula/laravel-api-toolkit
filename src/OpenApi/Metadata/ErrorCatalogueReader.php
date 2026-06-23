@@ -57,9 +57,12 @@ final class ErrorCatalogueReader
      *
      * Scans the Exceptions directory for PHP files, derives the FQCN, triggers
      * autoloading via class_exists(), then inspects each subclass for its CODE
-     * constant. The map is memoised so a second call to read() does not re-scan.
+     * constant. The map is memoised so a second call to read() does not
+     * re-scan.
      *
      * @return array<int, class-string<\SineMacula\ApiToolkit\Exceptions\ApiException>>
+     *
+     * @throws \SineMacula\ApiToolkit\OpenApi\Exceptions\MetadataReadException
      */
     private function buildExceptionMap(): array
     {

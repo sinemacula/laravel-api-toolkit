@@ -50,7 +50,8 @@ final class ExceptionRenderingTest extends TestCase
         }
 
         // Mirror the bootstrap/app.php wiring used by consuming applications:
-        // ->withExceptions(fn (Exceptions $e) => ApiExceptionHandler::handles($e))
+        // ->withExceptions(fn (Exceptions $e) =>
+        //     ApiExceptionHandler::handles($e))
         ApiExceptionHandler::handles(new Exceptions($handler));
 
         config()->set('app.debug', false);

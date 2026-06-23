@@ -80,7 +80,8 @@ interface SchemaIntrospectionProvider
     public function resolveRelation(string $key, Model $model): ?Relation;
 
     /**
-     * Get the soft-delete column for the model, or null when it does not use SoftDeletes.
+     * Get the soft-delete column for the model, or null when it does not use
+     * SoftDeletes.
      *
      * @param  \Illuminate\Database\Eloquent\Model  $model
      * @return string|null
@@ -88,7 +89,8 @@ interface SchemaIntrospectionProvider
     public function getDeletedAtColumn(Model $model): ?string;
 
     /**
-     * Get the parent-side key columns for the given relation, including morph type/id columns.
+     * Get the parent-side key columns for the given relation, including morph
+     * type/id columns.
      *
      * @param  \Illuminate\Database\Eloquent\Relations\Relation<\Illuminate\Database\Eloquent\Model, \Illuminate\Database\Eloquent\Model, mixed>  $relation
      * @return array<int, string>

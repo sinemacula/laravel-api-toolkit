@@ -175,7 +175,7 @@ final class SchemaIntrospector implements SchemaIntrospectionProvider
         return $this->metadataCacheWriter()->rememberMetadataForever(CacheKeys::MODEL_RELATIONS->resolveKey([
             $model::class,
             $key,
-        ]), function () use ($key, $model) {
+        ]), function () use ($key, $model): bool {
             if (method_exists($model, $key)) {
                 return $this->hasRelationReturnType(new \ReflectionMethod($model, $key));
             }
@@ -213,7 +213,8 @@ final class SchemaIntrospector implements SchemaIntrospectionProvider
     }
 
     /**
-     * Get the soft-delete column for the model, or null when it does not use SoftDeletes.
+     * Get the soft-delete column for the model, or null when it does not use
+     * SoftDeletes.
      *
      * @param  \Illuminate\Database\Eloquent\Model  $model
      * @return string|null
@@ -229,7 +230,8 @@ final class SchemaIntrospector implements SchemaIntrospectionProvider
     }
 
     /**
-     * Get the parent-side key columns for the given relation, including morph type/id columns.
+     * Get the parent-side key columns for the given relation, including morph
+     * type/id columns.
      *
      * @param  \Illuminate\Database\Eloquent\Relations\Relation<\Illuminate\Database\Eloquent\Model, \Illuminate\Database\Eloquent\Model, mixed>  $relation
      * @return array<int, string>

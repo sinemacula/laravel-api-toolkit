@@ -160,6 +160,8 @@ abstract class ApiResource extends JsonResource implements ApiResourceInterface
      * Get the resource type.
      *
      * @return string
+     *
+     * @throws \LogicException
      */
     #[\Override]
     public static function getResourceType(): string

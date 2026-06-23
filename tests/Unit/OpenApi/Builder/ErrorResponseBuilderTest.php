@@ -55,8 +55,8 @@ final class ErrorResponseBuilderTest extends TestCase
     }
 
     /**
-     * Test that each response references the shared error-envelope schema rather
-     * than inlining the envelope shape.
+     * Test that each response references the shared error-envelope schema
+     * rather than inlining the envelope shape.
      *
      * @return void
      */

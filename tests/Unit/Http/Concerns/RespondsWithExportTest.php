@@ -295,8 +295,8 @@ final class RespondsWithExportTest extends TestCase
     }
 
     /**
-     * Test that exportArrayToCsv uses a custom filename in the Content-Disposition
-     * header.
+     * Test that exportArrayToCsv uses a custom filename in the
+     * Content-Disposition header.
      *
      * @return void
      */
@@ -313,8 +313,8 @@ final class RespondsWithExportTest extends TestCase
     }
 
     /**
-     * Test that exportArrayToXml uses a custom filename in the Content-Disposition
-     * header.
+     * Test that exportArrayToXml uses a custom filename in the
+     * Content-Disposition header.
      *
      * @return void
      */
@@ -369,8 +369,8 @@ final class RespondsWithExportTest extends TestCase
     }
 
     /**
-     * Test that exportItemToCsv uses a custom filename in the Content-Disposition
-     * header.
+     * Test that exportItemToCsv uses a custom filename in the
+     * Content-Disposition header.
      *
      * @return void
      */
@@ -388,8 +388,8 @@ final class RespondsWithExportTest extends TestCase
     }
 
     /**
-     * Test that exportItemToXml uses a custom filename in the Content-Disposition
-     * header.
+     * Test that exportItemToXml uses a custom filename in the
+     * Content-Disposition header.
      *
      * @return void
      */
@@ -407,8 +407,8 @@ final class RespondsWithExportTest extends TestCase
     }
 
     /**
-     * Test that exportFromArray forwards a custom filename to the underlying CSV
-     * format method.
+     * Test that exportFromArray forwards a custom filename to the underlying
+     * CSV format method.
      *
      * @return void
      */
@@ -428,8 +428,8 @@ final class RespondsWithExportTest extends TestCase
     }
 
     /**
-     * Test that exportFromArray uses the format method default filename when null
-     * is given.
+     * Test that exportFromArray uses the format method default filename when
+     * null is given.
      *
      * @return void
      */
@@ -449,8 +449,8 @@ final class RespondsWithExportTest extends TestCase
     }
 
     /**
-     * Test that exportFromCollection forwards a custom filename to the underlying
-     * format method.
+     * Test that exportFromCollection forwards a custom filename to the
+     * underlying format method.
      *
      * @return void
      */
@@ -470,8 +470,8 @@ final class RespondsWithExportTest extends TestCase
     }
 
     /**
-     * Test that exportFromItem forwards a custom filename to the underlying format
-     * method.
+     * Test that exportFromItem forwards a custom filename to the underlying
+     * format method.
      *
      * @return void
      */
@@ -491,8 +491,8 @@ final class RespondsWithExportTest extends TestCase
     }
 
     /**
-     * Test that exportFromArray forwards a custom filename to the underlying XML
-     * format method.
+     * Test that exportFromArray forwards a custom filename to the underlying
+     * XML format method.
      *
      * @return void
      */
@@ -512,8 +512,8 @@ final class RespondsWithExportTest extends TestCase
     }
 
     /**
-     * Test that exportFromArray uses the format method default XML filename when
-     * null is given.
+     * Test that exportFromArray uses the format method default XML filename
+     * when null is given.
      *
      * @return void
      */
@@ -766,7 +766,10 @@ final class RespondsWithExportTest extends TestCase
              * @param  string  $output
              */
             public function __construct(
+
+                /** The stubbed export payload returned by this exporter */
                 private string $output
+
             ) {
             }
 

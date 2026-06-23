@@ -35,8 +35,13 @@ final class ResourceSchemaBuilder
      * @param  \SineMacula\ApiToolkit\OpenApi\Resolution\FieldTypeResolver  $resolver
      */
     public function __construct(
+
+        /** The metadata catalogue describing resource schemas. */
         private readonly MetadataCatalogue $catalogue,
+
+        /** The resolver mapping resource fields to OpenAPI types. */
         private readonly FieldTypeResolver $resolver,
+
     ) {}
 
     /**

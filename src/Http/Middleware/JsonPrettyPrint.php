@@ -88,7 +88,8 @@ final class JsonPrettyPrint
 
         $decoded = json_decode($content);
 
-        // Distinguish between a JSON decode failure and the valid JSON literal 'null'
+        // Distinguish between a JSON decode failure and the valid JSON literal
+        // 'null'
         if ($decoded === null && $content !== 'null') {
             return;
         }

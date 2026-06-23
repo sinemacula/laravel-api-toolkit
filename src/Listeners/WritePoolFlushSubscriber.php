@@ -36,7 +36,10 @@ final class WritePoolFlushSubscriber
      * @return void
      */
     public function __construct(
+
+        /** The container used to resolve the write pool */
         private readonly Container $container,
+
     ) {}
 
     /**

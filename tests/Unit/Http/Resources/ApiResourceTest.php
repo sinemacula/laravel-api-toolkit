@@ -1913,7 +1913,8 @@ final class ApiResourceTest extends TestCase
         $outer_class::$childClassName = $child_class_name;
 
         // No fields set for 'no_defaults_child' in the query — defaults are
-        // empty — so resolveChildFields falls through to getAllFields (line 837).
+        // empty — so resolveChildFields falls through to getAllFields
+        // (line 837).
         $map = $outer_class::eagerLoadMapFor(['rel']);
 
         static::assertContains('rel', $map);
@@ -2155,7 +2156,8 @@ final class ApiResourceTest extends TestCase
         static::assertIsCallable($map['organization']);
 
         // Invoke the wrapper closure with a MorphTo mock to exercise the
-        // MorphTo branch (lines 633-634) where the constraint is called directly.
+        // MorphTo branch (lines 633-634) where the constraint is called
+        // directly.
         $morph_to = \Mockery::mock(MorphTo::class);
         ($map['organization'])($morph_to);
     }

@@ -48,7 +48,7 @@ final class RequestLifecycleTest extends TestCase
         // in QuerySurfaceIntegrationTest.
         Config::set('api-toolkit.repositories.query_posture', QuerySurface::POSTURE_BLOCKLIST);
 
-        Route::middleware(ParseApiQuery::class)->get('/api/users', function (UserRepository $repository) {
+        Route::middleware(ParseApiQuery::class)->get('/api/users', function (UserRepository $repository): ApiResourceCollection {
 
             $users = $repository->withApiCriteria()->paginate();
 

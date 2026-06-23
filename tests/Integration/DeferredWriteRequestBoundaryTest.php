@@ -4,6 +4,8 @@ declare(strict_types = 1);
 
 namespace Tests\Integration;
 
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Response;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -44,7 +46,7 @@ final class DeferredWriteRequestBoundaryTest extends TestCase
     {
         parent::setUp();
 
-        Route::post('/api/deferred-users', function (DeferrableUserRepository $repository) {
+        Route::post('/api/deferred-users', function (DeferrableUserRepository $repository): JsonResponse {
 
             $repository->defer(['name' => 'Alice', 'email' => 'alice@example.com', 'password' => 'secret']);
             $repository->defer(['name' => 'Bob', 'email' => 'bob@example.com', 'password' => 'secret']);
@@ -54,7 +56,7 @@ final class DeferredWriteRequestBoundaryTest extends TestCase
             ], 202);
         });
 
-        Route::post('/api/deferred-single', function (DeferrableUserRepository $repository) {
+        Route::post('/api/deferred-single', function (DeferrableUserRepository $repository): Response {
 
             /** @var string $name */
             $name = request()->input('name');

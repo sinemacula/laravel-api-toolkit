@@ -381,8 +381,8 @@ final class CacheableTest extends TestCase
         $cached = $this->repository->value('name');                 // @phpstan-ignore staticMethod.dynamicCall
         $fresh  = $this->repository->withoutCache()->value('name'); // @phpstan-ignore staticMethod.dynamicCall
 
-        static::assertIsString($cached);     // a scalar column value, never the cached get() collection
-        static::assertSame($fresh, $cached); // and the same value the database returns uncached
+        static::assertIsString($cached);     // A scalar column value, never the cached get() collection
+        static::assertSame($fresh, $cached); // And the same value the database returns uncached
     }
 
     /**

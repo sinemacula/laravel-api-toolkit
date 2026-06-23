@@ -26,7 +26,7 @@ final class MetadataCacheWriter
      */
     public function __construct(
 
-        /** The registry that tracks live toolkit metadata keys for scoped flushing. */
+        /** The registry tracking live toolkit metadata keys for flushing. */
         private readonly MetadataKeyRegistry $registry,
 
     ) {}

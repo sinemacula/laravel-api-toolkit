@@ -795,7 +795,7 @@ final class ApiExceptionHandlerTest extends TestCase
 
         $exceptions = static::createStub(Exceptions::class);
         $exceptions->method('report')
-            ->willReturnCallback(function ($callback) use (&$captured_callback, $reportable) {
+            ->willReturnCallback(function ($callback) use (&$captured_callback, $reportable): object {
                 $captured_callback = $callback;
 
                 return $reportable;

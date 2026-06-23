@@ -75,7 +75,8 @@ final class LifecycleFlushDefaultsTest extends TestCase
      * the new shape rather than the memoised old shape.
      *
      * Validates AC-03 / AC-04: under a long-lived Octane worker, metadata
-     * written before the request boundary must not survive into the next request.
+     * written before the request boundary must not survive into the next
+     * request.
      *
      * @return void
      */
@@ -134,7 +135,8 @@ final class LifecycleFlushDefaultsTest extends TestCase
         $event = new JobProcessed('database', static::createStub(Job::class));
         $this->queueSubscriber()->handleFlush($event);
 
-        // Job 2: the memo is clear; writing the new shape must return 'new-shape'.
+        // Job 2: the memo is clear; writing the new shape must return
+        // 'new-shape'.
         $result = $writer->rememberMetadataForever($key, static fn () => 'new-shape');
 
         // Assert
@@ -188,11 +190,12 @@ final class LifecycleFlushDefaultsTest extends TestCase
      */
     public function testOptOutDisablesLifecycleFlushSubscription(): void
     {
-        // Reset the dispatcher so the boot-time wiring (now default-on) does not
-        // pollute the baseline being tested.
+        // Reset the dispatcher so the boot-time wiring (now default-on) does
+        // not pollute the baseline being tested.
         Event::swap(new Dispatcher($this->app));
 
-        // Opt-out: the flag is off, so the registrar must not wire the subscriber.
+        // Opt-out: the flag is off, so the registrar must not wire the
+        // subscriber.
         Config::set('api-toolkit.lifecycle.queue', false);
 
         (new LifecycleRegistrar)->register();
@@ -235,10 +238,12 @@ final class LifecycleFlushDefaultsTest extends TestCase
         $nonToolkitKey = 'app:user-prefs';
         $writer        = $this->writer();
 
-        // Write the toolkit key through the writer (registered for scoped flush).
+        // Write the toolkit key through the writer (registered for scoped
+        // flush).
         $writer->rememberMetadataForever($toolkitKey, static fn () => 'toolkit-value');
 
-        // Write the non-toolkit key directly (NOT registered; must survive flush).
+        // Write the non-toolkit key directly (NOT registered; must survive
+        // flush).
         Cache::memo()->rememberForever($nonToolkitKey, static fn () => 'keep-me'); // @phpstan-ignore method.notFound
 
         static::assertSame('toolkit-value', Cache::memo()->get($toolkitKey)); // @phpstan-ignore method.notFound

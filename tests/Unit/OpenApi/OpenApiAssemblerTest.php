@@ -206,7 +206,8 @@ final class OpenApiAssemblerTest extends TestCase
     }
 
     /**
-     * Build a real field-type resolver against the container-bound introspector.
+     * Build a real field-type resolver against the container-bound
+     * introspector.
      *
      * @return \SineMacula\ApiToolkit\OpenApi\Resolution\FieldTypeResolver
      */

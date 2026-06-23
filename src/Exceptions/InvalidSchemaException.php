@@ -20,7 +20,10 @@ final class InvalidSchemaException extends \RuntimeException
      * @param  array<int, \SineMacula\ApiToolkit\Services\Validation\SchemaValidationError>  $errors
      */
     public function __construct(
+
+        /** The validation errors that describe why the schema is invalid. */
         private array $errors
+
     ) {
 
         parent::__construct($this->buildMessage());

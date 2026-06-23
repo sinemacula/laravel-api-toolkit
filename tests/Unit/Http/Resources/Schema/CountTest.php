@@ -20,7 +20,10 @@ use SineMacula\ApiToolkit\Schema\OpenApiFieldSchema;
 #[CoversClass(Count::class)]
 final class CountTest extends TestCase
 {
-    private const string COUNT_KEY_POSTS      = '__count__:posts';
+    /** @var string The count key for the posts relation. */
+    private const string COUNT_KEY_POSTS = '__count__:posts';
+
+    /** @var string The count key for the post_count attribute. */
     private const string COUNT_KEY_POST_COUNT = '__count__:post_count';
 
     /**

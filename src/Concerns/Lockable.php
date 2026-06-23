@@ -41,7 +41,7 @@ trait Lockable
      *
      * @return \Illuminate\Contracts\Cache\Lock
      *
-     * @throws \SineMacula\ApiToolkit\Exceptions\ApiException
+     * @throws \SineMacula\ApiToolkit\Exceptions\TooManyRequestsException
      */
     public function lock(): Lock
     {

@@ -94,6 +94,7 @@ final class EagerLoadPlannerTest extends TestCase
     {
 
         $constrainedResource = new class {
+            /** @var string The resource type identifier. */
             public const string RESOURCE_TYPE = 'constrained_test';
 
             /**
@@ -160,6 +161,7 @@ final class EagerLoadPlannerTest extends TestCase
     {
 
         $resourceWithExtras = new class {
+            /** @var string The resource type identifier. */
             public const string RESOURCE_TYPE = 'extras_test';
 
             /**
@@ -195,6 +197,7 @@ final class EagerLoadPlannerTest extends TestCase
     {
 
         $resourceWithDuplicatePaths = new class {
+            /** @var string The resource type identifier. */
             public const string RESOURCE_TYPE = 'cycle_test';
 
             /**
@@ -259,6 +262,7 @@ final class EagerLoadPlannerTest extends TestCase
     {
 
         $constrainedCountResource = new class {
+            /** @var string The resource type identifier. */
             public const string RESOURCE_TYPE = 'constrained_count_test';
 
             /**
@@ -333,6 +337,7 @@ final class EagerLoadPlannerTest extends TestCase
     {
 
         $parentResource = new class {
+            /** @var string The resource type identifier. */
             public const string RESOURCE_TYPE = 'explicit_fields_parent';
 
             /**
@@ -452,6 +457,7 @@ final class EagerLoadPlannerTest extends TestCase
     {
 
         $mixedResource = new class {
+            /** @var string The resource type identifier. */
             public const string RESOURCE_TYPE = 'mixed_paths_test';
 
             /**
@@ -489,6 +495,7 @@ final class EagerLoadPlannerTest extends TestCase
     {
 
         $multiCountResource = new class {
+            /** @var string The resource type identifier. */
             public const string RESOURCE_TYPE = 'multi_count_test';
 
             /**
@@ -572,6 +579,7 @@ final class EagerLoadPlannerTest extends TestCase
     {
 
         $nonResourceChild = new class {
+            /** @var string The resource type identifier. */
             public const string RESOURCE_TYPE = 'non_resource_child_test';
 
             /**
@@ -612,6 +620,7 @@ final class EagerLoadPlannerTest extends TestCase
             ->andReturn(null);
 
         $explicitFieldsResource = new class {
+            /** @var string The resource type identifier. */
             public const string RESOURCE_TYPE = 'blank_explicit_fields_test';
 
             /**
@@ -654,6 +663,7 @@ final class EagerLoadPlannerTest extends TestCase
             ->andReturn(null);
 
         $child = new class (null) extends ApiResource {
+            /** @var string The resource type identifier. */
             public const string RESOURCE_TYPE = 'blank_fields_child';
 
             /** @var array<int, string> */
@@ -674,6 +684,7 @@ final class EagerLoadPlannerTest extends TestCase
         };
 
         $parent = new class {
+            /** @var string The resource type identifier. */
             public const string RESOURCE_TYPE = 'blank_fields_parent';
 
             /** @var string */

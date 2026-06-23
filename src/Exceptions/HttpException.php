@@ -40,7 +40,9 @@ final class HttpException extends ApiException
         private readonly HttpStatus $status,
 
         ?array $meta = null,
+
         ?array $headers = null,
+
         ?\Throwable $previous = null,
 
     ) {

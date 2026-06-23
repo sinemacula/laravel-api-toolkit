@@ -28,6 +28,7 @@ use Tests\Fixtures\Resources\OrganizationResource;
 #[CoversClass(ApiResource::class)]
 final class ApiResourceIntegrationTest extends TestCase
 {
+    /** @var string The route URI used to exercise the test endpoint. */
     private const string TEST_URL = '/test';
 
     /**
@@ -86,7 +87,7 @@ final class ApiResourceIntegrationTest extends TestCase
 
         static::assertArrayHasKey('name', $data);
         static::assertArrayHasKey('status', $data);
-        // id and _type are fixed fields
+        // The id and _type are fixed fields
         static::assertArrayHasKey('id', $data);
         static::assertArrayHasKey('_type', $data);
     }

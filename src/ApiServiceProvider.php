@@ -126,7 +126,7 @@ final class ApiServiceProvider extends ServiceProvider
         }
 
         $map = collect($map)
-            ->mapWithKeys(function ($resource, $model) {
+            ->mapWithKeys(function ($resource, $model): array {
 
                 if (method_exists($resource, 'getResourceType')) {
                     return [$resource::getResourceType() => $model];

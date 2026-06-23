@@ -521,7 +521,7 @@ final class SchemaIntrospectorTest extends TestCase
             /** @var string|null */
             protected $table = 'users';
 
-            // phpcs:disable Squiz.Commenting.FunctionComment.MissingReturn
+            // phpcs:disable Squiz.Commenting.FunctionComment.MissingReturn,SineMaculaLaravel.TypeHints.ReturnTypeHint.MissingNativeTypeHint
             /**
              * A method with no return type declaration.
              */
@@ -529,7 +529,7 @@ final class SchemaIntrospectorTest extends TestCase
             {
                 return $this;
             }
-            // phpcs:enable Squiz.Commenting.FunctionComment.MissingReturn
+            // phpcs:enable Squiz.Commenting.FunctionComment.MissingReturn,SineMaculaLaravel.TypeHints.ReturnTypeHint.MissingNativeTypeHint
         };
 
         $introspector = new SchemaIntrospector;
@@ -804,6 +804,8 @@ final class SchemaIntrospectorTest extends TestCase
              * A relation method that throws a LogicException.
              *
              * @return \Illuminate\Database\Eloquent\Relations\HasMany<\Tests\Fixtures\Models\Post, $this>
+             *
+             * @throws \LogicException
              */
             public function broken(): HasMany
             {
@@ -838,6 +840,8 @@ final class SchemaIntrospectorTest extends TestCase
              * A relation method that throws a ReflectionException.
              *
              * @return \Illuminate\Database\Eloquent\Relations\HasMany<\Tests\Fixtures\Models\Post, $this>
+             *
+             * @throws \ReflectionException
              */
             public function broken(): HasMany
             {
@@ -872,6 +876,8 @@ final class SchemaIntrospectorTest extends TestCase
              * A relation method that throws a RuntimeException.
              *
              * @return \Illuminate\Database\Eloquent\Relations\HasMany<\Tests\Fixtures\Models\Post, $this>
+             *
+             * @throws \RuntimeException
              */
             public function broken(): HasMany
             {
@@ -926,8 +932,8 @@ final class SchemaIntrospectorTest extends TestCase
     }
 
     /**
-     * Test that getDeletedAtColumn returns the configured soft-delete column for
-     * a model that uses SoftDeletes.
+     * Test that getDeletedAtColumn returns the configured soft-delete column
+     * for a model that uses SoftDeletes.
      *
      * @return void
      */
@@ -1035,8 +1041,8 @@ final class SchemaIntrospectorTest extends TestCase
     }
 
     /**
-     * Test that getColumnDefinitions registers the MODEL_SCHEMA_COLUMN_DEFINITIONS
-     * key in the metadata key registry.
+     * Test that getColumnDefinitions registers the
+     * MODEL_SCHEMA_COLUMN_DEFINITIONS key in the metadata key registry.
      *
      * @return void
      */

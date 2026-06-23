@@ -113,7 +113,7 @@ final class GuardEvaluatorTest extends TestCase
         $resource = new \stdClass;
         $request  = new Request;
 
-        $guard = function ($res, $req) use (&$receivedArgs) {
+        $guard = function ($res, $req) use (&$receivedArgs): bool {
             $receivedArgs = [$res, $req];
 
             return true;
@@ -153,7 +153,7 @@ final class GuardEvaluatorTest extends TestCase
 
         $guards = [
             fn ($resource, $request) => false,
-            function () use (&$secondGuardCalled) {
+            function () use (&$secondGuardCalled): bool {
                 $secondGuardCalled = true;
 
                 return true;

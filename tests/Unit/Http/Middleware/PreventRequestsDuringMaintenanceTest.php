@@ -28,7 +28,8 @@ final class PreventRequestsDuringMaintenanceTest extends TestCase
     use InteractsWithNonPublicMembers;
 
     /**
-     * Test that the middleware extends Laravel's PreventRequestsDuringMaintenance.
+     * Test that the middleware extends Laravel's
+     * PreventRequestsDuringMaintenance.
      *
      * @return void
      */
@@ -55,7 +56,8 @@ final class PreventRequestsDuringMaintenanceTest extends TestCase
     }
 
     /**
-     * Test that the constructor uses an empty array when config returns default.
+     * Test that the constructor uses an empty array when config returns
+     * default.
      *
      * @return void
      */

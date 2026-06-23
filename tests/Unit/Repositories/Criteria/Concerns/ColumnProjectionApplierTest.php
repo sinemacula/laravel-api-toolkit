@@ -127,8 +127,8 @@ final class ColumnProjectionApplierTest extends TestCase
     }
 
     /**
-     * Test that apply returns the query unchanged when the resolved field set is
-     * empty.
+     * Test that apply returns the query unchanged when the resolved field set
+     * is empty.
      *
      * @return void
      */
@@ -195,8 +195,8 @@ final class ColumnProjectionApplierTest extends TestCase
     }
 
     /**
-     * Test that the ':all' fields token resolves the full declared field set via
-     * getAllFields rather than the request-narrowed resolveFields.
+     * Test that the ':all' fields token resolves the full declared field set
+     * via getAllFields rather than the request-narrowed resolveFields.
      *
      * @return void
      */
@@ -219,10 +219,10 @@ final class ColumnProjectionApplierTest extends TestCase
     }
 
     /**
-     * Test that the parent key of every list-keyed (plain or extra) relation in
-     * the eager-load map is retained, not just the first. The relation name of a
-     * list entry lives in the value, so deriving keys via array_keys would yield
-     * integer indices that resolve to no relation.
+     * Test that the parent key of every list-keyed (plain or extra) relation
+     * in the eager-load map is retained, not just the first. The relation name
+     * of a list entry lives in the value, so deriving keys via array_keys would
+     * yield integer indices that resolve to no relation.
      *
      * @return void
      */

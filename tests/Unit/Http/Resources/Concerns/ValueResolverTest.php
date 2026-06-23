@@ -162,9 +162,9 @@ final class ValueResolverTest extends TestCase
             }
         };
 
-        // Seed a decision reflection would never produce: label() returns string,
-        // not Attribute, so an honoured memo yields the __get value while a
-        // recomputation would yield MissingValue.
+        // Seed a decision reflection would never produce: label() returns
+        // string, not Attribute, so an honoured memo yields the __get value
+        // while a recomputation would yield MissingValue.
         $this->setStaticProperty(ValueResolver::class, 'castAccessorCache', [$model::class => ['label' => true]]);
 
         $result = $this->resolver->resolveFieldValue('label', $this->makeFieldDefinition(), new JsonResource($model), null);

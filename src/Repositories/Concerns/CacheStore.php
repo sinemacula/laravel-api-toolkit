@@ -15,9 +15,10 @@ use SineMacula\ApiToolkit\Enums\CacheKeys;
  *
  * Each executed query is stored under a key derived from its fingerprint, so a
  * filtered or by-id read never returns the full-table collection. Invalidation
- * is performed per table - via cache tags when the store supports them, or via a
- * generational table version otherwise: every per-query key embeds the current
- * table version, and a write bumps the version with a single atomic increment.
+ * is performed per table - via cache tags when the store supports them, or
+ * via a generational table version otherwise: every per-query key embeds the
+ * current table version, and a write bumps the version with a single atomic
+ * increment.
  * Invalidation is therefore O(1) and free of the read-modify-write races a
  * tracked key set suffers; orphaned old-version entries simply expire by TTL.
  *
@@ -53,9 +54,16 @@ final class CacheStore
      * @return void
      */
     public function __construct(
+
+        /** The name of the configured cache store to use. */
         private readonly string $cacheStore,
+
+        /** The table whose per-query entries are managed. */
         private readonly string $table,
+
+        /** The cache behaviour options for this store. */
         private readonly CacheStoreOptions $options,
+
     ) {
         $store = Cache::store($this->cacheStore);
 
@@ -94,7 +102,8 @@ final class CacheStore
     }
 
     /**
-     * Store the given result for a query fingerprint, subject to the size guard.
+     * Store the given result for a query fingerprint, subject to the size
+     * guard.
      *
      * @param  string  $hash
      * @param  mixed  $result

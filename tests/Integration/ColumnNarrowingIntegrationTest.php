@@ -40,6 +40,7 @@ use Tests\TestCase;
 #[CoversClass(ApiCriteria::class)]
 final class ColumnNarrowingIntegrationTest extends TestCase
 {
+    /** @var string The route URI used to exercise the test endpoint. */
     private const string TEST_URL = '/test';
 
     /**
@@ -141,7 +142,8 @@ final class ColumnNarrowingIntegrationTest extends TestCase
      * With the flag on, the safety set retains the primary key, soft-delete
      * column, append source, and order column so every scalar/accessor field
      * resolves and the response is byte-identical; a requested relation field
-     * is opaque, so the query safely falls back and the relation still hydrates.
+     * is opaque, so the query safely falls back and the relation still
+     * hydrates.
      *
      * @return void
      */
@@ -187,9 +189,9 @@ final class ColumnNarrowingIntegrationTest extends TestCase
     }
 
     /**
-     * A field set changed imperatively after the query executes cannot reach the
-     * built query, so an opaque field set leaves the executed query selecting all
-     * columns while the late field set still renders correctly.
+     * A field set changed imperatively after the query executes cannot reach
+     * the built query, so an opaque field set leaves the executed query
+     * selecting all columns while the late field set still renders correctly.
      *
      * @return void
      */
@@ -218,8 +220,8 @@ final class ColumnNarrowingIntegrationTest extends TestCase
     }
 
     /**
-     * A narrowed select survives pagination because the hard-coded paginate('*')
-     * only applies when no columns have been set on the query.
+     * A narrowed select survives pagination because the hard-coded
+     * paginate('*') only applies when no columns have been set on the query.
      *
      * @return void
      */
@@ -240,14 +242,16 @@ final class ColumnNarrowingIntegrationTest extends TestCase
     }
 
     /**
-     * Narrowing reduces both the base-query column count and the hydrated model's
-     * fetched attribute payload while keeping the serialised API response identical.
+     * Narrowing reduces both the base-query column count and the hydrated
+     * model's fetched attribute payload while keeping the serialised API
+     * response identical.
      *
      * The response is byte-identical by design (narrowing changes the SQL, not
      * the output). The genuine data-layer reduction is proven by comparing the
      * serialised attribute map of a model fetched with a narrowed SELECT (which
-     * omits heavy columns like `body` from the result set) against a model fetched
-     * with a full SELECT – the narrowed model's attributes must weigh less.
+     * omits heavy columns like `body` from the result set) against a model
+     * fetched with a full SELECT – the narrowed model's attributes must weigh
+     * less.
      *
      * @return void
      */
@@ -272,8 +276,8 @@ final class ColumnNarrowingIntegrationTest extends TestCase
     }
 
     /**
-     * A scalar-only resource narrows with zero annotation and reuses its compiled
-     * field-column map across requests of the same type.
+     * A scalar-only resource narrows with zero annotation and reuses its
+     * compiled field-column map across requests of the same type.
      *
      * @return void
      */
@@ -415,7 +419,8 @@ final class ColumnNarrowingIntegrationTest extends TestCase
     }
 
     /**
-     * Apply the criteria chain to an article query bound to the article resource.
+     * Apply the criteria chain to an article query bound to the article
+     * resource.
      *
      * @return \Illuminate\Database\Eloquent\Builder<\Tests\Fixtures\Models\Article>
      */
@@ -501,9 +506,9 @@ final class ColumnNarrowingIntegrationTest extends TestCase
      * Fetch the first article row under the current narrowing config for
      * attribute-payload comparison.
      *
-     * The caller is responsible for setting the narrow_columns config flag before
-     * invoking this helper; applyArticleCriteria() honours whatever is currently
-     * configured.
+     * The caller is responsible for setting the narrow_columns config flag
+     * before invoking this helper; applyArticleCriteria() honours whatever is
+     * currently configured.
      *
      * @return \Tests\Fixtures\Models\Article
      */
