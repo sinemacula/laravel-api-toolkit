@@ -28,8 +28,8 @@ use SineMacula\ApiToolkit\Repositories\Concerns\AttributeSetter;
 #[CoversTrait(Deferrable::class)]
 final class DeferrableTest extends TestCase
 {
-    private const TIMESTAMP_DEFERRAL = '2026-03-10 12:00:01';
-    private const TIMESTAMP_EXPLICIT = '2026-03-10 09:00:00';
+    private const string TIMESTAMP_DEFERRAL = '2026-03-10 12:00:01';
+    private const string TIMESTAMP_EXPLICIT = '2026-03-10 09:00:00';
 
     /** @var \Tests\Fixtures\Repositories\DeferrableUserRepository The repository instance under test. */
     private DeferrableUserRepository $repository;

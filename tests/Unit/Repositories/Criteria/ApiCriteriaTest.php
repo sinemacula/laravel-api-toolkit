@@ -43,7 +43,7 @@ use SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry;
 final class ApiCriteriaTest extends TestCase
 {
     /** @var string */
-    private const STUB_USER_FIELDS = 'id,name';
+    private const string STUB_USER_FIELDS = 'id,name';
 
     /** @var string */
     private const string OPERATOR_LIKE = '$like';

@@ -24,7 +24,7 @@ use Tests\Fixtures\Resources\UserResource;
 #[CoversClass(SchemaCompiler::class)]
 final class SchemaCompilerTest extends TestCase
 {
-    private const STUB_ORGANIZATION_RESOURCE = 'App\Http\Resources\OrganizationResource';
+    private const string STUB_ORGANIZATION_RESOURCE = 'App\Http\Resources\OrganizationResource';
 
     /**
      * Reset the schema compiler cache between tests.

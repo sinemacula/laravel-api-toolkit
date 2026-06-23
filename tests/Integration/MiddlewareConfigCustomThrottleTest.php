@@ -28,7 +28,7 @@ use Tests\TestCase;
 final class MiddlewareConfigCustomThrottleTest extends TestCase
 {
     /** @var string */
-    private const CUSTOM_THROTTLE_CLASS = 'App\Http\Middleware\CustomThrottle';
+    private const string CUSTOM_THROTTLE_CLASS = 'App\Http\Middleware\CustomThrottle';
 
     /**
      * Test that a custom throttle middleware class is used when configured.

@@ -27,7 +27,7 @@ use Tests\TestCase;
 final class MiddlewareIntegrationTest extends TestCase
 {
     /** @var string The shared test URI. */
-    private const TEST_URI = '/test';
+    private const string TEST_URI = '/test';
 
     /**
      * Test that ParseApiQuery middleware populates API query parser.
