@@ -89,21 +89,58 @@ final class FilterApplier
         }
 
         foreach ($filters as $key => $value) {
-
-            if ($key === '$has' || $key === self::OPERATOR_HASNT || $this->operatorRegistry->has($key)) {
-                $this->applyConditionOperator($query, $key, $value, $field, $context);
-            } elseif (array_key_exists($key, $this->logicalOperatorMap)) {
-                $this->applyLogicalOperator($query, $key, $value, $context);
-            } elseif ($this->schemaIntrospector->isRelation($key, $query->getModel())) {
-                if ($this->querySurface->guardRelation($key, $query->getModel())) {
-                    $this->applyRelationFilter($query, $key, $value, $context);
-                }
-            } else {
-                $this->applyFilters($query, $value, $key, $context);
-            }
+            $this->applyFilterEntry($query, $key, $value, $field, $context);
         }
 
         return $query;
+    }
+
+    /**
+     * Dispatch a single filter entry to the appropriate handler.
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>  $query
+     * @param  string  $key
+     * @param  mixed  $value
+     * @param  string|null  $field
+     * @param  \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext  $context
+     * @return void
+     */
+    private function applyFilterEntry(
+        Builder $query,
+        string $key,
+        mixed $value,
+        ?string $field,
+        FilterContext $context
+    ): void {
+        if ($this->isConditionOperator($key)) {
+            $this->applyConditionOperator($query, $key, $value, $field, $context);
+            return;
+        }
+
+        if (array_key_exists($key, $this->logicalOperatorMap)) {
+            $this->applyLogicalOperator($query, $key, $value, $context);
+            return;
+        }
+
+        if ($this->schemaIntrospector->isRelation($key, $query->getModel())) {
+            if ($this->querySurface->guardRelation($key, $query->getModel())) {
+                $this->applyRelationFilter($query, $key, $value, $context);
+            }
+            return;
+        }
+
+        $this->applyFilters($query, $value, $key, $context);
+    }
+
+    /**
+     * Determine whether the given key is a condition operator.
+     *
+     * @param  string  $key
+     * @return bool
+     */
+    private function isConditionOperator(string $key): bool
+    {
+        return $key === '$has' || $key === self::OPERATOR_HASNT || $this->operatorRegistry->has($key);
     }
 
     /**

@@ -27,6 +27,21 @@ final class ValidateConstraints implements SchemaValidationRule
     #[\Override]
     public function validate(string $resourceClass, ?string $modelClass, CompiledSchema $schema): array
     {
+        return [
+            ...$this->validateFieldConstraints($resourceClass, $schema),
+            ...$this->validateCountConstraints($resourceClass, $schema),
+        ];
+    }
+
+    /**
+     * Validate that every field constraint is a Closure.
+     *
+     * @param  string  $resourceClass
+     * @param  \SineMacula\ApiToolkit\Schema\CompiledSchema  $schema
+     * @return array<int, \SineMacula\ApiToolkit\Services\Validation\SchemaValidationError>
+     */
+    private function validateFieldConstraints(string $resourceClass, CompiledSchema $schema): array
+    {
         $errors = [];
 
         foreach ($schema->getFieldKeys() as $key) {
@@ -47,6 +62,20 @@ final class ValidateConstraints implements SchemaValidationRule
                 defect: 'Constraint must be a Closure',
             );
         }
+
+        return $errors;
+    }
+
+    /**
+     * Validate that every count definition constraint is a Closure.
+     *
+     * @param  string  $resourceClass
+     * @param  \SineMacula\ApiToolkit\Schema\CompiledSchema  $schema
+     * @return array<int, \SineMacula\ApiToolkit\Services\Validation\SchemaValidationError>
+     */
+    private function validateCountConstraints(string $resourceClass, CompiledSchema $schema): array
+    {
+        $errors = [];
 
         foreach ($schema->getCountDefinitions() as $count) {
 

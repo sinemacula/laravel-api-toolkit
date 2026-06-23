@@ -30,31 +30,88 @@ final class ContainsOperator implements FilterOperator
     #[\Override]
     public function apply(Builder $query, string $column, mixed $value, FilterContext $context): void
     {
-        if (is_array($value) || is_object($value) || (is_string($value) && !empty($value) && json_validate($value))) {
-
+        if ($this->isJsonContainable($value)) {
             $query->getQuery()->whereJsonContains($column, $value);
             return;
         }
 
         if (is_string($value) && str_contains($value, ',')) {
-
-            $items = array_filter(array_map('trim', explode(',', $value)), static fn (string $item): bool => $item !== '');
-
-            if (!empty($items)) {
-                $query->where(function (Builder $query) use ($column, $items): void {
-                    foreach ($items as $index => $item) {
-                        if ($index === 0) {
-                            $query->getQuery()->whereJsonContains($column, $item);
-                        } else {
-                            $query->getQuery()->orWhereJsonContains($column, $item);
-                        }
-                    }
-                });
-            }
-
+            $this->applyCommaSeparated($query, $column, $value);
             return;
         }
 
+        $this->applyJsonContainsSafely($query, $column, $value);
+    }
+
+    /**
+     * Determine whether the value can be passed directly to a JSON
+     * containment constraint.
+     *
+     * @param  mixed  $value
+     * @return bool
+     */
+    private function isJsonContainable(mixed $value): bool
+    {
+        if (is_array($value) || is_object($value)) {
+            return true;
+        }
+
+        return is_string($value) && !empty($value) && json_validate($value);
+    }
+
+    /**
+     * Split a comma-separated string into trimmed, non-empty items and
+     * apply them as a grouped JSON containment constraint.
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>  $query
+     * @param  string  $column
+     * @param  string  $value
+     * @return void
+     */
+    private function applyCommaSeparated(Builder $query, string $column, string $value): void
+    {
+        $items = array_filter(array_map('trim', explode(',', $value)), static fn (string $item): bool => $item !== '');
+
+        if (empty($items)) {
+            return;
+        }
+
+        $query->where(function (Builder $query) use ($column, $items): void {
+            $this->applyJsonContainsGroup($query, $column, $items);
+        });
+    }
+
+    /**
+     * Apply each item as an OR-combined JSON containment constraint within
+     * the given query group.
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>  $query
+     * @param  string  $column
+     * @param  array<int, string>  $items
+     * @return void
+     */
+    private function applyJsonContainsGroup(Builder $query, string $column, array $items): void
+    {
+        foreach ($items as $index => $item) {
+            if ($index === 0) {
+                $query->getQuery()->whereJsonContains($column, $item);
+            } else {
+                $query->getQuery()->orWhereJsonContains($column, $item);
+            }
+        }
+    }
+
+    /**
+     * Apply a JSON containment constraint, silently discarding values that
+     * are not JSON-compatible scalars (e.g. null).
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>  $query
+     * @param  string  $column
+     * @param  mixed  $value
+     * @return void
+     */
+    private function applyJsonContainsSafely(Builder $query, string $column, mixed $value): void
+    {
         try {
             $query->getQuery()->whereJsonContains($column, $value);
         } catch (\Throwable) { // @codeCoverageIgnore

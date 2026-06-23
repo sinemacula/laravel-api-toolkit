@@ -152,24 +152,71 @@ final class SchemaCompiler
      */
     private static function buildFieldDefinition(array $definition): CompiledFieldDefinition
     {
-        $constraint = $definition['constraint'] ?? null;
-        $relations  = (array) ($definition['relation'] ?? null);
-        $relation   = isset($relations[0]) && is_string($relations[0]) ? $relations[0] : null;
-
-        $openApi = $definition['openapi'] ?? null;
-
         return new CompiledFieldDefinition(
             accessor    : $definition['accessor'] ?? null,
             compute     : $definition['compute']  ?? null,
-            relation    : $relation,
-            resource    : isset($definition['resource']) && is_string($definition['resource']) ? $definition['resource'] : null,
+            relation    : self::resolveFieldRelation($definition),
+            resource    : self::resolveFieldResource($definition),
             fields      : $definition['fields'] ?? null,
-            constraint  : $constraint instanceof \Closure ? $constraint : null,
+            constraint  : self::resolveFieldConstraint($definition),
             extras      : (array) ($definition['extras'] ?? []),
             needs       : (array) ($definition['needs'] ?? []),
             guards      : $definition['guards']       ?? [],
             transformers: $definition['transformers'] ?? [],
-            openApi     : $openApi instanceof OpenApiFieldSchema ? $openApi : null,
+            openApi     : self::resolveFieldOpenApi($definition),
         );
+    }
+
+    /**
+     * Resolve the primary relation name for a field definition.
+     *
+     * The relation may be declared as a string or as a list; only the first
+     * entry is used, and only when it is a string.
+     *
+     * @param  array<string, mixed>  $definition
+     * @return string|null
+     */
+    private static function resolveFieldRelation(array $definition): ?string
+    {
+        $relations = (array) ($definition['relation'] ?? null);
+
+        return isset($relations[0]) && is_string($relations[0]) ? $relations[0] : null;
+    }
+
+    /**
+     * Resolve the child resource class for a field definition.
+     *
+     * @param  array<string, mixed>  $definition
+     * @return string|null
+     */
+    private static function resolveFieldResource(array $definition): ?string
+    {
+        return isset($definition['resource']) && is_string($definition['resource']) ? $definition['resource'] : null;
+    }
+
+    /**
+     * Resolve the eager-loading constraint closure for a field definition.
+     *
+     * @param  array<string, mixed>  $definition
+     * @return (\Closure(\Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>): void)|null
+     */
+    private static function resolveFieldConstraint(array $definition): ?\Closure
+    {
+        $constraint = $definition['constraint'] ?? null;
+
+        return $constraint instanceof \Closure ? $constraint : null;
+    }
+
+    /**
+     * Resolve the declared OpenAPI contract for a field definition.
+     *
+     * @param  array<string, mixed>  $definition
+     * @return \SineMacula\ApiToolkit\Schema\OpenApiFieldSchema|null
+     */
+    private static function resolveFieldOpenApi(array $definition): ?OpenApiFieldSchema
+    {
+        $openApi = $definition['openapi'] ?? null;
+
+        return $openApi instanceof OpenApiFieldSchema ? $openApi : null;
     }
 }

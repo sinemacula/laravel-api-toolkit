@@ -95,7 +95,23 @@ final class ColumnTypeMapper
      */
     private function resolveFromTypeName(string $typeName): ?array
     {
-        return match (strtolower($typeName)) {
+        $normalised = strtolower($typeName);
+
+        return $this->resolveScalarType($normalised)
+            ?? $this->resolveTemporalType($normalised)
+            ?? $this->resolveStructuredType($normalised);
+    }
+
+    /**
+     * Resolve string, integer, number and boolean column types, or null when
+     * the type is not a scalar.
+     *
+     * @param  string  $typeName
+     * @return array{type: string, format?: string}|null
+     */
+    private function resolveScalarType(string $typeName): ?array
+    {
+        return match ($typeName) {
             'char', 'varchar', 'text', 'tinytext', 'mediumtext',
             'longtext', 'string', 'enum', 'set' => ['type' => 'string'],
             'uuid' => ['type' => 'string', 'format' => 'uuid'],
@@ -104,10 +120,38 @@ final class ColumnTypeMapper
             'decimal', 'numeric', 'float', 'double',
             'real', 'money' => ['type' => 'number'],
             'boolean', 'bool' => ['type' => 'boolean'],
+            default => null,
+        };
+    }
+
+    /**
+     * Resolve date, date-time and time column types, or null when the type is
+     * not temporal.
+     *
+     * @param  string  $typeName
+     * @return array{type: string, format?: string}|null
+     */
+    private function resolveTemporalType(string $typeName): ?array
+    {
+        return match ($typeName) {
             'date' => ['type' => 'string', 'format' => 'date'],
             'datetime', 'timestamp', 'datetimetz',
             'timestamptz' => ['type' => 'string', 'format' => 'date-time'],
             'time', 'timetz' => ['type' => 'string', 'format' => 'time'],
+            default => null,
+        };
+    }
+
+    /**
+     * Resolve JSON and binary column types, or null when the type is not a
+     * structured or binary value.
+     *
+     * @param  string  $typeName
+     * @return array{type: string, format?: string}|null
+     */
+    private function resolveStructuredType(string $typeName): ?array
+    {
+        return match ($typeName) {
             'json', 'jsonb' => ['type' => 'array'],
             'binary', 'blob', 'bytea' => ['type' => 'string', 'format' => 'byte'],
             default => null,

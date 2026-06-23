@@ -110,33 +110,69 @@ final class ApiExceptionHandler
 
         $previous = is_a($exception, ValidationException::class) ? null : $exception;
 
-        $mapped = match (true) {
-            $exception instanceof NotFoundHttpException           => NotFoundException::class,
-            $exception instanceof BackedEnumCaseNotFoundException => NotFoundException::class,
-            $exception instanceof ModelNotFoundException          => NotFoundException::class,
-            $exception instanceof SuspiciousOperationException    => NotFoundException::class,
-            $exception instanceof RecordsNotFoundException        => NotFoundException::class,
-            $exception instanceof MethodNotAllowedHttpException   => NotAllowedException::class,
-            $exception instanceof BadRequestHttpException         => BadRequestException::class,
-            $exception instanceof RequestExceptionInterface       => BadRequestException::class,
-            $exception instanceof LaravelUnauthorizedException    => ForbiddenException::class,
-            $exception instanceof AuthorizationException          => ForbiddenException::class,
-            $exception instanceof AccessDeniedHttpException       => ForbiddenException::class,
-            $exception instanceof AuthenticationException         => UnauthenticatedException::class,
-            $exception instanceof LaravelTokenMismatchException   => TokenMismatchException::class,
-            $exception instanceof ValidationException             => InvalidInputException::class,
-            $exception instanceof TooManyRequestsHttpException    => TooManyRequestsException::class,
-            $exception instanceof ServiceUnavailableHttpException => ServiceUnavailableException::class,
-            $exception instanceof PostTooLargeException           => PayloadTooLargeException::class,
-            $exception instanceof SymfonyHttpExceptionInterface   => HttpException::class,
-            default                                               => UnhandledException::class,
-        };
+        $mapped = self::resolveApiExceptionClass($exception);
 
         if ($mapped === HttpException::class && $exception instanceof SymfonyHttpExceptionInterface) {
             return self::mapGenericHttpException($exception, $meta, $headers);
         }
 
         return new $mapped($meta, $headers, $previous);
+    }
+
+    /**
+     * Resolve the API exception class that the given throwable maps to.
+     *
+     * The first source-type the throwable is an instance of wins, so the
+     * order of the map is significant: more specific source types must
+     * precede the broader interfaces they extend. Anything unmatched falls
+     * back to the unhandled exception.
+     *
+     * @param  \Throwable  $exception
+     * @return class-string<\SineMacula\ApiToolkit\Exceptions\ApiException>
+     */
+    private static function resolveApiExceptionClass(\Throwable $exception): string
+    {
+        foreach (self::exceptionMap() as $source => $target) {
+            if ($exception instanceof $source) {
+                return $target;
+            }
+        }
+
+        return UnhandledException::class;
+    }
+
+    /**
+     * The ordered map of source exception types to their API exception class.
+     *
+     * Ordering is significant: entries are evaluated top-to-bottom and the
+     * first match wins, so more specific types precede the broader
+     * interfaces they implement.
+     *
+     * @return array<class-string<\Throwable>, class-string<\SineMacula\ApiToolkit\Exceptions\ApiException>>
+     */
+    private static function exceptionMap(): array
+    {
+        // @phpstan-ignore return.type (values are class-strings; PHPStan widens the large map literal to string)
+        return [
+            NotFoundHttpException::class           => NotFoundException::class,
+            BackedEnumCaseNotFoundException::class => NotFoundException::class,
+            ModelNotFoundException::class          => NotFoundException::class,
+            SuspiciousOperationException::class    => NotFoundException::class,
+            RecordsNotFoundException::class        => NotFoundException::class,
+            MethodNotAllowedHttpException::class   => NotAllowedException::class,
+            BadRequestHttpException::class         => BadRequestException::class,
+            RequestExceptionInterface::class       => BadRequestException::class,
+            LaravelUnauthorizedException::class    => ForbiddenException::class,
+            AuthorizationException::class          => ForbiddenException::class,
+            AccessDeniedHttpException::class       => ForbiddenException::class,
+            AuthenticationException::class         => UnauthenticatedException::class,
+            LaravelTokenMismatchException::class   => TokenMismatchException::class,
+            ValidationException::class             => InvalidInputException::class,
+            TooManyRequestsHttpException::class    => TooManyRequestsException::class,
+            ServiceUnavailableHttpException::class => ServiceUnavailableException::class,
+            PostTooLargeException::class           => PayloadTooLargeException::class,
+            SymfonyHttpExceptionInterface::class   => HttpException::class,
+        ];
     }
 
     /**
