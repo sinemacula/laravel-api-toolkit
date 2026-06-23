@@ -140,6 +140,8 @@ final class RequestCapabilities
      * Whether the request includes soft-deleted records.
      *
      * @return bool
+     *
+     * @imperative
      */
     public function includeTrashed(): bool
     {
@@ -150,6 +152,8 @@ final class RequestCapabilities
      * Whether the request returns only soft-deleted records.
      *
      * @return bool
+     *
+     * @imperative
      */
     public function onlyTrashed(): bool
     {
