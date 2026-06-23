@@ -39,6 +39,5 @@ final readonly class ExportResult
 
         /** The number of error-response components emitted */
         public int $responseCount,
-
     ) {}
 }

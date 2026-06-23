@@ -46,7 +46,6 @@ final class OpenApiFieldDeclaration
 
         /** The owning definition, returned by end() to continue chaining */
         private readonly BaseDefinition $parent,
-
     ) {}
 
     /**

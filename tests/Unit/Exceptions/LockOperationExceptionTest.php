@@ -28,7 +28,7 @@ final class LockOperationExceptionTest extends TestCase
     {
         $exception = new LockOperationException;
 
-        static::assertInstanceOf(\RuntimeException::class, $exception);
+        self::assertInstanceOf(\RuntimeException::class, $exception);
     }
 
     /**
@@ -41,7 +41,7 @@ final class LockOperationExceptionTest extends TestCase
         $message   = 'The lock key must be provided';
         $exception = new LockOperationException($message);
 
-        static::assertSame($message, $exception->getMessage());
+        self::assertSame($message, $exception->getMessage());
     }
 
     /**
@@ -53,7 +53,7 @@ final class LockOperationExceptionTest extends TestCase
     {
         $exception = new LockOperationException(\Error::class, 42);
 
-        static::assertSame(42, $exception->getCode());
+        self::assertSame(42, $exception->getCode());
     }
 
     /**
@@ -66,7 +66,7 @@ final class LockOperationExceptionTest extends TestCase
         $previous  = new \RuntimeException('Previous error');
         $exception = new LockOperationException(\Error::class, 0, $previous);
 
-        static::assertSame($previous, $exception->getPrevious());
+        self::assertSame($previous, $exception->getPrevious());
     }
 
     /**
@@ -78,7 +78,7 @@ final class LockOperationExceptionTest extends TestCase
     {
         $exception = new LockOperationException;
 
-        static::assertSame('', $exception->getMessage());
+        self::assertSame('', $exception->getMessage());
     }
 
     /**
@@ -90,6 +90,6 @@ final class LockOperationExceptionTest extends TestCase
     {
         $exception = new LockOperationException;
 
-        static::assertSame(0, $exception->getCode());
+        self::assertSame(0, $exception->getCode());
     }
 }

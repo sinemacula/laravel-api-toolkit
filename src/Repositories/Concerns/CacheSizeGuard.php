@@ -29,11 +29,8 @@ final readonly class CacheSizeGuard
         /** Maximum row count allowed in a stored result, or null to disable. */
         private ?int $maxRows,
 
-        /**
-         * Maximum serialized byte size of a stored result, or null to disable.
-         */
+        /** Maximum serialized byte size of a result, or null to disable. */
         private ?int $maxBytes,
-
     ) {}
 
     /**

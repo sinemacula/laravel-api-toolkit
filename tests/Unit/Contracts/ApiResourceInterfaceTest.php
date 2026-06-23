@@ -29,8 +29,8 @@ final class ApiResourceInterfaceTest extends TestCase
         $reflection = new \ReflectionClass(ApiResourceInterface::class);
         $method     = $reflection->getMethod('getResourceType');
 
-        static::assertTrue($method->isStatic());
-        static::assertTrue($method->isPublic());
+        self::assertTrue($method->isStatic());
+        self::assertTrue($method->isPublic());
     }
 
     /**
@@ -45,8 +45,8 @@ final class ApiResourceInterfaceTest extends TestCase
 
         $returnType = $method->getReturnType();
 
-        static::assertInstanceOf(\ReflectionNamedType::class, $returnType);
-        static::assertSame('string', $returnType->getName());
+        self::assertInstanceOf(\ReflectionNamedType::class, $returnType);
+        self::assertSame('string', $returnType->getName());
     }
 
     /**
@@ -59,8 +59,8 @@ final class ApiResourceInterfaceTest extends TestCase
         $reflection = new \ReflectionClass(ApiResourceInterface::class);
         $method     = $reflection->getMethod('getDefaultFields');
 
-        static::assertTrue($method->isStatic());
-        static::assertTrue($method->isPublic());
+        self::assertTrue($method->isStatic());
+        self::assertTrue($method->isPublic());
     }
 
     /**
@@ -75,8 +75,8 @@ final class ApiResourceInterfaceTest extends TestCase
 
         $returnType = $method->getReturnType();
 
-        static::assertInstanceOf(\ReflectionNamedType::class, $returnType);
-        static::assertSame('array', $returnType->getName());
+        self::assertInstanceOf(\ReflectionNamedType::class, $returnType);
+        self::assertSame('array', $returnType->getName());
     }
 
     /**
@@ -108,10 +108,10 @@ final class ApiResourceInterfaceTest extends TestCase
             $methods,
         );
 
-        static::assertCount(count($expectedMethods), $methods);
+        self::assertCount(count($expectedMethods), $methods);
 
         foreach ($expectedMethods as $name) {
-            static::assertContains($name, $actualMethods, "Missing method: {$name}");
+            self::assertContains($name, $actualMethods, "Missing method: {$name}");
         }
     }
 
@@ -124,6 +124,6 @@ final class ApiResourceInterfaceTest extends TestCase
     {
         $reflection = new \ReflectionClass(ApiResourceInterface::class);
 
-        static::assertTrue($reflection->isInterface());
+        self::assertTrue($reflection->isInterface());
     }
 }

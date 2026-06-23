@@ -38,6 +38,5 @@ final readonly class ErrorDescriptor
 
         /** The canonical detail string */
         public string $detail,
-
     ) {}
 }

@@ -32,9 +32,9 @@ final class ColumnDefinitionTest extends TestCase
             nullable: true,
         );
 
-        static::assertSame('email', $definition->name);
-        static::assertSame('varchar', $definition->typeName);
-        static::assertTrue($definition->nullable);
+        self::assertSame('email', $definition->name);
+        self::assertSame('varchar', $definition->typeName);
+        self::assertTrue($definition->nullable);
     }
 
     /**
@@ -50,6 +50,6 @@ final class ColumnDefinitionTest extends TestCase
             nullable: false,
         );
 
-        static::assertFalse($definition->nullable);
+        self::assertFalse($definition->nullable);
     }
 }

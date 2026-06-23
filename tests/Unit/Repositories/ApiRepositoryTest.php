@@ -79,11 +79,11 @@ final class ApiRepositoryTest extends TestCase
     {
         $result = $this->repository->withApiCriteria();
 
-        static::assertSame($this->repository, $result);
+        self::assertSame($this->repository, $result);
 
         $criteria = $this->repository->getCriteria();
 
-        static::assertTrue(
+        self::assertTrue(
             $criteria->contains(fn ($c) => $c instanceof ApiCriteria),
         );
     }
@@ -101,11 +101,11 @@ final class ApiRepositoryTest extends TestCase
         $this->repository->withApiCriteria();
         $this->repository->usingResource(UserResource::class);
 
-        static::assertSame(UserResource::class, $this->repository->getResourceClass());
+        self::assertSame(UserResource::class, $this->repository->getResourceClass());
 
         $criteria = $this->repository->getCriteria();
 
-        static::assertTrue(
+        self::assertTrue(
             $criteria->contains(fn ($c) => $c instanceof ApiCriteria),
         );
     }
@@ -122,7 +122,7 @@ final class ApiRepositoryTest extends TestCase
 
         $result = $this->repository->getResourceClass();
 
-        static::assertSame(UserResource::class, $result);
+        self::assertSame(UserResource::class, $result);
     }
 
     /**
@@ -136,7 +136,7 @@ final class ApiRepositoryTest extends TestCase
 
         $result = $this->repository->getResourceClass();
 
-        static::assertNull($result);
+        self::assertNull($result);
     }
 
     /**
@@ -153,7 +153,7 @@ final class ApiRepositoryTest extends TestCase
 
         $result = $this->repository->paginate();
 
-        static::assertCount(2, $result);
+        self::assertCount(2, $result);
     }
 
     /**
@@ -181,7 +181,7 @@ final class ApiRepositoryTest extends TestCase
 
         $result = $repository->paginate();
 
-        static::assertInstanceOf(CursorPaginator::class, $result);
+        self::assertInstanceOf(CursorPaginator::class, $result);
     }
 
     /**
@@ -198,8 +198,8 @@ final class ApiRepositoryTest extends TestCase
 
         $result = $this->repository->persist($user, ['name' => 'Bob']);
 
-        static::assertTrue($result);
-        static::assertSame('Bob', $user->fresh()?->name);
+        self::assertTrue($result);
+        self::assertSame('Bob', $user->fresh()?->name);
     }
 
     /**
@@ -222,8 +222,8 @@ final class ApiRepositoryTest extends TestCase
 
         $result = $repository->persist($user, ['organization_id' => '5']);
 
-        static::assertTrue($result);
-        static::assertSame(5, $user->fresh()?->organization_id);
+        self::assertTrue($result);
+        self::assertSame(5, $user->fresh()?->organization_id);
     }
 
     /**
@@ -248,8 +248,8 @@ final class ApiRepositoryTest extends TestCase
 
         $result = $repository->persist($post, ['published' => true]);
 
-        static::assertTrue($result);
-        static::assertTrue($post->fresh()?->published === true);
+        self::assertTrue($result);
+        self::assertTrue($post->fresh()?->published === true);
     }
 
     /**
@@ -266,8 +266,8 @@ final class ApiRepositoryTest extends TestCase
 
         $result = $this->repository->persist($user, ['name' => 'Updated']);
 
-        static::assertTrue($result);
-        static::assertSame('Updated', $user->fresh()?->name);
+        self::assertTrue($result);
+        self::assertSame('Updated', $user->fresh()?->name);
     }
 
     /**
@@ -284,9 +284,9 @@ final class ApiRepositoryTest extends TestCase
 
         $result = $this->repository->persist($user, ['status' => UserStatus::BANNED]);
 
-        static::assertTrue($result);
+        self::assertTrue($result);
         // @phpstan-ignore staticMethod.impossibleType
-        static::assertSame(UserStatus::BANNED, $user->fresh()?->status);
+        self::assertSame(UserStatus::BANNED, $user->fresh()?->status);
     }
 
     /**
@@ -301,9 +301,9 @@ final class ApiRepositoryTest extends TestCase
 
         $result = $this->repository->scopeById($alice->id)->first(); // @phpstan-ignore staticMethod.dynamicCall
 
-        static::assertNotNull($result);
-        static::assertInstanceOf(User::class, $result);
-        static::assertSame($alice->id, $result->id);
+        self::assertNotNull($result);
+        self::assertInstanceOf(User::class, $result);
+        self::assertSame($alice->id, $result->id);
     }
 
     /**
@@ -320,7 +320,7 @@ final class ApiRepositoryTest extends TestCase
         $ids    = [$alice->id, $bob->id];
         $result = $this->repository->scopeByIds($ids)->get(); // @phpstan-ignore staticMethod.dynamicCall
 
-        static::assertCount(2, $result);
+        self::assertCount(2, $result);
     }
 
     /**
@@ -332,13 +332,13 @@ final class ApiRepositoryTest extends TestCase
     {
         $attributeSetter = $this->getAttributeSetter($this->repository);
 
-        static::assertInstanceOf(AttributeSetter::class, $attributeSetter);
+        self::assertInstanceOf(AttributeSetter::class, $attributeSetter);
 
         /** @var array<string, string|null> $casts */
         $casts = $this->getProperty($attributeSetter, 'casts');
 
-        static::assertNotEmpty($casts);
-        static::assertArrayHasKey('status', $casts);
+        self::assertNotEmpty($casts);
+        self::assertArrayHasKey('status', $casts);
     }
 
     /**
@@ -354,8 +354,8 @@ final class ApiRepositoryTest extends TestCase
 
         $criteria = $this->repository->getCriteria()->first(fn ($c) => $c instanceof ApiCriteria);
 
-        static::assertInstanceOf(ApiCriteria::class, $criteria);
-        static::assertSame(UserResource::class, $this->getProperty($criteria, 'customResourceClass'));
+        self::assertInstanceOf(ApiCriteria::class, $criteria);
+        self::assertSame(UserResource::class, $this->getProperty($criteria, 'customResourceClass'));
     }
 
     /**
@@ -371,8 +371,8 @@ final class ApiRepositoryTest extends TestCase
 
         $criteria = $this->repository->getCriteria()->first(fn ($c) => $c instanceof ApiCriteria);
 
-        static::assertInstanceOf(ApiCriteria::class, $criteria);
-        static::assertSame(UserResource::class, $this->getProperty($criteria, 'customResourceClass'));
+        self::assertInstanceOf(ApiCriteria::class, $criteria);
+        self::assertSame(UserResource::class, $this->getProperty($criteria, 'customResourceClass'));
     }
 
     /**
@@ -392,9 +392,9 @@ final class ApiRepositoryTest extends TestCase
 
         $result = $this->repository->withApiCriteria()->paginate();
 
-        static::assertCount(1, $result);
-        static::assertInstanceOf(User::class, $result[0]);
-        static::assertSame('Alice', $result[0]->name);
+        self::assertCount(1, $result);
+        self::assertInstanceOf(User::class, $result[0]);
+        self::assertSame('Alice', $result[0]->name);
     }
 
     /**
@@ -414,9 +414,9 @@ final class ApiRepositoryTest extends TestCase
 
         $result = $this->repository->paginate();
 
-        static::assertCount(1, $result);
-        static::assertInstanceOf(User::class, $result[0]);
-        static::assertSame($alice->id, $result[0]->id);
+        self::assertCount(1, $result);
+        self::assertInstanceOf(User::class, $result[0]);
+        self::assertSame($alice->id, $result[0]->id);
     }
 
     /**
@@ -446,7 +446,7 @@ final class ApiRepositoryTest extends TestCase
         /** @var \Illuminate\Pagination\LengthAwarePaginator<int, \Tests\Fixtures\Models\User> $result */
         $result = $repository->paginate();
 
-        static::assertStringContainsString('marker=xyz', $result->url(1));
+        self::assertStringContainsString('marker=xyz', $result->url(1));
     }
 
     /**
@@ -469,9 +469,9 @@ final class ApiRepositoryTest extends TestCase
 
         DB::disableQueryLog();
 
-        static::assertCount(1, $result);
-        static::assertNotNull($select);
-        static::assertSame([$alice->id], $select['bindings']);
+        self::assertCount(1, $result);
+        self::assertNotNull($select);
+        self::assertSame([$alice->id], $select['bindings']);
     }
 
     /**
@@ -488,7 +488,7 @@ final class ApiRepositoryTest extends TestCase
 
         $result = $this->repository->persist($user, ['name' => ['first', 'last']]);
 
-        static::assertTrue($result);
+        self::assertTrue($result);
     }
 
     /**
@@ -506,8 +506,8 @@ final class ApiRepositoryTest extends TestCase
 
         $result = $this->repository->persist($user, ['organization' => $org->id]);
 
-        static::assertTrue($result);
-        static::assertSame($org->id, $user->organization_id);
+        self::assertTrue($result);
+        self::assertSame($org->id, $user->organization_id);
     }
 
     /**
@@ -530,8 +530,8 @@ final class ApiRepositoryTest extends TestCase
 
         $result = $repository->persist($post, ['tags' => collect([$tag])]);
 
-        static::assertTrue($result);
-        static::assertCount(1, $post->fresh()?->tags()->get() ?? collect([]));
+        self::assertTrue($result);
+        self::assertCount(1, $post->fresh()?->tags()->get() ?? collect([]));
     }
 
     /**
@@ -554,7 +554,7 @@ final class ApiRepositoryTest extends TestCase
 
         $result = $repository->persist($post, ['tags' => [$tag->getKey()]]);
 
-        static::assertTrue($result);
+        self::assertTrue($result);
     }
 
     /**
@@ -568,7 +568,7 @@ final class ApiRepositoryTest extends TestCase
         $this->repository->withApiCriteria();
         $this->repository->usingResource(UserResource::class);
 
-        static::assertSame(UserResource::class, $this->repository->getResourceClass());
+        self::assertSame(UserResource::class, $this->repository->getResourceClass());
     }
 
     /**
@@ -584,7 +584,7 @@ final class ApiRepositoryTest extends TestCase
         $this->repository->usingResource(UserResource::class);
         $this->repository->withApiCriteria();
 
-        static::assertSame(UserResource::class, $this->repository->getResourceClass());
+        self::assertSame(UserResource::class, $this->repository->getResourceClass());
     }
 
     /**
@@ -602,7 +602,7 @@ final class ApiRepositoryTest extends TestCase
         // discovers it through resolveCastForRelation (line 220).
         $result = $this->repository->persist($user, ['organization' => $org->id]);
 
-        static::assertTrue($result);
+        self::assertTrue($result);
     }
 
     /**
@@ -623,7 +623,7 @@ final class ApiRepositoryTest extends TestCase
 
         $result = $repository->persist($post, ['tags' => [$tag->getKey()]]);
 
-        static::assertTrue($result);
+        self::assertTrue($result);
     }
 
     /**
@@ -655,7 +655,7 @@ final class ApiRepositoryTest extends TestCase
 
         $result = $repository->persist($user, ['status' => UserStatus::BANNED]);
 
-        static::assertTrue($result);
+        self::assertTrue($result);
     }
 
     /**
@@ -670,8 +670,8 @@ final class ApiRepositoryTest extends TestCase
 
         $result = $this->repository->get(); // @phpstan-ignore staticMethod.dynamicCall
 
-        static::assertCount(1, $result);
-        static::assertSame('Alice', $result->first()?->name); // @phpstan-ignore property.notFound
+        self::assertCount(1, $result);
+        self::assertSame('Alice', $result->first()?->name); // @phpstan-ignore property.notFound
     }
 
     /**
@@ -694,9 +694,9 @@ final class ApiRepositoryTest extends TestCase
         $firstRead  = $repository->get(); // @phpstan-ignore staticMethod.dynamicCall
         $secondRead = $repository->get(); // @phpstan-ignore staticMethod.dynamicCall
 
-        static::assertCount(2, $firstRead);
-        static::assertCount(2, $secondRead);
-        static::assertTrue($repository->getCacheStatus()->isPopulated());
+        self::assertCount(2, $firstRead);
+        self::assertCount(2, $secondRead);
+        self::assertTrue($repository->getCacheStatus()->isPopulated());
     }
 
     /**

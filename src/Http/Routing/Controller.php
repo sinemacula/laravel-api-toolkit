@@ -38,7 +38,7 @@ abstract class Controller extends LaravelController
     protected function respondWithData(
         array $data,
         HttpStatus $status = HttpStatus::OK,
-        array $headers = []
+        array $headers = [],
     ): JsonResponse {
         return Response::json(['data' => $data], $status->getCode(), $headers);
     }
@@ -54,7 +54,7 @@ abstract class Controller extends LaravelController
     protected function respondWithItem(
         JsonResource $resource,
         HttpStatus $status = HttpStatus::OK,
-        array $headers = []
+        array $headers = [],
     ): JsonResponse {
         return $resource->response()->setStatusCode($status->getCode())->withHeaders($headers);
     }
@@ -70,7 +70,7 @@ abstract class Controller extends LaravelController
     protected function respondWithCollection(
         ResourceCollection $collection,
         HttpStatus $status = HttpStatus::OK,
-        array $headers = []
+        array $headers = [],
     ): JsonResponse {
         return $collection->response()->setStatusCode($status->getCode())->withHeaders($headers);
     }
@@ -91,7 +91,7 @@ abstract class Controller extends LaravelController
         callable $callback,
         int $interval = 1,
         HttpStatus $status = HttpStatus::OK,
-        array $headers = []
+        array $headers = [],
     ): StreamedResponse {
         return (new EventStream(static::HEARTBEAT_INTERVAL))
             ->toResponse($callback, $interval, $status, $headers);

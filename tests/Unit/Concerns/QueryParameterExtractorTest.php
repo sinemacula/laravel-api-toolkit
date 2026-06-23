@@ -51,7 +51,7 @@ final class QueryParameterExtractorTest extends TestCase
     {
         $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb());
 
-        static::assertSame([], $this->extractor->extract($request));
+        self::assertSame([], $this->extractor->extract($request));
     }
 
     /**
@@ -63,7 +63,7 @@ final class QueryParameterExtractorTest extends TestCase
     {
         $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['fields' => 'name']);
 
-        static::assertSame(['fields' => ['name']], $this->extractor->extract($request));
+        self::assertSame(['fields' => ['name']], $this->extractor->extract($request));
     }
 
     /**
@@ -77,8 +77,8 @@ final class QueryParameterExtractorTest extends TestCase
 
         $parameters = $this->extractor->extract($request);
 
-        static::assertSame('2', $parameters['page']);
-        static::assertSame('10', $parameters['limit']);
+        self::assertSame('2', $parameters['page']);
+        self::assertSame('10', $parameters['limit']);
     }
 
     /**
@@ -93,7 +93,7 @@ final class QueryParameterExtractorTest extends TestCase
 
         $parameters = $this->extractor->extract($request);
 
-        static::assertSame($cursor, $parameters['cursor']);
+        self::assertSame($cursor, $parameters['cursor']);
     }
 
     /**
@@ -107,7 +107,7 @@ final class QueryParameterExtractorTest extends TestCase
 
         $parameters = $this->extractor->extract($request);
 
-        static::assertSame(['first_name', 'last_name'], $parameters['fields']);
+        self::assertSame(['first_name', 'last_name'], $parameters['fields']);
     }
 
     /**
@@ -126,7 +126,7 @@ final class QueryParameterExtractorTest extends TestCase
 
         $parameters = $this->extractor->extract($request);
 
-        static::assertSame([
+        self::assertSame([
             'user' => ['name', 'email'],
             'post' => ['title', 'body'],
         ], $parameters['fields']);
@@ -143,7 +143,7 @@ final class QueryParameterExtractorTest extends TestCase
 
         $parameters = $this->extractor->extract($request);
 
-        static::assertSame(['posts', 'comments'], $parameters['counts']);
+        self::assertSame(['posts', 'comments'], $parameters['counts']);
     }
 
     /**
@@ -159,7 +159,7 @@ final class QueryParameterExtractorTest extends TestCase
 
         $parameters = $this->extractor->extract($request);
 
-        static::assertSame(['user' => ['posts', 'comments']], $parameters['counts']);
+        self::assertSame(['user' => ['posts', 'comments']], $parameters['counts']);
     }
 
     /**
@@ -179,7 +179,7 @@ final class QueryParameterExtractorTest extends TestCase
 
         $parameters = $this->extractor->extract($request);
 
-        static::assertSame(['account' => ['transaction' => ['amount', 'fee']]], $parameters['sums']);
+        self::assertSame(['account' => ['transaction' => ['amount', 'fee']]], $parameters['sums']);
     }
 
     /**
@@ -199,7 +199,7 @@ final class QueryParameterExtractorTest extends TestCase
 
         $parameters = $this->extractor->extract($request);
 
-        static::assertSame(['account' => ['transaction' => ['amount']]], $parameters['averages']);
+        self::assertSame(['account' => ['transaction' => ['amount']]], $parameters['averages']);
     }
 
     /**
@@ -219,7 +219,7 @@ final class QueryParameterExtractorTest extends TestCase
 
         $parameters = $this->extractor->extract($request);
 
-        static::assertSame(['account' => ['transaction' => ['amount']]], $parameters['sums']);
+        self::assertSame(['account' => ['transaction' => ['amount']]], $parameters['sums']);
     }
 
     /**
@@ -240,7 +240,7 @@ final class QueryParameterExtractorTest extends TestCase
 
         $parameters = $this->extractor->extract($request);
 
-        static::assertSame(['account' => ['transaction' => ['amount', 'fee']]], $parameters['sums']);
+        self::assertSame(['account' => ['transaction' => ['amount', 'fee']]], $parameters['sums']);
     }
 
     /**
@@ -261,7 +261,7 @@ final class QueryParameterExtractorTest extends TestCase
 
         $parameters = $this->extractor->extract($request);
 
-        static::assertSame(['account' => ['transaction' => [42]]], $parameters['sums']);
+        self::assertSame(['account' => ['transaction' => [42]]], $parameters['sums']);
     }
 
     /**
@@ -276,7 +276,7 @@ final class QueryParameterExtractorTest extends TestCase
 
         $parameters = $this->extractor->extract($request);
 
-        static::assertSame(['status' => 'active', 'role' => 'admin'], $parameters['filters']);
+        self::assertSame(['status' => 'active', 'role' => 'admin'], $parameters['filters']);
     }
 
     /**
@@ -290,7 +290,7 @@ final class QueryParameterExtractorTest extends TestCase
 
         $parameters = $this->extractor->extract($request);
 
-        static::assertSame([], $parameters['filters']);
+        self::assertSame([], $parameters['filters']);
     }
 
     /**
@@ -324,7 +324,7 @@ final class QueryParameterExtractorTest extends TestCase
 
         $parameters = $this->extractor->extract($request);
 
-        static::assertSame($expected, $parameters['order']);
+        self::assertSame($expected, $parameters['order']);
     }
 
     /**
@@ -344,10 +344,10 @@ final class QueryParameterExtractorTest extends TestCase
 
         $parameters = $this->extractor->extract($request);
 
-        static::assertSame(['name', 'email'], $parameters['fields']);
-        static::assertSame(['name' => 'asc'], $parameters['order']);
-        static::assertSame('2', $parameters['page']);
-        static::assertSame('10', $parameters['limit']);
-        static::assertSame(['active' => true], $parameters['filters']);
+        self::assertSame(['name', 'email'], $parameters['fields']);
+        self::assertSame(['name' => 'asc'], $parameters['order']);
+        self::assertSame('2', $parameters['page']);
+        self::assertSame('10', $parameters['limit']);
+        self::assertSame(['active' => true], $parameters['filters']);
     }
 }

@@ -56,12 +56,12 @@ final class ContainsOperatorTest extends TestCase
 
         $wheres = $query->getQuery()->wheres;
 
-        static::assertNotEmpty($wheres);
-        static::assertCount(1, $wheres);
-        static::assertSame(self::TYPE_JSON_CONTAINS, $wheres[0]['type']);
-        static::assertSame('tags', $wheres[0]['column']);
-        static::assertSame(['Alice'], $wheres[0]['value']);
-        static::assertSame('and', $wheres[0]['boolean']);
+        self::assertNotEmpty($wheres);
+        self::assertCount(1, $wheres);
+        self::assertSame(self::TYPE_JSON_CONTAINS, $wheres[0]['type']);
+        self::assertSame('tags', $wheres[0]['column']);
+        self::assertSame(['Alice'], $wheres[0]['value']);
+        self::assertSame('and', $wheres[0]['boolean']);
     }
 
     /**
@@ -78,10 +78,10 @@ final class ContainsOperatorTest extends TestCase
 
         $wheres = $query->getQuery()->wheres;
 
-        static::assertCount(1, $wheres);
-        static::assertSame(self::TYPE_JSON_CONTAINS, $wheres[0]['type']);
-        static::assertSame('tags', $wheres[0]['column']);
-        static::assertSame($value, $wheres[0]['value']);
+        self::assertCount(1, $wheres);
+        self::assertSame(self::TYPE_JSON_CONTAINS, $wheres[0]['type']);
+        self::assertSame('tags', $wheres[0]['column']);
+        self::assertSame($value, $wheres[0]['value']);
     }
 
     /**
@@ -98,19 +98,19 @@ final class ContainsOperatorTest extends TestCase
 
         $wheres = $query->getQuery()->wheres;
 
-        static::assertNotEmpty($wheres);
-        static::assertCount(1, $wheres);
-        static::assertSame('Nested', $wheres[0]['type']);
+        self::assertNotEmpty($wheres);
+        self::assertCount(1, $wheres);
+        self::assertSame('Nested', $wheres[0]['type']);
 
         $nested = $wheres[0]['query']->wheres;
 
-        static::assertCount(2, $nested);
-        static::assertSame(self::TYPE_JSON_CONTAINS, $nested[0]['type']);
-        static::assertSame('Alice', $nested[0]['value']);
-        static::assertSame('and', $nested[0]['boolean']);
-        static::assertSame(self::TYPE_JSON_CONTAINS, $nested[1]['type']);
-        static::assertSame('Bob', $nested[1]['value']);
-        static::assertSame('or', $nested[1]['boolean']);
+        self::assertCount(2, $nested);
+        self::assertSame(self::TYPE_JSON_CONTAINS, $nested[0]['type']);
+        self::assertSame('Alice', $nested[0]['value']);
+        self::assertSame('and', $nested[0]['boolean']);
+        self::assertSame(self::TYPE_JSON_CONTAINS, $nested[1]['type']);
+        self::assertSame('Bob', $nested[1]['value']);
+        self::assertSame('or', $nested[1]['boolean']);
     }
 
     /**
@@ -127,12 +127,12 @@ final class ContainsOperatorTest extends TestCase
 
         $wheres = $query->getQuery()->wheres;
 
-        static::assertCount(1, $wheres);
-        static::assertSame('Nested', $wheres[0]['type']);
+        self::assertCount(1, $wheres);
+        self::assertSame('Nested', $wheres[0]['type']);
 
         $values = array_column($wheres[0]['query']->wheres, 'value');
 
-        static::assertSame(['Alice', 'Bob'], $values);
+        self::assertSame(['Alice', 'Bob'], $values);
     }
 
     /**
@@ -147,7 +147,7 @@ final class ContainsOperatorTest extends TestCase
 
         $this->operator->apply($query, 'tags', ',,', FilterContext::root());
 
-        static::assertSame([], $query->getQuery()->wheres);
+        self::assertSame([], $query->getQuery()->wheres);
     }
 
     /**
@@ -163,11 +163,11 @@ final class ContainsOperatorTest extends TestCase
 
         $wheres = $query->getQuery()->wheres;
 
-        static::assertNotEmpty($wheres);
-        static::assertCount(1, $wheres);
-        static::assertSame(self::TYPE_JSON_CONTAINS, $wheres[0]['type']);
-        static::assertSame('tags', $wheres[0]['column']);
-        static::assertSame('Alice', $wheres[0]['value']);
+        self::assertNotEmpty($wheres);
+        self::assertCount(1, $wheres);
+        self::assertSame(self::TYPE_JSON_CONTAINS, $wheres[0]['type']);
+        self::assertSame('tags', $wheres[0]['column']);
+        self::assertSame('Alice', $wheres[0]['value']);
     }
 
     /**
@@ -183,10 +183,10 @@ final class ContainsOperatorTest extends TestCase
 
         $wheres = $query->getQuery()->wheres;
 
-        static::assertNotEmpty($wheres);
-        static::assertCount(1, $wheres);
-        static::assertSame(self::TYPE_JSON_CONTAINS, $wheres[0]['type']);
-        static::assertSame('["a"]', $wheres[0]['value']);
+        self::assertNotEmpty($wheres);
+        self::assertCount(1, $wheres);
+        self::assertSame(self::TYPE_JSON_CONTAINS, $wheres[0]['type']);
+        self::assertSame('["a"]', $wheres[0]['value']);
     }
 
     /**
@@ -203,9 +203,9 @@ final class ContainsOperatorTest extends TestCase
 
         $wheres = $query->getQuery()->wheres;
 
-        static::assertCount(1, $wheres);
-        static::assertSame(self::TYPE_JSON_CONTAINS, $wheres[0]['type']);
-        static::assertSame('["a","b"]', $wheres[0]['value']);
+        self::assertCount(1, $wheres);
+        self::assertSame(self::TYPE_JSON_CONTAINS, $wheres[0]['type']);
+        self::assertSame('["a","b"]', $wheres[0]['value']);
     }
 
     /**
@@ -219,7 +219,7 @@ final class ContainsOperatorTest extends TestCase
 
         $this->operator->apply($query, 'tags', null, FilterContext::root());
 
-        static::assertIsArray($query->getQuery()->wheres);
+        self::assertIsArray($query->getQuery()->wheres);
     }
 
     /**
@@ -238,8 +238,8 @@ final class ContainsOperatorTest extends TestCase
 
         $wheres = $query->getQuery()->wheres;
 
-        static::assertCount(2, $wheres);
-        static::assertSame('Nested', $wheres[1]['type']);
-        static::assertInstanceOf(Builder::class, $query);
+        self::assertCount(2, $wheres);
+        self::assertSame('Nested', $wheres[1]['type']);
+        self::assertInstanceOf(Builder::class, $query);
     }
 }

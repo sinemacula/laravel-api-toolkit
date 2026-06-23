@@ -33,7 +33,6 @@ abstract class ApiException extends \Exception
 
         // The previous throwable
         ?\Throwable $previous = null,
-
     ) {
         parent::__construct($this->getCustomDetail(), $this->getStatusCode(), $previous);
     }

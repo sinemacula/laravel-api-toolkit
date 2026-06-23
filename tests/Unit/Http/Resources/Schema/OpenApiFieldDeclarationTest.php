@@ -39,14 +39,14 @@ final class OpenApiFieldDeclarationTest extends TestCase
             ->description('A status field')
             ->toSchema();
 
-        static::assertInstanceOf(OpenApiFieldSchema::class, $schema);
-        static::assertSame('string', $schema->type);
-        static::assertSame('email', $schema->format);
-        static::assertTrue($schema->nullable);
-        static::assertSame(['a', 'b'], $schema->enum);
-        static::assertSame('a', $schema->example);
-        static::assertSame('A status field', $schema->description);
-        static::assertFalse($schema->undocumented);
+        self::assertInstanceOf(OpenApiFieldSchema::class, $schema);
+        self::assertSame('string', $schema->type);
+        self::assertSame('email', $schema->format);
+        self::assertTrue($schema->nullable);
+        self::assertSame(['a', 'b'], $schema->enum);
+        self::assertSame('a', $schema->example);
+        self::assertSame('A status field', $schema->description);
+        self::assertFalse($schema->undocumented);
     }
 
     /**
@@ -58,12 +58,12 @@ final class OpenApiFieldDeclarationTest extends TestCase
     {
         $declaration = new OpenApiFieldDeclaration(Field::scalar('name'));
 
-        static::assertSame($declaration, $declaration->type('string'));
-        static::assertSame($declaration, $declaration->format('uuid'));
-        static::assertSame($declaration, $declaration->nullable());
-        static::assertSame($declaration, $declaration->enum(['x']));
-        static::assertSame($declaration, $declaration->example('x'));
-        static::assertSame($declaration, $declaration->description('desc'));
+        self::assertSame($declaration, $declaration->type('string'));
+        self::assertSame($declaration, $declaration->format('uuid'));
+        self::assertSame($declaration, $declaration->nullable());
+        self::assertSame($declaration, $declaration->enum(['x']));
+        self::assertSame($declaration, $declaration->example('x'));
+        self::assertSame($declaration, $declaration->description('desc'));
     }
 
     /**
@@ -77,7 +77,7 @@ final class OpenApiFieldDeclarationTest extends TestCase
 
         $schema = $declaration->type('string')->nullable(false)->toSchema();
 
-        static::assertFalse($schema->nullable);
+        self::assertFalse($schema->nullable);
     }
 
     /**
@@ -90,7 +90,7 @@ final class OpenApiFieldDeclarationTest extends TestCase
         $field       = Field::scalar('email');
         $declaration = new OpenApiFieldDeclaration($field);
 
-        static::assertSame($field, $declaration->end());
+        self::assertSame($field, $declaration->end());
     }
 
     /**
@@ -104,11 +104,11 @@ final class OpenApiFieldDeclarationTest extends TestCase
 
         $schema = $declaration->toSchema();
 
-        static::assertNull($schema->type);
-        static::assertNull($schema->format);
-        static::assertFalse($schema->nullable);
-        static::assertNull($schema->enum);
-        static::assertNull($schema->description);
-        static::assertFalse($schema->undocumented);
+        self::assertNull($schema->type);
+        self::assertNull($schema->format);
+        self::assertFalse($schema->nullable);
+        self::assertNull($schema->enum);
+        self::assertNull($schema->description);
+        self::assertFalse($schema->undocumented);
     }
 }

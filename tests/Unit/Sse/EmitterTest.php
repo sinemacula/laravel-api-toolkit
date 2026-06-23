@@ -49,7 +49,7 @@ final class EmitterTest extends TestCase
         $this->emitter->emit('hello');
         $output = ob_get_clean();
 
-        static::assertSame("data: hello\n\n", $output);
+        self::assertSame("data: hello\n\n", $output);
     }
 
     /**
@@ -63,7 +63,7 @@ final class EmitterTest extends TestCase
         $this->emitter->emit('hello', 'greeting');
         $output = ob_get_clean();
 
-        static::assertSame("event: greeting\ndata: hello\n\n", $output);
+        self::assertSame("event: greeting\ndata: hello\n\n", $output);
     }
 
     /**
@@ -77,7 +77,7 @@ final class EmitterTest extends TestCase
         $this->emitter->emit("line1\nline2");
         $output = ob_get_clean();
 
-        static::assertSame("data: line1\ndata: line2\n\n", $output);
+        self::assertSame("data: line1\ndata: line2\n\n", $output);
     }
 
     /**
@@ -91,7 +91,7 @@ final class EmitterTest extends TestCase
         $this->emitter->emit(['key' => 'value']);
         $output = ob_get_clean();
 
-        static::assertSame("data: {\"key\":\"value\"}\n\n", $output);
+        self::assertSame("data: {\"key\":\"value\"}\n\n", $output);
     }
 
     /**
@@ -105,7 +105,7 @@ final class EmitterTest extends TestCase
         $this->emitter->emit(['k' => 'v'], 'update');
         $output = ob_get_clean();
 
-        static::assertSame("event: update\ndata: {\"k\":\"v\"}\n\n", $output);
+        self::assertSame("event: update\ndata: {\"k\":\"v\"}\n\n", $output);
     }
 
     /**
@@ -132,7 +132,7 @@ final class EmitterTest extends TestCase
         $this->emitter->comment();
         $output = ob_get_clean();
 
-        static::assertSame(":\n\n", $output);
+        self::assertSame(":\n\n", $output);
     }
 
     /**
@@ -146,7 +146,7 @@ final class EmitterTest extends TestCase
         $this->emitter->comment(' keep-alive');
         $output = ob_get_clean();
 
-        static::assertSame(": keep-alive\n\n", $output);
+        self::assertSame(": keep-alive\n\n", $output);
     }
 
     /**
@@ -160,7 +160,7 @@ final class EmitterTest extends TestCase
         $this->emitter->emit("line1\rline2\rline3");
         $output = ob_get_clean();
 
-        static::assertSame("data: line1\ndata: line2\ndata: line3\n\n", $output);
+        self::assertSame("data: line1\ndata: line2\ndata: line3\n\n", $output);
     }
 
     /**
@@ -174,7 +174,7 @@ final class EmitterTest extends TestCase
         $this->emitter->emit("line1\r\nline2\r\nline3");
         $output = ob_get_clean();
 
-        static::assertSame("data: line1\ndata: line2\ndata: line3\n\n", $output);
+        self::assertSame("data: line1\ndata: line2\ndata: line3\n\n", $output);
     }
 
     /**
@@ -188,7 +188,7 @@ final class EmitterTest extends TestCase
         $this->emitter->emit("a\r\nb\nc\rd");
         $output = ob_get_clean();
 
-        static::assertSame("data: a\ndata: b\ndata: c\ndata: d\n\n", $output);
+        self::assertSame("data: a\ndata: b\ndata: c\ndata: d\n\n", $output);
     }
 
     /**
@@ -202,7 +202,7 @@ final class EmitterTest extends TestCase
         $this->emitter->emit('');
         $output = ob_get_clean();
 
-        static::assertSame("data: \n\n", $output);
+        self::assertSame("data: \n\n", $output);
     }
 
     /**
@@ -216,7 +216,7 @@ final class EmitterTest extends TestCase
         $this->emitter->emit("\n\n");
         $output = ob_get_clean();
 
-        static::assertSame("data: \ndata: \ndata: \n\n", $output);
+        self::assertSame("data: \ndata: \ndata: \n\n", $output);
     }
 
     /**
@@ -230,7 +230,7 @@ final class EmitterTest extends TestCase
         $this->emitter->emit("data: fake\nevent: x");
         $output = ob_get_clean();
 
-        static::assertSame("data: data: fake\ndata: event: x\n\n", $output);
+        self::assertSame("data: data: fake\ndata: event: x\n\n", $output);
     }
 
     /**
@@ -250,7 +250,7 @@ final class EmitterTest extends TestCase
         $this->emitter->emit('test');
         ob_get_clean();
 
-        static::assertTrue($flushCalled);
+        self::assertTrue($flushCalled);
     }
 
     /**
@@ -270,6 +270,6 @@ final class EmitterTest extends TestCase
         $this->emitter->comment();
         ob_get_clean();
 
-        static::assertTrue($flushCalled);
+        self::assertTrue($flushCalled);
     }
 }

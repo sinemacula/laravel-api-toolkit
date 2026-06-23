@@ -32,7 +32,7 @@ final class DatabaseLoggerTest extends TestCase
 
         $logger = $loggerFactory([]);
 
-        static::assertInstanceOf(Logger::class, $logger);
+        self::assertInstanceOf(Logger::class, $logger);
     }
 
     /**
@@ -46,7 +46,7 @@ final class DatabaseLoggerTest extends TestCase
 
         $logger = $loggerFactory([]);
 
-        static::assertSame('database', $logger->getName());
+        self::assertSame('database', $logger->getName());
     }
 
     /**
@@ -62,7 +62,7 @@ final class DatabaseLoggerTest extends TestCase
 
         $handlers = $logger->getHandlers();
 
-        static::assertCount(1, $handlers);
-        static::assertInstanceOf(DatabaseHandler::class, $handlers[0]);
+        self::assertCount(1, $handlers);
+        self::assertInstanceOf(DatabaseHandler::class, $handlers[0]);
     }
 }

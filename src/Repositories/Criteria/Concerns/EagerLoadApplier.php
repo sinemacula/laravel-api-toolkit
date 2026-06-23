@@ -34,7 +34,7 @@ final class EagerLoadApplier
         Builder $query,
         ResourceMetadataProvider $metadataProvider,
         ?string $resourceClass,
-        ?string $resourceType
+        ?string $resourceType,
     ): Builder {
         if ($resourceClass === null || !is_subclass_of($resourceClass, ApiResourceInterface::class)) {
             return $query;

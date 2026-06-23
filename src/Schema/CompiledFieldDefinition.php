@@ -64,6 +64,5 @@ final readonly class CompiledFieldDefinition
 
         /** Declared OpenAPI contract for this field; read by the exporter */
         public ?OpenApiFieldSchema $openApi = null,
-
     ) {}
 }

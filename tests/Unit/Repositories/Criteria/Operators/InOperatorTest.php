@@ -35,10 +35,10 @@ final class InOperatorTest extends TestCase
 
         $wheres = $query->getQuery()->wheres;
 
-        static::assertCount(1, $wheres);
-        static::assertSame('In', $wheres[0]['type']);
-        static::assertSame('status', $wheres[0]['column']);
-        static::assertSame(['active', 'pending'], $wheres[0]['values']);
+        self::assertCount(1, $wheres);
+        self::assertSame('In', $wheres[0]['type']);
+        self::assertSame('status', $wheres[0]['column']);
+        self::assertSame(['active', 'pending'], $wheres[0]['values']);
     }
 
     /**
@@ -55,9 +55,9 @@ final class InOperatorTest extends TestCase
 
         $wheres = $query->getQuery()->wheres;
 
-        static::assertCount(1, $wheres);
-        static::assertSame('In', $wheres[0]['type']);
-        static::assertSame('status', $wheres[0]['column']);
-        static::assertSame(['active'], $wheres[0]['values']);
+        self::assertCount(1, $wheres);
+        self::assertSame('In', $wheres[0]['type']);
+        self::assertSame('status', $wheres[0]['column']);
+        self::assertSame(['active'], $wheres[0]['values']);
     }
 }

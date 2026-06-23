@@ -32,7 +32,6 @@ final readonly class NarrowingDecision
 
         /** The field key that forced fall-back, for diagnostics */
         private ?string $reason,
-
     ) {}
 
     /**

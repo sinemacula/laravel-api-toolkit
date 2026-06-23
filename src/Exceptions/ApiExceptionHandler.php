@@ -187,7 +187,7 @@ final class ApiExceptionHandler
     private static function mapGenericHttpException(
         SymfonyHttpExceptionInterface $exception,
         ?array $meta,
-        array $headers
+        array $headers,
     ): ApiException {
         // Laravel's handler converts session token mismatches to a generic
         // 419 HttpException before render callbacks run; 419 has no

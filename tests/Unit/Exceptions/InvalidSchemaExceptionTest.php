@@ -35,7 +35,7 @@ final class InvalidSchemaExceptionTest extends TestCase
 
         $exception = new InvalidSchemaException($errors);
 
-        static::assertCount(1, $exception->getErrors());
+        self::assertCount(1, $exception->getErrors());
     }
 
     /**
@@ -52,7 +52,7 @@ final class InvalidSchemaExceptionTest extends TestCase
 
         $exception = new InvalidSchemaException($errors);
 
-        static::assertSame($errors, $exception->getErrors());
+        self::assertSame($errors, $exception->getErrors());
     }
 
     /**
@@ -70,10 +70,10 @@ final class InvalidSchemaExceptionTest extends TestCase
         $exception = new InvalidSchemaException($errors);
         $message   = $exception->getMessage();
 
-        static::assertStringContainsString('[App\Http\Resources\UserResource] Field "name": Missing accessor', $message);
-        static::assertStringContainsString('[App\Http\Resources\PostResource] Field "title": Guard is not callable', $message);
-        static::assertStringContainsString('  - [App\Http\Resources\UserResource]', $message);
-        static::assertStringContainsString('  - [App\Http\Resources\PostResource]', $message);
+        self::assertStringContainsString('[App\Http\Resources\UserResource] Field "name": Missing accessor', $message);
+        self::assertStringContainsString('[App\Http\Resources\PostResource] Field "title": Guard is not callable', $message);
+        self::assertStringContainsString('  - [App\Http\Resources\UserResource]', $message);
+        self::assertStringContainsString('  - [App\Http\Resources\PostResource]', $message);
     }
 
     /**
@@ -91,7 +91,7 @@ final class InvalidSchemaExceptionTest extends TestCase
 
         $exception = new InvalidSchemaException($errors);
 
-        static::assertStringStartsWith('Schema validation failed with 3 error(s):', $exception->getMessage());
+        self::assertStringStartsWith('Schema validation failed with 3 error(s):', $exception->getMessage());
     }
 
     /**
@@ -103,6 +103,6 @@ final class InvalidSchemaExceptionTest extends TestCase
     {
         $exception = new InvalidSchemaException([]);
 
-        static::assertInstanceOf(\RuntimeException::class, $exception);
+        self::assertInstanceOf(\RuntimeException::class, $exception);
     }
 }

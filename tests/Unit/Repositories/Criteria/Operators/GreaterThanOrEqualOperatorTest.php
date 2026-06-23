@@ -35,12 +35,12 @@ final class GreaterThanOrEqualOperatorTest extends TestCase
 
         $wheres = $query->getQuery()->wheres;
 
-        static::assertCount(1, $wheres);
-        static::assertSame('Basic', $wheres[0]['type']);
-        static::assertSame('age', $wheres[0]['column']);
-        static::assertSame('>=', $wheres[0]['operator']);
-        static::assertSame(18, $wheres[0]['value']);
-        static::assertSame('and', $wheres[0]['boolean']);
+        self::assertCount(1, $wheres);
+        self::assertSame('Basic', $wheres[0]['type']);
+        self::assertSame('age', $wheres[0]['column']);
+        self::assertSame('>=', $wheres[0]['operator']);
+        self::assertSame(18, $wheres[0]['value']);
+        self::assertSame('and', $wheres[0]['boolean']);
     }
 
     /**
@@ -58,11 +58,11 @@ final class GreaterThanOrEqualOperatorTest extends TestCase
 
         $wheres = $query->getQuery()->wheres;
 
-        static::assertCount(1, $wheres);
-        static::assertSame('Basic', $wheres[0]['type']);
-        static::assertSame('age', $wheres[0]['column']);
-        static::assertSame('>=', $wheres[0]['operator']);
-        static::assertSame(18, $wheres[0]['value']);
-        static::assertSame('or', $wheres[0]['boolean']);
+        self::assertCount(1, $wheres);
+        self::assertSame('Basic', $wheres[0]['type']);
+        self::assertSame('age', $wheres[0]['column']);
+        self::assertSame('>=', $wheres[0]['operator']);
+        self::assertSame(18, $wheres[0]['value']);
+        self::assertSame('or', $wheres[0]['boolean']);
     }
 }

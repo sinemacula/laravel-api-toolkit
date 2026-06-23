@@ -38,7 +38,6 @@ final class CacheManager
 
         /** The registry of toolkit metadata keys to forget on flush. */
         private readonly MetadataKeyRegistry $registry,
-
     ) {}
 
     /**

@@ -35,7 +35,7 @@ final class PreventRequestsDuringMaintenanceTest extends TestCase
      */
     public function testExtendsLaravelMiddleware(): void
     {
-        static::assertContains(LaravelMiddleware::class, class_parents(PreventRequestsDuringMaintenance::class) ?: []);
+        self::assertContains(LaravelMiddleware::class, class_parents(PreventRequestsDuringMaintenance::class) ?: []);
     }
 
     /**
@@ -52,7 +52,7 @@ final class PreventRequestsDuringMaintenanceTest extends TestCase
         $middleware = new PreventRequestsDuringMaintenance($this->app);
         $except     = $this->getProperty($middleware, 'except');
 
-        static::assertSame(['/health', '/status'], $except);
+        self::assertSame(['/health', '/status'], $except);
     }
 
     /**
@@ -70,7 +70,7 @@ final class PreventRequestsDuringMaintenanceTest extends TestCase
         $middleware = new PreventRequestsDuringMaintenance($this->app);
         $except     = $this->getProperty($middleware, 'except');
 
-        static::assertSame([], $except);
+        self::assertSame([], $except);
     }
 
     /**
@@ -93,7 +93,7 @@ final class PreventRequestsDuringMaintenanceTest extends TestCase
             return 'ok';
         });
 
-        static::assertTrue($passed);
+        self::assertTrue($passed);
     }
 
     /**

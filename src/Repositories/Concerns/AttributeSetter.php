@@ -44,7 +44,6 @@ final class AttributeSetter
 
         /** Writes resolved cast metadata to the persistent cache. */
         private readonly MetadataCacheWriter $metadataCacheWriter,
-
     ) {}
 
     /**
@@ -67,7 +66,6 @@ final class AttributeSetter
             if (!$cast) {
                 continue;
             }
-
 
             $this->casts[$attribute] = $cast;
 

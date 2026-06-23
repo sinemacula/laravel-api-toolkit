@@ -64,7 +64,6 @@ final class CacheStore implements CacheInvalidator
 
         /** The cache behaviour options for this store. */
         private readonly CacheStoreOptions $options,
-
     ) {
         $store = Cache::store($this->cacheStore);
 

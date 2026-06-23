@@ -29,7 +29,6 @@ final readonly class SchemaValidationError
 
         /** A human-readable description of the defect. */
         public string $defect,
-
     ) {}
 
     /**

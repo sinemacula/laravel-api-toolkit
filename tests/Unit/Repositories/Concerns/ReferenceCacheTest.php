@@ -72,7 +72,7 @@ final class ReferenceCacheTest extends TestCase
         $this->referenceCache->all(new Tag);
         $this->referenceCache->all(new Tag);
 
-        static::assertCount(1, DB::getQueryLog());
+        self::assertCount(1, DB::getQueryLog());
 
         DB::disableQueryLog();
     }
@@ -86,8 +86,8 @@ final class ReferenceCacheTest extends TestCase
     {
         $result = $this->referenceCache->all(new Tag);
 
-        static::assertInstanceOf(Collection::class, $result);
-        static::assertCount(2, $result);
+        self::assertInstanceOf(Collection::class, $result);
+        self::assertCount(2, $result);
     }
 
     /**
@@ -106,10 +106,10 @@ final class ReferenceCacheTest extends TestCase
         $first  = $reference->all(new Tag);
         $second = $reference->all(new Tag);
 
-        static::assertCount(2, $first);
-        static::assertCount(2, $second);
-        static::assertCount(2, DB::getQueryLog());
-        static::assertFalse($reference->getStatus()->isPopulated());
+        self::assertCount(2, $first);
+        self::assertCount(2, $second);
+        self::assertCount(2, DB::getQueryLog());
+        self::assertFalse($reference->getStatus()->isPopulated());
 
         DB::disableQueryLog();
     }
@@ -128,9 +128,9 @@ final class ReferenceCacheTest extends TestCase
 
         $tag = $this->referenceCache->find(new Tag, 1);
 
-        static::assertInstanceOf(Tag::class, $tag);
-        static::assertSame('php', $tag->name); // @phpstan-ignore property.notFound
-        static::assertCount(0, DB::getQueryLog());
+        self::assertInstanceOf(Tag::class, $tag);
+        self::assertSame('php', $tag->name); // @phpstan-ignore property.notFound
+        self::assertCount(0, DB::getQueryLog());
 
         DB::disableQueryLog();
     }
@@ -142,7 +142,7 @@ final class ReferenceCacheTest extends TestCase
      */
     public function testFindReturnsNullForUnknownKey(): void
     {
-        static::assertNull($this->referenceCache->find(new Tag, 999));
+        self::assertNull($this->referenceCache->find(new Tag, 999));
     }
 
     /**
@@ -160,7 +160,7 @@ final class ReferenceCacheTest extends TestCase
 
         $result = $this->referenceCache->all(new Tag);
 
-        static::assertCount(3, $result);
+        self::assertCount(3, $result);
     }
 
     /**
@@ -170,11 +170,11 @@ final class ReferenceCacheTest extends TestCase
      */
     public function testGetStatusReportsPopulatedStateAfterLoad(): void
     {
-        static::assertFalse($this->referenceCache->getStatus()->isPopulated());
+        self::assertFalse($this->referenceCache->getStatus()->isPopulated());
 
         $this->referenceCache->all(new Tag);
 
-        static::assertTrue($this->referenceCache->getStatus()->isPopulated());
+        self::assertTrue($this->referenceCache->getStatus()->isPopulated());
     }
 
     /**
@@ -187,8 +187,8 @@ final class ReferenceCacheTest extends TestCase
     {
         $this->referenceCache->all(new Tag);
 
-        static::assertTrue($this->referenceCache->getStore()->has('api-toolkit:repository-cache:tags'));
-        static::assertTrue($this->referenceCache->getStore()->has('api-toolkit:repository-cache-meta:tags'));
+        self::assertTrue($this->referenceCache->getStore()->has('api-toolkit:repository-cache:tags'));
+        self::assertTrue($this->referenceCache->getStore()->has('api-toolkit:repository-cache-meta:tags'));
     }
 
     /**
@@ -203,9 +203,9 @@ final class ReferenceCacheTest extends TestCase
 
         $meta = $this->referenceCache->getStore()->get('api-toolkit:repository-cache-meta:tags');
 
-        static::assertIsArray($meta);
-        static::assertArrayHasKey('populated_at', $meta);
-        static::assertSame(now()->timestamp, $meta['populated_at']);
+        self::assertIsArray($meta);
+        self::assertArrayHasKey('populated_at', $meta);
+        self::assertSame(now()->timestamp, $meta['populated_at']);
     }
 
     /**
@@ -221,8 +221,8 @@ final class ReferenceCacheTest extends TestCase
 
         $meta = $this->referenceCache->getStore()->get('api-toolkit:repository-cache-meta:tags');
 
-        static::assertIsArray($meta);
-        static::assertArrayHasKey('invalidated_at', $meta);
-        static::assertSame(now()->timestamp, $meta['invalidated_at']);
+        self::assertIsArray($meta);
+        self::assertArrayHasKey('invalidated_at', $meta);
+        self::assertSame(now()->timestamp, $meta['invalidated_at']);
     }
 }

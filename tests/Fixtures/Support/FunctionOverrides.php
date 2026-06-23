@@ -13,8 +13,6 @@ namespace Tests\Fixtures\Support;
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
- *
- * @managed-static
  */
 final class FunctionOverrides
 {

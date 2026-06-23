@@ -54,7 +54,7 @@ final class FilterApplier
         ?array $filters,
         SchemaIntrospectionProvider $schemaIntrospector,
         OperatorRegistry $operatorRegistry,
-        QuerySurface $querySurface
+        QuerySurface $querySurface,
     ): Builder {
         $this->schemaIntrospector = $schemaIntrospector;
         $this->operatorRegistry   = $operatorRegistry;
@@ -78,7 +78,7 @@ final class FilterApplier
         Builder $query,
         array|string|null $filters,
         ?string $field,
-        FilterContext $context
+        FilterContext $context,
     ): Builder {
         if (empty($filters)) {
             return $query;
@@ -110,7 +110,7 @@ final class FilterApplier
         string $key,
         mixed $value,
         ?string $field,
-        FilterContext $context
+        FilterContext $context,
     ): void {
         if ($this->isConditionOperator($key)) {
             $this->applyConditionOperator($query, $key, $value, $field, $context);
@@ -181,7 +181,7 @@ final class FilterApplier
         string $operator,
         mixed $value,
         ?string $field,
-        FilterContext $context
+        FilterContext $context,
     ): void {
         if (in_array($operator, ['$has', self::OPERATOR_HASNT], true)) {
 
@@ -296,7 +296,7 @@ final class FilterApplier
         Builder $query,
         array|string $relations,
         string $operator,
-        FilterContext $context
+        FilterContext $context,
     ): void {
         $baseMethod = $this->relationalMethodMap[$operator];
         $method     = ($context->getLogicalOperator() === '$or' && $operator === '$has') ? 'orWhereHas' : $baseMethod;
@@ -328,7 +328,7 @@ final class FilterApplier
         Builder $query,
         string $method,
         string $relation,
-        ?\Closure $callback = null
+        ?\Closure $callback = null,
     ): void {
         match ($method) {
             'orWhereHas'      => $query->orWhereHas($relation, $callback),

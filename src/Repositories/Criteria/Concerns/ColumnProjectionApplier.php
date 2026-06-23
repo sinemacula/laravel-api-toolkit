@@ -36,7 +36,6 @@ final class ColumnProjectionApplier
 
         /** Derives the per-model safety set a narrowed query must retain. */
         private readonly SafetySetDeriver $safetySetDeriver,
-
     ) {}
 
     /**
@@ -52,7 +51,7 @@ final class ColumnProjectionApplier
         Builder $query,
         ResourceMetadataProvider $metadataProvider,
         ?string $resourceClass,
-        array $order
+        array $order,
     ): Builder {
         if (
             !Config::get('api-toolkit.resources.narrow_columns', false)

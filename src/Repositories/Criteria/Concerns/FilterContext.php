@@ -34,7 +34,6 @@ final class FilterContext
 
         /** The nesting depth (0 = top level) */
         private readonly int $depth,
-
     ) {}
 
     /**

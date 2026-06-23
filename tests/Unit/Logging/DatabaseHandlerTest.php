@@ -6,13 +6,13 @@ namespace Tests\Unit\Logging;
 
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 use Monolog\Level;
 use Monolog\LogRecord;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Logging\DatabaseHandler;
 use SineMacula\ApiToolkit\Models\LogMessage;
 use Tests\TestCase;
-use Illuminate\Support\Facades\Schema;
 
 /**
  * Tests for the DatabaseHandler.
@@ -76,10 +76,10 @@ final class DatabaseHandlerTest extends TestCase
         /** @phpstan-ignore staticMethod.notFound */
         $log = LogMessage::first();
 
-        static::assertNotNull($log);
-        static::assertSame('WARNING', $log->level);
-        static::assertSame('Warning message', $log->message);
-        static::assertStringContainsString('key', $log->getRawOriginal('context'));
+        self::assertNotNull($log);
+        self::assertSame('WARNING', $log->level);
+        self::assertSame('Warning message', $log->message);
+        self::assertStringContainsString('key', $log->getRawOriginal('context'));
     }
 
     /**
@@ -107,9 +107,9 @@ final class DatabaseHandlerTest extends TestCase
         /** @phpstan-ignore staticMethod.notFound */
         $log = LogMessage::first();
 
-        static::assertNotNull($log);
-        static::assertStringContainsString('Something went wrong', $log->getRawOriginal('context'));
-        static::assertStringNotContainsString('RuntimeException Object', $log->getRawOriginal('context'));
+        self::assertNotNull($log);
+        self::assertStringContainsString('Something went wrong', $log->getRawOriginal('context'));
+        self::assertStringNotContainsString('RuntimeException Object', $log->getRawOriginal('context'));
     }
 
     /**
@@ -196,9 +196,9 @@ final class DatabaseHandlerTest extends TestCase
         /** @phpstan-ignore staticMethod.notFound */
         $log = LogMessage::first();
 
-        static::assertNotNull($log);
-        static::assertNotNull($log->created_at);
-        static::assertSame('2026-01-02 03:04:05.123456', $log->created_at->format('Y-m-d H:i:s.u'));
+        self::assertNotNull($log);
+        self::assertNotNull($log->created_at);
+        self::assertSame('2026-01-02 03:04:05.123456', $log->created_at->format('Y-m-d H:i:s.u'));
     }
 
     /**

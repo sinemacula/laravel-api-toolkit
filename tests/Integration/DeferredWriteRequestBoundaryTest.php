@@ -83,9 +83,9 @@ final class DeferredWriteRequestBoundaryTest extends TestCase
         // must not be persisted while the request is still in flight.
         $response->assertJsonPath('persisted_during_request', 0);
 
-        static::assertSame(2, DB::table('users')->count());
-        static::assertSame(1, DB::table('users')->where('name', 'Alice')->count());
-        static::assertSame(1, DB::table('users')->where('name', 'Bob')->count());
+        self::assertSame(2, DB::table('users')->count());
+        self::assertSame(1, DB::table('users')->where('name', 'Alice')->count());
+        self::assertSame(1, DB::table('users')->where('name', 'Bob')->count());
     }
 
     /**
@@ -101,8 +101,8 @@ final class DeferredWriteRequestBoundaryTest extends TestCase
         /** @var \SineMacula\ApiToolkit\Repositories\Concerns\WritePool $pool */
         $pool = $this->app->make(WritePool::class); // @phpstan-ignore method.nonObject
 
-        static::assertTrue($pool->isEmpty());
-        static::assertSame(0, $pool->count());
+        self::assertTrue($pool->isEmpty());
+        self::assertSame(0, $pool->count());
     }
 
     /**
@@ -115,12 +115,12 @@ final class DeferredWriteRequestBoundaryTest extends TestCase
     {
         $this->postJson('/api/deferred-single', ['name' => 'Carol'])->assertNoContent();
 
-        static::assertSame(1, DB::table('users')->count());
-        static::assertSame(1, DB::table('users')->where('name', 'Carol')->count());
+        self::assertSame(1, DB::table('users')->count());
+        self::assertSame(1, DB::table('users')->where('name', 'Carol')->count());
 
         $this->postJson('/api/deferred-single', ['name' => 'Dave'])->assertNoContent();
 
-        static::assertSame(2, DB::table('users')->count());
-        static::assertSame(1, DB::table('users')->where('name', 'Dave')->count());
+        self::assertSame(2, DB::table('users')->count());
+        self::assertSame(1, DB::table('users')->where('name', 'Dave')->count());
     }
 }

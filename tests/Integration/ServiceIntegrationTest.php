@@ -35,9 +35,9 @@ final class ServiceIntegrationTest extends TestCase
 
         $result = $service->run();
 
-        static::assertTrue($result->succeeded());
-        static::assertNull($result->exception);
-        static::assertTrue($service->successCalled);
+        self::assertTrue($result->succeeded());
+        self::assertNull($result->exception);
+        self::assertTrue($service->successCalled);
     }
 
     /**
@@ -54,10 +54,10 @@ final class ServiceIntegrationTest extends TestCase
 
         $result = $service->run();
 
-        static::assertTrue($result->failed());
-        static::assertTrue($service->failedCalled);
-        static::assertNotNull($service->failedException);
-        static::assertSame('Service execution failed', $service->failedException->getMessage());
+        self::assertTrue($result->failed());
+        self::assertTrue($service->failedCalled);
+        self::assertNotNull($service->failedException);
+        self::assertSame('Service execution failed', $service->failedException->getMessage());
 
         // User created before the service should still exist since
         // the failing service creates its own transaction
@@ -75,14 +75,14 @@ final class ServiceIntegrationTest extends TestCase
 
         $result = $service->run();
 
-        static::assertTrue($result->succeeded());
+        self::assertTrue($result->succeeded());
 
         // The lock should have been released; a new service with the same key
         // should succeed
         $service2 = new LockableService;
         $result2  = $service2->run();
 
-        static::assertTrue($result2->succeeded());
+        self::assertTrue($result2->succeeded());
     }
 
     /**
@@ -96,8 +96,8 @@ final class ServiceIntegrationTest extends TestCase
 
         $result = $service->run();
 
-        static::assertTrue($result->succeeded());
-        static::assertTrue($service->successCalled);
+        self::assertTrue($result->succeeded());
+        self::assertTrue($service->successCalled);
     }
 
     /**
@@ -112,9 +112,9 @@ final class ServiceIntegrationTest extends TestCase
 
         $result = $service->run();
 
-        static::assertTrue($result->failed());
-        static::assertTrue($service->failedCalled);
-        static::assertInstanceOf(\RuntimeException::class, $result->exception);
-        static::assertSame('Service execution failed', $result->exception->getMessage());
+        self::assertTrue($result->failed());
+        self::assertTrue($service->failedCalled);
+        self::assertInstanceOf(\RuntimeException::class, $result->exception);
+        self::assertSame('Service execution failed', $result->exception->getMessage());
     }
 }

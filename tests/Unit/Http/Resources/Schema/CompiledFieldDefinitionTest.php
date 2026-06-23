@@ -48,17 +48,17 @@ final class CompiledFieldDefinitionTest extends TestCase
             openApi: $openApi,
         );
 
-        static::assertSame('profile.name', $definition->accessor);
-        static::assertSame($compute, $definition->compute);
-        static::assertSame('profile', $definition->relation);
-        static::assertSame('App\Http\Resources\ProfileResource', $definition->resource);
-        static::assertSame(['name', 'email'], $definition->fields);
-        static::assertSame($constraint, $definition->constraint);
-        static::assertSame(['profile.avatar'], $definition->extras);
-        static::assertSame(['profile_id'], $definition->needs);
-        static::assertSame([$guard], $definition->guards);
-        static::assertSame([$transformer], $definition->transformers);
-        static::assertSame($openApi, $definition->openApi);
+        self::assertSame('profile.name', $definition->accessor);
+        self::assertSame($compute, $definition->compute);
+        self::assertSame('profile', $definition->relation);
+        self::assertSame('App\Http\Resources\ProfileResource', $definition->resource);
+        self::assertSame(['name', 'email'], $definition->fields);
+        self::assertSame($constraint, $definition->constraint);
+        self::assertSame(['profile.avatar'], $definition->extras);
+        self::assertSame(['profile_id'], $definition->needs);
+        self::assertSame([$guard], $definition->guards);
+        self::assertSame([$transformer], $definition->transformers);
+        self::assertSame($openApi, $definition->openApi);
     }
 
     /**
@@ -81,12 +81,12 @@ final class CompiledFieldDefinitionTest extends TestCase
             transformers: [],
         );
 
-        static::assertNull($definition->accessor);
-        static::assertNull($definition->compute);
-        static::assertNull($definition->relation);
-        static::assertNull($definition->resource);
-        static::assertNull($definition->fields);
-        static::assertNull($definition->constraint);
+        self::assertNull($definition->accessor);
+        self::assertNull($definition->compute);
+        self::assertNull($definition->relation);
+        self::assertNull($definition->resource);
+        self::assertNull($definition->fields);
+        self::assertNull($definition->constraint);
     }
 
     /**
@@ -109,7 +109,7 @@ final class CompiledFieldDefinitionTest extends TestCase
             transformers: [],
         );
 
-        static::assertNull($definition->openApi);
+        self::assertNull($definition->openApi);
     }
 
     /**
@@ -135,7 +135,7 @@ final class CompiledFieldDefinitionTest extends TestCase
             openApi: $openApi,
         );
 
-        static::assertSame($openApi, $definition->openApi);
+        self::assertSame($openApi, $definition->openApi);
     }
 
     /**
@@ -158,9 +158,9 @@ final class CompiledFieldDefinitionTest extends TestCase
             transformers: [],
         );
 
-        static::assertSame([], $definition->extras);
-        static::assertSame([], $definition->needs);
-        static::assertSame([], $definition->guards);
-        static::assertSame([], $definition->transformers);
+        self::assertSame([], $definition->extras);
+        self::assertSame([], $definition->needs);
+        self::assertSame([], $definition->guards);
+        self::assertSame([], $definition->transformers);
     }
 }

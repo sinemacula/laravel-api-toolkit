@@ -27,6 +27,5 @@ final class WritePoolFlushFailed
 
         /** The flush result containing failure details. */
         public readonly WritePoolFlushResult $flushResult,
-
     ) {}
 }

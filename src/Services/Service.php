@@ -5,10 +5,10 @@ declare(strict_types = 1);
 namespace SineMacula\ApiToolkit\Services;
 
 use Illuminate\Support\Collection;
+use SineMacula\ApiToolkit\Concerns\Lockable;
 use SineMacula\ApiToolkit\Contracts\LockKeyProvider;
 use SineMacula\ApiToolkit\Services\Contracts\ServiceConcern;
 use SineMacula\ApiToolkit\Services\Contracts\ServiceInterface;
-use SineMacula\ApiToolkit\Concerns\Lockable;
 
 /**
  * Base API service.
@@ -32,7 +32,6 @@ abstract class Service implements LockKeyProvider, ServiceInterface
 
         /** The service input payload */
         protected array|Collection|\stdClass $payload = [],
-
     ) {
         $this->payload = (!$payload instanceof Collection && !$payload instanceof \stdClass) ? collect($payload) : $payload;
     }

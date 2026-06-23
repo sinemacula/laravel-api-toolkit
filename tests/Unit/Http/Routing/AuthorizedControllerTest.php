@@ -35,7 +35,7 @@ final class AuthorizedControllerTest extends TestCase
     {
         $result = TestingAuthorizedController::getResourceModel();
 
-        static::assertSame(User::class, $result);
+        self::assertSame(User::class, $result);
     }
 
     /**
@@ -71,7 +71,7 @@ final class AuthorizedControllerTest extends TestCase
     {
         $result = TestingAuthorizedController::getRouteParameter();
 
-        static::assertSame('user', $result);
+        self::assertSame('user', $result);
     }
 
     /**
@@ -83,7 +83,7 @@ final class AuthorizedControllerTest extends TestCase
     {
         $result = TestingMinimalAuthorizedController::getRouteParameter();
 
-        static::assertNull($result);
+        self::assertNull($result);
     }
 
     /**
@@ -96,7 +96,7 @@ final class AuthorizedControllerTest extends TestCase
     {
         $result = TestingMinimalAuthorizedController::getResourceModel();
 
-        static::assertSame(User::class, $result);
+        self::assertSame(User::class, $result);
     }
 
     /**
@@ -108,8 +108,8 @@ final class AuthorizedControllerTest extends TestCase
     {
         $parents = class_parents(AuthorizedController::class);
 
-        static::assertIsArray($parents);
-        static::assertArrayHasKey(Controller::class, $parents);
+        self::assertIsArray($parents);
+        self::assertArrayHasKey(Controller::class, $parents);
     }
 
     /**
@@ -127,12 +127,12 @@ final class AuthorizedControllerTest extends TestCase
 
         // Call the constructor to exercise line 22 (authorizeResource call)
         $constructor = $reflection->getConstructor();
-        static::assertNotNull($constructor);
+        self::assertNotNull($constructor);
         $constructor->invoke($controller);
 
         $middleware = $this->getProperty($controller, 'middleware');
 
-        static::assertNotEmpty($middleware);
+        self::assertNotEmpty($middleware);
     }
 
     /**
@@ -147,16 +147,16 @@ final class AuthorizedControllerTest extends TestCase
         $controller = $reflection->newInstanceWithoutConstructor(); // qlty-ignore: radarlint-php:php:S3011
 
         $constructor = $reflection->getConstructor();
-        static::assertNotNull($constructor);
+        self::assertNotNull($constructor);
         $constructor->invoke($controller);
 
         /** @var array<int, array{middleware: string, options: array<string, mixed>}> $middleware */
         $middleware = $this->getProperty($controller, 'middleware');
 
-        static::assertNotEmpty($middleware);
+        self::assertNotEmpty($middleware);
 
         foreach ($middleware as $entry) {
-            static::assertSame(['index', 'show'], $entry['options']['except'] ?? null);
+            self::assertSame(['index', 'show'], $entry['options']['except'] ?? null);
         }
     }
 
@@ -173,6 +173,6 @@ final class AuthorizedControllerTest extends TestCase
 
         $result = $this->invokeMethod($controller, 'getGuardExclusions');
 
-        static::assertSame(['index', 'show'], $result);
+        self::assertSame(['index', 'show'], $result);
     }
 }

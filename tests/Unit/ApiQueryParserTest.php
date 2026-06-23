@@ -61,7 +61,7 @@ final class ApiQueryParserTest extends TestCase
         $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb());
         $this->parser->parse($request);
 
-        static::assertNull($this->parser->getFields());
+        self::assertNull($this->parser->getFields());
     }
 
     /**
@@ -74,7 +74,7 @@ final class ApiQueryParserTest extends TestCase
         $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['fields' => 'first_name,last_name,email']);
         $this->parser->parse($request);
 
-        static::assertSame(['first_name', 'last_name', 'email'], $this->parser->getFields());
+        self::assertSame(['first_name', 'last_name', 'email'], $this->parser->getFields());
     }
 
     /**
@@ -87,7 +87,7 @@ final class ApiQueryParserTest extends TestCase
         $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['fields' => ' first_name , last_name ']);
         $this->parser->parse($request);
 
-        static::assertSame(['first_name', 'last_name'], $this->parser->getFields());
+        self::assertSame(['first_name', 'last_name'], $this->parser->getFields());
     }
 
     /**
@@ -105,8 +105,8 @@ final class ApiQueryParserTest extends TestCase
         ]);
         $this->parser->parse($request);
 
-        static::assertSame(['name', 'email'], $this->parser->getFields('user'));
-        static::assertSame(['title', 'body'], $this->parser->getFields('post'));
+        self::assertSame(['name', 'email'], $this->parser->getFields('user'));
+        self::assertSame(['title', 'body'], $this->parser->getFields('post'));
     }
 
     /**
@@ -121,7 +121,7 @@ final class ApiQueryParserTest extends TestCase
         ]);
         $this->parser->parse($request);
 
-        static::assertNull($this->parser->getFields('unknown'));
+        self::assertNull($this->parser->getFields('unknown'));
     }
 
     /**
@@ -134,7 +134,7 @@ final class ApiQueryParserTest extends TestCase
         $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb());
         $this->parser->parse($request);
 
-        static::assertNull($this->parser->getCounts());
+        self::assertNull($this->parser->getCounts());
     }
 
     /**
@@ -149,7 +149,7 @@ final class ApiQueryParserTest extends TestCase
         ]);
         $this->parser->parse($request);
 
-        static::assertSame(['posts', 'comments'], $this->parser->getCounts('user'));
+        self::assertSame(['posts', 'comments'], $this->parser->getCounts('user'));
     }
 
     /**
@@ -170,9 +170,9 @@ final class ApiQueryParserTest extends TestCase
 
         $result = $this->parser->getSums('account');
 
-        static::assertIsArray($result);
-        static::assertArrayHasKey('transaction', $result);
-        static::assertSame(['amount', 'fee'], $result['transaction']);
+        self::assertIsArray($result);
+        self::assertArrayHasKey('transaction', $result);
+        self::assertSame(['amount', 'fee'], $result['transaction']);
     }
 
     /**
@@ -185,7 +185,7 @@ final class ApiQueryParserTest extends TestCase
         $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb());
         $this->parser->parse($request);
 
-        static::assertNull($this->parser->getSums());
+        self::assertNull($this->parser->getSums());
     }
 
     /**
@@ -206,9 +206,9 @@ final class ApiQueryParserTest extends TestCase
 
         $result = $this->parser->getAverages('account');
 
-        static::assertIsArray($result);
-        static::assertArrayHasKey('transaction', $result);
-        static::assertSame(['amount'], $result['transaction']);
+        self::assertIsArray($result);
+        self::assertArrayHasKey('transaction', $result);
+        self::assertSame(['amount'], $result['transaction']);
     }
 
     /**
@@ -221,7 +221,7 @@ final class ApiQueryParserTest extends TestCase
         $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb());
         $this->parser->parse($request);
 
-        static::assertSame([], $this->parser->getFilters());
+        self::assertSame([], $this->parser->getFilters());
     }
 
     /**
@@ -237,7 +237,7 @@ final class ApiQueryParserTest extends TestCase
 
         $result = $this->parser->getFilters();
 
-        static::assertSame(['status' => 'active', 'role' => 'admin'], $result);
+        self::assertSame(['status' => 'active', 'role' => 'admin'], $result);
     }
 
     /**
@@ -268,7 +268,7 @@ final class ApiQueryParserTest extends TestCase
         $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['order' => $orderString]);
         $this->parser->parse($request);
 
-        static::assertSame($expected, $this->parser->getOrder());
+        self::assertSame($expected, $this->parser->getOrder());
     }
 
     /**
@@ -281,7 +281,7 @@ final class ApiQueryParserTest extends TestCase
         $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb());
         $this->parser->parse($request);
 
-        static::assertSame([], $this->parser->getOrder());
+        self::assertSame([], $this->parser->getOrder());
     }
 
     /**
@@ -294,7 +294,7 @@ final class ApiQueryParserTest extends TestCase
         $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['limit' => '25']);
         $this->parser->parse($request);
 
-        static::assertSame(25, $this->parser->getLimit());
+        self::assertSame(25, $this->parser->getLimit());
     }
 
     /**
@@ -310,7 +310,7 @@ final class ApiQueryParserTest extends TestCase
         $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['limit' => '100000']);
         $this->parser->parse($request);
 
-        static::assertSame(100, $this->parser->getLimit());
+        self::assertSame(100, $this->parser->getLimit());
     }
 
     /**
@@ -326,7 +326,7 @@ final class ApiQueryParserTest extends TestCase
         $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['limit' => '100000']);
         $this->parser->parse($request);
 
-        static::assertSame(100000, $this->parser->getLimit());
+        self::assertSame(100000, $this->parser->getLimit());
     }
 
     /**
@@ -342,7 +342,7 @@ final class ApiQueryParserTest extends TestCase
         $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['limit' => '100000']);
         $this->parser->parse($request);
 
-        static::assertSame(100000, $this->parser->getLimit());
+        self::assertSame(100000, $this->parser->getLimit());
     }
 
     /**
@@ -355,7 +355,7 @@ final class ApiQueryParserTest extends TestCase
         $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb());
         $this->parser->parse($request);
 
-        static::assertNull($this->parser->getLimit());
+        self::assertNull($this->parser->getLimit());
     }
 
     /**
@@ -368,7 +368,7 @@ final class ApiQueryParserTest extends TestCase
         $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['page' => '5']);
         $this->parser->parse($request);
 
-        static::assertSame(5, $this->parser->getPage());
+        self::assertSame(5, $this->parser->getPage());
     }
 
     /**
@@ -381,7 +381,7 @@ final class ApiQueryParserTest extends TestCase
         $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb());
         $this->parser->parse($request);
 
-        static::assertSame(1, $this->parser->getPage());
+        self::assertSame(1, $this->parser->getPage());
     }
 
     /**
@@ -395,7 +395,7 @@ final class ApiQueryParserTest extends TestCase
         $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['cursor' => $cursor]);
         $this->parser->parse($request);
 
-        static::assertSame($cursor, $this->parser->getCursor());
+        self::assertSame($cursor, $this->parser->getCursor());
     }
 
     /**
@@ -408,7 +408,7 @@ final class ApiQueryParserTest extends TestCase
         $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb());
         $this->parser->parse($request);
 
-        static::assertSame('', $this->parser->getCursor());
+        self::assertSame('', $this->parser->getCursor());
     }
 
     /**
@@ -467,11 +467,11 @@ final class ApiQueryParserTest extends TestCase
 
         $this->parser->parse($request);
 
-        static::assertSame(['name', 'email'], $this->parser->getFields());
-        static::assertSame(['name' => 'asc'], $this->parser->getOrder());
-        static::assertSame(2, $this->parser->getPage());
-        static::assertSame(10, $this->parser->getLimit());
-        static::assertSame(['active' => true], $this->parser->getFilters());
+        self::assertSame(['name', 'email'], $this->parser->getFields());
+        self::assertSame(['name' => 'asc'], $this->parser->getOrder());
+        self::assertSame(2, $this->parser->getPage());
+        self::assertSame(10, $this->parser->getLimit());
+        self::assertSame(['active' => true], $this->parser->getFilters());
     }
 
     /**
@@ -487,7 +487,7 @@ final class ApiQueryParserTest extends TestCase
     {
         $result = $this->invokeMethod(new QueryParameterExtractor, 'normalizeFields', ['amount', 'fee']);
 
-        static::assertSame(['amount', 'fee'], $result);
+        self::assertSame(['amount', 'fee'], $result);
     }
 
     /**
@@ -499,7 +499,7 @@ final class ApiQueryParserTest extends TestCase
     {
         $result = $this->invokeMethod(new QueryParameterExtractor, 'normalizeFields', 42);
 
-        static::assertSame([42], $result);
+        self::assertSame([42], $result);
     }
 
     /**
@@ -514,8 +514,8 @@ final class ApiQueryParserTest extends TestCase
             'invalid' => 'not_an_array',
         ]);
 
-        static::assertArrayHasKey('valid', $result);
-        static::assertArrayNotHasKey('invalid', $result);
+        self::assertArrayHasKey('valid', $result);
+        self::assertArrayNotHasKey('invalid', $result);
     }
 
     /**
@@ -531,8 +531,8 @@ final class ApiQueryParserTest extends TestCase
             'valid'   => ['fields' => 'amount'],
         ]);
 
-        static::assertArrayNotHasKey('invalid', $result);
-        static::assertArrayHasKey('valid', $result);
+        self::assertArrayNotHasKey('invalid', $result);
+        self::assertArrayHasKey('valid', $result);
     }
 
     /**
@@ -545,7 +545,7 @@ final class ApiQueryParserTest extends TestCase
     {
         $this->setProperty($this->parser, 'parameters', ['fields' => [' first_name ', ' last_name ']]);
 
-        static::assertSame(['first_name', 'last_name'], $this->parser->getFields());
+        self::assertSame(['first_name', 'last_name'], $this->parser->getFields());
     }
 
     /**
@@ -558,7 +558,7 @@ final class ApiQueryParserTest extends TestCase
     {
         $this->setProperty($this->parser, 'parameters', ['counts' => [' posts ', ' comments ']]);
 
-        static::assertSame(['posts', 'comments'], $this->parser->getCounts());
+        self::assertSame(['posts', 'comments'], $this->parser->getCounts());
     }
 
     /**
@@ -571,7 +571,7 @@ final class ApiQueryParserTest extends TestCase
     {
         $this->setProperty($this->parser, 'parameters', ['limit' => '0.5']);
 
-        static::assertNull($this->parser->getLimit());
+        self::assertNull($this->parser->getLimit());
     }
 
     /**
@@ -584,7 +584,7 @@ final class ApiQueryParserTest extends TestCase
     {
         $this->setProperty($this->parser, 'parameters', ['page' => '0.5']);
 
-        static::assertSame(1, $this->parser->getPage());
+        self::assertSame(1, $this->parser->getPage());
     }
 
     /**
@@ -600,8 +600,8 @@ final class ApiQueryParserTest extends TestCase
 
         $parameters = $this->getProperty($this->parser, 'parameters');
 
-        static::assertSame('2', $parameters['page']);
-        static::assertSame('10', $parameters['limit']);
+        self::assertSame('2', $parameters['page']);
+        self::assertSame('10', $parameters['limit']);
     }
 
     /**
@@ -622,8 +622,8 @@ final class ApiQueryParserTest extends TestCase
 
         $result = $this->parser->getSums('account');
 
-        static::assertIsArray($result);
-        static::assertSame(['amount', 'fee'], $result['transaction']);
+        self::assertIsArray($result);
+        self::assertSame(['amount', 'fee'], $result['transaction']);
     }
 
     /**
@@ -641,8 +641,8 @@ final class ApiQueryParserTest extends TestCase
         ]);
         $this->parser->parse($request);
 
-        static::assertSame(['transaction' => ['amount']], $this->parser->getSums('account'));
-        static::assertSame(['posts' => ['votes']], $this->parser->getSums('user'));
+        self::assertSame(['transaction' => ['amount']], $this->parser->getSums('account'));
+        self::assertSame(['posts' => ['votes']], $this->parser->getSums('user'));
     }
 
     /**
@@ -655,7 +655,7 @@ final class ApiQueryParserTest extends TestCase
         $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['order' => '']);
         $this->parser->parse($request);
 
-        static::assertSame([], $this->parser->getOrder());
+        self::assertSame([], $this->parser->getOrder());
     }
 
     /**
@@ -669,7 +669,7 @@ final class ApiQueryParserTest extends TestCase
         $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['order' => 'name:desc:extra']);
         $this->parser->parse($request);
 
-        static::assertSame(['name' => 'desc:extra'], $this->parser->getOrder());
+        self::assertSame(['name' => 'desc:extra'], $this->parser->getOrder());
     }
 
     /**

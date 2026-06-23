@@ -75,13 +75,13 @@ final class ExportOpenApiCommandTest extends TestCase
             ->expectsOutputToContain('Exported 2 resource schema(s)')
             ->assertExitCode(0);
 
-        static::assertFileExists($this->outputPath);
+        self::assertFileExists($this->outputPath);
 
         $contents = file_get_contents($this->outputPath);
 
-        static::assertIsString($contents);
-        static::assertNotSame('', $contents);
-        static::assertStringContainsString('"openapi"', $contents);
+        self::assertIsString($contents);
+        self::assertNotSame('', $contents);
+        self::assertStringContainsString('"openapi"', $contents);
     }
 
     /**
@@ -98,10 +98,10 @@ final class ExportOpenApiCommandTest extends TestCase
 
         $contents = file_get_contents($this->outputPath);
 
-        static::assertIsString($contents);
-        static::assertStringContainsString("\n", $contents);
-        static::assertStringContainsString('#/components/schemas/', $contents);
-        static::assertStringNotContainsString('#\/components\/schemas\/', $contents);
+        self::assertIsString($contents);
+        self::assertStringContainsString("\n", $contents);
+        self::assertStringContainsString('#/components/schemas/', $contents);
+        self::assertStringNotContainsString('#\/components\/schemas\/', $contents);
     }
 
     /**
@@ -118,7 +118,7 @@ final class ExportOpenApiCommandTest extends TestCase
             ->expectsOutputToContain('No resources registered in the resource map')
             ->assertExitCode(0);
 
-        static::assertFileDoesNotExist($this->outputPath);
+        self::assertFileDoesNotExist($this->outputPath);
     }
 
     /**
@@ -136,7 +136,7 @@ final class ExportOpenApiCommandTest extends TestCase
         $this->runCommand()
             ->assertExitCode(0);
 
-        static::assertFileExists($this->outputPath);
+        self::assertFileExists($this->outputPath);
     }
 
     /**

@@ -34,7 +34,6 @@ final class OctaneFlushListener
 
         /** The runtime context for detecting the serving environment. */
         private readonly RuntimeContext $runtime,
-
     ) {}
 
     /**

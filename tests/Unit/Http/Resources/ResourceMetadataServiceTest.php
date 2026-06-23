@@ -4,12 +4,12 @@ declare(strict_types = 1);
 
 namespace Tests\Unit\Http\Resources;
 
+use Illuminate\Foundation\Application;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Contracts\ResourceMetadataProvider;
 use SineMacula\ApiToolkit\Http\Resources\ResourceMetadataService;
 use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
-use Illuminate\Foundation\Application;
 
 /**
  * Tests for the ResourceMetadataService.
@@ -47,7 +47,7 @@ final class ResourceMetadataServiceTest extends TestCase
     {
         $result = $this->service->getResourceType(UserResource::class);
 
-        static::assertSame('users', $result);
+        self::assertSame('users', $result);
     }
 
     /**
@@ -59,7 +59,7 @@ final class ResourceMetadataServiceTest extends TestCase
     {
         $result = $this->service->resolveFields(UserResource::class);
 
-        static::assertSame(UserResource::resolveFields(), $result);
+        self::assertSame(UserResource::resolveFields(), $result);
     }
 
     /**
@@ -71,7 +71,7 @@ final class ResourceMetadataServiceTest extends TestCase
     {
         $result = $this->service->getAllFields(UserResource::class);
 
-        static::assertSame(UserResource::getAllFields(), $result);
+        self::assertSame(UserResource::getAllFields(), $result);
     }
 
     /**
@@ -85,7 +85,7 @@ final class ResourceMetadataServiceTest extends TestCase
 
         $result = $this->service->eagerLoadMapFor(UserResource::class, $fields);
 
-        static::assertSame(UserResource::eagerLoadMapFor($fields), $result);
+        self::assertSame(UserResource::eagerLoadMapFor($fields), $result);
     }
 
     /**
@@ -100,7 +100,7 @@ final class ResourceMetadataServiceTest extends TestCase
 
         $result = $this->service->eagerLoadCountsFor(UserResource::class, $aliases);
 
-        static::assertSame(UserResource::eagerLoadCountsFor($aliases), $result);
+        self::assertSame(UserResource::eagerLoadCountsFor($aliases), $result);
     }
 
     /**
@@ -115,8 +115,8 @@ final class ResourceMetadataServiceTest extends TestCase
 
         $resolved = $app->make(ResourceMetadataProvider::class);
 
-        static::assertInstanceOf(ResourceMetadataService::class, $resolved);
-        static::assertSame($resolved, $app->make(ResourceMetadataProvider::class));
+        self::assertInstanceOf(ResourceMetadataService::class, $resolved);
+        self::assertSame($resolved, $app->make(ResourceMetadataProvider::class));
     }
 
     /**

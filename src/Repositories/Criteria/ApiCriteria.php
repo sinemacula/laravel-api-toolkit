@@ -13,12 +13,12 @@ use SineMacula\ApiToolkit\Contracts\ApiResourceInterface;
 use SineMacula\ApiToolkit\Contracts\ResourceMetadataProvider;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
+use SineMacula\ApiToolkit\Repositories\Concerns\ResolvesResource;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\ColumnProjectionApplier;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\EagerLoadApplier;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterApplier;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\LimitApplier;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\OrderApplier;
-use SineMacula\ApiToolkit\Repositories\Concerns\ResolvesResource;
 use SineMacula\ApiToolkit\Schema\SafetySetDeriver;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 use SineMacula\Repositories\Contracts\CriteriaInterface;
@@ -79,7 +79,6 @@ final class ApiCriteria implements CriteriaInterface
 
         /** Writes resolved resource metadata to the persistent cache */
         private readonly MetadataCacheWriter $metadataCacheWriter,
-
     ) {
         $this->filterApplier           = new FilterApplier;
         $this->orderApplier            = new OrderApplier;

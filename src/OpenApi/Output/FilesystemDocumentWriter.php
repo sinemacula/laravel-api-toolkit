@@ -30,7 +30,6 @@ final class FilesystemDocumentWriter implements DocumentWriter
 
         /** The filesystem used to write the document to disk. */
         private readonly Filesystem $files,
-
     ) {}
 
     /**

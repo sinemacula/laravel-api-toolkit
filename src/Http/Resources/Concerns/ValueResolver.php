@@ -44,7 +44,6 @@ final class ValueResolver
 
         /** The guard evaluator for field visibility checks */
         private readonly GuardEvaluator $guardEvaluator,
-
     ) {}
 
     /**
@@ -80,7 +79,7 @@ final class ValueResolver
         string $field,
         CompiledFieldDefinition $definition,
         mixed $resource,
-        ?Request $request
+        ?Request $request,
     ): mixed {
         if (!$this->guardEvaluator->passesGuards($definition->guards, $resource, $request)) {
             return new MissingValue;
@@ -117,7 +116,7 @@ final class ValueResolver
         mixed $resource,
         CompiledSchema $schema,
         string $resourceType,
-        ?Request $request
+        ?Request $request,
     ): array {
         $owner = $this->unwrapResource($resource);
 
@@ -309,7 +308,7 @@ final class ValueResolver
     private function resolveRelationValue(
         CompiledFieldDefinition $definition,
         mixed $resource,
-        ?Request $request
+        ?Request $request,
     ): mixed {
         $name  = $definition->relation;
         $owner = $this->unwrapResource($resource);
@@ -337,7 +336,7 @@ final class ValueResolver
         CompiledFieldDefinition $definition,
         mixed $related,
         mixed $resource,
-        ?Request $request
+        ?Request $request,
     ): mixed {
         if ($definition->accessor !== null) {
             return match (true) {
@@ -462,7 +461,7 @@ final class ValueResolver
     private function shouldIncludeCount(
         string $presentKey,
         ?array $requested,
-        CompiledCountDefinition $definition
+        CompiledCountDefinition $definition,
     ): bool {
         if (is_array($requested) && $requested !== []) {
             return in_array($presentKey, $requested, true);

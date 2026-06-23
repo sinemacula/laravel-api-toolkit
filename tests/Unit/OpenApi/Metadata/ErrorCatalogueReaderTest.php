@@ -32,7 +32,7 @@ final class ErrorCatalogueReaderTest extends TestCase
         $reader      = new ErrorCatalogueReader;
         $descriptors = $reader->read();
 
-        static::assertCount(count(ErrorCode::cases()), $descriptors);
+        self::assertCount(count(ErrorCode::cases()), $descriptors);
     }
 
     /**
@@ -46,7 +46,7 @@ final class ErrorCatalogueReaderTest extends TestCase
         $reader = new ErrorCatalogueReader;
 
         foreach ($reader->read() as $descriptor) {
-            static::assertInstanceOf(ErrorDescriptor::class, $descriptor);
+            self::assertInstanceOf(ErrorDescriptor::class, $descriptor);
         }
     }
 
@@ -96,8 +96,8 @@ final class ErrorCatalogueReaderTest extends TestCase
 
         $descriptor = $this->findDescriptor($descriptors, $errorCode->getCode());
 
-        static::assertNotNull($descriptor, "No descriptor found for {$errorCode->name}");
-        static::assertSame($expectedHttpStatus, $descriptor->httpStatus);
+        self::assertNotNull($descriptor, "No descriptor found for {$errorCode->name}");
+        self::assertSame($expectedHttpStatus, $descriptor->httpStatus);
     }
 
     /**
@@ -114,8 +114,8 @@ final class ErrorCatalogueReaderTest extends TestCase
         // NOT_FOUND has a defined title in the language file
         $descriptor = $this->findDescriptor($descriptors, ErrorCode::NOT_FOUND->getCode());
 
-        static::assertNotNull($descriptor);
-        static::assertSame('Not Found', $descriptor->title);
+        self::assertNotNull($descriptor);
+        self::assertSame('Not Found', $descriptor->title);
     }
 
     /**
@@ -130,8 +130,8 @@ final class ErrorCatalogueReaderTest extends TestCase
 
         $descriptor = $this->findDescriptor($descriptors, ErrorCode::NOT_FOUND->getCode());
 
-        static::assertNotNull($descriptor);
-        static::assertSame('The requested resource could not be found', $descriptor->detail);
+        self::assertNotNull($descriptor);
+        self::assertSame('The requested resource could not be found', $descriptor->detail);
     }
 
     /**
@@ -147,8 +147,8 @@ final class ErrorCatalogueReaderTest extends TestCase
 
         $descriptor = $this->findDescriptor($descriptors, ErrorCode::HTTP_ERROR->getCode());
 
-        static::assertNotNull($descriptor);
-        static::assertNull($descriptor->title);
+        self::assertNotNull($descriptor);
+        self::assertNull($descriptor->title);
     }
 
     /**
@@ -164,8 +164,8 @@ final class ErrorCatalogueReaderTest extends TestCase
 
         $descriptor = $this->findDescriptor($descriptors, ErrorCode::TOKEN_MISMATCH->getCode());
 
-        static::assertNotNull($descriptor);
-        static::assertSame(419, $descriptor->httpStatus);
+        self::assertNotNull($descriptor);
+        self::assertSame(419, $descriptor->httpStatus);
     }
 
     /**
@@ -178,7 +178,7 @@ final class ErrorCatalogueReaderTest extends TestCase
         $reader = new ErrorCatalogueReader;
 
         foreach ($reader->read() as $descriptor) {
-            static::assertNotSame('', $descriptor->detail, "Empty detail for code {$descriptor->code}");
+            self::assertNotSame('', $descriptor->detail, "Empty detail for code {$descriptor->code}");
         }
     }
 

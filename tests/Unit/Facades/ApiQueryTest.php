@@ -32,7 +32,7 @@ final class ApiQueryTest extends TestCase
         $reflection = new \ReflectionMethod(ApiQuery::class, 'getFacadeAccessor');
         $accessor   = $reflection->invoke(null);
 
-        static::assertSame('api.query', $accessor);
+        self::assertSame('api.query', $accessor);
     }
 
     /**
@@ -47,7 +47,7 @@ final class ApiQueryTest extends TestCase
         $reflection = new \ReflectionMethod(ApiQuery::class, 'getFacadeAccessor');
         $accessor   = $reflection->invoke(null);
 
-        static::assertSame('custom.alias', $accessor);
+        self::assertSame('custom.alias', $accessor);
     }
 
     /**
@@ -63,7 +63,7 @@ final class ApiQueryTest extends TestCase
         $reflection = new \ReflectionMethod(ApiQuery::class, 'getFacadeAccessor');
         $accessor   = $reflection->invoke(null);
 
-        static::assertSame('api.query', $accessor);
+        self::assertSame('api.query', $accessor);
     }
 
     /**
@@ -95,7 +95,7 @@ final class ApiQueryTest extends TestCase
 
         $result = ApiQuery::getFields();
 
-        static::assertNull($result);
+        self::assertNull($result);
     }
 
     /**
@@ -111,7 +111,7 @@ final class ApiQueryTest extends TestCase
 
         $result = ApiQuery::getPage();
 
-        static::assertSame(3, $result);
+        self::assertSame(3, $result);
     }
 
     /**
@@ -129,6 +129,6 @@ final class ApiQueryTest extends TestCase
 
         $result = ApiQuery::getFilters();
 
-        static::assertSame($filters, $result);
+        self::assertSame($filters, $result);
     }
 }

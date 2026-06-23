@@ -47,7 +47,6 @@ final class WritePoolFlushResult
 
         /** The number of records discarded without retry. */
         private readonly int $droppedRecordCount = 0,
-
     ) {}
 
     /**

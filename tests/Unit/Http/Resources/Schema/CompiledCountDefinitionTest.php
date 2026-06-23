@@ -37,11 +37,11 @@ final class CompiledCountDefinitionTest extends TestCase
             guards: [$guard],
         );
 
-        static::assertSame('active_posts', $definition->presentKey);
-        static::assertSame('posts', $definition->relation);
-        static::assertSame($constraint, $definition->constraint);
-        static::assertTrue($definition->isDefault);
-        static::assertSame([$guard], $definition->guards);
+        self::assertSame('active_posts', $definition->presentKey);
+        self::assertSame('posts', $definition->relation);
+        self::assertSame($constraint, $definition->constraint);
+        self::assertTrue($definition->isDefault);
+        self::assertSame([$guard], $definition->guards);
     }
 
     /**
@@ -59,7 +59,7 @@ final class CompiledCountDefinitionTest extends TestCase
             guards: [],
         );
 
-        static::assertFalse($definition->isDefault);
+        self::assertFalse($definition->isDefault);
     }
 
     /**
@@ -77,6 +77,6 @@ final class CompiledCountDefinitionTest extends TestCase
             guards: [],
         );
 
-        static::assertNull($definition->constraint);
+        self::assertNull($definition->constraint);
     }
 }

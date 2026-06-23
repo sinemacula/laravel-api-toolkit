@@ -49,13 +49,13 @@ final class ContainerBindingRegistrarTest extends TestCase
         /** @var string $alias */
         $alias = $config->get('api-toolkit.parser.alias');
 
-        static::assertInstanceOf(ApiQueryParser::class, $app->make($alias));
-        static::assertInstanceOf(ResourceMetadataProvider::class, $app->make(ResourceMetadataProvider::class));
-        static::assertInstanceOf(SchemaIntrospectionProvider::class, $app->make(SchemaIntrospectionProvider::class));
-        static::assertInstanceOf(OperatorRegistry::class, $app->make(OperatorRegistry::class));
-        static::assertInstanceOf(SchemaValidator::class, $app->make(SchemaValidator::class));
-        static::assertInstanceOf(WritePool::class, $app->make(WritePool::class));
-        static::assertInstanceOf(CacheManager::class, $app->make(CacheManager::class));
+        self::assertInstanceOf(ApiQueryParser::class, $app->make($alias));
+        self::assertInstanceOf(ResourceMetadataProvider::class, $app->make(ResourceMetadataProvider::class));
+        self::assertInstanceOf(SchemaIntrospectionProvider::class, $app->make(SchemaIntrospectionProvider::class));
+        self::assertInstanceOf(OperatorRegistry::class, $app->make(OperatorRegistry::class));
+        self::assertInstanceOf(SchemaValidator::class, $app->make(SchemaValidator::class));
+        self::assertInstanceOf(WritePool::class, $app->make(WritePool::class));
+        self::assertInstanceOf(CacheManager::class, $app->make(CacheManager::class));
     }
 
     /**

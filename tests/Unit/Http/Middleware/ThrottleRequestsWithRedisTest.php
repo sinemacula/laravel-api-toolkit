@@ -7,8 +7,8 @@ namespace Tests\Unit\Http\Middleware;
 use Illuminate\Routing\Middleware\ThrottleRequestsWithRedis as BaseThrottleRequestsWithRedis;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
-use SineMacula\ApiToolkit\Http\Middleware\ThrottleRequestsWithRedis;
 use SineMacula\ApiToolkit\Http\Middleware\Concerns\ThrottleRequestsTrait;
+use SineMacula\ApiToolkit\Http\Middleware\ThrottleRequestsWithRedis;
 
 /**
  * Tests for the ThrottleRequestsWithRedis middleware.
@@ -30,8 +30,8 @@ final class ThrottleRequestsWithRedisTest extends TestCase
     {
         $parents = class_parents(ThrottleRequestsWithRedis::class);
 
-        static::assertIsArray($parents);
-        static::assertArrayHasKey(BaseThrottleRequestsWithRedis::class, $parents);
+        self::assertIsArray($parents);
+        self::assertArrayHasKey(BaseThrottleRequestsWithRedis::class, $parents);
     }
 
     /**
@@ -43,6 +43,6 @@ final class ThrottleRequestsWithRedisTest extends TestCase
     {
         $traits = class_uses(ThrottleRequestsWithRedis::class);
 
-        static::assertArrayHasKey(ThrottleRequestsTrait::class, $traits);
+        self::assertArrayHasKey(ThrottleRequestsTrait::class, $traits);
     }
 }

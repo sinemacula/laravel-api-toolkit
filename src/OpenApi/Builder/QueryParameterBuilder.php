@@ -30,7 +30,6 @@ final class QueryParameterBuilder
 
         /** The catalogue providing query parameter metadata. */
         private readonly MetadataCatalogue $catalogue,
-
     ) {}
 
     /**

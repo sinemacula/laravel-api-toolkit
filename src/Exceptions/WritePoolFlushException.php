@@ -29,7 +29,6 @@ final class WritePoolFlushException extends \RuntimeException
 
         // The root cause exception
         \Throwable $previous,
-
     ) {
         parent::__construct(
             sprintf(

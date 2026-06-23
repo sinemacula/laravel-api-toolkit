@@ -60,7 +60,7 @@ final class AttributeSetterTest extends TestCase
 
         assert($this->app !== null);
 
-        $this->schemaIntrospector = static::createStub(SchemaIntrospectionProvider::class);
+        $this->schemaIntrospector = self::createStub(SchemaIntrospectionProvider::class);
         $this->attributeSetter    = new AttributeSetter($this->schemaIntrospector, $this->app->make(MetadataCacheWriter::class));
     }
 
@@ -78,8 +78,8 @@ final class AttributeSetterTest extends TestCase
 
         $result = $this->attributeSetter->persist($user, ['name' => 'Bob'], User::class);
 
-        static::assertTrue($result);
-        static::assertSame('Bob', $user->fresh()?->name);
+        self::assertTrue($result);
+        self::assertSame('Bob', $user->fresh()?->name);
     }
 
     /**
@@ -96,8 +96,8 @@ final class AttributeSetterTest extends TestCase
 
         $result = $this->attributeSetter->persist($user, ['organization_id' => '5'], User::class);
 
-        static::assertTrue($result);
-        static::assertSame(5, $user->fresh()?->organization_id);
+        self::assertTrue($result);
+        self::assertSame(5, $user->fresh()?->organization_id);
     }
 
     /**
@@ -115,8 +115,8 @@ final class AttributeSetterTest extends TestCase
 
         $result = $this->attributeSetter->persist($post, ['published' => true], Post::class);
 
-        static::assertTrue($result);
-        static::assertTrue($post->fresh()?->published === true);
+        self::assertTrue($result);
+        self::assertTrue($post->fresh()?->published === true);
     }
 
     /**
@@ -133,7 +133,7 @@ final class AttributeSetterTest extends TestCase
 
         $result = $this->attributeSetter->persist($user, ['name' => ['a', 'b']], User::class);
 
-        static::assertTrue($result);
+        self::assertTrue($result);
     }
 
     /**
@@ -150,9 +150,9 @@ final class AttributeSetterTest extends TestCase
 
         $result = $this->attributeSetter->persist($user, ['status' => UserStatus::BANNED], User::class);
 
-        static::assertTrue($result);
+        self::assertTrue($result);
         // @phpstan-ignore staticMethod.impossibleType
-        static::assertSame(UserStatus::BANNED, $user->fresh()?->status);
+        self::assertSame(UserStatus::BANNED, $user->fresh()?->status);
     }
 
     /**
@@ -169,7 +169,7 @@ final class AttributeSetterTest extends TestCase
 
         $this->invokeMethod($this->attributeSetter, 'setAttribute', $user, 'name', null, 'object');
 
-        static::assertNull($user->getAttribute('name'));
+        self::assertNull($user->getAttribute('name'));
     }
 
     /**
@@ -184,7 +184,7 @@ final class AttributeSetterTest extends TestCase
 
         $this->invokeMethod($this->attributeSetter, 'setAttribute', $user, 'name', ['key' => 'value'], 'object');
 
-        static::assertInstanceOf(\stdClass::class, $user->getAttribute('name'));
+        self::assertInstanceOf(\stdClass::class, $user->getAttribute('name'));
     }
 
     /**
@@ -202,8 +202,8 @@ final class AttributeSetterTest extends TestCase
 
         $result = $this->attributeSetter->persist($user, ['organization' => $org->id], User::class);
 
-        static::assertTrue($result);
-        static::assertSame($org->id, $user->organization_id);
+        self::assertTrue($result);
+        self::assertSame($org->id, $user->organization_id);
     }
 
     /**
@@ -222,12 +222,12 @@ final class AttributeSetterTest extends TestCase
 
         $result = $this->attributeSetter->persist($post, ['tags' => [$tag->getKey()]], Post::class);
 
-        static::assertTrue($result);
+        self::assertTrue($result);
 
         $freshPost = $post->fresh();
 
-        static::assertNotNull($freshPost);
-        static::assertCount(1, $freshPost->tags()->get());
+        self::assertNotNull($freshPost);
+        self::assertCount(1, $freshPost->tags()->get());
     }
 
     /**
@@ -246,8 +246,8 @@ final class AttributeSetterTest extends TestCase
 
         $result = $this->attributeSetter->persist($post, ['tags' => collect([$tag])], Post::class);
 
-        static::assertTrue($result);
-        static::assertCount(1, $post->fresh()?->tags()->get() ?? collect([]));
+        self::assertTrue($result);
+        self::assertCount(1, $post->fresh()?->tags()->get() ?? collect([]));
     }
 
     /**
@@ -268,13 +268,13 @@ final class AttributeSetterTest extends TestCase
 
         $result = $this->attributeSetter->persist($post, ['countries' => collect([$us, $gb])], Post::class);
 
-        static::assertTrue($result);
+        self::assertTrue($result);
 
         $synced = $post->fresh()?->countries()->pluck('code')->all() ?? [];
 
         sort($synced);
 
-        static::assertSame(['GB', 'US'], $synced);
+        self::assertSame(['GB', 'US'], $synced);
     }
 
     /**
@@ -293,8 +293,8 @@ final class AttributeSetterTest extends TestCase
 
         $result = $this->attributeSetter->persist($post, ['tags' => [$tag->getKey()]], Post::class);
 
-        static::assertTrue($result);
-        static::assertCount(1, $post->fresh()?->tags()->get() ?? collect([]));
+        self::assertTrue($result);
+        self::assertCount(1, $post->fresh()?->tags()->get() ?? collect([]));
     }
 
     /**
@@ -313,8 +313,8 @@ final class AttributeSetterTest extends TestCase
 
         $result = $this->attributeSetter->persist($post, ['tags' => $tag], Post::class);
 
-        static::assertTrue($result);
-        static::assertCount(1, $post->fresh()?->tags()->get() ?? collect([]));
+        self::assertTrue($result);
+        self::assertCount(1, $post->fresh()?->tags()->get() ?? collect([]));
     }
 
     /**
@@ -336,11 +336,11 @@ final class AttributeSetterTest extends TestCase
 
         $result = $this->attributeSetter->persist($post, ['tags' => collect([$new])], Post::class);
 
-        static::assertTrue($result);
+        self::assertTrue($result);
 
         $tagNames = $post->fresh()?->tags()->pluck('name')->all();
 
-        static::assertSame(['new'], $tagNames);
+        self::assertSame(['new'], $tagNames);
     }
 
     /**
@@ -362,11 +362,11 @@ final class AttributeSetterTest extends TestCase
 
         $result = $this->attributeSetter->persist($post, ['tags' => [$new->getKey()]], Post::class);
 
-        static::assertTrue($result);
+        self::assertTrue($result);
 
         $tagNames = $post->fresh()?->tags()->pluck('name')->all();
 
-        static::assertSame(['fresh'], $tagNames);
+        self::assertSame(['fresh'], $tagNames);
     }
 
     /**
@@ -383,8 +383,8 @@ final class AttributeSetterTest extends TestCase
 
         $result = $this->attributeSetter->persist($user, ['unknown_field' => 'value'], User::class);
 
-        static::assertTrue($result);
-        static::assertSame('Alice', $user->fresh()?->name);
+        self::assertTrue($result);
+        self::assertSame('Alice', $user->fresh()?->name);
     }
 
     /**
@@ -395,13 +395,13 @@ final class AttributeSetterTest extends TestCase
      */
     public function testPersistReturnsSaveResult(): void
     {
-        $model = static::createStub(Model::class);
+        $model = self::createStub(Model::class);
         $model->method('save')->willReturn(false);
         $model->method('getCasts')->willReturn([]);
 
         $result = $this->attributeSetter->persist($model, [], 'App\Models\Stub');
 
-        static::assertFalse($result);
+        self::assertFalse($result);
     }
 
     /**
@@ -418,13 +418,13 @@ final class AttributeSetterTest extends TestCase
         Cache::memo()->rememberForever($cacheKey, fn () => $cachedCasts);
 
         $model = $this->createMock(Model::class);
-        $model->expects(static::never())->method('getCasts');
+        $model->expects(self::never())->method('getCasts');
 
         $this->attributeSetter->resolveAttributeCasts($model, User::class);
 
         $casts = $this->getProperty($this->attributeSetter, 'casts');
 
-        static::assertSame($cachedCasts, $casts);
+        self::assertSame($cachedCasts, $casts);
     }
 
     /**
@@ -445,12 +445,12 @@ final class AttributeSetterTest extends TestCase
 
         $casts = $this->getProperty($this->attributeSetter, 'casts');
 
-        static::assertIsArray($casts);
-        static::assertArrayHasKey('status', $casts);
+        self::assertIsArray($casts);
+        self::assertArrayHasKey('status', $casts);
 
         $cached = Cache::memo()->get(CacheKeys::REPOSITORY_MODEL_CASTS->resolveKey([User::class]));
 
-        static::assertSame($casts, $cached);
+        self::assertSame($casts, $cached);
     }
 
     /**
@@ -469,7 +469,7 @@ final class AttributeSetterTest extends TestCase
 
         $cached = Cache::memo()->get(CacheKeys::REPOSITORY_MODEL_CASTS->resolveKey([User::class]));
 
-        static::assertSame(['name' => 'string'], $cached);
+        self::assertSame(['name' => 'string'], $cached);
     }
 
     /**
@@ -482,7 +482,7 @@ final class AttributeSetterTest extends TestCase
     {
         $result = $this->invokeMethod($this->attributeSetter, 'resolveCastForAttribute', 'field', null, null);
 
-        static::assertNull($result);
+        self::assertNull($result);
     }
 
     /**
@@ -500,7 +500,7 @@ final class AttributeSetterTest extends TestCase
 
         $result = $this->invokeMethod($this->attributeSetter, 'resolveCastForAttribute', 'field', 'integer', null);
 
-        static::assertSame('integer', $result);
+        self::assertSame('integer', $result);
     }
 
     /**
@@ -519,7 +519,7 @@ final class AttributeSetterTest extends TestCase
 
         $result = $this->invokeMethod($this->attributeSetter, 'resolveCastForRelation', 'organization', $model);
 
-        static::assertSame('associate', $result);
+        self::assertSame('associate', $result);
     }
 
     /**
@@ -531,14 +531,14 @@ final class AttributeSetterTest extends TestCase
     public function testResolveCastForRelationReturnsCastForMorphTo(): void
     {
         $model    = new User;
-        $relation = static::createStub(MorphTo::class);
+        $relation = self::createStub(MorphTo::class);
 
         $this->schemaIntrospector->method('resolveRelation')
             ->willReturnCallback(static fn (string $attribute, $subject) => $attribute === 'commentable' && $subject === $model ? $relation : null);
 
         $result = $this->invokeMethod($this->attributeSetter, 'resolveCastForRelation', 'commentable', $model);
 
-        static::assertSame('associate', $result);
+        self::assertSame('associate', $result);
     }
 
     /**
@@ -557,7 +557,7 @@ final class AttributeSetterTest extends TestCase
 
         $result = $this->invokeMethod($this->attributeSetter, 'resolveCastForRelation', 'tags', $model);
 
-        static::assertSame('sync', $result);
+        self::assertSame('sync', $result);
     }
 
     /**
@@ -575,7 +575,7 @@ final class AttributeSetterTest extends TestCase
 
         $result = $this->invokeMethod($this->attributeSetter, 'resolveCastForRelation', 'nonexistent', $model);
 
-        static::assertNull($result);
+        self::assertNull($result);
     }
 
     /**
@@ -594,7 +594,7 @@ final class AttributeSetterTest extends TestCase
 
         $result = $this->invokeMethod($this->attributeSetter, 'resolveCastForRelation', 'posts', $model);
 
-        static::assertNull($result);
+        self::assertNull($result);
     }
 
     /**
@@ -613,7 +613,7 @@ final class AttributeSetterTest extends TestCase
 
         $result = $this->invokeMethod($this->attributeSetter, 'resolveCastForRelation', 'articles', $model);
 
-        static::assertSame('sync', $result);
+        self::assertSame('sync', $result);
     }
 
     /**
@@ -626,7 +626,7 @@ final class AttributeSetterTest extends TestCase
     {
         $result = $this->invokeMethod($this->attributeSetter, 'matchesLaravelCast', 'string', 'string');
 
-        static::assertTrue($result);
+        self::assertTrue($result);
     }
 
     /**
@@ -639,7 +639,7 @@ final class AttributeSetterTest extends TestCase
     {
         $result = $this->invokeMethod($this->attributeSetter, 'matchesLaravelCast', 'decimal:2', 'decimal*');
 
-        static::assertTrue($result);
+        self::assertTrue($result);
     }
 
     /**
@@ -652,7 +652,7 @@ final class AttributeSetterTest extends TestCase
     {
         $result = $this->invokeMethod($this->attributeSetter, 'matchesLaravelCast', UserStatus::class, UserStatus::class);
 
-        static::assertTrue($result);
+        self::assertTrue($result);
     }
 
     /**
@@ -665,7 +665,7 @@ final class AttributeSetterTest extends TestCase
     {
         $result = $this->invokeMethod($this->attributeSetter, 'matchesLaravelCast', UserStatus::class . ':foo', UserStatus::class);
 
-        static::assertTrue($result);
+        self::assertTrue($result);
     }
 
     /**
@@ -678,7 +678,7 @@ final class AttributeSetterTest extends TestCase
     {
         $result = $this->invokeMethod($this->attributeSetter, 'matchesLaravelCast', 'string', UserStatus::class);
 
-        static::assertFalse($result);
+        self::assertFalse($result);
     }
 
     /**
@@ -691,7 +691,7 @@ final class AttributeSetterTest extends TestCase
     {
         $result = $this->invokeMethod($this->attributeSetter, 'matchesLaravelCast', 'string', 'integer');
 
-        static::assertFalse($result);
+        self::assertFalse($result);
     }
 
     /**
@@ -712,13 +712,13 @@ final class AttributeSetterTest extends TestCase
 
         $castsBeforeFlush = $this->getProperty($this->attributeSetter, 'casts');
 
-        static::assertNotEmpty($castsBeforeFlush);
+        self::assertNotEmpty($castsBeforeFlush);
 
         $this->attributeSetter->flush();
 
         $castsAfterFlush = $this->getProperty($this->attributeSetter, 'casts');
 
-        static::assertSame([], $castsAfterFlush);
+        self::assertSame([], $castsAfterFlush);
     }
 
     /**
@@ -733,7 +733,7 @@ final class AttributeSetterTest extends TestCase
 
         $casts = $this->getProperty($this->attributeSetter, 'casts');
 
-        static::assertSame([], $casts);
+        self::assertSame([], $casts);
     }
 
     /**
@@ -748,7 +748,7 @@ final class AttributeSetterTest extends TestCase
 
         $result = $this->invokeMethod($this->attributeSetter, 'resolveCastForAttribute', 'status', UserStatus::class, null);
 
-        static::assertSame('enum', $result);
+        self::assertSame('enum', $result);
     }
 
     /**
@@ -763,7 +763,7 @@ final class AttributeSetterTest extends TestCase
 
         $result = $this->invokeMethod($this->attributeSetter, 'resolveCastForAttribute', 'field', 'custom_type', null);
 
-        static::assertSame('string', $result);
+        self::assertSame('string', $result);
     }
 
     /**
@@ -786,6 +786,6 @@ final class AttributeSetterTest extends TestCase
         // Assert
         $expectedKey = CacheKeys::REPOSITORY_MODEL_CASTS->resolveKey([User::class]);
 
-        static::assertContains($expectedKey, $registry->keys());
+        self::assertContains($expectedKey, $registry->keys());
     }
 }

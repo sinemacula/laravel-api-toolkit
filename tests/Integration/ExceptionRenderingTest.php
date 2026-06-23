@@ -47,7 +47,7 @@ final class ExceptionRenderingTest extends TestCase
         $handler = $this->app->make(ExceptionHandlerContract::class);
 
         if (!$handler instanceof Handler) {
-            static::fail('The application exception handler must extend the foundation handler.');
+            self::fail('The application exception handler must extend the foundation handler.');
         }
 
         // Mirror the bootstrap/app.php wiring used by consuming applications:
@@ -146,8 +146,8 @@ final class ExceptionRenderingTest extends TestCase
 
         $errors = $response->json('error.meta.email');
 
-        static::assertIsArray($errors);
-        static::assertNotEmpty($errors);
+        self::assertIsArray($errors);
+        self::assertNotEmpty($errors);
     }
 
     /**
@@ -191,8 +191,8 @@ final class ExceptionRenderingTest extends TestCase
 
         $content = $response->baseResponse->getContent();
 
-        static::assertIsString($content);
-        static::assertStringNotContainsString('Something broke internally', $content);
+        self::assertIsString($content);
+        self::assertStringNotContainsString('Something broke internally', $content);
     }
 
     /**
@@ -212,7 +212,7 @@ final class ExceptionRenderingTest extends TestCase
 
         $content = $response->baseResponse->getContent();
 
-        static::assertIsString($content);
-        static::assertStringNotContainsString('"error"', $content);
+        self::assertIsString($content);
+        self::assertStringNotContainsString('"error"', $content);
     }
 }

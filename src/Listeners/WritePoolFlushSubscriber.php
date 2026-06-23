@@ -39,7 +39,6 @@ final class WritePoolFlushSubscriber
 
         /** The container used to resolve the write pool */
         private readonly Container $container,
-
     ) {}
 
     /**

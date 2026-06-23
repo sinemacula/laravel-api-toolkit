@@ -52,7 +52,6 @@ final class Relation extends BaseDefinition implements Arrayable
 
         /** Optional alias to expose this field under */
         private ?string $alias = null,
-
     ) {
         if (is_string($resourceOrAccessor) && class_exists($resourceOrAccessor)) {
             $this->resource = $resourceOrAccessor;

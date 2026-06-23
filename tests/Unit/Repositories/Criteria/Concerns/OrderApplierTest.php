@@ -39,7 +39,7 @@ final class OrderApplierTest extends TestCase
     {
         parent::setUp();
 
-        $this->schemaIntrospector = static::createStub(SchemaIntrospectionProvider::class);
+        $this->schemaIntrospector = self::createStub(SchemaIntrospectionProvider::class);
         $this->schemaIntrospector->method('isSearchable')->willReturnCallback(
             fn (Model $model, string $column) => in_array($column, ['name', 'email', 'created_at'], true),
         );
@@ -58,7 +58,7 @@ final class OrderApplierTest extends TestCase
         $query  = (new User)->newQuery();
         $result = $this->applier->apply($query, [], $this->surface());
 
-        static::assertEmpty($result->getQuery()->orders ?? []);
+        self::assertEmpty($result->getQuery()->orders ?? []);
     }
 
     /**
@@ -73,9 +73,9 @@ final class OrderApplierTest extends TestCase
 
         $orders = $result->getQuery()->orders ?? [];
 
-        static::assertCount(1, $orders);
-        static::assertSame('name', $orders[0]['column']);
-        static::assertSame('asc', $orders[0]['direction']);
+        self::assertCount(1, $orders);
+        self::assertSame('name', $orders[0]['column']);
+        self::assertSame('asc', $orders[0]['direction']);
     }
 
     /**
@@ -91,11 +91,11 @@ final class OrderApplierTest extends TestCase
 
         $orders = $result->getQuery()->orders ?? [];
 
-        static::assertCount(2, $orders);
-        static::assertSame('name', $orders[0]['column']);
-        static::assertSame('asc', $orders[0]['direction']);
-        static::assertSame('email', $orders[1]['column']);
-        static::assertSame('desc', $orders[1]['direction']);
+        self::assertCount(2, $orders);
+        self::assertSame('name', $orders[0]['column']);
+        self::assertSame('asc', $orders[0]['direction']);
+        self::assertSame('email', $orders[1]['column']);
+        self::assertSame('desc', $orders[1]['direction']);
     }
 
     /**
@@ -110,8 +110,8 @@ final class OrderApplierTest extends TestCase
 
         $orders = $result->getQuery()->orders ?? [];
 
-        static::assertNotEmpty($orders);
-        static::assertSame('RANDOM()', $orders[0]['sql'] ?? $orders[0]['column'] ?? '');
+        self::assertNotEmpty($orders);
+        self::assertSame('RANDOM()', $orders[0]['sql'] ?? $orders[0]['column'] ?? '');
     }
 
     /**
@@ -125,7 +125,7 @@ final class OrderApplierTest extends TestCase
         $query  = (new User)->newQuery();
         $result = $this->applier->apply($query, ['name' => 'invalid'], $this->surface());
 
-        static::assertEmpty($result->getQuery()->orders ?? []);
+        self::assertEmpty($result->getQuery()->orders ?? []);
     }
 
     /**
@@ -139,7 +139,7 @@ final class OrderApplierTest extends TestCase
         $query  = (new User)->newQuery();
         $result = $this->applier->apply($query, ['nonexistent' => 'asc'], $this->surface());
 
-        static::assertEmpty($result->getQuery()->orders ?? []);
+        self::assertEmpty($result->getQuery()->orders ?? []);
     }
 
     /**
@@ -155,10 +155,10 @@ final class OrderApplierTest extends TestCase
 
         $orders = $result->getQuery()->orders ?? [];
 
-        static::assertCount(2, $orders);
-        static::assertSame('RANDOM()', $orders[0]['sql'] ?? $orders[0]['column'] ?? '');
-        static::assertSame('name', $orders[1]['column']);
-        static::assertSame('desc', $orders[1]['direction']);
+        self::assertCount(2, $orders);
+        self::assertSame('RANDOM()', $orders[0]['sql'] ?? $orders[0]['column'] ?? '');
+        self::assertSame('name', $orders[1]['column']);
+        self::assertSame('desc', $orders[1]['direction']);
     }
 
     /**
@@ -168,7 +168,7 @@ final class OrderApplierTest extends TestCase
      */
     public function testOrderByRandomConstantValue(): void
     {
-        static::assertSame('random', OrderApplier::ORDER_BY_RANDOM);
+        self::assertSame('random', OrderApplier::ORDER_BY_RANDOM);
     }
 
     /**

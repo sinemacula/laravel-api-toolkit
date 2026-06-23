@@ -32,7 +32,7 @@ final class LimitApplierTest extends TestCase
 
         $result = $applier->apply($query, null);
 
-        static::assertNull($result->getQuery()->limit);
+        self::assertNull($result->getQuery()->limit);
     }
 
     /**
@@ -47,7 +47,7 @@ final class LimitApplierTest extends TestCase
 
         $result = $applier->apply($query, 5);
 
-        static::assertSame(5, $result->getQuery()->limit);
+        self::assertSame(5, $result->getQuery()->limit);
     }
 
     /**
@@ -62,6 +62,6 @@ final class LimitApplierTest extends TestCase
 
         $result = $applier->apply($query, 0);
 
-        static::assertSame(0, $result->getQuery()->limit);
+        self::assertSame(0, $result->getQuery()->limit);
     }
 }

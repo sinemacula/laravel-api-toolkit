@@ -59,9 +59,9 @@ final class RespondsWithExportTest extends TestCase
         /** @var \Illuminate\Http\Response $response */
         $response = $controller->exportFromArray($data); // @phpstan-ignore method.notFound
 
-        static::assertInstanceOf(HttpResponse::class, $response);
-        static::assertSame(self::CONTENT_TYPE_CSV, $response->headers->get('Content-Type'));
-        static::assertStringContainsString('attachment', $response->headers->get('Content-Disposition'));
+        self::assertInstanceOf(HttpResponse::class, $response);
+        self::assertSame(self::CONTENT_TYPE_CSV, $response->headers->get('Content-Type'));
+        self::assertStringContainsString('attachment', $response->headers->get('Content-Disposition'));
     }
 
     /**
@@ -83,8 +83,8 @@ final class RespondsWithExportTest extends TestCase
         /** @var \Illuminate\Http\Response $response */
         $response = $controller->exportFromArray($data); // @phpstan-ignore method.notFound
 
-        static::assertInstanceOf(HttpResponse::class, $response);
-        static::assertSame(self::CONTENT_TYPE_XML, $response->headers->get('Content-Type'));
+        self::assertInstanceOf(HttpResponse::class, $response);
+        self::assertSame(self::CONTENT_TYPE_XML, $response->headers->get('Content-Type'));
     }
 
     /**
@@ -120,9 +120,9 @@ final class RespondsWithExportTest extends TestCase
         /** @var \Illuminate\Http\Response $response */
         $response = $reflection->invoke($controller, 'test-data', self::CONTENT_TYPE_CSV, false, 'export.csv');
 
-        static::assertSame(self::CONTENT_TYPE_CSV, $response->headers->get('Content-Type'));
-        static::assertSame((string) strlen('test-data'), $response->headers->get('Content-Length'));
-        static::assertNull($response->headers->get('Content-Disposition'));
+        self::assertSame(self::CONTENT_TYPE_CSV, $response->headers->get('Content-Type'));
+        self::assertSame((string) strlen('test-data'), $response->headers->get('Content-Length'));
+        self::assertNull($response->headers->get('Content-Disposition'));
     }
 
     /**
@@ -139,7 +139,7 @@ final class RespondsWithExportTest extends TestCase
         /** @var \Illuminate\Http\Response $response */
         $response = $reflection->invoke($controller, 'test-data', self::CONTENT_TYPE_CSV, true, 'export.csv');
 
-        static::assertSame('attachment; filename="export.csv"', $response->headers->get('Content-Disposition'));
+        self::assertSame('attachment; filename="export.csv"', $response->headers->get('Content-Disposition'));
     }
 
     /**
@@ -159,8 +159,8 @@ final class RespondsWithExportTest extends TestCase
         /** @var \Illuminate\Http\Response $response */
         $response = $controller->exportFromCollection($collection); // @phpstan-ignore method.notFound
 
-        static::assertInstanceOf(HttpResponse::class, $response);
-        static::assertSame(self::CONTENT_TYPE_CSV, $response->headers->get('Content-Type'));
+        self::assertInstanceOf(HttpResponse::class, $response);
+        self::assertSame(self::CONTENT_TYPE_CSV, $response->headers->get('Content-Type'));
     }
 
     /**
@@ -178,8 +178,8 @@ final class RespondsWithExportTest extends TestCase
         /** @var \Illuminate\Http\Response $response */
         $response = $controller->exportCollectionToCsv($collection); // @phpstan-ignore method.notFound
 
-        static::assertInstanceOf(HttpResponse::class, $response);
-        static::assertSame(self::CONTENT_TYPE_CSV, $response->headers->get('Content-Type'));
+        self::assertInstanceOf(HttpResponse::class, $response);
+        self::assertSame(self::CONTENT_TYPE_CSV, $response->headers->get('Content-Type'));
     }
 
     /**
@@ -197,8 +197,8 @@ final class RespondsWithExportTest extends TestCase
         /** @var \Illuminate\Http\Response $response */
         $response = $controller->exportCollectionToXml($collection); // @phpstan-ignore method.notFound
 
-        static::assertInstanceOf(HttpResponse::class, $response);
-        static::assertSame(self::CONTENT_TYPE_XML, $response->headers->get('Content-Type'));
+        self::assertInstanceOf(HttpResponse::class, $response);
+        self::assertSame(self::CONTENT_TYPE_XML, $response->headers->get('Content-Type'));
     }
 
     /**
@@ -235,8 +235,8 @@ final class RespondsWithExportTest extends TestCase
         /** @var \Illuminate\Http\Response $response */
         $response = $controller->exportFromItem($resource); // @phpstan-ignore method.notFound
 
-        static::assertInstanceOf(HttpResponse::class, $response);
-        static::assertSame(self::CONTENT_TYPE_CSV, $response->headers->get('Content-Type'));
+        self::assertInstanceOf(HttpResponse::class, $response);
+        self::assertSame(self::CONTENT_TYPE_CSV, $response->headers->get('Content-Type'));
     }
 
     /**
@@ -254,8 +254,8 @@ final class RespondsWithExportTest extends TestCase
         /** @var \Illuminate\Http\Response $response */
         $response = $controller->exportItemToCsv($resource); // @phpstan-ignore method.notFound
 
-        static::assertInstanceOf(HttpResponse::class, $response);
-        static::assertSame(self::CONTENT_TYPE_CSV, $response->headers->get('Content-Type'));
+        self::assertInstanceOf(HttpResponse::class, $response);
+        self::assertSame(self::CONTENT_TYPE_CSV, $response->headers->get('Content-Type'));
     }
 
     /**
@@ -273,8 +273,8 @@ final class RespondsWithExportTest extends TestCase
         /** @var \Illuminate\Http\Response $response */
         $response = $controller->exportItemToXml($resource); // @phpstan-ignore method.notFound
 
-        static::assertInstanceOf(HttpResponse::class, $response);
-        static::assertSame(self::CONTENT_TYPE_XML, $response->headers->get('Content-Type'));
+        self::assertInstanceOf(HttpResponse::class, $response);
+        self::assertSame(self::CONTENT_TYPE_XML, $response->headers->get('Content-Type'));
     }
 
     /**
@@ -309,7 +309,7 @@ final class RespondsWithExportTest extends TestCase
         /** @var \Illuminate\Http\Response $response */
         $response = $controller->exportArrayToCsv([['id' => 1]], true, 'users.csv'); // @phpstan-ignore method.notFound
 
-        static::assertStringContainsString('users.csv', $response->headers->get('Content-Disposition') ?? '');
+        self::assertStringContainsString('users.csv', $response->headers->get('Content-Disposition') ?? '');
     }
 
     /**
@@ -327,7 +327,7 @@ final class RespondsWithExportTest extends TestCase
         /** @var \Illuminate\Http\Response $response */
         $response = $controller->exportArrayToXml([['id' => 1]], true, 'users.xml'); // @phpstan-ignore method.notFound
 
-        static::assertStringContainsString('users.xml', $response->headers->get('Content-Disposition') ?? '');
+        self::assertStringContainsString('users.xml', $response->headers->get('Content-Disposition') ?? '');
     }
 
     /**
@@ -346,7 +346,7 @@ final class RespondsWithExportTest extends TestCase
         /** @var \Illuminate\Http\Response $response */
         $response = $controller->exportCollectionToCsv($collection, true, 'orders.csv'); // @phpstan-ignore method.notFound
 
-        static::assertStringContainsString('orders.csv', $response->headers->get('Content-Disposition') ?? '');
+        self::assertStringContainsString('orders.csv', $response->headers->get('Content-Disposition') ?? '');
     }
 
     /**
@@ -365,7 +365,7 @@ final class RespondsWithExportTest extends TestCase
         /** @var \Illuminate\Http\Response $response */
         $response = $controller->exportCollectionToXml($collection, true, 'orders.xml'); // @phpstan-ignore method.notFound
 
-        static::assertStringContainsString('orders.xml', $response->headers->get('Content-Disposition') ?? '');
+        self::assertStringContainsString('orders.xml', $response->headers->get('Content-Disposition') ?? '');
     }
 
     /**
@@ -384,7 +384,7 @@ final class RespondsWithExportTest extends TestCase
         /** @var \Illuminate\Http\Response $response */
         $response = $controller->exportItemToCsv($resource, true, 'invoice.csv'); // @phpstan-ignore method.notFound
 
-        static::assertStringContainsString('invoice.csv', $response->headers->get('Content-Disposition') ?? '');
+        self::assertStringContainsString('invoice.csv', $response->headers->get('Content-Disposition') ?? '');
     }
 
     /**
@@ -403,7 +403,7 @@ final class RespondsWithExportTest extends TestCase
         /** @var \Illuminate\Http\Response $response */
         $response = $controller->exportItemToXml($resource, true, 'invoice.xml'); // @phpstan-ignore method.notFound
 
-        static::assertStringContainsString('invoice.xml', $response->headers->get('Content-Disposition') ?? '');
+        self::assertStringContainsString('invoice.xml', $response->headers->get('Content-Disposition') ?? '');
     }
 
     /**
@@ -424,7 +424,7 @@ final class RespondsWithExportTest extends TestCase
         /** @var \Illuminate\Http\Response $response */
         $response = $controller->exportFromArray($data, true, 'users.csv'); // @phpstan-ignore method.notFound
 
-        static::assertStringContainsString('users.csv', $response->headers->get('Content-Disposition') ?? '');
+        self::assertStringContainsString('users.csv', $response->headers->get('Content-Disposition') ?? '');
     }
 
     /**
@@ -445,7 +445,7 @@ final class RespondsWithExportTest extends TestCase
         /** @var \Illuminate\Http\Response $response */
         $response = $controller->exportFromArray($data, true, null); // @phpstan-ignore method.notFound
 
-        static::assertStringContainsString('export.csv', $response->headers->get('Content-Disposition') ?? '');
+        self::assertStringContainsString('export.csv', $response->headers->get('Content-Disposition') ?? '');
     }
 
     /**
@@ -466,7 +466,7 @@ final class RespondsWithExportTest extends TestCase
         /** @var \Illuminate\Http\Response $response */
         $response = $controller->exportFromCollection($collection, true, 'orders.csv'); // @phpstan-ignore method.notFound
 
-        static::assertStringContainsString('orders.csv', $response->headers->get('Content-Disposition') ?? '');
+        self::assertStringContainsString('orders.csv', $response->headers->get('Content-Disposition') ?? '');
     }
 
     /**
@@ -487,7 +487,7 @@ final class RespondsWithExportTest extends TestCase
         /** @var \Illuminate\Http\Response $response */
         $response = $controller->exportFromItem($resource, true, 'invoice.csv'); // @phpstan-ignore method.notFound
 
-        static::assertStringContainsString('invoice.csv', $response->headers->get('Content-Disposition') ?? '');
+        self::assertStringContainsString('invoice.csv', $response->headers->get('Content-Disposition') ?? '');
     }
 
     /**
@@ -508,7 +508,7 @@ final class RespondsWithExportTest extends TestCase
         /** @var \Illuminate\Http\Response $response */
         $response = $controller->exportFromArray($data, true, 'users.xml'); // @phpstan-ignore method.notFound
 
-        static::assertStringContainsString('users.xml', $response->headers->get('Content-Disposition') ?? '');
+        self::assertStringContainsString('users.xml', $response->headers->get('Content-Disposition') ?? '');
     }
 
     /**
@@ -529,7 +529,7 @@ final class RespondsWithExportTest extends TestCase
         /** @var \Illuminate\Http\Response $response */
         $response = $controller->exportFromArray($data, true, null); // @phpstan-ignore method.notFound
 
-        static::assertStringContainsString('export.xml', $response->headers->get('Content-Disposition') ?? '');
+        self::assertStringContainsString('export.xml', $response->headers->get('Content-Disposition') ?? '');
     }
 
     /**
@@ -550,7 +550,7 @@ final class RespondsWithExportTest extends TestCase
         /** @var \Illuminate\Http\Response $response */
         $response = $controller->exportFromCollection($collection, true, 'orders.xml'); // @phpstan-ignore method.notFound
 
-        static::assertStringContainsString('orders.xml', $response->headers->get('Content-Disposition') ?? '');
+        self::assertStringContainsString('orders.xml', $response->headers->get('Content-Disposition') ?? '');
     }
 
     /**
@@ -571,7 +571,7 @@ final class RespondsWithExportTest extends TestCase
         /** @var \Illuminate\Http\Response $response */
         $response = $controller->exportFromItem($resource, true, 'invoice.xml'); // @phpstan-ignore method.notFound
 
-        static::assertStringContainsString('invoice.xml', $response->headers->get('Content-Disposition') ?? '');
+        self::assertStringContainsString('invoice.xml', $response->headers->get('Content-Disposition') ?? '');
     }
 
     /**
@@ -592,8 +592,8 @@ final class RespondsWithExportTest extends TestCase
         /** @var \Illuminate\Http\Response $xml */
         $xml = $controller->exportArrayToXml([['id' => 1]]); // @phpstan-ignore method.notFound
 
-        static::assertSame('attachment; filename="export.csv"', $csv->headers->get('Content-Disposition'));
-        static::assertSame('attachment; filename="export.xml"', $xml->headers->get('Content-Disposition'));
+        self::assertSame('attachment; filename="export.csv"', $csv->headers->get('Content-Disposition'));
+        self::assertSame('attachment; filename="export.xml"', $xml->headers->get('Content-Disposition'));
     }
 
     /**
@@ -615,8 +615,8 @@ final class RespondsWithExportTest extends TestCase
         /** @var \Illuminate\Http\Response $xml */
         $xml = $controller->exportCollectionToXml($collection); // @phpstan-ignore method.notFound
 
-        static::assertSame('attachment; filename="export.csv"', $csv->headers->get('Content-Disposition'));
-        static::assertSame('attachment; filename="export.xml"', $xml->headers->get('Content-Disposition'));
+        self::assertSame('attachment; filename="export.csv"', $csv->headers->get('Content-Disposition'));
+        self::assertSame('attachment; filename="export.xml"', $xml->headers->get('Content-Disposition'));
     }
 
     /**
@@ -638,8 +638,8 @@ final class RespondsWithExportTest extends TestCase
         /** @var \Illuminate\Http\Response $xml */
         $xml = $controller->exportItemToXml($resource); // @phpstan-ignore method.notFound
 
-        static::assertSame('attachment; filename="export.csv"', $csv->headers->get('Content-Disposition'));
-        static::assertSame('attachment; filename="export.xml"', $xml->headers->get('Content-Disposition'));
+        self::assertSame('attachment; filename="export.csv"', $csv->headers->get('Content-Disposition'));
+        self::assertSame('attachment; filename="export.xml"', $xml->headers->get('Content-Disposition'));
     }
 
     /**
@@ -659,7 +659,7 @@ final class RespondsWithExportTest extends TestCase
         /** @var \Illuminate\Http\Response $response */
         $response = $controller->exportFromCollection($collection); // @phpstan-ignore method.notFound
 
-        static::assertSame('attachment; filename="export.csv"', $response->headers->get('Content-Disposition'));
+        self::assertSame('attachment; filename="export.csv"', $response->headers->get('Content-Disposition'));
     }
 
     /**
@@ -679,7 +679,7 @@ final class RespondsWithExportTest extends TestCase
         /** @var \Illuminate\Http\Response $response */
         $response = $controller->exportFromItem($resource); // @phpstan-ignore method.notFound
 
-        static::assertSame('attachment; filename="export.csv"', $response->headers->get('Content-Disposition'));
+        self::assertSame('attachment; filename="export.csv"', $response->headers->get('Content-Disposition'));
     }
 
     /**
@@ -703,7 +703,7 @@ final class RespondsWithExportTest extends TestCase
                 string $data,
                 string $contentType,
                 bool $download,
-                string $filename
+                string $filename,
             ): HttpResponse {
                 return $this->createExportResponse($data, $contentType, $download, $filename);
             }
@@ -711,9 +711,9 @@ final class RespondsWithExportTest extends TestCase
 
         $response = $controller->callCreateExportResponse('a,b', self::CONTENT_TYPE_CSV, true, 'report.csv');
 
-        static::assertSame('a,b', $response->getContent());
-        static::assertSame(self::CONTENT_TYPE_CSV, $response->headers->get('Content-Type'));
-        static::assertSame('attachment; filename="report.csv"', $response->headers->get('Content-Disposition'));
+        self::assertSame('a,b', $response->getContent());
+        self::assertSame(self::CONTENT_TYPE_CSV, $response->headers->get('Content-Type'));
+        self::assertSame('attachment; filename="report.csv"', $response->headers->get('Content-Disposition'));
     }
 
     /**
@@ -768,10 +768,8 @@ final class RespondsWithExportTest extends TestCase
             public function __construct(
 
                 /** The stubbed export payload returned by this exporter */
-                private string $output
-
-            ) {
-            }
+                private string $output,
+            ) {}
 
             /**
              * Get the export format.

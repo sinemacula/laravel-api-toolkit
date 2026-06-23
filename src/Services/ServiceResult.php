@@ -36,7 +36,6 @@ final readonly class ServiceResult
 
         /** Optional exception captured on failure */
         public ?\Throwable $exception = null,
-
     ) {}
 
     /**

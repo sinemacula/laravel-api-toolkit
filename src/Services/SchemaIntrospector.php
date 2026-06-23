@@ -50,7 +50,6 @@ final class SchemaIntrospector implements SchemaIntrospectionProvider
 
         /** Writes resolved schema metadata to the persistent cache. */
         private readonly MetadataCacheWriter $metadataCacheWriter,
-
     ) {}
 
     /**

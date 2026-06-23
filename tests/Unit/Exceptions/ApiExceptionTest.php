@@ -34,7 +34,7 @@ final class ApiExceptionTest extends TestCase
     {
         $exception = new BadRequestException;
 
-        static::assertSame(400, $exception->getCode());
+        self::assertSame(400, $exception->getCode());
     }
 
     /**
@@ -46,8 +46,8 @@ final class ApiExceptionTest extends TestCase
     {
         $exception = new BadRequestException;
 
-        static::assertIsString($exception->getMessage());
-        static::assertNotEmpty($exception->getMessage());
+        self::assertIsString($exception->getMessage());
+        self::assertNotEmpty($exception->getMessage());
     }
 
     /**
@@ -59,8 +59,8 @@ final class ApiExceptionTest extends TestCase
     {
         $exception = new BadRequestException;
 
-        static::assertIsString($exception->getCustomDetail());
-        static::assertNotEmpty($exception->getCustomDetail());
+        self::assertIsString($exception->getCustomDetail());
+        self::assertNotEmpty($exception->getCustomDetail());
     }
 
     /**
@@ -72,8 +72,8 @@ final class ApiExceptionTest extends TestCase
     {
         $exception = new BadRequestException;
 
-        static::assertIsString($exception->getCustomTitle());
-        static::assertNotEmpty($exception->getCustomTitle());
+        self::assertIsString($exception->getCustomTitle());
+        self::assertNotEmpty($exception->getCustomTitle());
     }
 
     /**
@@ -83,7 +83,7 @@ final class ApiExceptionTest extends TestCase
      */
     public function testGetHttpStatusCodeReturnsCorrectCode(): void
     {
-        static::assertSame(400, BadRequestException::getHttpStatusCode());
+        self::assertSame(400, BadRequestException::getHttpStatusCode());
     }
 
     /**
@@ -93,7 +93,7 @@ final class ApiExceptionTest extends TestCase
      */
     public function testGetInternalErrorCodeReturnsCorrectCode(): void
     {
-        static::assertSame(10100, BadRequestException::getInternalErrorCode());
+        self::assertSame(10100, BadRequestException::getInternalErrorCode());
     }
 
     /**
@@ -106,7 +106,7 @@ final class ApiExceptionTest extends TestCase
         $meta      = ['field' => 'The field is required.'];
         $exception = new BadRequestException($meta);
 
-        static::assertSame($meta, $exception->getCustomMeta());
+        self::assertSame($meta, $exception->getCustomMeta());
     }
 
     /**
@@ -118,7 +118,7 @@ final class ApiExceptionTest extends TestCase
     {
         $exception = new BadRequestException;
 
-        static::assertNull($exception->getCustomMeta());
+        self::assertNull($exception->getCustomMeta());
     }
 
     /**
@@ -131,7 +131,7 @@ final class ApiExceptionTest extends TestCase
         $headers   = ['X-Custom-Header' => 'value'];
         $exception = new BadRequestException(null, $headers);
 
-        static::assertSame($headers, $exception->getHeaders());
+        self::assertSame($headers, $exception->getHeaders());
     }
 
     /**
@@ -143,7 +143,7 @@ final class ApiExceptionTest extends TestCase
     {
         $exception = new BadRequestException;
 
-        static::assertSame([], $exception->getHeaders());
+        self::assertSame([], $exception->getHeaders());
     }
 
     /**
@@ -157,7 +157,7 @@ final class ApiExceptionTest extends TestCase
 
         $reflection = new \ReflectionMethod($exception, 'getNamespace');
 
-        static::assertSame('api-toolkit', $reflection->invoke($exception));
+        self::assertSame('api-toolkit', $reflection->invoke($exception));
     }
 
     /**
@@ -170,7 +170,7 @@ final class ApiExceptionTest extends TestCase
         $previous  = new \RuntimeException('Original error');
         $exception = new BadRequestException(null, null, $previous);
 
-        static::assertSame($previous, $exception->getPrevious());
+        self::assertSame($previous, $exception->getPrevious());
     }
 
     /**
@@ -230,8 +230,8 @@ final class ApiExceptionTest extends TestCase
             public const HttpStatus HTTP_STATUS = HttpStatus::NOT_FOUND;
         };
 
-        static::assertSame(10103, $exception::getInternalErrorCode());
-        static::assertSame(404, $exception::getHttpStatusCode());
+        self::assertSame(10103, $exception::getInternalErrorCode());
+        self::assertSame(404, $exception::getHttpStatusCode());
     }
 
     /**
@@ -243,7 +243,7 @@ final class ApiExceptionTest extends TestCase
     {
         $exception = new BadRequestException;
 
-        static::assertSame(400, $exception->getStatusCode());
+        self::assertSame(400, $exception->getStatusCode());
     }
 
     /**
@@ -255,7 +255,7 @@ final class ApiExceptionTest extends TestCase
     {
         $exception = new BadRequestException;
 
-        static::assertSame(HttpStatus::BAD_REQUEST, $exception->getStatus());
+        self::assertSame(HttpStatus::BAD_REQUEST, $exception->getStatus());
     }
 
     /**
@@ -294,7 +294,7 @@ final class ApiExceptionTest extends TestCase
 
         // The translation registered under the custom namespace resolves,
         // proving the override changed the translation key.
-        static::assertSame('Custom namespace detail', $exception->getCustomDetail());
+        self::assertSame('Custom namespace detail', $exception->getCustomDetail());
     }
 
     /**
@@ -325,7 +325,7 @@ final class ApiExceptionTest extends TestCase
             }
         };
 
-        static::assertSame('', $exception->getCustomDetail());
+        self::assertSame('', $exception->getCustomDetail());
     }
 
     /**
@@ -353,7 +353,7 @@ final class ApiExceptionTest extends TestCase
             }
         };
 
-        static::assertSame('api-toolkit', $exception->exposedNamespace());
+        self::assertSame('api-toolkit', $exception->exposedNamespace());
     }
 
     /**
@@ -372,7 +372,7 @@ final class ApiExceptionTest extends TestCase
             public const HttpStatus HTTP_STATUS = HttpStatus::UNAVAILABLE_FOR_LEGAL_REASONS;
         };
 
-        static::assertSame('Unavailable For Legal Reasons', $exception->getCustomTitle());
+        self::assertSame('Unavailable For Legal Reasons', $exception->getCustomTitle());
     }
 
     /**

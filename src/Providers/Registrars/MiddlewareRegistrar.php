@@ -38,7 +38,6 @@ final class MiddlewareRegistrar
 
         /** The service container for resolving the router and kernel. */
         private readonly Container $container,
-
     ) {}
 
     /**

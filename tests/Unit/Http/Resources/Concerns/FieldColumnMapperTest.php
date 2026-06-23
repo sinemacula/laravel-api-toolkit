@@ -63,8 +63,8 @@ final class FieldColumnMapperTest extends TestCase
 
         $map = FieldColumnMapper::build($schema);
 
-        static::assertTrue($map->isMapped('email'));
-        static::assertSame(['email'], $map->columnsFor('email'));
+        self::assertTrue($map->isMapped('email'));
+        self::assertSame(['email'], $map->columnsFor('email'));
     }
 
     /**
@@ -80,8 +80,8 @@ final class FieldColumnMapperTest extends TestCase
 
         $map = FieldColumnMapper::build($schema);
 
-        static::assertTrue($map->isMapped('full_name'));
-        static::assertSame(['first_name', 'last_name'], $map->columnsFor('full_name'));
+        self::assertTrue($map->isMapped('full_name'));
+        self::assertSame(['first_name', 'last_name'], $map->columnsFor('full_name'));
     }
 
     /**
@@ -97,8 +97,8 @@ final class FieldColumnMapperTest extends TestCase
 
         $map = FieldColumnMapper::build($schema);
 
-        static::assertFalse($map->isMapped('avatar'));
-        static::assertNull($map->columnsFor('avatar'));
+        self::assertFalse($map->isMapped('avatar'));
+        self::assertNull($map->columnsFor('avatar'));
     }
 
     /**
@@ -114,8 +114,8 @@ final class FieldColumnMapperTest extends TestCase
 
         $map = FieldColumnMapper::build($schema);
 
-        static::assertFalse($map->isMapped('secret'));
-        static::assertNull($map->columnsFor('secret'));
+        self::assertFalse($map->isMapped('secret'));
+        self::assertNull($map->columnsFor('secret'));
     }
 
     /**
@@ -131,8 +131,8 @@ final class FieldColumnMapperTest extends TestCase
 
         $map = FieldColumnMapper::build($schema);
 
-        static::assertFalse($map->isMapped('organization'));
-        static::assertNull($map->columnsFor('organization'));
+        self::assertFalse($map->isMapped('organization'));
+        self::assertNull($map->columnsFor('organization'));
     }
 
     /**
@@ -147,7 +147,7 @@ final class FieldColumnMapperTest extends TestCase
         $first  = FieldColumnMapper::for($resourceClass);
         $second = FieldColumnMapper::for($resourceClass);
 
-        static::assertSame($first, $second);
+        self::assertSame($first, $second);
     }
 
     /**
@@ -165,7 +165,7 @@ final class FieldColumnMapperTest extends TestCase
 
         $second = FieldColumnMapper::for($resourceClass);
 
-        static::assertNotSame($first, $second);
+        self::assertNotSame($first, $second);
     }
 
     /**
@@ -194,7 +194,7 @@ final class FieldColumnMapperTest extends TestCase
         mixed $compute = null,
         ?string $relation = null,
         array $needs = [],
-        array $guards = []
+        array $guards = [],
     ): CompiledFieldDefinition {
         return new CompiledFieldDefinition(
             accessor    : $accessor,

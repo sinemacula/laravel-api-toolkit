@@ -40,7 +40,6 @@ final readonly class CompiledSchema
 
         /** Declared externally-traversable relation names */
         private array $traversableRelations = [],
-
     ) {}
 
     /**

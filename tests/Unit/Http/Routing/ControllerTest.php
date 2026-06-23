@@ -57,13 +57,13 @@ final class ControllerTest extends TestCase
         /** @var \Illuminate\Http\JsonResponse $response */
         $response = $this->invokeMethod($this->controller, 'respondWithData', $data);
 
-        static::assertInstanceOf(JsonResponse::class, $response);
-        static::assertSame(200, $response->getStatusCode());
+        self::assertInstanceOf(JsonResponse::class, $response);
+        self::assertSame(200, $response->getStatusCode());
 
         $content = json_decode($response->getContent(), true);
 
-        static::assertArrayHasKey('data', $content);
-        static::assertSame($data, $content['data']);
+        self::assertArrayHasKey('data', $content);
+        self::assertSame($data, $content['data']);
     }
 
     /**
@@ -78,7 +78,7 @@ final class ControllerTest extends TestCase
         /** @var \Illuminate\Http\JsonResponse $response */
         $response = $this->invokeMethod($this->controller, 'respondWithData', $data, HttpStatus::CREATED);
 
-        static::assertSame(201, $response->getStatusCode());
+        self::assertSame(201, $response->getStatusCode());
     }
 
     /**
@@ -94,7 +94,7 @@ final class ControllerTest extends TestCase
         /** @var \Illuminate\Http\JsonResponse $response */
         $response = $this->invokeMethod($this->controller, 'respondWithData', $data, HttpStatus::OK, $headers);
 
-        static::assertSame('custom-value', $response->headers->get('X-Custom-Header'));
+        self::assertSame('custom-value', $response->headers->get('X-Custom-Header'));
     }
 
     /**
@@ -109,8 +109,8 @@ final class ControllerTest extends TestCase
         /** @var \Illuminate\Http\JsonResponse $response */
         $response = $this->invokeMethod($this->controller, 'respondWithItem', $resource);
 
-        static::assertInstanceOf(JsonResponse::class, $response);
-        static::assertSame(200, $response->getStatusCode());
+        self::assertInstanceOf(JsonResponse::class, $response);
+        self::assertSame(200, $response->getStatusCode());
     }
 
     /**
@@ -125,7 +125,7 @@ final class ControllerTest extends TestCase
         /** @var \Illuminate\Http\JsonResponse $response */
         $response = $this->invokeMethod($this->controller, 'respondWithItem', $resource, HttpStatus::CREATED);
 
-        static::assertSame(201, $response->getStatusCode());
+        self::assertSame(201, $response->getStatusCode());
     }
 
     /**
@@ -143,8 +143,8 @@ final class ControllerTest extends TestCase
         /** @var \Illuminate\Http\JsonResponse $response */
         $response = $this->invokeMethod($this->controller, 'respondWithCollection', $collection);
 
-        static::assertInstanceOf(JsonResponse::class, $response);
-        static::assertSame(200, $response->getStatusCode());
+        self::assertInstanceOf(JsonResponse::class, $response);
+        self::assertSame(200, $response->getStatusCode());
     }
 
     /**
@@ -159,7 +159,7 @@ final class ControllerTest extends TestCase
         /** @var \Illuminate\Http\JsonResponse $response */
         $response = $this->invokeMethod($this->controller, 'respondWithCollection', $collection, HttpStatus::ACCEPTED);
 
-        static::assertSame(202, $response->getStatusCode());
+        self::assertSame(202, $response->getStatusCode());
     }
 
     /**
@@ -174,8 +174,8 @@ final class ControllerTest extends TestCase
             // Stream callback placeholder
         });
 
-        static::assertInstanceOf(StreamedResponse::class, $response);
-        static::assertSame(200, $response->getStatusCode());
+        self::assertInstanceOf(StreamedResponse::class, $response);
+        self::assertSame(200, $response->getStatusCode());
     }
 
     /**
@@ -190,12 +190,12 @@ final class ControllerTest extends TestCase
             // Stream callback placeholder
         });
 
-        static::assertSame('text/event-stream', $response->headers->get('Content-Type'));
+        self::assertSame('text/event-stream', $response->headers->get('Content-Type'));
         $cacheControl = $response->headers->get('Cache-Control');
-        static::assertStringContainsString('no-cache', $cacheControl);
-        static::assertStringContainsString('no-transform', $cacheControl);
-        static::assertSame('keep-alive', $response->headers->get('Connection'));
-        static::assertSame('no', $response->headers->get('X-Accel-Buffering'));
+        self::assertStringContainsString('no-cache', $cacheControl);
+        self::assertStringContainsString('no-transform', $cacheControl);
+        self::assertSame('keep-alive', $response->headers->get('Connection'));
+        self::assertSame('no', $response->headers->get('X-Accel-Buffering'));
     }
 
     /**
@@ -212,8 +212,8 @@ final class ControllerTest extends TestCase
             // Stream callback placeholder
         }, 1, HttpStatus::OK, $headers);
 
-        static::assertSame('abc123', $response->headers->get('X-Stream-Id'));
-        static::assertSame('text/event-stream', $response->headers->get('Content-Type'));
+        self::assertSame('abc123', $response->headers->get('X-Stream-Id'));
+        self::assertSame('text/event-stream', $response->headers->get('Content-Type'));
     }
 
     /**
@@ -259,7 +259,7 @@ final class ControllerTest extends TestCase
         $response->sendContent();
         ob_end_clean();
 
-        static::assertTrue($callbackRan);
+        self::assertTrue($callbackRan);
     }
 
     /**
@@ -275,8 +275,8 @@ final class ControllerTest extends TestCase
 
         $constant = $reflection->getReflectionConstant('HEARTBEAT_INTERVAL');
 
-        static::assertNotFalse($constant);
-        static::assertSame(20, $constant->getValue());
+        self::assertNotFalse($constant);
+        self::assertSame(20, $constant->getValue());
     }
 
     /**
@@ -297,8 +297,8 @@ final class ControllerTest extends TestCase
 
         $constant = $reflection->getReflectionConstant('HEARTBEAT_INTERVAL');
 
-        static::assertNotFalse($constant);
-        static::assertSame(5, $constant->getValue());
+        self::assertNotFalse($constant);
+        self::assertSame(5, $constant->getValue());
     }
 
     /**
@@ -332,8 +332,8 @@ final class ControllerTest extends TestCase
         $response->sendContent();
         $output = ob_get_clean();
 
-        static::assertStringContainsString("event: error\ndata: An error occurred\n\n", (string) $output);
-        static::assertSame(1, $callCount);
+        self::assertStringContainsString("event: error\ndata: An error occurred\n\n", (string) $output);
+        self::assertSame(1, $callCount);
     }
 
     /**
@@ -349,11 +349,11 @@ final class ControllerTest extends TestCase
 
         $response = $this->createSubclassedController()->callData($data); // @phpstan-ignore method.notFound
 
-        static::assertSame(200, $response->getStatusCode());
+        self::assertSame(200, $response->getStatusCode());
 
         $content = json_decode((string) $response->getContent(), true);
 
-        static::assertSame($data, $content['data']);
+        self::assertSame($data, $content['data']);
     }
 
     /**
@@ -367,8 +367,8 @@ final class ControllerTest extends TestCase
 
         $response = $this->createSubclassedController()->callItem($resource); // @phpstan-ignore method.notFound
 
-        static::assertInstanceOf(JsonResponse::class, $response);
-        static::assertSame(200, $response->getStatusCode());
+        self::assertInstanceOf(JsonResponse::class, $response);
+        self::assertSame(200, $response->getStatusCode());
     }
 
     /**
@@ -384,8 +384,8 @@ final class ControllerTest extends TestCase
 
         $response = $this->createSubclassedController()->callCollection($collection); // @phpstan-ignore method.notFound
 
-        static::assertInstanceOf(JsonResponse::class, $response);
-        static::assertSame(200, $response->getStatusCode());
+        self::assertInstanceOf(JsonResponse::class, $response);
+        self::assertSame(200, $response->getStatusCode());
     }
 
     /**
@@ -401,8 +401,8 @@ final class ControllerTest extends TestCase
 
         $response = $this->createSubclassedController()->callEventStream($callback); // @phpstan-ignore method.notFound
 
-        static::assertInstanceOf(StreamedResponse::class, $response);
-        static::assertSame('text/event-stream', $response->headers->get('Content-Type'));
+        self::assertInstanceOf(StreamedResponse::class, $response);
+        self::assertSame('text/event-stream', $response->headers->get('Content-Type'));
     }
 
     /**
@@ -440,7 +440,7 @@ final class ControllerTest extends TestCase
         $response->sendContent();
         ob_end_clean();
 
-        static::assertSame([1], $sleepArgs);
+        self::assertSame([1], $sleepArgs);
     }
 
     /**
@@ -479,7 +479,7 @@ final class ControllerTest extends TestCase
         $response->sendContent();
         ob_end_clean();
 
-        static::assertInstanceOf(StreamedResponse::class, $response);
+        self::assertInstanceOf(StreamedResponse::class, $response);
     }
 
     /**

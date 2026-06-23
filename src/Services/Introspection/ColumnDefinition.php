@@ -34,6 +34,5 @@ final readonly class ColumnDefinition
 
         /** Whether the column admits null */
         public bool $nullable,
-
     ) {}
 }

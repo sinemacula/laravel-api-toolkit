@@ -35,7 +35,6 @@ final class Count extends BaseDefinition implements Arrayable
 
         /** Optional alias to expose this metric under */
         private ?string $alias = null,
-
     ) {}
 
     /**

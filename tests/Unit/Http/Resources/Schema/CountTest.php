@@ -37,10 +37,10 @@ final class CountTest extends TestCase
 
         $array = $count->toArray();
 
-        static::assertArrayHasKey(self::COUNT_KEY_POSTS, $array);
-        static::assertSame('posts', $array[self::COUNT_KEY_POSTS]['key']);
-        static::assertSame('count', $array[self::COUNT_KEY_POSTS]['metric']);
-        static::assertSame('posts', $array[self::COUNT_KEY_POSTS]['relation']);
+        self::assertArrayHasKey(self::COUNT_KEY_POSTS, $array);
+        self::assertSame('posts', $array[self::COUNT_KEY_POSTS]['key']);
+        self::assertSame('count', $array[self::COUNT_KEY_POSTS]['metric']);
+        self::assertSame('posts', $array[self::COUNT_KEY_POSTS]['relation']);
     }
 
     /**
@@ -54,9 +54,9 @@ final class CountTest extends TestCase
 
         $array = $count->toArray();
 
-        static::assertArrayHasKey(self::COUNT_KEY_POST_COUNT, $array);
-        static::assertSame('post_count', $array[self::COUNT_KEY_POST_COUNT]['key']);
-        static::assertSame('posts', $array[self::COUNT_KEY_POST_COUNT]['relation']);
+        self::assertArrayHasKey(self::COUNT_KEY_POST_COUNT, $array);
+        self::assertSame('post_count', $array[self::COUNT_KEY_POST_COUNT]['key']);
+        self::assertSame('posts', $array[self::COUNT_KEY_POST_COUNT]['relation']);
     }
 
     /**
@@ -70,12 +70,12 @@ final class CountTest extends TestCase
 
         $result = $count->as('total_posts');
 
-        static::assertSame($count, $result);
+        self::assertSame($count, $result);
 
         $array = $count->toArray();
 
-        static::assertArrayHasKey('__count__:total_posts', $array);
-        static::assertSame('total_posts', $array['__count__:total_posts']['key']);
+        self::assertArrayHasKey('__count__:total_posts', $array);
+        self::assertSame('total_posts', $array['__count__:total_posts']['key']);
     }
 
     /**
@@ -90,11 +90,11 @@ final class CountTest extends TestCase
 
         $result = $count->constrain($constraint);
 
-        static::assertSame($count, $result);
+        self::assertSame($count, $result);
 
         $array = $count->toArray();
 
-        static::assertSame($constraint, $array[self::COUNT_KEY_POSTS]['constraint']);
+        self::assertSame($constraint, $array[self::COUNT_KEY_POSTS]['constraint']);
     }
 
     /**
@@ -108,11 +108,11 @@ final class CountTest extends TestCase
 
         $result = $count->default();
 
-        static::assertSame($count, $result);
+        self::assertSame($count, $result);
 
         $array = $count->toArray();
 
-        static::assertTrue($array[self::COUNT_KEY_POSTS]['default']);
+        self::assertTrue($array[self::COUNT_KEY_POSTS]['default']);
     }
 
     /**
@@ -126,10 +126,10 @@ final class CountTest extends TestCase
 
         $array = $count->toArray();
 
-        static::assertCount(1, $array);
+        self::assertCount(1, $array);
         $key = array_key_first($array);
-        static::assertStringStartsWith('__count__:', $key);
-        static::assertSame('count', $array[$key]['metric']);
+        self::assertStringStartsWith('__count__:', $key);
+        self::assertSame('count', $array[$key]['metric']);
     }
 
     /**
@@ -143,11 +143,11 @@ final class CountTest extends TestCase
 
         $array = $count->toArray();
 
-        static::assertArrayNotHasKey('constraint', $array[self::COUNT_KEY_POSTS]);
-        static::assertArrayNotHasKey('default', $array[self::COUNT_KEY_POSTS]);
-        static::assertArrayNotHasKey('extras', $array[self::COUNT_KEY_POSTS]);
-        static::assertArrayNotHasKey('guards', $array[self::COUNT_KEY_POSTS]);
-        static::assertArrayNotHasKey('transformers', $array[self::COUNT_KEY_POSTS]);
+        self::assertArrayNotHasKey('constraint', $array[self::COUNT_KEY_POSTS]);
+        self::assertArrayNotHasKey('default', $array[self::COUNT_KEY_POSTS]);
+        self::assertArrayNotHasKey('extras', $array[self::COUNT_KEY_POSTS]);
+        self::assertArrayNotHasKey('guards', $array[self::COUNT_KEY_POSTS]);
+        self::assertArrayNotHasKey('transformers', $array[self::COUNT_KEY_POSTS]);
     }
 
     /**
@@ -171,14 +171,14 @@ final class CountTest extends TestCase
         $array = $count->toArray();
         $data  = $array['__count__:active_posts'];
 
-        static::assertSame('active_posts', $data['key']);
-        static::assertSame('count', $data['metric']);
-        static::assertSame('posts', $data['relation']);
-        static::assertSame($constraint, $data['constraint']);
-        static::assertTrue($data['default']);
-        static::assertSame([$guard], $data['guards']);
-        static::assertSame([$transformer], $data['transformers']);
-        static::assertSame(['posts.comments'], $data['extras']);
+        self::assertSame('active_posts', $data['key']);
+        self::assertSame('count', $data['metric']);
+        self::assertSame('posts', $data['relation']);
+        self::assertSame($constraint, $data['constraint']);
+        self::assertTrue($data['default']);
+        self::assertSame([$guard], $data['guards']);
+        self::assertSame([$transformer], $data['transformers']);
+        self::assertSame(['posts.comments'], $data['extras']);
     }
 
     /**
@@ -195,7 +195,7 @@ final class CountTest extends TestCase
 
         $array = $count->toArray();
 
-        static::assertArrayNotHasKey('openapi', $array[self::COUNT_KEY_POSTS]);
+        self::assertArrayNotHasKey('openapi', $array[self::COUNT_KEY_POSTS]);
     }
 
     /**
@@ -210,8 +210,8 @@ final class CountTest extends TestCase
 
         $array = $count->toArray();
 
-        static::assertArrayHasKey('openapi', $array[self::COUNT_KEY_POSTS]);
-        static::assertInstanceOf(OpenApiFieldSchema::class, $array[self::COUNT_KEY_POSTS]['openapi']);
-        static::assertSame('integer', $array[self::COUNT_KEY_POSTS]['openapi']->type);
+        self::assertArrayHasKey('openapi', $array[self::COUNT_KEY_POSTS]);
+        self::assertInstanceOf(OpenApiFieldSchema::class, $array[self::COUNT_KEY_POSTS]['openapi']);
+        self::assertSame('integer', $array[self::COUNT_KEY_POSTS]['openapi']->type);
     }
 }

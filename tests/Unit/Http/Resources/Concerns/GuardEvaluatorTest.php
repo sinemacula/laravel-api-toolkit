@@ -45,7 +45,7 @@ final class GuardEvaluatorTest extends TestCase
     {
         $result = $this->evaluator->passesGuards([], new \stdClass, null);
 
-        static::assertTrue($result);
+        self::assertTrue($result);
     }
 
     /**
@@ -62,7 +62,7 @@ final class GuardEvaluatorTest extends TestCase
 
         $result = $this->evaluator->passesGuards($guards, new \stdClass, null);
 
-        static::assertTrue($result);
+        self::assertTrue($result);
     }
 
     /**
@@ -79,7 +79,7 @@ final class GuardEvaluatorTest extends TestCase
 
         $result = $this->evaluator->passesGuards($guards, new \stdClass, null);
 
-        static::assertFalse($result);
+        self::assertFalse($result);
     }
 
     /**
@@ -97,7 +97,7 @@ final class GuardEvaluatorTest extends TestCase
 
         $result = $this->evaluator->passesGuards($guards, new \stdClass, null);
 
-        static::assertTrue($result);
+        self::assertTrue($result);
     }
 
     /**
@@ -122,9 +122,9 @@ final class GuardEvaluatorTest extends TestCase
 
         $this->evaluator->passesGuards([$guard], $resource, $request);
 
-        static::assertCount(2, $receivedArgs);
-        static::assertSame($resource, $receivedArgs[0]);
-        static::assertSame($request, $receivedArgs[1]);
+        self::assertCount(2, $receivedArgs);
+        self::assertSame($resource, $receivedArgs[0]);
+        self::assertSame($request, $receivedArgs[1]);
     }
 
     /**
@@ -140,7 +140,7 @@ final class GuardEvaluatorTest extends TestCase
 
         $result = $this->evaluator->passesGuards($guards, new \stdClass, null);
 
-        static::assertTrue($result);
+        self::assertTrue($result);
     }
 
     /**
@@ -163,6 +163,6 @@ final class GuardEvaluatorTest extends TestCase
 
         $this->evaluator->passesGuards($guards, new \stdClass, null);
 
-        static::assertFalse($secondGuardCalled);
+        self::assertFalse($secondGuardCalled);
     }
 }

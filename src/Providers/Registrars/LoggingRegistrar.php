@@ -4,6 +4,7 @@ declare(strict_types = 1);
 
 namespace SineMacula\ApiToolkit\Providers\Registrars;
 
+use Aws\CloudWatchLogs\CloudWatchLogsClient;
 use Illuminate\Contracts\Container\Container;
 use Illuminate\Log\LogManager;
 use Illuminate\Notifications\Events\NotificationSending;
@@ -12,7 +13,6 @@ use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Event;
 use SineMacula\ApiToolkit\Listeners\NotificationListener;
 use SineMacula\ApiToolkit\Logging\CloudWatchLogger;
-use Aws\CloudWatchLogs\CloudWatchLogsClient;
 
 /**
  * Registers the toolkit logging functionality.
@@ -35,7 +35,6 @@ final class LoggingRegistrar
 
         /** The service container for resolving the log manager. */
         private readonly Container $container,
-
     ) {}
 
     /**

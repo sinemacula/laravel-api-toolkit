@@ -57,8 +57,8 @@ final class ExportOpenApiComponentsTest extends TestCase
     {
         $result = $this->export();
 
-        static::assertStringStartsWith('3.1', $result->document['openapi']);
-        static::assertArrayHasKey('components', $result->document);
+        self::assertStringStartsWith('3.1', $result->document['openapi']);
+        self::assertArrayHasKey('components', $result->document);
     }
 
     /**
@@ -71,7 +71,7 @@ final class ExportOpenApiComponentsTest extends TestCase
     {
         $result = $this->export();
 
-        static::assertSame(2, $result->resourceCount);
+        self::assertSame(2, $result->resourceCount);
     }
 
     /**
@@ -84,15 +84,15 @@ final class ExportOpenApiComponentsTest extends TestCase
     {
         $result = $this->export();
 
-        static::assertSame(
+        self::assertSame(
             count($result->document['components']['parameters']),
             $result->parameterCount,
         );
-        static::assertSame(
+        self::assertSame(
             count($result->document['components']['responses']),
             $result->responseCount,
         );
-        static::assertSame(1, $result->responseCount);
+        self::assertSame(1, $result->responseCount);
     }
 
     /**
@@ -124,7 +124,7 @@ final class ExportOpenApiComponentsTest extends TestCase
      */
     private function makeCatalogue(): MetadataCatalogue
     {
-        $catalogue = static::createStub(MetadataCatalogue::class);
+        $catalogue = self::createStub(MetadataCatalogue::class);
         $catalogue->method('getResourceMap')->willReturn([
             User::class         => UserResource::class,
             Organization::class => OrganizationResource::class,

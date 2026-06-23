@@ -70,7 +70,6 @@ final readonly class QuerySurface
 
         /** The root query's Eloquent model instance. */
         private Model $rootModel,
-
     ) {}
 
     /**

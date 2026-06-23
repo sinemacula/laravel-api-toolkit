@@ -28,7 +28,7 @@ final class CacheFlushedTest extends TestCase
     {
         $event = new CacheFlushed;
 
-        static::assertInstanceOf(CacheFlushed::class, $event);
+        self::assertInstanceOf(CacheFlushed::class, $event);
     }
 
     /**
@@ -43,7 +43,7 @@ final class CacheFlushedTest extends TestCase
 
         $publicProperties = $reflection->getProperties(\ReflectionProperty::IS_PUBLIC);
 
-        static::assertEmpty($publicProperties, 'Marker event should have no public properties');
+        self::assertEmpty($publicProperties, 'Marker event should have no public properties');
 
         $objectMethods = get_class_methods(new \stdClass) ?: [];
         $eventMethods  = array_map(
@@ -53,6 +53,6 @@ final class CacheFlushedTest extends TestCase
 
         $additionalMethods = array_diff($eventMethods, $objectMethods);
 
-        static::assertEmpty($additionalMethods, 'Marker event should not declare additional public methods');
+        self::assertEmpty($additionalMethods, 'Marker event should not declare additional public methods');
     }
 }

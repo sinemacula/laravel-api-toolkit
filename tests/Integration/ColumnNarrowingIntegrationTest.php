@@ -94,9 +94,9 @@ final class ColumnNarrowingIntegrationTest extends TestCase
         $columns  = $this->captureUserColumns($fields);
         $sql      = $this->captureUserSql($fields, 'users');
 
-        static::assertSame(['*'], $columns);
-        static::assertStringContainsString('users.*', $this->unquote($sql));
-        static::assertSame($baseline, $this->serialiseUsers($fields));
+        self::assertSame(['*'], $columns);
+        self::assertStringContainsString('users.*', $this->unquote($sql));
+        self::assertSame($baseline, $this->serialiseUsers($fields));
     }
 
     /**
@@ -113,11 +113,11 @@ final class ColumnNarrowingIntegrationTest extends TestCase
 
         $columns = $this->captureUserColumns('name,email,status,display_label');
 
-        static::assertNotContains('*', $columns);
-        static::assertContains('name', $columns);
-        static::assertContains('email', $columns);
-        static::assertLessThan(count($this->userColumns()), count($columns));
-        static::assertSame($off, $this->serialiseUsers('name,email,status,display_label'));
+        self::assertNotContains('*', $columns);
+        self::assertContains('name', $columns);
+        self::assertContains('email', $columns);
+        self::assertLessThan(count($this->userColumns()), count($columns));
+        self::assertSame($off, $this->serialiseUsers('name,email,status,display_label'));
     }
 
     /**
@@ -134,8 +134,8 @@ final class ColumnNarrowingIntegrationTest extends TestCase
 
         $columns = $this->captureUserColumns('name,email,full_label');
 
-        static::assertSame(['*'], $columns);
-        static::assertSame($off, $this->serialiseUsers('name,email,full_label'));
+        self::assertSame(['*'], $columns);
+        self::assertSame($off, $this->serialiseUsers('name,email,full_label'));
     }
 
     /**
@@ -156,15 +156,15 @@ final class ColumnNarrowingIntegrationTest extends TestCase
 
         $columns = $this->captureArticleColumns('title,slug,summary_excerpt', 'views:desc');
 
-        static::assertNotContains('*', $columns);
-        static::assertContains('id', $columns);
-        static::assertContains('deleted_at', $columns);
-        static::assertContains('views', $columns);
-        static::assertContains('summary', $columns);
-        static::assertSame($scalarOff, $this->serialiseArticles('title,slug,summary_excerpt', 'views:desc'));
+        self::assertNotContains('*', $columns);
+        self::assertContains('id', $columns);
+        self::assertContains('deleted_at', $columns);
+        self::assertContains('views', $columns);
+        self::assertContains('summary', $columns);
+        self::assertSame($scalarOff, $this->serialiseArticles('title,slug,summary_excerpt', 'views:desc'));
 
-        static::assertSame(['*'], $this->captureArticleColumns('title,author', 'views:desc'));
-        static::assertSame($relationOff, $this->serialiseArticles('title,author', 'views:desc'));
+        self::assertSame(['*'], $this->captureArticleColumns('title,author', 'views:desc'));
+        self::assertSame($relationOff, $this->serialiseArticles('title,author', 'views:desc'));
     }
 
     /**
@@ -183,9 +183,9 @@ final class ColumnNarrowingIntegrationTest extends TestCase
 
         $columns = $this->captureArticleColumns('id,author_name', null);
 
-        static::assertNotContains('*', $columns);
-        static::assertContains('user_id', $columns);
-        static::assertSame($off, $this->serialiseArticles('id,author_name', null));
+        self::assertNotContains('*', $columns);
+        self::assertContains('user_id', $columns);
+        self::assertSame($off, $this->serialiseArticles('id,author_name', null));
     }
 
     /**
@@ -209,14 +209,14 @@ final class ColumnNarrowingIntegrationTest extends TestCase
 
         $sql = $this->lastSelectSql('users');
 
-        static::assertNotNull($user);
-        static::assertSame(['*'], $this->normaliseColumns($query->getQuery()->columns));
-        static::assertStringContainsString('users.*', $this->unquote($sql));
+        self::assertNotNull($user);
+        self::assertSame(['*'], $this->normaliseColumns($query->getQuery()->columns));
+        self::assertStringContainsString('users.*', $this->unquote($sql));
 
         $resource = (new UserResource($user))->withFields(['status']);
         $data     = $resource->resolve(Request::create(self::TEST_URL));
 
-        static::assertArrayHasKey('status', $data);
+        self::assertArrayHasKey('status', $data);
     }
 
     /**
@@ -237,8 +237,8 @@ final class ColumnNarrowingIntegrationTest extends TestCase
 
         $sql = $this->lastSelectSql();
 
-        static::assertStringContainsString('name', $this->unquote($sql));
-        static::assertStringNotContainsString('select *', $sql);
+        self::assertStringContainsString('name', $this->unquote($sql));
+        self::assertStringNotContainsString('select *', $sql);
     }
 
     /**
@@ -269,10 +269,10 @@ final class ColumnNarrowingIntegrationTest extends TestCase
         $narrowedBytes = strlen(serialize($narrowedModel->getAttributes()));
         $onResponse    = $this->serialiseArticles('title,slug,status', null);
 
-        static::assertNotContains('*', $onColumns);
-        static::assertLessThan(count($offColumns), count($onColumns));
-        static::assertLessThan($fullBytes, $narrowedBytes);
-        static::assertSame($offResponse, $onResponse);
+        self::assertNotContains('*', $onColumns);
+        self::assertLessThan(count($offColumns), count($onColumns));
+        self::assertLessThan($fullBytes, $narrowedBytes);
+        self::assertSame($offResponse, $onResponse);
     }
 
     /**
@@ -287,13 +287,13 @@ final class ColumnNarrowingIntegrationTest extends TestCase
 
         $columns = $this->captureArticleColumns('title,slug', null);
 
-        static::assertNotContains('*', $columns);
-        static::assertContains('title', $columns);
+        self::assertNotContains('*', $columns);
+        self::assertContains('title', $columns);
 
         $first  = FieldColumnMapper::for(ArticleResource::class);
         $second = FieldColumnMapper::for(ArticleResource::class);
 
-        static::assertSame($first, $second);
+        self::assertSame($first, $second);
     }
 
     /**

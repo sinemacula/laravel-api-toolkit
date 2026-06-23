@@ -28,7 +28,7 @@ final class HttpExceptionTest extends TestCase
      */
     public function testExtendsApiException(): void
     {
-        static::assertInstanceOf(ApiException::class, new HttpException(HttpStatus::CONFLICT));
+        self::assertInstanceOf(ApiException::class, new HttpException(HttpStatus::CONFLICT));
     }
 
     /**
@@ -41,8 +41,8 @@ final class HttpExceptionTest extends TestCase
     {
         $exception = new HttpException(HttpStatus::LOCKED);
 
-        static::assertSame(HttpStatus::LOCKED, $exception->getStatus());
-        static::assertSame(423, $exception->getCode());
+        self::assertSame(HttpStatus::LOCKED, $exception->getStatus());
+        self::assertSame(423, $exception->getCode());
     }
 
     /**
@@ -52,7 +52,7 @@ final class HttpExceptionTest extends TestCase
      */
     public function testGetInternalErrorCodeReturnsGenericHttpError(): void
     {
-        static::assertSame(10113, HttpException::getInternalErrorCode());
+        self::assertSame(10113, HttpException::getInternalErrorCode());
     }
 
     /**
@@ -64,7 +64,7 @@ final class HttpExceptionTest extends TestCase
     {
         $exception = new HttpException(HttpStatus::GONE);
 
-        static::assertSame('Gone', $exception->getCustomTitle());
+        self::assertSame('Gone', $exception->getCustomTitle());
     }
 
     /**
@@ -76,7 +76,7 @@ final class HttpExceptionTest extends TestCase
     {
         $exception = new HttpException(HttpStatus::CONFLICT, ['field' => 'value'], ['Retry-After' => '60']);
 
-        static::assertSame(['field' => 'value'], $exception->getCustomMeta());
-        static::assertSame(['Retry-After' => '60'], $exception->getHeaders());
+        self::assertSame(['field' => 'value'], $exception->getCustomMeta());
+        self::assertSame(['Retry-After' => '60'], $exception->getHeaders());
     }
 }

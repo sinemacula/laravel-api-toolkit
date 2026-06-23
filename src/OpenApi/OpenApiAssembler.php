@@ -49,7 +49,6 @@ final class OpenApiAssembler
 
         /** The builder for shared error response definitions. */
         private readonly ErrorResponseBuilder $responseBuilder,
-
     ) {}
 
     /**

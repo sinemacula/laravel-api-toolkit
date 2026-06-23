@@ -55,15 +55,15 @@ final class MiddlewareRegistrarTest extends TestCase
         $kernel     = $app->make(HttpKernel::class);
         $middleware = $kernel->getGlobalMiddleware();
 
-        static::assertContains(ParseApiQuery::class, $middleware);
-        static::assertContains(PreventRequestsDuringMaintenance::class, $middleware);
-        static::assertContains(DetectsCapabilities::class, $middleware);
-        static::assertContains(JsonPrettyPrint::class, $middleware);
+        self::assertContains(ParseApiQuery::class, $middleware);
+        self::assertContains(PreventRequestsDuringMaintenance::class, $middleware);
+        self::assertContains(DetectsCapabilities::class, $middleware);
+        self::assertContains(JsonPrettyPrint::class, $middleware);
 
         /** @var \Illuminate\Routing\Router $router */
         $router = $app->make(Router::class);
 
-        static::assertArrayHasKey('throttle', $router->getMiddleware());
+        self::assertArrayHasKey('throttle', $router->getMiddleware());
     }
 
     /**

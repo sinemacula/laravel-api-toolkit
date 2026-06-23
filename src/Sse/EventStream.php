@@ -43,7 +43,6 @@ class EventStream
 
         /** The heartbeat interval in seconds for keep-alive comments. */
         private readonly int $heartbeatInterval = 20,
-
     ) {}
 
     /**
@@ -63,7 +62,7 @@ class EventStream
         callable $callback,
         int $interval = 1,
         HttpStatus $status = HttpStatus::OK,
-        array $headers = []
+        array $headers = [],
     ): StreamedResponse {
         $headers = array_merge($headers, [
             HttpHeader::CONTENT_TYPE->getName()      => MediaType::TEXT_EVENT_STREAM->getMimeType(),

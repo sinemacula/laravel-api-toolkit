@@ -33,7 +33,7 @@ final class MetadataKeyRegistryTest extends TestCase
         $registry->register('sm-api-toolkit:model-schema:User');
 
         // Assert
-        static::assertSame(['sm-api-toolkit:model-schema:User'], $registry->keys());
+        self::assertSame(['sm-api-toolkit:model-schema:User'], $registry->keys());
     }
 
     /**
@@ -52,7 +52,7 @@ final class MetadataKeyRegistryTest extends TestCase
         $registry->register('sm-api-toolkit:model-schema:User');
 
         // Assert
-        static::assertSame(['sm-api-toolkit:model-schema:User'], $registry->keys());
+        self::assertSame(['sm-api-toolkit:model-schema:User'], $registry->keys());
     }
 
     /**
@@ -74,11 +74,11 @@ final class MetadataKeyRegistryTest extends TestCase
         $keys = $registry->keys();
 
         // Assert
-        static::assertCount(3, $keys);
-        static::assertContains('sm-api-toolkit:model-schema:User', $keys);
-        static::assertContains('sm-api-toolkit:model-resources:Post', $keys);
-        static::assertContains('sm-api-toolkit:model-casts:Comment', $keys);
-        static::assertSame(array_values($keys), $keys);
+        self::assertCount(3, $keys);
+        self::assertContains('sm-api-toolkit:model-schema:User', $keys);
+        self::assertContains('sm-api-toolkit:model-resources:Post', $keys);
+        self::assertContains('sm-api-toolkit:model-casts:Comment', $keys);
+        self::assertSame(array_values($keys), $keys);
     }
 
     /**
@@ -92,7 +92,7 @@ final class MetadataKeyRegistryTest extends TestCase
         $registry = new MetadataKeyRegistry;
 
         // Assert
-        static::assertSame([], $registry->keys());
+        self::assertSame([], $registry->keys());
     }
 
     /**
@@ -111,6 +111,6 @@ final class MetadataKeyRegistryTest extends TestCase
         $registry->clear();
 
         // Assert
-        static::assertSame([], $registry->keys());
+        self::assertSame([], $registry->keys());
     }
 }

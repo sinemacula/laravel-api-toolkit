@@ -4,14 +4,14 @@ declare(strict_types = 1);
 
 namespace Tests\Unit\Services\Concerns;
 
+use Illuminate\Contracts\Cache\Lock;
 use PHPUnit\Framework\Attributes\CoversClass;
+use SineMacula\ApiToolkit\Concerns\Lockable;
 use SineMacula\ApiToolkit\Contracts\LockKeyProvider;
 use SineMacula\ApiToolkit\Exceptions\TooManyRequestsException;
 use SineMacula\ApiToolkit\Services\Concerns\LockConcern;
 use SineMacula\ApiToolkit\Services\Service;
-use SineMacula\ApiToolkit\Concerns\Lockable;
 use Tests\TestCase;
-use Illuminate\Contracts\Cache\Lock;
 
 /**
  * Tests for the LockConcern class.
@@ -42,7 +42,7 @@ final class LockConcernTest extends TestCase
             return true;
         });
 
-        static::assertSame(['lock', 'next'], array_slice($callOrder, 0, 2));
+        self::assertSame(['lock', 'next'], array_slice($callOrder, 0, 2));
     }
 
     /**
@@ -63,7 +63,7 @@ final class LockConcernTest extends TestCase
             return true;
         });
 
-        static::assertSame(['lock', 'next', 'unlock'], $callOrder);
+        self::assertSame(['lock', 'next', 'unlock'], $callOrder);
     }
 
     /**
@@ -89,7 +89,7 @@ final class LockConcernTest extends TestCase
             // Expected
         }
 
-        static::assertContains('unlock', $callOrder);
+        self::assertContains('unlock', $callOrder);
     }
 
     /**
@@ -100,12 +100,12 @@ final class LockConcernTest extends TestCase
      */
     public function testExecutePassesThroughWhenServiceDoesNotUseLockable(): void
     {
-        $service = static::createStub(Service::class);
+        $service = self::createStub(Service::class);
         $concern = new LockConcern;
 
         $result = $concern->execute($service, fn (): bool => true);
 
-        static::assertTrue($result);
+        self::assertTrue($result);
     }
 
     /**

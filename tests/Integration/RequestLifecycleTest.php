@@ -75,7 +75,7 @@ final class RequestLifecycleTest extends TestCase
         $response->assertJsonPath('data.0.name', 'Alice');
         $response->assertJsonPath('data.0._type', 'users');
 
-        static::assertArrayHasKey('email', $response->json('data.0'));
+        self::assertArrayHasKey('email', $response->json('data.0'));
     }
 
     /**
@@ -92,10 +92,10 @@ final class RequestLifecycleTest extends TestCase
 
         $record = $response->json('data.0');
 
-        static::assertIsArray($record);
-        static::assertArrayHasKey('name', $record);
-        static::assertArrayHasKey('id', $record);
-        static::assertArrayNotHasKey('email', $record);
+        self::assertIsArray($record);
+        self::assertArrayHasKey('name', $record);
+        self::assertArrayHasKey('id', $record);
+        self::assertArrayNotHasKey('email', $record);
     }
 
     /**

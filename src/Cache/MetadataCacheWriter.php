@@ -28,7 +28,6 @@ final class MetadataCacheWriter
 
         /** The registry tracking live toolkit metadata keys for flushing. */
         private readonly MetadataKeyRegistry $registry,
-
     ) {}
 
     /**

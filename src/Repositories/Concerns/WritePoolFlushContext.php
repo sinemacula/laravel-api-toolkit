@@ -45,7 +45,6 @@ final class WritePoolFlushContext
 
         /** The index of the current chunk, or null when not chunked. */
         private readonly ?int $chunkIndex = null,
-
     ) {}
 
     /**

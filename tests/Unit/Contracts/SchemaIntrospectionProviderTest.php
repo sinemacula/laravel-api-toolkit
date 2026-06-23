@@ -30,7 +30,7 @@ final class SchemaIntrospectionProviderTest extends TestCase
     {
         $reflection = new \ReflectionClass(SchemaIntrospectionProvider::class);
 
-        static::assertTrue($reflection->isInterface());
+        self::assertTrue($reflection->isInterface());
     }
 
     /**
@@ -43,23 +43,23 @@ final class SchemaIntrospectionProviderTest extends TestCase
         $reflection = new \ReflectionClass(SchemaIntrospectionProvider::class);
         $method     = $reflection->getMethod('getColumns');
 
-        static::assertTrue($method->isPublic());
-        static::assertFalse($method->isStatic());
+        self::assertTrue($method->isPublic());
+        self::assertFalse($method->isStatic());
 
         $parameters = $method->getParameters();
 
-        static::assertCount(1, $parameters);
-        static::assertSame('model', $parameters[0]->getName());
+        self::assertCount(1, $parameters);
+        self::assertSame('model', $parameters[0]->getName());
 
         $paramType = $parameters[0]->getType();
 
-        static::assertInstanceOf(\ReflectionNamedType::class, $paramType);
-        static::assertSame(Model::class, $paramType->getName());
+        self::assertInstanceOf(\ReflectionNamedType::class, $paramType);
+        self::assertSame(Model::class, $paramType->getName());
 
         $returnType = $method->getReturnType();
 
-        static::assertInstanceOf(\ReflectionNamedType::class, $returnType);
-        static::assertSame('array', $returnType->getName());
+        self::assertInstanceOf(\ReflectionNamedType::class, $returnType);
+        self::assertSame('array', $returnType->getName());
     }
 
     /**
@@ -72,23 +72,23 @@ final class SchemaIntrospectionProviderTest extends TestCase
         $reflection = new \ReflectionClass(SchemaIntrospectionProvider::class);
         $method     = $reflection->getMethod('getColumnDefinitions');
 
-        static::assertTrue($method->isPublic());
-        static::assertFalse($method->isStatic());
+        self::assertTrue($method->isPublic());
+        self::assertFalse($method->isStatic());
 
         $parameters = $method->getParameters();
 
-        static::assertCount(1, $parameters);
-        static::assertSame('model', $parameters[0]->getName());
+        self::assertCount(1, $parameters);
+        self::assertSame('model', $parameters[0]->getName());
 
         $paramType = $parameters[0]->getType();
 
-        static::assertInstanceOf(\ReflectionNamedType::class, $paramType);
-        static::assertSame(Model::class, $paramType->getName());
+        self::assertInstanceOf(\ReflectionNamedType::class, $paramType);
+        self::assertSame(Model::class, $paramType->getName());
 
         $returnType = $method->getReturnType();
 
-        static::assertInstanceOf(\ReflectionNamedType::class, $returnType);
-        static::assertSame('array', $returnType->getName());
+        self::assertInstanceOf(\ReflectionNamedType::class, $returnType);
+        self::assertSame('array', $returnType->getName());
     }
 
     /**
@@ -102,23 +102,23 @@ final class SchemaIntrospectionProviderTest extends TestCase
         $reflection = new \ReflectionClass(SchemaIntrospectionProvider::class);
         $method     = $reflection->getMethod('getSearchableColumns');
 
-        static::assertTrue($method->isPublic());
-        static::assertFalse($method->isStatic());
+        self::assertTrue($method->isPublic());
+        self::assertFalse($method->isStatic());
 
         $parameters = $method->getParameters();
 
-        static::assertCount(1, $parameters);
-        static::assertSame('model', $parameters[0]->getName());
+        self::assertCount(1, $parameters);
+        self::assertSame('model', $parameters[0]->getName());
 
         $paramType = $parameters[0]->getType();
 
-        static::assertInstanceOf(\ReflectionNamedType::class, $paramType);
-        static::assertSame(Model::class, $paramType->getName());
+        self::assertInstanceOf(\ReflectionNamedType::class, $paramType);
+        self::assertSame(Model::class, $paramType->getName());
 
         $returnType = $method->getReturnType();
 
-        static::assertInstanceOf(\ReflectionNamedType::class, $returnType);
-        static::assertSame('array', $returnType->getName());
+        self::assertInstanceOf(\ReflectionNamedType::class, $returnType);
+        self::assertSame('array', $returnType->getName());
     }
 
     /**
@@ -131,29 +131,29 @@ final class SchemaIntrospectionProviderTest extends TestCase
         $reflection = new \ReflectionClass(SchemaIntrospectionProvider::class);
         $method     = $reflection->getMethod('isSearchable');
 
-        static::assertTrue($method->isPublic());
-        static::assertFalse($method->isStatic());
+        self::assertTrue($method->isPublic());
+        self::assertFalse($method->isStatic());
 
         $parameters = $method->getParameters();
 
-        static::assertCount(2, $parameters);
-        static::assertSame('model', $parameters[0]->getName());
+        self::assertCount(2, $parameters);
+        self::assertSame('model', $parameters[0]->getName());
 
         $firstParamType = $parameters[0]->getType();
 
-        static::assertInstanceOf(\ReflectionNamedType::class, $firstParamType);
-        static::assertSame(Model::class, $firstParamType->getName());
-        static::assertSame('column', $parameters[1]->getName());
+        self::assertInstanceOf(\ReflectionNamedType::class, $firstParamType);
+        self::assertSame(Model::class, $firstParamType->getName());
+        self::assertSame('column', $parameters[1]->getName());
 
         $secondParamType = $parameters[1]->getType();
 
-        static::assertInstanceOf(\ReflectionNamedType::class, $secondParamType);
-        static::assertSame('string', $secondParamType->getName());
+        self::assertInstanceOf(\ReflectionNamedType::class, $secondParamType);
+        self::assertSame('string', $secondParamType->getName());
 
         $returnType = $method->getReturnType();
 
-        static::assertInstanceOf(\ReflectionNamedType::class, $returnType);
-        static::assertSame('bool', $returnType->getName());
+        self::assertInstanceOf(\ReflectionNamedType::class, $returnType);
+        self::assertSame('bool', $returnType->getName());
     }
 
     /**
@@ -166,29 +166,29 @@ final class SchemaIntrospectionProviderTest extends TestCase
         $reflection = new \ReflectionClass(SchemaIntrospectionProvider::class);
         $method     = $reflection->getMethod('isRelation');
 
-        static::assertTrue($method->isPublic());
-        static::assertFalse($method->isStatic());
+        self::assertTrue($method->isPublic());
+        self::assertFalse($method->isStatic());
 
         $parameters = $method->getParameters();
 
-        static::assertCount(2, $parameters);
-        static::assertSame('key', $parameters[0]->getName());
+        self::assertCount(2, $parameters);
+        self::assertSame('key', $parameters[0]->getName());
 
         $firstParamType = $parameters[0]->getType();
 
-        static::assertInstanceOf(\ReflectionNamedType::class, $firstParamType);
-        static::assertSame('string', $firstParamType->getName());
-        static::assertSame('model', $parameters[1]->getName());
+        self::assertInstanceOf(\ReflectionNamedType::class, $firstParamType);
+        self::assertSame('string', $firstParamType->getName());
+        self::assertSame('model', $parameters[1]->getName());
 
         $secondParamType = $parameters[1]->getType();
 
-        static::assertInstanceOf(\ReflectionNamedType::class, $secondParamType);
-        static::assertSame(Model::class, $secondParamType->getName());
+        self::assertInstanceOf(\ReflectionNamedType::class, $secondParamType);
+        self::assertSame(Model::class, $secondParamType->getName());
 
         $returnType = $method->getReturnType();
 
-        static::assertInstanceOf(\ReflectionNamedType::class, $returnType);
-        static::assertSame('bool', $returnType->getName());
+        self::assertInstanceOf(\ReflectionNamedType::class, $returnType);
+        self::assertSame('bool', $returnType->getName());
     }
 
     /**
@@ -201,29 +201,29 @@ final class SchemaIntrospectionProviderTest extends TestCase
         $reflection = new \ReflectionClass(SchemaIntrospectionProvider::class);
         $method     = $reflection->getMethod('resolveRelation');
 
-        static::assertTrue($method->isPublic());
-        static::assertFalse($method->isStatic());
+        self::assertTrue($method->isPublic());
+        self::assertFalse($method->isStatic());
 
         $parameters = $method->getParameters();
 
-        static::assertCount(2, $parameters);
-        static::assertSame('key', $parameters[0]->getName());
+        self::assertCount(2, $parameters);
+        self::assertSame('key', $parameters[0]->getName());
 
         $firstParamType = $parameters[0]->getType();
 
-        static::assertInstanceOf(\ReflectionNamedType::class, $firstParamType);
-        static::assertSame('string', $firstParamType->getName());
-        static::assertSame('model', $parameters[1]->getName());
+        self::assertInstanceOf(\ReflectionNamedType::class, $firstParamType);
+        self::assertSame('string', $firstParamType->getName());
+        self::assertSame('model', $parameters[1]->getName());
 
         $secondParamType = $parameters[1]->getType();
 
-        static::assertInstanceOf(\ReflectionNamedType::class, $secondParamType);
-        static::assertSame(Model::class, $secondParamType->getName());
+        self::assertInstanceOf(\ReflectionNamedType::class, $secondParamType);
+        self::assertSame(Model::class, $secondParamType->getName());
 
         $returnType = $method->getReturnType();
 
-        static::assertInstanceOf(\ReflectionNamedType::class, $returnType);
-        static::assertSame(Relation::class, $returnType->getName());
-        static::assertTrue($returnType->allowsNull());
+        self::assertInstanceOf(\ReflectionNamedType::class, $returnType);
+        self::assertSame(Relation::class, $returnType->getName());
+        self::assertTrue($returnType->allowsNull());
     }
 }

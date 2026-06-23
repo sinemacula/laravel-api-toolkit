@@ -67,18 +67,18 @@ final class SseStreamingTest extends TestCase
 
         $response->assertOk();
 
-        static::assertInstanceOf(StreamedResponse::class, $response->baseResponse);
+        self::assertInstanceOf(StreamedResponse::class, $response->baseResponse);
 
         $contentType = (string) $response->baseResponse->headers->get('Content-Type');
 
-        static::assertStringStartsWith('text/event-stream', $contentType);
+        self::assertStringStartsWith('text/event-stream', $contentType);
 
         $cacheControl = (string) $response->baseResponse->headers->get('Cache-Control');
 
-        static::assertStringContainsString('no-cache', $cacheControl);
-        static::assertStringContainsString('no-transform', $cacheControl);
-        static::assertSame('keep-alive', $response->baseResponse->headers->get('Connection'));
-        static::assertSame('no', $response->baseResponse->headers->get('X-Accel-Buffering'));
+        self::assertStringContainsString('no-cache', $cacheControl);
+        self::assertStringContainsString('no-transform', $cacheControl);
+        self::assertSame('keep-alive', $response->baseResponse->headers->get('Connection'));
+        self::assertSame('no', $response->baseResponse->headers->get('X-Accel-Buffering'));
     }
 
     /**
@@ -96,6 +96,6 @@ final class SseStreamingTest extends TestCase
 
         $content = $response->streamedContent();
 
-        static::assertSame(":\n\nevent: update\ndata: {\"tick\":1}\n\n", $content);
+        self::assertSame(":\n\nevent: update\ndata: {\"tick\":1}\n\n", $content);
     }
 }

@@ -29,11 +29,11 @@ final class ServiceResultTest extends TestCase
     {
         $result = ServiceResult::success();
 
-        static::assertSame(ServiceStatus::SUCCEEDED, $result->status);
-        static::assertTrue($result->succeeded());
-        static::assertFalse($result->failed());
-        static::assertNull($result->data);
-        static::assertNull($result->exception);
+        self::assertSame(ServiceStatus::SUCCEEDED, $result->status);
+        self::assertTrue($result->succeeded());
+        self::assertFalse($result->failed());
+        self::assertNull($result->data);
+        self::assertNull($result->exception);
     }
 
     /**
@@ -47,7 +47,7 @@ final class ServiceResultTest extends TestCase
 
         $result = ServiceResult::success($data);
 
-        static::assertSame($data, $result->data);
+        self::assertSame($data, $result->data);
     }
 
     /**
@@ -61,11 +61,11 @@ final class ServiceResultTest extends TestCase
 
         $result = ServiceResult::failure($exception);
 
-        static::assertSame(ServiceStatus::FAILED, $result->status);
-        static::assertTrue($result->failed());
-        static::assertFalse($result->succeeded());
-        static::assertSame($exception, $result->exception);
-        static::assertNull($result->data);
+        self::assertSame(ServiceStatus::FAILED, $result->status);
+        self::assertTrue($result->failed());
+        self::assertFalse($result->succeeded());
+        self::assertSame($exception, $result->exception);
+        self::assertNull($result->data);
     }
 
     /**
@@ -78,8 +78,8 @@ final class ServiceResultTest extends TestCase
     {
         $result = ServiceResult::failure();
 
-        static::assertTrue($result->failed());
-        static::assertNull($result->exception);
+        self::assertTrue($result->failed());
+        self::assertNull($result->exception);
     }
 
     /**
@@ -91,7 +91,7 @@ final class ServiceResultTest extends TestCase
     {
         $result = ServiceResult::failure(new \RuntimeException('boom'), ['partial' => true]);
 
-        static::assertSame(['partial' => true], $result->data);
+        self::assertSame(['partial' => true], $result->data);
     }
 
     /**
@@ -108,6 +108,6 @@ final class ServiceResultTest extends TestCase
             ServiceStatus::FAILED    => 'failed',
         };
 
-        static::assertSame('succeeded', $outcome);
+        self::assertSame('succeeded', $outcome);
     }
 }

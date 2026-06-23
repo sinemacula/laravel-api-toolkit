@@ -40,6 +40,5 @@ final readonly class CompiledCountDefinition
 
         /** Guard closures that control visibility */
         public array $guards,
-
     ) {}
 }

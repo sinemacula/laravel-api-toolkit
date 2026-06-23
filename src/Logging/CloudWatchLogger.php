@@ -30,7 +30,7 @@ final class CloudWatchLogger
             'credentials' => $config['aws']['credentials'],
         ]);
 
-        $retention  = $config['retention']  ?? 7;
+        $retention = $config['retention']  ?? 7;
         $batchSize = $config['batch_size'] ?? 1000;
 
         $handler = new CloudWatchHandler(

@@ -4,9 +4,9 @@ declare(strict_types = 1);
 
 namespace SineMacula\ApiToolkit\Services\Concerns;
 
+use SineMacula\ApiToolkit\Concerns\Lockable;
 use SineMacula\ApiToolkit\Services\Contracts\ServiceConcern;
 use SineMacula\ApiToolkit\Services\Service;
-use SineMacula\ApiToolkit\Concerns\Lockable;
 
 /**
  * Cache-based atomic locking concern.

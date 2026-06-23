@@ -33,7 +33,7 @@ final class CacheStatusTest extends TestCase
             lastInvalidatedAt: null,
         );
 
-        static::assertTrue($status->isPopulated());
+        self::assertTrue($status->isPopulated());
     }
 
     /**
@@ -50,7 +50,7 @@ final class CacheStatusTest extends TestCase
             lastInvalidatedAt: null,
         );
 
-        static::assertFalse($status->isPopulated());
+        self::assertFalse($status->isPopulated());
     }
 
     /**
@@ -67,7 +67,7 @@ final class CacheStatusTest extends TestCase
             lastInvalidatedAt: null,
         );
 
-        static::assertSame(120, $status->getAge());
+        self::assertSame(120, $status->getAge());
     }
 
     /**
@@ -83,7 +83,7 @@ final class CacheStatusTest extends TestCase
             lastInvalidatedAt: null,
         );
 
-        static::assertNull($status->getAge());
+        self::assertNull($status->getAge());
     }
 
     /**
@@ -102,7 +102,7 @@ final class CacheStatusTest extends TestCase
             lastInvalidatedAt: $invalidatedAt,
         );
 
-        static::assertSame($invalidatedAt, $status->getLastInvalidatedAt());
+        self::assertSame($invalidatedAt, $status->getLastInvalidatedAt());
     }
 
     /**
@@ -119,6 +119,6 @@ final class CacheStatusTest extends TestCase
             lastInvalidatedAt: null,
         );
 
-        static::assertNull($status->getLastInvalidatedAt());
+        self::assertNull($status->getLastInvalidatedAt());
     }
 }

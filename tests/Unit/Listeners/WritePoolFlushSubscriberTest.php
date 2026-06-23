@@ -49,7 +49,7 @@ final class WritePoolFlushSubscriberTest extends TestCase
 
         $subscriber->subscribe($events);
 
-        static::assertTrue($events->hasListeners(RequestHandled::class));
+        self::assertTrue($events->hasListeners(RequestHandled::class));
     }
 
     /**
@@ -64,7 +64,7 @@ final class WritePoolFlushSubscriberTest extends TestCase
 
         $subscriber->subscribe($events);
 
-        static::assertTrue($events->hasListeners(CommandFinished::class));
+        self::assertTrue($events->hasListeners(CommandFinished::class));
     }
 
     /**
@@ -79,7 +79,7 @@ final class WritePoolFlushSubscriberTest extends TestCase
 
         $subscriber->subscribe($events);
 
-        static::assertTrue($events->hasListeners(JobProcessed::class));
+        self::assertTrue($events->hasListeners(JobProcessed::class));
     }
 
     /**
@@ -94,7 +94,7 @@ final class WritePoolFlushSubscriberTest extends TestCase
 
         $subscriber->subscribe($events);
 
-        static::assertTrue($events->hasListeners(JobFailed::class));
+        self::assertTrue($events->hasListeners(JobFailed::class));
     }
 
     /**
@@ -109,7 +109,7 @@ final class WritePoolFlushSubscriberTest extends TestCase
 
         $events->dispatch(new RequestHandled(Request::create('/test', 'GET'), new Response));
 
-        static::assertTrue($pool->isEmpty());
+        self::assertTrue($pool->isEmpty());
     }
 
     /**
@@ -124,7 +124,7 @@ final class WritePoolFlushSubscriberTest extends TestCase
 
         $events->dispatch(new CommandFinished('test:command', new ArrayInput([]), new NullOutput, 0));
 
-        static::assertTrue($pool->isEmpty());
+        self::assertTrue($pool->isEmpty());
     }
 
     /**
@@ -137,9 +137,9 @@ final class WritePoolFlushSubscriberTest extends TestCase
     {
         [$events, $pool] = $this->subscribeWithPooledRow('job@example.com');
 
-        $events->dispatch(new JobProcessed('sync', static::createStub(Job::class)));
+        $events->dispatch(new JobProcessed('sync', self::createStub(Job::class)));
 
-        static::assertTrue($pool->isEmpty());
+        self::assertTrue($pool->isEmpty());
     }
 
     /**
@@ -152,9 +152,9 @@ final class WritePoolFlushSubscriberTest extends TestCase
     {
         [$events, $pool] = $this->subscribeWithPooledRow('failed-job@example.com');
 
-        $events->dispatch(new JobFailed('sync', static::createStub(Job::class), new \RuntimeException('Job failure')));
+        $events->dispatch(new JobFailed('sync', self::createStub(Job::class), new \RuntimeException('Job failure')));
 
-        static::assertTrue($pool->isEmpty());
+        self::assertTrue($pool->isEmpty());
     }
 
     /**
@@ -178,7 +178,7 @@ final class WritePoolFlushSubscriberTest extends TestCase
 
         $subscriber->handleFlush();
 
-        static::assertTrue($pool->isEmpty());
+        self::assertTrue($pool->isEmpty());
     }
 
     /**

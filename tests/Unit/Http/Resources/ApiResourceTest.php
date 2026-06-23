@@ -4,6 +4,8 @@ declare(strict_types = 1);
 
 namespace Tests\Unit\Http\Resources;
 
+use Illuminate\Database\Eloquent\Casts\Attribute;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Illuminate\Http\Request;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -24,8 +26,6 @@ use Tests\Fixtures\Resources\PostResource;
 use Tests\Fixtures\Resources\TagResource;
 use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Casts\Attribute;
 
 /**
  * Tests for the base API resource.
@@ -69,10 +69,10 @@ final class ApiResourceTest extends TestCase
      */
     public function testGetResourceTypeReturnsLowercasedConstant(): void
     {
-        static::assertSame('users', UserResource::getResourceType());
-        static::assertSame('organizations', OrganizationResource::getResourceType());
-        static::assertSame('posts', PostResource::getResourceType());
-        static::assertSame('tags', TagResource::getResourceType());
+        self::assertSame('users', UserResource::getResourceType());
+        self::assertSame('organizations', OrganizationResource::getResourceType());
+        self::assertSame('posts', PostResource::getResourceType());
+        self::assertSame('tags', TagResource::getResourceType());
     }
 
     /**
@@ -109,10 +109,10 @@ final class ApiResourceTest extends TestCase
      */
     public function testGetDefaultFieldsReturnsStaticDefaultArray(): void
     {
-        static::assertSame(['id', 'name', 'email'], UserResource::getDefaultFields());
-        static::assertSame(['id', 'name', 'slug'], OrganizationResource::getDefaultFields());
-        static::assertSame(['id', 'title'], PostResource::getDefaultFields());
-        static::assertSame(['id', 'name'], TagResource::getDefaultFields());
+        self::assertSame(['id', 'name', 'email'], UserResource::getDefaultFields());
+        self::assertSame(['id', 'name', 'slug'], OrganizationResource::getDefaultFields());
+        self::assertSame(['id', 'title'], PostResource::getDefaultFields());
+        self::assertSame(['id', 'name'], TagResource::getDefaultFields());
     }
 
     /**
@@ -124,19 +124,19 @@ final class ApiResourceTest extends TestCase
     {
         $allFields = UserResource::getAllFields();
 
-        static::assertContains('id', $allFields);
-        static::assertContains('name', $allFields);
-        static::assertContains('email', $allFields);
-        static::assertContains('status', $allFields);
-        static::assertContains('created_at', $allFields);
-        static::assertContains('updated_at', $allFields);
-        static::assertContains('full_label', $allFields);
-        static::assertContains('organization', $allFields);
-        static::assertContains('profile_bio', $allFields);
-        static::assertContains('posts', $allFields);
+        self::assertContains('id', $allFields);
+        self::assertContains('name', $allFields);
+        self::assertContains('email', $allFields);
+        self::assertContains('status', $allFields);
+        self::assertContains('created_at', $allFields);
+        self::assertContains('updated_at', $allFields);
+        self::assertContains('full_label', $allFields);
+        self::assertContains('organization', $allFields);
+        self::assertContains('profile_bio', $allFields);
+        self::assertContains('posts', $allFields);
 
         foreach ($allFields as $field) {
-            static::assertStringNotContainsString('__count__', $field);
+            self::assertStringNotContainsString('__count__', $field);
         }
     }
 
@@ -160,7 +160,7 @@ final class ApiResourceTest extends TestCase
 
         $fields = UserResource::resolveFields();
 
-        static::assertSame(['id', 'name', 'status'], $fields);
+        self::assertSame(['id', 'name', 'status'], $fields);
     }
 
     /**
@@ -181,7 +181,7 @@ final class ApiResourceTest extends TestCase
 
         $fields = UserResource::resolveFields();
 
-        static::assertSame(['id', 'name', 'email'], $fields);
+        self::assertSame(['id', 'name', 'email'], $fields);
     }
 
     /**
@@ -199,8 +199,8 @@ final class ApiResourceTest extends TestCase
         $resource = new UserResource($user);
         $result   = $resource->resolve();
 
-        static::assertArrayHasKey('_type', $result);
-        static::assertSame('users', $result['_type']);
+        self::assertArrayHasKey('_type', $result);
+        self::assertSame('users', $result['_type']);
     }
 
     /**
@@ -228,9 +228,9 @@ final class ApiResourceTest extends TestCase
         $resource = new UserResource($user);
         $result   = $resource->resolve();
 
-        static::assertArrayHasKey('_type', $result);
-        static::assertArrayHasKey('id', $result);
-        static::assertArrayHasKey('name', $result);
+        self::assertArrayHasKey('_type', $result);
+        self::assertArrayHasKey('id', $result);
+        self::assertArrayHasKey('name', $result);
     }
 
     /**
@@ -259,9 +259,9 @@ final class ApiResourceTest extends TestCase
         $resource = new UserResource($user);
         $result   = $resource->resolve();
 
-        static::assertArrayHasKey('name', $result);
-        static::assertArrayNotHasKey('status', $result);
-        static::assertArrayNotHasKey('email', $result);
+        self::assertArrayHasKey('name', $result);
+        self::assertArrayNotHasKey('status', $result);
+        self::assertArrayNotHasKey('email', $result);
     }
 
     /**
@@ -281,8 +281,8 @@ final class ApiResourceTest extends TestCase
 
         $result = $resource->resolve();
 
-        static::assertArrayNotHasKey('email', $result);
-        static::assertArrayHasKey('name', $result);
+        self::assertArrayNotHasKey('email', $result);
+        self::assertArrayHasKey('name', $result);
     }
 
     /**
@@ -303,10 +303,10 @@ final class ApiResourceTest extends TestCase
 
         $result = $resource->resolve();
 
-        static::assertArrayHasKey('name', $result);
-        static::assertArrayHasKey('email', $result);
-        static::assertArrayHasKey('status', $result);
-        static::assertArrayHasKey('full_label', $result);
+        self::assertArrayHasKey('name', $result);
+        self::assertArrayHasKey('email', $result);
+        self::assertArrayHasKey('status', $result);
+        self::assertArrayHasKey('full_label', $result);
     }
 
     /**
@@ -335,10 +335,10 @@ final class ApiResourceTest extends TestCase
         $resource = new UserResource($user);
         $result   = $resource->resolve();
 
-        static::assertArrayHasKey('name', $result);
-        static::assertArrayHasKey('email', $result);
-        static::assertArrayHasKey('status', $result);
-        static::assertArrayHasKey('full_label', $result);
+        self::assertArrayHasKey('name', $result);
+        self::assertArrayHasKey('email', $result);
+        self::assertArrayHasKey('status', $result);
+        self::assertArrayHasKey('full_label', $result);
     }
 
     /**
@@ -381,8 +381,8 @@ final class ApiResourceTest extends TestCase
 
         $result = $resource->resolve();
 
-        static::assertArrayHasKey('name', $result);
-        static::assertArrayNotHasKey('secret', $result);
+        self::assertArrayHasKey('name', $result);
+        self::assertArrayNotHasKey('secret', $result);
     }
 
     /**
@@ -427,7 +427,7 @@ final class ApiResourceTest extends TestCase
 
         $result = $resource->resolve();
 
-        static::assertArrayHasKey('name', $result);
+        self::assertArrayHasKey('name', $result);
     }
 
     /**
@@ -469,7 +469,7 @@ final class ApiResourceTest extends TestCase
 
         $result = $resource->resolve();
 
-        static::assertSame('LOWERCASE', $result['name']);
+        self::assertSame('LOWERCASE', $result['name']);
     }
 
     /**
@@ -489,7 +489,7 @@ final class ApiResourceTest extends TestCase
 
         $result = $resource->resolve();
 
-        static::assertSame('Computed <computed@example.com>', $result['full_label']);
+        self::assertSame('Computed <computed@example.com>', $result['full_label']);
     }
 
     /**
@@ -531,7 +531,7 @@ final class ApiResourceTest extends TestCase
 
         $result = $resource->resolve();
 
-        static::assertSame('Accessed', $result['nested_value']);
+        self::assertSame('Accessed', $result['nested_value']);
     }
 
     /**
@@ -580,7 +580,7 @@ final class ApiResourceTest extends TestCase
 
         $result = $resource->resolve();
 
-        static::assertSame('custom:CallableAccess', $result['computed_accessor']);
+        self::assertSame('custom:CallableAccess', $result['computed_accessor']);
     }
 
     /**
@@ -608,12 +608,12 @@ final class ApiResourceTest extends TestCase
 
         $result = $resource->resolve();
 
-        static::assertArrayHasKey('organization', $result);
-        static::assertInstanceOf(ApiResource::class, $result['organization']);
+        self::assertArrayHasKey('organization', $result);
+        self::assertInstanceOf(ApiResource::class, $result['organization']);
 
         $nested = $result['organization']->resolve();
 
-        static::assertSame('organizations', $nested['_type']);
+        self::assertSame('organizations', $nested['_type']);
     }
 
     /**
@@ -639,7 +639,7 @@ final class ApiResourceTest extends TestCase
 
         $result = $resource->resolve();
 
-        static::assertArrayNotHasKey('organization', $result);
+        self::assertArrayNotHasKey('organization', $result);
     }
 
     /**
@@ -666,8 +666,8 @@ final class ApiResourceTest extends TestCase
 
         $result = $resource->resolve();
 
-        static::assertArrayHasKey('profile_bio', $result);
-        static::assertSame('A great bio', $result['profile_bio']);
+        self::assertArrayHasKey('profile_bio', $result);
+        self::assertSame('A great bio', $result['profile_bio']);
     }
 
     /**
@@ -689,8 +689,8 @@ final class ApiResourceTest extends TestCase
 
         $result = $resource->resolve();
 
-        static::assertArrayHasKey('organization', $result);
-        static::assertNull($result['organization']);
+        self::assertArrayHasKey('organization', $result);
+        self::assertNull($result['organization']);
     }
 
     /**
@@ -734,9 +734,9 @@ final class ApiResourceTest extends TestCase
         $resource = new UserResource($user);
         $result   = $resource->resolve();
 
-        static::assertArrayHasKey('counts', $result);
-        static::assertArrayHasKey('posts', $result['counts']);
-        static::assertSame(2, $result['counts']['posts']);
+        self::assertArrayHasKey('counts', $result);
+        self::assertArrayHasKey('posts', $result['counts']);
+        self::assertSame(2, $result['counts']['posts']);
     }
 
     /**
@@ -766,8 +766,8 @@ final class ApiResourceTest extends TestCase
         $resource = new UserResource($user);
         $result   = $resource->resolve();
 
-        static::assertArrayHasKey('counts', $result);
-        static::assertArrayHasKey('posts', $result['counts']);
+        self::assertArrayHasKey('counts', $result);
+        self::assertArrayHasKey('posts', $result['counts']);
     }
 
     /**
@@ -781,7 +781,7 @@ final class ApiResourceTest extends TestCase
 
         $map = UserResource::eagerLoadMapFor($fields);
 
-        static::assertContains('organization', $map);
+        self::assertContains('organization', $map);
     }
 
     /**
@@ -795,7 +795,7 @@ final class ApiResourceTest extends TestCase
 
         $map = UserResource::eagerLoadMapFor($fields);
 
-        static::assertSame([], $map);
+        self::assertSame([], $map);
     }
 
     /**
@@ -831,8 +831,8 @@ final class ApiResourceTest extends TestCase
 
         $map = $resourceClass::eagerLoadMapFor($fields);
 
-        static::assertArrayHasKey('items', $map);
-        static::assertIsCallable($map['items']);
+        self::assertArrayHasKey('items', $map);
+        self::assertIsCallable($map['items']);
     }
 
     /**
@@ -844,7 +844,7 @@ final class ApiResourceTest extends TestCase
     {
         $counts = UserResource::eagerLoadCountsFor(['posts']);
 
-        static::assertContains('posts as posts_count', $counts);
+        self::assertContains('posts as posts_count', $counts);
     }
 
     /**
@@ -856,7 +856,7 @@ final class ApiResourceTest extends TestCase
     {
         $counts = UserResource::eagerLoadCountsFor(null);
 
-        static::assertContains('posts as posts_count', $counts);
+        self::assertContains('posts as posts_count', $counts);
     }
 
     /**
@@ -868,7 +868,7 @@ final class ApiResourceTest extends TestCase
     {
         $counts = OrganizationResource::eagerLoadCountsFor(null);
 
-        static::assertSame([], $counts);
+        self::assertSame([], $counts);
     }
 
     /**
@@ -880,7 +880,7 @@ final class ApiResourceTest extends TestCase
     {
         $counts = OrganizationResource::eagerLoadCountsFor(['users']);
 
-        static::assertContains('users as users_count', $counts);
+        self::assertContains('users as users_count', $counts);
     }
 
     /**
@@ -892,7 +892,7 @@ final class ApiResourceTest extends TestCase
     {
         $collection = UserResource::collection(collect([]));
 
-        static::assertInstanceOf(ApiResourceCollection::class, $collection);
+        self::assertInstanceOf(ApiResourceCollection::class, $collection);
     }
 
     /**
@@ -905,7 +905,7 @@ final class ApiResourceTest extends TestCase
         $first  = UserResource::getAllFields();
         $second = UserResource::getAllFields();
 
-        static::assertSame($first, $second);
+        self::assertSame($first, $second);
     }
 
     /**
@@ -930,8 +930,8 @@ final class ApiResourceTest extends TestCase
         $typeIndex = array_search('_type', $keys, true);
         $idIndex   = array_search('id', $keys, true);
 
-        static::assertSame(0, $typeIndex, '_type should be first');
-        static::assertSame(1, $idIndex, 'id should be second');
+        self::assertSame(0, $typeIndex, '_type should be first');
+        self::assertSame(1, $idIndex, 'id should be second');
     }
 
     /**
@@ -962,8 +962,8 @@ final class ApiResourceTest extends TestCase
 
         $result = $resource->resolve();
 
-        static::assertArrayHasKey('name', $result);
-        static::assertArrayNotHasKey('status', $result);
+        self::assertArrayHasKey('name', $result);
+        self::assertArrayNotHasKey('status', $result);
     }
 
     /**
@@ -984,8 +984,8 @@ final class ApiResourceTest extends TestCase
 
         $result = $resource->resolve();
 
-        static::assertArrayNotHasKey('name', $result);
-        static::assertArrayHasKey('email', $result);
+        self::assertArrayNotHasKey('name', $result);
+        self::assertArrayHasKey('email', $result);
     }
 
     /**
@@ -1006,8 +1006,8 @@ final class ApiResourceTest extends TestCase
 
         $result = $resource->resolve();
 
-        static::assertSame('Simple', $result['name']);
-        static::assertSame('simple@example.com', $result['email']);
+        self::assertSame('Simple', $result['name']);
+        self::assertSame('simple@example.com', $result['email']);
     }
 
     /**
@@ -1026,10 +1026,10 @@ final class ApiResourceTest extends TestCase
         $resource = new UserResource($user, false, ':all');
         $result   = $resource->resolve();
 
-        static::assertArrayHasKey('name', $result);
-        static::assertArrayHasKey('email', $result);
-        static::assertArrayHasKey('status', $result);
-        static::assertArrayHasKey('full_label', $result);
+        self::assertArrayHasKey('name', $result);
+        self::assertArrayHasKey('email', $result);
+        self::assertArrayHasKey('status', $result);
+        self::assertArrayHasKey('full_label', $result);
     }
 
     /**
@@ -1047,8 +1047,8 @@ final class ApiResourceTest extends TestCase
         $resource = new UserResource($user, false, ['name']);
         $result   = $resource->resolve();
 
-        static::assertArrayHasKey('name', $result);
-        static::assertArrayNotHasKey('email', $result);
+        self::assertArrayHasKey('name', $result);
+        self::assertArrayNotHasKey('email', $result);
     }
 
     /**
@@ -1066,8 +1066,8 @@ final class ApiResourceTest extends TestCase
         $resource = new UserResource($user, false, null, ['email']);
         $result   = $resource->resolve();
 
-        static::assertArrayNotHasKey('email', $result);
-        static::assertArrayHasKey('name', $result);
+        self::assertArrayNotHasKey('email', $result);
+        self::assertArrayHasKey('name', $result);
     }
 
     /**
@@ -1101,12 +1101,12 @@ final class ApiResourceTest extends TestCase
         $resource = new UserResource($user, true);
         $result   = $resource->resolve();
 
-        static::assertArrayHasKey('organization', $result);
-        static::assertInstanceOf(ApiResource::class, $result['organization']);
+        self::assertArrayHasKey('organization', $result);
+        self::assertInstanceOf(ApiResource::class, $result['organization']);
 
         $nested = $result['organization']->resolve();
 
-        static::assertSame('organizations', $nested['_type']);
+        self::assertSame('organizations', $nested['_type']);
     }
 
     /**
@@ -1132,8 +1132,8 @@ final class ApiResourceTest extends TestCase
         $fields = ['posts'];
         $map    = UserResource::eagerLoadMapFor($fields);
 
-        static::assertContains('posts', $map);
-        static::assertContains('posts.tags', $map);
+        self::assertContains('posts', $map);
+        self::assertContains('posts.tags', $map);
     }
 
     /**
@@ -1177,7 +1177,7 @@ final class ApiResourceTest extends TestCase
 
         $result = $resource->resolve();
 
-        static::assertSame('PREFIX_MULTI', $result['name']);
+        self::assertSame('PREFIX_MULTI', $result['name']);
     }
 
     /**
@@ -1213,8 +1213,8 @@ final class ApiResourceTest extends TestCase
 
         $result = $resource->resolve();
 
-        static::assertArrayHasKey('_type', $result);
-        static::assertArrayNotHasKey('id', $result);
+        self::assertArrayHasKey('_type', $result);
+        self::assertArrayNotHasKey('id', $result);
     }
 
     /**
@@ -1250,7 +1250,7 @@ final class ApiResourceTest extends TestCase
 
         $result = $resource->resolve();
 
-        static::assertArrayHasKey('posts', $result);
+        self::assertArrayHasKey('posts', $result);
     }
 
     /**
@@ -1268,7 +1268,7 @@ final class ApiResourceTest extends TestCase
         $resource = new UserResource($user);
         $result   = $resource->withFields(['name']);
 
-        static::assertSame($resource, $result);
+        self::assertSame($resource, $result);
     }
 
     /**
@@ -1286,7 +1286,7 @@ final class ApiResourceTest extends TestCase
         $resource = new UserResource($user);
         $result   = $resource->withoutFields(['name']);
 
-        static::assertSame($resource, $result);
+        self::assertSame($resource, $result);
     }
 
     /**
@@ -1304,7 +1304,7 @@ final class ApiResourceTest extends TestCase
         $resource = new UserResource($user);
         $result   = $resource->withAll();
 
-        static::assertSame($resource, $result);
+        self::assertSame($resource, $result);
     }
 
     /**
@@ -1338,8 +1338,8 @@ final class ApiResourceTest extends TestCase
 
         $counts = $resourceClass::eagerLoadCountsFor(null);
 
-        static::assertArrayHasKey('items as items_count', $counts);
-        static::assertIsCallable($counts['items as items_count']);
+        self::assertArrayHasKey('items as items_count', $counts);
+        self::assertIsCallable($counts['items as items_count']);
     }
 
     /**
@@ -1361,12 +1361,12 @@ final class ApiResourceTest extends TestCase
         $result = $resource->resolve();
         $keys   = array_keys($result);
 
-        $nameIndex       = array_search('name', $keys, true);
+        $nameIndex      = array_search('name', $keys, true);
         $createdAtIndex = array_search('created_at', $keys, true);
         $updatedAtIndex = array_search('updated_at', $keys, true);
 
-        static::assertGreaterThan($nameIndex, $createdAtIndex);
-        static::assertGreaterThan($nameIndex, $updatedAtIndex);
+        self::assertGreaterThan($nameIndex, $createdAtIndex);
+        self::assertGreaterThan($nameIndex, $updatedAtIndex);
     }
 
     /**
@@ -1387,7 +1387,7 @@ final class ApiResourceTest extends TestCase
         $resolved = $resource->resolve($request);
         $array    = $resource->toArray($request);
 
-        static::assertSame($resolved, $array);
+        self::assertSame($resolved, $array);
     }
 
     /**
@@ -1413,7 +1413,7 @@ final class ApiResourceTest extends TestCase
     #[DataProvider('resourceTypeProvider')]
     public function testDifferentResourceTypesProduceCorrectTypes(string $resourceClass, string $expectedType): void
     {
-        static::assertSame($expectedType, $resourceClass::getResourceType());
+        self::assertSame($expectedType, $resourceClass::getResourceType());
     }
 
     /**
@@ -1441,7 +1441,7 @@ final class ApiResourceTest extends TestCase
         $allFields = $resourceClass::getAllFields();
 
         foreach ($expectedFields as $field) {
-            static::assertContains($field, $allFields);
+            self::assertContains($field, $allFields);
         }
     }
 
@@ -1467,8 +1467,8 @@ final class ApiResourceTest extends TestCase
         $resource = new UserResource($user, true, ':all');
         $result   = $resource->resolve();
 
-        static::assertArrayHasKey('_type', $result);
-        static::assertArrayHasKey('name', $result);
+        self::assertArrayHasKey('_type', $result);
+        self::assertArrayHasKey('name', $result);
     }
 
     /**
@@ -1496,7 +1496,7 @@ final class ApiResourceTest extends TestCase
         $resource = new UserResource($user, true, ['id', 'counts']);
         $result   = $resource->resolve();
 
-        static::assertArrayHasKey('_type', $result);
+        self::assertArrayHasKey('_type', $result);
     }
 
     /**
@@ -1526,7 +1526,7 @@ final class ApiResourceTest extends TestCase
 
         $result = $resource->resolve();
 
-        static::assertArrayNotHasKey('counts', $result);
+        self::assertArrayNotHasKey('counts', $result);
     }
 
     /**
@@ -1578,7 +1578,7 @@ final class ApiResourceTest extends TestCase
         $resource = new $resourceClass($user);
         $result   = $resource->resolve();
 
-        static::assertArrayNotHasKey('counts', $result);
+        self::assertArrayNotHasKey('counts', $result);
     }
 
     /**
@@ -1635,8 +1635,8 @@ final class ApiResourceTest extends TestCase
 
         $result = $resource->resolve();
 
-        static::assertArrayHasKey('org_name', $result);
-        static::assertSame('CallableOrg', $result['org_name']);
+        self::assertArrayHasKey('org_name', $result);
+        self::assertSame('CallableOrg', $result['org_name']);
     }
 
     /**
@@ -1675,7 +1675,7 @@ final class ApiResourceTest extends TestCase
         $fields = ['organization'];
         $map    = $resourceClass::eagerLoadMapFor($fields);
 
-        static::assertNotEmpty($map);
+        self::assertNotEmpty($map);
     }
 
     /**
@@ -1729,7 +1729,7 @@ final class ApiResourceTest extends TestCase
 
         $result = $resource->resolve();
 
-        static::assertArrayHasKey('organization', $result);
+        self::assertArrayHasKey('organization', $result);
     }
 
     /**
@@ -1762,8 +1762,8 @@ final class ApiResourceTest extends TestCase
 
         $result = $resource->resolve();
 
-        static::assertArrayHasKey('_type', $result);
-        static::assertSame('users', $result['_type']);
+        self::assertArrayHasKey('_type', $result);
+        self::assertSame('users', $result['_type']);
     }
 
     /**
@@ -1784,7 +1784,7 @@ final class ApiResourceTest extends TestCase
 
         $result = $resource->resolve();
 
-        static::assertArrayNotHasKey(self::COUNT_KEY_POSTS, $result);
+        self::assertArrayNotHasKey(self::COUNT_KEY_POSTS, $result);
     }
 
     /**
@@ -1796,7 +1796,7 @@ final class ApiResourceTest extends TestCase
     {
         $map = UserResource::eagerLoadMapFor(['nonexistent_field_xyz']);
 
-        static::assertSame([], $map);
+        self::assertSame([], $map);
     }
 
     /**
@@ -1811,7 +1811,7 @@ final class ApiResourceTest extends TestCase
         // skipped when encountered during relation traversal.
         $map = UserResource::eagerLoadMapFor([self::COUNT_KEY_POSTS]);
 
-        static::assertSame([], $map);
+        self::assertSame([], $map);
     }
 
     /**
@@ -1848,7 +1848,7 @@ final class ApiResourceTest extends TestCase
 
         $map = $resourceClass::eagerLoadMapFor(['organization']);
 
-        static::assertContains('organization.owner', $map);
+        self::assertContains('organization.owner', $map);
     }
 
     /**
@@ -1865,8 +1865,8 @@ final class ApiResourceTest extends TestCase
 
         $plainValues = array_values($map);
 
-        static::assertContains('organization', $plainValues);
-        static::assertCount(1, array_keys($map, 'organization', true));
+        self::assertContains('organization', $plainValues);
+        self::assertCount(1, array_keys($map, 'organization', true));
     }
 
     /**
@@ -1934,7 +1934,7 @@ final class ApiResourceTest extends TestCase
         // (line 837).
         $map = $outerClass::eagerLoadMapFor(['rel']);
 
-        static::assertContains('rel', $map);
+        self::assertContains('rel', $map);
     }
 
     /**
@@ -1988,7 +1988,7 @@ final class ApiResourceTest extends TestCase
         // so the key is present in the result. The main goal is to exercise
         // the ReflectionMethod path (lines 385-386, 388) before falling through
         // to the __isset check.
-        static::assertArrayHasKey('_type', $result);
+        self::assertArrayHasKey('_type', $result);
     }
 
     /**
@@ -2027,15 +2027,15 @@ final class ApiResourceTest extends TestCase
 
         $map = $resourceClass::eagerLoadMapFor(['organization']);
 
-        static::assertArrayHasKey('organization', $map);
-        static::assertIsCallable($map['organization']);
+        self::assertArrayHasKey('organization', $map);
+        self::assertIsCallable($map['organization']);
 
         // Invoke the wrapper closure with a real Builder so the non-MorphTo
         // path (lines 637-640) executes.
         $builder = Organization::query();
         ($map['organization'])($builder);
 
-        static::assertNotEmpty($builder->getQuery()->wheres);
+        self::assertNotEmpty($builder->getQuery()->wheres);
     }
 
     /**
@@ -2091,7 +2091,7 @@ final class ApiResourceTest extends TestCase
 
         $result = $resource->resolve();
 
-        static::assertSame('attr_value', $result['label']);
+        self::assertSame('attr_value', $result['label']);
     }
 
     /**
@@ -2134,8 +2134,8 @@ final class ApiResourceTest extends TestCase
         $resource = new UserResource($fakeOwner);
         $result   = $resource->resolve();
 
-        static::assertArrayHasKey('counts', $result);
-        static::assertSame(2, $result['counts']['posts']);
+        self::assertArrayHasKey('counts', $result);
+        self::assertSame(2, $result['counts']['posts']);
     }
 
     /**
@@ -2173,8 +2173,8 @@ final class ApiResourceTest extends TestCase
 
         $map = $resourceClass::eagerLoadMapFor(['organization']);
 
-        static::assertArrayHasKey('organization', $map);
-        static::assertIsCallable($map['organization']);
+        self::assertArrayHasKey('organization', $map);
+        self::assertIsCallable($map['organization']);
 
         // Invoke the wrapper closure with a MorphTo mock to exercise the
         // MorphTo branch (lines 633-634) where the constraint is called
@@ -2207,7 +2207,7 @@ final class ApiResourceTest extends TestCase
             }
         };
 
-        static::assertSame('mixedcase', $resourceClass::getResourceType());
+        self::assertSame('mixedcase', $resourceClass::getResourceType());
     }
 
     /**
@@ -2228,9 +2228,9 @@ final class ApiResourceTest extends TestCase
 
         $result = $resource->resolve();
 
-        static::assertArrayNotHasKey('unknown_field', $result);
-        static::assertArrayHasKey('name', $result);
-        static::assertArrayHasKey('id', $result);
+        self::assertArrayNotHasKey('unknown_field', $result);
+        self::assertArrayHasKey('name', $result);
+        self::assertArrayHasKey('id', $result);
     }
 
     /**
@@ -2264,8 +2264,8 @@ final class ApiResourceTest extends TestCase
         $resource = new UserResource($user);
         $result   = $resource->resolve();
 
-        static::assertFalse($user->relationLoaded('organization'));
-        static::assertArrayNotHasKey('organization', $result);
+        self::assertFalse($user->relationLoaded('organization'));
+        self::assertArrayNotHasKey('organization', $result);
     }
 
     /**
@@ -2299,7 +2299,7 @@ final class ApiResourceTest extends TestCase
         // only non-empty when all-fields mode resolves the full schema.
         new UserResource($user, true, ':all');
 
-        static::assertTrue($user->relationLoaded('organization'));
+        self::assertTrue($user->relationLoaded('organization'));
     }
 
     /**
@@ -2327,7 +2327,7 @@ final class ApiResourceTest extends TestCase
 
         new UserResource($user, true);
 
-        static::assertArrayNotHasKey('posts_count', $user->getAttributes());
+        self::assertArrayNotHasKey('posts_count', $user->getAttributes());
     }
 
     /**
@@ -2370,8 +2370,8 @@ final class ApiResourceTest extends TestCase
         $resource = new UserResource($user, true);
         $result   = $resource->resolve();
 
-        static::assertArrayHasKey('counts', $result);
-        static::assertSame(2, $result['counts']['posts']);
+        self::assertArrayHasKey('counts', $result);
+        self::assertSame(2, $result['counts']['posts']);
     }
 
     /**
@@ -2407,8 +2407,8 @@ final class ApiResourceTest extends TestCase
         $resource = new OrganizationResource($org, true);
         $result   = $resource->resolve();
 
-        static::assertArrayHasKey('counts', $result);
-        static::assertSame(1, $result['counts']['users']);
+        self::assertArrayHasKey('counts', $result);
+        self::assertSame(1, $result['counts']['users']);
     }
 
     /**
@@ -2455,8 +2455,8 @@ final class ApiResourceTest extends TestCase
 
         $result = $resource->resolve();
 
-        static::assertArrayHasKey('email', $result, 'resource-level fixed fields must be included');
-        static::assertArrayHasKey('id', $result, 'config-level fixed fields must be included');
+        self::assertArrayHasKey('email', $result, 'resource-level fixed fields must be included');
+        self::assertArrayHasKey('id', $result, 'config-level fixed fields must be included');
     }
 
     /**

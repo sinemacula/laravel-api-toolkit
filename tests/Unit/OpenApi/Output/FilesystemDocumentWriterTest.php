@@ -61,8 +61,8 @@ final class FilesystemDocumentWriterTest extends TestCase
 
         (new FilesystemDocumentWriter(new Filesystem))->write($path, '{"openapi":"3.1.0"}');
 
-        static::assertFileExists($path);
-        static::assertSame('{"openapi":"3.1.0"}', file_get_contents($path));
+        self::assertFileExists($path);
+        self::assertSame('{"openapi":"3.1.0"}', file_get_contents($path));
     }
 
     /**
@@ -76,8 +76,8 @@ final class FilesystemDocumentWriterTest extends TestCase
 
         (new FilesystemDocumentWriter(new Filesystem))->write($path, 'contents');
 
-        static::assertDirectoryExists($this->directory . '/nested/deep');
-        static::assertSame('contents', file_get_contents($path));
+        self::assertDirectoryExists($this->directory . '/nested/deep');
+        self::assertSame('contents', file_get_contents($path));
     }
 
     /**
@@ -87,7 +87,7 @@ final class FilesystemDocumentWriterTest extends TestCase
      */
     public function testThrowsWhenTheWriteFails(): void
     {
-        $files = static::createStub(Filesystem::class);
+        $files = self::createStub(Filesystem::class);
         $files->method('isDirectory')->willReturn(true);
         $files->method('put')->willReturn(false);
 
@@ -103,7 +103,7 @@ final class FilesystemDocumentWriterTest extends TestCase
      */
     public function testThrowsWhenTheDirectoryCannotBeCreated(): void
     {
-        $files = static::createStub(Filesystem::class);
+        $files = self::createStub(Filesystem::class);
         $files->method('isDirectory')->willReturn(false);
         $files->method('makeDirectory')->willReturn(false);
 

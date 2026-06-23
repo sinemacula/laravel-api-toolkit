@@ -29,7 +29,6 @@ final class SafetySetDeriver
 
         /** The schema introspection port for column and relation metadata. */
         private readonly SchemaIntrospectionProvider $schemaIntrospector,
-
     ) {}
 
     /**
@@ -45,7 +44,7 @@ final class SafetySetDeriver
         Model $model,
         array $eagerLoadedRelations,
         array $aliasedScalarColumns,
-        array $orderColumns
+        array $orderColumns,
     ): array {
         $columns = [$model->getKeyName()];
 

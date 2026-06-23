@@ -78,17 +78,17 @@ final class QueueFlushSubscriberTest extends TestCase
         $registry->register($key);
         Cache::memo()->rememberForever($key, fn () => 'cached'); // @phpstan-ignore method.notFound
 
-        static::assertSame('cached', Cache::memo()->get($key)); // @phpstan-ignore method.notFound
+        self::assertSame('cached', Cache::memo()->get($key)); // @phpstan-ignore method.notFound
 
         $cacheManager = $this->app->make(CacheManager::class); // @phpstan-ignore method.nonObject
         $subscriber   = new QueueFlushSubscriber($cacheManager, new RuntimeContext);
-        $event        = new JobProcessed('database', static::createStub(Job::class));
+        $event        = new JobProcessed('database', self::createStub(Job::class));
 
         // Act
         $subscriber->handleFlush($event);
 
         // Assert
-        static::assertNull(Cache::memo()->get($key)); // @phpstan-ignore method.notFound
+        self::assertNull(Cache::memo()->get($key)); // @phpstan-ignore method.notFound
     }
 
     /**
@@ -114,17 +114,17 @@ final class QueueFlushSubscriberTest extends TestCase
         $registry->register($key);
         Cache::memo()->rememberForever($key, fn () => 'cached'); // @phpstan-ignore method.notFound
 
-        static::assertSame('cached', Cache::memo()->get($key)); // @phpstan-ignore method.notFound
+        self::assertSame('cached', Cache::memo()->get($key)); // @phpstan-ignore method.notFound
 
         $cacheManager = $this->app->make(CacheManager::class); // @phpstan-ignore method.nonObject
         $subscriber   = new QueueFlushSubscriber($cacheManager, new RuntimeContext);
-        $event        = new JobProcessed('sync', static::createStub(Job::class));
+        $event        = new JobProcessed('sync', self::createStub(Job::class));
 
         // Act
         $subscriber->handleFlush($event);
 
         // Assert
-        static::assertSame('cached', Cache::memo()->get($key)); // @phpstan-ignore method.notFound
+        self::assertSame('cached', Cache::memo()->get($key)); // @phpstan-ignore method.notFound
     }
 
     /**
@@ -151,16 +151,16 @@ final class QueueFlushSubscriberTest extends TestCase
         $registry->register($key);
         Cache::memo()->rememberForever($key, fn () => 'cached'); // @phpstan-ignore method.notFound
 
-        static::assertSame('cached', Cache::memo()->get($key)); // @phpstan-ignore method.notFound
+        self::assertSame('cached', Cache::memo()->get($key)); // @phpstan-ignore method.notFound
 
         $cacheManager = $this->app->make(CacheManager::class); // @phpstan-ignore method.nonObject
         $subscriber   = new QueueFlushSubscriber($cacheManager, new RuntimeContext);
-        $event        = new JobProcessed('database', static::createStub(Job::class));
+        $event        = new JobProcessed('database', self::createStub(Job::class));
 
         // Act
         $subscriber->handleFlush($event);
 
         // Assert
-        static::assertNull(Cache::memo()->get($key)); // @phpstan-ignore method.notFound
+        self::assertNull(Cache::memo()->get($key)); // @phpstan-ignore method.notFound
     }
 }

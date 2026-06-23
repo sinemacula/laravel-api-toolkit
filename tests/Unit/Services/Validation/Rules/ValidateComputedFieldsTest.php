@@ -51,7 +51,7 @@ final class ValidateComputedFieldsTest extends TestCase
         $rule   = new ValidateComputedFields;
         $errors = $rule->validate(UserResource::class, null, $schema);
 
-        static::assertSame([], $errors);
+        self::assertSame([], $errors);
     }
 
     /**
@@ -83,7 +83,7 @@ final class ValidateComputedFieldsTest extends TestCase
         $rule   = new ValidateComputedFields;
         $errors = $rule->validate(UserResource::class, null, $schema);
 
-        static::assertSame([], $errors);
+        self::assertSame([], $errors);
     }
 
     /**
@@ -115,9 +115,9 @@ final class ValidateComputedFieldsTest extends TestCase
         $rule   = new ValidateComputedFields;
         $errors = $rule->validate(UserResource::class, null, $schema);
 
-        static::assertCount(1, $errors);
-        static::assertSame('label', $errors[0]->fieldKey);
-        static::assertSame(
+        self::assertCount(1, $errors);
+        self::assertSame('label', $errors[0]->fieldKey);
+        self::assertSame(
             'Computed field value is not callable and does not reference an existing method on the resource class',
             $errors[0]->defect,
         );
@@ -141,7 +141,7 @@ final class ValidateComputedFieldsTest extends TestCase
         $rule   = new ValidateComputedFields;
         $errors = $rule->validate(UserResource::class, null, $schema);
 
-        static::assertSame([], $errors);
+        self::assertSame([], $errors);
     }
 
     /**
@@ -163,8 +163,8 @@ final class ValidateComputedFieldsTest extends TestCase
         $rule   = new ValidateComputedFields;
         $errors = $rule->validate(UserResource::class, null, $schema);
 
-        static::assertCount(1, $errors);
-        static::assertSame('bad', $errors[0]->fieldKey);
+        self::assertCount(1, $errors);
+        self::assertSame('bad', $errors[0]->fieldKey);
     }
 
     /**
@@ -186,8 +186,8 @@ final class ValidateComputedFieldsTest extends TestCase
         $rule   = new ValidateComputedFields;
         $errors = $rule->validate(UserResource::class, null, $schema);
 
-        static::assertCount(1, $errors);
-        static::assertSame('bad', $errors[0]->fieldKey);
+        self::assertCount(1, $errors);
+        self::assertSame('bad', $errors[0]->fieldKey);
     }
 
     /**
@@ -209,8 +209,8 @@ final class ValidateComputedFieldsTest extends TestCase
         $rule   = new ValidateComputedFields;
         $errors = $rule->validate(UserResource::class, null, $schema);
 
-        static::assertCount(1, $errors);
-        static::assertSame('bad', $errors[0]->fieldKey);
+        self::assertCount(1, $errors);
+        self::assertSame('bad', $errors[0]->fieldKey);
     }
 
     /**
@@ -231,9 +231,9 @@ final class ValidateComputedFieldsTest extends TestCase
         $rule   = new ValidateComputedFields;
         $errors = $rule->validate(UserResource::class, null, $schema);
 
-        static::assertCount(2, $errors);
-        static::assertSame('first', $errors[0]->fieldKey);
-        static::assertSame('second', $errors[1]->fieldKey);
+        self::assertCount(2, $errors);
+        self::assertSame('first', $errors[0]->fieldKey);
+        self::assertSame('second', $errors[1]->fieldKey);
     }
 
     /**
@@ -264,7 +264,7 @@ final class ValidateComputedFieldsTest extends TestCase
         $rule   = new ValidateComputedFields;
         $errors = $rule->validate(UserResource::class, null, $schema);
 
-        static::assertSame([], $errors);
+        self::assertSame([], $errors);
     }
 
     /**

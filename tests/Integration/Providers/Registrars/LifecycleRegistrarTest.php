@@ -6,13 +6,13 @@ namespace Tests\Integration\Providers\Registrars;
 
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Http\Events\RequestHandled;
+use Illuminate\Queue\Events\JobProcessed;
 use Illuminate\Support\Facades\Log;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Listeners\QueueFlushSubscriber;
 use SineMacula\ApiToolkit\Listeners\WritePoolFlushSubscriber;
 use SineMacula\ApiToolkit\Providers\Registrars\LifecycleRegistrar;
 use Tests\TestCase;
-use Illuminate\Queue\Events\JobProcessed;
 
 /**
  * Integration tests for the LifecycleRegistrar.
@@ -79,8 +79,8 @@ final class LifecycleRegistrarTest extends TestCase
 
         (new LifecycleRegistrar)->register();
 
-        static::assertTrue($this->hasSubscriberListener(RequestHandled::class, WritePoolFlushSubscriber::class));
-        static::assertTrue($this->hasSubscriberListener(JobProcessed::class, QueueFlushSubscriber::class));
+        self::assertTrue($this->hasSubscriberListener(RequestHandled::class, WritePoolFlushSubscriber::class));
+        self::assertTrue($this->hasSubscriberListener(JobProcessed::class, QueueFlushSubscriber::class));
     }
 
     /**

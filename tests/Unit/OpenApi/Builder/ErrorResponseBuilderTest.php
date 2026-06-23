@@ -33,9 +33,9 @@ final class ErrorResponseBuilderTest extends TestCase
             new ErrorDescriptor(code: 10102, httpStatus: 403, title: 'Forbidden', detail: 'Access is denied.'),
         ])->build();
 
-        static::assertCount(2, $responses);
-        static::assertArrayHasKey('ErrorResponse10103', $responses);
-        static::assertArrayHasKey('ErrorResponse10102', $responses);
+        self::assertCount(2, $responses);
+        self::assertArrayHasKey('ErrorResponse10103', $responses);
+        self::assertArrayHasKey('ErrorResponse10102', $responses);
     }
 
     /**
@@ -50,8 +50,8 @@ final class ErrorResponseBuilderTest extends TestCase
             new ErrorDescriptor(code: 10103, httpStatus: 404, title: 'Not Found', detail: 'The resource was not found.'),
         ])->build();
 
-        static::assertSame(404, $responses['ErrorResponse10103']['x-status']);
-        static::assertSame(10103, $responses['ErrorResponse10103']['x-code']);
+        self::assertSame(404, $responses['ErrorResponse10103']['x-status']);
+        self::assertSame(10103, $responses['ErrorResponse10103']['x-code']);
     }
 
     /**
@@ -68,7 +68,7 @@ final class ErrorResponseBuilderTest extends TestCase
 
         $schema = $responses['ErrorResponse10103']['content']['application/json']['schema'];
 
-        static::assertSame(['$ref' => '#/components/schemas/ErrorEnvelope'], $schema);
+        self::assertSame(['$ref' => '#/components/schemas/ErrorEnvelope'], $schema);
     }
 
     /**
@@ -83,7 +83,7 @@ final class ErrorResponseBuilderTest extends TestCase
             new ErrorDescriptor(code: 10113, httpStatus: 500, title: null, detail: 'A generic error occurred.'),
         ])->build();
 
-        static::assertSame('A generic error occurred.', $responses['ErrorResponse10113']['description']);
+        self::assertSame('A generic error occurred.', $responses['ErrorResponse10113']['description']);
     }
 
     /**
@@ -100,10 +100,10 @@ final class ErrorResponseBuilderTest extends TestCase
 
         $example = $responses['ErrorResponse10103']['content']['application/json']['example'];
 
-        static::assertSame(404, $example['error']['status']);
-        static::assertSame(10103, $example['error']['code']);
-        static::assertSame('Not Found', $example['error']['title']);
-        static::assertSame('Missing.', $example['error']['detail']);
+        self::assertSame(404, $example['error']['status']);
+        self::assertSame(10103, $example['error']['code']);
+        self::assertSame('Not Found', $example['error']['title']);
+        self::assertSame('Missing.', $example['error']['detail']);
     }
 
     /**
@@ -119,7 +119,7 @@ final class ErrorResponseBuilderTest extends TestCase
 
         $example = $responses['ErrorResponse10113']['content']['application/json']['example'];
 
-        static::assertArrayNotHasKey('title', $example['error']);
+        self::assertArrayNotHasKey('title', $example['error']);
     }
 
     /**
@@ -132,18 +132,18 @@ final class ErrorResponseBuilderTest extends TestCase
     {
         $envelope = $this->makeBuilder([])->buildEnvelopeSchema();
 
-        static::assertSame('object', $envelope['type']);
-        static::assertContains('error', $envelope['required']);
+        self::assertSame('object', $envelope['type']);
+        self::assertContains('error', $envelope['required']);
 
         $error = $envelope['properties']['error'];
 
-        static::assertSame('object', $error['type']);
-        static::assertSame(['type' => 'integer'], $error['properties']['status']);
-        static::assertSame(['type' => 'integer'], $error['properties']['code']);
-        static::assertSame(['type' => 'string'], $error['properties']['title']);
-        static::assertSame(['type' => 'string'], $error['properties']['detail']);
-        static::assertSame(['type' => 'object', 'additionalProperties' => true], $error['properties']['meta']);
-        static::assertSame(['status', 'code', 'detail'], $error['required']);
+        self::assertSame('object', $error['type']);
+        self::assertSame(['type' => 'integer'], $error['properties']['status']);
+        self::assertSame(['type' => 'integer'], $error['properties']['code']);
+        self::assertSame(['type' => 'string'], $error['properties']['title']);
+        self::assertSame(['type' => 'string'], $error['properties']['detail']);
+        self::assertSame(['type' => 'object', 'additionalProperties' => true], $error['properties']['meta']);
+        self::assertSame(['status', 'code', 'detail'], $error['required']);
     }
 
     /**
@@ -154,7 +154,7 @@ final class ErrorResponseBuilderTest extends TestCase
      */
     public function testEnvelopeSchemaNameIsErrorEnvelope(): void
     {
-        static::assertSame('ErrorEnvelope', ErrorResponseBuilder::ENVELOPE_SCHEMA_NAME);
+        self::assertSame('ErrorEnvelope', ErrorResponseBuilder::ENVELOPE_SCHEMA_NAME);
     }
 
     /**
@@ -166,7 +166,7 @@ final class ErrorResponseBuilderTest extends TestCase
      */
     private function makeBuilder(array $descriptors): ErrorResponseBuilder
     {
-        $catalogue = static::createStub(MetadataCatalogue::class);
+        $catalogue = self::createStub(MetadataCatalogue::class);
         $catalogue->method('getErrorCatalogue')->willReturn($descriptors);
 
         return new ErrorResponseBuilder($catalogue);

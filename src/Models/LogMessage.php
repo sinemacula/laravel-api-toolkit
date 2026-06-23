@@ -41,7 +41,7 @@ final class LogMessage extends Model
     {
         $days = config('logging.channels.database.days');
 
-        return static::query()->where('created_at', '<=', now()->subDays(is_numeric($days) ? (int) $days : 0));
+        return self::query()->where('created_at', '<=', now()->subDays(is_numeric($days) ? (int) $days : 0));
     }
 
     /**

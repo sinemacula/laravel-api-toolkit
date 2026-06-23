@@ -33,14 +33,14 @@ final class QuerySurfaceTest extends TestCase
     {
         $surface = $this->make(filterable: ['email']);
 
-        static::assertTrue($surface->guardFilter('email', new User));
+        self::assertTrue($surface->guardFilter('email', new User));
 
         try {
             $surface->guardFilter('password', new User);
-            static::fail('Expected a ValidationException for an undeclared filter key.');
+            self::fail('Expected a ValidationException for an undeclared filter key.');
         } catch (ValidationException $exception) {
-            static::assertArrayHasKey('filters.password', $exception->errors());
-            static::assertStringContainsString('password', $exception->errors()['filters.password'][0]);
+            self::assertArrayHasKey('filters.password', $exception->errors());
+            self::assertStringContainsString('password', $exception->errors()['filters.password'][0]);
         }
     }
 
@@ -54,8 +54,8 @@ final class QuerySurfaceTest extends TestCase
     {
         $surface = $this->make(sortable: ['created_at'], relations: ['posts']);
 
-        static::assertTrue($surface->guardSort('created_at', new User));
-        static::assertTrue($surface->guardRelation('posts', new User));
+        self::assertTrue($surface->guardSort('created_at', new User));
+        self::assertTrue($surface->guardRelation('posts', new User));
 
         $this->assertRejects(fn () => $surface->guardSort('secret', new User), 'order.secret');
         $this->assertRejects(fn () => $surface->guardRelation('audits', new User), 'filters.audits');
@@ -70,7 +70,7 @@ final class QuerySurfaceTest extends TestCase
     {
         $surface = $this->make(filterable: ['email'], reject: false);
 
-        static::assertFalse($surface->guardFilter('password', new User));
+        self::assertFalse($surface->guardFilter('password', new User));
     }
 
     /**
@@ -101,8 +101,8 @@ final class QuerySurfaceTest extends TestCase
 
         $surface = $this->make(filterable: ['email'], introspector: $introspector);
 
-        static::assertTrue($surface->guardFilter('title', new Post));
-        static::assertFalse($surface->guardFilter('secret', new Post));
+        self::assertTrue($surface->guardFilter('title', new Post));
+        self::assertFalse($surface->guardFilter('secret', new Post));
     }
 
     /**
@@ -120,9 +120,9 @@ final class QuerySurfaceTest extends TestCase
 
         $surface = $this->make(posture: QuerySurface::POSTURE_BLOCKLIST, introspector: $introspector);
 
-        static::assertTrue($surface->guardFilter('email', new User));
-        static::assertTrue($surface->guardRelation('posts', new User));
-        static::assertFalse($surface->guardFilter('secret', new User));
+        self::assertTrue($surface->guardFilter('email', new User));
+        self::assertTrue($surface->guardRelation('posts', new User));
+        self::assertFalse($surface->guardFilter('secret', new User));
     }
 
     /**
@@ -167,9 +167,9 @@ final class QuerySurfaceTest extends TestCase
     {
         try {
             $guard();
-            static::fail('Expected a ValidationException for key ' . $errorKey . '.');
+            self::fail('Expected a ValidationException for key ' . $errorKey . '.');
         } catch (ValidationException $exception) {
-            static::assertArrayHasKey($errorKey, $exception->errors());
+            self::assertArrayHasKey($errorKey, $exception->errors());
         }
     }
 }

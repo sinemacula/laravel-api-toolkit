@@ -28,9 +28,9 @@ final class FilterContextTest extends TestCase
     {
         $context = FilterContext::root();
 
-        static::assertNull($context->getLogicalOperator());
-        static::assertFalse($context->isInRelation());
-        static::assertSame(0, $context->getDepth());
+        self::assertNull($context->getLogicalOperator());
+        self::assertFalse($context->isInRelation());
+        self::assertSame(0, $context->getDepth());
     }
 
     /**
@@ -43,8 +43,8 @@ final class FilterContextTest extends TestCase
         $root   = FilterContext::root();
         $nested = FilterContext::nested('$and', $root);
 
-        static::assertSame('$and', $nested->getLogicalOperator());
-        static::assertSame(1, $nested->getDepth());
+        self::assertSame('$and', $nested->getLogicalOperator());
+        self::assertSame(1, $nested->getDepth());
     }
 
     /**
@@ -58,7 +58,7 @@ final class FilterContextTest extends TestCase
         $relation = FilterContext::forRelation($root);
         $nested   = FilterContext::nested('$or', $relation);
 
-        static::assertTrue($nested->isInRelation());
+        self::assertTrue($nested->isInRelation());
     }
 
     /**
@@ -71,8 +71,8 @@ final class FilterContextTest extends TestCase
         $root     = FilterContext::root();
         $relation = FilterContext::forRelation($root);
 
-        static::assertTrue($relation->isInRelation());
-        static::assertSame($root->getDepth(), $relation->getDepth());
+        self::assertTrue($relation->isInRelation());
+        self::assertSame($root->getDepth(), $relation->getDepth());
     }
 
     /**
@@ -86,7 +86,7 @@ final class FilterContextTest extends TestCase
         $nested   = FilterContext::nested('$or', $root);
         $relation = FilterContext::forRelation($nested);
 
-        static::assertSame('$or', $relation->getLogicalOperator());
+        self::assertSame('$or', $relation->getLogicalOperator());
     }
 
     /**
@@ -99,7 +99,7 @@ final class FilterContextTest extends TestCase
         $root     = FilterContext::root();
         $relation = FilterContext::forRelation($root);
 
-        static::assertSame(0, $relation->getDepth());
+        self::assertSame(0, $relation->getDepth());
     }
 
     /**
@@ -113,7 +113,7 @@ final class FilterContextTest extends TestCase
         $first  = FilterContext::nested('$and', $root);
         $second = FilterContext::nested('$or', $first);
 
-        static::assertSame(2, $second->getDepth());
+        self::assertSame(2, $second->getDepth());
     }
 
     /**
@@ -127,8 +127,8 @@ final class FilterContextTest extends TestCase
 
         FilterContext::nested('$and', $root);
 
-        static::assertNull($root->getLogicalOperator());
-        static::assertSame(0, $root->getDepth());
+        self::assertNull($root->getLogicalOperator());
+        self::assertSame(0, $root->getDepth());
     }
 
     /**
@@ -142,7 +142,7 @@ final class FilterContextTest extends TestCase
 
         FilterContext::forRelation($root);
 
-        static::assertFalse($root->isInRelation());
+        self::assertFalse($root->isInRelation());
     }
 
     /**
@@ -156,8 +156,8 @@ final class FilterContextTest extends TestCase
         $nested   = FilterContext::nested('$and', $root);
         $relation = FilterContext::forRelation($nested);
 
-        static::assertSame('$and', $relation->getLogicalOperator());
-        static::assertTrue($relation->isInRelation());
-        static::assertSame(1, $relation->getDepth());
+        self::assertSame('$and', $relation->getLogicalOperator());
+        self::assertTrue($relation->isInRelation());
+        self::assertSame(1, $relation->getDepth());
     }
 }

@@ -67,10 +67,10 @@ final class ExportNegotiationTest extends TestCase
 
         $content = (string) $response->baseResponse->getContent();
 
-        static::assertStringContainsString('Alice', $content);
-        static::assertStringContainsString('alice@example.com', $content);
-        static::assertStringContainsString('Bob', $content);
-        static::assertStringContainsString('bob@example.com', $content);
+        self::assertStringContainsString('Alice', $content);
+        self::assertStringContainsString('alice@example.com', $content);
+        self::assertStringContainsString('Bob', $content);
+        self::assertStringContainsString('bob@example.com', $content);
     }
 
     /**
@@ -88,13 +88,13 @@ final class ExportNegotiationTest extends TestCase
 
         $contentType = (string) $response->headers->get('Content-Type');
 
-        static::assertStringStartsWith('application/xml', $contentType);
+        self::assertStringStartsWith('application/xml', $contentType);
 
         $content = (string) $response->baseResponse->getContent();
 
-        static::assertStringStartsWith('<?xml', $content);
-        static::assertStringContainsString('Alice', $content);
-        static::assertStringContainsString('bob@example.com', $content);
+        self::assertStringStartsWith('<?xml', $content);
+        self::assertStringContainsString('Alice', $content);
+        self::assertStringContainsString('bob@example.com', $content);
     }
 
     /**
@@ -128,7 +128,7 @@ final class ExportNegotiationTest extends TestCase
 
         $contentType = (string) $response->headers->get('Content-Type');
 
-        static::assertStringStartsWith('application/json', $contentType);
+        self::assertStringStartsWith('application/json', $contentType);
     }
 
     /**

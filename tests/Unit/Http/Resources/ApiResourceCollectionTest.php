@@ -47,9 +47,9 @@ final class ApiResourceCollectionTest extends TestCase
         $request = Request::create('/', HttpMethod::GET->getVerb());
         $result  = $collection->toArray($request);
 
-        static::assertCount(2, $result);
-        static::assertSame('users', $result[0]['_type']);
-        static::assertSame('users', $result[1]['_type']);
+        self::assertCount(2, $result);
+        self::assertSame('users', $result[0]['_type']);
+        self::assertSame('users', $result[1]['_type']);
     }
 
     /**
@@ -69,9 +69,9 @@ final class ApiResourceCollectionTest extends TestCase
         $result  = $collection->toArray($request);
 
         foreach ($result as $item) {
-            static::assertArrayHasKey('name', $item);
-            static::assertArrayNotHasKey('email', $item);
-            static::assertArrayNotHasKey('status', $item);
+            self::assertArrayHasKey('name', $item);
+            self::assertArrayNotHasKey('email', $item);
+            self::assertArrayNotHasKey('status', $item);
         }
     }
 
@@ -92,8 +92,8 @@ final class ApiResourceCollectionTest extends TestCase
         $result  = $collection->toArray($request);
 
         foreach ($result as $item) {
-            static::assertArrayNotHasKey('email', $item);
-            static::assertArrayHasKey('name', $item);
+            self::assertArrayNotHasKey('email', $item);
+            self::assertArrayHasKey('name', $item);
         }
     }
 
@@ -108,7 +108,7 @@ final class ApiResourceCollectionTest extends TestCase
 
         $result = $collection->withFields(['name']);
 
-        static::assertSame($collection, $result);
+        self::assertSame($collection, $result);
     }
 
     /**
@@ -122,7 +122,7 @@ final class ApiResourceCollectionTest extends TestCase
 
         $result = $collection->withoutFields(['name']);
 
-        static::assertSame($collection, $result);
+        self::assertSame($collection, $result);
     }
 
     /**
@@ -142,7 +142,7 @@ final class ApiResourceCollectionTest extends TestCase
 
         $collection->withResponse($request, $response);
 
-        static::assertSame('50', $response->headers->get('Total-Count'));
+        self::assertSame('50', $response->headers->get('Total-Count'));
     }
 
     /**
@@ -159,7 +159,7 @@ final class ApiResourceCollectionTest extends TestCase
 
         $collection->withResponse($request, $response);
 
-        static::assertNull($response->headers->get('Total-Count'));
+        self::assertNull($response->headers->get('Total-Count'));
     }
 
     /**
@@ -180,16 +180,16 @@ final class ApiResourceCollectionTest extends TestCase
         $request = Request::create('/', HttpMethod::GET->getVerb());
         $result  = $collection->paginationInformation($request, [], []);
 
-        static::assertArrayHasKey('meta', $result);
-        static::assertArrayHasKey('links', $result);
-        static::assertSame(50, $result['meta']['total']);
-        static::assertSame(1, $result['meta']['count']);
-        static::assertArrayHasKey('continue', $result['meta']);
-        static::assertArrayHasKey('self', $result['links']);
-        static::assertArrayHasKey('first', $result['links']);
-        static::assertArrayHasKey('prev', $result['links']);
-        static::assertArrayHasKey('next', $result['links']);
-        static::assertArrayHasKey('last', $result['links']);
+        self::assertArrayHasKey('meta', $result);
+        self::assertArrayHasKey('links', $result);
+        self::assertSame(50, $result['meta']['total']);
+        self::assertSame(1, $result['meta']['count']);
+        self::assertArrayHasKey('continue', $result['meta']);
+        self::assertArrayHasKey('self', $result['links']);
+        self::assertArrayHasKey('first', $result['links']);
+        self::assertArrayHasKey('prev', $result['links']);
+        self::assertArrayHasKey('next', $result['links']);
+        self::assertArrayHasKey('last', $result['links']);
     }
 
     /**
@@ -210,12 +210,12 @@ final class ApiResourceCollectionTest extends TestCase
         $request = Request::create('/', HttpMethod::GET->getVerb());
         $result  = $collection->paginationInformation($request, [], []);
 
-        static::assertArrayHasKey('meta', $result);
-        static::assertArrayHasKey('links', $result);
-        static::assertArrayHasKey('continue', $result['meta']);
-        static::assertArrayHasKey('self', $result['links']);
-        static::assertArrayHasKey('prev', $result['links']);
-        static::assertArrayHasKey('next', $result['links']);
+        self::assertArrayHasKey('meta', $result);
+        self::assertArrayHasKey('links', $result);
+        self::assertArrayHasKey('continue', $result['meta']);
+        self::assertArrayHasKey('self', $result['links']);
+        self::assertArrayHasKey('prev', $result['links']);
+        self::assertArrayHasKey('next', $result['links']);
     }
 
     /**
@@ -230,7 +230,7 @@ final class ApiResourceCollectionTest extends TestCase
         $request = Request::create('/', HttpMethod::GET->getVerb());
         $result  = $collection->paginationInformation($request, [], []);
 
-        static::assertSame([], $result);
+        self::assertSame([], $result);
     }
 
     /**
@@ -249,7 +249,7 @@ final class ApiResourceCollectionTest extends TestCase
         $collectionMore = new ApiResourceCollection($hasMore, UserResource::class);
         $resultMore     = $collectionMore->paginationInformation(Request::create('/', HttpMethod::GET->getVerb()), [], []);
 
-        static::assertTrue($resultMore['meta']['continue']);
+        self::assertTrue($resultMore['meta']['continue']);
 
         $noMore = new LengthAwarePaginator($items, 1, 15, 1, [
             'path' => self::PAGINATION_PATH,
@@ -258,7 +258,7 @@ final class ApiResourceCollectionTest extends TestCase
         $collectionLast = new ApiResourceCollection($noMore, UserResource::class);
         $resultLast     = $collectionLast->paginationInformation(Request::create('/', HttpMethod::GET->getVerb()), [], []);
 
-        static::assertFalse($resultLast['meta']['continue']);
+        self::assertFalse($resultLast['meta']['continue']);
     }
 
     /**
@@ -290,8 +290,8 @@ final class ApiResourceCollectionTest extends TestCase
         $request = Request::create('/', HttpMethod::GET->getVerb());
         $result  = $collection->toArray($request);
 
-        static::assertCount(1, $result);
-        static::assertSame('users', $result[0]['_type']);
+        self::assertCount(1, $result);
+        self::assertSame('users', $result[0]['_type']);
     }
 
     /**
@@ -312,9 +312,9 @@ final class ApiResourceCollectionTest extends TestCase
         $request = Request::create('/', HttpMethod::GET->getVerb());
         $result  = $collection->toArray($request);
 
-        static::assertCount(1, $result);
-        static::assertArrayHasKey('name', $result[0]);
-        static::assertArrayNotHasKey('email', $result[0]);
+        self::assertCount(1, $result);
+        self::assertArrayHasKey('name', $result[0]);
+        self::assertArrayNotHasKey('email', $result[0]);
     }
 
     /**
@@ -353,8 +353,8 @@ final class ApiResourceCollectionTest extends TestCase
 
         $result = $collection->toArray($request);
 
-        static::assertFalse($user->relationLoaded('organization'));
-        static::assertArrayNotHasKey('organization', $result[0]);
+        self::assertFalse($user->relationLoaded('organization'));
+        self::assertArrayNotHasKey('organization', $result[0]);
     }
 
     /**
@@ -374,9 +374,9 @@ final class ApiResourceCollectionTest extends TestCase
         $request = Request::create('/', HttpMethod::GET->getVerb());
         $result  = $collection->paginationInformation($request, [], []);
 
-        static::assertSame(self::PAGINATION_PATH . '?page=1', $result['links']['first']);
-        static::assertSame(self::PAGINATION_PATH . '?page=2', $result['links']['self']);
-        static::assertSame(self::PAGINATION_PATH . '?page=4', $result['links']['last']);
+        self::assertSame(self::PAGINATION_PATH . '?page=1', $result['links']['first']);
+        self::assertSame(self::PAGINATION_PATH . '?page=2', $result['links']['self']);
+        self::assertSame(self::PAGINATION_PATH . '?page=4', $result['links']['last']);
     }
 
     /**
@@ -395,7 +395,7 @@ final class ApiResourceCollectionTest extends TestCase
         $request = Request::create('/', HttpMethod::GET->getVerb());
         $result  = $collection->toArray($request);
 
-        static::assertCount(1, $result);
-        static::assertSame('users', $result[0]['_type']);
+        self::assertCount(1, $result);
+        self::assertSame('users', $result[0]['_type']);
     }
 }

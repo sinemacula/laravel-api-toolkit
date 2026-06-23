@@ -36,7 +36,6 @@ final class ConfigMetadataCatalogue implements MetadataCatalogue
 
         /** Reader that resolves the error catalogue metadata */
         private readonly ErrorCatalogueReader $errorReader,
-
     ) {}
 
     /**

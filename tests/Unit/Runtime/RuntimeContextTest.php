@@ -65,7 +65,7 @@ final class RuntimeContextTest extends TestCase
 
         $context = new RuntimeContext;
 
-        static::assertTrue($context->isServingUnderOctane());
+        self::assertTrue($context->isServingUnderOctane());
     }
 
     /**
@@ -80,7 +80,7 @@ final class RuntimeContextTest extends TestCase
 
         $context = new RuntimeContext;
 
-        static::assertFalse($context->isServingUnderOctane());
+        self::assertFalse($context->isServingUnderOctane());
     }
 
     /**
@@ -94,7 +94,7 @@ final class RuntimeContextTest extends TestCase
 
         $context = new RuntimeContext;
 
-        static::assertTrue($context->isServingAsQueueWorker('database'));
+        self::assertTrue($context->isServingAsQueueWorker('database'));
     }
 
     /**
@@ -108,7 +108,7 @@ final class RuntimeContextTest extends TestCase
 
         $context = new RuntimeContext;
 
-        static::assertFalse($context->isServingAsQueueWorker('sync'));
+        self::assertFalse($context->isServingAsQueueWorker('sync'));
     }
 
     /**
@@ -124,7 +124,7 @@ final class RuntimeContextTest extends TestCase
 
         $context = new RuntimeContext;
 
-        static::assertTrue($context->isServingAsQueueWorker(null));
+        self::assertTrue($context->isServingAsQueueWorker(null));
     }
 
     /**
@@ -137,7 +137,7 @@ final class RuntimeContextTest extends TestCase
     {
         $context = new RuntimeContext;
 
-        static::assertFalse($context->isServingAsQueueWorker('nonexistent-connection'));
+        self::assertFalse($context->isServingAsQueueWorker('nonexistent-connection'));
     }
 
     /**
@@ -154,6 +154,6 @@ final class RuntimeContextTest extends TestCase
 
         $context = new RuntimeContext;
 
-        static::assertFalse($context->isServingAsQueueWorker());
+        self::assertFalse($context->isServingAsQueueWorker());
     }
 }

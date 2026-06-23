@@ -47,7 +47,6 @@ final class HttpException extends ApiException
 
         // The previous throwable
         ?\Throwable $previous = null,
-
     ) {
         parent::__construct($meta, $headers, $previous);
     }

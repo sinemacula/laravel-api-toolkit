@@ -127,12 +127,13 @@ final class OperatorRegistry
              *
              * @param  \Closure  $closure
              * @return void
+             *
+             * @phpstan-ignore missingType.callable
              */
-            public function __construct(// @phpstan-ignore missingType.callable
+            public function __construct(
 
                 /** @var \Closure */
                 private readonly \Closure $closure,
-
             ) {}
 
             /**

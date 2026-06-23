@@ -45,8 +45,8 @@ final class ParseApiQueryTest extends TestCase
             return $expectedResponse;
         });
 
-        static::assertSame($request, $receivedRequest);
-        static::assertSame($expectedResponse, $result);
+        self::assertSame($request, $receivedRequest);
+        self::assertSame($expectedResponse, $result);
     }
 
     /**
@@ -65,7 +65,7 @@ final class ParseApiQueryTest extends TestCase
 
         $result = $middleware->handle($request, fn () => $expectedResponse);
 
-        static::assertSame($expectedResponse, $result);
-        static::assertSame(201, $result->getStatusCode());
+        self::assertSame($expectedResponse, $result);
+        self::assertSame(201, $result->getStatusCode());
     }
 }

@@ -32,9 +32,9 @@ final class RelationTest extends TestCase
 
         $array = $relation->toArray();
 
-        static::assertSame('organization', $array['organization']['relation']);
-        static::assertSame(OrganizationResource::class, $array['organization']['resource']);
-        static::assertArrayNotHasKey('accessor', $array['organization']);
+        self::assertSame('organization', $array['organization']['relation']);
+        self::assertSame(OrganizationResource::class, $array['organization']['resource']);
+        self::assertArrayNotHasKey('accessor', $array['organization']);
     }
 
     /**
@@ -46,7 +46,7 @@ final class RelationTest extends TestCase
     {
         $array = Relation::to('organization', OrganizationResource::class)->traversable()->toArray();
 
-        static::assertSame('organization', $array['organization']['traversable']);
+        self::assertSame('organization', $array['organization']['traversable']);
     }
 
     /**
@@ -58,7 +58,7 @@ final class RelationTest extends TestCase
     {
         $array = Relation::to('organization', OrganizationResource::class)->toArray();
 
-        static::assertArrayNotHasKey('traversable', $array['organization']);
+        self::assertArrayNotHasKey('traversable', $array['organization']);
     }
 
     /**
@@ -72,9 +72,9 @@ final class RelationTest extends TestCase
 
         $array = $relation->toArray();
 
-        static::assertSame('organization', $array['organization']['relation']);
-        static::assertSame('name', $array['organization']['accessor']);
-        static::assertArrayNotHasKey('resource', $array['organization']);
+        self::assertSame('organization', $array['organization']['relation']);
+        self::assertSame('name', $array['organization']['accessor']);
+        self::assertArrayNotHasKey('resource', $array['organization']);
     }
 
     /**
@@ -89,8 +89,8 @@ final class RelationTest extends TestCase
 
         $array = $relation->toArray();
 
-        static::assertSame($accessor, $array['organization']['accessor']);
-        static::assertArrayNotHasKey('resource', $array['organization']);
+        self::assertSame($accessor, $array['organization']['accessor']);
+        self::assertArrayNotHasKey('resource', $array['organization']);
     }
 
     /**
@@ -106,9 +106,9 @@ final class RelationTest extends TestCase
 
         $array = $relation->toArray();
 
-        static::assertArrayHasKey('org', $array);
-        static::assertArrayNotHasKey('organization', $array);
-        static::assertSame('organization', $array['org']['relation']);
+        self::assertArrayHasKey('org', $array);
+        self::assertArrayNotHasKey('organization', $array);
+        self::assertSame('organization', $array['org']['relation']);
     }
 
     /**
@@ -122,8 +122,8 @@ final class RelationTest extends TestCase
 
         $array = $relation->toArray();
 
-        static::assertArrayHasKey('org_name', $array);
-        static::assertArrayNotHasKey('organization', $array);
+        self::assertArrayHasKey('org_name', $array);
+        self::assertArrayNotHasKey('organization', $array);
     }
 
     /**
@@ -139,7 +139,7 @@ final class RelationTest extends TestCase
 
         $array = $relation->toArray();
 
-        static::assertSame(['id', 'name'], $array['organization']['fields']);
+        self::assertSame(['id', 'name'], $array['organization']['fields']);
     }
 
     /**
@@ -155,7 +155,7 @@ final class RelationTest extends TestCase
 
         $array = $relation->toArray();
 
-        static::assertSame(['id', 'name'], $array['organization']['fields']);
+        self::assertSame(['id', 'name'], $array['organization']['fields']);
     }
 
     /**
@@ -172,7 +172,7 @@ final class RelationTest extends TestCase
 
         $array = $relation->toArray();
 
-        static::assertSame(['id', 'name', 'slug'], $array['organization']['fields']);
+        self::assertSame(['id', 'name', 'slug'], $array['organization']['fields']);
     }
 
     /**
@@ -189,7 +189,7 @@ final class RelationTest extends TestCase
 
         $array = $relation->toArray();
 
-        static::assertSame($constraint, $array['organization']['constraint']);
+        self::assertSame($constraint, $array['organization']['constraint']);
     }
 
     /**
@@ -211,13 +211,13 @@ final class RelationTest extends TestCase
 
         $array = $relation->toArray();
 
-        static::assertArrayHasKey('organization', $array);
-        static::assertSame('organization', $array['organization']['relation']);
-        static::assertSame(OrganizationResource::class, $array['organization']['resource']);
-        static::assertSame(['id', 'name'], $array['organization']['fields']);
-        static::assertSame($constraint, $array['organization']['constraint']);
-        static::assertSame([$guard], $array['organization']['guards']);
-        static::assertSame([$transformer], $array['organization']['transformers']);
+        self::assertArrayHasKey('organization', $array);
+        self::assertSame('organization', $array['organization']['relation']);
+        self::assertSame(OrganizationResource::class, $array['organization']['resource']);
+        self::assertSame(['id', 'name'], $array['organization']['fields']);
+        self::assertSame($constraint, $array['organization']['constraint']);
+        self::assertSame([$guard], $array['organization']['guards']);
+        self::assertSame([$transformer], $array['organization']['transformers']);
     }
 
     /**
@@ -231,11 +231,11 @@ final class RelationTest extends TestCase
 
         $array = $relation->toArray();
 
-        static::assertArrayNotHasKey('accessor', $array['organization']);
-        static::assertArrayNotHasKey('fields', $array['organization']);
-        static::assertArrayNotHasKey('constraint', $array['organization']);
-        static::assertArrayNotHasKey('guards', $array['organization']);
-        static::assertArrayNotHasKey('transformers', $array['organization']);
+        self::assertArrayNotHasKey('accessor', $array['organization']);
+        self::assertArrayNotHasKey('fields', $array['organization']);
+        self::assertArrayNotHasKey('constraint', $array['organization']);
+        self::assertArrayNotHasKey('guards', $array['organization']);
+        self::assertArrayNotHasKey('transformers', $array['organization']);
     }
 
     /**
@@ -250,7 +250,7 @@ final class RelationTest extends TestCase
 
         $array = $relation->toArray();
 
-        static::assertSame(['organization.owner'], $array['organization']['extras']);
+        self::assertSame(['organization.owner'], $array['organization']['extras']);
     }
 
     /**
@@ -267,7 +267,7 @@ final class RelationTest extends TestCase
 
         $array = $relation->toArray();
 
-        static::assertArrayNotHasKey('openapi', $array['organization']);
+        self::assertArrayNotHasKey('openapi', $array['organization']);
     }
 
     /**
@@ -282,9 +282,9 @@ final class RelationTest extends TestCase
 
         $array = $relation->toArray();
 
-        static::assertArrayHasKey('openapi', $array['organization']);
-        static::assertInstanceOf(OpenApiFieldSchema::class, $array['organization']['openapi']);
-        static::assertSame('object', $array['organization']['openapi']->type);
+        self::assertArrayHasKey('openapi', $array['organization']);
+        self::assertInstanceOf(OpenApiFieldSchema::class, $array['organization']['openapi']);
+        self::assertSame('object', $array['organization']['openapi']->type);
     }
 
     /**
@@ -299,7 +299,7 @@ final class RelationTest extends TestCase
 
         $array = $relation->toArray();
 
-        static::assertSame(['owner_id', 'owner_type'], $array['organization']['needs']);
+        self::assertSame(['owner_id', 'owner_type'], $array['organization']['needs']);
     }
 
     /**
@@ -313,7 +313,7 @@ final class RelationTest extends TestCase
 
         $array = $relation->toArray();
 
-        static::assertArrayNotHasKey('needs', $array['organization']);
+        self::assertArrayNotHasKey('needs', $array['organization']);
     }
 
     /**
@@ -329,6 +329,6 @@ final class RelationTest extends TestCase
 
         $array = $relation->toArray();
 
-        static::assertSame(['a', 'b'], $array['organization']['needs']);
+        self::assertSame(['a', 'b'], $array['organization']['needs']);
     }
 }

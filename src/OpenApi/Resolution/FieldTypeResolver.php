@@ -37,7 +37,6 @@ final class FieldTypeResolver
 
         /** The mapper that converts column types to schema types. */
         private readonly ColumnTypeMapper $mapper,
-
     ) {}
 
     /**

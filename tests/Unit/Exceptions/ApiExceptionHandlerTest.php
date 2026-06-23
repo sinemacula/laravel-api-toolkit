@@ -78,11 +78,11 @@ final class ApiExceptionHandlerTest extends TestCase
             }
         };
 
-        $exceptions->expects(static::once())
+        $exceptions->expects(self::once())
             ->method('report')
             ->willReturn($reportable);
 
-        $exceptions->expects(static::once())
+        $exceptions->expects(self::once())
             ->method('render');
 
         ApiExceptionHandler::handles($exceptions);
@@ -229,7 +229,7 @@ final class ApiExceptionHandlerTest extends TestCase
     public function testRenderMapsExceptionsCorrectly(
         \Throwable $inputException,
         int $expectedHttpCode,
-        int $expectedErrorCode
+        int $expectedErrorCode,
     ): void {
         $request = Request::create(self::API_PATH, HttpMethod::GET->getVerb());
         $request->headers->set('Accept', self::ACCEPT_JSON);

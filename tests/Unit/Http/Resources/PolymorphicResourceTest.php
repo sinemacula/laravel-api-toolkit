@@ -4,6 +4,7 @@ declare(strict_types = 1);
 
 namespace Tests\Unit\Http\Resources;
 
+use Illuminate\Foundation\Application;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -15,7 +16,6 @@ use Tests\Fixtures\Resources\OrganizationResource;
 use Tests\Fixtures\Resources\PostResource;
 use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
-use Illuminate\Foundation\Application;
 
 /**
  * Tests for the polymorphic resource.
@@ -40,7 +40,7 @@ final class PolymorphicResourceTest extends TestCase
         $request = request();
         $result  = $resource->toArray($request);
 
-        static::assertNull($result);
+        self::assertNull($result);
     }
 
     /**
@@ -58,9 +58,9 @@ final class PolymorphicResourceTest extends TestCase
         $resource = new PolymorphicResource($user);
         $result   = $resource->toArray(request());
 
-        static::assertIsArray($result);
-        static::assertArrayHasKey('_type', $result);
-        static::assertSame('users', $result['_type']);
+        self::assertIsArray($result);
+        self::assertArrayHasKey('_type', $result);
+        self::assertSame('users', $result['_type']);
     }
 
     /**
@@ -78,8 +78,8 @@ final class PolymorphicResourceTest extends TestCase
         $resource = new PolymorphicResource($org);
         $result   = $resource->toArray(request());
 
-        static::assertIsArray($result);
-        static::assertSame('organizations', $result['_type']);
+        self::assertIsArray($result);
+        self::assertSame('organizations', $result['_type']);
     }
 
     /**
@@ -126,10 +126,10 @@ final class PolymorphicResourceTest extends TestCase
 
         $result = $resource->toArray(request());
 
-        static::assertArrayHasKey('name', $result);
-        static::assertArrayHasKey('email', $result);
-        static::assertArrayHasKey('status', $result);
-        static::assertArrayHasKey('full_label', $result);
+        self::assertArrayHasKey('name', $result);
+        self::assertArrayHasKey('email', $result);
+        self::assertArrayHasKey('status', $result);
+        self::assertArrayHasKey('full_label', $result);
     }
 
     /**
@@ -157,10 +157,10 @@ final class PolymorphicResourceTest extends TestCase
         $userResult = $userResource->toArray(request());
         $postResult = $postResource->toArray(request());
 
-        static::assertIsArray($userResult);
-        static::assertIsArray($postResult);
-        static::assertSame('users', $userResult['_type']);
-        static::assertSame('posts', $postResult['_type']);
+        self::assertIsArray($userResult);
+        self::assertIsArray($postResult);
+        self::assertSame('users', $userResult['_type']);
+        self::assertSame('posts', $postResult['_type']);
     }
 
     /**
@@ -174,7 +174,7 @@ final class PolymorphicResourceTest extends TestCase
 
         $result = $resource->toArray(request());
 
-        static::assertNull($result);
+        self::assertNull($result);
     }
 
     /**
@@ -195,8 +195,8 @@ final class PolymorphicResourceTest extends TestCase
 
         $result = $resource->toArray(request());
 
-        static::assertArrayHasKey('_type', $result);
-        static::assertArrayHasKey('name', $result);
+        self::assertArrayHasKey('_type', $result);
+        self::assertArrayHasKey('name', $result);
     }
 
     /**
@@ -208,8 +208,8 @@ final class PolymorphicResourceTest extends TestCase
     {
         $resource = new PolymorphicResource(null);
 
-        static::assertInstanceOf(JsonResource::class, $resource);
-        static::assertSame(JsonResource::class, get_parent_class($resource));
+        self::assertInstanceOf(JsonResource::class, $resource);
+        self::assertSame(JsonResource::class, get_parent_class($resource));
     }
 
     /**
@@ -224,7 +224,7 @@ final class PolymorphicResourceTest extends TestCase
 
         $result = $resource->withAll();
 
-        static::assertSame($resource, $result);
+        self::assertSame($resource, $result);
     }
 
     /**
@@ -239,7 +239,7 @@ final class PolymorphicResourceTest extends TestCase
 
         $result = $resource->withFields(['name', 'email']);
 
-        static::assertSame($resource, $result);
+        self::assertSame($resource, $result);
     }
 
     /**
@@ -254,7 +254,7 @@ final class PolymorphicResourceTest extends TestCase
 
         $result = $resource->withoutFields(['email']);
 
-        static::assertSame($resource, $result);
+        self::assertSame($resource, $result);
     }
 
     /**
@@ -289,9 +289,9 @@ final class PolymorphicResourceTest extends TestCase
         $resource = new PolymorphicResource($user);
         $result   = $resource->toArray(request());
 
-        static::assertIsArray($result);
-        static::assertFalse($user->relationLoaded('organization'));
-        static::assertArrayNotHasKey('organization', $result);
+        self::assertIsArray($result);
+        self::assertFalse($user->relationLoaded('organization'));
+        self::assertArrayNotHasKey('organization', $result);
     }
 
     /**

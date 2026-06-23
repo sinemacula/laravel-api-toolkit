@@ -8,6 +8,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Http\Resources\MissingValue;
 use Illuminate\Support\Facades\Config;
+use SineMacula\ApiToolkit\Concerns\OrdersFields;
 use SineMacula\ApiToolkit\Contracts\ApiResourceInterface;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\EagerLoadPlanner;
@@ -15,7 +16,6 @@ use SineMacula\ApiToolkit\Http\Resources\Concerns\FieldResolver;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\GuardEvaluator;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\ValueResolver;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
-use SineMacula\ApiToolkit\Concerns\OrdersFields;
 
 /**
  * The base API resource.
@@ -57,7 +57,7 @@ abstract class ApiResource extends JsonResource implements ApiResourceInterface
         mixed $resource,
         bool $loadMissing = false,
         array|string|null $included = null,
-        ?array $excluded = null
+        ?array $excluded = null,
     ) {
         parent::__construct($resource);
 
@@ -305,7 +305,6 @@ abstract class ApiResource extends JsonResource implements ApiResourceInterface
         if (!method_exists($resource, 'loadCount') || !$this->fieldResolver->shouldIncludeCountsField(static::getResourceType(), static::getDefaultFields())) {
             return;
         }
-
 
         $requestedCounts = ApiQuery::getCounts(static::getResourceType()) ?? [];
         $withCounts      = EagerLoadPlanner::buildCountMap(static::class, $requestedCounts);

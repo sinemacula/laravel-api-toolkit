@@ -7,11 +7,11 @@ namespace SineMacula\ApiToolkit\Providers\Registrars;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Log;
+use Laravel\Octane\Events\OperationTerminated;
 use SineMacula\ApiToolkit\Listeners\OctaneFlushListener;
 use SineMacula\ApiToolkit\Listeners\QueueFlushSubscriber;
 use SineMacula\ApiToolkit\Listeners\WritePoolFlushSubscriber;
 use SineMacula\ApiToolkit\Runtime\RuntimeContext;
-use Laravel\Octane\Events\OperationTerminated;
 
 /**
  * Registers the toolkit lifecycle listeners.

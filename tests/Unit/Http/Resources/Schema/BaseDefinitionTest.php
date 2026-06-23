@@ -35,9 +35,9 @@ final class BaseDefinitionTest extends TestCase
 
         $result = $field->guard($guard);
 
-        static::assertSame($field, $result);
-        static::assertCount(1, $field->getGuards());
-        static::assertSame($guard, $field->getGuards()[0]);
+        self::assertSame($field, $result);
+        self::assertCount(1, $field->getGuards());
+        self::assertSame($guard, $field->getGuards()[0]);
     }
 
     /**
@@ -55,9 +55,9 @@ final class BaseDefinitionTest extends TestCase
 
         $guards = $field->getGuards();
 
-        static::assertCount(2, $guards);
-        static::assertSame($guard1, $guards[0]);
-        static::assertSame($guard2, $guards[1]);
+        self::assertCount(2, $guards);
+        self::assertSame($guard1, $guards[0]);
+        self::assertSame($guard2, $guards[1]);
     }
 
     /**
@@ -69,7 +69,7 @@ final class BaseDefinitionTest extends TestCase
     {
         $field = Field::scalar('name');
 
-        static::assertSame([], $field->getGuards());
+        self::assertSame([], $field->getGuards());
     }
 
     /**
@@ -84,9 +84,9 @@ final class BaseDefinitionTest extends TestCase
 
         $result = $field->transform($transformer);
 
-        static::assertSame($field, $result);
-        static::assertCount(1, $field->getTransformers());
-        static::assertSame($transformer, $field->getTransformers()[0]);
+        self::assertSame($field, $result);
+        self::assertCount(1, $field->getTransformers());
+        self::assertSame($transformer, $field->getTransformers()[0]);
     }
 
     /**
@@ -104,9 +104,9 @@ final class BaseDefinitionTest extends TestCase
 
         $transformers = $field->getTransformers();
 
-        static::assertCount(2, $transformers);
-        static::assertSame($transformer1, $transformers[0]);
-        static::assertSame($transformer2, $transformers[1]);
+        self::assertCount(2, $transformers);
+        self::assertSame($transformer1, $transformers[0]);
+        self::assertSame($transformer2, $transformers[1]);
     }
 
     /**
@@ -118,7 +118,7 @@ final class BaseDefinitionTest extends TestCase
     {
         $field = Field::scalar('name');
 
-        static::assertSame([], $field->getTransformers());
+        self::assertSame([], $field->getTransformers());
     }
 
     /**
@@ -134,7 +134,7 @@ final class BaseDefinitionTest extends TestCase
 
         $array = $field->toArray();
 
-        static::assertSame(['relation.a', 'relation.b'], $array['name']['extras']);
+        self::assertSame(['relation.a', 'relation.b'], $array['name']['extras']);
     }
 
     /**
@@ -152,7 +152,7 @@ final class BaseDefinitionTest extends TestCase
 
         $array = $field->toArray();
 
-        static::assertSame(['relation.a', 'relation.b', 'relation.c'], $array['name']['extras']);
+        self::assertSame(['relation.a', 'relation.b', 'relation.c'], $array['name']['extras']);
     }
 
     /**
@@ -166,7 +166,7 @@ final class BaseDefinitionTest extends TestCase
 
         $result = $field->extras('relation.a');
 
-        static::assertSame($field, $result);
+        self::assertSame($field, $result);
     }
 
     /**
@@ -182,7 +182,7 @@ final class BaseDefinitionTest extends TestCase
 
         $array = $field->toArray();
 
-        static::assertSame(['relation.a', 'relation.b'], $array['name']['extras']);
+        self::assertSame(['relation.a', 'relation.b'], $array['name']['extras']);
     }
 
     /**
@@ -199,7 +199,7 @@ final class BaseDefinitionTest extends TestCase
 
         $field->guard($guard1)->guard($guard2)->guard($guard3);
 
-        static::assertCount(3, $field->getGuards());
+        self::assertCount(3, $field->getGuards());
     }
 
     /**
@@ -213,7 +213,7 @@ final class BaseDefinitionTest extends TestCase
 
         $declaration = $field->openapi();
 
-        static::assertInstanceOf(OpenApiFieldDeclaration::class, $declaration);
+        self::assertInstanceOf(OpenApiFieldDeclaration::class, $declaration);
     }
 
     /**
@@ -225,7 +225,7 @@ final class BaseDefinitionTest extends TestCase
     {
         $field = Field::scalar('name');
 
-        static::assertSame($field->openapi(), $field->openapi());
+        self::assertSame($field->openapi(), $field->openapi());
     }
 
     /**
@@ -237,7 +237,7 @@ final class BaseDefinitionTest extends TestCase
     {
         $field = Field::scalar('name');
 
-        static::assertSame($field, $field->openapi()->end());
+        self::assertSame($field, $field->openapi()->end());
     }
 
     /**
@@ -249,7 +249,7 @@ final class BaseDefinitionTest extends TestCase
     {
         $field = Field::scalar('name');
 
-        static::assertNull($field->getOpenApiDeclaration());
+        self::assertNull($field->getOpenApiDeclaration());
     }
 
     /**
@@ -264,7 +264,7 @@ final class BaseDefinitionTest extends TestCase
 
         $declaration = $field->openapi();
 
-        static::assertSame($declaration, $field->getOpenApiDeclaration());
+        self::assertSame($declaration, $field->getOpenApiDeclaration());
     }
 
     /**
@@ -286,7 +286,7 @@ final class BaseDefinitionTest extends TestCase
             ->guard($guard)
             ->transform($transformer);
 
-        static::assertSame([
+        self::assertSame([
             'display_name' => [
                 'accessor'     => 'name',
                 'extras'       => ['profile'],

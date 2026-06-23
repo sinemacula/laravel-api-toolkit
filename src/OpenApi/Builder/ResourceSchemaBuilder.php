@@ -41,7 +41,6 @@ final class ResourceSchemaBuilder
 
         /** The resolver mapping resource fields to OpenAPI types. */
         private readonly FieldTypeResolver $resolver,
-
     ) {}
 
     /**

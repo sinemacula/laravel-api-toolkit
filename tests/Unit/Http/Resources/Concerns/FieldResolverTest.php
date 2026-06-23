@@ -57,7 +57,7 @@ final class FieldResolverTest extends TestCase
 
         $result = $this->resolver->getFields($schema, 'users', ['name', 'email'], []);
 
-        static::assertSame(['name', 'email', 'id'], $result);
+        self::assertSame(['name', 'email', 'id'], $result);
     }
 
     /**
@@ -78,7 +78,7 @@ final class FieldResolverTest extends TestCase
 
         $result = $this->resolver->getFields($schema, 'users', ['name', 'email'], []);
 
-        static::assertSame(['name', 'status'], $result);
+        self::assertSame(['name', 'status'], $result);
     }
 
     /**
@@ -102,7 +102,7 @@ final class FieldResolverTest extends TestCase
 
         $result = $this->resolver->getFields($schema, 'users', ['name'], []);
 
-        static::assertSame(['name', 'email', 'status', 'bio'], $result);
+        self::assertSame(['name', 'email', 'status', 'bio'], $result);
     }
 
     /**
@@ -125,7 +125,7 @@ final class FieldResolverTest extends TestCase
 
         $result = $this->resolver->getFields($schema, 'users', ['name', 'email', 'status'], []);
 
-        static::assertSame(['name', 'status'], $result);
+        self::assertSame(['name', 'status'], $result);
     }
 
     /**
@@ -146,7 +146,7 @@ final class FieldResolverTest extends TestCase
 
         $result = $this->resolver->getFields($schema, 'users', [], ['uuid']);
 
-        static::assertSame(['name', 'id', '_type', 'uuid'], $result);
+        self::assertSame(['name', 'id', '_type', 'uuid'], $result);
     }
 
     /**
@@ -167,7 +167,7 @@ final class FieldResolverTest extends TestCase
 
         $result = $this->resolver->getFields($schema, 'users', [], ['id']);
 
-        static::assertSame(['id', 'name'], $result);
+        self::assertSame(['id', 'name'], $result);
     }
 
     /**
@@ -189,7 +189,7 @@ final class FieldResolverTest extends TestCase
 
         $result = $this->resolver->getFields($schema, 'users', ['name', 'email'], []);
 
-        static::assertSame(['bio', 'avatar'], $result);
+        self::assertSame(['bio', 'avatar'], $result);
     }
 
     /**
@@ -206,7 +206,7 @@ final class FieldResolverTest extends TestCase
             ->with('users')
             ->andReturn(null);
 
-        static::assertTrue($this->resolver->shouldRespondWithAll('users'));
+        self::assertTrue($this->resolver->shouldRespondWithAll('users'));
     }
 
     /**
@@ -222,7 +222,7 @@ final class FieldResolverTest extends TestCase
             ->with('users')
             ->andReturn([':all', 'name']);
 
-        static::assertTrue($this->resolver->shouldRespondWithAll('users'));
+        self::assertTrue($this->resolver->shouldRespondWithAll('users'));
     }
 
     /**
@@ -237,7 +237,7 @@ final class FieldResolverTest extends TestCase
             ->with('users')
             ->andReturn(null);
 
-        static::assertFalse($this->resolver->shouldRespondWithAll('users'));
+        self::assertFalse($this->resolver->shouldRespondWithAll('users'));
     }
 
     /**
@@ -253,7 +253,7 @@ final class FieldResolverTest extends TestCase
             ->with('users')
             ->andReturn(['name', 'counts']);
 
-        static::assertTrue($this->resolver->shouldIncludeCountsField('users', []));
+        self::assertTrue($this->resolver->shouldIncludeCountsField('users', []));
     }
 
     /**
@@ -271,7 +271,7 @@ final class FieldResolverTest extends TestCase
             ->with('users')
             ->andReturn(['name', 'counts']);
 
-        static::assertFalse($this->resolver->shouldIncludeCountsField('users', []));
+        self::assertFalse($this->resolver->shouldIncludeCountsField('users', []));
     }
 
     /**
@@ -287,7 +287,7 @@ final class FieldResolverTest extends TestCase
             ->with('users')
             ->andReturn(null);
 
-        static::assertTrue($this->resolver->shouldIncludeCountsField('users', ['name', 'counts']));
+        self::assertTrue($this->resolver->shouldIncludeCountsField('users', ['name', 'counts']));
     }
 
     /**
@@ -305,7 +305,7 @@ final class FieldResolverTest extends TestCase
             ->with('users')
             ->andReturn(null);
 
-        static::assertTrue($this->resolver->shouldIncludeCountsField('users', []));
+        self::assertTrue($this->resolver->shouldIncludeCountsField('users', []));
     }
 
     /**
@@ -325,7 +325,7 @@ final class FieldResolverTest extends TestCase
 
         $result = $this->resolver->getFields($schema, 'users', [], []);
 
-        static::assertSame(['name', 'id', 'email'], $result);
+        self::assertSame(['name', 'id', 'email'], $result);
     }
 
     /**
@@ -341,7 +341,7 @@ final class FieldResolverTest extends TestCase
             ->with('users')
             ->andReturn(['name']);
 
-        static::assertFalse($this->resolver->shouldIncludeCountsField('users', []));
+        self::assertFalse($this->resolver->shouldIncludeCountsField('users', []));
     }
 
     /**
@@ -357,7 +357,7 @@ final class FieldResolverTest extends TestCase
             ->with('users')
             ->andReturn(null);
 
-        static::assertFalse($this->resolver->shouldIncludeCountsField('users', ['name']));
+        self::assertFalse($this->resolver->shouldIncludeCountsField('users', ['name']));
     }
 
     /**

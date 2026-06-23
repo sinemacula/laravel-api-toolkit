@@ -37,7 +37,7 @@ final class ValidateSchemasCommandTest extends TestCase
      */
     public function testCommandReportsSuccessForValidSchemas(): void
     {
-        $rule = static::createStub(SchemaValidationRule::class);
+        $rule = self::createStub(SchemaValidationRule::class);
 
         $rule->method('validate')
             ->willReturn([]);
@@ -62,7 +62,7 @@ final class ValidateSchemasCommandTest extends TestCase
     {
         $error = new SchemaValidationError(UserResource::class, 'id', 'Test defect');
 
-        $rule = static::createStub(SchemaValidationRule::class);
+        $rule = self::createStub(SchemaValidationRule::class);
 
         $rule->method('validate')
             ->willReturn([$error]);
@@ -120,7 +120,7 @@ final class ValidateSchemasCommandTest extends TestCase
             new SchemaValidationError(UserResource::class, 'name', 'Second defect'),
         ];
 
-        $rule = static::createStub(SchemaValidationRule::class);
+        $rule = self::createStub(SchemaValidationRule::class);
 
         $rule->method('validate')
             ->willReturn($errors);

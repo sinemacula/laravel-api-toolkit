@@ -37,7 +37,7 @@ final class MetadataCacheWriterTest extends TestCase
         $value = $writer->rememberMetadataForever('test-key', fn () => 'expected-value');
 
         // Assert
-        static::assertSame('expected-value', $value);
+        self::assertSame('expected-value', $value);
     }
 
     /**
@@ -56,7 +56,7 @@ final class MetadataCacheWriterTest extends TestCase
         $writer->rememberMetadataForever('my-metadata-key', fn () => 'value');
 
         // Assert
-        static::assertContains('my-metadata-key', $registry->keys());
+        self::assertContains('my-metadata-key', $registry->keys());
     }
 
     /**
@@ -75,7 +75,7 @@ final class MetadataCacheWriterTest extends TestCase
         $writer->rememberMetadataForever($key, fn () => 'stored-value');
 
         // Assert
-        static::assertSame('stored-value', Cache::memo()->get($key));
+        self::assertSame('stored-value', Cache::memo()->get($key));
     }
 
     /**
@@ -99,7 +99,7 @@ final class MetadataCacheWriterTest extends TestCase
         $writer->rememberMetadataForever($key, fn () => 'should-not-be-called');
 
         // Assert
-        static::assertContains($key, $registry->keys());
-        static::assertSame('pre-warmed-value', Cache::memo()->get($key));
+        self::assertContains($key, $registry->keys());
+        self::assertSame('pre-warmed-value', Cache::memo()->get($key));
     }
 }

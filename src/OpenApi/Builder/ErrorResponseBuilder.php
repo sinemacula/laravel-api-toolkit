@@ -39,7 +39,6 @@ final class ErrorResponseBuilder
 
         /** The metadata catalogue providing the error catalogue. */
         private readonly MetadataCatalogue $catalogue,
-
     ) {}
 
     /**

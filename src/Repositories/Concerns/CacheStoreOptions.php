@@ -39,6 +39,5 @@ final readonly class CacheStoreOptions
 
         /** The lifetime, in seconds, for cached negative lookups. */
         public int $negativeTtl,
-
     ) {}
 }

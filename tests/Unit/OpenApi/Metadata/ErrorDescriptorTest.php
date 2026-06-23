@@ -33,10 +33,10 @@ final class ErrorDescriptorTest extends TestCase
             detail    : 'The requested resource could not be found',
         );
 
-        static::assertSame(10103, $descriptor->code);
-        static::assertSame(404, $descriptor->httpStatus);
-        static::assertSame('Not Found', $descriptor->title);
-        static::assertSame('The requested resource could not be found', $descriptor->detail);
+        self::assertSame(10103, $descriptor->code);
+        self::assertSame(404, $descriptor->httpStatus);
+        self::assertSame('Not Found', $descriptor->title);
+        self::assertSame('The requested resource could not be found', $descriptor->detail);
     }
 
     /**
@@ -54,7 +54,7 @@ final class ErrorDescriptorTest extends TestCase
             detail    : 'The request could not be completed',
         );
 
-        static::assertNull($descriptor->title);
-        static::assertSame(10113, $descriptor->code);
+        self::assertNull($descriptor->title);
+        self::assertSame(10113, $descriptor->code);
     }
 }

@@ -43,7 +43,7 @@ final class WritePoolFlushFailedTest extends TestCase
 
         $event = new WritePoolFlushFailed($result);
 
-        static::assertSame($result, $event->flushResult);
+        self::assertSame($result, $event->flushResult);
     }
 
     /**
@@ -55,7 +55,7 @@ final class WritePoolFlushFailedTest extends TestCase
     {
         $reflection = new \ReflectionClass(WritePoolFlushFailed::class);
 
-        static::assertTrue($reflection->isFinal());
+        self::assertTrue($reflection->isFinal());
     }
 
     /**
@@ -68,6 +68,6 @@ final class WritePoolFlushFailedTest extends TestCase
         $reflection = new \ReflectionClass(WritePoolFlushFailed::class);
         $property   = $reflection->getProperty('flushResult');
 
-        static::assertTrue($property->isReadOnly());
+        self::assertTrue($property->isReadOnly());
     }
 }

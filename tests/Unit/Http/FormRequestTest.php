@@ -30,7 +30,7 @@ final class FormRequestTest extends TestCase
      */
     public function testExtendsLaravelFormRequest(): void
     {
-        static::assertContains(LaravelFormRequest::class, class_parents(FormRequest::class) ?: []);
+        self::assertContains(LaravelFormRequest::class, class_parents(FormRequest::class) ?: []);
     }
 
     /**
@@ -44,7 +44,7 @@ final class FormRequestTest extends TestCase
         $messages   = ['email' => ['The email field is required.']];
         $messageBag = new MessageBag($messages);
 
-        $validator = static::createStub(Validator::class);
+        $validator = self::createStub(Validator::class);
         $validator->method('getMessageBag')->willReturn($messageBag);
 
         $formRequest = $this->createConcreteFormRequest();
@@ -53,10 +53,10 @@ final class FormRequestTest extends TestCase
 
         try {
             $reflection->invoke($formRequest, $validator);
-            static::fail('Expected InvalidInputException was not thrown.');
+            self::fail('Expected InvalidInputException was not thrown.');
         } catch (\Throwable $exception) {
-            static::assertInstanceOf(InvalidInputException::class, $exception);
-            static::assertSame($messages, $exception->getCustomMeta());
+            self::assertInstanceOf(InvalidInputException::class, $exception);
+            self::assertSame($messages, $exception->getCustomMeta());
         }
     }
 
@@ -70,7 +70,7 @@ final class FormRequestTest extends TestCase
     {
         $messageBag = new MessageBag;
 
-        $validator = static::createStub(Validator::class);
+        $validator = self::createStub(Validator::class);
         $validator->method('getMessageBag')->willReturn($messageBag);
 
         $formRequest = $this->createConcreteFormRequest();
@@ -96,7 +96,7 @@ final class FormRequestTest extends TestCase
 
         $messageBag = new MessageBag($messages);
 
-        $validator = static::createStub(Validator::class);
+        $validator = self::createStub(Validator::class);
         $validator->method('getMessageBag')->willReturn($messageBag);
 
         $formRequest = $this->createConcreteFormRequest();
@@ -105,10 +105,10 @@ final class FormRequestTest extends TestCase
 
         try {
             $reflection->invoke($formRequest, $validator);
-            static::fail('Expected InvalidInputException was not thrown.');
+            self::fail('Expected InvalidInputException was not thrown.');
         } catch (\Throwable $exception) {
-            static::assertInstanceOf(InvalidInputException::class, $exception);
-            static::assertSame($messages, $exception->getCustomMeta());
+            self::assertInstanceOf(InvalidInputException::class, $exception);
+            self::assertSame($messages, $exception->getCustomMeta());
         }
     }
 

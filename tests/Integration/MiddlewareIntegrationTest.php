@@ -52,10 +52,10 @@ final class MiddlewareIntegrationTest extends TestCase
         /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
         $parser = $this->app->make('api.query');
 
-        static::assertInstanceOf(ApiQueryParser::class, $parser);
-        static::assertSame(3, $parser->getPage());
-        static::assertSame(25, $parser->getLimit());
-        static::assertSame(['name' => 'desc'], $parser->getOrder());
+        self::assertInstanceOf(ApiQueryParser::class, $parser);
+        self::assertSame(3, $parser->getPage());
+        self::assertSame(25, $parser->getLimit());
+        self::assertSame(['name' => 'desc'], $parser->getOrder());
     }
 
     /**
@@ -74,8 +74,8 @@ final class MiddlewareIntegrationTest extends TestCase
 
         $content = $response->getContent();
 
-        static::assertStringContainsString("\n", $content);
-        static::assertSame(json_encode(['key' => 'value'], JSON_PRETTY_PRINT), $content);
+        self::assertStringContainsString("\n", $content);
+        self::assertSame(json_encode(['key' => 'value'], JSON_PRETTY_PRINT), $content);
     }
 
     /**
@@ -108,9 +108,9 @@ final class MiddlewareIntegrationTest extends TestCase
 
         $content = json_decode($response->getContent(), true);
 
-        static::assertSame(2, $content['page']);
-        static::assertSame(10, $content['limit']);
+        self::assertSame(2, $content['page']);
+        self::assertSame(10, $content['limit']);
 
-        static::assertStringContainsString("\n", $response->getContent());
+        self::assertStringContainsString("\n", $response->getContent());
     }
 }

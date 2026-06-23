@@ -79,7 +79,7 @@ final class ValidateRelationMethods implements SchemaValidationRule
         string $resourceClass,
         string $fieldKey,
         string $modelClass,
-        string $relationMethod
+        string $relationMethod,
     ): ?SchemaValidationError {
         if (!method_exists($modelClass, $relationMethod)) {
             return new SchemaValidationError(
@@ -136,7 +136,7 @@ final class ValidateRelationMethods implements SchemaValidationRule
     private function describeReturnTypeDefect(
         ?\ReflectionType $returnType,
         string $relationMethod,
-        string $modelClass
+        string $modelClass,
     ): string {
         if ($returnType === null) {
             return sprintf('Relation method "%s" on model "%s" has no return type hint', $relationMethod, $modelClass);

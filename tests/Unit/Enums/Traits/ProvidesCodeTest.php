@@ -7,8 +7,8 @@ namespace Tests\Unit\Enums\Traits;
 use PHPUnit\Framework\Attributes\CoversTrait;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
-use SineMacula\ApiToolkit\Enums\ErrorCode;
 use SineMacula\ApiToolkit\Enums\Concerns\ProvidesCode;
+use SineMacula\ApiToolkit\Enums\ErrorCode;
 
 /**
  * Tests for the ProvidesCode trait.
@@ -43,6 +43,6 @@ final class ProvidesCodeTest extends TestCase
     #[DataProvider('errorCodeProvider')]
     public function testGetCodeReturnsBackingValueForErrorCode(ErrorCode $case, int $expectedCode): void
     {
-        static::assertSame($expectedCode, $case->getCode());
+        self::assertSame($expectedCode, $case->getCode());
     }
 }

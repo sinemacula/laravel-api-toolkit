@@ -60,7 +60,7 @@ final class ErrorCodeTest extends TestCase
     #[DataProvider('caseProvider')]
     public function testGetCodeReturnsEnumValue(ErrorCode $case, int $expectedCode): void
     {
-        static::assertSame($expectedCode, $case->getCode());
+        self::assertSame($expectedCode, $case->getCode());
     }
 
     /**
@@ -70,7 +70,7 @@ final class ErrorCodeTest extends TestCase
      */
     public function testImplementsErrorCodeInterface(): void
     {
-        static::assertInstanceOf(ErrorCodeInterface::class, ErrorCode::UNHANDLED_ERROR);
+        self::assertInstanceOf(ErrorCodeInterface::class, ErrorCode::UNHANDLED_ERROR);
     }
 
     /**
@@ -106,9 +106,9 @@ final class ErrorCodeTest extends TestCase
         $actualNames = array_map(fn (ErrorCode $case) => $case->name, ErrorCode::cases());
 
         foreach ($expectedCases as $name) {
-            static::assertContains($name, $actualNames, "Expected case '{$name}' not found");
+            self::assertContains($name, $actualNames, "Expected case '{$name}' not found");
         }
 
-        static::assertCount(count($expectedCases), ErrorCode::cases());
+        self::assertCount(count($expectedCases), ErrorCode::cases());
     }
 }

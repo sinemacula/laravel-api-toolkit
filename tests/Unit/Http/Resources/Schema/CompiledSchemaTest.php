@@ -43,7 +43,7 @@ final class CompiledSchemaTest extends TestCase
 
         $schema = new CompiledSchema(['name' => $field], []);
 
-        static::assertSame($field, $schema->getField('name'));
+        self::assertSame($field, $schema->getField('name'));
     }
 
     /**
@@ -55,7 +55,7 @@ final class CompiledSchemaTest extends TestCase
     {
         $schema = new CompiledSchema([], []);
 
-        static::assertNull($schema->getField('missing'));
+        self::assertNull($schema->getField('missing'));
     }
 
     /**
@@ -83,7 +83,7 @@ final class CompiledSchemaTest extends TestCase
             [],
         );
 
-        static::assertSame(['name', 'email', 'status'], $schema->getFieldKeys());
+        self::assertSame(['name', 'email', 'status'], $schema->getFieldKeys());
     }
 
     /**
@@ -95,7 +95,7 @@ final class CompiledSchemaTest extends TestCase
     {
         $schema = new CompiledSchema([], []);
 
-        static::assertSame([], $schema->getFieldKeys());
+        self::assertSame([], $schema->getFieldKeys());
     }
 
     /**
@@ -117,9 +117,9 @@ final class CompiledSchemaTest extends TestCase
 
         $counts = $schema->getCountDefinitions();
 
-        static::assertCount(1, $counts);
-        static::assertArrayHasKey('posts', $counts);
-        static::assertSame($count, $counts['posts']);
+        self::assertCount(1, $counts);
+        self::assertArrayHasKey('posts', $counts);
+        self::assertSame($count, $counts['posts']);
     }
 
     /**
@@ -132,7 +132,7 @@ final class CompiledSchemaTest extends TestCase
     {
         $schema = new CompiledSchema([], []);
 
-        static::assertSame([], $schema->getCountDefinitions());
+        self::assertSame([], $schema->getCountDefinitions());
     }
 
     /**
@@ -157,7 +157,7 @@ final class CompiledSchemaTest extends TestCase
 
         $schema = new CompiledSchema(['name' => $field], []);
 
-        static::assertTrue($schema->hasField('name'));
+        self::assertTrue($schema->hasField('name'));
     }
 
     /**
@@ -169,6 +169,6 @@ final class CompiledSchemaTest extends TestCase
     {
         $schema = new CompiledSchema([], []);
 
-        static::assertFalse($schema->hasField('nonexistent'));
+        self::assertFalse($schema->hasField('nonexistent'));
     }
 }

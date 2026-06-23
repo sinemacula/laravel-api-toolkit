@@ -4,6 +4,7 @@ declare(strict_types = 1);
 
 namespace Tests\Unit\Repositories\Concerns;
 
+use Illuminate\Database\QueryException;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -14,7 +15,6 @@ use SineMacula\ApiToolkit\Exceptions\WritePoolFlushException;
 use SineMacula\ApiToolkit\Repositories\Concerns\WritePool;
 use SineMacula\ApiToolkit\Repositories\Concerns\WritePoolFlushResult;
 use Tests\TestCase;
-use Illuminate\Database\QueryException;
 
 /**
  * Tests for the WritePool collaborator.
@@ -52,8 +52,8 @@ final class WritePoolTest extends TestCase
     {
         $this->pool->add('test_records', ['name' => 'foo', 'value' => 'bar']);
 
-        static::assertSame(1, $this->pool->count());
-        static::assertFalse($this->pool->isEmpty());
+        self::assertSame(1, $this->pool->count());
+        self::assertFalse($this->pool->isEmpty());
     }
 
     /**
@@ -66,7 +66,7 @@ final class WritePoolTest extends TestCase
         $this->pool->add('test_records', ['name' => 'foo', 'value' => 'bar']);
         $this->pool->add('test_other', ['label' => 'baz']);
 
-        static::assertSame(2, $this->pool->count());
+        self::assertSame(2, $this->pool->count());
     }
 
     /**
@@ -76,7 +76,7 @@ final class WritePoolTest extends TestCase
      */
     public function testCountReturnsZeroWhenEmpty(): void
     {
-        static::assertSame(0, $this->pool->count());
+        self::assertSame(0, $this->pool->count());
     }
 
     /**
@@ -86,7 +86,7 @@ final class WritePoolTest extends TestCase
      */
     public function testIsEmptyReturnsTrueWhenNoRecordsBuffered(): void
     {
-        static::assertTrue($this->pool->isEmpty());
+        self::assertTrue($this->pool->isEmpty());
     }
 
     /**
@@ -98,7 +98,7 @@ final class WritePoolTest extends TestCase
     {
         $this->pool->add('test_records', ['name' => 'foo', 'value' => 'bar']);
 
-        static::assertFalse($this->pool->isEmpty());
+        self::assertFalse($this->pool->isEmpty());
     }
 
     /**
@@ -113,8 +113,8 @@ final class WritePoolTest extends TestCase
 
         $flushResult = $this->pool->flush();
 
-        static::assertTrue($flushResult->isSuccessful());
-        static::assertSame(2, DB::table('test_records')->count());
+        self::assertTrue($flushResult->isSuccessful());
+        self::assertSame(2, DB::table('test_records')->count());
     }
 
     /**
@@ -129,9 +129,9 @@ final class WritePoolTest extends TestCase
 
         $flushResult = $this->pool->flush();
 
-        static::assertTrue($flushResult->isSuccessful());
-        static::assertSame(1, DB::table('test_records')->count());
-        static::assertSame(1, DB::table('test_other')->count());
+        self::assertTrue($flushResult->isSuccessful());
+        self::assertSame(1, DB::table('test_records')->count());
+        self::assertSame(1, DB::table('test_other')->count());
     }
 
     /**
@@ -145,9 +145,9 @@ final class WritePoolTest extends TestCase
 
         $flushResult = $this->pool->flush();
 
-        static::assertTrue($flushResult->isSuccessful());
-        static::assertSame(0, $this->pool->count());
-        static::assertTrue($this->pool->isEmpty());
+        self::assertTrue($flushResult->isSuccessful());
+        self::assertSame(0, $this->pool->count());
+        self::assertTrue($this->pool->isEmpty());
     }
 
     /**
@@ -159,9 +159,9 @@ final class WritePoolTest extends TestCase
     {
         $flushResult = $this->pool->flush();
 
-        static::assertTrue($flushResult->isSuccessful());
-        static::assertSame(0, $flushResult->totalCount());
-        static::assertSame(0, $this->pool->count());
+        self::assertTrue($flushResult->isSuccessful());
+        self::assertSame(0, $flushResult->totalCount());
+        self::assertSame(0, $this->pool->count());
     }
 
     /**
@@ -187,9 +187,9 @@ final class WritePoolTest extends TestCase
 
         DB::disableQueryLog();
 
-        static::assertSame(3, $flushResult->successCount());
-        static::assertCount(3, $queries);
-        static::assertSame(5, DB::table('test_records')->count());
+        self::assertSame(3, $flushResult->successCount());
+        self::assertCount(3, $queries);
+        self::assertSame(5, DB::table('test_records')->count());
     }
 
     /**
@@ -209,9 +209,9 @@ final class WritePoolTest extends TestCase
 
         $flushResult = $pool->flush();
 
-        static::assertFalse($flushResult->isSuccessful());
-        static::assertSame(1, $flushResult->failureCount());
-        static::assertSame(1, DB::table('test_records')->count());
+        self::assertFalse($flushResult->isSuccessful());
+        self::assertSame(1, $flushResult->failureCount());
+        self::assertSame(1, DB::table('test_records')->count());
     }
 
     /**
@@ -228,8 +228,8 @@ final class WritePoolTest extends TestCase
 
         $this->pool->flush();
 
-        static::assertSame(1, $this->pool->count());
-        static::assertFalse($this->pool->isEmpty());
+        self::assertSame(1, $this->pool->count());
+        self::assertFalse($this->pool->isEmpty());
     }
 
     /**
@@ -247,10 +247,10 @@ final class WritePoolTest extends TestCase
 
         $flushResult = $this->pool->flush();
 
-        static::assertFalse($flushResult->isSuccessful());
-        static::assertSame(0, $flushResult->droppedRecordCount());
-        static::assertSame(1, $flushResult->retainedRecordCount());
-        static::assertSame(1, $this->pool->count());
+        self::assertFalse($flushResult->isSuccessful());
+        self::assertSame(0, $flushResult->droppedRecordCount());
+        self::assertSame(1, $flushResult->retainedRecordCount());
+        self::assertSame(1, $this->pool->count());
     }
 
     /**
@@ -266,8 +266,8 @@ final class WritePoolTest extends TestCase
         $pool->add('test_records', ['name' => 'b', 'value' => '2']);
         $pool->add('test_records', ['name' => 'c', 'value' => '3']);
 
-        static::assertSame(3, DB::table('test_records')->count());
-        static::assertSame(0, $pool->count());
+        self::assertSame(3, DB::table('test_records')->count());
+        self::assertSame(0, $pool->count());
     }
 
     /**
@@ -282,8 +282,8 @@ final class WritePoolTest extends TestCase
         $pool->add('test_records', ['name' => 'a', 'value' => '1']);
         $pool->add('test_records', ['name' => 'b', 'value' => '2']);
 
-        static::assertSame(2, DB::table('test_records')->count());
-        static::assertSame(0, $pool->count());
+        self::assertSame(2, DB::table('test_records')->count());
+        self::assertSame(0, $pool->count());
     }
 
     /**
@@ -298,12 +298,12 @@ final class WritePoolTest extends TestCase
         $pool->add('test_records', ['name' => 'a', 'value' => '1']);
         $pool->add('test_records', ['name' => 'b', 'value' => '2']);
 
-        static::assertSame(0, $pool->count());
+        self::assertSame(0, $pool->count());
 
         $pool->add('test_records', ['name' => 'c', 'value' => '3']);
 
-        static::assertSame(1, $pool->count());
-        static::assertSame(2, DB::table('test_records')->count());
+        self::assertSame(1, $pool->count());
+        self::assertSame(2, DB::table('test_records')->count());
     }
 
     /**
@@ -323,13 +323,13 @@ final class WritePoolTest extends TestCase
 
         $flushResult = $pool->flush();
 
-        static::assertFalse($flushResult->isSuccessful());
-        static::assertSame(1, $flushResult->failureCount());
-        static::assertSame(1, $flushResult->successCount());
-        static::assertArrayHasKey('nonexistent_table', $flushResult->failures());
-        static::assertSame([['col' => 'val']], $flushResult->failures()['nonexistent_table'][0]['records']);
-        static::assertNotEmpty($flushResult->failures()['nonexistent_table'][0]['exception']);
-        static::assertSame(QueryException::class, $flushResult->failures()['nonexistent_table'][0]['exception_class']);
+        self::assertFalse($flushResult->isSuccessful());
+        self::assertSame(1, $flushResult->failureCount());
+        self::assertSame(1, $flushResult->successCount());
+        self::assertArrayHasKey('nonexistent_table', $flushResult->failures());
+        self::assertSame([['col' => 'val']], $flushResult->failures()['nonexistent_table'][0]['records']);
+        self::assertNotEmpty($flushResult->failures()['nonexistent_table'][0]['exception']);
+        self::assertSame(QueryException::class, $flushResult->failures()['nonexistent_table'][0]['exception_class']);
     }
 
     /**
@@ -393,8 +393,8 @@ final class WritePoolTest extends TestCase
             // Exception intentionally caught to inspect buffer state below
         }
 
-        static::assertFalse($pool->isEmpty());
-        static::assertSame(2, $pool->count());
+        self::assertFalse($pool->isEmpty());
+        self::assertSame(2, $pool->count());
     }
 
     /**
@@ -418,8 +418,8 @@ final class WritePoolTest extends TestCase
             // Exception intentionally caught to inspect buffer state below
         }
 
-        static::assertSame(2, DB::table('test_records')->count());
-        static::assertSame(2, $pool->count());
+        self::assertSame(2, DB::table('test_records')->count());
+        self::assertSame(2, $pool->count());
     }
 
     /**
@@ -437,13 +437,13 @@ final class WritePoolTest extends TestCase
 
         try {
             $pool->flush();
-            static::fail('Expected WritePoolFlushException was not thrown');
+            self::fail('Expected WritePoolFlushException was not thrown');
         } catch (WritePoolFlushException $exception) {
 
             $partialResult = $exception->flushResult();
 
-            static::assertSame(1, $partialResult->successCount());
-            static::assertSame(1, $partialResult->failureCount());
+            self::assertSame(1, $partialResult->successCount());
+            self::assertSame(1, $partialResult->failureCount());
         }
     }
 
@@ -462,7 +462,7 @@ final class WritePoolTest extends TestCase
 
         $pool->flush();
 
-        static::assertSame(1, DB::table('test_records')->count());
+        self::assertSame(1, DB::table('test_records')->count());
     }
 
     /**
@@ -480,8 +480,8 @@ final class WritePoolTest extends TestCase
 
         $pool->flush();
 
-        static::assertSame(1, $pool->count());
-        static::assertFalse($pool->isEmpty());
+        self::assertSame(1, $pool->count());
+        self::assertFalse($pool->isEmpty());
     }
 
     /**
@@ -499,8 +499,8 @@ final class WritePoolTest extends TestCase
 
         $pool->flush();
 
-        static::assertSame(1, DB::table('test_records')->count());
-        static::assertSame(1, $pool->count());
+        self::assertSame(1, DB::table('test_records')->count());
+        self::assertSame(1, $pool->count());
     }
 
     /**
@@ -519,10 +519,10 @@ final class WritePoolTest extends TestCase
 
         $flushResult = $pool->flush();
 
-        static::assertSame(2, $flushResult->failureCount());
-        static::assertSame(1, $flushResult->successCount());
-        static::assertArrayHasKey('nonexistent_table', $flushResult->failures());
-        static::assertArrayHasKey('another_missing_table', $flushResult->failures());
+        self::assertSame(2, $flushResult->failureCount());
+        self::assertSame(1, $flushResult->successCount());
+        self::assertArrayHasKey('nonexistent_table', $flushResult->failures());
+        self::assertArrayHasKey('another_missing_table', $flushResult->failures());
     }
 
     /**
@@ -542,8 +542,8 @@ final class WritePoolTest extends TestCase
 
         $pool->flush(FlushStrategy::COLLECT);
 
-        static::assertSame(1, $pool->count());
-        static::assertFalse($pool->isEmpty());
+        self::assertSame(1, $pool->count());
+        self::assertFalse($pool->isEmpty());
     }
 
     /**
@@ -561,7 +561,7 @@ final class WritePoolTest extends TestCase
         $pool->add('nonexistent_table', ['col' => 'val']);
         $pool->add('test_records', ['name' => 'foo', 'value' => 'bar']);
 
-        static::assertSame(0, $pool->count());
+        self::assertSame(0, $pool->count());
     }
 
     /**
@@ -594,7 +594,7 @@ final class WritePoolTest extends TestCase
         $pool->add('nonexistent_table', ['col' => 'val']);
         $pool->add('test_records', ['name' => 'foo', 'value' => 'bar']);
 
-        static::assertNotNull($pool->lastAutoFlushResult());
+        self::assertNotNull($pool->lastAutoFlushResult());
     }
 
     /**
@@ -605,7 +605,7 @@ final class WritePoolTest extends TestCase
      */
     public function testLastAutoFlushResultReturnsNullBeforeAutoFlush(): void
     {
-        static::assertNull($this->pool->lastAutoFlushResult());
+        self::assertNull($this->pool->lastAutoFlushResult());
     }
 
     /**
@@ -621,7 +621,7 @@ final class WritePoolTest extends TestCase
         $pool->add('test_records', ['name' => 'a', 'value' => '1']);
         $pool->add('test_records', ['name' => 'b', 'value' => '2']);
 
-        static::assertInstanceOf(WritePoolFlushResult::class, $pool->lastAutoFlushResult());
+        self::assertInstanceOf(WritePoolFlushResult::class, $pool->lastAutoFlushResult());
     }
 
     /**
@@ -639,14 +639,14 @@ final class WritePoolTest extends TestCase
 
         $pool->flush();
 
-        static::assertSame(1, DB::table('test_records')->count());
-        static::assertSame(1, $pool->count());
+        self::assertSame(1, DB::table('test_records')->count());
+        self::assertSame(1, $pool->count());
 
         $secondResult = $pool->flush();
 
-        static::assertSame(0, $secondResult->successCount());
-        static::assertSame(1, $secondResult->failureCount());
-        static::assertSame(1, $pool->count());
+        self::assertSame(0, $secondResult->successCount());
+        self::assertSame(1, $secondResult->failureCount());
+        self::assertSame(1, $pool->count());
     }
 
     /**
@@ -666,8 +666,8 @@ final class WritePoolTest extends TestCase
 
         $pool->flush();
 
-        static::assertTrue($pool->isEmpty());
-        static::assertSame(0, $pool->count());
+        self::assertTrue($pool->isEmpty());
+        self::assertSame(0, $pool->count());
     }
 
     /**
@@ -685,7 +685,7 @@ final class WritePoolTest extends TestCase
 
         $pool->flush();
 
-        static::assertSame(2, $pool->count());
+        self::assertSame(2, $pool->count());
     }
 
     /**
@@ -706,14 +706,14 @@ final class WritePoolTest extends TestCase
 
         try {
             $pool->flush();
-            static::fail('Expected WritePoolFlushException was not thrown');
+            self::fail('Expected WritePoolFlushException was not thrown');
         } catch (WritePoolFlushException) {
             // Exception intentionally caught to inspect buffer state below
         }
 
-        static::assertSame(1, DB::table('test_unique')->count());
-        static::assertSame(0, DB::table('test_records')->count());
-        static::assertSame(3, $pool->count());
+        self::assertSame(1, DB::table('test_unique')->count());
+        self::assertSame(0, DB::table('test_records')->count());
+        self::assertSame(3, $pool->count());
     }
 
     /**
@@ -731,7 +731,7 @@ final class WritePoolTest extends TestCase
 
         $pool->flush();
 
-        static::assertSame(0, DB::table('test_unique')->count());
+        self::assertSame(0, DB::table('test_unique')->count());
     }
 
     /**
@@ -749,7 +749,7 @@ final class WritePoolTest extends TestCase
 
         $pool->flush();
 
-        static::assertSame(1, DB::table('test_unique')->count());
+        self::assertSame(1, DB::table('test_unique')->count());
     }
 
     /**
@@ -768,10 +768,10 @@ final class WritePoolTest extends TestCase
 
         $flushResult = $pool->flush();
 
-        static::assertSame(2, $pool->count());
-        static::assertSame(0, $flushResult->flushedRecordCount());
-        static::assertSame(2, $flushResult->retainedRecordCount());
-        static::assertSame(0, $flushResult->droppedRecordCount());
+        self::assertSame(2, $pool->count());
+        self::assertSame(0, $flushResult->flushedRecordCount());
+        self::assertSame(2, $flushResult->retainedRecordCount());
+        self::assertSame(0, $flushResult->droppedRecordCount());
     }
 
     /**
@@ -790,13 +790,13 @@ final class WritePoolTest extends TestCase
 
         try {
             $pool->flush();
-            static::fail('Expected WritePoolFlushException was not thrown');
+            self::fail('Expected WritePoolFlushException was not thrown');
         } catch (WritePoolFlushException) {
             // Exception intentionally caught to inspect buffer state below
         }
 
-        static::assertSame(0, DB::table('test_unique')->count());
-        static::assertSame(3, $pool->count());
+        self::assertSame(0, DB::table('test_unique')->count());
+        self::assertSame(3, $pool->count());
     }
 
     /**
@@ -815,10 +815,10 @@ final class WritePoolTest extends TestCase
 
         $flushResult = $pool->flush();
 
-        static::assertSame(2, $flushResult->flushedRecordCount());
-        static::assertSame(1, $flushResult->failedRecordCount());
-        static::assertSame(1, $flushResult->retainedRecordCount());
-        static::assertSame(0, $flushResult->droppedRecordCount());
+        self::assertSame(2, $flushResult->flushedRecordCount());
+        self::assertSame(1, $flushResult->failedRecordCount());
+        self::assertSame(1, $flushResult->retainedRecordCount());
+        self::assertSame(0, $flushResult->droppedRecordCount());
     }
 
     /**
@@ -837,15 +837,15 @@ final class WritePoolTest extends TestCase
 
         try {
             $pool->flush();
-            static::fail('Expected WritePoolFlushException was not thrown');
+            self::fail('Expected WritePoolFlushException was not thrown');
         } catch (WritePoolFlushException $exception) {
 
             $partialResult = $exception->flushResult();
 
-            static::assertSame(0, $partialResult->flushedRecordCount());
-            static::assertSame(1, $partialResult->failedRecordCount());
-            static::assertSame(3, $partialResult->retainedRecordCount());
-            static::assertSame(0, $partialResult->droppedRecordCount());
+            self::assertSame(0, $partialResult->flushedRecordCount());
+            self::assertSame(1, $partialResult->failedRecordCount());
+            self::assertSame(3, $partialResult->retainedRecordCount());
+            self::assertSame(0, $partialResult->droppedRecordCount());
         }
     }
 
@@ -866,10 +866,10 @@ final class WritePoolTest extends TestCase
 
         $flushResult = $pool->flush();
 
-        static::assertSame(1, $flushResult->flushedRecordCount());
-        static::assertSame(1, $flushResult->failedRecordCount());
-        static::assertSame(0, $flushResult->retainedRecordCount());
-        static::assertSame(1, $flushResult->droppedRecordCount());
+        self::assertSame(1, $flushResult->flushedRecordCount());
+        self::assertSame(1, $flushResult->failedRecordCount());
+        self::assertSame(0, $flushResult->retainedRecordCount());
+        self::assertSame(1, $flushResult->droppedRecordCount());
     }
 
     /**

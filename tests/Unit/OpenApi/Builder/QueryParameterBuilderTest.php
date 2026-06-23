@@ -40,10 +40,10 @@ final class QueryParameterBuilderTest extends TestCase
         $parameters = $this->makeBuilder()->build();
 
         foreach (['Fields', 'Filter', 'Order', 'Limit', 'Page', 'Cursor', 'Counts'] as $name) {
-            static::assertArrayHasKey($name, $parameters);
+            self::assertArrayHasKey($name, $parameters);
         }
 
-        static::assertCount(7, $parameters);
+        self::assertCount(7, $parameters);
     }
 
     /**
@@ -56,14 +56,14 @@ final class QueryParameterBuilderTest extends TestCase
     {
         $parameters = $this->makeBuilder()->build();
 
-        static::assertSame('query', $parameters['Fields']['in']);
-        static::assertSame('fields', $parameters['Fields']['name']);
-        static::assertSame('filter', $parameters['Filter']['name']);
-        static::assertSame('order', $parameters['Order']['name']);
-        static::assertSame('limit', $parameters['Limit']['name']);
-        static::assertSame('page', $parameters['Page']['name']);
-        static::assertSame('cursor', $parameters['Cursor']['name']);
-        static::assertSame('counts', $parameters['Counts']['name']);
+        self::assertSame('query', $parameters['Fields']['in']);
+        self::assertSame('fields', $parameters['Fields']['name']);
+        self::assertSame('filter', $parameters['Filter']['name']);
+        self::assertSame('order', $parameters['Order']['name']);
+        self::assertSame('limit', $parameters['Limit']['name']);
+        self::assertSame('page', $parameters['Page']['name']);
+        self::assertSame('cursor', $parameters['Cursor']['name']);
+        self::assertSame('counts', $parameters['Counts']['name']);
     }
 
     /**
@@ -76,7 +76,7 @@ final class QueryParameterBuilderTest extends TestCase
         $operators = $this->makeBuilder()->build()['Filter']['schema']['x-operators'];
 
         foreach (self::OPERATOR_TOKENS as $token) {
-            static::assertContains($token, $operators);
+            self::assertContains($token, $operators);
         }
     }
 
@@ -90,7 +90,7 @@ final class QueryParameterBuilderTest extends TestCase
         $operators = $this->makeBuilder()->build()['Filter']['schema']['x-operators'];
 
         foreach (self::STRUCTURAL_OPERATORS as $token) {
-            static::assertContains($token, $operators);
+            self::assertContains($token, $operators);
         }
     }
 
@@ -104,7 +104,7 @@ final class QueryParameterBuilderTest extends TestCase
     {
         $operators = $this->makeBuilder()->build()['Filter']['schema']['x-operators'];
 
-        static::assertCount(16, $operators);
+        self::assertCount(16, $operators);
     }
 
     /**
@@ -117,8 +117,8 @@ final class QueryParameterBuilderTest extends TestCase
     {
         $filter = $this->makeBuilder()->build()['Filter'];
 
-        static::assertStringContainsString('$eq', $filter['description']);
-        static::assertStringContainsString('$and', $filter['description']);
+        self::assertStringContainsString('$eq', $filter['description']);
+        self::assertStringContainsString('$and', $filter['description']);
     }
 
     /**
@@ -131,9 +131,9 @@ final class QueryParameterBuilderTest extends TestCase
     {
         $schema = $this->makeBuilder()->build()['Filter']['schema'];
 
-        static::assertTrue($schema['additionalProperties']);
-        static::assertArrayNotHasKey('enum', $schema);
-        static::assertArrayNotHasKey('properties', $schema);
+        self::assertTrue($schema['additionalProperties']);
+        self::assertArrayNotHasKey('enum', $schema);
+        self::assertArrayNotHasKey('properties', $schema);
     }
 
     /**
@@ -144,13 +144,13 @@ final class QueryParameterBuilderTest extends TestCase
      */
     public function testOperatorVocabularyIsRegistryDriven(): void
     {
-        $catalogue = static::createStub(MetadataCatalogue::class);
+        $catalogue = self::createStub(MetadataCatalogue::class);
         $catalogue->method('getOperatorTokens')->willReturn(['$custom']);
         $catalogue->method('getStructuralOperators')->willReturn(['$and']);
 
         $operators = (new QueryParameterBuilder($catalogue))->build()['Filter']['schema']['x-operators'];
 
-        static::assertSame(['$custom', '$and'], $operators);
+        self::assertSame(['$custom', '$and'], $operators);
     }
 
     /**
@@ -162,10 +162,10 @@ final class QueryParameterBuilderTest extends TestCase
     {
         $parameters = $this->makeBuilder()->build();
 
-        static::assertSame('integer', $parameters['Limit']['schema']['type']);
-        static::assertSame(1, $parameters['Limit']['schema']['minimum']);
-        static::assertSame('integer', $parameters['Page']['schema']['type']);
-        static::assertSame('string', $parameters['Cursor']['schema']['type']);
+        self::assertSame('integer', $parameters['Limit']['schema']['type']);
+        self::assertSame(1, $parameters['Limit']['schema']['minimum']);
+        self::assertSame('integer', $parameters['Page']['schema']['type']);
+        self::assertSame('string', $parameters['Cursor']['schema']['type']);
     }
 
     /**
@@ -176,7 +176,7 @@ final class QueryParameterBuilderTest extends TestCase
      */
     private function makeBuilder(): QueryParameterBuilder
     {
-        $catalogue = static::createStub(MetadataCatalogue::class);
+        $catalogue = self::createStub(MetadataCatalogue::class);
         $catalogue->method('getOperatorTokens')->willReturn(self::OPERATOR_TOKENS);
         $catalogue->method('getStructuralOperators')->willReturn(self::STRUCTURAL_OPERATORS);
 

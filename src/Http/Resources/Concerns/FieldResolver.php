@@ -78,7 +78,7 @@ final class FieldResolver
         CompiledSchema $schema,
         string $resourceType,
         array $defaultFields,
-        array $fixedFields
+        array $fixedFields,
     ): array {
         $this->fields ??= $this->shouldRespondWithAll($resourceType)
             ? $schema->getFieldKeys()

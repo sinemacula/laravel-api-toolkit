@@ -28,7 +28,7 @@ final class CacheSizeGuardTest extends TestCase
     {
         $guard = new CacheSizeGuard(1000, 262144);
 
-        static::assertTrue($guard->allows(collect(['a', 'b']), 2));
+        self::assertTrue($guard->allows(collect(['a', 'b']), 2));
     }
 
     /**
@@ -40,7 +40,7 @@ final class CacheSizeGuardTest extends TestCase
     {
         $guard = new CacheSizeGuard(2, 262144);
 
-        static::assertFalse($guard->allows(collect(['a', 'b', 'c']), 3));
+        self::assertFalse($guard->allows(collect(['a', 'b', 'c']), 3));
     }
 
     /**
@@ -52,7 +52,7 @@ final class CacheSizeGuardTest extends TestCase
     {
         $guard = new CacheSizeGuard(1000, 8);
 
-        static::assertFalse($guard->allows(str_repeat('x', 256), 1));
+        self::assertFalse($guard->allows(str_repeat('x', 256), 1));
     }
 
     /**
@@ -64,7 +64,7 @@ final class CacheSizeGuardTest extends TestCase
     {
         $guard = new CacheSizeGuard(null, 262144);
 
-        static::assertTrue($guard->allows(collect(['a', 'b', 'c']), 100000));
+        self::assertTrue($guard->allows(collect(['a', 'b', 'c']), 100000));
     }
 
     /**
@@ -76,7 +76,7 @@ final class CacheSizeGuardTest extends TestCase
     {
         $guard = new CacheSizeGuard(1000, null);
 
-        static::assertTrue($guard->allows(str_repeat('x', 100000), 1));
+        self::assertTrue($guard->allows(str_repeat('x', 100000), 1));
     }
 
     /**
@@ -89,7 +89,7 @@ final class CacheSizeGuardTest extends TestCase
     {
         $guard = new CacheSizeGuard(5, 262144);
 
-        static::assertTrue($guard->allows(collect(['a']), 5));
+        self::assertTrue($guard->allows(collect(['a']), 5));
     }
 
     /**
@@ -103,6 +103,6 @@ final class CacheSizeGuardTest extends TestCase
         $result = collect(['a', 'b']);
         $guard  = new CacheSizeGuard(1000, strlen(serialize($result)));
 
-        static::assertTrue($guard->allows($result, 2));
+        self::assertTrue($guard->allows($result, 2));
     }
 }

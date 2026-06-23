@@ -41,8 +41,8 @@ final class MiddlewareConfigCustomThrottleTest extends TestCase
         $router     = $this->getApplication()->make(Router::class);
         $middleware = $router->getMiddleware();
 
-        static::assertArrayHasKey('throttle', $middleware);
-        static::assertSame(self::CUSTOM_THROTTLE_CLASS, $middleware['throttle']);
+        self::assertArrayHasKey('throttle', $middleware);
+        self::assertSame(self::CUSTOM_THROTTLE_CLASS, $middleware['throttle']);
     }
 
     /**

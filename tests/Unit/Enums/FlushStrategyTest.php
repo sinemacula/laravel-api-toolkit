@@ -26,7 +26,7 @@ final class FlushStrategyTest extends TestCase
      */
     public function testLogCaseHasCorrectBackingValue(): void
     {
-        static::assertSame('log', FlushStrategy::LOG->value);
+        self::assertSame('log', FlushStrategy::LOG->value);
     }
 
     /**
@@ -36,7 +36,7 @@ final class FlushStrategyTest extends TestCase
      */
     public function testThrowCaseHasCorrectBackingValue(): void
     {
-        static::assertSame('throw', FlushStrategy::THROW->value);
+        self::assertSame('throw', FlushStrategy::THROW->value);
     }
 
     /**
@@ -46,7 +46,7 @@ final class FlushStrategyTest extends TestCase
      */
     public function testCollectCaseHasCorrectBackingValue(): void
     {
-        static::assertSame('collect', FlushStrategy::COLLECT->value);
+        self::assertSame('collect', FlushStrategy::COLLECT->value);
     }
 
     /**
@@ -57,9 +57,9 @@ final class FlushStrategyTest extends TestCase
      */
     public function testFromStringResolvesValidCases(): void
     {
-        static::assertSame(FlushStrategy::LOG, FlushStrategy::from('log'));
-        static::assertSame(FlushStrategy::THROW, FlushStrategy::from('throw'));
-        static::assertSame(FlushStrategy::COLLECT, FlushStrategy::from('collect'));
+        self::assertSame(FlushStrategy::LOG, FlushStrategy::from('log'));
+        self::assertSame(FlushStrategy::THROW, FlushStrategy::from('throw'));
+        self::assertSame(FlushStrategy::COLLECT, FlushStrategy::from('collect'));
     }
 
     /**

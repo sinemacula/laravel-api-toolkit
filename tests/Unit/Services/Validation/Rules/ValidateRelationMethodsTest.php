@@ -71,7 +71,7 @@ final class ValidateRelationMethodsTest extends TestCase
         $rule   = new ValidateRelationMethods;
         $errors = $rule->validate(UserResource::class, User::class, $schema);
 
-        static::assertSame([], $errors);
+        self::assertSame([], $errors);
     }
 
     /**
@@ -102,10 +102,10 @@ final class ValidateRelationMethodsTest extends TestCase
         $rule   = new ValidateRelationMethods;
         $errors = $rule->validate(UserResource::class, User::class, $schema);
 
-        static::assertCount(1, $errors);
-        static::assertSame('nonexistent', $errors[0]->fieldKey);
-        static::assertStringContainsString('nonexistent_relation', $errors[0]->defect);
-        static::assertStringContainsString(User::class, $errors[0]->defect);
+        self::assertCount(1, $errors);
+        self::assertSame('nonexistent', $errors[0]->fieldKey);
+        self::assertStringContainsString('nonexistent_relation', $errors[0]->defect);
+        self::assertStringContainsString(User::class, $errors[0]->defect);
     }
 
     /**
@@ -136,7 +136,7 @@ final class ValidateRelationMethodsTest extends TestCase
         $rule   = new ValidateRelationMethods;
         $errors = $rule->validate(UserResource::class, null, $schema);
 
-        static::assertSame([], $errors);
+        self::assertSame([], $errors);
     }
 
     /**
@@ -157,8 +157,8 @@ final class ValidateRelationMethodsTest extends TestCase
 
         $warnings = $this->captureWarnings(fn () => $rule->validate(UserResource::class, User::class, $schema), $errors);
 
-        static::assertSame([], $warnings);
-        static::assertSame([], $errors);
+        self::assertSame([], $warnings);
+        self::assertSame([], $errors);
     }
 
     /**
@@ -202,8 +202,8 @@ final class ValidateRelationMethodsTest extends TestCase
         $rule   = new ValidateRelationMethods;
         $errors = $rule->validate(UserResource::class, User::class, $schema);
 
-        static::assertCount(1, $errors);
-        static::assertSame('bad', $errors[0]->fieldKey);
+        self::assertCount(1, $errors);
+        self::assertSame('bad', $errors[0]->fieldKey);
     }
 
     /**
@@ -246,9 +246,9 @@ final class ValidateRelationMethodsTest extends TestCase
         $rule   = new ValidateRelationMethods;
         $errors = $rule->validate(UserResource::class, User::class, $schema);
 
-        static::assertCount(2, $errors);
-        static::assertSame('first', $errors[0]->fieldKey);
-        static::assertSame('second', $errors[1]->fieldKey);
+        self::assertCount(2, $errors);
+        self::assertSame('first', $errors[0]->fieldKey);
+        self::assertSame('second', $errors[1]->fieldKey);
     }
 
     /**
@@ -274,10 +274,10 @@ final class ValidateRelationMethodsTest extends TestCase
         $rule   = new ValidateRelationMethods;
         $errors = $rule->validate(UserResource::class, User::class, $schema);
 
-        static::assertCount(1, $errors);
-        static::assertSame('nonexistent_count', $errors[0]->fieldKey);
-        static::assertStringContainsString('nonexistent_relation', $errors[0]->defect);
-        static::assertStringContainsString(User::class, $errors[0]->defect);
+        self::assertCount(1, $errors);
+        self::assertSame('nonexistent_count', $errors[0]->fieldKey);
+        self::assertStringContainsString('nonexistent_relation', $errors[0]->defect);
+        self::assertStringContainsString(User::class, $errors[0]->defect);
     }
 
     /**
@@ -322,8 +322,8 @@ final class ValidateRelationMethodsTest extends TestCase
         $rule   = new ValidateRelationMethods;
         $errors = $rule->validate(UserResource::class, $modelClass, $schema);
 
-        static::assertCount(1, $errors);
-        static::assertStringContainsString('has no return type hint', $errors[0]->defect);
+        self::assertCount(1, $errors);
+        self::assertStringContainsString('has no return type hint', $errors[0]->defect);
     }
 
     /**
@@ -365,9 +365,9 @@ final class ValidateRelationMethodsTest extends TestCase
         $rule   = new ValidateRelationMethods;
         $errors = $rule->validate(UserResource::class, $modelClass, $schema);
 
-        static::assertCount(1, $errors);
-        static::assertStringContainsString('is not a Relation subclass', $errors[0]->defect);
-        static::assertStringContainsString('string', $errors[0]->defect);
+        self::assertCount(1, $errors);
+        self::assertStringContainsString('is not a Relation subclass', $errors[0]->defect);
+        self::assertStringContainsString('string', $errors[0]->defect);
     }
 
     /**
@@ -411,7 +411,7 @@ final class ValidateRelationMethodsTest extends TestCase
         $rule   = new ValidateRelationMethods;
         $errors = $rule->validate(UserResource::class, $modelClass, $schema);
 
-        static::assertSame([], $errors);
+        self::assertSame([], $errors);
     }
 
     /**
@@ -454,8 +454,8 @@ final class ValidateRelationMethodsTest extends TestCase
         $rule   = new ValidateRelationMethods;
         $errors = $rule->validate(UserResource::class, $modelClass, $schema);
 
-        static::assertCount(1, $errors);
-        static::assertStringContainsString('union return type with no Relation subclass member', $errors[0]->defect);
+        self::assertCount(1, $errors);
+        self::assertStringContainsString('union return type with no Relation subclass member', $errors[0]->defect);
     }
 
     /**
@@ -495,9 +495,9 @@ final class ValidateRelationMethodsTest extends TestCase
         $rule   = new ValidateRelationMethods;
         $errors = $rule->validate(UserResource::class, $modelClass, $schema);
 
-        static::assertCount(1, $errors);
-        static::assertSame('items_count', $errors[0]->fieldKey);
-        static::assertStringContainsString('has no return type hint', $errors[0]->defect);
+        self::assertCount(1, $errors);
+        self::assertSame('items_count', $errors[0]->fieldKey);
+        self::assertStringContainsString('has no return type hint', $errors[0]->defect);
     }
 
     /**
@@ -536,9 +536,9 @@ final class ValidateRelationMethodsTest extends TestCase
         $rule   = new ValidateRelationMethods;
         $errors = $rule->validate(UserResource::class, $modelClass, $schema);
 
-        static::assertCount(1, $errors);
-        static::assertStringContainsString('is not a Relation subclass', $errors[0]->defect);
-        static::assertStringContainsString('string', $errors[0]->defect);
+        self::assertCount(1, $errors);
+        self::assertStringContainsString('is not a Relation subclass', $errors[0]->defect);
+        self::assertStringContainsString('string', $errors[0]->defect);
     }
 
     /**

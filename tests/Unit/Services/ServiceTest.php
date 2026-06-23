@@ -39,7 +39,7 @@ final class ServiceTest extends TestCase
 
         $service->run();
 
-        static::assertTrue($service->successCalled);
+        self::assertTrue($service->successCalled);
     }
 
     /**
@@ -53,9 +53,9 @@ final class ServiceTest extends TestCase
 
         $result = $service->run();
 
-        static::assertTrue($result->succeeded());
-        static::assertSame(ServiceStatus::SUCCEEDED, $result->status);
-        static::assertNull($result->exception);
+        self::assertTrue($result->succeeded());
+        self::assertSame(ServiceStatus::SUCCEEDED, $result->status);
+        self::assertNull($result->exception);
     }
 
     /**
@@ -69,11 +69,11 @@ final class ServiceTest extends TestCase
 
         $result = $service->run();
 
-        static::assertTrue($result->failed());
-        static::assertTrue($service->failedCalled);
-        static::assertSame($result->exception, $service->failedException);
-        static::assertInstanceOf(\RuntimeException::class, $result->exception);
-        static::assertSame('Service execution failed', $result->exception->getMessage());
+        self::assertTrue($result->failed());
+        self::assertTrue($service->failedCalled);
+        self::assertSame($result->exception, $service->failedException);
+        self::assertInstanceOf(\RuntimeException::class, $result->exception);
+        self::assertSame('Service execution failed', $result->exception->getMessage());
     }
 
     /**
@@ -85,7 +85,7 @@ final class ServiceTest extends TestCase
     {
         $service = new SimpleService;
 
-        static::assertInstanceOf(LockKeyProvider::class, $service);
+        self::assertInstanceOf(LockKeyProvider::class, $service);
     }
 
     /**
@@ -100,7 +100,7 @@ final class ServiceTest extends TestCase
 
         $expected = sha1(LockableService::class . '|lockable-test');
 
-        static::assertSame($expected, $service->getLockKey());
+        self::assertSame($expected, $service->getLockKey());
     }
 
     /**
@@ -114,8 +114,8 @@ final class ServiceTest extends TestCase
 
         $payload = (new \ReflectionProperty($service, 'payload'))->getValue($service);
 
-        static::assertInstanceOf(Collection::class, $payload);
-        static::assertSame('value', $payload->get('key'));
+        self::assertInstanceOf(Collection::class, $payload);
+        self::assertSame('value', $payload->get('key'));
     }
 
     /**
@@ -131,8 +131,8 @@ final class ServiceTest extends TestCase
 
         $payload = (new \ReflectionProperty($service, 'payload'))->getValue($service);
 
-        static::assertInstanceOf(Collection::class, $payload);
-        static::assertSame('value', $payload->get('key'));
+        self::assertInstanceOf(Collection::class, $payload);
+        self::assertSame('value', $payload->get('key'));
     }
 
     /**
@@ -148,7 +148,7 @@ final class ServiceTest extends TestCase
 
         $payload = (new \ReflectionProperty($service, 'payload'))->getValue($service);
 
-        static::assertSame($collection, $payload);
+        self::assertSame($collection, $payload);
     }
 
     /**
@@ -165,7 +165,7 @@ final class ServiceTest extends TestCase
 
         $payload = (new \ReflectionProperty($service, 'payload'))->getValue($service);
 
-        static::assertSame($object, $payload);
+        self::assertSame($object, $payload);
     }
 
     /**
@@ -193,9 +193,9 @@ final class ServiceTest extends TestCase
         $service->success();
         $service->failed(new \RuntimeException('hook'));
 
-        static::assertTrue((new \ReflectionMethod(Service::class, 'prepare'))->isPublic());
-        static::assertTrue((new \ReflectionMethod(Service::class, 'success'))->isPublic());
-        static::assertTrue((new \ReflectionMethod(Service::class, 'failed'))->isPublic());
+        self::assertTrue((new \ReflectionMethod(Service::class, 'prepare'))->isPublic());
+        self::assertTrue((new \ReflectionMethod(Service::class, 'success'))->isPublic());
+        self::assertTrue((new \ReflectionMethod(Service::class, 'failed'))->isPublic());
     }
 
     /**
@@ -260,7 +260,7 @@ final class ServiceTest extends TestCase
 
         $service->run();
 
-        static::assertSame(['prepare', 'handle'], $service->getCallOrder());
+        self::assertSame(['prepare', 'handle'], $service->getCallOrder());
     }
 
     /**
@@ -274,7 +274,7 @@ final class ServiceTest extends TestCase
 
         $result = $service->run();
 
-        static::assertTrue($result->succeeded());
+        self::assertTrue($result->succeeded());
     }
 
     /**
@@ -304,8 +304,8 @@ final class ServiceTest extends TestCase
         $result = $service->run();
 
         // Base failed() was called and did nothing — no secondary exception
-        static::assertTrue($result->failed());
-        static::assertInstanceOf(\RuntimeException::class, $result->exception);
+        self::assertTrue($result->failed());
+        self::assertInstanceOf(\RuntimeException::class, $result->exception);
     }
 
     /**
@@ -338,7 +338,7 @@ final class ServiceTest extends TestCase
             }
         };
 
-        static::assertSame([], $service->getConcerns());
+        self::assertSame([], $service->getConcerns());
     }
 
     /**
@@ -466,7 +466,7 @@ final class ServiceTest extends TestCase
 
         $service->run();
 
-        static::assertSame(['A:before', 'B:before', 'B:after', 'A:after'], $order);
+        self::assertSame(['A:before', 'B:before', 'B:after', 'A:after'], $order);
     }
 
     /**
@@ -544,9 +544,9 @@ final class ServiceTest extends TestCase
 
         $result = $service->run();
 
-        static::assertTrue($result->failed());
-        static::assertNull($result->exception);
-        static::assertFalse($handleCalled);
+        self::assertTrue($result->failed());
+        self::assertNull($result->exception);
+        self::assertFalse($handleCalled);
     }
 
     /**
@@ -560,8 +560,8 @@ final class ServiceTest extends TestCase
 
         $result = $service->run();
 
-        static::assertTrue($result->succeeded());
-        static::assertTrue($service->successCalled);
+        self::assertTrue($result->succeeded());
+        self::assertTrue($service->successCalled);
     }
 
     /**

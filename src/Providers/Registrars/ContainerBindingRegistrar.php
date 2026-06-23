@@ -10,8 +10,10 @@ use SineMacula\ApiToolkit\ApiQueryParser;
 use SineMacula\ApiToolkit\Cache\CacheManager;
 use SineMacula\ApiToolkit\Cache\MetadataCacheWriter;
 use SineMacula\ApiToolkit\Cache\MetadataKeyRegistry;
+use SineMacula\ApiToolkit\Contracts\ResourceMetadataProvider;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Enums\FlushStrategy;
+use SineMacula\ApiToolkit\Http\Resources\ResourceMetadataService;
 use SineMacula\ApiToolkit\OpenApi\Contracts\DocumentWriter;
 use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
 use SineMacula\ApiToolkit\OpenApi\Metadata\ConfigMetadataCatalogue;
@@ -40,8 +42,6 @@ use SineMacula\ApiToolkit\Services\Validation\Rules\ValidateRelationClasses;
 use SineMacula\ApiToolkit\Services\Validation\Rules\ValidateRelationInterfaces;
 use SineMacula\ApiToolkit\Services\Validation\Rules\ValidateRelationMethods;
 use SineMacula\ApiToolkit\Services\Validation\Rules\ValidateTransformers;
-use SineMacula\ApiToolkit\Contracts\ResourceMetadataProvider;
-use SineMacula\ApiToolkit\Http\Resources\ResourceMetadataService;
 
 /**
  * Registers the toolkit container bindings.
@@ -65,7 +65,6 @@ final class ContainerBindingRegistrar
 
         /** The service container to register the bindings on. */
         private readonly Container $container,
-
     ) {}
 
     /**
@@ -177,9 +176,9 @@ final class ContainerBindingRegistrar
     {
         $this->container->scoped(WritePool::class, function (): WritePool {
 
-            $chunkSize    = Config::get('api-toolkit.deferred_writes.chunk_size', 500);
-            $poolLimit    = Config::get('api-toolkit.deferred_writes.pool_limit', 10000);
-            $onFailure    = Config::get('api-toolkit.deferred_writes.on_failure', 'collect');
+            $chunkSize     = Config::get('api-toolkit.deferred_writes.chunk_size', 500);
+            $poolLimit     = Config::get('api-toolkit.deferred_writes.pool_limit', 10000);
+            $onFailure     = Config::get('api-toolkit.deferred_writes.on_failure', 'collect');
             $transactional = Config::get('api-toolkit.deferred_writes.transactional', false);
 
             return new WritePool(

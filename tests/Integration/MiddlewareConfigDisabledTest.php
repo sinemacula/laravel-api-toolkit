@@ -43,7 +43,7 @@ final class MiddlewareConfigDisabledTest extends TestCase
         $kernel     = $this->getApplication()->make(HttpKernel::class);
         $middleware = $kernel->getGlobalMiddleware();
 
-        static::assertNotContains(PreventRequestsDuringMaintenance::class, $middleware);
+        self::assertNotContains(PreventRequestsDuringMaintenance::class, $middleware);
     }
 
     /**
@@ -57,7 +57,7 @@ final class MiddlewareConfigDisabledTest extends TestCase
         $kernel     = $this->getApplication()->make(HttpKernel::class);
         $middleware = $kernel->getGlobalMiddleware();
 
-        static::assertNotContains(JsonPrettyPrint::class, $middleware);
+        self::assertNotContains(JsonPrettyPrint::class, $middleware);
     }
 
     /**
@@ -74,10 +74,10 @@ final class MiddlewareConfigDisabledTest extends TestCase
         // The throttle alias may exist from Laravel's defaults, but it should
         // not point to any of the toolkit's middleware classes
         if (isset($middleware['throttle'])) {
-            static::assertNotSame(ThrottleRequests::class, $middleware['throttle']);
-            static::assertNotSame(ThrottleRequestsWithRedis::class, $middleware['throttle']);
+            self::assertNotSame(ThrottleRequests::class, $middleware['throttle']);
+            self::assertNotSame(ThrottleRequestsWithRedis::class, $middleware['throttle']);
         } else {
-            static::assertArrayNotHasKey('throttle', $middleware);
+            self::assertArrayNotHasKey('throttle', $middleware);
         }
     }
 

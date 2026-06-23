@@ -55,7 +55,7 @@ final class NotificationListener
         string $message,
         Notification $notification,
         object $notifiable,
-        string $channel
+        string $channel,
     ): void {
         $excludedClasses = config('api-toolkit.notifications.excluded_classes', []);
 

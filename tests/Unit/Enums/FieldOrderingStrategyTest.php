@@ -41,7 +41,7 @@ final class FieldOrderingStrategyTest extends TestCase
     #[DataProvider('caseProvider')]
     public function testCaseHasExpectedValue(FieldOrderingStrategy $case, string $expectedValue): void
     {
-        static::assertSame($expectedValue, $case->value);
+        self::assertSame($expectedValue, $case->value);
     }
 
     /**
@@ -51,7 +51,7 @@ final class FieldOrderingStrategyTest extends TestCase
      */
     public function testDefaultCaseValue(): void
     {
-        static::assertSame('default', FieldOrderingStrategy::DEFAULT->value);
+        self::assertSame('default', FieldOrderingStrategy::DEFAULT->value);
     }
 
     /**
@@ -61,7 +61,7 @@ final class FieldOrderingStrategyTest extends TestCase
      */
     public function testByRequestedFieldsCaseValue(): void
     {
-        static::assertSame('by_requested_fields', FieldOrderingStrategy::BY_REQUESTED_FIELDS->value);
+        self::assertSame('by_requested_fields', FieldOrderingStrategy::BY_REQUESTED_FIELDS->value);
     }
 
     /**
@@ -71,6 +71,6 @@ final class FieldOrderingStrategyTest extends TestCase
      */
     public function testExpectedCaseCount(): void
     {
-        static::assertCount(2, FieldOrderingStrategy::cases());
+        self::assertCount(2, FieldOrderingStrategy::cases());
     }
 }

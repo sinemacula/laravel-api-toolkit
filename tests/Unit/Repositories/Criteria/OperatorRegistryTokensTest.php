@@ -4,12 +4,12 @@ declare(strict_types = 1);
 
 namespace Tests\Unit\Repositories\Criteria;
 
+use Illuminate\Database\Eloquent\Builder;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
-use SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry;
 use SineMacula\ApiToolkit\Contracts\FilterOperator;
-use Illuminate\Database\Eloquent\Builder;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext;
+use SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry;
 
 /**
  * Tests for the OperatorRegistry::tokens() method.
@@ -31,7 +31,7 @@ final class OperatorRegistryTokensTest extends TestCase
     {
         $registry = new OperatorRegistry;
 
-        static::assertSame([], $registry->tokens());
+        self::assertSame([], $registry->tokens());
     }
 
     /**
@@ -47,7 +47,7 @@ final class OperatorRegistryTokensTest extends TestCase
         $registry->register('$neq', $this->makeStub());
         $registry->register('$gt', $this->makeStub());
 
-        static::assertSame(['$eq', '$neq', '$gt'], $registry->tokens());
+        self::assertSame(['$eq', '$neq', '$gt'], $registry->tokens());
     }
 
     /**
@@ -63,7 +63,7 @@ final class OperatorRegistryTokensTest extends TestCase
         $registry->register('$neq', $this->makeStub());
         $registry->remove('$eq');
 
-        static::assertSame(['$neq'], array_values($registry->tokens()));
+        self::assertSame(['$neq'], array_values($registry->tokens()));
     }
 
     /**
@@ -78,7 +78,7 @@ final class OperatorRegistryTokensTest extends TestCase
         $registry->register('$eq', $this->makeStub());
         $registry->override('$eq', $this->makeStub());
 
-        static::assertSame(['$eq'], $registry->tokens());
+        self::assertSame(['$eq'], $registry->tokens());
     }
 
     /**
@@ -105,7 +105,7 @@ final class OperatorRegistryTokensTest extends TestCase
              * @return void
              */
             #[\Override]
-            public function apply(Builder $query, string $column, mixed $value, FilterContext $context,): void {}
+            public function apply(Builder $query, string $column, mixed $value, FilterContext $context): void {}
         };
     }
 }

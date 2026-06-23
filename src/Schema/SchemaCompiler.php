@@ -45,6 +45,16 @@ final class SchemaCompiler
     }
 
     /**
+     * Clear all cached compiled schemas.
+     *
+     * @return void
+     */
+    public static function clearCache(): void
+    {
+        self::$cache = [];
+    }
+
+    /**
      * Assert that every constraint in the raw schema is a Closure or absent.
      *
      * @param  array<string, array<string, mixed>>  $rawSchema
@@ -75,16 +85,6 @@ final class SchemaCompiler
         if ($errors !== []) {
             throw new InvalidSchemaException($errors);
         }
-    }
-
-    /**
-     * Clear all cached compiled schemas.
-     *
-     * @return void
-     */
-    public static function clearCache(): void
-    {
-        self::$cache = [];
     }
 
     /**

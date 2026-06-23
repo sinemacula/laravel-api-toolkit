@@ -13,8 +13,8 @@ use SineMacula\ApiToolkit\Cache\MetadataCacheWriter;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
 use SineMacula\ApiToolkit\Repositories\Concerns\AttributeSetter;
-use SineMacula\ApiToolkit\Repositories\Criteria\ApiCriteria;
 use SineMacula\ApiToolkit\Repositories\Concerns\ResolvesResource;
+use SineMacula\ApiToolkit\Repositories\Criteria\ApiCriteria;
 use SineMacula\Repositories\Repository;
 
 /**

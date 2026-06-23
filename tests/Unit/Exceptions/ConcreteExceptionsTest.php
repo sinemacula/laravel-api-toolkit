@@ -98,7 +98,7 @@ final class ConcreteExceptionsTest extends TestCase
     {
         $exception = new $class;
 
-        static::assertInstanceOf(ApiException::class, $exception);
+        self::assertInstanceOf(ApiException::class, $exception);
     }
 
     /**
@@ -113,9 +113,9 @@ final class ConcreteExceptionsTest extends TestCase
     public function testGetInternalErrorCodeReturnsExpectedCode(
         string $class,
         int $expectedInternalCode,
-        int $expectedHttpCode
+        int $expectedHttpCode,
     ): void {
-        static::assertSame($expectedInternalCode, $class::getInternalErrorCode());
+        self::assertSame($expectedInternalCode, $class::getInternalErrorCode());
     }
 
     /**
@@ -130,8 +130,8 @@ final class ConcreteExceptionsTest extends TestCase
     public function testGetHttpStatusCodeReturnsExpectedStatus(
         string $class,
         int $expectedInternalCode,
-        int $expectedHttpCode
+        int $expectedHttpCode,
     ): void {
-        static::assertSame($expectedHttpCode, $class::getHttpStatusCode());
+        self::assertSame($expectedHttpCode, $class::getHttpStatusCode());
     }
 }

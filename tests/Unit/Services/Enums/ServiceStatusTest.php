@@ -28,6 +28,6 @@ final class ServiceStatusTest extends TestCase
     {
         $names = array_map(static fn (ServiceStatus $case): string => $case->name, ServiceStatus::cases());
 
-        static::assertSame(['SUCCEEDED', 'FAILED'], $names);
+        self::assertSame(['SUCCEEDED', 'FAILED'], $names);
     }
 }

@@ -37,7 +37,7 @@ final class ProvidesExclusiveLockTest extends TestCase
             $executed = true;
         });
 
-        static::assertTrue($executed);
+        self::assertTrue($executed);
     }
 
     /**
@@ -58,7 +58,7 @@ final class ProvidesExclusiveLockTest extends TestCase
         // was released
         $lock = Cache::lock('LISTENER_LOCK:release-test', 10);
 
-        static::assertTrue($lock->get());
+        self::assertTrue($lock->get());
 
         $lock->release();
     }
@@ -82,7 +82,7 @@ final class ProvidesExclusiveLockTest extends TestCase
             $executed = true;
         });
 
-        static::assertFalse($executed);
+        self::assertFalse($executed);
 
         $lock->release();
     }
@@ -108,7 +108,7 @@ final class ProvidesExclusiveLockTest extends TestCase
         }, 'CUSTOM_PREFIX');
 
         // Should not execute because the lock with this prefix is held
-        static::assertFalse($executed);
+        self::assertFalse($executed);
 
         $lock->release();
     }
@@ -134,7 +134,7 @@ final class ProvidesExclusiveLockTest extends TestCase
         // The lock should be released; try to acquire again
         $lock = Cache::lock('LISTENER_LOCK:exception-id', 10);
 
-        static::assertTrue($lock->get());
+        self::assertTrue($lock->get());
 
         $lock->release();
     }
@@ -154,7 +154,7 @@ final class ProvidesExclusiveLockTest extends TestCase
             $executed = true;
         });
 
-        static::assertTrue($executed);
+        self::assertTrue($executed);
     }
 
     /**
@@ -177,7 +177,7 @@ final class ProvidesExclusiveLockTest extends TestCase
             $executed = true;
         }, '');
 
-        static::assertFalse($executed);
+        self::assertFalse($executed);
 
         $lock->release();
     }
@@ -212,7 +212,7 @@ final class ProvidesExclusiveLockTest extends TestCase
             $executed = true;
         });
 
-        static::assertTrue($executed);
+        self::assertTrue($executed);
     }
 
     /**

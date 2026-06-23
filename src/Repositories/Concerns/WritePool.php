@@ -46,7 +46,6 @@ final class WritePool
 
         /** Whether each flush runs inside a database transaction. */
         private readonly bool $transactional = false,
-
     ) {}
 
     /**
@@ -193,7 +192,7 @@ final class WritePool
      */
     private function flushTableTransactionally(
         WritePoolFlushContext $context,
-        WritePoolFlushAccumulator $accumulator
+        WritePoolFlushAccumulator $accumulator,
     ): void {
         try {
             DB::transaction(function () use ($context): void {

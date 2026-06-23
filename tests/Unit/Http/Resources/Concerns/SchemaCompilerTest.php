@@ -68,14 +68,14 @@ final class SchemaCompilerTest extends TestCase
         $schema = SchemaCompiler::compile($resourceClass);
 
         $organization = $schema->getField('organization');
-        static::assertInstanceOf(CompiledFieldDefinition::class, $organization);
-        static::assertSame('organization', $organization->relation);
-        static::assertSame(self::STUB_ORGANIZATION_RESOURCE, $organization->resource);
+        self::assertInstanceOf(CompiledFieldDefinition::class, $organization);
+        self::assertSame('organization', $organization->relation);
+        self::assertSame(self::STUB_ORGANIZATION_RESOURCE, $organization->resource);
 
         $malformed = $schema->getField('malformed');
-        static::assertInstanceOf(CompiledFieldDefinition::class, $malformed);
-        static::assertNull($malformed->relation);
-        static::assertNull($malformed->resource);
+        self::assertInstanceOf(CompiledFieldDefinition::class, $malformed);
+        self::assertNull($malformed->relation);
+        self::assertNull($malformed->resource);
     }
 
     /**
@@ -96,9 +96,9 @@ final class SchemaCompilerTest extends TestCase
 
         $schema = SchemaCompiler::compile($resourceClass);
 
-        static::assertSame(['email', 'name'], $schema->getFilterableColumns());
-        static::assertSame(['email', 'created_at'], $schema->getSortableColumns());
-        static::assertSame(['organization'], $schema->getTraversableRelations());
+        self::assertSame(['email', 'name'], $schema->getFilterableColumns());
+        self::assertSame(['email', 'created_at'], $schema->getSortableColumns());
+        self::assertSame(['organization'], $schema->getTraversableRelations());
     }
 
     /**
@@ -112,9 +112,9 @@ final class SchemaCompilerTest extends TestCase
             'email' => [],
         ]));
 
-        static::assertSame([], $schema->getFilterableColumns());
-        static::assertSame([], $schema->getSortableColumns());
-        static::assertSame([], $schema->getTraversableRelations());
+        self::assertSame([], $schema->getFilterableColumns());
+        self::assertSame([], $schema->getSortableColumns());
+        self::assertSame([], $schema->getTraversableRelations());
     }
 
     /**
@@ -131,9 +131,9 @@ final class SchemaCompilerTest extends TestCase
             'c' => ['traversable' => ['organization']],
         ]));
 
-        static::assertSame([], $schema->getFilterableColumns());
-        static::assertSame([], $schema->getSortableColumns());
-        static::assertSame([], $schema->getTraversableRelations());
+        self::assertSame([], $schema->getFilterableColumns());
+        self::assertSame([], $schema->getSortableColumns());
+        self::assertSame([], $schema->getTraversableRelations());
     }
 
     /**
@@ -154,9 +154,9 @@ final class SchemaCompilerTest extends TestCase
             'email'    => ['filterable' => 'email', 'sortable' => 'created_at', 'traversable' => 'tags'],
         ]));
 
-        static::assertSame(['status', 'email'], $schema->getFilterableColumns());
-        static::assertSame(['status', 'created_at'], $schema->getSortableColumns());
-        static::assertSame(['posts', 'tags'], $schema->getTraversableRelations());
+        self::assertSame(['status', 'email'], $schema->getFilterableColumns());
+        self::assertSame(['status', 'created_at'], $schema->getSortableColumns());
+        self::assertSame(['posts', 'tags'], $schema->getTraversableRelations());
     }
 
     /**
@@ -172,7 +172,7 @@ final class SchemaCompilerTest extends TestCase
 
         $result = SchemaCompiler::compile($resourceClass);
 
-        static::assertInstanceOf(CompiledSchema::class, $result);
+        self::assertInstanceOf(CompiledSchema::class, $result);
     }
 
     /**
@@ -191,16 +191,16 @@ final class SchemaCompilerTest extends TestCase
         $schema = SchemaCompiler::compile($resourceClass);
 
         $nameField = $schema->getField('name');
-        static::assertInstanceOf(CompiledFieldDefinition::class, $nameField);
-        static::assertNull($nameField->relation);
-        static::assertNull($nameField->compute);
-        static::assertNull($nameField->accessor);
+        self::assertInstanceOf(CompiledFieldDefinition::class, $nameField);
+        self::assertNull($nameField->relation);
+        self::assertNull($nameField->compute);
+        self::assertNull($nameField->accessor);
 
         $emailField = $schema->getField('email');
-        static::assertInstanceOf(CompiledFieldDefinition::class, $emailField);
-        static::assertSame('contact.email', $emailField->accessor);
-        static::assertNull($emailField->relation);
-        static::assertNull($emailField->compute);
+        self::assertInstanceOf(CompiledFieldDefinition::class, $emailField);
+        self::assertSame('contact.email', $emailField->accessor);
+        self::assertNull($emailField->relation);
+        self::assertNull($emailField->compute);
     }
 
     /**
@@ -222,10 +222,10 @@ final class SchemaCompilerTest extends TestCase
         $schema = SchemaCompiler::compile($resourceClass);
 
         $field = $schema->getField('organization');
-        static::assertInstanceOf(CompiledFieldDefinition::class, $field);
-        static::assertSame('organization', $field->relation);
-        static::assertSame(self::STUB_ORGANIZATION_RESOURCE, $field->resource);
-        static::assertSame(['name', 'slug'], $field->fields);
+        self::assertInstanceOf(CompiledFieldDefinition::class, $field);
+        self::assertSame('organization', $field->relation);
+        self::assertSame(self::STUB_ORGANIZATION_RESOURCE, $field->resource);
+        self::assertSame(['name', 'slug'], $field->fields);
     }
 
     /**
@@ -247,17 +247,17 @@ final class SchemaCompilerTest extends TestCase
 
         $schema = SchemaCompiler::compile($resourceClass);
 
-        static::assertSame([], $schema->getFieldKeys());
+        self::assertSame([], $schema->getFieldKeys());
 
         $counts = $schema->getCountDefinitions();
-        static::assertCount(1, $counts);
-        static::assertArrayHasKey('posts', $counts);
+        self::assertCount(1, $counts);
+        self::assertArrayHasKey('posts', $counts);
 
         $count = $counts['posts'];
-        static::assertInstanceOf(CompiledCountDefinition::class, $count);
-        static::assertSame('posts', $count->presentKey);
-        static::assertSame('posts', $count->relation);
-        static::assertTrue($count->isDefault);
+        self::assertInstanceOf(CompiledCountDefinition::class, $count);
+        self::assertSame('posts', $count->presentKey);
+        self::assertSame('posts', $count->relation);
+        self::assertTrue($count->isDefault);
     }
 
     /**
@@ -274,7 +274,7 @@ final class SchemaCompilerTest extends TestCase
         $first  = SchemaCompiler::compile($resourceClass);
         $second = SchemaCompiler::compile($resourceClass);
 
-        static::assertSame($first, $second);
+        self::assertSame($first, $second);
     }
 
     /**
@@ -294,8 +294,8 @@ final class SchemaCompilerTest extends TestCase
 
         $second = SchemaCompiler::compile($resourceClass);
 
-        static::assertNotSame($first, $second);
-        static::assertInstanceOf(CompiledSchema::class, $second);
+        self::assertNotSame($first, $second);
+        self::assertInstanceOf(CompiledSchema::class, $second);
     }
 
     /**
@@ -310,8 +310,8 @@ final class SchemaCompilerTest extends TestCase
 
         $schema = SchemaCompiler::compile($resourceClass);
 
-        static::assertSame([], $schema->getFieldKeys());
-        static::assertSame([], $schema->getCountDefinitions());
+        self::assertSame([], $schema->getFieldKeys());
+        self::assertSame([], $schema->getCountDefinitions());
     }
 
     /**
@@ -335,9 +335,9 @@ final class SchemaCompilerTest extends TestCase
         $schema = SchemaCompiler::compile($resourceClass);
 
         $field = $schema->getField('secret');
-        static::assertInstanceOf(CompiledFieldDefinition::class, $field);
-        static::assertSame([$guard], $field->guards);
-        static::assertSame([$transformer], $field->transformers);
+        self::assertInstanceOf(CompiledFieldDefinition::class, $field);
+        self::assertSame([$guard], $field->guards);
+        self::assertSame([$transformer], $field->transformers);
     }
 
     /**
@@ -368,11 +368,11 @@ final class SchemaCompilerTest extends TestCase
         $schema = SchemaCompiler::compile($resourceClass);
 
         $field = $schema->getField('organization');
-        static::assertInstanceOf(CompiledFieldDefinition::class, $field);
-        static::assertSame($fieldConstraint, $field->constraint);
+        self::assertInstanceOf(CompiledFieldDefinition::class, $field);
+        self::assertSame($fieldConstraint, $field->constraint);
 
         $counts = $schema->getCountDefinitions();
-        static::assertSame($countConstraint, $counts['articles']->constraint);
+        self::assertSame($countConstraint, $counts['articles']->constraint);
     }
 
     /**
@@ -393,12 +393,12 @@ final class SchemaCompilerTest extends TestCase
 
         try {
             SchemaCompiler::compile($resourceClass);
-            static::fail('Expected InvalidSchemaException to be thrown.');
+            self::fail('Expected InvalidSchemaException to be thrown.');
         } catch (InvalidSchemaException $exception) {
             $errors = $exception->getErrors();
-            static::assertCount(1, $errors);
-            static::assertSame('organization', $errors[0]->fieldKey);
-            static::assertSame('Constraint must be a Closure', $errors[0]->defect);
+            self::assertCount(1, $errors);
+            self::assertSame('organization', $errors[0]->fieldKey);
+            self::assertSame('Constraint must be a Closure', $errors[0]->defect);
         }
     }
 
@@ -420,12 +420,12 @@ final class SchemaCompilerTest extends TestCase
 
         try {
             SchemaCompiler::compile($resourceClass);
-            static::fail('Expected InvalidSchemaException to be thrown.');
+            self::fail('Expected InvalidSchemaException to be thrown.');
         } catch (InvalidSchemaException $exception) {
             $errors = $exception->getErrors();
-            static::assertCount(1, $errors);
-            static::assertSame('metric', $errors[0]->fieldKey);
-            static::assertSame('Constraint must be a Closure', $errors[0]->defect);
+            self::assertCount(1, $errors);
+            self::assertSame('metric', $errors[0]->fieldKey);
+            self::assertSame('Constraint must be a Closure', $errors[0]->defect);
         }
     }
 
@@ -452,7 +452,7 @@ final class SchemaCompilerTest extends TestCase
 
         $schema = SchemaCompiler::compile($resourceClass);
 
-        static::assertInstanceOf(CompiledSchema::class, $schema);
+        self::assertInstanceOf(CompiledSchema::class, $schema);
     }
 
     /**
@@ -463,8 +463,8 @@ final class SchemaCompilerTest extends TestCase
     public function testCompileSucceedsForNullOrAbsentConstraints(): void
     {
         $resourceClass = $this->createStubResourceClass([
-            'name'           => [],
-            'organization'   => ['constraint' => null],
+            'name'            => [],
+            'organization'    => ['constraint' => null],
             '__count__:posts' => [
                 'metric'   => 'count',
                 'relation' => 'posts',
@@ -473,7 +473,7 @@ final class SchemaCompilerTest extends TestCase
 
         $schema = SchemaCompiler::compile($resourceClass);
 
-        static::assertInstanceOf(CompiledSchema::class, $schema);
+        self::assertInstanceOf(CompiledSchema::class, $schema);
     }
 
     /**
@@ -494,10 +494,10 @@ final class SchemaCompilerTest extends TestCase
         $schema = SchemaCompiler::compile($resourceClass);
 
         $counts = $schema->getCountDefinitions();
-        static::assertCount(1, $counts);
-        static::assertArrayHasKey('comments', $counts);
-        static::assertSame('comments', $counts['comments']->presentKey);
-        static::assertSame('comments', $counts['comments']->relation);
+        self::assertCount(1, $counts);
+        self::assertArrayHasKey('comments', $counts);
+        self::assertSame('comments', $counts['comments']->presentKey);
+        self::assertSame('comments', $counts['comments']->relation);
     }
 
     /**
@@ -517,8 +517,8 @@ final class SchemaCompilerTest extends TestCase
 
         $schema = SchemaCompiler::compile($resourceClass);
 
-        static::assertInstanceOf(CompiledFieldDefinition::class, $schema->getField('name'));
-        static::assertArrayHasKey('posts', $schema->getCountDefinitions());
+        self::assertInstanceOf(CompiledFieldDefinition::class, $schema->getField('name'));
+        self::assertArrayHasKey('posts', $schema->getCountDefinitions());
     }
 
     /**
@@ -540,9 +540,9 @@ final class SchemaCompilerTest extends TestCase
         $schema = SchemaCompiler::compile($resourceClass);
         $counts = $schema->getCountDefinitions();
 
-        static::assertArrayHasKey('published_posts', $counts);
-        static::assertSame('published_posts', $counts['published_posts']->presentKey);
-        static::assertSame('posts', $counts['published_posts']->relation);
+        self::assertArrayHasKey('published_posts', $counts);
+        self::assertSame('published_posts', $counts['published_posts']->presentKey);
+        self::assertSame('posts', $counts['published_posts']->relation);
     }
 
     /**
@@ -566,8 +566,8 @@ final class SchemaCompilerTest extends TestCase
         $schema = SchemaCompiler::compile($resourceClass);
         $count  = $schema->getCountDefinitions()['comments'];
 
-        static::assertFalse($count->isDefault);
-        static::assertSame([$guard], $count->guards);
+        self::assertFalse($count->isDefault);
+        self::assertSame([$guard], $count->guards);
     }
 
     /**
@@ -588,7 +588,7 @@ final class SchemaCompilerTest extends TestCase
 
         $schema = SchemaCompiler::compile($resourceClass);
 
-        static::assertTrue($schema->getCountDefinitions()['likes']->isDefault);
+        self::assertTrue($schema->getCountDefinitions()['likes']->isDefault);
     }
 
     /**
@@ -608,8 +608,8 @@ final class SchemaCompilerTest extends TestCase
         $schema = SchemaCompiler::compile($resourceClass);
         $field  = $schema->getField('profile');
 
-        static::assertInstanceOf(CompiledFieldDefinition::class, $field);
-        static::assertSame(['profile_id', 'user_id'], $field->needs);
+        self::assertInstanceOf(CompiledFieldDefinition::class, $field);
+        self::assertSame(['profile_id', 'user_id'], $field->needs);
     }
 
     /**
@@ -627,8 +627,8 @@ final class SchemaCompilerTest extends TestCase
         $schema = SchemaCompiler::compile($resourceClass);
         $field  = $schema->getField('name');
 
-        static::assertInstanceOf(CompiledFieldDefinition::class, $field);
-        static::assertSame([], $field->needs);
+        self::assertInstanceOf(CompiledFieldDefinition::class, $field);
+        self::assertSame([], $field->needs);
     }
 
     /**
@@ -648,8 +648,8 @@ final class SchemaCompilerTest extends TestCase
         $schema = SchemaCompiler::compile($resourceClass);
         $field  = $schema->getField('avatar');
 
-        static::assertInstanceOf(CompiledFieldDefinition::class, $field);
-        static::assertSame(['media'], $field->extras);
+        self::assertInstanceOf(CompiledFieldDefinition::class, $field);
+        self::assertSame(['media'], $field->extras);
     }
 
     /**
@@ -671,8 +671,8 @@ final class SchemaCompilerTest extends TestCase
         $schema = SchemaCompiler::compile($resourceClass);
         $field  = $schema->getField('email');
 
-        static::assertInstanceOf(CompiledFieldDefinition::class, $field);
-        static::assertSame($openApi, $field->openApi);
+        self::assertInstanceOf(CompiledFieldDefinition::class, $field);
+        self::assertSame($openApi, $field->openApi);
     }
 
     /**
@@ -690,8 +690,8 @@ final class SchemaCompilerTest extends TestCase
         $schema = SchemaCompiler::compile($resourceClass);
         $field  = $schema->getField('name');
 
-        static::assertInstanceOf(CompiledFieldDefinition::class, $field);
-        static::assertNull($field->openApi);
+        self::assertInstanceOf(CompiledFieldDefinition::class, $field);
+        self::assertNull($field->openApi);
     }
 
     /**
@@ -710,8 +710,8 @@ final class SchemaCompilerTest extends TestCase
         $schema = SchemaCompiler::compile($resourceClass);
         $field  = $schema->getField('name');
 
-        static::assertInstanceOf(CompiledFieldDefinition::class, $field);
-        static::assertNull($field->openApi);
+        self::assertInstanceOf(CompiledFieldDefinition::class, $field);
+        self::assertNull($field->openApi);
     }
 
     /**
@@ -736,11 +736,11 @@ final class SchemaCompilerTest extends TestCase
             $openApi = $schema->getField($key)?->openApi;
 
             if (in_array($key, ['created_at', 'updated_at'], true)) {
-                static::assertNotNull($openApi, "Timestamp field {$key} should auto-declare an openapi format");
-                static::assertSame('string', $openApi->type);
-                static::assertSame('date-time', $openApi->format);
+                self::assertNotNull($openApi, "Timestamp field {$key} should auto-declare an openapi format");
+                self::assertSame('string', $openApi->type);
+                self::assertSame('date-time', $openApi->format);
             } else {
-                static::assertNull($openApi, "Author-undeclared field {$key} should compile with a null openApi");
+                self::assertNull($openApi, "Author-undeclared field {$key} should compile with a null openApi");
             }
         }
     }

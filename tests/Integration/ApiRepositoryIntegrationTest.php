@@ -5,6 +5,7 @@ declare(strict_types = 1);
 namespace Tests\Integration;
 
 use Illuminate\Http\Request;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Config;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
@@ -14,7 +15,6 @@ use SineMacula\Http\Enums\HttpMethod;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Repositories\UserRepository;
 use Tests\TestCase;
-use Illuminate\Pagination\LengthAwarePaginator;
 
 /**
  * Integration tests for ApiRepository with a real database.
@@ -67,8 +67,8 @@ final class ApiRepositoryIntegrationTest extends TestCase
 
         $results = $this->repository->paginate();
 
-        static::assertCount(2, $results);
-        static::assertInstanceOf(LengthAwarePaginator::class, $results);
+        self::assertCount(2, $results);
+        self::assertInstanceOf(LengthAwarePaginator::class, $results);
     }
 
     /**
@@ -89,7 +89,7 @@ final class ApiRepositoryIntegrationTest extends TestCase
 
         $result = $this->repository->persist($user, ['name' => 'Alice Updated']);
 
-        static::assertTrue($result);
+        self::assertTrue($result);
         $this->assertDatabaseHas('users', ['name' => 'Alice Updated']);
     }
 
@@ -106,8 +106,8 @@ final class ApiRepositoryIntegrationTest extends TestCase
         /** @var \Tests\Fixtures\Models\User|null $result */
         $result = $this->repository->scopeById($user->id)->first(); // @phpstan-ignore staticMethod.dynamicCall
 
-        static::assertNotNull($result);
-        static::assertSame('Alice', $result->name);
+        self::assertNotNull($result);
+        self::assertSame('Alice', $result->name);
     }
 
     /**
@@ -125,9 +125,9 @@ final class ApiRepositoryIntegrationTest extends TestCase
 
         $results = $this->repository->scopeByIds([$alice->id, $bob->id])->get(); // @phpstan-ignore staticMethod.dynamicCall
 
-        static::assertCount(2, $results);
-        static::assertTrue($results->pluck('name')->contains('Alice'));
-        static::assertTrue($results->pluck('name')->contains('Bob'));
+        self::assertCount(2, $results);
+        self::assertTrue($results->pluck('name')->contains('Alice'));
+        self::assertTrue($results->pluck('name')->contains('Bob'));
     }
 
     /**
@@ -144,12 +144,12 @@ final class ApiRepositoryIntegrationTest extends TestCase
 
         $results = $this->repository->withApiCriteria()->get(); // @phpstan-ignore staticMethod.dynamicCall
 
-        static::assertCount(1, $results);
+        self::assertCount(1, $results);
 
         /** @var \Tests\Fixtures\Models\User $first */
         $first = $results->first();
 
-        static::assertSame('Alice', $first->name);
+        self::assertSame('Alice', $first->name);
     }
 
     /**

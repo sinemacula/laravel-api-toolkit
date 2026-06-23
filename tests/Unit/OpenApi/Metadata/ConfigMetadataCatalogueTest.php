@@ -41,7 +41,7 @@ final class ConfigMetadataCatalogueTest extends TestCase
 
         $catalogue = $this->makeCatalogue();
 
-        static::assertSame([User::class => UserResource::class], $catalogue->getResourceMap());
+        self::assertSame([User::class => UserResource::class], $catalogue->getResourceMap());
     }
 
     /**
@@ -55,7 +55,7 @@ final class ConfigMetadataCatalogueTest extends TestCase
 
         $catalogue = $this->makeCatalogue();
 
-        static::assertSame([], $catalogue->getResourceMap());
+        self::assertSame([], $catalogue->getResourceMap());
     }
 
     /**
@@ -72,7 +72,7 @@ final class ConfigMetadataCatalogueTest extends TestCase
 
         $catalogue = $this->makeCatalogueWithRegistry($registry);
 
-        static::assertSame(['$eq', '$neq'], $catalogue->getOperatorTokens());
+        self::assertSame(['$eq', '$neq'], $catalogue->getOperatorTokens());
     }
 
     /**
@@ -90,19 +90,19 @@ final class ConfigMetadataCatalogueTest extends TestCase
 
         $tokens = $catalogue->getOperatorTokens();
 
-        static::assertContains('$eq', $tokens);
-        static::assertContains('$neq', $tokens);
-        static::assertContains('$gt', $tokens);
-        static::assertContains('$lt', $tokens);
-        static::assertContains('$ge', $tokens);
-        static::assertContains('$le', $tokens);
-        static::assertContains('$like', $tokens);
-        static::assertContains('$in', $tokens);
-        static::assertContains('$between', $tokens);
-        static::assertContains('$contains', $tokens);
-        static::assertContains('$null', $tokens);
-        static::assertContains('$notNull', $tokens);
-        static::assertCount(12, $tokens);
+        self::assertContains('$eq', $tokens);
+        self::assertContains('$neq', $tokens);
+        self::assertContains('$gt', $tokens);
+        self::assertContains('$lt', $tokens);
+        self::assertContains('$ge', $tokens);
+        self::assertContains('$le', $tokens);
+        self::assertContains('$like', $tokens);
+        self::assertContains('$in', $tokens);
+        self::assertContains('$between', $tokens);
+        self::assertContains('$contains', $tokens);
+        self::assertContains('$null', $tokens);
+        self::assertContains('$notNull', $tokens);
+        self::assertCount(12, $tokens);
     }
 
     /**
@@ -116,11 +116,11 @@ final class ConfigMetadataCatalogueTest extends TestCase
         $catalogue  = $this->makeCatalogue();
         $structural = $catalogue->getStructuralOperators();
 
-        static::assertCount(4, $structural);
-        static::assertContains('$and', $structural);
-        static::assertContains('$or', $structural);
-        static::assertContains('$has', $structural);
-        static::assertContains('$hasnt', $structural);
+        self::assertCount(4, $structural);
+        self::assertContains('$and', $structural);
+        self::assertContains('$or', $structural);
+        self::assertContains('$has', $structural);
+        self::assertContains('$hasnt', $structural);
     }
 
     /**
@@ -133,7 +133,7 @@ final class ConfigMetadataCatalogueTest extends TestCase
         $catalogue   = $this->makeCatalogue();
         $descriptors = $catalogue->getErrorCatalogue();
 
-        static::assertCount(count(ErrorCode::cases()), $descriptors);
+        self::assertCount(count(ErrorCode::cases()), $descriptors);
     }
 
     /**
@@ -146,7 +146,7 @@ final class ConfigMetadataCatalogueTest extends TestCase
         $catalogue = $this->makeCatalogue();
 
         foreach ($catalogue->getErrorCatalogue() as $descriptor) {
-            static::assertInstanceOf(ErrorDescriptor::class, $descriptor);
+            self::assertInstanceOf(ErrorDescriptor::class, $descriptor);
         }
     }
 

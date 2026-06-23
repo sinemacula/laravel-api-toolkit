@@ -38,7 +38,7 @@ final class SafetySetDeriverTest extends TestCase
     {
         parent::setUp();
 
-        $this->introspector = static::createStub(SchemaIntrospectionProvider::class);
+        $this->introspector = self::createStub(SchemaIntrospectionProvider::class);
         $this->deriver      = new SafetySetDeriver($this->introspector);
     }
 
@@ -57,8 +57,8 @@ final class SafetySetDeriverTest extends TestCase
 
         $columns = $this->deriver->derive($model, [], [], []);
 
-        static::assertContains('uuid', $columns);
-        static::assertNotContains('id', $columns);
+        self::assertContains('uuid', $columns);
+        self::assertNotContains('id', $columns);
     }
 
     /**
@@ -76,7 +76,7 @@ final class SafetySetDeriverTest extends TestCase
 
         $columns = $this->deriver->derive($model, [], [], []);
 
-        static::assertContains('deleted_at', $columns);
+        self::assertContains('deleted_at', $columns);
     }
 
     /**
@@ -93,7 +93,7 @@ final class SafetySetDeriverTest extends TestCase
 
         $columns = $this->deriver->derive($model, [], [], []);
 
-        static::assertNotContains('deleted_at', $columns);
+        self::assertNotContains('deleted_at', $columns);
     }
 
     /**
@@ -105,7 +105,7 @@ final class SafetySetDeriverTest extends TestCase
     public function testUnionsRelationParentKeysForEagerLoadedRelations(): void
     {
         $model    = $this->makeModel('id');
-        $relation = static::createStub(Relation::class);
+        $relation = self::createStub(Relation::class);
 
         $this->introspector->method('getDeletedAtColumn')->willReturn(null);
         $this->introspector->method('resolveRelation')->willReturn($relation);
@@ -114,8 +114,8 @@ final class SafetySetDeriverTest extends TestCase
 
         $columns = $this->deriver->derive($model, ['taggable'], [], []);
 
-        static::assertContains('taggable_type', $columns);
-        static::assertContains('taggable_id', $columns);
+        self::assertContains('taggable_type', $columns);
+        self::assertContains('taggable_id', $columns);
     }
 
     /**
@@ -134,7 +134,7 @@ final class SafetySetDeriverTest extends TestCase
 
         $columns = $this->deriver->derive($model, ['nonexistent'], [], []);
 
-        static::assertSame(['id'], $columns);
+        self::assertSame(['id'], $columns);
     }
 
     /**
@@ -152,9 +152,9 @@ final class SafetySetDeriverTest extends TestCase
 
         $columns = $this->deriver->derive($model, [], ['first_name', 'last_name'], ['created_at']);
 
-        static::assertContains('first_name', $columns);
-        static::assertContains('last_name', $columns);
-        static::assertContains('created_at', $columns);
+        self::assertContains('first_name', $columns);
+        self::assertContains('last_name', $columns);
+        self::assertContains('created_at', $columns);
     }
 
     /**
@@ -172,8 +172,8 @@ final class SafetySetDeriverTest extends TestCase
 
         $columns = $this->deriver->derive($model, [], ['computed_alias'], ['virtual_order']);
 
-        static::assertNotContains('computed_alias', $columns);
-        static::assertNotContains('virtual_order', $columns);
+        self::assertNotContains('computed_alias', $columns);
+        self::assertNotContains('virtual_order', $columns);
     }
 
     /**
@@ -191,8 +191,8 @@ final class SafetySetDeriverTest extends TestCase
 
         $columns = $this->deriver->derive($model, [], [], []);
 
-        static::assertContains('status', $columns);
-        static::assertNotContains('virtual_flag', $columns);
+        self::assertContains('status', $columns);
+        self::assertNotContains('virtual_flag', $columns);
     }
 
     /**
@@ -204,7 +204,7 @@ final class SafetySetDeriverTest extends TestCase
     public function testSkipsUnresolvableRelationButProcessesLaterOnes(): void
     {
         $model    = $this->makeModel('id');
-        $relation = static::createStub(Relation::class);
+        $relation = self::createStub(Relation::class);
 
         $this->introspector->method('getDeletedAtColumn')->willReturn(null);
         $this->introspector->method('resolveRelation')->willReturnCallback(
@@ -215,7 +215,7 @@ final class SafetySetDeriverTest extends TestCase
 
         $columns = $this->deriver->derive($model, ['missing', 'author'], [], []);
 
-        static::assertContains('author_id', $columns);
+        self::assertContains('author_id', $columns);
     }
 
     /**
@@ -227,8 +227,8 @@ final class SafetySetDeriverTest extends TestCase
     public function testAccumulatesParentKeysAcrossMultipleRelations(): void
     {
         $model     = $this->makeModel('id');
-        $relationA = static::createStub(Relation::class);
-        $relationB = static::createStub(Relation::class);
+        $relationA = self::createStub(Relation::class);
+        $relationB = self::createStub(Relation::class);
 
         $this->introspector->method('getDeletedAtColumn')->willReturn(null);
         $this->introspector->method('resolveRelation')->willReturnCallback(
@@ -245,8 +245,8 @@ final class SafetySetDeriverTest extends TestCase
 
         $columns = $this->deriver->derive($model, ['author', 'category'], [], []);
 
-        static::assertContains('author_id', $columns);
-        static::assertContains('category_id', $columns);
+        self::assertContains('author_id', $columns);
+        self::assertContains('category_id', $columns);
     }
 
     /**
@@ -264,7 +264,7 @@ final class SafetySetDeriverTest extends TestCase
 
         $columns = $this->deriver->derive($model, [], [], ['id', 'ghost', 'name']);
 
-        static::assertSame(['id', 'name'], $columns);
+        self::assertSame(['id', 'name'], $columns);
     }
 
     /**
@@ -277,7 +277,7 @@ final class SafetySetDeriverTest extends TestCase
      */
     private function makeModel(string $keyName, array $appendedAttributes = []): Model
     {
-        $model = static::createStub(Model::class);
+        $model = self::createStub(Model::class);
 
         $model->method('getKeyName')->willReturn($keyName);
         $model->method('getAppends')->willReturn($appendedAttributes);

@@ -58,7 +58,7 @@ final class RespondsWithStreamTest extends TestCase
 
         $response = $controller->streamRepositoryToCsv($repository); // @phpstan-ignore method.notFound
 
-        static::assertInstanceOf(StreamedResponse::class, $response);
+        self::assertInstanceOf(StreamedResponse::class, $response);
     }
 
     /**
@@ -98,8 +98,8 @@ final class RespondsWithStreamTest extends TestCase
             echo 'test';
         }, 'text/csv', 'export.csv');
 
-        static::assertInstanceOf(StreamedResponse::class, $response);
-        static::assertSame('text/csv', $response->headers->get('Content-Type'));
+        self::assertInstanceOf(StreamedResponse::class, $response);
+        self::assertSame('text/csv', $response->headers->get('Content-Type'));
     }
 
     /**
@@ -125,14 +125,14 @@ final class RespondsWithStreamTest extends TestCase
         $reflection = new \ReflectionMethod($controller, 'formatChunkAsCsv');
 
         $isFirst = true;
-        $args     = [[['name' => 'John', 'email' => 'john@example.com']], &$isFirst];
+        $args    = [[['name' => 'John', 'email' => 'john@example.com']], &$isFirst];
 
         /** @var string $result */
         $result = $reflection->invokeArgs($controller, $args);
 
-        static::assertStringContainsString('name', $result);
+        self::assertStringContainsString('name', $result);
         // @phpstan-ignore staticMethod.impossibleType
-        static::assertFalse($isFirst);
+        self::assertFalse($isFirst);
     }
 
     /**
@@ -159,12 +159,12 @@ final class RespondsWithStreamTest extends TestCase
         $reflection = new \ReflectionMethod($controller, 'formatChunkAsCsv');
 
         $isFirst = false;
-        $args     = [[['name' => 'Jane', 'email' => 'jane@example.com']], &$isFirst];
+        $args    = [[['name' => 'Jane', 'email' => 'jane@example.com']], &$isFirst];
 
         /** @var string $result */
         $result = $reflection->invokeArgs($controller, $args);
 
-        static::assertStringContainsString('Jane', $result);
+        self::assertStringContainsString('Jane', $result);
     }
 
     /**
@@ -216,7 +216,7 @@ final class RespondsWithStreamTest extends TestCase
         $response->sendContent();
         ob_end_clean();
 
-        static::assertInstanceOf(StreamedResponse::class, $response);
+        self::assertInstanceOf(StreamedResponse::class, $response);
     }
 
     /**
@@ -271,7 +271,7 @@ final class RespondsWithStreamTest extends TestCase
         $response->sendContent();
         ob_end_clean();
 
-        static::assertInstanceOf(StreamedResponse::class, $response);
+        self::assertInstanceOf(StreamedResponse::class, $response);
     }
 
     /**
@@ -295,7 +295,7 @@ final class RespondsWithStreamTest extends TestCase
 
         $response = $controller->streamRepositoryToCsv($repository, 1500, 'users.csv'); // @phpstan-ignore method.notFound
 
-        static::assertStringContainsString('users.csv', $response->headers->get('Content-Disposition') ?? '');
+        self::assertStringContainsString('users.csv', $response->headers->get('Content-Disposition') ?? '');
     }
 
     /**
@@ -318,7 +318,7 @@ final class RespondsWithStreamTest extends TestCase
 
         $response = $controller->streamRepositoryToCsv($repository); // @phpstan-ignore method.notFound
 
-        static::assertSame(self::CONTENT_TYPE_CSV, $response->headers->get('Content-Type'));
+        self::assertSame(self::CONTENT_TYPE_CSV, $response->headers->get('Content-Type'));
     }
 
     /**
@@ -375,10 +375,10 @@ final class RespondsWithStreamTest extends TestCase
         $output = ob_get_clean();
 
         // Trailing spaces within the field value must be preserved.
-        static::assertStringContainsString('Alice   ', (string) $output);
+        self::assertStringContainsString('Alice   ', (string) $output);
 
         // Trailing newline must be stripped (chunk boundary prevention).
-        static::assertStringEndsNotWith("\n", (string) $output);
+        self::assertStringEndsNotWith("\n", (string) $output);
     }
 
     /**
@@ -413,7 +413,7 @@ final class RespondsWithStreamTest extends TestCase
         $response->sendContent();
         ob_end_clean();
 
-        static::assertSame(1500, $capturedSize);
+        self::assertSame(1500, $capturedSize);
     }
 
     /**
@@ -452,7 +452,7 @@ final class RespondsWithStreamTest extends TestCase
 
         $controller->streamRepositoryToCsv($repository); // @phpstan-ignore method.notFound
 
-        static::assertTrue($reordered);
+        self::assertTrue($reordered);
     }
 
     /**
@@ -525,14 +525,14 @@ final class RespondsWithStreamTest extends TestCase
         $response->sendContent();
         $output = (string) ob_get_clean();
 
-        static::assertStringContainsString('UserA', $output);
-        static::assertStringContainsString('UserB', $output);
-        static::assertStringContainsString('UserC', $output);
-        static::assertStringNotContainsString('UserD', $output);
-        static::assertStringNotContainsString('UserE', $output);
+        self::assertStringContainsString('UserA', $output);
+        self::assertStringContainsString('UserB', $output);
+        self::assertStringContainsString('UserC', $output);
+        self::assertStringNotContainsString('UserD', $output);
+        self::assertStringNotContainsString('UserE', $output);
 
-        static::assertSame([true, true, false], $returns);
-        static::assertSame(1, $withoutHeadersCalls);
+        self::assertSame([true, true, false], $returns);
+        self::assertSame(1, $withoutHeadersCalls);
     }
 
     /**
@@ -547,8 +547,8 @@ final class RespondsWithStreamTest extends TestCase
     {
         $counts = $this->streamSingleChunkWithBufferLevel(1);
 
-        static::assertSame(1, $counts['ob_flush']);
-        static::assertSame(1, $counts['flush']);
+        self::assertSame(1, $counts['ob_flush']);
+        self::assertSame(1, $counts['flush']);
     }
 
     /**
@@ -563,8 +563,8 @@ final class RespondsWithStreamTest extends TestCase
     {
         $counts = $this->streamSingleChunkWithBufferLevel(0);
 
-        static::assertSame(0, $counts['ob_flush']);
-        static::assertSame(1, $counts['flush']);
+        self::assertSame(0, $counts['ob_flush']);
+        self::assertSame(1, $counts['flush']);
     }
 
     /**
@@ -600,7 +600,7 @@ final class RespondsWithStreamTest extends TestCase
         /** @var array<int, array<string, mixed>> $rows */
         $rows = $transformer([$user]);
 
-        static::assertSame('Transformed', $rows[0]['name']);
+        self::assertSame('Transformed', $rows[0]['name']);
     }
 
     /**
@@ -638,9 +638,9 @@ final class RespondsWithStreamTest extends TestCase
 
         $result = $controller->callFormatChunkAsCsv([['name' => 'John']], $isFirst);
 
-        static::assertStringContainsString('John', $result);
+        self::assertStringContainsString('John', $result);
         // @phpstan-ignore staticMethod.impossibleType
-        static::assertFalse($isFirst);
+        self::assertFalse($isFirst);
     }
 
     /**
@@ -660,7 +660,7 @@ final class RespondsWithStreamTest extends TestCase
             public function callCreateStreamedResponse(
                 callable $callback,
                 string $contentType,
-                string $filename
+                string $filename,
             ): StreamedResponse {
                 return $this->createStreamedResponse($callback, $contentType, $filename);
             }
@@ -670,8 +670,8 @@ final class RespondsWithStreamTest extends TestCase
             echo 'chunk';
         }, 'text/csv', 'report.csv');
 
-        static::assertSame('text/csv', $response->headers->get('Content-Type'));
-        static::assertStringContainsString('report.csv', $response->headers->get('Content-Disposition') ?? '');
+        self::assertSame('text/csv', $response->headers->get('Content-Type'));
+        self::assertStringContainsString('report.csv', $response->headers->get('Content-Disposition') ?? '');
     }
 
     /**

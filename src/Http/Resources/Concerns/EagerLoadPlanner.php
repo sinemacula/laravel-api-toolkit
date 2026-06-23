@@ -143,7 +143,7 @@ final class EagerLoadPlanner
         string $prefix,
         array &$plain,
         array &$scoped,
-        array &$visited
+        array &$visited,
     ): void {
 
         $schema = SchemaCompiler::compile($resourceClass);
@@ -208,7 +208,7 @@ final class EagerLoadPlanner
         CompiledFieldDefinition $definition,
         string $fullPath,
         array &$plain,
-        array &$scoped
+        array &$scoped,
     ): void {
         $constraint = $definition->constraint;
 
@@ -263,7 +263,7 @@ final class EagerLoadPlanner
         string $fullPath,
         array &$plain,
         array &$scoped,
-        array &$visited
+        array &$visited,
     ): void {
         if (!self::shouldRecurseIntoChild($definition)) {
             return;
@@ -397,7 +397,7 @@ final class EagerLoadPlanner
     private static function shouldIncludeCount(
         string $presentKey,
         ?array $requested,
-        CompiledCountDefinition $definition
+        CompiledCountDefinition $definition,
     ): bool {
         if (is_array($requested) && $requested !== []) {
             return in_array($presentKey, $requested, true);

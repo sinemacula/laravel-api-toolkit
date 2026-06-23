@@ -55,7 +55,6 @@ final class RequestCapabilities
 
         /** Whether the request expects a streamed response. */
         private readonly bool $expectsStream,
-
     ) {}
 
     /**

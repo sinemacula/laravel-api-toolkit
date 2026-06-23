@@ -57,7 +57,6 @@ final readonly class ReferenceCache implements CacheInvalidator
 
         /** The guard that limits the size of cached snapshots. */
         private CacheSizeGuard $sizeGuard,
-
     ) {
         $this->store    = Cache::store($this->cacheStore);
         $this->cacheKey = CacheKeys::REPOSITORY_CACHE->resolveKey([$this->table]);

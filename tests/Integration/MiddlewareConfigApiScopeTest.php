@@ -40,7 +40,7 @@ final class MiddlewareConfigApiScopeTest extends TestCase
         $kernel     = $this->getApplication()->make(HttpKernel::class);
         $middleware = $kernel->getGlobalMiddleware();
 
-        static::assertNotContains(JsonPrettyPrint::class, $middleware);
+        self::assertNotContains(JsonPrettyPrint::class, $middleware);
     }
 
     /**
@@ -51,10 +51,10 @@ final class MiddlewareConfigApiScopeTest extends TestCase
     public function testJsonPrettyPrintIsInApiMiddlewareGroup(): void
     {
         /** @var \Illuminate\Routing\Router $router */
-        $router    = $this->getApplication()->make(Router::class);
+        $router   = $this->getApplication()->make(Router::class);
         $apiGroup = $router->getMiddlewareGroups()['api'] ?? [];
 
-        static::assertContains(JsonPrettyPrint::class, $apiGroup);
+        self::assertContains(JsonPrettyPrint::class, $apiGroup);
     }
 
     /**

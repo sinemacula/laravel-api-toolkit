@@ -56,14 +56,14 @@ final class CacheableDeferrableTest extends TestCase
         // Cacheable booted: a read populates the per-query cache.
         $result = $repository->get(); // @phpstan-ignore staticMethod.dynamicCall
 
-        static::assertInstanceOf(Collection::class, $result);
-        static::assertTrue($repository->getCacheStatus()->isPopulated());
+        self::assertInstanceOf(Collection::class, $result);
+        self::assertTrue($repository->getCacheStatus()->isPopulated());
 
         // Deferrable booted: a deferred write is buffered then persisted.
         $repository->defer(['name' => 'deferred']);
         $flush = $repository->flushWrites();
 
-        static::assertTrue($flush->isSuccessful());
+        self::assertTrue($flush->isSuccessful());
         $this->assertDatabaseHas('tags', ['name' => 'deferred']);
     }
 }

@@ -6,9 +6,9 @@ namespace Tests\Unit\Traits;
 
 use PHPUnit\Framework\Attributes\CoversTrait;
 use PHPUnit\Framework\Attributes\DataProvider;
+use SineMacula\ApiToolkit\Concerns\OrdersFields;
 use SineMacula\ApiToolkit\Enums\FieldOrderingStrategy;
 use SineMacula\ApiToolkit\Http\Resources\ApiResource;
-use SineMacula\ApiToolkit\Concerns\OrdersFields;
 use Tests\Concerns\InteractsWithNonPublicMembers;
 use Tests\TestCase;
 
@@ -107,7 +107,7 @@ final class OrdersFieldsTest extends TestCase
 
         $result = $this->invokeMethod($consumer, 'orderByDefault', $input);
 
-        static::assertSame($expectedKeyOrder, array_keys($result));
+        self::assertSame($expectedKeyOrder, array_keys($result));
     }
 
     /**
@@ -165,7 +165,7 @@ final class OrdersFieldsTest extends TestCase
 
         $result = $this->invokeMethod($consumer, 'orderByRequestedFields', $data);
 
-        static::assertSame($expectedKeyOrder, array_keys($result));
+        self::assertSame($expectedKeyOrder, array_keys($result));
     }
 
     /**
@@ -186,7 +186,7 @@ final class OrdersFieldsTest extends TestCase
         $defaultConsumer = $this->createConsumer(FieldOrderingStrategy::DEFAULT);
         $defaultResult   = $this->invokeMethod($defaultConsumer, 'orderResolvedFields', $data);
 
-        static::assertSame('_type', array_key_first($defaultResult));
+        self::assertSame('_type', array_key_first($defaultResult));
 
         $requestedConsumer = $this->createConsumer(
             FieldOrderingStrategy::BY_REQUESTED_FIELDS,
@@ -194,7 +194,7 @@ final class OrdersFieldsTest extends TestCase
         );
         $requestedResult = $this->invokeMethod($requestedConsumer, 'orderResolvedFields', $data);
 
-        static::assertSame('name', array_key_first($requestedResult));
+        self::assertSame('name', array_key_first($requestedResult));
     }
 
     /**
@@ -260,9 +260,9 @@ final class OrdersFieldsTest extends TestCase
             'name'  => 'Alice',
         ];
 
-        static::assertSame(['_type', 'id', 'name'], array_keys($resource->exposeOrderResolvedFields($data)));
-        static::assertSame(['_type', 'id', 'name'], array_keys($resource->exposeOrderByDefault($data)));
-        static::assertSame($data, $resource->exposeOrderByRequestedFields($data));
+        self::assertSame(['_type', 'id', 'name'], array_keys($resource->exposeOrderResolvedFields($data)));
+        self::assertSame(['_type', 'id', 'name'], array_keys($resource->exposeOrderByDefault($data)));
+        self::assertSame($data, $resource->exposeOrderByRequestedFields($data));
     }
 
     /**

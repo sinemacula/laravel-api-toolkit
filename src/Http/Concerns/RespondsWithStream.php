@@ -34,7 +34,7 @@ trait RespondsWithStream
     public function streamRepositoryToCsv(
         ApiRepository $repository,
         int $chunkSize = 1500,
-        string $filename = 'export.csv'
+        string $filename = 'export.csv',
     ): StreamedResponse {
         $limit = ApiQuery::getLimit();
 
@@ -46,7 +46,7 @@ trait RespondsWithStream
         $stream = function () use ($repository, $transformer, $chunkSize, $limit): void {
 
             $isFirstChunk = true;
-            $processed      = 0;
+            $processed    = 0;
 
             // @phpstan-ignore staticMethod.dynamicCall (chunkById() is forwarded to the builder via Repository::__call())
             $repository->chunkById($chunkSize, function ($chunk) use ($transformer, &$isFirstChunk, &$processed, $limit): bool {
@@ -131,7 +131,7 @@ trait RespondsWithStream
     protected function createStreamedResponse(
         callable $callback,
         string $contentType,
-        string $filename
+        string $filename,
     ): StreamedResponse {
         return Response::streamDownload($callback, $filename, [
             HttpHeader::CONTENT_TYPE->getName() => $contentType,

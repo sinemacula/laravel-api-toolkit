@@ -49,8 +49,8 @@ final class LoggingRegistrarTest extends TestCase
 
         $raw = $events->getRawListeners();
 
-        static::assertContains([NotificationListener::class, 'sending'], $raw[NotificationSending::class] ?? []);
-        static::assertContains([NotificationListener::class, 'sent'], $raw[NotificationSent::class] ?? []);
+        self::assertContains([NotificationListener::class, 'sending'], $raw[NotificationSending::class] ?? []);
+        self::assertContains([NotificationListener::class, 'sent'], $raw[NotificationSent::class] ?? []);
     }
 
     /**

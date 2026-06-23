@@ -41,11 +41,11 @@ final class ResourceSchemaBuilderTest extends TestCase
     {
         $schemas = $this->makeBuilder($this->fullResourceMap())->build();
 
-        static::assertCount(4, $schemas);
-        static::assertArrayHasKey('User', $schemas);
-        static::assertArrayHasKey('Post', $schemas);
-        static::assertArrayHasKey('Tag', $schemas);
-        static::assertArrayHasKey('Organization', $schemas);
+        self::assertCount(4, $schemas);
+        self::assertArrayHasKey('User', $schemas);
+        self::assertArrayHasKey('Post', $schemas);
+        self::assertArrayHasKey('Tag', $schemas);
+        self::assertArrayHasKey('Organization', $schemas);
     }
 
     /**
@@ -60,12 +60,12 @@ final class ResourceSchemaBuilderTest extends TestCase
         $properties = $schemas['User']['properties'];
 
         foreach (['id', 'name', 'email', 'status', 'created_at', 'updated_at', 'full_label'] as $fieldKey) {
-            static::assertArrayHasKey($fieldKey, $properties);
+            self::assertArrayHasKey($fieldKey, $properties);
         }
 
-        static::assertArrayHasKey('organization', $properties);
-        static::assertArrayHasKey('profile_bio', $properties);
-        static::assertArrayHasKey('posts', $properties);
+        self::assertArrayHasKey('organization', $properties);
+        self::assertArrayHasKey('profile_bio', $properties);
+        self::assertArrayHasKey('posts', $properties);
     }
 
     /**
@@ -78,7 +78,7 @@ final class ResourceSchemaBuilderTest extends TestCase
     {
         $schemas = $this->makeBuilder($this->fullResourceMap())->build();
 
-        static::assertArrayHasKey('users', $schemas['Organization']['properties']);
+        self::assertArrayHasKey('users', $schemas['Organization']['properties']);
     }
 
     /**
@@ -90,7 +90,7 @@ final class ResourceSchemaBuilderTest extends TestCase
     {
         $schemas = $this->makeBuilder($this->fullResourceMap())->build();
 
-        static::assertSame('object', $schemas['Tag']['type']);
+        self::assertSame('object', $schemas['Tag']['type']);
     }
 
     /**
@@ -103,8 +103,8 @@ final class ResourceSchemaBuilderTest extends TestCase
     {
         $schemas = $this->makeBuilder($this->fullResourceMap())->build();
 
-        static::assertSame('integer', $schemas['User']['properties']['id']['type']);
-        static::assertSame('string', $schemas['User']['properties']['name']['type']);
+        self::assertSame('integer', $schemas['User']['properties']['id']['type']);
+        self::assertSame('string', $schemas['User']['properties']['name']['type']);
     }
 
     /**
@@ -118,8 +118,8 @@ final class ResourceSchemaBuilderTest extends TestCase
         $schemas  = $this->makeBuilder($this->fullResourceMap())->build();
         $property = $schemas['User']['properties']['status'];
 
-        static::assertSame('string', $property['type']);
-        static::assertArrayNotHasKey('x-undocumented', $property);
+        self::assertSame('string', $property['type']);
+        self::assertArrayNotHasKey('x-undocumented', $property);
     }
 
     /**
@@ -134,13 +134,13 @@ final class ResourceSchemaBuilderTest extends TestCase
         $schemas  = $this->makeBuilder($this->fullResourceMap())->build();
         $property = $schemas['User']['properties']['organization'];
 
-        static::assertArrayHasKey('oneOf', $property);
-        static::assertSame(['$ref' => '#/components/schemas/Organization'], $property['oneOf'][0]);
-        static::assertSame('array', $property['oneOf'][1]['type']);
-        static::assertSame(['$ref' => '#/components/schemas/Organization'], $property['oneOf'][1]['items']);
-        static::assertSame(['type' => 'null'], $property['oneOf'][2]);
-        static::assertArrayNotHasKey('nullable', $property);
-        static::assertSame('unknown', $property['x-cardinality']);
+        self::assertArrayHasKey('oneOf', $property);
+        self::assertSame(['$ref' => '#/components/schemas/Organization'], $property['oneOf'][0]);
+        self::assertSame('array', $property['oneOf'][1]['type']);
+        self::assertSame(['$ref' => '#/components/schemas/Organization'], $property['oneOf'][1]['items']);
+        self::assertSame(['type' => 'null'], $property['oneOf'][2]);
+        self::assertArrayNotHasKey('nullable', $property);
+        self::assertSame('unknown', $property['x-cardinality']);
     }
 
     /**
@@ -154,8 +154,8 @@ final class ResourceSchemaBuilderTest extends TestCase
         $schemas  = $this->makeBuilder($this->fullResourceMap())->build();
         $property = $schemas['User']['properties']['profile_bio'];
 
-        static::assertArrayNotHasKey('oneOf', $property);
-        static::assertTrue($property['x-undocumented']);
+        self::assertArrayNotHasKey('oneOf', $property);
+        self::assertTrue($property['x-undocumented']);
     }
 
     /**
@@ -168,8 +168,8 @@ final class ResourceSchemaBuilderTest extends TestCase
         $schemas  = $this->makeBuilder($this->fullResourceMap())->build();
         $property = $schemas['Organization']['properties']['users'];
 
-        static::assertSame('integer', $property['type']);
-        static::assertSame(0, $property['minimum']);
+        self::assertSame('integer', $property['type']);
+        self::assertSame(0, $property['minimum']);
     }
 
     /**
@@ -183,8 +183,8 @@ final class ResourceSchemaBuilderTest extends TestCase
         $schemas  = $this->makeBuilder($this->fullResourceMap())->build();
         $property = $schemas['User']['properties']['posts'];
 
-        static::assertArrayHasKey('oneOf', $property);
-        static::assertSame(['$ref' => '#/components/schemas/Post'], $property['oneOf'][0]);
+        self::assertArrayHasKey('oneOf', $property);
+        self::assertSame(['$ref' => '#/components/schemas/Post'], $property['oneOf'][0]);
     }
 
     /**
@@ -198,12 +198,12 @@ final class ResourceSchemaBuilderTest extends TestCase
         $schemas  = $this->makeBuilder($this->fullResourceMap())->build();
         $required = $schemas['User']['required'];
 
-        static::assertContains('id', $required);
-        static::assertContains('name', $required);
-        static::assertContains('full_label', $required);
-        static::assertNotContains('organization', $required);
-        static::assertNotContains('posts', $required);
-        static::assertNotContains('profile_bio', $required);
+        self::assertContains('id', $required);
+        self::assertContains('name', $required);
+        self::assertContains('full_label', $required);
+        self::assertNotContains('organization', $required);
+        self::assertNotContains('posts', $required);
+        self::assertNotContains('profile_bio', $required);
     }
 
     /**
@@ -216,8 +216,8 @@ final class ResourceSchemaBuilderTest extends TestCase
         $schemas = $this->makeBuilder($this->fullResourceMap())->build();
         $org     = $schemas['Organization'];
 
-        static::assertArrayHasKey('required', $org);
-        static::assertNotContains('users', $org['required']);
+        self::assertArrayHasKey('required', $org);
+        self::assertNotContains('users', $org['required']);
     }
 
     /**
@@ -231,8 +231,8 @@ final class ResourceSchemaBuilderTest extends TestCase
         $schemas  = $this->makeBuilder($this->fullResourceMap())->build();
         $property = $schemas['User']['properties']['full_label'];
 
-        static::assertTrue($property['x-undocumented']);
-        static::assertArrayNotHasKey('type', $property);
+        self::assertTrue($property['x-undocumented']);
+        self::assertArrayNotHasKey('type', $property);
     }
 
     /**
@@ -246,7 +246,7 @@ final class ResourceSchemaBuilderTest extends TestCase
         $schemas  = $this->makeBuilder($this->fullResourceMap())->build();
         $property = $schemas['Post']['properties']['user'];
 
-        static::assertSame(['$ref' => '#/components/schemas/User'], $property['oneOf'][0]);
+        self::assertSame(['$ref' => '#/components/schemas/User'], $property['oneOf'][0]);
     }
 
     /**
@@ -258,7 +258,7 @@ final class ResourceSchemaBuilderTest extends TestCase
      */
     private function makeBuilder(array $resourceMap): ResourceSchemaBuilder
     {
-        $catalogue = static::createStub(MetadataCatalogue::class);
+        $catalogue = self::createStub(MetadataCatalogue::class);
         $catalogue->method('getResourceMap')->willReturn($resourceMap);
 
         return new ResourceSchemaBuilder($catalogue, $this->resolver());

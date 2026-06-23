@@ -61,7 +61,7 @@ final class DetectsCapabilitiesTest extends TestCase
 
         $response = $middleware->handle($request, fn (): Response => $expectedResponse);
 
-        static::assertSame($expectedResponse, $response);
+        self::assertSame($expectedResponse, $response);
     }
 
     /**

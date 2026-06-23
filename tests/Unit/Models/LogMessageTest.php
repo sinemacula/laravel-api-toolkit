@@ -33,7 +33,7 @@ final class LogMessageTest extends TestCase
     {
         $model = new LogMessage;
 
-        static::assertSame('logs', $model->getTable());
+        self::assertSame('logs', $model->getTable());
     }
 
     /**
@@ -45,7 +45,7 @@ final class LogMessageTest extends TestCase
     {
         $traits = class_uses_recursive(LogMessage::class);
 
-        static::assertArrayHasKey(HasUuids::class, $traits);
+        self::assertArrayHasKey(HasUuids::class, $traits);
     }
 
     /**
@@ -57,7 +57,7 @@ final class LogMessageTest extends TestCase
     {
         $traits = class_uses_recursive(LogMessage::class);
 
-        static::assertArrayHasKey(MassPrunable::class, $traits);
+        self::assertArrayHasKey(MassPrunable::class, $traits);
     }
 
     /**
@@ -69,7 +69,7 @@ final class LogMessageTest extends TestCase
     {
         $model = new LogMessage;
 
-        static::assertFalse($model->usesTimestamps());
+        self::assertFalse($model->usesTimestamps());
     }
 
     /**
@@ -82,7 +82,7 @@ final class LogMessageTest extends TestCase
     {
         $model = new LogMessage;
 
-        static::assertSame(['level', 'message', 'context', 'created_at'], $model->getFillable());
+        self::assertSame(['level', 'message', 'context', 'created_at'], $model->getFillable());
     }
 
     /**
@@ -96,10 +96,10 @@ final class LogMessageTest extends TestCase
 
         $casts = $model->getCasts();
 
-        static::assertSame('string', $casts['level']);
-        static::assertSame('string', $casts['message']);
-        static::assertSame(AsArrayObject::class, $casts['context']);
-        static::assertSame('immutable_datetime', $casts['created_at']);
+        self::assertSame('string', $casts['level']);
+        self::assertSame('string', $casts['message']);
+        self::assertSame(AsArrayObject::class, $casts['context']);
+        self::assertSame('immutable_datetime', $casts['created_at']);
     }
 
     /**
@@ -117,8 +117,8 @@ final class LogMessageTest extends TestCase
         /** @phpstan-ignore staticMethod.dynamicCall */
         $sql = $query->toRawSql();
 
-        static::assertStringContainsString('created_at', $sql);
-        static::assertStringContainsString('<=', $sql);
+        self::assertStringContainsString('created_at', $sql);
+        self::assertStringContainsString('<=', $sql);
     }
 
     /**
@@ -137,8 +137,8 @@ final class LogMessageTest extends TestCase
             /** @phpstan-ignore staticMethod.dynamicCall */
             $binding = (new LogMessage)->prunable()->getBindings()[0];
 
-            static::assertInstanceOf(\DateTimeInterface::class, $binding);
-            static::assertSame(
+            self::assertInstanceOf(\DateTimeInterface::class, $binding);
+            self::assertSame(
                 Carbon::now()->subDays(30)->format('Y-m-d H:i:s.u'),
                 $binding->format('Y-m-d H:i:s.u'),
             );
@@ -163,8 +163,8 @@ final class LogMessageTest extends TestCase
             /** @phpstan-ignore staticMethod.dynamicCall */
             $binding = (new LogMessage)->prunable()->getBindings()[0];
 
-            static::assertInstanceOf(\DateTimeInterface::class, $binding);
-            static::assertSame(
+            self::assertInstanceOf(\DateTimeInterface::class, $binding);
+            self::assertSame(
                 Carbon::now()->subDays(30)->format('Y-m-d H:i:s.u'),
                 $binding->format('Y-m-d H:i:s.u'),
             );
@@ -190,8 +190,8 @@ final class LogMessageTest extends TestCase
             /** @phpstan-ignore staticMethod.dynamicCall */
             $binding = (new LogMessage)->prunable()->getBindings()[0];
 
-            static::assertInstanceOf(\DateTimeInterface::class, $binding);
-            static::assertSame(
+            self::assertInstanceOf(\DateTimeInterface::class, $binding);
+            self::assertSame(
                 Carbon::now()->format('Y-m-d H:i:s.u'),
                 $binding->format('Y-m-d H:i:s.u'),
             );
@@ -215,7 +215,7 @@ final class LogMessageTest extends TestCase
             'created_at' => now(),
         ]);
 
-        static::assertNotNull($log->id);
+        self::assertNotNull($log->id);
         $this->assertDatabaseHas('logs', [
             'level'   => 'INFO',
             'message' => 'Test message',

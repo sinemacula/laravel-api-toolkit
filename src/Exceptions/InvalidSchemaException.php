@@ -22,8 +22,7 @@ final class InvalidSchemaException extends \RuntimeException
     public function __construct(
 
         /** The validation errors that describe why the schema is invalid. */
-        private array $errors
-
+        private array $errors,
     ) {
 
         parent::__construct($this->buildMessage());

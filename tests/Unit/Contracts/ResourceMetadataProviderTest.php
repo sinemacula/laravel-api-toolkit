@@ -29,7 +29,7 @@ final class ResourceMetadataProviderTest extends TestCase
     {
         $reflection = new \ReflectionClass(ResourceMetadataProvider::class);
 
-        static::assertTrue($reflection->isInterface());
+        self::assertTrue($reflection->isInterface());
     }
 
     /**
@@ -43,23 +43,23 @@ final class ResourceMetadataProviderTest extends TestCase
         $reflection = new \ReflectionClass(ResourceMetadataProvider::class);
         $method     = $reflection->getMethod('getResourceType');
 
-        static::assertTrue($method->isPublic());
-        static::assertFalse($method->isStatic());
+        self::assertTrue($method->isPublic());
+        self::assertFalse($method->isStatic());
 
         $parameters = $method->getParameters();
 
-        static::assertCount(1, $parameters);
-        static::assertSame('resourceClass', $parameters[0]->getName());
+        self::assertCount(1, $parameters);
+        self::assertSame('resourceClass', $parameters[0]->getName());
 
         $paramType = $parameters[0]->getType();
 
-        static::assertInstanceOf(\ReflectionNamedType::class, $paramType);
-        static::assertSame('string', $paramType->getName());
+        self::assertInstanceOf(\ReflectionNamedType::class, $paramType);
+        self::assertSame('string', $paramType->getName());
 
         $returnType = $method->getReturnType();
 
-        static::assertInstanceOf(\ReflectionNamedType::class, $returnType);
-        static::assertSame('string', $returnType->getName());
+        self::assertInstanceOf(\ReflectionNamedType::class, $returnType);
+        self::assertSame('string', $returnType->getName());
     }
 
     /**
@@ -73,23 +73,23 @@ final class ResourceMetadataProviderTest extends TestCase
         $reflection = new \ReflectionClass(ResourceMetadataProvider::class);
         $method     = $reflection->getMethod('resolveFields');
 
-        static::assertTrue($method->isPublic());
-        static::assertFalse($method->isStatic());
+        self::assertTrue($method->isPublic());
+        self::assertFalse($method->isStatic());
 
         $parameters = $method->getParameters();
 
-        static::assertCount(1, $parameters);
-        static::assertSame('resourceClass', $parameters[0]->getName());
+        self::assertCount(1, $parameters);
+        self::assertSame('resourceClass', $parameters[0]->getName());
 
         $paramType = $parameters[0]->getType();
 
-        static::assertInstanceOf(\ReflectionNamedType::class, $paramType);
-        static::assertSame('string', $paramType->getName());
+        self::assertInstanceOf(\ReflectionNamedType::class, $paramType);
+        self::assertSame('string', $paramType->getName());
 
         $returnType = $method->getReturnType();
 
-        static::assertInstanceOf(\ReflectionNamedType::class, $returnType);
-        static::assertSame('array', $returnType->getName());
+        self::assertInstanceOf(\ReflectionNamedType::class, $returnType);
+        self::assertSame('array', $returnType->getName());
     }
 
     /**
@@ -103,23 +103,23 @@ final class ResourceMetadataProviderTest extends TestCase
         $reflection = new \ReflectionClass(ResourceMetadataProvider::class);
         $method     = $reflection->getMethod('getAllFields');
 
-        static::assertTrue($method->isPublic());
-        static::assertFalse($method->isStatic());
+        self::assertTrue($method->isPublic());
+        self::assertFalse($method->isStatic());
 
         $parameters = $method->getParameters();
 
-        static::assertCount(1, $parameters);
-        static::assertSame('resourceClass', $parameters[0]->getName());
+        self::assertCount(1, $parameters);
+        self::assertSame('resourceClass', $parameters[0]->getName());
 
         $paramType = $parameters[0]->getType();
 
-        static::assertInstanceOf(\ReflectionNamedType::class, $paramType);
-        static::assertSame('string', $paramType->getName());
+        self::assertInstanceOf(\ReflectionNamedType::class, $paramType);
+        self::assertSame('string', $paramType->getName());
 
         $returnType = $method->getReturnType();
 
-        static::assertInstanceOf(\ReflectionNamedType::class, $returnType);
-        static::assertSame('array', $returnType->getName());
+        self::assertInstanceOf(\ReflectionNamedType::class, $returnType);
+        self::assertSame('array', $returnType->getName());
     }
 
     /**
@@ -132,29 +132,29 @@ final class ResourceMetadataProviderTest extends TestCase
         $reflection = new \ReflectionClass(ResourceMetadataProvider::class);
         $method     = $reflection->getMethod('eagerLoadMapFor');
 
-        static::assertTrue($method->isPublic());
-        static::assertFalse($method->isStatic());
+        self::assertTrue($method->isPublic());
+        self::assertFalse($method->isStatic());
 
         $parameters = $method->getParameters();
 
-        static::assertCount(2, $parameters);
-        static::assertSame('resourceClass', $parameters[0]->getName());
+        self::assertCount(2, $parameters);
+        self::assertSame('resourceClass', $parameters[0]->getName());
 
         $firstParamType = $parameters[0]->getType();
 
-        static::assertInstanceOf(\ReflectionNamedType::class, $firstParamType);
-        static::assertSame('string', $firstParamType->getName());
-        static::assertSame('fields', $parameters[1]->getName());
+        self::assertInstanceOf(\ReflectionNamedType::class, $firstParamType);
+        self::assertSame('string', $firstParamType->getName());
+        self::assertSame('fields', $parameters[1]->getName());
 
         $secondParamType = $parameters[1]->getType();
 
-        static::assertInstanceOf(\ReflectionNamedType::class, $secondParamType);
-        static::assertSame('array', $secondParamType->getName());
+        self::assertInstanceOf(\ReflectionNamedType::class, $secondParamType);
+        self::assertSame('array', $secondParamType->getName());
 
         $returnType = $method->getReturnType();
 
-        static::assertInstanceOf(\ReflectionNamedType::class, $returnType);
-        static::assertSame('array', $returnType->getName());
+        self::assertInstanceOf(\ReflectionNamedType::class, $returnType);
+        self::assertSame('array', $returnType->getName());
     }
 
     /**
@@ -168,32 +168,32 @@ final class ResourceMetadataProviderTest extends TestCase
         $reflection = new \ReflectionClass(ResourceMetadataProvider::class);
         $method     = $reflection->getMethod('eagerLoadCountsFor');
 
-        static::assertTrue($method->isPublic());
-        static::assertFalse($method->isStatic());
+        self::assertTrue($method->isPublic());
+        self::assertFalse($method->isStatic());
 
         $parameters = $method->getParameters();
 
-        static::assertCount(2, $parameters);
-        static::assertSame('resourceClass', $parameters[0]->getName());
+        self::assertCount(2, $parameters);
+        self::assertSame('resourceClass', $parameters[0]->getName());
 
         $firstParamType = $parameters[0]->getType();
 
-        static::assertInstanceOf(\ReflectionNamedType::class, $firstParamType);
-        static::assertSame('string', $firstParamType->getName());
-        static::assertSame('requestedAliases', $parameters[1]->getName());
+        self::assertInstanceOf(\ReflectionNamedType::class, $firstParamType);
+        self::assertSame('string', $firstParamType->getName());
+        self::assertSame('requestedAliases', $parameters[1]->getName());
 
         $secondParamType = $parameters[1]->getType();
 
-        static::assertInstanceOf(\ReflectionNamedType::class, $secondParamType);
-        static::assertSame('array', $secondParamType->getName());
-        static::assertTrue($parameters[1]->allowsNull());
-        static::assertTrue($parameters[1]->isDefaultValueAvailable());
-        static::assertNull($parameters[1]->getDefaultValue());
+        self::assertInstanceOf(\ReflectionNamedType::class, $secondParamType);
+        self::assertSame('array', $secondParamType->getName());
+        self::assertTrue($parameters[1]->allowsNull());
+        self::assertTrue($parameters[1]->isDefaultValueAvailable());
+        self::assertNull($parameters[1]->getDefaultValue());
 
         $returnType = $method->getReturnType();
 
-        static::assertInstanceOf(\ReflectionNamedType::class, $returnType);
-        static::assertSame('array', $returnType->getName());
+        self::assertInstanceOf(\ReflectionNamedType::class, $returnType);
+        self::assertSame('array', $returnType->getName());
     }
 
     /**
@@ -203,8 +203,8 @@ final class ResourceMetadataProviderTest extends TestCase
      */
     public function testResourceMetadataProviderIsImplementable(): void
     {
-        $mock = static::createStub(ResourceMetadataProvider::class);
+        $mock = self::createStub(ResourceMetadataProvider::class);
 
-        static::assertInstanceOf(ResourceMetadataProvider::class, $mock);
+        self::assertInstanceOf(ResourceMetadataProvider::class, $mock);
     }
 }

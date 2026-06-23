@@ -39,8 +39,8 @@ final class MiddlewareConfigRedisThrottleTest extends TestCase
         $router     = $this->getApplication()->make(Router::class);
         $middleware = $router->getMiddleware();
 
-        static::assertArrayHasKey('throttle', $middleware);
-        static::assertSame(ThrottleRequestsWithRedis::class, $middleware['throttle']);
+        self::assertArrayHasKey('throttle', $middleware);
+        self::assertSame(ThrottleRequestsWithRedis::class, $middleware['throttle']);
     }
 
     /**

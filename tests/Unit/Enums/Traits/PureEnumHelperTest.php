@@ -30,7 +30,7 @@ final class PureEnumHelperTest extends TestCase
     {
         $result = PureState::tryFrom('PENDING');
 
-        static::assertSame(PureState::PENDING, $result);
+        self::assertSame(PureState::PENDING, $result);
     }
 
     /**
@@ -58,7 +58,7 @@ final class PureEnumHelperTest extends TestCase
     {
         $result = PureState::tryFrom($input);
 
-        static::assertSame($expectedCase, $result);
+        self::assertSame($expectedCase, $result);
     }
 
     /**
@@ -85,7 +85,7 @@ final class PureEnumHelperTest extends TestCase
     {
         $result = PureState::tryFrom($input);
 
-        static::assertNull($result);
+        self::assertNull($result);
     }
 
     /**
@@ -112,8 +112,8 @@ final class PureEnumHelperTest extends TestCase
     #[DataProvider('nonStringProvider')]
     public function testTryFromWithNonStringValuesReturnsNull(mixed $input): void
     {
-        static::assertFalse(is_string($input), 'Input must be a non-string type');
-        static::assertNull(PureState::tryFrom($input));
+        self::assertFalse(is_string($input), 'Input must be a non-string type');
+        self::assertNull(PureState::tryFrom($input));
     }
 
     /**
@@ -140,6 +140,6 @@ final class PureEnumHelperTest extends TestCase
     {
         $result = PureState::tryFrom($name);
 
-        static::assertSame($expectedCase, $result);
+        self::assertSame($expectedCase, $result);
     }
 }

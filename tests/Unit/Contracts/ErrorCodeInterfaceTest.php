@@ -29,8 +29,8 @@ final class ErrorCodeInterfaceTest extends TestCase
         $reflection = new \ReflectionClass(ErrorCodeInterface::class);
         $method     = $reflection->getMethod('getCode');
 
-        static::assertTrue($method->isPublic());
-        static::assertFalse($method->isStatic());
+        self::assertTrue($method->isPublic());
+        self::assertFalse($method->isStatic());
     }
 
     /**
@@ -45,8 +45,8 @@ final class ErrorCodeInterfaceTest extends TestCase
 
         $returnType = $method->getReturnType();
 
-        static::assertInstanceOf(\ReflectionNamedType::class, $returnType);
-        static::assertSame('int', $returnType->getName());
+        self::assertInstanceOf(\ReflectionNamedType::class, $returnType);
+        self::assertSame('int', $returnType->getName());
     }
 
     /**
@@ -59,7 +59,7 @@ final class ErrorCodeInterfaceTest extends TestCase
         $reflection = new \ReflectionClass(ErrorCodeInterface::class);
         $methods    = $reflection->getMethods(\ReflectionMethod::IS_PUBLIC);
 
-        static::assertCount(1, $methods);
+        self::assertCount(1, $methods);
     }
 
     /**
@@ -71,6 +71,6 @@ final class ErrorCodeInterfaceTest extends TestCase
     {
         $reflection = new \ReflectionClass(ErrorCodeInterface::class);
 
-        static::assertTrue($reflection->isInterface());
+        self::assertTrue($reflection->isInterface());
     }
 }

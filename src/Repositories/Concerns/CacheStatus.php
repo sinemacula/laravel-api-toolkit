@@ -34,7 +34,6 @@ final readonly class CacheStatus
 
         /** The timestamp of the last cache invalidation, if any. */
         private ?CarbonInterface $lastInvalidatedAt,
-
     ) {}
 
     /**

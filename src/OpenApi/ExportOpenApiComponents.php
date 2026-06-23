@@ -34,7 +34,6 @@ final class ExportOpenApiComponents
 
         /** The catalogue of resource metadata to export. */
         private readonly MetadataCatalogue $catalogue,
-
     ) {}
 
     /**

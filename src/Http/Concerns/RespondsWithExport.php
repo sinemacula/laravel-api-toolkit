@@ -92,7 +92,7 @@ trait RespondsWithExport
     public function exportFromCollection(
         ResourceCollection $collection,
         bool $download = true,
-        ?string $filename = null
+        ?string $filename = null,
     ): HttpResponse {
         $capabilities = RequestCapabilities::fromRequest(request());
 
@@ -114,7 +114,7 @@ trait RespondsWithExport
     public function exportCollectionToCsv(
         ResourceCollection $collection,
         bool $download = true,
-        string $filename = 'export.csv'
+        string $filename = 'export.csv',
     ): HttpResponse {
         $csv = $this->buildExporter('csv')->exportCollection($collection);
 
@@ -132,7 +132,7 @@ trait RespondsWithExport
     public function exportCollectionToXml(
         ResourceCollection $collection,
         bool $download = true,
-        string $filename = 'export.xml'
+        string $filename = 'export.xml',
     ): HttpResponse {
         $xml = $this->buildExporter('xml')->exportCollection($collection);
 
@@ -152,7 +152,7 @@ trait RespondsWithExport
     public function exportFromItem(
         JsonResource $resource,
         bool $download = true,
-        ?string $filename = null
+        ?string $filename = null,
     ): HttpResponse {
         $capabilities = RequestCapabilities::fromRequest(request());
 
@@ -174,7 +174,7 @@ trait RespondsWithExport
     public function exportItemToCsv(
         JsonResource $resource,
         bool $download = true,
-        string $filename = 'export.csv'
+        string $filename = 'export.csv',
     ): HttpResponse {
         $csv = $this->buildExporter('csv')->exportItem($resource);
 
@@ -192,7 +192,7 @@ trait RespondsWithExport
     public function exportItemToXml(
         JsonResource $resource,
         bool $download = true,
-        string $filename = 'export.xml'
+        string $filename = 'export.xml',
     ): HttpResponse {
         $xml = $this->buildExporter('xml')->exportItem($resource);
 
@@ -212,7 +212,7 @@ trait RespondsWithExport
         string $data,
         string $contentType,
         bool $download,
-        string $filename
+        string $filename,
     ): HttpResponse {
         $response = Response::make($data)
             ->header(HttpHeader::CONTENT_TYPE->getName(), $contentType)

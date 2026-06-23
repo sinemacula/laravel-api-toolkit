@@ -64,9 +64,9 @@ final class CacheableTest extends TestCase
     {
         $result = $this->repository->get(); // @phpstan-ignore staticMethod.dynamicCall
 
-        static::assertInstanceOf(Collection::class, $result);
-        static::assertCount(2, $result);
-        static::assertTrue($this->repository->getCacheStatus()->isPopulated());
+        self::assertInstanceOf(Collection::class, $result);
+        self::assertCount(2, $result);
+        self::assertTrue($this->repository->getCacheStatus()->isPopulated());
     }
 
     /**
@@ -83,8 +83,8 @@ final class CacheableTest extends TestCase
 
         $result = $this->repository->get(); // @phpstan-ignore staticMethod.dynamicCall
 
-        static::assertInstanceOf(Collection::class, $result);
-        static::assertCount(2, $result);
+        self::assertInstanceOf(Collection::class, $result);
+        self::assertCount(2, $result);
     }
 
     /**
@@ -96,11 +96,11 @@ final class CacheableTest extends TestCase
     {
         $this->repository->get(); // @phpstan-ignore staticMethod.dynamicCall
 
-        static::assertTrue($this->repository->getCacheStatus()->isPopulated());
+        self::assertTrue($this->repository->getCacheStatus()->isPopulated());
 
         $this->repository->scopeById(1)->update(['name' => 'updated']); // @phpstan-ignore staticMethod.dynamicCall
 
-        static::assertFalse($this->repository->getCacheStatus()->isPopulated());
+        self::assertFalse($this->repository->getCacheStatus()->isPopulated());
     }
 
     /**
@@ -112,12 +112,12 @@ final class CacheableTest extends TestCase
     {
         $this->repository->get(); // @phpstan-ignore staticMethod.dynamicCall
 
-        static::assertTrue($this->repository->getCacheStatus()->isPopulated());
+        self::assertTrue($this->repository->getCacheStatus()->isPopulated());
 
         $result = $this->repository->withoutCache()->get(); // @phpstan-ignore staticMethod.dynamicCall
 
-        static::assertInstanceOf(Collection::class, $result);
-        static::assertTrue($this->repository->getCacheStatus()->isPopulated());
+        self::assertInstanceOf(Collection::class, $result);
+        self::assertTrue($this->repository->getCacheStatus()->isPopulated());
     }
 
     /**
@@ -136,7 +136,7 @@ final class CacheableTest extends TestCase
 
         $result = $this->repository->get(); // @phpstan-ignore staticMethod.dynamicCall
 
-        static::assertCount(2, $result);
+        self::assertCount(2, $result);
     }
 
     /**
@@ -148,11 +148,11 @@ final class CacheableTest extends TestCase
     {
         $this->repository->get(); // @phpstan-ignore staticMethod.dynamicCall
 
-        static::assertTrue($this->repository->getCacheStatus()->isPopulated());
+        self::assertTrue($this->repository->getCacheStatus()->isPopulated());
 
         $this->repository->flushCache();
 
-        static::assertFalse($this->repository->getCacheStatus()->isPopulated());
+        self::assertFalse($this->repository->getCacheStatus()->isPopulated());
     }
 
     /**
@@ -162,11 +162,11 @@ final class CacheableTest extends TestCase
      */
     public function testGetCacheStatusReturnsAccurateState(): void
     {
-        static::assertFalse($this->repository->getCacheStatus()->isPopulated());
+        self::assertFalse($this->repository->getCacheStatus()->isPopulated());
 
         $this->repository->get(); // @phpstan-ignore staticMethod.dynamicCall
 
-        static::assertTrue($this->repository->getCacheStatus()->isPopulated());
+        self::assertTrue($this->repository->getCacheStatus()->isPopulated());
     }
 
     /**
@@ -182,11 +182,11 @@ final class CacheableTest extends TestCase
 
         $repository->get(); // @phpstan-ignore staticMethod.dynamicCall
 
-        static::assertTrue($repository->getCacheStatus()->isPopulated());
+        self::assertTrue($repository->getCacheStatus()->isPopulated());
 
         $this->travel(6)->seconds();
 
-        static::assertFalse($repository->getCacheStatus()->isPopulated());
+        self::assertFalse($repository->getCacheStatus()->isPopulated());
     }
 
     /**
@@ -206,12 +206,12 @@ final class CacheableTest extends TestCase
 
         $repository->get(); // @phpstan-ignore staticMethod.dynamicCall
 
-        static::assertTrue($repository->getCacheStatus()->isPopulated());
+        self::assertTrue($repository->getCacheStatus()->isPopulated());
 
         /** @var \Illuminate\Cache\CacheManager $cacheManager */
         $cacheManager = app('cache');
 
-        static::assertTrue($cacheManager->store('custom-test')->has('api-toolkit:repository-cache-meta:tags'));
+        self::assertTrue($cacheManager->store('custom-test')->has('api-toolkit:repository-cache-meta:tags'));
     }
 
     /**
@@ -231,7 +231,7 @@ final class CacheableTest extends TestCase
         /** @var \Illuminate\Cache\CacheManager $cacheManager */
         $cacheManager = app('cache');
 
-        static::assertTrue($cacheManager->store('array')->has('api-toolkit:repository-cache-meta:custom-prefix'));
+        self::assertTrue($cacheManager->store('array')->has('api-toolkit:repository-cache-meta:custom-prefix'));
     }
 
     /**
@@ -248,7 +248,7 @@ final class CacheableTest extends TestCase
 
         $result = $this->repository->withoutCache()->get(); // @phpstan-ignore staticMethod.dynamicCall
 
-        static::assertCount(3, $result);
+        self::assertCount(3, $result);
     }
 
     /**
@@ -263,7 +263,7 @@ final class CacheableTest extends TestCase
 
         $attributeSetter = $reflection->getProperty('attributeSetter')->getValue($this->repository);
 
-        static::assertInstanceOf(AttributeSetter::class, $attributeSetter);
+        self::assertInstanceOf(AttributeSetter::class, $attributeSetter);
     }
 
     /**
@@ -277,11 +277,11 @@ final class CacheableTest extends TestCase
 
         $this->travel(3599)->seconds();
 
-        static::assertTrue($this->repository->getCacheStatus()->isPopulated());
+        self::assertTrue($this->repository->getCacheStatus()->isPopulated());
 
         $this->travel(1)->seconds();
 
-        static::assertFalse($this->repository->getCacheStatus()->isPopulated());
+        self::assertFalse($this->repository->getCacheStatus()->isPopulated());
     }
 
     /**
@@ -298,7 +298,7 @@ final class CacheableTest extends TestCase
         /** @var \Illuminate\Cache\CacheManager $cacheManager */
         $cacheManager = app('cache');
 
-        static::assertTrue($cacheManager->store('array')->has($cacheKey));
+        self::assertTrue($cacheManager->store('array')->has($cacheKey));
     }
 
     /**
@@ -312,8 +312,8 @@ final class CacheableTest extends TestCase
         $one = $this->repository->scopeById(1)->first(); // @phpstan-ignore staticMethod.dynamicCall
         $two = $this->repository->scopeById(2)->first(); // @phpstan-ignore staticMethod.dynamicCall
 
-        static::assertSame('php', $one?->name); // @phpstan-ignore property.notFound
-        static::assertSame('laravel', $two?->name); // @phpstan-ignore property.notFound
+        self::assertSame('php', $one?->name); // @phpstan-ignore property.notFound
+        self::assertSame('laravel', $two?->name); // @phpstan-ignore property.notFound
     }
 
     /**
@@ -328,7 +328,7 @@ final class CacheableTest extends TestCase
 
         $repeat = $this->repository->scopeById(1)->first(); // @phpstan-ignore staticMethod.dynamicCall
 
-        static::assertSame('php', $repeat?->name); // @phpstan-ignore property.notFound
+        self::assertSame('php', $repeat?->name); // @phpstan-ignore property.notFound
     }
 
     /**
@@ -343,8 +343,8 @@ final class CacheableTest extends TestCase
 
         $single = $this->repository->scopeById(1)->first(); // @phpstan-ignore staticMethod.dynamicCall
 
-        static::assertInstanceOf(Tag::class, $single);
-        static::assertSame('php', $single->name); // @phpstan-ignore property.notFound
+        self::assertInstanceOf(Tag::class, $single);
+        self::assertSame('php', $single->name); // @phpstan-ignore property.notFound
     }
 
     /**
@@ -360,10 +360,10 @@ final class CacheableTest extends TestCase
         $first  = $this->repository->find(1); // @phpstan-ignore staticMethod.dynamicCall
         $second = $this->repository->find(2); // @phpstan-ignore staticMethod.dynamicCall
 
-        static::assertInstanceOf(Tag::class, $first);
-        static::assertInstanceOf(Tag::class, $second);
-        static::assertSame('php', $first->name);      // @phpstan-ignore property.notFound
-        static::assertSame('laravel', $second->name); // @phpstan-ignore property.notFound
+        self::assertInstanceOf(Tag::class, $first);
+        self::assertInstanceOf(Tag::class, $second);
+        self::assertSame('php', $first->name);      // @phpstan-ignore property.notFound
+        self::assertSame('laravel', $second->name); // @phpstan-ignore property.notFound
     }
 
     /**
@@ -381,8 +381,8 @@ final class CacheableTest extends TestCase
         $cached = $this->repository->value('name');                 // @phpstan-ignore staticMethod.dynamicCall
         $fresh  = $this->repository->withoutCache()->value('name'); // @phpstan-ignore staticMethod.dynamicCall
 
-        static::assertIsString($cached);     // A scalar column value, never the cached get() collection
-        static::assertSame($fresh, $cached); // And the same value the database returns uncached
+        self::assertIsString($cached);     // A scalar column value, never the cached get() collection
+        self::assertSame($fresh, $cached); // And the same value the database returns uncached
     }
 
     /**
@@ -394,12 +394,12 @@ final class CacheableTest extends TestCase
     {
         $this->repository->get(); // @phpstan-ignore staticMethod.dynamicCall
 
-        static::assertTrue($this->repository->getCacheStatus()->isPopulated());
+        self::assertTrue($this->repository->getCacheStatus()->isPopulated());
 
         $created = $this->repository->create(['name' => 'vue']); // @phpstan-ignore staticMethod.dynamicCall
 
-        static::assertInstanceOf(Tag::class, $created);
-        static::assertFalse($this->repository->getCacheStatus()->isPopulated());
+        self::assertInstanceOf(Tag::class, $created);
+        self::assertFalse($this->repository->getCacheStatus()->isPopulated());
     }
 
     /**
@@ -411,11 +411,11 @@ final class CacheableTest extends TestCase
     {
         $this->repository->get(); // @phpstan-ignore staticMethod.dynamicCall
 
-        static::assertTrue($this->repository->getCacheStatus()->isPopulated());
+        self::assertTrue($this->repository->getCacheStatus()->isPopulated());
 
         $this->repository->scopeById(1)->delete(); // @phpstan-ignore staticMethod.dynamicCall
 
-        static::assertFalse($this->repository->getCacheStatus()->isPopulated());
+        self::assertFalse($this->repository->getCacheStatus()->isPopulated());
     }
 
     /**
@@ -431,8 +431,8 @@ final class CacheableTest extends TestCase
 
         $result = $this->repository->get(); // @phpstan-ignore staticMethod.dynamicCall
 
-        static::assertCount(3, $result);
-        static::assertTrue($this->repository->getCacheStatus()->isPopulated());
+        self::assertCount(3, $result);
+        self::assertTrue($this->repository->getCacheStatus()->isPopulated());
     }
 
     /**
@@ -445,7 +445,7 @@ final class CacheableTest extends TestCase
     {
         $missing = $this->repository->scopeById(999)->first(); // @phpstan-ignore staticMethod.dynamicCall
 
-        static::assertNull($missing);
+        self::assertNull($missing);
 
         $this->repository->create(['name' => 'svelte']); // @phpstan-ignore staticMethod.dynamicCall
 
@@ -453,7 +453,7 @@ final class CacheableTest extends TestCase
 
         $found = $this->repository->scopeById($created?->id)->first(); // @phpstan-ignore staticMethod.dynamicCall, property.notFound
 
-        static::assertInstanceOf(Tag::class, $found);
+        self::assertInstanceOf(Tag::class, $found);
     }
 
     /**
@@ -464,7 +464,7 @@ final class CacheableTest extends TestCase
      */
     public function testMissingReadIsServedFromNegativeCacheWithoutRequery(): void
     {
-        static::assertNull($this->repository->find(999)); // @phpstan-ignore staticMethod.dynamicCall
+        self::assertNull($this->repository->find(999)); // @phpstan-ignore staticMethod.dynamicCall
 
         DB::enableQueryLog();
 
@@ -472,8 +472,8 @@ final class CacheableTest extends TestCase
 
         DB::disableQueryLog();
 
-        static::assertNull($result);
-        static::assertCount(0, DB::getQueryLog());
+        self::assertNull($result);
+        self::assertCount(0, DB::getQueryLog());
     }
 
     /**
@@ -486,10 +486,10 @@ final class CacheableTest extends TestCase
     {
         $rowCount = new \ReflectionMethod($this->repository, 'rowCount');
 
-        static::assertSame(2, $rowCount->invoke($this->repository, new Collection(['a', 'b'])));
-        static::assertSame(1, $rowCount->invoke($this->repository, new Tag));
-        static::assertSame(0, $rowCount->invoke($this->repository, 'not-a-model'));
-        static::assertSame(0, $rowCount->invoke($this->repository, null));
+        self::assertSame(2, $rowCount->invoke($this->repository, new Collection(['a', 'b'])));
+        self::assertSame(1, $rowCount->invoke($this->repository, new Tag));
+        self::assertSame(0, $rowCount->invoke($this->repository, 'not-a-model'));
+        self::assertSame(0, $rowCount->invoke($this->repository, null));
     }
 
     /**
@@ -503,10 +503,10 @@ final class CacheableTest extends TestCase
     {
         $referenceId = new \ReflectionMethod($this->repository, 'referenceId');
 
-        static::assertSame(5, $referenceId->invoke($this->repository, [5, 99]));
-        static::assertSame('php', $referenceId->invoke($this->repository, ['php']));
-        static::assertSame(0, $referenceId->invoke($this->repository, []));
-        static::assertSame('1.5', $referenceId->invoke($this->repository, [1.5]));
+        self::assertSame(5, $referenceId->invoke($this->repository, [5, 99]));
+        self::assertSame('php', $referenceId->invoke($this->repository, ['php']));
+        self::assertSame(0, $referenceId->invoke($this->repository, []));
+        self::assertSame('1.5', $referenceId->invoke($this->repository, [1.5]));
     }
 
     /**
@@ -526,18 +526,18 @@ final class CacheableTest extends TestCase
         $resolveNegativeTtl  = new \ReflectionMethod($repository, 'resolveNegativeTtl');
         $resolveStoreOptions = new \ReflectionMethod($repository, 'resolveStoreOptions');
 
-        static::assertSame(120, $resolveTtl->invoke($repository));
-        static::assertSame(240, $resolveReferenceTtl->invoke($repository));
-        static::assertSame(30, $resolveNegativeTtl->invoke($repository));
+        self::assertSame(120, $resolveTtl->invoke($repository));
+        self::assertSame(240, $resolveReferenceTtl->invoke($repository));
+        self::assertSame(30, $resolveNegativeTtl->invoke($repository));
 
         $options = $resolveStoreOptions->invoke($repository);
 
-        static::assertInstanceOf(CacheStoreOptions::class, $options);
-        static::assertSame(120, $options->ttl);
-        static::assertSame(30, $options->negativeTtl);
-        static::assertFalse($options->registryEnabled);
-        static::assertSame(50, (new \ReflectionProperty(CacheSizeGuard::class, 'maxRows'))->getValue($options->sizeGuard));
-        static::assertSame(2048, (new \ReflectionProperty(CacheSizeGuard::class, 'maxBytes'))->getValue($options->sizeGuard));
+        self::assertInstanceOf(CacheStoreOptions::class, $options);
+        self::assertSame(120, $options->ttl);
+        self::assertSame(30, $options->negativeTtl);
+        self::assertFalse($options->registryEnabled);
+        self::assertSame(50, (new \ReflectionProperty(CacheSizeGuard::class, 'maxRows'))->getValue($options->sizeGuard));
+        self::assertSame(2048, (new \ReflectionProperty(CacheSizeGuard::class, 'maxBytes'))->getValue($options->sizeGuard));
     }
 
     /**
@@ -555,8 +555,8 @@ final class CacheableTest extends TestCase
 
         $repository = $this->app->make(CacheableTagRepository::class);
 
-        static::assertSame(3600, (new \ReflectionMethod($repository, 'resolveTtl'))->invoke($repository));
-        static::assertSame(3600, (new \ReflectionMethod($repository, 'resolveReferenceTtl'))->invoke($repository));
+        self::assertSame(3600, (new \ReflectionMethod($repository, 'resolveTtl'))->invoke($repository));
+        self::assertSame(3600, (new \ReflectionMethod($repository, 'resolveReferenceTtl'))->invoke($repository));
     }
 
     /**
@@ -574,10 +574,10 @@ final class CacheableTest extends TestCase
 
         Config::set('api-toolkit.repositories.cache.negative_ttl', '25');
 
-        static::assertSame(25, $resolve->invoke($repository));
+        self::assertSame(25, $resolve->invoke($repository));
 
         Config::set('api-toolkit.repositories.cache.negative_ttl', 'not-numeric');
 
-        static::assertSame(10, $resolve->invoke($repository));
+        self::assertSame(10, $resolve->invoke($repository));
     }
 }

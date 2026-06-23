@@ -4,26 +4,26 @@ declare(strict_types = 1);
 
 namespace Tests\Unit\Repositories\Criteria;
 
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Config;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use SineMacula\ApiToolkit\Cache\MetadataCacheWriter;
 use SineMacula\ApiToolkit\Contracts\ResourceMetadataProvider;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
+use SineMacula\ApiToolkit\Http\Resources\ApiResource;
 use SineMacula\ApiToolkit\Repositories\Criteria\ApiCriteria;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\EagerLoadApplier;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterApplier;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\LimitApplier;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\OrderApplier;
+use SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry;
 use SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
-use Illuminate\Http\Request;
-use Illuminate\Database\Eloquent\Builder;
-use SineMacula\ApiToolkit\Http\Resources\ApiResource;
-use SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry;
 
 /**
  * Tests for the ApiCriteria class.
@@ -91,9 +91,9 @@ final class ApiCriteriaTest extends TestCase
         $model = new User;
         $query = $this->criteria->apply($model);
 
-        static::assertEmpty($query->getQuery()->wheres);
-        static::assertEmpty($query->getQuery()->orders ?? []);
-        static::assertNull($query->getQuery()->limit);
+        self::assertEmpty($query->getQuery()->wheres);
+        self::assertEmpty($query->getQuery()->orders ?? []);
+        self::assertNull($query->getQuery()->limit);
     }
 
     /**
@@ -112,9 +112,9 @@ final class ApiCriteriaTest extends TestCase
 
         $wheres = $query->getQuery()->wheres;
 
-        static::assertNotEmpty($wheres);
-        static::assertSame('name', $wheres[0]['column']);
-        static::assertSame('Alice', $wheres[0]['value']);
+        self::assertNotEmpty($wheres);
+        self::assertSame('name', $wheres[0]['column']);
+        self::assertSame('Alice', $wheres[0]['value']);
     }
 
     /**
@@ -146,7 +146,7 @@ final class ApiCriteriaTest extends TestCase
         string $operator,
         string $expectedSqlOperator,
         mixed $value,
-        string $expectedType
+        string $expectedType,
     ): void {
         $filter = ['name' => [$operator => $value]];
 
@@ -159,8 +159,8 @@ final class ApiCriteriaTest extends TestCase
 
         $wheres = $query->getQuery()->wheres;
 
-        static::assertNotEmpty($wheres);
-        static::assertSame($expectedType, $wheres[0]['type']);
+        self::assertNotEmpty($wheres);
+        self::assertSame($expectedType, $wheres[0]['type']);
     }
 
     /**
@@ -179,8 +179,8 @@ final class ApiCriteriaTest extends TestCase
 
         $wheres = $query->getQuery()->wheres;
 
-        static::assertNotEmpty($wheres);
-        static::assertSame('%Ali%', $wheres[0]['value']);
+        self::assertNotEmpty($wheres);
+        self::assertSame('%Ali%', $wheres[0]['value']);
     }
 
     /**
@@ -199,9 +199,9 @@ final class ApiCriteriaTest extends TestCase
 
         $wheres = $query->getQuery()->wheres;
 
-        static::assertNotEmpty($wheres);
-        static::assertSame('In', $wheres[0]['type']);
-        static::assertSame(['Alice', 'Bob'], $wheres[0]['values']);
+        self::assertNotEmpty($wheres);
+        self::assertSame('In', $wheres[0]['type']);
+        self::assertSame(['Alice', 'Bob'], $wheres[0]['values']);
     }
 
     /**
@@ -220,8 +220,8 @@ final class ApiCriteriaTest extends TestCase
 
         $wheres = $query->getQuery()->wheres;
 
-        static::assertNotEmpty($wheres);
-        static::assertSame('between', $wheres[0]['type']);
+        self::assertNotEmpty($wheres);
+        self::assertSame('between', $wheres[0]['type']);
     }
 
     /**
@@ -240,9 +240,9 @@ final class ApiCriteriaTest extends TestCase
 
         $wheres = $query->getQuery()->wheres;
 
-        static::assertNotEmpty($wheres);
-        static::assertSame('Null', $wheres[0]['type']);
-        static::assertSame('organization_id', $wheres[0]['column']);
+        self::assertNotEmpty($wheres);
+        self::assertSame('Null', $wheres[0]['type']);
+        self::assertSame('organization_id', $wheres[0]['column']);
     }
 
     /**
@@ -261,8 +261,8 @@ final class ApiCriteriaTest extends TestCase
 
         $wheres = $query->getQuery()->wheres;
 
-        static::assertNotEmpty($wheres);
-        static::assertSame('NotNull', $wheres[0]['type']);
+        self::assertNotEmpty($wheres);
+        self::assertSame('NotNull', $wheres[0]['type']);
     }
 
     /**
@@ -281,8 +281,8 @@ final class ApiCriteriaTest extends TestCase
 
         $wheres = $query->getQuery()->wheres;
 
-        static::assertNotEmpty($wheres);
-        static::assertSame('Exists', $wheres[0]['type']);
+        self::assertNotEmpty($wheres);
+        self::assertSame('Exists', $wheres[0]['type']);
     }
 
     /**
@@ -301,8 +301,8 @@ final class ApiCriteriaTest extends TestCase
 
         $wheres = $query->getQuery()->wheres;
 
-        static::assertNotEmpty($wheres);
-        static::assertSame('NotExists', $wheres[0]['type']);
+        self::assertNotEmpty($wheres);
+        self::assertSame('NotExists', $wheres[0]['type']);
     }
 
     /**
@@ -326,7 +326,7 @@ final class ApiCriteriaTest extends TestCase
 
         $wheres = $query->getQuery()->wheres;
 
-        static::assertNotEmpty($wheres);
+        self::assertNotEmpty($wheres);
     }
 
     /**
@@ -350,7 +350,7 @@ final class ApiCriteriaTest extends TestCase
 
         $wheres = $query->getQuery()->wheres;
 
-        static::assertNotEmpty($wheres);
+        self::assertNotEmpty($wheres);
     }
 
     /**
@@ -374,8 +374,8 @@ final class ApiCriteriaTest extends TestCase
 
         $wheres = $query->getQuery()->wheres;
 
-        static::assertNotEmpty($wheres);
-        static::assertSame('Exists', $wheres[0]['type']);
+        self::assertNotEmpty($wheres);
+        self::assertSame('Exists', $wheres[0]['type']);
     }
 
     /**
@@ -394,9 +394,9 @@ final class ApiCriteriaTest extends TestCase
 
         $orders = $query->getQuery()->orders ?? [];
 
-        static::assertNotEmpty($orders);
-        static::assertSame('name', $orders[0]['column']);
-        static::assertSame('asc', $orders[0]['direction']);
+        self::assertNotEmpty($orders);
+        self::assertSame('name', $orders[0]['column']);
+        self::assertSame('asc', $orders[0]['direction']);
     }
 
     /**
@@ -415,8 +415,8 @@ final class ApiCriteriaTest extends TestCase
 
         $orders = $query->getQuery()->orders ?? [];
 
-        static::assertNotEmpty($orders);
-        static::assertSame('RANDOM()', $orders[0]['sql'] ?? $orders[0]['column'] ?? '');
+        self::assertNotEmpty($orders);
+        self::assertSame('RANDOM()', $orders[0]['sql'] ?? $orders[0]['column'] ?? '');
     }
 
     /**
@@ -433,7 +433,7 @@ final class ApiCriteriaTest extends TestCase
         $model = new User;
         $query = $this->criteria->apply($model);
 
-        static::assertSame(5, $query->getQuery()->limit);
+        self::assertSame(5, $query->getQuery()->limit);
     }
 
     /**
@@ -456,7 +456,7 @@ final class ApiCriteriaTest extends TestCase
 
         $eagerLoads = $query->getEagerLoads();
 
-        static::assertNotEmpty($eagerLoads);
+        self::assertNotEmpty($eagerLoads);
     }
 
     /**
@@ -482,7 +482,7 @@ final class ApiCriteriaTest extends TestCase
 
         $wheres = $query->getQuery()->wheres;
 
-        static::assertEmpty($wheres);
+        self::assertEmpty($wheres);
     }
 
     /**
@@ -501,7 +501,7 @@ final class ApiCriteriaTest extends TestCase
 
         $wheres = $query->getQuery()->wheres;
 
-        static::assertEmpty($wheres);
+        self::assertEmpty($wheres);
     }
 
     /**
@@ -520,7 +520,7 @@ final class ApiCriteriaTest extends TestCase
 
         $orders = $query->getQuery()->orders ?? [];
 
-        static::assertEmpty($orders);
+        self::assertEmpty($orders);
     }
 
     /**
@@ -541,8 +541,8 @@ final class ApiCriteriaTest extends TestCase
         $model = new User;
         $query = $this->criteria->apply($model);
 
-        static::assertNotNull($query->getQuery());
-        static::assertInstanceOf(Builder::class, $query);
+        self::assertNotNull($query->getQuery());
+        self::assertInstanceOf(Builder::class, $query);
     }
 
     /**
@@ -559,8 +559,8 @@ final class ApiCriteriaTest extends TestCase
         $model = new User;
         $query = $this->criteria->apply($model);
 
-        static::assertInstanceOf(Builder::class, $query);
-        static::assertIsArray($query->getQuery()->wheres);
+        self::assertInstanceOf(Builder::class, $query);
+        self::assertIsArray($query->getQuery()->wheres);
     }
 
     /**
@@ -584,7 +584,7 @@ final class ApiCriteriaTest extends TestCase
         $model = new User;
         $query = $this->criteria->apply($model);
 
-        static::assertNotEmpty($query->getQuery()->wheres);
+        self::assertNotEmpty($query->getQuery()->wheres);
     }
 
     /**
@@ -607,7 +607,7 @@ final class ApiCriteriaTest extends TestCase
         $model = new User;
         $query = $this->criteria->apply($model);
 
-        static::assertNotEmpty($query->getQuery()->wheres);
+        self::assertNotEmpty($query->getQuery()->wheres);
     }
 
     /**
@@ -631,8 +631,8 @@ final class ApiCriteriaTest extends TestCase
 
         $wheres = $query->getQuery()->wheres;
 
-        static::assertNotEmpty($wheres);
-        static::assertSame('Exists', $wheres[0]['type']);
+        self::assertNotEmpty($wheres);
+        self::assertSame('Exists', $wheres[0]['type']);
     }
 
     /**
@@ -656,8 +656,8 @@ final class ApiCriteriaTest extends TestCase
 
         $wheres = $query->getQuery()->wheres;
 
-        static::assertNotEmpty($wheres);
-        static::assertSame('NotExists', $wheres[0]['type']);
+        self::assertNotEmpty($wheres);
+        self::assertSame('NotExists', $wheres[0]['type']);
     }
 
     /**
@@ -678,7 +678,7 @@ final class ApiCriteriaTest extends TestCase
         $model = new User;
         $query = $this->criteria->apply($model);
 
-        static::assertNotEmpty($query->getQuery()->wheres);
+        self::assertNotEmpty($query->getQuery()->wheres);
     }
 
     /**
@@ -695,7 +695,7 @@ final class ApiCriteriaTest extends TestCase
         $model = new User;
         $query = $this->criteria->apply($model);
 
-        static::assertEmpty($query->getQuery()->wheres);
+        self::assertEmpty($query->getQuery()->wheres);
     }
 
     /**
@@ -712,7 +712,7 @@ final class ApiCriteriaTest extends TestCase
         $model = new User;
         $query = $this->criteria->apply($model);
 
-        static::assertNotEmpty($query->getQuery()->wheres);
+        self::assertNotEmpty($query->getQuery()->wheres);
     }
 
     /**
@@ -730,7 +730,7 @@ final class ApiCriteriaTest extends TestCase
         $model = new User;
         $query = $this->criteria->apply($model);
 
-        static::assertNotEmpty($query->getQuery()->wheres);
+        self::assertNotEmpty($query->getQuery()->wheres);
     }
 
     /**
@@ -747,7 +747,7 @@ final class ApiCriteriaTest extends TestCase
         $model = new User;
         $query = $this->criteria->apply($model);
 
-        static::assertNotEmpty($query->getQuery()->wheres);
+        self::assertNotEmpty($query->getQuery()->wheres);
     }
 
     /**
@@ -771,7 +771,7 @@ final class ApiCriteriaTest extends TestCase
         $model = new User;
         $query = $criteria->apply($model);
 
-        static::assertEmpty($query->getQuery()->wheres);
+        self::assertEmpty($query->getQuery()->wheres);
     }
 
     /**
@@ -792,7 +792,7 @@ final class ApiCriteriaTest extends TestCase
         $model = new User;
         $query = $this->criteria->apply($model);
 
-        static::assertNotEmpty($query->getQuery()->wheres);
+        self::assertNotEmpty($query->getQuery()->wheres);
     }
 
     /**
@@ -810,7 +810,7 @@ final class ApiCriteriaTest extends TestCase
         $model = new User;
         $query = $this->criteria->apply($model);
 
-        static::assertIsArray($query->getQuery()->wheres);
+        self::assertIsArray($query->getQuery()->wheres);
     }
 
     /**
@@ -853,7 +853,7 @@ final class ApiCriteriaTest extends TestCase
         $model = new User;
         $query = $criteria->apply($model);
 
-        static::assertEmpty($query->getEagerLoads());
+        self::assertEmpty($query->getEagerLoads());
     }
 
     /**
@@ -868,7 +868,7 @@ final class ApiCriteriaTest extends TestCase
 
         $provider = $this->createMock(ResourceMetadataProvider::class);
 
-        $provider->expects(static::once())
+        $provider->expects(self::once())
             ->method('getResourceType')
             ->with(UserResource::class)
             ->willReturn('users');
@@ -910,7 +910,7 @@ final class ApiCriteriaTest extends TestCase
         $provider->method('getResourceType')
             ->willReturn('users');
 
-        $provider->expects(static::once())
+        $provider->expects(self::once())
             ->method('resolveFields')
             ->with(UserResource::class)
             ->willReturn(['id', 'name']);
@@ -952,7 +952,7 @@ final class ApiCriteriaTest extends TestCase
         $provider->method('resolveFields')
             ->willReturn(['id', 'name', 'organization']);
 
-        $provider->expects(static::once())
+        $provider->expects(self::once())
             ->method('eagerLoadMapFor')
             ->with(UserResource::class, ['id', 'name', 'organization'])
             ->willReturn(['organization' => fn () => null]);
@@ -994,7 +994,7 @@ final class ApiCriteriaTest extends TestCase
         $provider->method('eagerLoadMapFor')
             ->willReturn([]);
 
-        $provider->expects(static::once())
+        $provider->expects(self::once())
             ->method('eagerLoadCountsFor')
             ->with(UserResource::class, [])
             ->willReturn([]);
@@ -1020,7 +1020,7 @@ final class ApiCriteriaTest extends TestCase
      */
     public function testGetResourceTypeReturnsNullForNonApiResourceClass(): void
     {
-        $metadataProvider = static::createStub(ResourceMetadataProvider::class);
+        $metadataProvider = self::createStub(ResourceMetadataProvider::class);
         $metadataProvider->method('getResourceType')->willReturn('users');
 
         assert($this->app !== null);
@@ -1028,7 +1028,7 @@ final class ApiCriteriaTest extends TestCase
         $criteria = new ApiCriteria(
             new Request,
             $metadataProvider,
-            static::createStub(SchemaIntrospectionProvider::class),
+            self::createStub(SchemaIntrospectionProvider::class),
             new OperatorRegistry,
             $this->app->make(MetadataCacheWriter::class),
         );
@@ -1037,7 +1037,7 @@ final class ApiCriteriaTest extends TestCase
 
         $reflection = new \ReflectionMethod($criteria, 'getResourceType');
 
-        static::assertNull($reflection->invoke($criteria, new User));
+        self::assertNull($reflection->invoke($criteria, new User));
     }
 
     /**
