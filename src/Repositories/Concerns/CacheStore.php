@@ -100,9 +100,11 @@ final class CacheStore implements CacheInvalidator
             return;
         }
 
-        if ($registryEnabled) {
-            $store->increment(self::versionKeyFor($table));
+        if (!$registryEnabled) {
+            return;
         }
+
+        $store->increment(self::versionKeyFor($table));
     }
 
     /**

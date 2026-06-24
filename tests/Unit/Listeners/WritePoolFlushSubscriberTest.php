@@ -480,8 +480,8 @@ final class WritePoolFlushSubscriberTest extends TestCase
 
         $subscriber->handleFlush();
 
-        static::assertTrue($pool->isEmpty());
-        static::assertSame([['users']], $invalidator->calls);
+        self::assertTrue($pool->isEmpty());
+        self::assertSame([['users']], $invalidator->calls);
     }
 
     /**
@@ -505,7 +505,7 @@ final class WritePoolFlushSubscriberTest extends TestCase
 
         $subscriber->handleFlush();
 
-        static::assertTrue($pool->isEmpty());
+        self::assertTrue($pool->isEmpty());
     }
 
     /**
@@ -550,7 +550,7 @@ final class WritePoolFlushSubscriberTest extends TestCase
         $subscriber->handleFlush();
 
         Event::assertDispatched(WritePoolFlushFailed::class);
-        static::assertSame([['users', 'nonexistent_table']], $invalidator->calls);
+        self::assertSame([['users', 'nonexistent_table']], $invalidator->calls);
     }
 
     /**

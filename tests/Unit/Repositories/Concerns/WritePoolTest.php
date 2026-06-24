@@ -886,7 +886,7 @@ final class WritePoolTest extends TestCase
 
         $flushResult = $this->pool->flush();
 
-        static::assertSame(['test_records', 'test_other'], $flushResult->flushedTables());
+        self::assertSame(['test_records', 'test_other'], $flushResult->flushedTables());
     }
 
     /**
@@ -898,7 +898,7 @@ final class WritePoolTest extends TestCase
     {
         $flushResult = $this->pool->flush();
 
-        static::assertSame([], $flushResult->flushedTables());
+        self::assertSame([], $flushResult->flushedTables());
     }
 
     /**
@@ -917,9 +917,9 @@ final class WritePoolTest extends TestCase
 
         try {
             $pool->flush();
-            static::fail('Expected WritePoolFlushException was not thrown');
+            self::fail('Expected WritePoolFlushException was not thrown');
         } catch (WritePoolFlushException $exception) {
-            static::assertSame(['test_records', 'nonexistent_table'], $exception->flushResult()->flushedTables());
+            self::assertSame(['test_records', 'nonexistent_table'], $exception->flushResult()->flushedTables());
         }
     }
 

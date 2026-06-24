@@ -203,7 +203,7 @@ final class WritePoolFlushResultTest extends TestCase
     {
         $result = new WritePoolFlushResult(successCount: 1, failureCount: 0);
 
-        static::assertSame([], $result->flushedTables());
+        self::assertSame([], $result->flushedTables());
     }
 
     /**
@@ -220,6 +220,6 @@ final class WritePoolFlushResultTest extends TestCase
             flushedTables: ['orders', 'payments'],
         );
 
-        static::assertSame(['orders', 'payments'], $result->flushedTables());
+        self::assertSame(['orders', 'payments'], $result->flushedTables());
     }
 }

@@ -424,8 +424,8 @@ final class CacheStoreTest extends TestCase
 
         CacheStore::invalidateTable('array', 'test-table', true);
 
-        static::assertNull($this->cacheStore->get(self::HASH));
-        static::assertNull(Cache::store('array')->get(CacheKeys::REPOSITORY_CACHE_VERSION->resolveKey(['test-table'])));
+        self::assertNull($this->cacheStore->get(self::HASH));
+        self::assertNull(Cache::store('array')->get(CacheKeys::REPOSITORY_CACHE_VERSION->resolveKey(['test-table'])));
     }
 
     /**
@@ -442,7 +442,7 @@ final class CacheStoreTest extends TestCase
 
         CacheStore::invalidateTable('file', 'file-table', true);
 
-        static::assertNull((new CacheStore('file', 'file-table', $options))->get(self::HASH));
+        self::assertNull((new CacheStore('file', 'file-table', $options))->get(self::HASH));
     }
 
     /**
@@ -458,6 +458,6 @@ final class CacheStoreTest extends TestCase
 
         CacheStore::invalidateTable('file', 'file-table', false);
 
-        static::assertNotNull((new CacheStore('file', 'file-table', $options))->get(self::HASH));
+        self::assertNotNull((new CacheStore('file', 'file-table', $options))->get(self::HASH));
     }
 }
