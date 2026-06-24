@@ -140,6 +140,29 @@ final class ExportOpenApiCommandTest extends TestCase
     }
 
     /**
+     * Test that an empty configured output path falls back to the default
+     * project path rather than being treated as a usable destination.
+     *
+     * @return void
+     */
+    public function testCommandFallsBackToDefaultPathWhenConfiguredOutputIsEmpty(): void
+    {
+        $this->registerResourceMap();
+
+        $this->getConfig()->set('api-toolkit.openapi.output', '');
+
+        $default = base_path('openapi.json');
+        @unlink($default);
+
+        $this->runCommand()
+            ->assertExitCode(0);
+
+        self::assertFileExists($default);
+
+        @unlink($default);
+    }
+
+    /**
      * Run the export command, returning the pending command for assertions.
      *
      * @param  array<string, mixed>  $arguments

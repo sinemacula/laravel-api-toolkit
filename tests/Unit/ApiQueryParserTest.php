@@ -314,6 +314,23 @@ final class ApiQueryParserTest extends TestCase
     }
 
     /**
+     * Test that a numeric-string maximum is coerced to an integer before
+     * clamping, so the returned limit is a true int rather than the raw
+     * configured string.
+     *
+     * @return void
+     */
+    public function testGetLimitCoercesNumericStringMaximumToInteger(): void
+    {
+        config()->set('api-toolkit.parser.max_limit', '100');
+
+        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['limit' => '100000']);
+        $this->parser->parse($request);
+
+        self::assertSame(100, $this->parser->getLimit());
+    }
+
+    /**
      * Test that getLimit leaves the requested value untouched when the maximum
      * ceiling is disabled (zero).
      *

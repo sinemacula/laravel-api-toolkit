@@ -241,6 +241,26 @@ final class JsonPrettyPrintTest extends TestCase
     }
 
     /**
+     * Test that a plain Response whose body is valid JSON but whose
+     * content-type is not JSON is left untouched, so only responses that
+     * declare themselves as JSON are reformatted.
+     *
+     * @return void
+     */
+    public function testSkipsPlainResponseWithNonJsonContentTypeEvenWhenBodyIsJson(): void
+    {
+        $compact    = json_encode(['key' => 'value']);
+        $request    = Request::create(self::TEST_URI, HttpMethod::GET->getVerb(), ['pretty' => 'true']);
+        $middleware = new JsonPrettyPrint;
+
+        $plainResponse = new Response($compact, 200, ['Content-Type' => 'text/plain']);
+
+        $response = $middleware->handle($request, fn () => $plainResponse);
+
+        self::assertSame($compact, $response->getContent());
+    }
+
+    /**
      * Test that plain Response with JSON content-type and literal
      * JSON null content is preserved.
      *
