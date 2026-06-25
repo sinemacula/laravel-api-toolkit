@@ -29,18 +29,17 @@
         "sinemacula/laravel-resource-exporter": "^2.0"
     },
     "suggest": {
-        "aws/aws-sdk-php": "Required for CloudWatch logging (^3.342)",
-        "phpnexus/cwh": "Required for CloudWatch logging (^3.0)"
+        "sinemacula/laravel-log-cloudwatch": "CloudWatch log driver (Monolog), extracted from this package",
+        "sinemacula/laravel-log-database": "Database log driver (Monolog), extracted from this package",
+        "sinemacula/laravel-sse": "Server-sent event streaming for controllers, extracted from this package"
     },
     "require-dev": {
-        "aws/aws-sdk-php": "^3.342",
         "brianium/paratest": "^7.20",
         "friendsofphp/php-cs-fixer": "^3.94",
         "infection/infection": "^0.33.2",
         "mockery/mockery": "^1.6",
         "opis/json-schema": "^2.4",
         "orchestra/testbench": "^9.0 || ^10.0",
-        "phpnexus/cwh": "^3.0",
         "phpstan/extension-installer": "^1.4",
         "phpstan/phpdoc-parser": "^2.3",
         "phpstan/phpstan": "^2.1",

@@ -71,11 +71,5 @@ final class NotificationListener
         ], static fn (mixed $value): bool => $value !== null);
 
         Log::channel('notifications')->log($level, $message, $payload);
-
-        if (!config('api-toolkit.logging.cloudwatch.enabled', false)) {
-            return;
-        }
-
-        Log::channel('cloudwatch-notifications')->log($level, $message, $payload);
     }
 }
