@@ -184,11 +184,8 @@ final class ApiExceptionHandler
      * @param  array<string, mixed>  $headers
      * @return \SineMacula\ApiToolkit\Exceptions\ApiException
      */
-    private static function mapGenericHttpException(
-        SymfonyHttpExceptionInterface $exception,
-        ?array $meta,
-        array $headers,
-    ): ApiException {
+    private static function mapGenericHttpException(SymfonyHttpExceptionInterface $exception, ?array $meta, array $headers): ApiException
+    {
         // Laravel's handler converts session token mismatches to a generic
         // 419 HttpException before render callbacks run; 419 has no
         // HttpStatus case, so map it back to the dedicated exception

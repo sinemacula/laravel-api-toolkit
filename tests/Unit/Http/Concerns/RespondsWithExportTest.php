@@ -699,12 +699,8 @@ final class RespondsWithExportTest extends TestCase
              * @param  string  $filename
              * @return \Illuminate\Http\Response
              */
-            public function callCreateExportResponse(
-                string $data,
-                string $contentType,
-                bool $download,
-                string $filename,
-            ): HttpResponse {
+            public function callCreateExportResponse(string $data, string $contentType, bool $download, string $filename): HttpResponse
+            {
                 return $this->createExportResponse($data, $contentType, $download, $filename);
             }
         };

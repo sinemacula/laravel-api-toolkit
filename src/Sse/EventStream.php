@@ -58,12 +58,8 @@ class EventStream
      * @param  array<string, string>  $headers
      * @return \Symfony\Component\HttpFoundation\StreamedResponse
      */
-    public function toResponse(
-        callable $callback,
-        int $interval = 1,
-        HttpStatus $status = HttpStatus::OK,
-        array $headers = [],
-    ): StreamedResponse {
+    public function toResponse(callable $callback, int $interval = 1, HttpStatus $status = HttpStatus::OK, array $headers = []): StreamedResponse
+    {
         $headers = array_merge($headers, [
             HttpHeader::CONTENT_TYPE->getName()      => MediaType::TEXT_EVENT_STREAM->getMimeType(),
             HttpHeader::CACHE_CONTROL->getName()     => CacheDirective::NO_CACHE->value . ', ' . CacheDirective::NO_TRANSFORM->value,

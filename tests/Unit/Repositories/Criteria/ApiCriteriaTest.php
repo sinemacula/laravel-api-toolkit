@@ -142,12 +142,8 @@ final class ApiCriteriaTest extends TestCase
      * @return void
      */
     #[DataProvider('conditionOperatorProvider')]
-    public function testApplyWithConditionOperator(
-        string $operator,
-        string $expectedSqlOperator,
-        mixed $value,
-        string $expectedType,
-    ): void {
+    public function testApplyWithConditionOperator(string $operator, string $expectedSqlOperator, mixed $value, string $expectedType): void
+    {
         $filter = ['name' => [$operator => $value]];
 
         $this->parseRequest(new Request([
