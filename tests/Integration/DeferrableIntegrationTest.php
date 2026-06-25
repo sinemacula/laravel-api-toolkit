@@ -1,9 +1,12 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Integration;
 
 use Carbon\Carbon;
 use Illuminate\Console\Events\CommandFinished;
+use Illuminate\Contracts\Queue\Job;
 use Illuminate\Foundation\Http\Events\RequestHandled;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -33,9 +36,10 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversTrait(Deferrable::class)]
-class DeferrableIntegrationTest extends TestCase
+final class DeferrableIntegrationTest extends TestCase
 {
-    private const TIMESTAMP_DEFERRAL = '2026-03-10 12:00:01';
+    /** @var string The timestamp used to assert deferred dispatch timing. */
+    private const string TIMESTAMP_DEFERRAL = '2026-03-10 12:00:01';
 
     /** @var \Tests\Fixtures\Repositories\DeferrableUserRepository The repository instance under test. */
     private DeferrableUserRepository $repository;
@@ -77,11 +81,11 @@ class DeferrableIntegrationTest extends TestCase
     {
         $this->repository->defer(['name' => 'Alice', 'email' => 'alice@example.com', 'password' => 'secret']);
 
-        static::assertSame(0, DB::table('users')->count());
+        self::assertSame(0, DB::table('users')->count());
 
         $this->repository->flushWrites();
 
-        static::assertSame(1, DB::table('users')->count());
+        self::assertSame(1, DB::table('users')->count());
     }
 
     /**
@@ -109,8 +113,8 @@ class DeferrableIntegrationTest extends TestCase
 
         DB::disableQueryLog();
 
-        static::assertCount(2, $queries);
-        static::assertSame(6, DB::table('users')->count());
+        self::assertCount(2, $queries);
+        self::assertSame(6, DB::table('users')->count());
     }
 
     /**
@@ -130,9 +134,9 @@ class DeferrableIntegrationTest extends TestCase
 
         $user = DB::table('users')->first();
 
-        static::assertNotNull($user);
-        static::assertSame(self::TIMESTAMP_DEFERRAL, $user->created_at);
-        static::assertSame(self::TIMESTAMP_DEFERRAL, $user->updated_at);
+        self::assertNotNull($user);
+        self::assertSame(self::TIMESTAMP_DEFERRAL, $user->created_at);
+        self::assertSame(self::TIMESTAMP_DEFERRAL, $user->updated_at);
     }
 
     /**
@@ -147,13 +151,13 @@ class DeferrableIntegrationTest extends TestCase
 
         $this->repository->flushWrites();
 
-        static::assertSame(2, DB::table('users')->count());
+        self::assertSame(2, DB::table('users')->count());
 
         $this->repository->defer(['name' => 'Eve', 'email' => 'eve@example.com', 'password' => 'secret']);
 
         $this->repository->flushWrites();
 
-        static::assertSame(3, DB::table('users')->count());
+        self::assertSame(3, DB::table('users')->count());
     }
 
     /**
@@ -167,7 +171,7 @@ class DeferrableIntegrationTest extends TestCase
             $this->repository->defer(['name' => "user_{$i}", 'email' => "user_{$i}@example.com", 'password' => 'secret']);
         }
 
-        static::assertSame(5, DB::table('users')->count());
+        self::assertSame(5, DB::table('users')->count());
     }
 
     /**
@@ -182,7 +186,7 @@ class DeferrableIntegrationTest extends TestCase
 
         Event::dispatch(new RequestHandled(new Request, new Response));
 
-        static::assertSame(2, DB::table('users')->count());
+        self::assertSame(2, DB::table('users')->count());
     }
 
     /**
@@ -197,7 +201,7 @@ class DeferrableIntegrationTest extends TestCase
 
         Event::dispatch(new CommandFinished('test:command', new ArrayInput([]), new NullOutput, 0));
 
-        static::assertSame(2, DB::table('users')->count());
+        self::assertSame(2, DB::table('users')->count());
     }
 
     /**
@@ -210,11 +214,11 @@ class DeferrableIntegrationTest extends TestCase
         $this->repository->defer(['name' => 'Judy', 'email' => 'judy@example.com', 'password' => 'secret']);
         $this->repository->defer(['name' => 'Karl', 'email' => 'karl@example.com', 'password' => 'secret']);
 
-        $job = \Mockery::mock(\Illuminate\Contracts\Queue\Job::class);
+        $job = \Mockery::mock(Job::class);
 
         Event::dispatch(new JobProcessed('sync', $job));
 
-        static::assertSame(2, DB::table('users')->count());
+        self::assertSame(2, DB::table('users')->count());
     }
 
     /**
@@ -227,11 +231,11 @@ class DeferrableIntegrationTest extends TestCase
         $this->repository->defer(['name' => 'Leo', 'email' => 'leo@example.com', 'password' => 'secret']);
         $this->repository->defer(['name' => 'Mia', 'email' => 'mia@example.com', 'password' => 'secret']);
 
-        $job = \Mockery::mock(\Illuminate\Contracts\Queue\Job::class);
+        $job = \Mockery::mock(Job::class);
 
         Event::dispatch(new JobFailed('sync', $job, new \RuntimeException('test')));
 
-        static::assertSame(2, DB::table('users')->count());
+        self::assertSame(2, DB::table('users')->count());
     }
 
     /**
@@ -244,7 +248,7 @@ class DeferrableIntegrationTest extends TestCase
         $poolA = $this->app->make(WritePool::class); // @phpstan-ignore method.nonObject
         $poolB = $this->app->make(WritePool::class); // @phpstan-ignore method.nonObject
 
-        static::assertSame($poolA, $poolB);
+        self::assertSame($poolA, $poolB);
     }
 
     /**
@@ -254,8 +258,8 @@ class DeferrableIntegrationTest extends TestCase
      */
     public function testDeferredWritesConfigIsAvailable(): void
     {
-        static::assertNotNull(Config::get('api-toolkit.deferred_writes.chunk_size'));
-        static::assertNotNull(Config::get('api-toolkit.deferred_writes.pool_limit'));
+        self::assertNotNull(Config::get('api-toolkit.deferred_writes.chunk_size'));
+        self::assertNotNull(Config::get('api-toolkit.deferred_writes.pool_limit'));
     }
 
     /**
@@ -271,7 +275,7 @@ class DeferrableIntegrationTest extends TestCase
             'password' => 'secret',
         ]);
 
-        static::assertSame(1, DB::table('users')->count());
+        self::assertSame(1, DB::table('users')->count());
     }
 
     /**
@@ -286,8 +290,8 @@ class DeferrableIntegrationTest extends TestCase
 
         $flushResult = $this->repository->flushWrites();
 
-        static::assertTrue($flushResult->isSuccessful());
-        static::assertGreaterThan(0, $flushResult->successCount());
+        self::assertTrue($flushResult->isSuccessful());
+        self::assertGreaterThan(0, $flushResult->successCount());
     }
 
     /**
@@ -333,8 +337,8 @@ class DeferrableIntegrationTest extends TestCase
 
         Event::dispatch(new RequestHandled(new Request, new Response));
 
-        static::assertSame(1, $pool->count());
-        static::assertFalse($pool->isEmpty());
+        self::assertSame(1, $pool->count());
+        self::assertFalse($pool->isEmpty());
     }
 
     /**
@@ -358,8 +362,8 @@ class DeferrableIntegrationTest extends TestCase
 
         Event::dispatch(new RequestHandled(new Request, new Response));
 
-        static::assertSame(0, DB::table('users')->count());
-        static::assertSame(2, $pool->count());
+        self::assertSame(0, DB::table('users')->count());
+        self::assertSame(2, $pool->count());
 
         Event::assertDispatched(WritePoolFlushFailed::class);
     }
@@ -377,9 +381,9 @@ class DeferrableIntegrationTest extends TestCase
 
         $flushResult = $this->repository->flushWrites();
 
-        static::assertInstanceOf(WritePoolFlushResult::class, $flushResult);
-        static::assertTrue($flushResult->isSuccessful());
-        static::assertSame(1, $flushResult->successCount());
-        static::assertSame(0, $flushResult->failureCount());
+        self::assertInstanceOf(WritePoolFlushResult::class, $flushResult);
+        self::assertTrue($flushResult->isSuccessful());
+        self::assertSame(1, $flushResult->successCount());
+        self::assertSame(0, $flushResult->failureCount());
     }
 }

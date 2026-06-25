@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace SineMacula\ApiToolkit\Http\Middleware;
 
 use Illuminate\Http\JsonResponse;
@@ -15,7 +17,7 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-class JsonPrettyPrint
+final class JsonPrettyPrint
 {
     /**
      * Handle an incoming request.
@@ -51,9 +53,11 @@ class JsonPrettyPrint
 
         $contentType = (string) $response->headers->get(HttpHeader::CONTENT_TYPE->getName());
 
-        if (str_contains($contentType, MediaType::APPLICATION_JSON->getMimeType())) {
-            $this->prettyPrintPlainResponse($response);
+        if (!str_contains($contentType, MediaType::APPLICATION_JSON->getMimeType())) {
+            return;
         }
+
+        $this->prettyPrintPlainResponse($response);
     }
 
     /**
@@ -84,7 +88,8 @@ class JsonPrettyPrint
 
         $decoded = json_decode($content);
 
-        // Distinguish between a JSON decode failure and the valid JSON literal 'null'
+        // Distinguish between a JSON decode failure and the valid JSON literal
+        // 'null'
         if ($decoded === null && $content !== 'null') {
             return;
         }

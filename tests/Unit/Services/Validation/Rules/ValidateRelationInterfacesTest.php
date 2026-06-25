@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Unit\Services\Validation\Rules;
 
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -21,7 +23,7 @@ use Tests\Fixtures\Resources\OrganizationResource;
  * @internal
  */
 #[CoversClass(ValidateRelationInterfaces::class)]
-class ValidateRelationInterfacesTest extends TestCase
+final class ValidateRelationInterfacesTest extends TestCase
 {
     /**
      * Test no errors when relation class implements interface.
@@ -51,7 +53,7 @@ class ValidateRelationInterfacesTest extends TestCase
         $rule   = new ValidateRelationInterfaces;
         $errors = $rule->validate('App\Http\Resources\UserResource', null, $schema);
 
-        static::assertSame([], $errors);
+        self::assertSame([], $errors);
     }
 
     /**
@@ -82,10 +84,10 @@ class ValidateRelationInterfacesTest extends TestCase
         $rule   = new ValidateRelationInterfaces;
         $errors = $rule->validate('App\Http\Resources\UserResource', null, $schema);
 
-        static::assertCount(1, $errors);
-        static::assertSame('organization', $errors[0]->fieldKey);
-        static::assertStringContainsString(\stdClass::class, $errors[0]->defect);
-        static::assertStringContainsString(ApiResourceInterface::class, $errors[0]->defect);
+        self::assertCount(1, $errors);
+        self::assertSame('organization', $errors[0]->fieldKey);
+        self::assertStringContainsString(\stdClass::class, $errors[0]->defect);
+        self::assertStringContainsString(ApiResourceInterface::class, $errors[0]->defect);
     }
 
     /**
@@ -116,7 +118,7 @@ class ValidateRelationInterfacesTest extends TestCase
         $rule   = new ValidateRelationInterfaces;
         $errors = $rule->validate('App\Http\Resources\UserResource', null, $schema);
 
-        static::assertSame([], $errors);
+        self::assertSame([], $errors);
     }
 
     /**
@@ -140,9 +142,9 @@ class ValidateRelationInterfacesTest extends TestCase
 
         $warnings = $this->captureWarnings(fn () => $rule->validate('App\Http\Resources\UserResource', null, $schema), $errors);
 
-        static::assertSame([], $warnings);
-        static::assertCount(1, $errors);
-        static::assertSame('bad', $errors[0]->fieldKey);
+        self::assertSame([], $warnings);
+        self::assertCount(1, $errors);
+        self::assertSame('bad', $errors[0]->fieldKey);
     }
 
     /**
@@ -164,8 +166,8 @@ class ValidateRelationInterfacesTest extends TestCase
         $rule   = new ValidateRelationInterfaces;
         $errors = $rule->validate('App\Http\Resources\UserResource', null, $schema);
 
-        static::assertCount(1, $errors);
-        static::assertSame('bad', $errors[0]->fieldKey);
+        self::assertCount(1, $errors);
+        self::assertSame('bad', $errors[0]->fieldKey);
     }
 
     /**
@@ -186,9 +188,9 @@ class ValidateRelationInterfacesTest extends TestCase
         $rule   = new ValidateRelationInterfaces;
         $errors = $rule->validate('App\Http\Resources\UserResource', null, $schema);
 
-        static::assertCount(2, $errors);
-        static::assertSame('first', $errors[0]->fieldKey);
-        static::assertSame('second', $errors[1]->fieldKey);
+        self::assertCount(2, $errors);
+        self::assertSame('first', $errors[0]->fieldKey);
+        self::assertSame('second', $errors[1]->fieldKey);
     }
 
     /**

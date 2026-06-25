@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Unit\Listeners;
 
 use Illuminate\Support\Facades\Cache;
@@ -22,7 +24,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(OctaneFlushListener::class)]
-class OctaneFlushListenerTest extends TestCase
+final class OctaneFlushListenerTest extends TestCase
 {
     /** @var bool Whether LARAVEL_OCTANE was set before each test. */
     private bool $octaneWasSet;
@@ -32,6 +34,7 @@ class OctaneFlushListenerTest extends TestCase
      *
      * @return void
      */
+    #[\Override]
     protected function setUp(): void
     {
         parent::setUp();
@@ -44,6 +47,7 @@ class OctaneFlushListenerTest extends TestCase
      *
      * @return void
      */
+    #[\Override]
     protected function tearDown(): void
     {
         if ($this->octaneWasSet) {
@@ -78,7 +82,7 @@ class OctaneFlushListenerTest extends TestCase
         $registry->register($key);
         Cache::memo()->rememberForever($key, fn () => 'cached'); // @phpstan-ignore method.notFound
 
-        static::assertSame('cached', Cache::memo()->get($key)); // @phpstan-ignore method.notFound
+        self::assertSame('cached', Cache::memo()->get($key)); // @phpstan-ignore method.notFound
 
         $cacheManager = $this->app->make(CacheManager::class); // @phpstan-ignore method.nonObject
         $listener     = new OctaneFlushListener($cacheManager, new RuntimeContext);
@@ -87,7 +91,7 @@ class OctaneFlushListenerTest extends TestCase
         $listener->handle(new \stdClass);
 
         // Assert
-        static::assertNull(Cache::memo()->get($key)); // @phpstan-ignore method.notFound
+        self::assertNull(Cache::memo()->get($key)); // @phpstan-ignore method.notFound
     }
 
     /**
@@ -112,7 +116,7 @@ class OctaneFlushListenerTest extends TestCase
         $registry->register($key);
         Cache::memo()->rememberForever($key, fn () => 'cached'); // @phpstan-ignore method.notFound
 
-        static::assertSame('cached', Cache::memo()->get($key)); // @phpstan-ignore method.notFound
+        self::assertSame('cached', Cache::memo()->get($key)); // @phpstan-ignore method.notFound
 
         $cacheManager = $this->app->make(CacheManager::class); // @phpstan-ignore method.nonObject
         $listener     = new OctaneFlushListener($cacheManager, new RuntimeContext);
@@ -121,11 +125,12 @@ class OctaneFlushListenerTest extends TestCase
         $listener->handle(new \stdClass);
 
         // Assert
-        static::assertSame('cached', Cache::memo()->get($key)); // @phpstan-ignore method.notFound
+        self::assertSame('cached', Cache::memo()->get($key)); // @phpstan-ignore method.notFound
     }
 
     /**
-     * Test that handle delegates to CacheManager::flush when serving under Octane.
+     * Test that handle delegates to CacheManager::flush when serving under
+     * Octane.
      *
      * @return void
      */
@@ -147,7 +152,7 @@ class OctaneFlushListenerTest extends TestCase
         $registry->register($key);
         Cache::memo()->rememberForever($key, fn () => 'cached'); // @phpstan-ignore method.notFound
 
-        static::assertSame('cached', Cache::memo()->get($key)); // @phpstan-ignore method.notFound
+        self::assertSame('cached', Cache::memo()->get($key)); // @phpstan-ignore method.notFound
 
         $cacheManager = $this->app->make(CacheManager::class); // @phpstan-ignore method.nonObject
         $listener     = new OctaneFlushListener($cacheManager, new RuntimeContext);
@@ -156,7 +161,7 @@ class OctaneFlushListenerTest extends TestCase
         $listener->handle(new \stdClass);
 
         // Assert
-        static::assertNull(Cache::memo()->get($key)); // @phpstan-ignore method.notFound
+        self::assertNull(Cache::memo()->get($key)); // @phpstan-ignore method.notFound
     }
 
     /**

@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Unit\Exceptions;
 
 use Illuminate\Support\Facades\Lang;
@@ -21,7 +23,7 @@ use SineMacula\Http\Enums\HttpStatus;
  * @internal
  */
 #[CoversClass(ApiException::class)]
-class ApiExceptionTest extends TestCase
+final class ApiExceptionTest extends TestCase
 {
     /**
      * Test that the constructor sets the code from the HTTP status.
@@ -32,7 +34,7 @@ class ApiExceptionTest extends TestCase
     {
         $exception = new BadRequestException;
 
-        static::assertSame(400, $exception->getCode());
+        self::assertSame(400, $exception->getCode());
     }
 
     /**
@@ -44,8 +46,8 @@ class ApiExceptionTest extends TestCase
     {
         $exception = new BadRequestException;
 
-        static::assertIsString($exception->getMessage());
-        static::assertNotEmpty($exception->getMessage());
+        self::assertIsString($exception->getMessage());
+        self::assertNotEmpty($exception->getMessage());
     }
 
     /**
@@ -57,8 +59,8 @@ class ApiExceptionTest extends TestCase
     {
         $exception = new BadRequestException;
 
-        static::assertIsString($exception->getCustomDetail());
-        static::assertNotEmpty($exception->getCustomDetail());
+        self::assertIsString($exception->getCustomDetail());
+        self::assertNotEmpty($exception->getCustomDetail());
     }
 
     /**
@@ -70,8 +72,8 @@ class ApiExceptionTest extends TestCase
     {
         $exception = new BadRequestException;
 
-        static::assertIsString($exception->getCustomTitle());
-        static::assertNotEmpty($exception->getCustomTitle());
+        self::assertIsString($exception->getCustomTitle());
+        self::assertNotEmpty($exception->getCustomTitle());
     }
 
     /**
@@ -81,7 +83,7 @@ class ApiExceptionTest extends TestCase
      */
     public function testGetHttpStatusCodeReturnsCorrectCode(): void
     {
-        static::assertSame(400, BadRequestException::getHttpStatusCode());
+        self::assertSame(400, BadRequestException::getHttpStatusCode());
     }
 
     /**
@@ -91,7 +93,7 @@ class ApiExceptionTest extends TestCase
      */
     public function testGetInternalErrorCodeReturnsCorrectCode(): void
     {
-        static::assertSame(10100, BadRequestException::getInternalErrorCode());
+        self::assertSame(10100, BadRequestException::getInternalErrorCode());
     }
 
     /**
@@ -104,7 +106,7 @@ class ApiExceptionTest extends TestCase
         $meta      = ['field' => 'The field is required.'];
         $exception = new BadRequestException($meta);
 
-        static::assertSame($meta, $exception->getCustomMeta());
+        self::assertSame($meta, $exception->getCustomMeta());
     }
 
     /**
@@ -116,7 +118,7 @@ class ApiExceptionTest extends TestCase
     {
         $exception = new BadRequestException;
 
-        static::assertNull($exception->getCustomMeta());
+        self::assertNull($exception->getCustomMeta());
     }
 
     /**
@@ -129,7 +131,7 @@ class ApiExceptionTest extends TestCase
         $headers   = ['X-Custom-Header' => 'value'];
         $exception = new BadRequestException(null, $headers);
 
-        static::assertSame($headers, $exception->getHeaders());
+        self::assertSame($headers, $exception->getHeaders());
     }
 
     /**
@@ -141,7 +143,7 @@ class ApiExceptionTest extends TestCase
     {
         $exception = new BadRequestException;
 
-        static::assertSame([], $exception->getHeaders());
+        self::assertSame([], $exception->getHeaders());
     }
 
     /**
@@ -155,7 +157,7 @@ class ApiExceptionTest extends TestCase
 
         $reflection = new \ReflectionMethod($exception, 'getNamespace');
 
-        static::assertSame('api-toolkit', $reflection->invoke($exception));
+        self::assertSame('api-toolkit', $reflection->invoke($exception));
     }
 
     /**
@@ -168,11 +170,12 @@ class ApiExceptionTest extends TestCase
         $previous  = new \RuntimeException('Original error');
         $exception = new BadRequestException(null, null, $previous);
 
-        static::assertSame($previous, $exception->getPrevious());
+        self::assertSame($previous, $exception->getPrevious());
     }
 
     /**
-     * Test that getInternalErrorCode throws LogicException without CODE constant.
+     * Test that getInternalErrorCode throws LogicException without CODE
+     * constant.
      *
      * @return void
      */
@@ -181,8 +184,10 @@ class ApiExceptionTest extends TestCase
         $this->expectException(\LogicException::class);
         $this->expectExceptionMessage('The CODE constant must be defined on the exception');
 
-        // Call static method directly on an anonymous class without instantiating
+        // Call static method directly on an anonymous class without
+        // instantiating
         $class = new class extends ApiException {
+            /** The mapped HTTP status for the test exception. */
             public const HttpStatus HTTP_STATUS = HttpStatus::BAD_REQUEST;
         };
 
@@ -190,7 +195,8 @@ class ApiExceptionTest extends TestCase
     }
 
     /**
-     * Test that getHttpStatusCode throws LogicException without HTTP_STATUS constant.
+     * Test that getHttpStatusCode throws LogicException without HTTP_STATUS
+     * constant.
      *
      * @return void
      */
@@ -199,8 +205,10 @@ class ApiExceptionTest extends TestCase
         $this->expectException(\LogicException::class);
         $this->expectExceptionMessage('The HTTP_STATUS constant must be defined on the exception');
 
-        // Call static method directly on an anonymous class without instantiating
+        // Call static method directly on an anonymous class without
+        // instantiating
         $class = new class extends ApiException {
+            /** The internal error code for the test exception. */
             public const \SineMacula\ApiToolkit\Contracts\ErrorCodeInterface CODE = ErrorCode::BAD_REQUEST;
         };
 
@@ -215,12 +223,15 @@ class ApiExceptionTest extends TestCase
     public function testCustomExceptionWithConstantsWorks(): void
     {
         $exception = new class extends ApiException {
+            /** The internal error code for the test exception. */
             public const \SineMacula\ApiToolkit\Contracts\ErrorCodeInterface CODE = ErrorCode::NOT_FOUND;
-            public const HttpStatus HTTP_STATUS                                   = HttpStatus::NOT_FOUND;
+
+            /** The mapped HTTP status for the test exception. */
+            public const HttpStatus HTTP_STATUS = HttpStatus::NOT_FOUND;
         };
 
-        static::assertSame(10103, $exception::getInternalErrorCode());
-        static::assertSame(404, $exception::getHttpStatusCode());
+        self::assertSame(10103, $exception::getInternalErrorCode());
+        self::assertSame(404, $exception::getHttpStatusCode());
     }
 
     /**
@@ -232,7 +243,7 @@ class ApiExceptionTest extends TestCase
     {
         $exception = new BadRequestException;
 
-        static::assertSame(400, $exception->getStatusCode());
+        self::assertSame(400, $exception->getStatusCode());
     }
 
     /**
@@ -244,7 +255,7 @@ class ApiExceptionTest extends TestCase
     {
         $exception = new BadRequestException;
 
-        static::assertSame(HttpStatus::BAD_REQUEST, $exception->getStatus());
+        self::assertSame(HttpStatus::BAD_REQUEST, $exception->getStatus());
     }
 
     /**
@@ -255,15 +266,19 @@ class ApiExceptionTest extends TestCase
      */
     public function testSubclassesCanOverrideTheTranslationNamespace(): void
     {
-        // Register a detail translation under a custom namespace so the override
-        // can be proven by resolution. A missing key now yields '' (see
-        // testGetCustomDetailReturnsEmptyStringWhenTranslationMissing) rather
-        // than leaking the raw translation key, so resolution is the oracle.
+        // Register a detail translation under a custom namespace so the
+        // override can be proven by resolution. A missing key now yields ''
+        // (see testGetCustomDetailReturnsEmptyStringWhenTranslationMissing)
+        // rather than leaking the raw translation key, so resolution is the
+        // oracle.
         Lang::addLines(['exceptions.10100.detail' => 'Custom namespace detail'], 'en', 'custom-namespace');
 
         $exception = new class extends ApiException {
+            /** The internal error code for the test exception. */
             public const \SineMacula\ApiToolkit\Contracts\ErrorCodeInterface CODE = ErrorCode::BAD_REQUEST;
-            public const HttpStatus HTTP_STATUS                                   = HttpStatus::BAD_REQUEST;
+
+            /** The mapped HTTP status for the test exception. */
+            public const HttpStatus HTTP_STATUS = HttpStatus::BAD_REQUEST;
 
             /**
              * Get the namespace of the current exception.
@@ -279,7 +294,7 @@ class ApiExceptionTest extends TestCase
 
         // The translation registered under the custom namespace resolves,
         // proving the override changed the translation key.
-        static::assertSame('Custom namespace detail', $exception->getCustomDetail());
+        self::assertSame('Custom namespace detail', $exception->getCustomDetail());
     }
 
     /**
@@ -292,8 +307,11 @@ class ApiExceptionTest extends TestCase
     public function testGetCustomDetailReturnsEmptyStringWhenTranslationMissing(): void
     {
         $exception = new class extends ApiException {
+            /** The internal error code for the test exception. */
             public const \SineMacula\ApiToolkit\Contracts\ErrorCodeInterface CODE = ErrorCode::BAD_REQUEST;
-            public const HttpStatus HTTP_STATUS                                   = HttpStatus::BAD_REQUEST;
+
+            /** The mapped HTTP status for the test exception. */
+            public const HttpStatus HTTP_STATUS = HttpStatus::BAD_REQUEST;
 
             /**
              * Resolve from a namespace with no registered translations.
@@ -307,7 +325,7 @@ class ApiExceptionTest extends TestCase
             }
         };
 
-        static::assertSame('', $exception->getCustomDetail());
+        self::assertSame('', $exception->getCustomDetail());
     }
 
     /**
@@ -318,8 +336,11 @@ class ApiExceptionTest extends TestCase
     public function testGetNamespaceIsAccessibleToSubclasses(): void
     {
         $exception = new class extends ApiException {
+            /** The internal error code for the test exception. */
             public const \SineMacula\ApiToolkit\Contracts\ErrorCodeInterface CODE = ErrorCode::BAD_REQUEST;
-            public const HttpStatus HTTP_STATUS                                   = HttpStatus::BAD_REQUEST;
+
+            /** The mapped HTTP status for the test exception. */
+            public const HttpStatus HTTP_STATUS = HttpStatus::BAD_REQUEST;
 
             /**
              * Expose the inherited namespace for assertion.
@@ -332,7 +353,7 @@ class ApiExceptionTest extends TestCase
             }
         };
 
-        static::assertSame('api-toolkit', $exception->exposedNamespace());
+        self::assertSame('api-toolkit', $exception->exposedNamespace());
     }
 
     /**
@@ -344,11 +365,14 @@ class ApiExceptionTest extends TestCase
     public function testGetCustomTitleDerivesMultiWordTitleFromStatusName(): void
     {
         $exception = new class extends ApiException {
+            /** The internal error code for the test exception. */
             public const \SineMacula\ApiToolkit\Contracts\ErrorCodeInterface CODE = ErrorCode::HTTP_ERROR;
-            public const HttpStatus HTTP_STATUS                                   = HttpStatus::UNAVAILABLE_FOR_LEGAL_REASONS;
+
+            /** The mapped HTTP status for the test exception. */
+            public const HttpStatus HTTP_STATUS = HttpStatus::UNAVAILABLE_FOR_LEGAL_REASONS;
         };
 
-        static::assertSame('Unavailable For Legal Reasons', $exception->getCustomTitle());
+        self::assertSame('Unavailable For Legal Reasons', $exception->getCustomTitle());
     }
 
     /**
@@ -360,6 +384,7 @@ class ApiExceptionTest extends TestCase
      * @param  mixed  $app
      * @return void
      */
+    #[\Override]
     protected function defineEnvironment(mixed $app): void
     {
         /** @var \Illuminate\Translation\Translator $translator */

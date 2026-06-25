@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Fixtures\Resources;
 
 use SineMacula\ApiToolkit\Http\Resources\ApiResource;
@@ -14,7 +16,7 @@ use Tests\Fixtures\Models\User;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-class UserResource extends ApiResource
+final class UserResource extends ApiResource
 {
     /** @var string */
     public const string RESOURCE_TYPE = 'users';
@@ -27,6 +29,7 @@ class UserResource extends ApiResource
      *
      * @return array<string, array<string, mixed>>
      */
+    #[\Override]
     public static function schema(): array
     {
         return Field::set(

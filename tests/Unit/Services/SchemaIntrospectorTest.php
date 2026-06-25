@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Unit\Services;
 
 use Illuminate\Database\Eloquent\Model;
@@ -32,7 +34,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(SchemaIntrospector::class)]
-class SchemaIntrospectorTest extends TestCase
+final class SchemaIntrospectorTest extends TestCase
 {
     use InteractsWithNonPublicMembers;
 
@@ -43,13 +45,13 @@ class SchemaIntrospectorTest extends TestCase
      */
     public function testGetColumnsReturnsColumnListingFromDatabase(): void
     {
-        $introspector = new SchemaIntrospector;
+        $introspector = $this->makeIntrospector();
         $model        = new User;
 
         $columns  = $introspector->getColumns($model);
         $expected = Schema::getColumnListing('users');
 
-        static::assertSame($expected, $columns);
+        self::assertSame($expected, $columns);
     }
 
     /**
@@ -60,17 +62,17 @@ class SchemaIntrospectorTest extends TestCase
      */
     public function testGetColumnsReturnsCachedResultOnSecondCall(): void
     {
-        $introspector = new SchemaIntrospector;
+        $introspector = $this->makeIntrospector();
         $model        = new User;
 
         $first  = $introspector->getColumns($model);
         $second = $introspector->getColumns($model);
 
-        static::assertSame($first, $second);
+        self::assertSame($first, $second);
 
         $instanceCache = $this->getProperty($introspector, 'columns');
 
-        static::assertArrayHasKey(User::class, $instanceCache);
+        self::assertArrayHasKey(User::class, $instanceCache);
     }
 
     /**
@@ -81,7 +83,7 @@ class SchemaIntrospectorTest extends TestCase
      */
     public function testGetColumnsServesInstanceCacheWithoutSchemaLookup(): void
     {
-        $introspector = new SchemaIntrospector;
+        $introspector = $this->makeIntrospector();
         $model        = new User;
 
         $first = $introspector->getColumns($model);
@@ -91,7 +93,7 @@ class SchemaIntrospectorTest extends TestCase
         Schema::shouldReceive('getColumnListing')
             ->never();
 
-        static::assertSame($first, $introspector->getColumns($model));
+        self::assertSame($first, $introspector->getColumns($model));
     }
 
     /**
@@ -111,11 +113,11 @@ class SchemaIntrospectorTest extends TestCase
 
         $model = new User;
 
-        $first  = (new SchemaIntrospector)->getColumns($model);
-        $second = (new SchemaIntrospector)->getColumns($model);
+        $first  = ($this->makeIntrospector())->getColumns($model);
+        $second = ($this->makeIntrospector())->getColumns($model);
 
-        static::assertSame([], $first);
-        static::assertSame([], $second);
+        self::assertSame([], $first);
+        self::assertSame([], $second);
     }
 
     /**
@@ -126,14 +128,14 @@ class SchemaIntrospectorTest extends TestCase
      */
     public function testGetColumnsStoresResultInMemoCacheUnderModelKey(): void
     {
-        $introspector = new SchemaIntrospector;
+        $introspector = $this->makeIntrospector();
         $model        = new User;
 
         $columns = $introspector->getColumns($model);
 
         $key = CacheKeys::MODEL_SCHEMA_COLUMNS->resolveKey([User::class]);
 
-        static::assertSame($columns, Cache::memo()->get($key));
+        self::assertSame($columns, Cache::memo()->get($key));
     }
 
     /**
@@ -144,14 +146,14 @@ class SchemaIntrospectorTest extends TestCase
      */
     public function testGetColumnsKeepsModelCachesSeparate(): void
     {
-        $introspector = new SchemaIntrospector;
+        $introspector = $this->makeIntrospector();
 
         $userColumns = $introspector->getColumns(new User);
         $postColumns = $introspector->getColumns(new Post);
 
-        static::assertSame(Schema::getColumnListing('users'), $userColumns);
-        static::assertSame(Schema::getColumnListing('posts'), $postColumns);
-        static::assertNotSame($userColumns, $postColumns);
+        self::assertSame(Schema::getColumnListing('users'), $userColumns);
+        self::assertSame(Schema::getColumnListing('posts'), $postColumns);
+        self::assertNotSame($userColumns, $postColumns);
     }
 
     /**
@@ -162,15 +164,15 @@ class SchemaIntrospectorTest extends TestCase
      */
     public function testGetColumnDefinitionsReturnsDefinitionsKeyedByColumnName(): void
     {
-        $introspector = new SchemaIntrospector;
+        $introspector = $this->makeIntrospector();
         $model        = new User;
 
         $definitions = $introspector->getColumnDefinitions($model);
 
-        static::assertArrayHasKey('id', $definitions);
-        static::assertArrayHasKey('email', $definitions);
-        static::assertContainsOnlyInstancesOf(ColumnDefinition::class, $definitions);
-        static::assertSame('id', $definitions['id']->name);
+        self::assertArrayHasKey('id', $definitions);
+        self::assertArrayHasKey('email', $definitions);
+        self::assertContainsOnlyInstancesOf(ColumnDefinition::class, $definitions);
+        self::assertSame('id', $definitions['id']->name);
     }
 
     /**
@@ -181,13 +183,13 @@ class SchemaIntrospectorTest extends TestCase
      */
     public function testGetColumnDefinitionsReportsNullability(): void
     {
-        $introspector = new SchemaIntrospector;
+        $introspector = $this->makeIntrospector();
         $model        = new User;
 
         $definitions = $introspector->getColumnDefinitions($model);
 
-        static::assertFalse($definitions['email']->nullable);
-        static::assertTrue($definitions['organization_id']->nullable);
+        self::assertFalse($definitions['email']->nullable);
+        self::assertTrue($definitions['organization_id']->nullable);
     }
 
     /**
@@ -198,12 +200,12 @@ class SchemaIntrospectorTest extends TestCase
      */
     public function testGetColumnDefinitionsLowerCasesTypeName(): void
     {
-        $introspector = new SchemaIntrospector;
+        $introspector = $this->makeIntrospector();
         $model        = new User;
 
         $typeName = $introspector->getColumnDefinitions($model)['id']->typeName;
 
-        static::assertSame(strtolower($typeName), $typeName);
+        self::assertSame(strtolower($typeName), $typeName);
     }
 
     /**
@@ -214,7 +216,7 @@ class SchemaIntrospectorTest extends TestCase
      */
     public function testGetColumnDefinitionsServesInstanceCacheWithoutSchemaLookup(): void
     {
-        $introspector = new SchemaIntrospector;
+        $introspector = $this->makeIntrospector();
         $model        = new User;
 
         $first = $introspector->getColumnDefinitions($model);
@@ -224,7 +226,7 @@ class SchemaIntrospectorTest extends TestCase
         Schema::shouldReceive('getColumns')
             ->never();
 
-        static::assertSame($first, $introspector->getColumnDefinitions($model));
+        self::assertSame($first, $introspector->getColumnDefinitions($model));
     }
 
     /**
@@ -235,14 +237,14 @@ class SchemaIntrospectorTest extends TestCase
      */
     public function testGetColumnDefinitionsStoresResultInMemoCacheUnderModelKey(): void
     {
-        $introspector = new SchemaIntrospector;
+        $introspector = $this->makeIntrospector();
         $model        = new User;
 
         $definitions = $introspector->getColumnDefinitions($model);
 
         $key = CacheKeys::MODEL_SCHEMA_COLUMN_DEFINITIONS->resolveKey([User::class]);
 
-        static::assertSame($definitions, Cache::memo()->get($key));
+        self::assertSame($definitions, Cache::memo()->get($key));
     }
 
     /**
@@ -253,16 +255,16 @@ class SchemaIntrospectorTest extends TestCase
      */
     public function testFlushClearsColumnDefinitions(): void
     {
-        $introspector = new SchemaIntrospector;
+        $introspector = $this->makeIntrospector();
         $model        = new User;
 
         $original = $introspector->getColumnDefinitions($model);
 
-        static::assertNotEmpty($original);
+        self::assertNotEmpty($original);
 
         $introspector->flush();
 
-        static::assertSame([], $this->getProperty($introspector, 'columnDefinitions'));
+        self::assertSame([], $this->getProperty($introspector, 'columnDefinitions'));
     }
 
     /**
@@ -275,14 +277,14 @@ class SchemaIntrospectorTest extends TestCase
     {
         Config::set('api-toolkit.repositories.searchable_exclusions', ['password']);
 
-        $introspector = new SchemaIntrospector;
+        $introspector = $this->makeIntrospector();
         $model        = new User;
 
         $searchable = $introspector->getSearchableColumns($model);
 
-        static::assertNotContains('password', $searchable);
-        static::assertContains('name', $searchable);
-        static::assertContains('email', $searchable);
+        self::assertNotContains('password', $searchable);
+        self::assertContains('name', $searchable);
+        self::assertContains('email', $searchable);
     }
 
     /**
@@ -294,12 +296,12 @@ class SchemaIntrospectorTest extends TestCase
     {
         Config::set('api-toolkit.repositories.searchable_exclusions', ['users.password']);
 
-        $introspector = new SchemaIntrospector;
+        $introspector = $this->makeIntrospector();
         $model        = new User;
 
         $searchable = $introspector->getSearchableColumns($model);
 
-        static::assertNotContains('password', $searchable);
+        self::assertNotContains('password', $searchable);
     }
 
     /**
@@ -312,13 +314,13 @@ class SchemaIntrospectorTest extends TestCase
     {
         Config::set('api-toolkit.repositories.searchable_exclusions', ['users.password']);
 
-        $introspector = new SchemaIntrospector;
+        $introspector = $this->makeIntrospector();
         $model        = new Post;
 
         $searchable = $introspector->getSearchableColumns($model);
         $allColumns = Schema::getColumnListing('posts');
 
-        static::assertCount(count($allColumns), $searchable);
+        self::assertCount(count($allColumns), $searchable);
     }
 
     /**
@@ -331,10 +333,10 @@ class SchemaIntrospectorTest extends TestCase
     {
         Config::set('api-toolkit.repositories.searchable_exclusions', ['posts.name']);
 
-        $introspector = new SchemaIntrospector;
+        $introspector = $this->makeIntrospector();
         $model        = new User;
 
-        static::assertContains('name', $introspector->getSearchableColumns($model));
+        self::assertContains('name', $introspector->getSearchableColumns($model));
     }
 
     /**
@@ -344,10 +346,10 @@ class SchemaIntrospectorTest extends TestCase
      */
     public function testIsSearchableReturnsTrueForSearchableColumn(): void
     {
-        $introspector = new SchemaIntrospector;
+        $introspector = $this->makeIntrospector();
         $model        = new User;
 
-        static::assertTrue($introspector->isSearchable($model, 'name'));
+        self::assertTrue($introspector->isSearchable($model, 'name'));
     }
 
     /**
@@ -359,10 +361,10 @@ class SchemaIntrospectorTest extends TestCase
     {
         Config::set('api-toolkit.repositories.searchable_exclusions', ['password']);
 
-        $introspector = new SchemaIntrospector;
+        $introspector = $this->makeIntrospector();
         $model        = new User;
 
-        static::assertFalse($introspector->isSearchable($model, 'password'));
+        self::assertFalse($introspector->isSearchable($model, 'password'));
     }
 
     /**
@@ -372,10 +374,10 @@ class SchemaIntrospectorTest extends TestCase
      */
     public function testIsSearchableReturnsFalseForNonExistentColumn(): void
     {
-        $introspector = new SchemaIntrospector;
+        $introspector = $this->makeIntrospector();
         $model        = new User;
 
-        static::assertFalse($introspector->isSearchable($model, 'nonexistent'));
+        self::assertFalse($introspector->isSearchable($model, 'nonexistent'));
     }
 
     /**
@@ -385,10 +387,10 @@ class SchemaIntrospectorTest extends TestCase
      */
     public function testIsRelationReturnsTrueForValidRelation(): void
     {
-        $introspector = new SchemaIntrospector;
+        $introspector = $this->makeIntrospector();
         $model        = new User;
 
-        static::assertTrue($introspector->isRelation('posts', $model));
+        self::assertTrue($introspector->isRelation('posts', $model));
     }
 
     /**
@@ -398,10 +400,10 @@ class SchemaIntrospectorTest extends TestCase
      */
     public function testIsRelationReturnsFalseForNonRelationMethod(): void
     {
-        $introspector = new SchemaIntrospector;
+        $introspector = $this->makeIntrospector();
         $model        = new User;
 
-        static::assertFalse($introspector->isRelation('getKey', $model));
+        self::assertFalse($introspector->isRelation('getKey', $model));
     }
 
     /**
@@ -411,10 +413,10 @@ class SchemaIntrospectorTest extends TestCase
      */
     public function testIsRelationReturnsFalseForNonExistentMethod(): void
     {
-        $introspector = new SchemaIntrospector;
+        $introspector = $this->makeIntrospector();
         $model        = new User;
 
-        static::assertFalse($introspector->isRelation('nonExistent', $model));
+        self::assertFalse($introspector->isRelation('nonExistent', $model));
     }
 
     /**
@@ -428,10 +430,10 @@ class SchemaIntrospectorTest extends TestCase
         Log::shouldReceive('error')
             ->never();
 
-        $introspector = new SchemaIntrospector;
+        $introspector = $this->makeIntrospector();
         $model        = new User;
 
-        static::assertFalse($introspector->isRelation('nonExistent', $model));
+        self::assertFalse($introspector->isRelation('nonExistent', $model));
     }
 
     /**
@@ -441,10 +443,10 @@ class SchemaIntrospectorTest extends TestCase
      */
     public function testIsRelationReturnsTrueForBelongsToRelation(): void
     {
-        $introspector = new SchemaIntrospector;
+        $introspector = $this->makeIntrospector();
         $model        = new User;
 
-        static::assertTrue($introspector->isRelation('organization', $model));
+        self::assertTrue($introspector->isRelation('organization', $model));
     }
 
     /**
@@ -454,10 +456,10 @@ class SchemaIntrospectorTest extends TestCase
      */
     public function testIsRelationReturnsTrueForHasOneRelation(): void
     {
-        $introspector = new SchemaIntrospector;
+        $introspector = $this->makeIntrospector();
         $model        = new User;
 
-        static::assertTrue($introspector->isRelation('profile', $model));
+        self::assertTrue($introspector->isRelation('profile', $model));
     }
 
     /**
@@ -468,15 +470,15 @@ class SchemaIntrospectorTest extends TestCase
      */
     public function testParentKeysForReturnsRelationParentKeys(): void
     {
-        $introspector = new SchemaIntrospector;
+        $introspector = $this->makeIntrospector();
         $user         = new User;
 
         // BelongsTo resolves to the owning foreign key on the child table.
-        static::assertSame(['organization_id'], $introspector->parentKeysFor($user->organization()));
+        self::assertSame(['organization_id'], $introspector->parentKeysFor($user->organization()));
 
         // HasOne and HasMany (HasOneOrMany) resolve to the parent's local key.
-        static::assertSame([$user->getKeyName()], $introspector->parentKeysFor($user->posts()));
-        static::assertSame([$user->getKeyName()], $introspector->parentKeysFor($user->profile()));
+        self::assertSame([$user->getKeyName()], $introspector->parentKeysFor($user->posts()));
+        self::assertSame([$user->getKeyName()], $introspector->parentKeysFor($user->profile()));
     }
 
     /**
@@ -502,9 +504,9 @@ class SchemaIntrospectorTest extends TestCase
             }
         };
 
-        $introspector = new SchemaIntrospector;
+        $introspector = $this->makeIntrospector();
 
-        static::assertFalse($introspector->isRelation('tags', $model));
+        self::assertFalse($introspector->isRelation('tags', $model));
     }
 
     /**
@@ -519,7 +521,7 @@ class SchemaIntrospectorTest extends TestCase
             /** @var string|null */
             protected $table = 'users';
 
-            // phpcs:disable Squiz.Commenting.FunctionComment.MissingReturn
+            // phpcs:disable Squiz.Commenting.FunctionComment.MissingReturn,SineMaculaLaravel.TypeHints.ReturnTypeHint.MissingNativeTypeHint
             /**
              * A method with no return type declaration.
              */
@@ -527,12 +529,12 @@ class SchemaIntrospectorTest extends TestCase
             {
                 return $this;
             }
-            // phpcs:enable Squiz.Commenting.FunctionComment.MissingReturn
+            // phpcs:enable Squiz.Commenting.FunctionComment.MissingReturn,SineMaculaLaravel.TypeHints.ReturnTypeHint.MissingNativeTypeHint
         };
 
-        $introspector = new SchemaIntrospector;
+        $introspector = $this->makeIntrospector();
 
-        static::assertFalse($introspector->isRelation('tags', $model));
+        self::assertFalse($introspector->isRelation('tags', $model));
     }
 
     /**
@@ -560,9 +562,9 @@ class SchemaIntrospectorTest extends TestCase
             // phpcs:enable Generic.Files.LineLength.TooLong
         };
 
-        $introspector = new SchemaIntrospector;
+        $introspector = $this->makeIntrospector();
 
-        static::assertTrue($introspector->isRelation('tags', $model));
+        self::assertTrue($introspector->isRelation('tags', $model));
     }
 
     /**
@@ -588,9 +590,9 @@ class SchemaIntrospectorTest extends TestCase
             }
         };
 
-        $introspector = new SchemaIntrospector;
+        $introspector = $this->makeIntrospector();
 
-        static::assertFalse($introspector->isRelation('tags', $model));
+        self::assertFalse($introspector->isRelation('tags', $model));
     }
 
     /**
@@ -606,9 +608,9 @@ class SchemaIntrospectorTest extends TestCase
         try {
             User::resolveRelationUsing('dynamicPosts', fn (User $model) => $model->hasMany(Post::class));
 
-            $introspector = new SchemaIntrospector;
+            $introspector = $this->makeIntrospector();
 
-            static::assertTrue($introspector->isRelation('dynamicPosts', new User));
+            self::assertTrue($introspector->isRelation('dynamicPosts', new User));
         } finally {
             $property->setValue($original);
         }
@@ -621,10 +623,10 @@ class SchemaIntrospectorTest extends TestCase
      */
     public function testIsRelationReturnsFalseForAttributeAccessor(): void
     {
-        $introspector = new SchemaIntrospector;
+        $introspector = $this->makeIntrospector();
         $model        = new User;
 
-        static::assertFalse($introspector->isRelation('fullLabel', $model));
+        self::assertFalse($introspector->isRelation('fullLabel', $model));
     }
 
     /**
@@ -634,14 +636,14 @@ class SchemaIntrospectorTest extends TestCase
      */
     public function testIsRelationCachesResults(): void
     {
-        $introspector = new SchemaIntrospector;
+        $introspector = $this->makeIntrospector();
         $model        = new User;
 
         $first  = $introspector->isRelation('posts', $model);
         $second = $introspector->isRelation('posts', $model);
 
-        static::assertTrue($first);
-        static::assertSame($first, $second);
+        self::assertTrue($first);
+        self::assertSame($first, $second);
     }
 
     /**
@@ -652,12 +654,12 @@ class SchemaIntrospectorTest extends TestCase
      */
     public function testResolveRelationReturnsRelationInstanceForValidRelation(): void
     {
-        $introspector = new SchemaIntrospector;
+        $introspector = $this->makeIntrospector();
         $model        = new User;
 
         $relation = $introspector->resolveRelation('posts', $model);
 
-        static::assertInstanceOf(HasMany::class, $relation);
+        self::assertInstanceOf(HasMany::class, $relation);
     }
 
     /**
@@ -667,10 +669,10 @@ class SchemaIntrospectorTest extends TestCase
      */
     public function testResolveRelationReturnsNullForNonRelation(): void
     {
-        $introspector = new SchemaIntrospector;
+        $introspector = $this->makeIntrospector();
         $model        = new User;
 
-        static::assertNull($introspector->resolveRelation('getKey', $model));
+        self::assertNull($introspector->resolveRelation('getKey', $model));
     }
 
     /**
@@ -680,10 +682,10 @@ class SchemaIntrospectorTest extends TestCase
      */
     public function testResolveRelationReturnsNullForNonExistentMethod(): void
     {
-        $introspector = new SchemaIntrospector;
+        $introspector = $this->makeIntrospector();
         $model        = new User;
 
-        static::assertNull($introspector->resolveRelation('missing', $model));
+        self::assertNull($introspector->resolveRelation('missing', $model));
     }
 
     /**
@@ -697,8 +699,8 @@ class SchemaIntrospectorTest extends TestCase
         $first  = app(SchemaIntrospectionProvider::class);
         $second = app(SchemaIntrospectionProvider::class);
 
-        static::assertInstanceOf(SchemaIntrospector::class, $first);
-        static::assertSame($first, $second);
+        self::assertInstanceOf(SchemaIntrospector::class, $first);
+        self::assertSame($first, $second);
     }
 
     /**
@@ -710,12 +712,12 @@ class SchemaIntrospectorTest extends TestCase
     public function testFlushClearsColumns(): void
     {
         // Arrange
-        $introspector = new SchemaIntrospector;
+        $introspector = $this->makeIntrospector();
         $model        = new User;
 
         $originalColumns = $introspector->getColumns($model);
 
-        static::assertNotEmpty($originalColumns);
+        self::assertNotEmpty($originalColumns);
 
         // Act
         $introspector->flush();
@@ -729,8 +731,8 @@ class SchemaIntrospectorTest extends TestCase
         $refreshedColumns = $introspector->getColumns($model);
 
         // Assert
-        static::assertSame(['id', 'name', 'extra_column'], $refreshedColumns);
-        static::assertNotSame($originalColumns, $refreshedColumns);
+        self::assertSame(['id', 'name', 'extra_column'], $refreshedColumns);
+        self::assertNotSame($originalColumns, $refreshedColumns);
     }
 
     /**
@@ -744,12 +746,12 @@ class SchemaIntrospectorTest extends TestCase
         // Arrange
         Config::set('api-toolkit.repositories.searchable_exclusions', ['password']);
 
-        $introspector = new SchemaIntrospector;
+        $introspector = $this->makeIntrospector();
         $model        = new User;
 
         $originalSearchable = $introspector->getSearchableColumns($model);
 
-        static::assertNotContains('password', $originalSearchable);
+        self::assertNotContains('password', $originalSearchable);
 
         // Act
         $introspector->flush();
@@ -765,8 +767,8 @@ class SchemaIntrospectorTest extends TestCase
         $refreshedSearchable = $introspector->getSearchableColumns($model);
 
         // Assert
-        static::assertSame(['id', 'name', 'extra_column'], $refreshedSearchable);
-        static::assertNotSame($originalSearchable, $refreshedSearchable);
+        self::assertSame(['id', 'name', 'extra_column'], $refreshedSearchable);
+        self::assertNotSame($originalSearchable, $refreshedSearchable);
     }
 
     /**
@@ -777,12 +779,12 @@ class SchemaIntrospectorTest extends TestCase
      */
     public function testFlushOnEmptyStateIsHarmless(): void
     {
-        $introspector = new SchemaIntrospector;
+        $introspector = $this->makeIntrospector();
 
         $introspector->flush();
 
-        static::assertSame([], $this->getProperty($introspector, 'columns'));
-        static::assertSame([], $this->getProperty($introspector, 'searchable'));
+        self::assertSame([], $this->getProperty($introspector, 'columns'));
+        self::assertSame([], $this->getProperty($introspector, 'searchable'));
     }
 
     /**
@@ -802,6 +804,8 @@ class SchemaIntrospectorTest extends TestCase
              * A relation method that throws a LogicException.
              *
              * @return \Illuminate\Database\Eloquent\Relations\HasMany<\Tests\Fixtures\Models\Post, $this>
+             *
+             * @throws \LogicException
              */
             public function broken(): HasMany
             {
@@ -814,9 +818,9 @@ class SchemaIntrospectorTest extends TestCase
             ->once()
             ->withArgs(fn (string $message) => str_contains($message, 'broken') && str_contains($message, 'Test logic failure'));
 
-        $introspector = new SchemaIntrospector;
+        $introspector = $this->makeIntrospector();
 
-        static::assertNull($introspector->resolveRelation('broken', $model));
+        self::assertNull($introspector->resolveRelation('broken', $model));
     }
 
     /**
@@ -836,6 +840,8 @@ class SchemaIntrospectorTest extends TestCase
              * A relation method that throws a ReflectionException.
              *
              * @return \Illuminate\Database\Eloquent\Relations\HasMany<\Tests\Fixtures\Models\Post, $this>
+             *
+             * @throws \ReflectionException
              */
             public function broken(): HasMany
             {
@@ -848,9 +854,9 @@ class SchemaIntrospectorTest extends TestCase
             ->once()
             ->withArgs(fn (string $message) => str_contains($message, 'broken') && str_contains($message, 'Test reflection failure'));
 
-        $introspector = new SchemaIntrospector;
+        $introspector = $this->makeIntrospector();
 
-        static::assertNull($introspector->resolveRelation('broken', $model));
+        self::assertNull($introspector->resolveRelation('broken', $model));
     }
 
     /**
@@ -870,6 +876,8 @@ class SchemaIntrospectorTest extends TestCase
              * A relation method that throws a RuntimeException.
              *
              * @return \Illuminate\Database\Eloquent\Relations\HasMany<\Tests\Fixtures\Models\Post, $this>
+             *
+             * @throws \RuntimeException
              */
             public function broken(): HasMany
             {
@@ -881,7 +889,7 @@ class SchemaIntrospectorTest extends TestCase
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionMessage('Unexpected failure');
 
-        $introspector = new SchemaIntrospector;
+        $introspector = $this->makeIntrospector();
 
         $introspector->resolveRelation('broken', $model);
     }
@@ -900,11 +908,11 @@ class SchemaIntrospectorTest extends TestCase
         try {
             User::resolveRelationUsing('dynamicPosts', fn (User $model) => $model->hasMany(Post::class));
 
-            $introspector = new SchemaIntrospector;
+            $introspector = $this->makeIntrospector();
 
             $relation = $introspector->resolveRelation('dynamicPosts', new User);
 
-            static::assertInstanceOf(HasMany::class, $relation);
+            self::assertInstanceOf(HasMany::class, $relation);
         } finally {
             $property->setValue($original);
         }
@@ -918,14 +926,14 @@ class SchemaIntrospectorTest extends TestCase
      */
     public function testGetDeletedAtColumnReturnsNullWithoutSoftDeletes(): void
     {
-        $introspector = new SchemaIntrospector;
+        $introspector = $this->makeIntrospector();
 
-        static::assertNull($introspector->getDeletedAtColumn(new User));
+        self::assertNull($introspector->getDeletedAtColumn(new User));
     }
 
     /**
-     * Test that getDeletedAtColumn returns the configured soft-delete column for
-     * a model that uses SoftDeletes.
+     * Test that getDeletedAtColumn returns the configured soft-delete column
+     * for a model that uses SoftDeletes.
      *
      * @return void
      */
@@ -938,9 +946,9 @@ class SchemaIntrospectorTest extends TestCase
             protected $table = 'users';
         };
 
-        $introspector = new SchemaIntrospector;
+        $introspector = $this->makeIntrospector();
 
-        static::assertSame('deleted_at', $introspector->getDeletedAtColumn($model));
+        self::assertSame('deleted_at', $introspector->getDeletedAtColumn($model));
     }
 
     /**
@@ -950,12 +958,12 @@ class SchemaIntrospectorTest extends TestCase
      */
     public function testParentKeysForBelongsToReturnsForeignKey(): void
     {
-        $introspector = new SchemaIntrospector;
+        $introspector = $this->makeIntrospector();
         $relation     = (new User)->organization();
 
         $keys = $introspector->parentKeysFor($relation);
 
-        static::assertContains('organization_id', $keys);
+        self::assertContains('organization_id', $keys);
     }
 
     /**
@@ -965,12 +973,12 @@ class SchemaIntrospectorTest extends TestCase
      */
     public function testParentKeysForHasManyReturnsLocalKey(): void
     {
-        $introspector = new SchemaIntrospector;
+        $introspector = $this->makeIntrospector();
         $relation     = (new User)->posts();
 
         $keys = $introspector->parentKeysFor($relation);
 
-        static::assertContains('id', $keys);
+        self::assertContains('id', $keys);
     }
 
     /**
@@ -981,18 +989,18 @@ class SchemaIntrospectorTest extends TestCase
      */
     public function testParentKeysForMorphToReturnsTypeAndId(): void
     {
-        $morphTo = static::createStub(MorphTo::class);
+        $morphTo = self::createStub(MorphTo::class);
 
         $morphTo->method('getForeignKeyName')->willReturn('taggable_id');
         $morphTo->method('getMorphType')->willReturn('taggable_type');
 
-        $introspector = new SchemaIntrospector;
+        $introspector = $this->makeIntrospector();
 
         $keys = $introspector->parentKeysFor($morphTo);
 
-        static::assertContains('taggable_id', $keys);
-        static::assertContains('taggable_type', $keys);
-        static::assertCount(2, $keys);
+        self::assertContains('taggable_id', $keys);
+        self::assertContains('taggable_type', $keys);
+        self::assertCount(2, $keys);
     }
 
     /**
@@ -1003,11 +1011,11 @@ class SchemaIntrospectorTest extends TestCase
      */
     public function testParentKeysForUnknownRelationReturnsEmpty(): void
     {
-        $unknown = static::createStub(Relation::class);
+        $unknown = self::createStub(Relation::class);
 
-        $introspector = new SchemaIntrospector;
+        $introspector = $this->makeIntrospector();
 
-        static::assertSame([], $introspector->parentKeysFor($unknown));
+        self::assertSame([], $introspector->parentKeysFor($unknown));
     }
 
     /**
@@ -1020,7 +1028,7 @@ class SchemaIntrospectorTest extends TestCase
     {
         // Arrange
         $registry     = app(MetadataKeyRegistry::class);
-        $introspector = new SchemaIntrospector;
+        $introspector = $this->makeIntrospector();
         $model        = new User;
 
         // Act
@@ -1029,12 +1037,12 @@ class SchemaIntrospectorTest extends TestCase
         // Assert
         $expectedKey = CacheKeys::MODEL_SCHEMA_COLUMNS->resolveKey([User::class]);
 
-        static::assertContains($expectedKey, $registry->keys());
+        self::assertContains($expectedKey, $registry->keys());
     }
 
     /**
-     * Test that getColumnDefinitions registers the MODEL_SCHEMA_COLUMN_DEFINITIONS
-     * key in the metadata key registry.
+     * Test that getColumnDefinitions registers the
+     * MODEL_SCHEMA_COLUMN_DEFINITIONS key in the metadata key registry.
      *
      * @return void
      */
@@ -1042,7 +1050,7 @@ class SchemaIntrospectorTest extends TestCase
     {
         // Arrange
         $registry     = app(MetadataKeyRegistry::class);
-        $introspector = new SchemaIntrospector;
+        $introspector = $this->makeIntrospector();
         $model        = new User;
 
         // Act
@@ -1051,7 +1059,7 @@ class SchemaIntrospectorTest extends TestCase
         // Assert
         $expectedKey = CacheKeys::MODEL_SCHEMA_COLUMN_DEFINITIONS->resolveKey([User::class]);
 
-        static::assertContains($expectedKey, $registry->keys());
+        self::assertContains($expectedKey, $registry->keys());
     }
 
     /**
@@ -1064,7 +1072,7 @@ class SchemaIntrospectorTest extends TestCase
     {
         // Arrange
         $registry     = app(MetadataKeyRegistry::class);
-        $introspector = new SchemaIntrospector;
+        $introspector = $this->makeIntrospector();
         $model        = new User;
 
         // Act
@@ -1073,6 +1081,19 @@ class SchemaIntrospectorTest extends TestCase
         // Assert
         $expectedKey = CacheKeys::MODEL_RELATIONS->resolveKey([User::class, 'posts']);
 
-        static::assertContains($expectedKey, $registry->keys());
+        self::assertContains($expectedKey, $registry->keys());
+    }
+
+    /**
+     * Resolve a schema introspector with its dependencies wired from the
+     * container.
+     *
+     * @return \SineMacula\ApiToolkit\Services\SchemaIntrospector
+     */
+    private function makeIntrospector(): SchemaIntrospector
+    {
+        assert($this->app !== null);
+
+        return $this->app->make(SchemaIntrospector::class);
     }
 }

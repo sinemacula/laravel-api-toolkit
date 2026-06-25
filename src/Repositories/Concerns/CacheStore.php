@@ -1,10 +1,13 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace SineMacula\ApiToolkit\Repositories\Concerns;
 
 use Illuminate\Cache\Repository as ConcreteRepository;
 use Illuminate\Contracts\Cache\Repository as CacheContract;
 use Illuminate\Support\Facades\Cache;
+use SineMacula\ApiToolkit\Contracts\CacheInvalidator;
 use SineMacula\ApiToolkit\Enums\CacheKeys;
 
 /**
@@ -13,16 +16,17 @@ use SineMacula\ApiToolkit\Enums\CacheKeys;
  *
  * Each executed query is stored under a key derived from its fingerprint, so a
  * filtered or by-id read never returns the full-table collection. Invalidation
- * is performed per table - via cache tags when the store supports them, or via a
- * generational table version otherwise: every per-query key embeds the current
- * table version, and a write bumps the version with a single atomic increment.
+ * is performed per table - via cache tags when the store supports them, or
+ * via a generational table version otherwise: every per-query key embeds the
+ * current table version, and a write bumps the version with a single atomic
+ * increment.
  * Invalidation is therefore O(1) and free of the read-modify-write races a
  * tracked key set suffers; orphaned old-version entries simply expire by TTL.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-final class CacheStore
+final class CacheStore implements CacheInvalidator
 {
     /** @var \Illuminate\Contracts\Cache\Repository The underlying cache store instance. */
     private readonly CacheContract $store;
@@ -51,8 +55,14 @@ final class CacheStore
      * @return void
      */
     public function __construct(
+
+        /** The name of the configured cache store to use. */
         private readonly string $cacheStore,
+
+        /** The table whose per-query entries are managed. */
         private readonly string $table,
+
+        /** The cache behaviour options for this store. */
         private readonly CacheStoreOptions $options,
     ) {
         $store = Cache::store($this->cacheStore);
@@ -90,9 +100,11 @@ final class CacheStore
             return;
         }
 
-        if ($registryEnabled) {
-            $store->increment(self::versionKeyFor($table));
+        if (!$registryEnabled) {
+            return;
         }
+
+        $store->increment(self::versionKeyFor($table));
     }
 
     /**
@@ -123,7 +135,8 @@ final class CacheStore
     }
 
     /**
-     * Store the given result for a query fingerprint, subject to the size guard.
+     * Store the given result for a query fingerprint, subject to the size
+     * guard.
      *
      * @param  string  $hash
      * @param  mixed  $result
@@ -162,6 +175,7 @@ final class CacheStore
      *
      * @return void
      */
+    #[\Override]
     public function flushTable(): void
     {
         if ($this->taggableStore !== null) {

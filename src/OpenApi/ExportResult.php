@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace SineMacula\ApiToolkit\OpenApi;
 
 /**
@@ -37,6 +39,5 @@ final readonly class ExportResult
 
         /** The number of error-response components emitted */
         public int $responseCount,
-
     ) {}
 }

@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace SineMacula\ApiToolkit\Schema;
 
 /**
@@ -21,8 +23,14 @@ final readonly class NarrowingDecision
      * @param  string|null  $reason
      */
     private function __construct(
+
+        /** Whether the query should be narrowed to the projection */
         private bool $shouldNarrow,
+
+        /** The column projection carried by a narrowing decision */
         private array $columns,
+
+        /** The field key that forced fall-back, for diagnostics */
         private ?string $reason,
     ) {}
 

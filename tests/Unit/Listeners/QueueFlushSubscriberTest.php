@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Unit\Listeners;
 
 use Illuminate\Contracts\Queue\Job;
@@ -26,7 +28,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(QueueFlushSubscriber::class)]
-class QueueFlushSubscriberTest extends TestCase
+final class QueueFlushSubscriberTest extends TestCase
 {
     /**
      * Test that subscribe registers JobProcessed and JobFailed listeners.
@@ -53,7 +55,8 @@ class QueueFlushSubscriberTest extends TestCase
     }
 
     /**
-     * Test that handleFlush flushes toolkit caches for a real worker connection.
+     * Test that handleFlush flushes toolkit caches for a real worker
+     * connection.
      *
      * @return void
      */
@@ -75,21 +78,22 @@ class QueueFlushSubscriberTest extends TestCase
         $registry->register($key);
         Cache::memo()->rememberForever($key, fn () => 'cached'); // @phpstan-ignore method.notFound
 
-        static::assertSame('cached', Cache::memo()->get($key)); // @phpstan-ignore method.notFound
+        self::assertSame('cached', Cache::memo()->get($key)); // @phpstan-ignore method.notFound
 
         $cacheManager = $this->app->make(CacheManager::class); // @phpstan-ignore method.nonObject
         $subscriber   = new QueueFlushSubscriber($cacheManager, new RuntimeContext);
-        $event        = new JobProcessed('database', static::createStub(Job::class));
+        $event        = new JobProcessed('database', self::createStub(Job::class));
 
         // Act
         $subscriber->handleFlush($event);
 
         // Assert
-        static::assertNull(Cache::memo()->get($key)); // @phpstan-ignore method.notFound
+        self::assertNull(Cache::memo()->get($key)); // @phpstan-ignore method.notFound
     }
 
     /**
-     * Test that handleFlush does not flush for a sync connection (in-request job).
+     * Test that handleFlush does not flush for a sync connection (in-request
+     * job).
      *
      * Pins AC-06: sync jobs run within the HTTP request and must not trigger
      * a metadata flush at the job boundary.
@@ -110,21 +114,22 @@ class QueueFlushSubscriberTest extends TestCase
         $registry->register($key);
         Cache::memo()->rememberForever($key, fn () => 'cached'); // @phpstan-ignore method.notFound
 
-        static::assertSame('cached', Cache::memo()->get($key)); // @phpstan-ignore method.notFound
+        self::assertSame('cached', Cache::memo()->get($key)); // @phpstan-ignore method.notFound
 
         $cacheManager = $this->app->make(CacheManager::class); // @phpstan-ignore method.nonObject
         $subscriber   = new QueueFlushSubscriber($cacheManager, new RuntimeContext);
-        $event        = new JobProcessed('sync', static::createStub(Job::class));
+        $event        = new JobProcessed('sync', self::createStub(Job::class));
 
         // Act
         $subscriber->handleFlush($event);
 
         // Assert
-        static::assertSame('cached', Cache::memo()->get($key)); // @phpstan-ignore method.notFound
+        self::assertSame('cached', Cache::memo()->get($key)); // @phpstan-ignore method.notFound
     }
 
     /**
-     * Test that handleFlush delegates to CacheManager::flush for a non-sync connection.
+     * Test that handleFlush delegates to CacheManager::flush for a non-sync
+     * connection.
      *
      * @return void
      */
@@ -146,16 +151,16 @@ class QueueFlushSubscriberTest extends TestCase
         $registry->register($key);
         Cache::memo()->rememberForever($key, fn () => 'cached'); // @phpstan-ignore method.notFound
 
-        static::assertSame('cached', Cache::memo()->get($key)); // @phpstan-ignore method.notFound
+        self::assertSame('cached', Cache::memo()->get($key)); // @phpstan-ignore method.notFound
 
         $cacheManager = $this->app->make(CacheManager::class); // @phpstan-ignore method.nonObject
         $subscriber   = new QueueFlushSubscriber($cacheManager, new RuntimeContext);
-        $event        = new JobProcessed('database', static::createStub(Job::class));
+        $event        = new JobProcessed('database', self::createStub(Job::class));
 
         // Act
         $subscriber->handleFlush($event);
 
         // Assert
-        static::assertNull(Cache::memo()->get($key)); // @phpstan-ignore method.notFound
+        self::assertNull(Cache::memo()->get($key)); // @phpstan-ignore method.notFound
     }
 }

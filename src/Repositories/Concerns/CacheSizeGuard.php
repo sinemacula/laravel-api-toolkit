@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace SineMacula\ApiToolkit\Repositories\Concerns;
 
 /**
@@ -24,12 +26,11 @@ final readonly class CacheSizeGuard
      */
     public function __construct(
 
-        /** The maximum row count allowed in a stored result, or null to disable. */
+        /** Maximum row count allowed in a stored result, or null to disable. */
         private ?int $maxRows,
 
-        /** The maximum serialized byte size of a stored result, or null to disable. */
+        /** Maximum serialized byte size of a result, or null to disable. */
         private ?int $maxBytes,
-
     ) {}
 
     /**

@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Unit\Services\Validation\Rules;
 
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -20,7 +22,7 @@ use Tests\Fixtures\Resources\OrganizationResource;
  * @internal
  */
 #[CoversClass(ValidateRelationClasses::class)]
-class ValidateRelationClassesTest extends TestCase
+final class ValidateRelationClassesTest extends TestCase
 {
     /**
      * Test no errors for schema with existing relation classes.
@@ -50,7 +52,7 @@ class ValidateRelationClassesTest extends TestCase
         $rule   = new ValidateRelationClasses;
         $errors = $rule->validate('App\Http\Resources\UserResource', null, $schema);
 
-        static::assertSame([], $errors);
+        self::assertSame([], $errors);
     }
 
     /**
@@ -81,10 +83,10 @@ class ValidateRelationClassesTest extends TestCase
         $rule   = new ValidateRelationClasses;
         $errors = $rule->validate('App\Http\Resources\UserResource', null, $schema);
 
-        static::assertCount(1, $errors);
-        static::assertSame('organization', $errors[0]->fieldKey);
-        static::assertStringContainsString('App\NonExistent\Resource', $errors[0]->defect);
-        static::assertStringContainsString('does not exist', $errors[0]->defect);
+        self::assertCount(1, $errors);
+        self::assertSame('organization', $errors[0]->fieldKey);
+        self::assertStringContainsString('App\NonExistent\Resource', $errors[0]->defect);
+        self::assertStringContainsString('does not exist', $errors[0]->defect);
     }
 
     /**
@@ -115,7 +117,7 @@ class ValidateRelationClassesTest extends TestCase
         $rule   = new ValidateRelationClasses;
         $errors = $rule->validate('App\Http\Resources\UserResource', null, $schema);
 
-        static::assertSame([], $errors);
+        self::assertSame([], $errors);
     }
 
     /**
@@ -137,8 +139,8 @@ class ValidateRelationClassesTest extends TestCase
         $rule   = new ValidateRelationClasses;
         $errors = $rule->validate('App\Http\Resources\UserResource', null, $schema);
 
-        static::assertCount(1, $errors);
-        static::assertSame('bad', $errors[0]->fieldKey);
+        self::assertCount(1, $errors);
+        self::assertSame('bad', $errors[0]->fieldKey);
     }
 
     /**
@@ -159,9 +161,9 @@ class ValidateRelationClassesTest extends TestCase
         $rule   = new ValidateRelationClasses;
         $errors = $rule->validate('App\Http\Resources\UserResource', null, $schema);
 
-        static::assertCount(2, $errors);
-        static::assertSame('first', $errors[0]->fieldKey);
-        static::assertSame('second', $errors[1]->fieldKey);
+        self::assertCount(2, $errors);
+        self::assertSame('first', $errors[0]->fieldKey);
+        self::assertSame('second', $errors[1]->fieldKey);
     }
 
     /**

@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Unit\Services\Validation\Rules;
 
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -19,7 +21,7 @@ use SineMacula\ApiToolkit\Services\Validation\Rules\ValidateAccessors;
  * @internal
  */
 #[CoversClass(ValidateAccessors::class)]
-class ValidateAccessorsTest extends TestCase
+final class ValidateAccessorsTest extends TestCase
 {
     /**
      * Test that no errors are returned for valid non-empty string accessors.
@@ -49,7 +51,7 @@ class ValidateAccessorsTest extends TestCase
         $rule   = new ValidateAccessors;
         $errors = $rule->validate('App\Http\Resources\UserResource', null, $schema);
 
-        static::assertSame([], $errors);
+        self::assertSame([], $errors);
     }
 
     /**
@@ -80,9 +82,9 @@ class ValidateAccessorsTest extends TestCase
         $rule   = new ValidateAccessors;
         $errors = $rule->validate('App\Http\Resources\UserResource', null, $schema);
 
-        static::assertCount(1, $errors);
-        static::assertSame('name', $errors[0]->fieldKey);
-        static::assertSame('Accessor path must not be empty', $errors[0]->defect);
+        self::assertCount(1, $errors);
+        self::assertSame('name', $errors[0]->fieldKey);
+        self::assertSame('Accessor path must not be empty', $errors[0]->defect);
     }
 
     /**
@@ -113,7 +115,7 @@ class ValidateAccessorsTest extends TestCase
         $rule   = new ValidateAccessors;
         $errors = $rule->validate('App\Http\Resources\UserResource', null, $schema);
 
-        static::assertSame([], $errors);
+        self::assertSame([], $errors);
     }
 
     /**
@@ -133,9 +135,9 @@ class ValidateAccessorsTest extends TestCase
 
         $warnings = $this->captureWarnings(fn () => $rule->validate('App\Http\Resources\UserResource', null, $schema), $errors);
 
-        static::assertSame([], $warnings);
-        static::assertCount(1, $errors);
-        static::assertSame('bad', $errors[0]->fieldKey);
+        self::assertSame([], $warnings);
+        self::assertCount(1, $errors);
+        self::assertSame('bad', $errors[0]->fieldKey);
     }
 
     /**
@@ -157,8 +159,8 @@ class ValidateAccessorsTest extends TestCase
         $rule   = new ValidateAccessors;
         $errors = $rule->validate('App\Http\Resources\UserResource', null, $schema);
 
-        static::assertCount(1, $errors);
-        static::assertSame('bad', $errors[0]->fieldKey);
+        self::assertCount(1, $errors);
+        self::assertSame('bad', $errors[0]->fieldKey);
     }
 
     /**
@@ -180,8 +182,8 @@ class ValidateAccessorsTest extends TestCase
         $rule   = new ValidateAccessors;
         $errors = $rule->validate('App\Http\Resources\UserResource', null, $schema);
 
-        static::assertCount(1, $errors);
-        static::assertSame('bad', $errors[0]->fieldKey);
+        self::assertCount(1, $errors);
+        self::assertSame('bad', $errors[0]->fieldKey);
     }
 
     /**
@@ -202,9 +204,9 @@ class ValidateAccessorsTest extends TestCase
         $rule   = new ValidateAccessors;
         $errors = $rule->validate('App\Http\Resources\UserResource', null, $schema);
 
-        static::assertCount(2, $errors);
-        static::assertSame('first', $errors[0]->fieldKey);
-        static::assertSame('second', $errors[1]->fieldKey);
+        self::assertCount(2, $errors);
+        self::assertSame('first', $errors[0]->fieldKey);
+        self::assertSame('second', $errors[1]->fieldKey);
     }
 
     /**
@@ -235,7 +237,7 @@ class ValidateAccessorsTest extends TestCase
         $rule   = new ValidateAccessors;
         $errors = $rule->validate('App\Http\Resources\UserResource', null, $schema);
 
-        static::assertSame([], $errors);
+        self::assertSame([], $errors);
     }
 
     /**

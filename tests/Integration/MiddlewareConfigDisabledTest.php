@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Integration;
 
 use Illuminate\Contracts\Http\Kernel as HttpKernel;
@@ -28,7 +30,7 @@ use Tests\TestCase;
  */
 #[CoversClass(ApiServiceProvider::class)]
 #[CoversClass(MiddlewareRegistrar::class)]
-class MiddlewareConfigDisabledTest extends TestCase
+final class MiddlewareConfigDisabledTest extends TestCase
 {
     /**
      * Test that the maintenance mode middleware swap is skipped when disabled.
@@ -41,7 +43,7 @@ class MiddlewareConfigDisabledTest extends TestCase
         $kernel     = $this->getApplication()->make(HttpKernel::class);
         $middleware = $kernel->getGlobalMiddleware();
 
-        static::assertNotContains(PreventRequestsDuringMaintenance::class, $middleware);
+        self::assertNotContains(PreventRequestsDuringMaintenance::class, $middleware);
     }
 
     /**
@@ -55,7 +57,7 @@ class MiddlewareConfigDisabledTest extends TestCase
         $kernel     = $this->getApplication()->make(HttpKernel::class);
         $middleware = $kernel->getGlobalMiddleware();
 
-        static::assertNotContains(JsonPrettyPrint::class, $middleware);
+        self::assertNotContains(JsonPrettyPrint::class, $middleware);
     }
 
     /**
@@ -72,10 +74,10 @@ class MiddlewareConfigDisabledTest extends TestCase
         // The throttle alias may exist from Laravel's defaults, but it should
         // not point to any of the toolkit's middleware classes
         if (isset($middleware['throttle'])) {
-            static::assertNotSame(ThrottleRequests::class, $middleware['throttle']);
-            static::assertNotSame(ThrottleRequestsWithRedis::class, $middleware['throttle']);
+            self::assertNotSame(ThrottleRequests::class, $middleware['throttle']);
+            self::assertNotSame(ThrottleRequestsWithRedis::class, $middleware['throttle']);
         } else {
-            static::assertArrayNotHasKey('throttle', $middleware);
+            self::assertArrayNotHasKey('throttle', $middleware);
         }
     }
 

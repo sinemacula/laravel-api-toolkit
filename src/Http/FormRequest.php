@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace SineMacula\ApiToolkit\Http;
 
 use Illuminate\Contracts\Validation\Validator;
@@ -20,7 +22,7 @@ abstract class FormRequest extends LaravelFormRequest
      * @param  \Illuminate\Contracts\Validation\Validator  $validator
      * @return void
      *
-     * @throws \SineMacula\ApiToolkit\Exceptions\ApiException
+     * @throws \SineMacula\ApiToolkit\Exceptions\InvalidInputException
      */
     #[\Override]
     protected function failedValidation(Validator $validator): void

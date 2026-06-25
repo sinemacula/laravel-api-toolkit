@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Unit\Services\Introspection;
 
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -15,7 +17,7 @@ use SineMacula\ApiToolkit\Services\Introspection\ColumnDefinition;
  * @internal
  */
 #[CoversClass(ColumnDefinition::class)]
-class ColumnDefinitionTest extends TestCase
+final class ColumnDefinitionTest extends TestCase
 {
     /**
      * Test that constructor properties are stored and accessible.
@@ -30,9 +32,9 @@ class ColumnDefinitionTest extends TestCase
             nullable: true,
         );
 
-        static::assertSame('email', $definition->name);
-        static::assertSame('varchar', $definition->typeName);
-        static::assertTrue($definition->nullable);
+        self::assertSame('email', $definition->name);
+        self::assertSame('varchar', $definition->typeName);
+        self::assertTrue($definition->nullable);
     }
 
     /**
@@ -48,6 +50,6 @@ class ColumnDefinitionTest extends TestCase
             nullable: false,
         );
 
-        static::assertFalse($definition->nullable);
+        self::assertFalse($definition->nullable);
     }
 }

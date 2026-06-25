@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Unit\Repositories\Criteria\Concerns;
 
 use Illuminate\Http\Request;
@@ -19,7 +21,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(EagerLoadApplier::class)]
-class EagerLoadApplierTest extends TestCase
+final class EagerLoadApplierTest extends TestCase
 {
     /** @var string */
     private const string STUB_USER_FIELDS = 'id,name';
@@ -51,13 +53,13 @@ class EagerLoadApplierTest extends TestCase
         $this->parseRequest(new Request);
 
         $provider = $this->createMock(ResourceMetadataProvider::class);
-        $provider->expects(static::never())->method('resolveFields');
-        $provider->expects(static::never())->method('getAllFields');
+        $provider->expects(self::never())->method('resolveFields');
+        $provider->expects(self::never())->method('getAllFields');
 
         $query  = (new User)->newQuery();
         $result = $this->applier->apply($query, $provider, null, 'users');
 
-        static::assertEmpty($result->getEagerLoads());
+        self::assertEmpty($result->getEagerLoads());
     }
 
     /**
@@ -71,13 +73,13 @@ class EagerLoadApplierTest extends TestCase
         $this->parseRequest(new Request);
 
         $provider = $this->createMock(ResourceMetadataProvider::class);
-        $provider->expects(static::never())->method('resolveFields');
-        $provider->expects(static::never())->method('getAllFields');
+        $provider->expects(self::never())->method('resolveFields');
+        $provider->expects(self::never())->method('getAllFields');
 
         $query  = (new User)->newQuery();
         $result = $this->applier->apply($query, $provider, \stdClass::class, 'users');
 
-        static::assertEmpty($result->getEagerLoads());
+        self::assertEmpty($result->getEagerLoads());
     }
 
     /**
@@ -94,12 +96,12 @@ class EagerLoadApplierTest extends TestCase
 
         $provider = $this->createMock(ResourceMetadataProvider::class);
 
-        $provider->expects(static::once())
+        $provider->expects(self::once())
             ->method('getAllFields')
             ->with(UserResource::class)
             ->willReturn(['id', 'name', 'organization']);
 
-        $provider->expects(static::never())
+        $provider->expects(self::never())
             ->method('resolveFields');
 
         $provider->method('eagerLoadMapFor')
@@ -126,12 +128,12 @@ class EagerLoadApplierTest extends TestCase
 
         $provider = $this->createMock(ResourceMetadataProvider::class);
 
-        $provider->expects(static::once())
+        $provider->expects(self::once())
             ->method('resolveFields')
             ->with(UserResource::class)
             ->willReturn(['id', 'name']);
 
-        $provider->expects(static::never())
+        $provider->expects(self::never())
             ->method('getAllFields');
 
         $provider->method('eagerLoadMapFor')
@@ -161,16 +163,16 @@ class EagerLoadApplierTest extends TestCase
         $provider->method('resolveFields')
             ->willReturn([]);
 
-        $provider->expects(static::never())
+        $provider->expects(self::never())
             ->method('eagerLoadMapFor');
 
-        $provider->expects(static::never())
+        $provider->expects(self::never())
             ->method('eagerLoadCountsFor');
 
         $query  = (new User)->newQuery();
         $result = $this->applier->apply($query, $provider, UserResource::class, 'users');
 
-        static::assertEmpty($result->getEagerLoads());
+        self::assertEmpty($result->getEagerLoads());
     }
 
     /**
@@ -185,7 +187,7 @@ class EagerLoadApplierTest extends TestCase
             'fields' => ['users' => 'id,name,organization'],
         ]));
 
-        $provider = static::createStub(ResourceMetadataProvider::class);
+        $provider = self::createStub(ResourceMetadataProvider::class);
 
         $provider->method('resolveFields')
             ->willReturn(['id', 'name', 'organization']);
@@ -199,7 +201,7 @@ class EagerLoadApplierTest extends TestCase
         $query  = (new User)->newQuery();
         $result = $this->applier->apply($query, $provider, UserResource::class, 'users');
 
-        static::assertArrayHasKey('organization', $result->getEagerLoads());
+        self::assertArrayHasKey('organization', $result->getEagerLoads());
     }
 
     /**
@@ -214,7 +216,7 @@ class EagerLoadApplierTest extends TestCase
             'fields' => ['users' => self::STUB_USER_FIELDS],
         ]));
 
-        $provider = static::createStub(ResourceMetadataProvider::class);
+        $provider = self::createStub(ResourceMetadataProvider::class);
 
         $provider->method('resolveFields')
             ->willReturn(['id', 'name']);
@@ -228,7 +230,7 @@ class EagerLoadApplierTest extends TestCase
         $query  = (new User)->newQuery();
         $result = $this->applier->apply($query, $provider, UserResource::class, 'users');
 
-        static::assertEmpty($result->getEagerLoads());
+        self::assertEmpty($result->getEagerLoads());
     }
 
     /**
@@ -261,7 +263,7 @@ class EagerLoadApplierTest extends TestCase
 
         $columns = $result->getQuery()->columns ?? [];
 
-        static::assertNotEmpty($columns);
+        self::assertNotEmpty($columns);
     }
 
     /**
@@ -276,7 +278,7 @@ class EagerLoadApplierTest extends TestCase
             'fields' => ['users' => self::STUB_USER_FIELDS],
         ]));
 
-        $provider = static::createStub(ResourceMetadataProvider::class);
+        $provider = self::createStub(ResourceMetadataProvider::class);
 
         $provider->method('resolveFields')
             ->willReturn(['id', 'name']);
@@ -290,7 +292,7 @@ class EagerLoadApplierTest extends TestCase
         $query  = (new User)->newQuery();
         $result = $this->applier->apply($query, $provider, UserResource::class, 'users');
 
-        static::assertEmpty($result->getQuery()->columns ?? []);
+        self::assertEmpty($result->getQuery()->columns ?? []);
     }
 
     /**

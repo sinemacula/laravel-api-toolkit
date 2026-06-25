@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Unit\Http\Resources\Concerns;
 
 use Illuminate\Http\Request;
@@ -16,7 +18,7 @@ use SineMacula\ApiToolkit\Http\Resources\Concerns\GuardEvaluator;
  * @internal
  */
 #[CoversClass(GuardEvaluator::class)]
-class GuardEvaluatorTest extends TestCase
+final class GuardEvaluatorTest extends TestCase
 {
     /** @var \SineMacula\ApiToolkit\Http\Resources\Concerns\GuardEvaluator */
     private GuardEvaluator $evaluator;
@@ -26,6 +28,7 @@ class GuardEvaluatorTest extends TestCase
      *
      * @return void
      */
+    #[\Override]
     protected function setUp(): void
     {
         parent::setUp();
@@ -42,7 +45,7 @@ class GuardEvaluatorTest extends TestCase
     {
         $result = $this->evaluator->passesGuards([], new \stdClass, null);
 
-        static::assertTrue($result);
+        self::assertTrue($result);
     }
 
     /**
@@ -59,7 +62,7 @@ class GuardEvaluatorTest extends TestCase
 
         $result = $this->evaluator->passesGuards($guards, new \stdClass, null);
 
-        static::assertTrue($result);
+        self::assertTrue($result);
     }
 
     /**
@@ -76,7 +79,7 @@ class GuardEvaluatorTest extends TestCase
 
         $result = $this->evaluator->passesGuards($guards, new \stdClass, null);
 
-        static::assertFalse($result);
+        self::assertFalse($result);
     }
 
     /**
@@ -94,7 +97,7 @@ class GuardEvaluatorTest extends TestCase
 
         $result = $this->evaluator->passesGuards($guards, new \stdClass, null);
 
-        static::assertTrue($result);
+        self::assertTrue($result);
     }
 
     /**
@@ -111,7 +114,7 @@ class GuardEvaluatorTest extends TestCase
         $resource = new \stdClass;
         $request  = new Request;
 
-        $guard = function ($res, $req) use (&$receivedArgs) {
+        $guard = function ($res, $req) use (&$receivedArgs): bool {
             $receivedArgs = [$res, $req];
 
             return true;
@@ -119,9 +122,9 @@ class GuardEvaluatorTest extends TestCase
 
         $this->evaluator->passesGuards([$guard], $resource, $request);
 
-        static::assertCount(2, $receivedArgs);
-        static::assertSame($resource, $receivedArgs[0]);
-        static::assertSame($request, $receivedArgs[1]);
+        self::assertCount(2, $receivedArgs);
+        self::assertSame($resource, $receivedArgs[0]);
+        self::assertSame($request, $receivedArgs[1]);
     }
 
     /**
@@ -137,7 +140,7 @@ class GuardEvaluatorTest extends TestCase
 
         $result = $this->evaluator->passesGuards($guards, new \stdClass, null);
 
-        static::assertTrue($result);
+        self::assertTrue($result);
     }
 
     /**
@@ -151,7 +154,7 @@ class GuardEvaluatorTest extends TestCase
 
         $guards = [
             fn ($resource, $request) => false,
-            function () use (&$secondGuardCalled) {
+            function () use (&$secondGuardCalled): bool {
                 $secondGuardCalled = true;
 
                 return true;
@@ -160,6 +163,6 @@ class GuardEvaluatorTest extends TestCase
 
         $this->evaluator->passesGuards($guards, new \stdClass, null);
 
-        static::assertFalse($secondGuardCalled);
+        self::assertFalse($secondGuardCalled);
     }
 }

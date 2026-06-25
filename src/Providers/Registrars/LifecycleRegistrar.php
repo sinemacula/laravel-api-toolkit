@@ -1,10 +1,13 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace SineMacula\ApiToolkit\Providers\Registrars;
 
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Log;
+use Laravel\Octane\Events\OperationTerminated;
 use SineMacula\ApiToolkit\Listeners\OctaneFlushListener;
 use SineMacula\ApiToolkit\Listeners\QueueFlushSubscriber;
 use SineMacula\ApiToolkit\Listeners\WritePoolFlushSubscriber;
@@ -57,11 +60,11 @@ final class LifecycleRegistrar
             return;
         }
 
-        if (!class_exists(\Laravel\Octane\Events\OperationTerminated::class)) {
+        if (!class_exists(OperationTerminated::class)) {
             return;
         }
 
-        Event::listen(\Laravel\Octane\Events\OperationTerminated::class, OctaneFlushListener::class);
+        Event::listen(OperationTerminated::class, OctaneFlushListener::class);
     }
 
     /**
@@ -95,8 +98,10 @@ final class LifecycleRegistrar
             Log::info('API Toolkit: serving under Octane but the lifecycle cache flush is disabled (API_TOOLKIT_LIFECYCLE_OCTANE=false); cross-request metadata may go stale.');
         }
 
-        if ($runtime->isServingAsQueueWorker() && !(bool) Config::get('api-toolkit.lifecycle.queue')) {
-            Log::info('API Toolkit: serving as a queue worker but the lifecycle cache flush is disabled (API_TOOLKIT_LIFECYCLE_QUEUE=false); cross-request metadata may go stale.');
+        if (!$runtime->isServingAsQueueWorker() || (bool) Config::get('api-toolkit.lifecycle.queue')) {
+            return;
         }
+
+        Log::info('API Toolkit: serving as a queue worker but the lifecycle cache flush is disabled (API_TOOLKIT_LIFECYCLE_QUEUE=false); cross-request metadata may go stale.');
     }
 }

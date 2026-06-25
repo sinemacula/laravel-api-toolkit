@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace SineMacula\ApiToolkit\Schema;
 
 use Illuminate\Contracts\Support\Arrayable;
@@ -113,7 +115,8 @@ abstract class BaseDefinition implements Arrayable
     }
 
     /**
-     * Declare the base-table columns this field reads so a narrowed SELECT can include them.
+     * Declare the base-table columns this field reads so a narrowed SELECT
+     * can include them.
      *
      * @param  string  ...$columns
      * @return static

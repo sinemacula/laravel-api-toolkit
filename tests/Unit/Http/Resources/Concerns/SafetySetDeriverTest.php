@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Unit\Http\Resources\Concerns;
 
 use Illuminate\Database\Eloquent\Model;
@@ -18,7 +20,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(SafetySetDeriver::class)]
-class SafetySetDeriverTest extends TestCase
+final class SafetySetDeriverTest extends TestCase
 {
     /** @var \PHPUnit\Framework\MockObject\Stub&\SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider */
     private SchemaIntrospectionProvider $introspector;
@@ -31,16 +33,18 @@ class SafetySetDeriverTest extends TestCase
      *
      * @return void
      */
+    #[\Override]
     protected function setUp(): void
     {
         parent::setUp();
 
-        $this->introspector = static::createStub(SchemaIntrospectionProvider::class);
+        $this->introspector = self::createStub(SchemaIntrospectionProvider::class);
         $this->deriver      = new SafetySetDeriver($this->introspector);
     }
 
     /**
-     * Test that the safety set contains the model's declared primary key, not the assumed 'id'.
+     * Test that the safety set contains the model's declared primary key, not
+     * the assumed 'id'.
      *
      * @return void
      */
@@ -53,12 +57,13 @@ class SafetySetDeriverTest extends TestCase
 
         $columns = $this->deriver->derive($model, [], [], []);
 
-        static::assertContains('uuid', $columns);
-        static::assertNotContains('id', $columns);
+        self::assertContains('uuid', $columns);
+        self::assertNotContains('id', $columns);
     }
 
     /**
-     * Test that the soft-delete column is included when the port reports it as non-null.
+     * Test that the soft-delete column is included when the port reports it as
+     * non-null.
      *
      * @return void
      */
@@ -71,7 +76,7 @@ class SafetySetDeriverTest extends TestCase
 
         $columns = $this->deriver->derive($model, [], [], []);
 
-        static::assertContains('deleted_at', $columns);
+        self::assertContains('deleted_at', $columns);
     }
 
     /**
@@ -88,18 +93,19 @@ class SafetySetDeriverTest extends TestCase
 
         $columns = $this->deriver->derive($model, [], [], []);
 
-        static::assertNotContains('deleted_at', $columns);
+        self::assertNotContains('deleted_at', $columns);
     }
 
     /**
-     * Test that parent-side relation keys, including morph type and id, are unioned for eager-loaded relations.
+     * Test that parent-side relation keys, including morph type and id, are
+     * unioned for eager-loaded relations.
      *
      * @return void
      */
     public function testUnionsRelationParentKeysForEagerLoadedRelations(): void
     {
         $model    = $this->makeModel('id');
-        $relation = static::createStub(Relation::class);
+        $relation = self::createStub(Relation::class);
 
         $this->introspector->method('getDeletedAtColumn')->willReturn(null);
         $this->introspector->method('resolveRelation')->willReturn($relation);
@@ -108,12 +114,13 @@ class SafetySetDeriverTest extends TestCase
 
         $columns = $this->deriver->derive($model, ['taggable'], [], []);
 
-        static::assertContains('taggable_type', $columns);
-        static::assertContains('taggable_id', $columns);
+        self::assertContains('taggable_type', $columns);
+        self::assertContains('taggable_id', $columns);
     }
 
     /**
-     * Test that an unresolvable relation contributes nothing and does not throw.
+     * Test that an unresolvable relation contributes nothing and does not
+     * throw.
      *
      * @return void
      */
@@ -127,11 +134,12 @@ class SafetySetDeriverTest extends TestCase
 
         $columns = $this->deriver->derive($model, ['nonexistent'], [], []);
 
-        static::assertSame(['id'], $columns);
+        self::assertSame(['id'], $columns);
     }
 
     /**
-     * Test that aliased-scalar columns and order columns that are real columns appear in the result.
+     * Test that aliased-scalar columns and order columns that are real columns
+     * appear in the result.
      *
      * @return void
      */
@@ -144,13 +152,14 @@ class SafetySetDeriverTest extends TestCase
 
         $columns = $this->deriver->derive($model, [], ['first_name', 'last_name'], ['created_at']);
 
-        static::assertContains('first_name', $columns);
-        static::assertContains('last_name', $columns);
-        static::assertContains('created_at', $columns);
+        self::assertContains('first_name', $columns);
+        self::assertContains('last_name', $columns);
+        self::assertContains('created_at', $columns);
     }
 
     /**
-     * Test that a column name not present in the model's real columns is dropped from the result.
+     * Test that a column name not present in the model's real columns is
+     * dropped from the result.
      *
      * @return void
      */
@@ -163,12 +172,13 @@ class SafetySetDeriverTest extends TestCase
 
         $columns = $this->deriver->derive($model, [], ['computed_alias'], ['virtual_order']);
 
-        static::assertNotContains('computed_alias', $columns);
-        static::assertNotContains('virtual_order', $columns);
+        self::assertNotContains('computed_alias', $columns);
+        self::assertNotContains('virtual_order', $columns);
     }
 
     /**
-     * Test that an appends entry backed by a real column is retained and a virtual append is dropped.
+     * Test that an appends entry backed by a real column is retained and a
+     * virtual append is dropped.
      *
      * @return void
      */
@@ -181,8 +191,8 @@ class SafetySetDeriverTest extends TestCase
 
         $columns = $this->deriver->derive($model, [], [], []);
 
-        static::assertContains('status', $columns);
-        static::assertNotContains('virtual_flag', $columns);
+        self::assertContains('status', $columns);
+        self::assertNotContains('virtual_flag', $columns);
     }
 
     /**
@@ -194,7 +204,7 @@ class SafetySetDeriverTest extends TestCase
     public function testSkipsUnresolvableRelationButProcessesLaterOnes(): void
     {
         $model    = $this->makeModel('id');
-        $relation = static::createStub(Relation::class);
+        $relation = self::createStub(Relation::class);
 
         $this->introspector->method('getDeletedAtColumn')->willReturn(null);
         $this->introspector->method('resolveRelation')->willReturnCallback(
@@ -205,7 +215,7 @@ class SafetySetDeriverTest extends TestCase
 
         $columns = $this->deriver->derive($model, ['missing', 'author'], [], []);
 
-        static::assertContains('author_id', $columns);
+        self::assertContains('author_id', $columns);
     }
 
     /**
@@ -217,8 +227,8 @@ class SafetySetDeriverTest extends TestCase
     public function testAccumulatesParentKeysAcrossMultipleRelations(): void
     {
         $model     = $this->makeModel('id');
-        $relationA = static::createStub(Relation::class);
-        $relationB = static::createStub(Relation::class);
+        $relationA = self::createStub(Relation::class);
+        $relationB = self::createStub(Relation::class);
 
         $this->introspector->method('getDeletedAtColumn')->willReturn(null);
         $this->introspector->method('resolveRelation')->willReturnCallback(
@@ -235,8 +245,8 @@ class SafetySetDeriverTest extends TestCase
 
         $columns = $this->deriver->derive($model, ['author', 'category'], [], []);
 
-        static::assertContains('author_id', $columns);
-        static::assertContains('category_id', $columns);
+        self::assertContains('author_id', $columns);
+        self::assertContains('category_id', $columns);
     }
 
     /**
@@ -254,11 +264,12 @@ class SafetySetDeriverTest extends TestCase
 
         $columns = $this->deriver->derive($model, [], [], ['id', 'ghost', 'name']);
 
-        static::assertSame(['id', 'name'], $columns);
+        self::assertSame(['id', 'name'], $columns);
     }
 
     /**
-     * Build a Model mock stub with the given primary key name and appended attributes.
+     * Build a Model mock stub with the given primary key name and appended
+     * attributes.
      *
      * @param  string  $keyName
      * @param  array<int, string>  $appendedAttributes
@@ -266,7 +277,7 @@ class SafetySetDeriverTest extends TestCase
      */
     private function makeModel(string $keyName, array $appendedAttributes = []): Model
     {
-        $model = static::createStub(Model::class);
+        $model = self::createStub(Model::class);
 
         $model->method('getKeyName')->willReturn($keyName);
         $model->method('getAppends')->willReturn($appendedAttributes);

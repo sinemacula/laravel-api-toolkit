@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace SineMacula\ApiToolkit\OpenApi;
 
 use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
@@ -17,7 +19,7 @@ use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-class ExportOpenApiComponents
+final class ExportOpenApiComponents
 {
     /**
      * Create a new export use case.
@@ -26,7 +28,11 @@ class ExportOpenApiComponents
      * @param  \SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue  $catalogue
      */
     public function __construct(
+
+        /** The assembler that builds the OpenAPI components document. */
         private readonly OpenApiAssembler $assembler,
+
+        /** The catalogue of resource metadata to export. */
         private readonly MetadataCatalogue $catalogue,
     ) {}
 

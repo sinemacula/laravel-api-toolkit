@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace SineMacula\ApiToolkit\Services\Validation\Rules;
 
 use SineMacula\ApiToolkit\Contracts\SchemaValidationRule;
@@ -75,13 +77,16 @@ abstract class ValidatesCallableLists implements SchemaValidationRule
 
         foreach ($callables as $i => $callable) {
 
-            if (!is_callable($callable)) { // @phpstan-ignore function.alreadyNarrowedType
-                $errors[] = new SchemaValidationError(
-                    resourceClass: $resourceClass,
-                    fieldKey: $fieldKey,
-                    defect: sprintf('%s at index %d is not callable', $this->getLabel(), $i),
-                );
+            // @phpstan-ignore function.alreadyNarrowedType
+            if (is_callable($callable)) {
+                continue;
             }
+            // @phpstan-ignore deadCode.unreachable (array<callable> is not enforced at runtime; a non-callable entry reaches here)
+            $errors[] = new SchemaValidationError(
+                resourceClass: $resourceClass,
+                fieldKey: $fieldKey,
+                defect: sprintf('%s at index %d is not callable', $this->getLabel(), $i),
+            );
         }
 
         return $errors;

@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace SineMacula\ApiToolkit\Http\Middleware;
 
 use Illuminate\Contracts\Foundation\Application;
@@ -14,7 +16,7 @@ use Symfony\Component\HttpKernel\Exception\HttpException;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-class PreventRequestsDuringMaintenance extends Middleware
+final class PreventRequestsDuringMaintenance extends Middleware
 {
     /**
      * Create a new middleware instance.
@@ -41,9 +43,12 @@ class PreventRequestsDuringMaintenance extends Middleware
      * @param  \Closure(\Illuminate\Http\Request): mixed  $next
      * @return mixed
      *
-     * @throws \SineMacula\ApiToolkit\Exceptions\ApiException
+     * @throws \SineMacula\ApiToolkit\Exceptions\MaintenanceModeException
+     *
+     * @phpstan-ignore method.childParameterType
      */
-    public function handle(#[\SensitiveParameter] $request, \Closure $next): mixed // @phpstan-ignore method.childParameterType (parent declares a signatureless closure)
+    #[\Override]
+    public function handle(#[\SensitiveParameter] $request, \Closure $next): mixed
     {
         // phpcs:enable
         try {

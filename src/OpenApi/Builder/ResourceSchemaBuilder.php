@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace SineMacula\ApiToolkit\OpenApi\Builder;
 
 use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
@@ -21,7 +23,7 @@ use SineMacula\ApiToolkit\Schema\SchemaCompiler;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-class ResourceSchemaBuilder
+final class ResourceSchemaBuilder
 {
     /** The path prefix under which resource component schemas are referenced */
     private const string SCHEMA_REF_PREFIX = '#/components/schemas/';
@@ -33,7 +35,11 @@ class ResourceSchemaBuilder
      * @param  \SineMacula\ApiToolkit\OpenApi\Resolution\FieldTypeResolver  $resolver
      */
     public function __construct(
+
+        /** The metadata catalogue describing resource schemas. */
         private readonly MetadataCatalogue $catalogue,
+
+        /** The resolver mapping resource fields to OpenAPI types. */
         private readonly FieldTypeResolver $resolver,
     ) {}
 
@@ -75,9 +81,11 @@ class ResourceSchemaBuilder
 
             $properties[$fieldKey] = $this->buildFieldProperty($fieldKey, $field, $modelClass);
 
-            if ($this->isRequired($field)) {
-                $required[] = $fieldKey;
+            if (!$this->isRequired($field)) {
+                continue;
             }
+
+            $required[] = $fieldKey;
         }
 
         foreach (array_keys($compiled->getCountDefinitions()) as $presentKey) {

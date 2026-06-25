@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Integration;
 
 use Illuminate\Http\Request;
@@ -35,7 +37,7 @@ use Tests\TestCase;
 #[CoversClass(FilterApplier::class)]
 #[CoversClass(OrderApplier::class)]
 #[CoversClass(QuerySurface::class)]
-class QuerySurfaceIntegrationTest extends TestCase
+final class QuerySurfaceIntegrationTest extends TestCase
 {
     /**
      * Seed users and posts for integration tests.
@@ -63,7 +65,7 @@ class QuerySurfaceIntegrationTest extends TestCase
 
         $results = $this->declaredCriteria()->apply(new User)->get();
 
-        static::assertCount(1, $results);
+        self::assertCount(1, $results);
 
         $this->assertRejects(
             ['filters' => json_encode(['status' => 'active'])],
@@ -82,12 +84,12 @@ class QuerySurfaceIntegrationTest extends TestCase
 
         $results = $this->declaredCriteria()->apply(new User)->get();
 
-        static::assertCount(1, $results);
+        self::assertCount(1, $results);
 
         /** @var \Tests\Fixtures\Models\User $first */
         $first = $results->first();
 
-        static::assertSame('Bob', $first->name);
+        self::assertSame('Bob', $first->name);
     }
 
     /**
@@ -120,8 +122,8 @@ class QuerySurfaceIntegrationTest extends TestCase
         /** @var \Tests\Fixtures\Models\User $last */
         $last = $results->last();
 
-        static::assertSame('Alice', $first->name);
-        static::assertSame('Charlie', $last->name);
+        self::assertSame('Alice', $first->name);
+        self::assertSame('Charlie', $last->name);
     }
 
     /**
@@ -150,7 +152,7 @@ class QuerySurfaceIntegrationTest extends TestCase
         $results = $this->declaredCriteria()->apply(new User)->get();
 
         // Only Alice and Bob have posts.
-        static::assertCount(2, $results);
+        self::assertCount(2, $results);
     }
 
     /**
@@ -183,12 +185,12 @@ class QuerySurfaceIntegrationTest extends TestCase
 
         $results = $this->declaredCriteria()->apply(new User)->get();
 
-        static::assertCount(1, $results);
+        self::assertCount(1, $results);
 
         /** @var \Tests\Fixtures\Models\User $first */
         $first = $results->first();
 
-        static::assertSame('Alice', $first->name);
+        self::assertSame('Alice', $first->name);
     }
 
     /**
@@ -206,8 +208,8 @@ class QuerySurfaceIntegrationTest extends TestCase
         $query   = $this->declaredCriteria()->apply(new User);
         $results = $query->get();
 
-        static::assertEmpty($query->getQuery()->wheres);
-        static::assertCount(3, $results);
+        self::assertEmpty($query->getQuery()->wheres);
+        self::assertCount(3, $results);
     }
 
     /**
@@ -247,7 +249,7 @@ class QuerySurfaceIntegrationTest extends TestCase
                 continue;
             }
 
-            static::assertContains($field, $excluded, sprintf(
+            self::assertContains($field, $excluded, sprintf(
                 'Export-ignored field "%s" must also be excluded from filtering.',
                 $field,
             ));
@@ -268,9 +270,9 @@ class QuerySurfaceIntegrationTest extends TestCase
 
         try {
             $this->declaredCriteria()->apply(new User);
-            static::fail('Expected a ValidationException for "' . $expectedKey . '".');
+            self::fail('Expected a ValidationException for "' . $expectedKey . '".');
         } catch (ValidationException $e) {
-            static::assertArrayHasKey($expectedKey, $e->errors());
+            self::assertArrayHasKey($expectedKey, $e->errors());
         }
     }
 

@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Unit\Listeners;
 
 use Illuminate\Console\Events\CommandFinished;
@@ -34,7 +36,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(WritePoolFlushSubscriber::class)]
-class WritePoolFlushSubscriberTest extends TestCase
+final class WritePoolFlushSubscriberTest extends TestCase
 {
     /**
      * Set up the test environment.
@@ -66,7 +68,7 @@ class WritePoolFlushSubscriberTest extends TestCase
 
         $subscriber->subscribe($events);
 
-        static::assertTrue($events->hasListeners(RequestHandled::class));
+        self::assertTrue($events->hasListeners(RequestHandled::class));
     }
 
     /**
@@ -81,7 +83,7 @@ class WritePoolFlushSubscriberTest extends TestCase
 
         $subscriber->subscribe($events);
 
-        static::assertTrue($events->hasListeners(CommandFinished::class));
+        self::assertTrue($events->hasListeners(CommandFinished::class));
     }
 
     /**
@@ -96,7 +98,7 @@ class WritePoolFlushSubscriberTest extends TestCase
 
         $subscriber->subscribe($events);
 
-        static::assertTrue($events->hasListeners(JobProcessed::class));
+        self::assertTrue($events->hasListeners(JobProcessed::class));
     }
 
     /**
@@ -111,7 +113,7 @@ class WritePoolFlushSubscriberTest extends TestCase
 
         $subscriber->subscribe($events);
 
-        static::assertTrue($events->hasListeners(JobFailed::class));
+        self::assertTrue($events->hasListeners(JobFailed::class));
     }
 
     /**
@@ -126,7 +128,7 @@ class WritePoolFlushSubscriberTest extends TestCase
 
         $events->dispatch(new RequestHandled(Request::create('/test', 'GET'), new Response));
 
-        static::assertTrue($pool->isEmpty());
+        self::assertTrue($pool->isEmpty());
     }
 
     /**
@@ -141,7 +143,7 @@ class WritePoolFlushSubscriberTest extends TestCase
 
         $events->dispatch(new CommandFinished('test:command', new ArrayInput([]), new NullOutput, 0));
 
-        static::assertTrue($pool->isEmpty());
+        self::assertTrue($pool->isEmpty());
     }
 
     /**
@@ -154,9 +156,9 @@ class WritePoolFlushSubscriberTest extends TestCase
     {
         [$events, $pool] = $this->subscribeWithPooledRow('job@example.com');
 
-        $events->dispatch(new JobProcessed('sync', static::createStub(Job::class)));
+        $events->dispatch(new JobProcessed('sync', self::createStub(Job::class)));
 
-        static::assertTrue($pool->isEmpty());
+        self::assertTrue($pool->isEmpty());
     }
 
     /**
@@ -169,9 +171,9 @@ class WritePoolFlushSubscriberTest extends TestCase
     {
         [$events, $pool] = $this->subscribeWithPooledRow('failed-job@example.com');
 
-        $events->dispatch(new JobFailed('sync', static::createStub(Job::class), new \RuntimeException('Job failure')));
+        $events->dispatch(new JobFailed('sync', self::createStub(Job::class), new \RuntimeException('Job failure')));
 
-        static::assertTrue($pool->isEmpty());
+        self::assertTrue($pool->isEmpty());
     }
 
     /**
@@ -195,7 +197,7 @@ class WritePoolFlushSubscriberTest extends TestCase
 
         $subscriber->handleFlush();
 
-        static::assertTrue($pool->isEmpty());
+        self::assertTrue($pool->isEmpty());
     }
 
     /**
@@ -478,8 +480,8 @@ class WritePoolFlushSubscriberTest extends TestCase
 
         $subscriber->handleFlush();
 
-        static::assertTrue($pool->isEmpty());
-        static::assertSame([['users']], $invalidator->calls);
+        self::assertTrue($pool->isEmpty());
+        self::assertSame([['users']], $invalidator->calls);
     }
 
     /**
@@ -503,7 +505,7 @@ class WritePoolFlushSubscriberTest extends TestCase
 
         $subscriber->handleFlush();
 
-        static::assertTrue($pool->isEmpty());
+        self::assertTrue($pool->isEmpty());
     }
 
     /**
@@ -548,7 +550,7 @@ class WritePoolFlushSubscriberTest extends TestCase
         $subscriber->handleFlush();
 
         Event::assertDispatched(WritePoolFlushFailed::class);
-        static::assertSame([['users', 'nonexistent_table']], $invalidator->calls);
+        self::assertSame([['users', 'nonexistent_table']], $invalidator->calls);
     }
 
     /**

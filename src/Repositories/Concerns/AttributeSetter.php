@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace SineMacula\ApiToolkit\Repositories\Concerns;
 
 use Illuminate\Database\Eloquent\Model;
@@ -32,6 +34,7 @@ final class AttributeSetter
      * for resolving model relation types.
      *
      * @param  \SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider  $schemaIntrospector
+     * @param  \SineMacula\ApiToolkit\Cache\MetadataCacheWriter  $metadataCacheWriter
      * @return void
      */
     public function __construct(
@@ -39,6 +42,8 @@ final class AttributeSetter
         /** The schema introspection provider for relation resolution. */
         private readonly SchemaIntrospectionProvider $schemaIntrospector,
 
+        /** Writes resolved cast metadata to the persistent cache. */
+        private readonly MetadataCacheWriter $metadataCacheWriter,
     ) {}
 
     /**
@@ -58,15 +63,16 @@ final class AttributeSetter
 
             $cast = $this->casts[$attribute] ?? $this->resolveCastForAttribute($attribute, null, $model);
 
-            if ($cast) {
+            if (!$cast) {
+                continue;
+            }
 
-                $this->casts[$attribute] = $cast;
+            $this->casts[$attribute] = $cast;
 
-                if ($cast === 'sync') {
-                    $syncAttributes[$attribute] = $value;
-                } else {
-                    $this->setAttribute($model, $attribute, $value, $cast);
-                }
+            if ($cast === 'sync') {
+                $syncAttributes[$attribute] = $value;
+            } else {
+                $this->setAttribute($model, $attribute, $value, $cast);
             }
         }
 
@@ -137,7 +143,7 @@ final class AttributeSetter
 
             foreach ($laravelCasts as $laravelCast) {
 
-                if ($this->castMatchesLaravelCast($cast, $laravelCast)) {
+                if ($this->matchesLaravelCast($cast, $laravelCast)) {
                     return $nativeCast;
                 }
             }
@@ -184,7 +190,7 @@ final class AttributeSetter
      * @param  string  $laravelCast
      * @return bool
      */
-    private function castMatchesLaravelCast(string $cast, string $laravelCast): bool
+    private function matchesLaravelCast(string $cast, string $laravelCast): bool
     {
         $baseCast = explode(':', $cast)[0];
 
@@ -305,13 +311,13 @@ final class AttributeSetter
     }
 
     /**
-     * Resolve the metadata cache writer from the container.
+     * Get the injected metadata cache writer.
      *
      * @return \SineMacula\ApiToolkit\Cache\MetadataCacheWriter
      */
     private function metadataCacheWriter(): MetadataCacheWriter
     {
-        return app(MetadataCacheWriter::class);
+        return $this->metadataCacheWriter;
     }
 
     /**

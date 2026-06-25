@@ -46,7 +46,7 @@ default = true
 [[source]]
 name = "sinemacula"
 repository = "https://github.com/sinemacula/coding-standards"
-tag = "v1.1.3"
+tag = "v1.7.2"
 
 [[plugin]]
 name = "actionlint"
@@ -67,6 +67,14 @@ version = "4.0.1"
 mode = "comment"
 package_file = "composer.json"
 package_filters = ["slevomat", "dealerdirect", "sinemacula"]
+
+# phpcs 4.x returns exit code 3 when it finds issues; qlty's default
+# success_codes ([0, 1]) would treat that as a plugin failure and discard the
+# findings. This override accepts the 4.x codes. It lives here, not in the
+# shared source.toml, because a drivers table there breaks the source's
+# exported_config_paths. Only required while on phpcs 4.x.
+[plugins.definitions.php-codesniffer.drivers.lint]
+success_codes = [0, 1, 2, 3]
 
 # Pinned to the last php-cs-fixer release whose symfony/console stays on the 7.x
 # line. 3.90+ pulls symfony/console 8 (requires PHP 8.4.1 and uses 8.4-only

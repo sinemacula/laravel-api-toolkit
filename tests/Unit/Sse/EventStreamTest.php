@@ -1,7 +1,10 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Unit\Sse;
 
+use Illuminate\Contracts\Debug\ExceptionHandler;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Sse\Emitter;
 use SineMacula\ApiToolkit\Sse\EventStream;
@@ -19,7 +22,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(EventStream::class)]
-class EventStreamTest extends TestCase
+final class EventStreamTest extends TestCase
 {
     /** @var string The SSE comment wire format used for keep-alive signals. */
     private const string SSE_COMMENT = ":\n\n";
@@ -52,7 +55,7 @@ class EventStreamTest extends TestCase
 
         $response = $stream->toResponse(fn () => null);
 
-        static::assertInstanceOf(StreamedResponse::class, $response);
+        self::assertInstanceOf(StreamedResponse::class, $response);
     }
 
     /**
@@ -66,14 +69,14 @@ class EventStreamTest extends TestCase
 
         $response = $stream->toResponse(fn () => null);
 
-        static::assertSame('text/event-stream', $response->headers->get('Content-Type'));
+        self::assertSame('text/event-stream', $response->headers->get('Content-Type'));
 
         $cacheControl = $response->headers->get('Cache-Control');
 
-        static::assertStringContainsString('no-cache', $cacheControl);
-        static::assertStringContainsString('no-transform', $cacheControl);
-        static::assertSame('keep-alive', $response->headers->get('Connection'));
-        static::assertSame('no', $response->headers->get('X-Accel-Buffering'));
+        self::assertStringContainsString('no-cache', $cacheControl);
+        self::assertStringContainsString('no-transform', $cacheControl);
+        self::assertSame('keep-alive', $response->headers->get('Connection'));
+        self::assertSame('no', $response->headers->get('X-Accel-Buffering'));
     }
 
     /**
@@ -91,8 +94,8 @@ class EventStreamTest extends TestCase
             'Content-Type' => 'application/json',
         ]);
 
-        static::assertSame('abc123', $response->headers->get('X-Stream-Id'));
-        static::assertSame('text/event-stream', $response->headers->get('Content-Type'));
+        self::assertSame('abc123', $response->headers->get('X-Stream-Id'));
+        self::assertSame('text/event-stream', $response->headers->get('Content-Type'));
     }
 
     /**
@@ -106,7 +109,7 @@ class EventStreamTest extends TestCase
 
         $response = $stream->toResponse(fn () => null, status: HttpStatus::ACCEPTED);
 
-        static::assertSame(202, $response->getStatusCode());
+        self::assertSame(202, $response->getStatusCode());
     }
 
     /**
@@ -133,7 +136,7 @@ class EventStreamTest extends TestCase
         $response->sendContent();
         ob_get_clean();
 
-        static::assertTrue($callbackRan);
+        self::assertTrue($callbackRan);
     }
 
     /**
@@ -150,7 +153,7 @@ class EventStreamTest extends TestCase
         $response->sendContent();
         $output = ob_get_clean();
 
-        static::assertStringStartsWith(self::SSE_COMMENT, (string) $output);
+        self::assertStringStartsWith(self::SSE_COMMENT, (string) $output);
     }
 
     /**
@@ -179,7 +182,7 @@ class EventStreamTest extends TestCase
 
         $commentCount = substr_count((string) $output, self::SSE_COMMENT);
 
-        static::assertGreaterThanOrEqual(2, $commentCount);
+        self::assertGreaterThanOrEqual(2, $commentCount);
     }
 
     /**
@@ -203,7 +206,7 @@ class EventStreamTest extends TestCase
         $response->sendContent();
         ob_get_clean();
 
-        static::assertFalse($callbackRan);
+        self::assertFalse($callbackRan);
     }
 
     /**
@@ -234,8 +237,8 @@ class EventStreamTest extends TestCase
         $response->sendContent();
         $output = ob_get_clean();
 
-        static::assertStringContainsString("event: error\ndata: An error occurred\n\n", (string) $output);
-        static::assertSame(1, $callCount);
+        self::assertStringContainsString("event: error\ndata: An error occurred\n\n", (string) $output);
+        self::assertSame(1, $callCount);
     }
 
     /**
@@ -263,9 +266,9 @@ class EventStreamTest extends TestCase
         $response->sendContent();
         $output = ob_get_clean();
 
-        static::assertStringNotContainsString('Secret internal database error XYZ', (string) $output);
-        static::assertStringNotContainsString(\RuntimeException::class, (string) $output);
-        static::assertStringContainsString('data: An error occurred', (string) $output);
+        self::assertStringNotContainsString('Secret internal database error XYZ', (string) $output);
+        self::assertStringNotContainsString(\RuntimeException::class, (string) $output);
+        self::assertStringContainsString('data: An error occurred', (string) $output);
     }
 
     /**
@@ -292,7 +295,7 @@ class EventStreamTest extends TestCase
         $response->sendContent();
         ob_get_clean();
 
-        static::assertInstanceOf(Emitter::class, $receivedEmitter);
+        self::assertInstanceOf(Emitter::class, $receivedEmitter);
     }
 
     /**
@@ -319,7 +322,7 @@ class EventStreamTest extends TestCase
         $response->sendContent();
         ob_get_clean();
 
-        static::assertSame([], $argsReceived);
+        self::assertSame([], $argsReceived);
     }
 
     /**
@@ -343,9 +346,11 @@ class EventStreamTest extends TestCase
         $response = $stream->toResponse(function () use (&$iteration): void {
             $iteration++;
 
-            if ($iteration === 1) {
-                $this->travel(19)->seconds();
+            if ($iteration !== 1) {
+                return;
             }
+
+            $this->travel(19)->seconds();
         });
 
         ob_start();
@@ -354,7 +359,7 @@ class EventStreamTest extends TestCase
 
         $commentCount = substr_count((string) $output, self::SSE_COMMENT);
 
-        static::assertSame(1, $commentCount);
+        self::assertSame(1, $commentCount);
     }
 
     /**
@@ -383,7 +388,7 @@ class EventStreamTest extends TestCase
 
         $commentCount = substr_count((string) $output, self::SSE_COMMENT);
 
-        static::assertGreaterThanOrEqual(2, $commentCount);
+        self::assertGreaterThanOrEqual(2, $commentCount);
     }
 
     /**
@@ -427,7 +432,7 @@ class EventStreamTest extends TestCase
         $response->sendContent();
         ob_get_clean();
 
-        static::assertGreaterThan(1, $callCount);
+        self::assertGreaterThan(1, $callCount);
     }
 
     /**
@@ -456,8 +461,8 @@ class EventStreamTest extends TestCase
         $response->sendContent();
         $output = ob_get_clean();
 
-        static::assertStringStartsWith("event: init\ndata: started\n\n", (string) $output);
-        static::assertStringNotContainsString(self::SSE_COMMENT, (string) $output);
+        self::assertStringStartsWith("event: init\ndata: started\n\n", (string) $output);
+        self::assertStringNotContainsString(self::SSE_COMMENT, (string) $output);
     }
 
     /**
@@ -487,7 +492,7 @@ class EventStreamTest extends TestCase
         $response->sendContent();
         ob_get_clean();
 
-        static::assertTrue($stream->endCalled);
+        self::assertTrue($stream->endCalled);
     }
 
     /**
@@ -503,7 +508,7 @@ class EventStreamTest extends TestCase
 
         $response = $stream->toResponse(fn () => null);
 
-        static::assertSame('no-cache, no-transform, private', $response->headers->get('Cache-Control'));
+        self::assertSame('no-cache, no-transform, private', $response->headers->get('Cache-Control'));
     }
 
     /**
@@ -534,7 +539,7 @@ class EventStreamTest extends TestCase
 
         $commentCount = substr_count((string) $output, self::SSE_COMMENT);
 
-        static::assertSame(2, $commentCount);
+        self::assertSame(2, $commentCount);
     }
 
     /**
@@ -566,7 +571,7 @@ class EventStreamTest extends TestCase
         $response->sendContent();
         ob_get_clean();
 
-        static::assertSame([1], $sleepArgs);
+        self::assertSame([1], $sleepArgs);
     }
 
     /**
@@ -598,8 +603,8 @@ class EventStreamTest extends TestCase
         $response->sendContent();
         $output = ob_get_clean();
 
-        static::assertSame(self::SSE_COMMENT, $output);
-        static::assertFalse($callbackRan);
+        self::assertSame(self::SSE_COMMENT, $output);
+        self::assertFalse($callbackRan);
     }
 
     /**
@@ -630,7 +635,7 @@ class EventStreamTest extends TestCase
         $response->sendContent();
         ob_get_clean();
 
-        static::assertSame(1, $callCount);
+        self::assertSame(1, $callCount);
     }
 
     /**
@@ -662,7 +667,7 @@ class EventStreamTest extends TestCase
         $response->sendContent();
         ob_get_clean();
 
-        static::assertSame(1, $obFlushCount);
+        self::assertSame(1, $obFlushCount);
     }
 
     /**
@@ -693,7 +698,7 @@ class EventStreamTest extends TestCase
         $response->sendContent();
         ob_get_clean();
 
-        static::assertSame(0, $obFlushCount);
+        self::assertSame(0, $obFlushCount);
     }
 
     /**
@@ -723,7 +728,7 @@ class EventStreamTest extends TestCase
         $response->sendContent();
         ob_get_clean();
 
-        static::assertSame(2, $flushCount);
+        self::assertSame(2, $flushCount);
     }
 
     /**
@@ -738,12 +743,12 @@ class EventStreamTest extends TestCase
         $exception = new \RuntimeException('Simulated stream failure');
 
         /** @var \Illuminate\Contracts\Debug\ExceptionHandler&\Mockery\MockInterface $handler */
-        $handler = \Mockery::mock(\Illuminate\Contracts\Debug\ExceptionHandler::class);
+        $handler = \Mockery::mock(ExceptionHandler::class);
         $handler->shouldReceive('report')->once()->with($exception);
 
         assert($this->app !== null);
 
-        $this->app->instance(\Illuminate\Contracts\Debug\ExceptionHandler::class, $handler);
+        $this->app->instance(ExceptionHandler::class, $handler);
 
         $stream = new class extends EventStream {
             /**
@@ -761,8 +766,8 @@ class EventStreamTest extends TestCase
         $result = $stream->exposeHandleStreamError($exception, new Emitter);
         $output = ob_get_clean();
 
-        static::assertFalse($result);
-        static::assertStringContainsString("event: error\ndata: An error occurred\n\n", (string) $output);
+        self::assertFalse($result);
+        self::assertStringContainsString("event: error\ndata: An error occurred\n\n", (string) $output);
     }
 
     /**
@@ -788,7 +793,7 @@ class EventStreamTest extends TestCase
         $stream->exposeOnStreamStart(new Emitter);
         $output = ob_get_clean();
 
-        static::assertSame(self::SSE_COMMENT, $output);
+        self::assertSame(self::SSE_COMMENT, $output);
     }
 
     /**
@@ -813,7 +818,7 @@ class EventStreamTest extends TestCase
         $stream->exposeOnStreamEnd();
         $output = ob_get_clean();
 
-        static::assertSame('', $output);
+        self::assertSame('', $output);
     }
 
     /**
@@ -845,6 +850,6 @@ class EventStreamTest extends TestCase
         $response->sendContent();
         ob_get_clean();
 
-        static::assertSame(1, $callCount);
+        self::assertSame(1, $callCount);
     }
 }

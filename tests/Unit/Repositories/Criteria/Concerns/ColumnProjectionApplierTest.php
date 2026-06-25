@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Unit\Repositories\Criteria\Concerns;
 
 use Illuminate\Database\Eloquent\Relations\Relation;
@@ -25,7 +27,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(ColumnProjectionApplier::class)]
-class ColumnProjectionApplierTest extends TestCase
+final class ColumnProjectionApplierTest extends TestCase
 {
     /** @var array<int, string> */
     private const array USER_DEFAULT_FIELDS = ['id', 'name', 'email'];
@@ -73,13 +75,13 @@ class ColumnProjectionApplierTest extends TestCase
         $this->parseRequest(new Request);
 
         $provider = $this->createMock(ResourceMetadataProvider::class);
-        $provider->expects(static::never())->method('resolveFields');
-        $provider->expects(static::never())->method('getAllFields');
+        $provider->expects(self::never())->method('resolveFields');
+        $provider->expects(self::never())->method('getAllFields');
 
         $query  = (new User)->newQuery();
         $result = $this->makeApplier()->apply($query, $provider, UserResource::class, []);
 
-        static::assertNull($result->getQuery()->columns);
+        self::assertNull($result->getQuery()->columns);
     }
 
     /**
@@ -94,13 +96,13 @@ class ColumnProjectionApplierTest extends TestCase
         $this->parseRequest(new Request);
 
         $provider = $this->createMock(ResourceMetadataProvider::class);
-        $provider->expects(static::never())->method('resolveFields');
-        $provider->expects(static::never())->method('getAllFields');
+        $provider->expects(self::never())->method('resolveFields');
+        $provider->expects(self::never())->method('getAllFields');
 
         $query  = (new User)->newQuery();
         $result = $this->makeApplier()->apply($query, $provider, null, []);
 
-        static::assertNull($result->getQuery()->columns);
+        self::assertNull($result->getQuery()->columns);
     }
 
     /**
@@ -115,18 +117,18 @@ class ColumnProjectionApplierTest extends TestCase
         $this->parseRequest(new Request);
 
         $provider = $this->createMock(ResourceMetadataProvider::class);
-        $provider->expects(static::never())->method('resolveFields');
-        $provider->expects(static::never())->method('getAllFields');
+        $provider->expects(self::never())->method('resolveFields');
+        $provider->expects(self::never())->method('getAllFields');
 
         $query  = (new User)->newQuery();
         $result = $this->makeApplier()->apply($query, $provider, \stdClass::class, []);
 
-        static::assertNull($result->getQuery()->columns);
+        self::assertNull($result->getQuery()->columns);
     }
 
     /**
-     * Test that apply returns the query unchanged when the resolved field set is
-     * empty.
+     * Test that apply returns the query unchanged when the resolved field set
+     * is empty.
      *
      * @return void
      */
@@ -136,14 +138,14 @@ class ColumnProjectionApplierTest extends TestCase
 
         $this->parseRequest(new Request);
 
-        $provider = static::createStub(ResourceMetadataProvider::class);
+        $provider = self::createStub(ResourceMetadataProvider::class);
         $provider->method('getResourceType')->willReturn('users');
         $provider->method('resolveFields')->willReturn([]);
 
         $query  = (new User)->newQuery();
         $result = $this->makeApplier()->apply($query, $provider, UserResource::class, []);
 
-        static::assertNull($result->getQuery()->columns);
+        self::assertNull($result->getQuery()->columns);
     }
 
     /**
@@ -158,7 +160,7 @@ class ColumnProjectionApplierTest extends TestCase
 
         $this->parseRequest(new Request);
 
-        $provider = static::createStub(ResourceMetadataProvider::class);
+        $provider = self::createStub(ResourceMetadataProvider::class);
         $provider->method('getResourceType')->willReturn('users');
         $provider->method('resolveFields')->willReturn(['id', 'full_label']);
         $provider->method('eagerLoadMapFor')->willReturn([]);
@@ -166,7 +168,7 @@ class ColumnProjectionApplierTest extends TestCase
         $query  = (new User)->newQuery();
         $result = $this->makeApplier()->apply($query, $provider, UserResource::class, []);
 
-        static::assertNull($result->getQuery()->columns);
+        self::assertNull($result->getQuery()->columns);
     }
 
     /**
@@ -181,7 +183,7 @@ class ColumnProjectionApplierTest extends TestCase
 
         $this->parseRequest(new Request);
 
-        $provider = static::createStub(ResourceMetadataProvider::class);
+        $provider = self::createStub(ResourceMetadataProvider::class);
         $provider->method('getResourceType')->willReturn('users');
         $provider->method('resolveFields')->willReturn(self::USER_DEFAULT_FIELDS);
         $provider->method('eagerLoadMapFor')->willReturn([]);
@@ -189,12 +191,12 @@ class ColumnProjectionApplierTest extends TestCase
         $query  = (new User)->newQuery();
         $result = $this->makeApplier()->apply($query, $provider, UserResource::class, ['name' => 'asc']);
 
-        static::assertSame(['id', 'name', 'email'], $result->getQuery()->columns);
+        self::assertSame(['id', 'name', 'email'], $result->getQuery()->columns);
     }
 
     /**
-     * Test that the ':all' fields token resolves the full declared field set via
-     * getAllFields rather than the request-narrowed resolveFields.
+     * Test that the ':all' fields token resolves the full declared field set
+     * via getAllFields rather than the request-narrowed resolveFields.
      *
      * @return void
      */
@@ -204,7 +206,7 @@ class ColumnProjectionApplierTest extends TestCase
 
         $this->parseRequest(new Request(['fields' => ['users' => ':all']]));
 
-        $provider = static::createStub(ResourceMetadataProvider::class);
+        $provider = self::createStub(ResourceMetadataProvider::class);
         $provider->method('getResourceType')->willReturn('users');
         $provider->method('getAllFields')->willReturn(['id', 'name']);
         $provider->method('resolveFields')->willReturn(['id', 'email']);
@@ -213,14 +215,14 @@ class ColumnProjectionApplierTest extends TestCase
         $query  = (new User)->newQuery();
         $result = $this->makeApplier()->apply($query, $provider, UserResource::class, []);
 
-        static::assertSame(['id', 'name'], $result->getQuery()->columns);
+        self::assertSame(['id', 'name'], $result->getQuery()->columns);
     }
 
     /**
-     * Test that the parent key of every list-keyed (plain or extra) relation in
-     * the eager-load map is retained, not just the first. The relation name of a
-     * list entry lives in the value, so deriving keys via array_keys would yield
-     * integer indices that resolve to no relation.
+     * Test that the parent key of every list-keyed (plain or extra) relation
+     * in the eager-load map is retained, not just the first. The relation name
+     * of a list entry lives in the value, so deriving keys via array_keys would
+     * yield integer indices that resolve to no relation.
      *
      * @return void
      */
@@ -230,15 +232,15 @@ class ColumnProjectionApplierTest extends TestCase
 
         $this->parseRequest(new Request);
 
-        $provider = static::createStub(ResourceMetadataProvider::class);
+        $provider = self::createStub(ResourceMetadataProvider::class);
         $provider->method('getResourceType')->willReturn('users');
         $provider->method('resolveFields')->willReturn(self::USER_DEFAULT_FIELDS);
         $provider->method('eagerLoadMapFor')->willReturn(['author', 'editor']);
 
-        $author = static::createStub(Relation::class);
-        $editor = static::createStub(Relation::class);
+        $author = self::createStub(Relation::class);
+        $editor = self::createStub(Relation::class);
 
-        $introspector = static::createStub(SchemaIntrospectionProvider::class);
+        $introspector = self::createStub(SchemaIntrospectionProvider::class);
         $introspector->method('getColumns')->willReturn([...self::USER_COLUMNS, 'author_id', 'editor_id']);
         $introspector->method('getDeletedAtColumn')->willReturn(null);
         $introspector->method('resolveRelation')->willReturnCallback(
@@ -256,9 +258,9 @@ class ColumnProjectionApplierTest extends TestCase
 
         $columns = $applier->apply((new User)->newQuery(), $provider, UserResource::class, [])->getQuery()->columns;
 
-        static::assertNotNull($columns);
-        static::assertContains('author_id', $columns);
-        static::assertContains('editor_id', $columns);
+        self::assertNotNull($columns);
+        self::assertContains('author_id', $columns);
+        self::assertContains('editor_id', $columns);
     }
 
     /**
@@ -274,14 +276,14 @@ class ColumnProjectionApplierTest extends TestCase
 
         $this->parseRequest(new Request);
 
-        $provider = static::createStub(ResourceMetadataProvider::class);
+        $provider = self::createStub(ResourceMetadataProvider::class);
         $provider->method('getResourceType')->willReturn('users');
         $provider->method('resolveFields')->willReturn(self::USER_DEFAULT_FIELDS);
         $provider->method('eagerLoadMapFor')->willReturn(['posts.comments']);
 
-        $relation = static::createStub(Relation::class);
+        $relation = self::createStub(Relation::class);
 
-        $introspector = static::createStub(SchemaIntrospectionProvider::class);
+        $introspector = self::createStub(SchemaIntrospectionProvider::class);
         $introspector->method('getColumns')->willReturn(self::USER_COLUMNS);
         $introspector->method('getDeletedAtColumn')->willReturn(null);
         $introspector->method('resolveRelation')->willReturnCallback(
@@ -293,8 +295,8 @@ class ColumnProjectionApplierTest extends TestCase
 
         $columns = $applier->apply((new User)->newQuery(), $provider, UserResource::class, [])->getQuery()->columns;
 
-        static::assertNotNull($columns);
-        static::assertContains('organization_id', $columns);
+        self::assertNotNull($columns);
+        self::assertContains('organization_id', $columns);
     }
 
     /**
@@ -305,7 +307,7 @@ class ColumnProjectionApplierTest extends TestCase
      */
     private function makeApplier(): ColumnProjectionApplier
     {
-        $introspector = static::createStub(SchemaIntrospectionProvider::class);
+        $introspector = self::createStub(SchemaIntrospectionProvider::class);
         $introspector->method('getColumns')->willReturn(self::USER_COLUMNS);
         $introspector->method('getDeletedAtColumn')->willReturn(null);
         $introspector->method('resolveRelation')->willReturn(null);

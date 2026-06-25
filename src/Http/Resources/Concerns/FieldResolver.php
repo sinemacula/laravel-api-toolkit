@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace SineMacula\ApiToolkit\Http\Resources\Concerns;
 
 use Illuminate\Support\Facades\Config;
@@ -72,8 +74,12 @@ final class FieldResolver
      * @param  array<int, string>  $fixedFields
      * @return array<int, string>
      */
-    public function getFields(CompiledSchema $schema, string $resourceType, array $defaultFields, array $fixedFields): array
-    {
+    public function getFields(
+        CompiledSchema $schema,
+        string $resourceType,
+        array $defaultFields,
+        array $fixedFields,
+    ): array {
         $this->fields ??= $this->shouldRespondWithAll($resourceType)
             ? $schema->getFieldKeys()
             : (ApiQuery::getFields($resourceType) ?? $defaultFields);

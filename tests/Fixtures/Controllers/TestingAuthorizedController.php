@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Fixtures\Controllers;
 
 use SineMacula\ApiToolkit\Http\Routing\AuthorizedController;
@@ -11,7 +13,7 @@ use Tests\Fixtures\Models\User;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-class TestingAuthorizedController extends AuthorizedController
+final class TestingAuthorizedController extends AuthorizedController
 {
     /** @var string */
     public const string RESOURCE_MODEL = User::class;

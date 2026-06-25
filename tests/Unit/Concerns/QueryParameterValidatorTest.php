@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Unit\Concerns;
 
 use Illuminate\Validation\ValidationException;
@@ -17,7 +19,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(QueryParameterValidator::class)]
-class QueryParameterValidatorTest extends TestCase
+final class QueryParameterValidatorTest extends TestCase
 {
     /** @var \SineMacula\ApiToolkit\Concerns\QueryParameterValidator */
     private QueryParameterValidator $validator;

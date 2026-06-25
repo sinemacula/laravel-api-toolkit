@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Unit\Repositories\Criteria;
 
 use Illuminate\Database\Eloquent\Builder;
@@ -22,7 +24,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(OperatorRegistry::class)]
-class OperatorRegistryTest extends TestCase
+final class OperatorRegistryTest extends TestCase
 {
     /** @var string */
     private const string OPERATOR_CUSTOM = '$custom';
@@ -54,8 +56,8 @@ class OperatorRegistryTest extends TestCase
 
         $this->registry->register('$eq', $operator);
 
-        static::assertTrue($this->registry->has('$eq'));
-        static::assertSame($operator, $this->registry->resolve('$eq'));
+        self::assertTrue($this->registry->has('$eq'));
+        self::assertSame($operator, $this->registry->resolve('$eq'));
     }
 
     /**
@@ -85,7 +87,7 @@ class OperatorRegistryTest extends TestCase
         $this->registry->register('$eq', $original);
         $this->registry->override('$eq', $replacement);
 
-        static::assertSame($replacement, $this->registry->resolve('$eq'));
+        self::assertSame($replacement, $this->registry->resolve('$eq'));
     }
 
     /**
@@ -99,8 +101,8 @@ class OperatorRegistryTest extends TestCase
 
         $this->registry->override('$eq', $operator);
 
-        static::assertTrue($this->registry->has('$eq'));
-        static::assertSame($operator, $this->registry->resolve('$eq'));
+        self::assertTrue($this->registry->has('$eq'));
+        self::assertSame($operator, $this->registry->resolve('$eq'));
     }
 
     /**
@@ -113,8 +115,8 @@ class OperatorRegistryTest extends TestCase
         $this->registry->register('$eq', $this->createStubOperator());
         $this->registry->remove('$eq');
 
-        static::assertFalse($this->registry->has('$eq'));
-        static::assertNull($this->registry->resolve('$eq'));
+        self::assertFalse($this->registry->has('$eq'));
+        self::assertNull($this->registry->resolve('$eq'));
     }
 
     /**
@@ -126,7 +128,7 @@ class OperatorRegistryTest extends TestCase
     {
         $this->registry->remove('$nonexistent');
 
-        static::assertFalse($this->registry->has('$nonexistent'));
+        self::assertFalse($this->registry->has('$nonexistent'));
     }
 
     /**
@@ -136,7 +138,7 @@ class OperatorRegistryTest extends TestCase
      */
     public function testResolveReturnsNullForUnregisteredToken(): void
     {
-        static::assertNull($this->registry->resolve('$unknown'));
+        self::assertNull($this->registry->resolve('$unknown'));
     }
 
     /**
@@ -146,7 +148,7 @@ class OperatorRegistryTest extends TestCase
      */
     public function testHasReturnsFalseForUnregisteredToken(): void
     {
-        static::assertFalse($this->registry->has('$unknown'));
+        self::assertFalse($this->registry->has('$unknown'));
     }
 
     /**
@@ -162,7 +164,7 @@ class OperatorRegistryTest extends TestCase
 
         $resolved = $this->registry->resolve(self::OPERATOR_CUSTOM);
 
-        static::assertInstanceOf(FilterOperator::class, $resolved);
+        self::assertInstanceOf(FilterOperator::class, $resolved);
 
         $query = (new User)->newQuery();
 
@@ -170,9 +172,9 @@ class OperatorRegistryTest extends TestCase
 
         $wheres = $query->getQuery()->wheres;
 
-        static::assertNotEmpty($wheres);
-        static::assertSame('name', $wheres[0]['column']);
-        static::assertSame('Alice', $wheres[0]['value']);
+        self::assertNotEmpty($wheres);
+        self::assertSame('name', $wheres[0]['column']);
+        self::assertSame('Alice', $wheres[0]['value']);
     }
 
     /**
@@ -188,7 +190,7 @@ class OperatorRegistryTest extends TestCase
 
         $resolved = $this->registry->resolve(self::OPERATOR_CUSTOM);
 
-        static::assertInstanceOf(FilterOperator::class, $resolved);
+        self::assertInstanceOf(FilterOperator::class, $resolved);
     }
 
     /**
@@ -230,6 +232,7 @@ class OperatorRegistryTest extends TestCase
              * @param  \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext  $context
              * @return void
              */
+            #[\Override]
             public function apply(Builder $query, string $column, mixed $value, FilterContext $context): void
             {
                 // Intentionally empty — stub for registry tests

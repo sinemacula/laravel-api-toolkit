@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace SineMacula\ApiToolkit\Schema;
 
 /**
@@ -38,7 +40,6 @@ final readonly class CompiledSchema
 
         /** Declared externally-traversable relation names */
         private array $traversableRelations = [],
-
     ) {}
 
     /**

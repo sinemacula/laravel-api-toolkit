@@ -1,9 +1,12 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Integration\Providers\Registrars;
 
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Http\Events\RequestHandled;
+use Illuminate\Queue\Events\JobProcessed;
 use Illuminate\Support\Facades\Log;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Listeners\QueueFlushSubscriber;
@@ -24,7 +27,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(LifecycleRegistrar::class)]
-class LifecycleRegistrarTest extends TestCase
+final class LifecycleRegistrarTest extends TestCase
 {
     /** @var bool Whether LARAVEL_OCTANE was set before each test. */
     private bool $octaneWasSet;
@@ -76,8 +79,8 @@ class LifecycleRegistrarTest extends TestCase
 
         (new LifecycleRegistrar)->register();
 
-        static::assertTrue($this->eventHasSubscriberListener(RequestHandled::class, WritePoolFlushSubscriber::class));
-        static::assertTrue($this->eventHasSubscriberListener(\Illuminate\Queue\Events\JobProcessed::class, QueueFlushSubscriber::class));
+        self::assertTrue($this->hasSubscriberListener(RequestHandled::class, WritePoolFlushSubscriber::class));
+        self::assertTrue($this->hasSubscriberListener(JobProcessed::class, QueueFlushSubscriber::class));
     }
 
     /**
@@ -165,7 +168,7 @@ class LifecycleRegistrarTest extends TestCase
      * @param  class-string  $subscriber
      * @return bool
      */
-    private function eventHasSubscriberListener(string $event, string $subscriber): bool
+    private function hasSubscriberListener(string $event, string $subscriber): bool
     {
         /** @var \Illuminate\Events\Dispatcher $events */
         $events = $this->getApplication()->make('events');

@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Unit\Console;
 
 use Illuminate\Contracts\Config\Repository as ConfigRepository;
@@ -23,7 +25,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(ValidateSchemasCommand::class)]
-class ValidateSchemasCommandTest extends TestCase
+final class ValidateSchemasCommandTest extends TestCase
 {
     /** @var string The command signature. */
     private const string COMMAND = 'api-toolkit:validate-schemas';
@@ -35,7 +37,7 @@ class ValidateSchemasCommandTest extends TestCase
      */
     public function testCommandReportsSuccessForValidSchemas(): void
     {
-        $rule = static::createStub(SchemaValidationRule::class);
+        $rule = self::createStub(SchemaValidationRule::class);
 
         $rule->method('validate')
             ->willReturn([]);
@@ -60,7 +62,7 @@ class ValidateSchemasCommandTest extends TestCase
     {
         $error = new SchemaValidationError(UserResource::class, 'id', 'Test defect');
 
-        $rule = static::createStub(SchemaValidationRule::class);
+        $rule = self::createStub(SchemaValidationRule::class);
 
         $rule->method('validate')
             ->willReturn([$error]);
@@ -118,7 +120,7 @@ class ValidateSchemasCommandTest extends TestCase
             new SchemaValidationError(UserResource::class, 'name', 'Second defect'),
         ];
 
-        $rule = static::createStub(SchemaValidationRule::class);
+        $rule = self::createStub(SchemaValidationRule::class);
 
         $rule->method('validate')
             ->willReturn($errors);

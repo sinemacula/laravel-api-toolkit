@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Fixtures\Repositories;
 
 use SineMacula\ApiToolkit\Repositories\ApiRepository;
@@ -14,7 +16,7 @@ use Tests\Fixtures\Models\Tag;
  *
  * @extends \SineMacula\ApiToolkit\Repositories\ApiRepository<\Tests\Fixtures\Models\Tag>
  */
-class SizeGuardedTagRepository extends ApiRepository
+final class SizeGuardedTagRepository extends ApiRepository
 {
     use Cacheable;
 
@@ -26,6 +28,7 @@ class SizeGuardedTagRepository extends ApiRepository
      *
      * @return class-string<\Tests\Fixtures\Models\Tag>
      */
+    #[\Override]
     public function model(): string
     {
         return Tag::class;

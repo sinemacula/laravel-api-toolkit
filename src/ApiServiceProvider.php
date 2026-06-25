@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace SineMacula\ApiToolkit;
 
 use Illuminate\Database\Eloquent\Relations\Relation;
@@ -24,7 +26,7 @@ use SineMacula\ApiToolkit\Services\SchemaValidator;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-class ApiServiceProvider extends ServiceProvider
+final class ApiServiceProvider extends ServiceProvider
 {
     /**
      * Bootstrap any application services.
@@ -124,7 +126,7 @@ class ApiServiceProvider extends ServiceProvider
         }
 
         $map = collect($map)
-            ->mapWithKeys(function ($resource, $model) {
+            ->mapWithKeys(function ($resource, $model): array {
 
                 if (method_exists($resource, 'getResourceType')) {
                     return [$resource::getResourceType() => $model];

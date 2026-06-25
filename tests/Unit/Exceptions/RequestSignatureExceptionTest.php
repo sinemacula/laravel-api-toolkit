@@ -1,10 +1,11 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Unit\Exceptions;
 
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
-use RuntimeException;
 use SineMacula\ApiToolkit\Exceptions\RequestSignatureException;
 
 /**
@@ -16,7 +17,7 @@ use SineMacula\ApiToolkit\Exceptions\RequestSignatureException;
  * @internal
  */
 #[CoversClass(RequestSignatureException::class)]
-class RequestSignatureExceptionTest extends TestCase
+final class RequestSignatureExceptionTest extends TestCase
 {
     /**
      * Test that the exception extends RuntimeException.
@@ -27,7 +28,7 @@ class RequestSignatureExceptionTest extends TestCase
     {
         $exception = new RequestSignatureException;
 
-        static::assertInstanceOf(\RuntimeException::class, $exception);
+        self::assertInstanceOf(\RuntimeException::class, $exception);
     }
 
     /**
@@ -40,7 +41,7 @@ class RequestSignatureExceptionTest extends TestCase
         $message   = 'Failed to generate request signature';
         $exception = new RequestSignatureException($message);
 
-        static::assertSame($message, $exception->getMessage());
+        self::assertSame($message, $exception->getMessage());
     }
 
     /**
@@ -52,7 +53,7 @@ class RequestSignatureExceptionTest extends TestCase
     {
         $exception = new RequestSignatureException(\Error::class, 42);
 
-        static::assertSame(42, $exception->getCode());
+        self::assertSame(42, $exception->getCode());
     }
 
     /**
@@ -65,7 +66,7 @@ class RequestSignatureExceptionTest extends TestCase
         $previous  = new \RuntimeException('Previous error');
         $exception = new RequestSignatureException(\Error::class, 0, $previous);
 
-        static::assertSame($previous, $exception->getPrevious());
+        self::assertSame($previous, $exception->getPrevious());
     }
 
     /**
@@ -77,7 +78,7 @@ class RequestSignatureExceptionTest extends TestCase
     {
         $exception = new RequestSignatureException;
 
-        static::assertSame('', $exception->getMessage());
+        self::assertSame('', $exception->getMessage());
     }
 
     /**
@@ -89,6 +90,6 @@ class RequestSignatureExceptionTest extends TestCase
     {
         $exception = new RequestSignatureException;
 
-        static::assertSame(0, $exception->getCode());
+        self::assertSame(0, $exception->getCode());
     }
 }

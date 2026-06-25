@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace SineMacula\ApiToolkit\OpenApi\Builder;
 
 use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
@@ -10,14 +12,14 @@ use SineMacula\ApiToolkit\OpenApi\Metadata\ErrorDescriptor;
  *
  * Each response carries the toolkit's stable error-envelope shape together with
  * the code's resolved HTTP status and its canonical title/detail. The shared
- * Error envelope schema is emitted once via buildEnvelopeSchema() and referenced
- * by every response; the per-code descriptions and status come from the metadata
- * catalogue's error catalogue.
+ * Error envelope schema is emitted once via buildEnvelopeSchema() and
+ * referenced by every response; the per-code descriptions and status come from
+ * the metadata catalogue's error catalogue.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-class ErrorResponseBuilder
+final class ErrorResponseBuilder
 {
     /** The component name of the shared error-envelope schema */
     public const string ENVELOPE_SCHEMA_NAME = 'ErrorEnvelope';
@@ -34,6 +36,8 @@ class ErrorResponseBuilder
      * @param  \SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue  $catalogue
      */
     public function __construct(
+
+        /** The metadata catalogue providing the error catalogue. */
         private readonly MetadataCatalogue $catalogue,
     ) {}
 

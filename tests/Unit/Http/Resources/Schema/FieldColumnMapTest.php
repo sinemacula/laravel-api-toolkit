@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Unit\Http\Resources\Schema;
 
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -15,7 +17,7 @@ use SineMacula\ApiToolkit\Schema\FieldColumnMap;
  * @internal
  */
 #[CoversClass(FieldColumnMap::class)]
-class FieldColumnMapTest extends TestCase
+final class FieldColumnMapTest extends TestCase
 {
     /**
      * Test that columnsFor returns the declared columns for a mapped field and
@@ -30,8 +32,8 @@ class FieldColumnMapTest extends TestCase
             ['name'],
         );
 
-        static::assertTrue($map->isMapped('name'));
-        static::assertSame(['first_name', 'last_name'], $map->columnsFor('name'));
+        self::assertTrue($map->isMapped('name'));
+        self::assertSame(['first_name', 'last_name'], $map->columnsFor('name'));
     }
 
     /**
@@ -44,8 +46,8 @@ class FieldColumnMapTest extends TestCase
     {
         $map = FieldColumnMap::make([], []);
 
-        static::assertFalse($map->isMapped('email'));
-        static::assertNull($map->columnsFor('email'));
+        self::assertFalse($map->isMapped('email'));
+        self::assertNull($map->columnsFor('email'));
     }
 
     /**
@@ -61,8 +63,8 @@ class FieldColumnMapTest extends TestCase
             [],
         );
 
-        static::assertFalse($map->isMapped('name'));
-        static::assertNull($map->columnsFor('name'));
+        self::assertFalse($map->isMapped('name'));
+        self::assertNull($map->columnsFor('name'));
     }
 
     /**
@@ -74,7 +76,7 @@ class FieldColumnMapTest extends TestCase
     {
         $map = FieldColumnMap::make([], []);
 
-        static::assertFalse($map->isMapped('anything'));
-        static::assertNull($map->columnsFor('anything'));
+        self::assertFalse($map->isMapped('anything'));
+        self::assertNull($map->columnsFor('anything'));
     }
 }

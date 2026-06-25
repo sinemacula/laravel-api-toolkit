@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Unit\Services\Concerns;
 
 use Illuminate\Support\Facades\DB;
@@ -17,7 +19,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(TransactionConcern::class)]
-class TransactionConcernTest extends TestCase
+final class TransactionConcernTest extends TestCase
 {
     /**
      * Test that execute wraps the next closure in a database transaction.
@@ -32,11 +34,11 @@ class TransactionConcernTest extends TestCase
             ->andReturnUsing(fn (\Closure $callback): bool => $callback());
 
         $concern = new TransactionConcern;
-        $service = static::createStub(Service::class);
+        $service = self::createStub(Service::class);
 
         $result = $concern->execute($service, fn (): bool => true);
 
-        static::assertTrue($result);
+        self::assertTrue($result);
     }
 
     /**
@@ -51,11 +53,11 @@ class TransactionConcernTest extends TestCase
             ->andReturnUsing(fn (\Closure $callback): bool => $callback());
 
         $concern = new TransactionConcern;
-        $service = static::createStub(Service::class);
+        $service = self::createStub(Service::class);
 
         $result = $concern->execute($service, fn (): bool => false);
 
-        static::assertFalse($result);
+        self::assertFalse($result);
     }
 
     /**
@@ -71,17 +73,19 @@ class TransactionConcernTest extends TestCase
             ->andReturn(['committed']);
 
         $concern = new TransactionConcern;
-        $service = static::createStub(Service::class);
+        $service = self::createStub(Service::class);
 
         $result = $concern->execute($service, fn (): bool => true);
 
-        static::assertTrue($result);
+        self::assertTrue($result);
     }
 
     /**
      * Test that execute propagates exceptions thrown by the next closure.
      *
      * @return void
+     *
+     * @throws \RuntimeException
      */
     public function testExecutePropagatesExceptionFromNext(): void
     {
@@ -90,7 +94,7 @@ class TransactionConcernTest extends TestCase
             ->andReturnUsing(fn (\Closure $callback): bool => $callback());
 
         $concern = new TransactionConcern;
-        $service = static::createStub(Service::class);
+        $service = self::createStub(Service::class);
 
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionMessage('fail');

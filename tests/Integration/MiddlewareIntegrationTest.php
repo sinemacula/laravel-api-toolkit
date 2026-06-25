@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Integration;
 
 use Illuminate\Http\JsonResponse;
@@ -10,6 +12,7 @@ use SineMacula\ApiToolkit\ApiQueryParser;
 use SineMacula\ApiToolkit\Http\Middleware\JsonPrettyPrint;
 use SineMacula\ApiToolkit\Http\Middleware\ParseApiQuery;
 use SineMacula\Http\Enums\HttpMethod;
+use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 use Tests\TestCase;
 
 /**
@@ -22,10 +25,10 @@ use Tests\TestCase;
  */
 #[CoversClass(ParseApiQuery::class)]
 #[CoversClass(JsonPrettyPrint::class)]
-class MiddlewareIntegrationTest extends TestCase
+final class MiddlewareIntegrationTest extends TestCase
 {
     /** @var string The shared test URI. */
-    private const TEST_URI = '/test';
+    private const string TEST_URI = '/test';
 
     /**
      * Test that ParseApiQuery middleware populates API query parser.
@@ -49,10 +52,10 @@ class MiddlewareIntegrationTest extends TestCase
         /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
         $parser = $this->app->make('api.query');
 
-        static::assertInstanceOf(ApiQueryParser::class, $parser);
-        static::assertSame(3, $parser->getPage());
-        static::assertSame(25, $parser->getLimit());
-        static::assertSame(['name' => 'desc'], $parser->getOrder());
+        self::assertInstanceOf(ApiQueryParser::class, $parser);
+        self::assertSame(3, $parser->getPage());
+        self::assertSame(25, $parser->getLimit());
+        self::assertSame(['name' => 'desc'], $parser->getOrder());
     }
 
     /**
@@ -71,8 +74,8 @@ class MiddlewareIntegrationTest extends TestCase
 
         $content = $response->getContent();
 
-        static::assertStringContainsString("\n", $content);
-        static::assertSame(json_encode(['key' => 'value'], JSON_PRETTY_PRINT), $content);
+        self::assertStringContainsString("\n", $content);
+        self::assertSame(json_encode(['key' => 'value'], JSON_PRETTY_PRINT), $content);
     }
 
     /**
@@ -91,8 +94,8 @@ class MiddlewareIntegrationTest extends TestCase
         $parseMiddleware  = new ParseApiQuery;
         $prettyMiddleware = new JsonPrettyPrint;
 
-        $response = $parseMiddleware->handle($request, function ($request) use ($prettyMiddleware) {
-            return $prettyMiddleware->handle($request, function () {
+        $response = $parseMiddleware->handle($request, function ($request) use ($prettyMiddleware): SymfonyResponse {
+            return $prettyMiddleware->handle($request, function (): JsonResponse {
                 /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
                 $parser = app('api.query');
 
@@ -105,9 +108,9 @@ class MiddlewareIntegrationTest extends TestCase
 
         $content = json_decode($response->getContent(), true);
 
-        static::assertSame(2, $content['page']);
-        static::assertSame(10, $content['limit']);
+        self::assertSame(2, $content['page']);
+        self::assertSame(10, $content['limit']);
 
-        static::assertStringContainsString("\n", $response->getContent());
+        self::assertStringContainsString("\n", $response->getContent());
     }
 }

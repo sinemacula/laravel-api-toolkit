@@ -1,10 +1,13 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Integration;
 
 use Illuminate\Contracts\Queue\Job;
 use Illuminate\Queue\Events\JobProcessed;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Event;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Cache\CacheManager;
@@ -31,7 +34,7 @@ use Tests\TestCase;
 #[CoversClass(CacheManager::class)]
 #[CoversClass(OctaneFlushListener::class)]
 #[CoversClass(QueueFlushSubscriber::class)]
-class LifecycleDefaultEngagementTest extends TestCase
+final class LifecycleDefaultEngagementTest extends TestCase
 {
     /** @var bool Whether LARAVEL_OCTANE was set before each test. */
     private bool $octaneWasSet;
@@ -78,9 +81,10 @@ class LifecycleDefaultEngagementTest extends TestCase
      */
     public function testShippedDefaultEngagesOctaneFlushOnServingRuntime(): void
     {
-        // Assert the shipped defaults are on - kills the default-value mutation.
-        static::assertTrue((bool) config('api-toolkit.lifecycle.octane'));
-        static::assertTrue((bool) config('api-toolkit.lifecycle.queue'));
+        // Assert the shipped defaults are on - kills the default-value
+        // mutation.
+        self::assertTrue((bool) config('api-toolkit.lifecycle.octane'));
+        self::assertTrue((bool) config('api-toolkit.lifecycle.queue'));
 
         // Arrange: simulate a serving Octane runtime.
         $_SERVER['LARAVEL_OCTANE'] = 1;
@@ -91,13 +95,13 @@ class LifecycleDefaultEngagementTest extends TestCase
 
         // Write through the writer so the key is registered in the registry.
         $this->writer()->rememberMetadataForever($key, static fn () => 'value');
-        static::assertSame('value', Cache::memo()->get($key)); // @phpstan-ignore method.notFound
+        self::assertSame('value', Cache::memo()->get($key)); // @phpstan-ignore method.notFound
 
         // Act: invoke the Octane boundary with the shipped default config.
         $this->octaneListener()->handle(new \stdClass);
 
         // Assert: the toolkit key was cleared (flush engaged on the default).
-        static::assertNull(Cache::memo()->get($key)); // @phpstan-ignore method.notFound
+        self::assertNull(Cache::memo()->get($key)); // @phpstan-ignore method.notFound
     }
 
     /**
@@ -112,10 +116,10 @@ class LifecycleDefaultEngagementTest extends TestCase
     public function testShippedDefaultEngagesQueueFlushOnServingRuntime(): void
     {
         // Assert the shipped queue default is on.
-        static::assertTrue((bool) config('api-toolkit.lifecycle.queue'));
+        self::assertTrue((bool) config('api-toolkit.lifecycle.queue'));
 
         // Arrange: configure a non-sync connection to signal a real worker.
-        \Illuminate\Support\Facades\Config::set('queue.connections.database.driver', 'database');
+        Config::set('queue.connections.database.driver', 'database');
 
         Event::fake();
 
@@ -123,14 +127,14 @@ class LifecycleDefaultEngagementTest extends TestCase
 
         // Write through the writer so the key is registered in the registry.
         $this->writer()->rememberMetadataForever($key, static fn () => 'value');
-        static::assertSame('value', Cache::memo()->get($key)); // @phpstan-ignore method.notFound
+        self::assertSame('value', Cache::memo()->get($key)); // @phpstan-ignore method.notFound
 
         // Act: invoke the queue boundary with the shipped default config.
-        $event = new JobProcessed('database', static::createStub(Job::class));
+        $event = new JobProcessed('database', self::createStub(Job::class));
         $this->queueSubscriber()->handleFlush($event);
 
         // Assert: the toolkit key was cleared (flush engaged on the default).
-        static::assertNull(Cache::memo()->get($key)); // @phpstan-ignore method.notFound
+        self::assertNull(Cache::memo()->get($key)); // @phpstan-ignore method.notFound
     }
 
     /**

@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Fixtures\Resources;
 
 use SineMacula\ApiToolkit\Http\Resources\ApiResource;
@@ -12,7 +14,7 @@ use SineMacula\ApiToolkit\Schema\Relation;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-class BrokenResource extends ApiResource
+final class BrokenResource extends ApiResource
 {
     /** @var string */
     public const string RESOURCE_TYPE = 'broken';

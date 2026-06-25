@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Unit\Cache;
 
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -15,7 +17,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(MetadataKeyRegistry::class)]
-class MetadataKeyRegistryTest extends TestCase
+final class MetadataKeyRegistryTest extends TestCase
 {
     /**
      * Test that register adds a key to the set.
@@ -31,7 +33,7 @@ class MetadataKeyRegistryTest extends TestCase
         $registry->register('sm-api-toolkit:model-schema:User');
 
         // Assert
-        static::assertSame(['sm-api-toolkit:model-schema:User'], $registry->keys());
+        self::assertSame(['sm-api-toolkit:model-schema:User'], $registry->keys());
     }
 
     /**
@@ -50,11 +52,12 @@ class MetadataKeyRegistryTest extends TestCase
         $registry->register('sm-api-toolkit:model-schema:User');
 
         // Assert
-        static::assertSame(['sm-api-toolkit:model-schema:User'], $registry->keys());
+        self::assertSame(['sm-api-toolkit:model-schema:User'], $registry->keys());
     }
 
     /**
-     * Test that keys returns all distinct registered keys as an integer-indexed list.
+     * Test that keys returns all distinct registered keys as an
+     * integer-indexed list.
      *
      * @return void
      */
@@ -71,11 +74,11 @@ class MetadataKeyRegistryTest extends TestCase
         $keys = $registry->keys();
 
         // Assert
-        static::assertCount(3, $keys);
-        static::assertContains('sm-api-toolkit:model-schema:User', $keys);
-        static::assertContains('sm-api-toolkit:model-resources:Post', $keys);
-        static::assertContains('sm-api-toolkit:model-casts:Comment', $keys);
-        static::assertSame(array_values($keys), $keys);
+        self::assertCount(3, $keys);
+        self::assertContains('sm-api-toolkit:model-schema:User', $keys);
+        self::assertContains('sm-api-toolkit:model-resources:Post', $keys);
+        self::assertContains('sm-api-toolkit:model-casts:Comment', $keys);
+        self::assertSame(array_values($keys), $keys);
     }
 
     /**
@@ -89,7 +92,7 @@ class MetadataKeyRegistryTest extends TestCase
         $registry = new MetadataKeyRegistry;
 
         // Assert
-        static::assertSame([], $registry->keys());
+        self::assertSame([], $registry->keys());
     }
 
     /**
@@ -108,6 +111,6 @@ class MetadataKeyRegistryTest extends TestCase
         $registry->clear();
 
         // Assert
-        static::assertSame([], $registry->keys());
+        self::assertSame([], $registry->keys());
     }
 }

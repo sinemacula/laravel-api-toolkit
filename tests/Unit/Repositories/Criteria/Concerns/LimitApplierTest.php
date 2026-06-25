@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Unit\Repositories\Criteria\Concerns;
 
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -16,7 +18,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(LimitApplier::class)]
-class LimitApplierTest extends TestCase
+final class LimitApplierTest extends TestCase
 {
     /**
      * Test that a null limit returns the query unmodified.
@@ -30,7 +32,7 @@ class LimitApplierTest extends TestCase
 
         $result = $applier->apply($query, null);
 
-        static::assertNull($result->getQuery()->limit);
+        self::assertNull($result->getQuery()->limit);
     }
 
     /**
@@ -45,7 +47,7 @@ class LimitApplierTest extends TestCase
 
         $result = $applier->apply($query, 5);
 
-        static::assertSame(5, $result->getQuery()->limit);
+        self::assertSame(5, $result->getQuery()->limit);
     }
 
     /**
@@ -60,6 +62,6 @@ class LimitApplierTest extends TestCase
 
         $result = $applier->apply($query, 0);
 
-        static::assertSame(0, $result->getQuery()->limit);
+        self::assertSame(0, $result->getQuery()->limit);
     }
 }

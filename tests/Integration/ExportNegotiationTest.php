@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Integration;
 
 use Illuminate\Support\Facades\Route;
@@ -25,7 +27,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversTrait(RespondsWithExport::class)]
-class ExportNegotiationTest extends TestCase
+final class ExportNegotiationTest extends TestCase
 {
     /** @var string The export endpoint under test. */
     private const string USERS_URI = '/api/users';
@@ -65,10 +67,10 @@ class ExportNegotiationTest extends TestCase
 
         $content = (string) $response->baseResponse->getContent();
 
-        static::assertStringContainsString('Alice', $content);
-        static::assertStringContainsString('alice@example.com', $content);
-        static::assertStringContainsString('Bob', $content);
-        static::assertStringContainsString('bob@example.com', $content);
+        self::assertStringContainsString('Alice', $content);
+        self::assertStringContainsString('alice@example.com', $content);
+        self::assertStringContainsString('Bob', $content);
+        self::assertStringContainsString('bob@example.com', $content);
     }
 
     /**
@@ -84,15 +86,15 @@ class ExportNegotiationTest extends TestCase
         $response->assertOk();
         $response->assertHeader('Content-Disposition', 'attachment; filename="export.xml"');
 
-        $content_type = (string) $response->headers->get('Content-Type');
+        $contentType = (string) $response->headers->get('Content-Type');
 
-        static::assertStringStartsWith('application/xml', $content_type);
+        self::assertStringStartsWith('application/xml', $contentType);
 
         $content = (string) $response->baseResponse->getContent();
 
-        static::assertStringStartsWith('<?xml', $content);
-        static::assertStringContainsString('Alice', $content);
-        static::assertStringContainsString('bob@example.com', $content);
+        self::assertStringStartsWith('<?xml', $content);
+        self::assertStringContainsString('Alice', $content);
+        self::assertStringContainsString('bob@example.com', $content);
     }
 
     /**
@@ -124,9 +126,9 @@ class ExportNegotiationTest extends TestCase
 
         $response->assertOk();
 
-        $content_type = (string) $response->headers->get('Content-Type');
+        $contentType = (string) $response->headers->get('Content-Type');
 
-        static::assertStringStartsWith('application/json', $content_type);
+        self::assertStringStartsWith('application/json', $contentType);
     }
 
     /**

@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace SineMacula\ApiToolkit\Schema;
 
 /**
@@ -7,12 +9,14 @@ namespace SineMacula\ApiToolkit\Schema;
  *
  * Classifies each field as provably column-mapped or opaque: scalar fields map
  * to their own column, needs-carrying fields map to their declared columns, and
- * accessor/compute/relation/guarded/transformed fields without needs are flagged
- * unmapped. Caches one map per resource class so it is built once and reused
- * across requests.
+ * accessor/compute/relation/guarded/transformed fields without needs are
+ * flagged unmapped. Caches one map per resource class so it is built once and
+ * reused across requests.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
+ *
+ * @managed-static
  */
 final class FieldColumnMapper
 {

@@ -1,9 +1,11 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Unit\Http\Concerns;
 
 use Illuminate\Http\Request;
-use InvalidArgumentException;
+use Mockery\MockInterface;
 use PHPUnit\Framework\Attributes\CoversTrait;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
 use SineMacula\ApiToolkit\Http\Concerns\RespondsWithStream;
@@ -26,7 +28,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversTrait(RespondsWithStream::class)]
-class RespondsWithStreamTest extends TestCase
+final class RespondsWithStreamTest extends TestCase
 {
     /** @var string */
     private const string CONTENT_TYPE_CSV = 'text/csv; charset=utf-8';
@@ -56,11 +58,12 @@ class RespondsWithStreamTest extends TestCase
 
         $response = $controller->streamRepositoryToCsv($repository); // @phpstan-ignore method.notFound
 
-        static::assertInstanceOf(StreamedResponse::class, $response);
+        self::assertInstanceOf(StreamedResponse::class, $response);
     }
 
     /**
-     * Test that makeTransformer throws InvalidArgumentException when no resource class.
+     * Test that makeTransformer throws InvalidArgumentException when no
+     * resource class.
      *
      * @return void
      */
@@ -95,8 +98,8 @@ class RespondsWithStreamTest extends TestCase
             echo 'test';
         }, 'text/csv', 'export.csv');
 
-        static::assertInstanceOf(StreamedResponse::class, $response);
-        static::assertSame('text/csv', $response->headers->get('Content-Type'));
+        self::assertInstanceOf(StreamedResponse::class, $response);
+        self::assertSame('text/csv', $response->headers->get('Content-Type'));
     }
 
     /**
@@ -108,28 +111,28 @@ class RespondsWithStreamTest extends TestCase
     {
         $controller = $this->createControllerWithTrait();
 
-        /** @var \Mockery\MockInterface $chain_mock */
-        $chain_mock = \Mockery::mock();
-        $chain_mock->shouldReceive('withoutFields')->andReturnSelf();
-        $chain_mock->shouldReceive('exportArray')->once()->andReturn("name,email\nJohn,john@example.com\n");
+        /** @var \Mockery\MockInterface $chainMock */
+        $chainMock = \Mockery::mock();
+        $chainMock->shouldReceive('withoutFields')->andReturnSelf();
+        $chainMock->shouldReceive('exportArray')->once()->andReturn("name,email\nJohn,john@example.com\n");
 
-        /** @var \Mockery\MockInterface $facade_mock */
-        $facade_mock = \Mockery::mock();
-        $facade_mock->shouldReceive('format')->with('csv')->once()->andReturn($chain_mock);
+        /** @var \Mockery\MockInterface $facadeMock */
+        $facadeMock = \Mockery::mock();
+        $facadeMock->shouldReceive('format')->with('csv')->once()->andReturn($chainMock);
 
-        Exporter::swap($facade_mock);
+        Exporter::swap($facadeMock);
 
         $reflection = new \ReflectionMethod($controller, 'formatChunkAsCsv');
 
-        $is_first = true;
-        $args     = [[['name' => 'John', 'email' => 'john@example.com']], &$is_first];
+        $isFirst = true;
+        $args    = [[['name' => 'John', 'email' => 'john@example.com']], &$isFirst];
 
         /** @var string $result */
         $result = $reflection->invokeArgs($controller, $args);
 
-        static::assertStringContainsString('name', $result);
+        self::assertStringContainsString('name', $result);
         // @phpstan-ignore staticMethod.impossibleType
-        static::assertFalse($is_first);
+        self::assertFalse($isFirst);
     }
 
     /**
@@ -141,27 +144,27 @@ class RespondsWithStreamTest extends TestCase
     {
         $controller = $this->createControllerWithTrait();
 
-        /** @var \Mockery\MockInterface $chain_mock */
-        $chain_mock = \Mockery::mock();
-        $chain_mock->shouldReceive('withoutFields')->andReturnSelf();
-        $chain_mock->shouldReceive('withoutHeaders')->once()->andReturnSelf();
-        $chain_mock->shouldReceive('exportArray')->once()->andReturn("Jane,jane@example.com\n");
+        /** @var \Mockery\MockInterface $chainMock */
+        $chainMock = \Mockery::mock();
+        $chainMock->shouldReceive('withoutFields')->andReturnSelf();
+        $chainMock->shouldReceive('withoutHeaders')->once()->andReturnSelf();
+        $chainMock->shouldReceive('exportArray')->once()->andReturn("Jane,jane@example.com\n");
 
-        /** @var \Mockery\MockInterface $facade_mock */
-        $facade_mock = \Mockery::mock();
-        $facade_mock->shouldReceive('format')->with('csv')->once()->andReturn($chain_mock);
+        /** @var \Mockery\MockInterface $facadeMock */
+        $facadeMock = \Mockery::mock();
+        $facadeMock->shouldReceive('format')->with('csv')->once()->andReturn($chainMock);
 
-        Exporter::swap($facade_mock);
+        Exporter::swap($facadeMock);
 
         $reflection = new \ReflectionMethod($controller, 'formatChunkAsCsv');
 
-        $is_first = false;
-        $args     = [[['name' => 'Jane', 'email' => 'jane@example.com']], &$is_first];
+        $isFirst = false;
+        $args    = [[['name' => 'Jane', 'email' => 'jane@example.com']], &$isFirst];
 
         /** @var string $result */
         $result = $reflection->invokeArgs($controller, $args);
 
-        static::assertStringContainsString('Jane', $result);
+        self::assertStringContainsString('Jane', $result);
     }
 
     /**
@@ -213,7 +216,7 @@ class RespondsWithStreamTest extends TestCase
         $response->sendContent();
         ob_end_clean();
 
-        static::assertInstanceOf(StreamedResponse::class, $response);
+        self::assertInstanceOf(StreamedResponse::class, $response);
     }
 
     /**
@@ -268,7 +271,7 @@ class RespondsWithStreamTest extends TestCase
         $response->sendContent();
         ob_end_clean();
 
-        static::assertInstanceOf(StreamedResponse::class, $response);
+        self::assertInstanceOf(StreamedResponse::class, $response);
     }
 
     /**
@@ -292,7 +295,7 @@ class RespondsWithStreamTest extends TestCase
 
         $response = $controller->streamRepositoryToCsv($repository, 1500, 'users.csv'); // @phpstan-ignore method.notFound
 
-        static::assertStringContainsString('users.csv', $response->headers->get('Content-Disposition') ?? '');
+        self::assertStringContainsString('users.csv', $response->headers->get('Content-Disposition') ?? '');
     }
 
     /**
@@ -315,7 +318,7 @@ class RespondsWithStreamTest extends TestCase
 
         $response = $controller->streamRepositoryToCsv($repository); // @phpstan-ignore method.notFound
 
-        static::assertSame(self::CONTENT_TYPE_CSV, $response->headers->get('Content-Type'));
+        self::assertSame(self::CONTENT_TYPE_CSV, $response->headers->get('Content-Type'));
     }
 
     /**
@@ -372,10 +375,10 @@ class RespondsWithStreamTest extends TestCase
         $output = ob_get_clean();
 
         // Trailing spaces within the field value must be preserved.
-        static::assertStringContainsString('Alice   ', (string) $output);
+        self::assertStringContainsString('Alice   ', (string) $output);
 
         // Trailing newline must be stripped (chunk boundary prevention).
-        static::assertStringEndsNotWith("\n", (string) $output);
+        self::assertStringEndsNotWith("\n", (string) $output);
     }
 
     /**
@@ -391,15 +394,15 @@ class RespondsWithStreamTest extends TestCase
         $request = Request::create(self::TEST_URI, HttpMethod::GET->getVerb());
         ApiQuery::parse($request);
 
-        $captured_size = null;
+        $capturedSize = null;
 
         /** @var \Mockery\MockInterface&\SineMacula\ApiToolkit\Repositories\ApiRepository<\Illuminate\Database\Eloquent\Model> $repository */
         $repository = \Mockery::mock(ApiRepository::class);
         $repository->shouldReceive('addScope')->andReturnSelf();
         $repository->shouldReceive('getResourceClass')->andReturn(UserResource::class);
         $repository->shouldReceive('chunkById')
-            ->andReturnUsing(function (int $size) use (&$captured_size): bool {
-                $captured_size = $size;
+            ->andReturnUsing(function (int $size) use (&$capturedSize): bool {
+                $capturedSize = $size;
 
                 return true;
             });
@@ -410,7 +413,7 @@ class RespondsWithStreamTest extends TestCase
         $response->sendContent();
         ob_end_clean();
 
-        static::assertSame(1500, $captured_size);
+        self::assertSame(1500, $capturedSize);
     }
 
     /**
@@ -433,7 +436,7 @@ class RespondsWithStreamTest extends TestCase
         $repository->shouldReceive('getResourceClass')->andReturn(UserResource::class);
         $repository->shouldReceive('addScope')
             ->once()
-            ->andReturnUsing(function (\Closure $scope) use (&$reordered, &$repository) {
+            ->andReturnUsing(function (\Closure $scope) use (&$reordered, &$repository): ApiRepository {
 
                 /** @var \Mockery\MockInterface $query */
                 $query = \Mockery::mock();
@@ -449,7 +452,7 @@ class RespondsWithStreamTest extends TestCase
 
         $controller->streamRepositoryToCsv($repository); // @phpstan-ignore method.notFound
 
-        static::assertTrue($reordered);
+        self::assertTrue($reordered);
     }
 
     /**
@@ -493,14 +496,14 @@ class RespondsWithStreamTest extends TestCase
                 return true;
             });
 
-        $without_headers_calls = 0;
+        $withoutHeadersCalls = 0;
 
         /** @var \Mockery\MockInterface $chain */
         $chain = \Mockery::mock();
         $chain->shouldReceive('withoutFields')->andReturnSelf();
         $chain->shouldReceive('withoutHeaders')
-            ->andReturnUsing(function () use (&$without_headers_calls, &$chain) {
-                $without_headers_calls++;
+            ->andReturnUsing(function () use (&$withoutHeadersCalls, &$chain): MockInterface {
+                $withoutHeadersCalls++;
 
                 return $chain;
             });
@@ -522,14 +525,14 @@ class RespondsWithStreamTest extends TestCase
         $response->sendContent();
         $output = (string) ob_get_clean();
 
-        static::assertStringContainsString('UserA', $output);
-        static::assertStringContainsString('UserB', $output);
-        static::assertStringContainsString('UserC', $output);
-        static::assertStringNotContainsString('UserD', $output);
-        static::assertStringNotContainsString('UserE', $output);
+        self::assertStringContainsString('UserA', $output);
+        self::assertStringContainsString('UserB', $output);
+        self::assertStringContainsString('UserC', $output);
+        self::assertStringNotContainsString('UserD', $output);
+        self::assertStringNotContainsString('UserE', $output);
 
-        static::assertSame([true, true, false], $returns);
-        static::assertSame(1, $without_headers_calls);
+        self::assertSame([true, true, false], $returns);
+        self::assertSame(1, $withoutHeadersCalls);
     }
 
     /**
@@ -544,8 +547,8 @@ class RespondsWithStreamTest extends TestCase
     {
         $counts = $this->streamSingleChunkWithBufferLevel(1);
 
-        static::assertSame(1, $counts['ob_flush']);
-        static::assertSame(1, $counts['flush']);
+        self::assertSame(1, $counts['ob_flush']);
+        self::assertSame(1, $counts['flush']);
     }
 
     /**
@@ -560,8 +563,8 @@ class RespondsWithStreamTest extends TestCase
     {
         $counts = $this->streamSingleChunkWithBufferLevel(0);
 
-        static::assertSame(0, $counts['ob_flush']);
-        static::assertSame(1, $counts['flush']);
+        self::assertSame(0, $counts['ob_flush']);
+        self::assertSame(1, $counts['flush']);
     }
 
     /**
@@ -597,7 +600,7 @@ class RespondsWithStreamTest extends TestCase
         /** @var array<int, array<string, mixed>> $rows */
         $rows = $transformer([$user]);
 
-        static::assertSame('Transformed', $rows[0]['name']);
+        self::assertSame('Transformed', $rows[0]['name']);
     }
 
     /**
@@ -608,36 +611,36 @@ class RespondsWithStreamTest extends TestCase
      */
     public function testFormatChunkAsCsvIsCallableFromSubclass(): void
     {
-        /** @var \Mockery\MockInterface $chain_mock */
-        $chain_mock = \Mockery::mock();
-        $chain_mock->shouldReceive('withoutFields')->andReturnSelf();
-        $chain_mock->shouldReceive('exportArray')->once()->andReturn("name\nJohn\n");
+        /** @var \Mockery\MockInterface $chainMock */
+        $chainMock = \Mockery::mock();
+        $chainMock->shouldReceive('withoutFields')->andReturnSelf();
+        $chainMock->shouldReceive('exportArray')->once()->andReturn("name\nJohn\n");
 
-        /** @var \Mockery\MockInterface $facade_mock */
-        $facade_mock = \Mockery::mock();
-        $facade_mock->shouldReceive('format')->with('csv')->once()->andReturn($chain_mock);
+        /** @var \Mockery\MockInterface $facadeMock */
+        $facadeMock = \Mockery::mock();
+        $facadeMock->shouldReceive('format')->with('csv')->once()->andReturn($chainMock);
 
-        Exporter::swap($facade_mock);
+        Exporter::swap($facadeMock);
 
         $controller = new class extends TestingExportController {
             /**
              * @param  array<int, array<string, mixed>>  $rows
-             * @param  bool  $is_first_chunk
+             * @param  bool  $isFirstChunk
              * @return string
              */
-            public function callFormatChunkAsCsv(array $rows, bool &$is_first_chunk): string
+            public function callFormatChunkAsCsv(array $rows, bool &$isFirstChunk): string
             {
-                return $this->formatChunkAsCsv($rows, $is_first_chunk);
+                return $this->formatChunkAsCsv($rows, $isFirstChunk);
             }
         };
 
-        $is_first = true;
+        $isFirst = true;
 
-        $result = $controller->callFormatChunkAsCsv([['name' => 'John']], $is_first);
+        $result = $controller->callFormatChunkAsCsv([['name' => 'John']], $isFirst);
 
-        static::assertStringContainsString('John', $result);
+        self::assertStringContainsString('John', $result);
         // @phpstan-ignore staticMethod.impossibleType
-        static::assertFalse($is_first);
+        self::assertFalse($isFirst);
     }
 
     /**
@@ -650,13 +653,16 @@ class RespondsWithStreamTest extends TestCase
         $controller = new class extends TestingExportController {
             /**
              * @param  callable(): void  $callback
-             * @param  string  $content_type
+             * @param  string  $contentType
              * @param  string  $filename
              * @return \Symfony\Component\HttpFoundation\StreamedResponse
              */
-            public function callCreateStreamedResponse(callable $callback, string $content_type, string $filename): StreamedResponse
-            {
-                return $this->createStreamedResponse($callback, $content_type, $filename);
+            public function callCreateStreamedResponse(
+                callable $callback,
+                string $contentType,
+                string $filename,
+            ): StreamedResponse {
+                return $this->createStreamedResponse($callback, $contentType, $filename);
             }
         };
 
@@ -664,8 +670,8 @@ class RespondsWithStreamTest extends TestCase
             echo 'chunk';
         }, 'text/csv', 'report.csv');
 
-        static::assertSame('text/csv', $response->headers->get('Content-Type'));
-        static::assertStringContainsString('report.csv', $response->headers->get('Content-Disposition') ?? '');
+        self::assertSame('text/csv', $response->headers->get('Content-Type'));
+        self::assertStringContainsString('report.csv', $response->headers->get('Content-Disposition') ?? '');
     }
 
     /**
@@ -674,10 +680,10 @@ class RespondsWithStreamTest extends TestCase
      *
      * @SuppressWarnings("php:S1172")
      *
-     * @param  int  $buffer_level
+     * @param  int  $bufferLevel
      * @return array{ob_flush: int, flush: int}
      */
-    private function streamSingleChunkWithBufferLevel(int $buffer_level): array
+    private function streamSingleChunkWithBufferLevel(int $bufferLevel): array
     {
         $controller = $this->createControllerWithTrait();
 
@@ -711,7 +717,7 @@ class RespondsWithStreamTest extends TestCase
 
         $counts = ['ob_flush' => 0, 'flush' => 0];
 
-        FunctionOverrides::set('ob_get_level', fn (): int => $buffer_level);
+        FunctionOverrides::set('ob_get_level', fn (): int => $bufferLevel);
         FunctionOverrides::set('ob_flush', function () use (&$counts): void {
             $counts['ob_flush']++;
         });

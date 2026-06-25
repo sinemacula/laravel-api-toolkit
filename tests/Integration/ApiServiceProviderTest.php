@@ -1,19 +1,29 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Integration;
 
+use Aws\CloudWatchLogs\CloudWatchLogsClient;
 use Illuminate\Console\Events\CommandFinished;
 use Illuminate\Contracts\Config\Repository as ConfigRepository;
 use Illuminate\Contracts\Http\Kernel as HttpKernel;
 use Illuminate\Database\Eloquent\Relations\Relation;
+use Illuminate\Events\Dispatcher;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Http\Events\RequestHandled;
+use Illuminate\Log\Logger;
 use Illuminate\Log\LogManager;
 use Illuminate\Notifications\Events\NotificationSending;
 use Illuminate\Notifications\Events\NotificationSent;
+use Illuminate\Queue\Events\JobFailed;
+use Illuminate\Queue\Events\JobProcessed;
 use Illuminate\Routing\Router;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
+use Laravel\Octane\Events\OperationTerminated;
+use PhpNexus\Cwh\Handler\CloudWatch;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\ApiQueryParser;
 use SineMacula\ApiToolkit\ApiServiceProvider;
@@ -26,6 +36,7 @@ use SineMacula\ApiToolkit\Http\Middleware\DetectsCapabilities;
 use SineMacula\ApiToolkit\Http\Middleware\JsonPrettyPrint;
 use SineMacula\ApiToolkit\Http\Middleware\ParseApiQuery;
 use SineMacula\ApiToolkit\Http\Middleware\PreventRequestsDuringMaintenance;
+use SineMacula\ApiToolkit\Http\Middleware\ThrottleRequests;
 use SineMacula\ApiToolkit\Http\Resources\ResourceMetadataService;
 use SineMacula\ApiToolkit\Listeners\NotificationListener;
 use SineMacula\ApiToolkit\Listeners\QueueFlushSubscriber;
@@ -38,6 +49,9 @@ use SineMacula\ApiToolkit\Repositories\Concerns\WritePool;
 use SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry;
 use SineMacula\ApiToolkit\Services\SchemaIntrospector;
 use SineMacula\ApiToolkit\Services\SchemaValidator;
+use Tests\Fixtures\Models\User;
+use Tests\Fixtures\Resources\BrokenResource;
+use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
 
 /**
@@ -53,7 +67,7 @@ use Tests\TestCase;
 #[CoversClass(LifecycleRegistrar::class)]
 #[CoversClass(LoggingRegistrar::class)]
 #[CoversClass(MiddlewareRegistrar::class)]
-class ApiServiceProviderTest extends TestCase
+final class ApiServiceProviderTest extends TestCase
 {
     /**
      * Test that the package config is merged.
@@ -64,8 +78,8 @@ class ApiServiceProviderTest extends TestCase
     {
         $config = $this->getConfig();
 
-        static::assertNotNull($config->get('api-toolkit'));
-        static::assertIsArray($config->get('api-toolkit.resources'));
+        self::assertNotNull($config->get('api-toolkit'));
+        self::assertIsArray($config->get('api-toolkit.resources'));
     }
 
     /**
@@ -77,9 +91,9 @@ class ApiServiceProviderTest extends TestCase
     {
         $channels = $this->getConfig()->get('logging.channels');
 
-        static::assertArrayHasKey('notifications', $channels);
-        static::assertArrayHasKey('cloudwatch', $channels);
-        static::assertArrayHasKey('cloudwatch-notifications', $channels);
+        self::assertArrayHasKey('notifications', $channels);
+        self::assertArrayHasKey('cloudwatch', $channels);
+        self::assertArrayHasKey('cloudwatch-notifications', $channels);
     }
 
     /**
@@ -92,7 +106,7 @@ class ApiServiceProviderTest extends TestCase
         /** @var \Illuminate\Translation\Translator $translator */
         $translator = $this->getApplication()->make('translator');
 
-        static::assertTrue($translator->hasForLocale('api-toolkit::exceptions', 'en'));
+        self::assertTrue($translator->hasForLocale('api-toolkit::exceptions', 'en'));
     }
 
     /**
@@ -106,10 +120,10 @@ class ApiServiceProviderTest extends TestCase
         $alias  = $this->getConfig()->get('api-toolkit.parser.alias');
         $parser = $app->make($alias);
 
-        static::assertInstanceOf(ApiQueryParser::class, $parser);
+        self::assertInstanceOf(ApiQueryParser::class, $parser);
 
         // Same instance on second resolve (singleton)
-        static::assertSame($parser, $app->make($alias));
+        self::assertSame($parser, $app->make($alias));
     }
 
     /**
@@ -123,7 +137,7 @@ class ApiServiceProviderTest extends TestCase
         $kernel     = $this->getApplication()->make(HttpKernel::class);
         $middleware = $kernel->getGlobalMiddleware();
 
-        static::assertContains(JsonPrettyPrint::class, $middleware);
+        self::assertContains(JsonPrettyPrint::class, $middleware);
     }
 
     /**
@@ -138,10 +152,10 @@ class ApiServiceProviderTest extends TestCase
         $kernel     = $this->getApplication()->make(HttpKernel::class);
         $middleware = $kernel->getGlobalMiddleware();
 
-        static::assertContains(PreventRequestsDuringMaintenance::class, $middleware);
+        self::assertContains(PreventRequestsDuringMaintenance::class, $middleware);
 
         // It should be the first middleware in the stack
-        static::assertSame(PreventRequestsDuringMaintenance::class, $middleware[0]);
+        self::assertSame(PreventRequestsDuringMaintenance::class, $middleware[0]);
     }
 
     /**
@@ -156,7 +170,7 @@ class ApiServiceProviderTest extends TestCase
 
         $middleware = $router->getMiddleware();
 
-        static::assertArrayHasKey('throttle', $middleware);
+        self::assertArrayHasKey('throttle', $middleware);
     }
 
     /**
@@ -168,11 +182,11 @@ class ApiServiceProviderTest extends TestCase
     {
         $config = $this->getConfig();
 
-        static::assertTrue($config->get('api-toolkit.middleware.maintenance_mode_swap.enabled'));
-        static::assertTrue($config->get('api-toolkit.middleware.json_pretty_print.enabled'));
-        static::assertSame('global', $config->get('api-toolkit.middleware.json_pretty_print.scope'));
-        static::assertTrue($config->get('api-toolkit.middleware.throttle.enabled'));
-        static::assertNull($config->get('api-toolkit.middleware.throttle.class'));
+        self::assertTrue($config->get('api-toolkit.middleware.maintenance_mode_swap.enabled'));
+        self::assertTrue($config->get('api-toolkit.middleware.json_pretty_print.enabled'));
+        self::assertSame('global', $config->get('api-toolkit.middleware.json_pretty_print.scope'));
+        self::assertTrue($config->get('api-toolkit.middleware.throttle.enabled'));
+        self::assertNull($config->get('api-toolkit.middleware.throttle.class'));
     }
 
     /**
@@ -190,17 +204,17 @@ class ApiServiceProviderTest extends TestCase
         $global = $kernel->getGlobalMiddleware();
 
         // Maintenance mode middleware is prepended (first in the stack)
-        static::assertSame(PreventRequestsDuringMaintenance::class, $global[0]);
+        self::assertSame(PreventRequestsDuringMaintenance::class, $global[0]);
 
         // JsonPrettyPrint is in the global stack
-        static::assertContains(JsonPrettyPrint::class, $global);
+        self::assertContains(JsonPrettyPrint::class, $global);
 
         // Throttle alias is set
         /** @var \Illuminate\Routing\Router $router */
         $router     = $app->make(Router::class);
         $middleware = $router->getMiddleware();
 
-        static::assertArrayHasKey('throttle', $middleware);
+        self::assertArrayHasKey('throttle', $middleware);
     }
 
     /**
@@ -214,7 +228,7 @@ class ApiServiceProviderTest extends TestCase
         $kernel     = $this->getApplication()->make(HttpKernel::class);
         $middleware = $kernel->getGlobalMiddleware();
 
-        static::assertContains(DetectsCapabilities::class, $middleware);
+        self::assertContains(DetectsCapabilities::class, $middleware);
     }
 
     /**
@@ -236,7 +250,7 @@ class ApiServiceProviderTest extends TestCase
         $kernel = $app->make(HttpKernel::class);
         $groups = $kernel->getMiddlewareGroups();
 
-        static::assertContains(DetectsCapabilities::class, $groups['api'] ?? []);
+        self::assertContains(DetectsCapabilities::class, $groups['api'] ?? []);
     }
 
     /**
@@ -257,7 +271,7 @@ class ApiServiceProviderTest extends TestCase
 
         // The middleware was already pushed in the original boot from setUp.
         // Verify the config gate by confirming boot completes without error.
-        static::assertFalse((bool) $this->getConfig()->get('api-toolkit.middleware.detect_capabilities.enabled'));
+        self::assertFalse((bool) $this->getConfig()->get('api-toolkit.middleware.detect_capabilities.enabled'));
     }
 
     /**
@@ -270,8 +284,8 @@ class ApiServiceProviderTest extends TestCase
         /** @var \Illuminate\Contracts\Events\Dispatcher $events */
         $events = $this->getApplication()->make('events');
 
-        static::assertTrue($events->hasListeners(NotificationSending::class));
-        static::assertTrue($events->hasListeners(NotificationSent::class));
+        self::assertTrue($events->hasListeners(NotificationSending::class));
+        self::assertTrue($events->hasListeners(NotificationSent::class));
     }
 
     /**
@@ -291,8 +305,9 @@ class ApiServiceProviderTest extends TestCase
         $provider->register();
 
         // We can check that the current listeners include the notification ones
-        // (they were already registered in setUp, but this test validates the config gate)
-        static::assertTrue(true);
+        // (they were already registered in setUp, but this test validates the
+        // config gate)
+        self::assertTrue(true);
     }
 
     /**
@@ -314,7 +329,7 @@ class ApiServiceProviderTest extends TestCase
         $provider->boot();
 
         // If we reach here the early-return executed without error.
-        static::assertFalse((bool) $this->getConfig()->get('api-toolkit.notifications.enable_logging'));
+        self::assertFalse((bool) $this->getConfig()->get('api-toolkit.notifications.enable_logging'));
     }
 
     /**
@@ -329,15 +344,15 @@ class ApiServiceProviderTest extends TestCase
 
         $this->getConfig()->set('api-toolkit.resources.enable_dynamic_morph_mapping', true);
         $this->getConfig()->set('api-toolkit.resources.resource_map', [
-            \Tests\Fixtures\Models\User::class => \Tests\Fixtures\Resources\UserResource::class,
+            User::class => UserResource::class,
         ]);
 
         $provider = new ApiServiceProvider($app);
         $provider->boot();
 
-        $morph_map = Relation::morphMap();
+        $morphMap = Relation::morphMap();
 
-        static::assertArrayHasKey('users', $morph_map);
+        self::assertArrayHasKey('users', $morphMap);
     }
 
     /**
@@ -352,18 +367,19 @@ class ApiServiceProviderTest extends TestCase
 
         $this->getConfig()->set('api-toolkit.resources.enable_dynamic_morph_mapping', true);
         $this->getConfig()->set('api-toolkit.resources.resource_map', [
-            \Tests\Fixtures\Models\User::class => \stdClass::class,
+            User::class => \stdClass::class,
         ]);
 
         $provider = new ApiServiceProvider($app);
         $provider->boot();
 
-        // stdClass has no getResourceType; boot() must complete without error.
-        // The morph map may contain entries from earlier tests in the suite --
-        // we assert only that stdClass did not produce a morph-map key.
-        $morph_map = Relation::morphMap();
+        // A stdClass has no getResourceType; boot() must complete without
+        // error. The morph map may contain entries from earlier tests in the
+        // suite -- we assert only that stdClass did not produce a morph-map
+        // key.
+        $morphMap = Relation::morphMap();
 
-        static::assertArrayNotHasKey(\stdClass::class, $morph_map);
+        self::assertArrayNotHasKey(\stdClass::class, $morphMap);
     }
 
     /**
@@ -377,24 +393,24 @@ class ApiServiceProviderTest extends TestCase
         $app      = $this->getApplication();
         $registry = $app->make(OperatorRegistry::class);
 
-        static::assertInstanceOf(OperatorRegistry::class, $registry);
+        self::assertInstanceOf(OperatorRegistry::class, $registry);
 
         // Same instance on second resolve (singleton)
-        static::assertSame($registry, $app->make(OperatorRegistry::class));
+        self::assertSame($registry, $app->make(OperatorRegistry::class));
 
         // Built-in operators are pre-registered
-        static::assertTrue($registry->has('$eq'));
-        static::assertTrue($registry->has('$neq'));
-        static::assertTrue($registry->has('$gt'));
-        static::assertTrue($registry->has('$lt'));
-        static::assertTrue($registry->has('$ge'));
-        static::assertTrue($registry->has('$le'));
-        static::assertTrue($registry->has('$like'));
-        static::assertTrue($registry->has('$in'));
-        static::assertTrue($registry->has('$between'));
-        static::assertTrue($registry->has('$contains'));
-        static::assertTrue($registry->has('$null'));
-        static::assertTrue($registry->has('$notNull'));
+        self::assertTrue($registry->has('$eq'));
+        self::assertTrue($registry->has('$neq'));
+        self::assertTrue($registry->has('$gt'));
+        self::assertTrue($registry->has('$lt'));
+        self::assertTrue($registry->has('$ge'));
+        self::assertTrue($registry->has('$le'));
+        self::assertTrue($registry->has('$like'));
+        self::assertTrue($registry->has('$in'));
+        self::assertTrue($registry->has('$between'));
+        self::assertTrue($registry->has('$contains'));
+        self::assertTrue($registry->has('$null'));
+        self::assertTrue($registry->has('$notNull'));
     }
 
     /**
@@ -408,7 +424,7 @@ class ApiServiceProviderTest extends TestCase
 
         $this->getConfig()->set('api-toolkit.resources.validate_schemas', true);
         $this->getConfig()->set('api-toolkit.resources.resource_map', [
-            \Tests\Fixtures\Models\User::class => \Tests\Fixtures\Resources\UserResource::class,
+            User::class => UserResource::class,
         ]);
 
         $provider = new ApiServiceProvider($app);
@@ -416,7 +432,7 @@ class ApiServiceProviderTest extends TestCase
         $provider->boot();
 
         // Boot completed without exception — valid schemas passed validation
-        static::assertTrue(true);
+        self::assertTrue(true);
     }
 
     /**
@@ -430,7 +446,7 @@ class ApiServiceProviderTest extends TestCase
 
         $this->getConfig()->set('api-toolkit.resources.validate_schemas', false);
         $this->getConfig()->set('api-toolkit.resources.resource_map', [
-            \Tests\Fixtures\Models\User::class => \Tests\Fixtures\Resources\UserResource::class,
+            User::class => UserResource::class,
         ]);
 
         $provider = new ApiServiceProvider($app);
@@ -438,7 +454,7 @@ class ApiServiceProviderTest extends TestCase
         $provider->boot();
 
         // Boot completed without calling validator — config gate works
-        static::assertFalse((bool) $this->getConfig()->get('api-toolkit.resources.validate_schemas'));
+        self::assertFalse((bool) $this->getConfig()->get('api-toolkit.resources.validate_schemas'));
     }
 
     /**
@@ -452,7 +468,7 @@ class ApiServiceProviderTest extends TestCase
 
         $this->getConfig()->set('api-toolkit.resources.validate_schemas', true);
         $this->getConfig()->set('api-toolkit.resources.resource_map', [
-            \Tests\Fixtures\Models\User::class => \Tests\Fixtures\Resources\BrokenResource::class,
+            User::class => BrokenResource::class,
         ]);
 
         $provider = new ApiServiceProvider($app);
@@ -473,10 +489,10 @@ class ApiServiceProviderTest extends TestCase
         $app       = $this->getApplication();
         $validator = $app->make(SchemaValidator::class);
 
-        static::assertInstanceOf(SchemaValidator::class, $validator);
+        self::assertInstanceOf(SchemaValidator::class, $validator);
 
         // Same instance on second resolve (singleton)
-        static::assertSame($validator, $app->make(SchemaValidator::class));
+        self::assertSame($validator, $app->make(SchemaValidator::class));
     }
 
     /**
@@ -488,7 +504,7 @@ class ApiServiceProviderTest extends TestCase
     {
         $commands = Artisan::all();
 
-        static::assertArrayHasKey('api-toolkit:validate-schemas', $commands);
+        self::assertArrayHasKey('api-toolkit:validate-schemas', $commands);
     }
 
     /**
@@ -500,8 +516,8 @@ class ApiServiceProviderTest extends TestCase
     {
         $config = $this->getConfig()->get('api-toolkit.resources');
 
-        static::assertArrayHasKey('validate_schemas', $config);
-        static::assertFalse($config['validate_schemas']);
+        self::assertArrayHasKey('validate_schemas', $config);
+        self::assertFalse($config['validate_schemas']);
     }
 
     /**
@@ -514,8 +530,8 @@ class ApiServiceProviderTest extends TestCase
         $app   = $this->getApplication();
         $first = $app->make(CacheManager::class);
 
-        static::assertInstanceOf(CacheManager::class, $first);
-        static::assertSame($first, $app->make(CacheManager::class));
+        self::assertInstanceOf(CacheManager::class, $first);
+        self::assertSame($first, $app->make(CacheManager::class));
     }
 
     /**
@@ -526,8 +542,8 @@ class ApiServiceProviderTest extends TestCase
      */
     public function testOctaneFlushListenerRegisteredWhenConfigEnabled(): void
     {
-        if (!class_exists(\Laravel\Octane\Events\OperationTerminated::class)) {
-            static::markTestSkipped('Laravel Octane is not installed.');
+        if (!class_exists(OperationTerminated::class)) {
+            self::markTestSkipped('Laravel Octane is not installed.');
         }
 
         $app = $this->getApplication();
@@ -540,7 +556,7 @@ class ApiServiceProviderTest extends TestCase
         /** @var \Illuminate\Contracts\Events\Dispatcher $events */
         $events = $app->make('events');
 
-        static::assertTrue($events->hasListeners(\Laravel\Octane\Events\OperationTerminated::class));
+        self::assertTrue($events->hasListeners(OperationTerminated::class));
     }
 
     /**
@@ -561,7 +577,7 @@ class ApiServiceProviderTest extends TestCase
         /** @var \Illuminate\Contracts\Events\Dispatcher $events */
         $events = $app->make('events');
 
-        static::assertFalse($events->hasListeners(\Laravel\Octane\Events\OperationTerminated::class)); // @phpstan-ignore class.notFound
+        self::assertFalse($events->hasListeners(OperationTerminated::class)); // @phpstan-ignore class.notFound
     }
 
     /**
@@ -582,7 +598,7 @@ class ApiServiceProviderTest extends TestCase
         /** @var \Illuminate\Contracts\Events\Dispatcher $events */
         $events = $app->make('events');
 
-        static::assertTrue($events->hasListeners(\Illuminate\Queue\Events\JobProcessed::class));
+        self::assertTrue($events->hasListeners(JobProcessed::class));
     }
 
     /**
@@ -607,7 +623,7 @@ class ApiServiceProviderTest extends TestCase
         // verifying only the write pool subscriber listeners exist.
         // Since both subscribers listen to the same events, we verify the
         // disabled branch by confirming boot completes without error.
-        static::assertFalse((bool) $this->getConfig()->get('api-toolkit.lifecycle.queue'));
+        self::assertFalse((bool) $this->getConfig()->get('api-toolkit.lifecycle.queue'));
     }
 
     /**
@@ -620,8 +636,8 @@ class ApiServiceProviderTest extends TestCase
     {
         $value = $this->getConfig()->get('api-toolkit.deferred_writes.on_failure');
 
-        static::assertNotNull($value);
-        static::assertSame('collect', $value);
+        self::assertNotNull($value);
+        self::assertSame('collect', $value);
     }
 
     /**
@@ -636,7 +652,7 @@ class ApiServiceProviderTest extends TestCase
         $reflection = new \ReflectionProperty(WritePool::class, 'strategy');
         $strategy   = $reflection->getValue($pool);
 
-        static::assertSame(FlushStrategy::COLLECT, $strategy);
+        self::assertSame(FlushStrategy::COLLECT, $strategy);
     }
 
     /**
@@ -651,7 +667,7 @@ class ApiServiceProviderTest extends TestCase
         $reflection    = new \ReflectionProperty(WritePool::class, 'transactional');
         $transactional = $reflection->getValue($pool);
 
-        static::assertFalse($transactional);
+        self::assertFalse($transactional);
     }
 
     /**
@@ -674,7 +690,7 @@ class ApiServiceProviderTest extends TestCase
         $reflection = new \ReflectionProperty(WritePool::class, 'strategy');
         $strategy   = $reflection->getValue($pool);
 
-        static::assertSame(FlushStrategy::THROW, $strategy);
+        self::assertSame(FlushStrategy::THROW, $strategy);
     }
 
     /**
@@ -709,7 +725,7 @@ class ApiServiceProviderTest extends TestCase
         $kernel     = $this->getApplication()->make(HttpKernel::class);
         $middleware = $kernel->getGlobalMiddleware();
 
-        static::assertContains(ParseApiQuery::class, $middleware);
+        self::assertContains(ParseApiQuery::class, $middleware);
     }
 
     /**
@@ -740,17 +756,17 @@ class ApiServiceProviderTest extends TestCase
         $kernel     = $app->make(HttpKernel::class);
         $middleware = $kernel->getGlobalMiddleware();
 
-        static::assertContains(ParseApiQuery::class, $middleware);
-        static::assertContains(PreventRequestsDuringMaintenance::class, $middleware);
-        static::assertContains(DetectsCapabilities::class, $middleware);
-        static::assertContains(JsonPrettyPrint::class, $middleware);
+        self::assertContains(ParseApiQuery::class, $middleware);
+        self::assertContains(PreventRequestsDuringMaintenance::class, $middleware);
+        self::assertContains(DetectsCapabilities::class, $middleware);
+        self::assertContains(JsonPrettyPrint::class, $middleware);
 
         /** @var \Illuminate\Routing\Router $router */
         $router  = $app->make(Router::class);
         $aliases = $router->getMiddleware();
 
-        static::assertArrayHasKey('throttle', $aliases);
-        static::assertSame(\SineMacula\ApiToolkit\Http\Middleware\ThrottleRequests::class, $aliases['throttle']);
+        self::assertArrayHasKey('throttle', $aliases);
+        self::assertSame(ThrottleRequests::class, $aliases['throttle']);
     }
 
     /**
@@ -774,8 +790,8 @@ class ApiServiceProviderTest extends TestCase
         $kernel = $app->make(HttpKernel::class);
         $groups = $kernel->getMiddlewareGroups();
 
-        static::assertNotContains(DetectsCapabilities::class, $kernel->getGlobalMiddleware());
-        static::assertNotContains(DetectsCapabilities::class, $groups['api'] ?? []);
+        self::assertNotContains(DetectsCapabilities::class, $kernel->getGlobalMiddleware());
+        self::assertNotContains(DetectsCapabilities::class, $groups['api'] ?? []);
     }
 
     /**
@@ -799,8 +815,8 @@ class ApiServiceProviderTest extends TestCase
         $kernel = $app->make(HttpKernel::class);
         $groups = $kernel->getMiddlewareGroups();
 
-        static::assertContains(DetectsCapabilities::class, $groups['api'] ?? []);
-        static::assertNotContains(DetectsCapabilities::class, $kernel->getGlobalMiddleware());
+        self::assertContains(DetectsCapabilities::class, $groups['api'] ?? []);
+        self::assertNotContains(DetectsCapabilities::class, $kernel->getGlobalMiddleware());
     }
 
     /**
@@ -813,7 +829,7 @@ class ApiServiceProviderTest extends TestCase
     {
         $paths = ServiceProvider::pathsToPublish(ApiServiceProvider::class, 'config');
 
-        static::assertSame(
+        self::assertSame(
             [$this->getProviderPath('/../config/api-toolkit.php') => config_path('api-toolkit.php')],
             $paths,
         );
@@ -830,11 +846,11 @@ class ApiServiceProviderTest extends TestCase
         $paths = ServiceProvider::pathsToPublish(ApiServiceProvider::class, 'migrations');
         $stub  = $this->getProviderPath('/../stubs/logs-table.stub');
 
-        static::assertCount(1, $paths);
-        static::assertArrayHasKey($stub, $paths);
-        static::assertIsString($paths[$stub]);
-        static::assertStringStartsWith(database_path('migrations/'), $paths[$stub]);
-        static::assertMatchesRegularExpression(
+        self::assertCount(1, $paths);
+        self::assertArrayHasKey($stub, $paths);
+        self::assertIsString($paths[$stub]);
+        self::assertStringStartsWith(database_path('migrations/'), $paths[$stub]);
+        self::assertMatchesRegularExpression(
             '#/migrations/\d{4}_\d{2}_\d{2}_\d{6}_create_logs_table\.php$#',
             $paths[$stub],
         );
@@ -850,7 +866,7 @@ class ApiServiceProviderTest extends TestCase
     {
         $paths = ServiceProvider::pathsToPublish(ApiServiceProvider::class, 'translations');
 
-        static::assertSame(
+        self::assertSame(
             [$this->getProviderPath('/../resources/lang') => resource_path('lang/vendor/api-toolkit')],
             $paths,
         );
@@ -868,13 +884,13 @@ class ApiServiceProviderTest extends TestCase
 
         $this->getConfig()->set('api-toolkit.resources.enable_dynamic_morph_mapping', false);
         $this->getConfig()->set('api-toolkit.resources.resource_map', [
-            \Tests\Fixtures\Models\User::class => \Tests\Fixtures\Resources\UserResource::class,
+            User::class => UserResource::class,
         ]);
 
         $provider = new ApiServiceProvider($app);
         $provider->boot();
 
-        static::assertArrayNotHasKey('users', Relation::morphMap());
+        self::assertArrayNotHasKey('users', Relation::morphMap());
     }
 
     /**
@@ -892,7 +908,7 @@ class ApiServiceProviderTest extends TestCase
 
         $this->getConfig()->set('api-toolkit.resources', [
             'resource_map' => [
-                \Tests\Fixtures\Models\User::class => \Tests\Fixtures\Resources\BrokenResource::class,
+                User::class => BrokenResource::class,
             ],
             'fixed_fields' => ['id', '_type'],
         ]);
@@ -900,7 +916,7 @@ class ApiServiceProviderTest extends TestCase
         $provider = new ApiServiceProvider($app);
         $provider->boot();
 
-        static::assertNull($this->getConfig()->get('api-toolkit.resources.validate_schemas'));
+        self::assertNull($this->getConfig()->get('api-toolkit.resources.validate_schemas'));
     }
 
     /**
@@ -919,7 +935,7 @@ class ApiServiceProviderTest extends TestCase
         $provider = new ApiServiceProvider($app);
         $provider->boot();
 
-        static::assertSame('not-an-array', $this->getConfig()->get('api-toolkit.resources.resource_map'));
+        self::assertSame('not-an-array', $this->getConfig()->get('api-toolkit.resources.resource_map'));
     }
 
     /**
@@ -930,8 +946,8 @@ class ApiServiceProviderTest extends TestCase
      */
     public function testCloudwatchLogDriverIsRegistered(): void
     {
-        if (!class_exists(\Aws\CloudWatchLogs\CloudWatchLogsClient::class)) {
-            static::markTestSkipped('The AWS SDK is not installed.');
+        if (!class_exists(CloudWatchLogsClient::class)) {
+            self::markTestSkipped('The AWS SDK is not installed.');
         }
 
         $this->getConfig()->set('logging.channels.cloudwatch.aws.credentials', [
@@ -944,13 +960,13 @@ class ApiServiceProviderTest extends TestCase
 
         $channel = $manager->channel('cloudwatch');
 
-        static::assertInstanceOf(\Illuminate\Log\Logger::class, $channel);
+        self::assertInstanceOf(Logger::class, $channel);
 
         $monolog = $channel->getLogger();
 
-        static::assertInstanceOf(\Monolog\Logger::class, $monolog);
-        static::assertSame('cloudwatch', $monolog->getName());
-        static::assertInstanceOf(\PhpNexus\Cwh\Handler\CloudWatch::class, $monolog->getHandlers()[0] ?? null);
+        self::assertInstanceOf(\Monolog\Logger::class, $monolog);
+        self::assertSame('cloudwatch', $monolog->getName());
+        self::assertInstanceOf(CloudWatch::class, $monolog->getHandlers()[0] ?? null);
     }
 
     /**
@@ -970,7 +986,7 @@ class ApiServiceProviderTest extends TestCase
         $provider = new ApiServiceProvider($app);
         $provider->boot();
 
-        static::assertSame($before + 1, $this->countRawListeners(NotificationSending::class));
+        self::assertSame($before + 1, $this->countRawListeners(NotificationSending::class));
     }
 
     /**
@@ -991,8 +1007,8 @@ class ApiServiceProviderTest extends TestCase
         $provider = new ApiServiceProvider($app);
         $provider->boot();
 
-        static::assertSame($sending, $this->countRawListeners(NotificationSending::class));
-        static::assertSame($sent, $this->countRawListeners(NotificationSent::class));
+        self::assertSame($sending, $this->countRawListeners(NotificationSending::class));
+        self::assertSame($sent, $this->countRawListeners(NotificationSent::class));
     }
 
     /**
@@ -1005,8 +1021,8 @@ class ApiServiceProviderTest extends TestCase
     {
         $raw = $this->getEventDispatcher()->getRawListeners();
 
-        static::assertContains([NotificationListener::class, 'sending'], $raw[NotificationSending::class] ?? []);
-        static::assertContains([NotificationListener::class, 'sent'], $raw[NotificationSent::class] ?? []);
+        self::assertContains([NotificationListener::class, 'sending'], $raw[NotificationSending::class] ?? []);
+        self::assertContains([NotificationListener::class, 'sent'], $raw[NotificationSent::class] ?? []);
     }
 
     /**
@@ -1020,8 +1036,8 @@ class ApiServiceProviderTest extends TestCase
         $app   = $this->getApplication();
         $first = $app->make(ResourceMetadataProvider::class);
 
-        static::assertInstanceOf(ResourceMetadataService::class, $first);
-        static::assertSame($first, $app->make(ResourceMetadataProvider::class));
+        self::assertInstanceOf(ResourceMetadataService::class, $first);
+        self::assertSame($first, $app->make(ResourceMetadataProvider::class));
     }
 
     /**
@@ -1035,8 +1051,8 @@ class ApiServiceProviderTest extends TestCase
         $app   = $this->getApplication();
         $first = $app->make(SchemaIntrospectionProvider::class);
 
-        static::assertInstanceOf(SchemaIntrospector::class, $first);
-        static::assertSame($first, $app->make(SchemaIntrospectionProvider::class));
+        self::assertInstanceOf(SchemaIntrospector::class, $first);
+        self::assertSame($first, $app->make(SchemaIntrospectionProvider::class));
     }
 
     /**
@@ -1047,8 +1063,8 @@ class ApiServiceProviderTest extends TestCase
      */
     public function testWritePoolFlushSubscriberIsSubscribedToLifecycleEvents(): void
     {
-        static::assertTrue($this->eventHasSubscriberListener(RequestHandled::class, WritePoolFlushSubscriber::class));
-        static::assertTrue($this->eventHasSubscriberListener(CommandFinished::class, WritePoolFlushSubscriber::class));
+        self::assertTrue($this->hasSubscriberListener(RequestHandled::class, WritePoolFlushSubscriber::class));
+        self::assertTrue($this->hasSubscriberListener(CommandFinished::class, WritePoolFlushSubscriber::class));
     }
 
     /**
@@ -1066,8 +1082,8 @@ class ApiServiceProviderTest extends TestCase
         $provider = new ApiServiceProvider($app);
         $provider->boot();
 
-        static::assertTrue($this->eventHasSubscriberListener(\Illuminate\Queue\Events\JobProcessed::class, QueueFlushSubscriber::class));
-        static::assertTrue($this->eventHasSubscriberListener(\Illuminate\Queue\Events\JobFailed::class, QueueFlushSubscriber::class));
+        self::assertTrue($this->hasSubscriberListener(JobProcessed::class, QueueFlushSubscriber::class));
+        self::assertTrue($this->hasSubscriberListener(JobFailed::class, QueueFlushSubscriber::class));
     }
 
     /**
@@ -1080,17 +1096,17 @@ class ApiServiceProviderTest extends TestCase
     {
         $app = $this->getApplication();
 
-        // Reset the dispatcher so the boot-time wiring (now default-on) does not
-        // pollute the baseline being tested.
-        \Illuminate\Support\Facades\Event::swap(new \Illuminate\Events\Dispatcher($app));
+        // Reset the dispatcher so the boot-time wiring (now default-on) does
+        // not pollute the baseline being tested.
+        Event::swap(new Dispatcher($app));
 
         $this->getConfig()->set('api-toolkit.lifecycle.queue', false);
 
         $provider = new ApiServiceProvider($app);
         $provider->boot();
 
-        static::assertFalse($this->eventHasSubscriberListener(\Illuminate\Queue\Events\JobProcessed::class, QueueFlushSubscriber::class));
-        static::assertFalse($this->eventHasSubscriberListener(\Illuminate\Queue\Events\JobFailed::class, QueueFlushSubscriber::class));
+        self::assertFalse($this->hasSubscriberListener(JobProcessed::class, QueueFlushSubscriber::class));
+        self::assertFalse($this->hasSubscriberListener(JobFailed::class, QueueFlushSubscriber::class));
     }
 
     /**
@@ -1110,8 +1126,8 @@ class ApiServiceProviderTest extends TestCase
 
         $pool = $app->make(WritePool::class);
 
-        static::assertSame(500, (new \ReflectionProperty(WritePool::class, 'chunkSize'))->getValue($pool));
-        static::assertSame(10000, (new \ReflectionProperty(WritePool::class, 'poolLimit'))->getValue($pool));
+        self::assertSame(500, (new \ReflectionProperty(WritePool::class, 'chunkSize'))->getValue($pool));
+        self::assertSame(10000, (new \ReflectionProperty(WritePool::class, 'poolLimit'))->getValue($pool));
     }
 
     /**
@@ -1132,8 +1148,8 @@ class ApiServiceProviderTest extends TestCase
 
         $pool = $app->make(WritePool::class);
 
-        static::assertSame(500, (new \ReflectionProperty(WritePool::class, 'chunkSize'))->getValue($pool));
-        static::assertSame(10000, (new \ReflectionProperty(WritePool::class, 'poolLimit'))->getValue($pool));
+        self::assertSame(500, (new \ReflectionProperty(WritePool::class, 'chunkSize'))->getValue($pool));
+        self::assertSame(10000, (new \ReflectionProperty(WritePool::class, 'poolLimit'))->getValue($pool));
     }
 
     /**
@@ -1153,8 +1169,8 @@ class ApiServiceProviderTest extends TestCase
 
         $pool = $app->make(WritePool::class);
 
-        static::assertSame(250, (new \ReflectionProperty(WritePool::class, 'chunkSize'))->getValue($pool));
-        static::assertSame(5000, (new \ReflectionProperty(WritePool::class, 'poolLimit'))->getValue($pool));
+        self::assertSame(250, (new \ReflectionProperty(WritePool::class, 'chunkSize'))->getValue($pool));
+        self::assertSame(5000, (new \ReflectionProperty(WritePool::class, 'poolLimit'))->getValue($pool));
     }
 
     /**
@@ -1168,7 +1184,7 @@ class ApiServiceProviderTest extends TestCase
     {
         parent::defineEnvironment($app);
 
-        assert($app instanceof \Illuminate\Foundation\Application);
+        assert($app instanceof Application);
 
         // Enable middleware registration for these tests
         /** @var \Illuminate\Contracts\Config\Repository $config */
@@ -1207,7 +1223,7 @@ class ApiServiceProviderTest extends TestCase
      *
      * @return \Illuminate\Events\Dispatcher
      */
-    private function getEventDispatcher(): \Illuminate\Events\Dispatcher
+    private function getEventDispatcher(): Dispatcher
     {
         /** @var \Illuminate\Events\Dispatcher */
         return $this->getApplication()->make('events');
@@ -1226,7 +1242,7 @@ class ApiServiceProviderTest extends TestCase
     {
         $file = (new \ReflectionClass(ApiServiceProvider::class))->getFileName();
 
-        static::assertIsString($file);
+        self::assertIsString($file);
 
         return dirname($file) . $path;
     }
@@ -1252,7 +1268,7 @@ class ApiServiceProviderTest extends TestCase
      * @param  class-string  $subscriber
      * @return bool
      */
-    private function eventHasSubscriberListener(string $event, string $subscriber): bool
+    private function hasSubscriberListener(string $event, string $subscriber): bool
     {
         $listeners = $this->getEventDispatcher()->getRawListeners()[$event] ?? [];
 

@@ -1,6 +1,8 @@
 <?php
 
-namespace SineMacula\ApiToolkit\Traits;
+declare(strict_types = 1);
+
+namespace SineMacula\ApiToolkit\Concerns;
 
 use Illuminate\Contracts\Cache\Lock;
 use Illuminate\Support\Facades\Cache;
@@ -39,7 +41,7 @@ trait Lockable
      *
      * @return \Illuminate\Contracts\Cache\Lock
      *
-     * @throws \SineMacula\ApiToolkit\Exceptions\ApiException
+     * @throws \SineMacula\ApiToolkit\Exceptions\TooManyRequestsException
      */
     public function lock(): Lock
     {

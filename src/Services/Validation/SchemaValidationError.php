@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace SineMacula\ApiToolkit\Services\Validation;
 
 /**
@@ -27,7 +29,6 @@ final readonly class SchemaValidationError
 
         /** A human-readable description of the defect. */
         public string $defect,
-
     ) {}
 
     /**

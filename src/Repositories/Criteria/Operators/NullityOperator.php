@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace SineMacula\ApiToolkit\Repositories\Criteria\Operators;
 
 use Illuminate\Database\Eloquent\Builder;
@@ -32,7 +34,7 @@ abstract class NullityOperator implements FilterOperator
     {
         $boolean = $context->getLogicalOperator() === '$or' ? 'or' : 'and';
 
-        $query->getQuery()->whereNull($column, $boolean, $this->negated());
+        $query->getQuery()->whereNull($column, $boolean, $this->isNegated());
     }
 
     /**
@@ -40,5 +42,5 @@ abstract class NullityOperator implements FilterOperator
      *
      * @return bool
      */
-    abstract protected function negated(): bool;
+    abstract protected function isNegated(): bool;
 }

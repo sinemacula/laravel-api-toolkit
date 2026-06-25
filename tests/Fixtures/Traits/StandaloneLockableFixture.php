@@ -1,16 +1,20 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Fixtures\Traits;
 
 use Illuminate\Contracts\Cache\Lock;
+use SineMacula\ApiToolkit\Concerns\Lockable;
 use SineMacula\ApiToolkit\Contracts\LockKeyProvider;
-use SineMacula\ApiToolkit\Traits\Lockable;
 
 /**
  * Fixture class using Lockable without extending Service.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
+ *
+ * @inheritable
  */
 class StandaloneLockableFixture implements LockKeyProvider
 {
@@ -29,7 +33,6 @@ class StandaloneLockableFixture implements LockKeyProvider
 
         // Custom lock expiration in seconds
         int $lockExpiration = 60,
-
     ) {
         $this->lockExpiration = $lockExpiration;
     }

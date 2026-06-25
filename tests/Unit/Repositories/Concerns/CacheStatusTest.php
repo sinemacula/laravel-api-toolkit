@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Unit\Repositories\Concerns;
 
 use Carbon\CarbonImmutable;
@@ -16,7 +18,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(CacheStatus::class)]
-class CacheStatusTest extends TestCase
+final class CacheStatusTest extends TestCase
 {
     /**
      * Test that isPopulated returns true when the cache is populated.
@@ -31,7 +33,7 @@ class CacheStatusTest extends TestCase
             lastInvalidatedAt: null,
         );
 
-        static::assertTrue($status->isPopulated());
+        self::assertTrue($status->isPopulated());
     }
 
     /**
@@ -48,7 +50,7 @@ class CacheStatusTest extends TestCase
             lastInvalidatedAt: null,
         );
 
-        static::assertFalse($status->isPopulated());
+        self::assertFalse($status->isPopulated());
     }
 
     /**
@@ -65,7 +67,7 @@ class CacheStatusTest extends TestCase
             lastInvalidatedAt: null,
         );
 
-        static::assertSame(120, $status->getAge());
+        self::assertSame(120, $status->getAge());
     }
 
     /**
@@ -81,7 +83,7 @@ class CacheStatusTest extends TestCase
             lastInvalidatedAt: null,
         );
 
-        static::assertNull($status->getAge());
+        self::assertNull($status->getAge());
     }
 
     /**
@@ -100,7 +102,7 @@ class CacheStatusTest extends TestCase
             lastInvalidatedAt: $invalidatedAt,
         );
 
-        static::assertSame($invalidatedAt, $status->getLastInvalidatedAt());
+        self::assertSame($invalidatedAt, $status->getLastInvalidatedAt());
     }
 
     /**
@@ -117,6 +119,6 @@ class CacheStatusTest extends TestCase
             lastInvalidatedAt: null,
         );
 
-        static::assertNull($status->getLastInvalidatedAt());
+        self::assertNull($status->getLastInvalidatedAt());
     }
 }

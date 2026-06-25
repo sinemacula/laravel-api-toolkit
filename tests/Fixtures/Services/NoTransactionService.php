@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Fixtures\Services;
 
 use SineMacula\ApiToolkit\Services\Service;
@@ -10,7 +12,7 @@ use SineMacula\ApiToolkit\Services\Service;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-class NoTransactionService extends Service
+final class NoTransactionService extends Service
 {
     /** @var bool Track whether success() was called */
     public bool $successCalled = false;

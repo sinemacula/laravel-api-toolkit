@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Fixtures\Repositories;
 
 use SineMacula\ApiToolkit\Repositories\ApiRepository;
@@ -13,13 +15,14 @@ use Tests\Fixtures\Models\Post;
  *
  * @extends \SineMacula\ApiToolkit\Repositories\ApiRepository<\Tests\Fixtures\Models\Post>
  */
-class DummyRepository extends ApiRepository
+final class DummyRepository extends ApiRepository
 {
     /**
      * Return the model class.
      *
      * @return class-string<\Tests\Fixtures\Models\Post>
      */
+    #[\Override]
     public function model(): string
     {
         return Post::class;

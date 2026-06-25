@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Integration;
 
 use Illuminate\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
@@ -28,13 +30,14 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(ApiExceptionHandler::class)]
-class ExceptionRenderingTest extends TestCase
+final class ExceptionRenderingTest extends TestCase
 {
     /**
      * Set up the test environment.
      *
      * @return void
      */
+    #[\Override]
     protected function setUp(): void
     {
         parent::setUp();
@@ -44,11 +47,12 @@ class ExceptionRenderingTest extends TestCase
         $handler = $this->app->make(ExceptionHandlerContract::class);
 
         if (!$handler instanceof Handler) {
-            static::fail('The application exception handler must extend the foundation handler.');
+            self::fail('The application exception handler must extend the foundation handler.');
         }
 
         // Mirror the bootstrap/app.php wiring used by consuming applications:
-        // ->withExceptions(fn (Exceptions $e) => ApiExceptionHandler::handles($e))
+        // ->withExceptions(fn (Exceptions $e) =>
+        // ApiExceptionHandler::handles($e))
         ApiExceptionHandler::handles(new Exceptions($handler));
 
         config()->set('app.debug', false);
@@ -142,8 +146,8 @@ class ExceptionRenderingTest extends TestCase
 
         $errors = $response->json('error.meta.email');
 
-        static::assertIsArray($errors);
-        static::assertNotEmpty($errors);
+        self::assertIsArray($errors);
+        self::assertNotEmpty($errors);
     }
 
     /**
@@ -187,8 +191,8 @@ class ExceptionRenderingTest extends TestCase
 
         $content = $response->baseResponse->getContent();
 
-        static::assertIsString($content);
-        static::assertStringNotContainsString('Something broke internally', $content);
+        self::assertIsString($content);
+        self::assertStringNotContainsString('Something broke internally', $content);
     }
 
     /**
@@ -208,7 +212,7 @@ class ExceptionRenderingTest extends TestCase
 
         $content = $response->baseResponse->getContent();
 
-        static::assertIsString($content);
-        static::assertStringNotContainsString('"error"', $content);
+        self::assertIsString($content);
+        self::assertStringNotContainsString('"error"', $content);
     }
 }

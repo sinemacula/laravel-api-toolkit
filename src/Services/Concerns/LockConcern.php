@@ -1,10 +1,12 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace SineMacula\ApiToolkit\Services\Concerns;
 
+use SineMacula\ApiToolkit\Concerns\Lockable;
 use SineMacula\ApiToolkit\Services\Contracts\ServiceConcern;
 use SineMacula\ApiToolkit\Services\Service;
-use SineMacula\ApiToolkit\Traits\Lockable;
 
 /**
  * Cache-based atomic locking concern.
@@ -17,7 +19,7 @@ use SineMacula\ApiToolkit\Traits\Lockable;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-class LockConcern implements ServiceConcern
+final class LockConcern implements ServiceConcern
 {
     /**
      * Execute the concern around the service lifecycle.

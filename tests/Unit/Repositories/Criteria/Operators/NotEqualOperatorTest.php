@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Unit\Repositories\Criteria\Operators;
 
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -17,7 +19,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(NotEqualOperator::class)]
-class NotEqualOperatorTest extends TestCase
+final class NotEqualOperatorTest extends TestCase
 {
     /**
      * Test that apply adds a where clause with the not-equals operator.
@@ -33,12 +35,12 @@ class NotEqualOperatorTest extends TestCase
 
         $wheres = $query->getQuery()->wheres;
 
-        static::assertCount(1, $wheres);
-        static::assertSame('Basic', $wheres[0]['type']);
-        static::assertSame('status', $wheres[0]['column']);
-        static::assertSame('<>', $wheres[0]['operator']);
-        static::assertSame('inactive', $wheres[0]['value']);
-        static::assertSame('and', $wheres[0]['boolean']);
+        self::assertCount(1, $wheres);
+        self::assertSame('Basic', $wheres[0]['type']);
+        self::assertSame('status', $wheres[0]['column']);
+        self::assertSame('<>', $wheres[0]['operator']);
+        self::assertSame('inactive', $wheres[0]['value']);
+        self::assertSame('and', $wheres[0]['boolean']);
     }
 
     /**
@@ -56,11 +58,11 @@ class NotEqualOperatorTest extends TestCase
 
         $wheres = $query->getQuery()->wheres;
 
-        static::assertCount(1, $wheres);
-        static::assertSame('Basic', $wheres[0]['type']);
-        static::assertSame('status', $wheres[0]['column']);
-        static::assertSame('<>', $wheres[0]['operator']);
-        static::assertSame('banned', $wheres[0]['value']);
-        static::assertSame('or', $wheres[0]['boolean']);
+        self::assertCount(1, $wheres);
+        self::assertSame('Basic', $wheres[0]['type']);
+        self::assertSame('status', $wheres[0]['column']);
+        self::assertSame('<>', $wheres[0]['operator']);
+        self::assertSame('banned', $wheres[0]['value']);
+        self::assertSame('or', $wheres[0]['boolean']);
     }
 }

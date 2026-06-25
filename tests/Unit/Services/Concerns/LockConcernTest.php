@@ -1,13 +1,16 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Unit\Services\Concerns;
 
+use Illuminate\Contracts\Cache\Lock;
 use PHPUnit\Framework\Attributes\CoversClass;
+use SineMacula\ApiToolkit\Concerns\Lockable;
 use SineMacula\ApiToolkit\Contracts\LockKeyProvider;
 use SineMacula\ApiToolkit\Exceptions\TooManyRequestsException;
 use SineMacula\ApiToolkit\Services\Concerns\LockConcern;
 use SineMacula\ApiToolkit\Services\Service;
-use SineMacula\ApiToolkit\Traits\Lockable;
 use Tests\TestCase;
 
 /**
@@ -19,7 +22,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(LockConcern::class)]
-class LockConcernTest extends TestCase
+final class LockConcernTest extends TestCase
 {
     /**
      * Test that execute acquires the lock before calling the next closure.
@@ -39,7 +42,7 @@ class LockConcernTest extends TestCase
             return true;
         });
 
-        static::assertSame(['lock', 'next'], array_slice($callOrder, 0, 2));
+        self::assertSame(['lock', 'next'], array_slice($callOrder, 0, 2));
     }
 
     /**
@@ -60,7 +63,7 @@ class LockConcernTest extends TestCase
             return true;
         });
 
-        static::assertSame(['lock', 'next', 'unlock'], $callOrder);
+        self::assertSame(['lock', 'next', 'unlock'], $callOrder);
     }
 
     /**
@@ -86,7 +89,7 @@ class LockConcernTest extends TestCase
             // Expected
         }
 
-        static::assertContains('unlock', $callOrder);
+        self::assertContains('unlock', $callOrder);
     }
 
     /**
@@ -97,12 +100,12 @@ class LockConcernTest extends TestCase
      */
     public function testExecutePassesThroughWhenServiceDoesNotUseLockable(): void
     {
-        $service = static::createStub(Service::class);
+        $service = self::createStub(Service::class);
         $concern = new LockConcern;
 
         $result = $concern->execute($service, fn (): bool => true);
 
-        static::assertTrue($result);
+        self::assertTrue($result);
     }
 
     /**
@@ -124,7 +127,7 @@ class LockConcernTest extends TestCase
              * @throws \SineMacula\ApiToolkit\Exceptions\TooManyRequestsException
              */
             #[\Override]
-            public function lock(): \Illuminate\Contracts\Cache\Lock
+            public function lock(): Lock
             {
                 throw new TooManyRequestsException;
             }
@@ -191,11 +194,11 @@ class LockConcernTest extends TestCase
              * @return \Illuminate\Contracts\Cache\Lock
              */
             #[\Override]
-            public function lock(): \Illuminate\Contracts\Cache\Lock
+            public function lock(): Lock
             {
                 $this->callOrder[] = 'lock';
 
-                return \Mockery::mock(\Illuminate\Contracts\Cache\Lock::class);
+                return \Mockery::mock(Lock::class);
             }
 
             /**

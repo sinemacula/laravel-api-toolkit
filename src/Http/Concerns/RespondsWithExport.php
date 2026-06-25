@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace SineMacula\ApiToolkit\Http\Concerns;
 
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -87,8 +89,11 @@ trait RespondsWithExport
      *
      * @throws \InvalidArgumentException
      */
-    public function exportFromCollection(ResourceCollection $collection, bool $download = true, ?string $filename = null): HttpResponse
-    {
+    public function exportFromCollection(
+        ResourceCollection $collection,
+        bool $download = true,
+        ?string $filename = null,
+    ): HttpResponse {
         $capabilities = RequestCapabilities::fromRequest(request());
 
         return match (true) {
@@ -106,8 +111,11 @@ trait RespondsWithExport
      * @param  string  $filename
      * @return \Illuminate\Http\Response
      */
-    public function exportCollectionToCsv(ResourceCollection $collection, bool $download = true, string $filename = 'export.csv'): HttpResponse
-    {
+    public function exportCollectionToCsv(
+        ResourceCollection $collection,
+        bool $download = true,
+        string $filename = 'export.csv',
+    ): HttpResponse {
         $csv = $this->buildExporter('csv')->exportCollection($collection);
 
         return $this->createExportResponse($csv, MediaType::TEXT_CSV->withCharset(Charset::UTF_8), $download, $filename);
@@ -121,8 +129,11 @@ trait RespondsWithExport
      * @param  string  $filename
      * @return \Illuminate\Http\Response
      */
-    public function exportCollectionToXml(ResourceCollection $collection, bool $download = true, string $filename = 'export.xml'): HttpResponse
-    {
+    public function exportCollectionToXml(
+        ResourceCollection $collection,
+        bool $download = true,
+        string $filename = 'export.xml',
+    ): HttpResponse {
         $xml = $this->buildExporter('xml')->exportCollection($collection);
 
         return $this->createExportResponse($xml, MediaType::APPLICATION_XML->getMimeType(), $download, $filename);
@@ -138,8 +149,11 @@ trait RespondsWithExport
      *
      * @throws \InvalidArgumentException
      */
-    public function exportFromItem(JsonResource $resource, bool $download = true, ?string $filename = null): HttpResponse
-    {
+    public function exportFromItem(
+        JsonResource $resource,
+        bool $download = true,
+        ?string $filename = null,
+    ): HttpResponse {
         $capabilities = RequestCapabilities::fromRequest(request());
 
         return match (true) {
@@ -157,8 +171,11 @@ trait RespondsWithExport
      * @param  string  $filename
      * @return \Illuminate\Http\Response
      */
-    public function exportItemToCsv(JsonResource $resource, bool $download = true, string $filename = 'export.csv'): HttpResponse
-    {
+    public function exportItemToCsv(
+        JsonResource $resource,
+        bool $download = true,
+        string $filename = 'export.csv',
+    ): HttpResponse {
         $csv = $this->buildExporter('csv')->exportItem($resource);
 
         return $this->createExportResponse($csv, MediaType::TEXT_CSV->withCharset(Charset::UTF_8), $download, $filename);
@@ -172,8 +189,11 @@ trait RespondsWithExport
      * @param  string  $filename
      * @return \Illuminate\Http\Response
      */
-    public function exportItemToXml(JsonResource $resource, bool $download = true, string $filename = 'export.xml'): HttpResponse
-    {
+    public function exportItemToXml(
+        JsonResource $resource,
+        bool $download = true,
+        string $filename = 'export.xml',
+    ): HttpResponse {
         $xml = $this->buildExporter('xml')->exportItem($resource);
 
         return $this->createExportResponse($xml, MediaType::APPLICATION_XML->getMimeType(), $download, $filename);
@@ -183,15 +203,19 @@ trait RespondsWithExport
      * Create a response for the exported data.
      *
      * @param  string  $data
-     * @param  string  $content_type
+     * @param  string  $contentType
      * @param  bool  $download
      * @param  string  $filename
      * @return \Illuminate\Http\Response
      */
-    protected function createExportResponse(string $data, string $content_type, bool $download, string $filename): HttpResponse
-    {
+    protected function createExportResponse(
+        string $data,
+        string $contentType,
+        bool $download,
+        string $filename,
+    ): HttpResponse {
         $response = Response::make($data)
-            ->header(HttpHeader::CONTENT_TYPE->getName(), $content_type)
+            ->header(HttpHeader::CONTENT_TYPE->getName(), $contentType)
             ->header(HttpHeader::CONTENT_LENGTH->getName(), strlen($data));
 
         if ($download) {

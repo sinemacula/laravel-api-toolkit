@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Unit\Listeners;
 
 use Illuminate\Notifications\Events\NotificationSending;
@@ -20,7 +22,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(NotificationListener::class)]
-class NotificationListenerTest extends TestCase
+final class NotificationListenerTest extends TestCase
 {
     /**
      * Test that sending logs notification sending event at debug level.

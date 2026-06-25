@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace SineMacula\ApiToolkit\Schema;
 
 use Carbon\CarbonInterface;
@@ -43,7 +45,6 @@ final class Field extends BaseDefinition
 
         /** Optional alias to expose this field under */
         private ?string $alias = null,
-
     ) {}
 
     /**

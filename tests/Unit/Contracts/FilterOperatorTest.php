@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Unit\Contracts;
 
 use Illuminate\Database\Eloquent\Builder;
@@ -17,7 +19,7 @@ use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext;
  * @internal
  */
 #[CoversNothing]
-class FilterOperatorTest extends TestCase
+final class FilterOperatorTest extends TestCase
 {
     /**
      * Test that the FilterOperator interface declares the apply method
@@ -29,48 +31,48 @@ class FilterOperatorTest extends TestCase
     {
         $reflection = new \ReflectionClass(FilterOperator::class);
 
-        static::assertTrue($reflection->isInterface());
+        self::assertTrue($reflection->isInterface());
 
         $method = $reflection->getMethod('apply');
 
-        static::assertTrue($method->isPublic());
-        static::assertFalse($method->isStatic());
+        self::assertTrue($method->isPublic());
+        self::assertFalse($method->isStatic());
 
         $parameters = $method->getParameters();
 
-        static::assertCount(4, $parameters);
+        self::assertCount(4, $parameters);
 
-        static::assertSame('query', $parameters[0]->getName());
+        self::assertSame('query', $parameters[0]->getName());
 
         $queryType = $parameters[0]->getType();
 
-        static::assertInstanceOf(\ReflectionNamedType::class, $queryType);
-        static::assertSame(Builder::class, $queryType->getName());
+        self::assertInstanceOf(\ReflectionNamedType::class, $queryType);
+        self::assertSame(Builder::class, $queryType->getName());
 
-        static::assertSame('column', $parameters[1]->getName());
+        self::assertSame('column', $parameters[1]->getName());
 
         $columnType = $parameters[1]->getType();
 
-        static::assertInstanceOf(\ReflectionNamedType::class, $columnType);
-        static::assertSame('string', $columnType->getName());
+        self::assertInstanceOf(\ReflectionNamedType::class, $columnType);
+        self::assertSame('string', $columnType->getName());
 
-        static::assertSame('value', $parameters[2]->getName());
+        self::assertSame('value', $parameters[2]->getName());
 
         $valueType = $parameters[2]->getType();
 
-        static::assertInstanceOf(\ReflectionNamedType::class, $valueType);
-        static::assertSame('mixed', $valueType->getName());
+        self::assertInstanceOf(\ReflectionNamedType::class, $valueType);
+        self::assertSame('mixed', $valueType->getName());
 
-        static::assertSame('context', $parameters[3]->getName());
+        self::assertSame('context', $parameters[3]->getName());
 
         $contextType = $parameters[3]->getType();
 
-        static::assertInstanceOf(\ReflectionNamedType::class, $contextType);
-        static::assertSame(FilterContext::class, $contextType->getName());
+        self::assertInstanceOf(\ReflectionNamedType::class, $contextType);
+        self::assertSame(FilterContext::class, $contextType->getName());
 
         $returnType = $method->getReturnType();
 
-        static::assertInstanceOf(\ReflectionNamedType::class, $returnType);
-        static::assertSame('void', $returnType->getName());
+        self::assertInstanceOf(\ReflectionNamedType::class, $returnType);
+        self::assertSame('void', $returnType->getName());
     }
 }

@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Unit\Enums;
 
 use Illuminate\Support\Facades\Config;
@@ -17,7 +19,7 @@ use SineMacula\ApiToolkit\Enums\CacheKeys;
  * @internal
  */
 #[CoversClass(CacheKeys::class)]
-class CacheKeysTest extends TestCase
+final class CacheKeysTest extends TestCase
 {
     /**
      * Provide all CacheKeys cases with their expected values.
@@ -51,8 +53,8 @@ class CacheKeysTest extends TestCase
 
         $result = $case->resolveKey();
 
-        static::assertStringStartsWith('test-prefix:', $result);
-        static::assertSame('test-prefix:' . $expectedValue, $result);
+        self::assertStringStartsWith('test-prefix:', $result);
+        self::assertSame('test-prefix:' . $expectedValue, $result);
     }
 
     /**
@@ -64,8 +66,8 @@ class CacheKeysTest extends TestCase
     {
         $result = CacheKeys::REPOSITORY_MODEL_CASTS->resolveKey(['User']);
 
-        static::assertStringStartsWith('sm-api-toolkit:', $result);
-        static::assertSame('sm-api-toolkit:repository-model-casts:User', $result);
+        self::assertStringStartsWith('sm-api-toolkit:', $result);
+        self::assertSame('sm-api-toolkit:repository-model-casts:User', $result);
     }
 
     /**
@@ -79,7 +81,7 @@ class CacheKeysTest extends TestCase
 
         $result = CacheKeys::MODEL_SCHEMA_COLUMNS->resolveKey(['User']);
 
-        static::assertSame('app:model-schema-columns:User', $result);
+        self::assertSame('app:model-schema-columns:User', $result);
     }
 
     /**
@@ -93,7 +95,7 @@ class CacheKeysTest extends TestCase
 
         $result = CacheKeys::MODEL_RELATIONS->resolveKey(['User', 'posts']);
 
-        static::assertSame('app:model-relations:User:posts', $result);
+        self::assertSame('app:model-relations:User:posts', $result);
     }
 
     /**
@@ -106,7 +108,7 @@ class CacheKeysTest extends TestCase
     #[DataProvider('caseProvider')]
     public function testCaseHasExpectedValue(CacheKeys $case, string $expectedValue): void
     {
-        static::assertSame($expectedValue, $case->value);
+        self::assertSame($expectedValue, $case->value);
     }
 
     /**
@@ -116,6 +118,6 @@ class CacheKeysTest extends TestCase
      */
     public function testExpectedCaseCount(): void
     {
-        static::assertCount(9, CacheKeys::cases());
+        self::assertCount(9, CacheKeys::cases());
     }
 }

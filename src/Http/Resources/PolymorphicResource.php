@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace SineMacula\ApiToolkit\Http\Resources;
 
 use Illuminate\Http\Request;
@@ -19,7 +21,7 @@ use SineMacula\ApiToolkit\Exceptions\ResourceMappingException;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-class PolymorphicResource extends JsonResource
+final class PolymorphicResource extends JsonResource
 {
     /** @var bool Whether to return all fields in the response */
     protected bool $all = false;
@@ -73,8 +75,11 @@ class PolymorphicResource extends JsonResource
      *
      * @param  \Illuminate\Http\Request  $request
      * @return array<string, mixed>|null
+     *
+     * @phpstan-ignore method.childReturnType
      */
-    public function toArray(Request $request): ?array // @phpstan-ignore method.childReturnType (parent docblock omits null, which resolve() casts to an empty array)
+    #[\Override]
+    public function toArray(Request $request): ?array
     {
         if (!$this->resource) {
             return null;

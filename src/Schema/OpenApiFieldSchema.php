@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace SineMacula\ApiToolkit\Schema;
 
 /**
@@ -49,7 +51,6 @@ final readonly class OpenApiFieldSchema
 
         /** Whether the field's type could not be resolved and is flagged */
         public bool $undocumented = false,
-
     ) {}
 
     /**

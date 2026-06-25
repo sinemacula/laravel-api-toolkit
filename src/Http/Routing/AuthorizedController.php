@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace SineMacula\ApiToolkit\Http\Routing;
 
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
@@ -26,6 +28,8 @@ abstract class AuthorizedController extends Controller
      * Get the resource model.
      *
      * @return string
+     *
+     * @throws \LogicException
      */
     public static function getResourceModel(): string
     {

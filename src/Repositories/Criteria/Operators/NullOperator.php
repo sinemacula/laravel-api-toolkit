@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace SineMacula\ApiToolkit\Repositories\Criteria\Operators;
 
 /**
@@ -16,7 +18,7 @@ final class NullOperator extends NullityOperator
      * @return bool
      */
     #[\Override]
-    protected function negated(): bool
+    protected function isNegated(): bool
     {
         return false;
     }

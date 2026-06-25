@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace SineMacula\ApiToolkit\OpenApi;
 
 use SineMacula\ApiToolkit\OpenApi\Builder\ErrorResponseBuilder;
@@ -19,7 +21,7 @@ use SineMacula\ApiToolkit\OpenApi\Builder\ResourceSchemaBuilder;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-class OpenApiAssembler
+final class OpenApiAssembler
 {
     /** The emitted OpenAPI specification version */
     private const string OPENAPI_VERSION = '3.1.0';
@@ -38,8 +40,14 @@ class OpenApiAssembler
      * @param  \SineMacula\ApiToolkit\OpenApi\Builder\ErrorResponseBuilder  $responseBuilder
      */
     public function __construct(
+
+        /** The builder for resource component schemas. */
         private readonly ResourceSchemaBuilder $schemaBuilder,
+
+        /** The builder for reusable query parameter definitions. */
         private readonly QueryParameterBuilder $parameterBuilder,
+
+        /** The builder for shared error response definitions. */
         private readonly ErrorResponseBuilder $responseBuilder,
     ) {}
 

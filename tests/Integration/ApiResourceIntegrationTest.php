@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Integration;
 
 use Illuminate\Http\Request;
@@ -11,6 +13,7 @@ use SineMacula\Http\Enums\HttpMethod;
 use Tests\Fixtures\Models\Organization;
 use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\User;
+use Tests\Fixtures\Resources\OrganizationResource;
 use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
 
@@ -23,9 +26,10 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(ApiResource::class)]
-class ApiResourceIntegrationTest extends TestCase
+final class ApiResourceIntegrationTest extends TestCase
 {
-    private const TEST_URL = '/test';
+    /** @var string The route URI used to exercise the test endpoint. */
+    private const string TEST_URL = '/test';
 
     /**
      * Set up each test.
@@ -57,11 +61,11 @@ class ApiResourceIntegrationTest extends TestCase
         $resource = new UserResource($user);
         $data     = $resource->resolve();
 
-        static::assertArrayHasKey('_type', $data);
-        static::assertSame('users', $data['_type']);
-        static::assertArrayHasKey('id', $data);
-        static::assertArrayHasKey('name', $data);
-        static::assertArrayHasKey('email', $data);
+        self::assertArrayHasKey('_type', $data);
+        self::assertSame('users', $data['_type']);
+        self::assertArrayHasKey('id', $data);
+        self::assertArrayHasKey('name', $data);
+        self::assertArrayHasKey('email', $data);
     }
 
     /**
@@ -81,11 +85,11 @@ class ApiResourceIntegrationTest extends TestCase
         $resource = new UserResource($user);
         $data     = $resource->resolve();
 
-        static::assertArrayHasKey('name', $data);
-        static::assertArrayHasKey('status', $data);
-        // id and _type are fixed fields
-        static::assertArrayHasKey('id', $data);
-        static::assertArrayHasKey('_type', $data);
+        self::assertArrayHasKey('name', $data);
+        self::assertArrayHasKey('status', $data);
+        // The id and _type are fixed fields
+        self::assertArrayHasKey('id', $data);
+        self::assertArrayHasKey('_type', $data);
     }
 
     /**
@@ -105,12 +109,12 @@ class ApiResourceIntegrationTest extends TestCase
         $resource = new UserResource($user);
         $data     = $resource->resolve();
 
-        static::assertArrayHasKey('organization', $data);
-        static::assertInstanceOf(\Tests\Fixtures\Resources\OrganizationResource::class, $data['organization']);
+        self::assertArrayHasKey('organization', $data);
+        self::assertInstanceOf(OrganizationResource::class, $data['organization']);
 
-        $org_data = $data['organization']->resolve();
+        $orgData = $data['organization']->resolve();
 
-        static::assertArrayHasKey('name', $org_data);
+        self::assertArrayHasKey('name', $orgData);
     }
 
     /**
@@ -128,8 +132,8 @@ class ApiResourceIntegrationTest extends TestCase
         $collection = UserResource::collection($users);
         $data       = $collection->resolve();
 
-        static::assertCount(2, $data);
-        static::assertArrayHasKey('_type', $data[0]);
+        self::assertCount(2, $data);
+        self::assertArrayHasKey('_type', $data[0]);
     }
 
     /**
@@ -143,8 +147,8 @@ class ApiResourceIntegrationTest extends TestCase
 
         $map = UserResource::eagerLoadMapFor($fields);
 
-        static::assertContains('organization', $map);
-        static::assertContains('posts', $map);
+        self::assertContains('organization', $map);
+        self::assertContains('posts', $map);
     }
 
     /**
@@ -165,8 +169,8 @@ class ApiResourceIntegrationTest extends TestCase
         $resource = new UserResource($user);
         $data     = $resource->resolve();
 
-        static::assertArrayHasKey('counts', $data);
-        static::assertArrayHasKey('posts', $data['counts']);
+        self::assertArrayHasKey('counts', $data);
+        self::assertArrayHasKey('posts', $data['counts']);
     }
 
     /**

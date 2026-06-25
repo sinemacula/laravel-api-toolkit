@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Unit\Repositories\Criteria\Operators;
 
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -17,7 +19,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(LikeOperator::class)]
-class LikeOperatorTest extends TestCase
+final class LikeOperatorTest extends TestCase
 {
     /**
      * Test that apply wraps value with wildcards.
@@ -33,12 +35,12 @@ class LikeOperatorTest extends TestCase
 
         $wheres = $query->getQuery()->wheres;
 
-        static::assertCount(1, $wheres);
-        static::assertSame('Basic', $wheres[0]['type']);
-        static::assertSame('name', $wheres[0]['column']);
-        static::assertSame('like', $wheres[0]['operator']);
-        static::assertSame('%Ali%', $wheres[0]['value']);
-        static::assertSame('and', $wheres[0]['boolean']);
+        self::assertCount(1, $wheres);
+        self::assertSame('Basic', $wheres[0]['type']);
+        self::assertSame('name', $wheres[0]['column']);
+        self::assertSame('like', $wheres[0]['operator']);
+        self::assertSame('%Ali%', $wheres[0]['value']);
+        self::assertSame('and', $wheres[0]['boolean']);
     }
 
     /**
@@ -56,12 +58,12 @@ class LikeOperatorTest extends TestCase
 
         $wheres = $query->getQuery()->wheres;
 
-        static::assertCount(1, $wheres);
-        static::assertSame('Basic', $wheres[0]['type']);
-        static::assertSame('name', $wheres[0]['column']);
-        static::assertSame('like', $wheres[0]['operator']);
-        static::assertSame('%Ali%', $wheres[0]['value']);
-        static::assertSame('or', $wheres[0]['boolean']);
+        self::assertCount(1, $wheres);
+        self::assertSame('Basic', $wheres[0]['type']);
+        self::assertSame('name', $wheres[0]['column']);
+        self::assertSame('like', $wheres[0]['operator']);
+        self::assertSame('%Ali%', $wheres[0]['value']);
+        self::assertSame('or', $wheres[0]['boolean']);
     }
 
     /**
@@ -92,8 +94,8 @@ class LikeOperatorTest extends TestCase
 
         $wheres = $query->getQuery()->wheres;
 
-        static::assertCount(1, $wheres);
-        static::assertSame('%Ali%', $wheres[0]['value']);
+        self::assertCount(1, $wheres);
+        self::assertSame('%Ali%', $wheres[0]['value']);
     }
 
     /**
@@ -111,7 +113,7 @@ class LikeOperatorTest extends TestCase
 
         $wheres = $query->getQuery()->wheres;
 
-        static::assertCount(1, $wheres);
-        static::assertSame('%%', $wheres[0]['value']);
+        self::assertCount(1, $wheres);
+        self::assertSame('%%', $wheres[0]['value']);
     }
 }

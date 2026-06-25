@@ -1,13 +1,19 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Unit\Http\Middleware\Traits;
 
+use Illuminate\Cache\RateLimiter;
+use Illuminate\Contracts\Auth\Authenticatable;
+use Illuminate\Contracts\Cache\Repository;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Route;
 use PHPUnit\Framework\Attributes\CoversTrait;
 use PHPUnit\Framework\TestCase;
 use SineMacula\ApiToolkit\Exceptions\RequestSignatureException;
-use SineMacula\ApiToolkit\Http\Middleware\Traits\ThrottleRequestsTrait;
+use SineMacula\ApiToolkit\Http\Middleware\Concerns\ThrottleRequestsTrait;
+use SineMacula\ApiToolkit\Http\Middleware\ThrottleRequests;
 use SineMacula\Http\Enums\HttpMethod;
 
 /**
@@ -19,12 +25,14 @@ use SineMacula\Http\Enums\HttpMethod;
  * @internal
  */
 #[CoversTrait(ThrottleRequestsTrait::class)]
-class ThrottleRequestsTraitTest extends TestCase
+final class ThrottleRequestsTraitTest extends TestCase
 {
+    /** @var string The request URI used to drive the throttling tests. */
     private const string API_DATA_URI = '/api/data';
 
     /**
-     * Test that resolveRequestSignature throws RequestSignatureException when route is null.
+     * Test that resolveRequestSignature throws RequestSignatureException when
+     * route is null.
      *
      * @return void
      */
@@ -51,7 +59,7 @@ class ThrottleRequestsTraitTest extends TestCase
 
         $result = $trait->resolveRequestSignature($request); // @phpstan-ignore method.notFound
 
-        static::assertMatchesRegularExpression('/^[a-f0-9]{40}$/', $result);
+        self::assertMatchesRegularExpression('/^[a-f0-9]{40}$/', $result);
     }
 
     /**
@@ -63,7 +71,7 @@ class ThrottleRequestsTraitTest extends TestCase
     {
         $trait = $this->createTraitInstance();
 
-        $user = static::createStub(\Illuminate\Contracts\Auth\Authenticatable::class);
+        $user = self::createStub(Authenticatable::class);
         $user->method('getAuthIdentifier')->willReturn(42);
 
         $request = $this->createRequestWithRoute(self::API_DATA_URI, HttpMethod::GET->getVerb(), '10.0.0.1');
@@ -72,7 +80,7 @@ class ThrottleRequestsTraitTest extends TestCase
         $result   = $trait->resolveRequestSignature($request); // @phpstan-ignore method.notFound
         $expected = sha1('GET|localhost|api/data|42');
 
-        static::assertSame($expected, $result);
+        self::assertSame($expected, $result);
     }
 
     /**
@@ -91,7 +99,7 @@ class ThrottleRequestsTraitTest extends TestCase
         $result   = $trait->resolveRequestSignature($request); // @phpstan-ignore method.notFound
         $expected = sha1('GET|localhost|api/data|192.168.1.50');
 
-        static::assertSame($expected, $result);
+        self::assertSame($expected, $result);
     }
 
     /**
@@ -111,7 +119,7 @@ class ThrottleRequestsTraitTest extends TestCase
         $firstSignature  = $trait->resolveRequestSignature($first);  // @phpstan-ignore method.notFound
         $secondSignature = $trait->resolveRequestSignature($second); // @phpstan-ignore method.notFound
 
-        static::assertNotSame($firstSignature, $secondSignature);
+        self::assertNotSame($firstSignature, $secondSignature);
     }
 
     /**
@@ -129,7 +137,7 @@ class ThrottleRequestsTraitTest extends TestCase
         $getSignature  = $trait->resolveRequestSignature($getRequest); // @phpstan-ignore method.notFound
         $postSignature = $trait->resolveRequestSignature($postRequest); // @phpstan-ignore method.notFound
 
-        static::assertNotSame($getSignature, $postSignature);
+        self::assertNotSame($getSignature, $postSignature);
     }
 
     /**
@@ -147,7 +155,7 @@ class ThrottleRequestsTraitTest extends TestCase
         $signature1 = $trait->resolveRequestSignature($request1); // @phpstan-ignore method.notFound
         $signature2 = $trait->resolveRequestSignature($request2); // @phpstan-ignore method.notFound
 
-        static::assertNotSame($signature1, $signature2);
+        self::assertNotSame($signature1, $signature2);
     }
 
     /**
@@ -159,10 +167,10 @@ class ThrottleRequestsTraitTest extends TestCase
      */
     public function testResolveRequestSignatureIsCallableFromMiddlewareSubclass(): void
     {
-        $cache   = static::createStub(\Illuminate\Contracts\Cache\Repository::class);
-        $limiter = new \Illuminate\Cache\RateLimiter($cache);
+        $cache   = self::createStub(Repository::class);
+        $limiter = new RateLimiter($cache);
 
-        $middleware = new class ($limiter) extends \SineMacula\ApiToolkit\Http\Middleware\ThrottleRequests {
+        $middleware = new class ($limiter) extends ThrottleRequests {
             /**
              * @param  \Illuminate\Http\Request  $request
              * @return string
@@ -177,7 +185,7 @@ class ThrottleRequestsTraitTest extends TestCase
 
         $result = $middleware->callResolveRequestSignature($request);
 
-        static::assertSame(sha1('GET|localhost|api/data|127.0.0.1'), $result);
+        self::assertSame(sha1('GET|localhost|api/data|127.0.0.1'), $result);
     }
 
     /**

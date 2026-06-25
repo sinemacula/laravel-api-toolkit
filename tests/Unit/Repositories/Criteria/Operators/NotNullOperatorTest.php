@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Unit\Repositories\Criteria\Operators;
 
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -17,7 +19,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(NotNullOperator::class)]
-class NotNullOperatorTest extends TestCase
+final class NotNullOperatorTest extends TestCase
 {
     /** @var \SineMacula\ApiToolkit\Repositories\Criteria\Operators\NotNullOperator */
     private NotNullOperator $operator;
@@ -48,8 +50,8 @@ class NotNullOperatorTest extends TestCase
 
         $wheres = $query->getQuery()->wheres;
 
-        static::assertSame('NotNull', $wheres[0]['type']);
-        static::assertSame('name', $wheres[0]['column']);
+        self::assertSame('NotNull', $wheres[0]['type']);
+        self::assertSame('name', $wheres[0]['column']);
     }
 
     /**
@@ -65,7 +67,7 @@ class NotNullOperatorTest extends TestCase
 
         $wheres = $query->getQuery()->wheres;
 
-        static::assertSame('NotNull', $wheres[0]['type']);
-        static::assertSame('or', $wheres[0]['boolean']);
+        self::assertSame('NotNull', $wheres[0]['type']);
+        self::assertSame('or', $wheres[0]['boolean']);
     }
 }

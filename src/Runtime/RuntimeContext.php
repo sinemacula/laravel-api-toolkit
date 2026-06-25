@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace SineMacula\ApiToolkit\Runtime;
 
 use Illuminate\Support\Facades\Config;
@@ -31,10 +33,10 @@ final class RuntimeContext
     /**
      * Determine whether the current process is serving as a real queue worker.
      *
-     * When `$connection` is null, the default queue connection is resolved from
-     * config. Returns true only when the resolved driver is a non-`sync` string.
-     * The `sync` driver runs jobs inside the dispatching HTTP request and is
-     * therefore not a real worker boundary.
+     * When `$connection` is null, the default queue connection is resolved
+     * from config. Returns true only when the resolved driver is a non-`sync`
+     * string. The `sync` driver runs jobs inside the dispatching HTTP request
+     * and is therefore not a real worker boundary.
      *
      * @param  string|null  $connection
      * @return bool

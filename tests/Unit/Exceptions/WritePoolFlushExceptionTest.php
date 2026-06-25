@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Unit\Exceptions;
 
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -16,7 +18,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(WritePoolFlushException::class)]
-class WritePoolFlushExceptionTest extends TestCase
+final class WritePoolFlushExceptionTest extends TestCase
 {
     /**
      * Test that the constructor sets a message containing the failure
@@ -46,7 +48,7 @@ class WritePoolFlushExceptionTest extends TestCase
         $previous  = new \RuntimeException('DB error');
         $exception = new WritePoolFlushException($result, $previous);
 
-        static::assertStringContainsString('2 chunk(s) failed out of 5 total', $exception->getMessage());
+        self::assertStringContainsString('2 chunk(s) failed out of 5 total', $exception->getMessage());
     }
 
     /**
@@ -73,7 +75,7 @@ class WritePoolFlushExceptionTest extends TestCase
         $previous  = new \RuntimeException('DB error');
         $exception = new WritePoolFlushException($result, $previous);
 
-        static::assertSame($result, $exception->flushResult());
+        self::assertSame($result, $exception->flushResult());
     }
 
     /**
@@ -88,7 +90,7 @@ class WritePoolFlushExceptionTest extends TestCase
         $previous  = new \RuntimeException('Connection lost');
         $exception = new WritePoolFlushException($result, $previous);
 
-        static::assertSame($previous, $exception->getPrevious());
+        self::assertSame($previous, $exception->getPrevious());
     }
 
     /**
@@ -103,7 +105,7 @@ class WritePoolFlushExceptionTest extends TestCase
         $previous  = new \RuntimeException('error');
         $exception = new WritePoolFlushException($result, $previous);
 
-        static::assertSame(0, $exception->getCode());
+        self::assertSame(0, $exception->getCode());
     }
 
     /**
@@ -118,6 +120,6 @@ class WritePoolFlushExceptionTest extends TestCase
         $previous  = new \RuntimeException('error');
         $exception = new WritePoolFlushException($result, $previous);
 
-        static::assertInstanceOf(\RuntimeException::class, $exception);
+        self::assertInstanceOf(\RuntimeException::class, $exception);
     }
 }

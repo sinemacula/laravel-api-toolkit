@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Integration;
 
 use Illuminate\Contracts\Http\Kernel as HttpKernel;
@@ -25,7 +27,7 @@ use Tests\TestCase;
  */
 #[CoversClass(ApiServiceProvider::class)]
 #[CoversClass(MiddlewareRegistrar::class)]
-class MiddlewareConfigApiScopeTest extends TestCase
+final class MiddlewareConfigApiScopeTest extends TestCase
 {
     /**
      * Test that JsonPrettyPrint is not in the global middleware stack.
@@ -38,7 +40,7 @@ class MiddlewareConfigApiScopeTest extends TestCase
         $kernel     = $this->getApplication()->make(HttpKernel::class);
         $middleware = $kernel->getGlobalMiddleware();
 
-        static::assertNotContains(JsonPrettyPrint::class, $middleware);
+        self::assertNotContains(JsonPrettyPrint::class, $middleware);
     }
 
     /**
@@ -49,10 +51,10 @@ class MiddlewareConfigApiScopeTest extends TestCase
     public function testJsonPrettyPrintIsInApiMiddlewareGroup(): void
     {
         /** @var \Illuminate\Routing\Router $router */
-        $router    = $this->getApplication()->make(Router::class);
-        $api_group = $router->getMiddlewareGroups()['api'] ?? [];
+        $router   = $this->getApplication()->make(Router::class);
+        $apiGroup = $router->getMiddlewareGroups()['api'] ?? [];
 
-        static::assertContains(JsonPrettyPrint::class, $api_group);
+        self::assertContains(JsonPrettyPrint::class, $apiGroup);
     }
 
     /**

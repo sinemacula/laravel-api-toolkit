@@ -1,6 +1,8 @@
 <?php
 
-namespace SineMacula\ApiToolkit\Repositories\Traits;
+declare(strict_types = 1);
+
+namespace SineMacula\ApiToolkit\Repositories\Concerns;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Cache;
@@ -33,15 +35,22 @@ trait ResolvesResource
     /**
      * Set a custom resource class to be used.
      *
-     * @param  string|null  $resource_class
+     * @param  string|null  $resourceClass
      * @return $this
      */
-    public function usingResource(?string $resource_class): static
+    public function usingResource(?string $resourceClass): static
     {
-        $this->customResourceClass = $resource_class;
+        $this->customResourceClass = $resourceClass;
 
         return $this;
     }
+
+    /**
+     * Get the metadata cache writer used to persist resolved resource mappings.
+     *
+     * @return \SineMacula\ApiToolkit\Cache\MetadataCacheWriter
+     */
+    abstract protected function metadataCacheWriter(): MetadataCacheWriter;
 
     /**
      * Resolve the resource class for the given model.
@@ -64,13 +73,15 @@ trait ResolvesResource
     {
         $class = $model::class;
 
-        return app(MetadataCacheWriter::class)->rememberMetadataForever(CacheKeys::MODEL_RESOURCES->resolveKey([$class]), function () use ($class) {
+        return $this->metadataCacheWriter()->rememberMetadataForever(CacheKeys::MODEL_RESOURCES->resolveKey([$class]), function () use ($class): ?string {
 
             $resource = Config::get('api-toolkit.resources.resource_map.' . $class);
 
             if ($resource && class_exists($resource) && in_array(ApiResourceInterface::class, class_implements($resource) ?: [], true)) {
                 return $resource;
             }
+
+            return null;
         });
     }
 }

@@ -1,7 +1,11 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Integration;
 
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Response;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -30,7 +34,7 @@ use Tests\TestCase;
 #[CoversClass(WritePool::class)]
 #[CoversClass(WritePoolFlushSubscriber::class)]
 #[CoversTrait(Deferrable::class)]
-class DeferredWriteRequestBoundaryTest extends TestCase
+final class DeferredWriteRequestBoundaryTest extends TestCase
 {
     /**
      * Set up each test.
@@ -42,7 +46,7 @@ class DeferredWriteRequestBoundaryTest extends TestCase
     {
         parent::setUp();
 
-        Route::post('/api/deferred-users', function (DeferrableUserRepository $repository) {
+        Route::post('/api/deferred-users', function (DeferrableUserRepository $repository): JsonResponse {
 
             $repository->defer(['name' => 'Alice', 'email' => 'alice@example.com', 'password' => 'secret']);
             $repository->defer(['name' => 'Bob', 'email' => 'bob@example.com', 'password' => 'secret']);
@@ -52,7 +56,7 @@ class DeferredWriteRequestBoundaryTest extends TestCase
             ], 202);
         });
 
-        Route::post('/api/deferred-single', function (DeferrableUserRepository $repository) {
+        Route::post('/api/deferred-single', function (DeferrableUserRepository $repository): Response {
 
             /** @var string $name */
             $name = request()->input('name');
@@ -79,9 +83,9 @@ class DeferredWriteRequestBoundaryTest extends TestCase
         // must not be persisted while the request is still in flight.
         $response->assertJsonPath('persisted_during_request', 0);
 
-        static::assertSame(2, DB::table('users')->count());
-        static::assertSame(1, DB::table('users')->where('name', 'Alice')->count());
-        static::assertSame(1, DB::table('users')->where('name', 'Bob')->count());
+        self::assertSame(2, DB::table('users')->count());
+        self::assertSame(1, DB::table('users')->where('name', 'Alice')->count());
+        self::assertSame(1, DB::table('users')->where('name', 'Bob')->count());
     }
 
     /**
@@ -97,8 +101,8 @@ class DeferredWriteRequestBoundaryTest extends TestCase
         /** @var \SineMacula\ApiToolkit\Repositories\Concerns\WritePool $pool */
         $pool = $this->app->make(WritePool::class); // @phpstan-ignore method.nonObject
 
-        static::assertTrue($pool->isEmpty());
-        static::assertSame(0, $pool->count());
+        self::assertTrue($pool->isEmpty());
+        self::assertSame(0, $pool->count());
     }
 
     /**
@@ -111,12 +115,12 @@ class DeferredWriteRequestBoundaryTest extends TestCase
     {
         $this->postJson('/api/deferred-single', ['name' => 'Carol'])->assertNoContent();
 
-        static::assertSame(1, DB::table('users')->count());
-        static::assertSame(1, DB::table('users')->where('name', 'Carol')->count());
+        self::assertSame(1, DB::table('users')->count());
+        self::assertSame(1, DB::table('users')->where('name', 'Carol')->count());
 
         $this->postJson('/api/deferred-single', ['name' => 'Dave'])->assertNoContent();
 
-        static::assertSame(2, DB::table('users')->count());
-        static::assertSame(1, DB::table('users')->where('name', 'Dave')->count());
+        self::assertSame(2, DB::table('users')->count());
+        self::assertSame(1, DB::table('users')->where('name', 'Dave')->count());
     }
 }

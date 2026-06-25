@@ -1,8 +1,11 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Integration;
 
 use Illuminate\Contracts\Queue\Job;
+use Illuminate\Events\Dispatcher;
 use Illuminate\Queue\Events\JobProcessed;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Config;
@@ -32,7 +35,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(CacheManager::class)]
-class LifecycleFlushDefaultsTest extends TestCase
+final class LifecycleFlushDefaultsTest extends TestCase
 {
     /** @var bool Whether LARAVEL_OCTANE was set before each test. */
     private bool $octaneWasSet;
@@ -72,7 +75,8 @@ class LifecycleFlushDefaultsTest extends TestCase
      * the new shape rather than the memoised old shape.
      *
      * Validates AC-03 / AC-04: under a long-lived Octane worker, metadata
-     * written before the request boundary must not survive into the next request.
+     * written before the request boundary must not survive into the next
+     * request.
      *
      * @return void
      */
@@ -89,7 +93,7 @@ class LifecycleFlushDefaultsTest extends TestCase
 
         // Request 1: write and confirm the old shape is memoised.
         $writer->rememberMetadataForever($key, static fn () => 'old-shape');
-        static::assertSame('old-shape', Cache::memo()->get($key)); // @phpstan-ignore method.notFound
+        self::assertSame('old-shape', Cache::memo()->get($key)); // @phpstan-ignore method.notFound
 
         // Boundary: simulate end-of-request Octane flush.
         $this->octaneListener()->handle(new \stdClass);
@@ -99,8 +103,8 @@ class LifecycleFlushDefaultsTest extends TestCase
         $result = $writer->rememberMetadataForever($key, static fn () => 'new-shape');
 
         // Assert
-        static::assertSame('new-shape', $result);
-        static::assertSame('new-shape', Cache::memo()->get($key)); // @phpstan-ignore method.notFound
+        self::assertSame('new-shape', $result);
+        self::assertSame('new-shape', Cache::memo()->get($key)); // @phpstan-ignore method.notFound
     }
 
     /**
@@ -125,18 +129,19 @@ class LifecycleFlushDefaultsTest extends TestCase
 
         // Job 1: write old shape and confirm memoised.
         $writer->rememberMetadataForever($key, static fn () => 'old-shape');
-        static::assertSame('old-shape', Cache::memo()->get($key)); // @phpstan-ignore method.notFound
+        self::assertSame('old-shape', Cache::memo()->get($key)); // @phpstan-ignore method.notFound
 
         // Boundary: simulate end-of-job queue flush.
-        $event = new JobProcessed('database', static::createStub(Job::class));
+        $event = new JobProcessed('database', self::createStub(Job::class));
         $this->queueSubscriber()->handleFlush($event);
 
-        // Job 2: the memo is clear; writing the new shape must return 'new-shape'.
+        // Job 2: the memo is clear; writing the new shape must return
+        // 'new-shape'.
         $result = $writer->rememberMetadataForever($key, static fn () => 'new-shape');
 
         // Assert
-        static::assertSame('new-shape', $result);
-        static::assertSame('new-shape', Cache::memo()->get($key)); // @phpstan-ignore method.notFound
+        self::assertSame('new-shape', $result);
+        self::assertSame('new-shape', Cache::memo()->get($key)); // @phpstan-ignore method.notFound
     }
 
     /**
@@ -160,13 +165,13 @@ class LifecycleFlushDefaultsTest extends TestCase
         $writer = $this->writer();
 
         $writer->rememberMetadataForever($key, static fn () => 'value');
-        static::assertSame('value', Cache::memo()->get($key)); // @phpstan-ignore method.notFound
+        self::assertSame('value', Cache::memo()->get($key)); // @phpstan-ignore method.notFound
 
         // Act: invoke the boundary under php-fpm conditions.
         $this->octaneListener()->handle(new \stdClass);
 
         // Assert: the key must survive because no flush ran.
-        static::assertSame('value', Cache::memo()->get($key)); // @phpstan-ignore method.notFound
+        self::assertSame('value', Cache::memo()->get($key)); // @phpstan-ignore method.notFound
     }
 
     /**
@@ -185,17 +190,18 @@ class LifecycleFlushDefaultsTest extends TestCase
      */
     public function testOptOutDisablesLifecycleFlushSubscription(): void
     {
-        // Reset the dispatcher so the boot-time wiring (now default-on) does not
-        // pollute the baseline being tested.
-        \Illuminate\Support\Facades\Event::swap(new \Illuminate\Events\Dispatcher($this->app));
+        // Reset the dispatcher so the boot-time wiring (now default-on) does
+        // not pollute the baseline being tested.
+        Event::swap(new Dispatcher($this->app));
 
-        // Opt-out: the flag is off, so the registrar must not wire the subscriber.
+        // Opt-out: the flag is off, so the registrar must not wire the
+        // subscriber.
         Config::set('api-toolkit.lifecycle.queue', false);
 
         (new LifecycleRegistrar)->register();
 
-        static::assertFalse(
-            $this->eventHasSubscriberListener(JobProcessed::class, QueueFlushSubscriber::class),
+        self::assertFalse(
+            $this->hasSubscriberListener(JobProcessed::class, QueueFlushSubscriber::class),
             'QueueFlushSubscriber must not be wired when lifecycle.queue is false',
         );
 
@@ -205,8 +211,8 @@ class LifecycleFlushDefaultsTest extends TestCase
 
         (new LifecycleRegistrar)->register();
 
-        static::assertTrue(
-            $this->eventHasSubscriberListener(JobProcessed::class, QueueFlushSubscriber::class),
+        self::assertTrue(
+            $this->hasSubscriberListener(JobProcessed::class, QueueFlushSubscriber::class),
             'QueueFlushSubscriber must be wired when lifecycle.queue is true',
         );
     }
@@ -232,21 +238,23 @@ class LifecycleFlushDefaultsTest extends TestCase
         $nonToolkitKey = 'app:user-prefs';
         $writer        = $this->writer();
 
-        // Write the toolkit key through the writer (registered for scoped flush).
+        // Write the toolkit key through the writer (registered for scoped
+        // flush).
         $writer->rememberMetadataForever($toolkitKey, static fn () => 'toolkit-value');
 
-        // Write the non-toolkit key directly (NOT registered; must survive flush).
+        // Write the non-toolkit key directly (NOT registered; must survive
+        // flush).
         Cache::memo()->rememberForever($nonToolkitKey, static fn () => 'keep-me'); // @phpstan-ignore method.notFound
 
-        static::assertSame('toolkit-value', Cache::memo()->get($toolkitKey)); // @phpstan-ignore method.notFound
-        static::assertSame('keep-me', Cache::memo()->get($nonToolkitKey)); // @phpstan-ignore method.notFound
+        self::assertSame('toolkit-value', Cache::memo()->get($toolkitKey)); // @phpstan-ignore method.notFound
+        self::assertSame('keep-me', Cache::memo()->get($nonToolkitKey)); // @phpstan-ignore method.notFound
 
         // Act: invoke the Octane boundary.
         $this->octaneListener()->handle(new \stdClass);
 
         // Assert: the toolkit key is gone; the non-toolkit key survives.
-        static::assertNull(Cache::memo()->get($toolkitKey)); // @phpstan-ignore method.notFound
-        static::assertSame('keep-me', Cache::memo()->get($nonToolkitKey)); // @phpstan-ignore method.notFound
+        self::assertNull(Cache::memo()->get($toolkitKey)); // @phpstan-ignore method.notFound
+        self::assertSame('keep-me', Cache::memo()->get($nonToolkitKey)); // @phpstan-ignore method.notFound
     }
 
     /**
@@ -257,7 +265,7 @@ class LifecycleFlushDefaultsTest extends TestCase
      * @param  class-string  $subscriber
      * @return bool
      */
-    private function eventHasSubscriberListener(string $event, string $subscriber): bool
+    private function hasSubscriberListener(string $event, string $subscriber): bool
     {
         assert($this->app !== null);
 

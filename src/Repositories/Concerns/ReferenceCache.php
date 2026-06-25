@@ -1,11 +1,14 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace SineMacula\ApiToolkit\Repositories\Concerns;
 
 use Illuminate\Contracts\Cache\Repository as CacheContract;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
+use SineMacula\ApiToolkit\Contracts\CacheInvalidator;
 use SineMacula\ApiToolkit\Enums\CacheKeys;
 
 /**
@@ -21,7 +24,7 @@ use SineMacula\ApiToolkit\Enums\CacheKeys;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-final readonly class ReferenceCache
+final readonly class ReferenceCache implements CacheInvalidator
 {
     /** @var \Illuminate\Contracts\Cache\Repository The underlying cache store instance. */
     private CacheContract $store;
@@ -42,9 +45,17 @@ final readonly class ReferenceCache
      * @return void
      */
     public function __construct(
+
+        /** The name of the cache store to use. */
         private string $cacheStore,
+
+        /** The database table the snapshot belongs to. */
         private string $table,
+
+        /** The time-to-live, in seconds, for cached snapshots. */
         private int $ttl,
+
+        /** The guard that limits the size of cached snapshots. */
         private CacheSizeGuard $sizeGuard,
     ) {
         $this->store    = Cache::store($this->cacheStore);
@@ -69,9 +80,9 @@ final readonly class ReferenceCache
         /** @var \Illuminate\Support\Collection<int, \Illuminate\Database\Eloquent\Model> $rows */
         $rows = $model->newQuery()->get();
 
-        // Skip caching a table that exceeds the size guard, so reference mode on
-        // an unexpectedly large table falls back to querying rather than holding
-        // a huge serialized snapshot in the cache.
+        // Skip caching a table that exceeds the size guard, so reference
+        // mode on an unexpectedly large table falls back to querying rather
+        // than holding a huge serialized snapshot in the cache.
         if ($this->sizeGuard->allows($rows, $rows->count())) {
             $this->store->put($this->cacheKey, $rows, $this->ttl);
             $this->store->put($this->metaKey, ['populated_at' => now()->timestamp], $this->ttl);
@@ -97,7 +108,8 @@ final readonly class ReferenceCache
      *
      * @return void
      */
-    public function flush(): void
+    #[\Override]
+    public function flushTable(): void
     {
         $this->store->forget($this->cacheKey);
         $this->store->put($this->metaKey, ['invalidated_at' => now()->timestamp], $this->ttl);

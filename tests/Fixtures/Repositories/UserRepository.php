@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Fixtures\Repositories;
 
 use SineMacula\ApiToolkit\Repositories\ApiRepository;
@@ -12,6 +14,8 @@ use Tests\Fixtures\Models\User;
  * @copyright   2026 Sine Macula Limited.
  *
  * @extends \SineMacula\ApiToolkit\Repositories\ApiRepository<\Tests\Fixtures\Models\User>
+ *
+ * @inheritable
  */
 class UserRepository extends ApiRepository
 {
@@ -20,6 +24,7 @@ class UserRepository extends ApiRepository
      *
      * @return class-string<\Tests\Fixtures\Models\User>
      */
+    #[\Override]
     public function model(): string
     {
         return User::class;

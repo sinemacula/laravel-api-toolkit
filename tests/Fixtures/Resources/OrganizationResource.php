@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Fixtures\Resources;
 
 use SineMacula\ApiToolkit\Http\Resources\ApiResource;
@@ -12,7 +14,7 @@ use SineMacula\ApiToolkit\Schema\Field;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-class OrganizationResource extends ApiResource
+final class OrganizationResource extends ApiResource
 {
     /** @var string */
     public const string RESOURCE_TYPE = 'organizations';
@@ -25,6 +27,7 @@ class OrganizationResource extends ApiResource
      *
      * @return array<string, array<string, mixed>>
      */
+    #[\Override]
     public static function schema(): array
     {
         return Field::set(

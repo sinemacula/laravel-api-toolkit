@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace SineMacula\ApiToolkit\OpenApi\Metadata;
 
 use Illuminate\Support\Facades\Config;
@@ -16,7 +18,7 @@ use SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-class ConfigMetadataCatalogue implements MetadataCatalogue
+final class ConfigMetadataCatalogue implements MetadataCatalogue
 {
     /** @var array<int, string> The four structural filter operators */
     private const array STRUCTURAL_OPERATORS = ['$and', '$or', '$has', '$hasnt'];
@@ -28,7 +30,11 @@ class ConfigMetadataCatalogue implements MetadataCatalogue
      * @param  \SineMacula\ApiToolkit\OpenApi\Metadata\ErrorCatalogueReader  $errorReader
      */
     public function __construct(
+
+        /** Registry of filter operator tokens (incl. app additions) */
         private readonly OperatorRegistry $registry,
+
+        /** Reader that resolves the error catalogue metadata */
         private readonly ErrorCatalogueReader $errorReader,
     ) {}
 

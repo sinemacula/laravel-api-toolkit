@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace SineMacula\ApiToolkit\Repositories\Concerns;
 
 use Illuminate\Support\Facades\DB;
@@ -32,9 +34,17 @@ final class WritePool
      * @return void
      */
     public function __construct(
+
+        /** The maximum number of records inserted per chunk on flush. */
         private readonly int $chunkSize,
+
+        /** The buffered record count at which an auto-flush triggers. */
         private readonly int $poolLimit,
+
+        /** The strategy controlling how and when the buffer is flushed. */
         private readonly FlushStrategy $strategy = FlushStrategy::COLLECT,
+
+        /** Whether each flush runs inside a database transaction. */
         private readonly bool $transactional = false,
     ) {}
 
@@ -56,9 +66,11 @@ final class WritePool
     {
         $this->buffer[$table][] = $attributes;
 
-        if ($this->count() >= $this->poolLimit) {
-            $this->lastAutoFlushResult = $this->flush();
+        if ($this->count() < $this->poolLimit) {
+            return;
         }
+
+        $this->lastAutoFlushResult = $this->flush();
     }
 
     /**
@@ -178,8 +190,10 @@ final class WritePool
      *
      * @throws \SineMacula\ApiToolkit\Exceptions\WritePoolFlushException
      */
-    private function flushTableTransactionally(WritePoolFlushContext $context, WritePoolFlushAccumulator $accumulator): void
-    {
+    private function flushTableTransactionally(
+        WritePoolFlushContext $context,
+        WritePoolFlushAccumulator $accumulator,
+    ): void {
         try {
             DB::transaction(function () use ($context): void {
 
@@ -231,8 +245,9 @@ final class WritePool
         $accumulator->recordFailure($context->table(), $records, $exception);
 
         if ($context->strategy() === FlushStrategy::THROW) {
-            // Whole-table retain: set buffer to the merged records + all remaining tables.
-            // Mirror of per-chunk retainUnprocessedRecords — keep in sync if either path changes.
+            // Whole-table retain: set buffer to the merged records + all
+            // remaining tables. Mirror of per-chunk retainUnprocessedRecords -
+            // keep in sync if either path changes.
             $retainedBuffer = [$context->table() => $records];
 
             foreach (array_slice($context->tables(), $context->tableIndex() + 1) as $remainingTable) {
@@ -296,8 +311,9 @@ final class WritePool
         $accumulator->recordFailure($context->table(), $chunk, $exception);
 
         if ($context->strategy() === FlushStrategy::THROW) {
-            // Per-chunk retain: failed chunk + remaining chunks + remaining tables.
-            // Mirror of whole-table retain in handleTableRollback — keep in sync if either path changes.
+            // Per-chunk retain: failed chunk + remaining chunks + remaining
+            // tables. Mirror of whole-table retain in handleTableRollback -
+            // keep in sync if either path changes.
             $this->retainUnprocessedRecords($context, $chunk);
 
             throw new WritePoolFlushException($accumulator->toThrowResult($this->count(), $context->tables()), $exception);

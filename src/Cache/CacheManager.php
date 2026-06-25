@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace SineMacula\ApiToolkit\Cache;
 
 use Illuminate\Contracts\Container\Container;
@@ -36,7 +38,6 @@ final class CacheManager
 
         /** The registry of toolkit metadata keys to forget on flush. */
         private readonly MetadataKeyRegistry $registry,
-
     ) {}
 
     /**
@@ -72,10 +73,12 @@ final class CacheManager
     {
         $alias = Config::get('api-toolkit.parser.alias', 'api.query');
 
-        if ($this->container->bound($alias)) {
-            /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
-            $parser = $this->container->make($alias);
-            $parser->reset();
+        if (!$this->container->bound($alias)) {
+            return;
         }
+
+        /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
+        $parser = $this->container->make($alias);
+        $parser->reset();
     }
 }

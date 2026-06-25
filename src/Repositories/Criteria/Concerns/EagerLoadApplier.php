@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace SineMacula\ApiToolkit\Repositories\Criteria\Concerns;
 
 use Illuminate\Contracts\Database\Eloquent\Builder;
@@ -28,8 +30,12 @@ final class EagerLoadApplier
      * @param  string|null  $resourceType
      * @return \Illuminate\Contracts\Database\Eloquent\Builder
      */
-    public function apply(Builder $query, ResourceMetadataProvider $metadataProvider, ?string $resourceClass, ?string $resourceType): Builder
-    {
+    public function apply(
+        Builder $query,
+        ResourceMetadataProvider $metadataProvider,
+        ?string $resourceClass,
+        ?string $resourceType,
+    ): Builder {
         if ($resourceClass === null || !is_subclass_of($resourceClass, ApiResourceInterface::class)) {
             return $query;
         }

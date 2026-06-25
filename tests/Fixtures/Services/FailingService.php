@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Fixtures\Services;
 
 use SineMacula\ApiToolkit\Services\Concerns\TransactionConcern;
@@ -12,7 +14,7 @@ use Tests\Fixtures\Exceptions\ServiceExecutionException;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-class FailingService extends Service
+final class FailingService extends Service
 {
     /** @var bool Track whether failed() was called */
     public bool $failedCalled = false;
@@ -26,6 +28,7 @@ class FailingService extends Service
      * @param  \Throwable  $exception
      * @return void
      */
+    #[\Override]
     public function failed(\Throwable $exception): void
     {
         $this->failedCalled    = true;
@@ -50,6 +53,7 @@ class FailingService extends Service
      *
      * @throws \Tests\Fixtures\Exceptions\ServiceExecutionException
      */
+    #[\Override]
     protected function handle(): bool
     {
         throw new ServiceExecutionException('Service execution failed');

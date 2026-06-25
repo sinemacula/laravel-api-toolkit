@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace SineMacula\ApiToolkit\Services\Validation\Rules;
 
 use SineMacula\ApiToolkit\Contracts\ApiResourceInterface;
@@ -40,13 +42,15 @@ final class ValidateRelationInterfaces implements SchemaValidationRule
                 continue;
             }
 
-            if (!is_a($field->resource, ApiResourceInterface::class, true)) {
-                $errors[] = new SchemaValidationError(
-                    resourceClass: $resourceClass,
-                    fieldKey: $key,
-                    defect: sprintf('Relation resource class "%s" does not implement %s', $field->resource, ApiResourceInterface::class),
-                );
+            if (is_a($field->resource, ApiResourceInterface::class, true)) {
+                continue;
             }
+
+            $errors[] = new SchemaValidationError(
+                resourceClass: $resourceClass,
+                fieldKey: $key,
+                defect: sprintf('Relation resource class "%s" does not implement %s', $field->resource, ApiResourceInterface::class),
+            );
         }
 
         return $errors;

@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Integration\Repositories;
 
 use Illuminate\Support\Facades\Config;
@@ -28,7 +30,7 @@ use Tests\TestCase;
  */
 #[CoversClass(DeferredWriteCacheInvalidator::class)]
 #[CoversClass(WritePoolFlushSubscriber::class)]
-class DeferredWriteCacheInvalidationTest extends TestCase
+final class DeferredWriteCacheInvalidationTest extends TestCase
 {
     /**
      * Set up the test environment.
@@ -78,8 +80,8 @@ class DeferredWriteCacheInvalidationTest extends TestCase
 
         $result = $this->freshTagRepository()->get(); // @phpstan-ignore staticMethod.dynamicCall
 
-        static::assertCount(1, DB::getQueryLog());
-        static::assertCount(3, $result);
+        self::assertCount(1, DB::getQueryLog());
+        self::assertCount(3, $result);
     }
 
     /**
@@ -103,12 +105,12 @@ class DeferredWriteCacheInvalidationTest extends TestCase
 
         // The cache was not invalidated: the stale two-row collection is
         // served straight from cache without touching the database.
-        static::assertCount(0, DB::getQueryLog());
-        static::assertCount(2, $result);
+        self::assertCount(0, DB::getQueryLog());
+        self::assertCount(2, $result);
 
         // The deferred write itself still reached the database; only the
         // downstream invalidation was skipped.
-        static::assertSame(3, DB::table('tags')->count());
+        self::assertSame(3, DB::table('tags')->count());
     }
 
     /**

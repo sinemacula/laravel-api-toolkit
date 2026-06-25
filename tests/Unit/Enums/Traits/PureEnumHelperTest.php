@@ -1,11 +1,13 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Unit\Enums\Traits;
 
 use PHPUnit\Framework\Attributes\CoversTrait;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
-use SineMacula\ApiToolkit\Enums\Traits\PureEnumHelper;
+use SineMacula\ApiToolkit\Enums\Concerns\PureEnumHelper;
 use Tests\Fixtures\Enums\PureState;
 
 /**
@@ -17,7 +19,7 @@ use Tests\Fixtures\Enums\PureState;
  * @internal
  */
 #[CoversTrait(PureEnumHelper::class)]
-class PureEnumHelperTest extends TestCase
+final class PureEnumHelperTest extends TestCase
 {
     /**
      * Test that tryFrom with exact case name returns the matching case.
@@ -28,7 +30,7 @@ class PureEnumHelperTest extends TestCase
     {
         $result = PureState::tryFrom('PENDING');
 
-        static::assertSame(PureState::PENDING, $result);
+        self::assertSame(PureState::PENDING, $result);
     }
 
     /**
@@ -56,7 +58,7 @@ class PureEnumHelperTest extends TestCase
     {
         $result = PureState::tryFrom($input);
 
-        static::assertSame($expectedCase, $result);
+        self::assertSame($expectedCase, $result);
     }
 
     /**
@@ -83,7 +85,7 @@ class PureEnumHelperTest extends TestCase
     {
         $result = PureState::tryFrom($input);
 
-        static::assertNull($result);
+        self::assertNull($result);
     }
 
     /**
@@ -110,8 +112,8 @@ class PureEnumHelperTest extends TestCase
     #[DataProvider('nonStringProvider')]
     public function testTryFromWithNonStringValuesReturnsNull(mixed $input): void
     {
-        static::assertFalse(is_string($input), 'Input must be a non-string type');
-        static::assertNull(PureState::tryFrom($input));
+        self::assertFalse(is_string($input), 'Input must be a non-string type');
+        self::assertNull(PureState::tryFrom($input));
     }
 
     /**
@@ -138,6 +140,6 @@ class PureEnumHelperTest extends TestCase
     {
         $result = PureState::tryFrom($name);
 
-        static::assertSame($expectedCase, $result);
+        self::assertSame($expectedCase, $result);
     }
 }

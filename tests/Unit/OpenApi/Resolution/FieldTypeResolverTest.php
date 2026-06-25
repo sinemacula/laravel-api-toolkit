@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Unit\OpenApi\Resolution;
 
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -23,7 +25,7 @@ use Tests\Fixtures\Models\User;
  * @internal
  */
 #[CoversClass(FieldTypeResolver::class)]
-class FieldTypeResolverTest extends TestCase
+final class FieldTypeResolverTest extends TestCase
 {
     /**
      * Test that a declared schema is returned verbatim and is never overridden
@@ -41,10 +43,10 @@ class FieldTypeResolverTest extends TestCase
 
         $schema = $resolver->resolve('email', $this->field(openApi: $declared), User::class);
 
-        static::assertSame($declared, $schema);
-        static::assertSame('string', $schema->type);
-        static::assertSame('email', $schema->format);
-        static::assertFalse($schema->undocumented);
+        self::assertSame($declared, $schema);
+        self::assertSame('string', $schema->type);
+        self::assertSame('email', $schema->format);
+        self::assertFalse($schema->undocumented);
     }
 
     /**
@@ -61,9 +63,9 @@ class FieldTypeResolverTest extends TestCase
 
         $schema = $resolver->resolve('title', $this->field(), Post::class);
 
-        static::assertSame('string', $schema->type);
-        static::assertFalse($schema->nullable);
-        static::assertFalse($schema->undocumented);
+        self::assertSame('string', $schema->type);
+        self::assertFalse($schema->nullable);
+        self::assertFalse($schema->undocumented);
     }
 
     /**
@@ -80,8 +82,8 @@ class FieldTypeResolverTest extends TestCase
 
         $schema = $resolver->resolve('password', $this->field(), User::class);
 
-        static::assertSame('string', $schema->type);
-        static::assertTrue($schema->nullable);
+        self::assertSame('string', $schema->type);
+        self::assertTrue($schema->nullable);
     }
 
     /**
@@ -98,7 +100,7 @@ class FieldTypeResolverTest extends TestCase
 
         $schema = $resolver->resolve('published', $this->field(), Post::class);
 
-        static::assertSame('boolean', $schema->type);
+        self::assertSame('boolean', $schema->type);
     }
 
     /**
@@ -115,8 +117,8 @@ class FieldTypeResolverTest extends TestCase
 
         $schema = $resolver->resolve('status', $this->field(), User::class);
 
-        static::assertSame('string', $schema->type);
-        static::assertFalse($schema->undocumented);
+        self::assertSame('string', $schema->type);
+        self::assertFalse($schema->undocumented);
     }
 
     /**
@@ -134,8 +136,8 @@ class FieldTypeResolverTest extends TestCase
 
         $schema = $resolver->resolve('name', $this->field(), User::class);
 
-        static::assertSame('string', $schema->type);
-        static::assertFalse($schema->undocumented);
+        self::assertSame('string', $schema->type);
+        self::assertFalse($schema->undocumented);
     }
 
     /**
@@ -151,9 +153,9 @@ class FieldTypeResolverTest extends TestCase
 
         $schema = $resolver->resolve('created_at', $this->field(), Post::class);
 
-        static::assertSame('string', $schema->type);
-        static::assertSame('date-time', $schema->format);
-        static::assertTrue($schema->nullable);
+        self::assertSame('string', $schema->type);
+        self::assertSame('date-time', $schema->format);
+        self::assertTrue($schema->nullable);
     }
 
     /**
@@ -169,8 +171,8 @@ class FieldTypeResolverTest extends TestCase
 
         $schema = $resolver->resolve('birth_date', $this->field(), User::class);
 
-        static::assertSame('string', $schema->type);
-        static::assertSame('date', $schema->format);
+        self::assertSame('string', $schema->type);
+        self::assertSame('date', $schema->format);
     }
 
     /**
@@ -318,9 +320,9 @@ class FieldTypeResolverTest extends TestCase
         foreach ($opaqueFields as $label => $field) {
             $schema = $resolver->resolve('name', $field, User::class);
 
-            static::assertTrue($schema->undocumented, "Field '{$label}' should be flagged undocumented");
-            static::assertNull($schema->type, "Flagged field '{$label}' must carry no concrete type");
-            static::assertNull($schema->format, "Flagged field '{$label}' must carry no format");
+            self::assertTrue($schema->undocumented, "Field '{$label}' should be flagged undocumented");
+            self::assertNull($schema->type, "Flagged field '{$label}' must carry no concrete type");
+            self::assertNull($schema->format, "Flagged field '{$label}' must carry no format");
         }
     }
 
@@ -335,7 +337,7 @@ class FieldTypeResolverTest extends TestCase
             'name' => new ColumnDefinition(name: 'name', typeName: 'varchar', nullable: false),
         ]);
 
-        static::assertInstanceOf(OpenApiFieldSchema::class, $resolver->resolve('name', $this->field(), User::class));
+        self::assertInstanceOf(OpenApiFieldSchema::class, $resolver->resolve('name', $this->field(), User::class));
     }
 
     /**
@@ -352,8 +354,8 @@ class FieldTypeResolverTest extends TestCase
 
         $schema = $resolver->resolve('name', $this->field(), Tag::class);
 
-        static::assertSame('string', $schema->type);
-        static::assertFalse($schema->undocumented);
+        self::assertSame('string', $schema->type);
+        self::assertFalse($schema->undocumented);
     }
 
     /**
@@ -365,7 +367,7 @@ class FieldTypeResolverTest extends TestCase
      */
     private function makeResolver(array $columns): FieldTypeResolver
     {
-        $introspector = static::createStub(SchemaIntrospectionProvider::class);
+        $introspector = self::createStub(SchemaIntrospectionProvider::class);
         $introspector->method('getColumnDefinitions')->willReturn($columns);
 
         return new FieldTypeResolver($introspector, new ColumnTypeMapper);
@@ -417,8 +419,8 @@ class FieldTypeResolverTest extends TestCase
      */
     private function assertFlagged(OpenApiFieldSchema $schema): void
     {
-        static::assertTrue($schema->undocumented);
-        static::assertNull($schema->type);
-        static::assertNull($schema->format);
+        self::assertTrue($schema->undocumented);
+        self::assertNull($schema->type);
+        self::assertNull($schema->format);
     }
 }

@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Unit\Http\Resources\Concerns;
 
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -23,7 +25,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(EagerLoadPlanner::class)]
-class EagerLoadPlannerTest extends TestCase
+final class EagerLoadPlannerTest extends TestCase
 {
     use InteractsWithNonPublicMembers;
 
@@ -32,6 +34,7 @@ class EagerLoadPlannerTest extends TestCase
      *
      * @return void
      */
+    #[\Override]
     protected function setUp(): void
     {
         parent::setUp();
@@ -45,6 +48,7 @@ class EagerLoadPlannerTest extends TestCase
      *
      * @return void
      */
+    #[\Override]
     protected function tearDown(): void
     {
         SchemaCompiler::clearCache();
@@ -62,7 +66,7 @@ class EagerLoadPlannerTest extends TestCase
     {
         $result = EagerLoadPlanner::buildEagerLoadMap(UserResource::class, ['id', 'name', 'email']);
 
-        static::assertSame([], $result);
+        self::assertSame([], $result);
     }
 
     /**
@@ -79,7 +83,7 @@ class EagerLoadPlannerTest extends TestCase
 
         $result = EagerLoadPlanner::buildEagerLoadMap(UserResource::class, ['organization']);
 
-        static::assertContains('organization', $result);
+        self::assertContains('organization', $result);
     }
 
     /**
@@ -92,6 +96,7 @@ class EagerLoadPlannerTest extends TestCase
     {
 
         $constrainedResource = new class {
+            /** @var string The resource type identifier. */
             public const string RESOURCE_TYPE = 'constrained_test';
 
             /**
@@ -111,8 +116,8 @@ class EagerLoadPlannerTest extends TestCase
         $resourceClass = $constrainedResource::class;
         $result        = EagerLoadPlanner::buildEagerLoadMap($resourceClass, ['items']);
 
-        static::assertArrayHasKey('items', $result);
-        static::assertInstanceOf(\Closure::class, $result['items']);
+        self::assertArrayHasKey('items', $result);
+        self::assertInstanceOf(\Closure::class, $result['items']);
     }
 
     /**
@@ -144,9 +149,9 @@ class EagerLoadPlannerTest extends TestCase
 
         $result = EagerLoadPlanner::buildEagerLoadMap(UserResource::class, ['posts']);
 
-        static::assertContains('posts', $result);
-        static::assertContains('posts.user', $result);
-        static::assertContains('posts.tags', $result);
+        self::assertContains('posts', $result);
+        self::assertContains('posts.user', $result);
+        self::assertContains('posts.tags', $result);
     }
 
     /**
@@ -158,6 +163,7 @@ class EagerLoadPlannerTest extends TestCase
     {
 
         $resourceWithExtras = new class {
+            /** @var string The resource type identifier. */
             public const string RESOURCE_TYPE = 'extras_test';
 
             /**
@@ -176,8 +182,8 @@ class EagerLoadPlannerTest extends TestCase
         $resourceClass = $resourceWithExtras::class;
         $result        = EagerLoadPlanner::buildEagerLoadMap($resourceClass, ['avatar']);
 
-        static::assertContains('media', $result);
-        static::assertContains('media.thumbnails', $result);
+        self::assertContains('media', $result);
+        self::assertContains('media.thumbnails', $result);
     }
 
     /**
@@ -193,6 +199,7 @@ class EagerLoadPlannerTest extends TestCase
     {
 
         $resourceWithDuplicatePaths = new class {
+            /** @var string The resource type identifier. */
             public const string RESOURCE_TYPE = 'cycle_test';
 
             /**
@@ -217,7 +224,7 @@ class EagerLoadPlannerTest extends TestCase
         $plainPaths = array_values(array_filter($result, 'is_string'));
         $itemsCount = count(array_filter($plainPaths, static fn (string $path): bool => $path === 'items'));
 
-        static::assertSame(1, $itemsCount);
+        self::assertSame(1, $itemsCount);
     }
 
     /**
@@ -229,7 +236,7 @@ class EagerLoadPlannerTest extends TestCase
     {
         $result = EagerLoadPlanner::buildCountMap(UserResource::class);
 
-        static::assertContains('posts as posts_count', $result);
+        self::assertContains('posts as posts_count', $result);
     }
 
     /**
@@ -241,11 +248,11 @@ class EagerLoadPlannerTest extends TestCase
     {
         $result = EagerLoadPlanner::buildCountMap(UserResource::class, ['posts']);
 
-        static::assertContains('posts as posts_count', $result);
+        self::assertContains('posts as posts_count', $result);
 
         $nonDefaultResult = EagerLoadPlanner::buildCountMap(OrganizationResource::class, ['users']);
 
-        static::assertContains('users as users_count', $nonDefaultResult);
+        self::assertContains('users as users_count', $nonDefaultResult);
     }
 
     /**
@@ -257,6 +264,7 @@ class EagerLoadPlannerTest extends TestCase
     {
 
         $constrainedCountResource = new class {
+            /** @var string The resource type identifier. */
             public const string RESOURCE_TYPE = 'constrained_count_test';
 
             /**
@@ -279,8 +287,8 @@ class EagerLoadPlannerTest extends TestCase
         $resourceClass = $constrainedCountResource::class;
         $result        = EagerLoadPlanner::buildCountMap($resourceClass);
 
-        static::assertArrayHasKey('posts as active_posts_count', $result);
-        static::assertInstanceOf(\Closure::class, $result['posts as active_posts_count']);
+        self::assertArrayHasKey('posts as active_posts_count', $result);
+        self::assertInstanceOf(\Closure::class, $result['posts as active_posts_count']);
     }
 
     /**
@@ -292,7 +300,7 @@ class EagerLoadPlannerTest extends TestCase
     {
         $result = EagerLoadPlanner::buildCountMap(TagResource::class);
 
-        static::assertSame([], $result);
+        self::assertSame([], $result);
     }
 
     /**
@@ -304,8 +312,8 @@ class EagerLoadPlannerTest extends TestCase
     {
         $result = EagerLoadPlanner::buildCountMap(OrganizationResource::class);
 
-        static::assertNotContains('users', $result);
-        static::assertSame([], $result);
+        self::assertNotContains('users', $result);
+        self::assertSame([], $result);
     }
 
     /**
@@ -318,7 +326,7 @@ class EagerLoadPlannerTest extends TestCase
     {
         $result = EagerLoadPlanner::buildEagerLoadMap(UserResource::class, ['nonexistent_field']);
 
-        static::assertSame([], $result);
+        self::assertSame([], $result);
     }
 
     /**
@@ -331,6 +339,7 @@ class EagerLoadPlannerTest extends TestCase
     {
 
         $parentResource = new class {
+            /** @var string The resource type identifier. */
             public const string RESOURCE_TYPE = 'explicit_fields_parent';
 
             /**
@@ -351,7 +360,7 @@ class EagerLoadPlannerTest extends TestCase
         $resourceClass = $parentResource::class;
         $result        = EagerLoadPlanner::buildEagerLoadMap($resourceClass, ['organization']);
 
-        static::assertContains('organization', $result);
+        self::assertContains('organization', $result);
     }
 
     /**
@@ -369,7 +378,7 @@ class EagerLoadPlannerTest extends TestCase
 
         $result = EagerLoadPlanner::buildEagerLoadMap(UserResource::class, ['organization']);
 
-        static::assertContains('organization', $result);
+        self::assertContains('organization', $result);
     }
 
     /**
@@ -389,7 +398,7 @@ class EagerLoadPlannerTest extends TestCase
         $first  = EagerLoadPlanner::buildEagerLoadMap(UserResource::class, ['organization']);
         $second = EagerLoadPlanner::buildEagerLoadMap(UserResource::class, ['organization']);
 
-        static::assertSame($first, $second);
+        self::assertSame($first, $second);
     }
 
     /**
@@ -422,7 +431,7 @@ class EagerLoadPlannerTest extends TestCase
 
         $result = EagerLoadPlanner::buildCountMap(UserResource::class);
 
-        static::assertSame(['sentinel_count'], $result);
+        self::assertSame(['sentinel_count'], $result);
     }
 
     /**
@@ -437,7 +446,7 @@ class EagerLoadPlannerTest extends TestCase
 
         $result = EagerLoadPlanner::buildEagerLoadMap(UserResource::class, ['organization']);
 
-        static::assertSame(['sentinel_relation'], $result);
+        self::assertSame(['sentinel_relation'], $result);
     }
 
     /**
@@ -450,6 +459,7 @@ class EagerLoadPlannerTest extends TestCase
     {
 
         $mixedResource = new class {
+            /** @var string The resource type identifier. */
             public const string RESOURCE_TYPE = 'mixed_paths_test';
 
             /**
@@ -472,9 +482,9 @@ class EagerLoadPlannerTest extends TestCase
         $resourceClass = $mixedResource::class;
         $result        = EagerLoadPlanner::buildEagerLoadMap($resourceClass, ['plain', 'scoped']);
 
-        static::assertContains('plain', $result);
-        static::assertArrayHasKey('scoped', $result);
-        static::assertInstanceOf(\Closure::class, $result['scoped']);
+        self::assertContains('plain', $result);
+        self::assertArrayHasKey('scoped', $result);
+        self::assertInstanceOf(\Closure::class, $result['scoped']);
     }
 
     /**
@@ -487,6 +497,7 @@ class EagerLoadPlannerTest extends TestCase
     {
 
         $multiCountResource = new class {
+            /** @var string The resource type identifier. */
             public const string RESOURCE_TYPE = 'multi_count_test';
 
             /**
@@ -516,7 +527,7 @@ class EagerLoadPlannerTest extends TestCase
         $resourceClass = $multiCountResource::class;
         $result        = EagerLoadPlanner::buildCountMap($resourceClass);
 
-        static::assertSame(['published as published_count', 'archived as archived_count'], array_values($result));
+        self::assertSame(['published as published_count', 'archived as archived_count'], array_values($result));
     }
 
     /**
@@ -534,7 +545,7 @@ class EagerLoadPlannerTest extends TestCase
 
         $result = EagerLoadPlanner::buildEagerLoadMap(UserResource::class, ['nonexistent_field', 'organization']);
 
-        static::assertContains('organization', $result);
+        self::assertContains('organization', $result);
     }
 
     /**
@@ -556,8 +567,8 @@ class EagerLoadPlannerTest extends TestCase
 
         $result = EagerLoadPlanner::buildEagerLoadMap(UserResource::class, ['organization', 'organization', 'posts']);
 
-        static::assertContains('organization', $result);
-        static::assertContains('posts', $result);
+        self::assertContains('organization', $result);
+        self::assertContains('posts', $result);
     }
 
     /**
@@ -570,6 +581,7 @@ class EagerLoadPlannerTest extends TestCase
     {
 
         $nonResourceChild = new class {
+            /** @var string The resource type identifier. */
             public const string RESOURCE_TYPE = 'non_resource_child_test';
 
             /**
@@ -589,7 +601,7 @@ class EagerLoadPlannerTest extends TestCase
         $resourceClass = $nonResourceChild::class;
         $result        = EagerLoadPlanner::buildEagerLoadMap($resourceClass, ['organization']);
 
-        static::assertSame(['organization'], $result);
+        self::assertSame(['organization'], $result);
     }
 
     /**
@@ -610,6 +622,7 @@ class EagerLoadPlannerTest extends TestCase
             ->andReturn(null);
 
         $explicitFieldsResource = new class {
+            /** @var string The resource type identifier. */
             public const string RESOURCE_TYPE = 'blank_explicit_fields_test';
 
             /**
@@ -630,8 +643,8 @@ class EagerLoadPlannerTest extends TestCase
         $resourceClass = $explicitFieldsResource::class;
         $result        = EagerLoadPlanner::buildEagerLoadMap($resourceClass, ['posts']);
 
-        static::assertContains('posts', $result);
-        static::assertContains('posts.tags', $result);
+        self::assertContains('posts', $result);
+        self::assertContains('posts.tags', $result);
     }
 
     /**
@@ -652,6 +665,7 @@ class EagerLoadPlannerTest extends TestCase
             ->andReturn(null);
 
         $child = new class (null) extends ApiResource {
+            /** @var string The resource type identifier. */
             public const string RESOURCE_TYPE = 'blank_fields_child';
 
             /** @var array<int, string> */
@@ -660,6 +674,7 @@ class EagerLoadPlannerTest extends TestCase
             /**
              * @return array<string, array<string, mixed>>
              */
+            #[\Override]
             public static function schema(): array
             {
                 return [
@@ -672,6 +687,7 @@ class EagerLoadPlannerTest extends TestCase
         };
 
         $parent = new class {
+            /** @var string The resource type identifier. */
             public const string RESOURCE_TYPE = 'blank_fields_parent';
 
             /** @var string */
@@ -695,7 +711,7 @@ class EagerLoadPlannerTest extends TestCase
 
         $result = EagerLoadPlanner::buildEagerLoadMap($parent::class, ['rel']);
 
-        static::assertContains('rel', $result);
-        static::assertContains('rel.organization', $result);
+        self::assertContains('rel', $result);
+        self::assertContains('rel.organization', $result);
     }
 }

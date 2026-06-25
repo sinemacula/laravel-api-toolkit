@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace SineMacula\ApiToolkit\Exceptions;
 
 use Illuminate\Auth\Access\AuthorizationException;
@@ -40,7 +42,7 @@ use Symfony\Component\HttpKernel\Exception\TooManyRequestsHttpException;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-class ApiExceptionHandler
+final class ApiExceptionHandler
 {
     /** @var array<int, string> Lower-case substrings that mark a request key as sensitive in logged context. */
     private const array DEFAULT_SENSITIVE_KEYS = ['password', 'token', 'secret', 'authorization'];
@@ -108,33 +110,69 @@ class ApiExceptionHandler
 
         $previous = is_a($exception, ValidationException::class) ? null : $exception;
 
-        $mapped = match (true) {
-            $exception instanceof NotFoundHttpException           => NotFoundException::class,
-            $exception instanceof BackedEnumCaseNotFoundException => NotFoundException::class,
-            $exception instanceof ModelNotFoundException          => NotFoundException::class,
-            $exception instanceof SuspiciousOperationException    => NotFoundException::class,
-            $exception instanceof RecordsNotFoundException        => NotFoundException::class,
-            $exception instanceof MethodNotAllowedHttpException   => NotAllowedException::class,
-            $exception instanceof BadRequestHttpException         => BadRequestException::class,
-            $exception instanceof RequestExceptionInterface       => BadRequestException::class,
-            $exception instanceof LaravelUnauthorizedException    => ForbiddenException::class,
-            $exception instanceof AuthorizationException          => ForbiddenException::class,
-            $exception instanceof AccessDeniedHttpException       => ForbiddenException::class,
-            $exception instanceof AuthenticationException         => UnauthenticatedException::class,
-            $exception instanceof LaravelTokenMismatchException   => TokenMismatchException::class,
-            $exception instanceof ValidationException             => InvalidInputException::class,
-            $exception instanceof TooManyRequestsHttpException    => TooManyRequestsException::class,
-            $exception instanceof ServiceUnavailableHttpException => ServiceUnavailableException::class,
-            $exception instanceof PostTooLargeException           => PayloadTooLargeException::class,
-            $exception instanceof SymfonyHttpExceptionInterface   => HttpException::class,
-            default                                               => UnhandledException::class,
-        };
+        $mapped = self::resolveApiExceptionClass($exception);
 
         if ($mapped === HttpException::class && $exception instanceof SymfonyHttpExceptionInterface) {
             return self::mapGenericHttpException($exception, $meta, $headers);
         }
 
         return new $mapped($meta, $headers, $previous);
+    }
+
+    /**
+     * Resolve the API exception class that the given throwable maps to.
+     *
+     * The first source-type the throwable is an instance of wins, so the
+     * order of the map is significant: more specific source types must
+     * precede the broader interfaces they extend. Anything unmatched falls
+     * back to the unhandled exception.
+     *
+     * @param  \Throwable  $exception
+     * @return class-string<\SineMacula\ApiToolkit\Exceptions\ApiException>
+     */
+    private static function resolveApiExceptionClass(\Throwable $exception): string
+    {
+        foreach (self::exceptionMap() as $source => $target) {
+            if ($exception instanceof $source) {
+                return $target;
+            }
+        }
+
+        return UnhandledException::class;
+    }
+
+    /**
+     * The ordered map of source exception types to their API exception class.
+     *
+     * Ordering is significant: entries are evaluated top-to-bottom and the
+     * first match wins, so more specific types precede the broader
+     * interfaces they implement.
+     *
+     * @return array<class-string<\Throwable>, class-string<\SineMacula\ApiToolkit\Exceptions\ApiException>>
+     */
+    private static function exceptionMap(): array
+    {
+        // @phpstan-ignore return.type (values are class-strings; PHPStan widens the large map literal to string)
+        return [
+            NotFoundHttpException::class           => NotFoundException::class,
+            BackedEnumCaseNotFoundException::class => NotFoundException::class,
+            ModelNotFoundException::class          => NotFoundException::class,
+            SuspiciousOperationException::class    => NotFoundException::class,
+            RecordsNotFoundException::class        => NotFoundException::class,
+            MethodNotAllowedHttpException::class   => NotAllowedException::class,
+            BadRequestHttpException::class         => BadRequestException::class,
+            RequestExceptionInterface::class       => BadRequestException::class,
+            LaravelUnauthorizedException::class    => ForbiddenException::class,
+            AuthorizationException::class          => ForbiddenException::class,
+            AccessDeniedHttpException::class       => ForbiddenException::class,
+            AuthenticationException::class         => UnauthenticatedException::class,
+            LaravelTokenMismatchException::class   => TokenMismatchException::class,
+            ValidationException::class             => InvalidInputException::class,
+            TooManyRequestsHttpException::class    => TooManyRequestsException::class,
+            ServiceUnavailableHttpException::class => ServiceUnavailableException::class,
+            PostTooLargeException::class           => PayloadTooLargeException::class,
+            SymfonyHttpExceptionInterface::class   => HttpException::class,
+        ];
     }
 
     /**
@@ -146,8 +184,11 @@ class ApiExceptionHandler
      * @param  array<string, mixed>  $headers
      * @return \SineMacula\ApiToolkit\Exceptions\ApiException
      */
-    private static function mapGenericHttpException(SymfonyHttpExceptionInterface $exception, ?array $meta, array $headers): ApiException
-    {
+    private static function mapGenericHttpException(
+        SymfonyHttpExceptionInterface $exception,
+        ?array $meta,
+        array $headers,
+    ): ApiException {
         // Laravel's handler converts session token mismatches to a generic
         // 419 HttpException before render callbacks run; 419 has no
         // HttpStatus case, so map it back to the dedicated exception
@@ -228,9 +269,11 @@ class ApiExceptionHandler
     {
         Log::channel('api-exceptions')->error(self::convertExceptionToString($exception), self::getContext());
 
-        if (config('api-toolkit.logging.cloudwatch.enabled', false)) {
-            Log::channel('cloudwatch-api-exceptions')->error(self::convertExceptionToString($exception), self::getContext());
+        if (!config('api-toolkit.logging.cloudwatch.enabled', false)) {
+            return;
         }
+
+        Log::channel('cloudwatch-api-exceptions')->error(self::convertExceptionToString($exception), self::getContext());
     }
 
     /**
@@ -315,9 +358,11 @@ class ApiExceptionHandler
                 continue;
             }
 
-            if (is_array($value)) {
-                $data[$key] = self::redactArray($value, $needles);
+            if (!is_array($value)) {
+                continue;
             }
+
+            $data[$key] = self::redactArray($value, $needles);
         }
 
         return $data;

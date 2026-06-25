@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 $base = [
     'driver' => 'cloudwatch',
     'level'  => env('LOG_LEVEL', 'debug'),

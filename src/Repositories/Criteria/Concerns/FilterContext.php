@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace SineMacula\ApiToolkit\Repositories\Criteria\Concerns;
 
 /**
@@ -32,7 +34,6 @@ final class FilterContext
 
         /** The nesting depth (0 = top level) */
         private readonly int $depth,
-
     ) {}
 
     /**

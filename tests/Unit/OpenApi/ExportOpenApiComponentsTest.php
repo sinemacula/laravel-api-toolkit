@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Unit\OpenApi;
 
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -31,7 +33,7 @@ use Tests\TestCase;
  */
 #[CoversClass(ExportOpenApiComponents::class)]
 #[CoversClass(ExportResult::class)]
-class ExportOpenApiComponentsTest extends TestCase
+final class ExportOpenApiComponentsTest extends TestCase
 {
     /**
      * Set up each test.
@@ -55,8 +57,8 @@ class ExportOpenApiComponentsTest extends TestCase
     {
         $result = $this->export();
 
-        static::assertStringStartsWith('3.1', $result->document['openapi']);
-        static::assertArrayHasKey('components', $result->document);
+        self::assertStringStartsWith('3.1', $result->document['openapi']);
+        self::assertArrayHasKey('components', $result->document);
     }
 
     /**
@@ -69,7 +71,7 @@ class ExportOpenApiComponentsTest extends TestCase
     {
         $result = $this->export();
 
-        static::assertSame(2, $result->resourceCount);
+        self::assertSame(2, $result->resourceCount);
     }
 
     /**
@@ -82,15 +84,15 @@ class ExportOpenApiComponentsTest extends TestCase
     {
         $result = $this->export();
 
-        static::assertSame(
+        self::assertSame(
             count($result->document['components']['parameters']),
             $result->parameterCount,
         );
-        static::assertSame(
+        self::assertSame(
             count($result->document['components']['responses']),
             $result->responseCount,
         );
-        static::assertSame(1, $result->responseCount);
+        self::assertSame(1, $result->responseCount);
     }
 
     /**
@@ -103,8 +105,10 @@ class ExportOpenApiComponentsTest extends TestCase
     {
         $catalogue = $this->makeCatalogue();
 
+        assert($this->app !== null);
+
         $assembler = new OpenApiAssembler(
-            new ResourceSchemaBuilder($catalogue, new FieldTypeResolver(new SchemaIntrospector, new ColumnTypeMapper)),
+            new ResourceSchemaBuilder($catalogue, new FieldTypeResolver($this->app->make(SchemaIntrospector::class), new ColumnTypeMapper)),
             new QueryParameterBuilder($catalogue),
             new ErrorResponseBuilder($catalogue),
         );
@@ -120,7 +124,7 @@ class ExportOpenApiComponentsTest extends TestCase
      */
     private function makeCatalogue(): MetadataCatalogue
     {
-        $catalogue = static::createStub(MetadataCatalogue::class);
+        $catalogue = self::createStub(MetadataCatalogue::class);
         $catalogue->method('getResourceMap')->willReturn([
             User::class         => UserResource::class,
             Organization::class => OrganizationResource::class,

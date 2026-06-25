@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace SineMacula\ApiToolkit\Services;
 
 use SineMacula\ApiToolkit\Services\Enums\ServiceStatus;
@@ -34,7 +36,6 @@ final readonly class ServiceResult
 
         /** Optional exception captured on failure */
         public ?\Throwable $exception = null,
-
     ) {}
 
     /**

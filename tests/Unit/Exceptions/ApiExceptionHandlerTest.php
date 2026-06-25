@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Unit\Exceptions;
 
 use Illuminate\Auth\Access\AuthorizationException;
@@ -46,7 +48,7 @@ use Symfony\Component\HttpKernel\Exception\TooManyRequestsHttpException;
  * @internal
  */
 #[CoversClass(ApiExceptionHandler::class)]
-class ApiExceptionHandlerTest extends TestCase
+final class ApiExceptionHandlerTest extends TestCase
 {
     /** @var string Test API endpoint path. */
     private const string API_PATH = '/api/test';
@@ -76,11 +78,11 @@ class ApiExceptionHandlerTest extends TestCase
             }
         };
 
-        $exceptions->expects(static::once())
+        $exceptions->expects(self::once())
             ->method('report')
             ->willReturn($reportable);
 
-        $exceptions->expects(static::once())
+        $exceptions->expects(self::once())
             ->method('render');
 
         ApiExceptionHandler::handles($exceptions);
@@ -224,8 +226,11 @@ class ApiExceptionHandlerTest extends TestCase
      * @return void
      */
     #[DataProvider('exceptionMappingProvider')]
-    public function testRenderMapsExceptionsCorrectly(\Throwable $inputException, int $expectedHttpCode, int $expectedErrorCode): void
-    {
+    public function testRenderMapsExceptionsCorrectly(
+        \Throwable $inputException,
+        int $expectedHttpCode,
+        int $expectedErrorCode,
+    ): void {
         $request = Request::create(self::API_PATH, HttpMethod::GET->getVerb());
         $request->headers->set('Accept', self::ACCEPT_JSON);
 
@@ -732,12 +737,12 @@ class ApiExceptionHandlerTest extends TestCase
                 'sensitive-value',
             );
 
-            $frames_with_args = array_filter(
+            $framesWithArgs = array_filter(
                 $previous->getTrace(),
                 static fn (array $frame): bool => array_key_exists('args', $frame),
             );
 
-            static::assertNotEmpty($frames_with_args);
+            static::assertNotEmpty($framesWithArgs);
 
             $reflection = new \ReflectionMethod(ApiExceptionHandler::class, 'render');
             $response   = $reflection->invoke(null, $previous, $request);
@@ -768,13 +773,13 @@ class ApiExceptionHandlerTest extends TestCase
      */
     public function testHandlesReportCallbackInvokesLogApiException(): void
     {
-        $mock_channel = \Mockery::mock(LoggerInterface::class);
-        $mock_channel->shouldReceive('error')->once()->withAnyArgs();
+        $mockChannel = \Mockery::mock(LoggerInterface::class);
+        $mockChannel->shouldReceive('error')->once()->withAnyArgs();
 
         Log::shouldReceive('channel')
             ->with('api-exceptions')
             ->once()
-            ->andReturn($mock_channel);
+            ->andReturn($mockChannel);
 
         $reportable = new class {
             /**
@@ -786,12 +791,12 @@ class ApiExceptionHandlerTest extends TestCase
             }
         };
 
-        $captured_callback = null;
+        $capturedCallback = null;
 
         $exceptions = static::createStub(Exceptions::class);
         $exceptions->method('report')
-            ->willReturnCallback(function ($callback) use (&$captured_callback, $reportable) {
-                $captured_callback = $callback;
+            ->willReturnCallback(function ($callback) use (&$capturedCallback, $reportable): object {
+                $capturedCallback = $callback;
 
                 return $reportable;
             });
@@ -799,9 +804,9 @@ class ApiExceptionHandlerTest extends TestCase
 
         ApiExceptionHandler::handles($exceptions);
 
-        static::assertNotNull($captured_callback);
+        static::assertNotNull($capturedCallback);
 
-        $captured_callback(new BadRequestException);
+        $capturedCallback(new BadRequestException);
     }
 
     /**
@@ -811,13 +816,13 @@ class ApiExceptionHandlerTest extends TestCase
      */
     public function testLogApiExceptionLogsToApiExceptionsChannel(): void
     {
-        $mock_channel = \Mockery::mock(LoggerInterface::class);
-        $mock_channel->shouldReceive('error')->once()->withAnyArgs();
+        $mockChannel = \Mockery::mock(LoggerInterface::class);
+        $mockChannel->shouldReceive('error')->once()->withAnyArgs();
 
         Log::shouldReceive('channel')
             ->with('api-exceptions')
             ->once()
-            ->andReturn($mock_channel);
+            ->andReturn($mockChannel);
 
         $exception  = new BadRequestException;
         $reflection = new \ReflectionMethod(ApiExceptionHandler::class, 'logApiException');
@@ -834,21 +839,21 @@ class ApiExceptionHandlerTest extends TestCase
     {
         config()->set('api-toolkit.logging.cloudwatch.enabled', true);
 
-        $mock_api_channel = \Mockery::mock(LoggerInterface::class);
-        $mock_api_channel->shouldReceive('error')->once()->withAnyArgs();
+        $mockApiChannel = \Mockery::mock(LoggerInterface::class);
+        $mockApiChannel->shouldReceive('error')->once()->withAnyArgs();
 
-        $mock_cw_channel = \Mockery::mock(LoggerInterface::class);
-        $mock_cw_channel->shouldReceive('error')->once()->withAnyArgs();
+        $mockCwChannel = \Mockery::mock(LoggerInterface::class);
+        $mockCwChannel->shouldReceive('error')->once()->withAnyArgs();
 
         Log::shouldReceive('channel')
             ->with('api-exceptions')
             ->once()
-            ->andReturn($mock_api_channel);
+            ->andReturn($mockApiChannel);
 
         Log::shouldReceive('channel')
             ->with('cloudwatch-api-exceptions')
             ->once()
-            ->andReturn($mock_cw_channel);
+            ->andReturn($mockCwChannel);
 
         $exception  = new BadRequestException;
         $reflection = new \ReflectionMethod(ApiExceptionHandler::class, 'logApiException');
@@ -1026,6 +1031,7 @@ class ApiExceptionHandlerTest extends TestCase
      * @param  mixed  $app
      * @return void
      */
+    #[\Override]
     protected function defineEnvironment(mixed $app): void
     {
         /** @var \Illuminate\Translation\Translator $translator */

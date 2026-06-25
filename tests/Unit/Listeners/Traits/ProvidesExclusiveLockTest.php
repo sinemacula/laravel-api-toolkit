@@ -1,11 +1,13 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Unit\Listeners\Traits;
 
 use Illuminate\Contracts\Cache\Lock;
 use Illuminate\Support\Facades\Cache;
 use PHPUnit\Framework\Attributes\CoversTrait;
-use SineMacula\ApiToolkit\Listeners\Traits\ProvidesExclusiveLock;
+use SineMacula\ApiToolkit\Listeners\Concerns\ProvidesExclusiveLock;
 use Tests\Fixtures\Listeners\ChildExclusiveLockListenerFixture;
 use Tests\TestCase;
 
@@ -18,7 +20,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversTrait(ProvidesExclusiveLock::class)]
-class ProvidesExclusiveLockTest extends TestCase
+final class ProvidesExclusiveLockTest extends TestCase
 {
     /**
      * Test that handleWithLock acquires lock and executes callback.
@@ -35,7 +37,7 @@ class ProvidesExclusiveLockTest extends TestCase
             $executed = true;
         });
 
-        static::assertTrue($executed);
+        self::assertTrue($executed);
     }
 
     /**
@@ -52,10 +54,11 @@ class ProvidesExclusiveLockTest extends TestCase
             // Noop
         });
 
-        // Acquire the same lock again; it should succeed if the previous lock was released
+        // Acquire the same lock again; it should succeed if the previous lock
+        // was released
         $lock = Cache::lock('LISTENER_LOCK:release-test', 10);
 
-        static::assertTrue($lock->get());
+        self::assertTrue($lock->get());
 
         $lock->release();
     }
@@ -79,7 +82,7 @@ class ProvidesExclusiveLockTest extends TestCase
             $executed = true;
         });
 
-        static::assertFalse($executed);
+        self::assertFalse($executed);
 
         $lock->release();
     }
@@ -105,7 +108,7 @@ class ProvidesExclusiveLockTest extends TestCase
         }, 'CUSTOM_PREFIX');
 
         // Should not execute because the lock with this prefix is held
-        static::assertFalse($executed);
+        self::assertFalse($executed);
 
         $lock->release();
     }
@@ -131,7 +134,7 @@ class ProvidesExclusiveLockTest extends TestCase
         // The lock should be released; try to acquire again
         $lock = Cache::lock('LISTENER_LOCK:exception-id', 10);
 
-        static::assertTrue($lock->get());
+        self::assertTrue($lock->get());
 
         $lock->release();
     }
@@ -151,7 +154,7 @@ class ProvidesExclusiveLockTest extends TestCase
             $executed = true;
         });
 
-        static::assertTrue($executed);
+        self::assertTrue($executed);
     }
 
     /**
@@ -174,7 +177,7 @@ class ProvidesExclusiveLockTest extends TestCase
             $executed = true;
         }, '');
 
-        static::assertFalse($executed);
+        self::assertFalse($executed);
 
         $lock->release();
     }
@@ -209,7 +212,7 @@ class ProvidesExclusiveLockTest extends TestCase
             $executed = true;
         });
 
-        static::assertTrue($executed);
+        self::assertTrue($executed);
     }
 
     /**
