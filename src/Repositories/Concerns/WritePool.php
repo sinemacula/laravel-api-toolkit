@@ -190,10 +190,8 @@ final class WritePool
      *
      * @throws \SineMacula\ApiToolkit\Exceptions\WritePoolFlushException
      */
-    private function flushTableTransactionally(
-        WritePoolFlushContext $context,
-        WritePoolFlushAccumulator $accumulator,
-    ): void {
+    private function flushTableTransactionally(WritePoolFlushContext $context, WritePoolFlushAccumulator $accumulator): void
+    {
         try {
             DB::transaction(function () use ($context): void {
 
@@ -234,11 +232,8 @@ final class WritePool
      *
      * @throws \SineMacula\ApiToolkit\Exceptions\WritePoolFlushException
      */
-    private function handleTableRollback(
-        WritePoolFlushContext $context,
-        WritePoolFlushAccumulator $accumulator,
-        \Throwable $exception,
-    ): void {
+    private function handleTableRollback(WritePoolFlushContext $context, WritePoolFlushAccumulator $accumulator, \Throwable $exception): void
+    {
 
         $records = array_merge(...$context->chunks());
 
@@ -301,12 +296,8 @@ final class WritePool
      *
      * @throws \SineMacula\ApiToolkit\Exceptions\WritePoolFlushException
      */
-    private function handleChunkFailure(
-        WritePoolFlushContext $context,
-        WritePoolFlushAccumulator $accumulator,
-        array $chunk,
-        \Throwable $exception,
-    ): void {
+    private function handleChunkFailure(WritePoolFlushContext $context, WritePoolFlushAccumulator $accumulator, array $chunk, \Throwable $exception): void
+    {
 
         $accumulator->recordFailure($context->table(), $chunk, $exception);
 

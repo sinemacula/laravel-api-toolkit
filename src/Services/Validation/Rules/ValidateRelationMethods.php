@@ -75,12 +75,8 @@ final class ValidateRelationMethods implements SchemaValidationRule
      * @param  string  $relationMethod
      * @return \SineMacula\ApiToolkit\Services\Validation\SchemaValidationError|null
      */
-    private function validateRelationMethod(
-        string $resourceClass,
-        string $fieldKey,
-        string $modelClass,
-        string $relationMethod,
-    ): ?SchemaValidationError {
+    private function validateRelationMethod(string $resourceClass, string $fieldKey, string $modelClass, string $relationMethod): ?SchemaValidationError
+    {
         if (!method_exists($modelClass, $relationMethod)) {
             return new SchemaValidationError(
                 resourceClass: $resourceClass,
@@ -133,11 +129,8 @@ final class ValidateRelationMethods implements SchemaValidationRule
      * @param  string  $modelClass
      * @return string
      */
-    private function describeReturnTypeDefect(
-        ?\ReflectionType $returnType,
-        string $relationMethod,
-        string $modelClass,
-    ): string {
+    private function describeReturnTypeDefect(?\ReflectionType $returnType, string $relationMethod, string $modelClass): string
+    {
         if ($returnType === null) {
             return sprintf('Relation method "%s" on model "%s" has no return type hint', $relationMethod, $modelClass);
         }

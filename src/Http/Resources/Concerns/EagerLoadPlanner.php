@@ -137,14 +137,8 @@ final class EagerLoadPlanner
      * @param  array<string, bool>  $visited
      * @return void
      */
-    private static function walkRelations(
-        string $resourceClass,
-        array $fields,
-        string $prefix,
-        array &$plain,
-        array &$scoped,
-        array &$visited,
-    ): void {
+    private static function walkRelations(string $resourceClass, array $fields, string $prefix, array &$plain, array &$scoped, array &$visited): void
+    {
 
         $schema = SchemaCompiler::compile($resourceClass);
 
@@ -204,12 +198,8 @@ final class EagerLoadPlanner
      * @param  array<string, mixed>  $scoped
      * @return void
      */
-    private static function addEagerLoadPath(
-        CompiledFieldDefinition $definition,
-        string $fullPath,
-        array &$plain,
-        array &$scoped,
-    ): void {
+    private static function addEagerLoadPath(CompiledFieldDefinition $definition, string $fullPath, array &$plain, array &$scoped): void
+    {
         $constraint = $definition->constraint;
 
         if (!($constraint instanceof \Closure)) {
@@ -258,13 +248,8 @@ final class EagerLoadPlanner
      * @param  array<string, bool>  $visited
      * @return void
      */
-    private static function recurseIntoChild(
-        CompiledFieldDefinition $definition,
-        string $fullPath,
-        array &$plain,
-        array &$scoped,
-        array &$visited,
-    ): void {
+    private static function recurseIntoChild(CompiledFieldDefinition $definition, string $fullPath, array &$plain, array &$scoped, array &$visited): void
+    {
         if (!self::shouldRecurseIntoChild($definition)) {
             return;
         }
@@ -394,11 +379,8 @@ final class EagerLoadPlanner
      * @param  \SineMacula\ApiToolkit\Schema\CompiledCountDefinition  $definition
      * @return bool
      */
-    private static function shouldIncludeCount(
-        string $presentKey,
-        ?array $requested,
-        CompiledCountDefinition $definition,
-    ): bool {
+    private static function shouldIncludeCount(string $presentKey, ?array $requested, CompiledCountDefinition $definition): bool
+    {
         if (is_array($requested) && $requested !== []) {
             return in_array($presentKey, $requested, true);
         }

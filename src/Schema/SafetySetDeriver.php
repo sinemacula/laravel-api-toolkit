@@ -40,12 +40,8 @@ final class SafetySetDeriver
      * @param  array<int, string>  $orderColumns
      * @return array<int, string>
      */
-    public function derive(
-        Model $model,
-        array $eagerLoadedRelations,
-        array $aliasedScalarColumns,
-        array $orderColumns,
-    ): array {
+    public function derive(Model $model, array $eagerLoadedRelations, array $aliasedScalarColumns, array $orderColumns): array
+    {
         $columns = [$model->getKeyName()];
 
         $softDeleteColumn = $this->schemaIntrospector->getDeletedAtColumn($model);
