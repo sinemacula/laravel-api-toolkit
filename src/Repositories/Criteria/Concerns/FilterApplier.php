@@ -74,12 +74,8 @@ final class FilterApplier
      * @param  \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext  $context
      * @return \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>
      */
-    private function applyFilters(
-        Builder $query,
-        array|string|null $filters,
-        ?string $field,
-        FilterContext $context,
-    ): Builder {
+    private function applyFilters(Builder $query, array|string|null $filters, ?string $field, FilterContext $context): Builder
+    {
         if (empty($filters)) {
             return $query;
         }
@@ -105,13 +101,8 @@ final class FilterApplier
      * @param  \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext  $context
      * @return void
      */
-    private function applyFilterEntry(
-        Builder $query,
-        string $key,
-        mixed $value,
-        ?string $field,
-        FilterContext $context,
-    ): void {
+    private function applyFilterEntry(Builder $query, string $key, mixed $value, ?string $field, FilterContext $context): void
+    {
         if ($this->isConditionOperator($key)) {
             $this->applyConditionOperator($query, $key, $value, $field, $context);
             return;
@@ -176,13 +167,8 @@ final class FilterApplier
      * @param  \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext  $context
      * @return void
      */
-    private function applyConditionOperator(
-        Builder $query,
-        string $operator,
-        mixed $value,
-        ?string $field,
-        FilterContext $context,
-    ): void {
+    private function applyConditionOperator(Builder $query, string $operator, mixed $value, ?string $field, FilterContext $context): void
+    {
         if (in_array($operator, ['$has', self::OPERATOR_HASNT], true)) {
 
             $this->applyHasFilter($query, $value, $operator, $context);
@@ -292,12 +278,8 @@ final class FilterApplier
      * @param  \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext  $context
      * @return void
      */
-    private function applyHasFilter(
-        Builder $query,
-        array|string $relations,
-        string $operator,
-        FilterContext $context,
-    ): void {
+    private function applyHasFilter(Builder $query, array|string $relations, string $operator, FilterContext $context): void
+    {
         $baseMethod = $this->relationalMethodMap[$operator];
         $method     = ($context->getLogicalOperator() === '$or' && $operator === '$has') ? 'orWhereHas' : $baseMethod;
 
@@ -324,12 +306,8 @@ final class FilterApplier
      * @param  (\Closure(\Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>): void)|null  $callback
      * @return void
      */
-    private function applyRelationalMethod(
-        Builder $query,
-        string $method,
-        string $relation,
-        ?\Closure $callback = null,
-    ): void {
+    private function applyRelationalMethod(Builder $query, string $method, string $relation, ?\Closure $callback = null): void
+    {
         match ($method) {
             'orWhereHas'      => $query->orWhereHas($relation, $callback),
             'whereDoesntHave' => $query->whereDoesntHave($relation, $callback),

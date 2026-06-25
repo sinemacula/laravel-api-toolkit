@@ -50,13 +50,8 @@ final class NotificationListener
      * @param  string  $channel
      * @return void
      */
-    private function log(
-        string $level,
-        string $message,
-        Notification $notification,
-        object $notifiable,
-        string $channel,
-    ): void {
+    private function log(string $level, string $message, Notification $notification, object $notifiable, string $channel): void
+    {
         $excludedClasses = config('api-toolkit.notifications.excluded_classes', []);
 
         if (in_array($notification::class, $excludedClasses, true)) {

@@ -130,11 +130,8 @@ final class WritePoolFlushAccumulator
      * @param  array<int, string>  $flushedTables
      * @return \SineMacula\ApiToolkit\Repositories\Concerns\WritePoolFlushResult
      */
-    private function buildResult(
-        int $retainedRecordCount,
-        int $droppedRecordCount,
-        array $flushedTables = [],
-    ): WritePoolFlushResult {
+    private function buildResult(int $retainedRecordCount, int $droppedRecordCount, array $flushedTables = []): WritePoolFlushResult
+    {
         return new WritePoolFlushResult(
             successCount: $this->successCount,
             failureCount: $this->failureCount,

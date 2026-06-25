@@ -657,11 +657,8 @@ final class RespondsWithStreamTest extends TestCase
              * @param  string  $filename
              * @return \Symfony\Component\HttpFoundation\StreamedResponse
              */
-            public function callCreateStreamedResponse(
-                callable $callback,
-                string $contentType,
-                string $filename,
-            ): StreamedResponse {
+            public function callCreateStreamedResponse(callable $callback, string $contentType, string $filename): StreamedResponse
+            {
                 return $this->createStreamedResponse($callback, $contentType, $filename);
             }
         };
