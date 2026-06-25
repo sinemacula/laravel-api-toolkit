@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace SineMacula\ApiToolkit\Models;
 
 use Illuminate\Database\Eloquent\Builder;
@@ -14,7 +16,7 @@ use Illuminate\Database\Eloquent\Model;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-class LogMessage extends Model
+final class LogMessage extends Model
 {
     use HasUuids, MassPrunable;
 
@@ -39,7 +41,7 @@ class LogMessage extends Model
     {
         $days = config('logging.channels.database.days');
 
-        return static::query()->where('created_at', '<=', now()->subDays(is_numeric($days) ? (int) $days : 0));
+        return self::query()->where('created_at', '<=', now()->subDays(is_numeric($days) ? (int) $days : 0));
     }
 
     /**

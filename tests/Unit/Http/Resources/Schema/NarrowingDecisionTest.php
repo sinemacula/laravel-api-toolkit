@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Unit\Http\Resources\Schema;
 
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -15,7 +17,7 @@ use SineMacula\ApiToolkit\Schema\NarrowingDecision;
  * @internal
  */
 #[CoversClass(NarrowingDecision::class)]
-class NarrowingDecisionTest extends TestCase
+final class NarrowingDecisionTest extends TestCase
 {
     /**
      * Test that narrow carries the given columns and no reason.
@@ -26,9 +28,9 @@ class NarrowingDecisionTest extends TestCase
     {
         $decision = NarrowingDecision::narrow(['a', 'b']);
 
-        static::assertTrue($decision->shouldNarrow());
-        static::assertSame(['a', 'b'], $decision->columns());
-        static::assertNull($decision->reason());
+        self::assertTrue($decision->shouldNarrow());
+        self::assertSame(['a', 'b'], $decision->columns());
+        self::assertNull($decision->reason());
     }
 
     /**
@@ -40,7 +42,7 @@ class NarrowingDecisionTest extends TestCase
     {
         $decision = NarrowingDecision::narrow([2 => 'a', 5 => 'b']);
 
-        static::assertSame(['a', 'b'], $decision->columns());
+        self::assertSame(['a', 'b'], $decision->columns());
     }
 
     /**
@@ -52,9 +54,9 @@ class NarrowingDecisionTest extends TestCase
     {
         $decision = NarrowingDecision::fallback('full_label');
 
-        static::assertFalse($decision->shouldNarrow());
-        static::assertSame([], $decision->columns());
-        static::assertSame('full_label', $decision->reason());
+        self::assertFalse($decision->shouldNarrow());
+        self::assertSame([], $decision->columns());
+        self::assertSame('full_label', $decision->reason());
     }
 
     /**
@@ -67,7 +69,7 @@ class NarrowingDecisionTest extends TestCase
     {
         $decision = NarrowingDecision::fallback();
 
-        static::assertFalse($decision->shouldNarrow());
-        static::assertNull($decision->reason());
+        self::assertFalse($decision->shouldNarrow());
+        self::assertNull($decision->reason());
     }
 }

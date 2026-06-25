@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Integration;
 
 use Illuminate\Database\Eloquent\Builder;
@@ -36,8 +38,9 @@ use Tests\TestCase;
  */
 #[CoversClass(ColumnProjectionApplier::class)]
 #[CoversClass(ApiCriteria::class)]
-class ColumnNarrowingIntegrationTest extends TestCase
+final class ColumnNarrowingIntegrationTest extends TestCase
 {
+    /** @var string The route URI used to exercise the test endpoint. */
     private const string TEST_URL = '/test';
 
     /**
@@ -91,9 +94,9 @@ class ColumnNarrowingIntegrationTest extends TestCase
         $columns  = $this->captureUserColumns($fields);
         $sql      = $this->captureUserSql($fields, 'users');
 
-        static::assertSame(['*'], $columns);
-        static::assertStringContainsString('users.*', $this->unquote($sql));
-        static::assertSame($baseline, $this->serialiseUsers($fields));
+        self::assertSame(['*'], $columns);
+        self::assertStringContainsString('users.*', $this->unquote($sql));
+        self::assertSame($baseline, $this->serialiseUsers($fields));
     }
 
     /**
@@ -110,11 +113,11 @@ class ColumnNarrowingIntegrationTest extends TestCase
 
         $columns = $this->captureUserColumns('name,email,status,display_label');
 
-        static::assertNotContains('*', $columns);
-        static::assertContains('name', $columns);
-        static::assertContains('email', $columns);
-        static::assertLessThan(count($this->userColumns()), count($columns));
-        static::assertSame($off, $this->serialiseUsers('name,email,status,display_label'));
+        self::assertNotContains('*', $columns);
+        self::assertContains('name', $columns);
+        self::assertContains('email', $columns);
+        self::assertLessThan(count($this->userColumns()), count($columns));
+        self::assertSame($off, $this->serialiseUsers('name,email,status,display_label'));
     }
 
     /**
@@ -131,15 +134,16 @@ class ColumnNarrowingIntegrationTest extends TestCase
 
         $columns = $this->captureUserColumns('name,email,full_label');
 
-        static::assertSame(['*'], $columns);
-        static::assertSame($off, $this->serialiseUsers('name,email,full_label'));
+        self::assertSame(['*'], $columns);
+        self::assertSame($off, $this->serialiseUsers('name,email,full_label'));
     }
 
     /**
      * With the flag on, the safety set retains the primary key, soft-delete
      * column, append source, and order column so every scalar/accessor field
      * resolves and the response is byte-identical; a requested relation field
-     * is opaque, so the query safely falls back and the relation still hydrates.
+     * is opaque, so the query safely falls back and the relation still
+     * hydrates.
      *
      * @return void
      */
@@ -152,15 +156,15 @@ class ColumnNarrowingIntegrationTest extends TestCase
 
         $columns = $this->captureArticleColumns('title,slug,summary_excerpt', 'views:desc');
 
-        static::assertNotContains('*', $columns);
-        static::assertContains('id', $columns);
-        static::assertContains('deleted_at', $columns);
-        static::assertContains('views', $columns);
-        static::assertContains('summary', $columns);
-        static::assertSame($scalarOff, $this->serialiseArticles('title,slug,summary_excerpt', 'views:desc'));
+        self::assertNotContains('*', $columns);
+        self::assertContains('id', $columns);
+        self::assertContains('deleted_at', $columns);
+        self::assertContains('views', $columns);
+        self::assertContains('summary', $columns);
+        self::assertSame($scalarOff, $this->serialiseArticles('title,slug,summary_excerpt', 'views:desc'));
 
-        static::assertSame(['*'], $this->captureArticleColumns('title,author', 'views:desc'));
-        static::assertSame($relationOff, $this->serialiseArticles('title,author', 'views:desc'));
+        self::assertSame(['*'], $this->captureArticleColumns('title,author', 'views:desc'));
+        self::assertSame($relationOff, $this->serialiseArticles('title,author', 'views:desc'));
     }
 
     /**
@@ -179,15 +183,15 @@ class ColumnNarrowingIntegrationTest extends TestCase
 
         $columns = $this->captureArticleColumns('id,author_name', null);
 
-        static::assertNotContains('*', $columns);
-        static::assertContains('user_id', $columns);
-        static::assertSame($off, $this->serialiseArticles('id,author_name', null));
+        self::assertNotContains('*', $columns);
+        self::assertContains('user_id', $columns);
+        self::assertSame($off, $this->serialiseArticles('id,author_name', null));
     }
 
     /**
-     * A field set changed imperatively after the query executes cannot reach the
-     * built query, so an opaque field set leaves the executed query selecting all
-     * columns while the late field set still renders correctly.
+     * A field set changed imperatively after the query executes cannot reach
+     * the built query, so an opaque field set leaves the executed query
+     * selecting all columns while the late field set still renders correctly.
      *
      * @return void
      */
@@ -205,19 +209,19 @@ class ColumnNarrowingIntegrationTest extends TestCase
 
         $sql = $this->lastSelectSql('users');
 
-        static::assertNotNull($user);
-        static::assertSame(['*'], $this->normaliseColumns($query->getQuery()->columns));
-        static::assertStringContainsString('users.*', $this->unquote($sql));
+        self::assertNotNull($user);
+        self::assertSame(['*'], $this->normaliseColumns($query->getQuery()->columns));
+        self::assertStringContainsString('users.*', $this->unquote($sql));
 
         $resource = (new UserResource($user))->withFields(['status']);
         $data     = $resource->resolve(Request::create(self::TEST_URL));
 
-        static::assertArrayHasKey('status', $data);
+        self::assertArrayHasKey('status', $data);
     }
 
     /**
-     * A narrowed select survives pagination because the hard-coded paginate('*')
-     * only applies when no columns have been set on the query.
+     * A narrowed select survives pagination because the hard-coded
+     * paginate('*') only applies when no columns have been set on the query.
      *
      * @return void
      */
@@ -233,19 +237,21 @@ class ColumnNarrowingIntegrationTest extends TestCase
 
         $sql = $this->lastSelectSql();
 
-        static::assertStringContainsString('name', $this->unquote($sql));
-        static::assertStringNotContainsString('select *', $sql);
+        self::assertStringContainsString('name', $this->unquote($sql));
+        self::assertStringNotContainsString('select *', $sql);
     }
 
     /**
-     * Narrowing reduces both the base-query column count and the hydrated model's
-     * fetched attribute payload while keeping the serialised API response identical.
+     * Narrowing reduces both the base-query column count and the hydrated
+     * model's fetched attribute payload while keeping the serialised API
+     * response identical.
      *
      * The response is byte-identical by design (narrowing changes the SQL, not
      * the output). The genuine data-layer reduction is proven by comparing the
      * serialised attribute map of a model fetched with a narrowed SELECT (which
-     * omits heavy columns like `body` from the result set) against a model fetched
-     * with a full SELECT – the narrowed model's attributes must weigh less.
+     * omits heavy columns like `body` from the result set) against a model
+     * fetched with a full SELECT – the narrowed model's attributes must weigh
+     * less.
      *
      * @return void
      */
@@ -263,15 +269,15 @@ class ColumnNarrowingIntegrationTest extends TestCase
         $narrowedBytes = strlen(serialize($narrowedModel->getAttributes()));
         $onResponse    = $this->serialiseArticles('title,slug,status', null);
 
-        static::assertNotContains('*', $onColumns);
-        static::assertLessThan(count($offColumns), count($onColumns));
-        static::assertLessThan($fullBytes, $narrowedBytes);
-        static::assertSame($offResponse, $onResponse);
+        self::assertNotContains('*', $onColumns);
+        self::assertLessThan(count($offColumns), count($onColumns));
+        self::assertLessThan($fullBytes, $narrowedBytes);
+        self::assertSame($offResponse, $onResponse);
     }
 
     /**
-     * A scalar-only resource narrows with zero annotation and reuses its compiled
-     * field-column map across requests of the same type.
+     * A scalar-only resource narrows with zero annotation and reuses its
+     * compiled field-column map across requests of the same type.
      *
      * @return void
      */
@@ -281,13 +287,13 @@ class ColumnNarrowingIntegrationTest extends TestCase
 
         $columns = $this->captureArticleColumns('title,slug', null);
 
-        static::assertNotContains('*', $columns);
-        static::assertContains('title', $columns);
+        self::assertNotContains('*', $columns);
+        self::assertContains('title', $columns);
 
         $first  = FieldColumnMapper::for(ArticleResource::class);
         $second = FieldColumnMapper::for(ArticleResource::class);
 
-        static::assertSame($first, $second);
+        self::assertSame($first, $second);
     }
 
     /**
@@ -413,7 +419,8 @@ class ColumnNarrowingIntegrationTest extends TestCase
     }
 
     /**
-     * Apply the criteria chain to an article query bound to the article resource.
+     * Apply the criteria chain to an article query bound to the article
+     * resource.
      *
      * @return \Illuminate\Database\Eloquent\Builder<\Tests\Fixtures\Models\Article>
      */
@@ -499,9 +506,9 @@ class ColumnNarrowingIntegrationTest extends TestCase
      * Fetch the first article row under the current narrowing config for
      * attribute-payload comparison.
      *
-     * The caller is responsible for setting the narrow_columns config flag before
-     * invoking this helper; applyArticleCriteria() honours whatever is currently
-     * configured.
+     * The caller is responsible for setting the narrow_columns config flag
+     * before invoking this helper; applyArticleCriteria() honours whatever is
+     * currently configured.
      *
      * @return \Tests\Fixtures\Models\Article
      */

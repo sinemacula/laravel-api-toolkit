@@ -1,12 +1,14 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Unit\Http\Middleware;
 
 use Illuminate\Routing\Middleware\ThrottleRequestsWithRedis as BaseThrottleRequestsWithRedis;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
+use SineMacula\ApiToolkit\Http\Middleware\Concerns\ThrottleRequestsTrait;
 use SineMacula\ApiToolkit\Http\Middleware\ThrottleRequestsWithRedis;
-use SineMacula\ApiToolkit\Http\Middleware\Traits\ThrottleRequestsTrait;
 
 /**
  * Tests for the ThrottleRequestsWithRedis middleware.
@@ -17,7 +19,7 @@ use SineMacula\ApiToolkit\Http\Middleware\Traits\ThrottleRequestsTrait;
  * @internal
  */
 #[CoversClass(ThrottleRequestsWithRedis::class)]
-class ThrottleRequestsWithRedisTest extends TestCase
+final class ThrottleRequestsWithRedisTest extends TestCase
 {
     /**
      * Test that the middleware extends Laravel's ThrottleRequestsWithRedis.
@@ -28,8 +30,8 @@ class ThrottleRequestsWithRedisTest extends TestCase
     {
         $parents = class_parents(ThrottleRequestsWithRedis::class);
 
-        static::assertIsArray($parents);
-        static::assertArrayHasKey(BaseThrottleRequestsWithRedis::class, $parents);
+        self::assertIsArray($parents);
+        self::assertArrayHasKey(BaseThrottleRequestsWithRedis::class, $parents);
     }
 
     /**
@@ -41,6 +43,6 @@ class ThrottleRequestsWithRedisTest extends TestCase
     {
         $traits = class_uses(ThrottleRequestsWithRedis::class);
 
-        static::assertArrayHasKey(ThrottleRequestsTrait::class, $traits);
+        self::assertArrayHasKey(ThrottleRequestsTrait::class, $traits);
     }
 }

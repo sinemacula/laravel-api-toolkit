@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Unit\Services\Contracts;
 
 use PHPUnit\Framework\Attributes\CoversNothing;
@@ -15,7 +17,7 @@ use SineMacula\ApiToolkit\Services\Contracts\ServiceConcern;
  * @internal
  */
 #[CoversNothing]
-class ServiceConcernTest extends TestCase
+final class ServiceConcernTest extends TestCase
 {
     /**
      * Test that the ServiceConcern interface exists and is an interface.
@@ -24,11 +26,11 @@ class ServiceConcernTest extends TestCase
      */
     public function testServiceConcernInterfaceExists(): void
     {
-        static::assertTrue(interface_exists(ServiceConcern::class));
+        self::assertTrue(interface_exists(ServiceConcern::class));
 
         $reflection = new \ReflectionClass(ServiceConcern::class);
 
-        static::assertTrue($reflection->isInterface());
+        self::assertTrue($reflection->isInterface());
     }
 
     /**
@@ -41,26 +43,26 @@ class ServiceConcernTest extends TestCase
     {
         $reflection = new \ReflectionClass(ServiceConcern::class);
 
-        static::assertTrue($reflection->hasMethod('execute'));
+        self::assertTrue($reflection->hasMethod('execute'));
 
         $method     = $reflection->getMethod('execute');
         $parameters = $method->getParameters();
 
-        static::assertCount(2, $parameters);
+        self::assertCount(2, $parameters);
 
         $serviceParam = $parameters[0]->getType();
 
-        static::assertInstanceOf(\ReflectionNamedType::class, $serviceParam);
-        static::assertSame('SineMacula\ApiToolkit\Services\Service', $serviceParam->getName());
+        self::assertInstanceOf(\ReflectionNamedType::class, $serviceParam);
+        self::assertSame('SineMacula\ApiToolkit\Services\Service', $serviceParam->getName());
 
         $nextParam = $parameters[1]->getType();
 
-        static::assertInstanceOf(\ReflectionNamedType::class, $nextParam);
-        static::assertSame(\Closure::class, $nextParam->getName());
+        self::assertInstanceOf(\ReflectionNamedType::class, $nextParam);
+        self::assertSame(\Closure::class, $nextParam->getName());
 
         $returnType = $method->getReturnType();
 
-        static::assertInstanceOf(\ReflectionNamedType::class, $returnType);
-        static::assertSame('bool', $returnType->getName());
+        self::assertInstanceOf(\ReflectionNamedType::class, $returnType);
+        self::assertSame('bool', $returnType->getName());
     }
 }

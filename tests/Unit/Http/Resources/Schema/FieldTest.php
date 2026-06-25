@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Unit\Http\Resources\Schema;
 
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -18,7 +20,7 @@ use SineMacula\ApiToolkit\Schema\OpenApiFieldSchema;
  * @internal
  */
 #[CoversClass(Field::class)]
-class FieldTest extends TestCase
+final class FieldTest extends TestCase
 {
     /**
      * Test that scalar creates a field with the given name.
@@ -31,8 +33,8 @@ class FieldTest extends TestCase
 
         $array = $field->toArray();
 
-        static::assertArrayHasKey('email', $array);
-        static::assertSame([], $array['email']);
+        self::assertArrayHasKey('email', $array);
+        self::assertSame([], $array['email']);
     }
 
     /**
@@ -46,8 +48,8 @@ class FieldTest extends TestCase
 
         $array = $field->toArray();
 
-        static::assertArrayHasKey('email', $array);
-        static::assertArrayNotHasKey('email_address', $array);
+        self::assertArrayHasKey('email', $array);
+        self::assertArrayNotHasKey('email_address', $array);
     }
 
     /**
@@ -59,8 +61,8 @@ class FieldTest extends TestCase
     {
         $array = Field::scalar('email')->filterable()->sortable()->toArray();
 
-        static::assertSame('email', $array['email']['filterable']);
-        static::assertSame('email', $array['email']['sortable']);
+        self::assertSame('email', $array['email']['filterable']);
+        self::assertSame('email', $array['email']['sortable']);
     }
 
     /**
@@ -73,7 +75,7 @@ class FieldTest extends TestCase
     {
         $array = Field::scalar('email_address', 'email')->filterable()->toArray();
 
-        static::assertSame('email_address', $array['email']['filterable']);
+        self::assertSame('email_address', $array['email']['filterable']);
     }
 
     /**
@@ -85,8 +87,8 @@ class FieldTest extends TestCase
     {
         $array = Field::scalar('email')->toArray();
 
-        static::assertArrayNotHasKey('filterable', $array['email']);
-        static::assertArrayNotHasKey('sortable', $array['email']);
+        self::assertArrayNotHasKey('filterable', $array['email']);
+        self::assertArrayNotHasKey('sortable', $array['email']);
     }
 
     /**
@@ -100,8 +102,8 @@ class FieldTest extends TestCase
 
         $array = $field->toArray();
 
-        static::assertArrayHasKey('display_name', $array);
-        static::assertSame('name', $array['display_name']['accessor']);
+        self::assertArrayHasKey('display_name', $array);
+        self::assertSame('name', $array['display_name']['accessor']);
     }
 
     /**
@@ -116,7 +118,7 @@ class FieldTest extends TestCase
 
         $array = $field->toArray();
 
-        static::assertSame($accessor, $array['display_name']['accessor']);
+        self::assertSame($accessor, $array['display_name']['accessor']);
     }
 
     /**
@@ -130,9 +132,9 @@ class FieldTest extends TestCase
 
         $array = $field->toArray();
 
-        static::assertArrayHasKey('created_at', $array);
-        static::assertArrayHasKey('accessor', $array['created_at']);
-        static::assertIsCallable($array['created_at']['accessor']);
+        self::assertArrayHasKey('created_at', $array);
+        self::assertArrayHasKey('accessor', $array['created_at']);
+        self::assertIsCallable($array['created_at']['accessor']);
     }
 
     /**
@@ -146,9 +148,9 @@ class FieldTest extends TestCase
 
         $array = $field->toArray();
 
-        static::assertArrayHasKey('birth_date', $array);
-        static::assertArrayHasKey('accessor', $array['birth_date']);
-        static::assertIsCallable($array['birth_date']['accessor']);
+        self::assertArrayHasKey('birth_date', $array);
+        self::assertArrayHasKey('accessor', $array['birth_date']);
+        self::assertIsCallable($array['birth_date']['accessor']);
     }
 
     /**
@@ -163,8 +165,8 @@ class FieldTest extends TestCase
 
         $array = $field->toArray();
 
-        static::assertArrayHasKey('full_name', $array);
-        static::assertSame($compute, $array['full_name']['compute']);
+        self::assertArrayHasKey('full_name', $array);
+        self::assertSame($compute, $array['full_name']['compute']);
     }
 
     /**
@@ -179,8 +181,8 @@ class FieldTest extends TestCase
 
         $array = $field->toArray();
 
-        static::assertArrayHasKey('display_name', $array);
-        static::assertArrayNotHasKey('full_name', $array);
+        self::assertArrayHasKey('display_name', $array);
+        self::assertArrayNotHasKey('full_name', $array);
     }
 
     /**
@@ -196,8 +198,8 @@ class FieldTest extends TestCase
 
         $array = $field->toArray();
 
-        static::assertArrayHasKey('email', $array);
-        static::assertArrayNotHasKey('email_address', $array);
+        self::assertArrayHasKey('email', $array);
+        self::assertArrayNotHasKey('email_address', $array);
     }
 
     /**
@@ -211,7 +213,7 @@ class FieldTest extends TestCase
 
         $array = $field->toArray();
 
-        static::assertSame(['name' => []], $array);
+        self::assertSame(['name' => []], $array);
     }
 
     /**
@@ -225,11 +227,11 @@ class FieldTest extends TestCase
 
         $array = $field->toArray();
 
-        static::assertArrayNotHasKey('accessor', $array['name']);
-        static::assertArrayNotHasKey('compute', $array['name']);
-        static::assertArrayNotHasKey('extras', $array['name']);
-        static::assertArrayNotHasKey('guards', $array['name']);
-        static::assertArrayNotHasKey('transformers', $array['name']);
+        self::assertArrayNotHasKey('accessor', $array['name']);
+        self::assertArrayNotHasKey('compute', $array['name']);
+        self::assertArrayNotHasKey('extras', $array['name']);
+        self::assertArrayNotHasKey('guards', $array['name']);
+        self::assertArrayNotHasKey('transformers', $array['name']);
     }
 
     /**
@@ -245,7 +247,7 @@ class FieldTest extends TestCase
 
         $array = $field->toArray();
 
-        static::assertSame(['media', 'media.thumbnails'], $array['avatar']['extras']);
+        self::assertSame(['media', 'media.thumbnails'], $array['avatar']['extras']);
     }
 
     /**
@@ -260,8 +262,8 @@ class FieldTest extends TestCase
 
         $array = $field->toArray();
 
-        static::assertArrayHasKey('guards', $array['name']);
-        static::assertSame([$guard], $array['name']['guards']);
+        self::assertArrayHasKey('guards', $array['name']);
+        self::assertSame([$guard], $array['name']['guards']);
     }
 
     /**
@@ -276,8 +278,8 @@ class FieldTest extends TestCase
 
         $array = $field->toArray();
 
-        static::assertArrayHasKey('transformers', $array['name']);
-        static::assertSame([$transformer], $array['name']['transformers']);
+        self::assertArrayHasKey('transformers', $array['name']);
+        self::assertSame([$transformer], $array['name']['transformers']);
     }
 
     /**
@@ -293,9 +295,9 @@ class FieldTest extends TestCase
             Field::scalar('status'),
         );
 
-        static::assertArrayHasKey('name', $result);
-        static::assertArrayHasKey('email', $result);
-        static::assertArrayHasKey('status', $result);
+        self::assertArrayHasKey('name', $result);
+        self::assertArrayHasKey('email', $result);
+        self::assertArrayHasKey('status', $result);
     }
 
     /**
@@ -341,9 +343,9 @@ class FieldTest extends TestCase
             Field::scalar('status'),
         );
 
-        static::assertArrayHasKey('name', $result);
-        static::assertArrayHasKey('email', $result);
-        static::assertArrayHasKey('status', $result);
+        self::assertArrayHasKey('name', $result);
+        self::assertArrayHasKey('email', $result);
+        self::assertArrayHasKey('status', $result);
     }
 
     /**
@@ -374,8 +376,8 @@ class FieldTest extends TestCase
 
         $result = Field::set($field1, $field2);
 
-        static::assertArrayHasKey('name', $result);
-        static::assertArrayHasKey('email', $result);
+        self::assertArrayHasKey('name', $result);
+        self::assertArrayHasKey('email', $result);
     }
 
     /**
@@ -408,7 +410,7 @@ class FieldTest extends TestCase
     {
         $array = $field->toArray();
 
-        static::assertArrayHasKey($expectedKey, $array);
+        self::assertArrayHasKey($expectedKey, $array);
     }
 
     /**
@@ -425,8 +427,8 @@ class FieldTest extends TestCase
 
         $array = $field->toArray();
 
-        static::assertArrayNotHasKey('openapi', $array['name']);
-        static::assertSame(['name' => []], $array);
+        self::assertArrayNotHasKey('openapi', $array['name']);
+        self::assertSame(['name' => []], $array);
     }
 
     /**
@@ -441,9 +443,9 @@ class FieldTest extends TestCase
 
         $array = $field->toArray();
 
-        static::assertArrayHasKey('openapi', $array['status']);
-        static::assertInstanceOf(OpenApiFieldSchema::class, $array['status']['openapi']);
-        static::assertSame('string', $array['status']['openapi']->type);
-        static::assertSame(['draft', 'published'], $array['status']['openapi']->enum);
+        self::assertArrayHasKey('openapi', $array['status']);
+        self::assertInstanceOf(OpenApiFieldSchema::class, $array['status']['openapi']);
+        self::assertSame('string', $array['status']['openapi']->type);
+        self::assertSame(['draft', 'published'], $array['status']['openapi']->enum);
     }
 }

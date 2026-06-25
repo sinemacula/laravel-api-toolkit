@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace SineMacula\ApiToolkit\Providers\Registrars;
 
 use Illuminate\Contracts\Container\Container;
@@ -8,8 +10,10 @@ use SineMacula\ApiToolkit\ApiQueryParser;
 use SineMacula\ApiToolkit\Cache\CacheManager;
 use SineMacula\ApiToolkit\Cache\MetadataCacheWriter;
 use SineMacula\ApiToolkit\Cache\MetadataKeyRegistry;
+use SineMacula\ApiToolkit\Contracts\ResourceMetadataProvider;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Enums\FlushStrategy;
+use SineMacula\ApiToolkit\Http\Resources\ResourceMetadataService;
 use SineMacula\ApiToolkit\OpenApi\Contracts\DocumentWriter;
 use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
 use SineMacula\ApiToolkit\OpenApi\Metadata\ConfigMetadataCatalogue;
@@ -33,7 +37,6 @@ use SineMacula\ApiToolkit\Services\SchemaIntrospector;
 use SineMacula\ApiToolkit\Services\SchemaValidator;
 use SineMacula\ApiToolkit\Services\Validation\Rules\ValidateAccessors;
 use SineMacula\ApiToolkit\Services\Validation\Rules\ValidateComputedFields;
-use SineMacula\ApiToolkit\Services\Validation\Rules\ValidateConstraints;
 use SineMacula\ApiToolkit\Services\Validation\Rules\ValidateGuards;
 use SineMacula\ApiToolkit\Services\Validation\Rules\ValidateRelationClasses;
 use SineMacula\ApiToolkit\Services\Validation\Rules\ValidateRelationInterfaces;
@@ -62,7 +65,6 @@ final class ContainerBindingRegistrar
 
         /** The service container to register the bindings on. */
         private readonly Container $container,
-
     ) {}
 
     /**
@@ -101,8 +103,8 @@ final class ContainerBindingRegistrar
     private function registerResourceMetadataProvider(): void
     {
         $this->container->singleton(
-            \SineMacula\ApiToolkit\Contracts\ResourceMetadataProvider::class,
-            \SineMacula\ApiToolkit\Http\Resources\ResourceMetadataService::class,
+            ResourceMetadataProvider::class,
+            ResourceMetadataService::class,
         );
     }
 
@@ -161,7 +163,6 @@ final class ContainerBindingRegistrar
             new ValidateRelationInterfaces,
             new ValidateRelationMethods,
             new ValidateComputedFields,
-            new ValidateConstraints,
             new ValidateAccessors,
         ));
     }
@@ -175,15 +176,15 @@ final class ContainerBindingRegistrar
     {
         $this->container->scoped(WritePool::class, function (): WritePool {
 
-            $chunk_size    = Config::get('api-toolkit.deferred_writes.chunk_size', 500);
-            $pool_limit    = Config::get('api-toolkit.deferred_writes.pool_limit', 10000);
-            $on_failure    = Config::get('api-toolkit.deferred_writes.on_failure', 'collect');
+            $chunkSize     = Config::get('api-toolkit.deferred_writes.chunk_size', 500);
+            $poolLimit     = Config::get('api-toolkit.deferred_writes.pool_limit', 10000);
+            $onFailure     = Config::get('api-toolkit.deferred_writes.on_failure', 'collect');
             $transactional = Config::get('api-toolkit.deferred_writes.transactional', false);
 
             return new WritePool(
-                is_numeric($chunk_size) ? (int) $chunk_size : 500,
-                is_numeric($pool_limit) ? (int) $pool_limit : 10000,
-                FlushStrategy::from(is_string($on_failure) ? $on_failure : 'collect'),
+                is_numeric($chunkSize) ? (int) $chunkSize : 500,
+                is_numeric($poolLimit) ? (int) $poolLimit : 10000,
+                FlushStrategy::from(is_string($onFailure) ? $onFailure : 'collect'),
                 (bool) $transactional,
             );
         });

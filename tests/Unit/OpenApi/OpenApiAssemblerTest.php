@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Unit\OpenApi;
 
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -27,7 +29,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(OpenApiAssembler::class)]
-class OpenApiAssemblerTest extends TestCase
+final class OpenApiAssemblerTest extends TestCase
 {
     /**
      * Test that the assembled document declares a 3.1.x OpenAPI version.
@@ -38,8 +40,8 @@ class OpenApiAssemblerTest extends TestCase
     {
         $document = $this->assemble();
 
-        static::assertArrayHasKey('openapi', $document);
-        static::assertStringStartsWith('3.1', $document['openapi']);
+        self::assertArrayHasKey('openapi', $document);
+        self::assertStringStartsWith('3.1', $document['openapi']);
     }
 
     /**
@@ -51,8 +53,8 @@ class OpenApiAssemblerTest extends TestCase
     {
         $document = $this->assemble();
 
-        static::assertArrayHasKey('title', $document['info']);
-        static::assertArrayHasKey('version', $document['info']);
+        self::assertArrayHasKey('title', $document['info']);
+        self::assertArrayHasKey('version', $document['info']);
     }
 
     /**
@@ -65,8 +67,8 @@ class OpenApiAssemblerTest extends TestCase
     {
         $document = $this->assemble();
 
-        static::assertArrayHasKey('paths', $document);
-        static::assertSame([], (array) $document['paths']);
+        self::assertArrayHasKey('paths', $document);
+        self::assertSame([], (array) $document['paths']);
     }
 
     /**
@@ -79,7 +81,7 @@ class OpenApiAssemblerTest extends TestCase
     {
         $document = $this->assemble();
 
-        static::assertSame('{}', json_encode($document['paths']));
+        self::assertSame('{}', json_encode($document['paths']));
     }
 
     /**
@@ -92,9 +94,9 @@ class OpenApiAssemblerTest extends TestCase
     {
         $components = $this->assemble()['components'];
 
-        static::assertNotEmpty($components['schemas']);
-        static::assertNotEmpty($components['parameters']);
-        static::assertNotEmpty($components['responses']);
+        self::assertNotEmpty($components['schemas']);
+        self::assertNotEmpty($components['parameters']);
+        self::assertNotEmpty($components['responses']);
     }
 
     /**
@@ -107,9 +109,9 @@ class OpenApiAssemblerTest extends TestCase
     {
         $schemas = $this->assemble()['components']['schemas'];
 
-        static::assertArrayHasKey('User', $schemas);
-        static::assertArrayHasKey('Organization', $schemas);
-        static::assertArrayHasKey(ErrorResponseBuilder::ENVELOPE_SCHEMA_NAME, $schemas);
+        self::assertArrayHasKey('User', $schemas);
+        self::assertArrayHasKey('Organization', $schemas);
+        self::assertArrayHasKey(ErrorResponseBuilder::ENVELOPE_SCHEMA_NAME, $schemas);
     }
 
     /**
@@ -122,9 +124,9 @@ class OpenApiAssemblerTest extends TestCase
     {
         $parameters = $this->assemble()['components']['parameters'];
 
-        static::assertArrayHasKey('Filter', $parameters);
-        static::assertArrayHasKey('Fields', $parameters);
-        static::assertArrayHasKey('Order', $parameters);
+        self::assertArrayHasKey('Filter', $parameters);
+        self::assertArrayHasKey('Fields', $parameters);
+        self::assertArrayHasKey('Order', $parameters);
     }
 
     /**
@@ -137,7 +139,7 @@ class OpenApiAssemblerTest extends TestCase
     {
         $responses = $this->assemble()['components']['responses'];
 
-        static::assertArrayHasKey('ErrorResponse10103', $responses);
+        self::assertArrayHasKey('ErrorResponse10103', $responses);
     }
 
     /**
@@ -150,8 +152,8 @@ class OpenApiAssemblerTest extends TestCase
     {
         $json = json_encode($this->assemble(), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
 
-        static::assertIsString($json);
-        static::assertStringContainsString('"openapi"', $json);
+        self::assertIsString($json);
+        self::assertStringContainsString('"openapi"', $json);
     }
 
     /**
@@ -189,7 +191,7 @@ class OpenApiAssemblerTest extends TestCase
      */
     private function makeCatalogue(): MetadataCatalogue
     {
-        $catalogue = static::createStub(MetadataCatalogue::class);
+        $catalogue = self::createStub(MetadataCatalogue::class);
         $catalogue->method('getResourceMap')->willReturn([
             User::class         => UserResource::class,
             Organization::class => OrganizationResource::class,
@@ -204,12 +206,15 @@ class OpenApiAssemblerTest extends TestCase
     }
 
     /**
-     * Build a real field-type resolver against the container-bound introspector.
+     * Build a real field-type resolver against the container-bound
+     * introspector.
      *
      * @return \SineMacula\ApiToolkit\OpenApi\Resolution\FieldTypeResolver
      */
     private function resolver(): FieldTypeResolver
     {
-        return new FieldTypeResolver(new SchemaIntrospector, new ColumnTypeMapper);
+        assert($this->app !== null);
+
+        return new FieldTypeResolver($this->app->make(SchemaIntrospector::class), new ColumnTypeMapper);
     }
 }

@@ -1,10 +1,13 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace SineMacula\ApiToolkit\Repositories\Concerns;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Config;
+use SineMacula\ApiToolkit\Contracts\CacheInvalidator;
 
 /**
  * Provides opt-in transparent caching for API repositories.
@@ -292,9 +295,9 @@ trait Cacheable
     /**
      * Resolve the active cache store for invalidation.
      *
-     * @return \SineMacula\ApiToolkit\Repositories\Concerns\CacheStore|\SineMacula\ApiToolkit\Repositories\Concerns\ReferenceCache
+     * @return \SineMacula\ApiToolkit\Contracts\CacheInvalidator
      */
-    private function activeStore(): CacheStore|ReferenceCache
+    private function activeStore(): CacheInvalidator
     {
         return $this->cacheReferenceMode ? $this->referenceCache : $this->cacheStore;
     }
@@ -372,6 +375,7 @@ trait Cacheable
      */
     private function resolveProperty(string $name): mixed
     {
+        // @phpstan-ignore property.dynamicName (guarded by property_exists; reads optional overridable config props)
         return property_exists($this, $name) ? $this->{$name} : null;
     }
 }

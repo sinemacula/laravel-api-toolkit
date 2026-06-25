@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 /**
  * Namespace-scoped function overrides for controller streaming tests.
  *

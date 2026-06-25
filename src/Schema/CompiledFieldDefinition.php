@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace SineMacula\ApiToolkit\Schema;
 
 /**
@@ -60,8 +62,7 @@ final readonly class CompiledFieldDefinition
         /** Value transformer closures */
         public array $transformers,
 
-        /** Declared OpenAPI contract for this field; read only by the exporter */
+        /** Declared OpenAPI contract for this field; read by the exporter */
         public ?OpenApiFieldSchema $openApi = null,
-
     ) {}
 }

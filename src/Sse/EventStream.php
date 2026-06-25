@@ -1,7 +1,10 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace SineMacula\ApiToolkit\Sse;
 
+use Carbon\CarbonInterface;
 use SineMacula\Http\Enums\CacheDirective;
 use SineMacula\Http\Enums\HttpHeader;
 use SineMacula\Http\Enums\HttpStatus;
@@ -17,9 +20,20 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
+ *
+ * @inheritable
  */
 class EventStream
 {
+    /** Poll outcome: callback ran cleanly; proceed with the iteration. */
+    private const string POLL_CONTINUE = 'continue';
+
+    /** Poll outcome: the error handler asked to retry the next iteration. */
+    private const string POLL_RETRY = 'retry';
+
+    /** Poll outcome: the error handler asked to terminate the loop. */
+    private const string POLL_BREAK = 'break';
+
     /**
      * Create a new event stream instance.
      *
@@ -29,7 +43,6 @@ class EventStream
 
         /** The heartbeat interval in seconds for keep-alive comments. */
         private readonly int $heartbeatInterval = 20,
-
     ) {}
 
     /**
@@ -45,8 +58,12 @@ class EventStream
      * @param  array<string, string>  $headers
      * @return \Symfony\Component\HttpFoundation\StreamedResponse
      */
-    public function toResponse(callable $callback, int $interval = 1, HttpStatus $status = HttpStatus::OK, array $headers = []): StreamedResponse
-    {
+    public function toResponse(
+        callable $callback,
+        int $interval = 1,
+        HttpStatus $status = HttpStatus::OK,
+        array $headers = [],
+    ): StreamedResponse {
         $headers = array_merge($headers, [
             HttpHeader::CONTENT_TYPE->getName()      => MediaType::TEXT_EVENT_STREAM->getMimeType(),
             HttpHeader::CACHE_CONTROL->getName()     => CacheDirective::NO_CACHE->value . ', ' . CacheDirective::NO_TRANSFORM->value,
@@ -133,22 +150,18 @@ class EventStream
                 break;
             }
 
-            try {
-                $acceptsEmitter ? $callback($emitter) : $callback();
-            } catch (\Throwable $exception) {
-                if (!$this->handleStreamError($exception, $emitter)) {
-                    break;
-                }
+            $outcome = $this->pollCallback($callback, $emitter, $acceptsEmitter);
 
+            if ($outcome === self::POLL_BREAK) {
+                break;
+            }
+
+            if ($outcome === self::POLL_RETRY) {
                 continue;
             }
 
             $this->flushOutput();
-
-            if ($heartbeatTimestamp->diffInSeconds(now()) >= $this->heartbeatInterval) {
-                $emitter->comment();
-                $heartbeatTimestamp = now();
-            }
+            $this->emitHeartbeatIfDue($emitter, $heartbeatTimestamp);
 
             // @phpstan-ignore-next-line if.alwaysFalse (connection state may change between the two checks per iteration)
             if (connection_aborted()) {
@@ -159,6 +172,52 @@ class EventStream
         }
 
         $this->onStreamEnd();
+    }
+
+    /**
+     * Invoke the streaming callback and classify the loop outcome.
+     *
+     * Returns one of the POLL_* signals: the callback ran cleanly
+     * (continue the iteration), the error handler asked to retry, or it
+     * asked to terminate the loop.
+     *
+     * @param  callable(): void|callable(\SineMacula\ApiToolkit\Sse\Emitter): void  $callback
+     * @param  \SineMacula\ApiToolkit\Sse\Emitter  $emitter
+     * @param  bool  $acceptsEmitter
+     * @return self::POLL_*
+     */
+    private function pollCallback(callable $callback, Emitter $emitter, bool $acceptsEmitter): string
+    {
+        try {
+            $acceptsEmitter ? $callback($emitter) : $callback();
+        } catch (\Throwable $exception) {
+            return $this->handleStreamError($exception, $emitter)
+                ? self::POLL_RETRY
+                : self::POLL_BREAK;
+        }
+
+        return self::POLL_CONTINUE;
+    }
+
+    /**
+     * Emit a heartbeat comment when the configured interval has elapsed.
+     *
+     * Resets the heartbeat timestamp (passed by reference) whenever a
+     * heartbeat is emitted so the next interval is measured afresh.
+     *
+     * @param  \SineMacula\ApiToolkit\Sse\Emitter  $emitter
+     * @param  \Carbon\CarbonInterface  $heartbeatTimestamp
+     * @return void
+     */
+    private function emitHeartbeatIfDue(Emitter $emitter, CarbonInterface &$heartbeatTimestamp): void
+    {
+        if ($heartbeatTimestamp->diffInSeconds(now()) < $this->heartbeatInterval) {
+            return;
+        }
+
+        $emitter->comment();
+
+        $heartbeatTimestamp = now();
     }
 
     /**

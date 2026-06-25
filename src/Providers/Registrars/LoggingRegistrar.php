@@ -1,7 +1,10 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace SineMacula\ApiToolkit\Providers\Registrars;
 
+use Aws\CloudWatchLogs\CloudWatchLogsClient;
 use Illuminate\Contracts\Container\Container;
 use Illuminate\Log\LogManager;
 use Illuminate\Notifications\Events\NotificationSending;
@@ -32,7 +35,6 @@ final class LoggingRegistrar
 
         /** The service container for resolving the log manager. */
         private readonly Container $container,
-
     ) {}
 
     /**
@@ -53,7 +55,7 @@ final class LoggingRegistrar
      */
     private function registerCloudwatchLogger(): void
     {
-        if (!class_exists(\Aws\CloudWatchLogs\CloudWatchLogsClient::class)) {
+        if (!class_exists(CloudWatchLogsClient::class)) {
             return;
         }
 

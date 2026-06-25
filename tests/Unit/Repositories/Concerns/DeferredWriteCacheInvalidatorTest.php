@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Unit\Repositories\Concerns;
 
 use Illuminate\Support\Facades\Config;
@@ -19,7 +21,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(DeferredWriteCacheInvalidator::class)]
-class DeferredWriteCacheInvalidatorTest extends TestCase
+final class DeferredWriteCacheInvalidatorTest extends TestCase
 {
     /** @var string A representative query fingerprint. */
     private const string HASH = 'abc123';
@@ -48,11 +50,11 @@ class DeferredWriteCacheInvalidatorTest extends TestCase
         $warm = $this->cacheStore('widgets');
         $warm->put(self::HASH, collect(['a', 'b']), 2);
 
-        static::assertNotNull($warm->get(self::HASH));
+        self::assertNotNull($warm->get(self::HASH));
 
         (new DeferredWriteCacheInvalidator)->invalidate(['widgets']);
 
-        static::assertNull($this->cacheStore('widgets')->get(self::HASH));
+        self::assertNull($this->cacheStore('widgets')->get(self::HASH));
     }
 
     /**
@@ -70,7 +72,7 @@ class DeferredWriteCacheInvalidatorTest extends TestCase
 
         (new DeferredWriteCacheInvalidator)->invalidate(['widgets']);
 
-        static::assertNull($this->cacheStore('widgets', 'file')->get(self::HASH));
+        self::assertNull($this->cacheStore('widgets', 'file')->get(self::HASH));
     }
 
     /**
@@ -90,7 +92,7 @@ class DeferredWriteCacheInvalidatorTest extends TestCase
 
         (new DeferredWriteCacheInvalidator)->invalidate(['widgets']);
 
-        static::assertNotNull($this->cacheStore('widgets', 'file')->get(self::HASH));
+        self::assertNotNull($this->cacheStore('widgets', 'file')->get(self::HASH));
     }
 
     /**
@@ -106,8 +108,8 @@ class DeferredWriteCacheInvalidatorTest extends TestCase
 
         (new DeferredWriteCacheInvalidator)->invalidate(['widgets', 'gadgets']);
 
-        static::assertNull($this->cacheStore('widgets')->get(self::HASH));
-        static::assertNull($this->cacheStore('gadgets')->get(self::HASH));
+        self::assertNull($this->cacheStore('widgets')->get(self::HASH));
+        self::assertNull($this->cacheStore('gadgets')->get(self::HASH));
     }
 
     /**
@@ -122,7 +124,7 @@ class DeferredWriteCacheInvalidatorTest extends TestCase
 
         (new DeferredWriteCacheInvalidator)->invalidate([]);
 
-        static::assertNotNull($this->cacheStore('widgets')->get(self::HASH));
+        self::assertNotNull($this->cacheStore('widgets')->get(self::HASH));
     }
 
     /**
@@ -142,7 +144,7 @@ class DeferredWriteCacheInvalidatorTest extends TestCase
 
         (new DeferredWriteCacheInvalidator)->invalidate(['widgets']);
 
-        static::assertNull((new CacheStore('repo-cache', 'widgets', $options))->get(self::HASH));
+        self::assertNull((new CacheStore('repo-cache', 'widgets', $options))->get(self::HASH));
     }
 
     /**
@@ -160,7 +162,7 @@ class DeferredWriteCacheInvalidatorTest extends TestCase
 
         (new DeferredWriteCacheInvalidator)->invalidate(['widgets']);
 
-        static::assertNull($this->cacheStore('widgets')->get(self::HASH));
+        self::assertNull($this->cacheStore('widgets')->get(self::HASH));
     }
 
     /**

@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Unit\Http\Resources\Concerns;
 
 use Illuminate\Database\Eloquent\Casts\Attribute;
@@ -32,7 +34,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(ValueResolver::class)]
-class ValueResolverTest extends TestCase
+final class ValueResolverTest extends TestCase
 {
     use InteractsWithNonPublicMembers;
 
@@ -111,11 +113,11 @@ class ValueResolverTest extends TestCase
 
         $result = $this->resolver->resolveFieldValue('nickname', $this->makeFieldDefinition(), new JsonResource($model), null);
 
-        static::assertSame('Nick', $result);
+        self::assertSame('Nick', $result);
 
         $cache = $this->getStaticProperty(ValueResolver::class, 'castAccessorCache');
 
-        static::assertTrue($cache[$model::class]['nickname']);
+        self::assertTrue($cache[$model::class]['nickname']);
     }
 
     /**
@@ -160,14 +162,14 @@ class ValueResolverTest extends TestCase
             }
         };
 
-        // Seed a decision reflection would never produce: label() returns string,
-        // not Attribute, so an honoured memo yields the __get value while a
-        // recomputation would yield MissingValue.
+        // Seed a decision reflection would never produce: label() returns
+        // string, not Attribute, so an honoured memo yields the __get value
+        // while a recomputation would yield MissingValue.
         $this->setStaticProperty(ValueResolver::class, 'castAccessorCache', [$model::class => ['label' => true]]);
 
         $result = $this->resolver->resolveFieldValue('label', $this->makeFieldDefinition(), new JsonResource($model), null);
 
-        static::assertSame('from-memo', $result);
+        self::assertSame('from-memo', $result);
     }
 
     /**
@@ -185,14 +187,14 @@ class ValueResolverTest extends TestCase
         $first  = $this->invokeMethod($this->resolver, 'getRelationFields', $definition);
         $second = $this->invokeMethod($this->resolver, 'getRelationFields', $definition);
 
-        static::assertSame(['id', 'name'], $first);
-        static::assertSame($first, $second);
+        self::assertSame(['id', 'name'], $first);
+        self::assertSame($first, $second);
 
         $cache = $this->getStaticProperty(ValueResolver::class, 'relationFieldsCache');
 
-        static::assertInstanceOf(\WeakMap::class, $cache);
-        static::assertCount(1, $cache);
-        static::assertTrue($cache->offsetExists($definition));
+        self::assertInstanceOf(\WeakMap::class, $cache);
+        self::assertCount(1, $cache);
+        self::assertTrue($cache->offsetExists($definition));
     }
 
     /**
@@ -211,7 +213,7 @@ class ValueResolverTest extends TestCase
 
         $result = $this->invokeMethod($this->resolver, 'getRelationFields', $definition);
 
-        static::assertSame(['sentinel_field'], $result);
+        self::assertSame(['sentinel_field'], $result);
     }
 
     /**
@@ -230,8 +232,8 @@ class ValueResolverTest extends TestCase
 
         ValueResolver::clearCache();
 
-        static::assertSame([], $this->getStaticProperty(ValueResolver::class, 'castAccessorCache'));
-        static::assertNull($this->getStaticProperty(ValueResolver::class, 'relationFieldsCache'));
+        self::assertSame([], $this->getStaticProperty(ValueResolver::class, 'castAccessorCache'));
+        self::assertNull($this->getStaticProperty(ValueResolver::class, 'relationFieldsCache'));
     }
 
     /**
@@ -252,7 +254,7 @@ class ValueResolverTest extends TestCase
 
         $result = $this->resolver->resolveFieldValue('name', $definition, $resource, null);
 
-        static::assertSame('Alice', $result);
+        self::assertSame('Alice', $result);
     }
 
     /**
@@ -270,7 +272,7 @@ class ValueResolverTest extends TestCase
 
         $result = $this->resolver->resolveFieldValue('field', $definition, $resource, null);
 
-        static::assertSame('computed-value', $result);
+        self::assertSame('computed-value', $result);
     }
 
     /**
@@ -299,7 +301,7 @@ class ValueResolverTest extends TestCase
 
         $result = $this->resolver->resolveFieldValue('field', $definition, $resource, null);
 
-        static::assertSame('method-computed', $result);
+        self::assertSame('method-computed', $result);
     }
 
     /**
@@ -319,7 +321,7 @@ class ValueResolverTest extends TestCase
 
         $result = $this->resolver->resolveFieldValue('field', $definition, $resource, null);
 
-        static::assertSame('nested-value', $result);
+        self::assertSame('nested-value', $result);
     }
 
     /**
@@ -337,7 +339,7 @@ class ValueResolverTest extends TestCase
 
         $result = $this->resolver->resolveFieldValue('field', $definition, $resource, null);
 
-        static::assertInstanceOf(MissingValue::class, $result);
+        self::assertInstanceOf(MissingValue::class, $result);
     }
 
     /**
@@ -363,7 +365,7 @@ class ValueResolverTest extends TestCase
 
         $result = $this->resolver->resolveFieldValue('count', $definition, $resource, null);
 
-        static::assertSame(11, $result);
+        self::assertSame(11, $result);
     }
 
     /**
@@ -380,7 +382,7 @@ class ValueResolverTest extends TestCase
 
         $result = $this->resolver->resolveFieldValue('field', $definition, $resource, null);
 
-        static::assertInstanceOf(MissingValue::class, $result);
+        self::assertInstanceOf(MissingValue::class, $result);
     }
 
     /**
@@ -429,7 +431,7 @@ class ValueResolverTest extends TestCase
 
         $result = $this->resolver->resolveCountsPayload($resource, $schema, 'users', null);
 
-        static::assertSame(['posts' => 10], $result);
+        self::assertSame(['posts' => 10], $result);
     }
 
     /**
@@ -480,7 +482,7 @@ class ValueResolverTest extends TestCase
 
         $result = $this->resolver->resolveCountsPayload($resource, $schema, 'users', null);
 
-        static::assertSame(['posts' => 10, 'active_posts' => 3], $result);
+        self::assertSame(['posts' => 10, 'active_posts' => 3], $result);
     }
 
     /**
@@ -532,7 +534,7 @@ class ValueResolverTest extends TestCase
 
         $result = $this->resolver->resolveCountsPayload($resource, $schema, 'users', null);
 
-        static::assertSame(['comments' => 12], $result);
+        self::assertSame(['comments' => 12], $result);
     }
 
     /**
@@ -582,7 +584,7 @@ class ValueResolverTest extends TestCase
 
         $result = $this->resolver->resolveCountsPayload($resource, $schema, 'users', null);
 
-        static::assertSame([], $result);
+        self::assertSame([], $result);
     }
 
     /**
@@ -600,7 +602,7 @@ class ValueResolverTest extends TestCase
 
         $result = $this->resolver->resolveCountsPayload($resource, $schema, 'users', null);
 
-        static::assertSame([], $result);
+        self::assertSame([], $result);
     }
 
     /**
@@ -624,7 +626,7 @@ class ValueResolverTest extends TestCase
 
         $result = $this->resolver->resolveFieldValue('name', $definition, $resource, null);
 
-        static::assertInstanceOf(MissingValue::class, $result);
+        self::assertInstanceOf(MissingValue::class, $result);
     }
 
     /**
@@ -657,7 +659,7 @@ class ValueResolverTest extends TestCase
 
         $result = $this->resolver->resolveFieldValue('organization', $definition, $resource, null);
 
-        static::assertInstanceOf(OrganizationResource::class, $result);
+        self::assertInstanceOf(OrganizationResource::class, $result);
     }
 
     /**
@@ -676,7 +678,7 @@ class ValueResolverTest extends TestCase
 
         $result = $this->resolver->resolveFieldValue('absent_field', $definition, $resource, null);
 
-        static::assertInstanceOf(MissingValue::class, $result);
+        self::assertInstanceOf(MissingValue::class, $result);
     }
 
     /**
@@ -693,7 +695,7 @@ class ValueResolverTest extends TestCase
 
         $result = $this->resolver->resolveFieldValue('field', $definition, $resource, null);
 
-        static::assertInstanceOf(MissingValue::class, $result);
+        self::assertInstanceOf(MissingValue::class, $result);
     }
 
     /**
@@ -720,7 +722,7 @@ class ValueResolverTest extends TestCase
 
         $result = $this->resolver->resolveFieldValue('field', $definition, $resource, null);
 
-        static::assertSame('from-callable', $result);
+        self::assertSame('from-callable', $result);
     }
 
     /**
@@ -748,7 +750,7 @@ class ValueResolverTest extends TestCase
 
         $result = $this->resolver->resolveFieldValue('field', $definition, $resource, null);
 
-        static::assertInstanceOf(MissingValue::class, $result);
+        self::assertInstanceOf(MissingValue::class, $result);
     }
 
     /**
@@ -803,7 +805,7 @@ class ValueResolverTest extends TestCase
 
         $result = $this->resolver->resolveCountsPayload($resource, $schema, 'users', null);
 
-        static::assertSame(['posts' => 4], $result);
+        self::assertSame(['posts' => 4], $result);
     }
 
     /**
@@ -856,7 +858,7 @@ class ValueResolverTest extends TestCase
 
         $result = $this->resolver->resolveCountsPayload($resource, $schema, 'users', null);
 
-        static::assertSame(['posts' => 7, 'comments' => 3], $result);
+        self::assertSame(['posts' => 7, 'comments' => 3], $result);
     }
 
     /**
@@ -880,7 +882,7 @@ class ValueResolverTest extends TestCase
 
         $result = $this->resolver->resolveFieldValue('nickname', $definition, $resource, null);
 
-        static::assertNull($result);
+        self::assertNull($result);
     }
 
     /**
@@ -921,7 +923,7 @@ class ValueResolverTest extends TestCase
 
         $result = $this->resolver->resolveFieldValue('dynamic_field', $definition, $resource, null);
 
-        static::assertSame('dynamic-value', $result);
+        self::assertSame('dynamic-value', $result);
     }
 
     /**
@@ -952,7 +954,7 @@ class ValueResolverTest extends TestCase
 
         $result = $this->resolver->resolveFieldValue('organization', $definition, $resource, null);
 
-        static::assertInstanceOf(MissingValue::class, $result);
+        self::assertInstanceOf(MissingValue::class, $result);
     }
 
     /**
@@ -985,7 +987,7 @@ class ValueResolverTest extends TestCase
 
         $result = $this->resolver->resolveFieldValue('organization', $definition, $resource, null);
 
-        static::assertInstanceOf(MissingValue::class, $result);
+        self::assertInstanceOf(MissingValue::class, $result);
     }
 
     /**
@@ -1005,7 +1007,7 @@ class ValueResolverTest extends TestCase
 
         $result = $this->resolver->resolveFieldValue('organization', $definition, $resource, null);
 
-        static::assertInstanceOf(MissingValue::class, $result);
+        self::assertInstanceOf(MissingValue::class, $result);
     }
 
     /**
@@ -1053,12 +1055,12 @@ class ValueResolverTest extends TestCase
 
         $result = $this->resolver->resolveFieldValue('user', $definition, $resource, null);
 
-        static::assertInstanceOf(UserResource::class, $result);
+        self::assertInstanceOf(UserResource::class, $result);
 
         $related = $post->getRelation('user');
 
-        static::assertInstanceOf(User::class, $related);
-        static::assertFalse($related->relationLoaded('organization'));
+        self::assertInstanceOf(User::class, $related);
+        self::assertFalse($related->relationLoaded('organization'));
     }
 
     /**
@@ -1097,13 +1099,13 @@ class ValueResolverTest extends TestCase
 
         $result = $this->resolver->resolveFieldValue('posts', $definition, $resource, null);
 
-        static::assertInstanceOf(ApiResourceCollection::class, $result);
+        self::assertInstanceOf(ApiResourceCollection::class, $result);
 
         $items = $result->toArray(Request::create('/', 'GET'));
 
-        static::assertCount(1, $items);
-        static::assertArrayHasKey('body', $items[0]);
-        static::assertArrayNotHasKey('title', $items[0]);
+        self::assertCount(1, $items);
+        self::assertArrayHasKey('body', $items[0]);
+        self::assertArrayNotHasKey('title', $items[0]);
     }
 
     /**

@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace SineMacula\ApiToolkit\Schema;
 
 use Illuminate\Contracts\Support\Arrayable;
@@ -33,7 +35,6 @@ final class Count extends BaseDefinition implements Arrayable
 
         /** Optional alias to expose this metric under */
         private ?string $alias = null,
-
     ) {}
 
     /**

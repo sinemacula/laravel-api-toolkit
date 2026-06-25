@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace SineMacula\ApiToolkit\Exceptions;
 
 use SineMacula\ApiToolkit\Enums\ErrorCode;
@@ -16,7 +18,7 @@ use SineMacula\Http\Enums\HttpStatus;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-class HttpException extends ApiException
+final class HttpException extends ApiException
 {
     /** @var \SineMacula\ApiToolkit\Contracts\ErrorCodeInterface The internal error code */
     public const \SineMacula\ApiToolkit\Contracts\ErrorCodeInterface CODE = ErrorCode::HTTP_ERROR;
@@ -37,10 +39,14 @@ class HttpException extends ApiException
         /** The runtime HTTP status */
         private readonly HttpStatus $status,
 
+        // The error metadata
         ?array $meta = null,
-        ?array $headers = null,
-        ?\Throwable $previous = null,
 
+        // The response headers
+        ?array $headers = null,
+
+        // The previous throwable
+        ?\Throwable $previous = null,
     ) {
         parent::__construct($meta, $headers, $previous);
     }

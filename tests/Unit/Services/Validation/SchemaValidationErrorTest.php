@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Unit\Services\Validation;
 
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -17,7 +19,7 @@ use SineMacula\ApiToolkit\Services\Validation\SchemaValidationError;
  * @internal
  */
 #[CoversClass(SchemaValidationError::class)]
-class SchemaValidationErrorTest extends TestCase
+final class SchemaValidationErrorTest extends TestCase
 {
     /**
      * Test that the constructor sets properties.
@@ -32,9 +34,9 @@ class SchemaValidationErrorTest extends TestCase
             defect: 'Guard at index 0 is not callable',
         );
 
-        static::assertSame('App\Http\Resources\UserResource', $error->resourceClass);
-        static::assertSame('organization', $error->fieldKey);
-        static::assertSame('Guard at index 0 is not callable', $error->defect);
+        self::assertSame('App\Http\Resources\UserResource', $error->resourceClass);
+        self::assertSame('organization', $error->fieldKey);
+        self::assertSame('Guard at index 0 is not callable', $error->defect);
     }
 
     /**
@@ -50,7 +52,7 @@ class SchemaValidationErrorTest extends TestCase
             defect: 'Missing accessor',
         );
 
-        static::assertSame(
+        self::assertSame(
             '[App\Http\Resources\UserResource] Field "full_label": Missing accessor',
             (string) $error,
         );
@@ -65,6 +67,6 @@ class SchemaValidationErrorTest extends TestCase
     {
         $reflection = new \ReflectionClass(SchemaValidationError::class);
 
-        static::assertTrue($reflection->isReadOnly());
+        self::assertTrue($reflection->isReadOnly());
     }
 }

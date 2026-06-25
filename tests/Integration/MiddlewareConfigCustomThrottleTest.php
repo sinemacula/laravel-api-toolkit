@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Integration;
 
 use Illuminate\Foundation\Application;
@@ -23,10 +25,10 @@ use Tests\TestCase;
  */
 #[CoversClass(ApiServiceProvider::class)]
 #[CoversClass(MiddlewareRegistrar::class)]
-class MiddlewareConfigCustomThrottleTest extends TestCase
+final class MiddlewareConfigCustomThrottleTest extends TestCase
 {
     /** @var string */
-    private const CUSTOM_THROTTLE_CLASS = 'App\Http\Middleware\CustomThrottle';
+    private const string CUSTOM_THROTTLE_CLASS = 'App\Http\Middleware\CustomThrottle';
 
     /**
      * Test that a custom throttle middleware class is used when configured.
@@ -39,8 +41,8 @@ class MiddlewareConfigCustomThrottleTest extends TestCase
         $router     = $this->getApplication()->make(Router::class);
         $middleware = $router->getMiddleware();
 
-        static::assertArrayHasKey('throttle', $middleware);
-        static::assertSame(self::CUSTOM_THROTTLE_CLASS, $middleware['throttle']);
+        self::assertArrayHasKey('throttle', $middleware);
+        self::assertSame(self::CUSTOM_THROTTLE_CLASS, $middleware['throttle']);
     }
 
     /**

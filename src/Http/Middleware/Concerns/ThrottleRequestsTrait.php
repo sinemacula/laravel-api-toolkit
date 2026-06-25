@@ -1,6 +1,8 @@
 <?php
 
-namespace SineMacula\ApiToolkit\Http\Middleware\Traits;
+declare(strict_types = 1);
+
+namespace SineMacula\ApiToolkit\Http\Middleware\Concerns;
 
 use SineMacula\ApiToolkit\Exceptions\RequestSignatureException;
 
@@ -33,14 +35,14 @@ trait ThrottleRequestsTrait
             throw new RequestSignatureException('Unable to generate the request signature. Route unavailable.');
         }
 
-        $server_name = $request->server('SERVER_NAME');
+        $serverName = $request->server('SERVER_NAME');
 
         // Key by the authenticated user when present, otherwise by the client
         // IP, so anonymous callers do not all share a single throttle bucket
         // (which would let one caller rate-limit every other anonymous caller).
         return sha1(
             $request->method()
-            . '|' . (is_string($server_name) ? $server_name : '')
+            . '|' . (is_string($serverName) ? $serverName : '')
             . '|' . $request->path()
             . '|' . ($request->user()?->getAuthIdentifier() ?? $request->ip()),
         );

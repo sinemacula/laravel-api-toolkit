@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Unit\Cache;
 
 use Illuminate\Support\Facades\Cache;
@@ -17,10 +19,11 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(MetadataCacheWriter::class)]
-class MetadataCacheWriterTest extends TestCase
+final class MetadataCacheWriterTest extends TestCase
 {
     /**
-     * Test that rememberMetadataForever returns the value produced by the callback.
+     * Test that rememberMetadataForever returns the value produced by the
+     * callback.
      *
      * @return void
      */
@@ -34,11 +37,12 @@ class MetadataCacheWriterTest extends TestCase
         $value = $writer->rememberMetadataForever('test-key', fn () => 'expected-value');
 
         // Assert
-        static::assertSame('expected-value', $value);
+        self::assertSame('expected-value', $value);
     }
 
     /**
-     * Test that rememberMetadataForever registers the key in the injected registry.
+     * Test that rememberMetadataForever registers the key in the injected
+     * registry.
      *
      * @return void
      */
@@ -52,7 +56,7 @@ class MetadataCacheWriterTest extends TestCase
         $writer->rememberMetadataForever('my-metadata-key', fn () => 'value');
 
         // Assert
-        static::assertContains('my-metadata-key', $registry->keys());
+        self::assertContains('my-metadata-key', $registry->keys());
     }
 
     /**
@@ -71,7 +75,7 @@ class MetadataCacheWriterTest extends TestCase
         $writer->rememberMetadataForever($key, fn () => 'stored-value');
 
         // Assert
-        static::assertSame('stored-value', Cache::memo()->get($key));
+        self::assertSame('stored-value', Cache::memo()->get($key));
     }
 
     /**
@@ -90,11 +94,12 @@ class MetadataCacheWriterTest extends TestCase
         $registry = new MetadataKeyRegistry;
         $writer   = new MetadataCacheWriter($registry);
 
-        // Act — callback would not be called because the key is already memoised
+        // Act — callback would not be called because the key is already
+        // memoised
         $writer->rememberMetadataForever($key, fn () => 'should-not-be-called');
 
         // Assert
-        static::assertContains($key, $registry->keys());
-        static::assertSame('pre-warmed-value', Cache::memo()->get($key));
+        self::assertContains($key, $registry->keys());
+        self::assertSame('pre-warmed-value', Cache::memo()->get($key));
     }
 }

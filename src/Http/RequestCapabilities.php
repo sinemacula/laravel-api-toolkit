@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace SineMacula\ApiToolkit\Http;
 
 use Illuminate\Http\Request;
@@ -53,7 +55,6 @@ final class RequestCapabilities
 
         /** Whether the request expects a streamed response. */
         private readonly bool $expectsStream,
-
     ) {}
 
     /**
@@ -138,6 +139,8 @@ final class RequestCapabilities
      * Whether the request includes soft-deleted records.
      *
      * @return bool
+     *
+     * @imperative
      */
     public function includeTrashed(): bool
     {
@@ -148,6 +151,8 @@ final class RequestCapabilities
      * Whether the request returns only soft-deleted records.
      *
      * @return bool
+     *
+     * @imperative
      */
     public function onlyTrashed(): bool
     {

@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Unit\Contracts;
 
 use PHPUnit\Framework\Attributes\CoversNothing;
@@ -15,7 +17,7 @@ use SineMacula\ApiToolkit\Contracts\PureEnumInterface;
  * @internal
  */
 #[CoversNothing]
-class PureEnumInterfaceTest extends TestCase
+final class PureEnumInterfaceTest extends TestCase
 {
     /**
      * Test that the interface defines tryFrom as a static method.
@@ -27,8 +29,8 @@ class PureEnumInterfaceTest extends TestCase
         $reflection = new \ReflectionClass(PureEnumInterface::class);
         $method     = $reflection->getMethod('tryFrom');
 
-        static::assertTrue($method->isStatic());
-        static::assertTrue($method->isPublic());
+        self::assertTrue($method->isStatic());
+        self::assertTrue($method->isPublic());
     }
 
     /**
@@ -42,12 +44,12 @@ class PureEnumInterfaceTest extends TestCase
         $method     = $reflection->getMethod('tryFrom');
         $parameters = $method->getParameters();
 
-        static::assertCount(1, $parameters);
-        static::assertSame('value', $parameters[0]->getName());
+        self::assertCount(1, $parameters);
+        self::assertSame('value', $parameters[0]->getName());
         $paramType = $parameters[0]->getType();
 
-        static::assertInstanceOf(\ReflectionNamedType::class, $paramType);
-        static::assertSame('mixed', $paramType->getName());
+        self::assertInstanceOf(\ReflectionNamedType::class, $paramType);
+        self::assertSame('mixed', $paramType->getName());
     }
 
     /**
@@ -60,7 +62,7 @@ class PureEnumInterfaceTest extends TestCase
         $reflection = new \ReflectionClass(PureEnumInterface::class);
         $method     = $reflection->getMethod('tryFrom');
 
-        static::assertTrue($method->getReturnType()?->allowsNull());
+        self::assertTrue($method->getReturnType()?->allowsNull());
     }
 
     /**
@@ -73,7 +75,7 @@ class PureEnumInterfaceTest extends TestCase
         $reflection = new \ReflectionClass(PureEnumInterface::class);
         $methods    = $reflection->getMethods(\ReflectionMethod::IS_PUBLIC);
 
-        static::assertCount(1, $methods);
+        self::assertCount(1, $methods);
     }
 
     /**
@@ -85,6 +87,6 @@ class PureEnumInterfaceTest extends TestCase
     {
         $reflection = new \ReflectionClass(PureEnumInterface::class);
 
-        static::assertTrue($reflection->isInterface());
+        self::assertTrue($reflection->isInterface());
     }
 }

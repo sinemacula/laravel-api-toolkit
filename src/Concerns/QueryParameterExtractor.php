@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace SineMacula\ApiToolkit\Concerns;
 
 use Illuminate\Http\Request;
@@ -39,9 +41,11 @@ final class QueryParameterExtractor
         ];
 
         foreach ($parsers as $key => $parser) {
-            if ($request->has($key)) {
-                $parameters[$key] = $parser($request->input($key));
+            if (!$request->has($key)) {
+                continue;
             }
+
+            $parameters[$key] = $parser($request->input($key));
         }
 
         return $parameters;
@@ -195,9 +199,9 @@ final class QueryParameterExtractor
 
         if (!empty(array_filter($fields, static fn (string $value): bool => (bool) $value))) {
             foreach ($fields as $field) {
-                $order_parts    = explode(':', $field, 2);
-                $column         = $order_parts[0];
-                $direction      = $order_parts[1] ?? 'asc';
+                $orderParts     = explode(':', $field, 2);
+                $column         = $orderParts[0];
+                $direction      = $orderParts[1] ?? 'asc';
                 $order[$column] = $direction;
             }
         }

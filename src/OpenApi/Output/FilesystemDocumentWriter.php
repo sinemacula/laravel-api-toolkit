@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace SineMacula\ApiToolkit\OpenApi\Output;
 
 use Illuminate\Filesystem\Filesystem;
@@ -17,7 +19,7 @@ use SineMacula\ApiToolkit\OpenApi\Exceptions\DocumentWriteException;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-class FilesystemDocumentWriter implements DocumentWriter
+final class FilesystemDocumentWriter implements DocumentWriter
 {
     /**
      * Create a new filesystem document writer.
@@ -25,6 +27,8 @@ class FilesystemDocumentWriter implements DocumentWriter
      * @param  \Illuminate\Filesystem\Filesystem  $files
      */
     public function __construct(
+
+        /** The filesystem used to write the document to disk. */
         private readonly Filesystem $files,
     ) {}
 

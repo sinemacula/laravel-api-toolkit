@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Integration;
 
 use Illuminate\Http\Request;
@@ -32,7 +34,7 @@ use Tests\TestCase;
 #[CoversClass(OrderApplier::class)]
 #[CoversClass(EagerLoadApplier::class)]
 #[CoversClass(LimitApplier::class)]
-class ApiCriteriaIntegrationTest extends TestCase
+final class ApiCriteriaIntegrationTest extends TestCase
 {
     /**
      * Seed users and posts for integration tests.
@@ -64,12 +66,12 @@ class ApiCriteriaIntegrationTest extends TestCase
 
         $results = $this->makeCriteria()->apply(new User)->get();
 
-        static::assertCount(1, $results);
+        self::assertCount(1, $results);
 
         /** @var \Tests\Fixtures\Models\User $first */
         $first = $results->first();
 
-        static::assertSame('Alice', $first->name);
+        self::assertSame('Alice', $first->name);
     }
 
     /**
@@ -83,12 +85,12 @@ class ApiCriteriaIntegrationTest extends TestCase
 
         $results = $this->makeCriteria()->apply(new User)->get();
 
-        static::assertCount(1, $results);
+        self::assertCount(1, $results);
 
         /** @var \Tests\Fixtures\Models\User $first */
         $first = $results->first();
 
-        static::assertSame('Bob', $first->name);
+        self::assertSame('Bob', $first->name);
     }
 
     /**
@@ -102,8 +104,8 @@ class ApiCriteriaIntegrationTest extends TestCase
 
         $results = $this->makeCriteria()->apply(new User)->get();
 
-        static::assertTrue($results->pluck('name')->doesntContain('Alice'));
-        static::assertGreaterThan(0, $results->count());
+        self::assertTrue($results->pluck('name')->doesntContain('Alice'));
+        self::assertGreaterThan(0, $results->count());
     }
 
     /**
@@ -117,12 +119,12 @@ class ApiCriteriaIntegrationTest extends TestCase
 
         $results = $this->makeCriteria()->apply(new User)->get();
 
-        static::assertCount(1, $results);
+        self::assertCount(1, $results);
 
         /** @var \Tests\Fixtures\Models\User $first */
         $first = $results->first();
 
-        static::assertSame('Alice', $first->name);
+        self::assertSame('Alice', $first->name);
     }
 
     /**
@@ -136,9 +138,9 @@ class ApiCriteriaIntegrationTest extends TestCase
 
         $results = $this->makeCriteria()->apply(new User)->get();
 
-        static::assertCount(2, $results);
-        static::assertTrue($results->pluck('name')->contains('Alice'));
-        static::assertTrue($results->pluck('name')->contains('Charlie'));
+        self::assertCount(2, $results);
+        self::assertTrue($results->pluck('name')->contains('Alice'));
+        self::assertTrue($results->pluck('name')->contains('Charlie'));
     }
 
     /**
@@ -155,7 +157,7 @@ class ApiCriteriaIntegrationTest extends TestCase
         foreach ($results as $user) {
 
             assert($user instanceof User);
-            static::assertNull($user->password);
+            self::assertNull($user->password);
         }
     }
 
@@ -173,12 +175,12 @@ class ApiCriteriaIntegrationTest extends TestCase
 
         $results = $this->makeCriteria()->apply(new User)->get();
 
-        static::assertGreaterThan(0, $results->count());
+        self::assertGreaterThan(0, $results->count());
 
         foreach ($results as $user) {
 
             assert($user instanceof User);
-            static::assertNotNull($user->organization_id);
+            self::assertNotNull($user->organization_id);
         }
     }
 
@@ -194,7 +196,7 @@ class ApiCriteriaIntegrationTest extends TestCase
         $results = $this->makeCriteria()->apply(new User)->get();
 
         // Only Alice and Bob have posts
-        static::assertCount(2, $results);
+        self::assertCount(2, $results);
     }
 
     /**
@@ -209,12 +211,12 @@ class ApiCriteriaIntegrationTest extends TestCase
         $results = $this->makeCriteria()->apply(new User)->get();
 
         // Charlie has no posts
-        static::assertCount(1, $results);
+        self::assertCount(1, $results);
 
         /** @var \Tests\Fixtures\Models\User $first */
         $first = $results->first();
 
-        static::assertSame('Charlie', $first->name);
+        self::assertSame('Charlie', $first->name);
     }
 
     /**
@@ -234,8 +236,8 @@ class ApiCriteriaIntegrationTest extends TestCase
         /** @var \Tests\Fixtures\Models\User $last */
         $last = $results->last();
 
-        static::assertSame('Alice', $first->name);
-        static::assertSame('Charlie', $last->name);
+        self::assertSame('Alice', $first->name);
+        self::assertSame('Charlie', $last->name);
     }
 
     /**
@@ -255,8 +257,8 @@ class ApiCriteriaIntegrationTest extends TestCase
         /** @var \Tests\Fixtures\Models\User $last */
         $last = $results->last();
 
-        static::assertSame('Charlie', $first->name);
-        static::assertSame('Alice', $last->name);
+        self::assertSame('Charlie', $first->name);
+        self::assertSame('Alice', $last->name);
     }
 
     /**
@@ -271,7 +273,7 @@ class ApiCriteriaIntegrationTest extends TestCase
         $results = $this->makeCriteria()->apply(new User)->get();
 
         // Cannot assert order, but we can assert the count is correct
-        static::assertCount(3, $results);
+        self::assertCount(3, $results);
     }
 
     /**
@@ -285,7 +287,7 @@ class ApiCriteriaIntegrationTest extends TestCase
 
         $results = $this->makeCriteria()->apply(new User)->get();
 
-        static::assertCount(2, $results);
+        self::assertCount(2, $results);
     }
 
     /**
@@ -303,12 +305,12 @@ class ApiCriteriaIntegrationTest extends TestCase
 
         $results = $this->makeCriteria()->apply(new User)->get();
 
-        static::assertCount(1, $results);
+        self::assertCount(1, $results);
 
         /** @var \Tests\Fixtures\Models\User $first */
         $first = $results->first();
 
-        static::assertSame('Bob', $first->name);
+        self::assertSame('Bob', $first->name);
     }
 
     /**

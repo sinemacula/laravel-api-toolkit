@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Unit\Events;
 
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -15,7 +17,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(CacheFlushed::class)]
-class CacheFlushedTest extends TestCase
+final class CacheFlushedTest extends TestCase
 {
     /**
      * Test that the event can be instantiated with no arguments.
@@ -26,7 +28,7 @@ class CacheFlushedTest extends TestCase
     {
         $event = new CacheFlushed;
 
-        static::assertInstanceOf(CacheFlushed::class, $event);
+        self::assertInstanceOf(CacheFlushed::class, $event);
     }
 
     /**
@@ -41,7 +43,7 @@ class CacheFlushedTest extends TestCase
 
         $publicProperties = $reflection->getProperties(\ReflectionProperty::IS_PUBLIC);
 
-        static::assertEmpty($publicProperties, 'Marker event should have no public properties');
+        self::assertEmpty($publicProperties, 'Marker event should have no public properties');
 
         $objectMethods = get_class_methods(new \stdClass) ?: [];
         $eventMethods  = array_map(
@@ -51,6 +53,6 @@ class CacheFlushedTest extends TestCase
 
         $additionalMethods = array_diff($eventMethods, $objectMethods);
 
-        static::assertEmpty($additionalMethods, 'Marker event should not declare additional public methods');
+        self::assertEmpty($additionalMethods, 'Marker event should not declare additional public methods');
     }
 }

@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace SineMacula\ApiToolkit\Providers\Registrars;
 
 use Illuminate\Contracts\Container\Container;
@@ -36,7 +38,6 @@ final class MiddlewareRegistrar
 
         /** The service container for resolving the router and kernel. */
         private readonly Container $container,
-
     ) {}
 
     /**
@@ -135,11 +136,11 @@ final class MiddlewareRegistrar
      */
     private function getThrottleMiddleware(): string
     {
-        /** @var class-string|null $custom_class */
-        $custom_class = Config::get('api-toolkit.middleware.throttle.class');
+        /** @var class-string|null $customClass */
+        $customClass = Config::get('api-toolkit.middleware.throttle.class');
 
-        if ($custom_class !== null) {
-            return $custom_class;
+        if ($customClass !== null) {
+            return $customClass;
         }
 
         return Config::get('cache.default') !== 'redis'

@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Fixtures\Controllers;
 
 use SineMacula\ApiToolkit\Http\Routing\Controller;
@@ -9,5 +11,7 @@ use SineMacula\ApiToolkit\Http\Routing\Controller;
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
+ *
+ * @inheritable
  */
 class TestingController extends Controller {}

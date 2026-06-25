@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Unit\Http\Middleware;
 
 use Illuminate\Http\JsonResponse;
@@ -21,7 +23,7 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
  * @internal
  */
 #[CoversClass(JsonPrettyPrint::class)]
-class JsonPrettyPrintTest extends TestCase
+final class JsonPrettyPrintTest extends TestCase
 {
     /** @var string The shared test URI. */
     private const string TEST_URI = '/test';
@@ -42,7 +44,7 @@ class JsonPrettyPrintTest extends TestCase
 
         $response = $middleware->handle($request, fn () => new Response($json));
 
-        static::assertSame($json, $response->getContent());
+        self::assertSame($json, $response->getContent());
     }
 
     /**
@@ -60,7 +62,7 @@ class JsonPrettyPrintTest extends TestCase
 
         $expected = json_encode($payload, JSON_PRETTY_PRINT);
 
-        static::assertSame($expected, $response->getContent());
+        self::assertSame($expected, $response->getContent());
     }
 
     /**
@@ -76,7 +78,7 @@ class JsonPrettyPrintTest extends TestCase
 
         $response = $middleware->handle($request, fn () => new Response($json));
 
-        static::assertSame($json, $response->getContent());
+        self::assertSame($json, $response->getContent());
     }
 
     /**
@@ -93,7 +95,7 @@ class JsonPrettyPrintTest extends TestCase
 
         $response = $middleware->handle($request, fn () => new Response($content));
 
-        static::assertSame('This is not JSON', $response->getContent());
+        self::assertSame('This is not JSON', $response->getContent());
     }
 
     /**
@@ -109,7 +111,7 @@ class JsonPrettyPrintTest extends TestCase
 
         $response = $middleware->handle($request, fn () => $expectedResponse);
 
-        static::assertSame($expectedResponse, $response);
+        self::assertSame($expectedResponse, $response);
     }
 
     /**
@@ -128,14 +130,14 @@ class JsonPrettyPrintTest extends TestCase
 
         $response = $middleware->handle($request, fn () => $jsonResponse);
 
-        static::assertInstanceOf(JsonResponse::class, $response);
+        self::assertInstanceOf(JsonResponse::class, $response);
 
         $expectedOptions = JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG;
         $content         = $response->getContent();
 
-        static::assertSame($expectedOptions, $response->getEncodingOptions());
-        static::assertIsString($content);
-        static::assertStringContainsString('https://example.com/path', $content);
+        self::assertSame($expectedOptions, $response->getEncodingOptions());
+        self::assertIsString($content);
+        self::assertStringContainsString('https://example.com/path', $content);
     }
 
     /**
@@ -157,7 +159,7 @@ class JsonPrettyPrintTest extends TestCase
 
         $response = $middleware->handle($request, fn () => $jsonResponse);
 
-        static::assertSame($contentBefore, $response->getContent());
+        self::assertSame($contentBefore, $response->getContent());
     }
 
     /**
@@ -175,7 +177,7 @@ class JsonPrettyPrintTest extends TestCase
 
         $response = $middleware->handle($request, fn () => $streamedResponse);
 
-        static::assertSame($streamedResponse, $response);
+        self::assertSame($streamedResponse, $response);
     }
 
     /**
@@ -189,13 +191,13 @@ class JsonPrettyPrintTest extends TestCase
         $middleware = new JsonPrettyPrint;
         $tempFile   = tempnam(sys_get_temp_dir(), 'test');
 
-        static::assertIsString($tempFile);
+        self::assertIsString($tempFile);
 
         $binaryFileResponse = new BinaryFileResponse($tempFile);
 
         $response = $middleware->handle($request, fn () => $binaryFileResponse);
 
-        static::assertSame($binaryFileResponse, $response);
+        self::assertSame($binaryFileResponse, $response);
 
         unlink($tempFile);
     }
@@ -217,7 +219,7 @@ class JsonPrettyPrintTest extends TestCase
 
         $expected = json_encode(['key' => 'value'], JSON_PRETTY_PRINT);
 
-        static::assertSame($expected, $response->getContent());
+        self::assertSame($expected, $response->getContent());
     }
 
     /**
@@ -235,7 +237,27 @@ class JsonPrettyPrintTest extends TestCase
 
         $response = $middleware->handle($request, fn () => $plainResponse);
 
-        static::assertSame('not valid json', $response->getContent());
+        self::assertSame('not valid json', $response->getContent());
+    }
+
+    /**
+     * Test that a plain Response whose body is valid JSON but whose
+     * content-type is not JSON is left untouched, so only responses that
+     * declare themselves as JSON are reformatted.
+     *
+     * @return void
+     */
+    public function testSkipsPlainResponseWithNonJsonContentTypeEvenWhenBodyIsJson(): void
+    {
+        $compact    = json_encode(['key' => 'value']);
+        $request    = Request::create(self::TEST_URI, HttpMethod::GET->getVerb(), ['pretty' => 'true']);
+        $middleware = new JsonPrettyPrint;
+
+        $plainResponse = new Response($compact, 200, ['Content-Type' => 'text/plain']);
+
+        $response = $middleware->handle($request, fn () => $plainResponse);
+
+        self::assertSame($compact, $response->getContent());
     }
 
     /**
@@ -253,7 +275,7 @@ class JsonPrettyPrintTest extends TestCase
 
         $response = $middleware->handle($request, fn () => $plainResponse);
 
-        static::assertSame('null', $response->getContent());
+        self::assertSame('null', $response->getContent());
     }
 
     /**
@@ -270,7 +292,7 @@ class JsonPrettyPrintTest extends TestCase
 
         $response = $middleware->handle($request, fn () => new JsonResponse($payload));
 
-        static::assertSame(json_encode($payload), $response->getContent());
+        self::assertSame(json_encode($payload), $response->getContent());
     }
 
     /**
@@ -294,7 +316,7 @@ class JsonPrettyPrintTest extends TestCase
             restore_error_handler();
         }
 
-        static::assertSame('plain text', $response->getContent());
+        self::assertSame('plain text', $response->getContent());
     }
 
     /**
@@ -320,6 +342,6 @@ class JsonPrettyPrintTest extends TestCase
 
         $expected = json_encode($payload, JSON_PRETTY_PRINT);
 
-        static::assertSame($expected, $response->getContent());
+        self::assertSame($expected, $response->getContent());
     }
 }

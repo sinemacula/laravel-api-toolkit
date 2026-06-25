@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace SineMacula\ApiToolkit\Http\Resources;
 
 use Illuminate\Contracts\Pagination\CursorPaginator;
@@ -18,7 +20,7 @@ use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-class ApiResourceCollection extends AnonymousResourceCollection
+final class ApiResourceCollection extends AnonymousResourceCollection
 {
     /** @var array<int, string>|null Explicit list of fields to be returned in the collection */
     protected ?array $fields;
@@ -35,10 +37,10 @@ class ApiResourceCollection extends AnonymousResourceCollection
     #[\Override]
     public function toArray(Request $request): array
     {
-        /** @var class-string<\SineMacula\ApiToolkit\Http\Resources\ApiResource> $resource_class */
-        $resource_class = $this->collects;
+        /** @var class-string<\SineMacula\ApiToolkit\Http\Resources\ApiResource> $resourceClass */
+        $resourceClass = $this->collects;
 
-        return collect($this->collection)->map(function ($item) use ($resource_class, $request) {
+        return collect($this->collection)->map(function ($item) use ($resourceClass, $request): array {
 
             if ($item instanceof ApiResource) {
 
@@ -53,7 +55,7 @@ class ApiResourceCollection extends AnonymousResourceCollection
                 return $item->resolve($request);
             }
 
-            return (new $resource_class($item, false, $this->fields ?? null, $this->excludedFields ?? null))->resolve($request);
+            return (new $resourceClass($item, false, $this->fields ?? null, $this->excludedFields ?? null))->resolve($request);
         })->all();
     }
 
@@ -94,9 +96,11 @@ class ApiResourceCollection extends AnonymousResourceCollection
     #[\Override]
     public function withResponse(Request $request, JsonResponse $response): void
     {
-        if ($this->resource instanceof LengthAwarePaginator) {
-            $response->headers->set('Total-Count', $this->resource->total());
+        if (!($this->resource instanceof LengthAwarePaginator)) {
+            return;
         }
+
+        $response->headers->set('Total-Count', (string) $this->resource->total());
     }
 
     /**

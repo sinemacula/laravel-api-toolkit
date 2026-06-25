@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace SineMacula\ApiToolkit\Exceptions;
 
 use SineMacula\ApiToolkit\Services\Validation\SchemaValidationError;
@@ -12,17 +14,16 @@ use SineMacula\ApiToolkit\Services\Validation\SchemaValidationError;
  */
 final class InvalidSchemaException extends \RuntimeException
 {
-    /** @var array<int, \SineMacula\ApiToolkit\Services\Validation\SchemaValidationError> */
-    private array $errors;
-
     /**
      * Create a new invalid schema exception.
      *
      * @param  array<int, \SineMacula\ApiToolkit\Services\Validation\SchemaValidationError>  $errors
      */
-    public function __construct(array $errors)
-    {
-        $this->errors = $errors;
+    public function __construct(
+
+        /** The validation errors that describe why the schema is invalid. */
+        private array $errors,
+    ) {
 
         parent::__construct($this->buildMessage());
     }

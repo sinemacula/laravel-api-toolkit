@@ -1,14 +1,17 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Unit\Repositories\Traits;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Config;
 use PHPUnit\Framework\Attributes\CoversTrait;
+use SineMacula\ApiToolkit\Cache\MetadataCacheWriter;
 use SineMacula\ApiToolkit\Cache\MetadataKeyRegistry;
 use SineMacula\ApiToolkit\Enums\CacheKeys;
-use SineMacula\ApiToolkit\Repositories\Traits\ResolvesResource;
+use SineMacula\ApiToolkit\Repositories\Concerns\ResolvesResource;
 use Tests\Concerns\InteractsWithNonPublicMembers;
 use Tests\Fixtures\Models\Tag;
 use Tests\Fixtures\Models\User;
@@ -26,7 +29,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversTrait(ResolvesResource::class)]
-class ResolvesResourceTest extends TestCase
+final class ResolvesResourceTest extends TestCase
 {
     use InteractsWithNonPublicMembers;
 
@@ -42,11 +45,11 @@ class ResolvesResourceTest extends TestCase
         /** @phpstan-ignore method.notFound */
         $result = $consumer->usingResource(UserResource::class);
 
-        static::assertSame($consumer, $result);
+        self::assertSame($consumer, $result);
 
         $customResource = $this->getProperty($consumer, 'customResourceClass');
 
-        static::assertSame(UserResource::class, $customResource);
+        self::assertSame(UserResource::class, $customResource);
     }
 
     /**
@@ -62,7 +65,7 @@ class ResolvesResourceTest extends TestCase
 
         $result = $this->invokeMethod($consumer, 'resolveResource', new User);
 
-        static::assertSame(UserResource::class, $result);
+        self::assertSame(UserResource::class, $result);
     }
 
     /**
@@ -78,7 +81,7 @@ class ResolvesResourceTest extends TestCase
 
         $result = $this->invokeMethod($consumer, 'resolveResource', new User);
 
-        static::assertSame(UserResource::class, $result);
+        self::assertSame(UserResource::class, $result);
     }
 
     /**
@@ -94,7 +97,7 @@ class ResolvesResourceTest extends TestCase
 
         $result = $this->invokeMethod($consumer, 'resolveResource', new User);
 
-        static::assertNull($result);
+        self::assertNull($result);
     }
 
     /**
@@ -115,7 +118,7 @@ class ResolvesResourceTest extends TestCase
 
         $result = Cache::memo()->get('api-toolkit:model-resources:' . User::class);
 
-        static::assertNull($result);
+        self::assertNull($result);
     }
 
     /**
@@ -130,7 +133,7 @@ class ResolvesResourceTest extends TestCase
 
         $consumer::flushResourceCache(); // @phpstan-ignore staticMethod.notFound
 
-        static::assertTrue(true);
+        self::assertTrue(true);
     }
 
     /**
@@ -149,7 +152,7 @@ class ResolvesResourceTest extends TestCase
 
         $result = $this->invokeMethod($consumer, 'resolveResource', new User);
 
-        static::assertSame(TagResource::class, $result);
+        self::assertSame(TagResource::class, $result);
     }
 
     /**
@@ -165,8 +168,8 @@ class ResolvesResourceTest extends TestCase
 
         $consumer = $this->createConsumer();
 
-        static::assertSame(UserResource::class, $this->invokeMethod($consumer, 'resolveResource', new User));
-        static::assertSame(TagResource::class, $this->invokeMethod($consumer, 'resolveResource', new Tag));
+        self::assertSame(UserResource::class, $this->invokeMethod($consumer, 'resolveResource', new User));
+        self::assertSame(TagResource::class, $this->invokeMethod($consumer, 'resolveResource', new Tag));
     }
 
     /**
@@ -205,8 +208,8 @@ class ResolvesResourceTest extends TestCase
             }
         };
 
-        static::assertSame(UserResource::class, $repository->exposeResolveResource(new User));
-        static::assertSame(UserResource::class, $repository->exposeGetResourceFromModel(new User));
+        self::assertSame(UserResource::class, $repository->exposeResolveResource(new User));
+        self::assertSame(UserResource::class, $repository->exposeGetResourceFromModel(new User));
     }
 
     /**
@@ -228,7 +231,7 @@ class ResolvesResourceTest extends TestCase
         $registry    = $this->app->make(MetadataKeyRegistry::class);
         $expectedKey = CacheKeys::MODEL_RESOURCES->resolveKey([User::class]);
 
-        static::assertContains($expectedKey, $registry->keys());
+        self::assertContains($expectedKey, $registry->keys());
     }
 
     /**
@@ -238,8 +241,33 @@ class ResolvesResourceTest extends TestCase
      */
     private function createConsumer(): object
     {
-        return new class {
+        assert($this->app !== null);
+
+        return new class ($this->app->make(MetadataCacheWriter::class)) {
             use ResolvesResource;
+
+            /**
+             * Create the consumer with the injected metadata cache writer.
+             *
+             * @param  \SineMacula\ApiToolkit\Cache\MetadataCacheWriter  $writer
+             * @return void
+             */
+            public function __construct(
+
+                /** The metadata cache writer backing the trait. */
+                private readonly MetadataCacheWriter $writer,
+            ) {}
+
+            /**
+             * Get the injected metadata cache writer.
+             *
+             * @return \SineMacula\ApiToolkit\Cache\MetadataCacheWriter
+             */
+            #[\Override]
+            protected function metadataCacheWriter(): MetadataCacheWriter
+            {
+                return $this->writer;
+            }
         };
     }
 }

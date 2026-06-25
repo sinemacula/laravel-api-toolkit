@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Unit\Http;
 
 use Illuminate\Http\Request;
@@ -18,7 +20,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(RequestCapabilities::class)]
-class RequestCapabilitiesTest extends TestCase
+final class RequestCapabilitiesTest extends TestCase
 {
     /** @var string */
     private const string TEST_URL = '/test';
@@ -31,14 +33,14 @@ class RequestCapabilitiesTest extends TestCase
     public function testFromRequestReturnsStoredInstance(): void
     {
         $request      = Request::create(self::TEST_URL);
-        $capabilities = $this->createCapabilities(include_trashed: true);
+        $capabilities = $this->createCapabilities(includeTrashed: true);
 
         RequestCapabilities::storeOnRequest($request, $capabilities);
 
         $retrieved = RequestCapabilities::fromRequest($request);
 
-        static::assertSame($capabilities, $retrieved);
-        static::assertTrue($retrieved->includeTrashed());
+        self::assertSame($capabilities, $retrieved);
+        self::assertTrue($retrieved->includeTrashed());
     }
 
     /**
@@ -51,13 +53,13 @@ class RequestCapabilitiesTest extends TestCase
         $request      = Request::create(self::TEST_URL);
         $capabilities = RequestCapabilities::fromRequest($request);
 
-        static::assertFalse($capabilities->includeTrashed());
-        static::assertFalse($capabilities->onlyTrashed());
-        static::assertFalse($capabilities->expectsExport());
-        static::assertFalse($capabilities->expectsCsv());
-        static::assertFalse($capabilities->expectsXml());
-        static::assertFalse($capabilities->expectsPdf());
-        static::assertFalse($capabilities->expectsStream());
+        self::assertFalse($capabilities->includeTrashed());
+        self::assertFalse($capabilities->onlyTrashed());
+        self::assertFalse($capabilities->expectsExport());
+        self::assertFalse($capabilities->expectsCsv());
+        self::assertFalse($capabilities->expectsXml());
+        self::assertFalse($capabilities->expectsPdf());
+        self::assertFalse($capabilities->expectsStream());
     }
 
     /**
@@ -72,8 +74,8 @@ class RequestCapabilitiesTest extends TestCase
 
         $capabilities = RequestCapabilities::fromRequest($request);
 
-        static::assertTrue($capabilities->includeTrashed());
-        static::assertSame($capabilities, RequestCapabilities::fromRequest($request));
+        self::assertTrue($capabilities->includeTrashed());
+        self::assertSame($capabilities, RequestCapabilities::fromRequest($request));
     }
 
     /**
@@ -86,8 +88,8 @@ class RequestCapabilitiesTest extends TestCase
         $request      = Request::create(self::TEST_URL, 'GET', ['include_trashed' => 'true']);
         $capabilities = RequestCapabilities::resolve($request);
 
-        static::assertTrue($capabilities->includeTrashed());
-        static::assertFalse($capabilities->onlyTrashed());
+        self::assertTrue($capabilities->includeTrashed());
+        self::assertFalse($capabilities->onlyTrashed());
     }
 
     /**
@@ -100,8 +102,8 @@ class RequestCapabilitiesTest extends TestCase
         $request      = Request::create(self::TEST_URL, 'GET', ['only_trashed' => 'true']);
         $capabilities = RequestCapabilities::resolve($request);
 
-        static::assertTrue($capabilities->onlyTrashed());
-        static::assertFalse($capabilities->includeTrashed());
+        self::assertTrue($capabilities->onlyTrashed());
+        self::assertFalse($capabilities->includeTrashed());
     }
 
     /**
@@ -120,8 +122,8 @@ class RequestCapabilitiesTest extends TestCase
 
         $capabilities = RequestCapabilities::resolve($request);
 
-        static::assertTrue($capabilities->expectsCsv());
-        static::assertTrue($capabilities->expectsExport());
+        self::assertTrue($capabilities->expectsCsv());
+        self::assertTrue($capabilities->expectsExport());
     }
 
     /**
@@ -140,8 +142,8 @@ class RequestCapabilitiesTest extends TestCase
 
         $capabilities = RequestCapabilities::resolve($request);
 
-        static::assertTrue($capabilities->expectsXml());
-        static::assertTrue($capabilities->expectsExport());
+        self::assertTrue($capabilities->expectsXml());
+        self::assertTrue($capabilities->expectsExport());
     }
 
     /**
@@ -160,7 +162,7 @@ class RequestCapabilitiesTest extends TestCase
 
         $capabilities = RequestCapabilities::resolve($request);
 
-        static::assertTrue($capabilities->expectsExport());
+        self::assertTrue($capabilities->expectsExport());
     }
 
     /**
@@ -175,7 +177,7 @@ class RequestCapabilitiesTest extends TestCase
 
         $capabilities = RequestCapabilities::resolve($request);
 
-        static::assertTrue($capabilities->expectsPdf());
+        self::assertTrue($capabilities->expectsPdf());
     }
 
     /**
@@ -190,7 +192,7 @@ class RequestCapabilitiesTest extends TestCase
 
         $capabilities = RequestCapabilities::resolve($request);
 
-        static::assertTrue($capabilities->expectsStream());
+        self::assertTrue($capabilities->expectsStream());
     }
 
     /**
@@ -209,8 +211,8 @@ class RequestCapabilitiesTest extends TestCase
 
         $capabilities = RequestCapabilities::resolve($request);
 
-        static::assertTrue($capabilities->expectsCsv());
-        static::assertTrue($capabilities->expectsExport());
+        self::assertTrue($capabilities->expectsCsv());
+        self::assertTrue($capabilities->expectsExport());
     }
 
     /**
@@ -221,14 +223,14 @@ class RequestCapabilitiesTest extends TestCase
     public function testStoreOnRequestSetsAttribute(): void
     {
         $request      = Request::create(self::TEST_URL);
-        $capabilities = $this->createCapabilities(expects_pdf: true);
+        $capabilities = $this->createCapabilities(expectsPdf: true);
 
         RequestCapabilities::storeOnRequest($request, $capabilities);
 
         $stored = $request->attributes->get(RequestCapabilities::class);
 
-        static::assertInstanceOf(RequestCapabilities::class, $stored);
-        static::assertTrue($stored->expectsPdf());
+        self::assertInstanceOf(RequestCapabilities::class, $stored);
+        self::assertTrue($stored->expectsPdf());
     }
 
     /**
@@ -247,8 +249,8 @@ class RequestCapabilitiesTest extends TestCase
 
         $capabilities = RequestCapabilities::resolve($request);
 
-        static::assertFalse($capabilities->expectsCsv());
-        static::assertFalse($capabilities->expectsExport());
+        self::assertFalse($capabilities->expectsCsv());
+        self::assertFalse($capabilities->expectsExport());
     }
 
     /**
@@ -266,8 +268,8 @@ class RequestCapabilitiesTest extends TestCase
 
         $capabilities = RequestCapabilities::resolve($request);
 
-        static::assertTrue($capabilities->expectsCsv());
-        static::assertFalse($capabilities->expectsExport());
+        self::assertTrue($capabilities->expectsCsv());
+        self::assertFalse($capabilities->expectsExport());
     }
 
     /**
@@ -279,44 +281,44 @@ class RequestCapabilitiesTest extends TestCase
     public function testAllAccessorsReturnCorrectValues(): void
     {
         $capabilities = $this->createCapabilities(
-            include_trashed: true,
-            only_trashed: true,
-            expects_export: true,
-            expects_csv: true,
-            expects_xml: true,
-            expects_pdf: true,
-            expects_stream: true,
+            includeTrashed: true,
+            onlyTrashed: true,
+            expectsExport: true,
+            expectsCsv: true,
+            expectsXml: true,
+            expectsPdf: true,
+            expectsStream: true,
         );
 
-        static::assertTrue($capabilities->includeTrashed());
-        static::assertTrue($capabilities->onlyTrashed());
-        static::assertTrue($capabilities->expectsExport());
-        static::assertTrue($capabilities->expectsCsv());
-        static::assertTrue($capabilities->expectsXml());
-        static::assertTrue($capabilities->expectsPdf());
-        static::assertTrue($capabilities->expectsStream());
+        self::assertTrue($capabilities->includeTrashed());
+        self::assertTrue($capabilities->onlyTrashed());
+        self::assertTrue($capabilities->expectsExport());
+        self::assertTrue($capabilities->expectsCsv());
+        self::assertTrue($capabilities->expectsXml());
+        self::assertTrue($capabilities->expectsPdf());
+        self::assertTrue($capabilities->expectsStream());
     }
 
     /**
      * Create a RequestCapabilities instance via reflection for testing.
      *
-     * @param  bool  $include_trashed
-     * @param  bool  $only_trashed
-     * @param  bool  $expects_export
-     * @param  bool  $expects_csv
-     * @param  bool  $expects_xml
-     * @param  bool  $expects_pdf
-     * @param  bool  $expects_stream
+     * @param  bool  $includeTrashed
+     * @param  bool  $onlyTrashed
+     * @param  bool  $expectsExport
+     * @param  bool  $expectsCsv
+     * @param  bool  $expectsXml
+     * @param  bool  $expectsPdf
+     * @param  bool  $expectsStream
      * @return \SineMacula\ApiToolkit\Http\RequestCapabilities
      */
     private function createCapabilities(
-        bool $include_trashed = false,
-        bool $only_trashed = false,
-        bool $expects_export = false,
-        bool $expects_csv = false,
-        bool $expects_xml = false,
-        bool $expects_pdf = false,
-        bool $expects_stream = false,
+        bool $includeTrashed = false,
+        bool $onlyTrashed = false,
+        bool $expectsExport = false,
+        bool $expectsCsv = false,
+        bool $expectsXml = false,
+        bool $expectsPdf = false,
+        bool $expectsStream = false,
     ): RequestCapabilities {
 
         $reflection  = new \ReflectionClass(RequestCapabilities::class);
@@ -330,13 +332,13 @@ class RequestCapabilitiesTest extends TestCase
 
         $constructor->invoke(
             $instance,
-            $include_trashed,
-            $only_trashed,
-            $expects_export,
-            $expects_csv,
-            $expects_xml,
-            $expects_pdf,
-            $expects_stream,
+            $includeTrashed,
+            $onlyTrashed,
+            $expectsExport,
+            $expectsCsv,
+            $expectsXml,
+            $expectsPdf,
+            $expectsStream,
         );
 
         return $instance;

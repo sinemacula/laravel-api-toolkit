@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Fixtures\Models;
 
 use Illuminate\Database\Eloquent\Casts\Attribute;
@@ -32,7 +34,7 @@ use Tests\Fixtures\Enums\UserStatus;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-class User extends Model
+final class User extends Model
 {
     /** @var string|null */
     protected $table = 'users';
@@ -87,6 +89,7 @@ class User extends Model
      *
      * @return array<string, string>
      */
+    #[\Override]
     protected function casts(): array
     {
         return [

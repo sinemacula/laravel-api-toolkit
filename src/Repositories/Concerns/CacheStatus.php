@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace SineMacula\ApiToolkit\Repositories\Concerns;
 
 use Carbon\CarbonImmutable;
@@ -23,8 +25,14 @@ final readonly class CacheStatus
      * @return void
      */
     public function __construct(
+
+        /** Whether the cache currently holds data. */
         private bool $populated,
+
+        /** The age of the cache entry in seconds, or null if unpopulated. */
         private ?int $age,
+
+        /** The timestamp of the last cache invalidation, if any. */
         private ?CarbonInterface $lastInvalidatedAt,
     ) {}
 
@@ -53,7 +61,8 @@ final readonly class CacheStatus
      *
      * Note: this reflects stored metadata, not a guaranteed data presence. An
      * external or shared-store flush can remove entries without going through
-     * flushTable(), leaving this returning true while the underlying data is gone.
+     * flushTable(), leaving this returning true while the underlying data is
+     * gone.
      *
      * @return bool
      */

@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Unit\Http\Resources\Schema;
 
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -17,7 +19,7 @@ use SineMacula\ApiToolkit\Schema\CompiledSchema;
  * @internal
  */
 #[CoversClass(CompiledSchema::class)]
-class CompiledSchemaTest extends TestCase
+final class CompiledSchemaTest extends TestCase
 {
     /**
      * Test that getField returns the definition for a known key.
@@ -41,7 +43,7 @@ class CompiledSchemaTest extends TestCase
 
         $schema = new CompiledSchema(['name' => $field], []);
 
-        static::assertSame($field, $schema->getField('name'));
+        self::assertSame($field, $schema->getField('name'));
     }
 
     /**
@@ -53,7 +55,7 @@ class CompiledSchemaTest extends TestCase
     {
         $schema = new CompiledSchema([], []);
 
-        static::assertNull($schema->getField('missing'));
+        self::assertNull($schema->getField('missing'));
     }
 
     /**
@@ -81,7 +83,7 @@ class CompiledSchemaTest extends TestCase
             [],
         );
 
-        static::assertSame(['name', 'email', 'status'], $schema->getFieldKeys());
+        self::assertSame(['name', 'email', 'status'], $schema->getFieldKeys());
     }
 
     /**
@@ -93,7 +95,7 @@ class CompiledSchemaTest extends TestCase
     {
         $schema = new CompiledSchema([], []);
 
-        static::assertSame([], $schema->getFieldKeys());
+        self::assertSame([], $schema->getFieldKeys());
     }
 
     /**
@@ -115,9 +117,9 @@ class CompiledSchemaTest extends TestCase
 
         $counts = $schema->getCountDefinitions();
 
-        static::assertCount(1, $counts);
-        static::assertArrayHasKey('posts', $counts);
-        static::assertSame($count, $counts['posts']);
+        self::assertCount(1, $counts);
+        self::assertArrayHasKey('posts', $counts);
+        self::assertSame($count, $counts['posts']);
     }
 
     /**
@@ -130,7 +132,7 @@ class CompiledSchemaTest extends TestCase
     {
         $schema = new CompiledSchema([], []);
 
-        static::assertSame([], $schema->getCountDefinitions());
+        self::assertSame([], $schema->getCountDefinitions());
     }
 
     /**
@@ -155,7 +157,7 @@ class CompiledSchemaTest extends TestCase
 
         $schema = new CompiledSchema(['name' => $field], []);
 
-        static::assertTrue($schema->hasField('name'));
+        self::assertTrue($schema->hasField('name'));
     }
 
     /**
@@ -167,6 +169,6 @@ class CompiledSchemaTest extends TestCase
     {
         $schema = new CompiledSchema([], []);
 
-        static::assertFalse($schema->hasField('nonexistent'));
+        self::assertFalse($schema->hasField('nonexistent'));
     }
 }

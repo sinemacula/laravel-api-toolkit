@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace SineMacula\ApiToolkit\Services\Validation\Rules;
 
 use Illuminate\Database\Eloquent\Relations\Relation;
@@ -42,18 +44,22 @@ final class ValidateRelationMethods implements SchemaValidationRule
 
             $error = $this->validateRelationMethod($resourceClass, $key, $modelClass, $field->relation);
 
-            if ($error !== null) {
-                $errors[] = $error;
+            if ($error === null) {
+                continue;
             }
+
+            $errors[] = $error;
         }
 
         foreach ($schema->getCountDefinitions() as $count) {
 
             $error = $this->validateRelationMethod($resourceClass, $count->presentKey, $modelClass, $count->relation);
 
-            if ($error !== null) {
-                $errors[] = $error;
+            if ($error === null) {
+                continue;
             }
+
+            $errors[] = $error;
         }
 
         return $errors;
@@ -69,8 +75,12 @@ final class ValidateRelationMethods implements SchemaValidationRule
      * @param  string  $relationMethod
      * @return \SineMacula\ApiToolkit\Services\Validation\SchemaValidationError|null
      */
-    private function validateRelationMethod(string $resourceClass, string $fieldKey, string $modelClass, string $relationMethod): ?SchemaValidationError
-    {
+    private function validateRelationMethod(
+        string $resourceClass,
+        string $fieldKey,
+        string $modelClass,
+        string $relationMethod,
+    ): ?SchemaValidationError {
         if (!method_exists($modelClass, $relationMethod)) {
             return new SchemaValidationError(
                 resourceClass: $resourceClass,
@@ -123,8 +133,11 @@ final class ValidateRelationMethods implements SchemaValidationRule
      * @param  string  $modelClass
      * @return string
      */
-    private function describeReturnTypeDefect(?\ReflectionType $returnType, string $relationMethod, string $modelClass): string
-    {
+    private function describeReturnTypeDefect(
+        ?\ReflectionType $returnType,
+        string $relationMethod,
+        string $modelClass,
+    ): string {
         if ($returnType === null) {
             return sprintf('Relation method "%s" on model "%s" has no return type hint', $relationMethod, $modelClass);
         }

@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace SineMacula\ApiToolkit\Services;
 
 use Illuminate\Database\Eloquent\Model;
@@ -27,7 +29,7 @@ use SineMacula\ApiToolkit\Services\Introspection\ColumnDefinition;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-class SchemaIntrospector implements SchemaIntrospectionProvider
+final class SchemaIntrospector implements SchemaIntrospectionProvider
 {
     /** @var array<string, array<int, string>> */
     private array $columns = [];
@@ -37,6 +39,18 @@ class SchemaIntrospector implements SchemaIntrospectionProvider
 
     /** @var array<string, array<int, string>> */
     private array $searchable = [];
+
+    /**
+     * Create a new schema introspector.
+     *
+     * @param  \SineMacula\ApiToolkit\Cache\MetadataCacheWriter  $metadataCacheWriter
+     * @return void
+     */
+    public function __construct(
+
+        /** Writes resolved schema metadata to the persistent cache. */
+        private readonly MetadataCacheWriter $metadataCacheWriter,
+    ) {}
 
     /**
      * Get the database columns for the given model.
@@ -173,7 +187,7 @@ class SchemaIntrospector implements SchemaIntrospectionProvider
         return $this->metadataCacheWriter()->rememberMetadataForever(CacheKeys::MODEL_RELATIONS->resolveKey([
             $model::class,
             $key,
-        ]), function () use ($key, $model) {
+        ]), function () use ($key, $model): bool {
             if (method_exists($model, $key)) {
                 return $this->hasRelationReturnType(new \ReflectionMethod($model, $key));
             }
@@ -211,7 +225,8 @@ class SchemaIntrospector implements SchemaIntrospectionProvider
     }
 
     /**
-     * Get the soft-delete column for the model, or null when it does not use SoftDeletes.
+     * Get the soft-delete column for the model, or null when it does not use
+     * SoftDeletes.
      *
      * @param  \Illuminate\Database\Eloquent\Model  $model
      * @return string|null
@@ -227,7 +242,8 @@ class SchemaIntrospector implements SchemaIntrospectionProvider
     }
 
     /**
-     * Get the parent-side key columns for the given relation, including morph type/id columns.
+     * Get the parent-side key columns for the given relation, including morph
+     * type/id columns.
      *
      * @param  \Illuminate\Database\Eloquent\Relations\Relation<\Illuminate\Database\Eloquent\Model, \Illuminate\Database\Eloquent\Model, mixed>  $relation
      * @return array<int, string>
@@ -260,13 +276,13 @@ class SchemaIntrospector implements SchemaIntrospectionProvider
     }
 
     /**
-     * Resolve the metadata cache writer from the container.
+     * Get the injected metadata cache writer.
      *
      * @return \SineMacula\ApiToolkit\Cache\MetadataCacheWriter
      */
     private function metadataCacheWriter(): MetadataCacheWriter
     {
-        return app(MetadataCacheWriter::class);
+        return $this->metadataCacheWriter;
     }
 
     /**

@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Unit\Console;
 
 use Illuminate\Contracts\Config\Repository as ConfigRepository;
@@ -23,7 +25,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(ExportOpenApiCommand::class)]
-class ExportOpenApiCommandTest extends TestCase
+final class ExportOpenApiCommandTest extends TestCase
 {
     /** @var string The console command signature. */
     private const string COMMAND = 'api-toolkit:export-openapi';
@@ -73,13 +75,13 @@ class ExportOpenApiCommandTest extends TestCase
             ->expectsOutputToContain('Exported 2 resource schema(s)')
             ->assertExitCode(0);
 
-        static::assertFileExists($this->outputPath);
+        self::assertFileExists($this->outputPath);
 
         $contents = file_get_contents($this->outputPath);
 
-        static::assertIsString($contents);
-        static::assertNotSame('', $contents);
-        static::assertStringContainsString('"openapi"', $contents);
+        self::assertIsString($contents);
+        self::assertNotSame('', $contents);
+        self::assertStringContainsString('"openapi"', $contents);
     }
 
     /**
@@ -96,10 +98,10 @@ class ExportOpenApiCommandTest extends TestCase
 
         $contents = file_get_contents($this->outputPath);
 
-        static::assertIsString($contents);
-        static::assertStringContainsString("\n", $contents);
-        static::assertStringContainsString('#/components/schemas/', $contents);
-        static::assertStringNotContainsString('#\/components\/schemas\/', $contents);
+        self::assertIsString($contents);
+        self::assertStringContainsString("\n", $contents);
+        self::assertStringContainsString('#/components/schemas/', $contents);
+        self::assertStringNotContainsString('#\/components\/schemas\/', $contents);
     }
 
     /**
@@ -116,7 +118,7 @@ class ExportOpenApiCommandTest extends TestCase
             ->expectsOutputToContain('No resources registered in the resource map')
             ->assertExitCode(0);
 
-        static::assertFileDoesNotExist($this->outputPath);
+        self::assertFileDoesNotExist($this->outputPath);
     }
 
     /**
@@ -134,7 +136,30 @@ class ExportOpenApiCommandTest extends TestCase
         $this->runCommand()
             ->assertExitCode(0);
 
-        static::assertFileExists($this->outputPath);
+        self::assertFileExists($this->outputPath);
+    }
+
+    /**
+     * Test that an empty configured output path falls back to the default
+     * project path rather than being treated as a usable destination.
+     *
+     * @return void
+     */
+    public function testCommandFallsBackToDefaultPathWhenConfiguredOutputIsEmpty(): void
+    {
+        $this->registerResourceMap();
+
+        $this->getConfig()->set('api-toolkit.openapi.output', '');
+
+        $default = base_path('openapi.json');
+        @unlink($default);
+
+        $this->runCommand()
+            ->assertExitCode(0);
+
+        self::assertFileExists($default);
+
+        @unlink($default);
     }
 
     /**

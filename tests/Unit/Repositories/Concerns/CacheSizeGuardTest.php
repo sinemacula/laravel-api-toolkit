@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Unit\Repositories\Concerns;
 
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -15,7 +17,7 @@ use SineMacula\ApiToolkit\Repositories\Concerns\CacheSizeGuard;
  * @internal
  */
 #[CoversClass(CacheSizeGuard::class)]
-class CacheSizeGuardTest extends TestCase
+final class CacheSizeGuardTest extends TestCase
 {
     /**
      * Test that a result within both ceilings is allowed.
@@ -26,7 +28,7 @@ class CacheSizeGuardTest extends TestCase
     {
         $guard = new CacheSizeGuard(1000, 262144);
 
-        static::assertTrue($guard->allows(collect(['a', 'b']), 2));
+        self::assertTrue($guard->allows(collect(['a', 'b']), 2));
     }
 
     /**
@@ -38,7 +40,7 @@ class CacheSizeGuardTest extends TestCase
     {
         $guard = new CacheSizeGuard(2, 262144);
 
-        static::assertFalse($guard->allows(collect(['a', 'b', 'c']), 3));
+        self::assertFalse($guard->allows(collect(['a', 'b', 'c']), 3));
     }
 
     /**
@@ -50,7 +52,7 @@ class CacheSizeGuardTest extends TestCase
     {
         $guard = new CacheSizeGuard(1000, 8);
 
-        static::assertFalse($guard->allows(str_repeat('x', 256), 1));
+        self::assertFalse($guard->allows(str_repeat('x', 256), 1));
     }
 
     /**
@@ -62,7 +64,7 @@ class CacheSizeGuardTest extends TestCase
     {
         $guard = new CacheSizeGuard(null, 262144);
 
-        static::assertTrue($guard->allows(collect(['a', 'b', 'c']), 100000));
+        self::assertTrue($guard->allows(collect(['a', 'b', 'c']), 100000));
     }
 
     /**
@@ -74,7 +76,7 @@ class CacheSizeGuardTest extends TestCase
     {
         $guard = new CacheSizeGuard(1000, null);
 
-        static::assertTrue($guard->allows(str_repeat('x', 100000), 1));
+        self::assertTrue($guard->allows(str_repeat('x', 100000), 1));
     }
 
     /**
@@ -87,7 +89,7 @@ class CacheSizeGuardTest extends TestCase
     {
         $guard = new CacheSizeGuard(5, 262144);
 
-        static::assertTrue($guard->allows(collect(['a']), 5));
+        self::assertTrue($guard->allows(collect(['a']), 5));
     }
 
     /**
@@ -101,6 +103,6 @@ class CacheSizeGuardTest extends TestCase
         $result = collect(['a', 'b']);
         $guard  = new CacheSizeGuard(1000, strlen(serialize($result)));
 
-        static::assertTrue($guard->allows($result, 2));
+        self::assertTrue($guard->allows($result, 2));
     }
 }

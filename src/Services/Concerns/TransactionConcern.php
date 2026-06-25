@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace SineMacula\ApiToolkit\Services\Concerns;
 
 use Illuminate\Support\Facades\DB;
@@ -16,7 +18,7 @@ use SineMacula\ApiToolkit\Services\Service;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-class TransactionConcern implements ServiceConcern
+final class TransactionConcern implements ServiceConcern
 {
     /** @var int Default number of transaction retry attempts */
     private const int DEFAULT_RETRIES = 3;

@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace SineMacula\ApiToolkit\Cache;
 
 use Illuminate\Support\Facades\Cache;
@@ -24,9 +26,8 @@ final class MetadataCacheWriter
      */
     public function __construct(
 
-        /** The registry that tracks live toolkit metadata keys for scoped flushing. */
+        /** The registry tracking live toolkit metadata keys for flushing. */
         private readonly MetadataKeyRegistry $registry,
-
     ) {}
 
     /**

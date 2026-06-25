@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Unit\Http\Resources\Concerns;
 
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -18,13 +20,14 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(FieldColumnMapper::class)]
-class FieldColumnMapperTest extends TestCase
+final class FieldColumnMapperTest extends TestCase
 {
     /**
      * Reset both static caches before each test to avoid cross-test bleed.
      *
      * @return void
      */
+    #[\Override]
     protected function setUp(): void
     {
         parent::setUp();
@@ -38,6 +41,7 @@ class FieldColumnMapperTest extends TestCase
      *
      * @return void
      */
+    #[\Override]
     protected function tearDown(): void
     {
         FieldColumnMapper::clearCache();
@@ -59,8 +63,8 @@ class FieldColumnMapperTest extends TestCase
 
         $map = FieldColumnMapper::build($schema);
 
-        static::assertTrue($map->isMapped('email'));
-        static::assertSame(['email'], $map->columnsFor('email'));
+        self::assertTrue($map->isMapped('email'));
+        self::assertSame(['email'], $map->columnsFor('email'));
     }
 
     /**
@@ -76,8 +80,8 @@ class FieldColumnMapperTest extends TestCase
 
         $map = FieldColumnMapper::build($schema);
 
-        static::assertTrue($map->isMapped('full_name'));
-        static::assertSame(['first_name', 'last_name'], $map->columnsFor('full_name'));
+        self::assertTrue($map->isMapped('full_name'));
+        self::assertSame(['first_name', 'last_name'], $map->columnsFor('full_name'));
     }
 
     /**
@@ -93,8 +97,8 @@ class FieldColumnMapperTest extends TestCase
 
         $map = FieldColumnMapper::build($schema);
 
-        static::assertFalse($map->isMapped('avatar'));
-        static::assertNull($map->columnsFor('avatar'));
+        self::assertFalse($map->isMapped('avatar'));
+        self::assertNull($map->columnsFor('avatar'));
     }
 
     /**
@@ -110,8 +114,8 @@ class FieldColumnMapperTest extends TestCase
 
         $map = FieldColumnMapper::build($schema);
 
-        static::assertFalse($map->isMapped('secret'));
-        static::assertNull($map->columnsFor('secret'));
+        self::assertFalse($map->isMapped('secret'));
+        self::assertNull($map->columnsFor('secret'));
     }
 
     /**
@@ -127,8 +131,8 @@ class FieldColumnMapperTest extends TestCase
 
         $map = FieldColumnMapper::build($schema);
 
-        static::assertFalse($map->isMapped('organization'));
-        static::assertNull($map->columnsFor('organization'));
+        self::assertFalse($map->isMapped('organization'));
+        self::assertNull($map->columnsFor('organization'));
     }
 
     /**
@@ -143,7 +147,7 @@ class FieldColumnMapperTest extends TestCase
         $first  = FieldColumnMapper::for($resourceClass);
         $second = FieldColumnMapper::for($resourceClass);
 
-        static::assertSame($first, $second);
+        self::assertSame($first, $second);
     }
 
     /**
@@ -161,7 +165,7 @@ class FieldColumnMapperTest extends TestCase
 
         $second = FieldColumnMapper::for($resourceClass);
 
-        static::assertNotSame($first, $second);
+        self::assertNotSame($first, $second);
     }
 
     /**
@@ -185,8 +189,13 @@ class FieldColumnMapperTest extends TestCase
      * @param  array<int, callable(mixed, mixed): bool>  $guards
      * @return \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition
      */
-    private function makeDefinition(mixed $accessor = null, mixed $compute = null, ?string $relation = null, array $needs = [], array $guards = []): CompiledFieldDefinition
-    {
+    private function makeDefinition(
+        mixed $accessor = null,
+        mixed $compute = null,
+        ?string $relation = null,
+        array $needs = [],
+        array $guards = [],
+    ): CompiledFieldDefinition {
         return new CompiledFieldDefinition(
             accessor    : $accessor,
             compute     : $compute,

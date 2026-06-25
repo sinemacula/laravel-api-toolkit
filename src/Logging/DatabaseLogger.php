@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace SineMacula\ApiToolkit\Logging;
 
 use Monolog\Logger;
@@ -13,7 +15,7 @@ use Monolog\Logger;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-class DatabaseLogger
+final class DatabaseLogger
 {
     /**
      * Invoke the custom logger instance.

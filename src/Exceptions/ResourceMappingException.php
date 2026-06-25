@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace SineMacula\ApiToolkit\Exceptions;
 
 /**
@@ -8,4 +10,4 @@ namespace SineMacula\ApiToolkit\Exceptions;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-class ResourceMappingException extends \LogicException {}
+final class ResourceMappingException extends \LogicException {}

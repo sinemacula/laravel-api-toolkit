@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace SineMacula\ApiToolkit\Logging;
 
 use Aws\CloudWatchLogs\CloudWatchLogsClient;
@@ -12,7 +14,7 @@ use PhpNexus\Cwh\Handler\CloudWatch as CloudWatchHandler;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-class CloudWatchLogger
+final class CloudWatchLogger
 {
     /**
      * Create a custom Monolog instance.
@@ -28,15 +30,15 @@ class CloudWatchLogger
             'credentials' => $config['aws']['credentials'],
         ]);
 
-        $retention  = $config['retention']  ?? 7;
-        $batch_size = $config['batch_size'] ?? 1000;
+        $retention = $config['retention']  ?? 7;
+        $batchSize = $config['batch_size'] ?? 1000;
 
         $handler = new CloudWatchHandler(
             $client,
             $config['log_group'],
             $config['log_stream'],
             is_numeric($retention) ? (int) $retention : 7,
-            is_numeric($batch_size) ? (int) $batch_size : 1000,
+            is_numeric($batchSize) ? (int) $batchSize : 1000,
             [],
             Logger::toMonologLevel($config['level'] ?? 'debug'),
         );

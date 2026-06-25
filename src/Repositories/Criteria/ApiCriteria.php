@@ -1,21 +1,24 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace SineMacula\ApiToolkit\Repositories\Criteria;
 
 use Illuminate\Contracts\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Config;
+use SineMacula\ApiToolkit\Cache\MetadataCacheWriter;
 use SineMacula\ApiToolkit\Contracts\ApiResourceInterface;
 use SineMacula\ApiToolkit\Contracts\ResourceMetadataProvider;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
+use SineMacula\ApiToolkit\Repositories\Concerns\ResolvesResource;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\ColumnProjectionApplier;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\EagerLoadApplier;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterApplier;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\LimitApplier;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\OrderApplier;
-use SineMacula\ApiToolkit\Repositories\Traits\ResolvesResource;
 use SineMacula\ApiToolkit\Schema\SafetySetDeriver;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 use SineMacula\Repositories\Contracts\CriteriaInterface;
@@ -31,7 +34,7 @@ use SineMacula\Repositories\Contracts\CriteriaInterface;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-class ApiCriteria implements CriteriaInterface
+final class ApiCriteria implements CriteriaInterface
 {
     use ResolvesResource;
 
@@ -57,6 +60,7 @@ class ApiCriteria implements CriteriaInterface
      * @param  \SineMacula\ApiToolkit\Contracts\ResourceMetadataProvider  $metadataProvider
      * @param  \SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider  $schemaIntrospector
      * @param  \SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry  $operatorRegistry
+     * @param  \SineMacula\ApiToolkit\Cache\MetadataCacheWriter  $metadataCacheWriter
      * @return void
      */
     public function __construct(
@@ -73,6 +77,8 @@ class ApiCriteria implements CriteriaInterface
         /** Registry of filter operator handlers */
         private readonly OperatorRegistry $operatorRegistry,
 
+        /** Writes resolved resource metadata to the persistent cache */
+        private readonly MetadataCacheWriter $metadataCacheWriter,
     ) {
         $this->filterApplier           = new FilterApplier;
         $this->orderApplier            = new OrderApplier;
@@ -102,6 +108,17 @@ class ApiCriteria implements CriteriaInterface
 
         /** @var \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model> $query */
         return $this->applyOrderingAndProjection($query, $surface);
+    }
+
+    /**
+     * Get the metadata cache writer used by the ResolvesResource concern.
+     *
+     * @return \SineMacula\ApiToolkit\Cache\MetadataCacheWriter
+     */
+    #[\Override]
+    protected function metadataCacheWriter(): MetadataCacheWriter
+    {
+        return $this->metadataCacheWriter;
     }
 
     /**

@@ -1,8 +1,9 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace SineMacula\ApiToolkit\Exceptions;
 
-use Exception;
 use Illuminate\Support\Facades\Lang;
 use SineMacula\ApiToolkit\Contracts\ErrorCodeInterface;
 use SineMacula\Http\Enums\HttpStatus;
@@ -30,8 +31,8 @@ abstract class ApiException extends \Exception
         /** Exception headers */
         private readonly ?array $headers = null,
 
+        // The previous throwable
         ?\Throwable $previous = null,
-
     ) {
         parent::__construct($this->getCustomDetail(), $this->getStatusCode(), $previous);
     }
@@ -154,6 +155,8 @@ abstract class ApiException extends \Exception
      * Get internal error.
      *
      * @return \SineMacula\ApiToolkit\Contracts\ErrorCodeInterface
+     *
+     * @throws \LogicException
      */
     private static function getInternalError(): ErrorCodeInterface
     {
@@ -169,6 +172,8 @@ abstract class ApiException extends \Exception
      * Get HTTP status.
      *
      * @return \SineMacula\Http\Enums\HttpStatus
+     *
+     * @throws \LogicException
      */
     private static function getHttpStatus(): HttpStatus
     {

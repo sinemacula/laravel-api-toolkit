@@ -1,11 +1,14 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace SineMacula\ApiToolkit\Http\Resources;
 
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Http\Resources\MissingValue;
 use Illuminate\Support\Facades\Config;
+use SineMacula\ApiToolkit\Concerns\OrdersFields;
 use SineMacula\ApiToolkit\Contracts\ApiResourceInterface;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\EagerLoadPlanner;
@@ -13,7 +16,6 @@ use SineMacula\ApiToolkit\Http\Resources\Concerns\FieldResolver;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\GuardEvaluator;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\ValueResolver;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
-use SineMacula\ApiToolkit\Traits\OrdersFields;
 
 /**
  * The base API resource.
@@ -24,6 +26,8 @@ use SineMacula\ApiToolkit\Traits\OrdersFields;
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
+ *
+ * @managed-static
  */
 abstract class ApiResource extends JsonResource implements ApiResourceInterface
 {
@@ -45,12 +49,16 @@ abstract class ApiResource extends JsonResource implements ApiResourceInterface
      * Create a new resource instance.
      *
      * @param  mixed  $resource
-     * @param  mixed  $loadMissing
+     * @param  bool  $loadMissing
      * @param  array<int, string>|string|null  $included
      * @param  array<int, string>|null  $excluded
      */
-    public function __construct(mixed $resource, mixed $loadMissing = false, array|string|null $included = null, ?array $excluded = null)
-    {
+    public function __construct(
+        mixed $resource,
+        bool $loadMissing = false,
+        array|string|null $included = null,
+        ?array $excluded = null,
+    ) {
         parent::__construct($resource);
 
         $guardEvaluator      = new GuardEvaluator;
@@ -69,9 +77,11 @@ abstract class ApiResource extends JsonResource implements ApiResourceInterface
             $this->fieldResolver->withoutFields($excluded);
         }
 
-        if ($loadMissing === true && is_object($resource)) {
-            $this->loadMissingRelations($resource);
+        if ($loadMissing !== true || !is_object($resource)) {
+            return;
         }
+
+        $this->loadMissingRelations($resource);
     }
 
     /**
@@ -102,9 +112,11 @@ abstract class ApiResource extends JsonResource implements ApiResourceInterface
 
             $value = $this->valueResolver->resolveFieldValue($field, $definition, $this, $request);
 
-            if (!($value instanceof MissingValue)) {
-                $data[$field] = $value;
+            if ($value instanceof MissingValue) {
+                continue;
             }
+
+            $data[$field] = $value;
         }
 
         if ($this->fieldResolver->shouldIncludeCountsField(static::getResourceType(), static::getDefaultFields())) {
@@ -148,6 +160,8 @@ abstract class ApiResource extends JsonResource implements ApiResourceInterface
      * Get the resource type.
      *
      * @return string
+     *
+     * @throws \LogicException
      */
     #[\Override]
     public static function getResourceType(): string
@@ -288,15 +302,18 @@ abstract class ApiResource extends JsonResource implements ApiResourceInterface
             }
         }
 
-        if (method_exists($resource, 'loadCount') && $this->fieldResolver->shouldIncludeCountsField(static::getResourceType(), static::getDefaultFields())) {
-
-            $requestedCounts = ApiQuery::getCounts(static::getResourceType()) ?? [];
-            $withCounts      = EagerLoadPlanner::buildCountMap(static::class, $requestedCounts);
-
-            if ($withCounts !== []) {
-                $resource->loadCount($withCounts);
-            }
+        if (!method_exists($resource, 'loadCount') || !$this->fieldResolver->shouldIncludeCountsField(static::getResourceType(), static::getDefaultFields())) {
+            return;
         }
+
+        $requestedCounts = ApiQuery::getCounts(static::getResourceType()) ?? [];
+        $withCounts      = EagerLoadPlanner::buildCountMap(static::class, $requestedCounts);
+
+        if ($withCounts === []) {
+            return;
+        }
+
+        $resource->loadCount($withCounts);
     }
 
     /**

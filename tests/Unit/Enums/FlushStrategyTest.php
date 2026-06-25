@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Unit\Enums;
 
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -15,7 +17,7 @@ use SineMacula\ApiToolkit\Enums\FlushStrategy;
  * @internal
  */
 #[CoversClass(FlushStrategy::class)]
-class FlushStrategyTest extends TestCase
+final class FlushStrategyTest extends TestCase
 {
     /**
      * Test that LOG has backing value 'log'.
@@ -24,7 +26,7 @@ class FlushStrategyTest extends TestCase
      */
     public function testLogCaseHasCorrectBackingValue(): void
     {
-        static::assertSame('log', FlushStrategy::LOG->value);
+        self::assertSame('log', FlushStrategy::LOG->value);
     }
 
     /**
@@ -34,7 +36,7 @@ class FlushStrategyTest extends TestCase
      */
     public function testThrowCaseHasCorrectBackingValue(): void
     {
-        static::assertSame('throw', FlushStrategy::THROW->value);
+        self::assertSame('throw', FlushStrategy::THROW->value);
     }
 
     /**
@@ -44,7 +46,7 @@ class FlushStrategyTest extends TestCase
      */
     public function testCollectCaseHasCorrectBackingValue(): void
     {
-        static::assertSame('collect', FlushStrategy::COLLECT->value);
+        self::assertSame('collect', FlushStrategy::COLLECT->value);
     }
 
     /**
@@ -55,9 +57,9 @@ class FlushStrategyTest extends TestCase
      */
     public function testFromStringResolvesValidCases(): void
     {
-        static::assertSame(FlushStrategy::LOG, FlushStrategy::from('log'));
-        static::assertSame(FlushStrategy::THROW, FlushStrategy::from('throw'));
-        static::assertSame(FlushStrategy::COLLECT, FlushStrategy::from('collect'));
+        self::assertSame(FlushStrategy::LOG, FlushStrategy::from('log'));
+        self::assertSame(FlushStrategy::THROW, FlushStrategy::from('throw'));
+        self::assertSame(FlushStrategy::COLLECT, FlushStrategy::from('collect'));
     }
 
     /**

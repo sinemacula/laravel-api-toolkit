@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Unit\Services;
 
 use Illuminate\Foundation\Application;
@@ -24,7 +26,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(Service::class)]
-class ServiceTest extends TestCase
+final class ServiceTest extends TestCase
 {
     /**
      * Test that run calls success on successful execution.
@@ -37,7 +39,7 @@ class ServiceTest extends TestCase
 
         $service->run();
 
-        static::assertTrue($service->successCalled);
+        self::assertTrue($service->successCalled);
     }
 
     /**
@@ -51,9 +53,9 @@ class ServiceTest extends TestCase
 
         $result = $service->run();
 
-        static::assertTrue($result->succeeded());
-        static::assertSame(ServiceStatus::SUCCEEDED, $result->status);
-        static::assertNull($result->exception);
+        self::assertTrue($result->succeeded());
+        self::assertSame(ServiceStatus::SUCCEEDED, $result->status);
+        self::assertNull($result->exception);
     }
 
     /**
@@ -67,11 +69,11 @@ class ServiceTest extends TestCase
 
         $result = $service->run();
 
-        static::assertTrue($result->failed());
-        static::assertTrue($service->failedCalled);
-        static::assertSame($result->exception, $service->failedException);
-        static::assertInstanceOf(\RuntimeException::class, $result->exception);
-        static::assertSame('Service execution failed', $result->exception->getMessage());
+        self::assertTrue($result->failed());
+        self::assertTrue($service->failedCalled);
+        self::assertSame($result->exception, $service->failedException);
+        self::assertInstanceOf(\RuntimeException::class, $result->exception);
+        self::assertSame('Service execution failed', $result->exception->getMessage());
     }
 
     /**
@@ -83,7 +85,7 @@ class ServiceTest extends TestCase
     {
         $service = new SimpleService;
 
-        static::assertInstanceOf(LockKeyProvider::class, $service);
+        self::assertInstanceOf(LockKeyProvider::class, $service);
     }
 
     /**
@@ -98,7 +100,7 @@ class ServiceTest extends TestCase
 
         $expected = sha1(LockableService::class . '|lockable-test');
 
-        static::assertSame($expected, $service->getLockKey());
+        self::assertSame($expected, $service->getLockKey());
     }
 
     /**
@@ -112,8 +114,8 @@ class ServiceTest extends TestCase
 
         $payload = (new \ReflectionProperty($service, 'payload'))->getValue($service);
 
-        static::assertInstanceOf(Collection::class, $payload);
-        static::assertSame('value', $payload->get('key'));
+        self::assertInstanceOf(Collection::class, $payload);
+        self::assertSame('value', $payload->get('key'));
     }
 
     /**
@@ -129,8 +131,8 @@ class ServiceTest extends TestCase
 
         $payload = (new \ReflectionProperty($service, 'payload'))->getValue($service);
 
-        static::assertInstanceOf(Collection::class, $payload);
-        static::assertSame('value', $payload->get('key'));
+        self::assertInstanceOf(Collection::class, $payload);
+        self::assertSame('value', $payload->get('key'));
     }
 
     /**
@@ -146,7 +148,7 @@ class ServiceTest extends TestCase
 
         $payload = (new \ReflectionProperty($service, 'payload'))->getValue($service);
 
-        static::assertSame($collection, $payload);
+        self::assertSame($collection, $payload);
     }
 
     /**
@@ -163,7 +165,7 @@ class ServiceTest extends TestCase
 
         $payload = (new \ReflectionProperty($service, 'payload'))->getValue($service);
 
-        static::assertSame($object, $payload);
+        self::assertSame($object, $payload);
     }
 
     /**
@@ -180,6 +182,7 @@ class ServiceTest extends TestCase
              *
              * @return bool
              */
+            #[\Override]
             protected function handle(): bool
             {
                 return true;
@@ -190,9 +193,9 @@ class ServiceTest extends TestCase
         $service->success();
         $service->failed(new \RuntimeException('hook'));
 
-        static::assertTrue((new \ReflectionMethod(Service::class, 'prepare'))->isPublic());
-        static::assertTrue((new \ReflectionMethod(Service::class, 'success'))->isPublic());
-        static::assertTrue((new \ReflectionMethod(Service::class, 'failed'))->isPublic());
+        self::assertTrue((new \ReflectionMethod(Service::class, 'prepare'))->isPublic());
+        self::assertTrue((new \ReflectionMethod(Service::class, 'success'))->isPublic());
+        self::assertTrue((new \ReflectionMethod(Service::class, 'failed'))->isPublic());
     }
 
     /**
@@ -225,6 +228,7 @@ class ServiceTest extends TestCase
              *
              * @return void
              */
+            #[\Override]
             public function prepare(): void
             {
                 $this->callOrder[] = 'prepare';
@@ -235,6 +239,7 @@ class ServiceTest extends TestCase
              *
              * @return bool
              */
+            #[\Override]
             protected function handle(): bool
             {
                 $this->callOrder[] = 'handle';
@@ -255,7 +260,7 @@ class ServiceTest extends TestCase
 
         $service->run();
 
-        static::assertSame(['prepare', 'handle'], $service->getCallOrder());
+        self::assertSame(['prepare', 'handle'], $service->getCallOrder());
     }
 
     /**
@@ -269,7 +274,7 @@ class ServiceTest extends TestCase
 
         $result = $service->run();
 
-        static::assertTrue($result->succeeded());
+        self::assertTrue($result->succeeded());
     }
 
     /**
@@ -289,6 +294,7 @@ class ServiceTest extends TestCase
              *
              * @throws \RuntimeException
              */
+            #[\Override]
             protected function handle(): bool
             {
                 throw new \RuntimeException('handled');
@@ -298,8 +304,8 @@ class ServiceTest extends TestCase
         $result = $service->run();
 
         // Base failed() was called and did nothing — no secondary exception
-        static::assertTrue($result->failed());
-        static::assertInstanceOf(\RuntimeException::class, $result->exception);
+        self::assertTrue($result->failed());
+        self::assertInstanceOf(\RuntimeException::class, $result->exception);
     }
 
     /**
@@ -315,6 +321,7 @@ class ServiceTest extends TestCase
              *
              * @return bool
              */
+            #[\Override]
             protected function handle(): bool
             {
                 return true;
@@ -331,7 +338,7 @@ class ServiceTest extends TestCase
             }
         };
 
-        static::assertSame([], $service->getConcerns());
+        self::assertSame([], $service->getConcerns());
     }
 
     /**
@@ -367,6 +374,7 @@ class ServiceTest extends TestCase
              * @param  \Closure(): bool  $next
              * @return bool
              */
+            #[\Override]
             public function execute(Service $service, \Closure $next): bool
             {
                 $this->order[] = 'A:before';
@@ -398,6 +406,7 @@ class ServiceTest extends TestCase
              * @param  \Closure(): bool  $next
              * @return bool
              */
+            #[\Override]
             public function execute(Service $service, \Closure $next): bool
             {
                 $this->order[] = 'B:before';
@@ -448,6 +457,7 @@ class ServiceTest extends TestCase
              *
              * @return bool
              */
+            #[\Override]
             protected function handle(): bool
             {
                 return true;
@@ -456,7 +466,7 @@ class ServiceTest extends TestCase
 
         $service->run();
 
-        static::assertSame(['A:before', 'B:before', 'B:after', 'A:after'], $order);
+        self::assertSame(['A:before', 'B:before', 'B:after', 'A:after'], $order);
     }
 
     /**
@@ -477,6 +487,7 @@ class ServiceTest extends TestCase
              * @param  \Closure(): bool  $next
              * @return bool
              */
+            #[\Override]
             public function execute(Service $service, \Closure $next): bool
             {
                 return false;
@@ -522,6 +533,7 @@ class ServiceTest extends TestCase
              *
              * @return bool
              */
+            #[\Override]
             protected function handle(): bool
             {
                 $this->handleCalled = true;
@@ -532,9 +544,9 @@ class ServiceTest extends TestCase
 
         $result = $service->run();
 
-        static::assertTrue($result->failed());
-        static::assertNull($result->exception);
-        static::assertFalse($handleCalled);
+        self::assertTrue($result->failed());
+        self::assertNull($result->exception);
+        self::assertFalse($handleCalled);
     }
 
     /**
@@ -548,8 +560,8 @@ class ServiceTest extends TestCase
 
         $result = $service->run();
 
-        static::assertTrue($result->succeeded());
-        static::assertTrue($service->successCalled);
+        self::assertTrue($result->succeeded());
+        self::assertTrue($service->successCalled);
     }
 
     /**

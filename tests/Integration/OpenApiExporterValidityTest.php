@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Integration;
 
 use Illuminate\Contracts\Config\Repository as ConfigRepository;
@@ -45,7 +47,7 @@ use Tests\TestCase;
  */
 #[CoversClass(ExportOpenApiComponents::class)]
 #[CoversClass(ExportOpenApiCommand::class)]
-class OpenApiExporterValidityTest extends TestCase
+final class OpenApiExporterValidityTest extends TestCase
 {
     /** @var string The identifier under which the OpenAPI 3.1 meta-schema is registered. */
     private const string META_SCHEMA_ID = 'https://spec.openapis.org/oas/3.1/schema/2022-10-07';
@@ -80,7 +82,7 @@ class OpenApiExporterValidityTest extends TestCase
 
         $result = $this->validateAgainstMetaSchema($document);
 
-        static::assertTrue(
+        self::assertTrue(
             $result->isValid(),
             'Emitted document is not valid OpenAPI 3.1: ' . $this->formatErrors($result),
         );
@@ -96,13 +98,13 @@ class OpenApiExporterValidityTest extends TestCase
     {
         $document = $this->export()->document;
 
-        static::assertStringStartsWith('3.1', $document['openapi']);
+        self::assertStringStartsWith('3.1', $document['openapi']);
 
         $components = $document['components'];
 
-        static::assertNotEmpty($components['schemas']);
-        static::assertNotEmpty($components['parameters']);
-        static::assertNotEmpty($components['responses']);
+        self::assertNotEmpty($components['schemas']);
+        self::assertNotEmpty($components['parameters']);
+        self::assertNotEmpty($components['responses']);
     }
 
     /**
@@ -114,8 +116,8 @@ class OpenApiExporterValidityTest extends TestCase
     {
         $document = $this->export()->document;
 
-        static::assertArrayHasKey('paths', $document);
-        static::assertSame('{}', json_encode($document['paths']));
+        self::assertArrayHasKey('paths', $document);
+        self::assertSame('{}', json_encode($document['paths']));
     }
 
     /**
@@ -128,12 +130,12 @@ class OpenApiExporterValidityTest extends TestCase
     {
         $result = $this->export();
 
-        static::assertSame(4, $result->resourceCount);
+        self::assertSame(4, $result->resourceCount);
 
         $schemas = $result->document['components']['schemas'];
 
         foreach (['User', 'Organization', 'Post', 'Tag'] as $name) {
-            static::assertArrayHasKey($name, $schemas);
+            self::assertArrayHasKey($name, $schemas);
         }
     }
 
@@ -155,7 +157,7 @@ class OpenApiExporterValidityTest extends TestCase
         ];
 
         foreach ($expected as $operator) {
-            static::assertContains($operator, $operators);
+            self::assertContains($operator, $operators);
         }
     }
 
@@ -171,10 +173,10 @@ class OpenApiExporterValidityTest extends TestCase
         $responses  = $document['components']['responses'];
         $errorCodes = ErrorCode::cases();
 
-        static::assertCount(count($errorCodes), $responses);
+        self::assertCount(count($errorCodes), $responses);
 
         foreach ($errorCodes as $code) {
-            static::assertArrayHasKey('ErrorResponse' . $code->getCode(), $responses);
+            self::assertArrayHasKey('ErrorResponse' . $code->getCode(), $responses);
         }
     }
 
@@ -191,8 +193,8 @@ class OpenApiExporterValidityTest extends TestCase
 
         // The column is nullable, so the 2020-12 nullable type-array form is
         // emitted; the date-time format is the AC-07 signal either way.
-        static::assertContains('string', (array) $createdAt['type']);
-        static::assertSame('date-time', $createdAt['format']);
+        self::assertContains('string', (array) $createdAt['type']);
+        self::assertSame('date-time', $createdAt['format']);
     }
 
     /**
@@ -206,8 +208,8 @@ class OpenApiExporterValidityTest extends TestCase
         $document  = $this->export()->document;
         $fullLabel = $document['components']['schemas']['User']['properties']['full_label'];
 
-        static::assertTrue($fullLabel['x-undocumented']);
-        static::assertArrayNotHasKey('type', $fullLabel);
+        self::assertTrue($fullLabel['x-undocumented']);
+        self::assertArrayNotHasKey('type', $fullLabel);
     }
 
     /**
@@ -221,9 +223,9 @@ class OpenApiExporterValidityTest extends TestCase
         $document     = $this->export()->document;
         $organization = $document['components']['schemas']['User']['properties']['organization'];
 
-        static::assertArrayHasKey('oneOf', $organization);
-        static::assertSame('unknown', $organization['x-cardinality']);
-        static::assertSame(['$ref' => '#/components/schemas/Organization'], $organization['oneOf'][0]);
+        self::assertArrayHasKey('oneOf', $organization);
+        self::assertSame('unknown', $organization['x-cardinality']);
+        self::assertSame(['$ref' => '#/components/schemas/Organization'], $organization['oneOf'][0]);
     }
 
     /**
@@ -247,10 +249,10 @@ class OpenApiExporterValidityTest extends TestCase
 
         $after = $this->export()->document;
 
-        static::assertArrayNotHasKey('Organization', $after['components']['schemas']);
-        static::assertNotEmpty($before);
+        self::assertArrayNotHasKey('Organization', $after['components']['schemas']);
+        self::assertNotEmpty($before);
 
-        static::assertTrue(
+        self::assertTrue(
             $this->validateAgainstMetaSchema($after)->isValid(),
             'Regenerated document is not valid OpenAPI 3.1.',
         );
@@ -270,16 +272,16 @@ class OpenApiExporterValidityTest extends TestCase
 
             $exitCode = Artisan::call(ExportOpenApiCommand::class, ['--output' => $path]);
 
-            static::assertSame(0, $exitCode);
-            static::assertStringContainsString('Exported 4 resource schema(s)', Artisan::output());
-            static::assertFileExists($path);
+            self::assertSame(0, $exitCode);
+            self::assertStringContainsString('Exported 4 resource schema(s)', Artisan::output());
+            self::assertFileExists($path);
 
             $contents = file_get_contents($path);
 
-            static::assertIsString($contents);
-            static::assertNotSame('', $contents);
+            self::assertIsString($contents);
+            self::assertNotSame('', $contents);
 
-            static::assertTrue(
+            self::assertTrue(
                 $this->validateJson($contents)->isValid(),
                 'Document written by the command is not valid OpenAPI 3.1.',
             );
@@ -290,8 +292,8 @@ class OpenApiExporterValidityTest extends TestCase
     }
 
     /**
-     * Test that the opis-adapted meta-schema still rejects invalid documents, so
-     * the in-test compatibility transforms cannot silently hollow out the
+     * Test that the opis-adapted meta-schema still rejects invalid documents,
+     * so the in-test compatibility transforms cannot silently hollow out the
      * headline validity signal if opis or the meta-schema changes.
      *
      * @return void
@@ -300,7 +302,7 @@ class OpenApiExporterValidityTest extends TestCase
     {
         $valid = $this->export()->document;
 
-        static::assertTrue(
+        self::assertTrue(
             $this->validateAgainstMetaSchema($valid)->isValid(),
             'The real emitted document must validate as OpenAPI 3.1.',
         );
@@ -308,7 +310,7 @@ class OpenApiExporterValidityTest extends TestCase
         $threeZero            = $valid;
         $threeZero['openapi'] = '3.0.3';
 
-        static::assertFalse(
+        self::assertFalse(
             $this->validateAgainstMetaSchema($threeZero)->isValid(),
             'A 3.0 version string must be rejected by the 3.1 meta-schema.',
         );
@@ -316,7 +318,7 @@ class OpenApiExporterValidityTest extends TestCase
         $missingInfo = $valid;
         unset($missingInfo['info']);
 
-        static::assertFalse(
+        self::assertFalse(
             $this->validateAgainstMetaSchema($missingInfo)->isValid(),
             'A document missing the required info object must be rejected.',
         );
@@ -324,7 +326,7 @@ class OpenApiExporterValidityTest extends TestCase
         $malformedParameter                                       = $valid;
         $malformedParameter['components']['parameters']['Broken'] = ['description' => 'no name or in'];
 
-        static::assertFalse(
+        self::assertFalse(
             $this->validateAgainstMetaSchema($malformedParameter)->isValid(),
             'A parameter missing its required name/in must be rejected.',
         );
@@ -436,9 +438,11 @@ class OpenApiExporterValidityTest extends TestCase
         }
 
         foreach ($node as &$value) {
-            if (is_array($value)) {
-                $this->adaptForOpis($value);
+            if (!is_array($value)) {
+                continue;
             }
+
+            $this->adaptForOpis($value);
         }
     }
 

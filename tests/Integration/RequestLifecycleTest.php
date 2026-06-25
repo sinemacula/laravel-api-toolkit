@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Integration;
 
 use Illuminate\Support\Facades\Config;
@@ -27,7 +29,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(ParseApiQuery::class)]
-class RequestLifecycleTest extends TestCase
+final class RequestLifecycleTest extends TestCase
 {
     /**
      * Set up each test.
@@ -46,7 +48,7 @@ class RequestLifecycleTest extends TestCase
         // in QuerySurfaceIntegrationTest.
         Config::set('api-toolkit.repositories.query_posture', QuerySurface::POSTURE_BLOCKLIST);
 
-        Route::middleware(ParseApiQuery::class)->get('/api/users', function (UserRepository $repository) {
+        Route::middleware(ParseApiQuery::class)->get('/api/users', function (UserRepository $repository): ApiResourceCollection {
 
             $users = $repository->withApiCriteria()->paginate();
 
@@ -73,7 +75,7 @@ class RequestLifecycleTest extends TestCase
         $response->assertJsonPath('data.0.name', 'Alice');
         $response->assertJsonPath('data.0._type', 'users');
 
-        static::assertArrayHasKey('email', $response->json('data.0'));
+        self::assertArrayHasKey('email', $response->json('data.0'));
     }
 
     /**
@@ -90,10 +92,10 @@ class RequestLifecycleTest extends TestCase
 
         $record = $response->json('data.0');
 
-        static::assertIsArray($record);
-        static::assertArrayHasKey('name', $record);
-        static::assertArrayHasKey('id', $record);
-        static::assertArrayNotHasKey('email', $record);
+        self::assertIsArray($record);
+        self::assertArrayHasKey('name', $record);
+        self::assertArrayHasKey('id', $record);
+        self::assertArrayNotHasKey('email', $record);
     }
 
     /**

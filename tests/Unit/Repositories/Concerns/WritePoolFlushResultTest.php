@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Unit\Repositories\Concerns;
 
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -15,7 +17,7 @@ use SineMacula\ApiToolkit\Repositories\Concerns\WritePoolFlushResult;
  * @internal
  */
 #[CoversClass(WritePoolFlushResult::class)]
-class WritePoolFlushResultTest extends TestCase
+final class WritePoolFlushResultTest extends TestCase
 {
     /**
      * Test that isSuccessful returns true when there are no failures.
@@ -26,7 +28,7 @@ class WritePoolFlushResultTest extends TestCase
     {
         $result = new WritePoolFlushResult(successCount: 3, failureCount: 0);
 
-        static::assertTrue($result->isSuccessful());
+        self::assertTrue($result->isSuccessful());
     }
 
     /**
@@ -49,7 +51,7 @@ class WritePoolFlushResultTest extends TestCase
             ],
         );
 
-        static::assertFalse($result->isSuccessful());
+        self::assertFalse($result->isSuccessful());
     }
 
     /**
@@ -62,7 +64,7 @@ class WritePoolFlushResultTest extends TestCase
     {
         $result = new WritePoolFlushResult(successCount: 5, failureCount: 0);
 
-        static::assertSame(5, $result->successCount());
+        self::assertSame(5, $result->successCount());
     }
 
     /**
@@ -75,7 +77,7 @@ class WritePoolFlushResultTest extends TestCase
     {
         $result = new WritePoolFlushResult(successCount: 0, failureCount: 2);
 
-        static::assertSame(2, $result->failureCount());
+        self::assertSame(2, $result->failureCount());
     }
 
     /**
@@ -88,7 +90,7 @@ class WritePoolFlushResultTest extends TestCase
     {
         $result = new WritePoolFlushResult(successCount: 3, failureCount: 2);
 
-        static::assertSame(5, $result->totalCount());
+        self::assertSame(5, $result->totalCount());
     }
 
     /**
@@ -101,7 +103,7 @@ class WritePoolFlushResultTest extends TestCase
     {
         $result = new WritePoolFlushResult(successCount: 3, failureCount: 0);
 
-        static::assertSame([], $result->failures());
+        self::assertSame([], $result->failures());
     }
 
     /**
@@ -133,9 +135,9 @@ class WritePoolFlushResultTest extends TestCase
             failures: $failures,
         );
 
-        static::assertSame($failures, $result->failures());
-        static::assertArrayHasKey('orders', $result->failures());
-        static::assertArrayHasKey('payments', $result->failures());
+        self::assertSame($failures, $result->failures());
+        self::assertArrayHasKey('orders', $result->failures());
+        self::assertArrayHasKey('payments', $result->failures());
     }
 
     /**
@@ -147,8 +149,8 @@ class WritePoolFlushResultTest extends TestCase
     {
         $result = new WritePoolFlushResult(successCount: 0, failureCount: 0);
 
-        static::assertTrue($result->isSuccessful());
-        static::assertSame(0, $result->totalCount());
+        self::assertTrue($result->isSuccessful());
+        self::assertSame(0, $result->totalCount());
     }
 
     /**
@@ -161,10 +163,10 @@ class WritePoolFlushResultTest extends TestCase
     {
         $result = new WritePoolFlushResult(successCount: 1, failureCount: 0);
 
-        static::assertSame(0, $result->flushedRecordCount());
-        static::assertSame(0, $result->failedRecordCount());
-        static::assertSame(0, $result->retainedRecordCount());
-        static::assertSame(0, $result->droppedRecordCount());
+        self::assertSame(0, $result->flushedRecordCount());
+        self::assertSame(0, $result->failedRecordCount());
+        self::assertSame(0, $result->retainedRecordCount());
+        self::assertSame(0, $result->droppedRecordCount());
     }
 
     /**
@@ -185,10 +187,10 @@ class WritePoolFlushResultTest extends TestCase
             droppedRecordCount: 0,
         );
 
-        static::assertSame(7, $result->flushedRecordCount());
-        static::assertSame(3, $result->failedRecordCount());
-        static::assertSame(3, $result->retainedRecordCount());
-        static::assertSame(0, $result->droppedRecordCount());
+        self::assertSame(7, $result->flushedRecordCount());
+        self::assertSame(3, $result->failedRecordCount());
+        self::assertSame(3, $result->retainedRecordCount());
+        self::assertSame(0, $result->droppedRecordCount());
     }
 
     /**
@@ -201,7 +203,7 @@ class WritePoolFlushResultTest extends TestCase
     {
         $result = new WritePoolFlushResult(successCount: 1, failureCount: 0);
 
-        static::assertSame([], $result->flushedTables());
+        self::assertSame([], $result->flushedTables());
     }
 
     /**
@@ -218,6 +220,6 @@ class WritePoolFlushResultTest extends TestCase
             flushedTables: ['orders', 'payments'],
         );
 
-        static::assertSame(['orders', 'payments'], $result->flushedTables());
+        self::assertSame(['orders', 'payments'], $result->flushedTables());
     }
 }

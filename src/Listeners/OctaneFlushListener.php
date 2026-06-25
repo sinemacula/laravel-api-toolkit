@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace SineMacula\ApiToolkit\Listeners;
 
 use Illuminate\Support\Facades\Log;
@@ -32,7 +34,6 @@ final class OctaneFlushListener
 
         /** The runtime context for detecting the serving environment. */
         private readonly RuntimeContext $runtime,
-
     ) {}
 
     /**

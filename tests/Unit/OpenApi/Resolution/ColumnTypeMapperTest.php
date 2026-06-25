@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Unit\OpenApi\Resolution;
 
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -18,7 +20,7 @@ use SineMacula\ApiToolkit\Services\Introspection\ColumnDefinition;
  * @internal
  */
 #[CoversClass(ColumnTypeMapper::class)]
-class ColumnTypeMapperTest extends TestCase
+final class ColumnTypeMapperTest extends TestCase
 {
     /**
      * Provide each documented type-name row with its expected mapping.
@@ -84,10 +86,10 @@ class ColumnTypeMapperTest extends TestCase
 
         $schema = $mapper->map($column);
 
-        static::assertSame($expectedType, $schema->type);
-        static::assertSame($expectedFormat, $schema->format);
-        static::assertFalse($schema->nullable);
-        static::assertFalse($schema->undocumented);
+        self::assertSame($expectedType, $schema->type);
+        self::assertSame($expectedFormat, $schema->format);
+        self::assertFalse($schema->nullable);
+        self::assertFalse($schema->undocumented);
     }
 
     /**
@@ -102,7 +104,7 @@ class ColumnTypeMapperTest extends TestCase
 
         $schema = $mapper->map($column);
 
-        static::assertSame('integer', $schema->type);
+        self::assertSame('integer', $schema->type);
     }
 
     /**
@@ -117,8 +119,8 @@ class ColumnTypeMapperTest extends TestCase
 
         $schema = $mapper->map($column);
 
-        static::assertSame('string', $schema->type);
-        static::assertTrue($schema->nullable);
+        self::assertSame('string', $schema->type);
+        self::assertTrue($schema->nullable);
     }
 
     /**
@@ -134,8 +136,8 @@ class ColumnTypeMapperTest extends TestCase
 
         $schema = $mapper->map($column);
 
-        static::assertNull($schema->type);
-        static::assertTrue($schema->undocumented);
+        self::assertNull($schema->type);
+        self::assertTrue($schema->undocumented);
     }
 
     /**
@@ -151,7 +153,7 @@ class ColumnTypeMapperTest extends TestCase
 
         $schema = $mapper->map($column, 'boolean');
 
-        static::assertSame('boolean', $schema->type);
+        self::assertSame('boolean', $schema->type);
     }
 
     /**
@@ -167,7 +169,7 @@ class ColumnTypeMapperTest extends TestCase
 
         $schema = $mapper->map($column);
 
-        static::assertSame('integer', $schema->type);
+        self::assertSame('integer', $schema->type);
     }
 
     /**
@@ -183,9 +185,9 @@ class ColumnTypeMapperTest extends TestCase
 
         $schema = $mapper->map($column, 'datetime');
 
-        static::assertSame('string', $schema->type);
-        static::assertSame('date-time', $schema->format);
-        static::assertTrue($schema->nullable);
+        self::assertSame('string', $schema->type);
+        self::assertSame('date-time', $schema->format);
+        self::assertTrue($schema->nullable);
     }
 
     /**
@@ -200,7 +202,7 @@ class ColumnTypeMapperTest extends TestCase
 
         $schema = $mapper->map($column, 'immutable_datetime');
 
-        static::assertSame('date-time', $schema->format);
+        self::assertSame('date-time', $schema->format);
     }
 
     /**
@@ -215,7 +217,7 @@ class ColumnTypeMapperTest extends TestCase
 
         $schema = $mapper->map($column, 'date');
 
-        static::assertSame('date', $schema->format);
+        self::assertSame('date', $schema->format);
     }
 
     /**
@@ -231,7 +233,7 @@ class ColumnTypeMapperTest extends TestCase
 
         $schema = $mapper->map($column, 'datetime:Y-m-d H:i:s');
 
-        static::assertSame('date-time', $schema->format);
+        self::assertSame('date-time', $schema->format);
     }
 
     /**
@@ -247,7 +249,7 @@ class ColumnTypeMapperTest extends TestCase
 
         $schema = $mapper->map($column, 'array');
 
-        static::assertSame('array', $schema->type);
+        self::assertSame('array', $schema->type);
     }
 
     /**
@@ -262,7 +264,7 @@ class ColumnTypeMapperTest extends TestCase
 
         $schema = $mapper->map($column, 'collection');
 
-        static::assertSame('array', $schema->type);
+        self::assertSame('array', $schema->type);
     }
 
     /**
@@ -277,7 +279,7 @@ class ColumnTypeMapperTest extends TestCase
 
         $schema = $mapper->map($column, 'object');
 
-        static::assertSame('object', $schema->type);
+        self::assertSame('object', $schema->type);
     }
 
     /**
@@ -293,7 +295,7 @@ class ColumnTypeMapperTest extends TestCase
 
         $schema = $mapper->map($column, 'App\Casts\StatusCast');
 
-        static::assertSame('string', $schema->type);
+        self::assertSame('string', $schema->type);
     }
 
     /**
@@ -306,6 +308,6 @@ class ColumnTypeMapperTest extends TestCase
         $mapper = new ColumnTypeMapper;
         $column = new ColumnDefinition(name: 'id', typeName: 'bigint', nullable: false);
 
-        static::assertInstanceOf(OpenApiFieldSchema::class, $mapper->map($column));
+        self::assertInstanceOf(OpenApiFieldSchema::class, $mapper->map($column));
     }
 }

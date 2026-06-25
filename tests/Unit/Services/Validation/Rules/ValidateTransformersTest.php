@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Unit\Services\Validation\Rules;
 
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -19,7 +21,7 @@ use SineMacula\ApiToolkit\Services\Validation\Rules\ValidateTransformers;
  * @internal
  */
 #[CoversClass(ValidateTransformers::class)]
-class ValidateTransformersTest extends TestCase
+final class ValidateTransformersTest extends TestCase
 {
     /**
      * Test no errors for schema with callable transformers.
@@ -49,7 +51,7 @@ class ValidateTransformersTest extends TestCase
         $rule   = new ValidateTransformers;
         $errors = $rule->validate('App\Http\Resources\UserResource', null, $schema);
 
-        static::assertSame([], $errors);
+        self::assertSame([], $errors);
     }
 
     /**
@@ -80,10 +82,10 @@ class ValidateTransformersTest extends TestCase
         $rule   = new ValidateTransformers;
         $errors = $rule->validate('App\Http\Resources\UserResource', null, $schema);
 
-        static::assertCount(1, $errors);
-        static::assertSame('App\Http\Resources\UserResource', $errors[0]->resourceClass);
-        static::assertSame('name', $errors[0]->fieldKey);
-        static::assertSame('Transformer at index 0 is not callable', $errors[0]->defect);
+        self::assertCount(1, $errors);
+        self::assertSame('App\Http\Resources\UserResource', $errors[0]->resourceClass);
+        self::assertSame('name', $errors[0]->fieldKey);
+        self::assertSame('Transformer at index 0 is not callable', $errors[0]->defect);
     }
 
     /**
@@ -114,9 +116,9 @@ class ValidateTransformersTest extends TestCase
         $rule   = new ValidateTransformers;
         $errors = $rule->validate('App\Http\Resources\UserResource', null, $schema);
 
-        static::assertCount(2, $errors);
-        static::assertSame('Transformer at index 0 is not callable', $errors[0]->defect);
-        static::assertSame('Transformer at index 1 is not callable', $errors[1]->defect);
+        self::assertCount(2, $errors);
+        self::assertSame('Transformer at index 0 is not callable', $errors[0]->defect);
+        self::assertSame('Transformer at index 1 is not callable', $errors[1]->defect);
     }
 
     /**
@@ -147,6 +149,6 @@ class ValidateTransformersTest extends TestCase
         $rule   = new ValidateTransformers;
         $errors = $rule->validate('App\Http\Resources\UserResource', null, $schema);
 
-        static::assertSame([], $errors);
+        self::assertSame([], $errors);
     }
 }

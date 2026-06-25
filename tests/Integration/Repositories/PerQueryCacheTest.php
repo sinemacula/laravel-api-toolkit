@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Integration\Repositories;
 
 use Illuminate\Support\Facades\Cache;
@@ -25,7 +27,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversTrait(Cacheable::class)]
-class PerQueryCacheTest extends TestCase
+final class PerQueryCacheTest extends TestCase
 {
     /**
      * Set up the test environment.
@@ -69,7 +71,7 @@ class PerQueryCacheTest extends TestCase
 
         $repository->get(); // @phpstan-ignore staticMethod.dynamicCall
 
-        static::assertCount(1, DB::getQueryLog());
+        self::assertCount(1, DB::getQueryLog());
     }
 
     /**
@@ -88,7 +90,7 @@ class PerQueryCacheTest extends TestCase
 
         $repository->get(); // @phpstan-ignore staticMethod.dynamicCall
 
-        static::assertCount(0, DB::getQueryLog());
+        self::assertCount(0, DB::getQueryLog());
     }
 
     /**
@@ -107,8 +109,8 @@ class PerQueryCacheTest extends TestCase
 
         $tag = $repository->scopeById(1)->first(); // @phpstan-ignore staticMethod.dynamicCall
 
-        static::assertCount(0, DB::getQueryLog());
-        static::assertSame('php', $tag?->name); // @phpstan-ignore property.notFound
+        self::assertCount(0, DB::getQueryLog());
+        self::assertSame('php', $tag?->name); // @phpstan-ignore property.notFound
     }
 
     /**
@@ -127,7 +129,7 @@ class PerQueryCacheTest extends TestCase
 
         $repository->get(); // @phpstan-ignore staticMethod.dynamicCall
 
-        static::assertCount(1, DB::getQueryLog());
+        self::assertCount(1, DB::getQueryLog());
     }
 
     /**
@@ -146,8 +148,8 @@ class PerQueryCacheTest extends TestCase
 
         $result = $repository->get(); // @phpstan-ignore staticMethod.dynamicCall
 
-        static::assertCount(1, DB::getQueryLog());
-        static::assertCount(3, $result);
+        self::assertCount(1, DB::getQueryLog());
+        self::assertCount(3, $result);
     }
 
     /**
@@ -165,7 +167,7 @@ class PerQueryCacheTest extends TestCase
         $repository->find(1); // @phpstan-ignore staticMethod.dynamicCall
         $repository->get(); // @phpstan-ignore staticMethod.dynamicCall
 
-        static::assertCount(1, DB::getQueryLog());
+        self::assertCount(1, DB::getQueryLog());
     }
 
     /**
@@ -185,8 +187,8 @@ class PerQueryCacheTest extends TestCase
 
         $result = $repository->get(); // @phpstan-ignore staticMethod.dynamicCall
 
-        static::assertCount(1, DB::getQueryLog());
-        static::assertCount(3, $result);
+        self::assertCount(1, DB::getQueryLog());
+        self::assertCount(3, $result);
     }
 
     /**
@@ -208,8 +210,8 @@ class PerQueryCacheTest extends TestCase
 
         $result = $repository->get(); // @phpstan-ignore staticMethod.dynamicCall
 
-        static::assertCount(0, DB::getQueryLog());
-        static::assertCount(2, $result);
+        self::assertCount(0, DB::getQueryLog());
+        self::assertCount(2, $result);
     }
 
     /**
@@ -229,8 +231,8 @@ class PerQueryCacheTest extends TestCase
 
         $result = $repository->get(); // @phpstan-ignore staticMethod.dynamicCall
 
-        static::assertCount(1, DB::getQueryLog());
-        static::assertCount(3, $result);
+        self::assertCount(1, DB::getQueryLog());
+        self::assertCount(3, $result);
     }
 
     /**
@@ -250,8 +252,8 @@ class PerQueryCacheTest extends TestCase
 
         $result = $repository->get(); // @phpstan-ignore staticMethod.dynamicCall
 
-        static::assertCount(1, DB::getQueryLog());
-        static::assertSame('php8', $result->firstWhere('name', 'php8')?->name); // @phpstan-ignore property.notFound
+        self::assertCount(1, DB::getQueryLog());
+        self::assertSame('php8', $result->firstWhere('name', 'php8')?->name); // @phpstan-ignore property.notFound
     }
 
     /**
@@ -270,8 +272,8 @@ class PerQueryCacheTest extends TestCase
 
         $result = $repository->find(999); // @phpstan-ignore staticMethod.dynamicCall
 
-        static::assertNull($result);
-        static::assertCount(0, DB::getQueryLog());
+        self::assertNull($result);
+        self::assertCount(0, DB::getQueryLog());
     }
 
     /**
@@ -284,13 +286,13 @@ class PerQueryCacheTest extends TestCase
     {
         $repository = $this->makeRepository(CacheableTagRepository::class);
 
-        static::assertNull($repository->find(999)); // @phpstan-ignore staticMethod.dynamicCall
+        self::assertNull($repository->find(999)); // @phpstan-ignore staticMethod.dynamicCall
 
         Tag::create(['name' => 'vue']);
 
         $result = $repository->get(); // @phpstan-ignore staticMethod.dynamicCall
 
-        static::assertCount(3, $result);
+        self::assertCount(3, $result);
     }
 
     /**
@@ -307,7 +309,7 @@ class PerQueryCacheTest extends TestCase
 
         $repository->get(); // @phpstan-ignore staticMethod.dynamicCall
 
-        static::assertTrue($repository->getCacheStatus()->isPopulated());
+        self::assertTrue($repository->getCacheStatus()->isPopulated());
 
         assert($this->app !== null);
 
@@ -317,8 +319,8 @@ class PerQueryCacheTest extends TestCase
 
         $repository->get(); // @phpstan-ignore staticMethod.dynamicCall
 
-        static::assertCount(0, DB::getQueryLog());
-        static::assertTrue($repository->getCacheStatus()->isPopulated());
+        self::assertCount(0, DB::getQueryLog());
+        self::assertTrue($repository->getCacheStatus()->isPopulated());
     }
 
     /**

@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Integration;
 
 use Illuminate\Foundation\Application;
@@ -23,7 +25,7 @@ use Tests\TestCase;
  */
 #[CoversClass(ApiServiceProvider::class)]
 #[CoversClass(MiddlewareRegistrar::class)]
-class MiddlewareConfigRedisThrottleTest extends TestCase
+final class MiddlewareConfigRedisThrottleTest extends TestCase
 {
     /**
      * Test that the throttle middleware uses the Redis variant when the cache
@@ -37,8 +39,8 @@ class MiddlewareConfigRedisThrottleTest extends TestCase
         $router     = $this->getApplication()->make(Router::class);
         $middleware = $router->getMiddleware();
 
-        static::assertArrayHasKey('throttle', $middleware);
-        static::assertSame(ThrottleRequestsWithRedis::class, $middleware['throttle']);
+        self::assertArrayHasKey('throttle', $middleware);
+        self::assertSame(ThrottleRequestsWithRedis::class, $middleware['throttle']);
     }
 
     /**

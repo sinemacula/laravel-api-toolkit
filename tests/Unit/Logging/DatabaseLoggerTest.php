@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Unit\Logging;
 
 use Monolog\Logger;
@@ -17,7 +19,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(DatabaseLogger::class)]
-class DatabaseLoggerTest extends TestCase
+final class DatabaseLoggerTest extends TestCase
 {
     /**
      * Test that __invoke returns a Monolog Logger instance.
@@ -26,11 +28,11 @@ class DatabaseLoggerTest extends TestCase
      */
     public function testInvokeReturnsLoggerInstance(): void
     {
-        $logger_factory = new DatabaseLogger;
+        $loggerFactory = new DatabaseLogger;
 
-        $logger = $logger_factory([]);
+        $logger = $loggerFactory([]);
 
-        static::assertInstanceOf(Logger::class, $logger);
+        self::assertInstanceOf(Logger::class, $logger);
     }
 
     /**
@@ -40,11 +42,11 @@ class DatabaseLoggerTest extends TestCase
      */
     public function testLoggerHasDatabaseChannelName(): void
     {
-        $logger_factory = new DatabaseLogger;
+        $loggerFactory = new DatabaseLogger;
 
-        $logger = $logger_factory([]);
+        $logger = $loggerFactory([]);
 
-        static::assertSame('database', $logger->getName());
+        self::assertSame('database', $logger->getName());
     }
 
     /**
@@ -54,13 +56,13 @@ class DatabaseLoggerTest extends TestCase
      */
     public function testLoggerHasDatabaseHandler(): void
     {
-        $logger_factory = new DatabaseLogger;
+        $loggerFactory = new DatabaseLogger;
 
-        $logger = $logger_factory([]);
+        $logger = $loggerFactory([]);
 
         $handlers = $logger->getHandlers();
 
-        static::assertCount(1, $handlers);
-        static::assertInstanceOf(DatabaseHandler::class, $handlers[0]);
+        self::assertCount(1, $handlers);
+        self::assertInstanceOf(DatabaseHandler::class, $handlers[0]);
     }
 }

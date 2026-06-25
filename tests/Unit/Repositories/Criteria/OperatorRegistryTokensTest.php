@@ -1,9 +1,14 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Unit\Repositories\Criteria;
 
+use Illuminate\Database\Eloquent\Builder;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
+use SineMacula\ApiToolkit\Contracts\FilterOperator;
+use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext;
 use SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry;
 
 /**
@@ -15,7 +20,7 @@ use SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry;
  * @internal
  */
 #[CoversClass(OperatorRegistry::class)]
-class OperatorRegistryTokensTest extends TestCase
+final class OperatorRegistryTokensTest extends TestCase
 {
     /**
      * Test that tokens returns an empty array when no operators are registered.
@@ -26,7 +31,7 @@ class OperatorRegistryTokensTest extends TestCase
     {
         $registry = new OperatorRegistry;
 
-        static::assertSame([], $registry->tokens());
+        self::assertSame([], $registry->tokens());
     }
 
     /**
@@ -42,7 +47,7 @@ class OperatorRegistryTokensTest extends TestCase
         $registry->register('$neq', $this->makeStub());
         $registry->register('$gt', $this->makeStub());
 
-        static::assertSame(['$eq', '$neq', '$gt'], $registry->tokens());
+        self::assertSame(['$eq', '$neq', '$gt'], $registry->tokens());
     }
 
     /**
@@ -58,7 +63,7 @@ class OperatorRegistryTokensTest extends TestCase
         $registry->register('$neq', $this->makeStub());
         $registry->remove('$eq');
 
-        static::assertSame(['$neq'], array_values($registry->tokens()));
+        self::assertSame(['$neq'], array_values($registry->tokens()));
     }
 
     /**
@@ -73,7 +78,7 @@ class OperatorRegistryTokensTest extends TestCase
         $registry->register('$eq', $this->makeStub());
         $registry->override('$eq', $this->makeStub());
 
-        static::assertSame(['$eq'], $registry->tokens());
+        self::assertSame(['$eq'], $registry->tokens());
     }
 
     /**
@@ -81,7 +86,7 @@ class OperatorRegistryTokensTest extends TestCase
      *
      * @return \SineMacula\ApiToolkit\Contracts\FilterOperator
      */
-    private function makeStub(): \SineMacula\ApiToolkit\Contracts\FilterOperator
+    private function makeStub(): FilterOperator
     {
         /**
          * No-op stub FilterOperator for tokens tests.
@@ -89,7 +94,7 @@ class OperatorRegistryTokensTest extends TestCase
          * @author      Ben Carey <bdmc@sinemacula.co.uk>
          * @copyright   2026 Sine Macula Limited.
          */
-        return new class implements \SineMacula\ApiToolkit\Contracts\FilterOperator {
+        return new class implements FilterOperator {
             /**
              * No-op apply for stub.
              *
@@ -99,12 +104,8 @@ class OperatorRegistryTokensTest extends TestCase
              * @param  \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext  $context
              * @return void
              */
-            public function apply(
-                \Illuminate\Database\Eloquent\Builder $query,
-                string $column,
-                mixed $value,
-                \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext $context,
-            ): void {}
+            #[\Override]
+            public function apply(Builder $query, string $column, mixed $value, FilterContext $context): void {}
         };
     }
 }

@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Unit\Services\Validation\Rules;
 
 use Illuminate\Database\Eloquent\Model;
@@ -27,7 +29,7 @@ use Tests\Fixtures\Resources\UserResource;
  * @internal
  */
 #[CoversClass(ValidateRelationMethods::class)]
-class ValidateRelationMethodsTest extends TestCase
+final class ValidateRelationMethodsTest extends TestCase
 {
     /**
      * Test no errors for relation methods that exist on model.
@@ -69,7 +71,7 @@ class ValidateRelationMethodsTest extends TestCase
         $rule   = new ValidateRelationMethods;
         $errors = $rule->validate(UserResource::class, User::class, $schema);
 
-        static::assertSame([], $errors);
+        self::assertSame([], $errors);
     }
 
     /**
@@ -100,10 +102,10 @@ class ValidateRelationMethodsTest extends TestCase
         $rule   = new ValidateRelationMethods;
         $errors = $rule->validate(UserResource::class, User::class, $schema);
 
-        static::assertCount(1, $errors);
-        static::assertSame('nonexistent', $errors[0]->fieldKey);
-        static::assertStringContainsString('nonexistent_relation', $errors[0]->defect);
-        static::assertStringContainsString(User::class, $errors[0]->defect);
+        self::assertCount(1, $errors);
+        self::assertSame('nonexistent', $errors[0]->fieldKey);
+        self::assertStringContainsString('nonexistent_relation', $errors[0]->defect);
+        self::assertStringContainsString(User::class, $errors[0]->defect);
     }
 
     /**
@@ -134,7 +136,7 @@ class ValidateRelationMethodsTest extends TestCase
         $rule   = new ValidateRelationMethods;
         $errors = $rule->validate(UserResource::class, null, $schema);
 
-        static::assertSame([], $errors);
+        self::assertSame([], $errors);
     }
 
     /**
@@ -155,8 +157,8 @@ class ValidateRelationMethodsTest extends TestCase
 
         $warnings = $this->captureWarnings(fn () => $rule->validate(UserResource::class, User::class, $schema), $errors);
 
-        static::assertSame([], $warnings);
-        static::assertSame([], $errors);
+        self::assertSame([], $warnings);
+        self::assertSame([], $errors);
     }
 
     /**
@@ -200,8 +202,8 @@ class ValidateRelationMethodsTest extends TestCase
         $rule   = new ValidateRelationMethods;
         $errors = $rule->validate(UserResource::class, User::class, $schema);
 
-        static::assertCount(1, $errors);
-        static::assertSame('bad', $errors[0]->fieldKey);
+        self::assertCount(1, $errors);
+        self::assertSame('bad', $errors[0]->fieldKey);
     }
 
     /**
@@ -244,9 +246,9 @@ class ValidateRelationMethodsTest extends TestCase
         $rule   = new ValidateRelationMethods;
         $errors = $rule->validate(UserResource::class, User::class, $schema);
 
-        static::assertCount(2, $errors);
-        static::assertSame('first', $errors[0]->fieldKey);
-        static::assertSame('second', $errors[1]->fieldKey);
+        self::assertCount(2, $errors);
+        self::assertSame('first', $errors[0]->fieldKey);
+        self::assertSame('second', $errors[1]->fieldKey);
     }
 
     /**
@@ -272,10 +274,10 @@ class ValidateRelationMethodsTest extends TestCase
         $rule   = new ValidateRelationMethods;
         $errors = $rule->validate(UserResource::class, User::class, $schema);
 
-        static::assertCount(1, $errors);
-        static::assertSame('nonexistent_count', $errors[0]->fieldKey);
-        static::assertStringContainsString('nonexistent_relation', $errors[0]->defect);
-        static::assertStringContainsString(User::class, $errors[0]->defect);
+        self::assertCount(1, $errors);
+        self::assertSame('nonexistent_count', $errors[0]->fieldKey);
+        self::assertStringContainsString('nonexistent_relation', $errors[0]->defect);
+        self::assertStringContainsString(User::class, $errors[0]->defect);
     }
 
     /**
@@ -286,7 +288,7 @@ class ValidateRelationMethodsTest extends TestCase
     public function testReportsFieldRelationMethodWithoutReturnTypeHint(): void
     {
         $model = new class extends Model {
-            // phpcs:disable Squiz.Commenting.FunctionComment.MissingReturn
+            // phpcs:disable Squiz.Commenting.FunctionComment.MissingReturn, SineMaculaLaravel.TypeHints.ReturnTypeHint.MissingNativeTypeHint
             /**
              * A relation method with no return type declaration.
              */
@@ -294,7 +296,7 @@ class ValidateRelationMethodsTest extends TestCase
             {
                 return $this;
             }
-            // phpcs:enable Squiz.Commenting.FunctionComment.MissingReturn
+            // phpcs:enable Squiz.Commenting.FunctionComment.MissingReturn, SineMaculaLaravel.TypeHints.ReturnTypeHint.MissingNativeTypeHint
         };
 
         $modelClass = $model::class;
@@ -320,8 +322,8 @@ class ValidateRelationMethodsTest extends TestCase
         $rule   = new ValidateRelationMethods;
         $errors = $rule->validate(UserResource::class, $modelClass, $schema);
 
-        static::assertCount(1, $errors);
-        static::assertStringContainsString('has no return type hint', $errors[0]->defect);
+        self::assertCount(1, $errors);
+        self::assertStringContainsString('has no return type hint', $errors[0]->defect);
     }
 
     /**
@@ -363,9 +365,9 @@ class ValidateRelationMethodsTest extends TestCase
         $rule   = new ValidateRelationMethods;
         $errors = $rule->validate(UserResource::class, $modelClass, $schema);
 
-        static::assertCount(1, $errors);
-        static::assertStringContainsString('is not a Relation subclass', $errors[0]->defect);
-        static::assertStringContainsString('string', $errors[0]->defect);
+        self::assertCount(1, $errors);
+        self::assertStringContainsString('is not a Relation subclass', $errors[0]->defect);
+        self::assertStringContainsString('string', $errors[0]->defect);
     }
 
     /**
@@ -409,7 +411,7 @@ class ValidateRelationMethodsTest extends TestCase
         $rule   = new ValidateRelationMethods;
         $errors = $rule->validate(UserResource::class, $modelClass, $schema);
 
-        static::assertSame([], $errors);
+        self::assertSame([], $errors);
     }
 
     /**
@@ -452,8 +454,8 @@ class ValidateRelationMethodsTest extends TestCase
         $rule   = new ValidateRelationMethods;
         $errors = $rule->validate(UserResource::class, $modelClass, $schema);
 
-        static::assertCount(1, $errors);
-        static::assertStringContainsString('union return type with no Relation subclass member', $errors[0]->defect);
+        self::assertCount(1, $errors);
+        self::assertStringContainsString('union return type with no Relation subclass member', $errors[0]->defect);
     }
 
     /**
@@ -464,7 +466,7 @@ class ValidateRelationMethodsTest extends TestCase
     public function testReportsCountDefinitionRelationMethodWithoutReturnTypeHint(): void
     {
         $model = new class extends Model {
-            // phpcs:disable Squiz.Commenting.FunctionComment.MissingReturn
+            // phpcs:disable Squiz.Commenting.FunctionComment.MissingReturn, SineMaculaLaravel.TypeHints.ReturnTypeHint.MissingNativeTypeHint
             /**
              * A relation method with no return type declaration.
              */
@@ -472,7 +474,7 @@ class ValidateRelationMethodsTest extends TestCase
             {
                 return $this;
             }
-            // phpcs:enable Squiz.Commenting.FunctionComment.MissingReturn
+            // phpcs:enable Squiz.Commenting.FunctionComment.MissingReturn, SineMaculaLaravel.TypeHints.ReturnTypeHint.MissingNativeTypeHint
         };
 
         $modelClass = $model::class;
@@ -493,9 +495,9 @@ class ValidateRelationMethodsTest extends TestCase
         $rule   = new ValidateRelationMethods;
         $errors = $rule->validate(UserResource::class, $modelClass, $schema);
 
-        static::assertCount(1, $errors);
-        static::assertSame('items_count', $errors[0]->fieldKey);
-        static::assertStringContainsString('has no return type hint', $errors[0]->defect);
+        self::assertCount(1, $errors);
+        self::assertSame('items_count', $errors[0]->fieldKey);
+        self::assertStringContainsString('has no return type hint', $errors[0]->defect);
     }
 
     /**
@@ -534,9 +536,9 @@ class ValidateRelationMethodsTest extends TestCase
         $rule   = new ValidateRelationMethods;
         $errors = $rule->validate(UserResource::class, $modelClass, $schema);
 
-        static::assertCount(1, $errors);
-        static::assertStringContainsString('is not a Relation subclass', $errors[0]->defect);
-        static::assertStringContainsString('string', $errors[0]->defect);
+        self::assertCount(1, $errors);
+        self::assertStringContainsString('is not a Relation subclass', $errors[0]->defect);
+        self::assertStringContainsString('string', $errors[0]->defect);
     }
 
     /**

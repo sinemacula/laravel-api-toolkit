@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace SineMacula\ApiToolkit\Exceptions;
 
 use SineMacula\ApiToolkit\Repositories\Concerns\WritePoolFlushResult;
@@ -27,7 +29,6 @@ final class WritePoolFlushException extends \RuntimeException
 
         // The root cause exception
         \Throwable $previous,
-
     ) {
         parent::__construct(
             sprintf(

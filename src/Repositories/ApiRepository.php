@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace SineMacula\ApiToolkit\Repositories;
 
 use Illuminate\Contracts\Database\Eloquent\Builder;
@@ -7,11 +9,12 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Request;
+use SineMacula\ApiToolkit\Cache\MetadataCacheWriter;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
 use SineMacula\ApiToolkit\Repositories\Concerns\AttributeSetter;
+use SineMacula\ApiToolkit\Repositories\Concerns\ResolvesResource;
 use SineMacula\ApiToolkit\Repositories\Criteria\ApiCriteria;
-use SineMacula\ApiToolkit\Repositories\Traits\ResolvesResource;
 use SineMacula\Repositories\Repository;
 
 /**
@@ -34,17 +37,19 @@ abstract class ApiRepository extends Repository
     /**
      * Set a custom resource class to be used.
      *
-     * @param  string|null  $resource_class
+     * @param  string|null  $resourceClass
      * @return $this
      */
-    public function usingResource(?string $resource_class): static
+    public function usingResource(?string $resourceClass): static
     {
-        $this->customResourceClass = $resource_class;
+        $this->customResourceClass = $resourceClass;
 
         foreach ($this->getCriteria() as $criteria) {
-            if ($criteria instanceof ApiCriteria) {
-                $criteria->usingResource($resource_class);
+            if (!($criteria instanceof ApiCriteria)) {
+                continue;
             }
+
+            $criteria->usingResource($resourceClass);
         }
 
         return $this;
@@ -161,10 +166,21 @@ abstract class ApiRepository extends Repository
     {
         $schemaIntrospector = $this->app->make(SchemaIntrospectionProvider::class);
 
-        $this->attributeSetter = new AttributeSetter($schemaIntrospector);
+        $this->attributeSetter = new AttributeSetter($schemaIntrospector, $this->app->make(MetadataCacheWriter::class));
         $this->attributeSetter->resolveAttributeCasts($this->model, $this->model());
 
         $this->bootConcerns();
+    }
+
+    /**
+     * Get the metadata cache writer used by the ResolvesResource concern.
+     *
+     * @return \SineMacula\ApiToolkit\Cache\MetadataCacheWriter
+     */
+    #[\Override]
+    protected function metadataCacheWriter(): MetadataCacheWriter
+    {
+        return $this->app->make(MetadataCacheWriter::class);
     }
 
     /**
@@ -183,9 +199,11 @@ abstract class ApiRepository extends Repository
 
             $method = 'boot' . class_basename($concern);
 
-            if (method_exists($this, $method)) {
-                $this->{$method}(); // @phpstan-ignore method.dynamicName
+            if (!method_exists($this, $method)) {
+                continue;
             }
+
+            $this->{$method}(); // @phpstan-ignore method.dynamicName
         }
     }
 

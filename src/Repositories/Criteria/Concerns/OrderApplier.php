@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace SineMacula\ApiToolkit\Repositories\Criteria\Concerns;
 
 use Illuminate\Database\Eloquent\Builder;
@@ -46,9 +48,11 @@ final class OrderApplier
                 continue;
             }
 
-            if ($querySurface->guardSort($column, $query->getModel()) && in_array($direction, $this->directions, true)) {
-                $query->getQuery()->orderBy($column, $direction);
+            if (!$querySurface->guardSort($column, $query->getModel()) || !in_array($direction, $this->directions, true)) {
+                continue;
             }
+
+            $query->getQuery()->orderBy($column, $direction);
         }
 
         return $query;

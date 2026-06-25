@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace SineMacula\ApiToolkit\Repositories\Criteria\Concerns;
 
 use Illuminate\Contracts\Database\Eloquent\Builder;
@@ -34,7 +36,6 @@ final class ColumnProjectionApplier
 
         /** Derives the per-model safety set a narrowed query must retain. */
         private readonly SafetySetDeriver $safetySetDeriver,
-
     ) {}
 
     /**
@@ -46,8 +47,12 @@ final class ColumnProjectionApplier
      * @param  array<string, string>  $order
      * @return \Illuminate\Contracts\Database\Eloquent\Builder
      */
-    public function apply(Builder $query, ResourceMetadataProvider $metadataProvider, ?string $resourceClass, array $order): Builder
-    {
+    public function apply(
+        Builder $query,
+        ResourceMetadataProvider $metadataProvider,
+        ?string $resourceClass,
+        array $order,
+    ): Builder {
         if (
             !Config::get('api-toolkit.resources.narrow_columns', false)
             || $resourceClass === null
@@ -121,7 +126,8 @@ final class ColumnProjectionApplier
     }
 
     /**
-     * Derive the per-model safety set of columns the narrowed query must retain.
+     * Derive the per-model safety set of columns the narrowed query must
+     * retain.
      *
      * @param  \Illuminate\Contracts\Database\Eloquent\Builder  $query
      * @param  array<int, string>  $relationKeys
@@ -130,9 +136,10 @@ final class ColumnProjectionApplier
      */
     private function deriveSafetySet(Builder $query, array $relationKeys, array $order): array
     {
-        // Aliased scalars are omitted for this iteration: the resolved field set
-        // uses canonical schema keys, and the safety set is additive, so the
-        // narrower already unions every needed column from the field-column map.
+        // Aliased scalars are omitted for this iteration: the resolved field
+        // set uses canonical schema keys, and the safety set is additive, so
+        // the narrower already unions every needed column from the
+        // field-column map.
         return $this->safetySetDeriver->derive($query->getModel(), $relationKeys, [], $this->orderColumns($order));
     }
 

@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Unit\Http\Resources\Schema;
 
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -15,7 +17,7 @@ use SineMacula\ApiToolkit\Schema\OpenApiFieldSchema;
  * @internal
  */
 #[CoversClass(OpenApiFieldSchema::class)]
-class OpenApiFieldSchemaTest extends TestCase
+final class OpenApiFieldSchemaTest extends TestCase
 {
     /**
      * Test that constructor properties are stored and accessible.
@@ -34,13 +36,13 @@ class OpenApiFieldSchemaTest extends TestCase
             undocumented: false,
         );
 
-        static::assertSame('string', $schema->type);
-        static::assertSame('email', $schema->format);
-        static::assertTrue($schema->nullable);
-        static::assertSame(['a', 'b'], $schema->enum);
-        static::assertSame('a', $schema->example);
-        static::assertSame('An example field', $schema->description);
-        static::assertFalse($schema->undocumented);
+        self::assertSame('string', $schema->type);
+        self::assertSame('email', $schema->format);
+        self::assertTrue($schema->nullable);
+        self::assertSame(['a', 'b'], $schema->enum);
+        self::assertSame('a', $schema->example);
+        self::assertSame('An example field', $schema->description);
+        self::assertFalse($schema->undocumented);
     }
 
     /**
@@ -56,7 +58,7 @@ class OpenApiFieldSchemaTest extends TestCase
             description: 'The identifier',
         );
 
-        static::assertSame([
+        self::assertSame([
             'type'        => 'string',
             'format'      => 'uuid',
             'description' => 'The identifier',
@@ -72,7 +74,7 @@ class OpenApiFieldSchemaTest extends TestCase
     {
         $schema = new OpenApiFieldSchema(type: 'integer', nullable: true);
 
-        static::assertSame(['type' => ['integer', 'null']], $schema->toArray());
+        self::assertSame(['type' => ['integer', 'null']], $schema->toArray());
     }
 
     /**
@@ -84,7 +86,7 @@ class OpenApiFieldSchemaTest extends TestCase
     {
         $schema = new OpenApiFieldSchema(type: 'integer');
 
-        static::assertSame(['type' => 'integer'], $schema->toArray());
+        self::assertSame(['type' => 'integer'], $schema->toArray());
     }
 
     /**
@@ -96,7 +98,7 @@ class OpenApiFieldSchemaTest extends TestCase
     {
         $schema = new OpenApiFieldSchema(type: 'string', enum: ['draft', 'published']);
 
-        static::assertSame([
+        self::assertSame([
             'type' => 'string',
             'enum' => ['draft', 'published'],
         ], $schema->toArray());
@@ -111,8 +113,8 @@ class OpenApiFieldSchemaTest extends TestCase
     {
         $schema = OpenApiFieldSchema::undocumented();
 
-        static::assertTrue($schema->undocumented);
-        static::assertNull($schema->type);
+        self::assertTrue($schema->undocumented);
+        self::assertNull($schema->type);
     }
 
     /**
@@ -124,7 +126,7 @@ class OpenApiFieldSchemaTest extends TestCase
     {
         $schema = OpenApiFieldSchema::undocumented();
 
-        static::assertSame(['x-undocumented' => true], $schema->toArray());
+        self::assertSame(['x-undocumented' => true], $schema->toArray());
     }
 
     /**
@@ -136,7 +138,7 @@ class OpenApiFieldSchemaTest extends TestCase
     {
         $schema = OpenApiFieldSchema::undocumented('Computed at runtime');
 
-        static::assertSame([
+        self::assertSame([
             'x-undocumented' => true,
             'description'    => 'Computed at runtime',
         ], $schema->toArray());
@@ -153,10 +155,10 @@ class OpenApiFieldSchemaTest extends TestCase
 
         $fragment = $schema->toArray();
 
-        static::assertArrayNotHasKey('format', $fragment);
-        static::assertArrayNotHasKey('enum', $fragment);
-        static::assertArrayNotHasKey('example', $fragment);
-        static::assertArrayNotHasKey('description', $fragment);
+        self::assertArrayNotHasKey('format', $fragment);
+        self::assertArrayNotHasKey('enum', $fragment);
+        self::assertArrayNotHasKey('example', $fragment);
+        self::assertArrayNotHasKey('description', $fragment);
     }
 
     /**
@@ -168,7 +170,7 @@ class OpenApiFieldSchemaTest extends TestCase
     {
         $schema = new OpenApiFieldSchema;
 
-        static::assertSame([], $schema->toArray());
+        self::assertSame([], $schema->toArray());
     }
 
     /**
@@ -180,7 +182,7 @@ class OpenApiFieldSchemaTest extends TestCase
     {
         $schema = new OpenApiFieldSchema(type: 'integer', example: 42);
 
-        static::assertSame([
+        self::assertSame([
             'type'    => 'integer',
             'example' => 42,
         ], $schema->toArray());

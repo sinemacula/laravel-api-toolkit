@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Unit\Enums;
 
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -17,7 +19,7 @@ use SineMacula\ApiToolkit\Enums\ErrorCode;
  * @internal
  */
 #[CoversClass(ErrorCode::class)]
-class ErrorCodeTest extends TestCase
+final class ErrorCodeTest extends TestCase
 {
     /**
      * Provide all ErrorCode cases with their expected values.
@@ -58,7 +60,7 @@ class ErrorCodeTest extends TestCase
     #[DataProvider('caseProvider')]
     public function testGetCodeReturnsEnumValue(ErrorCode $case, int $expectedCode): void
     {
-        static::assertSame($expectedCode, $case->getCode());
+        self::assertSame($expectedCode, $case->getCode());
     }
 
     /**
@@ -68,7 +70,7 @@ class ErrorCodeTest extends TestCase
      */
     public function testImplementsErrorCodeInterface(): void
     {
-        static::assertInstanceOf(ErrorCodeInterface::class, ErrorCode::UNHANDLED_ERROR);
+        self::assertInstanceOf(ErrorCodeInterface::class, ErrorCode::UNHANDLED_ERROR);
     }
 
     /**
@@ -104,9 +106,9 @@ class ErrorCodeTest extends TestCase
         $actualNames = array_map(fn (ErrorCode $case) => $case->name, ErrorCode::cases());
 
         foreach ($expectedCases as $name) {
-            static::assertContains($name, $actualNames, "Expected case '{$name}' not found");
+            self::assertContains($name, $actualNames, "Expected case '{$name}' not found");
         }
 
-        static::assertCount(count($expectedCases), ErrorCode::cases());
+        self::assertCount(count($expectedCases), ErrorCode::cases());
     }
 }

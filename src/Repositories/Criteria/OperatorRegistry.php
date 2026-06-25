@@ -1,8 +1,9 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace SineMacula\ApiToolkit\Repositories\Criteria;
 
-use Closure;
 use Illuminate\Database\Eloquent\Builder;
 use SineMacula\ApiToolkit\Contracts\FilterOperator;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext;
@@ -126,12 +127,13 @@ final class OperatorRegistry
              *
              * @param  \Closure  $closure
              * @return void
+             *
+             * @phpstan-ignore missingType.callable
              */
-            public function __construct(// @phpstan-ignore missingType.callable
+            public function __construct(
 
                 /** @var \Closure */
                 private readonly \Closure $closure,
-
             ) {}
 
             /**

@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Unit\Repositories\Concerns;
 
 use Carbon\Carbon;
@@ -18,7 +20,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(QueryFingerprint::class)]
-class QueryFingerprintTest extends TestCase
+final class QueryFingerprintTest extends TestCase
 {
     /**
      * Test that an identical query yields a stable fingerprint.
@@ -30,7 +32,7 @@ class QueryFingerprintTest extends TestCase
         $first  = QueryFingerprint::for(Tag::query()->where('name', 'php'));
         $second = QueryFingerprint::for(Tag::query()->where('name', 'php'));
 
-        static::assertSame($first, $second);
+        self::assertSame($first, $second);
     }
 
     /**
@@ -43,7 +45,7 @@ class QueryFingerprintTest extends TestCase
         $unfiltered = QueryFingerprint::for(Tag::query());
         $filtered   = QueryFingerprint::for(Tag::query()->where('name', 'php'));
 
-        static::assertNotSame($unfiltered, $filtered);
+        self::assertNotSame($unfiltered, $filtered);
     }
 
     /**
@@ -56,7 +58,7 @@ class QueryFingerprintTest extends TestCase
         $one = QueryFingerprint::for(Tag::query()->where('id', 1));
         $two = QueryFingerprint::for(Tag::query()->where('id', 2));
 
-        static::assertNotSame($one, $two);
+        self::assertNotSame($one, $two);
     }
 
     /**
@@ -71,7 +73,7 @@ class QueryFingerprintTest extends TestCase
         $equals    = QueryFingerprint::for(Tag::query()->where('name', 'php'));
         $notEquals = QueryFingerprint::for(Tag::query()->where('name', '!=', 'php'));
 
-        static::assertNotSame($equals, $notEquals);
+        self::assertNotSame($equals, $notEquals);
     }
 
     /**
@@ -85,7 +87,7 @@ class QueryFingerprintTest extends TestCase
         $first  = QueryFingerprint::for(Tag::query()->where('created_at', '>', Carbon::parse('2026-01-01 00:00:00')));
         $second = QueryFingerprint::for(Tag::query()->where('created_at', '>', Carbon::parse('2026-01-01 00:00:00')));
 
-        static::assertSame($first, $second);
+        self::assertSame($first, $second);
     }
 
     /**
@@ -98,7 +100,7 @@ class QueryFingerprintTest extends TestCase
         $january = QueryFingerprint::for(Tag::query()->where('created_at', '>', Carbon::parse('2026-01-01 00:00:00')));
         $july    = QueryFingerprint::for(Tag::query()->where('created_at', '>', Carbon::parse('2026-07-01 00:00:00')));
 
-        static::assertNotSame($january, $july);
+        self::assertNotSame($january, $july);
     }
 
     /**
@@ -111,7 +113,7 @@ class QueryFingerprintTest extends TestCase
         $first  = QueryFingerprint::for(Tag::query()->where('name', UserStatus::ACTIVE->value));
         $second = QueryFingerprint::for(Tag::query()->where('name', UserStatus::ACTIVE));
 
-        static::assertSame($first, $second);
+        self::assertSame($first, $second);
     }
 
     /**
@@ -125,7 +127,7 @@ class QueryFingerprintTest extends TestCase
         $value = QueryFingerprint::for(Tag::query(), 'value', ['name']);
         $get   = QueryFingerprint::for(Tag::query(), 'get');
 
-        static::assertNotSame($value, $get);
+        self::assertNotSame($value, $get);
     }
 
     /**
@@ -140,7 +142,7 @@ class QueryFingerprintTest extends TestCase
         $first = QueryFingerprint::for(Tag::query(), 'first');
         $get   = QueryFingerprint::for(Tag::query(), 'get');
 
-        static::assertNotSame($first, $get);
+        self::assertNotSame($first, $get);
     }
 
     /**
@@ -155,7 +157,7 @@ class QueryFingerprintTest extends TestCase
         $one = QueryFingerprint::for(Tag::query(), 'find', [1]);
         $two = QueryFingerprint::for(Tag::query(), 'find', [2]);
 
-        static::assertNotSame($one, $two);
+        self::assertNotSame($one, $two);
     }
 
     /**
@@ -170,7 +172,7 @@ class QueryFingerprintTest extends TestCase
         $name  = QueryFingerprint::for(Tag::query(), 'get', [['id', 'name']]);
         $email = QueryFingerprint::for(Tag::query(), 'get', [['id', 'email']]);
 
-        static::assertNotSame($name, $email);
+        self::assertNotSame($name, $email);
     }
 
     /**
@@ -184,7 +186,7 @@ class QueryFingerprintTest extends TestCase
         $first  = QueryFingerprint::for(Tag::query(), 'find', [1]);
         $second = QueryFingerprint::for(Tag::query(), 'find', [1]);
 
-        static::assertSame($first, $second);
+        self::assertSame($first, $second);
     }
 
     /**
@@ -199,7 +201,7 @@ class QueryFingerprintTest extends TestCase
         $eager = QueryFingerprint::for(Tag::query()->with('posts'), 'get');
         $plain = QueryFingerprint::for(Tag::query(), 'get');
 
-        static::assertNotSame($eager, $plain);
+        self::assertNotSame($eager, $plain);
     }
 
     /**
@@ -214,7 +216,7 @@ class QueryFingerprintTest extends TestCase
         $first  = QueryFingerprint::for(Tag::query()->with('posts')->with('articles'), 'get');
         $second = QueryFingerprint::for(Tag::query()->with('articles')->with('posts'), 'get');
 
-        static::assertSame($first, $second);
+        self::assertSame($first, $second);
     }
 
     /**
@@ -231,7 +233,7 @@ class QueryFingerprintTest extends TestCase
         $object = QueryFingerprint::for(Tag::query()->where('created_at', $moment));
         $string = QueryFingerprint::for(Tag::query()->where('created_at', $moment->format(\DateTimeInterface::ATOM)));
 
-        static::assertSame($object, $string);
+        self::assertSame($object, $string);
     }
 
     /**
@@ -246,6 +248,6 @@ class QueryFingerprintTest extends TestCase
         $one = QueryFingerprint::for(Tag::query()->where('name', "\xB1\x31"));
         $two = QueryFingerprint::for(Tag::query()->where('name', "\xB2\x32"));
 
-        static::assertNotSame($one, $two);
+        self::assertNotSame($one, $two);
     }
 }

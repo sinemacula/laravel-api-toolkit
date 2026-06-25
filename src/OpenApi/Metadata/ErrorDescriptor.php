@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace SineMacula\ApiToolkit\OpenApi\Metadata;
 
 /**
@@ -36,6 +38,5 @@ final readonly class ErrorDescriptor
 
         /** The canonical detail string */
         public string $detail,
-
     ) {}
 }

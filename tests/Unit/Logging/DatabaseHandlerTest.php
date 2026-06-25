@@ -1,9 +1,12 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Unit\Logging;
 
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 use Monolog\Level;
 use Monolog\LogRecord;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -20,7 +23,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(DatabaseHandler::class)]
-class DatabaseHandlerTest extends TestCase
+final class DatabaseHandlerTest extends TestCase
 {
     /**
      * Test that write creates a LogMessage record in the database.
@@ -73,10 +76,10 @@ class DatabaseHandlerTest extends TestCase
         /** @phpstan-ignore staticMethod.notFound */
         $log = LogMessage::first();
 
-        static::assertNotNull($log);
-        static::assertSame('WARNING', $log->level);
-        static::assertSame('Warning message', $log->message);
-        static::assertStringContainsString('key', $log->getRawOriginal('context'));
+        self::assertNotNull($log);
+        self::assertSame('WARNING', $log->level);
+        self::assertSame('Warning message', $log->message);
+        self::assertStringContainsString('key', $log->getRawOriginal('context'));
     }
 
     /**
@@ -104,9 +107,9 @@ class DatabaseHandlerTest extends TestCase
         /** @phpstan-ignore staticMethod.notFound */
         $log = LogMessage::first();
 
-        static::assertNotNull($log);
-        static::assertStringContainsString('Something went wrong', $log->getRawOriginal('context'));
-        static::assertStringNotContainsString('RuntimeException Object', $log->getRawOriginal('context'));
+        self::assertNotNull($log);
+        self::assertStringContainsString('Something went wrong', $log->getRawOriginal('context'));
+        self::assertStringNotContainsString('RuntimeException Object', $log->getRawOriginal('context'));
     }
 
     /**
@@ -151,7 +154,7 @@ class DatabaseHandlerTest extends TestCase
             ->twice();
 
         // Drop the logs table so the insert fails
-        \Illuminate\Support\Facades\Schema::drop('logs');
+        Schema::drop('logs');
 
         $handler = new DatabaseHandler;
 
@@ -193,9 +196,9 @@ class DatabaseHandlerTest extends TestCase
         /** @phpstan-ignore staticMethod.notFound */
         $log = LogMessage::first();
 
-        static::assertNotNull($log);
-        static::assertNotNull($log->created_at);
-        static::assertSame('2026-01-02 03:04:05.123456', $log->created_at->format('Y-m-d H:i:s.u'));
+        self::assertNotNull($log);
+        self::assertNotNull($log->created_at);
+        self::assertSame('2026-01-02 03:04:05.123456', $log->created_at->format('Y-m-d H:i:s.u'));
     }
 
     /**
@@ -244,7 +247,7 @@ class DatabaseHandlerTest extends TestCase
             ->twice();
 
         // Drop the logs table so the insert fails
-        \Illuminate\Support\Facades\Schema::drop('logs');
+        Schema::drop('logs');
 
         $handler = new DatabaseHandler;
 
@@ -289,7 +292,7 @@ class DatabaseHandlerTest extends TestCase
                 && $context['exception'] instanceof \Throwable);
 
         // Drop the logs table so the insert fails
-        \Illuminate\Support\Facades\Schema::drop('logs');
+        Schema::drop('logs');
 
         $handler = new DatabaseHandler;
 

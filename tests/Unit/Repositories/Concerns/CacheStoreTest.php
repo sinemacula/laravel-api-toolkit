@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Unit\Repositories\Concerns;
 
 use Carbon\Carbon;
@@ -22,7 +24,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(CacheStore::class)]
-class CacheStoreTest extends TestCase
+final class CacheStoreTest extends TestCase
 {
     /** @var string A representative query fingerprint. */
     private const string HASH = 'abc123';
@@ -71,8 +73,8 @@ class CacheStoreTest extends TestCase
 
         $cached = $this->cacheStore->get(self::HASH);
 
-        static::assertInstanceOf(Collection::class, $cached);
-        static::assertSame(['foo', 'bar', 'baz'], $cached->all());
+        self::assertInstanceOf(Collection::class, $cached);
+        self::assertSame(['foo', 'bar', 'baz'], $cached->all());
     }
 
     /**
@@ -84,8 +86,8 @@ class CacheStoreTest extends TestCase
     {
         $this->cacheStore->putMiss(self::HASH);
 
-        static::assertTrue($this->cacheStore->has(self::HASH));
-        static::assertNull($this->cacheStore->get(self::HASH));
+        self::assertTrue($this->cacheStore->has(self::HASH));
+        self::assertNull($this->cacheStore->get(self::HASH));
     }
 
     /**
@@ -99,13 +101,14 @@ class CacheStoreTest extends TestCase
         $this->cacheStore->putMiss(self::HASH);
         $this->cacheStore->put('positive', collect(['x']), 1);
 
-        static::assertTrue($this->cacheStore->has(self::HASH));
+        self::assertTrue($this->cacheStore->has(self::HASH));
 
-        // 11 seconds on: past the 10s negative TTL but well within the 3600s TTL.
+        // 11 seconds on: past the 10s negative TTL but well within the 3600s
+        // TTL.
         Carbon::setTestNow(Carbon::parse('2026-03-09 12:00:11'));
 
-        static::assertFalse($this->cacheStore->has(self::HASH));
-        static::assertTrue($this->cacheStore->has('positive'));
+        self::assertFalse($this->cacheStore->has(self::HASH));
+        self::assertTrue($this->cacheStore->has('positive'));
     }
 
     /**
@@ -120,7 +123,7 @@ class CacheStoreTest extends TestCase
 
         $this->cacheStore->flushTable();
 
-        static::assertFalse($this->cacheStore->has(self::HASH));
+        self::assertFalse($this->cacheStore->has(self::HASH));
     }
 
     /**
@@ -130,7 +133,7 @@ class CacheStoreTest extends TestCase
      */
     public function testGetReturnsNullOnCacheMiss(): void
     {
-        static::assertNull($this->cacheStore->get(self::HASH));
+        self::assertNull($this->cacheStore->get(self::HASH));
     }
 
     /**
@@ -140,11 +143,11 @@ class CacheStoreTest extends TestCase
      */
     public function testHasReflectsEntryPresence(): void
     {
-        static::assertFalse($this->cacheStore->has(self::HASH));
+        self::assertFalse($this->cacheStore->has(self::HASH));
 
         $this->cacheStore->put(self::HASH, collect(['item']), 1);
 
-        static::assertTrue($this->cacheStore->has(self::HASH));
+        self::assertTrue($this->cacheStore->has(self::HASH));
     }
 
     /**
@@ -160,10 +163,10 @@ class CacheStoreTest extends TestCase
         $first  = $this->cacheStore->get('hash-a');
         $second = $this->cacheStore->get('hash-b');
 
-        static::assertInstanceOf(Collection::class, $first);
-        static::assertInstanceOf(Collection::class, $second);
-        static::assertSame(['a'], $first->all());
-        static::assertSame(['b', 'c'], $second->all());
+        self::assertInstanceOf(Collection::class, $first);
+        self::assertInstanceOf(Collection::class, $second);
+        self::assertSame(['a'], $first->all());
+        self::assertSame(['b', 'c'], $second->all());
     }
 
     /**
@@ -177,9 +180,9 @@ class CacheStoreTest extends TestCase
 
         $meta = $this->cacheStore->getStore()->get('api-toolkit:repository-cache-meta:test-table');
 
-        static::assertIsArray($meta);
-        static::assertArrayHasKey('populated_at', $meta);
-        static::assertSame(now()->timestamp, $meta['populated_at']);
+        self::assertIsArray($meta);
+        self::assertArrayHasKey('populated_at', $meta);
+        self::assertSame(now()->timestamp, $meta['populated_at']);
     }
 
     /**
@@ -194,8 +197,8 @@ class CacheStoreTest extends TestCase
 
         $store->put(self::HASH, collect(['a', 'b', 'c']), 3);
 
-        static::assertNull($store->get(self::HASH));
-        static::assertFalse($store->has(self::HASH));
+        self::assertNull($store->get(self::HASH));
+        self::assertFalse($store->has(self::HASH));
     }
 
     /**
@@ -210,7 +213,7 @@ class CacheStoreTest extends TestCase
 
         $store->put(self::HASH, collect([str_repeat('x', 256)]), 1);
 
-        static::assertNull($store->get(self::HASH));
+        self::assertNull($store->get(self::HASH));
     }
 
     /**
@@ -224,7 +227,7 @@ class CacheStoreTest extends TestCase
 
         $this->cacheStore->flushTable();
 
-        static::assertNull($this->cacheStore->get(self::HASH));
+        self::assertNull($this->cacheStore->get(self::HASH));
     }
 
     /**
@@ -239,11 +242,11 @@ class CacheStoreTest extends TestCase
 
         $store->put(self::HASH, collect(['item']), 1);
 
-        static::assertNotNull($store->get(self::HASH));
+        self::assertNotNull($store->get(self::HASH));
 
         $store->flushTable();
 
-        static::assertNull($store->get(self::HASH));
+        self::assertNull($store->get(self::HASH));
     }
 
     /**
@@ -260,21 +263,21 @@ class CacheStoreTest extends TestCase
 
         $store->put(self::HASH, collect(['first']), 1);
 
-        static::assertNull($store->getStore()->get($versionKey));
+        self::assertNull($store->getStore()->get($versionKey));
 
         $store->flushTable();
 
-        static::assertSame(1, $store->getStore()->get($versionKey));
-        static::assertNull($store->get(self::HASH));
+        self::assertSame(1, $store->getStore()->get($versionKey));
+        self::assertNull($store->get(self::HASH));
 
         $store->put(self::HASH, collect(['second']), 1);
 
-        static::assertNotNull($store->get(self::HASH));
+        self::assertNotNull($store->get(self::HASH));
 
         $store->flushTable();
 
-        static::assertSame(2, $store->getStore()->get($versionKey));
-        static::assertNull($store->get(self::HASH));
+        self::assertSame(2, $store->getStore()->get($versionKey));
+        self::assertNull($store->get(self::HASH));
     }
 
     /**
@@ -291,7 +294,7 @@ class CacheStoreTest extends TestCase
 
         $store->flushTable();
 
-        static::assertNotNull($store->get(self::HASH));
+        self::assertNotNull($store->get(self::HASH));
     }
 
     /**
@@ -305,9 +308,9 @@ class CacheStoreTest extends TestCase
 
         $meta = $this->cacheStore->getStore()->get('api-toolkit:repository-cache-meta:test-table');
 
-        static::assertIsArray($meta);
-        static::assertArrayHasKey('invalidated_at', $meta);
-        static::assertSame(now()->timestamp, $meta['invalidated_at']);
+        self::assertIsArray($meta);
+        self::assertArrayHasKey('invalidated_at', $meta);
+        self::assertSame(now()->timestamp, $meta['invalidated_at']);
     }
 
     /**
@@ -323,9 +326,9 @@ class CacheStoreTest extends TestCase
 
         $status = $this->cacheStore->getStatus();
 
-        static::assertTrue($status->isPopulated());
-        static::assertSame(30, $status->getAge());
-        static::assertNull($status->getLastInvalidatedAt());
+        self::assertTrue($status->isPopulated());
+        self::assertSame(30, $status->getAge());
+        self::assertNull($status->getLastInvalidatedAt());
     }
 
     /**
@@ -337,8 +340,8 @@ class CacheStoreTest extends TestCase
     {
         $status = $this->cacheStore->getStatus();
 
-        static::assertFalse($status->isPopulated());
-        static::assertNull($status->getAge());
+        self::assertFalse($status->isPopulated());
+        self::assertNull($status->getAge());
     }
 
     /**
@@ -353,9 +356,9 @@ class CacheStoreTest extends TestCase
 
         $status = $this->cacheStore->getStatus();
 
-        static::assertFalse($status->isPopulated());
-        static::assertNotNull($status->getLastInvalidatedAt());
-        static::assertSame(now()->timestamp, $status->getLastInvalidatedAt()->timestamp);
+        self::assertFalse($status->isPopulated());
+        self::assertNotNull($status->getLastInvalidatedAt());
+        self::assertSame(now()->timestamp, $status->getLastInvalidatedAt()->timestamp);
     }
 
     /**
@@ -365,7 +368,7 @@ class CacheStoreTest extends TestCase
      */
     public function testGetStoreReturnsUnderlyingCacheRepository(): void
     {
-        static::assertInstanceOf(CacheContract::class, $this->cacheStore->getStore());
+        self::assertInstanceOf(CacheContract::class, $this->cacheStore->getStore());
     }
 
     /**
@@ -381,11 +384,11 @@ class CacheStoreTest extends TestCase
 
         $store->put(self::HASH, collect(['item']), 1);
 
-        static::assertNotNull($store->get(self::HASH));
+        self::assertNotNull($store->get(self::HASH));
 
         $store->flushTable();
 
-        static::assertNull($store->get(self::HASH));
+        self::assertNull($store->get(self::HASH));
     }
 
     /**
@@ -404,8 +407,8 @@ class CacheStoreTest extends TestCase
 
         $tableA->flushTable();
 
-        static::assertNull($tableA->get(self::HASH));
-        static::assertNotNull($tableB->get(self::HASH));
+        self::assertNull($tableA->get(self::HASH));
+        self::assertNotNull($tableB->get(self::HASH));
     }
 
     /**
@@ -421,8 +424,8 @@ class CacheStoreTest extends TestCase
 
         CacheStore::invalidateTable('array', 'test-table', true);
 
-        static::assertNull($this->cacheStore->get(self::HASH));
-        static::assertNull(Cache::store('array')->get(CacheKeys::REPOSITORY_CACHE_VERSION->resolveKey(['test-table'])));
+        self::assertNull($this->cacheStore->get(self::HASH));
+        self::assertNull(Cache::store('array')->get(CacheKeys::REPOSITORY_CACHE_VERSION->resolveKey(['test-table'])));
     }
 
     /**
@@ -439,7 +442,7 @@ class CacheStoreTest extends TestCase
 
         CacheStore::invalidateTable('file', 'file-table', true);
 
-        static::assertNull((new CacheStore('file', 'file-table', $options))->get(self::HASH));
+        self::assertNull((new CacheStore('file', 'file-table', $options))->get(self::HASH));
     }
 
     /**
@@ -455,6 +458,6 @@ class CacheStoreTest extends TestCase
 
         CacheStore::invalidateTable('file', 'file-table', false);
 
-        static::assertNotNull((new CacheStore('file', 'file-table', $options))->get(self::HASH));
+        self::assertNotNull((new CacheStore('file', 'file-table', $options))->get(self::HASH));
     }
 }

@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Unit\Repositories\Criteria\Operators;
 
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -17,7 +19,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(BetweenOperator::class)]
-class BetweenOperatorTest extends TestCase
+final class BetweenOperatorTest extends TestCase
 {
     /**
      * Test that apply uses whereBetween with two elements.
@@ -33,9 +35,9 @@ class BetweenOperatorTest extends TestCase
 
         $wheres = $query->getQuery()->wheres;
 
-        static::assertCount(1, $wheres);
-        static::assertSame('between', $wheres[0]['type']);
-        static::assertSame('age', $wheres[0]['column']);
+        self::assertCount(1, $wheres);
+        self::assertSame('between', $wheres[0]['type']);
+        self::assertSame('age', $wheres[0]['column']);
     }
 
     /**
@@ -50,7 +52,7 @@ class BetweenOperatorTest extends TestCase
 
         $operator->apply($query, 'age', [18], FilterContext::root());
 
-        static::assertEmpty($query->getQuery()->wheres);
+        self::assertEmpty($query->getQuery()->wheres);
     }
 
     /**
@@ -65,7 +67,7 @@ class BetweenOperatorTest extends TestCase
 
         $operator->apply($query, 'age', [18, 30, 65], FilterContext::root());
 
-        static::assertEmpty($query->getQuery()->wheres);
+        self::assertEmpty($query->getQuery()->wheres);
     }
 
     /**
@@ -80,6 +82,6 @@ class BetweenOperatorTest extends TestCase
 
         $operator->apply($query, 'age', 'not-an-array', FilterContext::root());
 
-        static::assertEmpty($query->getQuery()->wheres);
+        self::assertEmpty($query->getQuery()->wheres);
     }
 }

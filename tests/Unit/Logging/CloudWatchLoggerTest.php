@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Unit\Logging;
 
 use Aws\CloudWatchLogs\CloudWatchLogsClient;
@@ -19,7 +21,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(CloudWatchLogger::class)]
-class CloudWatchLoggerTest extends TestCase
+final class CloudWatchLoggerTest extends TestCase
 {
     /**
      * Test that __invoke returns a Monolog Logger instance.
@@ -32,7 +34,7 @@ class CloudWatchLoggerTest extends TestCase
 
         $config = $this->buildConfig();
 
-        $mockClient = static::createStub(CloudWatchLogsClient::class);
+        $mockClient = self::createStub(CloudWatchLogsClient::class);
 
         assert($this->app !== null);
 
@@ -40,7 +42,7 @@ class CloudWatchLoggerTest extends TestCase
 
         $logger = $loggerFactory($config);
 
-        static::assertInstanceOf(Logger::class, $logger);
+        self::assertInstanceOf(Logger::class, $logger);
     }
 
     /**
@@ -56,7 +58,7 @@ class CloudWatchLoggerTest extends TestCase
 
         $logger = $loggerFactory($config);
 
-        static::assertSame('cloudwatch', $logger->getName());
+        self::assertSame('cloudwatch', $logger->getName());
     }
 
     /**
@@ -72,7 +74,7 @@ class CloudWatchLoggerTest extends TestCase
 
         $logger = $loggerFactory($config);
 
-        static::assertCount(1, $logger->getHandlers());
+        self::assertCount(1, $logger->getHandlers());
     }
 
     /**
@@ -90,8 +92,8 @@ class CloudWatchLoggerTest extends TestCase
 
         $handler = $this->resolveHandler($config);
 
-        static::assertSame(14, $this->getHandlerProperty($handler, 'retention'));
-        static::assertSame(500, $this->getHandlerProperty($handler, 'batchSize'));
+        self::assertSame(14, $this->getHandlerProperty($handler, 'retention'));
+        self::assertSame(500, $this->getHandlerProperty($handler, 'batchSize'));
     }
 
     /**
@@ -108,8 +110,8 @@ class CloudWatchLoggerTest extends TestCase
 
         $handler = $this->resolveHandler($config);
 
-        static::assertSame(7, $this->getHandlerProperty($handler, 'retention'));
-        static::assertSame(1000, $this->getHandlerProperty($handler, 'batchSize'));
+        self::assertSame(7, $this->getHandlerProperty($handler, 'retention'));
+        self::assertSame(1000, $this->getHandlerProperty($handler, 'batchSize'));
     }
 
     /**
@@ -127,8 +129,8 @@ class CloudWatchLoggerTest extends TestCase
 
         $handler = $this->resolveHandler($config);
 
-        static::assertSame(7, $this->getHandlerProperty($handler, 'retention'));
-        static::assertSame(1000, $this->getHandlerProperty($handler, 'batchSize'));
+        self::assertSame(7, $this->getHandlerProperty($handler, 'retention'));
+        self::assertSame(1000, $this->getHandlerProperty($handler, 'batchSize'));
     }
 
     /**
@@ -144,7 +146,7 @@ class CloudWatchLoggerTest extends TestCase
 
         $handler = $this->resolveHandler($config);
 
-        static::assertSame(Level::Error, $handler->getLevel());
+        self::assertSame(Level::Error, $handler->getLevel());
     }
 
     /**
@@ -161,7 +163,7 @@ class CloudWatchLoggerTest extends TestCase
 
         $handler = $this->resolveHandler($config);
 
-        static::assertSame(Level::Debug, $handler->getLevel());
+        self::assertSame(Level::Debug, $handler->getLevel());
     }
 
     /**
@@ -199,7 +201,7 @@ class CloudWatchLoggerTest extends TestCase
 
         $handler = $loggerFactory($config)->getHandlers()[0];
 
-        static::assertInstanceOf(CloudWatchHandler::class, $handler);
+        self::assertInstanceOf(CloudWatchHandler::class, $handler);
 
         return $handler;
     }

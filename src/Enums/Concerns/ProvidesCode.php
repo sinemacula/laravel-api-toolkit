@@ -1,6 +1,8 @@
 <?php
 
-namespace SineMacula\ApiToolkit\Enums\Traits;
+declare(strict_types = 1);
+
+namespace SineMacula\ApiToolkit\Enums\Concerns;
 
 /**
  * Provides code trait.

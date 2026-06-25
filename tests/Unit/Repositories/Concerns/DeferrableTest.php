@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Unit\Repositories\Concerns;
 
 use Carbon\Carbon;
@@ -7,6 +9,8 @@ use Illuminate\Support\Facades\DB;
 use PHPUnit\Framework\Attributes\CoversTrait;
 use SineMacula\ApiToolkit\Enums\FlushStrategy;
 use SineMacula\ApiToolkit\Exceptions\WritePoolFlushException;
+use SineMacula\ApiToolkit\Repositories\ApiRepository;
+use SineMacula\ApiToolkit\Repositories\Concerns\AttributeSetter;
 use SineMacula\ApiToolkit\Repositories\Concerns\Deferrable;
 use SineMacula\ApiToolkit\Repositories\Concerns\WritePool;
 use SineMacula\ApiToolkit\Repositories\Concerns\WritePoolFlushResult;
@@ -22,10 +26,13 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversTrait(Deferrable::class)]
-class DeferrableTest extends TestCase
+final class DeferrableTest extends TestCase
 {
-    private const TIMESTAMP_DEFERRAL = '2026-03-10 12:00:01';
-    private const TIMESTAMP_EXPLICIT = '2026-03-10 09:00:00';
+    /** @var string The timestamp used for deferral-based assertions. */
+    private const string TIMESTAMP_DEFERRAL = '2026-03-10 12:00:01';
+
+    /** @var string The timestamp used for explicit-value assertions. */
+    private const string TIMESTAMP_EXPLICIT = '2026-03-10 09:00:00';
 
     /** @var \Tests\Fixtures\Repositories\DeferrableUserRepository The repository instance under test. */
     private DeferrableUserRepository $repository;
@@ -66,11 +73,11 @@ class DeferrableTest extends TestCase
      */
     public function testBootInvokesParentBootChain(): void
     {
-        $reflection = new \ReflectionClass(\SineMacula\ApiToolkit\Repositories\ApiRepository::class);
+        $reflection = new \ReflectionClass(ApiRepository::class);
 
         $attributeSetter = $reflection->getProperty('attributeSetter')->getValue($this->repository);
 
-        static::assertInstanceOf(\SineMacula\ApiToolkit\Repositories\Concerns\AttributeSetter::class, $attributeSetter);
+        self::assertInstanceOf(AttributeSetter::class, $attributeSetter);
     }
 
     /**
@@ -82,7 +89,7 @@ class DeferrableTest extends TestCase
     {
         $this->repository->defer(['name' => 'Alice', 'email' => 'alice@example.com', 'password' => 'secret']);
 
-        static::assertSame(0, DB::table('users')->count());
+        self::assertSame(0, DB::table('users')->count());
     }
 
     /**
@@ -102,9 +109,9 @@ class DeferrableTest extends TestCase
 
         $user = DB::table('users')->first();
 
-        static::assertNotNull($user);
-        static::assertSame(self::TIMESTAMP_DEFERRAL, $user->created_at);
-        static::assertSame(self::TIMESTAMP_DEFERRAL, $user->updated_at);
+        self::assertNotNull($user);
+        self::assertSame(self::TIMESTAMP_DEFERRAL, $user->created_at);
+        self::assertSame(self::TIMESTAMP_DEFERRAL, $user->updated_at);
     }
 
     /**
@@ -126,9 +133,9 @@ class DeferrableTest extends TestCase
 
         $user = DB::table('users')->first();
 
-        static::assertNotNull($user);
-        static::assertSame('2025-01-01 00:00:00', $user->created_at);
-        static::assertSame('2025-06-01 00:00:00', $user->updated_at);
+        self::assertNotNull($user);
+        self::assertSame('2025-01-01 00:00:00', $user->created_at);
+        self::assertSame('2025-06-01 00:00:00', $user->updated_at);
     }
 
     /**
@@ -146,9 +153,9 @@ class DeferrableTest extends TestCase
 
         $user = DB::table('users')->first();
 
-        static::assertNotNull($user);
-        static::assertSame(self::TIMESTAMP_EXPLICIT, $user->created_at);
-        static::assertSame(self::TIMESTAMP_EXPLICIT, $user->updated_at);
+        self::assertNotNull($user);
+        self::assertSame(self::TIMESTAMP_EXPLICIT, $user->created_at);
+        self::assertSame(self::TIMESTAMP_EXPLICIT, $user->updated_at);
     }
 
     /**
@@ -163,9 +170,9 @@ class DeferrableTest extends TestCase
 
         $flushResult = $this->repository->flushWrites();
 
-        static::assertSame(2, DB::table('users')->count());
-        static::assertInstanceOf(WritePoolFlushResult::class, $flushResult);
-        static::assertTrue($flushResult->isSuccessful());
+        self::assertSame(2, DB::table('users')->count());
+        self::assertInstanceOf(WritePoolFlushResult::class, $flushResult);
+        self::assertTrue($flushResult->isSuccessful());
     }
 
     /**
@@ -180,8 +187,8 @@ class DeferrableTest extends TestCase
         $flushResult = $this->repository->flushWrites();
         $this->repository->flushWrites();
 
-        static::assertSame(1, DB::table('users')->count());
-        static::assertTrue($flushResult->isSuccessful());
+        self::assertSame(1, DB::table('users')->count());
+        self::assertTrue($flushResult->isSuccessful());
     }
 
     /**
@@ -195,7 +202,7 @@ class DeferrableTest extends TestCase
 
         $this->repository->flushWrites();
 
-        static::assertSame(1, DB::table('users')->count());
+        self::assertSame(1, DB::table('users')->count());
     }
 
     /**
@@ -209,11 +216,11 @@ class DeferrableTest extends TestCase
             $this->repository->defer(['name' => "user_{$i}", 'email' => "user_{$i}@example.com", 'password' => 'secret']);
         }
 
-        static::assertSame(0, DB::table('users')->count());
+        self::assertSame(0, DB::table('users')->count());
 
         $this->repository->flushWrites();
 
-        static::assertSame(5, DB::table('users')->count());
+        self::assertSame(5, DB::table('users')->count());
     }
 
     /**
@@ -228,7 +235,7 @@ class DeferrableTest extends TestCase
 
         $flushResult = $this->repository->flushWrites();
 
-        static::assertInstanceOf(WritePoolFlushResult::class, $flushResult);
+        self::assertInstanceOf(WritePoolFlushResult::class, $flushResult);
     }
 
     /**

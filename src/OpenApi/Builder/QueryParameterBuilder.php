@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace SineMacula\ApiToolkit\OpenApi\Builder;
 
 use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
@@ -17,7 +19,7 @@ use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-class QueryParameterBuilder
+final class QueryParameterBuilder
 {
     /**
      * Constructor.
@@ -25,6 +27,8 @@ class QueryParameterBuilder
      * @param  \SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue  $catalogue
      */
     public function __construct(
+
+        /** The catalogue providing query parameter metadata. */
         private readonly MetadataCatalogue $catalogue,
     ) {}
 

@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Unit\Services\Enums;
 
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -15,7 +17,7 @@ use SineMacula\ApiToolkit\Services\Enums\ServiceStatus;
  * @internal
  */
 #[CoversClass(ServiceStatus::class)]
-class ServiceStatusTest extends TestCase
+final class ServiceStatusTest extends TestCase
 {
     /**
      * Test that the enum defines exactly the expected cases.
@@ -26,6 +28,6 @@ class ServiceStatusTest extends TestCase
     {
         $names = array_map(static fn (ServiceStatus $case): string => $case->name, ServiceStatus::cases());
 
-        static::assertSame(['SUCCEEDED', 'FAILED'], $names);
+        self::assertSame(['SUCCEEDED', 'FAILED'], $names);
     }
 }

@@ -1,11 +1,13 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Unit\Http\Resources;
 
+use Illuminate\Database\Eloquent\Casts\Attribute;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Illuminate\Http\Request;
-use Illuminate\Http\Resources\MissingValue;
-use LogicException;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use SineMacula\ApiToolkit\Http\Resources\ApiResource;
@@ -36,7 +38,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(ApiResource::class)]
-class ApiResourceTest extends TestCase
+final class ApiResourceTest extends TestCase
 {
     /** @var string Email address used in fluent-return test fixtures. */
     private const string FLUENT_EMAIL = 'fluent@example.com';
@@ -67,10 +69,10 @@ class ApiResourceTest extends TestCase
      */
     public function testGetResourceTypeReturnsLowercasedConstant(): void
     {
-        static::assertSame('users', UserResource::getResourceType());
-        static::assertSame('organizations', OrganizationResource::getResourceType());
-        static::assertSame('posts', PostResource::getResourceType());
-        static::assertSame('tags', TagResource::getResourceType());
+        self::assertSame('users', UserResource::getResourceType());
+        self::assertSame('organizations', OrganizationResource::getResourceType());
+        self::assertSame('posts', PostResource::getResourceType());
+        self::assertSame('tags', TagResource::getResourceType());
     }
 
     /**
@@ -90,6 +92,7 @@ class ApiResourceTest extends TestCase
              *
              * @return array<string, array<string, mixed>>
              */
+            #[\Override]
             public static function schema(): array
             {
                 return [];
@@ -106,10 +109,10 @@ class ApiResourceTest extends TestCase
      */
     public function testGetDefaultFieldsReturnsStaticDefaultArray(): void
     {
-        static::assertSame(['id', 'name', 'email'], UserResource::getDefaultFields());
-        static::assertSame(['id', 'name', 'slug'], OrganizationResource::getDefaultFields());
-        static::assertSame(['id', 'title'], PostResource::getDefaultFields());
-        static::assertSame(['id', 'name'], TagResource::getDefaultFields());
+        self::assertSame(['id', 'name', 'email'], UserResource::getDefaultFields());
+        self::assertSame(['id', 'name', 'slug'], OrganizationResource::getDefaultFields());
+        self::assertSame(['id', 'title'], PostResource::getDefaultFields());
+        self::assertSame(['id', 'name'], TagResource::getDefaultFields());
     }
 
     /**
@@ -119,21 +122,21 @@ class ApiResourceTest extends TestCase
      */
     public function testGetAllFieldsReturnsAllFieldKeysExcludingCounts(): void
     {
-        $all_fields = UserResource::getAllFields();
+        $allFields = UserResource::getAllFields();
 
-        static::assertContains('id', $all_fields);
-        static::assertContains('name', $all_fields);
-        static::assertContains('email', $all_fields);
-        static::assertContains('status', $all_fields);
-        static::assertContains('created_at', $all_fields);
-        static::assertContains('updated_at', $all_fields);
-        static::assertContains('full_label', $all_fields);
-        static::assertContains('organization', $all_fields);
-        static::assertContains('profile_bio', $all_fields);
-        static::assertContains('posts', $all_fields);
+        self::assertContains('id', $allFields);
+        self::assertContains('name', $allFields);
+        self::assertContains('email', $allFields);
+        self::assertContains('status', $allFields);
+        self::assertContains('created_at', $allFields);
+        self::assertContains('updated_at', $allFields);
+        self::assertContains('full_label', $allFields);
+        self::assertContains('organization', $allFields);
+        self::assertContains('profile_bio', $allFields);
+        self::assertContains('posts', $allFields);
 
-        foreach ($all_fields as $field) {
-            static::assertStringNotContainsString('__count__', $field);
+        foreach ($allFields as $field) {
+            self::assertStringNotContainsString('__count__', $field);
         }
     }
 
@@ -157,7 +160,7 @@ class ApiResourceTest extends TestCase
 
         $fields = UserResource::resolveFields();
 
-        static::assertSame(['id', 'name', 'status'], $fields);
+        self::assertSame(['id', 'name', 'status'], $fields);
     }
 
     /**
@@ -178,7 +181,7 @@ class ApiResourceTest extends TestCase
 
         $fields = UserResource::resolveFields();
 
-        static::assertSame(['id', 'name', 'email'], $fields);
+        self::assertSame(['id', 'name', 'email'], $fields);
     }
 
     /**
@@ -196,8 +199,8 @@ class ApiResourceTest extends TestCase
         $resource = new UserResource($user);
         $result   = $resource->resolve();
 
-        static::assertArrayHasKey('_type', $result);
-        static::assertSame('users', $result['_type']);
+        self::assertArrayHasKey('_type', $result);
+        self::assertSame('users', $result['_type']);
     }
 
     /**
@@ -225,9 +228,9 @@ class ApiResourceTest extends TestCase
         $resource = new UserResource($user);
         $result   = $resource->resolve();
 
-        static::assertArrayHasKey('_type', $result);
-        static::assertArrayHasKey('id', $result);
-        static::assertArrayHasKey('name', $result);
+        self::assertArrayHasKey('_type', $result);
+        self::assertArrayHasKey('id', $result);
+        self::assertArrayHasKey('name', $result);
     }
 
     /**
@@ -256,9 +259,9 @@ class ApiResourceTest extends TestCase
         $resource = new UserResource($user);
         $result   = $resource->resolve();
 
-        static::assertArrayHasKey('name', $result);
-        static::assertArrayNotHasKey('status', $result);
-        static::assertArrayNotHasKey('email', $result);
+        self::assertArrayHasKey('name', $result);
+        self::assertArrayNotHasKey('status', $result);
+        self::assertArrayNotHasKey('email', $result);
     }
 
     /**
@@ -278,8 +281,8 @@ class ApiResourceTest extends TestCase
 
         $result = $resource->resolve();
 
-        static::assertArrayNotHasKey('email', $result);
-        static::assertArrayHasKey('name', $result);
+        self::assertArrayNotHasKey('email', $result);
+        self::assertArrayHasKey('name', $result);
     }
 
     /**
@@ -300,10 +303,10 @@ class ApiResourceTest extends TestCase
 
         $result = $resource->resolve();
 
-        static::assertArrayHasKey('name', $result);
-        static::assertArrayHasKey('email', $result);
-        static::assertArrayHasKey('status', $result);
-        static::assertArrayHasKey('full_label', $result);
+        self::assertArrayHasKey('name', $result);
+        self::assertArrayHasKey('email', $result);
+        self::assertArrayHasKey('status', $result);
+        self::assertArrayHasKey('full_label', $result);
     }
 
     /**
@@ -332,10 +335,10 @@ class ApiResourceTest extends TestCase
         $resource = new UserResource($user);
         $result   = $resource->resolve();
 
-        static::assertArrayHasKey('name', $result);
-        static::assertArrayHasKey('email', $result);
-        static::assertArrayHasKey('status', $result);
-        static::assertArrayHasKey('full_label', $result);
+        self::assertArrayHasKey('name', $result);
+        self::assertArrayHasKey('email', $result);
+        self::assertArrayHasKey('status', $result);
+        self::assertArrayHasKey('full_label', $result);
     }
 
     /**
@@ -345,7 +348,7 @@ class ApiResourceTest extends TestCase
      */
     public function testGuardsPreventFieldInclusionWhenReturnFalse(): void
     {
-        $resource_class = new class (null) extends ApiResource {
+        $resourceClass = new class (null) extends ApiResource {
             /** @var string */
             public const string RESOURCE_TYPE = 'guarded_test';
 
@@ -357,6 +360,7 @@ class ApiResourceTest extends TestCase
              *
              * @return array<string, array<string, mixed>>
              */
+            #[\Override]
             public static function schema(): array
             {
                 return Field::set(
@@ -372,13 +376,13 @@ class ApiResourceTest extends TestCase
             'email' => 'guarded@example.com',
         ]);
 
-        $resource = new $resource_class($user);
+        $resource = new $resourceClass($user);
         $resource->withFields(['id', 'name', 'secret']);
 
         $result = $resource->resolve();
 
-        static::assertArrayHasKey('name', $result);
-        static::assertArrayNotHasKey('secret', $result);
+        self::assertArrayHasKey('name', $result);
+        self::assertArrayNotHasKey('secret', $result);
     }
 
     /**
@@ -388,7 +392,7 @@ class ApiResourceTest extends TestCase
      */
     public function testGuardsAllowFieldInclusionWhenReturnTrue(): void
     {
-        $resource_class = new class (null) extends ApiResource {
+        $resourceClass = new class (null) extends ApiResource {
             /** @var string */
             public const string RESOURCE_TYPE = 'guard_pass_test';
 
@@ -400,6 +404,7 @@ class ApiResourceTest extends TestCase
              *
              * @return array<string, array<string, mixed>>
              */
+            #[\Override]
             public static function schema(): array
             {
                 return Field::set(
@@ -417,12 +422,12 @@ class ApiResourceTest extends TestCase
 
         $user->setAttribute('visible', 'shown');
 
-        $resource = new $resource_class($user);
+        $resource = new $resourceClass($user);
         $resource->withFields(['name', 'visible']);
 
         $result = $resource->resolve();
 
-        static::assertArrayHasKey('name', $result);
+        self::assertArrayHasKey('name', $result);
     }
 
     /**
@@ -432,7 +437,7 @@ class ApiResourceTest extends TestCase
      */
     public function testTransformersModifyResolvedValues(): void
     {
-        $resource_class = new class (null) extends ApiResource {
+        $resourceClass = new class (null) extends ApiResource {
             /** @var string */
             public const string RESOURCE_TYPE = 'transform_test';
 
@@ -444,6 +449,7 @@ class ApiResourceTest extends TestCase
              *
              * @return array<string, array<string, mixed>>
              */
+            #[\Override]
             public static function schema(): array
             {
                 return Field::set(
@@ -458,12 +464,12 @@ class ApiResourceTest extends TestCase
             'email' => 'lower@example.com',
         ]);
 
-        $resource = new $resource_class($user);
+        $resource = new $resourceClass($user);
         $resource->withFields(['name']);
 
         $result = $resource->resolve();
 
-        static::assertSame('LOWERCASE', $result['name']);
+        self::assertSame('LOWERCASE', $result['name']);
     }
 
     /**
@@ -483,7 +489,7 @@ class ApiResourceTest extends TestCase
 
         $result = $resource->resolve();
 
-        static::assertSame('Computed <computed@example.com>', $result['full_label']);
+        self::assertSame('Computed <computed@example.com>', $result['full_label']);
     }
 
     /**
@@ -493,7 +499,7 @@ class ApiResourceTest extends TestCase
      */
     public function testAccessorFieldsResolveViaStringPath(): void
     {
-        $resource_class = new class (null) extends ApiResource {
+        $resourceClass = new class (null) extends ApiResource {
             /** @var string */
             public const string RESOURCE_TYPE = 'accessor_test';
 
@@ -505,6 +511,7 @@ class ApiResourceTest extends TestCase
              *
              * @return array<string, array<string, mixed>>
              */
+            #[\Override]
             public static function schema(): array
             {
                 return Field::set(
@@ -519,12 +526,12 @@ class ApiResourceTest extends TestCase
             'email' => 'accessed@example.com',
         ]);
 
-        $resource = new $resource_class($user);
+        $resource = new $resourceClass($user);
         $resource->withFields(['nested_value']);
 
         $result = $resource->resolve();
 
-        static::assertSame('Accessed', $result['nested_value']);
+        self::assertSame('Accessed', $result['nested_value']);
     }
 
     /**
@@ -534,7 +541,7 @@ class ApiResourceTest extends TestCase
      */
     public function testAccessorFieldsResolveViaCallable(): void
     {
-        $resource_class = new class (null) extends ApiResource {
+        $resourceClass = new class (null) extends ApiResource {
             /** @var string */
             public const string RESOURCE_TYPE = 'accessor_callable_test';
 
@@ -546,6 +553,7 @@ class ApiResourceTest extends TestCase
              *
              * @return array<string, array<string, mixed>>
              */
+            #[\Override]
             public static function schema(): array
             {
                 return Field::set(
@@ -567,12 +575,12 @@ class ApiResourceTest extends TestCase
             'email' => 'callable@example.com',
         ]);
 
-        $resource = new $resource_class($user);
+        $resource = new $resourceClass($user);
         $resource->withFields(['computed_accessor']);
 
         $result = $resource->resolve();
 
-        static::assertSame('custom:CallableAccess', $result['computed_accessor']);
+        self::assertSame('custom:CallableAccess', $result['computed_accessor']);
     }
 
     /**
@@ -600,12 +608,12 @@ class ApiResourceTest extends TestCase
 
         $result = $resource->resolve();
 
-        static::assertArrayHasKey('organization', $result);
-        static::assertInstanceOf(\SineMacula\ApiToolkit\Http\Resources\ApiResource::class, $result['organization']);
+        self::assertArrayHasKey('organization', $result);
+        self::assertInstanceOf(ApiResource::class, $result['organization']);
 
         $nested = $result['organization']->resolve();
 
-        static::assertSame('organizations', $nested['_type']);
+        self::assertSame('organizations', $nested['_type']);
     }
 
     /**
@@ -631,7 +639,7 @@ class ApiResourceTest extends TestCase
 
         $result = $resource->resolve();
 
-        static::assertArrayNotHasKey('organization', $result);
+        self::assertArrayNotHasKey('organization', $result);
     }
 
     /**
@@ -658,8 +666,8 @@ class ApiResourceTest extends TestCase
 
         $result = $resource->resolve();
 
-        static::assertArrayHasKey('profile_bio', $result);
-        static::assertSame('A great bio', $result['profile_bio']);
+        self::assertArrayHasKey('profile_bio', $result);
+        self::assertSame('A great bio', $result['profile_bio']);
     }
 
     /**
@@ -681,8 +689,8 @@ class ApiResourceTest extends TestCase
 
         $result = $resource->resolve();
 
-        static::assertArrayHasKey('organization', $result);
-        static::assertNull($result['organization']);
+        self::assertArrayHasKey('organization', $result);
+        self::assertNull($result['organization']);
     }
 
     /**
@@ -726,9 +734,9 @@ class ApiResourceTest extends TestCase
         $resource = new UserResource($user);
         $result   = $resource->resolve();
 
-        static::assertArrayHasKey('counts', $result);
-        static::assertArrayHasKey('posts', $result['counts']);
-        static::assertSame(2, $result['counts']['posts']);
+        self::assertArrayHasKey('counts', $result);
+        self::assertArrayHasKey('posts', $result['counts']);
+        self::assertSame(2, $result['counts']['posts']);
     }
 
     /**
@@ -758,8 +766,8 @@ class ApiResourceTest extends TestCase
         $resource = new UserResource($user);
         $result   = $resource->resolve();
 
-        static::assertArrayHasKey('counts', $result);
-        static::assertArrayHasKey('posts', $result['counts']);
+        self::assertArrayHasKey('counts', $result);
+        self::assertArrayHasKey('posts', $result['counts']);
     }
 
     /**
@@ -773,7 +781,7 @@ class ApiResourceTest extends TestCase
 
         $map = UserResource::eagerLoadMapFor($fields);
 
-        static::assertContains('organization', $map);
+        self::assertContains('organization', $map);
     }
 
     /**
@@ -787,7 +795,7 @@ class ApiResourceTest extends TestCase
 
         $map = UserResource::eagerLoadMapFor($fields);
 
-        static::assertSame([], $map);
+        self::assertSame([], $map);
     }
 
     /**
@@ -797,7 +805,7 @@ class ApiResourceTest extends TestCase
      */
     public function testEagerLoadMapForWithConstrainedRelationsReturnClosures(): void
     {
-        $resource_class = new class (null) extends ApiResource {
+        $resourceClass = new class (null) extends ApiResource {
             /** @var string */
             public const string RESOURCE_TYPE = 'constrained_test';
 
@@ -809,6 +817,7 @@ class ApiResourceTest extends TestCase
              *
              * @return array<string, array<string, mixed>>
              */
+            #[\Override]
             public static function schema(): array
             {
                 return Field::set(
@@ -820,10 +829,10 @@ class ApiResourceTest extends TestCase
 
         $fields = ['items'];
 
-        $map = $resource_class::eagerLoadMapFor($fields);
+        $map = $resourceClass::eagerLoadMapFor($fields);
 
-        static::assertArrayHasKey('items', $map);
-        static::assertIsCallable($map['items']);
+        self::assertArrayHasKey('items', $map);
+        self::assertIsCallable($map['items']);
     }
 
     /**
@@ -835,7 +844,7 @@ class ApiResourceTest extends TestCase
     {
         $counts = UserResource::eagerLoadCountsFor(['posts']);
 
-        static::assertContains('posts as posts_count', $counts);
+        self::assertContains('posts as posts_count', $counts);
     }
 
     /**
@@ -847,7 +856,7 @@ class ApiResourceTest extends TestCase
     {
         $counts = UserResource::eagerLoadCountsFor(null);
 
-        static::assertContains('posts as posts_count', $counts);
+        self::assertContains('posts as posts_count', $counts);
     }
 
     /**
@@ -859,7 +868,7 @@ class ApiResourceTest extends TestCase
     {
         $counts = OrganizationResource::eagerLoadCountsFor(null);
 
-        static::assertSame([], $counts);
+        self::assertSame([], $counts);
     }
 
     /**
@@ -871,7 +880,7 @@ class ApiResourceTest extends TestCase
     {
         $counts = OrganizationResource::eagerLoadCountsFor(['users']);
 
-        static::assertContains('users as users_count', $counts);
+        self::assertContains('users as users_count', $counts);
     }
 
     /**
@@ -883,7 +892,7 @@ class ApiResourceTest extends TestCase
     {
         $collection = UserResource::collection(collect([]));
 
-        static::assertInstanceOf(ApiResourceCollection::class, $collection);
+        self::assertInstanceOf(ApiResourceCollection::class, $collection);
     }
 
     /**
@@ -896,7 +905,7 @@ class ApiResourceTest extends TestCase
         $first  = UserResource::getAllFields();
         $second = UserResource::getAllFields();
 
-        static::assertSame($first, $second);
+        self::assertSame($first, $second);
     }
 
     /**
@@ -918,11 +927,11 @@ class ApiResourceTest extends TestCase
         $result = $resource->resolve();
         $keys   = array_keys($result);
 
-        $type_index = array_search('_type', $keys, true);
-        $id_index   = array_search('id', $keys, true);
+        $typeIndex = array_search('_type', $keys, true);
+        $idIndex   = array_search('id', $keys, true);
 
-        static::assertSame(0, $type_index, '_type should be first');
-        static::assertSame(1, $id_index, 'id should be second');
+        self::assertSame(0, $typeIndex, '_type should be first');
+        self::assertSame(1, $idIndex, 'id should be second');
     }
 
     /**
@@ -953,8 +962,8 @@ class ApiResourceTest extends TestCase
 
         $result = $resource->resolve();
 
-        static::assertArrayHasKey('name', $result);
-        static::assertArrayNotHasKey('status', $result);
+        self::assertArrayHasKey('name', $result);
+        self::assertArrayNotHasKey('status', $result);
     }
 
     /**
@@ -975,8 +984,8 @@ class ApiResourceTest extends TestCase
 
         $result = $resource->resolve();
 
-        static::assertArrayNotHasKey('name', $result);
-        static::assertArrayHasKey('email', $result);
+        self::assertArrayNotHasKey('name', $result);
+        self::assertArrayHasKey('email', $result);
     }
 
     /**
@@ -997,8 +1006,8 @@ class ApiResourceTest extends TestCase
 
         $result = $resource->resolve();
 
-        static::assertSame('Simple', $result['name']);
-        static::assertSame('simple@example.com', $result['email']);
+        self::assertSame('Simple', $result['name']);
+        self::assertSame('simple@example.com', $result['email']);
     }
 
     /**
@@ -1017,10 +1026,10 @@ class ApiResourceTest extends TestCase
         $resource = new UserResource($user, false, ':all');
         $result   = $resource->resolve();
 
-        static::assertArrayHasKey('name', $result);
-        static::assertArrayHasKey('email', $result);
-        static::assertArrayHasKey('status', $result);
-        static::assertArrayHasKey('full_label', $result);
+        self::assertArrayHasKey('name', $result);
+        self::assertArrayHasKey('email', $result);
+        self::assertArrayHasKey('status', $result);
+        self::assertArrayHasKey('full_label', $result);
     }
 
     /**
@@ -1038,8 +1047,8 @@ class ApiResourceTest extends TestCase
         $resource = new UserResource($user, false, ['name']);
         $result   = $resource->resolve();
 
-        static::assertArrayHasKey('name', $result);
-        static::assertArrayNotHasKey('email', $result);
+        self::assertArrayHasKey('name', $result);
+        self::assertArrayNotHasKey('email', $result);
     }
 
     /**
@@ -1057,8 +1066,8 @@ class ApiResourceTest extends TestCase
         $resource = new UserResource($user, false, null, ['email']);
         $result   = $resource->resolve();
 
-        static::assertArrayNotHasKey('email', $result);
-        static::assertArrayHasKey('name', $result);
+        self::assertArrayNotHasKey('email', $result);
+        self::assertArrayHasKey('name', $result);
     }
 
     /**
@@ -1092,12 +1101,12 @@ class ApiResourceTest extends TestCase
         $resource = new UserResource($user, true);
         $result   = $resource->resolve();
 
-        static::assertArrayHasKey('organization', $result);
-        static::assertInstanceOf(\SineMacula\ApiToolkit\Http\Resources\ApiResource::class, $result['organization']);
+        self::assertArrayHasKey('organization', $result);
+        self::assertInstanceOf(ApiResource::class, $result['organization']);
 
         $nested = $result['organization']->resolve();
 
-        static::assertSame('organizations', $nested['_type']);
+        self::assertSame('organizations', $nested['_type']);
     }
 
     /**
@@ -1123,8 +1132,8 @@ class ApiResourceTest extends TestCase
         $fields = ['posts'];
         $map    = UserResource::eagerLoadMapFor($fields);
 
-        static::assertContains('posts', $map);
-        static::assertContains('posts.tags', $map);
+        self::assertContains('posts', $map);
+        self::assertContains('posts.tags', $map);
     }
 
     /**
@@ -1134,7 +1143,7 @@ class ApiResourceTest extends TestCase
      */
     public function testMultipleTransformersAppliedInOrder(): void
     {
-        $resource_class = new class (null) extends ApiResource {
+        $resourceClass = new class (null) extends ApiResource {
             /** @var string */
             public const string RESOURCE_TYPE = 'multi_transform_test';
 
@@ -1146,6 +1155,7 @@ class ApiResourceTest extends TestCase
              *
              * @return array<string, array<string, mixed>>
              */
+            #[\Override]
             public static function schema(): array
             {
                 return Field::set(
@@ -1162,12 +1172,12 @@ class ApiResourceTest extends TestCase
             'email' => 'multi@example.com',
         ]);
 
-        $resource = new $resource_class($user);
+        $resource = new $resourceClass($user);
         $resource->withFields(['name']);
 
         $result = $resource->resolve();
 
-        static::assertSame('PREFIX_MULTI', $result['name']);
+        self::assertSame('PREFIX_MULTI', $result['name']);
     }
 
     /**
@@ -1177,7 +1187,7 @@ class ApiResourceTest extends TestCase
      */
     public function testResolveHandlesNonObjectResourceGracefully(): void
     {
-        $resource_class = new class (null) extends ApiResource {
+        $resourceClass = new class (null) extends ApiResource {
             /** @var string */
             public const string RESOURCE_TYPE = 'null_test';
 
@@ -1189,6 +1199,7 @@ class ApiResourceTest extends TestCase
              *
              * @return array<string, array<string, mixed>>
              */
+            #[\Override]
             public static function schema(): array
             {
                 return Field::set(
@@ -1197,13 +1208,13 @@ class ApiResourceTest extends TestCase
             }
         };
 
-        $resource = new $resource_class(null);
+        $resource = new $resourceClass(null);
         $resource->withFields(['id']);
 
         $result = $resource->resolve();
 
-        static::assertArrayHasKey('_type', $result);
-        static::assertArrayNotHasKey('id', $result);
+        self::assertArrayHasKey('_type', $result);
+        self::assertArrayNotHasKey('id', $result);
     }
 
     /**
@@ -1239,7 +1250,7 @@ class ApiResourceTest extends TestCase
 
         $result = $resource->resolve();
 
-        static::assertArrayHasKey('posts', $result);
+        self::assertArrayHasKey('posts', $result);
     }
 
     /**
@@ -1257,7 +1268,7 @@ class ApiResourceTest extends TestCase
         $resource = new UserResource($user);
         $result   = $resource->withFields(['name']);
 
-        static::assertSame($resource, $result);
+        self::assertSame($resource, $result);
     }
 
     /**
@@ -1275,7 +1286,7 @@ class ApiResourceTest extends TestCase
         $resource = new UserResource($user);
         $result   = $resource->withoutFields(['name']);
 
-        static::assertSame($resource, $result);
+        self::assertSame($resource, $result);
     }
 
     /**
@@ -1293,7 +1304,7 @@ class ApiResourceTest extends TestCase
         $resource = new UserResource($user);
         $result   = $resource->withAll();
 
-        static::assertSame($resource, $result);
+        self::assertSame($resource, $result);
     }
 
     /**
@@ -1303,7 +1314,7 @@ class ApiResourceTest extends TestCase
      */
     public function testEagerLoadCountsForWithConstrainedCountReturnsClosure(): void
     {
-        $resource_class = new class (null) extends ApiResource {
+        $resourceClass = new class (null) extends ApiResource {
             /** @var string */
             public const string RESOURCE_TYPE = 'constrained_count_test';
 
@@ -1315,6 +1326,7 @@ class ApiResourceTest extends TestCase
              *
              * @return array<string, array<string, mixed>>
              */
+            #[\Override]
             public static function schema(): array
             {
                 return Field::set(
@@ -1324,10 +1336,10 @@ class ApiResourceTest extends TestCase
             }
         };
 
-        $counts = $resource_class::eagerLoadCountsFor(null);
+        $counts = $resourceClass::eagerLoadCountsFor(null);
 
-        static::assertArrayHasKey('items as items_count', $counts);
-        static::assertIsCallable($counts['items as items_count']);
+        self::assertArrayHasKey('items as items_count', $counts);
+        self::assertIsCallable($counts['items as items_count']);
     }
 
     /**
@@ -1349,12 +1361,12 @@ class ApiResourceTest extends TestCase
         $result = $resource->resolve();
         $keys   = array_keys($result);
 
-        $name_index       = array_search('name', $keys, true);
-        $created_at_index = array_search('created_at', $keys, true);
-        $updated_at_index = array_search('updated_at', $keys, true);
+        $nameIndex      = array_search('name', $keys, true);
+        $createdAtIndex = array_search('created_at', $keys, true);
+        $updatedAtIndex = array_search('updated_at', $keys, true);
 
-        static::assertGreaterThan($name_index, $created_at_index);
-        static::assertGreaterThan($name_index, $updated_at_index);
+        self::assertGreaterThan($nameIndex, $createdAtIndex);
+        self::assertGreaterThan($nameIndex, $updatedAtIndex);
     }
 
     /**
@@ -1375,7 +1387,7 @@ class ApiResourceTest extends TestCase
         $resolved = $resource->resolve($request);
         $array    = $resource->toArray($request);
 
-        static::assertSame($resolved, $array);
+        self::assertSame($resolved, $array);
     }
 
     /**
@@ -1394,14 +1406,14 @@ class ApiResourceTest extends TestCase
     /**
      * Test that different resource types produce correct types.
      *
-     * @param  string  $resource_class
-     * @param  string  $expected_type
+     * @param  string  $resourceClass
+     * @param  string  $expectedType
      * @return void
      */
     #[DataProvider('resourceTypeProvider')]
-    public function testDifferentResourceTypesProduceCorrectTypes(string $resource_class, string $expected_type): void
+    public function testDifferentResourceTypesProduceCorrectTypes(string $resourceClass, string $expectedType): void
     {
-        static::assertSame($expected_type, $resource_class::getResourceType());
+        self::assertSame($expectedType, $resourceClass::getResourceType());
     }
 
     /**
@@ -1419,17 +1431,17 @@ class ApiResourceTest extends TestCase
     /**
      * Test that getAllFields for different resources returns correct fields.
      *
-     * @param  string  $resource_class
-     * @param  array<int, string>  $expected_fields
+     * @param  string  $resourceClass
+     * @param  array<int, string>  $expectedFields
      * @return void
      */
     #[DataProvider('allFieldsProvider')]
-    public function testGetAllFieldsForDifferentResources(string $resource_class, array $expected_fields): void
+    public function testGetAllFieldsForDifferentResources(string $resourceClass, array $expectedFields): void
     {
-        $all_fields = $resource_class::getAllFields();
+        $allFields = $resourceClass::getAllFields();
 
-        foreach ($expected_fields as $field) {
-            static::assertContains($field, $all_fields);
+        foreach ($expectedFields as $field) {
+            self::assertContains($field, $allFields);
         }
     }
 
@@ -1455,8 +1467,8 @@ class ApiResourceTest extends TestCase
         $resource = new UserResource($user, true, ':all');
         $result   = $resource->resolve();
 
-        static::assertArrayHasKey('_type', $result);
-        static::assertArrayHasKey('name', $result);
+        self::assertArrayHasKey('_type', $result);
+        self::assertArrayHasKey('name', $result);
     }
 
     /**
@@ -1484,7 +1496,7 @@ class ApiResourceTest extends TestCase
         $resource = new UserResource($user, true, ['id', 'counts']);
         $result   = $resource->resolve();
 
-        static::assertArrayHasKey('_type', $result);
+        self::assertArrayHasKey('_type', $result);
     }
 
     /**
@@ -1514,7 +1526,7 @@ class ApiResourceTest extends TestCase
 
         $result = $resource->resolve();
 
-        static::assertArrayNotHasKey('counts', $result);
+        self::assertArrayNotHasKey('counts', $result);
     }
 
     /**
@@ -1527,7 +1539,7 @@ class ApiResourceTest extends TestCase
      */
     public function testCountExcludedByGuardIsOmittedFromPayload(): void
     {
-        $resource_class = new class (null) extends ApiResource {
+        $resourceClass = new class (null) extends ApiResource {
             /** @var string */
             public const string RESOURCE_TYPE = 'guarded_count_test';
 
@@ -1539,6 +1551,7 @@ class ApiResourceTest extends TestCase
              *
              * @return array<string, array<string, mixed>>
              */
+            #[\Override]
             public static function schema(): array
             {
                 return Field::set(
@@ -1562,10 +1575,10 @@ class ApiResourceTest extends TestCase
         $request = Request::create('/', HttpMethod::GET->getVerb(), ['fields' => ['guarded_count_test' => self::COUNTS_FIELDS]]);
         $parser->parse($request);
 
-        $resource = new $resource_class($user);
+        $resource = new $resourceClass($user);
         $result   = $resource->resolve();
 
-        static::assertArrayNotHasKey('counts', $result);
+        self::assertArrayNotHasKey('counts', $result);
     }
 
     /**
@@ -1588,7 +1601,7 @@ class ApiResourceTest extends TestCase
 
         $user->load('organization');
 
-        $resource_class = new class (null) extends ApiResource {
+        $resourceClass = new class (null) extends ApiResource {
             /** @var string */
             public const string RESOURCE_TYPE = 'callable_rel_test';
 
@@ -1600,6 +1613,7 @@ class ApiResourceTest extends TestCase
              *
              * @return array<string, array<string, mixed>>
              */
+            #[\Override]
             public static function schema(): array
             {
                 return Field::set(
@@ -1616,13 +1630,13 @@ class ApiResourceTest extends TestCase
             }
         };
 
-        $resource = new $resource_class($user);
+        $resource = new $resourceClass($user);
         $resource->withFields(['org_name']);
 
         $result = $resource->resolve();
 
-        static::assertArrayHasKey('org_name', $result);
-        static::assertSame('CallableOrg', $result['org_name']);
+        self::assertArrayHasKey('org_name', $result);
+        self::assertSame('CallableOrg', $result['org_name']);
     }
 
     /**
@@ -1635,7 +1649,7 @@ class ApiResourceTest extends TestCase
     {
         $this->clearSchemaCache();
 
-        $resource_class = new class (null) extends ApiResource {
+        $resourceClass = new class (null) extends ApiResource {
             /** @var string */
             public const string RESOURCE_TYPE = 'explicit_fields_test';
 
@@ -1647,6 +1661,7 @@ class ApiResourceTest extends TestCase
              *
              * @return array<string, array<string, mixed>>
              */
+            #[\Override]
             public static function schema(): array
             {
                 return Field::set(
@@ -1658,9 +1673,9 @@ class ApiResourceTest extends TestCase
         };
 
         $fields = ['organization'];
-        $map    = $resource_class::eagerLoadMapFor($fields);
+        $map    = $resourceClass::eagerLoadMapFor($fields);
 
-        static::assertNotEmpty($map);
+        self::assertNotEmpty($map);
     }
 
     /**
@@ -1686,7 +1701,7 @@ class ApiResourceTest extends TestCase
 
         $user->load('organization');
 
-        $resource_class = new class (null) extends ApiResource {
+        $resourceClass = new class (null) extends ApiResource {
             /** @var string */
             public const string RESOURCE_TYPE = 'child_fields_test';
 
@@ -1698,6 +1713,7 @@ class ApiResourceTest extends TestCase
              *
              * @return array<string, array<string, mixed>>
              */
+            #[\Override]
             public static function schema(): array
             {
                 return Field::set(
@@ -1708,12 +1724,12 @@ class ApiResourceTest extends TestCase
             }
         };
 
-        $resource = new $resource_class($user);
+        $resource = new $resourceClass($user);
         $resource->withFields(['id', 'organization']);
 
         $result = $resource->resolve();
 
-        static::assertArrayHasKey('organization', $result);
+        self::assertArrayHasKey('organization', $result);
     }
 
     /**
@@ -1746,8 +1762,8 @@ class ApiResourceTest extends TestCase
 
         $result = $resource->resolve();
 
-        static::assertArrayHasKey('_type', $result);
-        static::assertSame('users', $result['_type']);
+        self::assertArrayHasKey('_type', $result);
+        self::assertSame('users', $result['_type']);
     }
 
     /**
@@ -1768,7 +1784,7 @@ class ApiResourceTest extends TestCase
 
         $result = $resource->resolve();
 
-        static::assertArrayNotHasKey(self::COUNT_KEY_POSTS, $result);
+        self::assertArrayNotHasKey(self::COUNT_KEY_POSTS, $result);
     }
 
     /**
@@ -1780,7 +1796,7 @@ class ApiResourceTest extends TestCase
     {
         $map = UserResource::eagerLoadMapFor(['nonexistent_field_xyz']);
 
-        static::assertSame([], $map);
+        self::assertSame([], $map);
     }
 
     /**
@@ -1795,7 +1811,7 @@ class ApiResourceTest extends TestCase
         // skipped when encountered during relation traversal.
         $map = UserResource::eagerLoadMapFor([self::COUNT_KEY_POSTS]);
 
-        static::assertSame([], $map);
+        self::assertSame([], $map);
     }
 
     /**
@@ -1808,7 +1824,7 @@ class ApiResourceTest extends TestCase
     {
         $this->clearSchemaCache();
 
-        $resource_class = new class (null) extends ApiResource {
+        $resourceClass = new class (null) extends ApiResource {
             /** @var string */
             public const string RESOURCE_TYPE = 'extras_path_test';
 
@@ -1820,6 +1836,7 @@ class ApiResourceTest extends TestCase
              *
              * @return array<string, array<string, mixed>>
              */
+            #[\Override]
             public static function schema(): array
             {
                 return Field::set(
@@ -1829,9 +1846,9 @@ class ApiResourceTest extends TestCase
             }
         };
 
-        $map = $resource_class::eagerLoadMapFor(['organization']);
+        $map = $resourceClass::eagerLoadMapFor(['organization']);
 
-        static::assertContains('organization.owner', $map);
+        self::assertContains('organization.owner', $map);
     }
 
     /**
@@ -1846,10 +1863,10 @@ class ApiResourceTest extends TestCase
         // second occurrence, exercising the continue on line 624.
         $map = UserResource::eagerLoadMapFor(['organization', 'organization']);
 
-        $plain_values = array_values($map);
+        $plainValues = array_values($map);
 
-        static::assertContains('organization', $plain_values);
-        static::assertCount(1, array_keys($map, 'organization', true));
+        self::assertContains('organization', $plainValues);
+        self::assertCount(1, array_keys($map, 'organization', true));
     }
 
     /**
@@ -1862,7 +1879,7 @@ class ApiResourceTest extends TestCase
     {
         $this->clearSchemaCache();
 
-        $child_class = new class (null) extends ApiResource {
+        $childClass = new class (null) extends ApiResource {
             /** @var string */
             public const string RESOURCE_TYPE = 'no_defaults_child';
 
@@ -1874,6 +1891,7 @@ class ApiResourceTest extends TestCase
              *
              * @return array<string, array<string, mixed>>
              */
+            #[\Override]
             public static function schema(): array
             {
                 return Field::set(
@@ -1883,9 +1901,9 @@ class ApiResourceTest extends TestCase
             }
         };
 
-        $child_class_name = $child_class::class;
+        $childClassName = $childClass::class;
 
-        $outer_class = new class (null) extends ApiResource {
+        $outerClass = new class (null) extends ApiResource {
             /** @var string */
             public const string RESOURCE_TYPE = 'outer_for_empty_defaults';
 
@@ -1900,6 +1918,7 @@ class ApiResourceTest extends TestCase
              *
              * @return array<string, array<string, mixed>>
              */
+            #[\Override]
             public static function schema(): array
             {
                 return Field::set(
@@ -1908,13 +1927,14 @@ class ApiResourceTest extends TestCase
             }
         };
 
-        $outer_class::$childClassName = $child_class_name;
+        $outerClass::$childClassName = $childClassName;
 
         // No fields set for 'no_defaults_child' in the query — defaults are
-        // empty — so resolveChildFields falls through to getAllFields (line 837).
-        $map = $outer_class::eagerLoadMapFor(['rel']);
+        // empty — so resolveChildFields falls through to getAllFields
+        // (line 837).
+        $map = $outerClass::eagerLoadMapFor(['rel']);
 
-        static::assertContains('rel', $map);
+        self::assertContains('rel', $map);
     }
 
     /**
@@ -1932,7 +1952,7 @@ class ApiResourceTest extends TestCase
         // a relation. resolveSimpleProperty() is then called for 'posts'.
         // User.posts() exists (method_exists = true) → reflection runs → the
         // return type is HasMany, not Attribute → line 388 condition is false.
-        $resource_class = new class (null) extends ApiResource {
+        $resourceClass = new class (null) extends ApiResource {
             /** @var string */
             public const string RESOURCE_TYPE = 'method_reflect_test';
 
@@ -1944,6 +1964,7 @@ class ApiResourceTest extends TestCase
              *
              * @return array<string, array<string, mixed>>
              */
+            #[\Override]
             public static function schema(): array
             {
                 return Field::set(
@@ -1958,7 +1979,7 @@ class ApiResourceTest extends TestCase
             'email' => 'methodreflect@example.com',
         ]);
 
-        $resource = new $resource_class($user);
+        $resource = new $resourceClass($user);
         $resource->withFields(['id', 'posts']);
 
         $result = $resource->resolve();
@@ -1967,7 +1988,7 @@ class ApiResourceTest extends TestCase
         // so the key is present in the result. The main goal is to exercise
         // the ReflectionMethod path (lines 385-386, 388) before falling through
         // to the __isset check.
-        static::assertArrayHasKey('_type', $result);
+        self::assertArrayHasKey('_type', $result);
     }
 
     /**
@@ -1981,7 +2002,7 @@ class ApiResourceTest extends TestCase
     {
         $this->clearSchemaCache();
 
-        $resource_class = new class (null) extends ApiResource {
+        $resourceClass = new class (null) extends ApiResource {
             /** @var string */
             public const string RESOURCE_TYPE = 'constrained_exec_test';
 
@@ -1993,6 +2014,7 @@ class ApiResourceTest extends TestCase
              *
              * @return array<string, array<string, mixed>>
              */
+            #[\Override]
             public static function schema(): array
             {
                 return Field::set(
@@ -2003,17 +2025,17 @@ class ApiResourceTest extends TestCase
             }
         };
 
-        $map = $resource_class::eagerLoadMapFor(['organization']);
+        $map = $resourceClass::eagerLoadMapFor(['organization']);
 
-        static::assertArrayHasKey('organization', $map);
-        static::assertIsCallable($map['organization']);
+        self::assertArrayHasKey('organization', $map);
+        self::assertIsCallable($map['organization']);
 
         // Invoke the wrapper closure with a real Builder so the non-MorphTo
         // path (lines 637-640) executes.
         $builder = Organization::query();
         ($map['organization'])($builder);
 
-        static::assertNotEmpty($builder->getQuery()->wheres);
+        self::assertNotEmpty($builder->getQuery()->wheres);
     }
 
     /**
@@ -2026,7 +2048,7 @@ class ApiResourceTest extends TestCase
     {
         $this->clearSchemaCache();
 
-        $model = new class extends \Illuminate\Database\Eloquent\Model {
+        $model = new class extends Model {
             /** @var string|null The database table backing the model. */
             protected $table = 'users';
 
@@ -2035,15 +2057,15 @@ class ApiResourceTest extends TestCase
              *
              * @return \Illuminate\Database\Eloquent\Casts\Attribute
              */
-            public function label(): \Illuminate\Database\Eloquent\Casts\Attribute
+            public function label(): Attribute
             {
-                return \Illuminate\Database\Eloquent\Casts\Attribute::make(
+                return Attribute::make(
                     get: fn () => 'attr_value',
                 );
             }
         };
 
-        $resource_class = new class (null) extends ApiResource {
+        $resourceClass = new class (null) extends ApiResource {
             /** @var string */
             public const string RESOURCE_TYPE = 'attr_method_test';
 
@@ -2055,6 +2077,7 @@ class ApiResourceTest extends TestCase
              *
              * @return array<string, array<string, mixed>>
              */
+            #[\Override]
             public static function schema(): array
             {
                 return Field::set(
@@ -2063,12 +2086,12 @@ class ApiResourceTest extends TestCase
             }
         };
 
-        $resource = new $resource_class($model);
+        $resource = new $resourceClass($model);
         $resource->withFields(['label']);
 
         $result = $resource->resolve();
 
-        static::assertSame('attr_value', $result['label']);
+        self::assertSame('attr_value', $result['label']);
     }
 
     /**
@@ -2088,7 +2111,7 @@ class ApiResourceTest extends TestCase
 
         // A plain object with __isset/__get but no getAttributes(), so
         // getAttributeIfLoaded falls through to the __isset branch (line 554).
-        $fake_owner = new class {
+        $fakeOwner = new class {
             /**
              * @param  string  $name
              * @return bool
@@ -2108,11 +2131,11 @@ class ApiResourceTest extends TestCase
             }
         };
 
-        $resource = new UserResource($fake_owner);
+        $resource = new UserResource($fakeOwner);
         $result   = $resource->resolve();
 
-        static::assertArrayHasKey('counts', $result);
-        static::assertSame(2, $result['counts']['posts']);
+        self::assertArrayHasKey('counts', $result);
+        self::assertSame(2, $result['counts']['posts']);
     }
 
     /**
@@ -2125,7 +2148,7 @@ class ApiResourceTest extends TestCase
     {
         $this->clearSchemaCache();
 
-        $resource_class = new class (null) extends ApiResource {
+        $resourceClass = new class (null) extends ApiResource {
             /** @var string */
             public const string RESOURCE_TYPE = 'morph_to_exec_test';
 
@@ -2137,6 +2160,7 @@ class ApiResourceTest extends TestCase
              *
              * @return array<string, array<string, mixed>>
              */
+            #[\Override]
             public static function schema(): array
             {
                 return Field::set(
@@ -2147,15 +2171,16 @@ class ApiResourceTest extends TestCase
             }
         };
 
-        $map = $resource_class::eagerLoadMapFor(['organization']);
+        $map = $resourceClass::eagerLoadMapFor(['organization']);
 
-        static::assertArrayHasKey('organization', $map);
-        static::assertIsCallable($map['organization']);
+        self::assertArrayHasKey('organization', $map);
+        self::assertIsCallable($map['organization']);
 
         // Invoke the wrapper closure with a MorphTo mock to exercise the
-        // MorphTo branch (lines 633-634) where the constraint is called directly.
-        $morph_to = \Mockery::mock(MorphTo::class);
-        ($map['organization'])($morph_to);
+        // MorphTo branch (lines 633-634) where the constraint is called
+        // directly.
+        $morphTo = \Mockery::mock(MorphTo::class);
+        ($map['organization'])($morphTo);
     }
 
     /**
@@ -2166,7 +2191,7 @@ class ApiResourceTest extends TestCase
      */
     public function testGetResourceTypeLowercasesMixedCaseConstant(): void
     {
-        $resource_class = new class (null) extends ApiResource {
+        $resourceClass = new class (null) extends ApiResource {
             /** @var string */
             public const string RESOURCE_TYPE = 'MixedCase';
 
@@ -2175,13 +2200,14 @@ class ApiResourceTest extends TestCase
              *
              * @return array<string, array<string, mixed>>
              */
+            #[\Override]
             public static function schema(): array
             {
                 return [];
             }
         };
 
-        static::assertSame('mixedcase', $resource_class::getResourceType());
+        self::assertSame('mixedcase', $resourceClass::getResourceType());
     }
 
     /**
@@ -2202,9 +2228,9 @@ class ApiResourceTest extends TestCase
 
         $result = $resource->resolve();
 
-        static::assertArrayNotHasKey('unknown_field', $result);
-        static::assertArrayHasKey('name', $result);
-        static::assertArrayHasKey('id', $result);
+        self::assertArrayNotHasKey('unknown_field', $result);
+        self::assertArrayHasKey('name', $result);
+        self::assertArrayHasKey('id', $result);
     }
 
     /**
@@ -2238,8 +2264,8 @@ class ApiResourceTest extends TestCase
         $resource = new UserResource($user);
         $result   = $resource->resolve();
 
-        static::assertFalse($user->relationLoaded('organization'));
-        static::assertArrayNotHasKey('organization', $result);
+        self::assertFalse($user->relationLoaded('organization'));
+        self::assertArrayNotHasKey('organization', $result);
     }
 
     /**
@@ -2273,7 +2299,7 @@ class ApiResourceTest extends TestCase
         // only non-empty when all-fields mode resolves the full schema.
         new UserResource($user, true, ':all');
 
-        static::assertTrue($user->relationLoaded('organization'));
+        self::assertTrue($user->relationLoaded('organization'));
     }
 
     /**
@@ -2301,7 +2327,7 @@ class ApiResourceTest extends TestCase
 
         new UserResource($user, true);
 
-        static::assertArrayNotHasKey('posts_count', $user->getAttributes());
+        self::assertArrayNotHasKey('posts_count', $user->getAttributes());
     }
 
     /**
@@ -2344,8 +2370,8 @@ class ApiResourceTest extends TestCase
         $resource = new UserResource($user, true);
         $result   = $resource->resolve();
 
-        static::assertArrayHasKey('counts', $result);
-        static::assertSame(2, $result['counts']['posts']);
+        self::assertArrayHasKey('counts', $result);
+        self::assertSame(2, $result['counts']['posts']);
     }
 
     /**
@@ -2381,8 +2407,8 @@ class ApiResourceTest extends TestCase
         $resource = new OrganizationResource($org, true);
         $result   = $resource->resolve();
 
-        static::assertArrayHasKey('counts', $result);
-        static::assertSame(1, $result['counts']['users']);
+        self::assertArrayHasKey('counts', $result);
+        self::assertSame(1, $result['counts']['users']);
     }
 
     /**
@@ -2393,7 +2419,7 @@ class ApiResourceTest extends TestCase
      */
     public function testResolveMergesResourceFixedPropertyWithConfigFixedFields(): void
     {
-        $resource_class = new class (null) extends ApiResource {
+        $resourceClass = new class (null) extends ApiResource {
             /** @var string */
             public const string RESOURCE_TYPE = 'fixed_prop_test';
 
@@ -2408,6 +2434,7 @@ class ApiResourceTest extends TestCase
              *
              * @return array<string, array<string, mixed>>
              */
+            #[\Override]
             public static function schema(): array
             {
                 return Field::set(
@@ -2423,13 +2450,13 @@ class ApiResourceTest extends TestCase
             'email' => 'fixedprop@example.com',
         ]);
 
-        $resource = new $resource_class($user);
+        $resource = new $resourceClass($user);
         $resource->withFields(['name']);
 
         $result = $resource->resolve();
 
-        static::assertArrayHasKey('email', $result, 'resource-level fixed fields must be included');
-        static::assertArrayHasKey('id', $result, 'config-level fixed fields must be included');
+        self::assertArrayHasKey('email', $result, 'resource-level fixed fields must be included');
+        self::assertArrayHasKey('id', $result, 'config-level fixed fields must be included');
     }
 
     /**

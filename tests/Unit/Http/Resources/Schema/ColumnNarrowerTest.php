@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Unit\Http\Resources\Schema;
 
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -16,7 +18,7 @@ use SineMacula\ApiToolkit\Schema\FieldColumnMap;
  * @internal
  */
 #[CoversClass(ColumnNarrower::class)]
-class ColumnNarrowerTest extends TestCase
+final class ColumnNarrowerTest extends TestCase
 {
     /** @var \SineMacula\ApiToolkit\Schema\ColumnNarrower */
     private ColumnNarrower $narrower;
@@ -26,6 +28,7 @@ class ColumnNarrowerTest extends TestCase
      *
      * @return void
      */
+    #[\Override]
     protected function setUp(): void
     {
         parent::setUp();
@@ -48,8 +51,8 @@ class ColumnNarrowerTest extends TestCase
 
         $decision = $this->narrower->decide($map, ['name', 'email'], ['id']);
 
-        static::assertTrue($decision->shouldNarrow());
-        static::assertSame(['first_name', 'last_name', 'email', 'id'], $decision->columns());
+        self::assertTrue($decision->shouldNarrow());
+        self::assertSame(['first_name', 'last_name', 'email', 'id'], $decision->columns());
     }
 
     /**
@@ -64,8 +67,8 @@ class ColumnNarrowerTest extends TestCase
 
         $decision = $this->narrower->decide($map, ['name'], ['id']);
 
-        static::assertFalse($decision->shouldNarrow());
-        static::assertSame('name', $decision->reason());
+        self::assertFalse($decision->shouldNarrow());
+        self::assertSame('name', $decision->reason());
     }
 
     /**
@@ -80,8 +83,8 @@ class ColumnNarrowerTest extends TestCase
 
         $decision = $this->narrower->decide($map, ['alpha', 'beta'], ['id']);
 
-        static::assertFalse($decision->shouldNarrow());
-        static::assertSame('alpha', $decision->reason());
+        self::assertFalse($decision->shouldNarrow());
+        self::assertSame('alpha', $decision->reason());
     }
 
     /**
@@ -99,8 +102,8 @@ class ColumnNarrowerTest extends TestCase
 
         $decision = $this->narrower->decide($map, ['name'], ['id', 'deleted_at']);
 
-        static::assertTrue($decision->shouldNarrow());
-        static::assertSame(['first_name', 'id', 'deleted_at'], $decision->columns());
+        self::assertTrue($decision->shouldNarrow());
+        self::assertSame(['first_name', 'id', 'deleted_at'], $decision->columns());
     }
 
     /**
@@ -114,8 +117,8 @@ class ColumnNarrowerTest extends TestCase
 
         $decision = $this->narrower->decide($map, [], ['id', 'deleted_at']);
 
-        static::assertTrue($decision->shouldNarrow());
-        static::assertSame(['id', 'deleted_at'], $decision->columns());
+        self::assertTrue($decision->shouldNarrow());
+        self::assertSame(['id', 'deleted_at'], $decision->columns());
     }
 
     /**
@@ -133,8 +136,8 @@ class ColumnNarrowerTest extends TestCase
 
         $decision = $this->narrower->decide($map, ['virtual'], ['id']);
 
-        static::assertTrue($decision->shouldNarrow());
-        static::assertSame(['id'], $decision->columns());
+        self::assertTrue($decision->shouldNarrow());
+        self::assertSame(['id'], $decision->columns());
     }
 
     /**
@@ -152,7 +155,7 @@ class ColumnNarrowerTest extends TestCase
 
         $decision = $this->narrower->decide($map, ['a', 'b'], ['x']);
 
-        static::assertTrue($decision->shouldNarrow());
-        static::assertSame(['x', 'y', 'z'], $decision->columns());
+        self::assertTrue($decision->shouldNarrow());
+        self::assertSame(['x', 'y', 'z'], $decision->columns());
     }
 }

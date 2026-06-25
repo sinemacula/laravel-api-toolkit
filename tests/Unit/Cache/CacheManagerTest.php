@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Unit\Cache;
 
 use Illuminate\Http\Request;
@@ -25,7 +27,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(CacheManager::class)]
-class CacheManagerTest extends TestCase
+final class CacheManagerTest extends TestCase
 {
     use InteractsWithNonPublicMembers;
 
@@ -48,7 +50,7 @@ class CacheManagerTest extends TestCase
 
         Cache::memo()->rememberForever($key, fn () => 'cached-value'); // @phpstan-ignore method.notFound
 
-        static::assertSame('cached-value', Cache::memo()->get($key)); // @phpstan-ignore method.notFound
+        self::assertSame('cached-value', Cache::memo()->get($key)); // @phpstan-ignore method.notFound
 
         // Act
         /** @var \SineMacula\ApiToolkit\Cache\CacheManager $manager */
@@ -56,7 +58,7 @@ class CacheManagerTest extends TestCase
         $manager->flush();
 
         // Assert
-        static::assertNull(Cache::memo()->get($key)); // @phpstan-ignore method.notFound
+        self::assertNull(Cache::memo()->get($key)); // @phpstan-ignore method.notFound
     }
 
     /**
@@ -71,14 +73,14 @@ class CacheManagerTest extends TestCase
 
         $this->setStaticProperty(SchemaCompiler::class, 'cache', ['FakeResource' => 'compiled']);
 
-        static::assertNotEmpty($this->getStaticProperty(SchemaCompiler::class, 'cache'));
+        self::assertNotEmpty($this->getStaticProperty(SchemaCompiler::class, 'cache'));
 
         // Act
         $manager = $this->app->make(CacheManager::class); // @phpstan-ignore method.nonObject
         $manager->flush();
 
         // Assert
-        static::assertSame([], $this->getStaticProperty(SchemaCompiler::class, 'cache'));
+        self::assertSame([], $this->getStaticProperty(SchemaCompiler::class, 'cache'));
     }
 
     /**
@@ -93,14 +95,14 @@ class CacheManagerTest extends TestCase
 
         $this->setStaticProperty(ValueResolver::class, 'castAccessorCache', ['FakeModel' => ['field' => true]]);
 
-        static::assertNotEmpty($this->getStaticProperty(ValueResolver::class, 'castAccessorCache'));
+        self::assertNotEmpty($this->getStaticProperty(ValueResolver::class, 'castAccessorCache'));
 
         // Act
         $manager = $this->app->make(CacheManager::class); // @phpstan-ignore method.nonObject
         $manager->flush();
 
         // Assert
-        static::assertSame([], $this->getStaticProperty(ValueResolver::class, 'castAccessorCache'));
+        self::assertSame([], $this->getStaticProperty(ValueResolver::class, 'castAccessorCache'));
     }
 
     /**
@@ -115,14 +117,14 @@ class CacheManagerTest extends TestCase
 
         $this->setStaticProperty(EagerLoadPlanner::class, 'eagerLoadCache', ['FakeResource|fields' => ['relation']]);
 
-        static::assertNotEmpty($this->getStaticProperty(EagerLoadPlanner::class, 'eagerLoadCache'));
+        self::assertNotEmpty($this->getStaticProperty(EagerLoadPlanner::class, 'eagerLoadCache'));
 
         // Act
         $manager = $this->app->make(CacheManager::class); // @phpstan-ignore method.nonObject
         $manager->flush();
 
         // Assert
-        static::assertSame([], $this->getStaticProperty(EagerLoadPlanner::class, 'eagerLoadCache'));
+        self::assertSame([], $this->getStaticProperty(EagerLoadPlanner::class, 'eagerLoadCache'));
     }
 
     /**
@@ -180,14 +182,14 @@ class CacheManagerTest extends TestCase
 
         $parser->parse(Request::create('/test', 'GET', ['fields' => 'name,email']));
 
-        static::assertSame(['name', 'email'], $parser->getFields());
+        self::assertSame(['name', 'email'], $parser->getFields());
 
         // Act
         $manager = $this->app->make(CacheManager::class); // @phpstan-ignore method.nonObject
         $manager->flush();
 
         // Assert
-        static::assertNull($parser->getFields());
+        self::assertNull($parser->getFields());
     }
 
     /**
@@ -205,8 +207,8 @@ class CacheManagerTest extends TestCase
         $manager->flush();
 
         // Assert
-        static::assertNull(Cache::memo()->get('nonexistent')); // @phpstan-ignore method.notFound
-        static::assertSame([], $this->getStaticProperty(SchemaCompiler::class, 'cache'));
+        self::assertNull(Cache::memo()->get('nonexistent')); // @phpstan-ignore method.notFound
+        self::assertSame([], $this->getStaticProperty(SchemaCompiler::class, 'cache'));
         Event::assertDispatched(CacheFlushed::class);
     }
 
@@ -231,11 +233,12 @@ class CacheManagerTest extends TestCase
         $manager->flush();
 
         // Assert
-        static::assertSame('survivor', Cache::memo()->get('non-toolkit-key')); // @phpstan-ignore method.notFound
+        self::assertSame('survivor', Cache::memo()->get('non-toolkit-key')); // @phpstan-ignore method.notFound
     }
 
     /**
-     * Test that flush forgets all registered toolkit keys and empties the registry.
+     * Test that flush forgets all registered toolkit keys and empties the
+     * registry.
      *
      * @return void
      */
@@ -259,8 +262,8 @@ class CacheManagerTest extends TestCase
         $manager->flush();
 
         // Assert
-        static::assertNull(Cache::memo()->get('toolkit-key-one')); // @phpstan-ignore method.notFound
-        static::assertNull(Cache::memo()->get('toolkit-key-two')); // @phpstan-ignore method.notFound
-        static::assertSame([], $registry->keys());
+        self::assertNull(Cache::memo()->get('toolkit-key-one')); // @phpstan-ignore method.notFound
+        self::assertNull(Cache::memo()->get('toolkit-key-two')); // @phpstan-ignore method.notFound
+        self::assertSame([], $registry->keys());
     }
 }

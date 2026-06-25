@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Unit\Services;
 
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -23,7 +25,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(SchemaValidator::class)]
-class SchemaValidatorTest extends TestCase
+final class SchemaValidatorTest extends TestCase
 {
     /**
      * Clear the schema compiler cache before each test.
@@ -61,7 +63,7 @@ class SchemaValidatorTest extends TestCase
     {
         $rule = $this->createMock(SchemaValidationRule::class);
 
-        $rule->expects(static::once())
+        $rule->expects(self::once())
             ->method('validate')
             ->willReturn([]);
 
@@ -69,7 +71,7 @@ class SchemaValidatorTest extends TestCase
 
         $validator->validate([User::class => UserResource::class]);
 
-        static::assertTrue(true);
+        self::assertTrue(true);
     }
 
     /**
@@ -82,7 +84,7 @@ class SchemaValidatorTest extends TestCase
     {
         $error = new SchemaValidationError(UserResource::class, 'id', 'Test defect');
 
-        $rule = static::createStub(SchemaValidationRule::class);
+        $rule = self::createStub(SchemaValidationRule::class);
 
         $rule->method('validate')
             ->willReturn([$error]);
@@ -104,12 +106,12 @@ class SchemaValidatorTest extends TestCase
         $errorA = new SchemaValidationError(UserResource::class, 'id', 'Defect A');
         $errorB = new SchemaValidationError(UserResource::class, 'name', 'Defect B');
 
-        $ruleA = static::createStub(SchemaValidationRule::class);
+        $ruleA = self::createStub(SchemaValidationRule::class);
 
         $ruleA->method('validate')
             ->willReturn([$errorA]);
 
-        $ruleB = static::createStub(SchemaValidationRule::class);
+        $ruleB = self::createStub(SchemaValidationRule::class);
 
         $ruleB->method('validate')
             ->willReturn([$errorB]);
@@ -118,11 +120,11 @@ class SchemaValidatorTest extends TestCase
 
         try {
             $validator->validate([User::class => UserResource::class]);
-            static::fail('Expected InvalidSchemaException was not thrown');
+            self::fail('Expected InvalidSchemaException was not thrown');
         } catch (InvalidSchemaException $exception) {
-            static::assertCount(2, $exception->getErrors());
-            static::assertSame($errorA, $exception->getErrors()[0]);
-            static::assertSame($errorB, $exception->getErrors()[1]);
+            self::assertCount(2, $exception->getErrors());
+            self::assertSame($errorA, $exception->getErrors()[0]);
+            self::assertSame($errorB, $exception->getErrors()[1]);
         }
     }
 
@@ -136,14 +138,14 @@ class SchemaValidatorTest extends TestCase
     {
         $rule = $this->createMock(SchemaValidationRule::class);
 
-        $rule->expects(static::never())
+        $rule->expects(self::never())
             ->method('validate');
 
         $validator = new SchemaValidator($rule);
 
         $validator->validate([]);
 
-        static::assertTrue(true);
+        self::assertTrue(true);
     }
 
     /**
@@ -155,13 +157,13 @@ class SchemaValidatorTest extends TestCase
     {
         $ruleA = $this->createMock(SchemaValidationRule::class);
 
-        $ruleA->expects(static::exactly(2))
+        $ruleA->expects(self::exactly(2))
             ->method('validate')
             ->willReturn([]);
 
         $ruleB = $this->createMock(SchemaValidationRule::class);
 
-        $ruleB->expects(static::exactly(2))
+        $ruleB->expects(self::exactly(2))
             ->method('validate')
             ->willReturn([]);
 
@@ -172,7 +174,7 @@ class SchemaValidatorTest extends TestCase
             Post::class => PostResource::class,
         ]);
 
-        static::assertTrue(true);
+        self::assertTrue(true);
     }
 
     /**
@@ -187,7 +189,7 @@ class SchemaValidatorTest extends TestCase
 
         $validator->validate([User::class => UserResource::class]);
 
-        static::assertTrue(true);
+        self::assertTrue(true);
     }
 
     /**
@@ -201,7 +203,7 @@ class SchemaValidatorTest extends TestCase
         $userError = new SchemaValidationError(UserResource::class, 'id', 'User defect');
         $postError = new SchemaValidationError(PostResource::class, 'title', 'Post defect');
 
-        $rule = static::createStub(SchemaValidationRule::class);
+        $rule = self::createStub(SchemaValidationRule::class);
 
         $rule->method('validate')
             ->willReturnCallback(function (string $resourceClass) use ($userError, $postError): array {
@@ -219,11 +221,11 @@ class SchemaValidatorTest extends TestCase
                 User::class => UserResource::class,
                 Post::class => PostResource::class,
             ]);
-            static::fail('Expected InvalidSchemaException was not thrown');
+            self::fail('Expected InvalidSchemaException was not thrown');
         } catch (InvalidSchemaException $exception) {
-            static::assertCount(2, $exception->getErrors());
-            static::assertSame($userError, $exception->getErrors()[0]);
-            static::assertSame($postError, $exception->getErrors()[1]);
+            self::assertCount(2, $exception->getErrors());
+            self::assertSame($userError, $exception->getErrors()[0]);
+            self::assertSame($postError, $exception->getErrors()[1]);
         }
     }
 }

@@ -1,6 +1,8 @@
 <?php
 
-namespace SineMacula\ApiToolkit\Listeners\Traits;
+declare(strict_types = 1);
+
+namespace SineMacula\ApiToolkit\Listeners\Concerns;
 
 use Illuminate\Support\Facades\Cache;
 

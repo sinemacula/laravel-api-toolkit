@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Integration\Providers\Registrars;
 
 use Illuminate\Foundation\Application;
@@ -23,7 +25,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(LoggingRegistrar::class)]
-class LoggingRegistrarTest extends TestCase
+final class LoggingRegistrarTest extends TestCase
 {
     /**
      * Test that the notification logging listeners are registered when the
@@ -47,8 +49,8 @@ class LoggingRegistrarTest extends TestCase
 
         $raw = $events->getRawListeners();
 
-        static::assertContains([NotificationListener::class, 'sending'], $raw[NotificationSending::class] ?? []);
-        static::assertContains([NotificationListener::class, 'sent'], $raw[NotificationSent::class] ?? []);
+        self::assertContains([NotificationListener::class, 'sending'], $raw[NotificationSending::class] ?? []);
+        self::assertContains([NotificationListener::class, 'sent'], $raw[NotificationSent::class] ?? []);
     }
 
     /**

@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 use Illuminate\Database\Eloquent\Casts\AsStringable;
 
 return [
@@ -91,7 +93,7 @@ return [
 
         'resource_map' => [
             // This should be filled with the application's resource map
-            // e.g. \App\Models\User::class => \App\Http\Resources\UserResource::class
+            // e.g. User::class => UserResource::class
         ],
 
         // When enabled, all registered resource schemas are validated during
@@ -101,10 +103,11 @@ return [
 
         'fixed_fields' => ['id', '_type'],
 
-        // When enabled, the repository-driven query narrows the base-table SELECT to
-        // only the columns the resolved field set needs plus a per-model safety set,
-        // falling back to SELECT * whenever any resolved field's column reads are
-        // unknown. Default OFF; retained as a per-environment kill switch.
+        // When enabled, the repository-driven query narrows the base-table
+        // SELECT to only the columns the resolved field set needs plus a
+        // per-model safety set, falling back to SELECT * whenever any resolved
+        // field's column reads are unknown. Default OFF; retained as a
+        // per-environment kill switch.
         'narrow_columns' => env('API_TOOLKIT_NARROW_COLUMNS', false),
 
     ],
@@ -211,12 +214,12 @@ return [
     | `max_rows` and `max_bytes` form the size guard: results larger than either
     | limit are still fetched and returned, but not stored. Set either to null
     | to disable that bound. `registry_enabled` controls how non-taggable stores
-    | invalidate per-query entries: when true a per-table key registry is kept so
-    | every live entry can be forgotten on a write; when false invalidation falls
-    | back to TTL expiry only (a documented degraded behaviour). `negative_ttl` is
-    | the shorter lifetime applied to negatively cached null/miss reads, bounding
-    | how long a stale "not found" is served and how much memory probe-fill can
-    | occupy; it defaults to 10 seconds.
+    | invalidate per-query entries: when true a per-table key registry is
+    | kept so every live entry can be forgotten on a write; when false
+    | invalidation falls back to TTL expiry only (a documented degraded
+    | behaviour). `negative_ttl` is the shorter lifetime applied to negatively
+    | cached null/miss reads, bounding how long a stale "not found" is served
+    | and how much memory probe-fill can occupy; it defaults to 10 seconds.
     |
     */
 
@@ -224,17 +227,17 @@ return [
 
         'cache' => [
 
-            'ttl' => is_numeric($cache_ttl = env('API_TOOLKIT_REPOSITORY_CACHE_TTL', 3600)) ? (int) $cache_ttl : 3600,
+            'ttl' => is_numeric($cacheTtl = env('API_TOOLKIT_REPOSITORY_CACHE_TTL', 3600)) ? (int) $cacheTtl : 3600,
 
             'store' => env('API_TOOLKIT_REPOSITORY_CACHE_STORE'),
 
-            'max_rows' => is_numeric($cache_max_rows = env('API_TOOLKIT_REPOSITORY_CACHE_MAX_ROWS', 1000)) ? (int) $cache_max_rows : 1000,
+            'max_rows' => is_numeric($cacheMaxRows = env('API_TOOLKIT_REPOSITORY_CACHE_MAX_ROWS', 1000)) ? (int) $cacheMaxRows : 1000,
 
-            'max_bytes' => is_numeric($cache_max_bytes = env('API_TOOLKIT_REPOSITORY_CACHE_MAX_BYTES', 262144)) ? (int) $cache_max_bytes : 262144,
+            'max_bytes' => is_numeric($cacheMaxBytes = env('API_TOOLKIT_REPOSITORY_CACHE_MAX_BYTES', 262144)) ? (int) $cacheMaxBytes : 262144,
 
-            'reference_ttl' => is_numeric($cache_reference_ttl = env('API_TOOLKIT_REPOSITORY_CACHE_REFERENCE_TTL', 3600)) ? (int) $cache_reference_ttl : 3600,
+            'reference_ttl' => is_numeric($cacheReferenceTtl = env('API_TOOLKIT_REPOSITORY_CACHE_REFERENCE_TTL', 3600)) ? (int) $cacheReferenceTtl : 3600,
 
-            'negative_ttl' => is_numeric($cache_negative_ttl = env('API_TOOLKIT_REPOSITORY_CACHE_NEGATIVE_TTL', 10)) ? (int) $cache_negative_ttl : 10,
+            'negative_ttl' => is_numeric($cacheNegativeTtl = env('API_TOOLKIT_REPOSITORY_CACHE_NEGATIVE_TTL', 10)) ? (int) $cacheNegativeTtl : 10,
 
             'registry_enabled' => env('API_TOOLKIT_REPOSITORY_CACHE_REGISTRY_ENABLED', true),
 
@@ -344,9 +347,9 @@ return [
 
     'deferred_writes' => [
 
-        'chunk_size' => is_numeric($chunk_size = env('DEFERRED_WRITES_CHUNK_SIZE', 500)) ? (int) $chunk_size : 500,
+        'chunk_size' => is_numeric($chunkSize = env('DEFERRED_WRITES_CHUNK_SIZE', 500)) ? (int) $chunkSize : 500,
 
-        'pool_limit' => is_numeric($pool_limit = env('DEFERRED_WRITES_POOL_LIMIT', 10000)) ? (int) $pool_limit : 10000,
+        'pool_limit' => is_numeric($poolLimit = env('DEFERRED_WRITES_POOL_LIMIT', 10000)) ? (int) $poolLimit : 10000,
 
         'on_failure' => env('DEFERRED_WRITES_ON_FAILURE', 'collect'),
 
@@ -407,7 +410,7 @@ return [
         'enable_logging' => env('ENABLE_NOTIFICATION_LOGGING', true),
 
         'excluded_classes' => [
-            // \App\Notifications\HeartbeatPing::class,
+            // Add notification class-strings to exclude from logging.
         ],
 
     ],
@@ -418,9 +421,10 @@ return [
     |---------------------------------------------------------------------------
     |
     | This section controls the middleware registrations performed by the API
-    | Toolkit service provider. Each middleware registration can be independently
-    | enabled, disabled, or customised. All options default to the current
-    | behavior, so no configuration changes are required for existing consumers.
+    | Toolkit service provider. Each middleware registration can be
+    | independently enabled, disabled, or customised. All options default to
+    | the current behavior, so no configuration changes are required for
+    | existing consumers.
     |
     | `maintenance_mode_swap`: Controls whether the toolkit replaces Laravel's
     | built-in PreventRequestsDuringMaintenance middleware with the toolkit's

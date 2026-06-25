@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Unit\Events;
 
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -16,7 +18,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(WritePoolFlushFailed::class)]
-class WritePoolFlushFailedTest extends TestCase
+final class WritePoolFlushFailedTest extends TestCase
 {
     /**
      * Test that the flushResult property is accessible and returns the
@@ -41,7 +43,7 @@ class WritePoolFlushFailedTest extends TestCase
 
         $event = new WritePoolFlushFailed($result);
 
-        static::assertSame($result, $event->flushResult);
+        self::assertSame($result, $event->flushResult);
     }
 
     /**
@@ -53,7 +55,7 @@ class WritePoolFlushFailedTest extends TestCase
     {
         $reflection = new \ReflectionClass(WritePoolFlushFailed::class);
 
-        static::assertTrue($reflection->isFinal());
+        self::assertTrue($reflection->isFinal());
     }
 
     /**
@@ -66,6 +68,6 @@ class WritePoolFlushFailedTest extends TestCase
         $reflection = new \ReflectionClass(WritePoolFlushFailed::class);
         $property   = $reflection->getProperty('flushResult');
 
-        static::assertTrue($property->isReadOnly());
+        self::assertTrue($property->isReadOnly());
     }
 }

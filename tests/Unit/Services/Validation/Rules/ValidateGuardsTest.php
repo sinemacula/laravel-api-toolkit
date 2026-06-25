@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Unit\Services\Validation\Rules;
 
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -20,7 +22,7 @@ use SineMacula\ApiToolkit\Services\Validation\Rules\ValidateGuards;
  * @internal
  */
 #[CoversClass(ValidateGuards::class)]
-class ValidateGuardsTest extends TestCase
+final class ValidateGuardsTest extends TestCase
 {
     /**
      * Test no errors for schema with callable guards.
@@ -50,7 +52,7 @@ class ValidateGuardsTest extends TestCase
         $rule   = new ValidateGuards;
         $errors = $rule->validate('App\Http\Resources\UserResource', null, $schema);
 
-        static::assertSame([], $errors);
+        self::assertSame([], $errors);
     }
 
     /**
@@ -81,10 +83,10 @@ class ValidateGuardsTest extends TestCase
         $rule   = new ValidateGuards;
         $errors = $rule->validate('App\Http\Resources\UserResource', null, $schema);
 
-        static::assertCount(1, $errors);
-        static::assertSame('App\Http\Resources\UserResource', $errors[0]->resourceClass);
-        static::assertSame('name', $errors[0]->fieldKey);
-        static::assertSame('Guard at index 0 is not callable', $errors[0]->defect);
+        self::assertCount(1, $errors);
+        self::assertSame('App\Http\Resources\UserResource', $errors[0]->resourceClass);
+        self::assertSame('name', $errors[0]->fieldKey);
+        self::assertSame('Guard at index 0 is not callable', $errors[0]->defect);
     }
 
     /**
@@ -110,10 +112,10 @@ class ValidateGuardsTest extends TestCase
         $rule   = new ValidateGuards;
         $errors = $rule->validate('App\Http\Resources\PostResource', null, $schema);
 
-        static::assertCount(1, $errors);
-        static::assertSame('App\Http\Resources\PostResource', $errors[0]->resourceClass);
-        static::assertSame('comments_count', $errors[0]->fieldKey);
-        static::assertSame('Guard at index 0 is not callable', $errors[0]->defect);
+        self::assertCount(1, $errors);
+        self::assertSame('App\Http\Resources\PostResource', $errors[0]->resourceClass);
+        self::assertSame('comments_count', $errors[0]->fieldKey);
+        self::assertSame('Guard at index 0 is not callable', $errors[0]->defect);
     }
 
     /**
@@ -144,9 +146,9 @@ class ValidateGuardsTest extends TestCase
         $rule   = new ValidateGuards;
         $errors = $rule->validate('App\Http\Resources\UserResource', null, $schema);
 
-        static::assertCount(2, $errors);
-        static::assertSame('Guard at index 0 is not callable', $errors[0]->defect);
-        static::assertSame('Guard at index 1 is not callable', $errors[1]->defect);
+        self::assertCount(2, $errors);
+        self::assertSame('Guard at index 0 is not callable', $errors[0]->defect);
+        self::assertSame('Guard at index 1 is not callable', $errors[1]->defect);
     }
 
     /**
@@ -177,6 +179,6 @@ class ValidateGuardsTest extends TestCase
         $rule   = new ValidateGuards;
         $errors = $rule->validate('App\Http\Resources\UserResource', null, $schema);
 
-        static::assertSame([], $errors);
+        self::assertSame([], $errors);
     }
 }

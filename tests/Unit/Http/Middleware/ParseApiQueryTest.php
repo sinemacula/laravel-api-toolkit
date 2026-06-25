@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Unit\Http\Middleware;
 
 use Illuminate\Http\Request;
@@ -19,10 +21,11 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(ParseApiQuery::class)]
-class ParseApiQueryTest extends TestCase
+final class ParseApiQueryTest extends TestCase
 {
     /**
-     * Test that the middleware calls ApiQuery::parse and passes request to next.
+     * Test that the middleware calls ApiQuery::parse and passes request to
+     * next.
      *
      * @return void
      */
@@ -36,14 +39,14 @@ class ParseApiQueryTest extends TestCase
         $expectedResponse = new Response('ok');
         $receivedRequest  = null;
 
-        $result = $middleware->handle($request, function ($req) use (&$receivedRequest, $expectedResponse) {
+        $result = $middleware->handle($request, function ($req) use (&$receivedRequest, $expectedResponse): Response {
             $receivedRequest = $req;
 
             return $expectedResponse;
         });
 
-        static::assertSame($request, $receivedRequest);
-        static::assertSame($expectedResponse, $result);
+        self::assertSame($request, $receivedRequest);
+        self::assertSame($expectedResponse, $result);
     }
 
     /**
@@ -62,7 +65,7 @@ class ParseApiQueryTest extends TestCase
 
         $result = $middleware->handle($request, fn () => $expectedResponse);
 
-        static::assertSame($expectedResponse, $result);
-        static::assertSame(201, $result->getStatusCode());
+        self::assertSame($expectedResponse, $result);
+        self::assertSame(201, $result->getStatusCode());
     }
 }

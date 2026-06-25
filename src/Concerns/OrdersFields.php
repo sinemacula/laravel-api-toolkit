@@ -1,6 +1,8 @@
 <?php
 
-namespace SineMacula\ApiToolkit\Traits;
+declare(strict_types = 1);
+
+namespace SineMacula\ApiToolkit\Concerns;
 
 use SineMacula\ApiToolkit\Enums\FieldOrderingStrategy;
 
@@ -64,9 +66,9 @@ trait OrdersFields
                 return [1, ''];
             }
 
-            $is_timestamp = str_ends_with($key, '_at');
+            $isTimestamp = str_ends_with($key, '_at');
 
-            return [$is_timestamp ? 3 : 2, $key];
+            return [$isTimestamp ? 3 : 2, $key];
         };
 
         uksort($data, static function (string $a, string $b) use ($weight): int {
@@ -88,18 +90,20 @@ trait OrdersFields
      */
     protected function orderByRequestedFields(array $data): array
     {
-        $requested_fields = static::resolveFields();
+        $requestedFields = static::resolveFields();
 
-        if (empty($requested_fields)) {
+        if (empty($requestedFields)) {
             return $data;
         }
 
         $ordered = [];
 
-        foreach ($requested_fields as $field) {
-            if (array_key_exists($field, $data)) {
-                $ordered[$field] = $data[$field];
+        foreach ($requestedFields as $field) {
+            if (!array_key_exists($field, $data)) {
+                continue;
             }
+
+            $ordered[$field] = $data[$field];
         }
 
         return $ordered + $data;

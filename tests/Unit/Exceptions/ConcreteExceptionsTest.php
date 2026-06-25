@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Unit\Exceptions;
 
 use Orchestra\Testbench\TestCase;
@@ -53,7 +55,7 @@ use SineMacula\ApiToolkit\Exceptions\UnhandledException;
 #[CoversClass(TooManyRequestsException::class)]
 #[CoversClass(UnauthenticatedException::class)]
 #[CoversClass(UnhandledException::class)]
-class ConcreteExceptionsTest extends TestCase
+final class ConcreteExceptionsTest extends TestCase
 {
     /**
      * Provide all concrete exception classes with their expected codes.
@@ -96,7 +98,7 @@ class ConcreteExceptionsTest extends TestCase
     {
         $exception = new $class;
 
-        static::assertInstanceOf(ApiException::class, $exception);
+        self::assertInstanceOf(ApiException::class, $exception);
     }
 
     /**
@@ -108,9 +110,12 @@ class ConcreteExceptionsTest extends TestCase
      * @return void
      */
     #[DataProvider('exceptionProvider')]
-    public function testGetInternalErrorCodeReturnsExpectedCode(string $class, int $expectedInternalCode, int $expectedHttpCode): void
-    {
-        static::assertSame($expectedInternalCode, $class::getInternalErrorCode());
+    public function testGetInternalErrorCodeReturnsExpectedCode(
+        string $class,
+        int $expectedInternalCode,
+        int $expectedHttpCode,
+    ): void {
+        self::assertSame($expectedInternalCode, $class::getInternalErrorCode());
     }
 
     /**
@@ -122,8 +127,11 @@ class ConcreteExceptionsTest extends TestCase
      * @return void
      */
     #[DataProvider('exceptionProvider')]
-    public function testGetHttpStatusCodeReturnsExpectedStatus(string $class, int $expectedInternalCode, int $expectedHttpCode): void
-    {
-        static::assertSame($expectedHttpCode, $class::getHttpStatusCode());
+    public function testGetHttpStatusCodeReturnsExpectedStatus(
+        string $class,
+        int $expectedInternalCode,
+        int $expectedHttpCode,
+    ): void {
+        self::assertSame($expectedHttpCode, $class::getHttpStatusCode());
     }
 }

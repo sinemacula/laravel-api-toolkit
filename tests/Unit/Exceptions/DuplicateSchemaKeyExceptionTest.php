@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Unit\Exceptions;
 
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -15,7 +17,7 @@ use SineMacula\ApiToolkit\Exceptions\DuplicateSchemaKeyException;
  * @internal
  */
 #[CoversClass(DuplicateSchemaKeyException::class)]
-class DuplicateSchemaKeyExceptionTest extends TestCase
+final class DuplicateSchemaKeyExceptionTest extends TestCase
 {
     /**
      * Test that the exception extends RuntimeException.
@@ -26,7 +28,7 @@ class DuplicateSchemaKeyExceptionTest extends TestCase
     {
         $exception = new DuplicateSchemaKeyException;
 
-        static::assertInstanceOf(\RuntimeException::class, $exception);
+        self::assertInstanceOf(\RuntimeException::class, $exception);
     }
 
     /**
@@ -39,7 +41,7 @@ class DuplicateSchemaKeyExceptionTest extends TestCase
         $message   = 'Duplicate schema key "name" detected';
         $exception = new DuplicateSchemaKeyException($message);
 
-        static::assertSame($message, $exception->getMessage());
+        self::assertSame($message, $exception->getMessage());
     }
 
     /**
@@ -51,7 +53,7 @@ class DuplicateSchemaKeyExceptionTest extends TestCase
     {
         $exception = new DuplicateSchemaKeyException(\Error::class, 42);
 
-        static::assertSame(42, $exception->getCode());
+        self::assertSame(42, $exception->getCode());
     }
 
     /**
@@ -64,7 +66,7 @@ class DuplicateSchemaKeyExceptionTest extends TestCase
         $previous  = new \RuntimeException('Previous error');
         $exception = new DuplicateSchemaKeyException(\Error::class, 0, $previous);
 
-        static::assertSame($previous, $exception->getPrevious());
+        self::assertSame($previous, $exception->getPrevious());
     }
 
     /**
@@ -76,7 +78,7 @@ class DuplicateSchemaKeyExceptionTest extends TestCase
     {
         $exception = new DuplicateSchemaKeyException;
 
-        static::assertSame('', $exception->getMessage());
+        self::assertSame('', $exception->getMessage());
     }
 
     /**
@@ -88,6 +90,6 @@ class DuplicateSchemaKeyExceptionTest extends TestCase
     {
         $exception = new DuplicateSchemaKeyException;
 
-        static::assertSame(0, $exception->getCode());
+        self::assertSame(0, $exception->getCode());
     }
 }

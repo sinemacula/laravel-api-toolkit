@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace SineMacula\ApiToolkit\Listeners;
 
 use Illuminate\Console\Events\CommandFinished;
@@ -35,6 +37,8 @@ final class WritePoolFlushSubscriber
      * @return void
      */
     public function __construct(
+
+        /** The container used to resolve the write pool */
         private readonly Container $container,
     ) {}
 

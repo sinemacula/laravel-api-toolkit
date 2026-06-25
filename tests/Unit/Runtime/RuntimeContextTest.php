@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Unit\Runtime;
 
 use Illuminate\Support\Facades\Config;
@@ -16,7 +18,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(RuntimeContext::class)]
-class RuntimeContextTest extends TestCase
+final class RuntimeContextTest extends TestCase
 {
     /** @var bool|null Whether LARAVEL_OCTANE was set before each test ran. */
     private ?bool $octaneWasSet = null;
@@ -26,6 +28,7 @@ class RuntimeContextTest extends TestCase
      *
      * @return void
      */
+    #[\Override]
     protected function setUp(): void
     {
         parent::setUp();
@@ -38,6 +41,7 @@ class RuntimeContextTest extends TestCase
      *
      * @return void
      */
+    #[\Override]
     protected function tearDown(): void
     {
         if ($this->octaneWasSet === false) {
@@ -61,7 +65,7 @@ class RuntimeContextTest extends TestCase
 
         $context = new RuntimeContext;
 
-        static::assertTrue($context->isServingUnderOctane());
+        self::assertTrue($context->isServingUnderOctane());
     }
 
     /**
@@ -76,7 +80,7 @@ class RuntimeContextTest extends TestCase
 
         $context = new RuntimeContext;
 
-        static::assertFalse($context->isServingUnderOctane());
+        self::assertFalse($context->isServingUnderOctane());
     }
 
     /**
@@ -90,7 +94,7 @@ class RuntimeContextTest extends TestCase
 
         $context = new RuntimeContext;
 
-        static::assertTrue($context->isServingAsQueueWorker('database'));
+        self::assertTrue($context->isServingAsQueueWorker('database'));
     }
 
     /**
@@ -104,7 +108,7 @@ class RuntimeContextTest extends TestCase
 
         $context = new RuntimeContext;
 
-        static::assertFalse($context->isServingAsQueueWorker('sync'));
+        self::assertFalse($context->isServingAsQueueWorker('sync'));
     }
 
     /**
@@ -120,7 +124,7 @@ class RuntimeContextTest extends TestCase
 
         $context = new RuntimeContext;
 
-        static::assertTrue($context->isServingAsQueueWorker(null));
+        self::assertTrue($context->isServingAsQueueWorker(null));
     }
 
     /**
@@ -133,7 +137,7 @@ class RuntimeContextTest extends TestCase
     {
         $context = new RuntimeContext;
 
-        static::assertFalse($context->isServingAsQueueWorker('nonexistent-connection'));
+        self::assertFalse($context->isServingAsQueueWorker('nonexistent-connection'));
     }
 
     /**
@@ -150,6 +154,6 @@ class RuntimeContextTest extends TestCase
 
         $context = new RuntimeContext;
 
-        static::assertFalse($context->isServingAsQueueWorker());
+        self::assertFalse($context->isServingAsQueueWorker());
     }
 }

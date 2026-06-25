@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace SineMacula\ApiToolkit\Events;
 
 use SineMacula\ApiToolkit\Repositories\Concerns\WritePoolFlushResult;
@@ -25,6 +27,5 @@ final class WritePoolFlushFailed
 
         /** The flush result containing failure details. */
         public readonly WritePoolFlushResult $flushResult,
-
     ) {}
 }

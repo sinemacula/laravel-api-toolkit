@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace SineMacula\ApiToolkit\Schema;
 
 /**
@@ -38,6 +40,5 @@ final readonly class CompiledCountDefinition
 
         /** Guard closures that control visibility */
         public array $guards,
-
     ) {}
 }

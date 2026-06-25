@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Unit\Repositories\Concerns;
 
 use Illuminate\Support\Collection;
@@ -20,7 +22,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(ApiRepository::class)]
-class CacheableDeferrableTest extends TestCase
+final class CacheableDeferrableTest extends TestCase
 {
     /**
      * Set up the test environment.
@@ -39,8 +41,8 @@ class CacheableDeferrableTest extends TestCase
     }
 
     /**
-     * Test that a repository using both Cacheable and Deferrable boots without a
-     * trait collision and that both concerns are functional: the cache is
+     * Test that a repository using both Cacheable and Deferrable boots without
+     * a trait collision and that both concerns are functional: the cache is
      * populated on read and a deferred write is persisted on flush.
      *
      * @return void
@@ -54,14 +56,14 @@ class CacheableDeferrableTest extends TestCase
         // Cacheable booted: a read populates the per-query cache.
         $result = $repository->get(); // @phpstan-ignore staticMethod.dynamicCall
 
-        static::assertInstanceOf(Collection::class, $result);
-        static::assertTrue($repository->getCacheStatus()->isPopulated());
+        self::assertInstanceOf(Collection::class, $result);
+        self::assertTrue($repository->getCacheStatus()->isPopulated());
 
         // Deferrable booted: a deferred write is buffered then persisted.
         $repository->defer(['name' => 'deferred']);
         $flush = $repository->flushWrites();
 
-        static::assertTrue($flush->isSuccessful());
+        self::assertTrue($flush->isSuccessful());
         $this->assertDatabaseHas('tags', ['name' => 'deferred']);
     }
 }

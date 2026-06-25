@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace SineMacula\ApiToolkit\Services\Introspection;
 
 /**
@@ -32,6 +34,5 @@ final readonly class ColumnDefinition
 
         /** Whether the column admits null */
         public bool $nullable,
-
     ) {}
 }

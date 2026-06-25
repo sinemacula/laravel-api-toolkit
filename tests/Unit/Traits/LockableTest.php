@@ -1,13 +1,15 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Unit\Traits;
 
 use Illuminate\Contracts\Cache\Lock;
 use Illuminate\Support\Facades\Cache;
 use PHPUnit\Framework\Attributes\CoversTrait;
+use SineMacula\ApiToolkit\Concerns\Lockable;
 use SineMacula\ApiToolkit\Exceptions\LockOperationException;
 use SineMacula\ApiToolkit\Exceptions\TooManyRequestsException;
-use SineMacula\ApiToolkit\Traits\Lockable;
 use Tests\Fixtures\Traits\StandaloneLockableFixture;
 use Tests\TestCase;
 
@@ -20,7 +22,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversTrait(Lockable::class)]
-class LockableTest extends TestCase
+final class LockableTest extends TestCase
 {
     /**
      * Test that lock acquires a cache lock successfully.
@@ -33,7 +35,7 @@ class LockableTest extends TestCase
 
         $lock = $consumer->lock();
 
-        static::assertInstanceOf(Lock::class, $lock);
+        self::assertInstanceOf(Lock::class, $lock);
 
         $consumer->unlock();
     }
@@ -79,7 +81,7 @@ class LockableTest extends TestCase
         $lockKey = $consumer->getLockKey();
         $newLock = Cache::lock($lockKey, 60);
 
-        static::assertTrue($newLock->get());
+        self::assertTrue($newLock->get());
 
         $newLock->release();
     }
@@ -93,7 +95,7 @@ class LockableTest extends TestCase
     {
         $fixture = new StandaloneLockableFixture('expiry-lock-id');
 
-        static::assertSame(60, $fixture->lockExpiration());
+        self::assertSame(60, $fixture->lockExpiration());
     }
 
     /**
@@ -108,8 +110,8 @@ class LockableTest extends TestCase
 
         $lockKey = $consumer->getLockKey();
 
-        static::assertNotEmpty($lockKey);
-        static::assertIsString($lockKey);
+        self::assertNotEmpty($lockKey);
+        self::assertIsString($lockKey);
     }
 
     /**
@@ -124,13 +126,13 @@ class LockableTest extends TestCase
 
         $lock = $fixture->acquireLock();
 
-        static::assertInstanceOf(Lock::class, $lock);
+        self::assertInstanceOf(Lock::class, $lock);
 
         $fixture->releaseLock();
 
         $verificationLock = Cache::lock(sha1(StandaloneLockableFixture::class . '|standalone-test'), 60);
 
-        static::assertTrue($verificationLock->get());
+        self::assertTrue($verificationLock->get());
 
         $verificationLock->release();
     }
@@ -145,7 +147,7 @@ class LockableTest extends TestCase
     {
         $fixture = new StandaloneLockableFixture('expiry-test', 120);
 
-        static::assertSame(120, $fixture->lockExpiration());
+        self::assertSame(120, $fixture->lockExpiration());
     }
 
     /**
@@ -182,9 +184,9 @@ class LockableTest extends TestCase
 
             $consumer->lock();
 
-            static::fail('Expected TooManyRequestsException was not thrown');
+            self::fail('Expected TooManyRequestsException was not thrown');
         } catch (TooManyRequestsException $exception) {
-            static::assertSame(['X-RateLimit-Limit' => 1, 'X-RateLimit-Remaining' => 0], $exception->getCustomMeta());
+            self::assertSame(['X-RateLimit-Limit' => 1, 'X-RateLimit-Remaining' => 0], $exception->getCustomMeta());
         } finally {
             $existingLock->release();
         }
@@ -201,7 +203,7 @@ class LockableTest extends TestCase
 
         $consumer->unlock();
 
-        static::assertInstanceOf(Lock::class, $consumer->lock());
+        self::assertInstanceOf(Lock::class, $consumer->lock());
 
         $consumer->unlock();
     }
@@ -226,7 +228,7 @@ class LockableTest extends TestCase
             }
         };
 
-        static::assertSame(90, $child->exposeExpiration());
+        self::assertSame(90, $child->exposeExpiration());
     }
 
     /**
@@ -251,11 +253,11 @@ class LockableTest extends TestCase
 
         $lock = $consumer->lock();
 
-        static::assertInstanceOf(Lock::class, $lock);
+        self::assertInstanceOf(Lock::class, $lock);
 
         $verificationLock = Cache::lock('preset-lock-key', 60);
 
-        static::assertFalse($verificationLock->get());
+        self::assertFalse($verificationLock->get());
 
         $consumer->unlock();
     }
