@@ -10656,28 +10656,41 @@
         },
         {
             "name": "sinemacula/coding-standards",
-            "version": "v1.0.0",
+            "version": "v1.8.3",
             "source": {
                 "type": "git",
                 "url": "https://github.com/sinemacula/coding-standards.git",
-                "reference": "18c69d83c834b071d8b8da83c84da474b812131c"
+                "reference": "52b7edb122d521d232b18568646f706137234c35"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/sinemacula/coding-standards/zipball/18c69d83c834b071d8b8da83c84da474b812131c",
-                "reference": "18c69d83c834b071d8b8da83c84da474b812131c",
+                "url": "https://api.github.com/repos/sinemacula/coding-standards/zipball/52b7edb122d521d232b18568646f706137234c35",
+                "reference": "52b7edb122d521d232b18568646f706137234c35",
                 "shasum": ""
             },
             "require": {
                 "friendsofphp/php-cs-fixer": "^3.0",
                 "php": "^8.3"
             },
+            "require-dev": {
+                "dealerdirect/phpcodesniffer-composer-installer": "^1.0",
+                "phpstan/extension-installer": "^1.4",
+                "phpstan/phpstan": "^2.1",
+                "phpstan/phpstan-phpunit": "^2.0",
+                "phpunit/phpunit": "^12",
+                "slevomat/coding-standard": "^8.0",
+                "squizlabs/php_codesniffer": "^3.13 || ^4.0",
+                "symfony/console": "^7.4"
+            },
+            "suggest": {
+                "phpstan/extension-installer": "Auto-registers the shared PHPStan config and installed PHPStan extensions (required for the shared phpstan.neon to load).",
+                "phpstan/phpstan-phpunit": "PHPUnit-aware PHPStan rules: data-provider validation, setUp()/tearDown() parent calls, assertSame discipline, and @covers / mock target existence. Auto-registers via phpstan/extension-installer."
+            },
             "type": "phpcodesniffer-standard",
             "extra": {
                 "phpstan": {
                     "includes": [
-                        "php/phpstan.neon",
-                        "laravel/phpstan.neon"
+                        "php/phpstan-base.neon"
                     ]
                 }
             },
@@ -10699,9 +10712,9 @@
             "description": "Centralized coding standards, static analysis configurations, and code quality tooling for all Sine Macula repositories.",
             "support": {
                 "issues": "https://github.com/sinemacula/coding-standards/issues",
-                "source": "https://github.com/sinemacula/coding-standards/tree/v1.0.0"
+                "source": "https://github.com/sinemacula/coding-standards/tree/v1.8.3"
             },
-            "time": "2026-04-05T01:24:24+00:00"
+            "time": "2026-06-25T02:30:29+00:00"
         },
         {
             "name": "slevomat/coding-standard",
