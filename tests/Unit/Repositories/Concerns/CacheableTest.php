@@ -4,15 +4,21 @@ declare(strict_types = 1);
 
 namespace Tests\Unit\Repositories\Concerns;
 
+use Illuminate\Cache\Repository;
+use Illuminate\Contracts\Cache\Store;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use PHPUnit\Framework\Attributes\CoversTrait;
 use SineMacula\ApiToolkit\Repositories\ApiRepository;
 use SineMacula\ApiToolkit\Repositories\Concerns\AttributeSetter;
 use SineMacula\ApiToolkit\Repositories\Concerns\Cacheable;
 use SineMacula\ApiToolkit\Repositories\Concerns\CacheSizeGuard;
+use SineMacula\ApiToolkit\Repositories\Concerns\CacheStore;
 use SineMacula\ApiToolkit\Repositories\Concerns\CacheStoreOptions;
+use Tests\Concerns\InteractsWithNonPublicMembers;
 use Tests\Fixtures\Models\Tag;
 use Tests\Fixtures\Repositories\CacheableTagRepository;
 use Tests\Fixtures\Repositories\CustomPrefixCacheableTagRepository;
@@ -32,6 +38,8 @@ use Tests\TestCase;
 #[CoversTrait(Cacheable::class)]
 final class CacheableTest extends TestCase
 {
+    use InteractsWithNonPublicMembers;
+
     /** @var \Tests\Fixtures\Repositories\CacheableTagRepository The repository under test. */
     private CacheableTagRepository $repository;
 
@@ -101,6 +109,42 @@ final class CacheableTest extends TestCase
         $this->repository->scopeById(1)->update(['name' => 'updated']); // @phpstan-ignore staticMethod.dynamicCall
 
         self::assertFalse($this->repository->getCacheStatus()->isPopulated());
+    }
+
+    /**
+     * Test that a cache-store failure during the post-write flush is swallowed
+     * and logged, and the already-committed write still returns its result
+     * rather than surfacing the flush error to the caller (who could retry and
+     * duplicate the record).
+     *
+     * @return void
+     */
+    public function testWriteSwallowsAndLogsAPostWriteFlushFailure(): void
+    {
+        // Arrange - a store whose flush write blows up (e.g. a Redis outage
+        // after the DB mutation has already committed).
+        $store = \Mockery::mock(Store::class)->shouldIgnoreMissing();
+        $store->shouldReceive('put')->andThrow(new \RuntimeException('redis down'));
+
+        Cache::extend('throwing', fn (): Repository => new Repository($store));
+        Config::set('cache.stores.throwing', ['driver' => 'throwing']);
+
+        $failing = new CacheStore('throwing', 'tags', new CacheStoreOptions(3600, new CacheSizeGuard(null, null), false, 0));
+        $this->setProperty($this->repository, 'cacheStore', $failing);
+
+        Log::shouldReceive('error')
+            ->once()
+            ->with('Cache flush after write failed', \Mockery::on(
+                static fn (array $context): bool => $context['exception'] instanceof \RuntimeException
+                    && $context['exception']->getMessage() === 'redis down',
+            ));
+
+        // Act - the write commits; the flush throws but must not surface.
+        $created = $this->repository->create(['name' => 'vue']); // @phpstan-ignore staticMethod.dynamicCall
+
+        // Assert - the committed write returns its result despite the failure.
+        self::assertInstanceOf(Tag::class, $created);
+        self::assertSame('vue', $created->getAttribute('name'));
     }
 
     /**

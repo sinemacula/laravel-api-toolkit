@@ -7,6 +7,7 @@ namespace SineMacula\ApiToolkit\Repositories\Concerns;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Config;
+use Illuminate\Support\Facades\Log;
 use SineMacula\ApiToolkit\Contracts\CacheInvalidator;
 
 /**
@@ -179,7 +180,14 @@ trait Cacheable
     {
         $result = parent::__call($method, $arguments);
 
-        $this->activeStore()->flushTable();
+        try {
+            $this->activeStore()->flushTable();
+        } catch (\Throwable $exception) {
+            // Best-effort: the write is already committed, so a cache-store
+            // outage must not surface as a write failure (the caller could
+            // retry and duplicate). Stale-until-TTL is the safe degraded state.
+            Log::error('Cache flush after write failed', ['exception' => $exception]);
+        }
 
         return $result;
     }
