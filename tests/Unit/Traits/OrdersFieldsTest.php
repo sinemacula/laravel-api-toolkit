@@ -156,11 +156,8 @@ final class OrdersFieldsTest extends TestCase
      * @return void
      */
     #[DataProvider('requestedFieldsOrderingProvider')]
-    public function testOrderByRequestedFieldsMaintainsRequestedOrder(
-        array $requestedFields,
-        array $data,
-        array $expectedKeyOrder,
-    ): void {
+    public function testOrderByRequestedFieldsMaintainsRequestedOrder(array $requestedFields, array $data, array $expectedKeyOrder): void
+    {
         $consumer = $this->createConsumer(FieldOrderingStrategy::BY_REQUESTED_FIELDS, $requestedFields);
 
         $result = $this->invokeMethod($consumer, 'orderByRequestedFields', $data);

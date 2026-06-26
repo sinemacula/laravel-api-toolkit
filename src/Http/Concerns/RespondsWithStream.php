@@ -31,11 +31,8 @@ trait RespondsWithStream
      * @param  string  $filename
      * @return \Symfony\Component\HttpFoundation\StreamedResponse
      */
-    public function streamRepositoryToCsv(
-        ApiRepository $repository,
-        int $chunkSize = 1500,
-        string $filename = 'export.csv',
-    ): StreamedResponse {
+    public function streamRepositoryToCsv(ApiRepository $repository, int $chunkSize = 1500, string $filename = 'export.csv'): StreamedResponse
+    {
         $limit = ApiQuery::getLimit();
 
         $transformer = $this->makeTransformer($repository);
@@ -128,11 +125,8 @@ trait RespondsWithStream
      * @param  string  $filename
      * @return \Symfony\Component\HttpFoundation\StreamedResponse
      */
-    protected function createStreamedResponse(
-        callable $callback,
-        string $contentType,
-        string $filename,
-    ): StreamedResponse {
+    protected function createStreamedResponse(callable $callback, string $contentType, string $filename): StreamedResponse
+    {
         return Response::streamDownload($callback, $filename, [
             HttpHeader::CONTENT_TYPE->getName() => $contentType,
         ]);

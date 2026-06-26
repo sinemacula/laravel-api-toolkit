@@ -30,11 +30,8 @@ abstract class Controller extends LaravelController
      * @param  array<string, string>  $headers
      * @return \Illuminate\Http\JsonResponse
      */
-    protected function respondWithData(
-        array $data,
-        HttpStatus $status = HttpStatus::OK,
-        array $headers = [],
-    ): JsonResponse {
+    protected function respondWithData(array $data, HttpStatus $status = HttpStatus::OK, array $headers = []): JsonResponse
+    {
         return Response::json(['data' => $data], $status->getCode(), $headers);
     }
 
@@ -46,11 +43,8 @@ abstract class Controller extends LaravelController
      * @param  array<string, string>  $headers
      * @return \Illuminate\Http\JsonResponse
      */
-    protected function respondWithItem(
-        JsonResource $resource,
-        HttpStatus $status = HttpStatus::OK,
-        array $headers = [],
-    ): JsonResponse {
+    protected function respondWithItem(JsonResource $resource, HttpStatus $status = HttpStatus::OK, array $headers = []): JsonResponse
+    {
         return $resource->response()->setStatusCode($status->getCode())->withHeaders($headers);
     }
 
@@ -62,11 +56,8 @@ abstract class Controller extends LaravelController
      * @param  array<string, string>  $headers
      * @return \Illuminate\Http\JsonResponse
      */
-    protected function respondWithCollection(
-        ResourceCollection $collection,
-        HttpStatus $status = HttpStatus::OK,
-        array $headers = [],
-    ): JsonResponse {
+    protected function respondWithCollection(ResourceCollection $collection, HttpStatus $status = HttpStatus::OK, array $headers = []): JsonResponse
+    {
         return $collection->response()->setStatusCode($status->getCode())->withHeaders($headers);
     }
 }

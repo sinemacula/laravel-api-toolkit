@@ -75,12 +75,8 @@ final class ValueResolver
      * @param  \Illuminate\Http\Request|null  $request
      * @return mixed
      */
-    public function resolveFieldValue(
-        string $field,
-        CompiledFieldDefinition $definition,
-        mixed $resource,
-        ?Request $request,
-    ): mixed {
+    public function resolveFieldValue(string $field, CompiledFieldDefinition $definition, mixed $resource, ?Request $request): mixed
+    {
         if (!$this->guardEvaluator->passesGuards($definition->guards, $resource, $request)) {
             return new MissingValue;
         }
@@ -112,12 +108,8 @@ final class ValueResolver
      * @param  \Illuminate\Http\Request|null  $request
      * @return array<string, int>
      */
-    public function resolveCountsPayload(
-        mixed $resource,
-        CompiledSchema $schema,
-        string $resourceType,
-        ?Request $request,
-    ): array {
+    public function resolveCountsPayload(mixed $resource, CompiledSchema $schema, string $resourceType, ?Request $request): array
+    {
         $owner = $this->unwrapResource($resource);
 
         if (!is_object($owner)) {
@@ -305,11 +297,8 @@ final class ValueResolver
      * @param  \Illuminate\Http\Request|null  $request
      * @return mixed
      */
-    private function resolveRelationValue(
-        CompiledFieldDefinition $definition,
-        mixed $resource,
-        ?Request $request,
-    ): mixed {
+    private function resolveRelationValue(CompiledFieldDefinition $definition, mixed $resource, ?Request $request): mixed
+    {
         $name  = $definition->relation;
         $owner = $this->unwrapResource($resource);
 
@@ -332,12 +321,8 @@ final class ValueResolver
      * @param  \Illuminate\Http\Request|null  $request
      * @return mixed
      */
-    private function resolveRelatedValue(
-        CompiledFieldDefinition $definition,
-        mixed $related,
-        mixed $resource,
-        ?Request $request,
-    ): mixed {
+    private function resolveRelatedValue(CompiledFieldDefinition $definition, mixed $related, mixed $resource, ?Request $request): mixed
+    {
         if ($definition->accessor !== null) {
             return match (true) {
                 is_string($definition->accessor)   => data_get($related, $definition->accessor),
@@ -458,11 +443,8 @@ final class ValueResolver
      * @param  \SineMacula\ApiToolkit\Schema\CompiledCountDefinition  $definition
      * @return bool
      */
-    private function shouldIncludeCount(
-        string $presentKey,
-        ?array $requested,
-        CompiledCountDefinition $definition,
-    ): bool {
+    private function shouldIncludeCount(string $presentKey, ?array $requested, CompiledCountDefinition $definition): bool
+    {
         if (is_array($requested) && $requested !== []) {
             return in_array($presentKey, $requested, true);
         }
