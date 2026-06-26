@@ -35,14 +35,14 @@
     },
     "require-dev": {
         "brianium/paratest": "^7.20",
-        "friendsofphp/php-cs-fixer": "^3.94",
-        "infection/infection": "^0.33.2",
+        "friendsofphp/php-cs-fixer": "3.89.0",
+        "infection/infection": "0.33.2",
         "mockery/mockery": "^1.6",
         "opis/json-schema": "^2.4",
         "orchestra/testbench": "^9.0 || ^10.0",
         "phpstan/extension-installer": "^1.4",
         "phpstan/phpdoc-parser": "^2.3",
-        "phpstan/phpstan": "^2.1",
+        "phpstan/phpstan": "2.1.46",
         "phpstan/phpstan-deprecation-rules": "^2.0",
         "phpstan/phpstan-mockery": "^2.0",
         "phpstan/phpstan-phpunit": "^2.0",
@@ -50,7 +50,7 @@
         "phpunit/phpunit": "^12.5",
         "sinemacula/coding-standards-laravel": "^1.0",
         "slevomat/coding-standard": "^8.28",
-        "squizlabs/php_codesniffer": "^4.0"
+        "squizlabs/php_codesniffer": "4.0.1"
     },
     "autoload": {
         "psr-4": {
