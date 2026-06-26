@@ -5,6 +5,8 @@ declare(strict_types = 1);
 namespace Tests\Unit\Repositories\Criteria\Operators;
 
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Query\Builder as QueryBuilder;
+use Illuminate\Support\Facades\Log;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext;
 use SineMacula\ApiToolkit\Repositories\Criteria\Operators\ContainsOperator;
@@ -219,7 +221,38 @@ final class ContainsOperatorTest extends TestCase
 
         $this->operator->apply($query, 'tags', null, FilterContext::root());
 
-        self::assertIsArray($query->getQuery()->wheres);
+        $wheres = $query->getQuery()->wheres;
+
+        self::assertCount(1, $wheres);
+        self::assertSame(self::TYPE_JSON_CONTAINS, $wheres[0]['type']);
+    }
+
+    /**
+     * Test that a grammar rejection of the JSON-contains clause is logged
+     * with diagnostic context rather than dropped without a trace.
+     *
+     * @return void
+     */
+    public function testApplyLogsWhenTheGrammarRejectsTheJsonContainsConstraint(): void
+    {
+        $base = \Mockery::mock(QueryBuilder::class);
+        $base->shouldReceive('whereJsonContains')
+            ->once()
+            ->andThrow(new \RuntimeException('grammar rejects json-contains'));
+
+        $query = \Mockery::mock(Builder::class);
+        $query->shouldReceive('getQuery')->andReturn($base);
+        $query->shouldReceive('getModel')->andReturn(new User);
+
+        Log::shouldReceive('debug')
+            ->once()
+            ->withArgs(fn (string $message, array $context): bool => $message === 'Dropped unsupported $contains filter constraint'
+                && $context['table']                                          === (new User)->getTable()
+                && $context['column']                                         === 'tags'
+                && $context['value_type']                                     === 'null'
+                && $context['reason']                                         === 'grammar rejects json-contains');
+
+        $this->operator->apply($query, 'tags', null, FilterContext::root());
     }
 
     /**
