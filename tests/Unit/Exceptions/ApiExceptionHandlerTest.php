@@ -828,37 +828,6 @@ final class ApiExceptionHandlerTest extends TestCase
     }
 
     /**
-     * Test that logApiException also logs to cloudwatch when enabled.
-     *
-     * @return void
-     */
-    public function testLogApiExceptionAlsoLogsToCloudWatchWhenEnabled(): void
-    {
-        config()->set('api-toolkit.logging.cloudwatch.enabled', true);
-
-        $mockApiChannel = \Mockery::mock(LoggerInterface::class);
-        $mockApiChannel->shouldReceive('error')->once()->withAnyArgs();
-
-        $mockCwChannel = \Mockery::mock(LoggerInterface::class);
-        $mockCwChannel->shouldReceive('error')->once()->withAnyArgs();
-
-        Log::shouldReceive('channel')
-            ->with('api-exceptions')
-            ->once()
-            ->andReturn($mockApiChannel);
-
-        Log::shouldReceive('channel')
-            ->with('cloudwatch-api-exceptions')
-            ->once()
-            ->andReturn($mockCwChannel);
-
-        $exception  = new BadRequestException;
-        $reflection = new \ReflectionMethod(ApiExceptionHandler::class, 'logApiException');
-
-        $reflection->invoke(null, $exception);
-    }
-
-    /**
      * Test that convertExceptionToString returns a formatted string.
      *
      * @return void

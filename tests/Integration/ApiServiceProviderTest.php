@@ -4,7 +4,6 @@ declare(strict_types = 1);
 
 namespace Tests\Integration;
 
-use Aws\CloudWatchLogs\CloudWatchLogsClient;
 use Illuminate\Console\Events\CommandFinished;
 use Illuminate\Contracts\Config\Repository as ConfigRepository;
 use Illuminate\Contracts\Http\Kernel as HttpKernel;
@@ -12,8 +11,6 @@ use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Events\Dispatcher;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Http\Events\RequestHandled;
-use Illuminate\Log\Logger;
-use Illuminate\Log\LogManager;
 use Illuminate\Notifications\Events\NotificationSending;
 use Illuminate\Notifications\Events\NotificationSent;
 use Illuminate\Queue\Events\JobFailed;
@@ -23,7 +20,6 @@ use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
 use Laravel\Octane\Events\OperationTerminated;
-use PhpNexus\Cwh\Handler\CloudWatch;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\ApiQueryParser;
 use SineMacula\ApiToolkit\ApiServiceProvider;
@@ -92,8 +88,7 @@ final class ApiServiceProviderTest extends TestCase
         $channels = $this->getConfig()->get('logging.channels');
 
         self::assertArrayHasKey('notifications', $channels);
-        self::assertArrayHasKey('cloudwatch', $channels);
-        self::assertArrayHasKey('cloudwatch-notifications', $channels);
+        self::assertArrayHasKey('api-exceptions', $channels);
     }
 
     /**
@@ -836,27 +831,6 @@ final class ApiServiceProviderTest extends TestCase
     }
 
     /**
-     * Test that the logs table stub is publishable under the migrations
-     * group with a timestamped destination filename.
-     *
-     * @return void
-     */
-    public function testMigrationStubIsPublishableUnderMigrationsGroup(): void
-    {
-        $paths = ServiceProvider::pathsToPublish(ApiServiceProvider::class, 'migrations');
-        $stub  = $this->getProviderPath('/../stubs/logs-table.stub');
-
-        self::assertCount(1, $paths);
-        self::assertArrayHasKey($stub, $paths);
-        self::assertIsString($paths[$stub]);
-        self::assertStringStartsWith(database_path('migrations/'), $paths[$stub]);
-        self::assertMatchesRegularExpression(
-            '#/migrations/\d{4}_\d{2}_\d{2}_\d{6}_create_logs_table\.php$#',
-            $paths[$stub],
-        );
-    }
-
-    /**
      * Test that the package translations are publishable under the
      * translations group with the expected source and destination paths.
      *
@@ -936,37 +910,6 @@ final class ApiServiceProviderTest extends TestCase
         $provider->boot();
 
         self::assertSame('not-an-array', $this->getConfig()->get('api-toolkit.resources.resource_map'));
-    }
-
-    /**
-     * Test that the cloudwatch log driver is registered with the log
-     * manager and produces a CloudWatch-backed Monolog logger.
-     *
-     * @return void
-     */
-    public function testCloudwatchLogDriverIsRegistered(): void
-    {
-        if (!class_exists(CloudWatchLogsClient::class)) {
-            self::markTestSkipped('The AWS SDK is not installed.');
-        }
-
-        $this->getConfig()->set('logging.channels.cloudwatch.aws.credentials', [
-            'key'    => 'testing',
-            'secret' => 'testing',
-        ]);
-
-        /** @var \Illuminate\Log\LogManager $manager */
-        $manager = $this->getApplication()->make(LogManager::class);
-
-        $channel = $manager->channel('cloudwatch');
-
-        self::assertInstanceOf(Logger::class, $channel);
-
-        $monolog = $channel->getLogger();
-
-        self::assertInstanceOf(\Monolog\Logger::class, $monolog);
-        self::assertSame('cloudwatch', $monolog->getName());
-        self::assertInstanceOf(CloudWatch::class, $monolog->getHandlers()[0] ?? null);
     }
 
     /**

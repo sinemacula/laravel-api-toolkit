@@ -31,7 +31,6 @@ final class NotificationListenerTest extends TestCase
      */
     public function testSendingLogsAtDebugLevel(): void
     {
-        Config::set('api-toolkit.logging.cloudwatch.enabled', false);
         Config::set('api-toolkit.notifications.excluded_classes', []);
 
         Log::shouldReceive('channel')
@@ -60,7 +59,6 @@ final class NotificationListenerTest extends TestCase
      */
     public function testSentLogsAtInfoLevel(): void
     {
-        Config::set('api-toolkit.logging.cloudwatch.enabled', false);
         Config::set('api-toolkit.notifications.excluded_classes', []);
 
         Log::shouldReceive('channel')
@@ -90,7 +88,6 @@ final class NotificationListenerTest extends TestCase
      */
     public function testLogIncludesCorrectContext(): void
     {
-        Config::set('api-toolkit.logging.cloudwatch.enabled', false);
         Config::set('api-toolkit.notifications.excluded_classes', []);
 
         $notification = new class extends Notification {};
@@ -116,70 +113,6 @@ final class NotificationListenerTest extends TestCase
     }
 
     /**
-     * Test that CloudWatch logging uses debug level for sending events.
-     *
-     * @return void
-     */
-    public function testCloudWatchLoggingUsesCorrectLevelForSending(): void
-    {
-        Config::set('api-toolkit.logging.cloudwatch.enabled', true);
-        Config::set('api-toolkit.notifications.excluded_classes', []);
-
-        Log::shouldReceive('channel')
-            ->with('notifications')
-            ->once()
-            ->andReturnSelf();
-
-        Log::shouldReceive('channel')
-            ->with('cloudwatch-notifications')
-            ->once()
-            ->andReturnSelf();
-
-        Log::shouldReceive('log')
-            ->twice()
-            ->withArgs(
-                fn (string $level) => $level === 'debug',
-            );
-
-        $listener = new NotificationListener;
-        $event    = $this->createSendingEvent();
-
-        $listener->sending($event);
-    }
-
-    /**
-     * Test that CloudWatch logging uses info level for sent events.
-     *
-     * @return void
-     */
-    public function testCloudWatchLoggingUsesCorrectLevelForSent(): void
-    {
-        Config::set('api-toolkit.logging.cloudwatch.enabled', true);
-        Config::set('api-toolkit.notifications.excluded_classes', []);
-
-        Log::shouldReceive('channel')
-            ->with('notifications')
-            ->once()
-            ->andReturnSelf();
-
-        Log::shouldReceive('channel')
-            ->with('cloudwatch-notifications')
-            ->once()
-            ->andReturnSelf();
-
-        Log::shouldReceive('log')
-            ->twice()
-            ->withArgs(
-                fn (string $level) => $level === 'info',
-            );
-
-        $listener = new NotificationListener;
-        $event    = $this->createSentEvent();
-
-        $listener->sent($event);
-    }
-
-    /**
      * Test that excluded notification class produces no log for sending.
      *
      * @return void
@@ -188,7 +121,6 @@ final class NotificationListenerTest extends TestCase
     {
         $notification = new class extends Notification {};
 
-        Config::set('api-toolkit.logging.cloudwatch.enabled', false);
         Config::set('api-toolkit.notifications.excluded_classes', [$notification::class]);
 
         Log::shouldReceive('channel')->never();
@@ -209,7 +141,6 @@ final class NotificationListenerTest extends TestCase
     {
         $notification = new class extends Notification {};
 
-        Config::set('api-toolkit.logging.cloudwatch.enabled', false);
         Config::set('api-toolkit.notifications.excluded_classes', [$notification::class]);
 
         Log::shouldReceive('channel')->never();
@@ -229,7 +160,6 @@ final class NotificationListenerTest extends TestCase
      */
     public function testNonExcludedClassIsLoggedWhenExclusionListIsNonEmpty(): void
     {
-        Config::set('api-toolkit.logging.cloudwatch.enabled', false);
         Config::set('api-toolkit.notifications.excluded_classes', ['App\Notifications\SomeOtherNotification']);
 
         Log::shouldReceive('channel')
@@ -253,7 +183,6 @@ final class NotificationListenerTest extends TestCase
      */
     public function testEmptyExclusionListLogsAllNotifications(): void
     {
-        Config::set('api-toolkit.logging.cloudwatch.enabled', false);
         Config::set('api-toolkit.notifications.excluded_classes', []);
 
         Log::shouldReceive('channel')
@@ -278,7 +207,6 @@ final class NotificationListenerTest extends TestCase
      */
     public function testPayloadOmitsNotifiableIdForNonModelNotifiable(): void
     {
-        Config::set('api-toolkit.logging.cloudwatch.enabled', false);
         Config::set('api-toolkit.notifications.excluded_classes', []);
 
         Log::shouldReceive('channel')
@@ -292,35 +220,6 @@ final class NotificationListenerTest extends TestCase
                 fn (string $level, string $message, array $context) => !array_key_exists('notifiable_id', $context)
                     && isset($context['notification'], $context['notifiable_type'], $context['channel']),
             );
-
-        $listener = new NotificationListener;
-        $event    = $this->createSendingEvent();
-
-        $listener->sending($event);
-    }
-
-    /**
-     * Test that CloudWatch logging defaults to disabled when the
-     * configuration key is missing.
-     *
-     * @return void
-     */
-    public function testCloudWatchLoggingDefaultsToDisabledWhenConfigMissing(): void
-    {
-        Config::set('api-toolkit.logging.cloudwatch', []);
-        Config::set('api-toolkit.notifications.excluded_classes', []);
-
-        Log::shouldReceive('channel')
-            ->with('notifications')
-            ->once()
-            ->andReturnSelf();
-
-        Log::shouldReceive('channel')
-            ->with('cloudwatch-notifications')
-            ->never();
-
-        Log::shouldReceive('log')
-            ->once();
 
         $listener = new NotificationListener;
         $event    = $this->createSendingEvent();

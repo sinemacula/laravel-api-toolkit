@@ -265,12 +265,6 @@ final class ApiExceptionHandler
     private static function logApiException(ApiException $exception): void
     {
         Log::channel('api-exceptions')->error(self::convertExceptionToString($exception), self::getContext());
-
-        if (!config('api-toolkit.logging.cloudwatch.enabled', false)) {
-            return;
-        }
-
-        Log::channel('cloudwatch-api-exceptions')->error(self::convertExceptionToString($exception), self::getContext());
     }
 
     /**
