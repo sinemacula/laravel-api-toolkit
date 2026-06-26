@@ -10,9 +10,7 @@ use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Http\Resources\Json\ResourceCollection;
 use Illuminate\Routing\Controller as LaravelController;
 use Illuminate\Support\Facades\Response;
-use SineMacula\ApiToolkit\Sse\EventStream;
 use SineMacula\Http\Enums\HttpStatus;
-use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
  * Base API controller.
@@ -23,9 +21,6 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 abstract class Controller extends LaravelController
 {
     use ValidatesRequests;
-
-    /** @var int The SSE heartbeat interval in seconds. */
-    protected const int HEARTBEAT_INTERVAL = 20;
 
     /**
      * Respond with raw array data as a JSON response.
@@ -64,23 +59,5 @@ abstract class Controller extends LaravelController
     protected function respondWithCollection(ResourceCollection $collection, HttpStatus $status = HttpStatus::OK, array $headers = []): JsonResponse
     {
         return $collection->response()->setStatusCode($status->getCode())->withHeaders($headers);
-    }
-
-    /**
-     * Respond with an SSE event stream.
-     *
-     * Delegates to EventStream for response construction, the polling loop,
-     * heartbeat emission, and error handling.
-     *
-     * @param  callable(): void|callable(\SineMacula\ApiToolkit\Sse\Emitter): void  $callback
-     * @param  int  $interval
-     * @param  \SineMacula\Http\Enums\HttpStatus  $status
-     * @param  array<string, string>  $headers
-     * @return \Symfony\Component\HttpFoundation\StreamedResponse
-     */
-    protected function respondWithEventStream(callable $callback, int $interval = 1, HttpStatus $status = HttpStatus::OK, array $headers = []): StreamedResponse
-    {
-        return (new EventStream(static::HEARTBEAT_INTERVAL))
-            ->toResponse($callback, $interval, $status, $headers);
     }
 }

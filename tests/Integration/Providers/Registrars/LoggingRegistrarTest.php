@@ -42,7 +42,7 @@ final class LoggingRegistrarTest extends TestCase
 
         $config->set('api-toolkit.notifications.enable_logging', true);
 
-        (new LoggingRegistrar($app))->register();
+        (new LoggingRegistrar)->register();
 
         /** @var \Illuminate\Events\Dispatcher $events */
         $events = $app->make('events');

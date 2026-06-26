@@ -94,7 +94,6 @@ abstract class TestCase extends OrchestraTestCase
         $config->set('api-toolkit.resources.fixed_fields', ['id', '_type']);
         $config->set('api-toolkit.resources.enable_dynamic_morph_mapping', false);
         $config->set('api-toolkit.notifications.enable_logging', false);
-        $config->set('api-toolkit.logging.cloudwatch.enabled', false);
     }
 
     /**
