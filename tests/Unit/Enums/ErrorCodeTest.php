@@ -44,10 +44,6 @@ final class ErrorCodeTest extends TestCase
         yield 'SERVICE_UNAVAILABLE' => [ErrorCode::SERVICE_UNAVAILABLE, 10112];
         yield 'HTTP_ERROR' => [ErrorCode::HTTP_ERROR, 10113];
         yield 'MAINTENANCE_MODE' => [ErrorCode::MAINTENANCE_MODE, 10200];
-        yield 'FILE_UPLOAD_ERROR' => [ErrorCode::FILE_UPLOAD_ERROR, 10300];
-        yield 'INVALID_IMAGE' => [ErrorCode::INVALID_IMAGE, 10301];
-        yield 'INVALID_NOTIFICATION' => [ErrorCode::INVALID_NOTIFICATION, 10400];
-        yield 'FAILED_TO_SEND_SMS' => [ErrorCode::FAILED_TO_SEND_SMS, 10401];
     }
 
     /**
@@ -97,10 +93,6 @@ final class ErrorCodeTest extends TestCase
             'SERVICE_UNAVAILABLE',
             'HTTP_ERROR',
             'MAINTENANCE_MODE',
-            'FILE_UPLOAD_ERROR',
-            'INVALID_IMAGE',
-            'INVALID_NOTIFICATION',
-            'FAILED_TO_SEND_SMS',
         ];
 
         $actualNames = array_map(fn (ErrorCode $case) => $case->name, ErrorCode::cases());
