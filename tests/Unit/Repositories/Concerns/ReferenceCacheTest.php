@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\DB;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Repositories\Concerns\CacheSizeGuard;
 use SineMacula\ApiToolkit\Repositories\Concerns\ReferenceCache;
+use Tests\Concerns\InteractsWithNonPublicMembers;
 use Tests\Fixtures\Models\Tag;
 use Tests\TestCase;
 
@@ -24,6 +25,8 @@ use Tests\TestCase;
 #[CoversClass(ReferenceCache::class)]
 final class ReferenceCacheTest extends TestCase
 {
+    use InteractsWithNonPublicMembers;
+
     /** @var \SineMacula\ApiToolkit\Repositories\Concerns\ReferenceCache The reference cache under test. */
     private ReferenceCache $referenceCache;
 
@@ -88,6 +91,66 @@ final class ReferenceCacheTest extends TestCase
 
         self::assertInstanceOf(Collection::class, $result);
         self::assertCount(2, $result);
+    }
+
+    /**
+     * Test that repeated reads are served from the instance memo even after
+     * the backing store is evicted, proving the snapshot is deserialized once.
+     *
+     * @return void
+     */
+    public function testReusesInstanceMemoAfterBackingStoreEviction(): void
+    {
+        $first = $this->referenceCache->all(new Tag);
+
+        // Evict the backing store directly, bypassing flushTable (which would
+        // also clear the instance memo), so only the memo can serve the read.
+        $this->referenceCache->getStore()->forget('api-toolkit:repository-cache:tags');
+
+        DB::enableQueryLog();
+
+        $second = $this->referenceCache->all(new Tag);
+
+        self::assertSame($first, $second);
+        self::assertCount(0, DB::getQueryLog());
+
+        DB::disableQueryLog();
+    }
+
+    /**
+     * Test that loading the snapshot builds a key index for O(1) lookups,
+     * keyed by the model's primary key rather than collection position.
+     *
+     * @return void
+     */
+    public function testBuildsAKeyIndexForTheMemoisedSnapshot(): void
+    {
+        $this->referenceCache->all(new Tag);
+
+        $index = $this->getProperty($this->referenceCache, 'index');
+
+        self::assertInstanceOf(Collection::class, $index);
+
+        $tag = $index->get(1);
+
+        self::assertInstanceOf(Tag::class, $tag);
+        self::assertSame('php', $tag->getAttribute('name'));
+    }
+
+    /**
+     * Test that find resolves a record from an over-large (un-memoised) table
+     * by scanning the freshly-queried collection rather than a key index.
+     *
+     * @return void
+     */
+    public function testFindResolvesFromAnOverLargeTableWithoutAKeyIndex(): void
+    {
+        $reference = new ReferenceCache('array', 'tags', 3600, new CacheSizeGuard(1, null));
+
+        $tag = $reference->find(new Tag, 1);
+
+        self::assertInstanceOf(Tag::class, $tag);
+        self::assertSame('php', $tag->getAttribute('name'));
     }
 
     /**

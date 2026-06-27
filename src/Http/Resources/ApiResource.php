@@ -5,7 +5,6 @@ declare(strict_types = 1);
 namespace SineMacula\ApiToolkit\Http\Resources;
 
 use Illuminate\Http\Request;
-use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Http\Resources\MissingValue;
 use Illuminate\Support\Facades\Config;
 use SineMacula\ApiToolkit\Concerns\OrdersFields;
@@ -30,7 +29,7 @@ use SineMacula\ApiToolkit\Schema\SchemaCompiler;
  *
  * @managed-static
  */
-abstract class ApiResource extends JsonResource implements ApiResourceInterface
+abstract class ApiResource extends ToolkitResource implements ApiResourceInterface
 {
     use OrdersFields;
 

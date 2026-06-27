@@ -14,6 +14,7 @@ use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Events\CacheFlushed;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\EagerLoadPlanner;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\ValueResolver;
+use SineMacula\ApiToolkit\Schema\FieldColumnMapper;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 use Tests\Concerns\InteractsWithNonPublicMembers;
 use Tests\TestCase;
@@ -125,6 +126,28 @@ final class CacheManagerTest extends TestCase
 
         // Assert
         self::assertSame([], $this->getStaticProperty(EagerLoadPlanner::class, 'eagerLoadCache'));
+    }
+
+    /**
+     * Test that flush clears the FieldColumnMapper static cache.
+     *
+     * @return void
+     */
+    public function testFlushClearsFieldColumnMapperCache(): void
+    {
+        // Arrange
+        Event::fake();
+
+        $this->setStaticProperty(FieldColumnMapper::class, 'cache', ['FakeResource' => 'map']);
+
+        self::assertNotEmpty($this->getStaticProperty(FieldColumnMapper::class, 'cache'));
+
+        // Act
+        $manager = $this->app->make(CacheManager::class); // @phpstan-ignore method.nonObject
+        $manager->flush();
+
+        // Assert
+        self::assertSame([], $this->getStaticProperty(FieldColumnMapper::class, 'cache'));
     }
 
     /**

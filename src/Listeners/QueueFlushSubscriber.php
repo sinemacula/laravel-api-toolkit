@@ -7,6 +7,7 @@ namespace SineMacula\ApiToolkit\Listeners;
 use Illuminate\Events\Dispatcher;
 use Illuminate\Queue\Events\JobFailed;
 use Illuminate\Queue\Events\JobProcessed;
+use Illuminate\Support\Facades\Log;
 use SineMacula\ApiToolkit\Cache\CacheManager;
 use SineMacula\ApiToolkit\Runtime\RuntimeContext;
 
@@ -66,6 +67,10 @@ final class QueueFlushSubscriber
             return;
         }
 
-        $this->cacheManager->flush();
+        try {
+            $this->cacheManager->flush();
+        } catch (\Throwable $exception) {
+            Log::error('Queue worker cache flush failed', ['exception' => $exception]);
+        }
     }
 }
