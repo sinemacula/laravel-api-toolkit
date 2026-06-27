@@ -8,7 +8,7 @@ use Illuminate\Contracts\Cache\Lock;
 use Illuminate\Support\Facades\Cache;
 use SineMacula\ApiToolkit\Contracts\LockKeyProvider;
 use SineMacula\ApiToolkit\Exceptions\LockOperationException;
-use SineMacula\ApiToolkit\Exceptions\TooManyRequestsException;
+use SineMacula\ApiToolkit\Exceptions\LockUnavailableException;
 
 /**
  * Cache-based atomic locking.
@@ -41,14 +41,14 @@ trait Lockable
      *
      * @return \Illuminate\Contracts\Cache\Lock
      *
-     * @throws \SineMacula\ApiToolkit\Exceptions\TooManyRequestsException
+     * @throws \SineMacula\ApiToolkit\Exceptions\LockUnavailableException
      */
     public function lock(): Lock
     {
         $this->lock = Cache::lock($this->resolveLockKey(), $this->getLockExpiration());
 
         if (!$this->lock->get()) {
-            throw new TooManyRequestsException(meta: ['X-RateLimit-Limit' => 1, 'X-RateLimit-Remaining' => 0]);
+            throw new LockUnavailableException('Unable to acquire the cache lock; the resource is currently locked.');
         }
 
         return $this->lock;
