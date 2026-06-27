@@ -9,7 +9,9 @@ use Illuminate\Http\Request;
 use Illuminate\Pagination\CursorPaginator;
 use Illuminate\Pagination\LengthAwarePaginator;
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\CoversTrait;
 use SineMacula\ApiToolkit\Http\Resources\ApiResourceCollection;
+use SineMacula\ApiToolkit\Http\Resources\Concerns\ProvidesApiEnvelope;
 use SineMacula\Http\Enums\HttpMethod;
 use Tests\Fixtures\Models\Organization;
 use Tests\Fixtures\Models\User;
@@ -27,6 +29,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(ApiResourceCollection::class)]
+#[CoversTrait(ProvidesApiEnvelope::class)]
 final class ApiResourceCollectionTest extends TestCase
 {
     /** @var string Base path used to build paginator links in tests */
