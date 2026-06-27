@@ -74,10 +74,6 @@ final class ErrorCatalogueReaderTest extends TestCase
         yield 'SERVICE_UNAVAILABLE -> 503' => [ErrorCode::SERVICE_UNAVAILABLE, 503];
         yield 'HTTP_ERROR -> 500' => [ErrorCode::HTTP_ERROR, 500];
         yield 'MAINTENANCE_MODE -> 503' => [ErrorCode::MAINTENANCE_MODE, 503];
-        yield 'FILE_UPLOAD_ERROR -> 500' => [ErrorCode::FILE_UPLOAD_ERROR, 500];
-        yield 'INVALID_IMAGE -> 422' => [ErrorCode::INVALID_IMAGE, 422];
-        yield 'INVALID_NOTIFICATION -> 500' => [ErrorCode::INVALID_NOTIFICATION, 500];
-        yield 'FAILED_TO_SEND_SMS -> 500' => [ErrorCode::FAILED_TO_SEND_SMS, 500];
     }
 
     /**

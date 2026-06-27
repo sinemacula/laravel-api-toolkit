@@ -10,19 +10,15 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use SineMacula\ApiToolkit\Exceptions\ApiException;
 use SineMacula\ApiToolkit\Exceptions\BadRequestException;
 use SineMacula\ApiToolkit\Exceptions\ConflictException;
-use SineMacula\ApiToolkit\Exceptions\FileUploadException;
 use SineMacula\ApiToolkit\Exceptions\ForbiddenException;
 use SineMacula\ApiToolkit\Exceptions\GoneException;
-use SineMacula\ApiToolkit\Exceptions\InvalidImageException;
 use SineMacula\ApiToolkit\Exceptions\InvalidInputException;
-use SineMacula\ApiToolkit\Exceptions\InvalidNotificationException;
 use SineMacula\ApiToolkit\Exceptions\LockedException;
 use SineMacula\ApiToolkit\Exceptions\MaintenanceModeException;
 use SineMacula\ApiToolkit\Exceptions\NotAllowedException;
 use SineMacula\ApiToolkit\Exceptions\NotFoundException;
 use SineMacula\ApiToolkit\Exceptions\PayloadTooLargeException;
 use SineMacula\ApiToolkit\Exceptions\ServiceUnavailableException;
-use SineMacula\ApiToolkit\Exceptions\SmsSendFailedException;
 use SineMacula\ApiToolkit\Exceptions\TokenMismatchException;
 use SineMacula\ApiToolkit\Exceptions\TooManyRequestsException;
 use SineMacula\ApiToolkit\Exceptions\UnauthenticatedException;
@@ -38,19 +34,15 @@ use SineMacula\ApiToolkit\Exceptions\UnhandledException;
  */
 #[CoversClass(BadRequestException::class)]
 #[CoversClass(ConflictException::class)]
-#[CoversClass(FileUploadException::class)]
 #[CoversClass(ForbiddenException::class)]
 #[CoversClass(GoneException::class)]
-#[CoversClass(InvalidImageException::class)]
 #[CoversClass(InvalidInputException::class)]
-#[CoversClass(InvalidNotificationException::class)]
 #[CoversClass(LockedException::class)]
 #[CoversClass(MaintenanceModeException::class)]
 #[CoversClass(NotAllowedException::class)]
 #[CoversClass(NotFoundException::class)]
 #[CoversClass(PayloadTooLargeException::class)]
 #[CoversClass(ServiceUnavailableException::class)]
-#[CoversClass(SmsSendFailedException::class)]
 #[CoversClass(TokenMismatchException::class)]
 #[CoversClass(TooManyRequestsException::class)]
 #[CoversClass(UnauthenticatedException::class)]
@@ -66,19 +58,15 @@ final class ConcreteExceptionsTest extends TestCase
     {
         yield 'BadRequestException' => [BadRequestException::class, 10100, 400];
         yield 'ConflictException' => [ConflictException::class, 10108, 409];
-        yield 'FileUploadException' => [FileUploadException::class, 10300, 500];
         yield 'ForbiddenException' => [ForbiddenException::class, 10102, 403];
         yield 'GoneException' => [GoneException::class, 10109, 410];
-        yield 'InvalidImageException' => [InvalidImageException::class, 10301, 422];
         yield 'InvalidInputException' => [InvalidInputException::class, 10106, 422];
-        yield 'InvalidNotificationException' => [InvalidNotificationException::class, 10400, 500];
         yield 'LockedException' => [LockedException::class, 10111, 423];
         yield 'MaintenanceModeException' => [MaintenanceModeException::class, 10200, 503];
         yield 'NotAllowedException' => [NotAllowedException::class, 10104, 405];
         yield 'NotFoundException' => [NotFoundException::class, 10103, 404];
         yield 'PayloadTooLargeException' => [PayloadTooLargeException::class, 10110, 413];
         yield 'ServiceUnavailableException' => [ServiceUnavailableException::class, 10112, 503];
-        yield 'SmsSendFailedException' => [SmsSendFailedException::class, 10401, 500];
         yield 'TokenMismatchException' => [TokenMismatchException::class, 10105, 419];
         yield 'TooManyRequestsException' => [TooManyRequestsException::class, 10107, 429];
         yield 'UnauthenticatedException' => [UnauthenticatedException::class, 10101, 401];
