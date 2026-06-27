@@ -6,7 +6,9 @@ namespace SineMacula\ApiToolkit\Repositories\Criteria;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Validation\ValidationException;
+use SineMacula\ApiToolkit\Contracts\ApiResourceInterface;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
+use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 
 /**
  * Per-query enforcement policy for a resource's declared query surface.
@@ -21,10 +23,11 @@ use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
  * allowlist posture rejects every root key - secure by default.
  *
  * Keys that target a nested/related model (within a declared-traversable
- * relation) fall back to the legacy searchable predicate on that related model:
- * the top-level relation allowlist is the P0 worker, and per-related-resource
- * nested-column granularity is deferred (BL-20 P2). The relation gate still
- * governs which relations may be traversed at all.
+ * relation) are gated against that related model's resource schema under the
+ * allowlist posture. When no mapped resource exists for a related model the
+ * gate fails closed (rejects), matching the root secure-by-default behaviour.
+ * Under the blocklist posture the legacy searchable predicate still applies for
+ * related models. The relation-traversal gate (permitsRelation) is unchanged.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -47,6 +50,7 @@ final readonly class QuerySurface
      * @param  bool  $rejectUndeclared
      * @param  \SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider  $introspector
      * @param  \Illuminate\Database\Eloquent\Model  $rootModel
+     * @param  array<string, string>  $resourceMap
      */
     public function __construct(
 
@@ -70,12 +74,15 @@ final readonly class QuerySurface
 
         /** The root query's Eloquent model instance. */
         private Model $rootModel,
+
+        /** Resource map used to resolve related model resource classes. */
+        private array $resourceMap = [],
     ) {}
 
     /**
      * Guard a filter column on the given model, returning whether it may be
-     * applied and throwing on an undeclared root key under the fail-closed
-     * allowlist posture.
+     * applied and throwing on an undeclared key under the fail-closed allowlist
+     * posture.
      *
      * @param  string  $column
      * @param  \Illuminate\Database\Eloquent\Model  $model
@@ -85,7 +92,13 @@ final readonly class QuerySurface
      */
     public function guardFilter(string $column, Model $model): bool
     {
-        return $this->guard($this->permitsFilter($column, $model), 'filters', $column, $model);
+        return $this->guard(
+            $this->permitsFilter($column, $model),
+            'filters',
+            $column,
+            $model,
+            $this->posture === self::POSTURE_ALLOWLIST,
+        );
     }
 
     /**
@@ -99,7 +112,13 @@ final readonly class QuerySurface
      */
     public function guardSort(string $column, Model $model): bool
     {
-        return $this->guard($this->permitsSort($column, $model), 'order', $column, $model);
+        return $this->guard(
+            $this->permitsSort($column, $model),
+            'order',
+            $column,
+            $model,
+            $this->posture === self::POSTURE_ALLOWLIST,
+        );
     }
 
     /**
@@ -125,9 +144,15 @@ final readonly class QuerySurface
      */
     private function permitsFilter(string $column, Model $model): bool
     {
-        return $this->governsRoot($model)
-            ? in_array($column, $this->filterableColumns, true)
-            : $this->introspector->isSearchable($model, $column);
+        if ($this->governsRoot($model)) {
+            return in_array($column, $this->filterableColumns, true);
+        }
+
+        if ($this->posture === self::POSTURE_ALLOWLIST) {
+            return $this->permitsRelatedColumn($column, $model, true);
+        }
+
+        return $this->introspector->isSearchable($model, $column);
     }
 
     /**
@@ -139,9 +164,15 @@ final readonly class QuerySurface
      */
     private function permitsSort(string $column, Model $model): bool
     {
-        return $this->governsRoot($model)
-            ? in_array($column, $this->sortableColumns, true)
-            : $this->introspector->isSearchable($model, $column);
+        if ($this->governsRoot($model)) {
+            return in_array($column, $this->sortableColumns, true);
+        }
+
+        if ($this->posture === self::POSTURE_ALLOWLIST) {
+            return $this->permitsRelatedColumn($column, $model, false);
+        }
+
+        return $this->introspector->isSearchable($model, $column);
     }
 
     /**
@@ -159,6 +190,33 @@ final readonly class QuerySurface
     }
 
     /**
+     * Determine whether the column is permitted on a related (non-root) model
+     * under the allowlist posture by checking the related resource's declared
+     * filterable or sortable set.
+     *
+     * When no resource is mapped for the related model the gate fails closed,
+     * matching the root secure-by-default behaviour.
+     *
+     * @param  string  $column
+     * @param  \Illuminate\Database\Eloquent\Model  $model
+     * @param  bool  $filterable
+     * @return bool
+     */
+    private function permitsRelatedColumn(string $column, Model $model, bool $filterable): bool
+    {
+        $resourceClass = $this->resourceMap[$model::class] ?? null;
+
+        if ($resourceClass === null || !is_subclass_of($resourceClass, ApiResourceInterface::class)) {
+            return false;
+        }
+
+        $schema  = SchemaCompiler::compile($resourceClass);
+        $columns = $filterable ? $schema->getFilterableColumns() : $schema->getSortableColumns();
+
+        return in_array($column, $columns, true);
+    }
+
+    /**
      * Determine whether the declared allowlist governs the given model - i.e.
      * the allowlist posture is in force and the model is the root model.
      *
@@ -171,24 +229,28 @@ final readonly class QuerySurface
     }
 
     /**
-     * Resolve a permission result into an apply/skip decision, rejecting an
-     * undeclared root key when fail-closed under the allowlist posture.
+     * Resolve a permission result into an apply/skip decision.
+     *
+     * Rejects with a named ValidationException when fail-closed and the active
+     * posture covers the given model: root keys under allowlist, or any key
+     * under allowlist when rejectForAllowlist is true.
      *
      * @param  bool  $permitted
      * @param  string  $parameter
      * @param  string  $key
      * @param  \Illuminate\Database\Eloquent\Model  $model
+     * @param  bool  $rejectForAllowlist
      * @return bool
      *
      * @throws \Illuminate\Validation\ValidationException
      */
-    private function guard(bool $permitted, string $parameter, string $key, Model $model): bool
+    private function guard(bool $permitted, string $parameter, string $key, Model $model, bool $rejectForAllowlist = false): bool
     {
         if ($permitted) {
             return true;
         }
 
-        if ($this->rejectUndeclared && $this->governsRoot($model)) {
+        if ($this->rejectUndeclared && ($this->governsRoot($model) || $rejectForAllowlist)) {
             throw ValidationException::withMessages([$parameter . '.' . $key => sprintf('The "%s" key is not a permitted query parameter for this resource.', $key)]);
         }
 
