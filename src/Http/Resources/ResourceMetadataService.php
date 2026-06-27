@@ -80,4 +80,32 @@ final class ResourceMetadataService implements ResourceMetadataProvider
     {
         return $resourceClass::eagerLoadCountsFor($requestedAliases);
     }
+
+    /**
+     * Build the eager-load sums entry list for the given resource class and
+     * requested relation-column map.
+     *
+     * @param  string  $resourceClass
+     * @param  array<string, mixed>|null  $requestedSums
+     * @return list<array<string, mixed>>
+     */
+    #[\Override]
+    public function eagerLoadSumsFor(string $resourceClass, ?array $requestedSums = null): array
+    {
+        return $resourceClass::eagerLoadSumsFor($requestedSums);
+    }
+
+    /**
+     * Build the eager-load averages entry list for the given resource class and
+     * requested relation-column map.
+     *
+     * @param  string  $resourceClass
+     * @param  array<string, mixed>|null  $requestedAverages
+     * @return list<array<string, mixed>>
+     */
+    #[\Override]
+    public function eagerLoadAveragesFor(string $resourceClass, ?array $requestedAverages = null): array
+    {
+        return $resourceClass::eagerLoadAveragesFor($requestedAverages);
+    }
 }

@@ -7,6 +7,7 @@ namespace Tests\Unit\Http\Resources\Concerns;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 use SineMacula\ApiToolkit\Exceptions\InvalidSchemaException;
+use SineMacula\ApiToolkit\Schema\CompiledAggregateDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledCountDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledSchema;
@@ -743,6 +744,302 @@ final class SchemaCompilerTest extends TestCase
                 self::assertNull($openApi, "Author-undeclared field {$key} should compile with a null openApi");
             }
         }
+    }
+
+    /**
+     * Test that sum entries produce a CompiledAggregateDefinition for the
+     * 'sum' metric with the correct present key.
+     *
+     * @return void
+     */
+    public function testCompileCreatesCompiledAggregateDefinitionsForSumMetrics(): void
+    {
+        $resourceClass = $this->createStubResourceClass([
+            '__sum__:posts_id' => [
+                'key'      => 'posts_id',
+                'metric'   => 'sum',
+                'relation' => 'posts',
+                'column'   => 'id',
+                'default'  => true,
+            ],
+        ]);
+
+        $schema = SchemaCompiler::compile($resourceClass);
+
+        self::assertSame([], $schema->getFieldKeys());
+        self::assertSame([], $schema->getCountDefinitions());
+
+        $aggregates = $schema->getAggregateDefinitions();
+        self::assertCount(1, $aggregates);
+        self::assertArrayHasKey('sum:posts_id', $aggregates);
+
+        $agg = $aggregates['sum:posts_id'];
+        self::assertInstanceOf(CompiledAggregateDefinition::class, $agg);
+        self::assertSame('posts_id', $agg->presentKey);
+        self::assertSame('posts', $agg->relation);
+        self::assertSame('id', $agg->column);
+        self::assertSame('sum', $agg->metric);
+        self::assertTrue($agg->isDefault);
+    }
+
+    /**
+     * Test that average entries produce CompiledAggregateDefinition with
+     * metric='avg' and the correct present key.
+     *
+     * @return void
+     */
+    public function testCompileCreatesCompiledAggregateDefinitionsForAvgMetrics(): void
+    {
+        $resourceClass = $this->createStubResourceClass([
+            '__avg__:posts_id' => [
+                'key'      => 'posts_id',
+                'metric'   => 'avg',
+                'relation' => 'posts',
+                'column'   => 'id',
+                'default'  => false,
+            ],
+        ]);
+
+        $schema = SchemaCompiler::compile($resourceClass);
+
+        $aggregates = $schema->getAggregateDefinitions();
+        self::assertCount(1, $aggregates);
+
+        $agg = $aggregates['avg:posts_id'];
+        self::assertInstanceOf(CompiledAggregateDefinition::class, $agg);
+        self::assertSame('avg', $agg->metric);
+        self::assertFalse($agg->isDefault);
+    }
+
+    /**
+     * Test that an explicit key in a sum entry overrides the prefix-stripped
+     * schema key and the relation is taken from the definition.
+     *
+     * @return void
+     */
+    public function testCompileUsesExplicitAggregateKeyOverSchemaKey(): void
+    {
+        $resourceClass = $this->createStubResourceClass([
+            '__sum__:posts_id' => [
+                'key'      => 'my_sum',
+                'metric'   => 'sum',
+                'relation' => 'posts',
+                'column'   => 'id',
+            ],
+        ]);
+
+        $schema     = SchemaCompiler::compile($resourceClass);
+        $aggregates = $schema->getAggregateDefinitions();
+
+        self::assertArrayHasKey('sum:my_sum', $aggregates);
+        self::assertSame('my_sum', $aggregates['sum:my_sum']->presentKey);
+        self::assertSame('posts', $aggregates['sum:my_sum']->relation);
+    }
+
+    /**
+     * Test that an aggregate without a default flag compiles as non-default and
+     * that guards are preserved.
+     *
+     * @return void
+     */
+    public function testCompileDefaultsAggregateToNonDefaultAndPreservesGuards(): void
+    {
+        $guard = fn ($resource, $request) => true;
+
+        $resourceClass = $this->createStubResourceClass([
+            '__sum__:posts_id' => [
+                'metric'   => 'sum',
+                'relation' => 'posts',
+                'column'   => 'id',
+                'guards'   => [$guard],
+            ],
+        ]);
+
+        $schema = SchemaCompiler::compile($resourceClass);
+        $agg    = $schema->getAggregateDefinitions()['sum:posts_id'];
+
+        self::assertFalse($agg->isDefault);
+        self::assertSame([$guard], $agg->guards);
+    }
+
+    /**
+     * Test that a non-Closure aggregate constraint throws an
+     * InvalidSchemaException.
+     *
+     * @return void
+     */
+    public function testCompileThrowsForNonClosureAggregateConstraint(): void
+    {
+        $resourceClass = $this->createStubResourceClass([
+            '__sum__:posts_id' => [
+                'metric'     => 'sum',
+                'relation'   => 'posts',
+                'column'     => 'id',
+                'constraint' => 'not-a-closure',
+            ],
+        ]);
+
+        try {
+            SchemaCompiler::compile($resourceClass);
+            self::fail('Expected InvalidSchemaException to be thrown.');
+        } catch (InvalidSchemaException $exception) {
+            $errors = $exception->getErrors();
+            self::assertCount(1, $errors);
+            self::assertSame('Constraint must be a Closure', $errors[0]->defect);
+        }
+    }
+
+    /**
+     * Test that an empty schema produces no aggregate definitions.
+     *
+     * @return void
+     */
+    public function testCompileHandlesEmptySchemaProducesNoAggregates(): void
+    {
+        $schema = SchemaCompiler::compile($this->createStubResourceClass([]));
+
+        self::assertSame([], $schema->getAggregateDefinitions());
+    }
+
+    /**
+     * Test that constraint validation continues past valid entries to report
+     * errors on later entries with an invalid constraint.
+     *
+     * @return void
+     */
+    public function testCompileValidationContinuesPastValidConstraintsToFindInvalidOnes(): void
+    {
+        $resourceClass = $this->createStubResourceClass([
+            'name'             => [],
+            '__sum__:posts_id' => [
+                'metric'     => 'sum',
+                'relation'   => 'posts',
+                'column'     => 'id',
+                'constraint' => 'not-a-closure',
+            ],
+        ]);
+
+        $this->expectException(InvalidSchemaException::class);
+
+        SchemaCompiler::compile($resourceClass);
+    }
+
+    /**
+     * Test that schema entries declared after a sum entry are still compiled
+     * into the field definitions.
+     *
+     * @return void
+     */
+    public function testCompileProcessesFieldsDeclaredAfterSumEntry(): void
+    {
+        $resourceClass = $this->createStubResourceClass([
+            '__sum__:posts_id' => [
+                'metric'   => 'sum',
+                'relation' => 'posts',
+                'column'   => 'id',
+                'default'  => true,
+            ],
+            'name' => [],
+        ]);
+
+        $schema = SchemaCompiler::compile($resourceClass);
+
+        self::assertNotEmpty($schema->getAggregateDefinitions());
+        self::assertNotNull($schema->getField('name'), '\'name\' field must be compiled when declared after a sum entry');
+    }
+
+    /**
+     * Test that a non-prefixed aggregate schema key is used verbatim as the
+     * present key when no explicit key override is provided.
+     *
+     * @return void
+     */
+    public function testCompilePreservesNonPrefixedAggregateSchemaKeyAsPresentKey(): void
+    {
+        $resourceClass = $this->createStubResourceClass([
+            'my_sum_key' => [
+                'metric'   => 'sum',
+                'relation' => 'posts',
+                'column'   => 'id',
+            ],
+        ]);
+
+        $schema     = SchemaCompiler::compile($resourceClass);
+        $aggregates = $schema->getAggregateDefinitions();
+
+        self::assertArrayHasKey('sum:my_sum_key', $aggregates, 'non-prefixed schema key must become the presentKey as-is');
+        self::assertSame('my_sum_key', $aggregates['sum:my_sum_key']->presentKey);
+    }
+
+    /**
+     * Test that the __avg__: prefix is stripped from the schema key when no
+     * explicit key override is provided.
+     *
+     * @return void
+     */
+    public function testCompileStripsAvgPrefixWhenNoExplicitKeyProvided(): void
+    {
+        $resourceClass = $this->createStubResourceClass([
+            '__avg__:comments_id' => [
+                'metric'   => 'avg',
+                'relation' => 'comments',
+                'column'   => 'id',
+            ],
+        ]);
+
+        $schema     = SchemaCompiler::compile($resourceClass);
+        $aggregates = $schema->getAggregateDefinitions();
+
+        self::assertArrayHasKey('avg:comments_id', $aggregates, '__avg__: prefix must be stripped to derive the presentKey');
+        self::assertSame('comments_id', $aggregates['avg:comments_id']->presentKey);
+    }
+
+    /**
+     * Test that the __sum__: prefix is stripped from the schema key when no
+     * explicit key override is provided.
+     *
+     * @return void
+     */
+    public function testCompileStripsSumPrefixWhenNoExplicitKeyProvided(): void
+    {
+        $resourceClass = $this->createStubResourceClass([
+            '__sum__:comments_id' => [
+                'metric'   => 'sum',
+                'relation' => 'comments',
+                'column'   => 'id',
+            ],
+        ]);
+
+        $schema     = SchemaCompiler::compile($resourceClass);
+        $aggregates = $schema->getAggregateDefinitions();
+
+        self::assertArrayHasKey('sum:comments_id', $aggregates, '__sum__: prefix must be stripped to derive the presentKey');
+        self::assertSame('comments_id', $aggregates['sum:comments_id']->presentKey);
+    }
+
+    /**
+     * Test that a Closure constraint on an aggregate definition is preserved
+     * through to the compiled definition.
+     *
+     * @return void
+     */
+    public function testCompilePreservesAggregateClosureConstraint(): void
+    {
+        $constraint = fn ($query) => $query->where('active', true);
+
+        $resourceClass = $this->createStubResourceClass([
+            '__sum__:posts_id' => [
+                'metric'     => 'sum',
+                'relation'   => 'posts',
+                'column'     => 'id',
+                'constraint' => $constraint,
+            ],
+        ]);
+
+        $schema = SchemaCompiler::compile($resourceClass);
+        $agg    = $schema->getAggregateDefinitions()['sum:posts_id'];
+
+        self::assertSame($constraint, $agg->constraint);
     }
 
     /**

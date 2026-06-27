@@ -104,6 +104,35 @@ final class ResourceMetadataServiceTest extends TestCase
     }
 
     /**
+     * Test that eagerLoadSumsFor delegates to the resource class static method.
+     *
+     * @return void
+     */
+    public function testEagerLoadSumsForDelegatesToResourceClass(): void
+    {
+        $requested = ['posts' => ['id']];
+
+        $result = $this->service->eagerLoadSumsFor(UserResource::class, $requested);
+
+        self::assertSame(UserResource::eagerLoadSumsFor($requested), $result);
+    }
+
+    /**
+     * Test that eagerLoadAveragesFor delegates to the resource class static
+     * method.
+     *
+     * @return void
+     */
+    public function testEagerLoadAveragesForDelegatesToResourceClass(): void
+    {
+        $requested = ['posts' => ['id']];
+
+        $result = $this->service->eagerLoadAveragesFor(UserResource::class, $requested);
+
+        self::assertSame(UserResource::eagerLoadAveragesFor($requested), $result);
+    }
+
+    /**
      * Test that the service provider registers the ResourceMetadataProvider
      * binding as a singleton resolving to ResourceMetadataService.
      *

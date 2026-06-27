@@ -10,7 +10,7 @@ use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Http\Resources\MissingValue;
 use Illuminate\Support\Collection;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
-use SineMacula\ApiToolkit\Schema\CompiledCountDefinition;
+use SineMacula\ApiToolkit\Schema\CompiledAggregateDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledSchema;
 
@@ -116,12 +116,16 @@ final class ValueResolver
             return [];
         }
 
-        $requested = ApiQuery::getCounts($resourceType) ?? [];
+        $requested = (array) ApiQuery::getCounts($resourceType);
         $result    = [];
 
         foreach ($schema->getCountDefinitions() as $presentKey => $definition) {
 
-            if (!$this->shouldIncludeCount($presentKey, $requested, $definition)) {
+            $include = $requested !== []
+                ? in_array($presentKey, $requested, true)
+                : $definition->isDefault;
+
+            if (!$include) {
                 continue;
             }
 
@@ -137,6 +141,59 @@ final class ValueResolver
             }
 
             $result[$presentKey] = (int) $value; // @phpstan-ignore cast.int
+        }
+
+        return $result;
+    }
+
+    /**
+     * Resolve the sums or averages payload from compiled aggregate definitions.
+     *
+     * Iterates compiled aggregate definitions matching the given metric,
+     * including only those that match the requested relation-column map (or
+     * defaults) and pass guard evaluation.
+     *
+     * @param  string  $metric
+     * @param  mixed  $resource
+     * @param  \SineMacula\ApiToolkit\Schema\CompiledSchema  $schema
+     * @param  string  $resourceType
+     * @param  \Illuminate\Http\Request|null  $request
+     * @return array<string, float>
+     */
+    public function resolveAggregatesPayload(string $metric, mixed $resource, CompiledSchema $schema, string $resourceType, ?Request $request): array
+    {
+        $owner = $this->unwrapResource($resource);
+
+        if (!is_object($owner)) {
+            return [];
+        }
+
+        $requested = (array) ($metric === 'sum' ? ApiQuery::getSums($resourceType) : ApiQuery::getAverages($resourceType));
+
+        $isIncluded = static function (CompiledAggregateDefinition $definition) use ($requested): bool {
+            if ($requested !== []) {
+                $columns = $requested[$definition->relation] ?? null;
+                return is_array($columns) && in_array($definition->column, $columns, true);
+            }
+            return $definition->isDefault;
+        };
+
+        $result = [];
+
+        foreach ($schema->getAggregateDefinitionsByMetric($metric) as $definition) {
+
+            if (!$isIncluded($definition) || !$this->guardEvaluator->passesGuards($definition->guards, $resource, $request)) {
+                continue;
+            }
+
+            $attribute = $definition->presentKey . '_' . $metric . '_' . $definition->column;
+            $value     = $this->getAttributeIfLoaded($owner, $attribute);
+
+            if ($value === null) {
+                continue;
+            }
+
+            $result[$definition->presentKey] = (float) $value; // @phpstan-ignore cast.double
         }
 
         return $result;
@@ -433,23 +490,6 @@ final class ValueResolver
         }
 
         return $value;
-    }
-
-    /**
-     * Decide if a count should be included based on request or default flag.
-     *
-     * @param  string  $presentKey
-     * @param  array<int, string>|null  $requested
-     * @param  \SineMacula\ApiToolkit\Schema\CompiledCountDefinition  $definition
-     * @return bool
-     */
-    private function shouldIncludeCount(string $presentKey, ?array $requested, CompiledCountDefinition $definition): bool
-    {
-        if (is_array($requested) && $requested !== []) {
-            return in_array($presentKey, $requested, true);
-        }
-
-        return $definition->isDefault;
     }
 
     /**

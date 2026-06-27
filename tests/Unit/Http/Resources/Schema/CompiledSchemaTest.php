@@ -6,6 +6,7 @@ namespace Tests\Unit\Http\Resources\Schema;
 
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
+use SineMacula\ApiToolkit\Schema\CompiledAggregateDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledCountDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledSchema;
@@ -170,5 +171,80 @@ final class CompiledSchemaTest extends TestCase
         $schema = new CompiledSchema([], []);
 
         self::assertFalse($schema->hasField('nonexistent'));
+    }
+
+    /**
+     * Test that getAggregateDefinitions returns all aggregate definitions.
+     *
+     * @return void
+     */
+    public function testCompiledSchemaGetAggregateDefinitionsReturnsAllAggregates(): void
+    {
+        $aggregate = new CompiledAggregateDefinition(
+            presentKey: 'posts_id',
+            relation: 'posts',
+            column: 'id',
+            metric: 'sum',
+            constraint: null,
+            isDefault: true,
+            guards: [],
+        );
+
+        $schema = new CompiledSchema([], [], ['posts_id' => $aggregate]);
+
+        $aggregates = $schema->getAggregateDefinitions();
+
+        self::assertCount(1, $aggregates);
+        self::assertArrayHasKey('posts_id', $aggregates);
+        self::assertSame($aggregate, $aggregates['posts_id']);
+    }
+
+    /**
+     * Test that getAggregateDefinitions returns an empty array when no
+     * aggregates are defined.
+     *
+     * @return void
+     */
+    public function testCompiledSchemaGetAggregateDefinitionsReturnsEmptyWhenNone(): void
+    {
+        $schema = new CompiledSchema([], []);
+
+        self::assertSame([], $schema->getAggregateDefinitions());
+    }
+
+    /**
+     * Test that sum and average aggregates coexist under separate present keys.
+     *
+     * @return void
+     */
+    public function testCompiledSchemaAggregatesCanHoldBothSumAndAvg(): void
+    {
+        $sum = new CompiledAggregateDefinition(
+            presentKey: 'posts_id',
+            relation: 'posts',
+            column: 'id',
+            metric: 'sum',
+            constraint: null,
+            isDefault: true,
+            guards: [],
+        );
+
+        $avg = new CompiledAggregateDefinition(
+            presentKey: 'posts_id_avg',
+            relation: 'posts',
+            column: 'id',
+            metric: 'avg',
+            constraint: null,
+            isDefault: false,
+            guards: [],
+        );
+
+        $schema = new CompiledSchema([], [], ['posts_id' => $sum, 'posts_id_avg' => $avg]);
+
+        $aggregates = $schema->getAggregateDefinitions();
+
+        self::assertCount(2, $aggregates);
+        self::assertSame('sum', $aggregates['posts_id']->metric);
+        self::assertSame('avg', $aggregates['posts_id_avg']->metric);
     }
 }

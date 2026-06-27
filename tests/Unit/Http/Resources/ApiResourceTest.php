@@ -17,6 +17,7 @@ use SineMacula\ApiToolkit\Schema\Field;
 use SineMacula\ApiToolkit\Schema\Relation;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 use SineMacula\Http\Enums\HttpMethod;
+use Tests\Fixtures\Models\AggregateCapturingModel;
 use Tests\Fixtures\Models\Organization;
 use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\Profile;
@@ -2409,6 +2410,231 @@ final class ApiResourceTest extends TestCase
 
         self::assertArrayHasKey('counts', $result);
         self::assertSame(1, $result['counts']['users']);
+    }
+
+    /**
+     * Test that sums payload is included in the resolved output when the sums
+     * virtual field is requested and loadMissing loads the aggregate
+     * attributes.
+     *
+     * Uses AggregateCapturingModel that intercepts loadSum to set the
+     * name that ValueResolver expects, since Eloquent's 'relation as alias'
+     * form produces only the bare alias key rather than the full
+     * presentKey_sum_column key.
+     *
+     * @return void
+     */
+    public function testSumsPayloadIsIncludedWhenLoadMissingAndSumsFieldRequested(): void
+    {
+        assert($this->app !== null);
+
+        /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
+        $parser  = $this->app->make('api.query');
+        $request = Request::create('/', HttpMethod::GET->getVerb(), [
+            'fields' => ['users' => 'id,sums'],
+        ]);
+
+        $parser->parse($request);
+
+        $model = new AggregateCapturingModel;
+
+        $resource = new UserResource($model, true);
+        $result   = $resource->resolve();
+
+        self::assertArrayHasKey('sums', $result);
+        self::assertIsFloat($result['sums']['posts_id']);
+    }
+
+    /**
+     * Test that the sums key is absent when the sums virtual field is requested
+     * but no aggregate attribute is loaded on the model.
+     *
+     * @return void
+     */
+    public function testSumsPayloadIsAbsentWhenNoSumsLoaded(): void
+    {
+        assert($this->app !== null);
+
+        /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
+        $parser  = $this->app->make('api.query');
+        $request = Request::create('/', HttpMethod::GET->getVerb(), [
+            'fields' => ['users' => 'id,sums'],
+        ]);
+
+        $parser->parse($request);
+
+        $user = User::create([
+            'name'  => 'NoSumUser',
+            'email' => 'nosumuser@example.com',
+        ]);
+
+        // No loadMissing and no manual preload - attribute not present on model
+        $resource = new UserResource($user);
+        $result   = $resource->resolve();
+
+        self::assertArrayNotHasKey('sums', $result);
+    }
+
+    /**
+     * Test that averages payload is included when the averages field is
+     * requested and loadMissing loads the aggregate attribute.
+     *
+     * Uses AggregateCapturingModel that intercepts loadAvg to set the
+     * name that ValueResolver expects, since Eloquent's 'relation as alias'
+     * form produces only the bare alias key rather than the full
+     * presentKey_avg_column key.
+     *
+     * @return void
+     */
+    public function testAveragesPayloadIsIncludedWhenLoadMissingAndAveragesFieldRequested(): void
+    {
+        assert($this->app !== null);
+
+        /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
+        $parser  = $this->app->make('api.query');
+        $request = Request::create('/', HttpMethod::GET->getVerb(), [
+            'fields'   => ['users' => 'id,averages'],
+            'averages' => ['users' => ['posts' => 'id']],
+        ]);
+
+        $parser->parse($request);
+
+        $model = new AggregateCapturingModel;
+
+        $resource = new UserResource($model, true);
+        $result   = $resource->resolve();
+
+        self::assertArrayHasKey('averages', $result);
+        self::assertIsFloat($result['averages']['posts_id']);
+    }
+
+    /**
+     * Test that the averages key is absent from the resolved output when the
+     * averages virtual field is not included in the requested fields, even
+     * when getAverages returns a non-null value and an attribute is preloaded.
+     *
+     * @return void
+     */
+    public function testAveragesPayloadIsAbsentWhenShouldIncludeIsFalse(): void
+    {
+        assert($this->app !== null);
+
+        /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
+        $parser  = $this->app->make('api.query');
+        $request = Request::create('/', HttpMethod::GET->getVerb(), [
+            // No 'averages' in fields - shouldInclude returns false
+            'averages' => ['users' => ['posts' => 'id']],
+        ]);
+
+        $parser->parse($request);
+
+        $user = User::create([
+            'name'  => 'AvgFalseUser',
+            'email' => 'avgfalse@example.com',
+        ]);
+
+        // Manually set the avg attribute so resolveAggregatesPayload would
+        // return a non-empty array if the shouldInclude guard is bypassed
+        $user->setAttribute('posts_id_avg_id', 3.0);
+
+        $resource = new UserResource($user);
+        $result   = $resource->resolve();
+
+        self::assertArrayNotHasKey('averages', $result);
+    }
+
+    /**
+     * Test that the averages key is absent when shouldInclude is true but no
+     * average attributes are loaded on the model.
+     *
+     * @return void
+     */
+    public function testAveragesPayloadIsAbsentWhenNoAveragesLoaded(): void
+    {
+        assert($this->app !== null);
+
+        /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
+        $parser  = $this->app->make('api.query');
+        $request = Request::create('/', HttpMethod::GET->getVerb(), [
+            'fields'   => ['users' => 'id,averages'],
+            'averages' => ['users' => ['posts' => 'id']],
+        ]);
+
+        $parser->parse($request);
+
+        $user = User::create([
+            'name'  => 'AvgEmptyUser',
+            'email' => 'avgempty@example.com',
+        ]);
+
+        // No loadMissing and no manual preload - attribute absent on model
+        $resource = new UserResource($user);
+        $result   = $resource->resolve();
+
+        self::assertArrayNotHasKey('averages', $result);
+    }
+
+    /**
+     * Test that loadMissing loads a non-default sum when it is explicitly
+     * requested via the sums query parameter.
+     *
+     * Uses AggregateCapturingModel that intercepts loadSum to set the
+     * name that ValueResolver expects, since Eloquent's 'relation as alias'
+     * form produces only the bare alias key rather than the full
+     * presentKey_sum_column key.
+     *
+     * @return void
+     */
+    public function testLoadMissingLoadsExplicitlyRequestedNonDefaultSum(): void
+    {
+        $this->clearSchemaCache();
+
+        $resourceClass = new class (null) extends ApiResource {
+            /** @var string */
+            public const string RESOURCE_TYPE = 'nondefault_sum_rt';
+
+            /** @var array<int, string> */
+            protected static array $default = ['id', 'sums'];
+
+            /**
+             * Get the resource schema.
+             *
+             * @return array<string, array<string, mixed>>
+             */
+            #[\Override]
+            public static function schema(): array
+            {
+                return [
+                    'id'               => [],
+                    '__sum__:posts_id' => [
+                        'metric'   => 'sum',
+                        'relation' => 'posts',
+                        'column'   => 'id',
+                        'default'  => false,
+                    ],
+                ];
+            }
+        };
+
+        assert($this->app !== null);
+
+        /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
+        $parser  = $this->app->make('api.query');
+        $request = Request::create('/', HttpMethod::GET->getVerb(), [
+            'fields' => ['nondefault_sum_rt' => 'id,sums'],
+            'sums'   => ['nondefault_sum_rt' => ['posts' => 'id']],
+        ]);
+
+        $parser->parse($request);
+
+        $model = new AggregateCapturingModel;
+
+        $instance = new $resourceClass($model, true);
+        $result   = $instance->resolve();
+
+        self::assertArrayHasKey('sums', $result, 'non-default sum must be loaded when explicitly requested');
+
+        $this->clearSchemaCache();
     }
 
     /**

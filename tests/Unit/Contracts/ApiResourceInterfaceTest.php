@@ -97,6 +97,8 @@ final class ApiResourceInterfaceTest extends TestCase
             'resolveFields',
             'eagerLoadMapFor',
             'eagerLoadCountsFor',
+            'eagerLoadSumsFor',
+            'eagerLoadAveragesFor',
             'resolve',
             'withFields',
             'withoutFields',

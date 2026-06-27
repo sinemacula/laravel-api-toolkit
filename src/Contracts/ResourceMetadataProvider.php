@@ -60,4 +60,24 @@ interface ResourceMetadataProvider
      * @return array<int|string, mixed>
      */
     public function eagerLoadCountsFor(string $resourceClass, ?array $requestedAliases = null): array;
+
+    /**
+     * Build the eager-load sums entry list for the given resource class and
+     * requested relation-column map.
+     *
+     * @param  string  $resourceClass
+     * @param  array<string, mixed>|null  $requestedSums
+     * @return list<array<string, mixed>>
+     */
+    public function eagerLoadSumsFor(string $resourceClass, ?array $requestedSums = null): array;
+
+    /**
+     * Build the eager-load averages entry list for the given resource class and
+     * requested relation-column map.
+     *
+     * @param  string  $resourceClass
+     * @param  array<string, mixed>|null  $requestedAverages
+     * @return list<array<string, mixed>>
+     */
+    public function eagerLoadAveragesFor(string $resourceClass, ?array $requestedAverages = null): array;
 }
