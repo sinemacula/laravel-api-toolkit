@@ -18,12 +18,12 @@
     ],
     "require": {
         "php": "^8.3",
-        "illuminate/database": "*",
-        "illuminate/http": "*",
-        "illuminate/notifications": "*",
-        "illuminate/routing": "*",
+        "illuminate/database": "^12.0",
+        "illuminate/http": "^12.0",
+        "illuminate/notifications": "^12.0",
+        "illuminate/routing": "^12.0",
         "illuminate/support": "^12.9",
-        "illuminate/validation": "*",
+        "illuminate/validation": "^12.0",
         "sinemacula/http-primitives-php": "^2.0",
         "sinemacula/laravel-repositories": "^2.0",
         "sinemacula/laravel-resource-exporter": "^2.0"
