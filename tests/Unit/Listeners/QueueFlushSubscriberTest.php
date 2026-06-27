@@ -11,6 +11,7 @@ use Illuminate\Queue\Events\JobProcessed;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Log;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Cache\CacheManager;
 use SineMacula\ApiToolkit\Cache\MetadataKeyRegistry;
@@ -162,5 +163,39 @@ final class QueueFlushSubscriberTest extends TestCase
 
         // Assert
         self::assertNull(Cache::memo()->get($key)); // @phpstan-ignore method.notFound
+    }
+
+    /**
+     * Test that a CacheManager flush failure inside a queue worker is caught
+     * and logged with the full throwable rather than propagating and failing
+     * the job boundary.
+     *
+     * @return void
+     */
+    public function testHandleFlushSwallowsAndLogsCacheFlushFailure(): void
+    {
+        // Arrange
+        Config::set('queue.connections.database.driver', 'database');
+
+        Event::fake();
+
+        $this->mock(SchemaIntrospectionProvider::class)
+            ->shouldReceive('flush')
+            ->once()
+            ->andThrow(new \RuntimeException('flush boom'));
+
+        Log::shouldReceive('error')
+            ->once()
+            ->with('Queue worker cache flush failed', \Mockery::on(
+                static fn (array $context): bool => $context['exception'] instanceof \RuntimeException
+                    && $context['exception']->getMessage() === 'flush boom',
+            ));
+
+        $cacheManager = $this->app->make(CacheManager::class); // @phpstan-ignore method.nonObject
+        $subscriber   = new QueueFlushSubscriber($cacheManager, new RuntimeContext);
+        $event        = new JobProcessed('database', self::createStub(Job::class));
+
+        // Act
+        $subscriber->handleFlush($event);
     }
 }
