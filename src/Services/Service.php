@@ -8,7 +8,6 @@ use Illuminate\Support\Collection;
 use SineMacula\ApiToolkit\Concerns\Lockable;
 use SineMacula\ApiToolkit\Contracts\LockKeyProvider;
 use SineMacula\ApiToolkit\Services\Contracts\ServiceConcern;
-use SineMacula\ApiToolkit\Services\Contracts\ServiceInterface;
 
 /**
  * Base API service.
@@ -16,7 +15,7 @@ use SineMacula\ApiToolkit\Services\Contracts\ServiceInterface;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-abstract class Service implements LockKeyProvider, ServiceInterface
+abstract class Service implements LockKeyProvider
 {
     use Lockable;
 
@@ -89,7 +88,6 @@ abstract class Service implements LockKeyProvider, ServiceInterface
      *
      * @return \SineMacula\ApiToolkit\Services\ServiceResult
      */
-    #[\Override]
     public function run(): ServiceResult
     {
         $pipeline = $this->buildPipeline();
