@@ -4,23 +4,20 @@ declare(strict_types = 1);
 
 namespace SineMacula\ApiToolkit\Http\Resources;
 
-use Illuminate\Contracts\Pagination\CursorPaginator;
-use Illuminate\Contracts\Pagination\LengthAwarePaginator;
-use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 
 /**
  * The base API resource collection.
  *
  * This handles dynamic field filtering based on API query parameters. It
  * leverages a global query parser to determine which fields should be included
- * in the response.
+ * in the response. The shared response envelope - pagination meta/links and the
+ * Total-Count header - is inherited from {@see ToolkitCollection}.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-final class ApiResourceCollection extends AnonymousResourceCollection
+final class ApiResourceCollection extends ToolkitCollection
 {
     /** @var array<int, string>|null Explicit list of fields to be returned in the collection */
     protected ?array $fields;
@@ -84,109 +81,5 @@ final class ApiResourceCollection extends AnonymousResourceCollection
         $this->excludedFields = $fields;
 
         return $this;
-    }
-
-    /**
-     * Customize the response for a request.
-     *
-     * @param  \Illuminate\Http\Request  $request
-     * @param  \Illuminate\Http\JsonResponse  $response
-     * @return void
-     */
-    #[\Override]
-    public function withResponse(Request $request, JsonResponse $response): void
-    {
-        if (!($this->resource instanceof LengthAwarePaginator)) {
-            return;
-        }
-
-        $response->headers->set('Total-Count', (string) $this->resource->total());
-    }
-
-    /**
-     * Customize the pagination information for the resource.
-     *
-     * @param  \Illuminate\Http\Request  $request
-     * @param  array<string, mixed>  $paginated
-     * @param  array<string, mixed>  $default
-     * @return array<string, array<string, mixed>>
-     */
-    public function paginationInformation(Request $request, array $paginated, array $default): array
-    {
-        if ($this->resource instanceof LengthAwarePaginator) {
-            return [
-                'meta'  => $this->buildPaginationMeta($this->resource),
-                'links' => $this->buildPaginationLinks($this->resource),
-            ];
-        }
-
-        if ($this->resource instanceof CursorPaginator) {
-            return [
-                'meta'  => $this->buildCursorPaginationMeta($this->resource),
-                'links' => $this->buildCursorPaginationLinks($this->resource),
-            ];
-        }
-
-        return [];
-    }
-
-    /**
-     * Build the meta for the paginated response.
-     *
-     * @param  \Illuminate\Contracts\Pagination\LengthAwarePaginator<int|string, mixed>  $paginator
-     * @return array<string, bool|int>
-     */
-    private function buildPaginationMeta(LengthAwarePaginator $paginator): array
-    {
-        return [
-            'total'    => $paginator->total(),
-            'count'    => count($paginator->items()),
-            'continue' => $paginator->hasMorePages(),
-        ];
-    }
-
-    /**
-     * Build the links for the paginated response.
-     *
-     * @param  \Illuminate\Contracts\Pagination\LengthAwarePaginator<int|string, mixed>  $paginator
-     * @return array<string, string|null>
-     */
-    private function buildPaginationLinks(LengthAwarePaginator $paginator): array
-    {
-        return [
-            'self'  => $paginator->url($paginator->currentPage()),
-            'first' => $paginator->url(1),
-            'prev'  => $paginator->previousPageUrl(),
-            'next'  => $paginator->nextPageUrl(),
-            'last'  => $paginator->url($paginator->lastPage()),
-        ];
-    }
-
-    /**
-     * Build the meta for cursor-based pagination.
-     *
-     * @param  \Illuminate\Contracts\Pagination\CursorPaginator<int|string, mixed>  $paginator
-     * @return array<string, bool>
-     */
-    private function buildCursorPaginationMeta(CursorPaginator $paginator): array
-    {
-        return [
-            'continue' => $paginator->hasMorePages(),
-        ];
-    }
-
-    /**
-     * Build the links for cursor-based pagination.
-     *
-     * @param  \Illuminate\Contracts\Pagination\CursorPaginator<int|string, mixed>  $paginator
-     * @return array<string, string|null>
-     */
-    private function buildCursorPaginationLinks(CursorPaginator $paginator): array
-    {
-        return [
-            'self' => request()->fullUrl(),
-            'prev' => $paginator->previousPageUrl(),
-            'next' => $paginator->nextPageUrl(),
-        ];
     }
 }
