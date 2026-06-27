@@ -39,11 +39,11 @@ final class QueryParameterBuilderTest extends TestCase
     {
         $parameters = $this->makeBuilder()->build();
 
-        foreach (['Fields', 'Filter', 'Order', 'Limit', 'Page', 'Cursor', 'Counts'] as $name) {
+        foreach (['Fields', 'Filter', 'Order', 'Limit', 'Page', 'Cursor', 'Counts', 'Sums', 'Averages'] as $name) {
             self::assertArrayHasKey($name, $parameters);
         }
 
-        self::assertCount(7, $parameters);
+        self::assertCount(9, $parameters);
     }
 
     /**
@@ -64,6 +64,8 @@ final class QueryParameterBuilderTest extends TestCase
         self::assertSame('page', $parameters['Page']['name']);
         self::assertSame('cursor', $parameters['Cursor']['name']);
         self::assertSame('counts', $parameters['Counts']['name']);
+        self::assertSame('sums', $parameters['Sums']['name']);
+        self::assertSame('averages', $parameters['Averages']['name']);
     }
 
     /**

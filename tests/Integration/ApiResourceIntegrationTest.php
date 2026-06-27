@@ -174,6 +174,45 @@ final class ApiResourceIntegrationTest extends TestCase
     }
 
     /**
+     * Test that sums and averages are computed via the real Eloquent aggregate
+     * path and surfaced in the response.
+     *
+     * Exercises the full loadSum/loadAvg -> ValueResolver path against the
+     * database, so the alias used by EagerLoadPlanner must match the attribute
+     * the resolver reads back. Compares against a direct relation aggregate.
+     *
+     * @return void
+     */
+    public function testSumsAndAveragesAreIncludedInResponse(): void
+    {
+        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), [
+            'fields'   => ['users' => 'name,sums,averages'],
+            'sums'     => ['users' => ['posts' => 'id']],
+            'averages' => ['users' => ['posts' => 'id']],
+        ]);
+        ApiQuery::parse($request);
+
+        $alice = User::query()->where('name', 'Alice')->first();
+
+        self::assertNotNull($alice);
+
+        $postIds     = $alice->posts()->get()->pluck('id');
+        $expectedSum = (float) $postIds->sum(); // @phpstan-ignore cast.double
+        $expectedAvg = (float) $postIds->avg(); // @phpstan-ignore cast.double
+
+        $resource = new UserResource($alice, true);
+        $data     = $resource->resolve();
+
+        self::assertArrayHasKey('sums', $data);
+        self::assertArrayHasKey('posts_id', $data['sums']);
+        self::assertSame($expectedSum, $data['sums']['posts_id']);
+
+        self::assertArrayHasKey('averages', $data);
+        self::assertArrayHasKey('posts_id', $data['averages']);
+        self::assertSame($expectedAvg, $data['averages']['posts_id']);
+    }
+
+    /**
      * Seed the database with test data.
      *
      * @return void

@@ -65,6 +65,22 @@ interface ApiResourceInterface
     public static function eagerLoadCountsFor(?array $requestedAliases = null): array;
 
     /**
+     * Build a withSum-ready entry list for this resource.
+     *
+     * @param  array<string, mixed>|null  $requestedSums
+     * @return list<array<string, mixed>>
+     */
+    public static function eagerLoadSumsFor(?array $requestedSums = null): array;
+
+    /**
+     * Build a withAvg-ready entry list for this resource.
+     *
+     * @param  array<string, mixed>|null  $requestedAverages
+     * @return list<array<string, mixed>>
+     */
+    public static function eagerLoadAveragesFor(?array $requestedAverages = null): array;
+
+    /**
      * Resolve the resource to an array.
      *
      * @param  mixed  $request

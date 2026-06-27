@@ -197,6 +197,64 @@ final class ResourceMetadataProviderTest extends TestCase
     }
 
     /**
+     * Test that eagerLoadSumsFor is declared with string and nullable array
+     * parameters.
+     *
+     * @return void
+     */
+    public function testResourceMetadataProviderDeclaresEagerLoadSumsFor(): void
+    {
+        $reflection = new \ReflectionClass(ResourceMetadataProvider::class);
+        $method     = $reflection->getMethod('eagerLoadSumsFor');
+
+        self::assertTrue($method->isPublic());
+        self::assertFalse($method->isStatic());
+
+        $parameters = $method->getParameters();
+
+        self::assertCount(2, $parameters);
+        self::assertSame('resourceClass', $parameters[0]->getName());
+        self::assertSame('requestedSums', $parameters[1]->getName());
+        self::assertTrue($parameters[1]->allowsNull());
+        self::assertTrue($parameters[1]->isDefaultValueAvailable());
+        self::assertNull($parameters[1]->getDefaultValue());
+
+        $returnType = $method->getReturnType();
+
+        self::assertInstanceOf(\ReflectionNamedType::class, $returnType);
+        self::assertSame('array', $returnType->getName());
+    }
+
+    /**
+     * Test that eagerLoadAveragesFor is declared with string and nullable array
+     * parameters.
+     *
+     * @return void
+     */
+    public function testResourceMetadataProviderDeclaresEagerLoadAveragesFor(): void
+    {
+        $reflection = new \ReflectionClass(ResourceMetadataProvider::class);
+        $method     = $reflection->getMethod('eagerLoadAveragesFor');
+
+        self::assertTrue($method->isPublic());
+        self::assertFalse($method->isStatic());
+
+        $parameters = $method->getParameters();
+
+        self::assertCount(2, $parameters);
+        self::assertSame('resourceClass', $parameters[0]->getName());
+        self::assertSame('requestedAverages', $parameters[1]->getName());
+        self::assertTrue($parameters[1]->allowsNull());
+        self::assertTrue($parameters[1]->isDefaultValueAvailable());
+        self::assertNull($parameters[1]->getDefaultValue());
+
+        $returnType = $method->getReturnType();
+
+        self::assertInstanceOf(\ReflectionNamedType::class, $returnType);
+        self::assertSame('array', $returnType->getName());
+    }
+
+    /**
      * Test that a mock implementing the interface can be instantiated.
      *
      * @return void

@@ -90,8 +90,9 @@ final class SchemaCompiler
     /**
      * Build a CompiledSchema from a raw schema array.
      *
-     * Each entry is sorted into either a CompiledFieldDefinition or a
-     * CompiledCountDefinition based on the presence of a count metric.
+     * Each entry is sorted into a CompiledFieldDefinition, a
+     * CompiledCountDefinition, or a CompiledAggregateDefinition based on the
+     * metric value present in the definition.
      *
      * @param  array<string, array<string, mixed>>  $rawSchema
      * @return \SineMacula\ApiToolkit\Schema\CompiledSchema
@@ -104,34 +105,29 @@ final class SchemaCompiler
         /** @var array<string, \SineMacula\ApiToolkit\Schema\CompiledCountDefinition> $counts */
         $counts = [];
 
+        /** @var array<string, \SineMacula\ApiToolkit\Schema\CompiledAggregateDefinition> $aggregates */
+        $aggregates = [];
+
         $filterable  = [];
         $sortable    = [];
         $traversable = [];
 
         foreach ($rawSchema as $schemaKey => $definition) {
 
-            if (($definition['metric'] ?? null) === 'count') {
+            $metric = $definition['metric'] ?? null;
+
+            if ($metric === 'count') {
                 $counts[self::resolveCountKey($schemaKey, $definition)] = self::buildCountDefinition($schemaKey, $definition);
                 continue;
             }
 
-            $filterableMarker = $definition['filterable'] ?? null;
-
-            if (is_string($filterableMarker)) {
-                $filterable[] = $filterableMarker;
+            if ($metric === 'sum' || $metric === 'avg') {
+                $compiled                                                    = self::buildAggregateDefinition($schemaKey, $definition);
+                $aggregates[$compiled->metric . ':' . $compiled->presentKey] = $compiled;
+                continue;
             }
 
-            $sortableMarker = $definition['sortable'] ?? null;
-
-            if (is_string($sortableMarker)) {
-                $sortable[] = $sortableMarker;
-            }
-
-            $traversableMarker = $definition['traversable'] ?? null;
-
-            if (is_string($traversableMarker)) {
-                $traversable[] = $traversableMarker;
-            }
+            self::collectQueryMarkers($definition, $filterable, $sortable, $traversable);
 
             $fields[$schemaKey] = self::buildFieldDefinition($definition);
         }
@@ -139,6 +135,7 @@ final class SchemaCompiler
         return new CompiledSchema(
             $fields,
             $counts,
+            $aggregates,
             array_values(array_unique($filterable)),
             array_values(array_unique($sortable)),
             array_values(array_unique($traversable)),
@@ -182,6 +179,105 @@ final class SchemaCompiler
             isDefault : (bool) ($definition['default'] ?? false),
             guards    : $definition['guards'] ?? [],
         );
+    }
+
+    /**
+     * Resolve the presentation key for an aggregate definition.
+     *
+     * Returns the bare present key used both as the `presentKey` property on
+     * the compiled definition and as the suffix for the Eloquent attribute
+     * name.
+     * Both the `__sum__:` and `__avg__:` prefixes are 8 characters long, so a
+     * single substr offset strips either.
+     *
+     * The dict key stored in `$aggregates` is `{metric}:{presentKey}`; this
+     * method returns only the bare present-key portion.
+     *
+     * @param  string  $schemaKey
+     * @param  array<string, mixed>  $definition
+     * @return string
+     */
+    private static function resolveAggregateKey(string $schemaKey, array $definition): string
+    {
+        $key = $definition['key'] ?? null;
+
+        if (is_string($key)) {
+            return $key;
+        }
+
+        return (str_starts_with($schemaKey, '__sum__:') || str_starts_with($schemaKey, '__avg__:'))
+            ? substr($schemaKey, 8)
+            : $schemaKey;
+    }
+
+    /**
+     * Build a CompiledAggregateDefinition from a raw definition array.
+     *
+     * @param  string  $schemaKey
+     * @param  array<string, mixed>  $definition
+     * @return \SineMacula\ApiToolkit\Schema\CompiledAggregateDefinition
+     */
+    private static function buildAggregateDefinition(string $schemaKey, array $definition): CompiledAggregateDefinition
+    {
+        $presentKey = self::resolveAggregateKey($schemaKey, $definition);
+        $constraint = $definition['constraint'] ?? null;
+        $metric     = self::stringOr($definition['metric'] ?? null, '');
+        $column     = self::stringOr($definition['column'] ?? null, '');
+
+        return new CompiledAggregateDefinition(
+            presentKey: $presentKey,
+            relation  : self::stringOr($definition['relation'] ?? null, $presentKey),
+            column    : $column,
+            metric    : $metric,
+            constraint: $constraint instanceof \Closure ? $constraint : null,
+            isDefault : (bool) ($definition['default'] ?? false),
+            guards    : $definition['guards'] ?? [],
+        );
+    }
+
+    /**
+     * Collect filterable, sortable, and traversable markers from a field
+     * definition into the corresponding accumulator arrays.
+     *
+     * @param  array<string, mixed>  $definition
+     * @param  array<int, string>  $filterable
+     * @param  array<int, string>  $sortable
+     * @param  array<int, string>  $traversable
+     * @return void
+     */
+    private static function collectQueryMarkers(array $definition, array &$filterable, array &$sortable, array &$traversable): void
+    {
+        $filterableMarker = $definition['filterable'] ?? null;
+
+        if (is_string($filterableMarker)) {
+            $filterable[] = $filterableMarker;
+        }
+
+        $sortableMarker = $definition['sortable'] ?? null;
+
+        if (is_string($sortableMarker)) {
+            $sortable[] = $sortableMarker;
+        }
+
+        $traversableMarker = $definition['traversable'] ?? null;
+
+        if (!is_string($traversableMarker)) {
+            return;
+        }
+
+        $traversable[] = $traversableMarker;
+    }
+
+    /**
+     * Return $value as a string, or $default when $value is not a string.
+     *
+     * @param  mixed  $value
+     * @param  string  $default
+     * @return string
+     */
+    private static function stringOr(mixed $value, string $default): string
+    {
+        return is_string($value) ? $value : $default;
     }
 
     /**

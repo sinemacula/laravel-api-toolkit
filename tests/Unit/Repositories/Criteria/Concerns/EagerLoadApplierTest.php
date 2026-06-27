@@ -296,6 +296,186 @@ final class EagerLoadApplierTest extends TestCase
     }
 
     /**
+     * Test that apply calls withSum() for each sum entry when the sum map is
+     * not empty.
+     *
+     * @return void
+     */
+    public function testApplyAddsWithSumWhenSumEntriesExist(): void
+    {
+        $this->parseRequest(new Request([
+            'fields' => ['users' => self::STUB_USER_FIELDS],
+            'sums'   => ['users' => ['posts' => 'id']],
+        ]));
+
+        $provider = self::createStub(ResourceMetadataProvider::class);
+
+        $provider->method('resolveFields')
+            ->willReturn(['id', 'name']);
+
+        $provider->method('eagerLoadMapFor')
+            ->willReturn([]);
+
+        $provider->method('eagerLoadCountsFor')
+            ->willReturn([]);
+
+        $provider->method('eagerLoadSumsFor')
+            ->willReturn([['relation' => 'posts as posts_id', 'column' => 'id']]);
+
+        $provider->method('eagerLoadAveragesFor')
+            ->willReturn([]);
+
+        $query  = (new User)->newQuery();
+        $result = $this->applier->apply($query, $provider, UserResource::class, 'users');
+
+        // withSum adds a select sub-query, so columns should be non-empty
+        self::assertNotNull($result->getQuery()->columns);
+    }
+
+    /**
+     * Test that apply skips withSum() when the sum entry list is empty.
+     *
+     * @return void
+     */
+    public function testApplySkipsWithSumWhenSumEntriesEmpty(): void
+    {
+        $this->parseRequest(new Request([
+            'fields' => ['users' => self::STUB_USER_FIELDS],
+        ]));
+
+        $provider = self::createStub(ResourceMetadataProvider::class);
+
+        $provider->method('resolveFields')
+            ->willReturn(['id', 'name']);
+
+        $provider->method('eagerLoadMapFor')
+            ->willReturn([]);
+
+        $provider->method('eagerLoadCountsFor')
+            ->willReturn([]);
+
+        $provider->method('eagerLoadSumsFor')
+            ->willReturn([]);
+
+        $provider->method('eagerLoadAveragesFor')
+            ->willReturn([]);
+
+        $query  = (new User)->newQuery();
+        $result = $this->applier->apply($query, $provider, UserResource::class, 'users');
+
+        self::assertEmpty($result->getQuery()->columns ?? []);
+    }
+
+    /**
+     * Test that apply passes the actual requested sums to eagerLoadSumsFor,
+     * not an empty array produced by coalescing.
+     *
+     * @return void
+     */
+    public function testApplyPassesActualRequestedSumsToEagerLoadSumsFor(): void
+    {
+        $this->parseRequest(new Request([
+            'fields' => ['users' => self::STUB_USER_FIELDS],
+            'sums'   => ['users' => ['posts' => 'id']],
+        ]));
+
+        $provider = $this->createMock(ResourceMetadataProvider::class);
+
+        $provider->method('resolveFields')
+            ->willReturn(['id', 'name']);
+
+        $provider->method('eagerLoadMapFor')
+            ->willReturn([]);
+
+        $provider->method('eagerLoadCountsFor')
+            ->willReturn([]);
+
+        $provider->expects(self::once())
+            ->method('eagerLoadSumsFor')
+            ->with(UserResource::class, ['posts' => ['id']])
+            ->willReturn([]);
+
+        $provider->method('eagerLoadAveragesFor')
+            ->willReturn([]);
+
+        $query = (new User)->newQuery();
+        $this->applier->apply($query, $provider, UserResource::class, 'users');
+    }
+
+    /**
+     * Test that apply passes the actual requested averages to
+     * eagerLoadAveragesFor, not an empty array produced by coalescing.
+     *
+     * @return void
+     */
+    public function testApplyPassesActualRequestedAveragesToEagerLoadAveragesFor(): void
+    {
+        $this->parseRequest(new Request([
+            'fields'   => ['users' => self::STUB_USER_FIELDS],
+            'averages' => ['users' => ['posts' => 'id']],
+        ]));
+
+        $provider = $this->createMock(ResourceMetadataProvider::class);
+
+        $provider->method('resolveFields')
+            ->willReturn(['id', 'name']);
+
+        $provider->method('eagerLoadMapFor')
+            ->willReturn([]);
+
+        $provider->method('eagerLoadCountsFor')
+            ->willReturn([]);
+
+        $provider->method('eagerLoadSumsFor')
+            ->willReturn([]);
+
+        $provider->expects(self::once())
+            ->method('eagerLoadAveragesFor')
+            ->with(UserResource::class, ['posts' => ['id']])
+            ->willReturn([]);
+
+        $query = (new User)->newQuery();
+        $this->applier->apply($query, $provider, UserResource::class, 'users');
+    }
+
+    /**
+     * Test that apply calls withAvg() on the query for each entry returned by
+     * eagerLoadAveragesFor.
+     *
+     * @return void
+     */
+    public function testApplyAddsWithAvgWhenAvgEntriesExist(): void
+    {
+        $this->parseRequest(new Request([
+            'fields'   => ['users' => self::STUB_USER_FIELDS],
+            'averages' => ['users' => ['posts' => 'id']],
+        ]));
+
+        $provider = self::createStub(ResourceMetadataProvider::class);
+
+        $provider->method('resolveFields')
+            ->willReturn(['id', 'name']);
+
+        $provider->method('eagerLoadMapFor')
+            ->willReturn([]);
+
+        $provider->method('eagerLoadCountsFor')
+            ->willReturn([]);
+
+        $provider->method('eagerLoadSumsFor')
+            ->willReturn([]);
+
+        $provider->method('eagerLoadAveragesFor')
+            ->willReturn([['relation' => 'posts as posts_id', 'column' => 'id']]);
+
+        $query  = (new User)->newQuery();
+        $result = $this->applier->apply($query, $provider, UserResource::class, 'users');
+
+        // withAvg appends a select sub-query; columns list must be non-empty
+        self::assertNotNull($result->getQuery()->columns, 'withAvg must be applied when avg entries are returned');
+    }
+
+    /**
      * Resolve the API query parser and parse the given request.
      *
      * @param  \Illuminate\Http\Request  $request
