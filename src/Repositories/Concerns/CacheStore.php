@@ -249,6 +249,26 @@ final class CacheStore implements CacheInvalidator
      * Resolve the table's current generational version, memoised for the
      * lifetime of this store instance.
      *
+     * CONSISTENCY CONTRACT - NON-TAGGABLE STORES (file, database, etc.)
+     *
+     * The version is read from the cache once per instance and then held in
+     * $this->version for the remainder of the request. This is intentional
+     * request-scoped snapshotting: within a single request all cache-key
+     * lookups embed the same version, so reads are coherent and the per-query
+     * keys remain stable without repeated round-trips to the backing store.
+     *
+     * The trade-off is eventual consistency across processes. If a different
+     * request (or queue worker) bumps the version via a write while this
+     * instance is alive, the bump is invisible here until this instance is
+     * destroyed (typically at end-of-request). During that window this
+     * instance may serve cache entries that have been logically invalidated
+     * by the other process. Because the orphaned entries expire naturally by
+     * their TTL, the inconsistency is bounded and self-healing.
+     *
+     * Taggable stores (e.g. Redis with tags enabled) are not affected by this
+     * contract - they skip the generational-version path entirely and rely on
+     * the tag-invalidation mechanism instead.
+     *
      * @return int
      */
     private function tableVersion(): int
