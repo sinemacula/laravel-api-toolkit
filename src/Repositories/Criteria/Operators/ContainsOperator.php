@@ -5,6 +5,7 @@ declare(strict_types = 1);
 namespace SineMacula\ApiToolkit\Repositories\Criteria\Operators;
 
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\Log;
 use SineMacula\ApiToolkit\Contracts\FilterOperator;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext;
 
@@ -102,8 +103,8 @@ final class ContainsOperator implements FilterOperator
     }
 
     /**
-     * Apply a JSON containment constraint, silently discarding values that
-     * are not JSON-compatible scalars (e.g. null).
+     * Apply a JSON containment constraint, logging and discarding values that
+     * the active grammar rejects (e.g. non-JSON-compatible scalars like null).
      *
      * @param  \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>  $query
      * @param  string  $column
@@ -114,9 +115,16 @@ final class ContainsOperator implements FilterOperator
     {
         try {
             $query->getQuery()->whereJsonContains($column, $value);
-        } catch (\RuntimeException) { // @codeCoverageIgnore
-            // Silently discard: the active grammar may reject a JSON-contains
-            // clause for non-JSON-compatible scalar values (e.g. null)
-        } // @codeCoverageIgnore
+        } catch (\RuntimeException $exception) {
+            // Drop the constraint: the grammar may reject a JSON-containment
+            // clause for non-JSON scalars (e.g. null). Log it so a recurring
+            // rejection is diagnosable rather than silently widening results.
+            Log::debug('Dropped unsupported $contains filter constraint', [
+                'table'      => $query->getModel()->getTable(),
+                'column'     => $column,
+                'value_type' => get_debug_type($value),
+                'reason'     => $exception->getMessage(),
+            ]);
+        }
     }
 }
