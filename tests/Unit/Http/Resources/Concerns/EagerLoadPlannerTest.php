@@ -648,6 +648,269 @@ final class EagerLoadPlannerTest extends TestCase
     }
 
     /**
+     * Test that default sums are included when no relation-column map is
+     * requested.
+     *
+     * @return void
+     */
+    public function testBuildSumMapReturnsDefaultSumsWhenNoRequestMade(): void
+    {
+        $result = EagerLoadPlanner::buildSumMap(UserResource::class);
+
+        self::assertNotEmpty($result);
+        self::assertSame('posts as posts_id_sum_id', $result[0]['relation']);
+        self::assertSame('id', $result[0]['column']);
+    }
+
+    /**
+     * Test that non-default sums are excluded when no request is made.
+     *
+     * @return void
+     */
+    public function testBuildSumMapExcludesNonDefaultSumsWhenNoRequestMade(): void
+    {
+        $result = EagerLoadPlanner::buildAvgMap(UserResource::class);
+
+        self::assertSame([], $result);
+    }
+
+    /**
+     * Test that only the explicitly requested relation-column entries are
+     * included in the sum map.
+     *
+     * @return void
+     */
+    public function testBuildSumMapReturnsOnlyRequestedEntries(): void
+    {
+        $result = EagerLoadPlanner::buildSumMap(UserResource::class, ['posts' => ['id']]);
+
+        self::assertCount(1, $result);
+        self::assertSame('id', $result[0]['column']);
+    }
+
+    /**
+     * Test that a requested relation not present in the schema produces an
+     * empty sum map.
+     *
+     * @return void
+     */
+    public function testBuildSumMapReturnsEmptyForUnknownRelation(): void
+    {
+        $result = EagerLoadPlanner::buildSumMap(UserResource::class, ['nonexistent' => ['id']]);
+
+        self::assertSame([], $result);
+    }
+
+    /**
+     * Test that a constrained sum entry produces an associative relation entry.
+     *
+     * @return void
+     */
+    public function testBuildSumMapReturnsScopedEntryForConstrainedSum(): void
+    {
+        $constraint = fn ($query) => $query->where('active', true);
+
+        $constrainedSumResource = new class {
+            /** @var string The resource type identifier. */
+            public const string RESOURCE_TYPE = 'constrained_sum_test';
+
+            /** @var (\Closure(\Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>): void)|null */
+            public static ?\Closure $constraint = null;
+
+            /**
+             * @return array<string, array<string, mixed>>
+             */
+            public static function schema(): array
+            {
+                return [
+                    '__sum__:posts_id' => [
+                        'key'        => 'posts_id',
+                        'metric'     => 'sum',
+                        'relation'   => 'posts',
+                        'column'     => 'id',
+                        'constraint' => self::$constraint,
+                        'default'    => true,
+                    ],
+                ];
+            }
+        };
+
+        $constrainedSumResource::$constraint = $constraint;
+        $resourceClass                       = $constrainedSumResource::class;
+
+        $result = EagerLoadPlanner::buildSumMap($resourceClass);
+
+        self::assertCount(1, $result);
+        self::assertIsArray($result[0]['relation']);
+    }
+
+    /**
+     * Test that buildSumMap continues past aggregate definitions that are
+     * excluded by shouldIncludeAggregate and still includes later entries that
+     * are included.
+     *
+     * @return void
+     */
+    public function testBuildSumMapContinuesPastExcludedAggregates(): void
+    {
+        $multiSumResource = new class {
+            /** @var string */
+            public const string RESOURCE_TYPE = 'multi_sum_continue_test';
+
+            /**
+             * @return array<string, array<string, mixed>>
+             */
+            public static function schema(): array
+            {
+                return [
+                    '__sum__:posts_id' => [
+                        'metric'   => 'sum',
+                        'relation' => 'posts',
+                        'column'   => 'id',
+                        'default'  => false,
+                    ],
+                    '__sum__:comments_id' => [
+                        'metric'   => 'sum',
+                        'relation' => 'comments',
+                        'column'   => 'id',
+                        'default'  => true,
+                    ],
+                ];
+            }
+        };
+
+        // No request passed - only defaults are included.
+        // The first sum (posts_id) is not default, so it must be skipped;
+        // the second (comments_id) is default, so it must be included.
+        $result = EagerLoadPlanner::buildSumMap($multiSumResource::class);
+
+        self::assertCount(1, $result);
+        $relation = $result[0]['relation'];
+        self::assertIsString($relation);
+        self::assertStringContainsString('comments', $relation);
+    }
+
+    /**
+     * Test that a constrained sum entry carries the aliased relation name as
+     * the key in the relation array, not an empty array.
+     *
+     * @return void
+     */
+    public function testBuildSumMapConstrainedRelationHasAliasedKey(): void
+    {
+        $constraint = fn ($query) => $query->where('active', true);
+
+        $constrainedSumResource = new class {
+            /** @var string */
+            public const string RESOURCE_TYPE = 'constrained_sum_key_test';
+
+            /** @var (\Closure(\Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>): void)|null */
+            public static ?\Closure $constraint = null;
+
+            /**
+             * @return array<string, array<string, mixed>>
+             */
+            public static function schema(): array
+            {
+                return [
+                    '__sum__:posts_id' => [
+                        'key'        => 'posts_id',
+                        'metric'     => 'sum',
+                        'relation'   => 'posts',
+                        'column'     => 'id',
+                        'constraint' => self::$constraint,
+                        'default'    => true,
+                    ],
+                ];
+            }
+        };
+
+        $constrainedSumResource::$constraint = $constraint;
+
+        $result = EagerLoadPlanner::buildSumMap($constrainedSumResource::class);
+
+        self::assertCount(1, $result);
+        self::assertIsArray($result[0]['relation']);
+        self::assertArrayHasKey('posts as posts_id_sum_id', $result[0]['relation']);
+        self::assertSame($constraint, $result[0]['relation']['posts as posts_id_sum_id']);
+    }
+
+    /**
+     * Test that a memoised sum map is returned without rebuilding.
+     *
+     * @return void
+     */
+    public function testBuildSumMapReturnsMemoisedResult(): void
+    {
+        $this->setStaticProperty(EagerLoadPlanner::class, 'aggregateCache', ['sum:' . UserResource::class . '|*' => [['relation' => 'sentinel', 'column' => 'id']]]);
+
+        $result = EagerLoadPlanner::buildSumMap(UserResource::class);
+
+        self::assertSame([['relation' => 'sentinel', 'column' => 'id']], $result);
+    }
+
+    /**
+     * Test that default averages are included when no relation-column map is
+     * requested.
+     *
+     * @return void
+     */
+    public function testBuildAvgMapReturnsDefaultAvgsWhenNoRequestMade(): void
+    {
+        // UserResource has no default averages
+        $result = EagerLoadPlanner::buildAvgMap(UserResource::class);
+
+        self::assertSame([], $result);
+    }
+
+    /**
+     * Test that only the explicitly requested relation-column entries are
+     * included in the avg map.
+     *
+     * @return void
+     */
+    public function testBuildAvgMapReturnsOnlyRequestedEntries(): void
+    {
+        $result = EagerLoadPlanner::buildAvgMap(UserResource::class, ['posts' => ['id']]);
+
+        self::assertCount(1, $result);
+        self::assertSame('id', $result[0]['column']);
+    }
+
+    /**
+     * Test that a memoised avg map is returned without rebuilding.
+     *
+     * @return void
+     */
+    public function testBuildAvgMapReturnsMemoisedResult(): void
+    {
+        $this->setStaticProperty(EagerLoadPlanner::class, 'aggregateCache', ['avg:' . UserResource::class . '|*' => [['relation' => 'sentinel_avg', 'column' => 'score']]]);
+
+        $result = EagerLoadPlanner::buildAvgMap(UserResource::class);
+
+        self::assertSame([['relation' => 'sentinel_avg', 'column' => 'score']], $result);
+    }
+
+    /**
+     * Test that clearing the cache resets sum and avg memos.
+     *
+     * @return void
+     */
+    public function testClearCacheResetsSumAndAvgMemos(): void
+    {
+        $this->setStaticProperty(EagerLoadPlanner::class, 'aggregateCache', [
+            'sum:key' => [['relation' => 'x', 'column' => 'y']],
+            'avg:key' => [['relation' => 'a', 'column' => 'b']],
+        ]);
+
+        EagerLoadPlanner::clearCache();
+
+        $aggregateCache = $this->getStaticProperty(EagerLoadPlanner::class, 'aggregateCache');
+
+        self::assertSame([], $aggregateCache);
+    }
+
+    /**
      * Test that blank API-query fields for a child resource fall back to the
      * child's default fields during recursion.
      *

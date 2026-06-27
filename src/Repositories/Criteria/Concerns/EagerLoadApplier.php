@@ -57,6 +57,36 @@ final class EagerLoadApplier
             $query->withCount($withCounts);
         }
 
+        $this->applyAggregates($query, $metadataProvider, $resourceClass, $resourceType);
+
         return $query;
+    }
+
+    /**
+     * Apply sum and average aggregate eager loads to the query.
+     *
+     * @param  \Illuminate\Contracts\Database\Eloquent\Builder  $query
+     * @param  \SineMacula\ApiToolkit\Contracts\ResourceMetadataProvider  $metadataProvider
+     * @param  string  $resourceClass
+     * @param  string|null  $resourceType
+     * @return void
+     */
+    private function applyAggregates(Builder $query, ResourceMetadataProvider $metadataProvider, string $resourceClass, ?string $resourceType): void
+    {
+        $requestedSums = ApiQuery::getSums($resourceType) ?? [];
+        $sumEntries    = $metadataProvider->eagerLoadSumsFor($resourceClass, $requestedSums);
+
+        if (!empty($sumEntries)) {
+            foreach ($sumEntries as $entry) {
+                $query->withSum($entry['relation'], $entry['column']); // @phpstan-ignore argument.type
+            }
+        }
+
+        $requestedAverages = ApiQuery::getAverages($resourceType) ?? [];
+        $avgEntries        = $metadataProvider->eagerLoadAveragesFor($resourceClass, $requestedAverages);
+
+        foreach ($avgEntries as $entry) {
+            $query->withAvg($entry['relation'], $entry['column']); // @phpstan-ignore argument.type
+        }
     }
 }

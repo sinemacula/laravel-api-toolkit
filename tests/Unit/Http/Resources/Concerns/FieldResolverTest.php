@@ -361,6 +361,172 @@ final class FieldResolverTest extends TestCase
     }
 
     /**
+     * Test that shouldIncludeSumsField returns true when sums is in the API
+     * query fields.
+     *
+     * @return void
+     */
+    public function testShouldIncludeSumsFieldReturnsTrueWhenSumsRequested(): void
+    {
+
+        ApiQuery::shouldReceive('getFields')
+            ->with('users')
+            ->andReturn(['name', 'sums']);
+
+        self::assertTrue($this->resolver->shouldIncludeSumsField('users', []));
+    }
+
+    /**
+     * Test that shouldIncludeSumsField returns false when sums is excluded via
+     * withoutFields.
+     *
+     * @return void
+     */
+    public function testShouldIncludeSumsFieldReturnsFalseWhenSumsExcluded(): void
+    {
+
+        $this->resolver->withoutFields(['sums']);
+
+        ApiQuery::shouldReceive('getFields')
+            ->with('users')
+            ->andReturn(['name', 'sums']);
+
+        self::assertFalse($this->resolver->shouldIncludeSumsField('users', []));
+    }
+
+    /**
+     * Test that shouldIncludeSumsField returns true when sums is in the default
+     * fields and not excluded.
+     *
+     * @return void
+     */
+    public function testShouldIncludeSumsFieldReturnsTrueWhenInDefaultFields(): void
+    {
+
+        ApiQuery::shouldReceive('getFields')
+            ->with('users')
+            ->andReturn(null);
+
+        self::assertTrue($this->resolver->shouldIncludeSumsField('users', ['name', 'sums']));
+    }
+
+    /**
+     * Test that shouldIncludeSumsField returns true in all-fields mode.
+     *
+     * @return void
+     */
+    public function testShouldIncludeSumsFieldReturnsTrueInAllMode(): void
+    {
+
+        $this->resolver->withAll();
+
+        ApiQuery::shouldReceive('getFields')
+            ->with('users')
+            ->andReturn(null);
+
+        self::assertTrue($this->resolver->shouldIncludeSumsField('users', []));
+    }
+
+    /**
+     * Test that shouldIncludeSumsField returns false when requested fields
+     * lack sums and it is not in defaults.
+     *
+     * @return void
+     */
+    public function testShouldIncludeSumsFieldReturnsFalseWhenNotRequestedAndNotInDefaults(): void
+    {
+
+        ApiQuery::shouldReceive('getFields')
+            ->with('users')
+            ->andReturn(['name']);
+
+        self::assertFalse($this->resolver->shouldIncludeSumsField('users', []));
+    }
+
+    /**
+     * Test that shouldIncludeAveragesField returns true when averages is in
+     * the API query fields.
+     *
+     * @return void
+     */
+    public function testShouldIncludeAveragesFieldReturnsTrueWhenAveragesRequested(): void
+    {
+
+        ApiQuery::shouldReceive('getFields')
+            ->with('users')
+            ->andReturn(['name', 'averages']);
+
+        self::assertTrue($this->resolver->shouldIncludeAveragesField('users', []));
+    }
+
+    /**
+     * Test that shouldIncludeAveragesField returns false when averages is
+     * excluded via withoutFields.
+     *
+     * @return void
+     */
+    public function testShouldIncludeAveragesFieldReturnsFalseWhenAveragesExcluded(): void
+    {
+
+        $this->resolver->withoutFields(['averages']);
+
+        ApiQuery::shouldReceive('getFields')
+            ->with('users')
+            ->andReturn(['name', 'averages']);
+
+        self::assertFalse($this->resolver->shouldIncludeAveragesField('users', []));
+    }
+
+    /**
+     * Test that shouldIncludeAveragesField returns true when averages is in
+     * the default fields and not excluded.
+     *
+     * @return void
+     */
+    public function testShouldIncludeAveragesFieldReturnsTrueWhenInDefaultFields(): void
+    {
+
+        ApiQuery::shouldReceive('getFields')
+            ->with('users')
+            ->andReturn(null);
+
+        self::assertTrue($this->resolver->shouldIncludeAveragesField('users', ['name', 'averages']));
+    }
+
+    /**
+     * Test that shouldIncludeAveragesField returns true in all-fields mode.
+     *
+     * @return void
+     */
+    public function testShouldIncludeAveragesFieldReturnsTrueInAllMode(): void
+    {
+
+        $this->resolver->withAll();
+
+        ApiQuery::shouldReceive('getFields')
+            ->with('users')
+            ->andReturn(null);
+
+        self::assertTrue($this->resolver->shouldIncludeAveragesField('users', []));
+    }
+
+    /**
+     * Test that shouldIncludeAveragesField returns false when not requested and
+     * absent from defaults.
+     *
+     * @return void
+     */
+    public function testShouldIncludeAveragesFieldReturnsFalseWhenNotRequestedAndNotInDefaults(): void
+    {
+
+        ApiQuery::shouldReceive('getFields')
+            ->with('users')
+            ->andReturn(['name']);
+
+        self::assertFalse($this->resolver->shouldIncludeAveragesField('users', []));
+    }
+
+    /**
      * Create a CompiledSchema with the given field keys using stub definitions.
      *
      * @param  array<int, string>  $keys

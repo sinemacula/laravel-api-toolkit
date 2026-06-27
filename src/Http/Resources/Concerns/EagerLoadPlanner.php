@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Illuminate\Database\Eloquent\Relations\Relation as EloquentRelation;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
 use SineMacula\ApiToolkit\Http\Resources\ApiResource;
+use SineMacula\ApiToolkit\Schema\CompiledAggregateDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledCountDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
@@ -33,6 +34,9 @@ final class EagerLoadPlanner
 
     /** @var array<string, array<int|string, mixed>> Memo of count maps, keyed by resource class + alias signature. */
     private static array $countCache = [];
+
+    /** @var array<string, list<array<string, mixed>>> Memo of aggregate entry lists, keyed by metric:resource class + requested signature. */
+    private static array $aggregateCache = [];
 
     /**
      * Build a with()-ready eager-load map for the given fields.
@@ -69,7 +73,7 @@ final class EagerLoadPlanner
     }
 
     /**
-     * Clear the static eager-load and count map memos.
+     * Clear the static eager-load, count, and aggregate map memos.
      *
      * Invoked by CacheManager::flush() at request and worker boundaries.
      *
@@ -79,6 +83,7 @@ final class EagerLoadPlanner
     {
         self::$eagerLoadCache = [];
         self::$countCache     = [];
+        self::$aggregateCache = [];
     }
 
     /**
@@ -123,6 +128,86 @@ final class EagerLoadPlanner
         }
 
         return self::$countCache[$key] = $with;
+    }
+
+    /**
+     * Build a withSum-ready entry list for the given resource class.
+     *
+     * Returns a list of entries, each carrying an aliased relation (string or
+     * constrained array) and a column, so the applier can call
+     * withSum($entry['relation'], $entry['column']) per entry.
+     *
+     * @param  string  $resourceClass
+     * @param  array<string, mixed>|null  $requested
+     * @return list<array<string, mixed>>
+     */
+    public static function buildSumMap(string $resourceClass, ?array $requested = null): array
+    {
+        return self::buildAggregateMap($resourceClass, 'sum', $requested);
+    }
+
+    /**
+     * Build a withAvg-ready entry list for the given resource class.
+     *
+     * Returns a list of entries, each carrying an aliased relation (string or
+     * constrained array) and a column, so the applier can call
+     * withAvg($entry['relation'], $entry['column']) per entry.
+     *
+     * @param  string  $resourceClass
+     * @param  array<string, mixed>|null  $requested
+     * @return list<array<string, mixed>>
+     */
+    public static function buildAvgMap(string $resourceClass, ?array $requested = null): array
+    {
+        return self::buildAggregateMap($resourceClass, 'avg', $requested);
+    }
+
+    /**
+     * Build a withSum/withAvg-ready entry list for the given resource class
+     * and metric ('sum' or 'avg').
+     *
+     * Results are memoised in $aggregateCache, keyed by metric:class|requested
+     * signature, so both metrics share one cache cleared by clearCache().
+     *
+     * @param  string  $resourceClass
+     * @param  string  $metric
+     * @param  array<string, mixed>|null  $requested
+     * @return list<array<string, mixed>>
+     */
+    private static function buildAggregateMap(string $resourceClass, string $metric, ?array $requested): array
+    {
+        $cacheKey = $metric . ':' . $resourceClass . '|' . (!$requested ? '*' : json_encode($requested));
+
+        if (isset(self::$aggregateCache[$cacheKey])) {
+            return self::$aggregateCache[$cacheKey];
+        }
+
+        $schema  = SchemaCompiler::compile($resourceClass);
+        $entries = [];
+
+        foreach ($schema->getAggregateDefinitions() as $definition) {
+
+            if ($definition->metric !== $metric) {
+                continue;
+            }
+
+            if (!self::shouldIncludeAggregate($definition, $requested)) {
+                continue;
+            }
+
+            // Alias the aggregate to the full attribute name the resolver
+            // reads back ({presentKey}_{metric}_{column}); Laravel uses the
+            // "as" alias verbatim as the result column, so it must match.
+            $aliased    = $definition->relation . ' as ' . $definition->presentKey . '_' . $metric . '_' . $definition->column;
+            $constraint = $definition->constraint;
+
+            $entries[] = [
+                'relation' => $constraint instanceof \Closure ? [$aliased => $constraint] : $aliased,
+                'column'   => $definition->column,
+            ];
+        }
+
+        return self::$aggregateCache[$cacheKey] = $entries;
     }
 
     /**
@@ -383,6 +468,28 @@ final class EagerLoadPlanner
     {
         if (is_array($requested) && $requested !== []) {
             return in_array($presentKey, $requested, true);
+        }
+
+        return $definition->isDefault;
+    }
+
+    /**
+     * Determine whether an aggregate definition should be included based on the
+     * requested relation-column map or the default flag.
+     *
+     * An aggregate is "requested" when its relation is a key in the requested
+     * map and its column appears in that relation's column list.
+     *
+     * @param  \SineMacula\ApiToolkit\Schema\CompiledAggregateDefinition  $definition
+     * @param  array<string, mixed>|null  $requested
+     * @return bool
+     */
+    private static function shouldIncludeAggregate(CompiledAggregateDefinition $definition, ?array $requested): bool
+    {
+        if (is_array($requested) && $requested !== []) {
+            $columns = $requested[$definition->relation] ?? null;
+
+            return is_array($columns) && in_array($definition->column, $columns, true);
         }
 
         return $definition->isDefault;

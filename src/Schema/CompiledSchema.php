@@ -5,7 +5,7 @@ declare(strict_types = 1);
 namespace SineMacula\ApiToolkit\Schema;
 
 /**
- * Typed value object holding compiled field and count definitions.
+ * Typed value object holding compiled field, count, and aggregate definitions.
  *
  * Provides typed access to the compiled schema data, replacing the untyped
  * associative arrays previously used in the schema cache.
@@ -20,6 +20,7 @@ final readonly class CompiledSchema
      *
      * @param  array<string, \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition>  $fields
      * @param  array<string, \SineMacula\ApiToolkit\Schema\CompiledCountDefinition>  $counts
+     * @param  array<string, \SineMacula\ApiToolkit\Schema\CompiledAggregateDefinition>  $aggregates
      * @param  array<int, string>  $filterableColumns
      * @param  array<int, string>  $sortableColumns
      * @param  array<int, string>  $traversableRelations
@@ -31,6 +32,9 @@ final readonly class CompiledSchema
 
         /** The compiled count definitions keyed by present key */
         private array $counts,
+
+        /** The compiled aggregate definitions keyed by present key */
+        private array $aggregates = [],
 
         /** Declared filterable column names */
         private array $filterableColumns = [],
@@ -73,6 +77,31 @@ final readonly class CompiledSchema
     public function getCountDefinitions(): array
     {
         return $this->counts;
+    }
+
+    /**
+     * Return the full associative array of aggregate (sum / average)
+     * definitions keyed by dict key.
+     *
+     * @return array<string, \SineMacula\ApiToolkit\Schema\CompiledAggregateDefinition>
+     */
+    public function getAggregateDefinitions(): array
+    {
+        return $this->aggregates;
+    }
+
+    /**
+     * Return aggregate definitions filtered to those matching the given metric.
+     *
+     * @param  string  $metric
+     * @return array<string, \SineMacula\ApiToolkit\Schema\CompiledAggregateDefinition>
+     */
+    public function getAggregateDefinitionsByMetric(string $metric): array
+    {
+        return array_filter(
+            $this->aggregates,
+            static fn (CompiledAggregateDefinition $definition): bool => $definition->metric === $metric,
+        );
     }
 
     /**

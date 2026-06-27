@@ -13,6 +13,7 @@ use SineMacula\ApiToolkit\Facades\ApiQuery;
 use SineMacula\ApiToolkit\Http\Resources\ApiResourceCollection;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\GuardEvaluator;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\ValueResolver;
+use SineMacula\ApiToolkit\Schema\CompiledAggregateDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledCountDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledSchema;
@@ -859,6 +860,493 @@ final class ValueResolverTest extends TestCase
         $result = $this->resolver->resolveCountsPayload($resource, $schema, 'users', null);
 
         self::assertSame(['posts' => 7, 'comments' => 3], $result);
+    }
+
+    /**
+     * Test that sum aggregate definitions with isDefault=true are resolved when
+     * no specific sums are requested.
+     *
+     * @return void
+     */
+    public function testResolveSumsPayloadReturnsDefaultSumsWhenNoneRequested(): void
+    {
+
+        ApiQuery::shouldReceive('getSums')
+            ->with('users')
+            ->andReturn(null);
+
+        $model = new class {
+            /** @var array<string, mixed> */
+            private array $attributes = ['posts_id_sum_id' => '15'];
+
+            /**
+             * Return the attributes array.
+             *
+             * @return array<string, mixed>
+             */
+            public function getAttributes(): array
+            {
+                return $this->attributes;
+            }
+
+            /**
+             * Magic getter to resolve attributes.
+             *
+             * @param  string  $key
+             * @return mixed
+             */
+            public function __get(string $key): mixed
+            {
+                return $this->attributes[$key] ?? null;
+            }
+        };
+
+        $resource = new JsonResource($model);
+        $schema   = new CompiledSchema([], [], [
+            'posts_id' => new CompiledAggregateDefinition('posts_id', 'posts', 'id', 'sum', null, true, []),
+        ]);
+
+        $result = $this->resolver->resolveAggregatesPayload('sum', $resource, $schema, 'users', null);
+
+        self::assertSame(['posts_id' => 15.0], $result);
+    }
+
+    /**
+     * Test that only explicitly requested relation-column sums are included.
+     *
+     * @return void
+     */
+    public function testResolveSumsPayloadReturnsOnlyRequestedSums(): void
+    {
+
+        ApiQuery::shouldReceive('getSums')
+            ->with('users')
+            ->andReturn(['posts' => ['id']]);
+
+        $model = new class {
+            /** @var array<string, mixed> */
+            private array $attributes = ['posts_id_sum_id' => 10];
+
+            /**
+             * Return the attributes array.
+             *
+             * @return array<string, mixed>
+             */
+            public function getAttributes(): array
+            {
+                return $this->attributes;
+            }
+
+            /**
+             * Magic getter to resolve attributes.
+             *
+             * @param  string  $key
+             * @return mixed
+             */
+            public function __get(string $key): mixed
+            {
+                return $this->attributes[$key] ?? null;
+            }
+        };
+
+        $resource = new JsonResource($model);
+        $schema   = new CompiledSchema([], [], [
+            'posts_id' => new CompiledAggregateDefinition('posts_id', 'posts', 'id', 'sum', null, false, []),
+        ]);
+
+        $result = $this->resolver->resolveAggregatesPayload('sum', $resource, $schema, 'users', null);
+
+        self::assertSame(['posts_id' => 10.0], $result);
+    }
+
+    /**
+     * Test that sum definitions failing guard evaluation are excluded.
+     *
+     * @return void
+     */
+    public function testResolveSumsPayloadExcludesSumsFailingGuards(): void
+    {
+
+        ApiQuery::shouldReceive('getSums')
+            ->with('users')
+            ->andReturn(null);
+
+        $model = new class {
+            /** @var array<string, mixed> */
+            private array $attributes = ['posts_id_sum_id' => 5];
+
+            /**
+             * Return the attributes array.
+             *
+             * @return array<string, mixed>
+             */
+            public function getAttributes(): array
+            {
+                return $this->attributes;
+            }
+
+            /**
+             * Magic getter to resolve attributes.
+             *
+             * @param  string  $key
+             * @return mixed
+             */
+            public function __get(string $key): mixed
+            {
+                return $this->attributes[$key] ?? null;
+            }
+        };
+
+        $resource = new JsonResource($model);
+        $schema   = new CompiledSchema([], [], [
+            'posts_id' => new CompiledAggregateDefinition('posts_id', 'posts', 'id', 'sum', null, true, [
+                fn ($resource, $request) => false,
+            ]),
+        ]);
+
+        $result = $this->resolver->resolveAggregatesPayload('sum', $resource, $schema, 'users', null);
+
+        self::assertSame([], $result);
+    }
+
+    /**
+     * Test that a non-object resource returns an empty sums array.
+     *
+     * @return void
+     */
+    public function testResolveSumsPayloadReturnsEmptyForNonObjectResource(): void
+    {
+        $resource = new JsonResource(null);
+        $schema   = new CompiledSchema([], [], [
+            'posts_id' => new CompiledAggregateDefinition('posts_id', 'posts', 'id', 'sum', null, true, []),
+        ]);
+
+        $result = $this->resolver->resolveAggregatesPayload('sum', $resource, $schema, 'users', null);
+
+        self::assertSame([], $result);
+    }
+
+    /**
+     * Test that avg aggregate definitions with isDefault=true are resolved when
+     * no specific averages are requested.
+     *
+     * @return void
+     */
+    public function testResolveAveragesPayloadReturnsDefaultAvgsWhenNoneRequested(): void
+    {
+
+        ApiQuery::shouldReceive('getAverages')
+            ->with('users')
+            ->andReturn(null);
+
+        $model = new class {
+            /** @var array<string, mixed> */
+            private array $attributes = ['posts_id_avg_id' => '3.5'];
+
+            /**
+             * Return the attributes array.
+             *
+             * @return array<string, mixed>
+             */
+            public function getAttributes(): array
+            {
+                return $this->attributes;
+            }
+
+            /**
+             * Magic getter to resolve attributes.
+             *
+             * @param  string  $key
+             * @return mixed
+             */
+            public function __get(string $key): mixed
+            {
+                return $this->attributes[$key] ?? null;
+            }
+        };
+
+        $resource = new JsonResource($model);
+        $schema   = new CompiledSchema([], [], [
+            'posts_id' => new CompiledAggregateDefinition('posts_id', 'posts', 'id', 'avg', null, true, []),
+        ]);
+
+        $result = $this->resolver->resolveAggregatesPayload('avg', $resource, $schema, 'users', null);
+
+        self::assertSame(['posts_id' => 3.5], $result);
+    }
+
+    /**
+     * Test that average definitions failing guard evaluation are excluded.
+     *
+     * @return void
+     */
+    public function testResolveAveragesPayloadExcludesAvgsFailingGuards(): void
+    {
+
+        ApiQuery::shouldReceive('getAverages')
+            ->with('users')
+            ->andReturn(null);
+
+        $model = new class {
+            /** @var array<string, mixed> */
+            private array $attributes = ['posts_id_avg_id' => 2];
+
+            /**
+             * Return the attributes array.
+             *
+             * @return array<string, mixed>
+             */
+            public function getAttributes(): array
+            {
+                return $this->attributes;
+            }
+
+            /**
+             * Magic getter to resolve attributes.
+             *
+             * @param  string  $key
+             * @return mixed
+             */
+            public function __get(string $key): mixed
+            {
+                return $this->attributes[$key] ?? null;
+            }
+        };
+
+        $resource = new JsonResource($model);
+        $schema   = new CompiledSchema([], [], [
+            'posts_id' => new CompiledAggregateDefinition('posts_id', 'posts', 'id', 'avg', null, true, [
+                fn ($resource, $request) => false,
+            ]),
+        ]);
+
+        $result = $this->resolver->resolveAggregatesPayload('avg', $resource, $schema, 'users', null);
+
+        self::assertSame([], $result);
+    }
+
+    /**
+     * Test that a non-object resource returns an empty averages array.
+     *
+     * @return void
+     */
+    public function testResolveAveragesPayloadReturnsEmptyForNonObjectResource(): void
+    {
+        $resource = new JsonResource(null);
+        $schema   = new CompiledSchema([], [], [
+            'posts_id' => new CompiledAggregateDefinition('posts_id', 'posts', 'id', 'avg', null, true, []),
+        ]);
+
+        $result = $this->resolver->resolveAggregatesPayload('avg', $resource, $schema, 'users', null);
+
+        self::assertSame([], $result);
+    }
+
+    /**
+     * Test that an avg entry with a metric='sum' is skipped by the averages
+     * resolver (metric discriminator is enforced).
+     *
+     * @return void
+     */
+    public function testResolveAveragesPayloadSkipsSumMetrics(): void
+    {
+
+        ApiQuery::shouldReceive('getAverages')
+            ->with('users')
+            ->andReturn(null);
+
+        $model = new class {
+            /** @var array<string, mixed> */
+            private array $attributes = [];
+
+            /**
+             * Return the attributes array.
+             *
+             * @return array<string, mixed>
+             */
+            public function getAttributes(): array
+            {
+                return $this->attributes;
+            }
+
+            /**
+             * Magic getter to resolve attributes.
+             *
+             * @param  string  $key
+             * @return mixed
+             */
+            public function __get(string $key): mixed
+            {
+                return $this->attributes[$key] ?? null;
+            }
+        };
+
+        $resource = new JsonResource($model);
+        $schema   = new CompiledSchema([], [], [
+            'posts_id' => new CompiledAggregateDefinition('posts_id', 'posts', 'id', 'sum', null, true, []),
+        ]);
+
+        $result = $this->resolver->resolveAggregatesPayload('avg', $resource, $schema, 'users', null);
+
+        self::assertSame([], $result);
+    }
+
+    /**
+     * Test that aggregate definitions for relations not present in the
+     * requested map are excluded without a type error on null column list.
+     *
+     * When getSums returns a non-empty map, relations absent from that map
+     * resolve to a null column list. The isIncluded closure must short-circuit
+     * on is_array(null) before reaching in_array, otherwise a TypeError occurs.
+     *
+     * @return void
+     */
+    public function testResolveAggregatesPayloadExcludesNonRequestedRelationsWithoutError(): void
+    {
+
+        ApiQuery::shouldReceive('getSums')
+            ->with('users')
+            ->andReturn(['posts' => ['id']]);
+
+        $model = new class {
+            /** @var array<string, mixed> */
+            private array $attributes = ['posts_id_sum_id' => 15, 'comments_id_sum_id' => 7];
+
+            /**
+             * Return the attributes array.
+             *
+             * @return array<string, mixed>
+             */
+            public function getAttributes(): array
+            {
+                return $this->attributes;
+            }
+
+            /**
+             * Magic getter to resolve attributes.
+             *
+             * @param  string  $key
+             * @return mixed
+             */
+            public function __get(string $key): mixed
+            {
+                return $this->attributes[$key] ?? null;
+            }
+        };
+
+        $resource = new JsonResource($model);
+        $schema   = new CompiledSchema([], [], [
+            'posts_id'    => new CompiledAggregateDefinition('posts_id', 'posts', 'id', 'sum', null, false, []),
+            'comments_id' => new CompiledAggregateDefinition('comments_id', 'comments', 'id', 'sum', null, false, []),
+        ]);
+
+        $result = $this->resolver->resolveAggregatesPayload('sum', $resource, $schema, 'users', null);
+
+        self::assertSame(['posts_id' => 15.0], $result);
+    }
+
+    /**
+     * Test that the aggregate loop continues past a definition whose guard
+     * fails and still resolves later definitions that pass.
+     *
+     * @return void
+     */
+    public function testResolveAggregatesPayloadContinuesPastDefinitionFailingGuard(): void
+    {
+
+        ApiQuery::shouldReceive('getSums')
+            ->with('users')
+            ->andReturn(null);
+
+        $model = new class {
+            /** @var array<string, mixed> */
+            private array $attributes = ['posts_id_sum_id' => 3, 'tags_id_sum_id' => 9];
+
+            /**
+             * Return the attributes array.
+             *
+             * @return array<string, mixed>
+             */
+            public function getAttributes(): array
+            {
+                return $this->attributes;
+            }
+
+            /**
+             * Magic getter to resolve attributes.
+             *
+             * @param  string  $key
+             * @return mixed
+             */
+            public function __get(string $key): mixed
+            {
+                return $this->attributes[$key] ?? null;
+            }
+        };
+
+        $resource = new JsonResource($model);
+        $schema   = new CompiledSchema([], [], [
+            'posts_id' => new CompiledAggregateDefinition('posts_id', 'posts', 'id', 'sum', null, true, [
+                fn ($resource, $request) => false,
+            ]),
+            'tags_id' => new CompiledAggregateDefinition('tags_id', 'tags', 'id', 'sum', null, true, []),
+        ]);
+
+        $result = $this->resolver->resolveAggregatesPayload('sum', $resource, $schema, 'users', null);
+
+        self::assertSame(['tags_id' => 9.0], $result);
+    }
+
+    /**
+     * Test that all included aggregate definitions are returned when multiple
+     * definitions pass inclusion and guard checks.
+     *
+     * @return void
+     */
+    public function testResolveAggregatesPayloadReturnsAllIncludedDefinitions(): void
+    {
+
+        ApiQuery::shouldReceive('getSums')
+            ->with('users')
+            ->andReturn(null);
+
+        $model = new class {
+            /** @var array<string, mixed> */
+            private array $attributes = ['posts_id_sum_id' => 5, 'comments_id_sum_id' => 8];
+
+            /**
+             * Return the attributes array.
+             *
+             * @return array<string, mixed>
+             */
+            public function getAttributes(): array
+            {
+                return $this->attributes;
+            }
+
+            /**
+             * Magic getter to resolve attributes.
+             *
+             * @param  string  $key
+             * @return mixed
+             */
+            public function __get(string $key): mixed
+            {
+                return $this->attributes[$key] ?? null;
+            }
+        };
+
+        $resource = new JsonResource($model);
+        $schema   = new CompiledSchema([], [], [
+            'posts_id'    => new CompiledAggregateDefinition('posts_id', 'posts', 'id', 'sum', null, true, []),
+            'comments_id' => new CompiledAggregateDefinition('comments_id', 'comments', 'id', 'sum', null, true, []),
+        ]);
+
+        $result = $this->resolver->resolveAggregatesPayload('sum', $resource, $schema, 'users', null);
+
+        self::assertCount(2, $result);
+        self::assertSame(5.0, $result['posts_id']);
+        self::assertSame(8.0, $result['comments_id']);
     }
 
     /**

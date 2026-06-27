@@ -117,17 +117,66 @@ final class FieldResolver
      */
     public function shouldIncludeCountsField(string $resourceType, array $defaultFields): bool
     {
+        return $this->shouldIncludeVirtualField('counts', $resourceType, $defaultFields);
+    }
+
+    /**
+     * Determine if the sums field should be included.
+     *
+     * Checks whether the `sums` pseudo-field was explicitly requested, included
+     * via all-fields mode, or present in the default fields, while also
+     * respecting any exclusion set via `withoutFields()`.
+     *
+     * @param  string  $resourceType
+     * @param  array<int, string>  $defaultFields
+     * @return bool
+     */
+    public function shouldIncludeSumsField(string $resourceType, array $defaultFields): bool
+    {
+        return $this->shouldIncludeVirtualField('sums', $resourceType, $defaultFields);
+    }
+
+    /**
+     * Determine if the averages field should be included.
+     *
+     * Checks whether the `averages` pseudo-field was explicitly requested,
+     * included via all-fields mode, or present in the default fields, while
+     * also respecting any exclusion set via `withoutFields()`.
+     *
+     * @param  string  $resourceType
+     * @param  array<int, string>  $defaultFields
+     * @return bool
+     */
+    public function shouldIncludeAveragesField(string $resourceType, array $defaultFields): bool
+    {
+        return $this->shouldIncludeVirtualField('averages', $resourceType, $defaultFields);
+    }
+
+    /**
+     * Determine if a virtual metric field should be included.
+     *
+     * Shared logic for counts, sums, and averages pseudo-field gating. Checks
+     * whether the field was explicitly requested, included via all-fields mode,
+     * or present in the default fields, while respecting exclusions.
+     *
+     * @param  string  $fieldName
+     * @param  string  $resourceType
+     * @param  array<int, string>  $defaultFields
+     * @return bool
+     */
+    private function shouldIncludeVirtualField(string $fieldName, string $resourceType, array $defaultFields): bool
+    {
         $requestedFields = ApiQuery::getFields($resourceType);
         $excludedFields  = $this->excludedFields ?? [];
 
-        if (is_array($requestedFields) && in_array('counts', $requestedFields, true)) {
-            return !in_array('counts', $excludedFields, true);
+        if (is_array($requestedFields) && in_array($fieldName, $requestedFields, true)) {
+            return !in_array($fieldName, $excludedFields, true);
         }
 
         if ($this->shouldRespondWithAll($resourceType) || (is_array($requestedFields) && in_array(':all', $requestedFields, true))) {
-            return !in_array('counts', $excludedFields, true);
+            return !in_array($fieldName, $excludedFields, true);
         }
 
-        return in_array('counts', $defaultFields, true) && !in_array('counts', $excludedFields, true);
+        return in_array($fieldName, $defaultFields, true) && !in_array($fieldName, $excludedFields, true);
     }
 }

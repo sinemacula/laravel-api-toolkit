@@ -40,13 +40,15 @@ final class QueryParameterBuilder
     public function build(): array
     {
         return [
-            'Fields' => $this->buildFieldsParameter(),
-            'Filter' => $this->buildFilterParameter(),
-            'Order'  => $this->buildOrderParameter(),
-            'Limit'  => $this->buildLimitParameter(),
-            'Page'   => $this->buildPageParameter(),
-            'Cursor' => $this->buildCursorParameter(),
-            'Counts' => $this->buildCountsParameter(),
+            'Fields'   => $this->buildFieldsParameter(),
+            'Filter'   => $this->buildFilterParameter(),
+            'Order'    => $this->buildOrderParameter(),
+            'Limit'    => $this->buildLimitParameter(),
+            'Page'     => $this->buildPageParameter(),
+            'Cursor'   => $this->buildCursorParameter(),
+            'Counts'   => $this->buildCountsParameter(),
+            'Sums'     => $this->buildSumsParameter(),
+            'Averages' => $this->buildAveragesParameter(),
         ];
     }
 
@@ -162,6 +164,36 @@ final class QueryParameterBuilder
             'counts',
             'Relation counts: request count keys per resource type, e.g. counts[users]=posts.',
             ['type' => 'object', 'additionalProperties' => ['type' => 'string']],
+            'deepObject',
+        );
+    }
+
+    /**
+     * Build the relation-sums parameter.
+     *
+     * @return array<string, mixed>
+     */
+    private function buildSumsParameter(): array
+    {
+        return $this->parameter(
+            'sums',
+            'Relation sums: request sum aggregates per resource type and relation, e.g. sums[users][posts]=id.',
+            ['type' => 'object', 'additionalProperties' => ['type' => 'object', 'additionalProperties' => ['type' => 'string']]],
+            'deepObject',
+        );
+    }
+
+    /**
+     * Build the relation-averages parameter.
+     *
+     * @return array<string, mixed>
+     */
+    private function buildAveragesParameter(): array
+    {
+        return $this->parameter(
+            'averages',
+            'Relation averages: request average aggregates per resource type and relation, e.g. averages[users][posts]=id.',
+            ['type' => 'object', 'additionalProperties' => ['type' => 'object', 'additionalProperties' => ['type' => 'string']]],
             'deepObject',
         );
     }

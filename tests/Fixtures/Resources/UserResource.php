@@ -5,9 +5,11 @@ declare(strict_types = 1);
 namespace Tests\Fixtures\Resources;
 
 use SineMacula\ApiToolkit\Http\Resources\ApiResource;
+use SineMacula\ApiToolkit\Schema\Average;
 use SineMacula\ApiToolkit\Schema\Count;
 use SineMacula\ApiToolkit\Schema\Field;
 use SineMacula\ApiToolkit\Schema\Relation;
+use SineMacula\ApiToolkit\Schema\Sum;
 use Tests\Fixtures\Models\User;
 
 /**
@@ -59,6 +61,8 @@ final class UserResource extends ApiResource
             Relation::to('profile', 'bio', 'profile_bio'),
             Relation::to('posts', PostResource::class),
             Count::of('posts')->default(),
+            Sum::of('posts', 'id')->default(),
+            Average::of('posts', 'id'),
         );
     }
 }
