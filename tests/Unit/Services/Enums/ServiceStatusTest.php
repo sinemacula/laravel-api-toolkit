@@ -20,11 +20,11 @@ use SineMacula\ApiToolkit\Services\Enums\ServiceStatus;
 final class ServiceStatusTest extends TestCase
 {
     /**
-     * Test that the enum defines exactly the expected cases.
+     * Test that the enum declares exactly the SUCCEEDED and FAILED cases.
      *
      * @return void
      */
-    public function testDefinesExpectedCases(): void
+    public function testDeclaresSucceededAndFailed(): void
     {
         $names = array_map(static fn (ServiceStatus $case): string => $case->name, ServiceStatus::cases());
 
