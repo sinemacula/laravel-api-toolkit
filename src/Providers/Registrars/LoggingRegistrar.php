@@ -13,7 +13,8 @@ use SineMacula\ApiToolkit\Listeners\NotificationListener;
 /**
  * Registers the toolkit notification logging functionality.
  *
- * Wires the notification logging listeners when enabled.
+ * Wires the notification logging listeners when enabled and when the
+ * illuminate/notifications package is installed.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -33,11 +34,18 @@ final class LoggingRegistrar
     /**
      * Register the notification logging functionality.
      *
+     * Skipped when notification logging is disabled or when
+     * illuminate/notifications is not installed.
+     *
      * @return void
      */
     private function registerNotificationLogging(): void
     {
         if (!Config::get('api-toolkit.notifications.enable_logging', true)) {
+            return;
+        }
+
+        if (!class_exists(NotificationSending::class)) {
             return;
         }
 
