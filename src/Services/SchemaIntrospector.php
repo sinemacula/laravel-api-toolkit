@@ -81,7 +81,7 @@ final class SchemaIntrospector implements SchemaIntrospectionProvider
 
         $columns = Schema::getColumnListing($model->getTable());
 
-        $this->metadataCacheWriter()->rememberMetadataForever($cacheKey, fn () => $columns);
+        $this->metadataCacheWriter->rememberMetadataForever($cacheKey, fn () => $columns);
 
         $this->columns[$model::class] = $columns;
 
@@ -117,7 +117,7 @@ final class SchemaIntrospector implements SchemaIntrospectionProvider
 
         $definitions = $this->mapColumnDefinitions(Schema::getColumns($model->getTable()));
 
-        $this->metadataCacheWriter()->rememberMetadataForever($cacheKey, fn () => $definitions);
+        $this->metadataCacheWriter->rememberMetadataForever($cacheKey, fn () => $definitions);
 
         $this->columnDefinitions[$model::class] = $definitions;
 
@@ -184,7 +184,7 @@ final class SchemaIntrospector implements SchemaIntrospectionProvider
     #[\Override]
     public function isRelation(string $key, Model $model): bool
     {
-        return $this->metadataCacheWriter()->rememberMetadataForever(CacheKeys::MODEL_RELATIONS->resolveKey([
+        return $this->metadataCacheWriter->rememberMetadataForever(CacheKeys::MODEL_RELATIONS->resolveKey([
             $model::class,
             $key,
         ]), function () use ($key, $model): bool {
@@ -273,16 +273,6 @@ final class SchemaIntrospector implements SchemaIntrospectionProvider
         $this->columns           = [];
         $this->columnDefinitions = [];
         $this->searchable        = [];
-    }
-
-    /**
-     * Get the injected metadata cache writer.
-     *
-     * @return \SineMacula\ApiToolkit\Cache\MetadataCacheWriter
-     */
-    private function metadataCacheWriter(): MetadataCacheWriter
-    {
-        return $this->metadataCacheWriter;
     }
 
     /**
