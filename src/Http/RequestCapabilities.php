@@ -11,7 +11,7 @@ use SineMacula\Http\Enums\MediaType;
 /**
  * Request capabilities value object.
  *
- * Encapsulates the 7 boolean capability checks resolved from the
+ * Encapsulates the 4 boolean capability checks resolved from the
  * current request. Immutable once created.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
@@ -27,9 +27,6 @@ final class RequestCapabilities
      *
      * @param  bool  $includeTrashed
      * @param  bool  $onlyTrashed
-     * @param  bool  $expectsExport
-     * @param  bool  $expectsCsv
-     * @param  bool  $expectsXml
      * @param  bool  $expectsPdf
      * @param  bool  $expectsStream
      */
@@ -40,15 +37,6 @@ final class RequestCapabilities
 
         /** Whether the request returns only soft-deleted records. */
         private readonly bool $onlyTrashed,
-
-        /** Whether the request expects an export response. */
-        private readonly bool $expectsExport,
-
-        /** Whether the request expects a CSV response. */
-        private readonly bool $expectsCsv,
-
-        /** Whether the request expects an XML response. */
-        private readonly bool $expectsXml,
 
         /** Whether the request expects a PDF response. */
         private readonly bool $expectsPdf,
@@ -97,27 +85,12 @@ final class RequestCapabilities
         $acceptRaw    = $request->header(HttpHeader::ACCEPT->getName(), '');
         $acceptHeader = strtolower($acceptRaw);
 
-        $supportedFormats = config('api-toolkit.exports.supported_formats', []);
-        $exportsEnabled   = (bool) config('api-toolkit.exports.enabled');
-
-        $expectsCsv = $acceptHeader === MediaType::TEXT_CSV->getMimeType()
-            && is_array($supportedFormats)
-            && in_array('csv', $supportedFormats, true);
-
-        $expectsXml = $acceptHeader === MediaType::APPLICATION_XML->getMimeType()
-            && is_array($supportedFormats)
-            && in_array('xml', $supportedFormats, true);
-
-        $expectsExport = $exportsEnabled && ($expectsCsv || $expectsXml);
         $expectsPdf    = $acceptHeader === MediaType::APPLICATION_PDF->getMimeType();
         $expectsStream = $acceptHeader === MediaType::TEXT_EVENT_STREAM->getMimeType();
 
         return new self(
             $includeTrashed,
             $onlyTrashed,
-            $expectsExport,
-            $expectsCsv,
-            $expectsXml,
             $expectsPdf,
             $expectsStream,
         );
@@ -157,36 +130,6 @@ final class RequestCapabilities
     public function onlyTrashed(): bool
     {
         return $this->onlyTrashed;
-    }
-
-    /**
-     * Whether the request expects an export response.
-     *
-     * @return bool
-     */
-    public function expectsExport(): bool
-    {
-        return $this->expectsExport;
-    }
-
-    /**
-     * Whether the request expects a CSV response.
-     *
-     * @return bool
-     */
-    public function expectsCsv(): bool
-    {
-        return $this->expectsCsv;
-    }
-
-    /**
-     * Whether the request expects an XML response.
-     *
-     * @return bool
-     */
-    public function expectsXml(): bool
-    {
-        return $this->expectsXml;
     }
 
     /**

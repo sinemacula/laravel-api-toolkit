@@ -55,9 +55,6 @@ final class RequestCapabilitiesTest extends TestCase
 
         self::assertFalse($capabilities->includeTrashed());
         self::assertFalse($capabilities->onlyTrashed());
-        self::assertFalse($capabilities->expectsExport());
-        self::assertFalse($capabilities->expectsCsv());
-        self::assertFalse($capabilities->expectsXml());
         self::assertFalse($capabilities->expectsPdf());
         self::assertFalse($capabilities->expectsStream());
     }
@@ -107,65 +104,6 @@ final class RequestCapabilitiesTest extends TestCase
     }
 
     /**
-     * Test that resolve detects CSV via Accept header and supported
-     * formats.
-     *
-     * @return void
-     */
-    public function testResolveDetectsExpectsCsv(): void
-    {
-        config()->set('api-toolkit.exports.enabled', true);
-        config()->set('api-toolkit.exports.supported_formats', ['csv', 'xml']);
-
-        $request = Request::create(self::TEST_URL);
-        $request->headers->set(HttpHeader::ACCEPT->getName(), MediaType::TEXT_CSV->getMimeType());
-
-        $capabilities = RequestCapabilities::resolve($request);
-
-        self::assertTrue($capabilities->expectsCsv());
-        self::assertTrue($capabilities->expectsExport());
-    }
-
-    /**
-     * Test that resolve detects XML via Accept header and supported
-     * formats.
-     *
-     * @return void
-     */
-    public function testResolveDetectsExpectsXml(): void
-    {
-        config()->set('api-toolkit.exports.enabled', true);
-        config()->set('api-toolkit.exports.supported_formats', ['csv', 'xml']);
-
-        $request = Request::create(self::TEST_URL);
-        $request->headers->set(HttpHeader::ACCEPT->getName(), MediaType::APPLICATION_XML->getMimeType());
-
-        $capabilities = RequestCapabilities::resolve($request);
-
-        self::assertTrue($capabilities->expectsXml());
-        self::assertTrue($capabilities->expectsExport());
-    }
-
-    /**
-     * Test that resolve detects expectsExport when exports are enabled
-     * and CSV or XML is detected.
-     *
-     * @return void
-     */
-    public function testResolveDetectsExpectsExport(): void
-    {
-        config()->set('api-toolkit.exports.enabled', true);
-        config()->set('api-toolkit.exports.supported_formats', ['csv']);
-
-        $request = Request::create(self::TEST_URL);
-        $request->headers->set(HttpHeader::ACCEPT->getName(), MediaType::TEXT_CSV->getMimeType());
-
-        $capabilities = RequestCapabilities::resolve($request);
-
-        self::assertTrue($capabilities->expectsExport());
-    }
-
-    /**
      * Test that resolve detects PDF via Accept header.
      *
      * @return void
@@ -196,26 +134,6 @@ final class RequestCapabilitiesTest extends TestCase
     }
 
     /**
-     * Test that resolve matches the Accept header case-insensitively by
-     * lowercasing the raw header value before comparison.
-     *
-     * @return void
-     */
-    public function testResolveMatchesAcceptHeaderCaseInsensitively(): void
-    {
-        config()->set('api-toolkit.exports.enabled', true);
-        config()->set('api-toolkit.exports.supported_formats', ['csv']);
-
-        $request = Request::create(self::TEST_URL);
-        $request->headers->set(HttpHeader::ACCEPT->getName(), 'TEXT/CSV');
-
-        $capabilities = RequestCapabilities::resolve($request);
-
-        self::assertTrue($capabilities->expectsCsv());
-        self::assertTrue($capabilities->expectsExport());
-    }
-
-    /**
      * Test that storeOnRequest sets the attribute on the request.
      *
      * @return void
@@ -234,46 +152,7 @@ final class RequestCapabilitiesTest extends TestCase
     }
 
     /**
-     * Test that expectsCsv returns false when the format is not in
-     * supported_formats.
-     *
-     * @return void
-     */
-    public function testResolveReturnsFalseForCsvWhenFormatNotSupported(): void
-    {
-        config()->set('api-toolkit.exports.enabled', true);
-        config()->set('api-toolkit.exports.supported_formats', ['xml']);
-
-        $request = Request::create(self::TEST_URL);
-        $request->headers->set(HttpHeader::ACCEPT->getName(), MediaType::TEXT_CSV->getMimeType());
-
-        $capabilities = RequestCapabilities::resolve($request);
-
-        self::assertFalse($capabilities->expectsCsv());
-        self::assertFalse($capabilities->expectsExport());
-    }
-
-    /**
-     * Test that expectsExport returns false when exports are disabled.
-     *
-     * @return void
-     */
-    public function testResolveReturnsFalseForExportWhenDisabled(): void
-    {
-        config()->set('api-toolkit.exports.enabled', false);
-        config()->set('api-toolkit.exports.supported_formats', ['csv', 'xml']);
-
-        $request = Request::create(self::TEST_URL);
-        $request->headers->set(HttpHeader::ACCEPT->getName(), MediaType::TEXT_CSV->getMimeType());
-
-        $capabilities = RequestCapabilities::resolve($request);
-
-        self::assertTrue($capabilities->expectsCsv());
-        self::assertFalse($capabilities->expectsExport());
-    }
-
-    /**
-     * Test that all 7 accessor methods return the correct corresponding
+     * Test that all 4 accessor methods return the correct corresponding
      * values.
      *
      * @return void
@@ -283,18 +162,12 @@ final class RequestCapabilitiesTest extends TestCase
         $capabilities = $this->createCapabilities(
             includeTrashed: true,
             onlyTrashed: true,
-            expectsExport: true,
-            expectsCsv: true,
-            expectsXml: true,
             expectsPdf: true,
             expectsStream: true,
         );
 
         self::assertTrue($capabilities->includeTrashed());
         self::assertTrue($capabilities->onlyTrashed());
-        self::assertTrue($capabilities->expectsExport());
-        self::assertTrue($capabilities->expectsCsv());
-        self::assertTrue($capabilities->expectsXml());
         self::assertTrue($capabilities->expectsPdf());
         self::assertTrue($capabilities->expectsStream());
     }
@@ -304,22 +177,12 @@ final class RequestCapabilitiesTest extends TestCase
      *
      * @param  bool  $includeTrashed
      * @param  bool  $onlyTrashed
-     * @param  bool  $expectsExport
-     * @param  bool  $expectsCsv
-     * @param  bool  $expectsXml
      * @param  bool  $expectsPdf
      * @param  bool  $expectsStream
      * @return \SineMacula\ApiToolkit\Http\RequestCapabilities
      */
-    private function createCapabilities(
-        bool $includeTrashed = false,
-        bool $onlyTrashed = false,
-        bool $expectsExport = false,
-        bool $expectsCsv = false,
-        bool $expectsXml = false,
-        bool $expectsPdf = false,
-        bool $expectsStream = false,
-    ): RequestCapabilities {
+    private function createCapabilities(bool $includeTrashed = false, bool $onlyTrashed = false, bool $expectsPdf = false, bool $expectsStream = false): RequestCapabilities
+    {
 
         $reflection  = new \ReflectionClass(RequestCapabilities::class);
         $constructor = $reflection->getConstructor();
@@ -334,9 +197,6 @@ final class RequestCapabilitiesTest extends TestCase
             $instance,
             $includeTrashed,
             $onlyTrashed,
-            $expectsExport,
-            $expectsCsv,
-            $expectsXml,
             $expectsPdf,
             $expectsStream,
         );
