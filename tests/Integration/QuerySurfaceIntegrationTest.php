@@ -17,6 +17,7 @@ use SineMacula\Http\Enums\HttpMethod;
 use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Resources\FilterableUserResource;
+use Tests\Fixtures\Resources\PostResource;
 use Tests\TestCase;
 
 /**
@@ -25,8 +26,11 @@ use Tests\TestCase;
  * Exercises the secure-by-default posture against a real database: declared
  * filterable/sortable columns and traversable relations are applied, while
  * undeclared keys on the root resource are rejected (fail-closed) or dropped
- * (fail-quiet). Nested columns on a traversed relation fall back to the legacy
- * searchable predicate, and a model with no mapped resource rejects every key.
+ * (fail-quiet). Under the allowlist posture, nested columns on a traversed
+ * relation are gated against the related resource's declared filterable set -
+ * not against the legacy isSearchable predicate. When no mapped resource exists
+ * for a related model the gate fails closed. A model with no mapped resource
+ * rejects every key.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -40,7 +44,8 @@ use Tests\TestCase;
 final class QuerySurfaceIntegrationTest extends TestCase
 {
     /**
-     * Seed users and posts for integration tests.
+     * Seed users and posts for integration tests, and configure the resource
+     * map so related-model column gating can resolve Post to PostResource.
      *
      * @return void
      */
@@ -48,6 +53,10 @@ final class QuerySurfaceIntegrationTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+
+        Config::set('api-toolkit.resources.resource_map', [
+            Post::class => PostResource::class,
+        ]);
 
         $this->seedData();
     }
@@ -169,13 +178,15 @@ final class QuerySurfaceIntegrationTest extends TestCase
     }
 
     /**
-     * A column on a declared-traversable relation falls back to the legacy
-     * searchable predicate on the related model, so nested filters still work
-     * without a per-relation column declaration.
+     * Under the allowlist posture a column declared filterable in the related
+     * resource's schema is permitted and the SQL constraint is applied.
+     *
+     * PostResource declares 'title' as filterable; filtering posts.title must
+     * return only the user whose post title matches.
      *
      * @return void
      */
-    public function testNestedRelationColumnFallsBackToLegacySearchable(): void
+    public function testDeclaredNestedRelationColumnIsPermittedUnderAllowlist(): void
     {
         $this->parseQuery(['filters' => json_encode([
             'posts' => [
@@ -191,6 +202,31 @@ final class QuerySurfaceIntegrationTest extends TestCase
         $first = $results->first();
 
         self::assertSame('Alice', $first->name);
+    }
+
+    /**
+     * Under the allowlist posture a column that is NOT declared filterable in
+     * the related resource's schema is rejected with a ValidationException.
+     *
+     * PostResource does not declare 'body' as filterable, so filtering on
+     * posts.body must throw.
+     *
+     * @return void
+     */
+    public function testUndeclaredNestedRelationColumnIsRejectedUnderAllowlist(): void
+    {
+        $this->parseQuery(['filters' => json_encode([
+            'posts' => [
+                'body' => 'Content',
+            ],
+        ])]);
+
+        try {
+            $this->declaredCriteria()->apply(new User);
+            self::fail('Expected a ValidationException for undeclared nested column "body".');
+        } catch (ValidationException $e) {
+            self::assertArrayHasKey('filters.body', $e->errors());
+        }
     }
 
     /**
@@ -224,7 +260,7 @@ final class QuerySurfaceIntegrationTest extends TestCase
 
         $this->expectException(ValidationException::class);
 
-        // No usingResource() and no resource_map entry: the surface is empty.
+        // No usingResource() and no resource_map entry for User: surface empty.
         $this->makeCriteria()->apply(new User);
     }
 

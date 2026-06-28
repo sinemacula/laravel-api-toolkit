@@ -33,7 +33,7 @@ final class PostResource extends ApiResource
     {
         return Field::set(
             Field::scalar('id'),
-            Field::scalar('title'),
+            Field::scalar('title')->filterable(),
             Field::scalar('body'),
             Field::scalar('published'),
             Field::timestamp('created_at'),
