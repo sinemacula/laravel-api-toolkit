@@ -9,6 +9,7 @@ use Illuminate\Validation\ValidationException;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Services\Input\InputData;
 use Tests\Fixtures\Input\SampleInput;
+use Tests\Fixtures\Services\Input\Enums\StubStatusEnum;
 use Tests\TestCase;
 
 /**
@@ -34,6 +35,7 @@ final class InputDataTest extends TestCase
         self::assertInstanceOf(SampleInput::class, $input);
         self::assertSame('London', $input->city);
         self::assertSame(30, $input->age);
+        self::assertNull($input->status);
     }
 
     /**
@@ -51,11 +53,11 @@ final class InputDataTest extends TestCase
     }
 
     /**
-     * Test that from() throws ValidationException on invalid data.
+     * Test that from() throws ValidationException on a missing required field.
      *
      * @return void
      */
-    public function testFromThrowsValidationExceptionOnInvalid(): void
+    public function testFromThrowsValidationExceptionWhenRequiredFieldMissing(): void
     {
         $this->expectException(ValidationException::class);
 
@@ -63,7 +65,44 @@ final class InputDataTest extends TestCase
     }
 
     /**
-     * Test that the rules() override contributes cross-field constraints.
+     * Test that from() throws ValidationException on an invalid enum value.
+     *
+     * @return void
+     */
+    public function testFromThrowsValidationExceptionWhenEnumValueIsInvalid(): void
+    {
+        $this->expectException(ValidationException::class);
+
+        SampleInput::from(['city' => 'London', 'status' => 'not_a_valid_status']);
+    }
+
+    /**
+     * Test that a nullable field is hydrated as null when absent from source.
+     *
+     * @return void
+     */
+    public function testFromHydratesNullableFieldAsNull(): void
+    {
+        $input = SampleInput::from(['city' => 'Berlin']);
+
+        self::assertNull($input->age);
+        self::assertNull($input->status);
+    }
+
+    /**
+     * Test that a backed enum parameter is cast from its string value.
+     *
+     * @return void
+     */
+    public function testFromHydratesEnumTypedField(): void
+    {
+        $input = SampleInput::from(['city' => 'Rome', 'status' => 'active']);
+
+        self::assertSame(StubStatusEnum::ACTIVE, $input->status);
+    }
+
+    /**
+     * Test that a rules() override contributes cross-field constraints.
      *
      * Verifies that a subclass returning a confirmed rule from rules() causes
      * from() to reject input missing the confirmation field.
@@ -87,10 +126,10 @@ final class InputDataTest extends TestCase
             /**
              * Require confirmation of the city field.
              *
-             * @return array<string, array<int, mixed>>
+             * @return array<string, mixed>
              */
             #[\Override]
-            protected static function rules(): array
+            public static function rules(): array
             {
                 return ['city' => ['required', 'string', 'confirmed']];
             }
@@ -112,22 +151,26 @@ final class InputDataTest extends TestCase
 
         self::assertSame('X', $input->city);
         self::assertNull($input->age);
+        self::assertNull($input->status);
     }
 
     /**
-     * Test that instances are immutable and survive a serialise round trip.
+     * Test that instances are immutable and survive a serialise round-trip.
      *
      * @return void
+     *
+     * @throws \ReflectionException
      */
     public function testInstanceIsImmutableAndSerialisable(): void
     {
-        $input = new SampleInput(city: 'Rome', age: 25);
+        $input = new SampleInput(city: 'Rome', age: 25, status: StubStatusEnum::ACTIVE);
 
         /** @var \Tests\Fixtures\Input\SampleInput $restored */
         $restored = unserialize(serialize($input));
 
         self::assertSame('Rome', $restored->city);
         self::assertSame(25, $restored->age);
+        self::assertSame(StubStatusEnum::ACTIVE, $restored->status);
         self::assertTrue((new \ReflectionProperty($input, 'city'))->isReadOnly());
     }
 
@@ -138,8 +181,11 @@ final class InputDataTest extends TestCase
      */
     public function testToArrayReturnsTypedPropertyMap(): void
     {
-        $input = new SampleInput(city: 'Berlin', age: 40);
+        $input = new SampleInput(city: 'Berlin', age: 40, status: StubStatusEnum::INACTIVE);
 
-        self::assertSame(['city' => 'Berlin', 'age' => 40], $input->toArray());
+        self::assertSame(
+            ['city' => 'Berlin', 'age' => 40, 'status' => StubStatusEnum::INACTIVE],
+            $input->toArray(),
+        );
     }
 }

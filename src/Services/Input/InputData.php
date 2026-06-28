@@ -11,16 +11,11 @@ use SineMacula\ApiToolkit\Services\Contracts\ServiceInput;
 /**
  * Self-validating input base for typed service inputs.
  *
- * Concrete subclasses declare constructor-promoted readonly properties
- * (optionally annotated with validation attributes) and call from() to
- * validate a request or raw array then produce a typed, immutable instance.
+ * Concrete subclasses declare constructor-promoted readonly properties and
+ * override rules() to supply standard Laravel validation rules. Call from()
+ * to validate a request or raw array and produce a typed, immutable instance.
  * Direct named-argument construction is also supported for tests and queue
  * deserialisers that already hold validated data.
- *
- * The rules() method is declared protected static so the static factory
- * from() can call static::rules() without constructing the object first,
- * allowing concrete subclasses to contribute cross-field constraints via a
- * plain override.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -30,11 +25,11 @@ abstract class InputData implements ServiceInput
     /**
      * Validate the source and return a hydrated instance.
      *
-     * Normalises the source to an array, compiles rules from the concrete
-     * class's promoted-property attributes plus any static rules() overrides,
-     * validates via Laravel's validator (throwing ValidationException on
+     * Normalises the source to an array, validates it with Laravel's validator
+     * using the rules returned by rules() (throwing ValidationException on
      * failure), then constructs the concrete class with named arguments drawn
-     * from the validated data subset.
+     * from the validated data subset. Backed enum parameters are cast from
+     * their string representation automatically.
      *
      * @param  array<string, mixed>|\Illuminate\Http\Request  $source
      * @return static
@@ -44,8 +39,7 @@ abstract class InputData implements ServiceInput
     public static function from(array|Request $source): static
     {
         $data      = $source instanceof Request ? $source->all() : $source;
-        $rules     = (new RuleCompiler)->compile(static::class, static::rules());
-        $validated = Validator::make($data, $rules)->validate();
+        $validated = Validator::make($data, static::rules())->validate();
 
         $constructor = (new \ReflectionClass(static::class))->getConstructor();
         $namedArgs   = [];
@@ -62,7 +56,7 @@ abstract class InputData implements ServiceInput
                     continue;
                 }
 
-                $namedArgs[$name] = $validated[$name];
+                $namedArgs[$name] = self::castValue($parameter, $validated[$name]);
             }
         }
 
@@ -105,17 +99,43 @@ abstract class InputData implements ServiceInput
     }
 
     /**
-     * Return additional validation rule overrides for cross-field constraints.
+     * Return the Laravel validation rules for this input.
      *
-     * Concrete subclasses override this method to contribute rules that span
-     * multiple fields (e.g., confirmed, after:other_field) or to replace
-     * attribute-derived rules entirely. Override keys take precedence over the
-     * compiled attribute rules.
+     * Concrete subclasses override this method to declare per-field rules
+     * using standard Laravel rule syntax. Cross-field constraints such as
+     * confirmed or after:other_field are also expressed here.
      *
-     * @return array<string, array<int, mixed>>
+     * @return array<string, mixed>
      */
-    protected static function rules(): array
+    public static function rules(): array
     {
         return [];
+    }
+
+    /**
+     * Cast a validated value to the parameter's declared PHP type.
+     *
+     * Only backed enum parameters require casting from string; all other
+     * types are returned as-is because Laravel's validator already yields
+     * the correct scalar representation.
+     *
+     * @param  \ReflectionParameter  $parameter
+     * @param  mixed  $value
+     * @return mixed
+     */
+    private static function castValue(\ReflectionParameter $parameter, mixed $value): mixed
+    {
+        $type = $parameter->getType();
+
+        if ($value !== null && $type instanceof \ReflectionNamedType) {
+            $typeName = $type->getName();
+
+            if (is_string($value) && class_exists($typeName) && is_a($typeName, \BackedEnum::class, true)) {
+                /** @var class-string<\BackedEnum> $typeName */
+                return $typeName::from($value);
+            }
+        }
+
+        return $value;
     }
 }

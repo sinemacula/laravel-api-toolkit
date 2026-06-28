@@ -5,7 +5,7 @@ declare(strict_types = 1);
 namespace Tests\Fixtures\Services\Input\Enums;
 
 /**
- * Minimal backed enum for RuleCompiler enum-rule fixture tests.
+ * Minimal backed enum for typed input fixture tests.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.

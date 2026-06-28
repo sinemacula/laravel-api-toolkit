@@ -4,17 +4,16 @@ declare(strict_types = 1);
 
 namespace Tests\Fixtures\Input;
 
-use SineMacula\ApiToolkit\Services\Input\Attributes\Max;
-use SineMacula\ApiToolkit\Services\Input\Attributes\Nullable;
-use SineMacula\ApiToolkit\Services\Input\Attributes\Required;
+use Illuminate\Validation\Rule;
 use SineMacula\ApiToolkit\Services\Input\InputData;
+use Tests\Fixtures\Services\Input\Enums\StubStatusEnum;
 
 /**
- * Concrete InputData fixture with attribute-validated promoted properties.
+ * Concrete InputData fixture with typed promoted properties and explicit rules.
  *
  * Demonstrates the canonical pattern for typed, immutable service inputs: a
- * final class with readonly promoted properties annotated with validation
- * attributes and readable as typed properties by handlers.
+ * final class with readonly promoted properties, a rules() override supplying
+ * standard Laravel validation rules, and properties readable by handlers.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -26,15 +25,32 @@ final class SampleInput extends InputData
      *
      * @param  string  $city
      * @param  int|null  $age
+     * @param  \Tests\Fixtures\Services\Input\Enums\StubStatusEnum|null  $status
      */
     public function __construct(
 
         /** The city name; required and validated as a string. */
-        #[Required]
         public readonly string $city,
 
         /** The age; optional, nullable, with an inclusive maximum of 120. */
-        #[ Max(120), Nullable]
         public readonly ?int $age = null,
+
+        /** The status; optional, nullable, backed enum. */
+        public readonly ?StubStatusEnum $status = null,
     ) {}
+
+    /**
+     * Return the Laravel validation rules for this input.
+     *
+     * @return array<string, mixed>
+     */
+    #[\Override]
+    public static function rules(): array
+    {
+        return [
+            'city'   => ['required', 'string'],
+            'age'    => ['sometimes', 'nullable', 'integer', 'max:120'],
+            'status' => ['sometimes', 'nullable', Rule::enum(StubStatusEnum::class)],
+        ];
+    }
 }
