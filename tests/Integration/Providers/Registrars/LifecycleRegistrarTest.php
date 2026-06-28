@@ -98,7 +98,9 @@ final class LifecycleRegistrarTest extends TestCase
         $config->set('api-toolkit.lifecycle.octane', false);
 
         Log::shouldReceive('info')->once()->with(\Mockery::on(
-            fn (string $message): bool => str_contains($message, 'Octane') && str_contains($message, 'API_TOOLKIT_LIFECYCLE_OCTANE'),
+            fn (string $message): bool => str_contains($message, 'Octane')
+                && str_contains($message, 'API_TOOLKIT_LIFECYCLE_OCTANE')
+                && str_contains($message, 'unbounded'),
         ));
 
         (new LifecycleRegistrar)->register();
