@@ -209,7 +209,7 @@ final class AggregateDefinitionTest extends TestCase
     public function testToArrayIncludesOpenApiDeclarationWhenSet(): void
     {
         $sum = Sum::of('posts', 'id');
-        $sum->openapi()->type('integer')->end();
+        $sum->openapi()->type('integer');
 
         $array = $sum->toArray();
 
