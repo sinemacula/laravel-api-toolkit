@@ -29,7 +29,8 @@ final class LoggingRegistrarTest extends TestCase
 {
     /**
      * Test that the notification logging listeners are registered when the
-     * registrar is invoked with logging enabled.
+     * registrar is invoked with logging enabled and illuminate/notifications
+     * is installed (class_exists guard traversed successfully).
      *
      * @return void
      */
@@ -37,10 +38,14 @@ final class LoggingRegistrarTest extends TestCase
     {
         $app = $this->getApplication();
 
-        /** @var \Illuminate\Contracts\Config\Repository $config */
+        /** @var \Illuminate\Config\Repository $config */
         $config = $app->make('config');
 
         $config->set('api-toolkit.notifications.enable_logging', true);
+
+        // illuminate/notifications is present via testbench, so class_exists
+        // returns true and the listeners must be wired.
+        self::assertTrue(class_exists(NotificationSending::class), 'Prerequisite: illuminate/notifications must be present for this assertion to hold');
 
         (new LoggingRegistrar)->register();
 
@@ -51,6 +56,32 @@ final class LoggingRegistrarTest extends TestCase
 
         self::assertContains([NotificationListener::class, 'sending'], $raw[NotificationSending::class] ?? []);
         self::assertContains([NotificationListener::class, 'sent'], $raw[NotificationSent::class] ?? []);
+    }
+
+    /**
+     * Test that no notification logging listeners are registered when logging
+     * is explicitly disabled in configuration.
+     *
+     * @return void
+     */
+    public function testRegisterSkipsNotificationLoggingListenersWhenDisabled(): void
+    {
+        $app = $this->getApplication();
+
+        /** @var \Illuminate\Config\Repository $config */
+        $config = $app->make('config');
+
+        $config->set('api-toolkit.notifications.enable_logging', false);
+
+        (new LoggingRegistrar)->register();
+
+        /** @var \Illuminate\Events\Dispatcher $events */
+        $events = $app->make('events');
+
+        $raw = $events->getRawListeners();
+
+        self::assertNotContains([NotificationListener::class, 'sending'], $raw[NotificationSending::class] ?? []);
+        self::assertNotContains([NotificationListener::class, 'sent'], $raw[NotificationSent::class] ?? []);
     }
 
     /**

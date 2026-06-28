@@ -20,7 +20,6 @@
         "php": "^8.3",
         "illuminate/database": "^12.0",
         "illuminate/http": "^12.0",
-        "illuminate/notifications": "^12.0",
         "illuminate/routing": "^12.0",
         "illuminate/support": "^12.9",
         "illuminate/validation": "^12.0",
@@ -29,6 +28,7 @@
         "sinemacula/laravel-resource-exporter": "^2.0"
     },
     "suggest": {
+        "illuminate/notifications": "Required only for notification-event logging",
         "sinemacula/laravel-log-cloudwatch": "CloudWatch log driver (Monolog), extracted from this package",
         "sinemacula/laravel-log-database": "Database log driver (Monolog), extracted from this package",
         "sinemacula/laravel-sse": "Server-sent event streaming for controllers, extracted from this package"
