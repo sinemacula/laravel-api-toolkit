@@ -106,36 +106,4 @@ return [
         'detail' => (is_string($name = config('app.name')) ? $name : 'The application') . ' is currently in maintenance mode, please try again a little later',
     ],
 
-    /*
-    |---------------------------------------------------------------------------
-    | File Errors
-    |---------------------------------------------------------------------------
-    */
-
-    ErrorCode::FILE_UPLOAD_ERROR->getCode() => [
-        'title'  => 'File Upload Error',
-        'detail' => 'There was an error whilst uploading the file, please try again',
-    ],
-
-    ErrorCode::INVALID_IMAGE->getCode() => [
-        'title'  => 'Invalid Image Supplied',
-        'detail' => 'The supplied image was not a valid image file',
-    ],
-
-    /*
-    |---------------------------------------------------------------------------
-    | Notification Errors
-    |---------------------------------------------------------------------------
-    */
-
-    ErrorCode::INVALID_NOTIFICATION->getCode() => [
-        'title'  => 'Invalid Notification',
-        'detail' => 'The supplied notification is invalid',
-    ],
-
-    ErrorCode::FAILED_TO_SEND_SMS->getCode() => [
-        'title'  => 'Failed to Send SMS',
-        'detail' => 'There was a problem sending the SMS',
-    ],
-
 ];
