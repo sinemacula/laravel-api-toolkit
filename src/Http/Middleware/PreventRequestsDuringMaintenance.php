@@ -37,8 +37,7 @@ final class PreventRequestsDuringMaintenance extends Middleware
     /**
      * Handle an incoming request.
      *
-     * phpcs:disable
-     * Squiz.Commenting.FunctionComment.ScalarTypeHintMissing,Squiz.Commenting.FunctionComment.TypeHintMissing
+     * phpcs:disable Squiz.Commenting.FunctionComment.ScalarTypeHintMissing,Squiz.Commenting.FunctionComment.TypeHintMissing
      *
      * @param  \Illuminate\Http\Request  $request
      * @param  \Closure(\Illuminate\Http\Request): mixed  $next

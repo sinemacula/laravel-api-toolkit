@@ -17,8 +17,7 @@ trait ThrottleRequestsTrait
     /**
      * Resolve request signature.
      *
-     * phpcs:disable
-     * Squiz.Commenting.FunctionComment.ScalarTypeHintMissing,Squiz.Commenting.FunctionComment.TypeHintMissing
+     * phpcs:disable Squiz.Commenting.FunctionComment.ScalarTypeHintMissing,Squiz.Commenting.FunctionComment.TypeHintMissing
      *
      * @param  \Illuminate\Http\Request  $request
      * @return string
