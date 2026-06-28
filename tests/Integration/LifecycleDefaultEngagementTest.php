@@ -21,10 +21,10 @@ use Tests\TestCase;
  * Proves that the SHIPPED DEFAULT config engages the lifecycle flush.
  *
  * No lifecycle config keys are set in this file - the tests read the merged
- * package default directly to pin that the shipped default is true and that
- * the flush engages under a detected serving runtime. This kills the
- * default-value mutation (a mutant flipping the default back to false must
- * fail these assertions).
+ * package default directly to pin that the shipped default is true and that the
+ * flush engages under a detected serving runtime. This kills the default-value
+ * mutation (a mutant flipping the default back to false must fail these
+ * assertions).
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -70,8 +70,8 @@ final class LifecycleDefaultEngagementTest extends TestCase
     }
 
     /**
-     * Test that the shipped default for lifecycle.octane and lifecycle.queue
-     * is true and that the Octane flush engages on a detected serving runtime.
+     * Test that the shipped default for lifecycle.octane and lifecycle.queue is
+     * true and that the Octane flush engages on a detected serving runtime.
      *
      * Validates TAC-09-01 and TAC-09-02: with no config override the merged
      * default is true, and invoking the Octane boundary on a serving runtime

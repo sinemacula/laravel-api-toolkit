@@ -18,8 +18,7 @@ use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Enums\CacheKeys;
 
 /**
- * Encapsulates cast resolution and attribute setting for repository
- * models.
+ * Encapsulates cast resolution and attribute setting for repository models.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -30,8 +29,8 @@ final class AttributeSetter
     private array $casts = [];
 
     /**
-     * Create an attribute setter with the given schema introspector
-     * for resolving model relation types.
+     * Create an attribute setter with the given schema introspector for
+     * resolving model relation types.
      *
      * @param  \SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider  $schemaIntrospector
      * @param  \SineMacula\ApiToolkit\Cache\MetadataCacheWriter  $metadataCacheWriter
@@ -47,8 +46,8 @@ final class AttributeSetter
     ) {}
 
     /**
-     * Persist the given attributes to the model, deferring sync
-     * relations until after the model is saved.
+     * Persist the given attributes to the model, deferring sync relations until
+     * after the model is saved.
      *
      * @param  \Illuminate\Database\Eloquent\Model  $model
      * @param  array<string, mixed>  $attributes
@@ -88,8 +87,8 @@ final class AttributeSetter
     }
 
     /**
-     * Flush the instance-level cast cache, forcing re-resolution on
-     * the next access.
+     * Flush the instance-level cast cache, forcing re-resolution on the next
+     * access.
      *
      * @return void
      */
@@ -119,9 +118,9 @@ final class AttributeSetter
     }
 
     /**
-     * Resolve the native cast key for the given attribute by
-     * checking the configured cast map, then falling back to
-     * relation introspection or enum detection.
+     * Resolve the native cast key for the given attribute by checking the
+     * configured cast map, then falling back to relation introspection or enum
+     * detection.
      *
      * @param  string  $attribute
      * @param  string|null  $cast
@@ -153,8 +152,8 @@ final class AttributeSetter
     }
 
     /**
-     * Map a relation type to its sync/associate cast, or null when
-     * the attribute does not correspond to a recognized relation.
+     * Map a relation type to its sync/associate cast, or null when the
+     * attribute does not correspond to a recognized relation.
      *
      * @param  string  $attribute
      * @param  \Illuminate\Database\Eloquent\Model|null  $model
@@ -182,9 +181,8 @@ final class AttributeSetter
     }
 
     /**
-     * Check whether a model cast matches a configured Laravel cast
-     * entry, supporting exact match, class-based match, and
-     * wildcard patterns.
+     * Check whether a model cast matches a configured Laravel cast entry,
+     * supporting exact match, class-based match, and wildcard patterns.
      *
      * @param  string  $cast
      * @param  string  $laravelCast
@@ -209,8 +207,7 @@ final class AttributeSetter
     }
 
     /**
-     * Dispatch to the appropriate setter based on the resolved
-     * cast type.
+     * Dispatch to the appropriate setter based on the resolved cast type.
      *
      * @param  \Illuminate\Database\Eloquent\Model  $model
      * @param  string  $attribute
@@ -229,8 +226,7 @@ final class AttributeSetter
     }
 
     /**
-     * Associate a BelongsTo or MorphTo relation by its foreign
-     * key value.
+     * Associate a BelongsTo or MorphTo relation by its foreign key value.
      *
      * @param  \Illuminate\Database\Eloquent\Model  $model
      * @param  string  $attribute
@@ -251,8 +247,8 @@ final class AttributeSetter
     }
 
     /**
-     * Sync a many-to-many relation, accepting an array of IDs, a
-     * Collection of models, or a single Model instance.
+     * Sync a many-to-many relation, accepting an array of IDs, a Collection of
+     * models, or a single Model instance.
      *
      * @param  \Illuminate\Database\Eloquent\Model  $model
      * @param  string  $attribute
@@ -286,8 +282,8 @@ final class AttributeSetter
     }
 
     /**
-     * Resolve the relation instance for the given attribute by
-     * invoking its camel-cased relation method on the model.
+     * Resolve the relation instance for the given attribute by invoking its
+     * camel-cased relation method on the model.
      *
      * @param  \Illuminate\Database\Eloquent\Model  $model
      * @param  string  $attribute
@@ -299,8 +295,8 @@ final class AttributeSetter
     }
 
     /**
-     * Persist the resolved casts to the memo cache so subsequent
-     * requests skip re-resolution.
+     * Persist the resolved casts to the memo cache so subsequent requests skip
+     * re-resolution.
      *
      * @param  string  $modelClass
      * @return void
@@ -321,8 +317,8 @@ final class AttributeSetter
     }
 
     /**
-     * Load previously resolved casts from the memo cache, returning
-     * an empty array on cache miss.
+     * Load previously resolved casts from the memo cache, returning an empty
+     * array on cache miss.
      *
      * @param  string  $modelClass
      * @return array<string, string|null>

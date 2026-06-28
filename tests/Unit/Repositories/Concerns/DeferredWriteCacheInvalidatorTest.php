@@ -40,8 +40,8 @@ final class DeferredWriteCacheInvalidatorTest extends TestCase
     }
 
     /**
-     * Test that invalidating a table on a taggable store flushes the
-     * table tag, so a previously cached entry reads back as a miss.
+     * Test that invalidating a table on a taggable store flushes the table tag,
+     * so a previously cached entry reads back as a miss.
      *
      * @return void
      */
@@ -77,8 +77,8 @@ final class DeferredWriteCacheInvalidatorTest extends TestCase
 
     /**
      * Test that, on a non-taggable store with the registry disabled,
-     * invalidation cannot bump the version, so the stale entry survives
-     * until its TTL expires.
+     * invalidation cannot bump the version, so the stale entry survives until
+     * its TTL expires.
      *
      * @return void
      */
@@ -96,8 +96,7 @@ final class DeferredWriteCacheInvalidatorTest extends TestCase
     }
 
     /**
-     * Test that every table in the list is invalidated, not just the
-     * first.
+     * Test that every table in the list is invalidated, not just the first.
      *
      * @return void
      */
@@ -113,8 +112,8 @@ final class DeferredWriteCacheInvalidatorTest extends TestCase
     }
 
     /**
-     * Test that an empty table list is a no-op that leaves existing
-     * cache entries untouched.
+     * Test that an empty table list is a no-op that leaves existing cache
+     * entries untouched.
      *
      * @return void
      */
@@ -128,8 +127,8 @@ final class DeferredWriteCacheInvalidatorTest extends TestCase
     }
 
     /**
-     * Test that invalidation targets the configured repository cache
-     * store rather than only the framework default.
+     * Test that invalidation targets the configured repository cache store
+     * rather than only the framework default.
      *
      * @return void
      */
@@ -148,8 +147,8 @@ final class DeferredWriteCacheInvalidatorTest extends TestCase
     }
 
     /**
-     * Test that a non-string store configuration falls back to the array
-     * driver rather than passing a non-string to the cache manager.
+     * Test that a non-string store configuration falls back to the array driver
+     * rather than passing a non-string to the cache manager.
      *
      * @return void
      */

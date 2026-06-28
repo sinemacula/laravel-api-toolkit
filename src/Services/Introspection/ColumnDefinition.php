@@ -7,10 +7,10 @@ namespace SineMacula\ApiToolkit\Services\Introspection;
 /**
  * Immutable description of a single database column's type and nullability.
  *
- * Returned by the schema introspection port to supply the inference tier of
- * the OpenAPI exporter with a column's driver-normalised base type and whether
- * it admits null. Read only by the emission path; never consulted during
- * runtime serialization.
+ * Returned by the schema introspection port to supply the inference tier of the
+ * OpenAPI exporter with a column's driver-normalised base type and whether it
+ * admits null. Read only by the emission path; never consulted during runtime
+ * serialization.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.

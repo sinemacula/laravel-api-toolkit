@@ -39,8 +39,8 @@ final class OctaneFlushListener
     /**
      * Handle the event.
      *
-     * The event parameter is unused but required by Laravel's event
-     * listener signature.
+     * The event parameter is unused but required by Laravel's event listener
+     * signature.
      *
      * @SuppressWarnings("php:S1172")
      *

@@ -186,9 +186,8 @@ final class SchemaCompiler
      *
      * Returns the bare present key used both as the `presentKey` property on
      * the compiled definition and as the suffix for the Eloquent attribute
-     * name.
-     * Both the `__sum__:` and `__avg__:` prefixes are 8 characters long, so a
-     * single substr offset strips either.
+     * name. Both the `__sum__:` and `__avg__:` prefixes are 8 characters long,
+     * so a single substr offset strips either.
      *
      * The dict key stored in `$aggregates` is `{metric}:{presentKey}`; this
      * method returns only the bare present-key portion.

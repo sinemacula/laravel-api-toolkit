@@ -16,8 +16,8 @@ use SineMacula\ApiToolkit\Services\Events\ServiceFailed;
 /**
  * Fixed lifecycle orchestrator for service actions.
  *
- * Sequences the lifecycle in a fixed, transaction-aware order:
- * authorize -> validate -> [lock] -> [tx] -> concerns -> prepare -> handle
+ * Sequences the lifecycle in a fixed, transaction-aware order: authorize ->
+ * validate -> [lock] -> [tx] -> concerns -> prepare -> handle
  * -> commit -> release -> afterCommit; onFailure after rollback + release;
  * finally emits ServiceCompleted or ServiceFailed.
  *
@@ -95,8 +95,8 @@ final class ServiceRunner
     }
 
     /**
-     * Build the execution pipeline in fixed composition order:
-     * lock (outermost) -> transaction -> concerns -> core.
+     * Build the execution pipeline in fixed composition order: lock (outermost)
+     * -> transaction -> concerns -> core.
      *
      * @param  \SineMacula\ApiToolkit\Services\Service  $service
      * @param  ServiceHooks  $hooks

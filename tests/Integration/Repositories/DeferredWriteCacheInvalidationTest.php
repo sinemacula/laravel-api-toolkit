@@ -15,13 +15,13 @@ use Tests\Fixtures\Repositories\CacheableTagRepository;
 use Tests\TestCase;
 
 /**
- * Integration tests for per-query cache invalidation triggered by a
- * deferred write-pool flush at the lifecycle boundary.
+ * Integration tests for per-query cache invalidation triggered by a deferred
+ * write-pool flush at the lifecycle boundary.
  *
- * Warms a Cacheable repository's per-query cache, defers a write to the
- * same table, completes the boundary flush through the subscriber, then
- * asserts the next read observes the freshly persisted row rather than a
- * stale cached collection.
+ * Warms a Cacheable repository's per-query cache, defers a write to the same
+ * table, completes the boundary flush through the subscriber, then asserts the
+ * next read observes the freshly persisted row rather than a stale cached
+ * collection.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -85,9 +85,9 @@ final class DeferredWriteCacheInvalidationTest extends TestCase
     }
 
     /**
-     * Test that, with invalidation disabled, the boundary flush still
-     * persists the deferred row but leaves the stale cached collection in
-     * place until its TTL expires.
+     * Test that, with invalidation disabled, the boundary flush still persists
+     * the deferred row but leaves the stale cached collection in place until
+     * its TTL expires.
      *
      * @return void
      */

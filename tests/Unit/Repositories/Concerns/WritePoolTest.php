@@ -193,8 +193,8 @@ final class WritePoolTest extends TestCase
     }
 
     /**
-     * Test that the default strategy continues past a chunk failure
-     * without logging an error and persists the healthy chunk.
+     * Test that the default strategy continues past a chunk failure without
+     * logging an error and persists the healthy chunk.
      *
      * @return void
      */
@@ -215,8 +215,8 @@ final class WritePoolTest extends TestCase
     }
 
     /**
-     * Test that the default strategy retains failed records in the
-     * buffer rather than dropping them after a partial failure.
+     * Test that the default strategy retains failed records in the buffer
+     * rather than dropping them after a partial failure.
      *
      * @return void
      */
@@ -233,8 +233,8 @@ final class WritePoolTest extends TestCase
     }
 
     /**
-     * Test that the default strategy is collect, surfacing failures
-     * loudly in the result with zero dropped records.
+     * Test that the default strategy is collect, surfacing failures loudly in
+     * the result with zero dropped records.
      *
      * @return void
      */
@@ -307,8 +307,8 @@ final class WritePoolTest extends TestCase
     }
 
     /**
-     * Test that flush with LOG strategy returns a result containing
-     * failure details keyed by the failing table.
+     * Test that flush with LOG strategy returns a result containing failure
+     * details keyed by the failing table.
      *
      * @return void
      */
@@ -357,8 +357,7 @@ final class WritePoolTest extends TestCase
     }
 
     /**
-     * Test that flush with THROW strategy throws on the first
-     * chunk failure.
+     * Test that flush with THROW strategy throws on the first chunk failure.
      *
      * @return void
      */
@@ -375,8 +374,8 @@ final class WritePoolTest extends TestCase
     }
 
     /**
-     * Test that flush with THROW strategy preserves failed and
-     * unprocessed records in the buffer.
+     * Test that flush with THROW strategy preserves failed and unprocessed
+     * records in the buffer.
      *
      * @return void
      */
@@ -398,8 +397,8 @@ final class WritePoolTest extends TestCase
     }
 
     /**
-     * Test that flush with THROW strategy removes successfully
-     * inserted records from the buffer.
+     * Test that flush with THROW strategy removes successfully inserted records
+     * from the buffer.
      *
      * @return void
      */
@@ -423,8 +422,8 @@ final class WritePoolTest extends TestCase
     }
 
     /**
-     * Test that the WritePoolFlushException thrown by the THROW
-     * strategy contains a partial result with correct counts.
+     * Test that the WritePoolFlushException thrown by the THROW strategy
+     * contains a partial result with correct counts.
      *
      * @return void
      */
@@ -448,8 +447,8 @@ final class WritePoolTest extends TestCase
     }
 
     /**
-     * Test that flush with COLLECT strategy continues processing
-     * after a chunk failure.
+     * Test that flush with COLLECT strategy continues processing after a chunk
+     * failure.
      *
      * @return void
      */
@@ -466,8 +465,8 @@ final class WritePoolTest extends TestCase
     }
 
     /**
-     * Test that flush with COLLECT strategy retains failed records
-     * in the buffer.
+     * Test that flush with COLLECT strategy retains failed records in the
+     * buffer.
      *
      * @return void
      */
@@ -485,8 +484,8 @@ final class WritePoolTest extends TestCase
     }
 
     /**
-     * Test that flush with COLLECT strategy removes successful
-     * records from the buffer while retaining failed records.
+     * Test that flush with COLLECT strategy removes successful records from the
+     * buffer while retaining failed records.
      *
      * @return void
      */
@@ -504,8 +503,8 @@ final class WritePoolTest extends TestCase
     }
 
     /**
-     * Test that flush with COLLECT strategy returns a result
-     * containing failures for all failing tables.
+     * Test that flush with COLLECT strategy returns a result containing
+     * failures for all failing tables.
      *
      * @return void
      */
@@ -526,8 +525,8 @@ final class WritePoolTest extends TestCase
     }
 
     /**
-     * Test that flush accepts a per-call strategy override that
-     * takes precedence over the instance default.
+     * Test that flush accepts a per-call strategy override that takes
+     * precedence over the instance default.
      *
      * @return void
      */
@@ -547,8 +546,8 @@ final class WritePoolTest extends TestCase
     }
 
     /**
-     * Test that auto-flush uses the LOG strategy when the pool is
-     * configured with LOG.
+     * Test that auto-flush uses the LOG strategy when the pool is configured
+     * with LOG.
      *
      * @return void
      */
@@ -565,8 +564,8 @@ final class WritePoolTest extends TestCase
     }
 
     /**
-     * Test that memory-pressure auto-flush honours the throw strategy,
-     * raising a WritePoolFlushException out of add().
+     * Test that memory-pressure auto-flush honours the throw strategy, raising
+     * a WritePoolFlushException out of add().
      *
      * @return void
      */
@@ -582,8 +581,8 @@ final class WritePoolTest extends TestCase
     }
 
     /**
-     * Test that auto-flush uses COLLECT strategy when the pool is
-     * configured with COLLECT.
+     * Test that auto-flush uses COLLECT strategy when the pool is configured
+     * with COLLECT.
      *
      * @return void
      */
@@ -598,8 +597,8 @@ final class WritePoolTest extends TestCase
     }
 
     /**
-     * Test that lastAutoFlushResult returns null before any
-     * auto-flush has occurred.
+     * Test that lastAutoFlushResult returns null before any auto-flush has
+     * occurred.
      *
      * @return void
      */
@@ -609,8 +608,8 @@ final class WritePoolTest extends TestCase
     }
 
     /**
-     * Test that lastAutoFlushResult returns a WritePoolFlushResult
-     * instance after an auto-flush has been triggered.
+     * Test that lastAutoFlushResult returns a WritePoolFlushResult instance
+     * after an auto-flush has been triggered.
      *
      * @return void
      */
@@ -625,8 +624,8 @@ final class WritePoolTest extends TestCase
     }
 
     /**
-     * Test that a subsequent flush after a COLLECT flush only
-     * processes the retained failed records.
+     * Test that a subsequent flush after a COLLECT flush only processes the
+     * retained failed records.
      *
      * @return void
      */
@@ -650,8 +649,8 @@ final class WritePoolTest extends TestCase
     }
 
     /**
-     * Test that flush with LOG strategy clears the buffer
-     * regardless of any failures that occurred.
+     * Test that flush with LOG strategy clears the buffer regardless of any
+     * failures that occurred.
      *
      * @return void
      */
@@ -671,8 +670,8 @@ final class WritePoolTest extends TestCase
     }
 
     /**
-     * Test that flush with COLLECT strategy accumulates multiple failed
-     * chunks for the same table in the retained buffer.
+     * Test that flush with COLLECT strategy accumulates multiple failed chunks
+     * for the same table in the retained buffer.
      *
      * @return void
      */
@@ -689,9 +688,9 @@ final class WritePoolTest extends TestCase
     }
 
     /**
-     * Test that flush with THROW strategy retains exactly the failed
-     * chunk, the remaining chunks of the failing table, and the
-     * untouched subsequent tables.
+     * Test that flush with THROW strategy retains exactly the failed chunk, the
+     * remaining chunks of the failing table, and the untouched subsequent
+     * tables.
      *
      * @return void
      */
@@ -717,8 +716,8 @@ final class WritePoolTest extends TestCase
     }
 
     /**
-     * Test that a transactional flush rolls back the entire table when
-     * any chunk fails, leaving none of that table's rows persisted.
+     * Test that a transactional flush rolls back the entire table when any
+     * chunk fails, leaving none of that table's rows persisted.
      *
      * @return void
      */
@@ -735,8 +734,8 @@ final class WritePoolTest extends TestCase
     }
 
     /**
-     * Test that a non-transactional flush persists the healthy chunk
-     * even when a later chunk in the same table fails.
+     * Test that a non-transactional flush persists the healthy chunk even when
+     * a later chunk in the same table fails.
      *
      * @return void
      */
@@ -754,8 +753,8 @@ final class WritePoolTest extends TestCase
 
     /**
      * Test that a transactional collect flush retains every record of a
-     * rolled-back table for retry, including the rows that committed
-     * before the failing chunk.
+     * rolled-back table for retry, including the rows that committed before the
+     * failing chunk.
      *
      * @return void
      */
@@ -775,8 +774,8 @@ final class WritePoolTest extends TestCase
     }
 
     /**
-     * Test that a transactional throw flush raises and retains the
-     * whole rolled-back table along with subsequent tables.
+     * Test that a transactional throw flush raises and retains the whole
+     * rolled-back table along with subsequent tables.
      *
      * @return void
      */
@@ -822,8 +821,8 @@ final class WritePoolTest extends TestCase
     }
 
     /**
-     * Test that the throw strategy reports record-level counts covering
-     * both the failed chunk and the unprocessed records.
+     * Test that the throw strategy reports record-level counts covering both
+     * the failed chunk and the unprocessed records.
      *
      * @return void
      */
@@ -850,8 +849,8 @@ final class WritePoolTest extends TestCase
     }
 
     /**
-     * Test that the log strategy reports the failed records as dropped
-     * rather than retained.
+     * Test that the log strategy reports the failed records as dropped rather
+     * than retained.
      *
      * @return void
      */
@@ -873,9 +872,8 @@ final class WritePoolTest extends TestCase
     }
 
     /**
-     * Test that a successful flush reports every table it attempted to
-     * persist, so the boundary can invalidate each table's downstream
-     * per-query cache.
+     * Test that a successful flush reports every table it attempted to persist,
+     * so the boundary can invalidate each table's downstream per-query cache.
      *
      * @return void
      */
@@ -902,9 +900,9 @@ final class WritePoolTest extends TestCase
     }
 
     /**
-     * Test that the partial result carried by the throw exception reports
-     * every attempted table, so the boundary still invalidates the cache
-     * for tables that persisted before the failure.
+     * Test that the partial result carried by the throw exception reports every
+     * attempted table, so the boundary still invalidates the cache for tables
+     * that persisted before the failure.
      *
      * @return void
      */

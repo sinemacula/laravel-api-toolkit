@@ -45,8 +45,8 @@ final class ContainsOperator implements FilterOperator
     }
 
     /**
-     * Determine whether the value can be passed directly to a JSON
-     * containment constraint.
+     * Determine whether the value can be passed directly to a JSON containment
+     * constraint.
      *
      * @param  mixed  $value
      * @return bool
@@ -61,8 +61,8 @@ final class ContainsOperator implements FilterOperator
     }
 
     /**
-     * Split a comma-separated string into trimmed, non-empty items and
-     * apply them as a grouped JSON containment constraint.
+     * Split a comma-separated string into trimmed, non-empty items and apply
+     * them as a grouped JSON containment constraint.
      *
      * @param  \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>  $query
      * @param  string  $column
@@ -83,8 +83,8 @@ final class ContainsOperator implements FilterOperator
     }
 
     /**
-     * Apply each item as an OR-combined JSON containment constraint within
-     * the given query group.
+     * Apply each item as an OR-combined JSON containment constraint within the
+     * given query group.
      *
      * @param  \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>  $query
      * @param  string  $column

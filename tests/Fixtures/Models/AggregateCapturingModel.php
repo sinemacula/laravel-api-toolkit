@@ -117,8 +117,8 @@ final class AggregateCapturingModel
     /**
      * Derive the present-key alias from the relation argument.
      *
-     * The 'relation as alias' string form yields the alias segment after
-     * ' as '. An array uses the key in the same format.
+     * The 'relation as alias' string form yields the alias segment after ' as
+     * '. An array uses the key in the same format.
      *
      * @param  mixed  $relations
      * @return string

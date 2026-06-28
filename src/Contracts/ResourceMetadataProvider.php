@@ -7,8 +7,8 @@ namespace SineMacula\ApiToolkit\Contracts;
 /**
  * Resource metadata provider interface.
  *
- * Decouples the repository criteria layer from resource class statics,
- * allowing metadata to be resolved without direct static calls.
+ * Decouples the repository criteria layer from resource class statics, allowing
+ * metadata to be resolved without direct static calls.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.

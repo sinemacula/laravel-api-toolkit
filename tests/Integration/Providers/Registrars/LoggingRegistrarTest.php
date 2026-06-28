@@ -15,9 +15,9 @@ use Tests\TestCase;
 /**
  * Integration tests for the LoggingRegistrar.
  *
- * The logging configuration permutations are pinned by the
- * ApiServiceProvider integration suite; this test proves the registrar
- * registers its surface when invoked directly.
+ * The logging configuration permutations are pinned by the ApiServiceProvider
+ * integration suite; this test proves the registrar registers its surface when
+ * invoked directly.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -29,8 +29,8 @@ final class LoggingRegistrarTest extends TestCase
 {
     /**
      * Test that the notification logging listeners are registered when the
-     * registrar is invoked with logging enabled and illuminate/notifications
-     * is installed (class_exists guard traversed successfully).
+     * registrar is invoked with logging enabled and illuminate/notifications is
+     * installed (class_exists guard traversed successfully).
      *
      * @return void
      */

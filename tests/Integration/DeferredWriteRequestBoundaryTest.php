@@ -17,14 +17,13 @@ use Tests\Fixtures\Repositories\DeferrableUserRepository;
 use Tests\TestCase;
 
 /**
- * Integration tests for the deferred-write flush across a simulated
- * request boundary.
+ * Integration tests for the deferred-write flush across a simulated request
+ * boundary.
  *
- * Exercises the WritePool and WritePoolFlushSubscriber lifecycle the
- * way a consuming application does: records are buffered through a
- * Deferrable repository inside a route handler, the kernel completes
- * the request, and the subscriber flushes the pool when the
- * RequestHandled lifecycle event fires.
+ * Exercises the WritePool and WritePoolFlushSubscriber lifecycle the way a
+ * consuming application does: records are buffered through a Deferrable
+ * repository inside a route handler, the kernel completes the request, and the
+ * subscriber flushes the pool when the RequestHandled lifecycle event fires.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -68,8 +67,8 @@ final class DeferredWriteRequestBoundaryTest extends TestCase
     }
 
     /**
-     * Test that records deferred during a request are flushed to the
-     * database when the request lifecycle completes.
+     * Test that records deferred during a request are flushed to the database
+     * when the request lifecycle completes.
      *
      * @return void
      */
@@ -89,8 +88,8 @@ final class DeferredWriteRequestBoundaryTest extends TestCase
     }
 
     /**
-     * Test that the request boundary flush leaves the scoped write
-     * pool empty for subsequent work.
+     * Test that the request boundary flush leaves the scoped write pool empty
+     * for subsequent work.
      *
      * @return void
      */
@@ -106,8 +105,8 @@ final class DeferredWriteRequestBoundaryTest extends TestCase
     }
 
     /**
-     * Test that sequential requests each flush their own deferred
-     * records at their own request boundary.
+     * Test that sequential requests each flush their own deferred records at
+     * their own request boundary.
      *
      * @return void
      */

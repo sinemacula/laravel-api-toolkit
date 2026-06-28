@@ -22,8 +22,8 @@ use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext;
 final class FilterOperatorTest extends TestCase
 {
     /**
-     * Test that the FilterOperator interface declares the apply method
-     * with the correct signature.
+     * Test that the FilterOperator interface declares the apply method with the
+     * correct signature.
      *
      * @return void
      */

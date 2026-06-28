@@ -20,9 +20,9 @@ use Tests\TestCase;
  * End-to-end integration tests for exception rendering.
  *
  * Registers the toolkit exception handler against the application's real
- * exception handler (mirroring the bootstrap/app.php withExceptions()
- * wiring) and asserts the toolkit JSON error format through real HTTP
- * routes dispatched via the HTTP kernel.
+ * exception handler (mirroring the bootstrap/app.php withExceptions() wiring)
+ * and asserts the toolkit JSON error format through real HTTP routes dispatched
+ * via the HTTP kernel.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -85,8 +85,8 @@ final class ExceptionRenderingTest extends TestCase
     }
 
     /**
-     * Test that abort() inside a route is rendered in the toolkit JSON
-     * error format with the original status code preserved.
+     * Test that abort() inside a route is rendered in the toolkit JSON error
+     * format with the original status code preserved.
      *
      * @return void
      */
@@ -106,8 +106,8 @@ final class ExceptionRenderingTest extends TestCase
     }
 
     /**
-     * Test that a toolkit ApiException thrown inside a route is rendered
-     * with its own status, code, and custom meta.
+     * Test that a toolkit ApiException thrown inside a route is rendered with
+     * its own status, code, and custom meta.
      *
      * @return void
      */
@@ -127,8 +127,8 @@ final class ExceptionRenderingTest extends TestCase
     }
 
     /**
-     * Test that a ValidationException raised by request validation is
-     * rendered as a 422 with the validation errors as meta.
+     * Test that a ValidationException raised by request validation is rendered
+     * as a 422 with the validation errors as meta.
      *
      * @return void
      */

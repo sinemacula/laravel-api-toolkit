@@ -428,8 +428,8 @@ final class FieldResolverTest extends TestCase
     }
 
     /**
-     * Test that shouldIncludeSumsField returns false when requested fields
-     * lack sums and it is not in defaults.
+     * Test that shouldIncludeSumsField returns false when requested fields lack
+     * sums and it is not in defaults.
      *
      * @return void
      */
@@ -444,8 +444,8 @@ final class FieldResolverTest extends TestCase
     }
 
     /**
-     * Test that shouldIncludeAveragesField returns true when averages is in
-     * the API query fields.
+     * Test that shouldIncludeAveragesField returns true when averages is in the
+     * API query fields.
      *
      * @return void
      */
@@ -478,8 +478,8 @@ final class FieldResolverTest extends TestCase
     }
 
     /**
-     * Test that shouldIncludeAveragesField returns true when averages is in
-     * the default fields and not excluded.
+     * Test that shouldIncludeAveragesField returns true when averages is in the
+     * default fields and not excluded.
      *
      * @return void
      */

@@ -295,8 +295,8 @@ final class DeferrableIntegrationTest extends TestCase
     }
 
     /**
-     * Test that RequestHandled event dispatches WritePoolFlushFailed
-     * event on flush failure.
+     * Test that RequestHandled event dispatches WritePoolFlushFailed event on
+     * flush failure.
      *
      * @return void
      */
@@ -318,8 +318,8 @@ final class DeferrableIntegrationTest extends TestCase
     }
 
     /**
-     * Test that the default collect strategy retains failed records in
-     * the pool when a boundary flush fails, without dropping them.
+     * Test that the default collect strategy retains failed records in the pool
+     * when a boundary flush fails, without dropping them.
      *
      * @return void
      */
@@ -342,8 +342,8 @@ final class DeferrableIntegrationTest extends TestCase
     }
 
     /**
-     * Test that a transactional boundary flush rolls back a table whose
-     * chunk set contains a failure and dispatches the failure event.
+     * Test that a transactional boundary flush rolls back a table whose chunk
+     * set contains a failure and dispatches the failure event.
      *
      * @return void
      */

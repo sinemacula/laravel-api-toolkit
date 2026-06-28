@@ -12,8 +12,8 @@ use SineMacula\ApiToolkit\Services\Contracts\ServiceInput;
  * Self-validating input base for typed service inputs.
  *
  * Concrete subclasses declare constructor-promoted readonly properties and
- * override rules() to supply standard Laravel validation rules. Call from()
- * to validate a request or raw array and produce a typed, immutable instance.
+ * override rules() to supply standard Laravel validation rules. Call from() to
+ * validate a request or raw array and produce a typed, immutable instance.
  * Direct named-argument construction is also supported for tests and queue
  * deserialisers that already hold validated data.
  *
@@ -68,8 +68,8 @@ abstract class InputData implements ServiceInput
     /**
      * Return the input as an associative array.
      *
-     * Reflects over the instance's public promoted properties and returns
-     * a name-to-value map. Concrete subclasses need not implement toArray()
+     * Reflects over the instance's public promoted properties and returns a
+     * name-to-value map. Concrete subclasses need not implement toArray()
      * unless they require custom serialisation.
      *
      * @return array<string, mixed>
@@ -101,9 +101,9 @@ abstract class InputData implements ServiceInput
     /**
      * Return the Laravel validation rules for this input.
      *
-     * Concrete subclasses override this method to declare per-field rules
-     * using standard Laravel rule syntax. Cross-field constraints such as
-     * confirmed or after:other_field are also expressed here.
+     * Concrete subclasses override this method to declare per-field rules using
+     * standard Laravel rule syntax. Cross-field constraints such as confirmed
+     * or after:other_field are also expressed here.
      *
      * @return array<string, mixed>
      */
@@ -115,9 +115,9 @@ abstract class InputData implements ServiceInput
     /**
      * Cast a validated value to the parameter's declared PHP type.
      *
-     * Only backed enum parameters require casting from string; all other
-     * types are returned as-is because Laravel's validator already yields
-     * the correct scalar representation.
+     * Only backed enum parameters require casting from string; all other types
+     * are returned as-is because Laravel's validator already yields the correct
+     * scalar representation.
      *
      * @param  \ReflectionParameter  $parameter
      * @param  mixed  $value

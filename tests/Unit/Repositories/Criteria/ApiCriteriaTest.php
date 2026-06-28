@@ -350,8 +350,8 @@ final class ApiCriteriaTest extends TestCase
     }
 
     /**
-     * Test that apply with nested relation filters applies whereHas with
-     * nested conditions.
+     * Test that apply with nested relation filters applies whereHas with nested
+     * conditions.
      *
      * @return void
      */
@@ -792,8 +792,8 @@ final class ApiCriteriaTest extends TestCase
     }
 
     /**
-     * Test that $contains with null exercises the isValidJson null path and
-     * the defensive catch inside applyJsonContains.
+     * Test that $contains with null exercises the isValidJson null path and the
+     * defensive catch inside applyJsonContains.
      *
      * @return void
      */
@@ -810,8 +810,8 @@ final class ApiCriteriaTest extends TestCase
     }
 
     /**
-     * Test that applyEagerLoading returns early when fields resolve to an
-     * empty array.
+     * Test that applyEagerLoading returns early when fields resolve to an empty
+     * array.
      *
      * @SuppressWarnings("php:S2014")
      *
@@ -892,8 +892,7 @@ final class ApiCriteriaTest extends TestCase
     }
 
     /**
-     * Test that applyEagerLoading calls resolveFields on the metadata
-     * provider.
+     * Test that applyEagerLoading calls resolveFields on the metadata provider.
      *
      * @return void
      */
@@ -1009,8 +1008,8 @@ final class ApiCriteriaTest extends TestCase
     }
 
     /**
-     * Test that getResourceType returns null when the resolved resource
-     * class is not an ApiResource subclass.
+     * Test that getResourceType returns null when the resolved resource class
+     * is not an ApiResource subclass.
      *
      * @return void
      */

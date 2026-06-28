@@ -78,8 +78,8 @@ final class CacheableTest extends TestCase
     }
 
     /**
-     * Test that the second read returns cached data without executing a
-     * new database query.
+     * Test that the second read returns cached data without executing a new
+     * database query.
      *
      * @return void
      */
@@ -165,8 +165,7 @@ final class CacheableTest extends TestCase
     }
 
     /**
-     * Test that withoutCache is transient and only applies to the next
-     * read.
+     * Test that withoutCache is transient and only applies to the next read.
      *
      * @return void
      */
@@ -259,8 +258,8 @@ final class CacheableTest extends TestCase
     }
 
     /**
-     * Test that a custom cache key prefix is used instead of the model
-     * table name.
+     * Test that a custom cache key prefix is used instead of the model table
+     * name.
      *
      * @return void
      */
@@ -279,8 +278,8 @@ final class CacheableTest extends TestCase
     }
 
     /**
-     * Test that withoutCache reads fresh data from the database while
-     * the cached snapshot remains stale.
+     * Test that withoutCache reads fresh data from the database while the
+     * cached snapshot remains stale.
      *
      * @return void
      */
@@ -296,8 +295,8 @@ final class CacheableTest extends TestCase
     }
 
     /**
-     * Test that boot invokes the parent boot chain so inherited
-     * repository collaborators are initialized.
+     * Test that boot invokes the parent boot chain so inherited repository
+     * collaborators are initialized.
      *
      * @return void
      */
@@ -346,8 +345,8 @@ final class CacheableTest extends TestCase
     }
 
     /**
-     * Test that distinct scoped reads resolve distinct cached rows rather
-     * than colliding on a single whole-table entry.
+     * Test that distinct scoped reads resolve distinct cached rows rather than
+     * colliding on a single whole-table entry.
      *
      * @return void
      */
@@ -361,8 +360,8 @@ final class CacheableTest extends TestCase
     }
 
     /**
-     * Test that a cached scoped read is served from the cache on repeat
-     * without returning a different scope's rows.
+     * Test that a cached scoped read is served from the cache on repeat without
+     * returning a different scope's rows.
      *
      * @return void
      */
@@ -463,8 +462,7 @@ final class CacheableTest extends TestCase
     }
 
     /**
-     * Test that a fresh read repopulates the cache after a write
-     * invalidation.
+     * Test that a fresh read repopulates the cache after a write invalidation.
      *
      * @return void
      */

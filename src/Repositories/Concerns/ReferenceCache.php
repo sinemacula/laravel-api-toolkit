@@ -18,10 +18,10 @@ use SineMacula\ApiToolkit\Enums\CacheKeys;
  * In reference mode the table is loaded once and served from memory: full
  * collection reads and single-record lookups by primary key resolve without
  * touching the database. The deserialized snapshot is memoised on the instance
- * and indexed by key, so repeated reads within a request neither re-hydrate
- * the cached payload nor scan it linearly. This preserves the toolkit's
- * historical whole-table caching semantics, including cross-request
- * persistence, as an explicit opt-in.
+ * and indexed by key, so repeated reads within a request neither re-hydrate the
+ * cached payload nor scan it linearly. This preserves the toolkit's historical
+ * whole-table caching semantics, including cross-request persistence, as an
+ * explicit opt-in.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -152,8 +152,8 @@ final class ReferenceCache implements CacheInvalidator
     }
 
     /**
-     * Load the whole-table snapshot from the database, caching and memoising
-     * it unless it exceeds the size guard.
+     * Load the whole-table snapshot from the database, caching and memoising it
+     * unless it exceeds the size guard.
      *
      * @param  \Illuminate\Database\Eloquent\Model  $model
      * @return \Illuminate\Support\Collection<int, \Illuminate\Database\Eloquent\Model>

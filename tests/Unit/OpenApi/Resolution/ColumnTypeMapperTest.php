@@ -70,8 +70,8 @@ final class ColumnTypeMapperTest extends TestCase
     }
 
     /**
-     * Test that each driver type name maps to the expected JSON Schema type
-     * and format.
+     * Test that each driver type name maps to the expected JSON Schema type and
+     * format.
      *
      * @param  string  $typeName
      * @param  string  $expectedType
@@ -141,8 +141,8 @@ final class ColumnTypeMapperTest extends TestCase
     }
 
     /**
-     * Test that a boolean cast overrides a tinyint column, resolving the
-     * MySQL tinyint(1) ambiguity in favour of boolean.
+     * Test that a boolean cast overrides a tinyint column, resolving the MySQL
+     * tinyint(1) ambiguity in favour of boolean.
      *
      * @return void
      */
@@ -157,8 +157,7 @@ final class ColumnTypeMapperTest extends TestCase
     }
 
     /**
-     * Test that absent a cast, a tinyint column maps conservatively to
-     * integer.
+     * Test that absent a cast, a tinyint column maps conservatively to integer.
      *
      * @return void
      */
@@ -221,8 +220,8 @@ final class ColumnTypeMapperTest extends TestCase
     }
 
     /**
-     * Test that a datetime cast carrying a format argument still resolves to
-     * a date-time format.
+     * Test that a datetime cast carrying a format argument still resolves to a
+     * date-time format.
      *
      * @return void
      */
@@ -283,8 +282,8 @@ final class ColumnTypeMapperTest extends TestCase
     }
 
     /**
-     * Test that an unrecognised cast falls back to the column type-name
-     * mapping rather than producing the wrong shape.
+     * Test that an unrecognised cast falls back to the column type-name mapping
+     * rather than producing the wrong shape.
      *
      * @return void
      */

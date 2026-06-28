@@ -93,8 +93,8 @@ final class FieldResolver
     /**
      * Determine whether all fields should be included.
      *
-     * Returns true when the all-fields flag has been set explicitly or the
-     * API query contains the `:all` token for the given resource type.
+     * Returns true when the all-fields flag has been set explicitly or the API
+     * query contains the `:all` token for the given resource type.
      *
      * @param  string  $resourceType
      * @return bool

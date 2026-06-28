@@ -111,10 +111,10 @@ abstract class ApiRepository extends Repository
     /**
      * Persist the given attributes to the model.
      *
-     * This method handles both create and update operations
-     * transparently. Attributes are cast-resolved, BelongsTo and
-     * MorphTo relations are associated, and BelongsToMany and
-     * MorphToMany relations are synced after the model is saved.
+     * This method handles both create and update operations transparently.
+     * Attributes are cast-resolved, BelongsTo and MorphTo relations are
+     * associated, and BelongsToMany and MorphToMany relations are synced after
+     * the model is saved.
      *
      * @param  \Illuminate\Database\Eloquent\Model  $model
      * @param  array<string, mixed>|\Illuminate\Support\Collection<string, mixed>  $attributes

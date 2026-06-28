@@ -87,8 +87,8 @@ final class ContainsOperatorTest extends TestCase
     }
 
     /**
-     * Test that apply with a comma-separated string creates
-     * multiple conditions.
+     * Test that apply with a comma-separated string creates multiple
+     * conditions.
      *
      * @return void
      */
@@ -116,8 +116,8 @@ final class ContainsOperatorTest extends TestCase
     }
 
     /**
-     * Test that apply with a comma-separated string trims items and
-     * drops empty segments.
+     * Test that apply with a comma-separated string trims items and drops empty
+     * segments.
      *
      * @return void
      */
@@ -138,8 +138,7 @@ final class ContainsOperatorTest extends TestCase
     }
 
     /**
-     * Test that apply with a string containing only commas adds no
-     * constraints.
+     * Test that apply with a string containing only commas adds no constraints.
      *
      * @return void
      */
@@ -228,8 +227,8 @@ final class ContainsOperatorTest extends TestCase
     }
 
     /**
-     * Test that a grammar rejection of the JSON-contains clause is logged
-     * with diagnostic context rather than dropped without a trace.
+     * Test that a grammar rejection of the JSON-contains clause is logged with
+     * diagnostic context rather than dropped without a trace.
      *
      * @return void
      */
@@ -256,8 +255,8 @@ final class ContainsOperatorTest extends TestCase
     }
 
     /**
-     * Test that the comma-split conditions are grouped inside a single
-     * nested where on the parent query.
+     * Test that the comma-split conditions are grouped inside a single nested
+     * where on the parent query.
      *
      * @return void
      */

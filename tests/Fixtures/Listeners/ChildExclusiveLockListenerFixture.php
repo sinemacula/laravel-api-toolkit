@@ -7,8 +7,8 @@ namespace Tests\Fixtures\Listeners;
 /**
  * Fixture child listener invoking the inherited exclusive lock helper.
  *
- * Used to assert that handleWithLock remains accessible from subclasses of
- * a listener that uses the ProvidesExclusiveLock trait.
+ * Used to assert that handleWithLock remains accessible from subclasses of a
+ * listener that uses the ProvidesExclusiveLock trait.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.

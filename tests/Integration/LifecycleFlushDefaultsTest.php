@@ -22,9 +22,9 @@ use Tests\TestCase;
 /**
  * Integration harness: cross-request metadata staleness under Octane and queue.
  *
- * Proves that stale metadata is cleared at the correct lifecycle boundary,
- * that php-fpm does not engage, that opt-out is honoured, and that non-toolkit
- * keys on the shared store survive the scoped flush.
+ * Proves that stale metadata is cleared at the correct lifecycle boundary, that
+ * php-fpm does not engage, that opt-out is honoured, and that non-toolkit keys
+ * on the shared store survive the scoped flush.
  *
  * Every test sets the relevant config and $_SERVER state EXPLICITLY so the
  * mechanism is validated before the shipped default is flipped in Tier 4.

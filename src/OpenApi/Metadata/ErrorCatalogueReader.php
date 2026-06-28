@@ -147,9 +147,9 @@ final class ErrorCatalogueReader
     /**
      * Resolve the title string for the given integer error code.
      *
-     * Returns null when no title is defined in the language file (e.g. for
-     * the generic HTTP_ERROR code, where the title is derived at runtime
-     * from the HTTP status phrase).
+     * Returns null when no title is defined in the language file (e.g. for the
+     * generic HTTP_ERROR code, where the title is derived at runtime from the
+     * HTTP status phrase).
      *
      * @param  int  $code
      * @return string|null

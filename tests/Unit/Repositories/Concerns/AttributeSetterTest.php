@@ -65,8 +65,8 @@ final class AttributeSetterTest extends TestCase
     }
 
     /**
-     * Test that persist delegates scalar string attributes to the
-     * model's setAttribute method.
+     * Test that persist delegates scalar string attributes to the model's
+     * setAttribute method.
      *
      * @return void
      */
@@ -120,8 +120,8 @@ final class AttributeSetterTest extends TestCase
     }
 
     /**
-     * Test that persist delegates array attributes to the model's
-     * setAttribute method.
+     * Test that persist delegates array attributes to the model's setAttribute
+     * method.
      *
      * @return void
      */
@@ -137,8 +137,8 @@ final class AttributeSetterTest extends TestCase
     }
 
     /**
-     * Test that persist delegates enum attributes to the model's
-     * setAttribute method.
+     * Test that persist delegates enum attributes to the model's setAttribute
+     * method.
      *
      * @return void
      */
@@ -156,8 +156,7 @@ final class AttributeSetterTest extends TestCase
     }
 
     /**
-     * Test that persist sets a falsy value to null for object cast
-     * attributes.
+     * Test that persist sets a falsy value to null for object cast attributes.
      *
      * @return void
      */
@@ -173,8 +172,8 @@ final class AttributeSetterTest extends TestCase
     }
 
     /**
-     * Test that persist casts truthy values to stdClass for object
-     * cast attributes.
+     * Test that persist casts truthy values to stdClass for object cast
+     * attributes.
      *
      * @return void
      */
@@ -188,8 +187,8 @@ final class AttributeSetterTest extends TestCase
     }
 
     /**
-     * Test that persist associates a BelongsTo relation via the
-     * associate method.
+     * Test that persist associates a BelongsTo relation via the associate
+     * method.
      *
      * @return void
      */
@@ -207,8 +206,7 @@ final class AttributeSetterTest extends TestCase
     }
 
     /**
-     * Test that persist syncs a BelongsToMany relation after
-     * saving the model.
+     * Test that persist syncs a BelongsToMany relation after saving the model.
      *
      * @return void
      */
@@ -231,8 +229,8 @@ final class AttributeSetterTest extends TestCase
     }
 
     /**
-     * Test that persist syncs a relation when passed a Collection
-     * of models, plucking IDs automatically.
+     * Test that persist syncs a relation when passed a Collection of models,
+     * plucking IDs automatically.
      *
      * @return void
      */
@@ -278,8 +276,8 @@ final class AttributeSetterTest extends TestCase
     }
 
     /**
-     * Test that persist syncs a relation when passed a plain array
-     * of integer IDs.
+     * Test that persist syncs a relation when passed a plain array of integer
+     * IDs.
      *
      * @return void
      */
@@ -298,8 +296,8 @@ final class AttributeSetterTest extends TestCase
     }
 
     /**
-     * Test that persist syncs a relation when passed a single
-     * Model instance, using its ID via the ArrayAccess path.
+     * Test that persist syncs a relation when passed a single Model instance,
+     * using its ID via the ArrayAccess path.
      *
      * @return void
      */
@@ -318,8 +316,8 @@ final class AttributeSetterTest extends TestCase
     }
 
     /**
-     * Test that persist syncing a Collection detaches relations that
-     * are not present in the new value.
+     * Test that persist syncing a Collection detaches relations that are not
+     * present in the new value.
      *
      * @return void
      */
@@ -344,8 +342,8 @@ final class AttributeSetterTest extends TestCase
     }
 
     /**
-     * Test that persist syncing an array of IDs detaches relations
-     * that are not present in the new value.
+     * Test that persist syncing an array of IDs detaches relations that are not
+     * present in the new value.
      *
      * @return void
      */
@@ -370,8 +368,7 @@ final class AttributeSetterTest extends TestCase
     }
 
     /**
-     * Test that persist skips attributes whose cast resolves to
-     * null.
+     * Test that persist skips attributes whose cast resolves to null.
      *
      * @return void
      */
@@ -388,8 +385,7 @@ final class AttributeSetterTest extends TestCase
     }
 
     /**
-     * Test that persist returns the boolean result of the model's
-     * save method.
+     * Test that persist returns the boolean result of the model's save method.
      *
      * @return void
      */
@@ -405,8 +401,8 @@ final class AttributeSetterTest extends TestCase
     }
 
     /**
-     * Test that resolveAttributeCasts loads the cast map from cache when
-     * a cached value is available.
+     * Test that resolveAttributeCasts loads the cast map from cache when a
+     * cached value is available.
      *
      * @return void
      */
@@ -428,8 +424,8 @@ final class AttributeSetterTest extends TestCase
     }
 
     /**
-     * Test that resolveAttributeCasts resolves casts from the model when
-     * the cache is empty and stores them to cache.
+     * Test that resolveAttributeCasts resolves casts from the model when the
+     * cache is empty and stores them to cache.
      *
      * @return void
      */
@@ -454,8 +450,8 @@ final class AttributeSetterTest extends TestCase
     }
 
     /**
-     * Test that persist stores the resolved casts in the memo cache
-     * under the model class key.
+     * Test that persist stores the resolved casts in the memo cache under the
+     * model class key.
      *
      * @return void
      */
@@ -473,8 +469,8 @@ final class AttributeSetterTest extends TestCase
     }
 
     /**
-     * Test that resolveCastForAttribute returns null when both the cast
-     * and the model are null.
+     * Test that resolveCastForAttribute returns null when both the cast and the
+     * model are null.
      *
      * @return void
      */
@@ -486,8 +482,8 @@ final class AttributeSetterTest extends TestCase
     }
 
     /**
-     * Test that resolveCastForAttribute resolves the native cast key
-     * from the configured cast map.
+     * Test that resolveCastForAttribute resolves the native cast key from the
+     * configured cast map.
      *
      * @return void
      */
@@ -504,8 +500,8 @@ final class AttributeSetterTest extends TestCase
     }
 
     /**
-     * Test that resolveCastForRelation returns 'associate' for a
-     * BelongsTo relation.
+     * Test that resolveCastForRelation returns 'associate' for a BelongsTo
+     * relation.
      *
      * @return void
      */
@@ -523,8 +519,8 @@ final class AttributeSetterTest extends TestCase
     }
 
     /**
-     * Test that resolveCastForRelation returns 'associate' for a
-     * MorphTo relation.
+     * Test that resolveCastForRelation returns 'associate' for a MorphTo
+     * relation.
      *
      * @return void
      */
@@ -542,8 +538,8 @@ final class AttributeSetterTest extends TestCase
     }
 
     /**
-     * Test that resolveCastForRelation returns 'sync' for a
-     * BelongsToMany relation.
+     * Test that resolveCastForRelation returns 'sync' for a BelongsToMany
+     * relation.
      *
      * @return void
      */
@@ -561,8 +557,8 @@ final class AttributeSetterTest extends TestCase
     }
 
     /**
-     * Test that resolveCastForRelation returns null when the attribute
-     * is not a recognized relation.
+     * Test that resolveCastForRelation returns null when the attribute is not a
+     * recognized relation.
      *
      * @return void
      */
@@ -579,8 +575,8 @@ final class AttributeSetterTest extends TestCase
     }
 
     /**
-     * Test that resolveCastForRelation returns null for a relation type
-     * that does not support associate or sync semantics.
+     * Test that resolveCastForRelation returns null for a relation type that
+     * does not support associate or sync semantics.
      *
      * @return void
      */
@@ -617,8 +613,7 @@ final class AttributeSetterTest extends TestCase
     }
 
     /**
-     * Test that castMatchesLaravelCast returns true for an exact string
-     * match.
+     * Test that castMatchesLaravelCast returns true for an exact string match.
      *
      * @return void
      */
@@ -630,8 +625,8 @@ final class AttributeSetterTest extends TestCase
     }
 
     /**
-     * Test that castMatchesLaravelCast returns true for a wildcard
-     * pattern match.
+     * Test that castMatchesLaravelCast returns true for a wildcard pattern
+     * match.
      *
      * @return void
      */
@@ -643,8 +638,8 @@ final class AttributeSetterTest extends TestCase
     }
 
     /**
-     * Test that castMatchesLaravelCast returns true when the Laravel
-     * cast is a class and the base cast matches exactly.
+     * Test that castMatchesLaravelCast returns true when the Laravel cast is a
+     * class and the base cast matches exactly.
      *
      * @return void
      */
@@ -656,8 +651,8 @@ final class AttributeSetterTest extends TestCase
     }
 
     /**
-     * Test that castMatchesLaravelCast matches a class-based cast that
-     * carries parameters.
+     * Test that castMatchesLaravelCast matches a class-based cast that carries
+     * parameters.
      *
      * @return void
      */
@@ -669,8 +664,8 @@ final class AttributeSetterTest extends TestCase
     }
 
     /**
-     * Test that castMatchesLaravelCast returns false when the Laravel
-     * cast is an existing class that does not match the base cast.
+     * Test that castMatchesLaravelCast returns false when the Laravel cast is
+     * an existing class that does not match the base cast.
      *
      * @return void
      */
@@ -682,8 +677,8 @@ final class AttributeSetterTest extends TestCase
     }
 
     /**
-     * Test that castMatchesLaravelCast returns false when the casts do
-     * not match.
+     * Test that castMatchesLaravelCast returns false when the casts do not
+     * match.
      *
      * @return void
      */
@@ -695,8 +690,8 @@ final class AttributeSetterTest extends TestCase
     }
 
     /**
-     * Test that flush clears the cached casts, forcing re-resolution
-     * on the next call.
+     * Test that flush clears the cached casts, forcing re-resolution on the
+     * next call.
      *
      * @return void
      */
@@ -722,8 +717,8 @@ final class AttributeSetterTest extends TestCase
     }
 
     /**
-     * Test that flush on a fresh AttributeSetter with no prior cast
-     * resolution does not throw an exception.
+     * Test that flush on a fresh AttributeSetter with no prior cast resolution
+     * does not throw an exception.
      *
      * @return void
      */
@@ -737,8 +732,8 @@ final class AttributeSetterTest extends TestCase
     }
 
     /**
-     * Test that resolveCastForAttribute returns 'enum' for a cast
-     * string that is a valid enum class.
+     * Test that resolveCastForAttribute returns 'enum' for a cast string that
+     * is a valid enum class.
      *
      * @return void
      */

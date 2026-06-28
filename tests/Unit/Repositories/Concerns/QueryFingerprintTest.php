@@ -191,8 +191,8 @@ final class QueryFingerprintTest extends TestCase
 
     /**
      * Test that the registered eager loads are folded into the fingerprint, so
-     * with('posts')->get() does not collide with a plain get() (the eager
-     * loads are invisible to the compiled base SQL).
+     * with('posts')->get() does not collide with a plain get() (the eager loads
+     * are invisible to the compiled base SQL).
      *
      * @return void
      */

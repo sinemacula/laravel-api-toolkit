@@ -7,19 +7,18 @@ namespace SineMacula\ApiToolkit\Repositories\Concerns;
 /**
  * Provides opt-in deferred write capability for API repositories.
  *
- * When used by an ApiRepository subclass, this trait allows insert
- * operations to be collected in memory and flushed as bulk INSERT
- * statements at the end of the request lifecycle.
+ * When used by an ApiRepository subclass, this trait allows insert operations
+ * to be collected in memory and flushed as bulk INSERT statements at the end of
+ * the request lifecycle.
  *
- * Durability window: deferred writes live only in PHP memory until the
- * boundary flush performed by the WritePoolFlushSubscriber on
- * RequestHandled, CommandFinished, JobProcessed, or JobFailed. A crash,
- * out-of-memory condition, or SIGKILL in that window loses any unflushed
- * records. This is inherent to in-memory deferral; for true durability
- * use a real queue, which is out of scope for this trait. Under the
- * default collect strategy a failed flush retains the records in the
- * pool for the next boundary; use the log strategy for fire-and-forget
- * writes that may be dropped.
+ * Durability window: deferred writes live only in PHP memory until the boundary
+ * flush performed by the WritePoolFlushSubscriber on RequestHandled,
+ * CommandFinished, JobProcessed, or JobFailed. A crash, out-of-memory
+ * condition, or SIGKILL in that window loses any unflushed records. This is
+ * inherent to in-memory deferral; for true durability use a real queue, which
+ * is out of scope for this trait. Under the default collect strategy a failed
+ * flush retains the records in the pool for the next boundary; use the log
+ * strategy for fire-and-forget writes that may be dropped.
  *
  * Cache interaction: this concern coexists with Cacheable on the same
  * repository (each boots via its own boot{Concern} hook). Deferred writes are
@@ -43,11 +42,11 @@ trait Deferrable
     /**
      * Defer an insert operation to the write pool.
      *
-     * The attributes are buffered in memory and flushed as a bulk
-     * INSERT at the end of the request lifecycle. Timestamps are
-     * captured at the time of deferral, not at flush time. When the pool
-     * reaches its limit an automatic flush is triggered, which under the
-     * throw strategy may raise a WritePoolFlushException from this call.
+     * The attributes are buffered in memory and flushed as a bulk INSERT at the
+     * end of the request lifecycle. Timestamps are captured at the time of
+     * deferral, not at flush time. When the pool reaches its limit an automatic
+     * flush is triggered, which under the throw strategy may raise a
+     * WritePoolFlushException from this call.
      *
      * @param  array<string, mixed>  $attributes
      * @return void

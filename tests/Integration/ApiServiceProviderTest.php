@@ -136,8 +136,8 @@ final class ApiServiceProviderTest extends TestCase
     }
 
     /**
-     * Test that the toolkit's PreventRequestsDuringMaintenance middleware
-     * is prepended to the global stack when enabled (default).
+     * Test that the toolkit's PreventRequestsDuringMaintenance middleware is
+     * prepended to the global stack when enabled (default).
      *
      * @return void
      */
@@ -185,8 +185,8 @@ final class ApiServiceProviderTest extends TestCase
     }
 
     /**
-     * Test backward compatibility: default config produces the same behavior
-     * as the previous version.
+     * Test backward compatibility: default config produces the same behavior as
+     * the previous version.
      *
      * @return void
      */
@@ -227,8 +227,8 @@ final class ApiServiceProviderTest extends TestCase
     }
 
     /**
-     * Test that DetectsCapabilities middleware is appended to the api
-     * group when scoped.
+     * Test that DetectsCapabilities middleware is appended to the api group
+     * when scoped.
      *
      * @return void
      */
@@ -249,8 +249,8 @@ final class ApiServiceProviderTest extends TestCase
     }
 
     /**
-     * Test that DetectsCapabilities middleware is not registered when
-     * config is disabled.
+     * Test that DetectsCapabilities middleware is not registered when config is
+     * disabled.
      *
      * @return void
      */
@@ -328,8 +328,8 @@ final class ApiServiceProviderTest extends TestCase
     }
 
     /**
-     * Test that registerMorphMap builds the map when dynamic mapping is
-     * enabled and a valid resource map is configured.
+     * Test that registerMorphMap builds the map when dynamic mapping is enabled
+     * and a valid resource map is configured.
      *
      * @return void
      */
@@ -378,8 +378,8 @@ final class ApiServiceProviderTest extends TestCase
     }
 
     /**
-     * Test that the OperatorRegistry is registered as a singleton with
-     * built-in operators.
+     * Test that the OperatorRegistry is registered as a singleton with built-in
+     * operators.
      *
      * @return void
      */
@@ -530,8 +530,7 @@ final class ApiServiceProviderTest extends TestCase
     }
 
     /**
-     * Test that the Octane flush listener is registered when config is
-     * enabled.
+     * Test that the Octane flush listener is registered when config is enabled.
      *
      * @return void
      */
@@ -622,8 +621,7 @@ final class ApiServiceProviderTest extends TestCase
     }
 
     /**
-     * Test that the on_failure config key is available with the default
-     * value.
+     * Test that the on_failure config key is available with the default value.
      *
      * @return void
      */
@@ -666,8 +664,8 @@ final class ApiServiceProviderTest extends TestCase
     }
 
     /**
-     * Test that the WritePool receives the configured strategy when
-     * on_failure is set to a non-default value.
+     * Test that the WritePool receives the configured strategy when on_failure
+     * is set to a non-default value.
      *
      * @return void
      */
@@ -689,8 +687,8 @@ final class ApiServiceProviderTest extends TestCase
     }
 
     /**
-     * Test that an invalid on_failure config value throws a ValueError
-     * when resolving the WritePool.
+     * Test that an invalid on_failure config value throws a ValueError when
+     * resolving the WritePool.
      *
      * @return void
      */
@@ -709,8 +707,8 @@ final class ApiServiceProviderTest extends TestCase
     }
 
     /**
-     * Test that the ParseApiQuery middleware is pushed to the global stack
-     * when parser middleware registration is enabled.
+     * Test that the ParseApiQuery middleware is pushed to the global stack when
+     * parser middleware registration is enabled.
      *
      * @return void
      */
@@ -724,8 +722,8 @@ final class ApiServiceProviderTest extends TestCase
     }
 
     /**
-     * Test that all middleware registrations fall back to enabled defaults
-     * when the relevant config keys are missing entirely.
+     * Test that all middleware registrations fall back to enabled defaults when
+     * the relevant config keys are missing entirely.
      *
      * A fresh kernel and router are resolved so the assertions observe only
      * what this boot registers.
@@ -765,8 +763,8 @@ final class ApiServiceProviderTest extends TestCase
     }
 
     /**
-     * Test that the DetectsCapabilities middleware is not registered on a
-     * fresh kernel when disabled via config.
+     * Test that the DetectsCapabilities middleware is not registered on a fresh
+     * kernel when disabled via config.
      *
      * @return void
      */
@@ -790,8 +788,8 @@ final class ApiServiceProviderTest extends TestCase
     }
 
     /**
-     * Test that the DetectsCapabilities middleware scoped to the api group
-     * is not also pushed to the global stack.
+     * Test that the DetectsCapabilities middleware scoped to the api group is
+     * not also pushed to the global stack.
      *
      * @return void
      */
@@ -815,8 +813,8 @@ final class ApiServiceProviderTest extends TestCase
     }
 
     /**
-     * Test that the package config file is publishable under the config
-     * group with the expected source and destination paths.
+     * Test that the package config file is publishable under the config group
+     * with the expected source and destination paths.
      *
      * @return void
      */
@@ -831,8 +829,8 @@ final class ApiServiceProviderTest extends TestCase
     }
 
     /**
-     * Test that the package translations are publishable under the
-     * translations group with the expected source and destination paths.
+     * Test that the package translations are publishable under the translations
+     * group with the expected source and destination paths.
      *
      * @return void
      */
@@ -871,8 +869,8 @@ final class ApiServiceProviderTest extends TestCase
      * Test that schema validation defaults to disabled when the
      * validate_schemas config key is missing entirely.
      *
-     * Boot must complete without throwing even though the resource map
-     * contains an invalid schema, proving the default gate is off.
+     * Boot must complete without throwing even though the resource map contains
+     * an invalid schema, proving the default gate is off.
      *
      * @return void
      */
@@ -894,8 +892,8 @@ final class ApiServiceProviderTest extends TestCase
     }
 
     /**
-     * Test that schema validation is skipped when the resource map is not
-     * an array, completing boot without error.
+     * Test that schema validation is skipped when the resource map is not an
+     * array, completing boot without error.
      *
      * @return void
      */
@@ -933,8 +931,8 @@ final class ApiServiceProviderTest extends TestCase
     }
 
     /**
-     * Test that no notification listeners are added when notification
-     * logging is disabled.
+     * Test that no notification listeners are added when notification logging
+     * is disabled.
      *
      * @return void
      */
@@ -999,8 +997,8 @@ final class ApiServiceProviderTest extends TestCase
     }
 
     /**
-     * Test that the write pool flush subscriber is subscribed to the HTTP
-     * and console lifecycle events.
+     * Test that the write pool flush subscriber is subscribed to the HTTP and
+     * console lifecycle events.
      *
      * @return void
      */
@@ -1053,8 +1051,8 @@ final class ApiServiceProviderTest extends TestCase
     }
 
     /**
-     * Test that the WritePool falls back to the default sizes when the
-     * config keys are missing entirely.
+     * Test that the WritePool falls back to the default sizes when the config
+     * keys are missing entirely.
      *
      * @return void
      */
@@ -1175,8 +1173,8 @@ final class ApiServiceProviderTest extends TestCase
     /**
      * Resolve a path relative to the service provider source directory.
      *
-     * Mirrors the __DIR__-relative paths used by the provider when
-     * registering publishable assets.
+     * Mirrors the __DIR__-relative paths used by the provider when registering
+     * publishable assets.
      *
      * @param  string  $path
      * @return string
@@ -1204,8 +1202,8 @@ final class ApiServiceProviderTest extends TestCase
     }
 
     /**
-     * Determine whether the given event has a listener belonging to the
-     * given subscriber class.
+     * Determine whether the given event has a listener belonging to the given
+     * subscriber class.
      *
      * @param  class-string  $event
      * @param  class-string  $subscriber

@@ -17,8 +17,8 @@ use Tests\TestCase;
  * Integration tests for JsonPrettyPrint middleware with api scope.
  *
  * This test class configures the JsonPrettyPrint scope to 'api' before the
- * service provider boots, verifying it is appended to the api middleware
- * group instead of the global stack.
+ * service provider boots, verifying it is appended to the api middleware group
+ * instead of the global stack.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.

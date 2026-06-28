@@ -9,8 +9,8 @@ use SineMacula\ApiToolkit\Schema\CompiledSchema;
 use SineMacula\ApiToolkit\Services\Validation\SchemaValidationError;
 
 /**
- * Validate that computed field values are callable or reference valid
- * methods on the resource class.
+ * Validate that computed field values are callable or reference valid methods
+ * on the resource class.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.

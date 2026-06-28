@@ -20,9 +20,9 @@ final class TokenMismatchException extends ApiException
     /**
      * Get HTTP status code.
      *
-     * Overrides the base method to return the non-standard 419 status
-     * code directly, as this code has no corresponding case in the
-     * shared HttpStatus enum.
+     * Overrides the base method to return the non-standard 419 status code
+     * directly, as this code has no corresponding case in the shared HttpStatus
+     * enum.
      *
      * @return int
      */

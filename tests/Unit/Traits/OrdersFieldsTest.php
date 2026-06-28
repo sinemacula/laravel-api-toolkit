@@ -195,8 +195,8 @@ final class OrdersFieldsTest extends TestCase
     }
 
     /**
-     * Test that the ordering helpers remain callable from subclasses of a
-     * trait consumer (protected visibility contract).
+     * Test that the ordering helpers remain callable from subclasses of a trait
+     * consumer (protected visibility contract).
      *
      * @return void
      */

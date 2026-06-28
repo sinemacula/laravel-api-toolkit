@@ -123,8 +123,8 @@ final class EagerLoadPlannerTest extends TestCase
     /**
      * Test that child resource relations are recursed into and prefixed.
      *
-     * When the API query requests relation fields for the child resource,
-     * the planner recurses into those fields and prefixes the paths.
+     * When the API query requests relation fields for the child resource, the
+     * planner recurses into those fields and prefixes the paths.
      *
      * @return void
      */
@@ -189,9 +189,9 @@ final class EagerLoadPlannerTest extends TestCase
     /**
      * Test that visited resource/path pairs are not traversed again.
      *
-     * When a resource class references the same relation path that has
-     * already been visited, the planner skips it to prevent duplicate
-     * entries and unbounded traversal.
+     * When a resource class references the same relation path that has already
+     * been visited, the planner skips it to prevent duplicate entries and
+     * unbounded traversal.
      *
      * @return void
      */
@@ -364,8 +364,8 @@ final class EagerLoadPlannerTest extends TestCase
     }
 
     /**
-     * Test that the API query fields for a child resource type are used when
-     * no explicit fields are defined on the relation.
+     * Test that the API query fields for a child resource type are used when no
+     * explicit fields are defined on the relation.
      *
      * @return void
      */
@@ -488,8 +488,8 @@ final class EagerLoadPlannerTest extends TestCase
     }
 
     /**
-     * Test that count definitions after an excluded one are still evaluated
-     * and that every matching count is returned.
+     * Test that count definitions after an excluded one are still evaluated and
+     * that every matching count is returned.
      *
      * @return void
      */
@@ -549,8 +549,8 @@ final class EagerLoadPlannerTest extends TestCase
     }
 
     /**
-     * Test that an already-visited path is skipped while later fields are
-     * still traversed.
+     * Test that an already-visited path is skipped while later fields are still
+     * traversed.
      *
      * @return void
      */
@@ -572,8 +572,8 @@ final class EagerLoadPlannerTest extends TestCase
     }
 
     /**
-     * Test that relations pointing at non-ApiResource classes are not
-     * recursed into.
+     * Test that relations pointing at non-ApiResource classes are not recursed
+     * into.
      *
      * @return void
      */

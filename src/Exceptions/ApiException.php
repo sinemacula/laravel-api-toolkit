@@ -79,9 +79,9 @@ abstract class ApiException extends \Exception
      * Get the HTTP status code for this exception instance.
      *
      * Defaults to the static resolution (HTTP_STATUS constant or a static
-     * override for non-standard codes). Subclasses carrying a runtime
-     * status (e.g. the generic HttpException) may override this; the
-     * exception handler renders responses from this instance-level code.
+     * override for non-standard codes). Subclasses carrying a runtime status
+     * (e.g. the generic HttpException) may override this; the exception handler
+     * renders responses from this instance-level code.
      *
      * @return int
      */
@@ -93,8 +93,8 @@ abstract class ApiException extends \Exception
     /**
      * Get the HTTP status for this exception instance.
      *
-     * Defaults to the HTTP_STATUS constant. Used to derive the default
-     * title when no translation exists for the error code.
+     * Defaults to the HTTP_STATUS constant. Used to derive the default title
+     * when no translation exists for the error code.
      *
      * @return \SineMacula\Http\Enums\HttpStatus
      */

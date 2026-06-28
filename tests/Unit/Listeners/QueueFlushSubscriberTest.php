@@ -96,8 +96,8 @@ final class QueueFlushSubscriberTest extends TestCase
      * Test that handleFlush does not flush for a sync connection (in-request
      * job).
      *
-     * Pins AC-06: sync jobs run within the HTTP request and must not trigger
-     * a metadata flush at the job boundary.
+     * Pins AC-06: sync jobs run within the HTTP request and must not trigger a
+     * metadata flush at the job boundary.
      *
      * @return void
      */

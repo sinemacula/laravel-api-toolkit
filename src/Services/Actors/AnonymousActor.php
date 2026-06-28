@@ -9,9 +9,9 @@ use SineMacula\ApiToolkit\Services\Contracts\Actor;
 /**
  * Unauthenticated-caller actor.
  *
- * Represents a public API caller with no authenticated identity.
- * Distinct from SystemActor: anonymous callers originate from
- * outside the system, whereas system actors are internal processes.
+ * Represents a public API caller with no authenticated identity. Distinct from
+ * SystemActor: anonymous callers originate from outside the system, whereas
+ * system actors are internal processes.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.

@@ -37,8 +37,7 @@ final class CacheStatusTest extends TestCase
     }
 
     /**
-     * Test that isPopulated returns false when the cache is not
-     * populated.
+     * Test that isPopulated returns false when the cache is not populated.
      *
      * @return void
      */
@@ -54,8 +53,8 @@ final class CacheStatusTest extends TestCase
     }
 
     /**
-     * Test that getAge returns the number of seconds when the cache
-     * is populated.
+     * Test that getAge returns the number of seconds when the cache is
+     * populated.
      *
      * @return void
      */
@@ -87,8 +86,8 @@ final class CacheStatusTest extends TestCase
     }
 
     /**
-     * Test that getLastInvalidatedAt returns the Carbon instance
-     * when the cache has been previously invalidated.
+     * Test that getLastInvalidatedAt returns the Carbon instance when the cache
+     * has been previously invalidated.
      *
      * @return void
      */
@@ -106,8 +105,8 @@ final class CacheStatusTest extends TestCase
     }
 
     /**
-     * Test that getLastInvalidatedAt returns null when the cache has
-     * never been invalidated.
+     * Test that getLastInvalidatedAt returns null when the cache has never been
+     * invalidated.
      *
      * @return void
      */

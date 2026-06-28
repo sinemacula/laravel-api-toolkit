@@ -747,8 +747,8 @@ final class SchemaCompilerTest extends TestCase
     }
 
     /**
-     * Test that sum entries produce a CompiledAggregateDefinition for the
-     * 'sum' metric with the correct present key.
+     * Test that sum entries produce a CompiledAggregateDefinition for the 'sum'
+     * metric with the correct present key.
      *
      * @return void
      */

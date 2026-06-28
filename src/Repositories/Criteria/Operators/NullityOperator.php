@@ -12,8 +12,8 @@ use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext;
  * Base handler for nullity filter operators.
  *
  * Applies a null or not-null constraint to the query builder depending on the
- * negation declared by the concrete subclass, honouring the logical operator
- * of the current filter context.
+ * negation declared by the concrete subclass, honouring the logical operator of
+ * the current filter context.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.

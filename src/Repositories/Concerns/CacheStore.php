@@ -16,12 +16,12 @@ use SineMacula\ApiToolkit\Enums\CacheKeys;
  *
  * Each executed query is stored under a key derived from its fingerprint, so a
  * filtered or by-id read never returns the full-table collection. Invalidation
- * is performed per table - via cache tags when the store supports them, or
- * via a generational table version otherwise: every per-query key embeds the
+ * is performed per table - via cache tags when the store supports them, or via
+ * a generational table version otherwise: every per-query key embeds the
  * current table version, and a write bumps the version with a single atomic
- * increment.
- * Invalidation is therefore O(1) and free of the read-modify-write races a
- * tracked key set suffers; orphaned old-version entries simply expire by TTL.
+ * increment. Invalidation is therefore O(1) and free of the read-modify-write
+ * races a tracked key set suffers; orphaned old-version entries simply expire
+ * by TTL.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -260,10 +260,10 @@ final class CacheStore implements CacheInvalidator
      * The trade-off is eventual consistency across processes. If a different
      * request (or queue worker) bumps the version via a write while this
      * instance is alive, the bump is invisible here until this instance is
-     * destroyed (typically at end-of-request). During that window this
-     * instance may serve cache entries that have been logically invalidated
-     * by the other process. Because the orphaned entries expire naturally by
-     * their TTL, the inconsistency is bounded and self-healing.
+     * destroyed (typically at end-of-request). During that window this instance
+     * may serve cache entries that have been logically invalidated by the other
+     * process. Because the orphaned entries expire naturally by their TTL, the
+     * inconsistency is bounded and self-healing.
      *
      * Taggable stores (e.g. Redis with tags enabled) are not affected by this
      * contract - they skip the generational-version path entirely and rely on

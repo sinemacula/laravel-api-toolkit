@@ -430,8 +430,8 @@ final class CacheStoreTest extends TestCase
 
     /**
      * Test that invalidateTable bumps the generational version on a
-     * non-taggable store when the registry is enabled, so a previously
-     * cached entry reads back as a miss.
+     * non-taggable store when the registry is enabled, so a previously cached
+     * entry reads back as a miss.
      *
      * @return void
      */
@@ -446,8 +446,8 @@ final class CacheStoreTest extends TestCase
     }
 
     /**
-     * Test that invalidateTable leaves a non-taggable store's entry intact
-     * when the registry is disabled, because it cannot bump the version.
+     * Test that invalidateTable leaves a non-taggable store's entry intact when
+     * the registry is disabled, because it cannot bump the version.
      *
      * @return void
      */

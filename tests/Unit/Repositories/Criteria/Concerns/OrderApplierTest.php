@@ -48,8 +48,7 @@ final class OrderApplierTest extends TestCase
     }
 
     /**
-     * Test that apply with an empty order array returns the query
-     * unmodified.
+     * Test that apply with an empty order array returns the query unmodified.
      *
      * @return void
      */
@@ -79,8 +78,8 @@ final class OrderApplierTest extends TestCase
     }
 
     /**
-     * Test that apply with multiple columns adds multiple orderBy
-     * clauses in order.
+     * Test that apply with multiple columns adds multiple orderBy clauses in
+     * order.
      *
      * @return void
      */
@@ -115,8 +114,7 @@ final class OrderApplierTest extends TestCase
     }
 
     /**
-     * Test that apply with an invalid direction silently skips the
-     * column.
+     * Test that apply with an invalid direction silently skips the column.
      *
      * @return void
      */
@@ -129,8 +127,7 @@ final class OrderApplierTest extends TestCase
     }
 
     /**
-     * Test that apply with a non-searchable column silently skips
-     * it.
+     * Test that apply with a non-searchable column silently skips it.
      *
      * @return void
      */
@@ -143,8 +140,8 @@ final class OrderApplierTest extends TestCase
     }
 
     /**
-     * Test that apply with both random and regular columns applies
-     * both ordering types.
+     * Test that apply with both random and regular columns applies both
+     * ordering types.
      *
      * @return void
      */

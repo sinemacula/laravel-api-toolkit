@@ -122,10 +122,10 @@ final class ApiExceptionHandler
     /**
      * Resolve the API exception class that the given throwable maps to.
      *
-     * The first source-type the throwable is an instance of wins, so the
-     * order of the map is significant: more specific source types must
-     * precede the broader interfaces they extend. Anything unmatched falls
-     * back to the unhandled exception.
+     * The first source-type the throwable is an instance of wins, so the order
+     * of the map is significant: more specific source types must precede the
+     * broader interfaces they extend. Anything unmatched falls back to the
+     * unhandled exception.
      *
      * @param  \Throwable  $exception
      * @return class-string<\SineMacula\ApiToolkit\Exceptions\ApiException>
@@ -145,8 +145,8 @@ final class ApiExceptionHandler
      * The ordered map of source exception types to their API exception class.
      *
      * Ordering is significant: entries are evaluated top-to-bottom and the
-     * first match wins, so more specific types precede the broader
-     * interfaces they implement.
+     * first match wins, so more specific types precede the broader interfaces
+     * they implement.
      *
      * @return array<class-string<\Throwable>, class-string<\SineMacula\ApiToolkit\Exceptions\ApiException>>
      */
@@ -177,8 +177,8 @@ final class ApiExceptionHandler
     }
 
     /**
-     * Map an unrecognised HTTP-layer exception, preserving its status code
-     * and headers. Unknown status codes fall back to an unhandled error.
+     * Map an unrecognised HTTP-layer exception, preserving its status code and
+     * headers. Unknown status codes fall back to an unhandled error.
      *
      * @param  \Symfony\Component\HttpKernel\Exception\HttpExceptionInterface  $exception
      * @param  array<string, mixed>|null  $meta

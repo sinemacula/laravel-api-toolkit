@@ -80,8 +80,8 @@ final class CacheSizeGuardTest extends TestCase
     }
 
     /**
-     * Test that a result whose row count exactly equals the ceiling is
-     * allowed, pinning the bound as exclusive rather than inclusive.
+     * Test that a result whose row count exactly equals the ceiling is allowed,
+     * pinning the bound as exclusive rather than inclusive.
      *
      * @return void
      */

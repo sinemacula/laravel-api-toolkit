@@ -8,8 +8,8 @@ use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
 
 /**
- * Immutable value object representing the current state of a
- * repository cache entry.
+ * Immutable value object representing the current state of a repository cache
+ * entry.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.

@@ -21,8 +21,8 @@ use Tests\TestCase;
 final class WritePoolFlushExceptionTest extends TestCase
 {
     /**
-     * Test that the constructor sets a message containing the failure
-     * and total counts from the flush result.
+     * Test that the constructor sets a message containing the failure and total
+     * counts from the flush result.
      *
      * @return void
      */
