@@ -6,10 +6,9 @@ namespace Tests\Unit\Services\Concerns;
 
 use Illuminate\Contracts\Cache\Lock;
 use PHPUnit\Framework\Attributes\CoversClass;
-use SineMacula\ApiToolkit\Concerns\Lockable;
-use SineMacula\ApiToolkit\Contracts\LockKeyProvider;
-use SineMacula\ApiToolkit\Exceptions\TooManyRequestsException;
+use SineMacula\ApiToolkit\Exceptions\LockUnavailableException;
 use SineMacula\ApiToolkit\Services\Concerns\LockConcern;
+use SineMacula\ApiToolkit\Services\Input\ArrayInput;
 use SineMacula\ApiToolkit\Services\Service;
 use Tests\TestCase;
 
@@ -25,54 +24,35 @@ use Tests\TestCase;
 final class LockConcernTest extends TestCase
 {
     /**
-     * Test that execute acquires the lock before calling the next closure.
+     * Test that wrap acquires the lock before $next, releases after, and
+     * returns the value from $next.
      *
      * @return void
      */
-    public function testExecuteAcquiresLockBeforeCallingNext(): void
+    public function testWrapAcquiresAndReleasesLock(): void
     {
         $callOrder = [];
 
         $service = $this->createLockableService($callOrder);
         $concern = new LockConcern;
 
-        $concern->execute($service, function () use (&$callOrder): bool {
+        $result = $concern->wrap($service, function () use (&$callOrder): string {
             $callOrder[] = 'next';
 
-            return true;
-        });
-
-        self::assertSame(['lock', 'next'], array_slice($callOrder, 0, 2));
-    }
-
-    /**
-     * Test that execute releases the lock after the next closure returns.
-     *
-     * @return void
-     */
-    public function testExecuteReleasesLockAfterNext(): void
-    {
-        $callOrder = [];
-
-        $service = $this->createLockableService($callOrder);
-        $concern = new LockConcern;
-
-        $concern->execute($service, function () use (&$callOrder): bool {
-            $callOrder[] = 'next';
-
-            return true;
+            return 'result-value';
         });
 
         self::assertSame(['lock', 'next', 'unlock'], $callOrder);
+        self::assertSame('result-value', $result);
     }
 
     /**
-     * Test that execute releases the lock even when the next closure
-     * throws an exception.
+     * Test that wrap releases the lock in the finally block even when $next
+     * throws.
      *
      * @return void
      */
-    public function testExecuteReleasesLockOnException(): void
+    public function testWrapReleasesLockWhenNextThrows(): void
     {
         $callOrder = [];
 
@@ -81,7 +61,7 @@ final class LockConcernTest extends TestCase
 
         try {
 
-            $concern->execute($service, function (): bool {
+            $concern->wrap($service, function (): never {
                 throw new \RuntimeException('pipeline failure');
             });
 
@@ -89,58 +69,28 @@ final class LockConcernTest extends TestCase
             // Expected
         }
 
-        self::assertContains('unlock', $callOrder);
+        self::assertSame(['lock', 'unlock'], $callOrder);
     }
 
     /**
-     * Test that execute passes through without locking when the service
-     * does not use the Lockable trait.
+     * Test that a contended lock causes LockUnavailableException to propagate.
      *
      * @return void
      */
-    public function testExecutePassesThroughWhenServiceDoesNotUseLockable(): void
+    public function testWrapPropagatesContention(): void
     {
-        $service = self::createStub(Service::class);
-        $concern = new LockConcern;
-
-        $result = $concern->execute($service, fn (): bool => true);
-
-        self::assertTrue($result);
-    }
-
-    /**
-     * Test that TooManyRequestsException from lock() propagates to the
-     * caller.
-     *
-     * @return void
-     */
-    public function testExecutePropagatesTooManyRequestsException(): void
-    {
-        $service = new class extends Service implements LockKeyProvider {
-            use Lockable;
-
+        $service = new class (new ArrayInput([])) extends Service {
             /**
              * Lock the task execution.
              *
              * @return never
              *
-             * @throws \SineMacula\ApiToolkit\Exceptions\TooManyRequestsException
+             * @throws \SineMacula\ApiToolkit\Exceptions\LockUnavailableException
              */
             #[\Override]
             public function lock(): Lock
             {
-                throw new TooManyRequestsException;
-            }
-
-            /**
-             * Generate the cache lock key.
-             *
-             * @return string
-             */
-            #[\Override]
-            public function getLockKey(): string
-            {
-                return 'test-lock-key';
+                throw new LockUnavailableException('Unable to acquire the cache lock; the resource is currently locked.');
             }
 
             /**
@@ -157,22 +107,20 @@ final class LockConcernTest extends TestCase
 
         $concern = new LockConcern;
 
-        $this->expectException(TooManyRequestsException::class);
+        $this->expectException(LockUnavailableException::class);
 
-        $concern->execute($service, fn (): bool => true);
+        $concern->wrap($service, fn (): bool => true);
     }
 
     /**
      * Create a lockable service fixture that tracks call order.
      *
      * @param  array<int, string>  $callOrder
-     * @return \SineMacula\ApiToolkit\Services\Service
+     * @return \SineMacula\ApiToolkit\Services\Service<\SineMacula\ApiToolkit\Services\Contracts\ServiceInput, mixed>
      */
     private function createLockableService(array &$callOrder): Service
     {
-        return new class ($callOrder) extends Service implements LockKeyProvider {
-            use Lockable;
-
+        return new class ($callOrder) extends Service {
             /** @var array<int, string> */
             public array $callOrder;
 
@@ -185,7 +133,7 @@ final class LockConcernTest extends TestCase
             {
                 $this->callOrder = &$callOrder;
 
-                parent::__construct([]);
+                parent::__construct(new ArrayInput([]));
             }
 
             /**
@@ -210,17 +158,6 @@ final class LockConcernTest extends TestCase
             public function unlock(): void
             {
                 $this->callOrder[] = 'unlock';
-            }
-
-            /**
-             * Generate the cache lock key.
-             *
-             * @return string
-             */
-            #[\Override]
-            public function getLockKey(): string
-            {
-                return 'test-lock-key';
             }
 
             /**

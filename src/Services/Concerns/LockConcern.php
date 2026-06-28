@@ -4,37 +4,31 @@ declare(strict_types = 1);
 
 namespace SineMacula\ApiToolkit\Services\Concerns;
 
-use SineMacula\ApiToolkit\Concerns\Lockable;
-use SineMacula\ApiToolkit\Services\Contracts\ServiceConcern;
 use SineMacula\ApiToolkit\Services\Service;
 
 /**
- * Cache-based atomic locking concern.
+ * Cache-based atomic locking stage.
  *
  * Acquires a cache lock before executing the pipeline and releases it in
  * a finally block, ensuring the lock is always released even on exception.
- * Services must use the Lockable trait for this concern to take effect;
- * otherwise, execution passes through without locking.
+ * The runner only invokes this stage for lockable services.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-final class LockConcern implements ServiceConcern
+final class LockConcern
 {
     /**
-     * Execute the concern around the service lifecycle.
+     * Acquire the service's cache lock, run $next, release in finally.
      *
      * @param  \SineMacula\ApiToolkit\Services\Service  $service
-     * @param  \Closure(): bool  $next
-     * @return bool
+     * @param  \Closure(): mixed  $next
+     * @return mixed
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\LockUnavailableException
      */
-    #[\Override]
-    public function execute(Service $service, \Closure $next): bool
+    public function wrap(Service $service, \Closure $next): mixed
     {
-        if (!in_array(Lockable::class, class_uses_recursive($service), true)) {
-            return $next();
-        }
-
         $service->lock();
 
         try {

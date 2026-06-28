@@ -4,21 +4,24 @@ declare(strict_types = 1);
 
 namespace Tests\Unit\Services;
 
-use Illuminate\Foundation\Application;
-use Illuminate\Support\Collection;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Contracts\LockKeyProvider;
-use SineMacula\ApiToolkit\Services\Contracts\ServiceConcern;
-use SineMacula\ApiToolkit\Services\Enums\ServiceStatus;
+use SineMacula\ApiToolkit\Services\Actors\AnonymousActor;
+use SineMacula\ApiToolkit\Services\Contracts\Actor;
+use SineMacula\ApiToolkit\Services\Contracts\ServiceInput;
+use SineMacula\ApiToolkit\Services\Input\ArrayInput;
 use SineMacula\ApiToolkit\Services\Service;
-use Tests\Fixtures\Services\FailingService;
-use Tests\Fixtures\Services\LockableService;
-use Tests\Fixtures\Services\NoTransactionService;
-use Tests\Fixtures\Services\SimpleService;
+use SineMacula\ApiToolkit\Services\ServiceContext;
+use SineMacula\ApiToolkit\Services\ServiceResult;
+use Tests\Fixtures\Services\OutputService;
+use Tests\Fixtures\Services\StubActor;
 use Tests\TestCase;
 
 /**
  * Tests for the Service base class.
+ *
+ * Covers the typed input skeleton, actor API, make/by/withContext fluent
+ * methods, run() totality, getLockKey(), and the serviceHooks() seam.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -29,550 +32,276 @@ use Tests\TestCase;
 final class ServiceTest extends TestCase
 {
     /**
-     * Test that run calls success on successful execution.
+     * Test that handle() is declared abstract and protected.
      *
      * @return void
      */
-    public function testRunCallsSuccessOnSuccessfulExecution(): void
+    public function testHandleIsAbstractAndProtected(): void
     {
-        $service = new SimpleService;
+        $method = new \ReflectionMethod(Service::class, 'handle');
 
-        $service->run();
-
-        self::assertTrue($service->successCalled);
+        self::assertTrue($method->isAbstract());
+        self::assertTrue($method->isProtected());
     }
 
     /**
-     * Test that run returns a successful result for a successful service.
+     * Test that a concrete service returns typed output through ServiceResult.
      *
      * @return void
      */
-    public function testRunReturnsSuccessfulResultForSuccessfulService(): void
+    public function testOutputServiceReturnsTypedOutput(): void
     {
-        $service = new SimpleService;
-
-        $result = $service->run();
+        $service = new OutputService(new ArrayInput(['message' => 'hello']));
+        $result  = $service->run();
 
         self::assertTrue($result->succeeded());
-        self::assertSame(ServiceStatus::SUCCEEDED, $result->status);
-        self::assertNull($result->exception);
+        self::assertSame(['message' => 'hello'], $result->output());
     }
 
     /**
-     * Test that run calls failed and captures the exception in the result.
+     * Test that actor() returns AnonymousActor when no actor has been set.
      *
      * @return void
      */
-    public function testRunCallsFailedAndCapturesExceptionInResult(): void
+    public function testActorDefaultsToAnonymousActor(): void
     {
-        $service = new FailingService;
+        $service = new OutputService(new ArrayInput([]));
 
-        $result = $service->run();
-
-        self::assertTrue($result->failed());
-        self::assertTrue($service->failedCalled);
-        self::assertSame($result->exception, $service->failedException);
-        self::assertInstanceOf(\RuntimeException::class, $result->exception);
-        self::assertSame('Service execution failed', $result->exception->getMessage());
+        self::assertInstanceOf(AnonymousActor::class, $service->actor());
     }
 
     /**
-     * Test that the service implements the LockKeyProvider contract.
+     * Test that actor() never reads from Auth or any ambient state.
      *
      * @return void
      */
-    public function testServiceImplementsLockKeyProvider(): void
+    public function testActorReadsNoAmbientAuthState(): void
     {
-        $service = new SimpleService;
+        // Facade is NOT faked — any Auth call would throw or require setup.
+        // If actor() internally called Auth::user() without setup, it would
+        // produce a non-AnonymousActor or throw. AnonymousActor is the proof.
+        $service = new OutputService(new ArrayInput([]));
 
-        self::assertInstanceOf(LockKeyProvider::class, $service);
+        self::assertInstanceOf(AnonymousActor::class, $service->actor());
     }
 
     /**
-     * Test that getLockKey returns a SHA-1 hash of the class name and
-     * lock ID.
+     * Test that by() records the causer and returns the same instance.
      *
      * @return void
      */
-    public function testGetLockKeyReturnsSha1OfClassAndLockId(): void
+    public function testByRecordsActorAndReturnsSelf(): void
     {
-        $service = new LockableService;
+        $stub    = new StubActor;
+        $service = new OutputService(new ArrayInput([]));
 
-        $expected = sha1(LockableService::class . '|lockable-test');
+        $returned = $service->by($stub);
 
-        self::assertSame($expected, $service->getLockKey());
+        self::assertSame($service, $returned);
+        self::assertSame($stub, $service->actor());
     }
 
     /**
-     * Test that the constructor converts an array payload to a Collection.
+     * Test that run() never throws even when handle() throws.
      *
      * @return void
      */
-    public function testConstructorConvertsArrayPayloadToCollection(): void
+    public function testRunNeverThrowsForBusinessFailures(): void
     {
-        $service = new SimpleService(['key' => 'value']);
-
-        $payload = (new \ReflectionProperty($service, 'payload'))->getValue($service);
-
-        self::assertInstanceOf(Collection::class, $payload);
-        self::assertSame('value', $payload->get('key'));
-    }
-
-    /**
-     * Test that the constructor accepts a Collection payload.
-     *
-     * @return void
-     */
-    public function testConstructorAcceptsCollectionPayload(): void
-    {
-        $collection = collect(['key' => 'value']);
-
-        $service = new SimpleService($collection);
-
-        $payload = (new \ReflectionProperty($service, 'payload'))->getValue($service);
-
-        self::assertInstanceOf(Collection::class, $payload);
-        self::assertSame('value', $payload->get('key'));
-    }
-
-    /**
-     * Test that the constructor preserves a Collection payload instance.
-     *
-     * @return void
-     */
-    public function testConstructorPreservesCollectionPayloadInstance(): void
-    {
-        $collection = collect(['key' => 'value']);
-
-        $service = new SimpleService($collection);
-
-        $payload = (new \ReflectionProperty($service, 'payload'))->getValue($service);
-
-        self::assertSame($collection, $payload);
-    }
-
-    /**
-     * Test that the constructor preserves a stdClass payload.
-     *
-     * @return void
-     */
-    public function testConstructorPreservesStdClassPayload(): void
-    {
-        $object      = new \stdClass;
-        $object->key = 'value';
-
-        $service = new SimpleService($object);
-
-        $payload = (new \ReflectionProperty($service, 'payload'))->getValue($service);
-
-        self::assertSame($object, $payload);
-    }
-
-    /**
-     * Test that the lifecycle hook methods are part of the public API and
-     * are callable from outside the service.
-     *
-     * @return void
-     */
-    public function testLifecycleHooksArePublic(): void
-    {
-        $service = new class extends Service {
+        $service = new class (new ArrayInput([])) extends Service {
             /**
-             * Handle the service execution.
-             *
-             * @return bool
-             */
-            #[\Override]
-            protected function handle(): bool
-            {
-                return true;
-            }
-        };
-
-        $service->prepare();
-        $service->success();
-        $service->failed(new \RuntimeException('hook'));
-
-        self::assertTrue((new \ReflectionMethod(Service::class, 'prepare'))->isPublic());
-        self::assertTrue((new \ReflectionMethod(Service::class, 'success'))->isPublic());
-        self::assertTrue((new \ReflectionMethod(Service::class, 'failed'))->isPublic());
-    }
-
-    /**
-     * Test that prepare is called before handle.
-     *
-     * @return void
-     */
-    public function testPrepareIsCalledBeforeHandle(): void
-    {
-        $callOrder = [];
-
-        $service = new class ($callOrder) extends Service {
-            /** @var array<int, string> */
-            private array $callOrder;
-
-            /**
-             * Create a new instance.
-             *
-             * @param  array<int, string>  $callOrder
-             */
-            public function __construct(array &$callOrder)
-            {
-                $this->callOrder = &$callOrder;
-
-                parent::__construct([]);
-            }
-
-            /**
-             * Prepare the service for execution.
-             *
-             * @return void
-             */
-            #[\Override]
-            public function prepare(): void
-            {
-                $this->callOrder[] = 'prepare';
-            }
-
-            /**
-             * Handle the service execution.
-             *
-             * @return bool
-             */
-            #[\Override]
-            protected function handle(): bool
-            {
-                $this->callOrder[] = 'handle';
-
-                return true;
-            }
-
-            /**
-             * Get the recorded call order.
-             *
-             * @return array<int, string>
-             */
-            public function getCallOrder(): array
-            {
-                return $this->callOrder;
-            }
-        };
-
-        $service->run();
-
-        self::assertSame(['prepare', 'handle'], $service->getCallOrder());
-    }
-
-    /**
-     * Test that the lockable service runs successfully with locking.
-     *
-     * @return void
-     */
-    public function testLockableServiceRunsSuccessfully(): void
-    {
-        $service = new LockableService;
-
-        $result = $service->run();
-
-        self::assertTrue($result->succeeded());
-    }
-
-    /**
-     * Test that the base failed() implementation is a no-op.
-     *
-     * @SuppressWarnings("php:S112")
-     *
-     * @return void
-     */
-    public function testBaseFailedIsANoop(): void
-    {
-        $service = new class extends Service {
-            /**
-             * Handle the service execution.
+             * Always throw a domain exception.
              *
              * @return never
              *
              * @throws \RuntimeException
              */
             #[\Override]
-            protected function handle(): bool
+            protected function handle(): never
             {
-                throw new \RuntimeException('handled');
+                throw new \RuntimeException('domain failure');
             }
         };
 
         $result = $service->run();
 
-        // Base failed() was called and did nothing — no secondary exception
+        self::assertInstanceOf(ServiceResult::class, $result);
         self::assertTrue($result->failed());
         self::assertInstanceOf(\RuntimeException::class, $result->exception);
+        self::assertSame('domain failure', $result->exception->getMessage());
     }
 
     /**
-     * Test that the base concerns() method returns an empty array.
+     * Test that make() resolves the service from the container.
      *
      * @return void
      */
-    public function testConcernsDefaultsToEmptyArray(): void
+    public function testMakeResolvesFromContainer(): void
     {
-        $service = new class extends Service {
-            /**
-             * Handle the service execution.
-             *
-             * @return bool
-             */
-            #[\Override]
-            protected function handle(): bool
-            {
-                return true;
-            }
+        $input   = new ArrayInput(['message' => 'from-container']);
+        $service = OutputService::make($input);
 
-            /**
-             * Expose the protected concerns() method for testing.
-             *
-             * @return array<int, class-string<\SineMacula\ApiToolkit\Services\Contracts\ServiceConcern>>
-             */
-            public function getConcerns(): array
-            {
-                return $this->concerns();
-            }
-        };
-
-        self::assertSame([], $service->getConcerns());
+        self::assertInstanceOf(OutputService::class, $service);
+        self::assertTrue($service->run()->succeeded());
     }
 
     /**
-     * Test that concerns execute in declaration order.
-     *
-     * The first concern in the array is the outermost wrapper,
-     * so it runs first (before) and last (after).
+     * Test that Service implements LockKeyProvider.
      *
      * @return void
      */
-    public function testConcernsExecuteInDeclarationOrder(): void
+    public function testImplementsLockKeyProvider(): void
     {
-        $order = [];
-
-        $concernA = new class ($order) implements ServiceConcern {
-            /** @var array<int, string> */
-            public array $order;
-
-            /**
-             * Create a new instance.
-             *
-             * @param  array<int, string>  $order
-             */
-            public function __construct(array &$order)
-            {
-                $this->order = &$order;
-            }
-
-            /**
-             * Execute the concern.
-             *
-             * @param  \SineMacula\ApiToolkit\Services\Service  $service
-             * @param  \Closure(): bool  $next
-             * @return bool
-             */
-            #[\Override]
-            public function execute(Service $service, \Closure $next): bool
-            {
-                $this->order[] = 'A:before';
-                $result        = $next();
-                $this->order[] = 'A:after';
-
-                return $result;
-            }
-        };
-
-        $concernB = new class ($order) implements ServiceConcern {
-            /** @var array<int, string> */
-            public array $order;
-
-            /**
-             * Create a new instance.
-             *
-             * @param  array<int, string>  $order
-             */
-            public function __construct(array &$order)
-            {
-                $this->order = &$order;
-            }
-
-            /**
-             * Execute the concern.
-             *
-             * @param  \SineMacula\ApiToolkit\Services\Service  $service
-             * @param  \Closure(): bool  $next
-             * @return bool
-             */
-            #[\Override]
-            public function execute(Service $service, \Closure $next): bool
-            {
-                $this->order[] = 'B:before';
-                $result        = $next();
-                $this->order[] = 'B:after';
-
-                return $result;
-            }
-        };
-
-        $this->getApplication()->instance($concernA::class, $concernA);
-        $this->getApplication()->instance($concernB::class, $concernB);
-
-        $service = new class ($concernA, $concernB) extends Service {
-            /** @var class-string<\SineMacula\ApiToolkit\Services\Contracts\ServiceConcern> */
-            private string $classA;
-
-            /** @var class-string<\SineMacula\ApiToolkit\Services\Contracts\ServiceConcern> */
-            private string $classB;
-
-            /**
-             * Create a new instance.
-             *
-             * @param  \SineMacula\ApiToolkit\Services\Contracts\ServiceConcern  $concernA
-             * @param  \SineMacula\ApiToolkit\Services\Contracts\ServiceConcern  $concernB
-             */
-            public function __construct(ServiceConcern $concernA, ServiceConcern $concernB)
-            {
-                $this->classA = $concernA::class;
-                $this->classB = $concernB::class;
-
-                parent::__construct([]);
-            }
-
-            /**
-             * Return the ordered list of concern classes for this service.
-             *
-             * @return array<int, class-string<\SineMacula\ApiToolkit\Services\Contracts\ServiceConcern>>
-             */
-            #[\Override]
-            protected function concerns(): array
-            {
-                return [$this->classA, $this->classB];
-            }
-
-            /**
-             * Handle the service execution.
-             *
-             * @return bool
-             */
-            #[\Override]
-            protected function handle(): bool
-            {
-                return true;
-            }
-        };
-
-        $service->run();
-
-        self::assertSame(['A:before', 'B:before', 'B:after', 'A:after'], $order);
+        self::assertInstanceOf(LockKeyProvider::class, new OutputService(new ArrayInput([])));
     }
 
     /**
-     * Test that a concern can short-circuit the pipeline by not
-     * calling $next().
+     * Test that getLockKey() returns sha1(class|lockId()).
      *
      * @return void
      */
-    public function testConcernCanShortCircuitPipeline(): void
+    public function testGetLockKeyReturnsSha1OfClassAndLockId(): void
     {
-        $handleCalled = false;
-
-        $concern = new class implements ServiceConcern {
+        $service = new class (new ArrayInput([])) extends Service {
             /**
-             * Execute the concern, short-circuiting the pipeline.
+             * Return the lock identity for this action.
              *
-             * @param  \SineMacula\ApiToolkit\Services\Service  $service
-             * @param  \Closure(): bool  $next
-             * @return bool
+             * @return string
              */
             #[\Override]
-            public function execute(Service $service, \Closure $next): bool
+            protected function lockId(): string
             {
-                return false;
+                return 'my-lock';
+            }
+
+            /**
+             * Execute the action.
+             *
+             * @return mixed
+             */
+            #[\Override]
+            protected function handle(): mixed
+            {
+                return null;
             }
         };
 
-        $this->getApplication()->instance($concern::class, $concern);
+        $expected = sha1($service::class . '|my-lock');
 
-        $service = new class ($concern, $handleCalled) extends Service {
-            /** @var class-string<\SineMacula\ApiToolkit\Services\Contracts\ServiceConcern> */
-            private string $concernClass;
-
-            /** @var bool */
-            public bool $handleCalled;
-
-            /**
-             * Create a new instance.
-             *
-             * @param  \SineMacula\ApiToolkit\Services\Contracts\ServiceConcern  $concern
-             * @param  bool  $handleCalled
-             */
-            public function __construct(ServiceConcern $concern, bool &$handleCalled)
-            {
-                $this->concernClass = $concern::class;
-                $this->handleCalled = &$handleCalled;
-
-                parent::__construct([]);
-            }
-
-            /**
-             * Return the ordered list of concern classes for this service.
-             *
-             * @return array<int, class-string<\SineMacula\ApiToolkit\Services\Contracts\ServiceConcern>>
-             */
-            #[\Override]
-            protected function concerns(): array
-            {
-                return [$this->concernClass];
-            }
-
-            /**
-             * Handle the service execution.
-             *
-             * @return bool
-             */
-            #[\Override]
-            protected function handle(): bool
-            {
-                $this->handleCalled = true;
-
-                return true;
-            }
-        };
-
-        $result = $service->run();
-
-        self::assertTrue($result->failed());
-        self::assertNull($result->exception);
-        self::assertFalse($handleCalled);
+        self::assertSame($expected, $service->getLockKey());
     }
 
     /**
-     * Test that a service with no concerns runs successfully.
+     * Test that withContext() propagates the actor from the context.
      *
      * @return void
      */
-    public function testNoTransactionServiceRunsWithoutConcerns(): void
+    public function testWithContextPropagatesActor(): void
     {
-        $service = new NoTransactionService;
+        $stub    = new StubActor;
+        $context = ServiceContext::for($stub);
+        $service = new OutputService(new ArrayInput([]));
 
-        $result = $service->run();
+        $returned = $service->withContext($context);
+
+        self::assertSame($service, $returned);
+        self::assertSame($stub, $service->actor());
+    }
+
+    /**
+     * Test that withContext() causes run() to reuse the provided context.
+     *
+     * @return void
+     */
+    public function testWithContextReusesSameContextInRun(): void
+    {
+        $stub    = new StubActor;
+        $context = ServiceContext::for($stub);
+
+        $service = new class (new ArrayInput([])) extends Service {
+            /** @var string|null */
+            public ?string $capturedType = null;
+
+            /**
+             * Capture the actor type and return null.
+             *
+             * @return mixed
+             */
+            #[\Override]
+            protected function handle(): mixed
+            {
+                $this->capturedType = $this->actor()->actorType();
+
+                return null;
+            }
+        };
+
+        $service->withContext($context)->run();
+
+        self::assertSame('stub', $service->capturedType);
+    }
+
+    /**
+     * Test that the typed input is accessible via $this->input.
+     *
+     * @return void
+     */
+    public function testTypedInputIsAccessibleViaInputProperty(): void
+    {
+        $input   = new ArrayInput(['key' => 'value']);
+        $service = new OutputService($input);
+        $result  = $service->run();
 
         self::assertTrue($result->succeeded());
-        self::assertTrue($service->successCalled);
     }
 
     /**
-     * Get the application instance.
+     * Test that serviceHooks() returns all expected lifecycle keys.
      *
-     * @return \Illuminate\Foundation\Application
+     * @return void
      */
-    private function getApplication(): Application
+    public function testServiceHooksContainsAllLifecycleKeys(): void
     {
-        assert($this->app !== null);
+        $service = new OutputService(new ArrayInput(['msg' => 'x']));
+        $hooks   = $service->serviceHooks();
 
-        return $this->app;
+        self::assertArrayHasKey('authorize', $hooks);
+        self::assertArrayHasKey('validate', $hooks);
+        self::assertArrayHasKey('prepare', $hooks);
+        self::assertArrayHasKey('handle', $hooks);
+        self::assertArrayHasKey('afterCommit', $hooks);
+        self::assertArrayHasKey('onFailure', $hooks);
+        self::assertArrayHasKey('concerns', $hooks);
+        self::assertArrayHasKey('lockId', $hooks);
+        self::assertArrayHasKey('transactional', $hooks);
+        self::assertArrayHasKey('transactionAttempts', $hooks);
+        self::assertArrayHasKey('lockable', $hooks);
+        self::assertArrayHasKey('inputSummary', $hooks);
+        self::assertSame(['msg' => 'x'], $hooks['inputSummary']);
+    }
+
+    /**
+     * Test that ServiceInput::toArray() is correctly exposed as the contract.
+     *
+     * @return void
+     */
+    public function testServiceInputContractExposesArray(): void
+    {
+        $input = new ArrayInput(['a' => 1, 'b' => 2]);
+
+        self::assertSame(['a' => 1, 'b' => 2], $input->toArray());
+        self::assertInstanceOf(ServiceInput::class, $input);
+    }
+
+    /**
+     * Test that actor() returns an Actor contract instance.
+     *
+     * @return void
+     */
+    public function testActorReturnsActorContractInstance(): void
+    {
+        $service = new OutputService(new ArrayInput([]));
+
+        self::assertInstanceOf(Actor::class, $service->actor());
     }
 }

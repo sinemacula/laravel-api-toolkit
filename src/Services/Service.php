@@ -4,136 +4,275 @@ declare(strict_types = 1);
 
 namespace SineMacula\ApiToolkit\Services;
 
-use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\App;
 use SineMacula\ApiToolkit\Concerns\Lockable;
 use SineMacula\ApiToolkit\Contracts\LockKeyProvider;
-use SineMacula\ApiToolkit\Services\Contracts\ServiceConcern;
-use SineMacula\ApiToolkit\Services\Contracts\ServiceInterface;
+use SineMacula\ApiToolkit\Services\Actors\AnonymousActor;
+use SineMacula\ApiToolkit\Services\Contracts\Actor;
+use SineMacula\ApiToolkit\Services\Contracts\ServiceInput;
+use SineMacula\ApiToolkit\Services\Enums\ServiceSource;
+use SineMacula\ApiToolkit\Services\Jobs\ServiceJob;
 
 /**
- * Base API service.
+ * Abstract action skeleton.
+ *
+ * Holds a typed input and an explicit actor. Subclasses implement
+ * the six lifecycle hooks; the runner sequences them in a fixed,
+ * transaction-aware order and returns a total ServiceResult.
+ *
+ * @template TInput of \SineMacula\ApiToolkit\Services\Contracts\ServiceInput
+ * @template TOutput
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-abstract class Service implements LockKeyProvider, ServiceInterface
+abstract class Service implements LockKeyProvider
 {
     use Lockable;
 
-    /** @var mixed Result data produced by the service */
-    protected mixed $data = null;
+    /** @var bool Wrap prepare()+handle() in a database transaction */
+    protected bool $transactional = true;
+
+    /** @var int Transaction retry attempts */
+    protected int $transactionAttempts = 3;
+
+    /** @var bool Whether this service acquires a cache lock */
+    protected bool $lockable = false;
+
+    /** @var \SineMacula\ApiToolkit\Services\Contracts\Actor|null Explicit causer; null until set by by() or withContext() */
+    private ?Actor $actor = null;
+
+    /** @var \SineMacula\ApiToolkit\Services\ServiceContext|null Fully-built execution context; null until set by withContext() */
+    private ?ServiceContext $context = null;
 
     /**
      * Constructor.
      *
-     * @param  array<array-key, mixed>|\Illuminate\Support\Collection<array-key, mixed>|\stdClass  $payload
+     * @param  TInput  $input
      */
     public function __construct(
 
-        /** The service input payload */
-        protected array|Collection|\stdClass $payload = [],
-    ) {
-        $this->payload = (!$payload instanceof Collection && !$payload instanceof \stdClass) ? collect($payload) : $payload;
+        /** The typed input for this service action */
+        protected ServiceInput $input,
+    ) {}
+
+    /**
+     * Resolve a new service instance from the container with the given input.
+     *
+     * @param  \SineMacula\ApiToolkit\Services\Contracts\ServiceInput  $input
+     * @return static
+     */
+    public static function make(ServiceInput $input): static
+    {
+        $class    = static::class;
+        $instance = App::make($class, ['input' => $input]);
+        assert($instance instanceof static);
+
+        return $instance;
     }
 
     /**
-     * Prepare the service for execution.
+     * Record the explicit causer for this invocation.
      *
-     * Called after lock acquisition and before handle(). Subclasses
-     * override this to perform validation, data loading, or other
-     * pre-execution setup. Exceptions thrown here trigger the
-     * failed() callback and are rethrown.
-     *
-     * @return void
-     *
-     * @throws \Exception
+     * @param  \SineMacula\ApiToolkit\Services\Contracts\Actor  $actor
+     * @return static
      */
-    public function prepare(): void {}
+    public function by(Actor $actor): static
+    {
+        $this->actor = $actor;
+
+        return $this;
+    }
 
     /**
-     * Method is triggered if the handle method ran successfully.
+     * Record a fully-built execution context supplied by ServiceJob on the
+     * worker, taking the actor from the context.
      *
-     * Called after the handler completes and the transaction has
-     * committed. Runs outside the try/catch block -- exceptions here
-     * will NOT trigger the failed() callback.
-     *
-     * @return void
+     * @param  \SineMacula\ApiToolkit\Services\ServiceContext  $context
+     * @return static
      */
-    public function success(): void {}
+    public function withContext(ServiceContext $context): static
+    {
+        $this->context = $context;
+        $this->actor   = $context->actor;
+
+        return $this;
+    }
 
     /**
-     * Method is triggered if the handle method failed.
+     * Return the actor for this invocation.
      *
-     * Called when prepare() or handle() throws an exception, before
-     * the exception is rethrown. The lock is released in the finally
-     * block after this method returns.
+     * Defaults to an AnonymousActor when no actor has been supplied.
+     * Never reads Auth or any ambient state.
      *
-     * @param  \Throwable  $exception
-     * @return void
+     * @return \SineMacula\ApiToolkit\Services\Contracts\Actor
      */
-    public function failed(\Throwable $exception): void {}
+    public function actor(): Actor
+    {
+        return $this->actor ?? new AnonymousActor;
+    }
 
     /**
-     * Run the service.
+     * Execute the service synchronously and return a total result.
      *
-     * Builds a concern pipeline from the concerns() declaration
-     * and executes it. The innermost step runs the core lifecycle
-     * (prepare, handle, success/failed). Concerns wrap around this
-     * core in declaration order.
+     * Builds or reuses a ServiceContext, then delegates lifecycle
+     * sequencing to ServiceRunner. Never throws for business failures.
      *
-     * Returns a ServiceResult value object carrying the outcome status,
-     * optional result data, and optional exception context. When the core
-     * lifecycle throws, the exception is passed to the failed() hook,
-     * captured in the returned result, and not rethrown. When the handler
-     * returns false, the result is a failure with no exception.
-     *
-     * @return \SineMacula\ApiToolkit\Services\ServiceResult
+     * @return \SineMacula\ApiToolkit\Services\ServiceResult<TOutput>
      */
-    #[\Override]
     public function run(): ServiceResult
     {
-        $pipeline = $this->buildPipeline();
+        $context = $this->context ?? ServiceContext::for($this->actor(), ServiceSource::INTERNAL);
+        $class   = ServiceRunner::class;
+        $runner  = App::make($class);
+        assert($runner instanceof ServiceRunner);
 
-        try {
-            $status = $pipeline();
-        } catch (\Throwable $exception) {
-            return ServiceResult::failure($exception, $this->data);
-        }
-
-        if (!$status) {
-            return ServiceResult::failure(null, $this->data);
-        }
-
-        $this->success();
-
-        return ServiceResult::success($this->data);
+        return $runner->run($this, $context);
     }
 
     /**
-     * Generate the key used for cache-based locking.
+     * Push the service onto the queue via ServiceJob.
+     *
+     * @return mixed
+     */
+    public function dispatch(): mixed
+    {
+        $context = $this->context ?? ServiceContext::for($this->actor());
+
+        return ServiceJob::dispatch(static::class, $this->input, $context);
+    }
+
+    /**
+     * Generate the cache-lock key for this service.
      *
      * @return string
      */
     #[\Override]
     public function getLockKey(): string
     {
-        return sha1(static::class . '|' . $this->getLockId());
+        return sha1(static::class . '|' . $this->lockId());
     }
 
     /**
-     * Handles the main execution of the service.
+     * Return the lifecycle hooks and configuration for this service.
      *
-     * @return bool
+     * Package-internal seam: creates closures in Service scope so that
+     * protected method access is valid. Called exclusively by ServiceRunner.
+     *
+     * @internal
+     *
+     * @return array{
+     *     authorize: \Closure(): void,
+     *     validate: \Closure(): void,
+     *     prepare: \Closure(): void,
+     *     handle: \Closure(): mixed,
+     *     afterCommit: \Closure(mixed): void,
+     *     onFailure: \Closure(\Throwable): void,
+     *     concerns: array<int,
+     * class-string<\SineMacula\ApiToolkit\Services\Contracts\ServiceConcern>>,
+     *     lockId: string,
+     *     transactional: bool,
+     *     transactionAttempts: int,
+     *     lockable: bool,
+     *     inputSummary: array<string, mixed>,
+     * }
      */
-    abstract protected function handle(): bool;
+    final public function serviceHooks(): array
+    {
+        return [
+            'authorize' => function (): void {
+                $this->authorize();
+            },
+            'validate' => function (): void {
+                $this->validate();
+            },
+            'prepare' => function (): void {
+                $this->prepare();
+            },
+            'handle'      => fn (): mixed => $this->handle(),
+            'afterCommit' => function (mixed $output): void {
+                $this->afterCommit($output);
+            },
+            'onFailure' => function (\Throwable $exception): void {
+                $this->onFailure($exception);
+            },
+            'concerns'            => $this->concerns(),
+            'lockId'              => $this->lockId(),
+            'transactional'       => $this->transactional,
+            'transactionAttempts' => $this->transactionAttempts,
+            'lockable'            => $this->lockable,
+            'inputSummary'        => $this->input->toArray(),
+        ];
+    }
 
     /**
-     * Return the ordered list of concern classes for this service.
+     * Authorize the current actor to perform this action.
      *
-     * Override in subclasses to declare cross-cutting concerns.
-     * Concerns execute in declaration order: the first concern is
-     * the outermost wrapper, the last is closest to the core
-     * lifecycle.
+     * Runs before the lock and transaction. Throw AuthorizationException
+     * to deny access. Default: allow.
+     *
+     * @return void
+     */
+    protected function authorize(): void {}
+
+    /**
+     * Validate the input data for this action.
+     *
+     * Runs before the lock and transaction. Throw ValidationException
+     * to signal invalid input. Default: pass.
+     *
+     * @return void
+     */
+    protected function validate(): void {}
+
+    /**
+     * Perform pre-handle setup inside the transaction.
+     *
+     * Load or lock rows, pre-compute values, or perform any setup that
+     * must happen within the transaction but before handle(). Default: no-op.
+     *
+     * @return void
+     */
+    protected function prepare(): void {}
+
+    /**
+     * Execute the core domain action.
+     *
+     * Runs inside the transaction. Signal failure only by throwing; the
+     * return value is the typed output threaded through ServiceResult.
+     *
+     * @return TOutput
+     */
+    abstract protected function handle(): mixed;
+
+    /**
+     * React to a successful outcome after the transaction has committed.
+     *
+     * Runs outside the lock and transaction. Exceptions thrown here are
+     * captured as side-effect errors on the result and logged, leaving
+     * the committed outcome intact. Default: no-op.
+     *
+     * @param  TOutput  $output
+     * @return void
+     */
+    protected function afterCommit(mixed $output): void {}
+
+    /**
+     * React to a failed outcome after the transaction has rolled back.
+     *
+     * Runs after rollback and lock release. Exceptions thrown here are
+     * caught and logged. Default: no-op.
+     *
+     * @param  \Throwable  $exception
+     * @return void
+     */
+    protected function onFailure(\Throwable $exception): void {}
+
+    /**
+     * Return the ordered list of custom concern classes.
+     *
+     * Concerns run inside the transaction, in declaration order, wrapping
+     * the core (prepare + handle). Default: none.
      *
      * @return array<int, class-string<\SineMacula\ApiToolkit\Services\Contracts\ServiceConcern>>
      */
@@ -143,62 +282,15 @@ abstract class Service implements LockKeyProvider, ServiceInterface
     }
 
     /**
-     * Return the unique id to be used in the generation of the lock key.
+     * Return the unique lock identity for this invocation.
+     *
+     * Required when $lockable is true; must be non-empty. The final lock
+     * key is sha1(class | lockId()). Default: empty string (disabled).
      *
      * @return string
      */
-    protected function getLockId(): string
+    protected function lockId(): string
     {
         return '';
-    }
-
-    /**
-     * Build the concern pipeline around the core lifecycle.
-     *
-     * Resolves each concern class from the container and folds
-     * them right-to-left around the core lifecycle closure. The
-     * first concern in the array is the outermost wrapper.
-     *
-     * @return \Closure(): bool
-     */
-    private function buildPipeline(): \Closure
-    {
-        $core = fn (): bool => $this->executeCore();
-
-        $concerns = array_map(
-            fn (string $class): ServiceConcern => app()->make($class),
-            $this->concerns(),
-        );
-
-        return array_reduce(
-            array_reverse($concerns),
-            fn (\Closure $next, ServiceConcern $concern): \Closure => fn (): bool => $concern->execute($this, $next),
-            $core,
-        );
-    }
-
-    /**
-     * Execute the core service lifecycle.
-     *
-     * Runs prepare() then handle() within a try/catch block.
-     * On exception, calls failed() and rethrows. This is the
-     * innermost step of the concern pipeline.
-     *
-     * @return bool
-     *
-     * @throws \Throwable
-     */
-    private function executeCore(): bool
-    {
-        try {
-
-            $this->prepare();
-
-            return $this->handle();
-
-        } catch (\Throwable $exception) {
-            $this->failed($exception);
-            throw $exception;
-        }
     }
 }
