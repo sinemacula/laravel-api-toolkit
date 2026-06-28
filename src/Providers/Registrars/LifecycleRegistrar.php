@@ -49,8 +49,7 @@ final class LifecycleRegistrar
     }
 
     /**
-     * Register the Octane flush listener if configured and Octane is
-     * installed.
+     * Register the Octane flush listener if configured and Octane is installed.
      *
      * @return void
      */

@@ -5,8 +5,8 @@ declare(strict_types = 1);
 namespace SineMacula\ApiToolkit\Repositories\Concerns;
 
 /**
- * Immutable value object encapsulating the outcome of a WritePool
- * flush operation.
+ * Immutable value object encapsulating the outcome of a WritePool flush
+ * operation.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.

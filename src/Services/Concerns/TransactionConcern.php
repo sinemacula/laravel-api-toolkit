@@ -9,9 +9,8 @@ use Illuminate\Support\Facades\DB;
 /**
  * Database transaction stage.
  *
- * Wraps the service pipeline in a database transaction with configurable
- * retry attempts. The transaction commits on success and rolls back on
- * exception.
+ * Wraps the service pipeline in a database transaction with configurable retry
+ * attempts. The transaction commits on success and rolls back on exception.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.

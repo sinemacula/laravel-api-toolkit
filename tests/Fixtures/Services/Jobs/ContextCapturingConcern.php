@@ -10,8 +10,8 @@ use SineMacula\ApiToolkit\Services\ServiceContext;
 /**
  * Concern fixture that captures the execution context for assertion.
  *
- * Stores the most recently received context in a static property so that
- * tests can assert which context was used to invoke the service pipeline.
+ * Stores the most recently received context in a static property so that tests
+ * can assert which context was used to invoke the service pipeline.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.

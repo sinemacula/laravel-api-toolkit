@@ -21,9 +21,8 @@ use SineMacula\ApiToolkit\Repositories\Concerns\WritePoolFlushResult;
 /**
  * Flushes the deferred write pool at lifecycle boundaries.
  *
- * This subscriber listens to HTTP request, CLI command, and queue
- * job lifecycle events to ensure all buffered inserts are persisted
- * before the process ends.
+ * This subscriber listens to HTTP request, CLI command, and queue job lifecycle
+ * events to ensure all buffered inserts are persisted before the process ends.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -59,19 +58,18 @@ final class WritePoolFlushSubscriber
     /**
      * Flush the write pool and handle any failures.
      *
-     * The pool is resolved from the container at event time to ensure
-     * the correct scoped instance is used in Octane environments. When
-     * the flush returns a result with failures, or raises a
-     * WritePoolFlushException under the throw strategy, the failure is
-     * escalated loudly: a warning is logged and a WritePoolFlushFailed
-     * event is dispatched. The exception is only re-thrown when the
-     * rethrow_at_boundary config flag is enabled, so the lifecycle
-     * boundary is never hard-crashed by default. Any other throwable is
-     * unexpected and logged at error level.
+     * The pool is resolved from the container at event time to ensure the
+     * correct scoped instance is used in Octane environments. When the flush
+     * returns a result with failures, or raises a WritePoolFlushException under
+     * the throw strategy, the failure is escalated loudly: a warning is logged
+     * and a WritePoolFlushFailed event is dispatched. The exception is only
+     * re-thrown when the rethrow_at_boundary config flag is enabled, so the
+     * lifecycle boundary is never hard-crashed by default. Any other throwable
+     * is unexpected and logged at error level.
      *
      * Regardless of outcome, the per-query cache for every table the flush
-     * attempted is invalidated so a deferred insert never leaves a stale
-     * cached collection behind.
+     * attempted is invalidated so a deferred insert never leaves a stale cached
+     * collection behind.
      *
      * @return void
      *
@@ -109,9 +107,9 @@ final class WritePoolFlushSubscriber
      * persist.
      *
      * Best-effort and gated by the invalidate_query_cache config flag: it
-     * covers default-config Cacheable repositories, mirroring what an
-     * immediate write does. A repository on a custom cache store or key prefix
-     * is not covered and must invalidate manually.
+     * covers default-config Cacheable repositories, mirroring what an immediate
+     * write does. A repository on a custom cache store or key prefix is not
+     * covered and must invalidate manually.
      *
      * @param  \SineMacula\ApiToolkit\Repositories\Concerns\WritePoolFlushResult  $flushResult
      * @return void

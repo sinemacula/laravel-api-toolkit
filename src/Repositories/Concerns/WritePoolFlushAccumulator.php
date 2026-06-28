@@ -9,8 +9,8 @@ use SineMacula\ApiToolkit\Enums\FlushStrategy;
 /**
  * Mutable accumulator that tallies the outcome of a WritePool flush.
  *
- * Tracks chunk-level counts, record-level counts, failure details, and
- * the records retained for retry, then materialises an immutable
+ * Tracks chunk-level counts, record-level counts, failure details, and the
+ * records retained for retry, then materialises an immutable
  * WritePoolFlushResult once the flush completes.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
@@ -93,8 +93,8 @@ final class WritePoolFlushAccumulator
     /**
      * Materialise an immutable flush result for the given strategy.
      *
-     * For COLLECT the retained count equals the failed record count;
-     * for LOG every failed record is dropped instead of retained.
+     * For COLLECT the retained count equals the failed record count; for LOG
+     * every failed record is dropped instead of retained.
      *
      * @param  \SineMacula\ApiToolkit\Enums\FlushStrategy  $strategy
      * @param  array<int, string>  $flushedTables
@@ -109,8 +109,8 @@ final class WritePoolFlushAccumulator
     }
 
     /**
-     * Materialise an immutable flush result for the throw strategy,
-     * where retained records include both failed and unprocessed rows.
+     * Materialise an immutable flush result for the throw strategy, where
+     * retained records include both failed and unprocessed rows.
      *
      * @param  int  $retainedRecordCount
      * @param  array<int, string>  $flushedTables
@@ -122,8 +122,8 @@ final class WritePoolFlushAccumulator
     }
 
     /**
-     * Build the immutable flush result with explicit retain and drop
-     * record counts.
+     * Build the immutable flush result with explicit retain and drop record
+     * counts.
      *
      * @param  int  $retainedRecordCount
      * @param  int  $droppedRecordCount

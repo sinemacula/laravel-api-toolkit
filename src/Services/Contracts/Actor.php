@@ -9,8 +9,8 @@ use Illuminate\Contracts\Auth\Authenticatable;
 /**
  * Explicit-causer contract.
  *
- * Represents the identity that initiated a service action. Implementers
- * may be authenticated users, system processes, or anonymous callers.
+ * Represents the identity that initiated a service action. Implementers may be
+ * authenticated users, system processes, or anonymous callers.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -20,8 +20,8 @@ interface Actor
     /**
      * Return the unique identifier for this actor.
      *
-     * Returns null for system or anonymous actors that have no
-     * persistent identity.
+     * Returns null for system or anonymous actors that have no persistent
+     * identity.
      *
      * @return int|string|null
      */
@@ -39,8 +39,8 @@ interface Actor
     /**
      * Return the human-readable label for this actor.
      *
-     * The label is snapshotted at capture time and must not change
-     * after the actor is constructed.
+     * The label is snapshotted at capture time and must not change after the
+     * actor is constructed.
      *
      * @return string
      */
@@ -49,8 +49,8 @@ interface Actor
     /**
      * Return the Authenticatable instance for this actor.
      *
-     * Used by Gate::forUser() to perform authorisation checks on behalf
-     * of the actor. Returns null for system or anonymous actors.
+     * Used by Gate::forUser() to perform authorisation checks on behalf of the
+     * actor. Returns null for system or anonymous actors.
      *
      * @return \Illuminate\Contracts\Auth\Authenticatable|null
      */

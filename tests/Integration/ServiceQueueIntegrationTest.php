@@ -22,8 +22,8 @@ use Tests\TestCase;
  * Queue integration tests for ServiceJob and the actor serialisation path.
  *
  * Proves that a queued run re-hydrates identically, the actor survives
- * serialisation without consulting Auth or Request (NFR-07, AC-36), and
- * the worker run carries source = QUEUE.
+ * serialisation without consulting Auth or Request (NFR-07, AC-36), and the
+ * worker run carries source = QUEUE.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -37,8 +37,8 @@ final class ServiceQueueIntegrationTest extends TestCase
     /**
      * Set up the test environment.
      *
-     * Registers the ActorUser morph alias so EloquentActor can re-resolve
-     * the model after deserialisation, and resets the static concern capture.
+     * Registers the ActorUser morph alias so EloquentActor can re-resolve the
+     * model after deserialisation, and resets the static concern capture.
      *
      * @return void
      */
@@ -55,9 +55,9 @@ final class ServiceQueueIntegrationTest extends TestCase
      * Test that a queued run carries the actor without Auth in scope.
      *
      * No Auth::login() is called anywhere in this test. The actor travels
-     * exclusively via PHP serialisation through the ServiceJob payload.
-     * After the worker executes, the re-hydrated actor retains its
-     * identifier and label snapshot from construction time.
+     * exclusively via PHP serialisation through the ServiceJob payload. After
+     * the worker executes, the re-hydrated actor retains its identifier and
+     * label snapshot from construction time.
      *
      * @return void
      */
@@ -93,8 +93,8 @@ final class ServiceQueueIntegrationTest extends TestCase
      * Test that the worker run reports the QUEUE source.
      *
      * ServiceJob::handle() forces source = QUEUE on the context it hands to
-     * ServiceRunner, so the pipeline and any downstream consumers always
-     * know the invocation came from a queue worker.
+     * ServiceRunner, so the pipeline and any downstream consumers always know
+     * the invocation came from a queue worker.
      *
      * @return void
      */

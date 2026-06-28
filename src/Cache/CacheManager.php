@@ -17,8 +17,8 @@ use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 /**
  * Centralized orchestrator for flushing all toolkit caches.
  *
- * Registered as a singleton in the container. Delegates to all known cache
- * site flush methods and dispatches the CacheFlushed event upon completion.
+ * Registered as a singleton in the container. Delegates to all known cache site
+ * flush methods and dispatches the CacheFlushed event upon completion.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.

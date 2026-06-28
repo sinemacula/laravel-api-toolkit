@@ -11,8 +11,8 @@ use Symfony\Component\HttpFoundation\Response;
 /**
  * Detects request capabilities middleware.
  *
- * Resolves capability flags from the current request and stores them
- * as a typed request attribute for downstream consumption.
+ * Resolves capability flags from the current request and stores them as a typed
+ * request attribute for downstream consumption.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.

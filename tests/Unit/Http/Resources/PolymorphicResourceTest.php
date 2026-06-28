@@ -213,8 +213,8 @@ final class PolymorphicResourceTest extends TestCase
     }
 
     /**
-     * Test that withAll sets the all flag locally and returns the instance
-     * for fluent chaining.
+     * Test that withAll sets the all flag locally and returns the instance for
+     * fluent chaining.
      *
      * @return void
      */
@@ -228,8 +228,8 @@ final class PolymorphicResourceTest extends TestCase
     }
 
     /**
-     * Test that withFields sets the fields locally and returns the instance
-     * for fluent chaining.
+     * Test that withFields sets the fields locally and returns the instance for
+     * fluent chaining.
      *
      * @return void
      */
@@ -243,8 +243,8 @@ final class PolymorphicResourceTest extends TestCase
     }
 
     /**
-     * Test that withoutFields sets the excluded fields locally and returns
-     * the instance for fluent chaining.
+     * Test that withoutFields sets the excluded fields locally and returns the
+     * instance for fluent chaining.
      *
      * @return void
      */
@@ -258,8 +258,8 @@ final class PolymorphicResourceTest extends TestCase
     }
 
     /**
-     * Test that mapping a resource does not eager load missing relations on
-     * the underlying model.
+     * Test that mapping a resource does not eager load missing relations on the
+     * underlying model.
      *
      * @return void
      */

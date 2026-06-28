@@ -9,9 +9,9 @@ use SineMacula\ApiToolkit\Contracts\ResourceMetadataProvider;
 /**
  * Default resource metadata provider.
  *
- * Delegates each metadata query to the corresponding static method on the
- * given resource class, maintaining behavioural equivalence with direct static
- * calls while enabling substitution via the container.
+ * Delegates each metadata query to the corresponding static method on the given
+ * resource class, maintaining behavioural equivalence with direct static calls
+ * while enabling substitution via the container.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.

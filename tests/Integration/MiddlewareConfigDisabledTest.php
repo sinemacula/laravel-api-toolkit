@@ -20,8 +20,8 @@ use Tests\TestCase;
  * Integration tests for the ApiServiceProvider with all middleware disabled.
  *
  * This test class configures the environment to disable all three middleware
- * registrations before the service provider boots, ensuring the disabled
- * code paths are exercised.
+ * registrations before the service provider boots, ensuring the disabled code
+ * paths are exercised.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.

@@ -87,8 +87,8 @@ final class ColumnTypeMapper
     }
 
     /**
-     * Resolve a schema shape from a driver-normalised column type name, or
-     * null when the type is unknown.
+     * Resolve a schema shape from a driver-normalised column type name, or null
+     * when the type is unknown.
      *
      * @param  string  $typeName
      * @return array{type: string, format?: string}|null

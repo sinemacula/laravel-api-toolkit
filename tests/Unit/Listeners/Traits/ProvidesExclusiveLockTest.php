@@ -140,8 +140,8 @@ final class ProvidesExclusiveLockTest extends TestCase
     }
 
     /**
-     * Test that handleWithLock remains callable from a subclass of the
-     * listener that uses the trait.
+     * Test that handleWithLock remains callable from a subclass of the listener
+     * that uses the trait.
      *
      * @return void
      */
@@ -183,8 +183,7 @@ final class ProvidesExclusiveLockTest extends TestCase
     }
 
     /**
-     * Test that handleWithLock acquires the lock with a ten second
-     * expiration.
+     * Test that handleWithLock acquires the lock with a ten second expiration.
      *
      * @return void
      */

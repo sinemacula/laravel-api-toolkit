@@ -28,8 +28,8 @@ use Tests\TestCase;
  * End-to-end integration tests for repository-driven column narrowing.
  *
  * Drives the full ApiCriteria applier chain against a real SQLite database,
- * capturing the emitted base-table SQL via the query log to prove the
- * narrowing decision, the safety set, and byte-identical default-off behaviour.
+ * capturing the emitted base-table SQL via the query log to prove the narrowing
+ * decision, the safety set, and byte-identical default-off behaviour.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.

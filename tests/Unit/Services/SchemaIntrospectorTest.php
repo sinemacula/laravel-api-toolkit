@@ -193,8 +193,8 @@ final class SchemaIntrospectorTest extends TestCase
     }
 
     /**
-     * Test that getColumnDefinitions normalises the driver type name to
-     * lower case.
+     * Test that getColumnDefinitions normalises the driver type name to lower
+     * case.
      *
      * @return void
      */
@@ -230,8 +230,8 @@ final class SchemaIntrospectorTest extends TestCase
     }
 
     /**
-     * Test that getColumnDefinitions stores the result in the memo cache
-     * under a key scoped to the model class.
+     * Test that getColumnDefinitions stores the result in the memo cache under
+     * a key scoped to the model class.
      *
      * @return void
      */
@@ -268,8 +268,7 @@ final class SchemaIntrospectorTest extends TestCase
     }
 
     /**
-     * Test that getSearchableColumns returns columns with exclusions
-     * applied.
+     * Test that getSearchableColumns returns columns with exclusions applied.
      *
      * @return void
      */

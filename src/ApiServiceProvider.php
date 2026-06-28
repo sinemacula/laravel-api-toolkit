@@ -19,9 +19,9 @@ use SineMacula\ApiToolkit\Services\SchemaValidator;
  * API service provider.
  *
  * Thin coordinator that merges the package configuration, handles publishing
- * and schema validation, and delegates registration of middleware,
- * logging, lifecycle listeners, and container bindings to single-
- * responsibility registrars.
+ * and schema validation, and delegates registration of middleware, logging,
+ * lifecycle listeners, and container bindings to single-responsibility
+ * registrars.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.

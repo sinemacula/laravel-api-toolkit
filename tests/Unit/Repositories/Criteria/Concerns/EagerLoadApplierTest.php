@@ -43,8 +43,7 @@ final class EagerLoadApplierTest extends TestCase
     }
 
     /**
-     * Test that apply with a null resource class returns the query
-     * unmodified.
+     * Test that apply with a null resource class returns the query unmodified.
      *
      * @return void
      */
@@ -83,8 +82,8 @@ final class EagerLoadApplierTest extends TestCase
     }
 
     /**
-     * Test that apply uses getAllFields when the ':all' token is
-     * present in the fields array.
+     * Test that apply uses getAllFields when the ':all' token is present in the
+     * fields array.
      *
      * @return void
      */
@@ -115,8 +114,8 @@ final class EagerLoadApplierTest extends TestCase
     }
 
     /**
-     * Test that apply uses resolveFields when the ':all' token is not
-     * present in the fields array.
+     * Test that apply uses resolveFields when the ':all' token is not present
+     * in the fields array.
      *
      * @return void
      */
@@ -147,8 +146,8 @@ final class EagerLoadApplierTest extends TestCase
     }
 
     /**
-     * Test that apply returns early without calling eagerLoadMapFor
-     * when the resolved fields array is empty.
+     * Test that apply returns early without calling eagerLoadMapFor when the
+     * resolved fields array is empty.
      *
      * @return void
      */
@@ -176,8 +175,8 @@ final class EagerLoadApplierTest extends TestCase
     }
 
     /**
-     * Test that apply calls with() on the query when the eager load
-     * map is not empty.
+     * Test that apply calls with() on the query when the eager load map is not
+     * empty.
      *
      * @return void
      */
@@ -205,8 +204,8 @@ final class EagerLoadApplierTest extends TestCase
     }
 
     /**
-     * Test that apply does not call with() on the query when the
-     * eager load map is empty.
+     * Test that apply does not call with() on the query when the eager load map
+     * is empty.
      *
      * @return void
      */
@@ -234,8 +233,8 @@ final class EagerLoadApplierTest extends TestCase
     }
 
     /**
-     * Test that apply calls withCount() on the query when the eager
-     * load count map is not empty.
+     * Test that apply calls withCount() on the query when the eager load count
+     * map is not empty.
      *
      * @return void
      */
@@ -267,8 +266,8 @@ final class EagerLoadApplierTest extends TestCase
     }
 
     /**
-     * Test that apply does not call withCount() on the query when the
-     * eager load count map is empty.
+     * Test that apply does not call withCount() on the query when the eager
+     * load count map is empty.
      *
      * @return void
      */
@@ -367,8 +366,8 @@ final class EagerLoadApplierTest extends TestCase
     }
 
     /**
-     * Test that apply passes the actual requested sums to eagerLoadSumsFor,
-     * not an empty array produced by coalescing.
+     * Test that apply passes the actual requested sums to eagerLoadSumsFor, not
+     * an empty array produced by coalescing.
      *
      * @return void
      */

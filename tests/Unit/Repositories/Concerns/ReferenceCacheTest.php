@@ -94,8 +94,8 @@ final class ReferenceCacheTest extends TestCase
     }
 
     /**
-     * Test that repeated reads are served from the instance memo even after
-     * the backing store is evicted, proving the snapshot is deserialized once.
+     * Test that repeated reads are served from the instance memo even after the
+     * backing store is evicted, proving the snapshot is deserialized once.
      *
      * @return void
      */
@@ -118,8 +118,8 @@ final class ReferenceCacheTest extends TestCase
     }
 
     /**
-     * Test that loading the snapshot builds a key index for O(1) lookups,
-     * keyed by the model's primary key rather than collection position.
+     * Test that loading the snapshot builds a key index for O(1) lookups, keyed
+     * by the model's primary key rather than collection position.
      *
      * @return void
      */

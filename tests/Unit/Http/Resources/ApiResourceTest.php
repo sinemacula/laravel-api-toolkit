@@ -77,8 +77,8 @@ final class ApiResourceTest extends TestCase
     }
 
     /**
-     * Test that getResourceType throws LogicException when RESOURCE_TYPE is
-     * not defined.
+     * Test that getResourceType throws LogicException when RESOURCE_TYPE is not
+     * defined.
      *
      * @return void
      */
@@ -1801,8 +1801,8 @@ final class ApiResourceTest extends TestCase
     }
 
     /**
-     * Test that eagerLoadMapFor skips metric fields in walkRelationsWith
-     * (line 608).
+     * Test that eagerLoadMapFor skips metric fields in walkRelationsWith (line
+     * 608).
      *
      * @return void
      */
@@ -1939,9 +1939,9 @@ final class ApiResourceTest extends TestCase
     }
 
     /**
-     * Test that resolveSimpleProperty reflects on a model method when the
-     * field name matches a method that does NOT return an Attribute, covering
-     * the reflection path (lines 385-386) and the non-Attribute check (388).
+     * Test that resolveSimpleProperty reflects on a model method when the field
+     * name matches a method that does NOT return an Attribute, covering the
+     * reflection path (lines 385-386) and the non-Attribute check (388).
      *
      * @return void
      */
@@ -1993,9 +1993,9 @@ final class ApiResourceTest extends TestCase
     }
 
     /**
-     * Test that the scoped-constraint closure returned by eagerLoadMapFor
-     * is properly invoked for a non-MorphTo builder, covering the
-     * Builder-path inside the wrapper closure (lines 637-640).
+     * Test that the scoped-constraint closure returned by eagerLoadMapFor is
+     * properly invoked for a non-MorphTo builder, covering the Builder-path
+     * inside the wrapper closure (lines 637-640).
      *
      * @return void
      */
@@ -2040,8 +2040,8 @@ final class ApiResourceTest extends TestCase
     }
 
     /**
-     * Test that resolveSimpleProperty returns the accessor value when the
-     * model method's return type is Attribute (line 389).
+     * Test that resolveSimpleProperty returns the accessor value when the model
+     * method's return type is Attribute (line 389).
      *
      * @return void
      */
@@ -2096,8 +2096,8 @@ final class ApiResourceTest extends TestCase
     }
 
     /**
-     * Test that getAttributeIfLoaded returns via __isset when the owner has
-     * no getAttributes method (line 555).
+     * Test that getAttributeIfLoaded returns via __isset when the owner has no
+     * getAttributes method (line 555).
      *
      * @return void
      */
@@ -2140,8 +2140,8 @@ final class ApiResourceTest extends TestCase
     }
 
     /**
-     * Test that the scoped-constraint closure passes the query directly to
-     * the user constraint when the query is a MorphTo instance (lines 633-634).
+     * Test that the scoped-constraint closure passes the query directly to the
+     * user constraint when the query is a MorphTo instance (lines 633-634).
      *
      * @return void
      */
@@ -2185,8 +2185,7 @@ final class ApiResourceTest extends TestCase
     }
 
     /**
-     * Test that getResourceType lowercases a mixed-case RESOURCE_TYPE
-     * constant.
+     * Test that getResourceType lowercases a mixed-case RESOURCE_TYPE constant.
      *
      * @return void
      */
@@ -2212,8 +2211,8 @@ final class ApiResourceTest extends TestCase
     }
 
     /**
-     * Test that resolve skips fields missing from the schema and still
-     * resolves the remaining fields.
+     * Test that resolve skips fields missing from the schema and still resolves
+     * the remaining fields.
      *
      * @return void
      */
@@ -2304,8 +2303,8 @@ final class ApiResourceTest extends TestCase
     }
 
     /**
-     * Test that load_missing does not load counts when the counts field is
-     * not requested.
+     * Test that load_missing does not load counts when the counts field is not
+     * requested.
      *
      * @return void
      */
@@ -2417,10 +2416,9 @@ final class ApiResourceTest extends TestCase
      * virtual field is requested and loadMissing loads the aggregate
      * attributes.
      *
-     * Uses AggregateCapturingModel that intercepts loadSum to set the
-     * name that ValueResolver expects, since Eloquent's 'relation as alias'
-     * form produces only the bare alias key rather than the full
-     * presentKey_sum_column key.
+     * Uses AggregateCapturingModel that intercepts loadSum to set the name that
+     * ValueResolver expects, since Eloquent's 'relation as alias' form produces
+     * only the bare alias key rather than the full presentKey_sum_column key.
      *
      * @return void
      */
@@ -2479,10 +2477,9 @@ final class ApiResourceTest extends TestCase
      * Test that averages payload is included when the averages field is
      * requested and loadMissing loads the aggregate attribute.
      *
-     * Uses AggregateCapturingModel that intercepts loadAvg to set the
-     * name that ValueResolver expects, since Eloquent's 'relation as alias'
-     * form produces only the bare alias key rather than the full
-     * presentKey_avg_column key.
+     * Uses AggregateCapturingModel that intercepts loadAvg to set the name that
+     * ValueResolver expects, since Eloquent's 'relation as alias' form produces
+     * only the bare alias key rather than the full presentKey_avg_column key.
      *
      * @return void
      */
@@ -2510,8 +2507,8 @@ final class ApiResourceTest extends TestCase
 
     /**
      * Test that the averages key is absent from the resolved output when the
-     * averages virtual field is not included in the requested fields, even
-     * when getAverages returns a non-null value and an attribute is preloaded.
+     * averages virtual field is not included in the requested fields, even when
+     * getAverages returns a non-null value and an attribute is preloaded.
      *
      * @return void
      */
@@ -2578,10 +2575,9 @@ final class ApiResourceTest extends TestCase
      * Test that loadMissing loads a non-default sum when it is explicitly
      * requested via the sums query parameter.
      *
-     * Uses AggregateCapturingModel that intercepts loadSum to set the
-     * name that ValueResolver expects, since Eloquent's 'relation as alias'
-     * form produces only the bare alias key rather than the full
-     * presentKey_sum_column key.
+     * Uses AggregateCapturingModel that intercepts loadSum to set the name that
+     * ValueResolver expects, since Eloquent's 'relation as alias' form produces
+     * only the bare alias key rather than the full presentKey_sum_column key.
      *
      * @return void
      */

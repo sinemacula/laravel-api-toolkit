@@ -21,8 +21,8 @@ use Tests\TestCase;
 final class WritePoolFlushFailedTest extends TestCase
 {
     /**
-     * Test that the flushResult property is accessible and returns the
-     * same instance provided to the constructor.
+     * Test that the flushResult property is accessible and returns the same
+     * instance provided to the constructor.
      *
      * @return void
      */

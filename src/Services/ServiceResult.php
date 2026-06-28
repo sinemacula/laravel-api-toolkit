@@ -7,15 +7,13 @@ namespace SineMacula\ApiToolkit\Services;
 use SineMacula\ApiToolkit\Services\Enums\ServiceStatus;
 
 /**
- * Immutable value object representing the total outcome of a service
- * execution.
+ * Immutable value object representing the total outcome of a service execution.
  *
- * Every execution produces exactly one result - either SUCCEEDED or
- * FAILED. A successful result carries the typed output and any
- * side-effect errors collected during afterCommit processing. A failed
- * result carries the exception that caused the failure, or null when
- * failure was signalled without throwing. Failed results never carry
- * side-effect errors.
+ * Every execution produces exactly one result - either SUCCEEDED or FAILED. A
+ * successful result carries the typed output and any side-effect errors
+ * collected during afterCommit processing. A failed result carries the
+ * exception that caused the failure, or null when failure was signalled without
+ * throwing. Failed results never carry side-effect errors.
  *
  * @template TOutput
  *
@@ -104,9 +102,9 @@ final readonly class ServiceResult
     /**
      * Return the output when succeeded, or the given default otherwise.
      *
-     * A failed result always returns the default, even when a non-null
-     * output was captured alongside the failure. This lets the caller
-     * distinguish "no output" from "failed" without checking the status.
+     * A failed result always returns the default, even when a non-null output
+     * was captured alongside the failure. This lets the caller distinguish "no
+     * output" from "failed" without checking the status.
      *
      * @param  mixed  $default
      * @return mixed
@@ -117,11 +115,11 @@ final readonly class ServiceResult
     }
 
     /**
-     * Rethrow the captured exception when failed; otherwise return $this
-     * to allow fluent chaining.
+     * Rethrow the captured exception when failed; otherwise return $this to
+     * allow fluent chaining.
      *
-     * When the result failed but no exception was captured, this method
-     * returns $this without throwing.
+     * When the result failed but no exception was captured, this method returns
+     * $this without throwing.
      *
      * @return $this
      *

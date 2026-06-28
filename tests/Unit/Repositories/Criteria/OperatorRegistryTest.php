@@ -194,8 +194,8 @@ final class OperatorRegistryTest extends TestCase
     }
 
     /**
-     * Test that the exception message from duplicate registration
-     * contains the token string.
+     * Test that the exception message from duplicate registration contains the
+     * token string.
      *
      * @return void
      */

@@ -12,9 +12,9 @@ use SineMacula\ApiToolkit\Concerns\QueryParameterValidator;
 /**
  * API query parser.
  *
- * Thin orchestrator that validates and extracts API parameters supplied
- * within the query string of a request, delegating to single-responsibility
- * concern classes and exposing typed access to the parsed parameters.
+ * Thin orchestrator that validates and extracts API parameters supplied within
+ * the query string of a request, delegating to single-responsibility concern
+ * classes and exposing typed access to the parsed parameters.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.

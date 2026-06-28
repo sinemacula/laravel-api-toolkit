@@ -101,8 +101,7 @@ final class ResolvesResourceTest extends TestCase
     }
 
     /**
-     * Test that flushResourceCache clears the memo-cached resource
-     * mappings.
+     * Test that flushResourceCache clears the memo-cached resource mappings.
      *
      * @return void
      */
@@ -122,8 +121,8 @@ final class ResolvesResourceTest extends TestCase
     }
 
     /**
-     * Test that flushResourceCache on an empty memo store does not
-     * throw an exception.
+     * Test that flushResourceCache on an empty memo store does not throw an
+     * exception.
      *
      * @return void
      */
@@ -137,8 +136,8 @@ final class ResolvesResourceTest extends TestCase
     }
 
     /**
-     * Test that resolveResource prefers the custom resource class over
-     * the configured mapping.
+     * Test that resolveResource prefers the custom resource class over the
+     * configured mapping.
      *
      * @return void
      */
@@ -156,8 +155,8 @@ final class ResolvesResourceTest extends TestCase
     }
 
     /**
-     * Test that resource resolution caches mappings per model class
-     * rather than sharing a single cache entry.
+     * Test that resource resolution caches mappings per model class rather than
+     * sharing a single cache entry.
      *
      * @return void
      */
@@ -213,8 +212,8 @@ final class ResolvesResourceTest extends TestCase
     }
 
     /**
-     * Test that resolving a model resource registers the MODEL_RESOURCES key
-     * in the MetadataKeyRegistry.
+     * Test that resolving a model resource registers the MODEL_RESOURCES key in
+     * the MetadataKeyRegistry.
      *
      * @return void
      */

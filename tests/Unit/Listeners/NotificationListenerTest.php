@@ -200,8 +200,8 @@ final class NotificationListenerTest extends TestCase
     }
 
     /**
-     * Test that the payload omits the notifiable id when the notifiable is
-     * not an Eloquent model.
+     * Test that the payload omits the notifiable id when the notifiable is not
+     * an Eloquent model.
      *
      * @return void
      */

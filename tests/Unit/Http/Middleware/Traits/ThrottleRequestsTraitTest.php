@@ -159,9 +159,9 @@ final class ThrottleRequestsTraitTest extends TestCase
     }
 
     /**
-     * Test that resolveRequestSignature is callable from a middleware
-     * subclass, asserting the trait override remains compatible with the
-     * protected hook declared by Laravel's base ThrottleRequests middleware.
+     * Test that resolveRequestSignature is callable from a middleware subclass,
+     * asserting the trait override remains compatible with the protected hook
+     * declared by Laravel's base ThrottleRequests middleware.
      *
      * @return void
      */

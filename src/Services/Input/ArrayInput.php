@@ -63,8 +63,8 @@ final class ArrayInput implements ServiceInput
     /**
      * Return the value for the given key coerced to an integer.
      *
-     * Returns zero when the key is absent. Non-scalar, non-null values
-     * (arrays, objects) coerce to zero.
+     * Returns zero when the key is absent. Non-scalar, non-null values (arrays,
+     * objects) coerce to zero.
      *
      * @param  string  $key
      * @return int

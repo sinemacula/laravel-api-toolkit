@@ -11,8 +11,8 @@ use SineMacula\Http\Enums\MediaType;
 /**
  * Request capabilities value object.
  *
- * Encapsulates the 4 boolean capability checks resolved from the
- * current request. Immutable once created.
+ * Encapsulates the 4 boolean capability checks resolved from the current
+ * request. Immutable once created.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -48,9 +48,9 @@ final class RequestCapabilities
     /**
      * Retrieve the capabilities instance from the request.
      *
-     * Returns the instance stored by the DetectsCapabilities middleware
-     * when available, otherwise resolves the capabilities on demand and
-     * caches them on the request.
+     * Returns the instance stored by the DetectsCapabilities middleware when
+     * available, otherwise resolves the capabilities on demand and caches them
+     * on the request.
      *
      * @param  \Illuminate\Http\Request  $request
      * @return self

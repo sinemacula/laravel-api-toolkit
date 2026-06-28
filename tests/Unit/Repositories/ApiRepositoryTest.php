@@ -89,8 +89,8 @@ final class ApiRepositoryTest extends TestCase
     }
 
     /**
-     * Test that usingResource sets the custom resource class and propagates
-     * to existing ApiCriteria.
+     * Test that usingResource sets the custom resource class and propagates to
+     * existing ApiCriteria.
      *
      * @return void
      */
@@ -359,8 +359,8 @@ final class ApiRepositoryTest extends TestCase
     }
 
     /**
-     * Test that withApiCriteria propagates an already-set custom
-     * resource class onto the newly created criteria instance.
+     * Test that withApiCriteria propagates an already-set custom resource class
+     * onto the newly created criteria instance.
      *
      * @return void
      */
@@ -420,8 +420,8 @@ final class ApiRepositoryTest extends TestCase
     }
 
     /**
-     * Test that paginate appends the current query string to the
-     * generated pagination URLs.
+     * Test that paginate appends the current query string to the generated
+     * pagination URLs.
      *
      * @return void
      */
@@ -450,8 +450,8 @@ final class ApiRepositoryTest extends TestCase
     }
 
     /**
-     * Test that scopeByIds de-duplicates the given ids before binding
-     * them into the query.
+     * Test that scopeByIds de-duplicates the given ids before binding them into
+     * the query.
      *
      * @return void
      */
@@ -572,8 +572,8 @@ final class ApiRepositoryTest extends TestCase
     }
 
     /**
-     * Test that withApiCriteria propagates an already-set custom resource
-     * class to the new criteria instance.
+     * Test that withApiCriteria propagates an already-set custom resource class
+     * to the new criteria instance.
      *
      * @return void
      */
@@ -588,8 +588,8 @@ final class ApiRepositoryTest extends TestCase
     }
 
     /**
-     * Test that persist auto-discovers BelongsTo cast via reflection
-     * when the attribute is not pre-cached.
+     * Test that persist auto-discovers BelongsTo cast via reflection when the
+     * attribute is not pre-cached.
      *
      * @return void
      */
@@ -627,8 +627,8 @@ final class ApiRepositoryTest extends TestCase
     }
 
     /**
-     * Test that castMatchesLaravelCast returns true for a class-based cast
-     * that matches exactly (line 314 in ApiRepository.php).
+     * Test that castMatchesLaravelCast returns true for a class-based cast that
+     * matches exactly (line 314 in ApiRepository.php).
      *
      * Registers UserStatus::class under the 'enum' native key so that the
      * class_exists branch fires and returns true before the string-equality
@@ -659,8 +659,8 @@ final class ApiRepositoryTest extends TestCase
     }
 
     /**
-     * Test that an ApiRepository subclass without the Cacheable trait
-     * reads directly from the database.
+     * Test that an ApiRepository subclass without the Cacheable trait reads
+     * directly from the database.
      *
      * @return void
      */
@@ -675,8 +675,8 @@ final class ApiRepositoryTest extends TestCase
     }
 
     /**
-     * Test that an ApiRepository subclass with the Cacheable trait
-     * returns cached data on subsequent reads.
+     * Test that an ApiRepository subclass with the Cacheable trait returns
+     * cached data on subsequent reads.
      *
      * @return void
      */

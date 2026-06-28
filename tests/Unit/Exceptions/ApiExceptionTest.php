@@ -299,8 +299,8 @@ final class ApiExceptionTest extends TestCase
 
     /**
      * Test that getCustomDetail returns an empty string when the detail
-     * translation key is missing from every locale, rather than leaking the
-     * raw translation key.
+     * translation key is missing from every locale, rather than leaking the raw
+     * translation key.
      *
      * @return void
      */
@@ -357,8 +357,8 @@ final class ApiExceptionTest extends TestCase
     }
 
     /**
-     * Test that getCustomTitle derives a multi-word title from the HTTP
-     * status enum case name when no translation exists.
+     * Test that getCustomTitle derives a multi-word title from the HTTP status
+     * enum case name when no translation exists.
      *
      * @return void
      */

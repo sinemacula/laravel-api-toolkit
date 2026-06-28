@@ -35,8 +35,8 @@ use Tests\TestCase;
 final class ServiceRunnerTest extends TestCase
 {
     /**
-     * Test that the lifecycle hooks execute in the fixed order:
-     * authorize -> validate -> prepare -> handle -> afterCommit.
+     * Test that the lifecycle hooks execute in the fixed order: authorize ->
+     * validate -> prepare -> handle -> afterCommit.
      *
      * @return void
      */
@@ -111,8 +111,8 @@ final class ServiceRunnerTest extends TestCase
     }
 
     /**
-     * Test that a domain failure thrown from handle() is captured in the
-     * result and never propagated to the caller.
+     * Test that a domain failure thrown from handle() is captured in the result
+     * and never propagated to the caller.
      *
      * @return void
      */
@@ -141,9 +141,9 @@ final class ServiceRunnerTest extends TestCase
     }
 
     /**
-     * Test that afterCommit receives the output from handle() and that a
-     * throw from afterCommit is captured as a side-effect error while
-     * leaving the committed result as succeeded.
+     * Test that afterCommit receives the output from handle() and that a throw
+     * from afterCommit is captured as a side-effect error while leaving the
+     * committed result as succeeded.
      *
      * @return void
      */

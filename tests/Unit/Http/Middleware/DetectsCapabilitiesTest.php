@@ -46,8 +46,8 @@ final class DetectsCapabilitiesTest extends TestCase
     }
 
     /**
-     * Test that the middleware passes the request to the next handler
-     * and returns the response.
+     * Test that the middleware passes the request to the next handler and
+     * returns the response.
      *
      * @return void
      */
@@ -63,8 +63,8 @@ final class DetectsCapabilitiesTest extends TestCase
     }
 
     /**
-     * Test that the stored capabilities reflect the request's query
-     * parameters and headers.
+     * Test that the stored capabilities reflect the request's query parameters
+     * and headers.
      *
      * @return void
      */

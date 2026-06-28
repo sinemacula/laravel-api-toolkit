@@ -10,8 +10,7 @@ use Illuminate\Contracts\Support\Arrayable;
  * Abstract base for relation aggregate (sum / average) schema definitions.
  *
  * Holds the common fluent API for building aggregate DSL entries and
- * serialising them to the raw schema array consumed by SchemaCompiler.
- * Concrete
+ * serialising them to the raw schema array consumed by SchemaCompiler. Concrete
  * subclasses declare their metric identifier via {@see metric()}.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>

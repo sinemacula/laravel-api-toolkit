@@ -41,10 +41,10 @@ final class WritePoolFlushSubscriberTest extends TestCase
     /**
      * Set up the test environment.
      *
-     * The per-query cache invalidation path is covered by its own
-     * dedicated tests below; disable it here so the flush and escalation
-     * assertions observe the subscriber in isolation without the
-     * container being asked for the invalidator.
+     * The per-query cache invalidation path is covered by its own dedicated
+     * tests below; disable it here so the flush and escalation assertions
+     * observe the subscriber in isolation without the container being asked for
+     * the invalidator.
      *
      * @return void
      */
@@ -162,8 +162,8 @@ final class WritePoolFlushSubscriberTest extends TestCase
     }
 
     /**
-     * Test that dispatching JobFailed flushes the pool through the
-     * registered listener.
+     * Test that dispatching JobFailed flushes the pool through the registered
+     * listener.
      *
      * @return void
      */
@@ -177,8 +177,8 @@ final class WritePoolFlushSubscriberTest extends TestCase
     }
 
     /**
-     * Test that handleFlush resolves the WritePool from the container
-     * and calls flush.
+     * Test that handleFlush resolves the WritePool from the container and calls
+     * flush.
      *
      * @return void
      */
@@ -233,8 +233,7 @@ final class WritePoolFlushSubscriberTest extends TestCase
     }
 
     /**
-     * Test that handleFlush dispatches WritePoolFlushFailed event on
-     * failure.
+     * Test that handleFlush dispatches WritePoolFlushFailed event on failure.
      *
      * @return void
      */
@@ -333,8 +332,8 @@ final class WritePoolFlushSubscriberTest extends TestCase
     }
 
     /**
-     * Test that an unexpected throwable during pool resolution is
-     * caught and logged at error level without crashing the boundary.
+     * Test that an unexpected throwable during pool resolution is caught and
+     * logged at error level without crashing the boundary.
      *
      * @return void
      */
@@ -359,9 +358,9 @@ final class WritePoolFlushSubscriberTest extends TestCase
     }
 
     /**
-     * Test that a WritePoolFlushException raised by the throw strategy
-     * is escalated loudly with a warning and a dispatched event rather
-     * than being swallowed into a generic error log.
+     * Test that a WritePoolFlushException raised by the throw strategy is
+     * escalated loudly with a warning and a dispatched event rather than being
+     * swallowed into a generic error log.
      *
      * @return void
      */
@@ -388,8 +387,8 @@ final class WritePoolFlushSubscriberTest extends TestCase
     }
 
     /**
-     * Test that the subscriber does not re-throw a flush exception when
-     * the rethrow_at_boundary flag is disabled.
+     * Test that the subscriber does not re-throw a flush exception when the
+     * rethrow_at_boundary flag is disabled.
      *
      * @return void
      */
@@ -417,8 +416,8 @@ final class WritePoolFlushSubscriberTest extends TestCase
     }
 
     /**
-     * Test that the subscriber re-throws a flush exception after
-     * escalating it when the rethrow_at_boundary flag is enabled.
+     * Test that the subscriber re-throws a flush exception after escalating it
+     * when the rethrow_at_boundary flag is enabled.
      *
      * @return void
      */
@@ -446,8 +445,8 @@ final class WritePoolFlushSubscriberTest extends TestCase
     }
 
     /**
-     * Test that, when invalidation is enabled, the subscriber invalidates
-     * the per-query cache for every table the flush persisted.
+     * Test that, when invalidation is enabled, the subscriber invalidates the
+     * per-query cache for every table the flush persisted.
      *
      * @return void
      */
@@ -485,8 +484,8 @@ final class WritePoolFlushSubscriberTest extends TestCase
     }
 
     /**
-     * Test that, when invalidation is disabled, the subscriber never
-     * resolves the invalidator from the container.
+     * Test that, when invalidation is disabled, the subscriber never resolves
+     * the invalidator from the container.
      *
      * @return void
      */
@@ -509,8 +508,8 @@ final class WritePoolFlushSubscriberTest extends TestCase
     }
 
     /**
-     * Test that a throw-strategy failure still invalidates the per-query
-     * cache for every attempted table before the failure is escalated.
+     * Test that a throw-strategy failure still invalidates the per-query cache
+     * for every attempted table before the failure is escalated.
      *
      * @return void
      */

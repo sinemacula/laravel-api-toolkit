@@ -163,8 +163,8 @@ final class EagerLoadPlanner
     }
 
     /**
-     * Build a withSum/withAvg-ready entry list for the given resource class
-     * and metric ('sum' or 'avg').
+     * Build a withSum/withAvg-ready entry list for the given resource class and
+     * metric ('sum' or 'avg').
      *
      * Results are memoised in $aggregateCache, keyed by metric:class|requested
      * signature, so both metrics share one cache cleared by clearCache().
@@ -297,8 +297,8 @@ final class EagerLoadPlanner
     }
 
     /**
-     * Wrap a constraint closure to safely handle MorphTo, EloquentRelation,
-     * and Builder instances.
+     * Wrap a constraint closure to safely handle MorphTo, EloquentRelation, and
+     * Builder instances.
      *
      * @param  \Closure(\Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>): void  $constraint
      * @return \Closure(\Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>): void

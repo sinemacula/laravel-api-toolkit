@@ -66,8 +66,8 @@ final class DeferrableTest extends TestCase
     }
 
     /**
-     * Test that boot invokes the parent boot chain so inherited
-     * repository collaborators are initialized.
+     * Test that boot invokes the parent boot chain so inherited repository
+     * collaborators are initialized.
      *
      * @return void
      */

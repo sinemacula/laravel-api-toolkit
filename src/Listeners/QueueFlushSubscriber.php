@@ -14,10 +14,10 @@ use SineMacula\ApiToolkit\Runtime\RuntimeContext;
 /**
  * Flushes all toolkit caches after each queue job completes or fails.
  *
- * Prevents stale metadata from persisting across jobs in long-running
- * worker processes by delegating to the centralized CacheManager. When the
- * job was dispatched via the sync driver (i.e. within an HTTP request), the
- * flush is skipped entirely.
+ * Prevents stale metadata from persisting across jobs in long-running worker
+ * processes by delegating to the centralized CacheManager. When the job was
+ * dispatched via the sync driver (i.e. within an HTTP request), the flush is
+ * skipped entirely.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.

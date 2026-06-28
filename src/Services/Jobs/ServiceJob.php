@@ -22,9 +22,9 @@ use SineMacula\ApiToolkit\Services\ServiceRunner;
  * re-hydrates and runs the service identically via ServiceRunner with the
  * source forced to QUEUE - no Auth or Request is consulted (NFR-07).
  *
- * Naming deviation: jobs are normally named with a leading verb; this
- * generic bridge runs an arbitrary service so the Job suffix is used
- * instead (#php-nam-063).
+ * Naming deviation: jobs are normally named with a leading verb; this generic
+ * bridge runs an arbitrary service so the Job suffix is used instead
+ * (#php-nam-063).
  *
  * Limitation: subject-bearing services that require a Model constructor
  * argument beyond the input are out of scope for this bridge; the subject

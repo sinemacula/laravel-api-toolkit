@@ -7,10 +7,10 @@ namespace SineMacula\ApiToolkit\OpenApi\Metadata;
 /**
  * Immutable descriptor for a single error code's OpenAPI contract.
  *
- * Carries the integer error code, its resolved HTTP status, and the
- * canonical title and detail strings sourced from the package language
- * file. Consumed by the error-response builder to assemble the
- * components.responses section of the emitted document.
+ * Carries the integer error code, its resolved HTTP status, and the canonical
+ * title and detail strings sourced from the package language file. Consumed by
+ * the error-response builder to assemble the components.responses section of
+ * the emitted document.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.

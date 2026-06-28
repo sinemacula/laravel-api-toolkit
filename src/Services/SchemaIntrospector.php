@@ -89,8 +89,8 @@ final class SchemaIntrospector implements SchemaIntrospectionProvider
     }
 
     /**
-     * Get the per-column type and nullability definitions for the given
-     * model, keyed by column name.
+     * Get the per-column type and nullability definitions for the given model,
+     * keyed by column name.
      *
      * Results are cached forever per model, mirroring getColumns().
      *

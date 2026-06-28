@@ -9,8 +9,8 @@ use SineMacula\ApiToolkit\Services\Service;
 /**
  * Fixture service that returns typed output.
  *
- * Demonstrates that handle() returns a non-boolean output value and that
- * the service reads a typed property from $this->input (AC-11). Used by
+ * Demonstrates that handle() returns a non-boolean output value and that the
+ * service reads a typed property from $this->input (AC-11). Used by
  * ServiceRunnerTest and ServiceTest to verify the output threads through
  * ServiceResult::output().
  *

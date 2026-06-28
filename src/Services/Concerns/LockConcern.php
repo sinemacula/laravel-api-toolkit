@@ -9,9 +9,9 @@ use SineMacula\ApiToolkit\Services\Service;
 /**
  * Cache-based atomic locking stage.
  *
- * Acquires a cache lock before executing the pipeline and releases it in
- * a finally block, ensuring the lock is always released even on exception.
- * The runner only invokes this stage for lockable services.
+ * Acquires a cache lock before executing the pipeline and releases it in a
+ * finally block, ensuring the lock is always released even on exception. The
+ * runner only invokes this stage for lockable services.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.

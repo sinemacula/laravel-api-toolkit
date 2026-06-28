@@ -20,8 +20,8 @@ use SineMacula\ApiToolkit\Services\Actors\SystemActor;
 final class SystemActorTest extends TestCase
 {
     /**
-     * Test null-object semantics: identifier is null, type is 'system',
-     * and toAuthenticatable() returns null.
+     * Test null-object semantics: identifier is null, type is 'system', and
+     * toAuthenticatable() returns null.
      *
      * @return void
      */

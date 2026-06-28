@@ -19,9 +19,8 @@ use Tests\TestCase;
 /**
  * Integration tests for the ContainerBindingRegistrar.
  *
- * The binding behaviour is pinned by the ApiServiceProvider integration
- * suite; this test proves the registrar binds its surface when invoked
- * directly.
+ * The binding behaviour is pinned by the ApiServiceProvider integration suite;
+ * this test proves the registrar binds its surface when invoked directly.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -32,8 +31,8 @@ use Tests\TestCase;
 final class ContainerBindingRegistrarTest extends TestCase
 {
     /**
-     * Test that all toolkit container bindings resolve after the registrar
-     * is invoked.
+     * Test that all toolkit container bindings resolve after the registrar is
+     * invoked.
      *
      * @return void
      */

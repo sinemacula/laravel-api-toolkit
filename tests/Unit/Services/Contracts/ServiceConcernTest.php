@@ -22,8 +22,8 @@ use Tests\Fixtures\Services\StubActor;
 final class ServiceConcernTest extends TestCase
 {
     /**
-     * Test that an implementer receives a ServiceContext and next closure
-     * and returns the (possibly transformed) value.
+     * Test that an implementer receives a ServiceContext and next closure and
+     * returns the (possibly transformed) value.
      *
      * @return void
      */
