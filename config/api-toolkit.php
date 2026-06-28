@@ -487,33 +487,6 @@ return [
 
     /*
     |---------------------------------------------------------------------------
-    | Services Configuration
-    |---------------------------------------------------------------------------
-    |
-    | This section configures the default behaviour of the service action layer.
-    | Each option may be overridden per service class via the corresponding
-    | protected property.
-    |
-    | `transactions.enabled` controls whether service actions are wrapped in a
-    | database transaction by default. Enabled by default; set
-    | API_TOOLKIT_SERVICE_TRANSACTIONS=false to opt out globally.
-    |
-    | `transactions.attempts` is the number of times the transaction is retried
-    | before propagating the exception. Defaults to 3.
-    |
-    */
-
-    'services' => [
-
-        'transactions' => [
-            'enabled'  => (bool) env('API_TOOLKIT_SERVICE_TRANSACTIONS', true),
-            'attempts' => is_numeric($attempts = env('API_TOOLKIT_SERVICE_TRANSACTION_ATTEMPTS', 3)) ? (int) $attempts : 3,
-        ],
-
-    ],
-
-    /*
-    |---------------------------------------------------------------------------
     | API Maintenance Mode Configuration
     |---------------------------------------------------------------------------
     |

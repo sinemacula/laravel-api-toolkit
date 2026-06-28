@@ -24,7 +24,7 @@ final readonly class ServiceFailed
      * Constructor.
      *
      * @param  \SineMacula\ApiToolkit\Services\Contracts\Actor  $actor
-     * @param  class-string<\SineMacula\ApiToolkit\Services\Service>  $service
+     * @param  class-string<\SineMacula\ApiToolkit\Services\Service<\SineMacula\ApiToolkit\Services\Contracts\ServiceInput, mixed>>  $service
      * @param  \SineMacula\ApiToolkit\Services\ServiceResult<mixed>  $result
      * @param  float  $duration
      * @param  string  $correlationId

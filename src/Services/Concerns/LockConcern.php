@@ -21,7 +21,7 @@ final class LockConcern
     /**
      * Acquire the service's cache lock, run $next, release in finally.
      *
-     * @param  \SineMacula\ApiToolkit\Services\Service  $service
+     * @param  \SineMacula\ApiToolkit\Services\Service<\SineMacula\ApiToolkit\Services\Contracts\ServiceInput, mixed>  $service
      * @param  \Closure(): mixed  $next
      * @return mixed
      *
