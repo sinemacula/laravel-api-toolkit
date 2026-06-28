@@ -4,49 +4,52 @@ declare(strict_types = 1);
 
 namespace Tests\Fixtures\Services;
 
-use SineMacula\ApiToolkit\Services\Concerns\TransactionConcern;
+use SineMacula\ApiToolkit\Services\Contracts\ServiceInput;
+use SineMacula\ApiToolkit\Services\Input\ArrayInput;
 use SineMacula\ApiToolkit\Services\Service;
 
 /**
  * Fixture service that always succeeds.
+ *
+ * @extends \SineMacula\ApiToolkit\Services\Service<\SineMacula\ApiToolkit\Services\Input\ArrayInput, true>
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
 final class SimpleService extends Service
 {
-    /** @var bool Track whether success() was called */
-    public bool $successCalled = false;
+    /** @var bool Track whether afterCommit() was called */
+    public bool $afterCommitCalled = false;
 
     /**
-     * Method is triggered if the handle method ran successfully.
+     * Constructor.
      *
-     * @return void
+     * @param  \SineMacula\ApiToolkit\Services\Contracts\ServiceInput  $input
      */
-    #[\Override]
-    public function success(): void
+    public function __construct(ServiceInput $input = new ArrayInput([]))
     {
-        $this->successCalled = true;
+        parent::__construct($input);
     }
 
     /**
-     * Return the ordered list of concern classes for this service.
+     * React to a successful outcome after the transaction has committed.
      *
-     * @return array<int, class-string<\SineMacula\ApiToolkit\Services\Contracts\ServiceConcern>>
+     * @param  mixed  $output
+     * @return void
      */
     #[\Override]
-    protected function concerns(): array
+    protected function afterCommit(mixed $output): void
     {
-        return [TransactionConcern::class];
+        $this->afterCommitCalled = true;
     }
 
     /**
      * Handles the main execution of the service.
      *
-     * @return bool
+     * @return true
      */
     #[\Override]
-    protected function handle(): bool
+    protected function handle(): mixed
     {
         return true;
     }

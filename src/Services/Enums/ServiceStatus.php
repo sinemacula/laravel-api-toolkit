@@ -7,9 +7,11 @@ namespace SineMacula\ApiToolkit\Services\Enums;
 /**
  * Service execution status enumeration.
  *
- * Replaces the undocumented `?bool` tri-state with self-documenting
- * cases that support exhaustive matching. A result only exists once
- * execution has completed, so there is no pending case.
+ * Every service execution produces a total result - exactly one of
+ * these cases is assigned. There is no pending or indeterminate case
+ * because the result only exists once execution has completed. Use
+ * exhaustive match expressions to handle both cases without a default
+ * arm.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.

@@ -7,7 +7,6 @@ namespace Tests\Unit\Services\Concerns;
 use Illuminate\Support\Facades\DB;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Services\Concerns\TransactionConcern;
-use SineMacula\ApiToolkit\Services\Service;
 use Tests\TestCase;
 
 /**
@@ -22,83 +21,58 @@ use Tests\TestCase;
 final class TransactionConcernTest extends TestCase
 {
     /**
-     * Test that execute wraps the next closure in a database transaction.
+     * Test that wrap returns $next's value when the transaction commits.
      *
      * @return void
      */
-    public function testExecuteWrapsNextInTransaction(): void
+    public function testWrapCommitsOnSuccess(): void
     {
         DB::shouldReceive('transaction')
             ->once()
-            ->withArgs(fn (\Closure $callback, int $retries): bool => $retries === 3)
-            ->andReturnUsing(fn (\Closure $callback): bool => $callback());
+            ->andReturnUsing(fn (\Closure $callback): mixed => $callback());
 
         $concern = new TransactionConcern;
-        $service = self::createStub(Service::class);
 
-        $result = $concern->execute($service, fn (): bool => true);
+        $result = $concern->wrap(fn (): string => 'committed', 1);
 
-        self::assertTrue($result);
+        self::assertSame('committed', $result);
     }
 
     /**
-     * Test that execute returns false when the next closure returns false.
-     *
-     * @return void
-     */
-    public function testExecuteReturnsFalseWhenNextReturnsFalse(): void
-    {
-        DB::shouldReceive('transaction')
-            ->once()
-            ->andReturnUsing(fn (\Closure $callback): bool => $callback());
-
-        $concern = new TransactionConcern;
-        $service = self::createStub(Service::class);
-
-        $result = $concern->execute($service, fn (): bool => false);
-
-        self::assertFalse($result);
-    }
-
-    /**
-     * Test that execute coerces a truthy non-boolean transaction result to
-     * true.
-     *
-     * @return void
-     */
-    public function testExecuteCoercesTruthyTransactionResultToBoolean(): void
-    {
-        DB::shouldReceive('transaction')
-            ->once()
-            ->andReturn(['committed']);
-
-        $concern = new TransactionConcern;
-        $service = self::createStub(Service::class);
-
-        $result = $concern->execute($service, fn (): bool => true);
-
-        self::assertTrue($result);
-    }
-
-    /**
-     * Test that execute propagates exceptions thrown by the next closure.
+     * Test that wrap propagates exceptions thrown by $next (rolls back).
      *
      * @return void
      *
      * @throws \RuntimeException
      */
-    public function testExecutePropagatesExceptionFromNext(): void
+    public function testWrapRollsBackOnThrow(): void
     {
         DB::shouldReceive('transaction')
             ->once()
-            ->andReturnUsing(fn (\Closure $callback): bool => $callback());
+            ->andReturnUsing(fn (\Closure $callback): mixed => $callback());
 
         $concern = new TransactionConcern;
-        $service = self::createStub(Service::class);
 
         $this->expectException(\RuntimeException::class);
-        $this->expectExceptionMessage('fail');
+        $this->expectExceptionMessage('rollback');
 
-        $concern->execute($service, fn (): bool => throw new \RuntimeException('fail'));
+        $concern->wrap(fn (): never => throw new \RuntimeException('rollback'), 1);
+    }
+
+    /**
+     * Test that wrap passes the supplied attempt count to DB::transaction.
+     *
+     * @return void
+     */
+    public function testWrapHonoursAttempts(): void
+    {
+        DB::shouldReceive('transaction')
+            ->once()
+            ->withArgs(fn (\Closure $callback, int $attempts): bool => $attempts === 5)
+            ->andReturnUsing(fn (\Closure $callback): mixed => $callback());
+
+        $concern = new TransactionConcern;
+
+        $concern->wrap(fn (): bool => true, 5);
     }
 }

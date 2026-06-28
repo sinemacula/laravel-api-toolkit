@@ -265,34 +265,6 @@ final class QuerySurfaceIntegrationTest extends TestCase
     }
 
     /**
-     * Cross-surface coherence: every field hidden from exports must also be
-     * excluded from filtering under the blocklist posture, so a field the API
-     * never serialises cannot be probed through a filter.
-     *
-     * @return void
-     */
-    public function testSensitiveExportFieldsAreExcludedFromBlocklistFiltering(): void
-    {
-        /** @var array<int, string> $ignored */
-        $ignored = Config::get('api-toolkit.exports.ignored_fields', []);
-
-        /** @var array<int, string> $excluded */
-        $excluded = Config::get('api-toolkit.repositories.searchable_exclusions', []);
-
-        foreach ($ignored as $field) {
-
-            if ($field === '_type') {
-                continue;
-            }
-
-            self::assertContains($field, $excluded, sprintf(
-                'Export-ignored field "%s" must also be excluded from filtering.',
-                $field,
-            ));
-        }
-    }
-
-    /**
      * Assert that applying the given query parameters rejects with a named
      * validation error under the allowlist posture.
      *

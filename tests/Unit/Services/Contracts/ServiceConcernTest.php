@@ -7,6 +7,8 @@ namespace Tests\Unit\Services\Contracts;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\TestCase;
 use SineMacula\ApiToolkit\Services\Contracts\ServiceConcern;
+use SineMacula\ApiToolkit\Services\ServiceContext;
+use Tests\Fixtures\Services\StubActor;
 
 /**
  * Tests for the ServiceConcern interface.
@@ -20,40 +22,62 @@ use SineMacula\ApiToolkit\Services\Contracts\ServiceConcern;
 final class ServiceConcernTest extends TestCase
 {
     /**
-     * Test that the ServiceConcern interface exists and is an interface.
+     * Test that an implementer receives a ServiceContext and next closure
+     * and returns the (possibly transformed) value.
      *
      * @return void
      */
-    public function testServiceConcernInterfaceExists(): void
+    public function testHandleReceivesContextAndNext(): void
     {
-        self::assertTrue(interface_exists(ServiceConcern::class));
+        $nextCalled = false;
 
-        $reflection = new \ReflectionClass(ServiceConcern::class);
+        $context = ServiceContext::for(new StubActor);
 
-        self::assertTrue($reflection->isInterface());
+        $concern = new class implements ServiceConcern {
+            /**
+             * Handle the concern, wrapping the next step result.
+             *
+             * @param  \SineMacula\ApiToolkit\Services\ServiceContext  $context
+             * @param  \Closure(): mixed  $next
+             * @return mixed
+             */
+            #[\Override]
+            public function handle(ServiceContext $context, \Closure $next): mixed
+            {
+                return ['wrapped' => $next()];
+            }
+        };
+
+        $result = $concern->handle($context, function () use (&$nextCalled): string {
+            $nextCalled = true;
+
+            return 'inner';
+        });
+
+        self::assertTrue($nextCalled);
+        self::assertSame(['wrapped' => 'inner'], $result);
     }
 
     /**
-     * Test that the ServiceConcern interface declares an execute method
-     * with the expected signature.
+     * Test that the first parameter of handle() is ServiceContext, not Service.
      *
      * @return void
      */
-    public function testServiceConcernInterfaceDeclaresExecuteMethod(): void
+    public function testContractDoesNotReferenceService(): void
     {
         $reflection = new \ReflectionClass(ServiceConcern::class);
 
-        self::assertTrue($reflection->hasMethod('execute'));
+        self::assertTrue($reflection->hasMethod('handle'));
 
-        $method     = $reflection->getMethod('execute');
+        $method     = $reflection->getMethod('handle');
         $parameters = $method->getParameters();
 
         self::assertCount(2, $parameters);
 
-        $serviceParam = $parameters[0]->getType();
+        $contextParam = $parameters[0]->getType();
 
-        self::assertInstanceOf(\ReflectionNamedType::class, $serviceParam);
-        self::assertSame('SineMacula\ApiToolkit\Services\Service', $serviceParam->getName());
+        self::assertInstanceOf(\ReflectionNamedType::class, $contextParam);
+        self::assertSame(ServiceContext::class, $contextParam->getName());
 
         $nextParam = $parameters[1]->getType();
 
@@ -63,6 +87,6 @@ final class ServiceConcernTest extends TestCase
         $returnType = $method->getReturnType();
 
         self::assertInstanceOf(\ReflectionNamedType::class, $returnType);
-        self::assertSame('bool', $returnType->getName());
+        self::assertSame('mixed', $returnType->getName());
     }
 }

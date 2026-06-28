@@ -35,6 +35,7 @@ use SineMacula\ApiToolkit\Repositories\Criteria\Operators\NullOperator;
 use SineMacula\ApiToolkit\Runtime\RuntimeContext;
 use SineMacula\ApiToolkit\Services\SchemaIntrospector;
 use SineMacula\ApiToolkit\Services\SchemaValidator;
+use SineMacula\ApiToolkit\Services\ServiceRunner;
 use SineMacula\ApiToolkit\Services\Validation\Rules\ValidateAccessors;
 use SineMacula\ApiToolkit\Services\Validation\Rules\ValidateComputedFields;
 use SineMacula\ApiToolkit\Services\Validation\Rules\ValidateGuards;
@@ -47,8 +48,8 @@ use SineMacula\ApiToolkit\Services\Validation\Rules\ValidateTransformers;
  * Registers the toolkit container bindings.
  *
  * Binds the query parser, resource metadata provider, schema introspector,
- * operator registry, schema validator, write pool, and cache manager to the
- * service container.
+ * operator registry, schema validator, write pool, cache manager, lifecycle
+ * runtime, OpenAPI exporter, and service runner to the service container.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -83,6 +84,7 @@ final class ContainerBindingRegistrar
         $this->registerCacheManager();
         $this->registerLifecycleRuntime();
         $this->registerOpenApiExporter();
+        $this->registerServiceRunner();
     }
 
     /**
@@ -229,5 +231,15 @@ final class ContainerBindingRegistrar
     {
         $this->container->singleton(MetadataCatalogue::class, ConfigMetadataCatalogue::class);
         $this->container->singleton(DocumentWriter::class, FilesystemDocumentWriter::class);
+    }
+
+    /**
+     * Bind the ServiceRunner to the service container as a singleton.
+     *
+     * @return void
+     */
+    private function registerServiceRunner(): void
+    {
+        $this->container->singleton(ServiceRunner::class);
     }
 }

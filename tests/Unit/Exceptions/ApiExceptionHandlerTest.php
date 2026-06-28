@@ -27,6 +27,7 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use Psr\Log\LoggerInterface;
 use SineMacula\ApiToolkit\Exceptions\ApiExceptionHandler;
 use SineMacula\ApiToolkit\Exceptions\BadRequestException;
+use SineMacula\ApiToolkit\Exceptions\LockUnavailableException;
 use SineMacula\ApiToolkit\Exceptions\TokenMismatchException;
 use SineMacula\Http\Enums\HttpMethod;
 use Symfony\Component\HttpFoundation\Exception\BadRequestException as SymfonyBadRequestException;
@@ -321,6 +322,31 @@ final class ApiExceptionHandlerTest extends TestCase
 
         static::assertInstanceOf(JsonResponse::class, $response);
         static::assertSame(500, $response->getStatusCode());
+    }
+
+    /**
+     * Test that a LockUnavailableException is mapped to a 429 response.
+     *
+     * @return void
+     */
+    public function testLockUnavailableMapsTo429(): void
+    {
+        $request = Request::create(self::API_PATH, HttpMethod::GET->getVerb());
+        $request->headers->set('Accept', self::ACCEPT_JSON);
+
+        config()->set('app.debug', false);
+
+        $reflection = new \ReflectionMethod(ApiExceptionHandler::class, 'render');
+        $response   = $reflection->invoke(null, new LockUnavailableException, $request);
+
+        static::assertInstanceOf(JsonResponse::class, $response);
+        static::assertSame(429, $response->getStatusCode());
+
+        $data = $response->getData(true);
+
+        static::assertIsArray($data);
+        static::assertSame(429, $data['error']['status']);
+        static::assertSame(10107, $data['error']['code']);
     }
 
     /**

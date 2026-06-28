@@ -5,11 +5,9 @@ declare(strict_types = 1);
 namespace SineMacula\ApiToolkit\Services\Concerns;
 
 use Illuminate\Support\Facades\DB;
-use SineMacula\ApiToolkit\Services\Contracts\ServiceConcern;
-use SineMacula\ApiToolkit\Services\Service;
 
 /**
- * Database transaction concern.
+ * Database transaction stage.
  *
  * Wraps the service pipeline in a database transaction with configurable
  * retry attempts. The transaction commits on success and rolls back on
@@ -18,21 +16,17 @@ use SineMacula\ApiToolkit\Services\Service;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-final class TransactionConcern implements ServiceConcern
+final class TransactionConcern
 {
-    /** @var int Default number of transaction retry attempts */
-    private const int DEFAULT_RETRIES = 3;
-
     /**
-     * Execute the concern around the service lifecycle.
+     * Wrap $next in DB::transaction with $attempts retries.
      *
-     * @param  \SineMacula\ApiToolkit\Services\Service  $service
-     * @param  \Closure(): bool  $next
-     * @return bool
+     * @param  \Closure(): mixed  $next
+     * @param  int  $attempts
+     * @return mixed
      */
-    #[\Override]
-    public function execute(Service $service, \Closure $next): bool
+    public function wrap(\Closure $next, int $attempts): mixed
     {
-        return (bool) DB::transaction(fn () => $next(), self::DEFAULT_RETRIES);
+        return DB::transaction(fn (): mixed => $next(), $attempts);
     }
 }

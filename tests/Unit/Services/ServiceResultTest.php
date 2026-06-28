@@ -21,41 +21,45 @@ use SineMacula\ApiToolkit\Services\ServiceResult;
 final class ServiceResultTest extends TestCase
 {
     /**
-     * Test that success creates a succeeded result with no exception.
+     * Test that success carries the given output and SUCCEEDED status.
      *
      * @return void
      */
-    public function testSuccessCreatesSucceededResult(): void
+    public function testSuccessCarriesOutput(): void
     {
-        $result = ServiceResult::success();
+        $output = ['id' => 42];
+
+        $result = ServiceResult::success($output);
 
         self::assertSame(ServiceStatus::SUCCEEDED, $result->status);
         self::assertTrue($result->succeeded());
         self::assertFalse($result->failed());
-        self::assertNull($result->data);
+        self::assertSame($output, $result->output);
         self::assertNull($result->exception);
+        self::assertSame([], $result->sideEffectErrors);
     }
 
     /**
-     * Test that success carries the given data.
+     * Test that a successful result carries the supplied side-effect errors.
      *
      * @return void
      */
-    public function testSuccessCarriesData(): void
+    public function testSuccessCarriesSideEffectErrors(): void
     {
-        $data = ['id' => 42];
+        $sideEffect = new \RuntimeException('afterCommit failure');
 
-        $result = ServiceResult::success($data);
+        $result = ServiceResult::success('ok', [$sideEffect]);
 
-        self::assertSame($data, $result->data);
+        self::assertTrue($result->succeeded());
+        self::assertSame([$sideEffect], $result->sideEffectErrors);
     }
 
     /**
-     * Test that failure creates a failed result carrying the exception.
+     * Test that a failed result carries the exception and FAILED status.
      *
      * @return void
      */
-    public function testFailureCreatesFailedResultWithException(): void
+    public function testFailureCarriesException(): void
     {
         $exception = new \RuntimeException('boom');
 
@@ -65,49 +69,119 @@ final class ServiceResultTest extends TestCase
         self::assertTrue($result->failed());
         self::assertFalse($result->succeeded());
         self::assertSame($exception, $result->exception);
-        self::assertNull($result->data);
+        self::assertNull($result->output);
+        self::assertSame([], $result->sideEffectErrors);
     }
 
     /**
-     * Test that failure permits a null exception for handler-signalled
-     * failures.
+     * Test that output() returns the output stored on the result.
      *
      * @return void
      */
-    public function testFailureWithoutExceptionRepresentsHandlerSignalledFailure(): void
+    public function testOutputReturnsTheStoredOutput(): void
+    {
+        $result = ServiceResult::success('payload');
+
+        self::assertSame('payload', $result->output());
+    }
+
+    /**
+     * Test that outputOr() returns the default value for a failed result.
+     *
+     * A failed result returns the default even when a non-null output
+     * was captured alongside the failure, letting the caller distinguish
+     * failure from a null output without inspecting the status.
+     *
+     * @return void
+     */
+    public function testOutputOrReturnsDefaultOnFailure(): void
+    {
+        $result = ServiceResult::failure(new \RuntimeException('boom'), 'partial');
+
+        self::assertSame('fallback', $result->outputOr('fallback'));
+    }
+
+    /**
+     * Test that outputOr() returns the output for a succeeded result.
+     *
+     * @return void
+     */
+    public function testOutputOrReturnsOutputOnSuccess(): void
+    {
+        $result = ServiceResult::success('payload');
+
+        self::assertSame('payload', $result->outputOr('fallback'));
+    }
+
+    /**
+     * Test that throw() rethrows the captured exception when the result failed.
+     *
+     * @return void
+     *
+     * @throws \Throwable
+     */
+    public function testThrowRethrowsOnFailure(): void
+    {
+        $exception = new \RuntimeException('boom');
+        $result    = ServiceResult::failure($exception);
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('boom');
+
+        $result->throw();
+    }
+
+    /**
+     * Test that throw() returns $this for a succeeded result (fluent chaining).
+     *
+     * @return void
+     *
+     * @throws \Throwable
+     */
+    public function testThrowReturnsSelfOnSuccess(): void
+    {
+        $result = ServiceResult::success('ok');
+
+        self::assertSame($result, $result->throw());
+    }
+
+    /**
+     * Test that throw() returns $this when failed with a null exception.
+     *
+     * @return void
+     *
+     * @throws \Throwable
+     */
+    public function testThrowReturnsSelfWhenFailedWithNullException(): void
     {
         $result = ServiceResult::failure();
 
-        self::assertTrue($result->failed());
-        self::assertNull($result->exception);
+        self::assertSame($result, $result->throw());
     }
 
     /**
-     * Test that failure carries the given data.
+     * Test that sideEffectErrors() returns the stored side-effect errors.
      *
      * @return void
      */
-    public function testFailureCarriesData(): void
+    public function testSideEffectErrorsReturnsStoredErrors(): void
     {
-        $result = ServiceResult::failure(new \RuntimeException('boom'), ['partial' => true]);
+        $error  = new \RuntimeException('side effect');
+        $result = ServiceResult::success(null, [$error]);
 
-        self::assertSame(['partial' => true], $result->data);
+        self::assertSame([$error], $result->sideEffectErrors());
     }
 
     /**
-     * Test that the status supports exhaustive matching.
+     * Test that ServiceResult is immutable (final readonly class).
      *
      * @return void
      */
-    public function testStatusSupportsExhaustiveMatching(): void
+    public function testResultIsImmutable(): void
     {
-        $result = ServiceResult::success();
+        $reflection = new \ReflectionClass(ServiceResult::class);
 
-        $outcome = match ($result->status) {
-            ServiceStatus::SUCCEEDED => 'succeeded',
-            ServiceStatus::FAILED    => 'failed',
-        };
-
-        self::assertSame('succeeded', $outcome);
+        self::assertTrue($reflection->isFinal());
+        self::assertTrue($reflection->isReadOnly());
     }
 }
