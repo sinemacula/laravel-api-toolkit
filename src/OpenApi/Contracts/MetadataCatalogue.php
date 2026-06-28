@@ -9,9 +9,9 @@ namespace SineMacula\ApiToolkit\OpenApi\Contracts;
  * emission context.
  *
  * Provides the registered resource map, the full filter operator vocabulary
- * (registered tokens plus structural operators), and the error catalogue
- * (one descriptor per defined error code with its HTTP status and
- * title/detail strings).
+ * (registered tokens plus structural operators), and the error catalogue (one
+ * descriptor per defined error code with its HTTP status and title/detail
+ * strings).
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -32,8 +32,8 @@ interface MetadataCatalogue
     /**
      * Return the registered filter operator tokens.
      *
-     * Reads the bound OperatorRegistry so any application-registered
-     * additions or overrides are reflected.
+     * Reads the bound OperatorRegistry so any application-registered additions
+     * or overrides are reflected.
      *
      * @return array<int, string>
      */

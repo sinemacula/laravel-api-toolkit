@@ -10,8 +10,8 @@ use SineMacula\ApiToolkit\Enums\FlushStrategy;
 use SineMacula\ApiToolkit\Exceptions\WritePoolFlushException;
 
 /**
- * Buffers insert attribute arrays in memory grouped by table
- * and flushes them as chunked bulk INSERT statements.
+ * Buffers insert attribute arrays in memory grouped by table and flushes them
+ * as chunked bulk INSERT statements.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -51,10 +51,9 @@ final class WritePool
     /**
      * Add an attribute array to the buffer for the given table.
      *
-     * When the total buffered record count reaches or exceeds the
-     * configured pool limit, an automatic flush is triggered using the
-     * instance strategy. Under the throw strategy this auto-flush may
-     * raise out of add().
+     * When the total buffered record count reaches or exceeds the configured
+     * pool limit, an automatic flush is triggered using the instance strategy.
+     * Under the throw strategy this auto-flush may raise out of add().
      *
      * @param  string  $table
      * @param  array<string, mixed>  $attributes
@@ -76,9 +75,9 @@ final class WritePool
     /**
      * Flush all buffered records as chunked bulk INSERT statements.
      *
-     * Records are grouped by table and split into chunks of at most
-     * the configured chunk size. The active strategy determines how
-     * chunk failures are handled and whether the buffer is retained.
+     * Records are grouped by table and split into chunks of at most the
+     * configured chunk size. The active strategy determines how chunk failures
+     * are handled and whether the buffer is retained.
      *
      * @param  \SineMacula\ApiToolkit\Enums\FlushStrategy|null  $strategy
      * @return \SineMacula\ApiToolkit\Repositories\Concerns\WritePoolFlushResult
@@ -95,8 +94,8 @@ final class WritePool
     }
 
     /**
-     * Return the result from the most recent auto-flush triggered
-     * by add(), or null if no auto-flush has occurred.
+     * Return the result from the most recent auto-flush triggered by add(), or
+     * null if no auto-flush has occurred.
      *
      * @return \SineMacula\ApiToolkit\Repositories\Concerns\WritePoolFlushResult|null
      */
@@ -181,8 +180,8 @@ final class WritePool
     }
 
     /**
-     * Flush a table's chunks inside a database transaction so the
-     * table's inserts are applied all-or-nothing.
+     * Flush a table's chunks inside a database transaction so the table's
+     * inserts are applied all-or-nothing.
      *
      * @param  \SineMacula\ApiToolkit\Repositories\Concerns\WritePoolFlushContext  $context
      * @param  \SineMacula\ApiToolkit\Repositories\Concerns\WritePoolFlushAccumulator  $accumulator
@@ -207,8 +206,8 @@ final class WritePool
     }
 
     /**
-     * Account for a table whose transaction committed, counting every
-     * chunk and record as flushed.
+     * Account for a table whose transaction committed, counting every chunk and
+     * record as flushed.
      *
      * @param  \SineMacula\ApiToolkit\Repositories\Concerns\WritePoolFlushContext  $context
      * @param  \SineMacula\ApiToolkit\Repositories\Concerns\WritePoolFlushAccumulator  $accumulator
@@ -222,8 +221,8 @@ final class WritePool
     }
 
     /**
-     * Account for a table whose transaction rolled back, treating the
-     * whole table's records as a single failure for the strategy.
+     * Account for a table whose transaction rolled back, treating the whole
+     * table's records as a single failure for the strategy.
      *
      * @param  \SineMacula\ApiToolkit\Repositories\Concerns\WritePoolFlushContext  $context
      * @param  \SineMacula\ApiToolkit\Repositories\Concerns\WritePoolFlushAccumulator  $accumulator
@@ -338,8 +337,8 @@ final class WritePool
     /**
      * Retain the failed chunk and all unprocessed records in the buffer.
      *
-     * The context must carry the chunk index (set via withChunkIndex) so
-     * that the remaining chunks for this table can be computed correctly.
+     * The context must carry the chunk index (set via withChunkIndex) so that
+     * the remaining chunks for this table can be computed correctly.
      *
      * @param  \SineMacula\ApiToolkit\Repositories\Concerns\WritePoolFlushContext  $context
      * @param  list<array<string, mixed>>  $chunk

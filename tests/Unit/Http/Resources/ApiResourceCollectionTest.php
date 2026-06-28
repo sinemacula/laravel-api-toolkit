@@ -166,8 +166,8 @@ final class ApiResourceCollectionTest extends TestCase
     }
 
     /**
-     * Test that paginationInformation for LengthAwarePaginator returns meta
-     * and links.
+     * Test that paginationInformation for LengthAwarePaginator returns meta and
+     * links.
      *
      * @return void
      */
@@ -196,8 +196,8 @@ final class ApiResourceCollectionTest extends TestCase
     }
 
     /**
-     * Test that paginationInformation for CursorPaginator returns cursor
-     * meta and links.
+     * Test that paginationInformation for CursorPaginator returns cursor meta
+     * and links.
      *
      * @return void
      */
@@ -321,8 +321,8 @@ final class ApiResourceCollectionTest extends TestCase
     }
 
     /**
-     * Test that toArray does not eager load missing relations when wrapping
-     * raw model items.
+     * Test that toArray does not eager load missing relations when wrapping raw
+     * model items.
      *
      * @return void
      */

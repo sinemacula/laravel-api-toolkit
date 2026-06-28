@@ -312,8 +312,8 @@ final class FilterApplierTest extends TestCase
     }
 
     /**
-     * Test that $contains with a comma-separated string creates multiple
-     * JSON contains conditions.
+     * Test that $contains with a comma-separated string creates multiple JSON
+     * contains conditions.
      *
      * @return void
      */
@@ -366,8 +366,8 @@ final class FilterApplierTest extends TestCase
     }
 
     /**
-     * Test that $has with a named relation and conditions applies
-     * constrained whereHas.
+     * Test that $has with a named relation and conditions applies constrained
+     * whereHas.
      *
      * @return void
      */
@@ -633,9 +633,9 @@ final class FilterApplierTest extends TestCase
     }
 
     /**
-     * Test that a $has filter is not double-applied as a column
-     * condition when a handler happens to be registered for the
-     * $has token in the operator registry.
+     * Test that a $has filter is not double-applied as a column condition when
+     * a handler happens to be registered for the $has token in the operator
+     * registry.
      *
      * @return void
      */
@@ -679,8 +679,8 @@ final class FilterApplierTest extends TestCase
     }
 
     /**
-     * Apply filters using the FilterApplier and return the resulting
-     * query builder.
+     * Apply filters using the FilterApplier and return the resulting query
+     * builder.
      *
      * @param  array<string, mixed>|null  $filters
      * @return \Illuminate\Database\Eloquent\Builder<\Tests\Fixtures\Models\User>

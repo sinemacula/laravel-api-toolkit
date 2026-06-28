@@ -219,9 +219,9 @@ final class ColumnProjectionApplierTest extends TestCase
     }
 
     /**
-     * Test that the parent key of every list-keyed (plain or extra) relation
-     * in the eager-load map is retained, not just the first. The relation name
-     * of a list entry lives in the value, so deriving keys via array_keys would
+     * Test that the parent key of every list-keyed (plain or extra) relation in
+     * the eager-load map is retained, not just the first. The relation name of
+     * a list entry lives in the value, so deriving keys via array_keys would
      * yield integer indices that resolve to no relation.
      *
      * @return void

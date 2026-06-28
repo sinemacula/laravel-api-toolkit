@@ -15,8 +15,8 @@ use Tests\TestCase;
  * Integration tests for the throttle middleware with a custom class override.
  *
  * This test class configures a custom throttle middleware class before the
- * service provider boots, verifying the custom class is used for the
- * throttle alias.
+ * service provider boots, verifying the custom class is used for the throttle
+ * alias.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.

@@ -249,8 +249,7 @@ final class ApiExceptionHandlerTest extends TestCase
 
     /**
      * Test that the generic catch-all preserves the original status code,
-     * derives the title from the HTTP status, and uses the generic error
-     * code.
+     * derives the title from the HTTP status, and uses the generic error code.
      *
      * @return void
      */
@@ -276,8 +275,8 @@ final class ApiExceptionHandlerTest extends TestCase
     }
 
     /**
-     * Test that the generic catch-all preserves headers from the original
-     * HTTP exception.
+     * Test that the generic catch-all preserves headers from the original HTTP
+     * exception.
      *
      * @return void
      */
@@ -298,8 +297,8 @@ final class ApiExceptionHandlerTest extends TestCase
     }
 
     /**
-     * Test that application-layer database exceptions are not mapped to
-     * HTTP semantics and remain 500.
+     * Test that application-layer database exceptions are not mapped to HTTP
+     * semantics and remain 500.
      *
      * @return void
      */
@@ -480,8 +479,8 @@ final class ApiExceptionHandlerTest extends TestCase
      * mismatch exception with the non-standard 419 status code.
      *
      * The mapping is asserted directly because rendering the toolkit
-     * TokenMismatchException requires the package translations, which are
-     * not registered in this isolated test application.
+     * TokenMismatchException requires the package translations, which are not
+     * registered in this isolated test application.
      *
      * @return void
      */
@@ -496,8 +495,8 @@ final class ApiExceptionHandlerTest extends TestCase
     }
 
     /**
-     * Test that the json_when_expected strategy returns null for requests
-     * that do not expect JSON.
+     * Test that the json_when_expected strategy returns null for requests that
+     * do not expect JSON.
      *
      * @return void
      */
@@ -516,8 +515,8 @@ final class ApiExceptionHandlerTest extends TestCase
     }
 
     /**
-     * Test that the json_when_expected strategy renders JSON when the
-     * request expects JSON.
+     * Test that the json_when_expected strategy renders JSON when the request
+     * expects JSON.
      *
      * @return void
      */
@@ -537,8 +536,8 @@ final class ApiExceptionHandlerTest extends TestCase
     }
 
     /**
-     * Test that the auto strategy renders JSON for non-JSON requests when
-     * debug mode is disabled.
+     * Test that the auto strategy renders JSON for non-JSON requests when debug
+     * mode is disabled.
      *
      * @return void
      */
@@ -581,8 +580,8 @@ final class ApiExceptionHandlerTest extends TestCase
     }
 
     /**
-     * Test that JSON output is compact when the pretty request parameter is
-     * not provided.
+     * Test that JSON output is compact when the pretty request parameter is not
+     * provided.
      *
      * @return void
      */
@@ -628,8 +627,8 @@ final class ApiExceptionHandlerTest extends TestCase
     }
 
     /**
-     * Test that the include_debug_info config takes precedence over a
-     * disabled debug mode.
+     * Test that the include_debug_info config takes precedence over a disabled
+     * debug mode.
      *
      * @return void
      */
@@ -655,8 +654,8 @@ final class ApiExceptionHandlerTest extends TestCase
     }
 
     /**
-     * Test that the include_debug_info config takes precedence over an
-     * enabled debug mode.
+     * Test that the include_debug_info config takes precedence over an enabled
+     * debug mode.
      *
      * @return void
      */
@@ -680,8 +679,8 @@ final class ApiExceptionHandlerTest extends TestCase
     }
 
     /**
-     * Test that custom meta is returned untouched when debug mode is
-     * enabled but the exception has no previous exception.
+     * Test that custom meta is returned untouched when debug mode is enabled
+     * but the exception has no previous exception.
      *
      * @return void
      */
@@ -888,8 +887,8 @@ final class ApiExceptionHandlerTest extends TestCase
     }
 
     /**
-     * Test that getContext includes the authenticated user id and filters
-     * out empty values.
+     * Test that getContext includes the authenticated user id and filters out
+     * empty values.
      *
      * @return void
      */
@@ -1017,8 +1016,8 @@ final class ApiExceptionHandlerTest extends TestCase
      * Define the test environment.
      *
      * Loads the package's exception translations so rendered error responses
-     * include a non-empty detail rather than relying on the (now-fixed)
-     * raw-key fallback.
+     * include a non-empty detail rather than relying on the (now-fixed) raw-key
+     * fallback.
      *
      * @param  mixed  $app
      * @return void

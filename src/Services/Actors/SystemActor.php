@@ -9,9 +9,9 @@ use SineMacula\ApiToolkit\Services\Contracts\Actor;
 /**
  * Null-object actor for system and scheduled contexts.
  *
- * Represents a system process or background job with no authenticated
- * identity. Returns null from toAuthenticatable(), which allows the
- * service runner to short-circuit authorisation.
+ * Represents a system process or background job with no authenticated identity.
+ * Returns null from toAuthenticatable(), which allows the service runner to
+ * short-circuit authorisation.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.

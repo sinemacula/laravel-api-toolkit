@@ -27,10 +27,10 @@ use Tests\TestCase;
  * filterable/sortable columns and traversable relations are applied, while
  * undeclared keys on the root resource are rejected (fail-closed) or dropped
  * (fail-quiet). Under the allowlist posture, nested columns on a traversed
- * relation are gated against the related resource's declared filterable set -
- * not against the legacy isSearchable predicate. When no mapped resource exists
- * for a related model the gate fails closed. A model with no mapped resource
- * rejects every key.
+ * relation are gated against the related resource's declared filterable set
+ * -not against the legacy isSearchable predicate. When no mapped resource
+ * exists for a related model the gate fails closed. A model with no mapped
+ * resource rejects every key.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.

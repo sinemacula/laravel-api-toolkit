@@ -13,8 +13,8 @@ use SineMacula\ApiToolkit\Services\Validation\SchemaValidationError;
  * Base rule for validating callable lists on compiled field definitions.
  *
  * Iterates the compiled fields and reports a validation error for every list
- * entry that is not callable, using the callable list and label declared by
- * the concrete subclass.
+ * entry that is not callable, using the callable list and label declared by the
+ * concrete subclass.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.

@@ -13,11 +13,11 @@ use SineMacula\ApiToolkit\Contracts\CacheInvalidator;
 /**
  * Provides opt-in transparent caching for API repositories.
  *
- * When used by an ApiRepository subclass, this trait intercepts read
- * operations before execution and serves matching results from a per-query
- * cache, guaranteeing zero database queries on a cache hit. Each executed
- * query is keyed by its fingerprint, so a filtered or by-id read never returns
- * the full-table collection. Write operations invalidate the whole table.
+ * When used by an ApiRepository subclass, this trait intercepts read operations
+ * before execution and serves matching results from a per-query cache,
+ * guaranteeing zero database queries on a cache hit. Each executed query is
+ * keyed by its fingerprint, so a filtered or by-id read never returns the
+ * full-table collection. Write operations invalidate the whole table.
  *
  * Overridable configuration properties (declare in the consuming class to
  * change defaults):

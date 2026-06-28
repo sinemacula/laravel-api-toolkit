@@ -60,8 +60,8 @@ final class RequestCapabilitiesTest extends TestCase
     }
 
     /**
-     * Test that fromRequest reflects the request state when resolving
-     * lazily, and caches the resolved instance on the request.
+     * Test that fromRequest reflects the request state when resolving lazily,
+     * and caches the resolved instance on the request.
      *
      * @return void
      */
@@ -152,8 +152,7 @@ final class RequestCapabilitiesTest extends TestCase
     }
 
     /**
-     * Test that all 4 accessor methods return the correct corresponding
-     * values.
+     * Test that all 4 accessor methods return the correct corresponding values.
      *
      * @return void
      */

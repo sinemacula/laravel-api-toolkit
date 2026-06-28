@@ -55,8 +55,7 @@ final class WritePoolFlushResultTest extends TestCase
     }
 
     /**
-     * Test that successCount returns the value provided to the
-     * constructor.
+     * Test that successCount returns the value provided to the constructor.
      *
      * @return void
      */
@@ -68,8 +67,7 @@ final class WritePoolFlushResultTest extends TestCase
     }
 
     /**
-     * Test that failureCount returns the value provided to the
-     * constructor.
+     * Test that failureCount returns the value provided to the constructor.
      *
      * @return void
      */
@@ -81,8 +79,7 @@ final class WritePoolFlushResultTest extends TestCase
     }
 
     /**
-     * Test that totalCount returns the sum of success and failure
-     * counts.
+     * Test that totalCount returns the sum of success and failure counts.
      *
      * @return void
      */
@@ -94,8 +91,7 @@ final class WritePoolFlushResultTest extends TestCase
     }
 
     /**
-     * Test that failures returns an empty array when no failures were
-     * provided.
+     * Test that failures returns an empty array when no failures were provided.
      *
      * @return void
      */
@@ -107,8 +103,7 @@ final class WritePoolFlushResultTest extends TestCase
     }
 
     /**
-     * Test that failures returns the failure details keyed by table
-     * name.
+     * Test that failures returns the failure details keyed by table name.
      *
      * @return void
      */
@@ -154,8 +149,8 @@ final class WritePoolFlushResultTest extends TestCase
     }
 
     /**
-     * Test that the record-level count getters default to zero when no
-     * record counts are provided.
+     * Test that the record-level count getters default to zero when no record
+     * counts are provided.
      *
      * @return void
      */
@@ -170,8 +165,8 @@ final class WritePoolFlushResultTest extends TestCase
     }
 
     /**
-     * Test that the record-level count getters return the values
-     * provided to the constructor.
+     * Test that the record-level count getters return the values provided to
+     * the constructor.
      *
      * @return void
      */
@@ -194,8 +189,8 @@ final class WritePoolFlushResultTest extends TestCase
     }
 
     /**
-     * Test that flushedTables defaults to an empty array when no tables
-     * are provided.
+     * Test that flushedTables defaults to an empty array when no tables are
+     * provided.
      *
      * @return void
      */

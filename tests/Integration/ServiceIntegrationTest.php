@@ -21,8 +21,8 @@ use Tests\TestCase;
  * Integration tests for the real-path service lifecycle with a real database.
  *
  * Proves atomicity (a failed handle() leaves no committed writes), full
- * lifecycle sequencing, transaction skipping, and lock contention captured
- * in the result.
+ * lifecycle sequencing, transaction skipping, and lock contention captured in
+ * the result.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -109,8 +109,8 @@ final class ServiceIntegrationTest extends TestCase
     /**
      * Test that a lockable service acquires and releases the lock.
      *
-     * A contended run is captured as a failure in the result, proving
-     * the runner is total and never rethrows lock contention.
+     * A contended run is captured as a failure in the result, proving the
+     * runner is total and never rethrows lock contention.
      *
      * @return void
      */

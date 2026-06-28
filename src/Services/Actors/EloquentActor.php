@@ -12,12 +12,12 @@ use SineMacula\ApiToolkit\Services\Contracts\Actor;
 /**
  * Queue-serialisable actor adapting an Eloquent user/model.
  *
- * Wraps any Eloquent model that also implements Authenticatable (the
- * standard Laravel user) and exposes the Actor contract. Serialises as
- * a morph-type + identifier pair plus a snapshot of the label taken at
- * construction time. On a queue worker the model is re-resolved from
- * the morph map via a fresh DB query; the label and identifier scalars
- * survive even when the underlying record is later changed or deleted.
+ * Wraps any Eloquent model that also implements Authenticatable (the standard
+ * Laravel user) and exposes the Actor contract. Serialises as a morph-type +
+ * identifier pair plus a snapshot of the label taken at construction time. On a
+ * queue worker the model is re-resolved from the morph map via a fresh DB
+ * query; the label and identifier scalars survive even when the underlying
+ * record is later changed or deleted.
  *
  * Label resolution order (first non-empty string wins):
  *   1. The `name` attribute on the model.
@@ -41,18 +41,17 @@ final class EloquentActor implements Actor
     /**
      * The live model instance.
      *
-     * Null after unserialisation until the first call to
-     * toAuthenticatable(). Also null when the underlying record has
-     * been deleted and re-resolution returned nothing.
+     * Null after unserialisation until the first call to toAuthenticatable().
+     * Also null when the underlying record has been deleted and re-resolution
+     * returned nothing.
      *
      * @var (\Illuminate\Contracts\Auth\Authenticatable&\Illuminate\Database\Eloquent\Model)|null
      */
     private (Authenticatable&Model)|null $model = null;
 
     /**
-     * Whether the model has been resolved (or attempted) after
-     * unserialisation. False only between __unserialize and the first
-     * toAuthenticatable() call.
+     * Whether the model has been resolved (or attempted) after unserialisation.
+     * False only between __unserialize and the first toAuthenticatable() call.
      *
      * @var bool
      */
@@ -81,8 +80,8 @@ final class EloquentActor implements Actor
     /**
      * Serialise as morph type + identifier + label snapshot only.
      *
-     * The live model is intentionally excluded so the serialised
-     * payload contains only re-resolvable scalars.
+     * The live model is intentionally excluded so the serialised payload
+     * contains only re-resolvable scalars.
      *
      * @return array<string, int|string>
      */
@@ -98,8 +97,8 @@ final class EloquentActor implements Actor
     /**
      * Restore scalar state from the serialised payload.
      *
-     * The model is left null and will be re-resolved from the morph
-     * map on the first toAuthenticatable() call.
+     * The model is left null and will be re-resolved from the morph map on the
+     * first toAuthenticatable() call.
      *
      * @param  array<string, int|string>  $data
      * @return void
@@ -153,8 +152,8 @@ final class EloquentActor implements Actor
     /**
      * Return the label snapshotted at construction time.
      *
-     * The snapshot is retained verbatim so attribution survives
-     * subsequent changes to or deletion of the underlying record.
+     * The snapshot is retained verbatim so attribution survives subsequent
+     * changes to or deletion of the underlying record.
      *
      * @return string
      */
@@ -167,9 +166,9 @@ final class EloquentActor implements Actor
     /**
      * Return the live Authenticatable model.
      *
-     * After unserialisation the model is re-resolved lazily from the
-     * morph map on the first call. Returns null when the record cannot
-     * be found (e.g. after deletion).
+     * After unserialisation the model is re-resolved lazily from the morph map
+     * on the first call. Returns null when the record cannot be found (e.g.
+     * after deletion).
      *
      * @return \Illuminate\Contracts\Auth\Authenticatable|null
      */

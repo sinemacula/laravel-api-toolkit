@@ -7,8 +7,8 @@ namespace SineMacula\ApiToolkit\Repositories\Concerns;
 use SineMacula\ApiToolkit\Enums\FlushStrategy;
 
 /**
- * Immutable carrier for the parameters required to flush a single
- * table's chunk set within a WritePool flush operation.
+ * Immutable carrier for the parameters required to flush a single table's chunk
+ * set within a WritePool flush operation.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.

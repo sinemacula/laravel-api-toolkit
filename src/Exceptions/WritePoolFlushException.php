@@ -7,8 +7,8 @@ namespace SineMacula\ApiToolkit\Exceptions;
 use SineMacula\ApiToolkit\Repositories\Concerns\WritePoolFlushResult;
 
 /**
- * Thrown by the throw flush strategy when a chunk insert fails during
- * a WritePool flush operation.
+ * Thrown by the throw flush strategy when a chunk insert fails during a
+ * WritePool flush operation.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.

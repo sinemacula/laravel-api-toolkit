@@ -50,8 +50,7 @@ final class FlushStrategyTest extends TestCase
     }
 
     /**
-     * Test that from() resolves valid string values to the correct
-     * enum cases.
+     * Test that from() resolves valid string values to the correct enum cases.
      *
      * @return void
      */
@@ -63,8 +62,7 @@ final class FlushStrategyTest extends TestCase
     }
 
     /**
-     * Test that from() throws a ValueError for an invalid backing
-     * value.
+     * Test that from() throws a ValueError for an invalid backing value.
      *
      * @return void
      */

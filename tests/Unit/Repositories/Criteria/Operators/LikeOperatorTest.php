@@ -99,8 +99,8 @@ final class LikeOperatorTest extends TestCase
     }
 
     /**
-     * Test that apply with a non-scalar, non-Stringable value falls
-     * back to an empty search term.
+     * Test that apply with a non-scalar, non-Stringable value falls back to an
+     * empty search term.
      *
      * @return void
      */

@@ -171,8 +171,8 @@ final class QueryParameterBuilderTest extends TestCase
     }
 
     /**
-     * Build a QueryParameterBuilder backed by a stub returning the default
-     * 12+4 operator vocabulary.
+     * Build a QueryParameterBuilder backed by a stub returning the default 12+4
+     * operator vocabulary.
      *
      * @return \SineMacula\ApiToolkit\OpenApi\Builder\QueryParameterBuilder
      */

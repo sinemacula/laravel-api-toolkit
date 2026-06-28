@@ -32,8 +32,8 @@ final class CacheFlushedTest extends TestCase
     }
 
     /**
-     * Test that the event is a pure marker with no additional public
-     * properties or methods beyond those inherited from object.
+     * Test that the event is a pure marker with no additional public properties
+     * or methods beyond those inherited from object.
      *
      * @return void
      */

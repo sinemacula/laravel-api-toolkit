@@ -67,8 +67,8 @@ final class MiddlewareRegistrar
      *
      * When enabled, the toolkit's PreventRequestsDuringMaintenance middleware
      * is prepended to the global middleware stack. Since it extends Laravel's
-     * built-in middleware, it takes precedence without requiring removal of
-     * the original.
+     * built-in middleware, it takes precedence without requiring removal of the
+     * original.
      *
      * @param  \Illuminate\Foundation\Http\Kernel  $kernel
      * @return void
@@ -114,8 +114,8 @@ final class MiddlewareRegistrar
      * Register the throttle middleware alias.
      *
      * When a custom class is provided via config, that class is used.
-     * Otherwise, the toolkit auto-detects between standard and Redis
-     * variants based on the configured cache driver.
+     * Otherwise, the toolkit auto-detects between standard and Redis variants
+     * based on the configured cache driver.
      *
      * @param  \Illuminate\Routing\Router  $router
      * @return void

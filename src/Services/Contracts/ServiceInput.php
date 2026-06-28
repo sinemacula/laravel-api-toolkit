@@ -8,9 +8,9 @@ namespace SineMacula\ApiToolkit\Services\Contracts;
  * Minimal typed-input contract.
  *
  * Defines the smallest interface a service input must satisfy. Keeping the
- * contract to a single method allows spatie/laravel-data Data objects
- * (which already expose toArray()) to satisfy it without introducing a
- * hard dependency on that package.
+ * contract to a single method allows spatie/laravel-data Data objects (which
+ * already expose toArray()) to satisfy it without introducing a hard dependency
+ * on that package.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.

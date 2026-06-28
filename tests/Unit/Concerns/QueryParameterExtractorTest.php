@@ -42,8 +42,7 @@ final class QueryParameterExtractorTest extends TestCase
     }
 
     /**
-     * Test that extract returns an empty array when no parameters are
-     * supplied.
+     * Test that extract returns an empty array when no parameters are supplied.
      *
      * @return void
      */
@@ -244,8 +243,8 @@ final class QueryParameterExtractorTest extends TestCase
     }
 
     /**
-     * Test that extract wraps scalar non-string aggregation field values in
-     * an array.
+     * Test that extract wraps scalar non-string aggregation field values in an
+     * array.
      *
      * @return void
      */

@@ -171,8 +171,8 @@ final class PerQueryCacheTest extends TestCase
     }
 
     /**
-     * Test that a non-taggable file store invalidates per-query entries via
-     * the registry on a write.
+     * Test that a non-taggable file store invalidates per-query entries via the
+     * registry on a write.
      *
      * @return void
      */

@@ -12,9 +12,9 @@ use SineMacula\ApiToolkit\Services\Enums\ServiceSource;
  * Immutable, queue-serialisable execution-context envelope.
  *
  * Carries the actor that initiated the service, a correlation id (generated
- * when absent), the execution source, and captured ambient metadata such as
- * IP address, user-agent, or request id. Metadata is supplied explicitly at
- * the capture site and never read ambiently inside services (NFR-07).
+ * when absent), the execution source, and captured ambient metadata such as IP
+ * address, user-agent, or request id. Metadata is supplied explicitly at the
+ * capture site and never read ambiently inside services (NFR-07).
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -47,8 +47,8 @@ final readonly class ServiceContext
     /**
      * Create a ServiceContext for the given actor.
      *
-     * When no correlation id is supplied, a UUID is generated. When no
-     * source is supplied, it defaults to INTERNAL.
+     * When no correlation id is supplied, a UUID is generated. When no source
+     * is supplied, it defaults to INTERNAL.
      *
      * @param  \SineMacula\ApiToolkit\Services\Contracts\Actor  $actor
      * @param  \SineMacula\ApiToolkit\Services\Enums\ServiceSource|null  $source

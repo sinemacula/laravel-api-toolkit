@@ -553,8 +553,7 @@ final class ApiQueryParserTest extends TestCase
     }
 
     /**
-     * Test that getFields trims values stored directly in the parameter
-     * state.
+     * Test that getFields trims values stored directly in the parameter state.
      *
      * @return void
      */
@@ -566,8 +565,7 @@ final class ApiQueryParserTest extends TestCase
     }
 
     /**
-     * Test that getCounts trims values stored directly in the parameter
-     * state.
+     * Test that getCounts trims values stored directly in the parameter state.
      *
      * @return void
      */
@@ -592,8 +590,8 @@ final class ApiQueryParserTest extends TestCase
     }
 
     /**
-     * Test that getPage truncates fractional values below one and returns
-     * the first page.
+     * Test that getPage truncates fractional values below one and returns the
+     * first page.
      *
      * @return void
      */

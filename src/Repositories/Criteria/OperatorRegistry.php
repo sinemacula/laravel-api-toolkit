@@ -25,8 +25,8 @@ final class OperatorRegistry
     /**
      * Register a handler for the given operator token.
      *
-     * Throws if the token is already registered. Use override() to replace
-     * an existing handler.
+     * Throws if the token is already registered. Use override() to replace an
+     * existing handler.
      *
      * @param  string  $token
      * @param  \Closure|\SineMacula\ApiToolkit\Contracts\FilterOperator  $operator
@@ -48,8 +48,8 @@ final class OperatorRegistry
     /**
      * Replace the handler for the given operator token unconditionally.
      *
-     * If the token is not currently registered, this behaves identically
-     * to register().
+     * If the token is not currently registered, this behaves identically to
+     * register().
      *
      * @param  string  $token
      * @param  \Closure|\SineMacula\ApiToolkit\Contracts\FilterOperator  $operator

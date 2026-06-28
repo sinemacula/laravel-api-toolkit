@@ -35,8 +35,8 @@ final class EloquentActorTest extends TestCase
     }
 
     /**
-     * Test identifier, type, label, and toAuthenticatable() reflect the
-     * wrapped model.
+     * Test identifier, type, label, and toAuthenticatable() reflect the wrapped
+     * model.
      *
      * @return void
      */
@@ -67,8 +67,8 @@ final class EloquentActorTest extends TestCase
     }
 
     /**
-     * Test that the label snapshot is taken at construction time and does
-     * not change when the underlying record is updated afterwards.
+     * Test that the label snapshot is taken at construction time and does not
+     * change when the underlying record is updated afterwards.
      *
      * @return void
      */
@@ -84,8 +84,8 @@ final class EloquentActorTest extends TestCase
     }
 
     /**
-     * Test that serialize() persists morph type, id, and label snapshot
-     * but not the full model instance.
+     * Test that serialize() persists morph type, id, and label snapshot but not
+     * the full model instance.
      *
      * @return void
      */
@@ -105,8 +105,8 @@ final class EloquentActorTest extends TestCase
 
     /**
      * Test that a serialize()/unserialize() round trip preserves the morph
-     * type, identifier, and label, and the deserialised actor re-resolves
-     * the model via the morph map.
+     * type, identifier, and label, and the deserialised actor re-resolves the
+     * model via the morph map.
      *
      * @return void
      */
@@ -130,8 +130,8 @@ final class EloquentActorTest extends TestCase
     }
 
     /**
-     * Test that label and identifier are retained when the underlying
-     * record is changed or removed after the actor was captured.
+     * Test that label and identifier are retained when the underlying record is
+     * changed or removed after the actor was captured.
      *
      * @return void
      */
@@ -163,8 +163,8 @@ final class EloquentActorTest extends TestCase
     }
 
     /**
-     * Test that the email attribute is used as the label fallback when
-     * there is no name attribute on the model.
+     * Test that the email attribute is used as the label fallback when there is
+     * no name attribute on the model.
      *
      * @return void
      */
@@ -177,9 +177,8 @@ final class EloquentActorTest extends TestCase
     }
 
     /**
-     * Test that a second call to toAuthenticatable() after unserialisation
-     * does not re-query the database (resolved flag prevents repeated
-     * lookups).
+     * Test that a second call to toAuthenticatable() after unserialisation does
+     * not re-query the database (resolved flag prevents repeated lookups).
      *
      * @return void
      */

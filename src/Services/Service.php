@@ -16,12 +16,14 @@ use SineMacula\ApiToolkit\Services\Jobs\ServiceJob;
 /**
  * Abstract action skeleton.
  *
- * Holds a typed input and an explicit actor. Subclasses implement
- * the six lifecycle hooks; the runner sequences them in a fixed,
- * transaction-aware order and returns a total ServiceResult.
+ * Holds a typed input and an explicit actor. Subclasses implement the six
+ * lifecycle hooks; the runner sequences them in a fixed, transaction-aware
+ * order and returns a total ServiceResult.
  *
  * @template TInput of \SineMacula\ApiToolkit\Services\Contracts\ServiceInput
  * @template TOutput
+ *
+ * @phpstan-import-type ServiceHooks from \SineMacula\ApiToolkit\Services\ServiceRunner
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -102,8 +104,8 @@ abstract class Service implements LockKeyProvider
     /**
      * Return the actor for this invocation.
      *
-     * Defaults to an AnonymousActor when no actor has been supplied.
-     * Never reads Auth or any ambient state.
+     * Defaults to an AnonymousActor when no actor has been supplied. Never
+     * reads Auth or any ambient state.
      *
      * @return \SineMacula\ApiToolkit\Services\Contracts\Actor
      */
@@ -115,8 +117,8 @@ abstract class Service implements LockKeyProvider
     /**
      * Execute the service synchronously and return a total result.
      *
-     * Builds or reuses a ServiceContext, then delegates lifecycle
-     * sequencing to ServiceRunner. Never throws for business failures.
+     * Builds or reuses a ServiceContext, then delegates lifecycle sequencing to
+     * ServiceRunner. Never throws for business failures.
      *
      * @return \SineMacula\ApiToolkit\Services\ServiceResult<TOutput>
      */
@@ -161,21 +163,7 @@ abstract class Service implements LockKeyProvider
      *
      * @internal
      *
-     * @return array{
-     *     authorize: \Closure(): void,
-     *     validate: \Closure(): void,
-     *     prepare: \Closure(): void,
-     *     handle: \Closure(): mixed,
-     *     afterCommit: \Closure(mixed): void,
-     *     onFailure: \Closure(\Throwable): void,
-     *     concerns: array<int,
-     * class-string<\SineMacula\ApiToolkit\Services\Contracts\ServiceConcern>>,
-     *     lockId: string,
-     *     transactional: bool,
-     *     transactionAttempts: int,
-     *     lockable: bool,
-     *     inputSummary: array<string, mixed>,
-     * }
+     * @return ServiceHooks
      */
     final public function serviceHooks(): array
     {
@@ -208,8 +196,8 @@ abstract class Service implements LockKeyProvider
     /**
      * Authorize the current actor to perform this action.
      *
-     * Runs before the lock and transaction. Throw AuthorizationException
-     * to deny access. Default: allow.
+     * Runs before the lock and transaction. Throw AuthorizationException to
+     * deny access. Default: allow.
      *
      * @return void
      */
@@ -218,8 +206,8 @@ abstract class Service implements LockKeyProvider
     /**
      * Validate the input data for this action.
      *
-     * Runs before the lock and transaction. Throw ValidationException
-     * to signal invalid input. Default: pass.
+     * Runs before the lock and transaction. Throw ValidationException to signal
+     * invalid input. Default: pass.
      *
      * @return void
      */
@@ -228,8 +216,8 @@ abstract class Service implements LockKeyProvider
     /**
      * Perform pre-handle setup inside the transaction.
      *
-     * Load or lock rows, pre-compute values, or perform any setup that
-     * must happen within the transaction but before handle(). Default: no-op.
+     * Load or lock rows, pre-compute values, or perform any setup that must
+     * happen within the transaction but before handle(). Default: no-op.
      *
      * @return void
      */
@@ -238,8 +226,8 @@ abstract class Service implements LockKeyProvider
     /**
      * Execute the core domain action.
      *
-     * Runs inside the transaction. Signal failure only by throwing; the
-     * return value is the typed output threaded through ServiceResult.
+     * Runs inside the transaction. Signal failure only by throwing; the return
+     * value is the typed output threaded through ServiceResult.
      *
      * @return TOutput
      */
@@ -249,8 +237,8 @@ abstract class Service implements LockKeyProvider
      * React to a successful outcome after the transaction has committed.
      *
      * Runs outside the lock and transaction. Exceptions thrown here are
-     * captured as side-effect errors on the result and logged, leaving
-     * the committed outcome intact. Default: no-op.
+     * captured as side-effect errors on the result and logged, leaving the
+     * committed outcome intact. Default: no-op.
      *
      * @param  TOutput  $output
      * @return void
@@ -260,8 +248,8 @@ abstract class Service implements LockKeyProvider
     /**
      * React to a failed outcome after the transaction has rolled back.
      *
-     * Runs after rollback and lock release. Exceptions thrown here are
-     * caught and logged. Default: no-op.
+     * Runs after rollback and lock release. Exceptions thrown here are caught
+     * and logged. Default: no-op.
      *
      * @param  \Throwable  $exception
      * @return void
@@ -271,8 +259,8 @@ abstract class Service implements LockKeyProvider
     /**
      * Return the ordered list of custom concern classes.
      *
-     * Concerns run inside the transaction, in declaration order, wrapping
-     * the core (prepare + handle). Default: none.
+     * Concerns run inside the transaction, in declaration order, wrapping the
+     * core (prepare + handle). Default: none.
      *
      * @return array<int, class-string<\SineMacula\ApiToolkit\Services\Contracts\ServiceConcern>>
      */
@@ -284,8 +272,8 @@ abstract class Service implements LockKeyProvider
     /**
      * Return the unique lock identity for this invocation.
      *
-     * Required when $lockable is true; must be non-empty. The final lock
-     * key is sha1(class | lockId()). Default: empty string (disabled).
+     * Required when $lockable is true; must be non-empty. The final lock key is
+     * sha1(class | lockId()). Default: empty string (disabled).
      *
      * @return string
      */

@@ -20,8 +20,8 @@ use SineMacula\ApiToolkit\Services\Actors\AnonymousActor;
 final class AnonymousActorTest extends TestCase
 {
     /**
-     * Test anonymous semantics: identifier is null, type is 'anonymous',
-     * label is 'Anonymous', and toAuthenticatable() returns null.
+     * Test anonymous semantics: identifier is null, type is 'anonymous', label
+     * is 'Anonymous', and toAuthenticatable() returns null.
      *
      * @return void
      */

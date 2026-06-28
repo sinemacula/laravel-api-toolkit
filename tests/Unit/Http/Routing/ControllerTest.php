@@ -162,8 +162,7 @@ final class ControllerTest extends TestCase
 
     /**
      * Test that respondWithData is callable from a subclass, asserting the
-     * protected extension surface remains available to consuming
-     * controllers.
+     * protected extension surface remains available to consuming controllers.
      *
      * @return void
      */
@@ -215,8 +214,8 @@ final class ControllerTest extends TestCase
     /**
      * Create a controller subclass exposing the protected response helpers.
      *
-     * Calling the helpers from a subclass scope asserts they remain part of
-     * the protected extension surface available to consuming controllers.
+     * Calling the helpers from a subclass scope asserts they remain part of the
+     * protected extension surface available to consuming controllers.
      *
      * @return object
      */

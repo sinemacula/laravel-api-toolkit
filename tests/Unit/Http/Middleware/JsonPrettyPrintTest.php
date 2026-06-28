@@ -82,8 +82,7 @@ final class JsonPrettyPrintTest extends TestCase
     }
 
     /**
-     * Test that non-JSON content passes through unmodified with
-     * pretty=true.
+     * Test that non-JSON content passes through unmodified with pretty=true.
      *
      * @return void
      */
@@ -141,8 +140,7 @@ final class JsonPrettyPrintTest extends TestCase
     }
 
     /**
-     * Test that already pretty-printed JsonResponse produces identical
-     * output.
+     * Test that already pretty-printed JsonResponse produces identical output.
      *
      * @return void
      */
@@ -223,8 +221,7 @@ final class JsonPrettyPrintTest extends TestCase
     }
 
     /**
-     * Test that plain Response with JSON content-type preserves malformed
-     * JSON.
+     * Test that plain Response with JSON content-type preserves malformed JSON.
      *
      * @return void
      */
@@ -261,8 +258,8 @@ final class JsonPrettyPrintTest extends TestCase
     }
 
     /**
-     * Test that plain Response with JSON content-type and literal
-     * JSON null content is preserved.
+     * Test that plain Response with JSON content-type and literal JSON null
+     * content is preserved.
      *
      * @return void
      */
@@ -320,8 +317,7 @@ final class JsonPrettyPrintTest extends TestCase
     }
 
     /**
-     * Test that deeply nested JsonResponse data is correctly
-     * pretty-printed.
+     * Test that deeply nested JsonResponse data is correctly pretty-printed.
      *
      * @return void
      */

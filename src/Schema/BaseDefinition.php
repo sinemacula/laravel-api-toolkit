@@ -93,9 +93,9 @@ abstract class BaseDefinition implements Arrayable
     /**
      * Begin (or continue) declaring this field's OpenAPI contract.
      *
-     * Returns the carrier for chaining; call end() to return to the
-     * definition. The carrier is created lazily on first use, so a definition
-     * that never calls openapi() carries no declaration and is unaffected.
+     * Returns the carrier for chaining; call end() to return to the definition.
+     * The carrier is created lazily on first use, so a definition that never
+     * calls openapi() carries no declaration and is unaffected.
      *
      * @return \SineMacula\ApiToolkit\Schema\OpenApiFieldDeclaration
      */
@@ -115,8 +115,8 @@ abstract class BaseDefinition implements Arrayable
     }
 
     /**
-     * Declare the base-table columns this field reads so a narrowed SELECT
-     * can include them.
+     * Declare the base-table columns this field reads so a narrowed SELECT can
+     * include them.
      *
      * @param  string  ...$columns
      * @return static

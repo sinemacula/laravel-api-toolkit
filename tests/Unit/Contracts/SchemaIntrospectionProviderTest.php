@@ -92,8 +92,7 @@ final class SchemaIntrospectionProviderTest extends TestCase
     }
 
     /**
-     * Test that getSearchableColumns is declared with the correct
-     * signature.
+     * Test that getSearchableColumns is declared with the correct signature.
      *
      * @return void
      */

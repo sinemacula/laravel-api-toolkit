@@ -18,10 +18,9 @@ use Tests\TestCase;
 /**
  * End-to-end feature tests covering the full request lifecycle.
  *
- * Exercises the package exactly as a consuming application does: a real
- * HTTP request travels through the ParseApiQuery middleware, the
- * repository applies the parsed criteria, and the resource layer
- * serializes the response payload.
+ * Exercises the package exactly as a consuming application does: a real HTTP
+ * request travels through the ParseApiQuery middleware, the repository applies
+ * the parsed criteria, and the resource layer serializes the response payload.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -61,8 +60,7 @@ final class RequestLifecycleTest extends TestCase
     }
 
     /**
-     * Test that an index request returns the default fields for every
-     * record.
+     * Test that an index request returns the default fields for every record.
      *
      * @return void
      */
@@ -79,8 +77,7 @@ final class RequestLifecycleTest extends TestCase
     }
 
     /**
-     * Test that field selection via the query string restricts the
-     * payload.
+     * Test that field selection via the query string restricts the payload.
      *
      * @return void
      */
@@ -99,8 +96,7 @@ final class RequestLifecycleTest extends TestCase
     }
 
     /**
-     * Test that filters from the query string are applied to the result
-     * set.
+     * Test that filters from the query string are applied to the result set.
      *
      * @return void
      */
@@ -115,8 +111,7 @@ final class RequestLifecycleTest extends TestCase
     }
 
     /**
-     * Test that ordering from the query string is applied to the result
-     * set.
+     * Test that ordering from the query string is applied to the result set.
      *
      * @return void
      */
@@ -130,8 +125,7 @@ final class RequestLifecycleTest extends TestCase
     }
 
     /**
-     * Test that pagination limits are applied and meta information is
-     * present.
+     * Test that pagination limits are applied and meta information is present.
      *
      * @return void
      */

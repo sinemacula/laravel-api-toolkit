@@ -17,9 +17,9 @@ use Tests\TestCase;
 /**
  * Integration tests for the LifecycleRegistrar.
  *
- * The lifecycle configuration permutations are pinned by the
- * ApiServiceProvider integration suite; this test proves the registrar
- * registers its surface when invoked directly.
+ * The lifecycle configuration permutations are pinned by the ApiServiceProvider
+ * integration suite; this test proves the registrar registers its surface when
+ * invoked directly.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -63,8 +63,8 @@ final class LifecycleRegistrarTest extends TestCase
     }
 
     /**
-     * Test that the lifecycle subscribers are registered when the registrar
-     * is invoked with the queue lifecycle enabled.
+     * Test that the lifecycle subscribers are registered when the registrar is
+     * invoked with the queue lifecycle enabled.
      *
      * @return void
      */
@@ -163,8 +163,8 @@ final class LifecycleRegistrarTest extends TestCase
     }
 
     /**
-     * Determine whether the given event has a listener belonging to the
-     * given subscriber class.
+     * Determine whether the given event has a listener belonging to the given
+     * subscriber class.
      *
      * @param  class-string  $event
      * @param  class-string  $subscriber

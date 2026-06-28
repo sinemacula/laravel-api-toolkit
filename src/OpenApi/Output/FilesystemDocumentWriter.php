@@ -11,10 +11,10 @@ use SineMacula\ApiToolkit\OpenApi\Exceptions\DocumentWriteException;
 /**
  * Filesystem adapter for the DocumentWriter output port.
  *
- * Writes the serialized OpenAPI document to disk, creating the target
- * directory tree when it does not yet exist. This is the only write of the
- * entire exporter feature; failures surface as a DocumentWriteException so the
- * command can report them rather than silently emitting nothing.
+ * Writes the serialized OpenAPI document to disk, creating the target directory
+ * tree when it does not yet exist. This is the only write of the entire
+ * exporter feature; failures surface as a DocumentWriteException so the command
+ * can report them rather than silently emitting nothing.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.

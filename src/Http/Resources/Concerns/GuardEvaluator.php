@@ -21,8 +21,8 @@ final class GuardEvaluator
      * Evaluate whether all guards pass.
      *
      * Each guard is a callable that receives the resource instance and the
-     * current request. If any guard returns exactly `false`, the definition
-     * is suppressed.
+     * current request. If any guard returns exactly `false`, the definition is
+     * suppressed.
      *
      * @param  array<int, mixed>  $guards
      * @param  mixed  $resource
