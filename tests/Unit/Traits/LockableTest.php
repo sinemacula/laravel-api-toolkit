@@ -9,7 +9,7 @@ use Illuminate\Support\Facades\Cache;
 use PHPUnit\Framework\Attributes\CoversTrait;
 use SineMacula\ApiToolkit\Concerns\Lockable;
 use SineMacula\ApiToolkit\Exceptions\LockOperationException;
-use SineMacula\ApiToolkit\Exceptions\TooManyRequestsException;
+use SineMacula\ApiToolkit\Exceptions\LockUnavailableException;
 use Tests\Fixtures\Traits\StandaloneLockableFixture;
 use Tests\TestCase;
 
@@ -41,12 +41,12 @@ final class LockableTest extends TestCase
     }
 
     /**
-     * Test that lock throws TooManyRequestsException when the lock is
+     * Test that lock throws LockUnavailableException when the lock is
      * unavailable.
      *
      * @return void
      */
-    public function testLockThrowsTooManyRequestsExceptionWhenUnavailable(): void
+    public function testLockThrowsLockUnavailableExceptionWhenUnavailable(): void
     {
         $consumer = $this->createConsumer('conflict-lock-id');
 
@@ -57,7 +57,7 @@ final class LockableTest extends TestCase
 
         try {
 
-            $this->expectException(TooManyRequestsException::class);
+            $this->expectException(LockUnavailableException::class);
 
             $consumer->lock();
 
@@ -169,11 +169,11 @@ final class LockableTest extends TestCase
     }
 
     /**
-     * Test that the lock conflict exception carries the rate limit meta.
+     * Test that the lock unavailable exception carries a descriptive message.
      *
      * @return void
      */
-    public function testLockConflictExceptionCarriesRateLimitMeta(): void
+    public function testLockUnavailableExceptionCarriesMessage(): void
     {
         $consumer = $this->createConsumer('meta-lock-id');
 
@@ -184,9 +184,9 @@ final class LockableTest extends TestCase
 
             $consumer->lock();
 
-            self::fail('Expected TooManyRequestsException was not thrown');
-        } catch (TooManyRequestsException $exception) {
-            self::assertSame(['X-RateLimit-Limit' => 1, 'X-RateLimit-Remaining' => 0], $exception->getCustomMeta());
+            self::fail('Expected LockUnavailableException was not thrown');
+        } catch (LockUnavailableException $exception) {
+            self::assertNotEmpty($exception->getMessage());
         } finally {
             $existingLock->release();
         }

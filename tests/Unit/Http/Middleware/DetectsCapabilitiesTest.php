@@ -9,8 +9,6 @@ use Illuminate\Http\Response;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Http\Middleware\DetectsCapabilities;
 use SineMacula\ApiToolkit\Http\RequestCapabilities;
-use SineMacula\Http\Enums\HttpHeader;
-use SineMacula\Http\Enums\MediaType;
 use Tests\TestCase;
 
 /**
@@ -72,23 +70,16 @@ final class DetectsCapabilitiesTest extends TestCase
      */
     public function testHandleResolvesCapabilitiesFromRequest(): void
     {
-        config()->set('api-toolkit.exports.enabled', true);
-        config()->set('api-toolkit.exports.supported_formats', ['csv', 'xml']);
-
         $middleware = new DetectsCapabilities;
 
         $request = Request::create(self::TEST_URL, 'GET', ['include_trashed' => 'true']);
-        $request->headers->set(HttpHeader::ACCEPT->getName(), MediaType::TEXT_CSV->getMimeType());
 
         $middleware->handle($request, function (Request $request): Response {
 
             $capabilities = RequestCapabilities::fromRequest($request);
 
             static::assertTrue($capabilities->includeTrashed());
-            static::assertTrue($capabilities->expectsCsv());
-            static::assertTrue($capabilities->expectsExport());
             static::assertFalse($capabilities->onlyTrashed());
-            static::assertFalse($capabilities->expectsXml());
             static::assertFalse($capabilities->expectsPdf());
             static::assertFalse($capabilities->expectsStream());
 

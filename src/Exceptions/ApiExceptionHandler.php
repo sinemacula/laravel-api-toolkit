@@ -169,6 +169,7 @@ final class ApiExceptionHandler
             LaravelTokenMismatchException::class   => TokenMismatchException::class,
             ValidationException::class             => InvalidInputException::class,
             TooManyRequestsHttpException::class    => TooManyRequestsException::class,
+            LockUnavailableException::class        => TooManyRequestsException::class,
             ServiceUnavailableHttpException::class => ServiceUnavailableException::class,
             PostTooLargeException::class           => PayloadTooLargeException::class,
             SymfonyHttpExceptionInterface::class   => HttpException::class,

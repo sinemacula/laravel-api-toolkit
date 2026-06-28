@@ -4,17 +4,25 @@ declare(strict_types = 1);
 
 namespace Tests\Integration;
 
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use PHPUnit\Framework\Attributes\CoversClass;
+use SineMacula\ApiToolkit\Exceptions\LockUnavailableException;
+use SineMacula\ApiToolkit\Services\Input\ArrayInput;
 use SineMacula\ApiToolkit\Services\Service;
-use Tests\Fixtures\Models\User;
-use Tests\Fixtures\Services\FailingService;
+use SineMacula\ApiToolkit\Services\ServiceRunner;
 use Tests\Fixtures\Services\LockableService;
 use Tests\Fixtures\Services\NoTransactionService;
+use Tests\Fixtures\Services\OutputService;
 use Tests\Fixtures\Services\SimpleService;
 use Tests\TestCase;
 
 /**
- * Integration tests for Service with a real database.
+ * Integration tests for the real-path service lifecycle with a real database.
+ *
+ * Proves atomicity (a failed handle() leaves no committed writes), full
+ * lifecycle sequencing, transaction skipping, and lock contention captured
+ * in the result.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -22,99 +30,112 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(Service::class)]
+#[CoversClass(ServiceRunner::class)]
 final class ServiceIntegrationTest extends TestCase
 {
     /**
-     * Test that a successful service runs within a transaction.
+     * Test that the full lifecycle runs and returns the typed output.
      *
      * @return void
      */
-    public function testSuccessfulServiceRunsWithinTransaction(): void
+    public function testSuccessfulLifecycleReturnsOutput(): void
     {
-        $service = new SimpleService;
-
-        $result = $service->run();
+        $service = new OutputService(new ArrayInput(['message' => 'hello']));
+        $result  = $service->run();
 
         self::assertTrue($result->succeeded());
-        self::assertNull($result->exception);
-        self::assertTrue($service->successCalled);
-    }
+        self::assertSame(['message' => 'hello'], $result->output());
+        self::assertEmpty($result->sideEffectErrors());
 
-    /**
-     * Test that a failed service rolls back the transaction.
-     *
-     * @return void
-     */
-    public function testFailedServiceRollsBackTransaction(): void
-    {
-        // Create a user before service runs
-        User::create(['name' => 'Before', 'email' => 'before@example.com', 'status' => 'active']);
-
-        $service = new FailingService;
-
-        $result = $service->run();
-
-        self::assertTrue($result->failed());
-        self::assertTrue($service->failedCalled);
-        self::assertNotNull($service->failedException);
-        self::assertSame('Service execution failed', $service->failedException->getMessage());
-
-        // User created before the service should still exist since
-        // the failing service creates its own transaction
-        $this->assertDatabaseHas('users', ['name' => 'Before']);
-    }
-
-    /**
-     * Test that a service with locking acquires and releases the lock.
-     *
-     * @return void
-     */
-    public function testServiceWithLockingAcquiresAndReleasesLock(): void
-    {
-        $service = new LockableService;
-
-        $result = $service->run();
-
-        self::assertTrue($result->succeeded());
-
-        // The lock should have been released; a new service with the same key
-        // should succeed
-        $service2 = new LockableService;
-        $result2  = $service2->run();
+        // afterCommit runs after the transaction commits on the success path
+        $simple  = new SimpleService;
+        $result2 = $simple->run();
 
         self::assertTrue($result2->succeeded());
+        self::assertTrue($simple->afterCommitCalled);
     }
 
     /**
-     * Test that SimpleService can operate without transactions.
+     * Test that a failed handle() leaves no committed writes (atomicity).
+     *
+     * A write performed inside handle() must be rolled back when handle()
+     * throws, proving the service runner wraps the core in a real DB
+     * transaction and rolls it back on failure (AC-20, AC-21).
      *
      * @return void
      */
-    public function testServiceRunsWithoutTransaction(): void
+    public function testFailedHandleLeavesNoCommittedWrites(): void
     {
-        $service = new NoTransactionService;
+        $service = new class (new ArrayInput([])) extends Service {
+            /**
+             * Insert a row then throw to prove the transaction rolls back.
+             *
+             * @return never
+             *
+             * @throws \RuntimeException
+             */
+            #[\Override]
+            protected function handle(): never
+            {
+                DB::table('users')->insert([
+                    'name'  => 'atomicity_test',
+                    'email' => 'atomicity@test.com',
+                ]);
 
-        $result = $service->run();
-
-        self::assertTrue($result->succeeded());
-        self::assertTrue($service->successCalled);
-    }
-
-    /**
-     * Test that FailingService triggers the failed callback and captures
-     * the exception in the result instead of rethrowing.
-     *
-     * @return void
-     */
-    public function testFailingServiceTriggersFailedCallback(): void
-    {
-        $service = new FailingService;
+                throw new \RuntimeException('rollback me');
+            }
+        };
 
         $result = $service->run();
 
         self::assertTrue($result->failed());
-        self::assertTrue($service->failedCalled);
-        self::assertInstanceOf(\RuntimeException::class, $result->exception);
-        self::assertSame('Service execution failed', $result->exception->getMessage());
+        self::assertDatabaseCount('users', 0);
+    }
+
+    /**
+     * Test that a service with transactions disabled skips the transaction.
+     *
+     * @return void
+     */
+    public function testNoTransactionServiceSkipsTransaction(): void
+    {
+        $service = new NoTransactionService;
+        $result  = $service->run();
+
+        self::assertTrue($result->succeeded());
+        self::assertTrue($service->afterCommitCalled);
+    }
+
+    /**
+     * Test that a lockable service acquires and releases the lock.
+     *
+     * A contended run is captured as a failure in the result, proving
+     * the runner is total and never rethrows lock contention.
+     *
+     * @return void
+     */
+    public function testLockableServiceAcquiresAndReleasesLock(): void
+    {
+        // First run: lock is acquired and released on success
+        $result1 = (new LockableService)->run();
+        self::assertTrue($result1->succeeded());
+
+        // Manually hold the lock to simulate a contended execution
+        $lockKey = (new LockableService)->getLockKey();
+        $held    = Cache::lock($lockKey, 60);
+        self::assertTrue($held->get());
+
+        try {
+            // Contended run: lock unavailable, result is failure
+            $result2 = (new LockableService)->run();
+            self::assertTrue($result2->failed());
+            self::assertInstanceOf(LockUnavailableException::class, $result2->exception);
+        } finally {
+            $held->release();
+        }
+
+        // After release a new run succeeds, proving the lock was released
+        $result3 = (new LockableService)->run();
+        self::assertTrue($result3->succeeded());
     }
 }
