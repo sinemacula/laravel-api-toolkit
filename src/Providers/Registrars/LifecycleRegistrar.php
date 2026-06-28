@@ -95,7 +95,11 @@ final class LifecycleRegistrar
         $runtime = app(RuntimeContext::class);
 
         if ($runtime->isServingUnderOctane() && !(bool) Config::get('api-toolkit.lifecycle.octane')) {
-            Log::info('API Toolkit: serving under Octane but the lifecycle cache flush is disabled (API_TOOLKIT_LIFECYCLE_OCTANE=false); cross-request metadata may go stale.');
+            Log::info(
+                'API Toolkit: serving under Octane but the lifecycle cache flush is disabled'
+                . ' (API_TOOLKIT_LIFECYCLE_OCTANE=false); cross-request metadata may go stale'
+                . ' and field-keyed metadata memos can grow unbounded per worker (memory tradeoff).',
+            );
         }
 
         if (!$runtime->isServingAsQueueWorker() || (bool) Config::get('api-toolkit.lifecycle.queue')) {

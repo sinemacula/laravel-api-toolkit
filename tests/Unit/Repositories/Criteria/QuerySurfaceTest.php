@@ -10,6 +10,7 @@ use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface;
 use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\User;
+use Tests\Fixtures\Resources\PostResource;
 use Tests\TestCase;
 
 /**
@@ -87,42 +88,129 @@ final class QuerySurfaceTest extends TestCase
     }
 
     /**
-     * Test that a key targeting a nested/related model falls back to the legacy
-     * searchable predicate rather than the root allowlist, and is never
-     * rejected (nested-column granularity is deferred to P2).
+     * Test that under the allowlist posture, a column declared filterable in
+     * the related model's mapped resource is permitted.
+     *
+     * PostResource declares 'title' as filterable, so it must pass.
      *
      * @return void
      */
-    public function testNestedRelatedModelFallsBackToLegacySearchable(): void
+    public function testAllowlistPermitsDeclaredFilterableColumnOnRelatedModel(): void
     {
-        $introspector = \Mockery::mock(SchemaIntrospectionProvider::class);
-        $introspector->shouldReceive('isSearchable')->with(\Mockery::type(Post::class), 'title')->andReturnTrue();
-        $introspector->shouldReceive('isSearchable')->with(\Mockery::type(Post::class), 'secret')->andReturnFalse();
-
-        $surface = $this->make(filterable: ['email'], introspector: $introspector);
+        $surface = $this->make(
+            filterable: ['email'],
+            resourceMap: [Post::class => PostResource::class],
+        );
 
         self::assertTrue($surface->guardFilter('title', new Post));
+    }
+
+    /**
+     * Test that under the allowlist posture, a column NOT declared in the
+     * related model's resource filterable set is rejected with a
+     * ValidationException.
+     *
+     * @return void
+     */
+    public function testAllowlistRejectsUndeclaredFilterableColumnOnRelatedModel(): void
+    {
+        $surface = $this->make(
+            filterable: ['email'],
+            resourceMap: [Post::class => PostResource::class],
+        );
+
+        $this->assertRejects(fn () => $surface->guardFilter('secret', new Post), 'filters.secret');
+    }
+
+    /**
+     * Test that under the allowlist posture, a column that is filterable but
+     * not sortable in the related resource is rejected for ordering, confirming
+     * the two sets are enforced independently.
+     *
+     * @return void
+     */
+    public function testAllowlistRejectsUnsortableColumnOnRelatedModel(): void
+    {
+        $surface = $this->make(
+            resourceMap: [Post::class => PostResource::class],
+        );
+
+        // PostResource declares 'title' filterable but NOT sortable.
+        $this->assertRejects(fn () => $surface->guardSort('title', new Post), 'order.title');
+    }
+
+    /**
+     * Test that under the allowlist posture a related model with no entry in
+     * the resource map fails closed: every column is rejected.
+     *
+     * @return void
+     */
+    public function testAllowlistFailsClosedWhenRelatedModelHasNoMappedResource(): void
+    {
+        // Empty resource map - Post is not mapped.
+        $surface = $this->make(filterable: ['email']);
+
+        $this->assertRejects(fn () => $surface->guardFilter('title', new Post), 'filters.title');
+    }
+
+    /**
+     * Test that fail-quiet silently drops an undeclared related-model column
+     * without throwing, even under the allowlist posture.
+     *
+     * @return void
+     */
+    public function testFailQuietDropsUndeclaredRelatedColumnWithoutThrowing(): void
+    {
+        $surface = $this->make(
+            filterable: ['email'],
+            reject: false,
+            resourceMap: [Post::class => PostResource::class],
+        );
+
         self::assertFalse($surface->guardFilter('secret', new Post));
     }
 
     /**
-     * Test that the blocklist posture delegates to the schema introspector and
-     * drops (rather than rejects) an unsearchable key.
+     * Test that the blocklist posture delegates to the schema introspector for
+     * related models and drops (rather than rejects) an unsearchable key.
      *
      * @return void
      */
     public function testBlocklistDelegatesToIntrospectorAndDropsUnsearchable(): void
     {
         $introspector = \Mockery::mock(SchemaIntrospectionProvider::class);
-        $introspector->shouldReceive('isSearchable')->with(\Mockery::any(), 'email')->andReturnTrue();
-        $introspector->shouldReceive('isSearchable')->with(\Mockery::any(), 'secret')->andReturnFalse();
-        $introspector->shouldReceive('isRelation')->with('posts', \Mockery::any())->andReturnTrue();
+        $introspector->shouldReceive('isSearchable')->with(\Mockery::any(), 'email')->andReturnTrue(); // @phpstan-ignore method.notFound
+        $introspector->shouldReceive('isSearchable')->with(\Mockery::any(), 'secret')->andReturnFalse(); // @phpstan-ignore method.notFound
+        $introspector->shouldReceive('isRelation')->with('posts', \Mockery::any())->andReturnTrue(); // @phpstan-ignore method.notFound
 
         $surface = $this->make(posture: QuerySurface::POSTURE_BLOCKLIST, introspector: $introspector);
 
         self::assertTrue($surface->guardFilter('email', new User));
         self::assertTrue($surface->guardRelation('posts', new User));
         self::assertFalse($surface->guardFilter('secret', new User));
+    }
+
+    /**
+     * Test that the blocklist posture still delegates related-model column
+     * checks to isSearchable, not to the resource schema.
+     *
+     * @return void
+     */
+    public function testBlocklistUsesIsSearchableForRelatedModelColumns(): void
+    {
+        $introspector = \Mockery::mock(SchemaIntrospectionProvider::class);
+        $introspector->shouldReceive('isSearchable')->with(\Mockery::type(Post::class), 'title')->andReturnTrue(); // @phpstan-ignore method.notFound
+        $introspector->shouldReceive('isSearchable')->with(\Mockery::type(Post::class), 'secret')->andReturnFalse(); // @phpstan-ignore method.notFound
+
+        // Blocklist posture: must use isSearchable, not the resource schema.
+        $surface = $this->make(
+            posture: QuerySurface::POSTURE_BLOCKLIST,
+            introspector: $introspector,
+            resourceMap: [Post::class => PostResource::class],
+        );
+
+        self::assertTrue($surface->guardFilter('title', new Post));
+        self::assertFalse($surface->guardFilter('secret', new Post));
     }
 
     /**
@@ -134,6 +222,7 @@ final class QuerySurfaceTest extends TestCase
      * @param  string  $posture
      * @param  bool  $reject
      * @param  \SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider|null  $introspector
+     * @param  array<string, string>  $resourceMap
      * @return \SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface
      */
     private function make(
@@ -143,6 +232,7 @@ final class QuerySurfaceTest extends TestCase
         string $posture = QuerySurface::POSTURE_ALLOWLIST,
         bool $reject = true,
         ?SchemaIntrospectionProvider $introspector = null,
+        array $resourceMap = [],
     ): QuerySurface {
         return new QuerySurface(
             $filterable,
@@ -152,6 +242,7 @@ final class QuerySurfaceTest extends TestCase
             $reject,
             $introspector ?? \Mockery::mock(SchemaIntrospectionProvider::class),
             new User,
+            $resourceMap,
         );
     }
 
