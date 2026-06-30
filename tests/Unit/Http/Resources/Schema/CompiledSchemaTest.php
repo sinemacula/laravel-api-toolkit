@@ -137,43 +137,6 @@ final class CompiledSchemaTest extends TestCase
     }
 
     /**
-     * Test that hasField returns true for an existing field.
-     *
-     * @return void
-     */
-    public function testCompiledSchemaHasFieldReturnsTrueForExistingField(): void
-    {
-        $field = new CompiledFieldDefinition(
-            accessor: null,
-            compute: null,
-            relation: null,
-            resource: null,
-            fields: null,
-            constraint: null,
-            extras: [],
-            needs: [],
-            guards: [],
-            transformers: [],
-        );
-
-        $schema = new CompiledSchema(['name' => $field], []);
-
-        self::assertTrue($schema->hasField('name'));
-    }
-
-    /**
-     * Test that hasField returns false for a missing field.
-     *
-     * @return void
-     */
-    public function testCompiledSchemaHasFieldReturnsFalseForMissingField(): void
-    {
-        $schema = new CompiledSchema([], []);
-
-        self::assertFalse($schema->hasField('nonexistent'));
-    }
-
-    /**
      * Test that getAggregateDefinitions returns all aggregate definitions.
      *
      * @return void

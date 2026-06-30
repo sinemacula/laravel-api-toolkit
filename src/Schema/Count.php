@@ -4,17 +4,13 @@ declare(strict_types = 1);
 
 namespace SineMacula\ApiToolkit\Schema;
 
-use Illuminate\Contracts\Support\Arrayable;
-
 /**
  * Count schema helper for metric definitions.
  *
  * @author      Ben Carey <ben.carey@verifast.com>
  * @copyright   2026 Sine Macula Limited.
- *
- * @implements \Illuminate\Contracts\Support\Arrayable<string, array<string, mixed>>
  */
-final class Count extends BaseDefinition implements Arrayable
+final class Count extends BaseDefinition
 {
     /** @var (\Closure(\Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>): void)|null Optional eager-load constraint for this count */
     private ?\Closure $constraint = null;
