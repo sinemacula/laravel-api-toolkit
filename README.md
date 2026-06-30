@@ -238,6 +238,11 @@ dropping them. The `'throw'` strategy raises a `WritePoolFlushException` for cal
 site. The `'log'` strategy is best-effort only - use it solely for genuinely disposable writes such as
 telemetry.
 
+The `WritePool` is a scoped singleton, so after a deferred write you can call
+`app(WritePool::class)->lastAutoFlushResult()` to observe the outcome of the most recent automatic flush
+(`null` if none has occurred). Under the non-throwing `'collect'` and `'log'` strategies this accessor is the
+only in-process signal that an auto-flush failed.
+
 ---
 
 ### Filter-Operator Registry
