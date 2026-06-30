@@ -14,7 +14,7 @@ use SineMacula\ApiToolkit\Services\Enums\ServiceSource;
  * Carries the actor that initiated the service, a correlation id (generated
  * when absent), the execution source, and captured ambient metadata such as IP
  * address, user-agent, or request id. Metadata is supplied explicitly at the
- * capture site and never read ambiently inside services (NFR-07).
+ * capture site and never read ambiently inside services.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.

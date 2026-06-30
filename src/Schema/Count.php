@@ -7,7 +7,7 @@ namespace SineMacula\ApiToolkit\Schema;
 /**
  * Count schema helper for metric definitions.
  *
- * @author      Ben Carey <ben.carey@verifast.com>
+ * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
 final class Count extends BaseDefinition

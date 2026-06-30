@@ -238,8 +238,8 @@ final class CacheManagerTest extends TestCase
     /**
      * Test that flush leaves an unregistered non-toolkit key intact.
      *
-     * Pins NFR-01/AC-08: keys written directly to the memo store without going
-     * through the MetadataKeyRegistry must survive the scoped flush.
+     * Keys written directly to the memo store without going through the
+     * MetadataKeyRegistry must survive the scoped flush.
      *
      * @return void
      */
