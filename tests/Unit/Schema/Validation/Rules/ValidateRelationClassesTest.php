@@ -2,13 +2,13 @@
 
 declare(strict_types = 1);
 
-namespace Tests\Unit\Services\Validation\Rules;
+namespace Tests\Unit\Schema\Validation\Rules;
 
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledSchema;
-use SineMacula\ApiToolkit\Services\Validation\Rules\ValidateRelationClasses;
+use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateRelationClasses;
 use Tests\Fixtures\Resources\OrganizationResource;
 
 /**

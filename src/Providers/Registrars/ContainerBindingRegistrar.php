@@ -33,16 +33,16 @@ use SineMacula\ApiToolkit\Repositories\Criteria\Operators\NotEqualOperator;
 use SineMacula\ApiToolkit\Repositories\Criteria\Operators\NotNullOperator;
 use SineMacula\ApiToolkit\Repositories\Criteria\Operators\NullOperator;
 use SineMacula\ApiToolkit\Runtime\RuntimeContext;
-use SineMacula\ApiToolkit\Services\SchemaIntrospector;
-use SineMacula\ApiToolkit\Services\SchemaValidator;
+use SineMacula\ApiToolkit\Schema\Introspection\SchemaIntrospector;
+use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateAccessors;
+use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateComputedFields;
+use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateGuards;
+use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateRelationClasses;
+use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateRelationInterfaces;
+use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateRelationMethods;
+use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateTransformers;
+use SineMacula\ApiToolkit\Schema\Validation\SchemaValidator;
 use SineMacula\ApiToolkit\Services\ServiceRunner;
-use SineMacula\ApiToolkit\Services\Validation\Rules\ValidateAccessors;
-use SineMacula\ApiToolkit\Services\Validation\Rules\ValidateComputedFields;
-use SineMacula\ApiToolkit\Services\Validation\Rules\ValidateGuards;
-use SineMacula\ApiToolkit\Services\Validation\Rules\ValidateRelationClasses;
-use SineMacula\ApiToolkit\Services\Validation\Rules\ValidateRelationInterfaces;
-use SineMacula\ApiToolkit\Services\Validation\Rules\ValidateRelationMethods;
-use SineMacula\ApiToolkit\Services\Validation\Rules\ValidateTransformers;
 
 /**
  * Registers the toolkit container bindings.

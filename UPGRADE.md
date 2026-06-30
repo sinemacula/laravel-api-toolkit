@@ -2,6 +2,31 @@
 
 ## From 1.x to 2.x
 
+### Moved: schema introspection and validation into the Schema namespace
+
+Schema introspection and validation no longer live under the `Services\` namespace (which now owns only the
+action layer). They have moved into `Schema\Introspection\` and `Schema\Validation\`. Update any imports of
+the affected classes.
+
+The consumer-facing classes:
+
+    SineMacula\ApiToolkit\Services\SchemaIntrospector
+    -> SineMacula\ApiToolkit\Schema\Introspection\SchemaIntrospector
+
+    SineMacula\ApiToolkit\Services\SchemaValidator
+    -> SineMacula\ApiToolkit\Schema\Validation\SchemaValidator
+
+The supporting value objects and validation rules moved alongside them:
+
+    SineMacula\ApiToolkit\Services\Introspection\ColumnDefinition
+    -> SineMacula\ApiToolkit\Schema\Introspection\ColumnDefinition
+
+    SineMacula\ApiToolkit\Services\Validation\SchemaValidationError
+    -> SineMacula\ApiToolkit\Schema\Validation\SchemaValidationError
+
+    SineMacula\ApiToolkit\Services\Validation\Rules\*
+    -> SineMacula\ApiToolkit\Schema\Validation\Rules\*
+
 ### Composer dependency changes
 
 The CloudWatch logging dependencies (`aws/aws-sdk-php` and `phpnexus/cwh`) have moved from `require` to

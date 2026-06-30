@@ -2,12 +2,12 @@
 
 declare(strict_types = 1);
 
-namespace SineMacula\ApiToolkit\Services\Validation\Rules;
+namespace SineMacula\ApiToolkit\Schema\Validation\Rules;
 
 use SineMacula\ApiToolkit\Contracts\SchemaValidationRule;
 use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledSchema;
-use SineMacula\ApiToolkit\Services\Validation\SchemaValidationError;
+use SineMacula\ApiToolkit\Schema\Validation\SchemaValidationError;
 
 /**
  * Base rule for validating callable lists on compiled field definitions.
@@ -27,7 +27,7 @@ abstract class ValidatesCallableLists implements SchemaValidationRule
      * @param  string  $resourceClass
      * @param  string|null  $modelClass
      * @param  \SineMacula\ApiToolkit\Schema\CompiledSchema  $schema
-     * @return array<int, \SineMacula\ApiToolkit\Services\Validation\SchemaValidationError>
+     * @return array<int, \SineMacula\ApiToolkit\Schema\Validation\SchemaValidationError>
      */
     #[\Override]
     public function validate(string $resourceClass, ?string $modelClass, CompiledSchema $schema): array
@@ -69,7 +69,7 @@ abstract class ValidatesCallableLists implements SchemaValidationRule
      * @param  string  $resourceClass
      * @param  string  $fieldKey
      * @param  array<int, callable(mixed, mixed): mixed>  $callables
-     * @return array<int, \SineMacula\ApiToolkit\Services\Validation\SchemaValidationError>
+     * @return array<int, \SineMacula\ApiToolkit\Schema\Validation\SchemaValidationError>
      */
     protected function collectCallableErrors(string $resourceClass, string $fieldKey, array $callables): array
     {

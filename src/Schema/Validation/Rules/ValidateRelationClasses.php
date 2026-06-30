@@ -2,20 +2,19 @@
 
 declare(strict_types = 1);
 
-namespace SineMacula\ApiToolkit\Services\Validation\Rules;
+namespace SineMacula\ApiToolkit\Schema\Validation\Rules;
 
-use SineMacula\ApiToolkit\Contracts\ApiResourceInterface;
 use SineMacula\ApiToolkit\Contracts\SchemaValidationRule;
 use SineMacula\ApiToolkit\Schema\CompiledSchema;
-use SineMacula\ApiToolkit\Services\Validation\SchemaValidationError;
+use SineMacula\ApiToolkit\Schema\Validation\SchemaValidationError;
 
 /**
- * Validate that relation resource classes implement ApiResourceInterface.
+ * Validate that relation resource class strings reference existing classes.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-final class ValidateRelationInterfaces implements SchemaValidationRule
+final class ValidateRelationClasses implements SchemaValidationRule
 {
     /**
      * Validate the compiled schema for the given resource class.
@@ -23,7 +22,7 @@ final class ValidateRelationInterfaces implements SchemaValidationRule
      * @param  string  $resourceClass
      * @param  string|null  $modelClass
      * @param  \SineMacula\ApiToolkit\Schema\CompiledSchema  $schema
-     * @return array<int, \SineMacula\ApiToolkit\Services\Validation\SchemaValidationError>
+     * @return array<int, \SineMacula\ApiToolkit\Schema\Validation\SchemaValidationError>
      */
     #[\Override]
     public function validate(string $resourceClass, ?string $modelClass, CompiledSchema $schema): array
@@ -38,18 +37,14 @@ final class ValidateRelationInterfaces implements SchemaValidationRule
                 continue;
             }
 
-            if (!class_exists($field->resource)) {
-                continue;
-            }
-
-            if (is_a($field->resource, ApiResourceInterface::class, true)) {
+            if (class_exists($field->resource)) {
                 continue;
             }
 
             $errors[] = new SchemaValidationError(
                 resourceClass: $resourceClass,
                 fieldKey: $key,
-                defect: sprintf('Relation resource class "%s" does not implement %s', $field->resource, ApiResourceInterface::class),
+                defect: sprintf('Relation resource class "%s" does not exist', $field->resource),
             );
         }
 

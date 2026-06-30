@@ -13,7 +13,7 @@ use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Providers\Registrars\ContainerBindingRegistrar;
 use SineMacula\ApiToolkit\Repositories\Concerns\WritePool;
 use SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry;
-use SineMacula\ApiToolkit\Services\SchemaValidator;
+use SineMacula\ApiToolkit\Schema\Validation\SchemaValidator;
 use Tests\TestCase;
 
 /**

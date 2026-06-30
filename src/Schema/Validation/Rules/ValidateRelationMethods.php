@@ -2,12 +2,12 @@
 
 declare(strict_types = 1);
 
-namespace SineMacula\ApiToolkit\Services\Validation\Rules;
+namespace SineMacula\ApiToolkit\Schema\Validation\Rules;
 
 use Illuminate\Database\Eloquent\Relations\Relation;
 use SineMacula\ApiToolkit\Contracts\SchemaValidationRule;
 use SineMacula\ApiToolkit\Schema\CompiledSchema;
-use SineMacula\ApiToolkit\Services\Validation\SchemaValidationError;
+use SineMacula\ApiToolkit\Schema\Validation\SchemaValidationError;
 
 /**
  * Validate that relation names exist as methods on the associated model.
@@ -23,7 +23,7 @@ final class ValidateRelationMethods implements SchemaValidationRule
      * @param  string  $resourceClass
      * @param  string|null  $modelClass
      * @param  \SineMacula\ApiToolkit\Schema\CompiledSchema  $schema
-     * @return array<int, \SineMacula\ApiToolkit\Services\Validation\SchemaValidationError>
+     * @return array<int, \SineMacula\ApiToolkit\Schema\Validation\SchemaValidationError>
      */
     #[\Override]
     public function validate(string $resourceClass, ?string $modelClass, CompiledSchema $schema): array
@@ -73,7 +73,7 @@ final class ValidateRelationMethods implements SchemaValidationRule
      * @param  string  $fieldKey
      * @param  string  $modelClass
      * @param  string  $relationMethod
-     * @return \SineMacula\ApiToolkit\Services\Validation\SchemaValidationError|null
+     * @return \SineMacula\ApiToolkit\Schema\Validation\SchemaValidationError|null
      */
     private function validateRelationMethod(string $resourceClass, string $fieldKey, string $modelClass, string $relationMethod): ?SchemaValidationError
     {

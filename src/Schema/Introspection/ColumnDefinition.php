@@ -2,7 +2,7 @@
 
 declare(strict_types = 1);
 
-namespace SineMacula\ApiToolkit\Services\Introspection;
+namespace SineMacula\ApiToolkit\Schema\Introspection;
 
 /**
  * Immutable description of a single database column's type and nullability.

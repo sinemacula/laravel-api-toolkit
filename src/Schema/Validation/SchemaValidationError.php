@@ -2,7 +2,7 @@
 
 declare(strict_types = 1);
 
-namespace SineMacula\ApiToolkit\Services\Validation;
+namespace SineMacula\ApiToolkit\Schema\Validation;
 
 /**
  * Immutable value object representing a single schema validation defect.

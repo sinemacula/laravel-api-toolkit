@@ -2,7 +2,7 @@
 
 declare(strict_types = 1);
 
-namespace SineMacula\ApiToolkit\Services;
+namespace SineMacula\ApiToolkit\Schema\Introspection;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -18,7 +18,6 @@ use Illuminate\Support\Facades\Schema;
 use SineMacula\ApiToolkit\Cache\MetadataCacheWriter;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Enums\CacheKeys;
-use SineMacula\ApiToolkit\Services\Introspection\ColumnDefinition;
 
 /**
  * Schema introspector.
@@ -34,7 +33,7 @@ final class SchemaIntrospector implements SchemaIntrospectionProvider
     /** @var array<string, array<int, string>> */
     private array $columns = [];
 
-    /** @var array<string, array<string, \SineMacula\ApiToolkit\Services\Introspection\ColumnDefinition>> */
+    /** @var array<string, array<string, \SineMacula\ApiToolkit\Schema\Introspection\ColumnDefinition>> */
     private array $columnDefinitions = [];
 
     /** @var array<string, array<int, string>> */
@@ -95,7 +94,7 @@ final class SchemaIntrospector implements SchemaIntrospectionProvider
      * Results are cached forever per model, mirroring getColumns().
      *
      * @param  \Illuminate\Database\Eloquent\Model  $model
-     * @return array<string, \SineMacula\ApiToolkit\Services\Introspection\ColumnDefinition>
+     * @return array<string, \SineMacula\ApiToolkit\Schema\Introspection\ColumnDefinition>
      */
     #[\Override]
     public function getColumnDefinitions(Model $model): array
@@ -106,7 +105,7 @@ final class SchemaIntrospector implements SchemaIntrospectionProvider
 
         $cacheKey = CacheKeys::MODEL_SCHEMA_COLUMN_DEFINITIONS->resolveKey([$model::class]);
 
-        /** @var array<string, \SineMacula\ApiToolkit\Services\Introspection\ColumnDefinition> $cached */
+        /** @var array<string, \SineMacula\ApiToolkit\Schema\Introspection\ColumnDefinition> $cached */
         $cached = Cache::memo()->get($cacheKey, []);
 
         if (!empty($cached)) {
@@ -280,7 +279,7 @@ final class SchemaIntrospector implements SchemaIntrospectionProvider
      * column name.
      *
      * @param  array<int, array<string, mixed>>  $columns
-     * @return array<string, \SineMacula\ApiToolkit\Services\Introspection\ColumnDefinition>
+     * @return array<string, \SineMacula\ApiToolkit\Schema\Introspection\ColumnDefinition>
      */
     private function mapColumnDefinitions(array $columns): array
     {

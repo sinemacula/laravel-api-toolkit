@@ -10,8 +10,8 @@ use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ColumnTypeMapper;
 use SineMacula\ApiToolkit\OpenApi\Resolution\FieldTypeResolver;
 use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
+use SineMacula\ApiToolkit\Schema\Introspection\ColumnDefinition;
 use SineMacula\ApiToolkit\Schema\OpenApiFieldSchema;
-use SineMacula\ApiToolkit\Services\Introspection\ColumnDefinition;
 use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\Tag;
 use Tests\Fixtures\Models\User;
@@ -362,7 +362,7 @@ final class FieldTypeResolverTest extends TestCase
      * Build a resolver whose introspector returns the given column definitions
      * for any model.
      *
-     * @param  array<string, \SineMacula\ApiToolkit\Services\Introspection\ColumnDefinition>  $columns
+     * @param  array<string, \SineMacula\ApiToolkit\Schema\Introspection\ColumnDefinition>  $columns
      * @return \SineMacula\ApiToolkit\OpenApi\Resolution\FieldTypeResolver
      */
     private function makeResolver(array $columns): FieldTypeResolver

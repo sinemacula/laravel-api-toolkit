@@ -13,7 +13,7 @@ use SineMacula\ApiToolkit\Providers\Registrars\ContainerBindingRegistrar;
 use SineMacula\ApiToolkit\Providers\Registrars\LifecycleRegistrar;
 use SineMacula\ApiToolkit\Providers\Registrars\LoggingRegistrar;
 use SineMacula\ApiToolkit\Providers\Registrars\MiddlewareRegistrar;
-use SineMacula\ApiToolkit\Services\SchemaValidator;
+use SineMacula\ApiToolkit\Schema\Validation\SchemaValidator;
 
 /**
  * API service provider.
