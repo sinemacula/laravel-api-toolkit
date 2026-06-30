@@ -81,9 +81,9 @@ abstract class BaseDefinition implements Arrayable
      * Provide additional eager-load paths required by this field.
      *
      * @param  string  ...$paths
-     * @return self
+     * @return static
      */
-    public function extras(string ...$paths): self
+    public function extras(string ...$paths): static
     {
         $this->extras = array_values(array_unique([...$this->extras, ...$paths]));
 

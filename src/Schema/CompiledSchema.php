@@ -105,17 +105,6 @@ final readonly class CompiledSchema
     }
 
     /**
-     * Determine whether a field key exists in the compiled fields.
-     *
-     * @param  string  $key
-     * @return bool
-     */
-    public function hasField(string $key): bool
-    {
-        return isset($this->fields[$key]);
-    }
-
-    /**
      * Return the declared filterable column names.
      *
      * @return array<int, string>
