@@ -6,7 +6,6 @@ namespace SineMacula\ApiToolkit\Http\Resources;
 
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\MissingValue;
-use Illuminate\Support\Facades\Config;
 use SineMacula\ApiToolkit\Concerns\OrdersFields;
 use SineMacula\ApiToolkit\Contracts\ApiResourceInterface;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
@@ -405,7 +404,6 @@ abstract class ApiResource extends ToolkitResource implements ApiResourceInterfa
      */
     private function getFixedFields(): array
     {
-        /** @var array<int, string> */
-        return array_merge(Config::get('api-toolkit.resources.fixed_fields', []), $this->fixed);
+        return $this->fixed;
     }
 }
