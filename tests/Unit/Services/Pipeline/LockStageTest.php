@@ -2,26 +2,26 @@
 
 declare(strict_types = 1);
 
-namespace Tests\Unit\Services\Concerns;
+namespace Tests\Unit\Services\Pipeline;
 
 use Illuminate\Contracts\Cache\Lock;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Exceptions\LockUnavailableException;
-use SineMacula\ApiToolkit\Services\Concerns\LockConcern;
 use SineMacula\ApiToolkit\Services\Input\ArrayInput;
+use SineMacula\ApiToolkit\Services\Pipeline\LockStage;
 use SineMacula\ApiToolkit\Services\Service;
 use Tests\TestCase;
 
 /**
- * Tests for the LockConcern class.
+ * Tests for the LockStage class.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  *
  * @internal
  */
-#[CoversClass(LockConcern::class)]
-final class LockConcernTest extends TestCase
+#[CoversClass(LockStage::class)]
+final class LockStageTest extends TestCase
 {
     /**
      * Test that wrap acquires the lock before $next, releases after, and
@@ -34,7 +34,7 @@ final class LockConcernTest extends TestCase
         $callOrder = [];
 
         $service = $this->createLockableService($callOrder);
-        $concern = new LockConcern;
+        $concern = new LockStage;
 
         $result = $concern->wrap($service, function () use (&$callOrder): string {
             $callOrder[] = 'next';
@@ -57,7 +57,7 @@ final class LockConcernTest extends TestCase
         $callOrder = [];
 
         $service = $this->createLockableService($callOrder);
-        $concern = new LockConcern;
+        $concern = new LockStage;
 
         try {
 
@@ -105,7 +105,7 @@ final class LockConcernTest extends TestCase
             }
         };
 
-        $concern = new LockConcern;
+        $concern = new LockStage;
 
         $this->expectException(LockUnavailableException::class);
 
