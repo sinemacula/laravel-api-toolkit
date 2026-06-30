@@ -69,7 +69,6 @@ final class JsonPrettyPrint
     private function prettyPrintJsonResponse(JsonResponse $response): void
     {
         $response->setEncodingOptions($response->getEncodingOptions() | JSON_PRETTY_PRINT);
-        $response->setData($response->getData());
     }
 
     /**
