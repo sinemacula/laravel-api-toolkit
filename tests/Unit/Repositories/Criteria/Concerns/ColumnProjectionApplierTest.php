@@ -7,6 +7,7 @@ namespace Tests\Unit\Repositories\Criteria\Concerns;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Config;
+use Illuminate\Support\Facades\Log;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Contracts\ResourceMetadataProvider;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
@@ -169,6 +170,33 @@ final class ColumnProjectionApplierTest extends TestCase
         $result = $this->makeApplier()->apply($query, $provider, UserResource::class, []);
 
         self::assertNull($result->getQuery()->columns);
+    }
+
+    /**
+     * Test that a fall-back forced by an unmapped field is recorded at debug
+     * level carrying the offending field key and query context.
+     *
+     * @return void
+     */
+    public function testFallbackLogsOffendingFieldAtDebugLevel(): void
+    {
+        Config::set('api-toolkit.resources.narrow_columns', true);
+
+        $this->parseRequest(new Request);
+
+        $provider = self::createStub(ResourceMetadataProvider::class);
+        $provider->method('getResourceType')->willReturn('users');
+        $provider->method('resolveFields')->willReturn(['id', 'full_label']);
+        $provider->method('eagerLoadMapFor')->willReturn([]);
+
+        Log::shouldReceive('debug')
+            ->once()
+            ->withArgs(fn (string $message, array $context): bool => $message === 'Column narrowing fell back to a full select'
+                    && $context['model']                                      === User::class
+                    && $context['resource']                                   === UserResource::class
+                    && $context['field']                                      === 'full_label');
+
+        $this->makeApplier()->apply((new User)->newQuery(), $provider, UserResource::class, []);
     }
 
     /**
