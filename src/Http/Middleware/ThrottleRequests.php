@@ -12,10 +12,8 @@ use SineMacula\ApiToolkit\Http\Middleware\Concerns\ThrottleRequestsTrait;
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
- *
- * @inheritable
  */
-class ThrottleRequests extends BaseThrottleRequests
+final class ThrottleRequests extends BaseThrottleRequests
 {
     use ThrottleRequestsTrait;
 }
