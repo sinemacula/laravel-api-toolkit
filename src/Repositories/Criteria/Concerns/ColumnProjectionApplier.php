@@ -6,6 +6,7 @@ namespace SineMacula\ApiToolkit\Repositories\Criteria\Concerns;
 
 use Illuminate\Contracts\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Config;
+use Illuminate\Support\Facades\Log;
 use SineMacula\ApiToolkit\Contracts\ApiResourceInterface;
 use SineMacula\ApiToolkit\Contracts\ResourceMetadataProvider;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
@@ -20,7 +21,9 @@ use SineMacula\ApiToolkit\Schema\SafetySetDeriver;
  * safety set, asks the narrower for a decision, and applies a single `select()`
  * only when every resolved field is provably column-mapped. On every other path
  * the builder's columns are left untouched so the downstream default `'*'`
- * selection flows through unchanged.
+ * selection flows through unchanged. When an unmapped field forces that
+ * fall-back, the offending field key is recorded at debug level so the silent
+ * widening is diagnosable.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -69,6 +72,14 @@ final class ColumnProjectionApplier
 
         if ($decision->shouldNarrow()) {
             $query->getQuery()->select($decision->columns());
+        } elseif ($decision->reason() !== null) {
+            // Surface the silent fall-back so a developer can see which field
+            // forced a full select; debug level keeps it quiet in production.
+            Log::debug('Column narrowing fell back to a full select', [
+                'model'    => $query->getModel()::class,
+                'resource' => $resourceClass,
+                'field'    => $decision->reason(),
+            ]);
         }
 
         return $query;
