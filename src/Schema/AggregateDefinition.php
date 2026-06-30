@@ -4,8 +4,6 @@ declare(strict_types = 1);
 
 namespace SineMacula\ApiToolkit\Schema;
 
-use Illuminate\Contracts\Support\Arrayable;
-
 /**
  * Abstract base for relation aggregate (sum / average) schema definitions.
  *
@@ -15,10 +13,8 @@ use Illuminate\Contracts\Support\Arrayable;
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
- *
- * @implements \Illuminate\Contracts\Support\Arrayable<string, array<string, mixed>>
  */
-abstract class AggregateDefinition extends BaseDefinition implements Arrayable
+abstract class AggregateDefinition extends BaseDefinition
 {
     /** @var (\Closure(\Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>): void)|null Optional eager-load constraint for this aggregate */
     private ?\Closure $constraint = null;

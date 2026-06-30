@@ -4,8 +4,6 @@ declare(strict_types = 1);
 
 namespace SineMacula\ApiToolkit\Schema;
 
-use Illuminate\Contracts\Support\Arrayable;
-
 /**
  * Relation schema helper for nested resource fields.
  *
@@ -15,10 +13,8 @@ use Illuminate\Contracts\Support\Arrayable;
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
- *
- * @implements \Illuminate\Contracts\Support\Arrayable<string, array<string, mixed>>
  */
-final class Relation extends BaseDefinition implements Arrayable
+final class Relation extends BaseDefinition
 {
     /** @var class-string|null Child ApiResource class */
     private ?string $resource = null;
