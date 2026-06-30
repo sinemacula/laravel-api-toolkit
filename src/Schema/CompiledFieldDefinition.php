@@ -7,8 +7,8 @@ namespace SineMacula\ApiToolkit\Schema;
 /**
  * Typed representation of a single compiled field definition.
  *
- * Replaces the untyped associative arrays previously used in the schema cache,
- * providing typed access to all resolved field properties.
+ * Provides typed access to all resolved field properties stored in the schema
+ * cache.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.

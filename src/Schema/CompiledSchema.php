@@ -7,8 +7,7 @@ namespace SineMacula\ApiToolkit\Schema;
 /**
  * Typed value object holding compiled field, count, and aggregate definitions.
  *
- * Provides typed access to the compiled schema data, replacing the untyped
- * associative arrays previously used in the schema cache.
+ * Provides typed access to the compiled schema data stored in the schema cache.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.

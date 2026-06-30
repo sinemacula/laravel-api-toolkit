@@ -20,16 +20,14 @@ use SineMacula\ApiToolkit\Services\ServiceRunner;
  * Serialises the service class-string, the typed input, and the execution
  * context (including the actor reference) onto the queue. On the worker,
  * re-hydrates and runs the service identically via ServiceRunner with the
- * source forced to QUEUE - no Auth or Request is consulted (NFR-07).
+ * source forced to QUEUE - no Auth or Request is consulted.
  *
  * Naming deviation: jobs are normally named with a leading verb; this generic
- * bridge runs an arbitrary service so the Job suffix is used instead
- * (#php-nam-063).
+ * bridge runs an arbitrary service so the Job suffix is used instead.
  *
  * Limitation: subject-bearing services that require a Model constructor
  * argument beyond the input are out of scope for this bridge; the subject
- * identifier should ride in the input. See UPGRADE.md for the planned
- * subject-aware variant.
+ * identifier should ride in the input.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.

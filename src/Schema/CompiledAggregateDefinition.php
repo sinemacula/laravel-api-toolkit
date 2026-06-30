@@ -8,9 +8,8 @@ namespace SineMacula\ApiToolkit\Schema;
  * Typed representation of a single compiled aggregate (sum / average)
  * definition.
  *
- * Replaces the untyped associative arrays previously used in the schema cache,
- * providing typed access to all resolved aggregate properties alongside the
- * column and metric discriminator.
+ * Provides typed access to all resolved aggregate properties stored in the
+ * schema cache, alongside the column and metric discriminator.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
