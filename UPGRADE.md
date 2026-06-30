@@ -45,131 +45,178 @@ The shared enum only defines standard HTTP status codes. The non-standard `419` 
 to return `419` directly. Custom exceptions that need a non-standard status code should override
 `getStatusCode()` in the same way.
 
-### Services: composable concern pipeline replaces transaction and lock configuration
+### Services: transactions and locking move to class properties
 
-The following have been removed from the `Service` base class:
+The `Service` base class has been rebuilt around a typed input, an explicit actor, a fixed
+transaction-aware lifecycle, and an immutable `ServiceResult`. The 1.x runtime toggles and the `bool`
+return value are gone. The following has been removed from the base class:
 
-- `useTransaction()`
-- `dontUseTransaction()`
-- `useLock()`
-- `dontUseLock()`
+- `useTransaction()`, `dontUseTransaction()`, `useLock()`, `dontUseLock()` (runtime fluent toggles)
 - the `$useTransaction` and `$useLock` properties
+- `getStatus(): ?bool` (the outcome is now the return value of `run()`; see below)
+- the `success()` and `failed()` lifecycle hooks (replaced by `afterCommit()` and `onFailure()`)
 
-Transactions and locking are now cross-cutting concerns declared per service via the `concerns()` method.
-Each concern wraps the core lifecycle (`prepare()`, `handle()`, `success()`/`failed()`); the first concern
-in the array is the outermost wrapper.
+Transactions and locking are now declared as class-level properties instead of toggled at runtime:
 
-**Before (1.x):**
-
-Callers configured service behavior at runtime using fluent methods or property overrides:
-
-    $service = new MyService($payload);
-    $service->dontUseTransaction();
-    $service->useLock();
-    $service->run();
+    use SineMacula\ApiToolkit\Services\Service;
 
     class MyService extends Service
     {
-        protected bool $useTransaction = false;
+        /** Wrap prepare() + handle() in a database transaction. */
+        protected bool $transactional = true;
 
-        protected bool $useLock = true;
-    }
+        /** Number of transaction retry attempts. */
+        protected int $transactionAttempts = 3;
 
-**After (2.x):**
+        /** Acquire a cache lock around the whole pipeline. */
+        protected bool $lockable = false;
 
-Configuration is declared at the class level via the `concerns()` method:
-
-    use SineMacula\ApiToolkit\Services\Concerns\LockConcern;
-    use SineMacula\ApiToolkit\Services\Concerns\TransactionConcern;
-
-    class MyService extends Service
-    {
-        protected function concerns(): array
-        {
-            return [
-                LockConcern::class,
-                TransactionConcern::class,
-            ];
-        }
-
-        protected function handle(): bool
+        protected function handle(): mixed
         {
             // ...
         }
-
-        protected function getLockId(): string
-        {
-            return 'my-service-lock-id';
-        }
     }
 
-The caller no longer needs to configure the service externally:
+**The default behaviour is unchanged.** As in 1.x, a service runs inside a database transaction by
+default (`$transactional = true`) and does not lock (`$lockable = false`). Set `$transactional = false`
+on services that must not open a transaction; set `$lockable = true` on services that need a cache lock.
 
-    $service = new MyService($payload);
-    $service->run();
+A lockable service must return a non-empty lock identity from `lockId()` (which replaces the 1.x
+`getLockId()`). The runner throws `LockOperationException` when `$lockable` is `true` but `lockId()`
+returns an empty string. The final cache-lock key is `sha1(static::class . '|' . lockId())`; see the
+LockKeyProvider section below.
 
-**The default behavior has changed.** In 1.x every service ran inside a database transaction by default
-(`$useTransaction = true`). In 2.x the base `concerns()` returns an empty array, so a service with no
-override runs with no transaction and no locking. Services that relied on the implicit transaction must now
-declare `TransactionConcern::class` explicitly.
+### Services: typed input and an explicit actor
 
-Custom concerns implement the `ServiceConcern` contract and are resolved from the container, so they may
-declare their own constructor dependencies:
+A service is constructed with a typed input rather than a raw payload, and the causer is supplied
+explicitly - the action layer never reads `Auth` or the current `Request` ambiently.
 
+**Input.** The constructor takes a `ServiceInput` (the contract is a single `toArray(): array`). Two
+implementations ship: extend `InputData` to declare promoted readonly properties plus Laravel `rules()`
+and build a validated instance with `InputData::from($request)` (or `from($array)`), or wrap an
+already-validated array in `ArrayInput` for the no-class case.
+
+    use SineMacula\ApiToolkit\Services\Input\ArrayInput;
+
+    $result = (new MyService(new ArrayInput(['title' => 'Hello'])))->run();
+
+**Actor.** Attach the causer with `by()`; it is read inside the service via `actor()` and defaults to an
+`AnonymousActor` when none is set. Three actors ship: `EloquentActor::for($user)` wraps an
+authenticatable model and is queue-serialisable, `SystemActor` represents a trusted internal caller and
+short-circuits the `authorize()` hook, and `AnonymousActor` represents an unauthenticated caller.
+
+    use SineMacula\ApiToolkit\Services\Actors\EloquentActor;
+
+    $result = (new MyService($input))->by(EloquentActor::for($user))->run();
+
+**Resolution, context and queueing.** `Service::make($input)` resolves the service through the container,
+so it may declare its own constructor dependencies. `withContext()` attaches a prebuilt `ServiceContext`
+(actor, correlation id, source, and metadata). `dispatch()` pushes the service onto the queue via
+`ServiceJob`, which re-runs it identically on the worker with the source set to `QUEUE`.
+
+### Services: the fixed lifecycle and its hooks
+
+`ServiceRunner` sequences the lifecycle in a single fixed, transaction-aware order:
+
+    authorize -> validate -> [lock] -> [transaction] -> concerns -> prepare -> handle
+    -> commit -> [release lock] -> afterCommit
+
+On failure the transaction rolls back, the lock is released, and `onFailure()` runs. The runner never
+throws for business failures; every outcome is captured on the returned `ServiceResult`.
+
+The hooks a subclass may override (all `protected`, all no-ops by default except `handle()`):
+
+- `authorize(): void` - runs before the lock and transaction; throw an authorization exception to deny.
+  Skipped automatically for a `SystemActor`.
+- `validate(): void` - runs before the lock and transaction; throw a validation exception for bad input.
+- `prepare(): void` - runs inside the transaction, before `handle()` (in 1.x `prepare()` was `public`).
+- `handle(): mixed` - abstract; runs inside the transaction and **returns** the typed output. Signal
+  failure only by throwing (in 1.x `handle()` returned `bool`).
+- `afterCommit(mixed $output): void` - replaces the 1.x `success()` hook; runs after the transaction has
+  committed. An exception thrown here is captured as a side-effect error on the result and logged; the
+  committed outcome stands.
+- `onFailure(\Throwable $exception): void` - replaces the 1.x `failed()` hook; runs after rollback and
+  lock release. An exception thrown here is caught and logged.
+
+### Services: cross-cutting concerns implement ServiceConcern
+
+`concerns()` returns an ordered list of `ServiceConcern` class-strings. Each concern is resolved from the
+container and wraps the core (`prepare()` + `handle()`) inside the transaction, in declaration order (the
+first entry is the outermost wrapper). The contract is a single method:
+
+    public function handle(ServiceContext $context, \Closure $next): mixed;
+
+Call `$next()` to continue the pipeline; return or transform its result. For example:
+
+    use Closure;
     use SineMacula\ApiToolkit\Services\Contracts\ServiceConcern;
-    use SineMacula\ApiToolkit\Services\Service;
+    use SineMacula\ApiToolkit\Services\ServiceContext;
 
     class RetryConcern implements ServiceConcern
     {
-        public function execute(Service $service, \Closure $next): bool
+        public function handle(ServiceContext $context, Closure $next): mixed
         {
             return retry(3, $next);
         }
     }
 
-`LockConcern` only takes effect on services whose class uses the `Lockable` trait; the base `Service`
-already uses it, so declaring the concern is sufficient.
+    class MyService extends Service
+    {
+        protected function concerns(): array
+        {
+            return [RetryConcern::class];
+        }
+
+        protected function handle(): mixed
+        {
+            // ...
+        }
+    }
+
+Do not place transaction or locking entries in `concerns()`. They are not `ServiceConcern`
+implementations; they are internal stages driven by the `$transactional` and `$lockable` properties
+above. `concerns()` is only for your own cross-cutting wrappers.
 
 ### Changed: Service::run() returns a ServiceResult value object
 
-`ServiceInterface::run()` now returns an immutable `ServiceResult`
-instead of `bool`, and `getStatus(): ?bool` has been removed. The
-result carries the outcome status (a `ServiceStatus` enum), optional
-result data, and the captured exception on failure.
+`Service::run()` now returns an immutable `ServiceResult` instead of `bool`, and `getStatus(): ?bool` has
+been removed. The result carries:
 
-Exceptions thrown by the core lifecycle are no longer rethrown from
-`run()` — they are passed to the `failed()` hook and captured on the
-returned result. Transactions still roll back as before. The
-`success()` hook now only fires when the service actually succeeded.
+- `status` - a `ServiceStatus` enum (`SUCCEEDED` or `FAILED`); query it with `succeeded()` or `failed()`.
+- `output` - the value returned by `handle()`; read it via the `output` property, `output()`, or
+  `outputOr($default)` (which returns the default whenever the result failed).
+- `exception` - the captured `Throwable` on failure, or `null` when failure was signalled without
+  throwing.
+- `sideEffectErrors` - any `Throwable`s caught from `afterCommit()`, via `sideEffectErrors()`.
+- `throw()` - rethrows the captured exception when the result failed, otherwise returns the result for
+  chaining.
+
+Exceptions thrown by the core lifecycle are no longer rethrown from `run()`; they are passed to
+`onFailure()` and captured on the result, and the transaction still rolls back.
 
 **Before (run returns bool, exceptions propagate):**
 
     try {
-        $status = (new MyService($payload))->run();
+        $status = (new MyService($input))->run();
     } catch (Throwable $exception) {
         // handle failure
     }
 
 **After (self-describing result):**
 
-    $result = (new MyService($payload))->run();
+    $result = (new MyService($input))->run();
 
     if ($result->failed()) {
         // $result->exception is the captured Throwable, or null when
-        // the handler signalled failure by returning false
+        // handle() signalled failure without throwing
     }
 
-    $value = $result->data;
+    $value = $result->output();
 
-Services expose output by assigning to the protected `$data`
-property inside `handle()`; the value is carried on the result.
+`handle()` returns the output directly - there is no `$data` property and no `$result->data`. Code that
+relied on `run()` throwing should rethrow from the result instead:
 
-Code that relied on `run()` throwing must now inspect the result and
-rethrow explicitly if desired:
-
-    if ($result->failed() && $result->exception !== null) {
-        throw $result->exception;
-    }
+    $value = (new MyService($input))->run()->throw()->output();
 
 ### Removed: Implicit trait lifecycle hooks on services
 
@@ -178,7 +225,7 @@ In 1.x, traits used by a service participated in the lifecycle through naming co
 method was invoked after a successful run. This implicit discovery has been removed.
 
 Move initialization logic into the constructor or `prepare()`, move post-success side effects into
-`success()`, or express the behavior as a `ServiceConcern` (see above).
+`afterCommit()`, or express the behavior as a `ServiceConcern` (see above).
 
 ### Lock key generation via LockKeyProvider contract
 
@@ -247,13 +294,14 @@ methods are now `public` (previously `protected`).
 
 ### Removed: ServiceLockException
 
-The `ServiceLockException` class has been removed. It was never
-thrown by the framework -- lock acquisition failures use
-`TooManyRequestsException`.
+The `ServiceLockException` class has been removed. Lock handling now uses two `\RuntimeException`
+subclasses: `LockUnavailableException` when the cache lock is contended and cannot be acquired, and
+`LockOperationException` when a lockable service supplies an empty `lockId()` or no lock key. Under the
+action layer a contended lock is not thrown to the caller; the runner captures it on the result, so
+`(new MyService($input))->run()->exception` holds a `LockUnavailableException` on contention.
 
-Any code that catches `ServiceLockException` should be updated
-to catch `TooManyRequestsException` instead (or removed if the
-catch block was unreachable).
+Any code that catches `ServiceLockException` should catch `LockUnavailableException` instead (or be
+removed if the catch block was unreachable).
 
 ### Removed: RepositoryResolver and HasRepositories
 
@@ -480,16 +528,17 @@ now also covers `two_factor_secret`, `two_factor_recovery_codes`, `two_factor_co
 `email_verified_at` alongside the existing `password`, `token`, and `remember_token`, so even the legacy
 posture leaks fewer sensitive columns out of the box.
 
-### Deprecated: Request macros in favour of RequestCapabilities
+### Removed: Request macros in favour of RequestCapabilities
 
-The request macros registered by the toolkit -- `includeTrashed()`, `onlyTrashed()`, `expectsExport()`,
-`expectsCsv()`, `expectsXml()`, `expectsPdf()`, and `expectsStream()` -- are deprecated. They continue to
-work in 2.x but emit deprecation notices and will be removed in a future release. Use the typed
-`RequestCapabilities` value object instead.
+The request macros the toolkit used to register - `includeTrashed()`, `onlyTrashed()`, `expectsPdf()`,
+and `expectsStream()` - have been removed. Resolve these capabilities through the typed
+`RequestCapabilities` value object instead. The export-detection macros (`expectsExport()`,
+`expectsCsv()`, and `expectsXml()`) have been removed outright: content-negotiated exports now live in the
+`sinemacula/laravel-resource-exporter` package, not in the toolkit.
 
 **Before:**
 
-    if ($request->expectsCsv()) {
+    if ($request->expectsPdf()) {
         // ...
     }
 
@@ -499,7 +548,7 @@ work in 2.x but emit deprecation notices and will be removed in a future release
 
     $capabilities = RequestCapabilities::fromRequest($request);
 
-    if ($capabilities->expectsCsv()) {
+    if ($capabilities->expectsPdf()) {
         // ...
     }
 
