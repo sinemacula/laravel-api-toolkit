@@ -28,6 +28,8 @@ use Tests\Fixtures\Enums\UserStatus;
  * @method static static first(array<int, string>|string $columns = ['*'])
  * @method static \Illuminate\Database\Eloquent\Builder<static> where(string|array<string, mixed> $column, mixed $operator = null, mixed $value = null)
  * @method static \Illuminate\Database\Eloquent\Builder<static> withCount(mixed $relations)
+ * @method static \Illuminate\Contracts\Pagination\LengthAwarePaginator<int, static> paginate(int|null $perPage = null)
+ * @method static static findOrFail(mixed $id)
  *
  * @formatter:on
  *
