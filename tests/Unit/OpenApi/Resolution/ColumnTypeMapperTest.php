@@ -62,8 +62,6 @@ final class ColumnTypeMapperTest extends TestCase
         yield 'timestamptz format' => ['timestamptz', 'string', 'date-time'];
         yield 'time format' => ['time', 'string', 'time'];
         yield 'timetz format' => ['timetz', 'string', 'time'];
-        yield 'json array' => ['json', 'array', null];
-        yield 'jsonb array' => ['jsonb', 'array', null];
         yield 'binary byte' => ['binary', 'string', 'byte'];
         yield 'blob byte' => ['blob', 'string', 'byte'];
         yield 'bytea byte' => ['bytea', 'string', 'byte'];
@@ -124,15 +122,31 @@ final class ColumnTypeMapperTest extends TestCase
     }
 
     /**
-     * Test that an unknown type name with no cast resolves to a flagged
-     * undocumented schema rather than guessing a concrete type.
+     * Provide each type name that, absent a cast, the mapper cannot confidently
+     * describe and so resolves to an undocumented schema.
      *
+     * @return iterable<string, array{0: string}>
+     */
+    public static function undocumentedTypeNameProvider(): iterable
+    {
+        yield 'unknown point' => ['point'];
+        yield 'json' => ['json'];
+        yield 'jsonb' => ['jsonb'];
+    }
+
+    /**
+     * Test that a type name the mapper cannot confidently describe, with no
+     * cast, resolves to a flagged undocumented schema rather than guessing a
+     * concrete type.
+     *
+     * @param  string  $typeName
      * @return void
      */
-    public function testUnknownTypeNameResolvesToUndocumented(): void
+    #[DataProvider('undocumentedTypeNameProvider')]
+    public function testUndocumentedTypeNameResolvesToUndocumented(string $typeName): void
     {
         $mapper = new ColumnTypeMapper;
-        $column = new ColumnDefinition(name: 'geometry', typeName: 'point', nullable: false);
+        $column = new ColumnDefinition(name: 'column', typeName: $typeName, nullable: false);
 
         $schema = $mapper->map($column);
 

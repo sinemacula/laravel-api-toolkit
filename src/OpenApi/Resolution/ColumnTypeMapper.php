@@ -143,8 +143,12 @@ final class ColumnTypeMapper
     }
 
     /**
-     * Resolve JSON and binary column types, or null when the type is not a
-     * structured or binary value.
+     * Resolve binary column types, or null when the type is not a binary value.
+     *
+     * An uncast json/jsonb column is deliberately left unresolved: it can hold
+     * an object, scalar or string, and absent a cast Eloquent returns the raw
+     * JSON string, so any concrete type here would be a confident-but-wrong
+     * guess. It falls through to an undocumented schema instead.
      *
      * @param  string  $typeName
      * @return array{type: string, format?: string}|null
@@ -152,7 +156,6 @@ final class ColumnTypeMapper
     private function resolveStructuredType(string $typeName): ?array
     {
         return match ($typeName) {
-            'json', 'jsonb' => ['type' => 'array'],
             'binary', 'blob', 'bytea' => ['type' => 'string', 'format' => 'byte'],
             default => null,
         };
