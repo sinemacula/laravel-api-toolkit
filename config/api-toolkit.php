@@ -412,7 +412,7 @@ return [
     |
     | `detect_capabilities`: Controls the registration of the
     | DetectsCapabilities middleware, which resolves the typed request
-    | capabilities (trashed visibility, PDF and SSE stream negotiation)
+    | capabilities (trashed visibility and PDF negotiation)
     | once per request. Capabilities resolve lazily on first access even
     | when disabled; the middleware simply precomputes them.
     |   - `enabled`: true to register (default), false to skip entirely.

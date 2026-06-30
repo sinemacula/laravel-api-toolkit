@@ -5,13 +5,11 @@ declare(strict_types = 1);
 namespace SineMacula\ApiToolkit\Http;
 
 use Illuminate\Http\Request;
-use SineMacula\Http\Enums\HttpHeader;
-use SineMacula\Http\Enums\MediaType;
 
 /**
  * Request capabilities value object.
  *
- * Encapsulates the 4 boolean capability checks resolved from the current
+ * Encapsulates the 2 boolean capability checks resolved from the current
  * request. Immutable once created.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
@@ -27,8 +25,6 @@ final class RequestCapabilities
      *
      * @param  bool  $includeTrashed
      * @param  bool  $onlyTrashed
-     * @param  bool  $expectsPdf
-     * @param  bool  $expectsStream
      */
     private function __construct(
 
@@ -37,12 +33,6 @@ final class RequestCapabilities
 
         /** Whether the request returns only soft-deleted records. */
         private readonly bool $onlyTrashed,
-
-        /** Whether the request expects a PDF response. */
-        private readonly bool $expectsPdf,
-
-        /** Whether the request expects a streamed response. */
-        private readonly bool $expectsStream,
     ) {}
 
     /**
@@ -81,18 +71,9 @@ final class RequestCapabilities
         $includeTrashed = $request->input('include_trashed', false) === 'true';
         $onlyTrashed    = $request->input('only_trashed', false)    === 'true';
 
-        /** @var string $acceptRaw */
-        $acceptRaw    = $request->header(HttpHeader::ACCEPT->getName(), '');
-        $acceptHeader = strtolower($acceptRaw);
-
-        $expectsPdf    = $acceptHeader === MediaType::APPLICATION_PDF->getMimeType();
-        $expectsStream = $acceptHeader === MediaType::TEXT_EVENT_STREAM->getMimeType();
-
         return new self(
             $includeTrashed,
             $onlyTrashed,
-            $expectsPdf,
-            $expectsStream,
         );
     }
 
@@ -130,25 +111,5 @@ final class RequestCapabilities
     public function onlyTrashed(): bool
     {
         return $this->onlyTrashed;
-    }
-
-    /**
-     * Whether the request expects a PDF response.
-     *
-     * @return bool
-     */
-    public function expectsPdf(): bool
-    {
-        return $this->expectsPdf;
-    }
-
-    /**
-     * Whether the request expects a streamed response.
-     *
-     * @return bool
-     */
-    public function expectsStream(): bool
-    {
-        return $this->expectsStream;
     }
 }

@@ -530,15 +530,15 @@ posture leaks fewer sensitive columns out of the box.
 
 ### Removed: Request macros in favour of RequestCapabilities
 
-The request macros the toolkit used to register - `includeTrashed()`, `onlyTrashed()`, `expectsPdf()`,
-and `expectsStream()` - have been removed. Resolve these capabilities through the typed
+The request macros the toolkit used to register - `includeTrashed()` and `onlyTrashed()` - have
+been removed. Resolve these capabilities through the typed
 `RequestCapabilities` value object instead. The export-detection macros (`expectsExport()`,
 `expectsCsv()`, and `expectsXml()`) have been removed outright: content-negotiated exports now live in the
 `sinemacula/laravel-resource-exporter` package, not in the toolkit.
 
 **Before:**
 
-    if ($request->expectsPdf()) {
+    if ($request->includeTrashed()) {
         // ...
     }
 
@@ -548,7 +548,7 @@ and `expectsStream()` - have been removed. Resolve these capabilities through th
 
     $capabilities = RequestCapabilities::fromRequest($request);
 
-    if ($capabilities->expectsPdf()) {
+    if ($capabilities->includeTrashed()) {
         // ...
     }
 
