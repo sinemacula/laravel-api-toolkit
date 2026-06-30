@@ -69,10 +69,13 @@ abstract class ApiException extends \Exception
      * Get HTTP status code.
      *
      * @return int
+     *
+     * @throws \LogicException
      */
     public static function getHttpStatusCode(): int
     {
-        return self::getHttpStatus()->getCode();
+        return self::getHttpStatus()?->getCode()
+            ?? throw new \LogicException('The HTTP_STATUS constant must be defined on the exception');
     }
 
     /**
@@ -93,12 +96,14 @@ abstract class ApiException extends \Exception
     /**
      * Get the HTTP status for this exception instance.
      *
-     * Defaults to the HTTP_STATUS constant. Used to derive the default title
-     * when no translation exists for the error code.
+     * Defaults to the HTTP_STATUS constant, or null for exceptions whose status
+     * has no corresponding case in the shared HTTP status enum (e.g. the
+     * non-standard 419). Used to derive the default title when no translation
+     * exists for the error code.
      *
-     * @return \SineMacula\Http\Enums\HttpStatus
+     * @return \SineMacula\Http\Enums\HttpStatus|null
      */
-    public function getStatus(): HttpStatus
+    public function getStatus(): ?HttpStatus
     {
         return self::getHttpStatus();
     }
@@ -144,9 +149,9 @@ abstract class ApiException extends \Exception
     /**
      * Get the namespace of the current exception.
      *
-     * @return string|null
+     * @return string
      */
-    protected function getNamespace(): ?string
+    protected function getNamespace(): string
     {
         return 'api-toolkit';
     }
@@ -171,14 +176,15 @@ abstract class ApiException extends \Exception
     /**
      * Get HTTP status.
      *
-     * @return \SineMacula\Http\Enums\HttpStatus
+     * Returns null for exceptions that declare no HTTP_STATUS constant, such as
+     * those whose status has no case in the shared HTTP status enum.
      *
-     * @throws \LogicException
+     * @return \SineMacula\Http\Enums\HttpStatus|null
      */
-    private static function getHttpStatus(): HttpStatus
+    private static function getHttpStatus(): ?HttpStatus
     {
         if (!defined(static::class . '::HTTP_STATUS')) {
-            throw new \LogicException('The HTTP_STATUS constant must be defined on the exception');
+            return null;
         }
 
         /** @var \SineMacula\Http\Enums\HttpStatus */
@@ -188,11 +194,21 @@ abstract class ApiException extends \Exception
     /**
      * Derive a human-readable title from the HTTP status enum case name.
      *
+     * Falls back to a generic title for exceptions whose status has no
+     * corresponding enum case, ensuring rendering never fails for a missing
+     * title.
+     *
      * @return string
      */
     private function getDefaultTitle(): string
     {
-        return ucwords(strtolower(str_replace('_', ' ', $this->getStatus()->name)));
+        $status = $this->getStatus();
+
+        if ($status === null) {
+            return 'Unknown Error';
+        }
+
+        return ucwords(strtolower(str_replace('_', ' ', $status->name)));
     }
 
     /**
