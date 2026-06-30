@@ -51,8 +51,8 @@ enum CacheKeys: string
      */
     public function resolveKey(array $replacements = []): string
     {
-        $prefix = Config::get('api-toolkit.cache.prefix', 'sm-api-toolkit');
-        $prefix = is_string($prefix) ? $prefix : 'sm-api-toolkit';
+        $prefix = Config::get('api-toolkit.cache.prefix', 'api-toolkit');
+        $prefix = is_string($prefix) ? $prefix : 'api-toolkit';
 
         $key = $prefix . ':' . $this->value;
 

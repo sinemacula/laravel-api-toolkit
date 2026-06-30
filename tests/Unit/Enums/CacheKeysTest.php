@@ -66,8 +66,8 @@ final class CacheKeysTest extends TestCase
     {
         $result = CacheKeys::REPOSITORY_MODEL_CASTS->resolveKey(['User']);
 
-        self::assertStringStartsWith('sm-api-toolkit:', $result);
-        self::assertSame('sm-api-toolkit:repository-model-casts:User', $result);
+        self::assertStringStartsWith('api-toolkit:', $result);
+        self::assertSame('api-toolkit:repository-model-casts:User', $result);
     }
 
     /**
