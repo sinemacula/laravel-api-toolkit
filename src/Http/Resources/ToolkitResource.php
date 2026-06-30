@@ -5,6 +5,9 @@ declare(strict_types = 1);
 namespace SineMacula\ApiToolkit\Http\Resources;
 
 use Illuminate\Http\Resources\Json\JsonResource;
+use Illuminate\Support\Facades\App;
+use SineMacula\Exporter\Http\ExportNegotiator;
+use Symfony\Component\HttpFoundation\Response;
 
 /**
  * Base class for every toolkit single-item resource.
@@ -20,6 +23,37 @@ use Illuminate\Http\Resources\Json\JsonResource;
  */
 abstract class ToolkitResource extends JsonResource
 {
+    /**
+     * Negotiate an export response, falling back to the JSON item response.
+     *
+     * When the resource exporter package is installed its ExportNegotiator is
+     * bound in the container: a negotiated export (a tabular or hierarchical
+     * stream) is returned as is, otherwise the native JSON response is returned
+     * with a `Vary: Accept` header so caches never serve the wrong
+     * representation. When the exporter is absent the native response is
+     * returned unchanged, so the toolkit carries no hard dependency on it.
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @return \Symfony\Component\HttpFoundation\Response
+     *
+     * @phpstan-ignore method.childReturnType
+     */
+    #[\Override]
+    public function toResponse(mixed $request): Response
+    {
+        $class = ExportNegotiator::class;
+
+        if (!App::bound($class)) {
+            return parent::toResponse($request);
+        }
+
+        $negotiator = App::make($class);
+        assert($negotiator instanceof ExportNegotiator);
+
+        return $negotiator->item($this, $request)
+            ?? ExportNegotiator::varyAccept(parent::toResponse($request));
+    }
+
     /**
      * Prepend the `_type` discriminator to a resolved payload.
      *
