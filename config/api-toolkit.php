@@ -435,7 +435,10 @@ return [
     |   - `enabled`: true to override the alias (default), false to skip.
     |   - `class`: A fully-qualified class name to use as the throttle
     |              middleware instead of the toolkit's default. Set to null
-    |              (default) for automatic detection.
+    |              (default) for automatic detection. Use this to key guests
+    |              by an app-specific identifier instead of their client IP:
+    |              point it at a class that uses ThrottleRequestsTrait and
+    |              overrides resolveRequestSignature().
     |
     */
 

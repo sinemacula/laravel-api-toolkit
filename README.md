@@ -306,6 +306,19 @@ scoped independently in `api-toolkit.middleware`:
 All four middleware accept `'scope': 'global'` (default, pushed to the global stack) or `'scope': 'api'`
 (appended to the `api` middleware group only).
 
+**Request throttling and rate-limit keying** - each request is keyed by method, host, path, and caller
+identity. Authenticated requests are keyed by the user identifier; guests are keyed by their client IP
+(`$request->ip()`), matching Laravel's stock `ThrottleRequests`. Guests are deliberately not pooled into a
+single shared bucket, which would let one anonymous caller exhaust the rate limit for every other guest.
+
+Behind a shared-IP proxy, load balancer, CDN, or NAT, per-IP guest keying can over-throttle many distinct
+callers that share one egress IP. Configure Laravel's `TrustProxies` middleware so that `$request->ip()`
+resolves the real client IP rather than the proxy's.
+
+To key guests by an application-specific identifier (for example an API key) instead of their IP, set
+`api-toolkit.middleware.throttle.class` to your own middleware that uses the `ThrottleRequestsTrait` and
+overrides `resolveRequestSignature()`. That config option is the supported customisation point.
+
 ---
 
 ### Schema Introspection and OpenAPI Export
