@@ -81,7 +81,6 @@ final class DetectsCapabilitiesTest extends TestCase
             static::assertTrue($capabilities->includeTrashed());
             static::assertFalse($capabilities->onlyTrashed());
             static::assertFalse($capabilities->expectsPdf());
-            static::assertFalse($capabilities->expectsStream());
 
             return new Response;
         });

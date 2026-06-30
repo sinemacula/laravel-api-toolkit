@@ -11,7 +11,7 @@ use SineMacula\Http\Enums\MediaType;
 /**
  * Request capabilities value object.
  *
- * Encapsulates the 4 boolean capability checks resolved from the current
+ * Encapsulates the 3 boolean capability checks resolved from the current
  * request. Immutable once created.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
@@ -28,7 +28,6 @@ final class RequestCapabilities
      * @param  bool  $includeTrashed
      * @param  bool  $onlyTrashed
      * @param  bool  $expectsPdf
-     * @param  bool  $expectsStream
      */
     private function __construct(
 
@@ -40,9 +39,6 @@ final class RequestCapabilities
 
         /** Whether the request expects a PDF response. */
         private readonly bool $expectsPdf,
-
-        /** Whether the request expects a streamed response. */
-        private readonly bool $expectsStream,
     ) {}
 
     /**
@@ -85,14 +81,12 @@ final class RequestCapabilities
         $acceptRaw    = $request->header(HttpHeader::ACCEPT->getName(), '');
         $acceptHeader = strtolower($acceptRaw);
 
-        $expectsPdf    = $acceptHeader === MediaType::APPLICATION_PDF->getMimeType();
-        $expectsStream = $acceptHeader === MediaType::TEXT_EVENT_STREAM->getMimeType();
+        $expectsPdf = $acceptHeader === MediaType::APPLICATION_PDF->getMimeType();
 
         return new self(
             $includeTrashed,
             $onlyTrashed,
             $expectsPdf,
-            $expectsStream,
         );
     }
 
@@ -140,15 +134,5 @@ final class RequestCapabilities
     public function expectsPdf(): bool
     {
         return $this->expectsPdf;
-    }
-
-    /**
-     * Whether the request expects a streamed response.
-     *
-     * @return bool
-     */
-    public function expectsStream(): bool
-    {
-        return $this->expectsStream;
     }
 }
