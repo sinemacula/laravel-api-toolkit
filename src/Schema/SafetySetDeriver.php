@@ -12,8 +12,8 @@ use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
  * retain.
  *
  * Composes, at runtime, the union of primary key, soft-delete column, relation
- * parent-side keys, aliased-scalar columns, order columns, and append sources,
- * then intersects against the model's real table columns.
+ * parent-side keys, order columns, and append sources, then intersects against
+ * the model's real table columns.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -36,11 +36,10 @@ final class SafetySetDeriver
      *
      * @param  \Illuminate\Database\Eloquent\Model  $model
      * @param  array<int, string>  $eagerLoadedRelations
-     * @param  array<int, string>  $aliasedScalarColumns
      * @param  array<int, string>  $orderColumns
      * @return array<int, string>
      */
-    public function derive(Model $model, array $eagerLoadedRelations, array $aliasedScalarColumns, array $orderColumns): array
+    public function derive(Model $model, array $eagerLoadedRelations, array $orderColumns): array
     {
         $columns = [$model->getKeyName()];
 
@@ -51,7 +50,6 @@ final class SafetySetDeriver
         }
 
         $columns = array_merge($columns, $this->relationParentKeys($model, $eagerLoadedRelations));
-        $columns = array_merge($columns, $aliasedScalarColumns);
         $columns = array_merge($columns, $orderColumns);
         $columns = array_merge($columns, $model->getAppends());
 

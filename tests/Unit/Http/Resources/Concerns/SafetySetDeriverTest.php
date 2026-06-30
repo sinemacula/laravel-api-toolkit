@@ -55,7 +55,7 @@ final class SafetySetDeriverTest extends TestCase
         $this->introspector->method('getDeletedAtColumn')->willReturn(null);
         $this->introspector->method('getColumns')->willReturn(['uuid', 'name']);
 
-        $columns = $this->deriver->derive($model, [], [], []);
+        $columns = $this->deriver->derive($model, [], []);
 
         self::assertContains('uuid', $columns);
         self::assertNotContains('id', $columns);
@@ -74,7 +74,7 @@ final class SafetySetDeriverTest extends TestCase
         $this->introspector->method('getDeletedAtColumn')->willReturn('deleted_at');
         $this->introspector->method('getColumns')->willReturn(['id', 'deleted_at', 'name']);
 
-        $columns = $this->deriver->derive($model, [], [], []);
+        $columns = $this->deriver->derive($model, [], []);
 
         self::assertContains('deleted_at', $columns);
     }
@@ -91,7 +91,7 @@ final class SafetySetDeriverTest extends TestCase
         $this->introspector->method('getDeletedAtColumn')->willReturn(null);
         $this->introspector->method('getColumns')->willReturn(['id', 'name']);
 
-        $columns = $this->deriver->derive($model, [], [], []);
+        $columns = $this->deriver->derive($model, [], []);
 
         self::assertNotContains('deleted_at', $columns);
     }
@@ -112,7 +112,7 @@ final class SafetySetDeriverTest extends TestCase
         $this->introspector->method('parentKeysFor')->willReturn(['taggable_type', 'taggable_id']);
         $this->introspector->method('getColumns')->willReturn(['id', 'taggable_type', 'taggable_id', 'name']);
 
-        $columns = $this->deriver->derive($model, ['taggable'], [], []);
+        $columns = $this->deriver->derive($model, ['taggable'], []);
 
         self::assertContains('taggable_type', $columns);
         self::assertContains('taggable_id', $columns);
@@ -132,28 +132,25 @@ final class SafetySetDeriverTest extends TestCase
         $this->introspector->method('resolveRelation')->willReturn(null);
         $this->introspector->method('getColumns')->willReturn(['id', 'name']);
 
-        $columns = $this->deriver->derive($model, ['nonexistent'], [], []);
+        $columns = $this->deriver->derive($model, ['nonexistent'], []);
 
         self::assertSame(['id'], $columns);
     }
 
     /**
-     * Test that aliased-scalar columns and order columns that are real columns
-     * appear in the result.
+     * Test that order columns that are real columns appear in the result.
      *
      * @return void
      */
-    public function testUnionsAliasedScalarAndOrderColumns(): void
+    public function testUnionsOrderColumns(): void
     {
         $model = $this->makeModel('id');
 
         $this->introspector->method('getDeletedAtColumn')->willReturn(null);
-        $this->introspector->method('getColumns')->willReturn(['id', 'first_name', 'last_name', 'created_at']);
+        $this->introspector->method('getColumns')->willReturn(['id', 'name', 'created_at']);
 
-        $columns = $this->deriver->derive($model, [], ['first_name', 'last_name'], ['created_at']);
+        $columns = $this->deriver->derive($model, [], ['created_at']);
 
-        self::assertContains('first_name', $columns);
-        self::assertContains('last_name', $columns);
         self::assertContains('created_at', $columns);
     }
 
@@ -170,9 +167,8 @@ final class SafetySetDeriverTest extends TestCase
         $this->introspector->method('getDeletedAtColumn')->willReturn(null);
         $this->introspector->method('getColumns')->willReturn(['id', 'name']);
 
-        $columns = $this->deriver->derive($model, [], ['computed_alias'], ['virtual_order']);
+        $columns = $this->deriver->derive($model, [], ['virtual_order']);
 
-        self::assertNotContains('computed_alias', $columns);
         self::assertNotContains('virtual_order', $columns);
     }
 
@@ -189,7 +185,7 @@ final class SafetySetDeriverTest extends TestCase
         $this->introspector->method('getDeletedAtColumn')->willReturn(null);
         $this->introspector->method('getColumns')->willReturn(['id', 'status']);
 
-        $columns = $this->deriver->derive($model, [], [], []);
+        $columns = $this->deriver->derive($model, [], []);
 
         self::assertContains('status', $columns);
         self::assertNotContains('virtual_flag', $columns);
@@ -213,7 +209,7 @@ final class SafetySetDeriverTest extends TestCase
         $this->introspector->method('parentKeysFor')->willReturn(['author_id']);
         $this->introspector->method('getColumns')->willReturn(['id', 'author_id', 'name']);
 
-        $columns = $this->deriver->derive($model, ['missing', 'author'], [], []);
+        $columns = $this->deriver->derive($model, ['missing', 'author'], []);
 
         self::assertContains('author_id', $columns);
     }
@@ -243,7 +239,7 @@ final class SafetySetDeriverTest extends TestCase
         );
         $this->introspector->method('getColumns')->willReturn(['id', 'author_id', 'category_id', 'name']);
 
-        $columns = $this->deriver->derive($model, ['author', 'category'], [], []);
+        $columns = $this->deriver->derive($model, ['author', 'category'], []);
 
         self::assertContains('author_id', $columns);
         self::assertContains('category_id', $columns);
@@ -262,7 +258,7 @@ final class SafetySetDeriverTest extends TestCase
         $this->introspector->method('getDeletedAtColumn')->willReturn(null);
         $this->introspector->method('getColumns')->willReturn(['id', 'name']);
 
-        $columns = $this->deriver->derive($model, [], [], ['id', 'ghost', 'name']);
+        $columns = $this->deriver->derive($model, [], ['id', 'ghost', 'name']);
 
         self::assertSame(['id', 'name'], $columns);
     }

@@ -20,6 +20,7 @@ use Tests\Fixtures\Models\Article;
 use Tests\Fixtures\Models\Organization;
 use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\User;
+use Tests\Fixtures\Resources\AliasedScalarUserResource;
 use Tests\Fixtures\Resources\ArticleResource;
 use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
@@ -294,6 +295,86 @@ final class ColumnNarrowingIntegrationTest extends TestCase
         $second = FieldColumnMapper::for(ArticleResource::class);
 
         self::assertSame($first, $second);
+    }
+
+    /**
+     * With the flag on, an aliased scalar narrows to the key it is exposed
+     * under - the same key the serializer reads from the model - so the real
+     * column survives and the response is byte-identical to the flag-off
+     * baseline. The canonical source name never reaches the narrowed SELECT.
+     *
+     * @return void
+     */
+    public function testAliasedScalarSurvivesNarrowing(): void
+    {
+        $off = $this->serialiseAliasedUsers('id,name,email');
+
+        Config::set('api-toolkit.resources.narrow_columns', true);
+
+        $columns = $this->captureAliasedUserColumns('id,name,email');
+
+        self::assertNotContains('*', $columns);
+        self::assertContains('email', $columns);
+        self::assertNotContains('email_address', $columns);
+        self::assertSame($off, $this->serialiseAliasedUsers('id,name,email'));
+        self::assertStringContainsString('alice@example.com', $this->serialiseAliasedUsers('id,name,email'));
+    }
+
+    /**
+     * Serialise the seeded users through the aliased-scalar resource for the
+     * given field set.
+     *
+     * @param  string  $fields
+     * @return string
+     */
+    private function serialiseAliasedUsers(string $fields): string
+    {
+        $this->parseAliasedUserQuery($fields);
+
+        $users = $this->applyAliasedUserCriteria()->get();
+
+        return $this->encode(AliasedScalarUserResource::collection($users)->resolve(Request::create(self::TEST_URL)));
+    }
+
+    /**
+     * Capture the narrowed base-table column names set on the aliased-scalar
+     * user query.
+     *
+     * @param  string  $fields
+     * @return array<int, string>
+     */
+    private function captureAliasedUserColumns(string $fields): array
+    {
+        $this->parseAliasedUserQuery($fields);
+
+        return $this->normaliseColumns($this->applyAliasedUserCriteria()->getQuery()->columns);
+    }
+
+    /**
+     * Parse an aliased-scalar user request for the given field set.
+     *
+     * @param  string  $fields
+     * @return void
+     */
+    private function parseAliasedUserQuery(string $fields): void
+    {
+        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), [
+            'fields' => ['aliased_users' => $fields],
+        ]);
+
+        ApiQuery::parse($request);
+    }
+
+    /**
+     * Apply the criteria chain to a user query bound to the aliased-scalar
+     * resource.
+     *
+     * @return \Illuminate\Database\Eloquent\Builder<\Tests\Fixtures\Models\User>
+     */
+    private function applyAliasedUserCriteria(): Builder
+    {
+        /** @var \Illuminate\Database\Eloquent\Builder<\Tests\Fixtures\Models\User> */
+        return $this->makeCriteria()->usingResource(AliasedScalarUserResource::class)->apply(new User);
     }
 
     /**
