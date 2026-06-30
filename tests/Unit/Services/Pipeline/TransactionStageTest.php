@@ -2,23 +2,23 @@
 
 declare(strict_types = 1);
 
-namespace Tests\Unit\Services\Concerns;
+namespace Tests\Unit\Services\Pipeline;
 
 use Illuminate\Support\Facades\DB;
 use PHPUnit\Framework\Attributes\CoversClass;
-use SineMacula\ApiToolkit\Services\Concerns\TransactionConcern;
+use SineMacula\ApiToolkit\Services\Pipeline\TransactionStage;
 use Tests\TestCase;
 
 /**
- * Tests for the TransactionConcern class.
+ * Tests for the TransactionStage class.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  *
  * @internal
  */
-#[CoversClass(TransactionConcern::class)]
-final class TransactionConcernTest extends TestCase
+#[CoversClass(TransactionStage::class)]
+final class TransactionStageTest extends TestCase
 {
     /**
      * Test that wrap returns $next's value when the transaction commits.
@@ -31,7 +31,7 @@ final class TransactionConcernTest extends TestCase
             ->once()
             ->andReturnUsing(fn (\Closure $callback): mixed => $callback());
 
-        $concern = new TransactionConcern;
+        $concern = new TransactionStage;
 
         $result = $concern->wrap(fn (): string => 'committed', 1);
 
@@ -51,7 +51,7 @@ final class TransactionConcernTest extends TestCase
             ->once()
             ->andReturnUsing(fn (\Closure $callback): mixed => $callback());
 
-        $concern = new TransactionConcern;
+        $concern = new TransactionStage;
 
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionMessage('rollback');
@@ -71,7 +71,7 @@ final class TransactionConcernTest extends TestCase
             ->withArgs(fn (\Closure $callback, int $attempts): bool => $attempts === 5)
             ->andReturnUsing(fn (\Closure $callback): mixed => $callback());
 
-        $concern = new TransactionConcern;
+        $concern = new TransactionStage;
 
         $concern->wrap(fn (): bool => true, 5);
     }

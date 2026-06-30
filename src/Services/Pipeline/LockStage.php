@@ -2,7 +2,7 @@
 
 declare(strict_types = 1);
 
-namespace SineMacula\ApiToolkit\Services\Concerns;
+namespace SineMacula\ApiToolkit\Services\Pipeline;
 
 use SineMacula\ApiToolkit\Services\Service;
 
@@ -16,7 +16,7 @@ use SineMacula\ApiToolkit\Services\Service;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-final class LockConcern
+final class LockStage
 {
     /**
      * Acquire the service's cache lock, run $next, release in finally.

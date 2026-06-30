@@ -2,7 +2,7 @@
 
 declare(strict_types = 1);
 
-namespace SineMacula\ApiToolkit\Services\Concerns;
+namespace SineMacula\ApiToolkit\Services\Pipeline;
 
 use Illuminate\Support\Facades\DB;
 
@@ -15,7 +15,7 @@ use Illuminate\Support\Facades\DB;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-final class TransactionConcern
+final class TransactionStage
 {
     /**
      * Wrap $next in DB::transaction with $attempts retries.

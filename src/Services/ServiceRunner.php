@@ -7,11 +7,11 @@ namespace SineMacula\ApiToolkit\Services;
 use Illuminate\Support\Facades\Log;
 use SineMacula\ApiToolkit\Exceptions\LockOperationException;
 use SineMacula\ApiToolkit\Services\Actors\SystemActor;
-use SineMacula\ApiToolkit\Services\Concerns\LockConcern;
-use SineMacula\ApiToolkit\Services\Concerns\TransactionConcern;
 use SineMacula\ApiToolkit\Services\Contracts\ServiceConcern;
 use SineMacula\ApiToolkit\Services\Events\ServiceCompleted;
 use SineMacula\ApiToolkit\Services\Events\ServiceFailed;
+use SineMacula\ApiToolkit\Services\Pipeline\LockStage;
+use SineMacula\ApiToolkit\Services\Pipeline\TransactionStage;
 
 /**
  * Fixed lifecycle orchestrator for service actions.
@@ -164,7 +164,7 @@ final class ServiceRunner
      */
     private function wrapTransaction(\Closure $core, int $attempts): \Closure
     {
-        $class = TransactionConcern::class;
+        $class = TransactionStage::class;
 
         return fn (): mixed => app($class)->wrap($core, $attempts);
     }
@@ -195,7 +195,7 @@ final class ServiceRunner
      */
     private function wrapLock(Service $service, \Closure $core): \Closure
     {
-        $class = LockConcern::class;
+        $class = LockStage::class;
 
         return fn (): mixed => app($class)->wrap($service, $core);
     }
