@@ -1,9 +1,11 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Fixtures\Resources;
 
 use SineMacula\ApiToolkit\Http\Resources\ApiResource;
-use SineMacula\ApiToolkit\Http\Resources\Schema\Field;
+use SineMacula\ApiToolkit\Schema\Field;
 
 /**
  * Fixture tag resource.
@@ -11,19 +13,20 @@ use SineMacula\ApiToolkit\Http\Resources\Schema\Field;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-class TagResource extends ApiResource
+final class TagResource extends ApiResource
 {
     /** @var string */
     public const string RESOURCE_TYPE = 'tags';
 
     /** @var array<int, string> */
-    protected static array $default = ['id', 'name']; // @phpstan-ignore property.phpDocType
+    protected static array $default = ['id', 'name'];
 
     /**
      * Return the resource schema.
      *
      * @return array<string, array<string, mixed>>
      */
+    #[\Override]
     public static function schema(): array
     {
         return Field::set(

@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Fixtures\Models;
 
 use Illuminate\Database\Eloquent\Casts\Attribute;
@@ -18,6 +20,7 @@ use Tests\Fixtures\Enums\UserStatus;
  * @property string $email
  * @property string|null $password
  * @property string $status
+ * @property \Tests\Fixtures\Models\Organization|null $organization
  *
  * @formatter:off
  *
@@ -25,13 +28,15 @@ use Tests\Fixtures\Enums\UserStatus;
  * @method static static first(array<int, string>|string $columns = ['*'])
  * @method static \Illuminate\Database\Eloquent\Builder<static> where(string|array<string, mixed> $column, mixed $operator = null, mixed $value = null)
  * @method static \Illuminate\Database\Eloquent\Builder<static> withCount(mixed $relations)
+ * @method static \Illuminate\Contracts\Pagination\LengthAwarePaginator<int, static> paginate(int|null $perPage = null)
+ * @method static static findOrFail(mixed $id)
  *
  * @formatter:on
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-class User extends Model
+final class User extends Model
 {
     /** @var string|null */
     protected $table = 'users';
@@ -86,6 +91,7 @@ class User extends Model
      *
      * @return array<string, string>
      */
+    #[\Override]
     protected function casts(): array
     {
         return [

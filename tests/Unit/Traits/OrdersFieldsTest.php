@@ -1,11 +1,14 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Unit\Traits;
 
-use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\CoversTrait;
 use PHPUnit\Framework\Attributes\DataProvider;
+use SineMacula\ApiToolkit\Concerns\OrdersFields;
 use SineMacula\ApiToolkit\Enums\FieldOrderingStrategy;
-use SineMacula\ApiToolkit\Traits\OrdersFields;
+use SineMacula\ApiToolkit\Http\Resources\ApiResource;
 use Tests\Concerns\InteractsWithNonPublicMembers;
 use Tests\TestCase;
 
@@ -17,8 +20,8 @@ use Tests\TestCase;
  *
  * @internal
  */
-#[CoversClass(OrdersFields::class)]
-class OrdersFieldsTest extends TestCase
+#[CoversTrait(OrdersFields::class)]
+final class OrdersFieldsTest extends TestCase
 {
     use InteractsWithNonPublicMembers;
 
@@ -94,17 +97,17 @@ class OrdersFieldsTest extends TestCase
      * and everything else alphabetized.
      *
      * @param  array<string, mixed>  $input
-     * @param  array<int, string>  $expected_key_order
+     * @param  array<int, string>  $expectedKeyOrder
      * @return void
      */
     #[DataProvider('defaultOrderingProvider')]
-    public function testOrderByDefaultOrdersFieldsCorrectly(array $input, array $expected_key_order): void
+    public function testOrderByDefaultOrdersFieldsCorrectly(array $input, array $expectedKeyOrder): void
     {
         $consumer = $this->createConsumer(FieldOrderingStrategy::DEFAULT);
 
         $result = $this->invokeMethod($consumer, 'orderByDefault', $input);
 
-        static::assertSame($expected_key_order, array_keys($result));
+        self::assertSame($expectedKeyOrder, array_keys($result));
     }
 
     /**
@@ -147,22 +150,19 @@ class OrdersFieldsTest extends TestCase
     /**
      * Test that orderByRequestedFields maintains the requested order.
      *
-     * @param  array<int, string>  $requested_fields
+     * @param  array<int, string>  $requestedFields
      * @param  array<string, mixed>  $data
-     * @param  array<int, string>  $expected_key_order
+     * @param  array<int, string>  $expectedKeyOrder
      * @return void
      */
     #[DataProvider('requestedFieldsOrderingProvider')]
-    public function testOrderByRequestedFieldsMaintainsRequestedOrder(
-        array $requested_fields,
-        array $data,
-        array $expected_key_order,
-    ): void {
-        $consumer = $this->createConsumer(FieldOrderingStrategy::BY_REQUESTED_FIELDS, $requested_fields);
+    public function testOrderByRequestedFieldsMaintainsRequestedOrder(array $requestedFields, array $data, array $expectedKeyOrder): void
+    {
+        $consumer = $this->createConsumer(FieldOrderingStrategy::BY_REQUESTED_FIELDS, $requestedFields);
 
         $result = $this->invokeMethod($consumer, 'orderByRequestedFields', $data);
 
-        static::assertSame($expected_key_order, array_keys($result));
+        self::assertSame($expectedKeyOrder, array_keys($result));
     }
 
     /**
@@ -180,30 +180,98 @@ class OrdersFieldsTest extends TestCase
             'created_at' => self::DATE_JAN_01,
         ];
 
-        $default_consumer = $this->createConsumer(FieldOrderingStrategy::DEFAULT);
-        $default_result   = $this->invokeMethod($default_consumer, 'orderResolvedFields', $data);
+        $defaultConsumer = $this->createConsumer(FieldOrderingStrategy::DEFAULT);
+        $defaultResult   = $this->invokeMethod($defaultConsumer, 'orderResolvedFields', $data);
 
-        static::assertSame('_type', array_key_first($default_result));
+        self::assertSame('_type', array_key_first($defaultResult));
 
-        $requested_consumer = $this->createConsumer(
+        $requestedConsumer = $this->createConsumer(
             FieldOrderingStrategy::BY_REQUESTED_FIELDS,
             ['name', 'email', 'id'],
         );
-        $requested_result = $this->invokeMethod($requested_consumer, 'orderResolvedFields', $data);
+        $requestedResult = $this->invokeMethod($requestedConsumer, 'orderResolvedFields', $data);
 
-        static::assertSame('name', array_key_first($requested_result));
+        self::assertSame('name', array_key_first($requestedResult));
+    }
+
+    /**
+     * Test that the ordering helpers remain callable from subclasses of a trait
+     * consumer (protected visibility contract).
+     *
+     * @return void
+     */
+    public function testOrderingHelpersRemainProtectedForSubclasses(): void
+    {
+        $resource = new class (null) extends ApiResource {
+            /** @var string */
+            public const string RESOURCE_TYPE = 'visibility_probe';
+
+            /**
+             * Get the resource schema.
+             *
+             * @return array<string, array<string, mixed>>
+             */
+            #[\Override]
+            public static function schema(): array
+            {
+                return [];
+            }
+
+            /**
+             * Call orderResolvedFields from the subclass scope.
+             *
+             * @param  array<string, mixed>  $data
+             * @return array<string, mixed>
+             */
+            public function exposeOrderResolvedFields(array $data): array
+            {
+                return $this->orderResolvedFields($data);
+            }
+
+            /**
+             * Call orderByDefault from the subclass scope.
+             *
+             * @param  array<string, mixed>  $data
+             * @return array<string, mixed>
+             */
+            public function exposeOrderByDefault(array $data): array
+            {
+                return $this->orderByDefault($data);
+            }
+
+            /**
+             * Call orderByRequestedFields from the subclass scope.
+             *
+             * @param  array<string, mixed>  $data
+             * @return array<string, mixed>
+             */
+            public function exposeOrderByRequestedFields(array $data): array
+            {
+                return $this->orderByRequestedFields($data);
+            }
+        };
+
+        $data = [
+            'id'    => 1,
+            '_type' => 'visibility_probe',
+            'name'  => 'Alice',
+        ];
+
+        self::assertSame(['_type', 'id', 'name'], array_keys($resource->exposeOrderResolvedFields($data)));
+        self::assertSame(['_type', 'id', 'name'], array_keys($resource->exposeOrderByDefault($data)));
+        self::assertSame($data, $resource->exposeOrderByRequestedFields($data));
     }
 
     /**
      * Create a test consumer class that uses the OrdersFields trait.
      *
      * @param  \SineMacula\ApiToolkit\Enums\FieldOrderingStrategy  $strategy
-     * @param  array<int, string>  $requested_fields
+     * @param  array<int, string>  $requestedFields
      * @return object
      */
-    private function createConsumer(FieldOrderingStrategy $strategy, array $requested_fields = []): object
+    private function createConsumer(FieldOrderingStrategy $strategy, array $requestedFields = []): object
     {
-        return new class ($strategy, $requested_fields) {
+        return new class ($strategy, $requestedFields) {
             use OrdersFields;
 
             /** @var array<int, string> */
@@ -213,12 +281,12 @@ class OrdersFieldsTest extends TestCase
              * Create a new instance.
              *
              * @param  \SineMacula\ApiToolkit\Enums\FieldOrderingStrategy  $strategy
-             * @param  array<int, string>  $requested_fields
+             * @param  array<int, string>  $requestedFields
              */
-            public function __construct(FieldOrderingStrategy $strategy, array $requested_fields)
+            public function __construct(FieldOrderingStrategy $strategy, array $requestedFields)
             {
                 $this->fieldOrderingStrategy = $strategy;
-                self::$staticFields          = $requested_fields;
+                self::$staticFields          = $requestedFields;
             }
 
             /**
@@ -226,6 +294,7 @@ class OrdersFieldsTest extends TestCase
              *
              * @return array<int, string>
              */
+            #[\Override]
             public static function resolveFields(): array
             {
                 return self::$staticFields;

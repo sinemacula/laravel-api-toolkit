@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Unit\Listeners;
 
 use Illuminate\Notifications\Events\NotificationSending;
@@ -20,27 +22,28 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(NotificationListener::class)]
-class NotificationListenerTest extends TestCase
+final class NotificationListenerTest extends TestCase
 {
     /**
-     * Test that sending logs notification sending event.
+     * Test that sending logs notification sending event at debug level.
      *
      * @return void
      */
-    public function testSendingLogsNotificationSendingEvent(): void
+    public function testSendingLogsAtDebugLevel(): void
     {
-        Config::set('api-toolkit.logging.cloudwatch.enabled', false);
+        Config::set('api-toolkit.notifications.excluded_classes', []);
 
         Log::shouldReceive('channel')
             ->with('notifications')
             ->once()
             ->andReturnSelf();
 
-        Log::shouldReceive('info')
+        Log::shouldReceive('log')
             ->once()
             ->withArgs(
-                fn (string $message, array $context) => $message === 'Notification Sending'
-                    && isset($context['notification'], $context['notifiable'], $context['channel']),
+                fn (string $level, string $message, array $context) => $level === 'debug'
+                    && $message                                               === 'Notification Sending'
+                    && isset($context['notification'], $context['notifiable_type'], $context['channel']),
             );
 
         $listener = new NotificationListener;
@@ -50,24 +53,25 @@ class NotificationListenerTest extends TestCase
     }
 
     /**
-     * Test that sent logs notification sent event.
+     * Test that sent logs notification sent event at info level.
      *
      * @return void
      */
-    public function testSentLogsNotificationSentEvent(): void
+    public function testSentLogsAtInfoLevel(): void
     {
-        Config::set('api-toolkit.logging.cloudwatch.enabled', false);
+        Config::set('api-toolkit.notifications.excluded_classes', []);
 
         Log::shouldReceive('channel')
             ->with('notifications')
             ->once()
             ->andReturnSelf();
 
-        Log::shouldReceive('info')
+        Log::shouldReceive('log')
             ->once()
             ->withArgs(
-                fn (string $message, array $context) => $message === 'Notification Sent'
-                    && isset($context['notification'], $context['notifiable'], $context['channel']),
+                fn (string $level, string $message, array $context) => $level === 'info'
+                    && $message                                               === 'Notification Sent'
+                    && isset($context['notification'], $context['notifiable_type'], $context['channel']),
             );
 
         $listener = new NotificationListener;
@@ -77,13 +81,14 @@ class NotificationListenerTest extends TestCase
     }
 
     /**
-     * Test that the log includes notification class, notifiable class, and channel.
+     * Test that the log includes notification class, notifiable class, and
+     * channel.
      *
      * @return void
      */
     public function testLogIncludesCorrectContext(): void
     {
-        Config::set('api-toolkit.logging.cloudwatch.enabled', false);
+        Config::set('api-toolkit.notifications.excluded_classes', []);
 
         $notification = new class extends Notification {};
         $notifiable   = new \stdClass;
@@ -94,11 +99,11 @@ class NotificationListenerTest extends TestCase
             ->once()
             ->andReturnSelf();
 
-        Log::shouldReceive('info')
+        Log::shouldReceive('log')
             ->once()
-            ->withArgs(fn (string $message, array $context) => $context['notification'] === $notification::class
-                    && $context['notifiable']                                           === $notifiable::class
-                    && $context['channel']                                              === 'mail');
+            ->withArgs(fn (string $level, string $message, array $context) => $context['notification'] === $notification::class
+                    && $context['notifiable_type']                                                     === $notifiable::class
+                    && $context['channel']                                                             === 'mail');
 
         $listener = new NotificationListener;
 
@@ -108,26 +113,113 @@ class NotificationListenerTest extends TestCase
     }
 
     /**
-     * Test that CloudWatch logging is called when enabled.
+     * Test that excluded notification class produces no log for sending.
      *
      * @return void
      */
-    public function testCloudWatchLoggingWhenEnabled(): void
+    public function testExcludedClassSkipsLoggingForSending(): void
     {
-        Config::set('api-toolkit.logging.cloudwatch.enabled', true);
+        $notification = new class extends Notification {};
+
+        Config::set('api-toolkit.notifications.excluded_classes', [$notification::class]);
+
+        Log::shouldReceive('channel')->never();
+        Log::shouldReceive('log')->never();
+
+        $listener = new NotificationListener;
+        $event    = new NotificationSending(new \stdClass, $notification, 'mail');
+
+        $listener->sending($event);
+    }
+
+    /**
+     * Test that excluded notification class produces no log for sent.
+     *
+     * @return void
+     */
+    public function testExcludedClassSkipsLoggingForSent(): void
+    {
+        $notification = new class extends Notification {};
+
+        Config::set('api-toolkit.notifications.excluded_classes', [$notification::class]);
+
+        Log::shouldReceive('channel')->never();
+        Log::shouldReceive('log')->never();
+
+        $listener = new NotificationListener;
+        $event    = new NotificationSent(new \stdClass, $notification, 'mail');
+
+        $listener->sent($event);
+    }
+
+    /**
+     * Test that non-excluded notification is logged when exclusion list is
+     * non-empty.
+     *
+     * @return void
+     */
+    public function testNonExcludedClassIsLoggedWhenExclusionListIsNonEmpty(): void
+    {
+        Config::set('api-toolkit.notifications.excluded_classes', ['App\Notifications\SomeOtherNotification']);
 
         Log::shouldReceive('channel')
             ->with('notifications')
             ->once()
             ->andReturnSelf();
 
+        Log::shouldReceive('log')
+            ->once();
+
+        $listener = new NotificationListener;
+        $event    = $this->createSendingEvent();
+
+        $listener->sending($event);
+    }
+
+    /**
+     * Test that empty exclusion list logs all notifications.
+     *
+     * @return void
+     */
+    public function testEmptyExclusionListLogsAllNotifications(): void
+    {
+        Config::set('api-toolkit.notifications.excluded_classes', []);
+
         Log::shouldReceive('channel')
-            ->with('cloudwatch-notifications')
+            ->with('notifications')
             ->once()
             ->andReturnSelf();
 
-        Log::shouldReceive('info')
-            ->twice();
+        Log::shouldReceive('log')
+            ->once();
+
+        $listener = new NotificationListener;
+        $event    = $this->createSendingEvent();
+
+        $listener->sending($event);
+    }
+
+    /**
+     * Test that the payload omits the notifiable id when the notifiable is not
+     * an Eloquent model.
+     *
+     * @return void
+     */
+    public function testPayloadOmitsNotifiableIdForNonModelNotifiable(): void
+    {
+        Config::set('api-toolkit.notifications.excluded_classes', []);
+
+        Log::shouldReceive('channel')
+            ->with('notifications')
+            ->once()
+            ->andReturnSelf();
+
+        Log::shouldReceive('log')
+            ->once()
+            ->withArgs(
+                fn (string $level, string $message, array $context) => !array_key_exists('notifiable_id', $context)
+                    && isset($context['notification'], $context['notifiable_type'], $context['channel']),
+            );
 
         $listener = new NotificationListener;
         $event    = $this->createSendingEvent();

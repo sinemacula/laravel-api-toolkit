@@ -1,12 +1,14 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Unit\Http\Middleware;
 
 use Illuminate\Routing\Middleware\ThrottleRequests as BaseThrottleRequests;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
+use SineMacula\ApiToolkit\Http\Middleware\Concerns\ThrottleRequestsTrait;
 use SineMacula\ApiToolkit\Http\Middleware\ThrottleRequests;
-use SineMacula\ApiToolkit\Http\Middleware\Traits\ThrottleRequestsTrait;
 
 /**
  * Tests for the ThrottleRequests middleware.
@@ -17,7 +19,7 @@ use SineMacula\ApiToolkit\Http\Middleware\Traits\ThrottleRequestsTrait;
  * @internal
  */
 #[CoversClass(ThrottleRequests::class)]
-class ThrottleRequestsTest extends TestCase
+final class ThrottleRequestsTest extends TestCase
 {
     /**
      * Test that the middleware extends Laravel's ThrottleRequests.
@@ -26,7 +28,7 @@ class ThrottleRequestsTest extends TestCase
      */
     public function testExtendsBaseThrottleRequests(): void
     {
-        static::assertContains(BaseThrottleRequests::class, class_parents(ThrottleRequests::class) ?: []);
+        self::assertContains(BaseThrottleRequests::class, class_parents(ThrottleRequests::class) ?: []);
     }
 
     /**
@@ -38,6 +40,6 @@ class ThrottleRequestsTest extends TestCase
     {
         $traits = class_uses(ThrottleRequests::class);
 
-        static::assertArrayHasKey(ThrottleRequestsTrait::class, $traits);
+        self::assertArrayHasKey(ThrottleRequestsTrait::class, $traits);
     }
 }

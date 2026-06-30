@@ -1,0 +1,166 @@
+<?php
+
+declare(strict_types = 1);
+
+namespace Tests\Unit\Http\Resources\Schema;
+
+use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\TestCase;
+use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
+use SineMacula\ApiToolkit\Schema\OpenApiFieldSchema;
+
+/**
+ * Tests for the CompiledFieldDefinition value object.
+ *
+ * @author      Ben Carey <bdmc@sinemacula.co.uk>
+ * @copyright   2026 Sine Macula Limited.
+ *
+ * @internal
+ */
+#[CoversClass(CompiledFieldDefinition::class)]
+final class CompiledFieldDefinitionTest extends TestCase
+{
+    /**
+     * Test that all constructor properties are stored and accessible.
+     *
+     * @return void
+     */
+    public function testCompiledFieldDefinitionStoresAllProperties(): void
+    {
+        $constraint  = fn ($query) => $query->where('active', true);
+        $guard       = fn () => true;
+        $transformer = fn ($resource, $value) => strtoupper($value);
+        $compute     = fn ($resource) => 'computed_value';
+
+        $openApi = new OpenApiFieldSchema(type: 'string');
+
+        $definition = new CompiledFieldDefinition(
+            accessor: 'profile.name',
+            compute: $compute,
+            relation: 'profile',
+            resource: 'App\Http\Resources\ProfileResource',
+            fields: ['name', 'email'],
+            constraint: $constraint,
+            extras: ['profile.avatar'],
+            needs: ['profile_id'],
+            guards: [$guard],
+            transformers: [$transformer],
+            openApi: $openApi,
+        );
+
+        self::assertSame('profile.name', $definition->accessor);
+        self::assertSame($compute, $definition->compute);
+        self::assertSame('profile', $definition->relation);
+        self::assertSame('App\Http\Resources\ProfileResource', $definition->resource);
+        self::assertSame(['name', 'email'], $definition->fields);
+        self::assertSame($constraint, $definition->constraint);
+        self::assertSame(['profile.avatar'], $definition->extras);
+        self::assertSame(['profile_id'], $definition->needs);
+        self::assertSame([$guard], $definition->guards);
+        self::assertSame([$transformer], $definition->transformers);
+        self::assertSame($openApi, $definition->openApi);
+    }
+
+    /**
+     * Test that nullable properties accept null values.
+     *
+     * @return void
+     */
+    public function testCompiledFieldDefinitionAcceptsNullableProperties(): void
+    {
+        $definition = new CompiledFieldDefinition(
+            accessor: null,
+            compute: null,
+            relation: null,
+            resource: null,
+            fields: null,
+            constraint: null,
+            extras: [],
+            needs: [],
+            guards: [],
+            transformers: [],
+        );
+
+        self::assertNull($definition->accessor);
+        self::assertNull($definition->compute);
+        self::assertNull($definition->relation);
+        self::assertNull($definition->resource);
+        self::assertNull($definition->fields);
+        self::assertNull($definition->constraint);
+    }
+
+    /**
+     * Test that the openApi property defaults to null when omitted.
+     *
+     * @return void
+     */
+    public function testOpenApiDefaultsToNullWhenOmitted(): void
+    {
+        $definition = new CompiledFieldDefinition(
+            accessor: null,
+            compute: null,
+            relation: null,
+            resource: null,
+            fields: null,
+            constraint: null,
+            extras: [],
+            needs: [],
+            guards: [],
+            transformers: [],
+        );
+
+        self::assertNull($definition->openApi);
+    }
+
+    /**
+     * Test that an explicit openApi schema is stored and accessible.
+     *
+     * @return void
+     */
+    public function testOpenApiSchemaIsStored(): void
+    {
+        $openApi = new OpenApiFieldSchema(type: 'integer', nullable: true);
+
+        $definition = new CompiledFieldDefinition(
+            accessor: null,
+            compute: null,
+            relation: null,
+            resource: null,
+            fields: null,
+            constraint: null,
+            extras: [],
+            needs: [],
+            guards: [],
+            transformers: [],
+            openApi: $openApi,
+        );
+
+        self::assertSame($openApi, $definition->openApi);
+    }
+
+    /**
+     * Test that array properties accept empty arrays.
+     *
+     * @return void
+     */
+    public function testCompiledFieldDefinitionAcceptsEmptyArrayDefaults(): void
+    {
+        $definition = new CompiledFieldDefinition(
+            accessor: null,
+            compute: null,
+            relation: null,
+            resource: null,
+            fields: null,
+            constraint: null,
+            extras: [],
+            needs: [],
+            guards: [],
+            transformers: [],
+        );
+
+        self::assertSame([], $definition->extras);
+        self::assertSame([], $definition->needs);
+        self::assertSame([], $definition->guards);
+        self::assertSame([], $definition->transformers);
+    }
+}

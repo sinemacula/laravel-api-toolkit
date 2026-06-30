@@ -1,17 +1,17 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Unit\Http\Routing;
 
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Http\Resources\Json\ResourceCollection;
 use PHPUnit\Framework\Attributes\CoversClass;
-use SineMacula\ApiToolkit\Enums\HttpStatus;
 use SineMacula\ApiToolkit\Http\Routing\Controller;
-use Symfony\Component\HttpFoundation\StreamedResponse;
+use SineMacula\Http\Enums\HttpStatus;
 use Tests\Concerns\InteractsWithNonPublicMembers;
 use Tests\Fixtures\Controllers\TestingController;
-use Tests\Fixtures\Support\FunctionOverrides;
 use Tests\TestCase;
 
 /**
@@ -23,7 +23,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(Controller::class)]
-class ControllerTest extends TestCase
+final class ControllerTest extends TestCase
 {
     use InteractsWithNonPublicMembers;
 
@@ -55,13 +55,13 @@ class ControllerTest extends TestCase
         /** @var \Illuminate\Http\JsonResponse $response */
         $response = $this->invokeMethod($this->controller, 'respondWithData', $data);
 
-        static::assertInstanceOf(JsonResponse::class, $response);
-        static::assertSame(200, $response->getStatusCode());
+        self::assertInstanceOf(JsonResponse::class, $response);
+        self::assertSame(200, $response->getStatusCode());
 
         $content = json_decode($response->getContent(), true);
 
-        static::assertArrayHasKey('data', $content);
-        static::assertSame($data, $content['data']);
+        self::assertArrayHasKey('data', $content);
+        self::assertSame($data, $content['data']);
     }
 
     /**
@@ -76,7 +76,7 @@ class ControllerTest extends TestCase
         /** @var \Illuminate\Http\JsonResponse $response */
         $response = $this->invokeMethod($this->controller, 'respondWithData', $data, HttpStatus::CREATED);
 
-        static::assertSame(201, $response->getStatusCode());
+        self::assertSame(201, $response->getStatusCode());
     }
 
     /**
@@ -92,7 +92,7 @@ class ControllerTest extends TestCase
         /** @var \Illuminate\Http\JsonResponse $response */
         $response = $this->invokeMethod($this->controller, 'respondWithData', $data, HttpStatus::OK, $headers);
 
-        static::assertSame('custom-value', $response->headers->get('X-Custom-Header'));
+        self::assertSame('custom-value', $response->headers->get('X-Custom-Header'));
     }
 
     /**
@@ -107,8 +107,8 @@ class ControllerTest extends TestCase
         /** @var \Illuminate\Http\JsonResponse $response */
         $response = $this->invokeMethod($this->controller, 'respondWithItem', $resource);
 
-        static::assertInstanceOf(JsonResponse::class, $response);
-        static::assertSame(200, $response->getStatusCode());
+        self::assertInstanceOf(JsonResponse::class, $response);
+        self::assertSame(200, $response->getStatusCode());
     }
 
     /**
@@ -123,7 +123,7 @@ class ControllerTest extends TestCase
         /** @var \Illuminate\Http\JsonResponse $response */
         $response = $this->invokeMethod($this->controller, 'respondWithItem', $resource, HttpStatus::CREATED);
 
-        static::assertSame(201, $response->getStatusCode());
+        self::assertSame(201, $response->getStatusCode());
     }
 
     /**
@@ -141,8 +141,8 @@ class ControllerTest extends TestCase
         /** @var \Illuminate\Http\JsonResponse $response */
         $response = $this->invokeMethod($this->controller, 'respondWithCollection', $collection);
 
-        static::assertInstanceOf(JsonResponse::class, $response);
-        static::assertSame(200, $response->getStatusCode());
+        self::assertInstanceOf(JsonResponse::class, $response);
+        self::assertSame(200, $response->getStatusCode());
     }
 
     /**
@@ -157,217 +157,97 @@ class ControllerTest extends TestCase
         /** @var \Illuminate\Http\JsonResponse $response */
         $response = $this->invokeMethod($this->controller, 'respondWithCollection', $collection, HttpStatus::ACCEPTED);
 
-        static::assertSame(202, $response->getStatusCode());
+        self::assertSame(202, $response->getStatusCode());
     }
 
     /**
-     * Test that respondWithEventStream returns a StreamedResponse.
+     * Test that respondWithData is callable from a subclass, asserting the
+     * protected extension surface remains available to consuming controllers.
      *
      * @return void
      */
-    public function testRespondWithEventStreamReturnsStreamedResponse(): void
+    public function testRespondWithDataIsCallableFromSubclass(): void
     {
-        /** @var \Symfony\Component\HttpFoundation\StreamedResponse $response */
-        $response = $this->invokeMethod($this->controller, 'respondWithEventStream', static function (): void {
-            // Stream callback placeholder
-        });
+        $data = ['name' => 'Test'];
 
-        static::assertInstanceOf(StreamedResponse::class, $response);
-        static::assertSame(200, $response->getStatusCode());
+        $response = $this->createSubclassedController()->callData($data); // @phpstan-ignore method.notFound
+
+        self::assertSame(200, $response->getStatusCode());
+
+        $content = json_decode((string) $response->getContent(), true);
+
+        self::assertSame($data, $content['data']);
     }
 
     /**
-     * Test that respondWithEventStream sets SSE headers.
+     * Test that respondWithItem is callable from a subclass.
      *
      * @return void
      */
-    public function testRespondWithEventStreamSetsSseHeaders(): void
+    public function testRespondWithItemIsCallableFromSubclass(): void
     {
-        /** @var \Symfony\Component\HttpFoundation\StreamedResponse $response */
-        $response = $this->invokeMethod($this->controller, 'respondWithEventStream', static function (): void {
-            // Stream callback placeholder
-        });
+        $resource = new JsonResource(['id' => 1]);
 
-        static::assertSame('text/event-stream', $response->headers->get('Content-Type'));
-        $cache_control = $response->headers->get('Cache-Control');
-        static::assertStringContainsString('no-cache', $cache_control);
-        static::assertStringContainsString('no-transform', $cache_control);
-        static::assertSame('keep-alive', $response->headers->get('Connection'));
-        static::assertSame('no', $response->headers->get('X-Accel-Buffering'));
+        $response = $this->createSubclassedController()->callItem($resource); // @phpstan-ignore method.notFound
+
+        self::assertInstanceOf(JsonResponse::class, $response);
+        self::assertSame(200, $response->getStatusCode());
     }
 
     /**
-     * Test that respondWithEventStream accepts custom headers.
+     * Test that respondWithCollection is callable from a subclass.
      *
      * @return void
      */
-    public function testRespondWithEventStreamAcceptsCustomHeaders(): void
+    public function testRespondWithCollectionIsCallableFromSubclass(): void
     {
-        $headers = ['X-Stream-Id' => 'abc123'];
+        $collection = new ResourceCollection(collect([
+            new JsonResource(['id' => 1]),
+        ]));
 
-        /** @var \Symfony\Component\HttpFoundation\StreamedResponse $response */
-        $response = $this->invokeMethod($this->controller, 'respondWithEventStream', static function (): void {
-            // Stream callback placeholder
-        }, 1, HttpStatus::OK, $headers);
+        $response = $this->createSubclassedController()->callCollection($collection); // @phpstan-ignore method.notFound
 
-        static::assertSame('abc123', $response->headers->get('X-Stream-Id'));
-        static::assertSame('text/event-stream', $response->headers->get('Content-Type'));
+        self::assertInstanceOf(JsonResponse::class, $response);
+        self::assertSame(200, $response->getStatusCode());
     }
 
     /**
-     * Test that the stream callback body executes, including the heartbeat
-     * and sleep paths.
+     * Create a controller subclass exposing the protected response helpers.
      *
-     * Uses FunctionOverrides to control connection_aborted(), flush(), and
-     * sleep(). The user-supplied callback advances Carbon's test clock past
-     * the 20-second heartbeat threshold so the inner heartbeat block fires
-     * during the first full iteration.
+     * Calling the helpers from a subclass scope asserts they remain part of the
+     * protected extension surface available to consuming controllers.
      *
-     * @return void
+     * @return object
      */
-    public function testRespondWithEventStreamExecutesStreamBody(): void
+    private function createSubclassedController(): object
     {
-        $this->travelTo(now());
+        return new class extends TestingController {
+            /**
+             * @param  array<string, mixed>  $data
+             * @return \Illuminate\Http\JsonResponse
+             */
+            public function callData(array $data): JsonResponse
+            {
+                return $this->respondWithData($data);
+            }
 
-        $abort_count = 0;
+            /**
+             * @param  \Illuminate\Http\Resources\Json\JsonResource  $resource
+             * @return \Illuminate\Http\JsonResponse
+             */
+            public function callItem(JsonResource $resource): JsonResponse
+            {
+                return $this->respondWithItem($resource);
+            }
 
-        // 4 calls: 0, 0, 0 → full iteration + sleep; 0 → second iteration enters;
-        // heartbeat fires; call 4 at the second abort-check → break (line 110).
-        FunctionOverrides::set('connection_aborted', function () use (&$abort_count): int {
-            return ++$abort_count >= 4 ? 1 : 0;
-        });
-        FunctionOverrides::set('flush', fn () => null);
-        FunctionOverrides::set('ob_flush', fn () => null);
-        FunctionOverrides::set('sleep', fn (int $_s) => 0);
-
-        $callback_ran = false;
-
-        /** @var \Symfony\Component\HttpFoundation\StreamedResponse $response */
-        $response = $this->invokeMethod(
-            $this->controller,
-            'respondWithEventStream',
-            function () use (&$callback_ran): void {
-                $callback_ran = true;
-                $this->travel(25)->seconds();
-            },
-        );
-
-        ob_start();
-        $response->sendContent();
-        ob_end_clean();
-
-        static::assertTrue($callback_ran);
-    }
-
-    /**
-     * Test that the HEARTBEAT_INTERVAL constant is defined and equals twenty.
-     *
-     * @SuppressWarnings("php:S3011")
-     *
-     * @return void
-     */
-    public function testHeartbeatIntervalConstantEqualsTwenty(): void
-    {
-        $reflection = new \ReflectionClass(Controller::class);
-
-        $constant = $reflection->getReflectionConstant('HEARTBEAT_INTERVAL');
-
-        static::assertNotFalse($constant);
-        static::assertSame(20, $constant->getValue());
-    }
-
-    /**
-     * Test that a subclass can override the HEARTBEAT_INTERVAL constant.
-     *
-     * @SuppressWarnings("php:S3011")
-     *
-     * @return void
-     */
-    public function testHeartbeatIntervalConstantCanBeOverriddenBySubclass(): void
-    {
-        $sub = new class extends TestingController {
-            protected const int HEARTBEAT_INTERVAL = 5;
+            /**
+             * @param  \Illuminate\Http\Resources\Json\ResourceCollection  $collection
+             * @return \Illuminate\Http\JsonResponse
+             */
+            public function callCollection(ResourceCollection $collection): JsonResponse
+            {
+                return $this->respondWithCollection($collection);
+            }
         };
-
-        $reflection = new \ReflectionClass($sub);
-
-        $constant = $reflection->getReflectionConstant('HEARTBEAT_INTERVAL');
-
-        static::assertNotFalse($constant);
-        static::assertSame(5, $constant->getValue());
-    }
-
-    /**
-     * Test that respondWithEventStream emits an SSE error event and breaks the
-     * stream loop when the callback throws a Throwable.
-     *
-     * @SuppressWarnings("php:S112")
-     *
-     * @return void
-     */
-    public function testRespondWithEventStreamEmitsErrorEventAndBreaksWhenCallbackThrows(): void
-    {
-        FunctionOverrides::set('connection_aborted', fn (): int => 0);
-        FunctionOverrides::set('flush', fn () => null);
-        FunctionOverrides::set('ob_flush', fn () => null);
-        FunctionOverrides::set('sleep', fn (int $_s) => 0);
-
-        $call_count = 0;
-
-        /** @var \Symfony\Component\HttpFoundation\StreamedResponse $response */
-        $response = $this->invokeMethod(
-            $this->controller,
-            'respondWithEventStream',
-            function () use (&$call_count): void {
-                $call_count++;
-                throw new \RuntimeException('Simulated stream failure');
-            },
-        );
-
-        ob_start();
-        $response->sendContent();
-        $output = ob_get_clean();
-
-        static::assertStringContainsString("event: error\n\n", (string) $output);
-        static::assertSame(1, $call_count);
-    }
-
-    /**
-     * Test that the stream loop breaks on the first abort check at the start
-     * of the second iteration.
-     *
-     * 3 abort calls: 0, 0, 1. The first iteration runs fully (callback +
-     * heartbeat + sleep), then the third call at the first per-iteration
-     * check of iteration 2 returns 1, exercising the break on line 92.
-     *
-     * @return void
-     */
-    public function testRespondWithEventStreamBreaksOnFirstCheckOfSecondIteration(): void
-    {
-        $this->travelTo(now());
-
-        $abort_count = 0;
-
-        FunctionOverrides::set('connection_aborted', function () use (&$abort_count): int {
-            return ++$abort_count >= 3 ? 1 : 0;
-        });
-        FunctionOverrides::set('flush', fn () => null);
-        FunctionOverrides::set('ob_flush', fn () => null);
-        FunctionOverrides::set('sleep', fn (int $_s) => 0);
-
-        /** @var \Symfony\Component\HttpFoundation\StreamedResponse $response */
-        $response = $this->invokeMethod(
-            $this->controller,
-            'respondWithEventStream',
-            function (): void {
-                $this->travel(25)->seconds();
-            },
-        );
-
-        ob_start();
-        $response->sendContent();
-        ob_end_clean();
-
-        static::assertInstanceOf(StreamedResponse::class, $response);
     }
 }

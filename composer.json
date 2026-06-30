@@ -18,33 +18,40 @@
     ],
     "require": {
         "php": "^8.3",
-        "aws/aws-sdk-php": "^3.342",
-        "illuminate/database": "*",
-        "illuminate/http": "*",
-        "illuminate/notifications": "*",
-        "illuminate/routing": "*",
+        "illuminate/database": "^12.0",
+        "illuminate/http": "^12.0",
+        "illuminate/routing": "^12.0",
         "illuminate/support": "^12.9",
-        "illuminate/validation": "*",
-        "phpnexus/cwh": "^3.0",
-        "sinemacula/laravel-repositories": "^2.0",
-        "sinemacula/laravel-resource-exporter": "^2.0"
+        "illuminate/validation": "^12.0",
+        "sinemacula/http-primitives-php": "^2.0",
+        "sinemacula/laravel-repositories": "^2.0"
+    },
+    "suggest": {
+        "illuminate/notifications": "Required only for notification-event logging",
+        "sinemacula/laravel-log-cloudwatch": "CloudWatch log driver (Monolog), extracted from this package",
+        "sinemacula/laravel-log-database": "Database log driver (Monolog), extracted from this package",
+        "sinemacula/laravel-resource-exporter": "Content-negotiated exports (CSV/TSV/XLSX/XML/JSON/NDJSON) for resources and collections; wires into resource responses automatically when installed",
+        "sinemacula/laravel-sse": "Server-sent event streaming for controllers, extracted from this package"
     },
     "require-dev": {
-        "brianium/paratest": "^7.8",
-        "friendsofphp/php-cs-fixer": "^3.85",
+        "brianium/paratest": "^7.20",
+        "friendsofphp/php-cs-fixer": "3.89.0",
+        "infection/infection": "0.33.2",
         "mockery/mockery": "^1.6",
+        "opis/json-schema": "^2.4",
         "orchestra/testbench": "^9.0 || ^10.0",
         "phpstan/extension-installer": "^1.4",
-        "phpstan/phpdoc-parser": "^2.2",
-        "phpstan/phpstan": "^2.1",
+        "phpstan/phpdoc-parser": "^2.3",
+        "phpstan/phpstan": "2.1.46",
         "phpstan/phpstan-deprecation-rules": "^2.0",
         "phpstan/phpstan-mockery": "^2.0",
         "phpstan/phpstan-phpunit": "^2.0",
         "phpstan/phpstan-strict-rules": "^2.0",
-        "phpunit/phpunit": "^11.5.3",
-        "sinemacula/coding-standards": "^1.0",
-        "slevomat/coding-standard": "^8.20",
-        "squizlabs/php_codesniffer": "^3.13"
+        "phpunit/phpunit": "^12.5",
+        "sinemacula/coding-standards-laravel": "^1.0",
+        "sinemacula/laravel-resource-exporter": "^3.0",
+        "slevomat/coding-standard": "^8.28",
+        "squizlabs/php_codesniffer": "4.0.1"
     },
     "autoload": {
         "psr-4": {
@@ -63,21 +70,30 @@
         "format": [
             "qlty fmt"
         ],
-        "smell": [
+        "smells": [
             "qlty smells"
         ],
         "test": [
-            "@php vendor/bin/paratest $@"
+            "@php vendor/bin/paratest"
         ],
-        "test-coverage": [
+        "test:coverage": [
             "@php vendor/bin/paratest --coverage-clover=clover.xml"
+        ],
+        "test:mutation": [
+            "@php -d memory_limit=-1 vendor/bin/infection --configuration=infection.json5 --test-framework-options=\"--do-not-fail-on-warning --do-not-fail-on-phpunit-warning\" --only-covering-test-cases --min-msi=90 --min-covered-msi=90"
+        ],
+        "test:mutation:full": [
+            "@php -d memory_limit=-1 vendor/bin/infection --configuration=infection.full.json5 --test-framework-options=\"--do-not-fail-on-warning --do-not-fail-on-phpunit-warning\" --only-covering-test-cases"
         ]
     },
     "scripts-descriptions": {
         "check": "Run static analysis and lint checks via qlty.",
         "format": "Format codebase using qlty.",
-        "test": "Run the default PHPUnit test suites in parallel using Paratest.",
-        "test-coverage": "Shortcut to run Paratest coverage for default suites."
+        "smells": "Report code smells (duplication, complexity) via qlty.",
+        "test": "Run the PHPUnit test suite in parallel using Paratest.",
+        "test:coverage": "Run the PHPUnit test suite with clover coverage report.",
+        "test:mutation": "Run the Infection mutation-testing gate against the MSI thresholds.",
+        "test:mutation:full": "Run the full Infection mutation suite without MSI thresholds."
     },
     "config": {
         "optimize-autoloader": true,
@@ -85,6 +101,7 @@
         "sort-packages": true,
         "allow-plugins": {
             "dealerdirect/phpcodesniffer-composer-installer": true,
+            "infection/extension-installer": true,
             "phpstan/extension-installer": true
         }
     },
@@ -94,5 +111,7 @@
                 "SineMacula\\ApiToolkit\\ApiServiceProvider"
             ]
         }
-    }
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true
 }

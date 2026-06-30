@@ -1,9 +1,11 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace SineMacula\ApiToolkit\Http\Middleware;
 
 use Illuminate\Routing\Middleware\ThrottleRequestsWithRedis as BaseThrottleRequestsWithRedis;
-use SineMacula\ApiToolkit\Http\Middleware\Traits\ThrottleRequestsTrait;
+use SineMacula\ApiToolkit\Http\Middleware\Concerns\ThrottleRequestsTrait;
 
 /**
  * Throttle requests with redis middleware.
@@ -11,7 +13,7 @@ use SineMacula\ApiToolkit\Http\Middleware\Traits\ThrottleRequestsTrait;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-class ThrottleRequestsWithRedis extends BaseThrottleRequestsWithRedis
+final class ThrottleRequestsWithRedis extends BaseThrottleRequestsWithRedis
 {
     use ThrottleRequestsTrait;
 }

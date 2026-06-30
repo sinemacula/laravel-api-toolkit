@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace SineMacula\ApiToolkit\Http\Middleware;
 
 use Illuminate\Http\Request;
@@ -12,13 +14,13 @@ use Symfony\Component\HttpFoundation\Response;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-class ParseApiQuery
+final class ParseApiQuery
 {
     /**
      * Handle an incoming request.
      *
      * @param  \Illuminate\Http\Request  $request
-     * @param  \Closure  $next
+     * @param  \Closure(\Illuminate\Http\Request): \Symfony\Component\HttpFoundation\Response  $next
      * @return \Symfony\Component\HttpFoundation\Response
      */
     public function handle(Request $request, \Closure $next): Response

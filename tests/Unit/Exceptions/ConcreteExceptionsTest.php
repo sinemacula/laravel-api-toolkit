@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Unit\Exceptions;
 
 use Orchestra\Testbench\TestCase;
@@ -7,15 +9,16 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use SineMacula\ApiToolkit\Exceptions\ApiException;
 use SineMacula\ApiToolkit\Exceptions\BadRequestException;
-use SineMacula\ApiToolkit\Exceptions\FileUploadException;
+use SineMacula\ApiToolkit\Exceptions\ConflictException;
 use SineMacula\ApiToolkit\Exceptions\ForbiddenException;
-use SineMacula\ApiToolkit\Exceptions\InvalidImageException;
+use SineMacula\ApiToolkit\Exceptions\GoneException;
 use SineMacula\ApiToolkit\Exceptions\InvalidInputException;
-use SineMacula\ApiToolkit\Exceptions\InvalidNotificationException;
+use SineMacula\ApiToolkit\Exceptions\LockedException;
 use SineMacula\ApiToolkit\Exceptions\MaintenanceModeException;
 use SineMacula\ApiToolkit\Exceptions\NotAllowedException;
 use SineMacula\ApiToolkit\Exceptions\NotFoundException;
-use SineMacula\ApiToolkit\Exceptions\SmsSendFailedException;
+use SineMacula\ApiToolkit\Exceptions\PayloadTooLargeException;
+use SineMacula\ApiToolkit\Exceptions\ServiceUnavailableException;
 use SineMacula\ApiToolkit\Exceptions\TokenMismatchException;
 use SineMacula\ApiToolkit\Exceptions\TooManyRequestsException;
 use SineMacula\ApiToolkit\Exceptions\UnauthenticatedException;
@@ -30,21 +33,46 @@ use SineMacula\ApiToolkit\Exceptions\UnhandledException;
  * @internal
  */
 #[CoversClass(BadRequestException::class)]
-#[CoversClass(FileUploadException::class)]
+#[CoversClass(ConflictException::class)]
 #[CoversClass(ForbiddenException::class)]
-#[CoversClass(InvalidImageException::class)]
+#[CoversClass(GoneException::class)]
 #[CoversClass(InvalidInputException::class)]
-#[CoversClass(InvalidNotificationException::class)]
+#[CoversClass(LockedException::class)]
 #[CoversClass(MaintenanceModeException::class)]
 #[CoversClass(NotAllowedException::class)]
 #[CoversClass(NotFoundException::class)]
-#[CoversClass(SmsSendFailedException::class)]
+#[CoversClass(PayloadTooLargeException::class)]
+#[CoversClass(ServiceUnavailableException::class)]
 #[CoversClass(TokenMismatchException::class)]
 #[CoversClass(TooManyRequestsException::class)]
 #[CoversClass(UnauthenticatedException::class)]
 #[CoversClass(UnhandledException::class)]
-class ConcreteExceptionsTest extends TestCase
+final class ConcreteExceptionsTest extends TestCase
 {
+    /**
+     * Provide all concrete exception classes with their expected codes.
+     *
+     * @return iterable<string, array{class-string<\SineMacula\ApiToolkit\Exceptions\ApiException>, int, int}>
+     */
+    public static function exceptionProvider(): iterable
+    {
+        yield 'BadRequestException' => [BadRequestException::class, 10100, 400];
+        yield 'ConflictException' => [ConflictException::class, 10108, 409];
+        yield 'ForbiddenException' => [ForbiddenException::class, 10102, 403];
+        yield 'GoneException' => [GoneException::class, 10109, 410];
+        yield 'InvalidInputException' => [InvalidInputException::class, 10106, 422];
+        yield 'LockedException' => [LockedException::class, 10111, 423];
+        yield 'MaintenanceModeException' => [MaintenanceModeException::class, 10200, 503];
+        yield 'NotAllowedException' => [NotAllowedException::class, 10104, 405];
+        yield 'NotFoundException' => [NotFoundException::class, 10103, 404];
+        yield 'PayloadTooLargeException' => [PayloadTooLargeException::class, 10110, 413];
+        yield 'ServiceUnavailableException' => [ServiceUnavailableException::class, 10112, 503];
+        yield 'TokenMismatchException' => [TokenMismatchException::class, 10105, 419];
+        yield 'TooManyRequestsException' => [TooManyRequestsException::class, 10107, 429];
+        yield 'UnauthenticatedException' => [UnauthenticatedException::class, 10101, 401];
+        yield 'UnhandledException' => [UnhandledException::class, 10001, 500];
+    }
+
     /**
      * Test that the exception extends ApiException.
      *
@@ -58,7 +86,7 @@ class ConcreteExceptionsTest extends TestCase
     {
         $exception = new $class;
 
-        static::assertInstanceOf(ApiException::class, $exception);
+        self::assertInstanceOf(ApiException::class, $exception);
     }
 
     /**
@@ -72,7 +100,7 @@ class ConcreteExceptionsTest extends TestCase
     #[DataProvider('exceptionProvider')]
     public function testGetInternalErrorCodeReturnsExpectedCode(string $class, int $expectedInternalCode, int $expectedHttpCode): void
     {
-        static::assertSame($expectedInternalCode, $class::getInternalErrorCode());
+        self::assertSame($expectedInternalCode, $class::getInternalErrorCode());
     }
 
     /**
@@ -86,29 +114,6 @@ class ConcreteExceptionsTest extends TestCase
     #[DataProvider('exceptionProvider')]
     public function testGetHttpStatusCodeReturnsExpectedStatus(string $class, int $expectedInternalCode, int $expectedHttpCode): void
     {
-        static::assertSame($expectedHttpCode, $class::getHttpStatusCode());
-    }
-
-    /**
-     * Provide all concrete exception classes with their expected codes.
-     *
-     * @return iterable<string, array{class-string<\SineMacula\ApiToolkit\Exceptions\ApiException>, int, int}>
-     */
-    public static function exceptionProvider(): iterable
-    {
-        yield 'BadRequestException' => [BadRequestException::class, 10100, 400];
-        yield 'FileUploadException' => [FileUploadException::class, 10300, 500];
-        yield 'ForbiddenException' => [ForbiddenException::class, 10102, 403];
-        yield 'InvalidImageException' => [InvalidImageException::class, 10301, 422];
-        yield 'InvalidInputException' => [InvalidInputException::class, 10106, 422];
-        yield 'InvalidNotificationException' => [InvalidNotificationException::class, 10400, 500];
-        yield 'MaintenanceModeException' => [MaintenanceModeException::class, 10200, 503];
-        yield 'NotAllowedException' => [NotAllowedException::class, 10104, 405];
-        yield 'NotFoundException' => [NotFoundException::class, 10103, 404];
-        yield 'SmsSendFailedException' => [SmsSendFailedException::class, 10401, 500];
-        yield 'TokenMismatchException' => [TokenMismatchException::class, 10105, 419];
-        yield 'TooManyRequestsException' => [TooManyRequestsException::class, 10107, 429];
-        yield 'UnauthenticatedException' => [UnauthenticatedException::class, 10101, 401];
-        yield 'UnhandledException' => [UnhandledException::class, 10001, 500];
+        self::assertSame($expectedHttpCode, $class::getHttpStatusCode());
     }
 }

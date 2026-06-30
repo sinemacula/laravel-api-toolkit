@@ -1,0 +1,569 @@
+<?php
+
+declare(strict_types = 1);
+
+namespace Tests\Unit\Schema\Validation\Rules;
+
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
+use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\TestCase;
+use SineMacula\ApiToolkit\Schema\CompiledCountDefinition;
+use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
+use SineMacula\ApiToolkit\Schema\CompiledSchema;
+use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateRelationMethods;
+use Tests\Fixtures\Models\User;
+use Tests\Fixtures\Resources\OrganizationResource;
+use Tests\Fixtures\Resources\PostResource;
+use Tests\Fixtures\Resources\UserResource;
+
+/**
+ * Tests for the ValidateRelationMethods validation rule.
+ *
+ * @author      Ben Carey <bdmc@sinemacula.co.uk>
+ * @copyright   2026 Sine Macula Limited.
+ *
+ * @SuppressWarnings("php:S1192")
+ *
+ * @internal
+ */
+#[CoversClass(ValidateRelationMethods::class)]
+final class ValidateRelationMethodsTest extends TestCase
+{
+    /**
+     * Test no errors for relation methods that exist on model.
+     *
+     * @return void
+     */
+    public function testNoErrorsForRelationMethodsThatExistOnModel(): void
+    {
+        $schema = new CompiledSchema(
+            fields: [
+                'organization' => new CompiledFieldDefinition(
+                    accessor: 'organization',
+                    compute: null,
+                    relation: 'organization',
+                    resource: OrganizationResource::class,
+                    fields: null,
+                    constraint: null,
+                    extras: [],
+                    needs: [],
+                    guards: [],
+                    transformers: [],
+                ),
+                'posts' => new CompiledFieldDefinition(
+                    accessor: 'posts',
+                    compute: null,
+                    relation: 'posts',
+                    resource: PostResource::class,
+                    fields: null,
+                    constraint: null,
+                    extras: [],
+                    needs: [],
+                    guards: [],
+                    transformers: [],
+                ),
+            ],
+            counts: [],
+        );
+
+        $rule   = new ValidateRelationMethods;
+        $errors = $rule->validate(UserResource::class, User::class, $schema);
+
+        self::assertSame([], $errors);
+    }
+
+    /**
+     * Test reports relation method not existing on model.
+     *
+     * @return void
+     */
+    public function testReportsRelationMethodNotExistingOnModel(): void
+    {
+        $schema = new CompiledSchema(
+            fields: [
+                'nonexistent' => new CompiledFieldDefinition(
+                    accessor: 'nonexistent',
+                    compute: null,
+                    relation: 'nonexistent_relation',
+                    resource: OrganizationResource::class,
+                    fields: null,
+                    constraint: null,
+                    extras: [],
+                    needs: [],
+                    guards: [],
+                    transformers: [],
+                ),
+            ],
+            counts: [],
+        );
+
+        $rule   = new ValidateRelationMethods;
+        $errors = $rule->validate(UserResource::class, User::class, $schema);
+
+        self::assertCount(1, $errors);
+        self::assertSame('nonexistent', $errors[0]->fieldKey);
+        self::assertStringContainsString('nonexistent_relation', $errors[0]->defect);
+        self::assertStringContainsString(User::class, $errors[0]->defect);
+    }
+
+    /**
+     * Test skips when model class is null.
+     *
+     * @return void
+     */
+    public function testSkipsWhenModelClassIsNull(): void
+    {
+        $schema = new CompiledSchema(
+            fields: [
+                'organization' => new CompiledFieldDefinition(
+                    accessor: 'organization',
+                    compute: null,
+                    relation: 'organization',
+                    resource: OrganizationResource::class,
+                    fields: null,
+                    constraint: null,
+                    extras: [],
+                    needs: [],
+                    guards: [],
+                    transformers: [],
+                ),
+            ],
+            counts: [],
+        );
+
+        $rule   = new ValidateRelationMethods;
+        $errors = $rule->validate(UserResource::class, null, $schema);
+
+        self::assertSame([], $errors);
+    }
+
+    /**
+     * Test that null field definitions are skipped without errors.
+     *
+     * @return void
+     */
+    public function testSkipsNullFieldDefinitions(): void
+    {
+        $reflection = new \ReflectionClass(CompiledSchema::class);
+        $schema     = $reflection->newInstanceWithoutConstructor();
+
+        $reflection->getProperty('fields')->setValue($schema, ['ghost' => null]);
+        $reflection->getProperty('counts')->setValue($schema, []);
+
+        $rule   = new ValidateRelationMethods;
+        $errors = [];
+
+        $warnings = $this->captureWarnings(fn () => $rule->validate(UserResource::class, User::class, $schema), $errors);
+
+        self::assertSame([], $warnings);
+        self::assertSame([], $errors);
+    }
+
+    /**
+     * Test that validation continues past fields without relations and still
+     * reports later defects.
+     *
+     * @return void
+     */
+    public function testContinuesPastFieldsWithoutRelations(): void
+    {
+        $schema = new CompiledSchema(
+            fields: [
+                'clean' => new CompiledFieldDefinition(
+                    accessor: 'name',
+                    compute: null,
+                    relation: null,
+                    resource: null,
+                    fields: null,
+                    constraint: null,
+                    extras: [],
+                    needs: [],
+                    guards: [],
+                    transformers: [],
+                ),
+                'bad' => new CompiledFieldDefinition(
+                    accessor: 'bad',
+                    compute: null,
+                    relation: 'missing_relation',
+                    resource: OrganizationResource::class,
+                    fields: null,
+                    constraint: null,
+                    extras: [],
+                    needs: [],
+                    guards: [],
+                    transformers: [],
+                ),
+            ],
+            counts: [],
+        );
+
+        $rule   = new ValidateRelationMethods;
+        $errors = $rule->validate(UserResource::class, User::class, $schema);
+
+        self::assertCount(1, $errors);
+        self::assertSame('bad', $errors[0]->fieldKey);
+    }
+
+    /**
+     * Test that every missing relation method is reported.
+     *
+     * @return void
+     */
+    public function testReportsAllMissingRelationMethods(): void
+    {
+        $schema = new CompiledSchema(
+            fields: [
+                'first' => new CompiledFieldDefinition(
+                    accessor: 'first',
+                    compute: null,
+                    relation: 'missing_first_relation',
+                    resource: OrganizationResource::class,
+                    fields: null,
+                    constraint: null,
+                    extras: [],
+                    needs: [],
+                    guards: [],
+                    transformers: [],
+                ),
+                'second' => new CompiledFieldDefinition(
+                    accessor: 'second',
+                    compute: null,
+                    relation: 'missing_second_relation',
+                    resource: OrganizationResource::class,
+                    fields: null,
+                    constraint: null,
+                    extras: [],
+                    needs: [],
+                    guards: [],
+                    transformers: [],
+                ),
+            ],
+            counts: [],
+        );
+
+        $rule   = new ValidateRelationMethods;
+        $errors = $rule->validate(UserResource::class, User::class, $schema);
+
+        self::assertCount(2, $errors);
+        self::assertSame('first', $errors[0]->fieldKey);
+        self::assertSame('second', $errors[1]->fieldKey);
+    }
+
+    /**
+     * Test reports relation method missing on model for count definition.
+     *
+     * @return void
+     */
+    public function testReportsRelationMethodMissingOnModelForCountDefinition(): void
+    {
+        $schema = new CompiledSchema(
+            fields: [],
+            counts: [
+                'nonexistent_count' => new CompiledCountDefinition(
+                    presentKey: 'nonexistent_count',
+                    relation: 'nonexistent_relation',
+                    constraint: null,
+                    isDefault: false,
+                    guards: [],
+                ),
+            ],
+        );
+
+        $rule   = new ValidateRelationMethods;
+        $errors = $rule->validate(UserResource::class, User::class, $schema);
+
+        self::assertCount(1, $errors);
+        self::assertSame('nonexistent_count', $errors[0]->fieldKey);
+        self::assertStringContainsString('nonexistent_relation', $errors[0]->defect);
+        self::assertStringContainsString(User::class, $errors[0]->defect);
+    }
+
+    /**
+     * Test reports field relation method without return type hint.
+     *
+     * @return void
+     */
+    public function testReportsFieldRelationMethodWithoutReturnTypeHint(): void
+    {
+        $model = new class extends Model {
+            // phpcs:disable Squiz.Commenting.FunctionComment.MissingReturn, SineMaculaLaravel.TypeHints.ReturnTypeHint.MissingNativeTypeHint
+            /**
+             * A relation method with no return type declaration.
+             */
+            public function items() // @phpstan-ignore missingType.return
+            {
+                return $this;
+            }
+            // phpcs:enable Squiz.Commenting.FunctionComment.MissingReturn, SineMaculaLaravel.TypeHints.ReturnTypeHint.MissingNativeTypeHint
+        };
+
+        $modelClass = $model::class;
+
+        $schema = new CompiledSchema(
+            fields: [
+                'items' => new CompiledFieldDefinition(
+                    accessor: 'items',
+                    compute: null,
+                    relation: 'items',
+                    resource: UserResource::class,
+                    fields: null,
+                    constraint: null,
+                    extras: [],
+                    needs: [],
+                    guards: [],
+                    transformers: [],
+                ),
+            ],
+            counts: [],
+        );
+
+        $rule   = new ValidateRelationMethods;
+        $errors = $rule->validate(UserResource::class, $modelClass, $schema);
+
+        self::assertCount(1, $errors);
+        self::assertStringContainsString('has no return type hint', $errors[0]->defect);
+    }
+
+    /**
+     * Test reports field relation method with non-Relation return type.
+     *
+     * @return void
+     */
+    public function testReportsFieldRelationMethodWithNonRelationReturnType(): void
+    {
+        $model = new class extends Model {
+            /**
+             * @return string
+             */
+            public function wrongType(): string
+            {
+                return '';
+            }
+        };
+        $modelClass = $model::class;
+
+        $schema = new CompiledSchema(
+            fields: [
+                'wrong' => new CompiledFieldDefinition(
+                    accessor: 'wrong',
+                    compute: null,
+                    relation: 'wrongType',
+                    resource: UserResource::class,
+                    fields: null,
+                    constraint: null,
+                    extras: [],
+                    needs: [],
+                    guards: [],
+                    transformers: [],
+                ),
+            ],
+            counts: [],
+        );
+
+        $rule   = new ValidateRelationMethods;
+        $errors = $rule->validate(UserResource::class, $modelClass, $schema);
+
+        self::assertCount(1, $errors);
+        self::assertStringContainsString('is not a Relation subclass', $errors[0]->defect);
+        self::assertStringContainsString('string', $errors[0]->defect);
+    }
+
+    /**
+     * Test passes field relation method with union type containing Relation.
+     *
+     * @return void
+     */
+    public function testPassesFieldRelationMethodWithUnionTypeContainingRelation(): void
+    {
+        $model = new class extends Model {
+            // phpcs:disable Generic.Files.LineLength.TooLong
+            /**
+             * @return \Illuminate\Database\Eloquent\Relations\HasMany<\Tests\Fixtures\Models\User, $this>|\Illuminate\Database\Eloquent\Relations\MorphMany<\Illuminate\Database\Eloquent\Model, $this>
+             */
+            public function items(): HasMany|MorphMany // @phpstan-ignore return.unusedType
+            {
+                return $this->hasMany(User::class);
+            }
+            // phpcs:enable Generic.Files.LineLength.TooLong
+        };
+        $modelClass = $model::class;
+
+        $schema = new CompiledSchema(
+            fields: [
+                'items' => new CompiledFieldDefinition(
+                    accessor: 'items',
+                    compute: null,
+                    relation: 'items',
+                    resource: UserResource::class,
+                    fields: null,
+                    constraint: null,
+                    extras: [],
+                    needs: [],
+                    guards: [],
+                    transformers: [],
+                ),
+            ],
+            counts: [],
+        );
+
+        $rule   = new ValidateRelationMethods;
+        $errors = $rule->validate(UserResource::class, $modelClass, $schema);
+
+        self::assertSame([], $errors);
+    }
+
+    /**
+     * Test reports field relation method with union type containing no
+     * Relation.
+     *
+     * @return void
+     */
+    public function testReportsFieldRelationMethodWithUnionTypeContainingNoRelation(): void
+    {
+        $model = new class extends Model {
+            /**
+             * @return int|string
+             */
+            public function items(): int|string // @phpstan-ignore return.unusedType (the non-relation union return type is the validation subject under test)
+            {
+                return '';
+            }
+        };
+        $modelClass = $model::class;
+
+        $schema = new CompiledSchema(
+            fields: [
+                'items' => new CompiledFieldDefinition(
+                    accessor: 'items',
+                    compute: null,
+                    relation: 'items',
+                    resource: UserResource::class,
+                    fields: null,
+                    constraint: null,
+                    extras: [],
+                    needs: [],
+                    guards: [],
+                    transformers: [],
+                ),
+            ],
+            counts: [],
+        );
+
+        $rule   = new ValidateRelationMethods;
+        $errors = $rule->validate(UserResource::class, $modelClass, $schema);
+
+        self::assertCount(1, $errors);
+        self::assertStringContainsString('union return type with no Relation subclass member', $errors[0]->defect);
+    }
+
+    /**
+     * Test reports count definition relation method without return type hint.
+     *
+     * @return void
+     */
+    public function testReportsCountDefinitionRelationMethodWithoutReturnTypeHint(): void
+    {
+        $model = new class extends Model {
+            // phpcs:disable Squiz.Commenting.FunctionComment.MissingReturn, SineMaculaLaravel.TypeHints.ReturnTypeHint.MissingNativeTypeHint
+            /**
+             * A relation method with no return type declaration.
+             */
+            public function items() // @phpstan-ignore missingType.return
+            {
+                return $this;
+            }
+            // phpcs:enable Squiz.Commenting.FunctionComment.MissingReturn, SineMaculaLaravel.TypeHints.ReturnTypeHint.MissingNativeTypeHint
+        };
+
+        $modelClass = $model::class;
+
+        $schema = new CompiledSchema(
+            fields: [],
+            counts: [
+                'items_count' => new CompiledCountDefinition(
+                    presentKey: 'items_count',
+                    relation: 'items',
+                    constraint: null,
+                    isDefault: false,
+                    guards: [],
+                ),
+            ],
+        );
+
+        $rule   = new ValidateRelationMethods;
+        $errors = $rule->validate(UserResource::class, $modelClass, $schema);
+
+        self::assertCount(1, $errors);
+        self::assertSame('items_count', $errors[0]->fieldKey);
+        self::assertStringContainsString('has no return type hint', $errors[0]->defect);
+    }
+
+    /**
+     * Test reports count definition relation method with non-Relation return
+     * type.
+     *
+     * @return void
+     */
+    public function testReportsCountDefinitionRelationMethodWithNonRelationReturnType(): void
+    {
+        $model = new class extends Model {
+            /**
+             * @return string
+             */
+            public function wrongType(): string
+            {
+                return '';
+            }
+        };
+
+        $modelClass = $model::class;
+
+        $schema = new CompiledSchema(
+            fields: [],
+            counts: [
+                'wrong_count' => new CompiledCountDefinition(
+                    presentKey: 'wrong_count',
+                    relation: 'wrongType',
+                    constraint: null,
+                    isDefault: false,
+                    guards: [],
+                ),
+            ],
+        );
+
+        $rule   = new ValidateRelationMethods;
+        $errors = $rule->validate(UserResource::class, $modelClass, $schema);
+
+        self::assertCount(1, $errors);
+        self::assertStringContainsString('is not a Relation subclass', $errors[0]->defect);
+        self::assertStringContainsString('string', $errors[0]->defect);
+    }
+
+    /**
+     * Run the given callback while capturing any raised PHP warnings.
+     *
+     * @param  callable(): array<int, \SineMacula\ApiToolkit\Schema\Validation\SchemaValidationError>  $callback
+     * @param  array<int, \SineMacula\ApiToolkit\Schema\Validation\SchemaValidationError>  $errors
+     * @return array<int, string>
+     */
+    private function captureWarnings(callable $callback, array &$errors): array
+    {
+        $warnings = [];
+
+        set_error_handler(static function (int $severity, string $message) use (&$warnings): bool {
+            $warnings[] = $message;
+
+            return true;
+        });
+
+        try {
+            $errors = $callback();
+        } finally {
+            restore_error_handler();
+        }
+
+        return $warnings;
+    }
+}

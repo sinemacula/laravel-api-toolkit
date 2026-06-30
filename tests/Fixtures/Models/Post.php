@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Fixtures\Models;
 
 use Illuminate\Database\Eloquent\Model;
@@ -20,7 +22,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-class Post extends Model
+final class Post extends Model
 {
     /** @var string|null */
     protected $table = 'posts';
@@ -49,10 +51,21 @@ class Post extends Model
     }
 
     /**
+     * Get the countries associated with the post via a non-`id` related key.
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\BelongsToMany<\Tests\Fixtures\Models\Country, $this>
+     */
+    public function countries(): BelongsToMany
+    {
+        return $this->belongsToMany(Country::class, 'country_post', 'post_id', 'country_code', 'id', 'code');
+    }
+
+    /**
      * Get the attributes that should be cast.
      *
      * @return array<string, string>
      */
+    #[\Override]
     protected function casts(): array
     {
         return [

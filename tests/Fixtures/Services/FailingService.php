@@ -1,34 +1,51 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Fixtures\Services;
 
+use SineMacula\ApiToolkit\Services\Contracts\ServiceInput;
+use SineMacula\ApiToolkit\Services\Input\ArrayInput;
 use SineMacula\ApiToolkit\Services\Service;
 use Tests\Fixtures\Exceptions\ServiceExecutionException;
 
 /**
  * Fixture service that always fails.
  *
+ * @extends \SineMacula\ApiToolkit\Services\Service<\SineMacula\ApiToolkit\Services\Input\ArrayInput, never>
+ *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-class FailingService extends Service
+final class FailingService extends Service
 {
-    /** @var bool Track whether failed() was called */
-    public bool $failedCalled = false;
+    /** @var bool Track whether onFailure() was called */
+    public bool $onFailureCalled = false;
 
-    /** @var \Throwable|null The exception passed to the failed callback */
-    public ?\Throwable $failedException = null;
+    /** @var \Throwable|null The exception passed to onFailure() */
+    public ?\Throwable $onFailureException = null;
 
     /**
-     * Method is triggered if the handle method failed.
+     * Constructor.
+     *
+     * @param  \SineMacula\ApiToolkit\Services\Contracts\ServiceInput  $input
+     */
+    public function __construct(ServiceInput $input = new ArrayInput([]))
+    {
+        parent::__construct($input);
+    }
+
+    /**
+     * React to a failed outcome after the transaction has rolled back.
      *
      * @param  \Throwable  $exception
      * @return void
      */
-    public function failed(\Throwable $exception): void
+    #[\Override]
+    protected function onFailure(\Throwable $exception): void
     {
-        $this->failedCalled    = true;
-        $this->failedException = $exception;
+        $this->onFailureCalled    = true;
+        $this->onFailureException = $exception;
     }
 
     /**
@@ -38,7 +55,8 @@ class FailingService extends Service
      *
      * @throws \Tests\Fixtures\Exceptions\ServiceExecutionException
      */
-    protected function handle(): bool
+    #[\Override]
+    protected function handle(): never
     {
         throw new ServiceExecutionException('Service execution failed');
     }

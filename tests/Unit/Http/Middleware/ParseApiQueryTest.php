@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Unit\Http\Middleware;
 
 use Illuminate\Http\Request;
@@ -7,6 +9,7 @@ use Illuminate\Http\Response;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
 use SineMacula\ApiToolkit\Http\Middleware\ParseApiQuery;
+use SineMacula\Http\Enums\HttpMethod;
 use Tests\TestCase;
 
 /**
@@ -18,10 +21,11 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(ParseApiQuery::class)]
-class ParseApiQueryTest extends TestCase
+final class ParseApiQueryTest extends TestCase
 {
     /**
-     * Test that the middleware calls ApiQuery::parse and passes request to next.
+     * Test that the middleware calls ApiQuery::parse and passes request to
+     * next.
      *
      * @return void
      */
@@ -30,19 +34,19 @@ class ParseApiQueryTest extends TestCase
         ApiQuery::shouldReceive('parse')
             ->once();
 
-        $request          = Request::create('/test', 'GET');
+        $request          = Request::create('/test', HttpMethod::GET->getVerb());
         $middleware       = new ParseApiQuery;
         $expectedResponse = new Response('ok');
         $receivedRequest  = null;
 
-        $result = $middleware->handle($request, function ($req) use (&$receivedRequest, $expectedResponse) {
+        $result = $middleware->handle($request, function ($req) use (&$receivedRequest, $expectedResponse): Response {
             $receivedRequest = $req;
 
             return $expectedResponse;
         });
 
-        static::assertSame($request, $receivedRequest);
-        static::assertSame($expectedResponse, $result);
+        self::assertSame($request, $receivedRequest);
+        self::assertSame($expectedResponse, $result);
     }
 
     /**
@@ -55,13 +59,13 @@ class ParseApiQueryTest extends TestCase
         ApiQuery::shouldReceive('parse')
             ->once();
 
-        $request          = Request::create('/test', 'GET');
+        $request          = Request::create('/test', HttpMethod::GET->getVerb());
         $middleware       = new ParseApiQuery;
         $expectedResponse = new Response('expected content', 201);
 
         $result = $middleware->handle($request, fn () => $expectedResponse);
 
-        static::assertSame($expectedResponse, $result);
-        static::assertSame(201, $result->getStatusCode());
+        self::assertSame($expectedResponse, $result);
+        self::assertSame(201, $result->getStatusCode());
     }
 }

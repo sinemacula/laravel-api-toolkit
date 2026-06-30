@@ -1,12 +1,22 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Unit\Repositories\Traits;
 
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Config;
-use PHPUnit\Framework\Attributes\CoversClass;
-use SineMacula\ApiToolkit\Repositories\Traits\ResolvesResource;
+use PHPUnit\Framework\Attributes\CoversTrait;
+use SineMacula\ApiToolkit\Cache\MetadataCacheWriter;
+use SineMacula\ApiToolkit\Cache\MetadataKeyRegistry;
+use SineMacula\ApiToolkit\Enums\CacheKeys;
+use SineMacula\ApiToolkit\Repositories\Concerns\ResolvesResource;
 use Tests\Concerns\InteractsWithNonPublicMembers;
+use Tests\Fixtures\Models\Tag;
 use Tests\Fixtures\Models\User;
+use Tests\Fixtures\Repositories\UserRepository;
+use Tests\Fixtures\Resources\TagResource;
 use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
 
@@ -18,8 +28,8 @@ use Tests\TestCase;
  *
  * @internal
  */
-#[CoversClass(ResolvesResource::class)]
-class ResolvesResourceTest extends TestCase
+#[CoversTrait(ResolvesResource::class)]
+final class ResolvesResourceTest extends TestCase
 {
     use InteractsWithNonPublicMembers;
 
@@ -35,11 +45,11 @@ class ResolvesResourceTest extends TestCase
         /** @phpstan-ignore method.notFound */
         $result = $consumer->usingResource(UserResource::class);
 
-        static::assertSame($consumer, $result);
+        self::assertSame($consumer, $result);
 
         $customResource = $this->getProperty($consumer, 'customResourceClass');
 
-        static::assertSame(UserResource::class, $customResource);
+        self::assertSame(UserResource::class, $customResource);
     }
 
     /**
@@ -55,7 +65,7 @@ class ResolvesResourceTest extends TestCase
 
         $result = $this->invokeMethod($consumer, 'resolveResource', new User);
 
-        static::assertSame(UserResource::class, $result);
+        self::assertSame(UserResource::class, $result);
     }
 
     /**
@@ -71,7 +81,7 @@ class ResolvesResourceTest extends TestCase
 
         $result = $this->invokeMethod($consumer, 'resolveResource', new User);
 
-        static::assertSame(UserResource::class, $result);
+        self::assertSame(UserResource::class, $result);
     }
 
     /**
@@ -87,7 +97,140 @@ class ResolvesResourceTest extends TestCase
 
         $result = $this->invokeMethod($consumer, 'resolveResource', new User);
 
-        static::assertNull($result);
+        self::assertNull($result);
+    }
+
+    /**
+     * Test that flushResourceCache clears the memo-cached resource mappings.
+     *
+     * @return void
+     */
+    public function testFlushResourceCacheClearsMemoEntries(): void
+    {
+        Config::set('api-toolkit.resources.resource_map.' . User::class, UserResource::class);
+
+        $consumer = $this->createConsumer();
+
+        $this->invokeMethod($consumer, 'resolveResource', new User);
+
+        $consumer::flushResourceCache(); // @phpstan-ignore staticMethod.notFound
+
+        $result = Cache::memo()->get('api-toolkit:model-resources:' . User::class);
+
+        self::assertNull($result);
+    }
+
+    /**
+     * Test that flushResourceCache on an empty memo store does not throw an
+     * exception.
+     *
+     * @return void
+     */
+    public function testFlushResourceCacheOnEmptyStoreIsHarmless(): void
+    {
+        $consumer = $this->createConsumer();
+
+        $consumer::flushResourceCache(); // @phpstan-ignore staticMethod.notFound
+
+        self::assertTrue(true);
+    }
+
+    /**
+     * Test that resolveResource prefers the custom resource class over the
+     * configured mapping.
+     *
+     * @return void
+     */
+    public function testResolveResourcePrefersCustomResourceOverMappedResource(): void
+    {
+        Config::set('api-toolkit.resources.resource_map.' . User::class, UserResource::class);
+
+        $consumer = $this->createConsumer();
+        // @phpstan-ignore method.notFound
+        $consumer->usingResource(TagResource::class);
+
+        $result = $this->invokeMethod($consumer, 'resolveResource', new User);
+
+        self::assertSame(TagResource::class, $result);
+    }
+
+    /**
+     * Test that resource resolution caches mappings per model class rather than
+     * sharing a single cache entry.
+     *
+     * @return void
+     */
+    public function testResourceResolutionIsCachedPerModelClass(): void
+    {
+        Config::set('api-toolkit.resources.resource_map.' . User::class, UserResource::class);
+        Config::set('api-toolkit.resources.resource_map.' . Tag::class, TagResource::class);
+
+        $consumer = $this->createConsumer();
+
+        self::assertSame(UserResource::class, $this->invokeMethod($consumer, 'resolveResource', new User));
+        self::assertSame(TagResource::class, $this->invokeMethod($consumer, 'resolveResource', new Tag));
+    }
+
+    /**
+     * Test that the resolution methods remain accessible to consuming
+     * repository subclasses as protected extension points.
+     *
+     * @return void
+     */
+    public function testResolutionMethodsAreAccessibleFromSubclasses(): void
+    {
+        Config::set('api-toolkit.resources.resource_map.' . User::class, UserResource::class);
+
+        assert($this->app !== null);
+
+        $repository = new class ($this->app) extends UserRepository {
+            /**
+             * Expose the protected resolveResource method.
+             *
+             * @param  \Illuminate\Database\Eloquent\Model  $model
+             * @return string|null
+             */
+            public function exposeResolveResource(Model $model): ?string
+            {
+                return $this->resolveResource($model);
+            }
+
+            /**
+             * Expose the protected getResourceFromModel method.
+             *
+             * @param  \Illuminate\Database\Eloquent\Model  $model
+             * @return string|null
+             */
+            public function exposeGetResourceFromModel(Model $model): ?string
+            {
+                return $this->getResourceFromModel($model);
+            }
+        };
+
+        self::assertSame(UserResource::class, $repository->exposeResolveResource(new User));
+        self::assertSame(UserResource::class, $repository->exposeGetResourceFromModel(new User));
+    }
+
+    /**
+     * Test that resolving a model resource registers the MODEL_RESOURCES key in
+     * the MetadataKeyRegistry.
+     *
+     * @return void
+     */
+    public function testResolveResourceRegistersResourcesKey(): void
+    {
+        Config::set('api-toolkit.resources.resource_map.' . User::class, UserResource::class);
+
+        assert($this->app !== null);
+
+        $consumer = $this->createConsumer();
+
+        $this->invokeMethod($consumer, 'resolveResource', new User);
+
+        $registry    = $this->app->make(MetadataKeyRegistry::class);
+        $expectedKey = CacheKeys::MODEL_RESOURCES->resolveKey([User::class]);
+
+        self::assertContains($expectedKey, $registry->keys());
     }
 
     /**
@@ -97,8 +240,33 @@ class ResolvesResourceTest extends TestCase
      */
     private function createConsumer(): object
     {
-        return new class {
+        assert($this->app !== null);
+
+        return new class ($this->app->make(MetadataCacheWriter::class)) {
             use ResolvesResource;
+
+            /**
+             * Create the consumer with the injected metadata cache writer.
+             *
+             * @param  \SineMacula\ApiToolkit\Cache\MetadataCacheWriter  $writer
+             * @return void
+             */
+            public function __construct(
+
+                /** The metadata cache writer backing the trait. */
+                private readonly MetadataCacheWriter $writer,
+            ) {}
+
+            /**
+             * Get the injected metadata cache writer.
+             *
+             * @return \SineMacula\ApiToolkit\Cache\MetadataCacheWriter
+             */
+            #[\Override]
+            protected function metadataCacheWriter(): MetadataCacheWriter
+            {
+                return $this->writer;
+            }
         };
     }
 }

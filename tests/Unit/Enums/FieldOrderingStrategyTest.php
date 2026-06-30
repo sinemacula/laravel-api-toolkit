@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Unit\Enums;
 
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -16,8 +18,19 @@ use SineMacula\ApiToolkit\Enums\FieldOrderingStrategy;
  * @internal
  */
 #[CoversClass(FieldOrderingStrategy::class)]
-class FieldOrderingStrategyTest extends TestCase
+final class FieldOrderingStrategyTest extends TestCase
 {
+    /**
+     * Provide all FieldOrderingStrategy cases with their expected values.
+     *
+     * @return iterable<string, array{\SineMacula\ApiToolkit\Enums\FieldOrderingStrategy, string}>
+     */
+    public static function caseProvider(): iterable
+    {
+        yield 'DEFAULT' => [FieldOrderingStrategy::DEFAULT, 'default'];
+        yield 'BY_REQUESTED_FIELDS' => [FieldOrderingStrategy::BY_REQUESTED_FIELDS, 'by_requested_fields'];
+    }
+
     /**
      * Test that each case has the expected string value.
      *
@@ -28,7 +41,7 @@ class FieldOrderingStrategyTest extends TestCase
     #[DataProvider('caseProvider')]
     public function testCaseHasExpectedValue(FieldOrderingStrategy $case, string $expectedValue): void
     {
-        static::assertSame($expectedValue, $case->value);
+        self::assertSame($expectedValue, $case->value);
     }
 
     /**
@@ -38,7 +51,7 @@ class FieldOrderingStrategyTest extends TestCase
      */
     public function testDefaultCaseValue(): void
     {
-        static::assertSame('default', FieldOrderingStrategy::DEFAULT->value);
+        self::assertSame('default', FieldOrderingStrategy::DEFAULT->value);
     }
 
     /**
@@ -48,7 +61,7 @@ class FieldOrderingStrategyTest extends TestCase
      */
     public function testByRequestedFieldsCaseValue(): void
     {
-        static::assertSame('by_requested_fields', FieldOrderingStrategy::BY_REQUESTED_FIELDS->value);
+        self::assertSame('by_requested_fields', FieldOrderingStrategy::BY_REQUESTED_FIELDS->value);
     }
 
     /**
@@ -58,17 +71,6 @@ class FieldOrderingStrategyTest extends TestCase
      */
     public function testExpectedCaseCount(): void
     {
-        static::assertCount(2, FieldOrderingStrategy::cases());
-    }
-
-    /**
-     * Provide all FieldOrderingStrategy cases with their expected values.
-     *
-     * @return iterable<string, array{\SineMacula\ApiToolkit\Enums\FieldOrderingStrategy, string}>
-     */
-    public static function caseProvider(): iterable
-    {
-        yield 'DEFAULT' => [FieldOrderingStrategy::DEFAULT, 'default'];
-        yield 'BY_REQUESTED_FIELDS' => [FieldOrderingStrategy::BY_REQUESTED_FIELDS, 'by_requested_fields'];
+        self::assertCount(2, FieldOrderingStrategy::cases());
     }
 }

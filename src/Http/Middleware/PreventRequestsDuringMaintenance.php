@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace SineMacula\ApiToolkit\Http\Middleware;
 
 use Illuminate\Contracts\Foundation\Application;
@@ -14,7 +16,7 @@ use Symfony\Component\HttpKernel\Exception\HttpException;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-class PreventRequestsDuringMaintenance extends Middleware
+final class PreventRequestsDuringMaintenance extends Middleware
 {
     /**
      * Create a new middleware instance.
@@ -26,20 +28,26 @@ class PreventRequestsDuringMaintenance extends Middleware
     {
         parent::__construct($app);
 
-        $this->except = Config::get('api-toolkit.maintenance_mode.except', []);
+        /** @var array<int, string> $except */
+        $except = Config::get('api-toolkit.maintenance_mode.except', []);
+
+        $this->except = $except;
     }
 
     /**
      * Handle an incoming request.
      *
-     * phpcs:disable Squiz.Commenting.FunctionComment.ScalarTypeHintMissing
+     * phpcs:disable Squiz.Commenting.FunctionComment.ScalarTypeHintMissing,Squiz.Commenting.FunctionComment.TypeHintMissing
      *
      * @param  \Illuminate\Http\Request  $request
-     * @param  \Closure  $next
+     * @param  \Closure(\Illuminate\Http\Request): mixed  $next
      * @return mixed
      *
-     * @throws \SineMacula\ApiToolkit\Exceptions\ApiException
+     * @throws \SineMacula\ApiToolkit\Exceptions\MaintenanceModeException
+     *
+     * @phpstan-ignore method.childParameterType
      */
+    #[\Override]
     public function handle(#[\SensitiveParameter] $request, \Closure $next): mixed
     {
         // phpcs:enable

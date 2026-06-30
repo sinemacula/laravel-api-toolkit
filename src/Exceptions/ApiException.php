@@ -1,11 +1,12 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace SineMacula\ApiToolkit\Exceptions;
 
-use Exception;
 use Illuminate\Support\Facades\Lang;
 use SineMacula\ApiToolkit\Contracts\ErrorCodeInterface;
-use SineMacula\ApiToolkit\Enums\HttpStatus;
+use SineMacula\Http\Enums\HttpStatus;
 
 /**
  * The base API exception.
@@ -18,8 +19,8 @@ abstract class ApiException extends \Exception
     /**
      * Constructor.
      *
-     * @param  array|null  $meta
-     * @param  array|null  $headers
+     * @param  array<string, mixed>|null  $meta
+     * @param  array<string, mixed>|null  $headers
      * @param  \Throwable|null  $previous
      */
     public function __construct(
@@ -30,10 +31,10 @@ abstract class ApiException extends \Exception
         /** Exception headers */
         private readonly ?array $headers = null,
 
+        // The previous throwable
         ?\Throwable $previous = null,
-
     ) {
-        parent::__construct($this->getCustomDetail(), $this->getHttpStatusCode(), $previous);
+        parent::__construct($this->getCustomDetail(), $this->getStatusCode(), $previous);
     }
 
     /**
@@ -43,7 +44,15 @@ abstract class ApiException extends \Exception
      */
     public function getCustomDetail(): string
     {
-        return Lang::get($this->getTranslationKey('detail'));
+        $key = $this->getTranslationKey('detail');
+
+        if (Lang::has($key)) {
+            $translation = Lang::get($key);
+
+            return is_string($translation) ? $translation : '';
+        }
+
+        return '';
     }
 
     /**
@@ -60,10 +69,43 @@ abstract class ApiException extends \Exception
      * Get HTTP status code.
      *
      * @return int
+     *
+     * @throws \LogicException
      */
     public static function getHttpStatusCode(): int
     {
-        return self::getHttpStatus()->getCode();
+        return self::getHttpStatus()?->getCode()
+            ?? throw new \LogicException('The HTTP_STATUS constant must be defined on the exception');
+    }
+
+    /**
+     * Get the HTTP status code for this exception instance.
+     *
+     * Defaults to the static resolution (HTTP_STATUS constant or a static
+     * override for non-standard codes). Subclasses carrying a runtime status
+     * (e.g. the generic HttpException) may override this; the exception handler
+     * renders responses from this instance-level code.
+     *
+     * @return int
+     */
+    public function getStatusCode(): int
+    {
+        return static::getHttpStatusCode();
+    }
+
+    /**
+     * Get the HTTP status for this exception instance.
+     *
+     * Defaults to the HTTP_STATUS constant, or null for exceptions whose status
+     * has no corresponding case in the shared HTTP status enum (e.g. the
+     * non-standard 419). Used to derive the default title when no translation
+     * exists for the error code.
+     *
+     * @return \SineMacula\Http\Enums\HttpStatus|null
+     */
+    public function getStatus(): ?HttpStatus
+    {
+        return self::getHttpStatus();
     }
 
     /**
@@ -73,13 +115,21 @@ abstract class ApiException extends \Exception
      */
     public function getCustomTitle(): string
     {
-        return Lang::get($this->getTranslationKey('title'));
+        $key = $this->getTranslationKey('title');
+
+        if (Lang::has($key)) {
+            $translation = Lang::get($key);
+
+            return is_string($translation) ? $translation : '';
+        }
+
+        return $this->getDefaultTitle();
     }
 
     /**
      * Get custom Meta.
      *
-     * @return array|null
+     * @return array<string, mixed>|null
      */
     public function getCustomMeta(): ?array
     {
@@ -89,7 +139,7 @@ abstract class ApiException extends \Exception
     /**
      * Get headers.
      *
-     * @return array
+     * @return array<string, mixed>
      */
     public function getHeaders(): array
     {
@@ -99,9 +149,9 @@ abstract class ApiException extends \Exception
     /**
      * Get the namespace of the current exception.
      *
-     * @return string|null
+     * @return string
      */
-    protected function getNamespace(): ?string
+    protected function getNamespace(): string
     {
         return 'api-toolkit';
     }
@@ -110,6 +160,8 @@ abstract class ApiException extends \Exception
      * Get internal error.
      *
      * @return \SineMacula\ApiToolkit\Contracts\ErrorCodeInterface
+     *
+     * @throws \LogicException
      */
     private static function getInternalError(): ErrorCodeInterface
     {
@@ -117,21 +169,46 @@ abstract class ApiException extends \Exception
             throw new \LogicException('The CODE constant must be defined on the exception');
         }
 
-        return static::CODE;
+        /** @var \SineMacula\ApiToolkit\Contracts\ErrorCodeInterface */
+        return constant(static::class . '::CODE');
     }
 
     /**
      * Get HTTP status.
      *
-     * @return \SineMacula\ApiToolkit\Enums\HttpStatus
+     * Returns null for exceptions that declare no HTTP_STATUS constant, such as
+     * those whose status has no case in the shared HTTP status enum.
+     *
+     * @return \SineMacula\Http\Enums\HttpStatus|null
      */
-    private static function getHttpStatus(): HttpStatus
+    private static function getHttpStatus(): ?HttpStatus
     {
         if (!defined(static::class . '::HTTP_STATUS')) {
-            throw new \LogicException('The HTTP_STATUS constant must be defined on the exception');
+            return null;
         }
 
-        return static::HTTP_STATUS;
+        /** @var \SineMacula\Http\Enums\HttpStatus */
+        return constant(static::class . '::HTTP_STATUS');
+    }
+
+    /**
+     * Derive a human-readable title from the HTTP status enum case name.
+     *
+     * Falls back to a generic title for exceptions whose status has no
+     * corresponding enum case, ensuring rendering never fails for a missing
+     * title.
+     *
+     * @return string
+     */
+    private function getDefaultTitle(): string
+    {
+        $status = $this->getStatus();
+
+        if ($status === null) {
+            return 'Unknown Error';
+        }
+
+        return ucwords(strtolower(str_replace('_', ' ', $status->name)));
     }
 
     /**
@@ -142,6 +219,6 @@ abstract class ApiException extends \Exception
      */
     private function getTranslationKey(string $key): string
     {
-        return sprintf('%s::exceptions.%s.%s', $this->getNamespace(), $this->getInternalErrorCode(), $key);
+        return sprintf('%s::exceptions.%s.%s', $this->getNamespace(), static::getInternalErrorCode(), $key);
     }
 }

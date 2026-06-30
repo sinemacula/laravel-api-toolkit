@@ -1,21 +1,27 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Unit\Repositories;
 
 use Illuminate\Contracts\Pagination\CursorPaginator;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Config;
+use Illuminate\Support\Facades\DB;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Repositories\ApiRepository;
+use SineMacula\ApiToolkit\Repositories\Concerns\AttributeSetter;
 use SineMacula\ApiToolkit\Repositories\Criteria\ApiCriteria;
+use SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface;
+use SineMacula\Http\Enums\HttpMethod;
 use Tests\Concerns\InteractsWithNonPublicMembers;
 use Tests\Fixtures\Enums\UserStatus;
 use Tests\Fixtures\Models\Organization;
 use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\Tag;
 use Tests\Fixtures\Models\User;
+use Tests\Fixtures\Repositories\CacheableTagRepository;
 use Tests\Fixtures\Repositories\DummyRepository;
-use Tests\Fixtures\Repositories\TagRepository;
 use Tests\Fixtures\Repositories\UserRepository;
 use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
@@ -31,7 +37,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(ApiRepository::class)]
-class ApiRepositoryTest extends TestCase
+final class ApiRepositoryTest extends TestCase
 {
     use InteractsWithNonPublicMembers;
 
@@ -49,11 +55,17 @@ class ApiRepositoryTest extends TestCase
      *
      * @return void
      */
+    #[\Override]
     protected function setUp(): void
     {
         parent::setUp();
 
         assert($this->app !== null);
+
+        // Pin the blocklist posture so criteria filtering follows the legacy
+        // isSearchable contract these mechanics tests assert; the allowlist
+        // default has dedicated coverage in QuerySurfaceIntegrationTest.
+        Config::set('api-toolkit.repositories.query_posture', QuerySurface::POSTURE_BLOCKLIST);
 
         $this->repository = $this->app->make(UserRepository::class);
     }
@@ -67,18 +79,18 @@ class ApiRepositoryTest extends TestCase
     {
         $result = $this->repository->withApiCriteria();
 
-        static::assertSame($this->repository, $result);
+        self::assertSame($this->repository, $result);
 
         $criteria = $this->repository->getCriteria();
 
-        static::assertTrue(
+        self::assertTrue(
             $criteria->contains(fn ($c) => $c instanceof ApiCriteria),
         );
     }
 
     /**
-     * Test that usingResource sets the custom resource class and propagates
-     * to existing ApiCriteria.
+     * Test that usingResource sets the custom resource class and propagates to
+     * existing ApiCriteria.
      *
      * @return void
      */
@@ -89,11 +101,11 @@ class ApiRepositoryTest extends TestCase
         $this->repository->withApiCriteria();
         $this->repository->usingResource(UserResource::class);
 
-        static::assertSame(UserResource::class, $this->repository->getResourceClass());
+        self::assertSame(UserResource::class, $this->repository->getResourceClass());
 
         $criteria = $this->repository->getCriteria();
 
-        static::assertTrue(
+        self::assertTrue(
             $criteria->contains(fn ($c) => $c instanceof ApiCriteria),
         );
     }
@@ -110,7 +122,7 @@ class ApiRepositoryTest extends TestCase
 
         $result = $this->repository->getResourceClass();
 
-        static::assertSame(UserResource::class, $result);
+        self::assertSame(UserResource::class, $result);
     }
 
     /**
@@ -124,7 +136,7 @@ class ApiRepositoryTest extends TestCase
 
         $result = $this->repository->getResourceClass();
 
-        static::assertNull($result);
+        self::assertNull($result);
     }
 
     /**
@@ -141,7 +153,7 @@ class ApiRepositoryTest extends TestCase
 
         $result = $this->repository->paginate();
 
-        static::assertCount(2, $result);
+        self::assertCount(2, $result);
     }
 
     /**
@@ -153,7 +165,7 @@ class ApiRepositoryTest extends TestCase
     {
         User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL]);
 
-        $request = Request::create('/', 'GET', ['pagination' => 'cursor']);
+        $request = Request::create('/', HttpMethod::GET->getVerb(), ['pagination' => 'cursor']);
 
         assert($this->app !== null);
 
@@ -169,32 +181,33 @@ class ApiRepositoryTest extends TestCase
 
         $result = $repository->paginate();
 
-        static::assertInstanceOf(CursorPaginator::class, $result);
+        self::assertInstanceOf(CursorPaginator::class, $result);
     }
 
     /**
-     * Test that setAttributes sets string attributes on the model.
+     * Test that persist sets string attributes on the model.
      *
      * @return void
      */
-    public function testSetAttributesSetsStringAttributes(): void
+    public function testPersistSetsStringAttributes(): void
     {
         $user = User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL]);
 
-        $this->setProperty($this->repository, 'casts', ['name' => 'string']);
+        $attributeSetter = $this->getAttributeSetter($this->repository);
+        $this->setProperty($attributeSetter, 'casts', ['name' => 'string']);
 
-        $result = $this->repository->setAttributes($user, ['name' => 'Bob']);
+        $result = $this->repository->persist($user, ['name' => 'Bob']);
 
-        static::assertTrue($result);
-        static::assertSame('Bob', $user->fresh()?->name);
+        self::assertTrue($result);
+        self::assertSame('Bob', $user->fresh()?->name);
     }
 
     /**
-     * Test that setAttributes sets integer attributes on the model.
+     * Test that persist sets integer attributes on the model.
      *
      * @return void
      */
-    public function testSetAttributesSetsIntegerAttributes(): void
+    public function testPersistSetsIntegerAttributes(): void
     {
         Config::set('api-toolkit.repositories.cast_map.integer', ['integer', 'int']);
 
@@ -204,20 +217,21 @@ class ApiRepositoryTest extends TestCase
 
         $repository = $this->app->make(UserRepository::class);
 
-        $this->setProperty($repository, 'casts', ['organization_id' => 'integer']);
+        $attributeSetter = $this->getAttributeSetter($repository);
+        $this->setProperty($attributeSetter, 'casts', ['organization_id' => 'integer']);
 
-        $result = $repository->setAttributes($user, ['organization_id' => '5']);
+        $result = $repository->persist($user, ['organization_id' => '5']);
 
-        static::assertTrue($result);
-        static::assertSame(5, $user->fresh()?->organization_id);
+        self::assertTrue($result);
+        self::assertSame(5, $user->fresh()?->organization_id);
     }
 
     /**
-     * Test that setAttributes sets boolean attributes on the model.
+     * Test that persist sets boolean attributes on the model.
      *
      * @return void
      */
-    public function testSetAttributesSetsBooleanAttributes(): void
+    public function testPersistSetsBooleanAttributes(): void
     {
         $post = Post::create([
             'user_id' => User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL])->id,
@@ -229,47 +243,50 @@ class ApiRepositoryTest extends TestCase
 
         $repository = $this->app->make(DummyRepository::class);
 
-        $this->setProperty($repository, 'casts', ['published' => 'boolean']);
+        $attributeSetter = $this->getAttributeSetter($repository);
+        $this->setProperty($attributeSetter, 'casts', ['published' => 'boolean']);
 
-        $result = $repository->setAttributes($post, ['published' => true]);
+        $result = $repository->persist($post, ['published' => true]);
 
-        static::assertTrue($result);
-        static::assertTrue($post->fresh()?->published === true);
+        self::assertTrue($result);
+        self::assertTrue($post->fresh()?->published === true);
     }
 
     /**
-     * Test that setAttributes handles array attributes on the model.
+     * Test that persist handles array attributes on the model.
      *
      * @return void
      */
-    public function testSetAttributesHandlesArrayAttributes(): void
+    public function testPersistHandlesArrayAttributes(): void
     {
         $user = User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL]);
 
-        $this->setProperty($this->repository, 'casts', ['name' => 'string']);
+        $attributeSetter = $this->getAttributeSetter($this->repository);
+        $this->setProperty($attributeSetter, 'casts', ['name' => 'string']);
 
-        $result = $this->repository->setAttributes($user, ['name' => 'Updated']);
+        $result = $this->repository->persist($user, ['name' => 'Updated']);
 
-        static::assertTrue($result);
-        static::assertSame('Updated', $user->fresh()?->name);
+        self::assertTrue($result);
+        self::assertSame('Updated', $user->fresh()?->name);
     }
 
     /**
-     * Test that setAttributes handles enum casting.
+     * Test that persist handles enum casting.
      *
      * @return void
      */
-    public function testSetAttributesHandlesEnumCasting(): void
+    public function testPersistHandlesEnumCasting(): void
     {
         $user = User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL, 'status' => 'active']);
 
-        $this->setProperty($this->repository, 'casts', ['status' => 'enum']);
+        $attributeSetter = $this->getAttributeSetter($this->repository);
+        $this->setProperty($attributeSetter, 'casts', ['status' => 'enum']);
 
-        $result = $this->repository->setAttributes($user, ['status' => UserStatus::BANNED]);
+        $result = $this->repository->persist($user, ['status' => UserStatus::BANNED]);
 
-        static::assertTrue($result);
+        self::assertTrue($result);
         // @phpstan-ignore staticMethod.impossibleType
-        static::assertSame(UserStatus::BANNED, $user->fresh()?->status);
+        self::assertSame(UserStatus::BANNED, $user->fresh()?->status);
     }
 
     /**
@@ -284,9 +301,9 @@ class ApiRepositoryTest extends TestCase
 
         $result = $this->repository->scopeById($alice->id)->first(); // @phpstan-ignore staticMethod.dynamicCall
 
-        static::assertNotNull($result);
-        static::assertInstanceOf(User::class, $result);
-        static::assertSame($alice->id, $result->id);
+        self::assertNotNull($result);
+        self::assertInstanceOf(User::class, $result);
+        self::assertSame($alice->id, $result->id);
     }
 
     /**
@@ -303,7 +320,7 @@ class ApiRepositoryTest extends TestCase
         $ids    = [$alice->id, $bob->id];
         $result = $this->repository->scopeByIds($ids)->get(); // @phpstan-ignore staticMethod.dynamicCall
 
-        static::assertCount(2, $result);
+        self::assertCount(2, $result);
     }
 
     /**
@@ -313,68 +330,192 @@ class ApiRepositoryTest extends TestCase
      */
     public function testBootResolvesAttributeCasts(): void
     {
-        $casts = $this->getProperty($this->repository, 'casts');
+        $attributeSetter = $this->getAttributeSetter($this->repository);
 
-        static::assertIsArray($casts);
+        self::assertInstanceOf(AttributeSetter::class, $attributeSetter);
+
+        /** @var array<string, string|null> $casts */
+        $casts = $this->getProperty($attributeSetter, 'casts');
+
+        self::assertNotEmpty($casts);
+        self::assertArrayHasKey('status', $casts);
     }
 
     /**
-     * Test that setAttributes handles array cast attributes.
+     * Test that usingResource propagates the resource class to every
+     * ApiCriteria already registered on the repository.
      *
      * @return void
      */
-    public function testSetAttributesSetsArrayAttributes(): void
+    public function testUsingResourceUpdatesExistingApiCriteriaInstances(): void
+    {
+        $this->repository->withApiCriteria();
+        $this->repository->usingResource(UserResource::class);
+
+        $criteria = $this->repository->getCriteria()->first(fn ($c) => $c instanceof ApiCriteria);
+
+        self::assertInstanceOf(ApiCriteria::class, $criteria);
+        self::assertSame(UserResource::class, $this->getProperty($criteria, 'customResourceClass'));
+    }
+
+    /**
+     * Test that withApiCriteria propagates an already-set custom resource class
+     * onto the newly created criteria instance.
+     *
+     * @return void
+     */
+    public function testWithApiCriteriaSetsResourceOnNewCriteriaInstance(): void
+    {
+        $this->repository->usingResource(UserResource::class);
+        $this->repository->withApiCriteria();
+
+        $criteria = $this->repository->getCriteria()->first(fn ($c) => $c instanceof ApiCriteria);
+
+        self::assertInstanceOf(ApiCriteria::class, $criteria);
+        self::assertSame(UserResource::class, $this->getProperty($criteria, 'customResourceClass'));
+    }
+
+    /**
+     * Test that paginate applies registered criteria to the query.
+     *
+     * @return void
+     */
+    public function testPaginateAppliesCriteria(): void
+    {
+        User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL]);
+        User::create(['name' => 'Bob', 'email' => self::BOB_EMAIL]);
+
+        $this->parseRequest(new Request([
+            'filters' => json_encode(['name' => 'Alice']),
+            'limit'   => '10',
+        ]));
+
+        $result = $this->repository->withApiCriteria()->paginate();
+
+        self::assertCount(1, $result);
+        self::assertInstanceOf(User::class, $result[0]);
+        self::assertSame('Alice', $result[0]->name);
+    }
+
+    /**
+     * Test that paginate applies registered scopes to the query.
+     *
+     * @return void
+     */
+    public function testPaginateAppliesScopes(): void
+    {
+        $alice = User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL]);
+        User::create(['name' => 'Bob', 'email' => self::BOB_EMAIL]);
+
+        $this->parseRequest(new Request(['limit' => '10']));
+
+        $this->repository->withApiCriteria();
+        $this->repository->scopeById($alice->id);
+
+        $result = $this->repository->paginate();
+
+        self::assertCount(1, $result);
+        self::assertInstanceOf(User::class, $result[0]);
+        self::assertSame($alice->id, $result[0]->id);
+    }
+
+    /**
+     * Test that paginate appends the current query string to the generated
+     * pagination URLs.
+     *
+     * @return void
+     */
+    public function testPaginateAppendsRequestQueryToPaginationUrls(): void
+    {
+        User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL]);
+
+        $request = Request::create('/', HttpMethod::GET->getVerb(), ['limit' => '1', 'marker' => 'xyz']);
+
+        assert($this->app !== null);
+
+        $this->app->instance('request', $request);
+
+        \Illuminate\Support\Facades\Request::clearResolvedInstance('request');
+
+        $this->parseRequest($request);
+
+        assert($this->app !== null);
+
+        $repository = $this->app->make(UserRepository::class);
+
+        /** @var \Illuminate\Pagination\LengthAwarePaginator<int, \Tests\Fixtures\Models\User> $result */
+        $result = $repository->paginate();
+
+        self::assertStringContainsString('marker=xyz', $result->url(1));
+    }
+
+    /**
+     * Test that scopeByIds de-duplicates the given ids before binding them into
+     * the query.
+     *
+     * @return void
+     */
+    public function testScopeByIdsDeduplicatesIds(): void
+    {
+        $alice = User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL]);
+
+        DB::enableQueryLog();
+
+        $result = $this->repository->scopeByIds([$alice->id, $alice->id])->get(); // @phpstan-ignore staticMethod.dynamicCall
+
+        $select = collect(DB::getQueryLog())->last(
+            fn (array $query): bool => str_starts_with($query['query'], 'select'),
+        );
+
+        DB::disableQueryLog();
+
+        self::assertCount(1, $result);
+        self::assertNotNull($select);
+        self::assertSame([$alice->id], $select['bindings']);
+    }
+
+    /**
+     * Test that persist handles array cast attributes.
+     *
+     * @return void
+     */
+    public function testPersistSetsArrayAttributes(): void
     {
         $user = User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL]);
 
-        $this->setProperty($this->repository, 'casts', ['name' => 'array']);
+        $attributeSetter = $this->getAttributeSetter($this->repository);
+        $this->setProperty($attributeSetter, 'casts', ['name' => 'array']);
 
-        $result = $this->repository->setAttributes($user, ['name' => ['first', 'last']]);
+        $result = $this->repository->persist($user, ['name' => ['first', 'last']]);
 
-        static::assertTrue($result);
+        self::assertTrue($result);
     }
 
     /**
-     * Test that setObjectAttribute casts the value to stdClass.
-     *
-     * The private method is invoked directly to avoid persisting a stdClass to
-     * a string column in SQLite.
+     * Test that persist handles associate cast (BelongsTo relation).
      *
      * @return void
      */
-    public function testSetObjectAttributeCastsValueToStdClass(): void
-    {
-        $user = User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL]);
-
-        $this->invokeMethod($this->repository, 'setObjectAttribute', $user, 'name', ['key' => 'value']);
-
-        static::assertInstanceOf(\stdClass::class, $user->getAttribute('name'));
-    }
-
-    /**
-     * Test that setAttributes handles associate cast (BelongsTo relation).
-     *
-     * @return void
-     */
-    public function testSetAttributesSetsAssociateAttribute(): void
+    public function testPersistSetsAssociateAttribute(): void
     {
         $org  = Organization::create(['name' => 'Acme', 'slug' => 'acme']);
         $user = User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL]);
 
-        $this->setProperty($this->repository, 'casts', ['organization' => 'associate']);
+        $attributeSetter = $this->getAttributeSetter($this->repository);
+        $this->setProperty($attributeSetter, 'casts', ['organization' => 'associate']);
 
-        $result = $this->repository->setAttributes($user, ['organization' => $org->id]);
+        $result = $this->repository->persist($user, ['organization' => $org->id]);
 
-        static::assertTrue($result);
-        static::assertSame($org->id, $user->organization_id);
+        self::assertTrue($result);
+        self::assertSame($org->id, $user->organization_id);
     }
 
     /**
-     * Test that setAttributes handles sync cast (BelongsToMany relation).
+     * Test that persist handles sync cast (BelongsToMany relation).
      *
      * @return void
      */
-    public function testSetAttributesSyncAttribute(): void
+    public function testPersistSyncAttribute(): void
     {
         $user = User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL]);
         $post = Post::create(['user_id' => $user->id, 'title' => 'T', 'body' => 'B']);
@@ -383,47 +524,22 @@ class ApiRepositoryTest extends TestCase
         assert($this->app !== null);
 
         $repository = $this->app->make(DummyRepository::class);
-        $this->setProperty($repository, 'casts', ['tags' => 'sync']);
 
-        $result = $repository->setAttributes($post, ['tags' => collect([$tag])]);
+        $attributeSetter = $this->getAttributeSetter($repository);
+        $this->setProperty($attributeSetter, 'casts', ['tags' => 'sync']);
 
-        static::assertTrue($result);
-        static::assertCount(1, $post->fresh()?->tags()->get() ?? collect([]));
+        $result = $repository->persist($post, ['tags' => collect([$tag])]);
+
+        self::assertTrue($result);
+        self::assertCount(1, $post->fresh()?->tags()->get() ?? collect([]));
     }
 
     /**
-     * Test that resolveCastForRelation returns 'associate' for a BelongsTo
-     * relation.
+     * Test that persist with a sync cast using an array of IDs.
      *
      * @return void
      */
-    public function testResolveCastForRelationReturnsCastForBelongsTo(): void
-    {
-        $cast = $this->invokeMethod($this->repository, 'resolveCastForRelation', 'organization');
-
-        static::assertSame('associate', $cast);
-    }
-
-    /**
-     * Test that resolveCastForRelation returns null for a non-relation
-     * method.
-     *
-     * @return void
-     */
-    public function testResolveCastForRelationReturnsNullForNonRelation(): void
-    {
-        // 'getKey' is a method on the model but not a relation
-        $cast = $this->invokeMethod($this->repository, 'resolveCastForRelation', 'nonexistent');
-
-        static::assertNull($cast);
-    }
-
-    /**
-     * Test that setAttributes with a sync cast using an array of IDs.
-     *
-     * @return void
-     */
-    public function testSetAttributesSyncAttributeWithArrayOfIds(): void
+    public function testPersistSyncAttributeWithArrayOfIds(): void
     {
         $user = User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL]);
         $post = Post::create(['user_id' => $user->id, 'title' => 'T', 'body' => 'B']);
@@ -432,11 +548,13 @@ class ApiRepositoryTest extends TestCase
         assert($this->app !== null);
 
         $repository = $this->app->make(DummyRepository::class);
-        $this->setProperty($repository, 'casts', ['tags' => 'sync']);
 
-        $result = $repository->setAttributes($post, ['tags' => [$tag->getKey()]]);
+        $attributeSetter = $this->getAttributeSetter($repository);
+        $this->setProperty($attributeSetter, 'casts', ['tags' => 'sync']);
 
-        static::assertTrue($result);
+        $result = $repository->persist($post, ['tags' => [$tag->getKey()]]);
+
+        self::assertTrue($result);
     }
 
     /**
@@ -450,12 +568,12 @@ class ApiRepositoryTest extends TestCase
         $this->repository->withApiCriteria();
         $this->repository->usingResource(UserResource::class);
 
-        static::assertSame(UserResource::class, $this->repository->getResourceClass());
+        self::assertSame(UserResource::class, $this->repository->getResourceClass());
     }
 
     /**
-     * Test that withApiCriteria propagates an already-set custom resource
-     * class to the new criteria instance.
+     * Test that withApiCriteria propagates an already-set custom resource class
+     * to the new criteria instance.
      *
      * @return void
      */
@@ -466,34 +584,34 @@ class ApiRepositoryTest extends TestCase
         $this->repository->usingResource(UserResource::class);
         $this->repository->withApiCriteria();
 
-        static::assertSame(UserResource::class, $this->repository->getResourceClass());
+        self::assertSame(UserResource::class, $this->repository->getResourceClass());
     }
 
     /**
-     * Test that setAttributes auto-discovers BelongsTo cast via reflection
-     * when the attribute is not pre-cached.
+     * Test that persist auto-discovers BelongsTo cast via reflection when the
+     * attribute is not pre-cached.
      *
      * @return void
      */
-    public function testSetAttributesAutoDiscoversBelongsToRelationCast(): void
+    public function testPersistAutoDiscoversBelongsToRelationCast(): void
     {
         $org  = Organization::create(['name' => 'AutoOrg', 'slug' => 'auto-org']);
         $user = User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL]);
 
-        // No 'organization' pre-set in casts — resolveCastForAttribute discovers
-        // it through resolveCastForRelation (line 220).
-        $result = $this->repository->setAttributes($user, ['organization' => $org->id]);
+        // No 'organization' pre-set in casts - resolveCastForAttribute
+        // discovers it through resolveCastForRelation (line 220).
+        $result = $this->repository->persist($user, ['organization' => $org->id]);
 
-        static::assertTrue($result);
+        self::assertTrue($result);
     }
 
     /**
-     * Test that setAttributes auto-discovers BelongsToMany cast via
+     * Test that persist auto-discovers BelongsToMany cast via
      * resolveCastForRelation on Post.tags().
      *
      * @return void
      */
-    public function testSetAttributesAutoDiscoversBelongsToManyCast(): void
+    public function testPersistAutoDiscoversBelongsToManyCast(): void
     {
         $user = User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL]);
         $post = Post::create(['user_id' => $user->id, 'title' => 'T', 'body' => 'B']);
@@ -503,14 +621,14 @@ class ApiRepositoryTest extends TestCase
 
         $repository = $this->app->make(DummyRepository::class);
 
-        $result = $repository->setAttributes($post, ['tags' => [$tag->getKey()]]);
+        $result = $repository->persist($post, ['tags' => [$tag->getKey()]]);
 
-        static::assertTrue($result);
+        self::assertTrue($result);
     }
 
     /**
-     * Test that castMatchesLaravelCast returns true for a class-based cast
-     * that matches exactly (line 314 in ApiRepository.php).
+     * Test that castMatchesLaravelCast returns true for a class-based cast that
+     * matches exactly (line 314 in ApiRepository.php).
      *
      * Registers UserStatus::class under the 'enum' native key so that the
      * class_exists branch fires and returns true before the string-equality
@@ -522,50 +640,79 @@ class ApiRepositoryTest extends TestCase
     {
         // Add UserStatus::class as a recognized laravel cast under 'enum' so
         // that class_exists($laravel_cast) is true AND $base_cast matches.
-        $existing_enum_casts   = Config::get('api-toolkit.repositories.cast_map.enum', []);
-        $existing_enum_casts[] = UserStatus::class;
-        Config::set('api-toolkit.repositories.cast_map.enum', $existing_enum_casts);
+        $existingEnumCasts   = Config::get('api-toolkit.repositories.cast_map.enum', []);
+        $existingEnumCasts[] = UserStatus::class;
+        Config::set('api-toolkit.repositories.cast_map.enum', $existingEnumCasts);
 
         $user = User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL, 'status' => 'active']);
 
         assert($this->app !== null);
 
         $repository = $this->app->make(UserRepository::class);
-        $this->setProperty($repository, 'casts', []);
 
-        $result = $repository->setAttributes($user, ['status' => UserStatus::BANNED]);
+        $attributeSetter = $this->getAttributeSetter($repository);
+        $this->setProperty($attributeSetter, 'casts', []);
 
-        static::assertTrue($result);
+        $result = $repository->persist($user, ['status' => UserStatus::BANNED]);
+
+        self::assertTrue($result);
     }
 
     /**
-     * Test that setAttribute routes 'object' cast through the match arm.
+     * Test that an ApiRepository subclass without the Cacheable trait reads
+     * directly from the database.
      *
      * @return void
      */
-    public function testSetAttributeRoutesObjectCastThroughMatchArm(): void
+    public function testApiRepositorySubclassWorksWithoutCacheableTrait(): void
     {
-        $user = User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL]);
+        User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL]);
 
-        $this->invokeMethod($this->repository, 'setAttribute', $user, 'name', null, 'object');
+        $result = $this->repository->get(); // @phpstan-ignore staticMethod.dynamicCall
 
-        static::assertNull($user->getAttribute('name'));
+        self::assertCount(1, $result);
+        self::assertSame('Alice', $result->first()?->name); // @phpstan-ignore property.notFound
     }
 
     /**
-     * Test that resolveCastForRelation returns 'sync' for a MorphToMany
-     * relation.
+     * Test that an ApiRepository subclass with the Cacheable trait returns
+     * cached data on subsequent reads.
      *
      * @return void
      */
-    public function testResolveCastForRelationReturnsSyncForMorphToMany(): void
+    public function testApiRepositorySubclassWithCacheableTraitReturnsCachedData(): void
     {
+        Config::set('cache.default', 'array');
+
+        Tag::create(['name' => 'php']);
+        Tag::create(['name' => 'laravel']);
+
         assert($this->app !== null);
 
-        $repository = $this->app->make(TagRepository::class);
-        $cast       = $this->invokeMethod($repository, 'resolveCastForRelation', 'articles');
+        $repository = $this->app->make(CacheableTagRepository::class);
 
-        static::assertSame('sync', $cast);
+        $firstRead  = $repository->get(); // @phpstan-ignore staticMethod.dynamicCall
+        $secondRead = $repository->get(); // @phpstan-ignore staticMethod.dynamicCall
+
+        self::assertCount(2, $firstRead);
+        self::assertCount(2, $secondRead);
+        self::assertTrue($repository->getCacheStatus()->isPopulated());
+    }
+
+    /**
+     * Get the AttributeSetter collaborator from the given repository.
+     *
+     * @param  \SineMacula\ApiToolkit\Repositories\ApiRepository<\Illuminate\Database\Eloquent\Model>  $repository
+     * @return \SineMacula\ApiToolkit\Repositories\Concerns\AttributeSetter
+     *
+     * @SuppressWarnings("php:S3011")
+     */
+    private function getAttributeSetter(ApiRepository $repository): AttributeSetter
+    {
+        $reflection = new \ReflectionClass(ApiRepository::class);
+
+        /** @var \SineMacula\ApiToolkit\Repositories\Concerns\AttributeSetter */
+        return $reflection->getProperty('attributeSetter')->getValue($repository);
     }
 
     /**

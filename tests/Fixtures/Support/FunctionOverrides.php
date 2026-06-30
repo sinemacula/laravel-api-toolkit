@@ -1,13 +1,15 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Fixtures\Support;
 
 /**
  * Static registry for namespace-scoped PHP function overrides.
  *
  * Test code sets callbacks here; namespace-level function stubs in
- * Overrides/functions.php delegate to these callbacks, falling back to the
- * real built-in when no override is active.
+ * Overrides/functions.php delegate to these callbacks, falling back to the real
+ * built-in when no override is active.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -22,9 +24,10 @@ final class FunctionOverrides
      *
      * @param  string  $name
      * @param  callable|null  $callback
-     * @return void
      *
      * @phpstan-param (callable(mixed...): mixed)|null $callback
+     *
+     * @return void
      */
     public static function set(string $name, ?callable $callback): void
     {

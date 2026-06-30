@@ -1,18 +1,23 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Unit\Http\Resources;
 
+use Illuminate\Database\Eloquent\Casts\Attribute;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Illuminate\Http\Request;
-use Illuminate\Http\Resources\MissingValue;
-use LogicException;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use SineMacula\ApiToolkit\Http\Resources\ApiResource;
 use SineMacula\ApiToolkit\Http\Resources\ApiResourceCollection;
-use SineMacula\ApiToolkit\Http\Resources\Schema\Count;
-use SineMacula\ApiToolkit\Http\Resources\Schema\Field;
-use SineMacula\ApiToolkit\Http\Resources\Schema\Relation;
+use SineMacula\ApiToolkit\Schema\Count;
+use SineMacula\ApiToolkit\Schema\Field;
+use SineMacula\ApiToolkit\Schema\Relation;
+use SineMacula\ApiToolkit\Schema\SchemaCompiler;
+use SineMacula\Http\Enums\HttpMethod;
+use Tests\Fixtures\Models\AggregateCapturingModel;
 use Tests\Fixtures\Models\Organization;
 use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\Profile;
@@ -34,7 +39,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(ApiResource::class)]
-class ApiResourceTest extends TestCase
+final class ApiResourceTest extends TestCase
 {
     /** @var string Email address used in fluent-return test fixtures. */
     private const string FLUENT_EMAIL = 'fluent@example.com';
@@ -65,15 +70,15 @@ class ApiResourceTest extends TestCase
      */
     public function testGetResourceTypeReturnsLowercasedConstant(): void
     {
-        static::assertSame('users', UserResource::getResourceType());
-        static::assertSame('organizations', OrganizationResource::getResourceType());
-        static::assertSame('posts', PostResource::getResourceType());
-        static::assertSame('tags', TagResource::getResourceType());
+        self::assertSame('users', UserResource::getResourceType());
+        self::assertSame('organizations', OrganizationResource::getResourceType());
+        self::assertSame('posts', PostResource::getResourceType());
+        self::assertSame('tags', TagResource::getResourceType());
     }
 
     /**
-     * Test that getResourceType throws LogicException when RESOURCE_TYPE is
-     * not defined.
+     * Test that getResourceType throws LogicException when RESOURCE_TYPE is not
+     * defined.
      *
      * @return void
      */
@@ -88,6 +93,7 @@ class ApiResourceTest extends TestCase
              *
              * @return array<string, array<string, mixed>>
              */
+            #[\Override]
             public static function schema(): array
             {
                 return [];
@@ -104,10 +110,10 @@ class ApiResourceTest extends TestCase
      */
     public function testGetDefaultFieldsReturnsStaticDefaultArray(): void
     {
-        static::assertSame(['id', 'name', 'email'], UserResource::getDefaultFields());
-        static::assertSame(['id', 'name', 'slug'], OrganizationResource::getDefaultFields());
-        static::assertSame(['id', 'title'], PostResource::getDefaultFields());
-        static::assertSame(['id', 'name'], TagResource::getDefaultFields());
+        self::assertSame(['id', 'name', 'email'], UserResource::getDefaultFields());
+        self::assertSame(['id', 'name', 'slug'], OrganizationResource::getDefaultFields());
+        self::assertSame(['id', 'title'], PostResource::getDefaultFields());
+        self::assertSame(['id', 'name'], TagResource::getDefaultFields());
     }
 
     /**
@@ -117,21 +123,21 @@ class ApiResourceTest extends TestCase
      */
     public function testGetAllFieldsReturnsAllFieldKeysExcludingCounts(): void
     {
-        $all_fields = UserResource::getAllFields();
+        $allFields = UserResource::getAllFields();
 
-        static::assertContains('id', $all_fields);
-        static::assertContains('name', $all_fields);
-        static::assertContains('email', $all_fields);
-        static::assertContains('status', $all_fields);
-        static::assertContains('created_at', $all_fields);
-        static::assertContains('updated_at', $all_fields);
-        static::assertContains('full_label', $all_fields);
-        static::assertContains('organization', $all_fields);
-        static::assertContains('profile_bio', $all_fields);
-        static::assertContains('posts', $all_fields);
+        self::assertContains('id', $allFields);
+        self::assertContains('name', $allFields);
+        self::assertContains('email', $allFields);
+        self::assertContains('status', $allFields);
+        self::assertContains('created_at', $allFields);
+        self::assertContains('updated_at', $allFields);
+        self::assertContains('full_label', $allFields);
+        self::assertContains('organization', $allFields);
+        self::assertContains('profile_bio', $allFields);
+        self::assertContains('posts', $allFields);
 
-        foreach ($all_fields as $field) {
-            static::assertStringNotContainsString('__count__', $field);
+        foreach ($allFields as $field) {
+            self::assertStringNotContainsString('__count__', $field);
         }
     }
 
@@ -147,7 +153,7 @@ class ApiResourceTest extends TestCase
         /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
         $parser = $this->app->make('api.query');
 
-        $request = Request::create('/', 'GET', [
+        $request = Request::create('/', HttpMethod::GET->getVerb(), [
             'fields' => ['users' => 'id,name,status'],
         ]);
 
@@ -155,7 +161,7 @@ class ApiResourceTest extends TestCase
 
         $fields = UserResource::resolveFields();
 
-        static::assertSame(['id', 'name', 'status'], $fields);
+        self::assertSame(['id', 'name', 'status'], $fields);
     }
 
     /**
@@ -170,13 +176,13 @@ class ApiResourceTest extends TestCase
         /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
         $parser = $this->app->make('api.query');
 
-        $request = Request::create('/', 'GET');
+        $request = Request::create('/', HttpMethod::GET->getVerb());
 
         $parser->parse($request);
 
         $fields = UserResource::resolveFields();
 
-        static::assertSame(['id', 'name', 'email'], $fields);
+        self::assertSame(['id', 'name', 'email'], $fields);
     }
 
     /**
@@ -194,8 +200,8 @@ class ApiResourceTest extends TestCase
         $resource = new UserResource($user);
         $result   = $resource->resolve();
 
-        static::assertArrayHasKey('_type', $result);
-        static::assertSame('users', $result['_type']);
+        self::assertArrayHasKey('_type', $result);
+        self::assertSame('users', $result['_type']);
     }
 
     /**
@@ -214,7 +220,7 @@ class ApiResourceTest extends TestCase
 
         /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
         $parser  = $this->app->make('api.query');
-        $request = Request::create('/', 'GET', [
+        $request = Request::create('/', HttpMethod::GET->getVerb(), [
             'fields' => ['users' => 'name'],
         ]);
 
@@ -223,9 +229,9 @@ class ApiResourceTest extends TestCase
         $resource = new UserResource($user);
         $result   = $resource->resolve();
 
-        static::assertArrayHasKey('_type', $result);
-        static::assertArrayHasKey('id', $result);
-        static::assertArrayHasKey('name', $result);
+        self::assertArrayHasKey('_type', $result);
+        self::assertArrayHasKey('id', $result);
+        self::assertArrayHasKey('name', $result);
     }
 
     /**
@@ -245,7 +251,7 @@ class ApiResourceTest extends TestCase
 
         /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
         $parser  = $this->app->make('api.query');
-        $request = Request::create('/', 'GET', [
+        $request = Request::create('/', HttpMethod::GET->getVerb(), [
             'fields' => ['users' => 'id,name'],
         ]);
 
@@ -254,9 +260,9 @@ class ApiResourceTest extends TestCase
         $resource = new UserResource($user);
         $result   = $resource->resolve();
 
-        static::assertArrayHasKey('name', $result);
-        static::assertArrayNotHasKey('status', $result);
-        static::assertArrayNotHasKey('email', $result);
+        self::assertArrayHasKey('name', $result);
+        self::assertArrayNotHasKey('status', $result);
+        self::assertArrayNotHasKey('email', $result);
     }
 
     /**
@@ -276,8 +282,8 @@ class ApiResourceTest extends TestCase
 
         $result = $resource->resolve();
 
-        static::assertArrayNotHasKey('email', $result);
-        static::assertArrayHasKey('name', $result);
+        self::assertArrayNotHasKey('email', $result);
+        self::assertArrayHasKey('name', $result);
     }
 
     /**
@@ -298,10 +304,10 @@ class ApiResourceTest extends TestCase
 
         $result = $resource->resolve();
 
-        static::assertArrayHasKey('name', $result);
-        static::assertArrayHasKey('email', $result);
-        static::assertArrayHasKey('status', $result);
-        static::assertArrayHasKey('full_label', $result);
+        self::assertArrayHasKey('name', $result);
+        self::assertArrayHasKey('email', $result);
+        self::assertArrayHasKey('status', $result);
+        self::assertArrayHasKey('full_label', $result);
     }
 
     /**
@@ -321,7 +327,7 @@ class ApiResourceTest extends TestCase
 
         /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
         $parser  = $this->app->make('api.query');
-        $request = Request::create('/', 'GET', [
+        $request = Request::create('/', HttpMethod::GET->getVerb(), [
             'fields' => ['users' => ':all'],
         ]);
 
@@ -330,10 +336,10 @@ class ApiResourceTest extends TestCase
         $resource = new UserResource($user);
         $result   = $resource->resolve();
 
-        static::assertArrayHasKey('name', $result);
-        static::assertArrayHasKey('email', $result);
-        static::assertArrayHasKey('status', $result);
-        static::assertArrayHasKey('full_label', $result);
+        self::assertArrayHasKey('name', $result);
+        self::assertArrayHasKey('email', $result);
+        self::assertArrayHasKey('status', $result);
+        self::assertArrayHasKey('full_label', $result);
     }
 
     /**
@@ -343,18 +349,19 @@ class ApiResourceTest extends TestCase
      */
     public function testGuardsPreventFieldInclusionWhenReturnFalse(): void
     {
-        $resource_class = new class (null) extends ApiResource {
+        $resourceClass = new class (null) extends ApiResource {
             /** @var string */
             public const string RESOURCE_TYPE = 'guarded_test';
 
             /** @var array<int, string> */
-            protected static array $default = ['id', 'name', 'secret']; // @phpstan-ignore property.phpDocType
+            protected static array $default = ['id', 'name', 'secret'];
 
             /**
              * Get the resource schema.
              *
              * @return array<string, array<string, mixed>>
              */
+            #[\Override]
             public static function schema(): array
             {
                 return Field::set(
@@ -370,13 +377,13 @@ class ApiResourceTest extends TestCase
             'email' => 'guarded@example.com',
         ]);
 
-        $resource = new $resource_class($user);
+        $resource = new $resourceClass($user);
         $resource->withFields(['id', 'name', 'secret']);
 
         $result = $resource->resolve();
 
-        static::assertArrayHasKey('name', $result);
-        static::assertArrayNotHasKey('secret', $result);
+        self::assertArrayHasKey('name', $result);
+        self::assertArrayNotHasKey('secret', $result);
     }
 
     /**
@@ -386,18 +393,19 @@ class ApiResourceTest extends TestCase
      */
     public function testGuardsAllowFieldInclusionWhenReturnTrue(): void
     {
-        $resource_class = new class (null) extends ApiResource {
+        $resourceClass = new class (null) extends ApiResource {
             /** @var string */
             public const string RESOURCE_TYPE = 'guard_pass_test';
 
             /** @var array<int, string> */
-            protected static array $default = ['id', 'name', 'visible']; // @phpstan-ignore property.phpDocType
+            protected static array $default = ['id', 'name', 'visible'];
 
             /**
              * Get the resource schema.
              *
              * @return array<string, array<string, mixed>>
              */
+            #[\Override]
             public static function schema(): array
             {
                 return Field::set(
@@ -415,12 +423,12 @@ class ApiResourceTest extends TestCase
 
         $user->setAttribute('visible', 'shown');
 
-        $resource = new $resource_class($user);
+        $resource = new $resourceClass($user);
         $resource->withFields(['name', 'visible']);
 
         $result = $resource->resolve();
 
-        static::assertArrayHasKey('name', $result);
+        self::assertArrayHasKey('name', $result);
     }
 
     /**
@@ -430,18 +438,19 @@ class ApiResourceTest extends TestCase
      */
     public function testTransformersModifyResolvedValues(): void
     {
-        $resource_class = new class (null) extends ApiResource {
+        $resourceClass = new class (null) extends ApiResource {
             /** @var string */
             public const string RESOURCE_TYPE = 'transform_test';
 
             /** @var array<int, string> */
-            protected static array $default = ['id', 'name']; // @phpstan-ignore property.phpDocType
+            protected static array $default = ['id', 'name'];
 
             /**
              * Get the resource schema.
              *
              * @return array<string, array<string, mixed>>
              */
+            #[\Override]
             public static function schema(): array
             {
                 return Field::set(
@@ -456,12 +465,12 @@ class ApiResourceTest extends TestCase
             'email' => 'lower@example.com',
         ]);
 
-        $resource = new $resource_class($user);
+        $resource = new $resourceClass($user);
         $resource->withFields(['name']);
 
         $result = $resource->resolve();
 
-        static::assertSame('LOWERCASE', $result['name']);
+        self::assertSame('LOWERCASE', $result['name']);
     }
 
     /**
@@ -481,7 +490,7 @@ class ApiResourceTest extends TestCase
 
         $result = $resource->resolve();
 
-        static::assertSame('Computed <computed@example.com>', $result['full_label']);
+        self::assertSame('Computed <computed@example.com>', $result['full_label']);
     }
 
     /**
@@ -491,18 +500,19 @@ class ApiResourceTest extends TestCase
      */
     public function testAccessorFieldsResolveViaStringPath(): void
     {
-        $resource_class = new class (null) extends ApiResource {
+        $resourceClass = new class (null) extends ApiResource {
             /** @var string */
             public const string RESOURCE_TYPE = 'accessor_test';
 
             /** @var array<int, string> */
-            protected static array $default = ['id', 'nested_value']; // @phpstan-ignore property.phpDocType
+            protected static array $default = ['id', 'nested_value'];
 
             /**
              * Get the resource schema.
              *
              * @return array<string, array<string, mixed>>
              */
+            #[\Override]
             public static function schema(): array
             {
                 return Field::set(
@@ -517,12 +527,12 @@ class ApiResourceTest extends TestCase
             'email' => 'accessed@example.com',
         ]);
 
-        $resource = new $resource_class($user);
+        $resource = new $resourceClass($user);
         $resource->withFields(['nested_value']);
 
         $result = $resource->resolve();
 
-        static::assertSame('Accessed', $result['nested_value']);
+        self::assertSame('Accessed', $result['nested_value']);
     }
 
     /**
@@ -532,23 +542,31 @@ class ApiResourceTest extends TestCase
      */
     public function testAccessorFieldsResolveViaCallable(): void
     {
-        $resource_class = new class (null) extends ApiResource {
+        $resourceClass = new class (null) extends ApiResource {
             /** @var string */
             public const string RESOURCE_TYPE = 'accessor_callable_test';
 
             /** @var array<int, string> */
-            protected static array $default = ['id', 'computed_accessor']; // @phpstan-ignore property.phpDocType
+            protected static array $default = ['id', 'computed_accessor'];
 
             /**
              * Get the resource schema.
              *
              * @return array<string, array<string, mixed>>
              */
+            #[\Override]
             public static function schema(): array
             {
                 return Field::set(
                     Field::scalar('id'),
-                    Field::accessor('computed_accessor', fn ($resource) => 'custom:' . $resource->name),
+                    Field::accessor('computed_accessor', static function ($resource): string {
+
+                        $user = $resource->resource;
+
+                        assert($user instanceof User);
+
+                        return 'custom:' . $user->name;
+                    }),
                 );
             }
         };
@@ -558,12 +576,12 @@ class ApiResourceTest extends TestCase
             'email' => 'callable@example.com',
         ]);
 
-        $resource = new $resource_class($user);
+        $resource = new $resourceClass($user);
         $resource->withFields(['computed_accessor']);
 
         $result = $resource->resolve();
 
-        static::assertSame('custom:CallableAccess', $result['computed_accessor']);
+        self::assertSame('custom:CallableAccess', $result['computed_accessor']);
     }
 
     /**
@@ -591,12 +609,12 @@ class ApiResourceTest extends TestCase
 
         $result = $resource->resolve();
 
-        static::assertArrayHasKey('organization', $result);
-        static::assertInstanceOf(\SineMacula\ApiToolkit\Http\Resources\ApiResource::class, $result['organization']);
+        self::assertArrayHasKey('organization', $result);
+        self::assertInstanceOf(ApiResource::class, $result['organization']);
 
         $nested = $result['organization']->resolve();
 
-        static::assertSame('organizations', $nested['_type']);
+        self::assertSame('organizations', $nested['_type']);
     }
 
     /**
@@ -622,7 +640,7 @@ class ApiResourceTest extends TestCase
 
         $result = $resource->resolve();
 
-        static::assertArrayNotHasKey('organization', $result);
+        self::assertArrayNotHasKey('organization', $result);
     }
 
     /**
@@ -649,8 +667,8 @@ class ApiResourceTest extends TestCase
 
         $result = $resource->resolve();
 
-        static::assertArrayHasKey('profile_bio', $result);
-        static::assertSame('A great bio', $result['profile_bio']);
+        self::assertArrayHasKey('profile_bio', $result);
+        self::assertSame('A great bio', $result['profile_bio']);
     }
 
     /**
@@ -672,8 +690,8 @@ class ApiResourceTest extends TestCase
 
         $result = $resource->resolve();
 
-        static::assertArrayHasKey('organization', $result);
-        static::assertNull($result['organization']);
+        self::assertArrayHasKey('organization', $result);
+        self::assertNull($result['organization']);
     }
 
     /**
@@ -708,7 +726,7 @@ class ApiResourceTest extends TestCase
 
         /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
         $parser  = $this->app->make('api.query');
-        $request = Request::create('/', 'GET', [
+        $request = Request::create('/', HttpMethod::GET->getVerb(), [
             'fields' => ['users' => 'id,name,counts'],
         ]);
 
@@ -717,9 +735,9 @@ class ApiResourceTest extends TestCase
         $resource = new UserResource($user);
         $result   = $resource->resolve();
 
-        static::assertArrayHasKey('counts', $result);
-        static::assertArrayHasKey('posts', $result['counts']);
-        static::assertSame(2, $result['counts']['posts']);
+        self::assertArrayHasKey('counts', $result);
+        self::assertArrayHasKey('posts', $result['counts']);
+        self::assertSame(2, $result['counts']['posts']);
     }
 
     /**
@@ -740,7 +758,7 @@ class ApiResourceTest extends TestCase
 
         /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
         $parser  = $this->app->make('api.query');
-        $request = Request::create('/', 'GET', [
+        $request = Request::create('/', HttpMethod::GET->getVerb(), [
             'fields' => ['users' => 'id,name,counts'],
         ]);
 
@@ -749,8 +767,8 @@ class ApiResourceTest extends TestCase
         $resource = new UserResource($user);
         $result   = $resource->resolve();
 
-        static::assertArrayHasKey('counts', $result);
-        static::assertArrayHasKey('posts', $result['counts']);
+        self::assertArrayHasKey('counts', $result);
+        self::assertArrayHasKey('posts', $result['counts']);
     }
 
     /**
@@ -764,7 +782,7 @@ class ApiResourceTest extends TestCase
 
         $map = UserResource::eagerLoadMapFor($fields);
 
-        static::assertContains('organization', $map);
+        self::assertContains('organization', $map);
     }
 
     /**
@@ -778,7 +796,7 @@ class ApiResourceTest extends TestCase
 
         $map = UserResource::eagerLoadMapFor($fields);
 
-        static::assertSame([], $map);
+        self::assertSame([], $map);
     }
 
     /**
@@ -788,18 +806,19 @@ class ApiResourceTest extends TestCase
      */
     public function testEagerLoadMapForWithConstrainedRelationsReturnClosures(): void
     {
-        $resource_class = new class (null) extends ApiResource {
+        $resourceClass = new class (null) extends ApiResource {
             /** @var string */
             public const string RESOURCE_TYPE = 'constrained_test';
 
             /** @var array<int, string> */
-            protected static array $default = ['id', 'items']; // @phpstan-ignore property.phpDocType
+            protected static array $default = ['id', 'items'];
 
             /**
              * Get the resource schema.
              *
              * @return array<string, array<string, mixed>>
              */
+            #[\Override]
             public static function schema(): array
             {
                 return Field::set(
@@ -811,10 +830,10 @@ class ApiResourceTest extends TestCase
 
         $fields = ['items'];
 
-        $map = $resource_class::eagerLoadMapFor($fields);
+        $map = $resourceClass::eagerLoadMapFor($fields);
 
-        static::assertArrayHasKey('items', $map);
-        static::assertIsCallable($map['items']);
+        self::assertArrayHasKey('items', $map);
+        self::assertIsCallable($map['items']);
     }
 
     /**
@@ -826,7 +845,7 @@ class ApiResourceTest extends TestCase
     {
         $counts = UserResource::eagerLoadCountsFor(['posts']);
 
-        static::assertContains('posts', $counts);
+        self::assertContains('posts as posts_count', $counts);
     }
 
     /**
@@ -838,7 +857,7 @@ class ApiResourceTest extends TestCase
     {
         $counts = UserResource::eagerLoadCountsFor(null);
 
-        static::assertContains('posts', $counts);
+        self::assertContains('posts as posts_count', $counts);
     }
 
     /**
@@ -850,7 +869,7 @@ class ApiResourceTest extends TestCase
     {
         $counts = OrganizationResource::eagerLoadCountsFor(null);
 
-        static::assertSame([], $counts);
+        self::assertSame([], $counts);
     }
 
     /**
@@ -862,7 +881,7 @@ class ApiResourceTest extends TestCase
     {
         $counts = OrganizationResource::eagerLoadCountsFor(['users']);
 
-        static::assertContains('users', $counts);
+        self::assertContains('users as users_count', $counts);
     }
 
     /**
@@ -874,7 +893,7 @@ class ApiResourceTest extends TestCase
     {
         $collection = UserResource::collection(collect([]));
 
-        static::assertInstanceOf(ApiResourceCollection::class, $collection);
+        self::assertInstanceOf(ApiResourceCollection::class, $collection);
     }
 
     /**
@@ -887,7 +906,7 @@ class ApiResourceTest extends TestCase
         $first  = UserResource::getAllFields();
         $second = UserResource::getAllFields();
 
-        static::assertSame($first, $second);
+        self::assertSame($first, $second);
     }
 
     /**
@@ -909,11 +928,11 @@ class ApiResourceTest extends TestCase
         $result = $resource->resolve();
         $keys   = array_keys($result);
 
-        $type_index = array_search('_type', $keys, true);
-        $id_index   = array_search('id', $keys, true);
+        $typeIndex = array_search('_type', $keys, true);
+        $idIndex   = array_search('id', $keys, true);
 
-        static::assertSame(0, $type_index, '_type should be first');
-        static::assertSame(1, $id_index, 'id should be second');
+        self::assertSame(0, $typeIndex, '_type should be first');
+        self::assertSame(1, $idIndex, 'id should be second');
     }
 
     /**
@@ -933,7 +952,7 @@ class ApiResourceTest extends TestCase
 
         /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
         $parser  = $this->app->make('api.query');
-        $request = Request::create('/', 'GET', [
+        $request = Request::create('/', HttpMethod::GET->getVerb(), [
             'fields' => ['users' => 'id,name,email,status'],
         ]);
 
@@ -944,8 +963,8 @@ class ApiResourceTest extends TestCase
 
         $result = $resource->resolve();
 
-        static::assertArrayHasKey('name', $result);
-        static::assertArrayNotHasKey('status', $result);
+        self::assertArrayHasKey('name', $result);
+        self::assertArrayNotHasKey('status', $result);
     }
 
     /**
@@ -966,8 +985,8 @@ class ApiResourceTest extends TestCase
 
         $result = $resource->resolve();
 
-        static::assertArrayNotHasKey('name', $result);
-        static::assertArrayHasKey('email', $result);
+        self::assertArrayNotHasKey('name', $result);
+        self::assertArrayHasKey('email', $result);
     }
 
     /**
@@ -988,8 +1007,8 @@ class ApiResourceTest extends TestCase
 
         $result = $resource->resolve();
 
-        static::assertSame('Simple', $result['name']);
-        static::assertSame('simple@example.com', $result['email']);
+        self::assertSame('Simple', $result['name']);
+        self::assertSame('simple@example.com', $result['email']);
     }
 
     /**
@@ -1008,10 +1027,10 @@ class ApiResourceTest extends TestCase
         $resource = new UserResource($user, false, ':all');
         $result   = $resource->resolve();
 
-        static::assertArrayHasKey('name', $result);
-        static::assertArrayHasKey('email', $result);
-        static::assertArrayHasKey('status', $result);
-        static::assertArrayHasKey('full_label', $result);
+        self::assertArrayHasKey('name', $result);
+        self::assertArrayHasKey('email', $result);
+        self::assertArrayHasKey('status', $result);
+        self::assertArrayHasKey('full_label', $result);
     }
 
     /**
@@ -1029,8 +1048,8 @@ class ApiResourceTest extends TestCase
         $resource = new UserResource($user, false, ['name']);
         $result   = $resource->resolve();
 
-        static::assertArrayHasKey('name', $result);
-        static::assertArrayNotHasKey('email', $result);
+        self::assertArrayHasKey('name', $result);
+        self::assertArrayNotHasKey('email', $result);
     }
 
     /**
@@ -1048,8 +1067,8 @@ class ApiResourceTest extends TestCase
         $resource = new UserResource($user, false, null, ['email']);
         $result   = $resource->resolve();
 
-        static::assertArrayNotHasKey('email', $result);
-        static::assertArrayHasKey('name', $result);
+        self::assertArrayNotHasKey('email', $result);
+        self::assertArrayHasKey('name', $result);
     }
 
     /**
@@ -1074,7 +1093,7 @@ class ApiResourceTest extends TestCase
 
         /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
         $parser  = $this->app->make('api.query');
-        $request = Request::create('/', 'GET', [
+        $request = Request::create('/', HttpMethod::GET->getVerb(), [
             'fields' => ['users' => 'id,name,organization'],
         ]);
 
@@ -1083,12 +1102,12 @@ class ApiResourceTest extends TestCase
         $resource = new UserResource($user, true);
         $result   = $resource->resolve();
 
-        static::assertArrayHasKey('organization', $result);
-        static::assertInstanceOf(\SineMacula\ApiToolkit\Http\Resources\ApiResource::class, $result['organization']);
+        self::assertArrayHasKey('organization', $result);
+        self::assertInstanceOf(ApiResource::class, $result['organization']);
 
         $nested = $result['organization']->resolve();
 
-        static::assertSame('organizations', $nested['_type']);
+        self::assertSame('organizations', $nested['_type']);
     }
 
     /**
@@ -1102,7 +1121,7 @@ class ApiResourceTest extends TestCase
 
         /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
         $parser  = $this->app->make('api.query');
-        $request = Request::create('/', 'GET', [
+        $request = Request::create('/', HttpMethod::GET->getVerb(), [
             'fields' => [
                 'users' => 'id,posts',
                 'posts' => 'id,title,tags',
@@ -1114,8 +1133,8 @@ class ApiResourceTest extends TestCase
         $fields = ['posts'];
         $map    = UserResource::eagerLoadMapFor($fields);
 
-        static::assertContains('posts', $map);
-        static::assertContains('posts.tags', $map);
+        self::assertContains('posts', $map);
+        self::assertContains('posts.tags', $map);
     }
 
     /**
@@ -1125,18 +1144,19 @@ class ApiResourceTest extends TestCase
      */
     public function testMultipleTransformersAppliedInOrder(): void
     {
-        $resource_class = new class (null) extends ApiResource {
+        $resourceClass = new class (null) extends ApiResource {
             /** @var string */
             public const string RESOURCE_TYPE = 'multi_transform_test';
 
             /** @var array<int, string> */
-            protected static array $default = ['id', 'name']; // @phpstan-ignore property.phpDocType
+            protected static array $default = ['id', 'name'];
 
             /**
              * Get the resource schema.
              *
              * @return array<string, array<string, mixed>>
              */
+            #[\Override]
             public static function schema(): array
             {
                 return Field::set(
@@ -1153,12 +1173,12 @@ class ApiResourceTest extends TestCase
             'email' => 'multi@example.com',
         ]);
 
-        $resource = new $resource_class($user);
+        $resource = new $resourceClass($user);
         $resource->withFields(['name']);
 
         $result = $resource->resolve();
 
-        static::assertSame('PREFIX_MULTI', $result['name']);
+        self::assertSame('PREFIX_MULTI', $result['name']);
     }
 
     /**
@@ -1168,18 +1188,19 @@ class ApiResourceTest extends TestCase
      */
     public function testResolveHandlesNonObjectResourceGracefully(): void
     {
-        $resource_class = new class (null) extends ApiResource {
+        $resourceClass = new class (null) extends ApiResource {
             /** @var string */
             public const string RESOURCE_TYPE = 'null_test';
 
             /** @var array<int, string> */
-            protected static array $default = ['id']; // @phpstan-ignore property.phpDocType
+            protected static array $default = ['id'];
 
             /**
              * Get the resource schema.
              *
              * @return array<string, array<string, mixed>>
              */
+            #[\Override]
             public static function schema(): array
             {
                 return Field::set(
@@ -1188,13 +1209,13 @@ class ApiResourceTest extends TestCase
             }
         };
 
-        $resource = new $resource_class(null);
+        $resource = new $resourceClass(null);
         $resource->withFields(['id']);
 
         $result = $resource->resolve();
 
-        static::assertArrayHasKey('_type', $result);
-        static::assertArrayNotHasKey('id', $result);
+        self::assertArrayHasKey('_type', $result);
+        self::assertArrayNotHasKey('id', $result);
     }
 
     /**
@@ -1230,7 +1251,7 @@ class ApiResourceTest extends TestCase
 
         $result = $resource->resolve();
 
-        static::assertArrayHasKey('posts', $result);
+        self::assertArrayHasKey('posts', $result);
     }
 
     /**
@@ -1248,7 +1269,7 @@ class ApiResourceTest extends TestCase
         $resource = new UserResource($user);
         $result   = $resource->withFields(['name']);
 
-        static::assertSame($resource, $result);
+        self::assertSame($resource, $result);
     }
 
     /**
@@ -1266,7 +1287,7 @@ class ApiResourceTest extends TestCase
         $resource = new UserResource($user);
         $result   = $resource->withoutFields(['name']);
 
-        static::assertSame($resource, $result);
+        self::assertSame($resource, $result);
     }
 
     /**
@@ -1284,7 +1305,7 @@ class ApiResourceTest extends TestCase
         $resource = new UserResource($user);
         $result   = $resource->withAll();
 
-        static::assertSame($resource, $result);
+        self::assertSame($resource, $result);
     }
 
     /**
@@ -1294,18 +1315,19 @@ class ApiResourceTest extends TestCase
      */
     public function testEagerLoadCountsForWithConstrainedCountReturnsClosure(): void
     {
-        $resource_class = new class (null) extends ApiResource {
+        $resourceClass = new class (null) extends ApiResource {
             /** @var string */
             public const string RESOURCE_TYPE = 'constrained_count_test';
 
             /** @var array<int, string> */
-            protected static array $default = ['id']; // @phpstan-ignore property.phpDocType
+            protected static array $default = ['id'];
 
             /**
              * Get the resource schema.
              *
              * @return array<string, array<string, mixed>>
              */
+            #[\Override]
             public static function schema(): array
             {
                 return Field::set(
@@ -1315,10 +1337,10 @@ class ApiResourceTest extends TestCase
             }
         };
 
-        $counts = $resource_class::eagerLoadCountsFor(null);
+        $counts = $resourceClass::eagerLoadCountsFor(null);
 
-        static::assertArrayHasKey('items', $counts);
-        static::assertIsCallable($counts['items']);
+        self::assertArrayHasKey('items as items_count', $counts);
+        self::assertIsCallable($counts['items as items_count']);
     }
 
     /**
@@ -1340,12 +1362,12 @@ class ApiResourceTest extends TestCase
         $result = $resource->resolve();
         $keys   = array_keys($result);
 
-        $name_index       = array_search('name', $keys, true);
-        $created_at_index = array_search('created_at', $keys, true);
-        $updated_at_index = array_search('updated_at', $keys, true);
+        $nameIndex      = array_search('name', $keys, true);
+        $createdAtIndex = array_search('created_at', $keys, true);
+        $updatedAtIndex = array_search('updated_at', $keys, true);
 
-        static::assertGreaterThan($name_index, $created_at_index);
-        static::assertGreaterThan($name_index, $updated_at_index);
+        self::assertGreaterThan($nameIndex, $createdAtIndex);
+        self::assertGreaterThan($nameIndex, $updatedAtIndex);
     }
 
     /**
@@ -1361,25 +1383,12 @@ class ApiResourceTest extends TestCase
         ]);
 
         $resource = new UserResource($user);
-        $request  = Request::create('/', 'GET');
+        $request  = Request::create('/', HttpMethod::GET->getVerb());
 
         $resolved = $resource->resolve($request);
         $array    = $resource->toArray($request);
 
-        static::assertSame($resolved, $array);
-    }
-
-    /**
-     * Test that different resource types produce correct types.
-     *
-     * @param  string  $resource_class
-     * @param  string  $expected_type
-     * @return void
-     */
-    #[DataProvider('resourceTypeProvider')]
-    public function testDifferentResourceTypesProduceCorrectTypes(string $resource_class, string $expected_type): void
-    {
-        static::assertSame($expected_type, $resource_class::getResourceType());
+        self::assertSame($resolved, $array);
     }
 
     /**
@@ -1396,20 +1405,16 @@ class ApiResourceTest extends TestCase
     }
 
     /**
-     * Test that getAllFields for different resources returns correct fields.
+     * Test that different resource types produce correct types.
      *
-     * @param  string  $resource_class
-     * @param  array<int, string>  $expected_fields
+     * @param  string  $resourceClass
+     * @param  string  $expectedType
      * @return void
      */
-    #[DataProvider('allFieldsProvider')]
-    public function testGetAllFieldsForDifferentResources(string $resource_class, array $expected_fields): void
+    #[DataProvider('resourceTypeProvider')]
+    public function testDifferentResourceTypesProduceCorrectTypes(string $resourceClass, string $expectedType): void
     {
-        $all_fields = $resource_class::getAllFields();
-
-        foreach ($expected_fields as $field) {
-            static::assertContains($field, $all_fields);
-        }
+        self::assertSame($expectedType, $resourceClass::getResourceType());
     }
 
     /**
@@ -1422,6 +1427,23 @@ class ApiResourceTest extends TestCase
         yield 'organization fields' => [OrganizationResource::class, ['id', 'name', 'slug', 'created_at', 'updated_at']];
         yield 'post fields' => [PostResource::class, ['id', 'title', 'body', 'published', 'created_at', 'updated_at', 'user', 'tags']];
         yield 'tag fields' => [TagResource::class, ['id', 'name', 'created_at', 'updated_at']];
+    }
+
+    /**
+     * Test that getAllFields for different resources returns correct fields.
+     *
+     * @param  string  $resourceClass
+     * @param  array<int, string>  $expectedFields
+     * @return void
+     */
+    #[DataProvider('allFieldsProvider')]
+    public function testGetAllFieldsForDifferentResources(string $resourceClass, array $expectedFields): void
+    {
+        $allFields = $resourceClass::getAllFields();
+
+        foreach ($expectedFields as $field) {
+            self::assertContains($field, $allFields);
+        }
     }
 
     /**
@@ -1440,14 +1462,14 @@ class ApiResourceTest extends TestCase
 
         /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
         $parser  = $this->app->make('api.query');
-        $request = Request::create('/', 'GET');
+        $request = Request::create('/', HttpMethod::GET->getVerb());
         $parser->parse($request);
 
         $resource = new UserResource($user, true, ':all');
         $result   = $resource->resolve();
 
-        static::assertArrayHasKey('_type', $result);
-        static::assertArrayHasKey('name', $result);
+        self::assertArrayHasKey('_type', $result);
+        self::assertArrayHasKey('name', $result);
     }
 
     /**
@@ -1467,7 +1489,7 @@ class ApiResourceTest extends TestCase
 
         /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
         $parser  = $this->app->make('api.query');
-        $request = Request::create('/', 'GET');
+        $request = Request::create('/', HttpMethod::GET->getVerb());
         $parser->parse($request);
 
         // 'counts' in included ensures shouldIncludeCountsField() returns true
@@ -1475,7 +1497,7 @@ class ApiResourceTest extends TestCase
         $resource = new UserResource($user, true, ['id', 'counts']);
         $result   = $resource->resolve();
 
-        static::assertArrayHasKey('_type', $result);
+        self::assertArrayHasKey('_type', $result);
     }
 
     /**
@@ -1494,7 +1516,7 @@ class ApiResourceTest extends TestCase
 
         /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
         $parser  = $this->app->make('api.query');
-        $request = Request::create('/', 'GET', ['fields' => ['users' => self::COUNTS_FIELDS]]);
+        $request = Request::create('/', HttpMethod::GET->getVerb(), ['fields' => ['users' => self::COUNTS_FIELDS]]);
         $parser->parse($request);
 
         // Inner resource wraps null; outer resource wraps the inner resource.
@@ -1505,7 +1527,7 @@ class ApiResourceTest extends TestCase
 
         $result = $resource->resolve();
 
-        static::assertArrayNotHasKey('counts', $result);
+        self::assertArrayNotHasKey('counts', $result);
     }
 
     /**
@@ -1518,18 +1540,19 @@ class ApiResourceTest extends TestCase
      */
     public function testCountExcludedByGuardIsOmittedFromPayload(): void
     {
-        $resource_class = new class (null) extends ApiResource {
+        $resourceClass = new class (null) extends ApiResource {
             /** @var string */
             public const string RESOURCE_TYPE = 'guarded_count_test';
 
             /** @var array<int, string> */
-            protected static array $default = ['id', 'counts']; // @phpstan-ignore property.phpDocType
+            protected static array $default = ['id', 'counts'];
 
             /**
              * Get the resource schema.
              *
              * @return array<string, array<string, mixed>>
              */
+            #[\Override]
             public static function schema(): array
             {
                 return Field::set(
@@ -1550,13 +1573,13 @@ class ApiResourceTest extends TestCase
 
         /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
         $parser  = $this->app->make('api.query');
-        $request = Request::create('/', 'GET', ['fields' => ['guarded_count_test' => self::COUNTS_FIELDS]]);
+        $request = Request::create('/', HttpMethod::GET->getVerb(), ['fields' => ['guarded_count_test' => self::COUNTS_FIELDS]]);
         $parser->parse($request);
 
-        $resource = new $resource_class($user);
+        $resource = new $resourceClass($user);
         $result   = $resource->resolve();
 
-        static::assertArrayNotHasKey('counts', $result);
+        self::assertArrayNotHasKey('counts', $result);
     }
 
     /**
@@ -1579,34 +1602,42 @@ class ApiResourceTest extends TestCase
 
         $user->load('organization');
 
-        $resource_class = new class (null) extends ApiResource {
+        $resourceClass = new class (null) extends ApiResource {
             /** @var string */
             public const string RESOURCE_TYPE = 'callable_rel_test';
 
             /** @var array<int, string> */
-            protected static array $default = ['id', 'org_name']; // @phpstan-ignore property.phpDocType
+            protected static array $default = ['id', 'org_name'];
 
             /**
              * Get the resource schema.
              *
              * @return array<string, array<string, mixed>>
              */
+            #[\Override]
             public static function schema(): array
             {
                 return Field::set(
                     Field::scalar('id'),
-                    Relation::to('organization', fn ($resource, $request) => $resource->resource?->organization?->name, 'org_name'),
+                    Relation::to('organization', static function ($resource): ?string {
+
+                        $user = $resource->resource;
+
+                        assert($user instanceof User);
+
+                        return $user->organization?->name;
+                    }, 'org_name'),
                 );
             }
         };
 
-        $resource = new $resource_class($user);
+        $resource = new $resourceClass($user);
         $resource->withFields(['org_name']);
 
         $result = $resource->resolve();
 
-        static::assertArrayHasKey('org_name', $result);
-        static::assertSame('CallableOrg', $result['org_name']);
+        self::assertArrayHasKey('org_name', $result);
+        self::assertSame('CallableOrg', $result['org_name']);
     }
 
     /**
@@ -1619,18 +1650,19 @@ class ApiResourceTest extends TestCase
     {
         $this->clearSchemaCache();
 
-        $resource_class = new class (null) extends ApiResource {
+        $resourceClass = new class (null) extends ApiResource {
             /** @var string */
             public const string RESOURCE_TYPE = 'explicit_fields_test';
 
             /** @var array<int, string> */
-            protected static array $default = ['id', 'organization']; // @phpstan-ignore property.phpDocType
+            protected static array $default = ['id', 'organization'];
 
             /**
              * Get the resource schema.
              *
              * @return array<string, array<string, mixed>>
              */
+            #[\Override]
             public static function schema(): array
             {
                 return Field::set(
@@ -1642,9 +1674,9 @@ class ApiResourceTest extends TestCase
         };
 
         $fields = ['organization'];
-        $map    = $resource_class::eagerLoadMapFor($fields);
+        $map    = $resourceClass::eagerLoadMapFor($fields);
 
-        static::assertNotEmpty($map);
+        self::assertNotEmpty($map);
     }
 
     /**
@@ -1670,18 +1702,19 @@ class ApiResourceTest extends TestCase
 
         $user->load('organization');
 
-        $resource_class = new class (null) extends ApiResource {
+        $resourceClass = new class (null) extends ApiResource {
             /** @var string */
             public const string RESOURCE_TYPE = 'child_fields_test';
 
             /** @var array<int, string> */
-            protected static array $default = ['id', 'organization']; // @phpstan-ignore property.phpDocType
+            protected static array $default = ['id', 'organization'];
 
             /**
              * Get the resource schema.
              *
              * @return array<string, array<string, mixed>>
              */
+            #[\Override]
             public static function schema(): array
             {
                 return Field::set(
@@ -1692,12 +1725,12 @@ class ApiResourceTest extends TestCase
             }
         };
 
-        $resource = new $resource_class($user);
+        $resource = new $resourceClass($user);
         $resource->withFields(['id', 'organization']);
 
         $result = $resource->resolve();
 
-        static::assertArrayHasKey('organization', $result);
+        self::assertArrayHasKey('organization', $result);
     }
 
     /**
@@ -1719,7 +1752,7 @@ class ApiResourceTest extends TestCase
 
         /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
         $parser  = $this->app->make('api.query');
-        $request = Request::create('/', 'GET', ['fields' => ['users' => self::COUNTS_FIELDS]]);
+        $request = Request::create('/', HttpMethod::GET->getVerb(), ['fields' => ['users' => self::COUNTS_FIELDS]]);
         $parser->parse($request);
 
         // Wrap the user in an inner UserResource, then wrap THAT in an outer
@@ -1730,8 +1763,8 @@ class ApiResourceTest extends TestCase
 
         $result = $resource->resolve();
 
-        static::assertArrayHasKey('_type', $result);
-        static::assertSame('users', $result['_type']);
+        self::assertArrayHasKey('_type', $result);
+        self::assertSame('users', $result['_type']);
     }
 
     /**
@@ -1752,7 +1785,7 @@ class ApiResourceTest extends TestCase
 
         $result = $resource->resolve();
 
-        static::assertArrayNotHasKey(self::COUNT_KEY_POSTS, $result);
+        self::assertArrayNotHasKey(self::COUNT_KEY_POSTS, $result);
     }
 
     /**
@@ -1764,12 +1797,12 @@ class ApiResourceTest extends TestCase
     {
         $map = UserResource::eagerLoadMapFor(['nonexistent_field_xyz']);
 
-        static::assertSame([], $map);
+        self::assertSame([], $map);
     }
 
     /**
-     * Test that eagerLoadMapFor skips metric fields in walkRelationsWith
-     * (line 608).
+     * Test that eagerLoadMapFor skips metric fields in walkRelationsWith (line
+     * 608).
      *
      * @return void
      */
@@ -1779,7 +1812,7 @@ class ApiResourceTest extends TestCase
         // skipped when encountered during relation traversal.
         $map = UserResource::eagerLoadMapFor([self::COUNT_KEY_POSTS]);
 
-        static::assertSame([], $map);
+        self::assertSame([], $map);
     }
 
     /**
@@ -1792,18 +1825,19 @@ class ApiResourceTest extends TestCase
     {
         $this->clearSchemaCache();
 
-        $resource_class = new class (null) extends ApiResource {
+        $resourceClass = new class (null) extends ApiResource {
             /** @var string */
             public const string RESOURCE_TYPE = 'extras_path_test';
 
             /** @var array<int, string> */
-            protected static array $default = ['organization']; // @phpstan-ignore property.phpDocType
+            protected static array $default = ['organization'];
 
             /**
              * Get the resource schema.
              *
              * @return array<string, array<string, mixed>>
              */
+            #[\Override]
             public static function schema(): array
             {
                 return Field::set(
@@ -1813,9 +1847,9 @@ class ApiResourceTest extends TestCase
             }
         };
 
-        $map = $resource_class::eagerLoadMapFor(['organization']);
+        $map = $resourceClass::eagerLoadMapFor(['organization']);
 
-        static::assertContains('organization.owner', $map);
+        self::assertContains('organization.owner', $map);
     }
 
     /**
@@ -1830,10 +1864,10 @@ class ApiResourceTest extends TestCase
         // second occurrence, exercising the continue on line 624.
         $map = UserResource::eagerLoadMapFor(['organization', 'organization']);
 
-        $plain_values = array_values($map);
+        $plainValues = array_values($map);
 
-        static::assertContains('organization', $plain_values);
-        static::assertCount(1, array_keys($map, 'organization', true));
+        self::assertContains('organization', $plainValues);
+        self::assertCount(1, array_keys($map, 'organization', true));
     }
 
     /**
@@ -1846,18 +1880,19 @@ class ApiResourceTest extends TestCase
     {
         $this->clearSchemaCache();
 
-        $child_class = new class (null) extends ApiResource {
+        $childClass = new class (null) extends ApiResource {
             /** @var string */
             public const string RESOURCE_TYPE = 'no_defaults_child';
 
             /** @var array<int, string> */
-            protected static array $default = []; // @phpstan-ignore property.phpDocType
+            protected static array $default = [];
 
             /**
              * Get the resource schema.
              *
              * @return array<string, array<string, mixed>>
              */
+            #[\Override]
             public static function schema(): array
             {
                 return Field::set(
@@ -1867,14 +1902,14 @@ class ApiResourceTest extends TestCase
             }
         };
 
-        $child_class_name = $child_class::class;
+        $childClassName = $childClass::class;
 
-        $outer_class = new class (null) extends ApiResource {
+        $outerClass = new class (null) extends ApiResource {
             /** @var string */
             public const string RESOURCE_TYPE = 'outer_for_empty_defaults';
 
             /** @var array<int, string> */
-            protected static array $default = ['rel']; // @phpstan-ignore property.phpDocType
+            protected static array $default = ['rel'];
 
             /** @var string */
             public static string $childClassName = '';
@@ -1884,6 +1919,7 @@ class ApiResourceTest extends TestCase
              *
              * @return array<string, array<string, mixed>>
              */
+            #[\Override]
             public static function schema(): array
             {
                 return Field::set(
@@ -1892,19 +1928,20 @@ class ApiResourceTest extends TestCase
             }
         };
 
-        $outer_class::$childClassName = $child_class_name;
+        $outerClass::$childClassName = $childClassName;
 
         // No fields set for 'no_defaults_child' in the query — defaults are
-        // empty — so resolveChildFields falls through to getAllFields (line 837).
-        $map = $outer_class::eagerLoadMapFor(['rel']);
+        // empty — so resolveChildFields falls through to getAllFields
+        // (line 837).
+        $map = $outerClass::eagerLoadMapFor(['rel']);
 
-        static::assertContains('rel', $map);
+        self::assertContains('rel', $map);
     }
 
     /**
-     * Test that resolveSimpleProperty reflects on a model method when the
-     * field name matches a method that does NOT return an Attribute, covering
-     * the reflection path (lines 385-386) and the non-Attribute check (388).
+     * Test that resolveSimpleProperty reflects on a model method when the field
+     * name matches a method that does NOT return an Attribute, covering the
+     * reflection path (lines 385-386) and the non-Attribute check (388).
      *
      * @return void
      */
@@ -1916,18 +1953,19 @@ class ApiResourceTest extends TestCase
         // a relation. resolveSimpleProperty() is then called for 'posts'.
         // User.posts() exists (method_exists = true) → reflection runs → the
         // return type is HasMany, not Attribute → line 388 condition is false.
-        $resource_class = new class (null) extends ApiResource {
+        $resourceClass = new class (null) extends ApiResource {
             /** @var string */
             public const string RESOURCE_TYPE = 'method_reflect_test';
 
             /** @var array<int, string> */
-            protected static array $default = ['id', 'posts']; // @phpstan-ignore property.phpDocType
+            protected static array $default = ['id', 'posts'];
 
             /**
              * Get the resource schema.
              *
              * @return array<string, array<string, mixed>>
              */
+            #[\Override]
             public static function schema(): array
             {
                 return Field::set(
@@ -1942,7 +1980,7 @@ class ApiResourceTest extends TestCase
             'email' => 'methodreflect@example.com',
         ]);
 
-        $resource = new $resource_class($user);
+        $resource = new $resourceClass($user);
         $resource->withFields(['id', 'posts']);
 
         $result = $resource->resolve();
@@ -1951,13 +1989,13 @@ class ApiResourceTest extends TestCase
         // so the key is present in the result. The main goal is to exercise
         // the ReflectionMethod path (lines 385-386, 388) before falling through
         // to the __isset check.
-        static::assertArrayHasKey('_type', $result);
+        self::assertArrayHasKey('_type', $result);
     }
 
     /**
-     * Test that the scoped-constraint closure returned by eagerLoadMapFor
-     * is properly invoked for a non-MorphTo builder, covering the
-     * Builder-path inside the wrapper closure (lines 637-640).
+     * Test that the scoped-constraint closure returned by eagerLoadMapFor is
+     * properly invoked for a non-MorphTo builder, covering the Builder-path
+     * inside the wrapper closure (lines 637-640).
      *
      * @return void
      */
@@ -1965,18 +2003,19 @@ class ApiResourceTest extends TestCase
     {
         $this->clearSchemaCache();
 
-        $resource_class = new class (null) extends ApiResource {
+        $resourceClass = new class (null) extends ApiResource {
             /** @var string */
             public const string RESOURCE_TYPE = 'constrained_exec_test';
 
             /** @var array<int, string> */
-            protected static array $default = ['id', 'organization']; // @phpstan-ignore property.phpDocType
+            protected static array $default = ['id', 'organization'];
 
             /**
              * Get the resource schema.
              *
              * @return array<string, array<string, mixed>>
              */
+            #[\Override]
             public static function schema(): array
             {
                 return Field::set(
@@ -1987,22 +2026,22 @@ class ApiResourceTest extends TestCase
             }
         };
 
-        $map = $resource_class::eagerLoadMapFor(['organization']);
+        $map = $resourceClass::eagerLoadMapFor(['organization']);
 
-        static::assertArrayHasKey('organization', $map);
-        static::assertIsCallable($map['organization']);
+        self::assertArrayHasKey('organization', $map);
+        self::assertIsCallable($map['organization']);
 
         // Invoke the wrapper closure with a real Builder so the non-MorphTo
         // path (lines 637-640) executes.
         $builder = Organization::query();
         ($map['organization'])($builder);
 
-        static::assertNotEmpty($builder->getQuery()->wheres);
+        self::assertNotEmpty($builder->getQuery()->wheres);
     }
 
     /**
-     * Test that resolveSimpleProperty returns the accessor value when the
-     * model method's return type is Attribute (line 389).
+     * Test that resolveSimpleProperty returns the accessor value when the model
+     * method's return type is Attribute (line 389).
      *
      * @return void
      */
@@ -2010,7 +2049,7 @@ class ApiResourceTest extends TestCase
     {
         $this->clearSchemaCache();
 
-        $model = new class extends \Illuminate\Database\Eloquent\Model {
+        $model = new class extends Model {
             /** @var string|null The database table backing the model. */
             protected $table = 'users';
 
@@ -2019,26 +2058,27 @@ class ApiResourceTest extends TestCase
              *
              * @return \Illuminate\Database\Eloquent\Casts\Attribute
              */
-            public function label(): \Illuminate\Database\Eloquent\Casts\Attribute
+            public function label(): Attribute
             {
-                return \Illuminate\Database\Eloquent\Casts\Attribute::make(
+                return Attribute::make(
                     get: fn () => 'attr_value',
                 );
             }
         };
 
-        $resource_class = new class (null) extends ApiResource {
+        $resourceClass = new class (null) extends ApiResource {
             /** @var string */
             public const string RESOURCE_TYPE = 'attr_method_test';
 
             /** @var array<int, string> */
-            protected static array $default = ['label']; // @phpstan-ignore property.phpDocType
+            protected static array $default = ['label'];
 
             /**
              * Get the resource schema.
              *
              * @return array<string, array<string, mixed>>
              */
+            #[\Override]
             public static function schema(): array
             {
                 return Field::set(
@@ -2047,17 +2087,17 @@ class ApiResourceTest extends TestCase
             }
         };
 
-        $resource = new $resource_class($model);
+        $resource = new $resourceClass($model);
         $resource->withFields(['label']);
 
         $result = $resource->resolve();
 
-        static::assertSame('attr_value', $result['label']);
+        self::assertSame('attr_value', $result['label']);
     }
 
     /**
-     * Test that getAttributeIfLoaded returns via __isset when the owner has
-     * no getAttributes method (line 555).
+     * Test that getAttributeIfLoaded returns via __isset when the owner has no
+     * getAttributes method (line 555).
      *
      * @return void
      */
@@ -2067,12 +2107,12 @@ class ApiResourceTest extends TestCase
 
         /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
         $parser  = $this->app->make('api.query');
-        $request = Request::create('/', 'GET', ['fields' => ['users' => 'id,counts']]);
+        $request = Request::create('/', HttpMethod::GET->getVerb(), ['fields' => ['users' => 'id,counts']]);
         $parser->parse($request);
 
         // A plain object with __isset/__get but no getAttributes(), so
         // getAttributeIfLoaded falls through to the __isset branch (line 554).
-        $fake_owner = new class {
+        $fakeOwner = new class {
             /**
              * @param  string  $name
              * @return bool
@@ -2092,16 +2132,16 @@ class ApiResourceTest extends TestCase
             }
         };
 
-        $resource = new UserResource($fake_owner);
+        $resource = new UserResource($fakeOwner);
         $result   = $resource->resolve();
 
-        static::assertArrayHasKey('counts', $result);
-        static::assertSame(2, $result['counts']['posts']);
+        self::assertArrayHasKey('counts', $result);
+        self::assertSame(2, $result['counts']['posts']);
     }
 
     /**
-     * Test that the scoped-constraint closure passes the query directly to
-     * the user constraint when the query is a MorphTo instance (lines 633-634).
+     * Test that the scoped-constraint closure passes the query directly to the
+     * user constraint when the query is a MorphTo instance (lines 633-634).
      *
      * @return void
      */
@@ -2109,18 +2149,19 @@ class ApiResourceTest extends TestCase
     {
         $this->clearSchemaCache();
 
-        $resource_class = new class (null) extends ApiResource {
+        $resourceClass = new class (null) extends ApiResource {
             /** @var string */
             public const string RESOURCE_TYPE = 'morph_to_exec_test';
 
             /** @var array<int, string> */
-            protected static array $default = ['id', 'organization']; // @phpstan-ignore property.phpDocType
+            protected static array $default = ['id', 'organization'];
 
             /**
              * Get the resource schema.
              *
              * @return array<string, array<string, mixed>>
              */
+            #[\Override]
             public static function schema(): array
             {
                 return Field::set(
@@ -2131,27 +2172,522 @@ class ApiResourceTest extends TestCase
             }
         };
 
-        $map = $resource_class::eagerLoadMapFor(['organization']);
+        $map = $resourceClass::eagerLoadMapFor(['organization']);
 
-        static::assertArrayHasKey('organization', $map);
-        static::assertIsCallable($map['organization']);
+        self::assertArrayHasKey('organization', $map);
+        self::assertIsCallable($map['organization']);
 
         // Invoke the wrapper closure with a MorphTo mock to exercise the
-        // MorphTo branch (lines 633-634) where the constraint is called directly.
-        $morph_to = \Mockery::mock(MorphTo::class);
-        ($map['organization'])($morph_to);
+        // MorphTo branch (lines 633-634) where the constraint is called
+        // directly.
+        $morphTo = \Mockery::mock(MorphTo::class);
+        ($map['organization'])($morphTo);
+    }
+
+    /**
+     * Test that getResourceType lowercases a mixed-case RESOURCE_TYPE constant.
+     *
+     * @return void
+     */
+    public function testGetResourceTypeLowercasesMixedCaseConstant(): void
+    {
+        $resourceClass = new class (null) extends ApiResource {
+            /** @var string */
+            public const string RESOURCE_TYPE = 'MixedCase';
+
+            /**
+             * Get the resource schema.
+             *
+             * @return array<string, array<string, mixed>>
+             */
+            #[\Override]
+            public static function schema(): array
+            {
+                return [];
+            }
+        };
+
+        self::assertSame('mixedcase', $resourceClass::getResourceType());
+    }
+
+    /**
+     * Test that resolve skips fields missing from the schema and still resolves
+     * the remaining fields.
+     *
+     * @return void
+     */
+    public function testResolveSkipsUnknownFieldsAndContinuesResolving(): void
+    {
+        $user = User::create([
+            'name'  => 'SkipUnknown',
+            'email' => 'skipunknown@example.com',
+        ]);
+
+        $resource = new UserResource($user);
+        $resource->withFields(['unknown_field', 'name']);
+
+        $result = $resource->resolve();
+
+        self::assertArrayNotHasKey('unknown_field', $result);
+        self::assertArrayHasKey('name', $result);
+        self::assertArrayHasKey('id', $result);
+    }
+
+    /**
+     * Test that the constructor does not eager load relations by default.
+     *
+     * @return void
+     */
+    public function testConstructorDoesNotEagerLoadRelationsByDefault(): void
+    {
+        $org = Organization::create([
+            'name' => 'Lazy Corp',
+            'slug' => 'lazy-corp',
+        ]);
+
+        $user = User::create([
+            'name'            => 'Lazy',
+            'email'           => 'lazy@example.com',
+            'organization_id' => $org->id,
+        ]);
+
+        assert($this->app !== null);
+
+        /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
+        $parser  = $this->app->make('api.query');
+        $request = Request::create('/', HttpMethod::GET->getVerb(), [
+            'fields' => ['users' => 'id,name,organization'],
+        ]);
+
+        $parser->parse($request);
+
+        $resource = new UserResource($user);
+        $result   = $resource->resolve();
+
+        self::assertFalse($user->relationLoaded('organization'));
+        self::assertArrayNotHasKey('organization', $result);
+    }
+
+    /**
+     * Test that load_missing in all-fields mode eager loads schema relations
+     * that are absent from the resolved field list.
+     *
+     * @return void
+     */
+    public function testConstructorWithLoadMissingAndAllEagerLoadsSchemaRelations(): void
+    {
+        $org = Organization::create([
+            'name' => 'All Corp',
+            'slug' => 'all-corp',
+        ]);
+
+        $user = User::create([
+            'name'            => 'AllLoad',
+            'email'           => 'allload@example.com',
+            'organization_id' => $org->id,
+        ]);
+
+        assert($this->app !== null);
+
+        /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
+        $parser  = $this->app->make('api.query');
+        $request = Request::create('/', HttpMethod::GET->getVerb());
+
+        $parser->parse($request);
+
+        // The default fields contain no relations, so the eager-load map is
+        // only non-empty when all-fields mode resolves the full schema.
+        new UserResource($user, true, ':all');
+
+        self::assertTrue($user->relationLoaded('organization'));
+    }
+
+    /**
+     * Test that load_missing does not load counts when the counts field is not
+     * requested.
+     *
+     * @return void
+     */
+    public function testConstructorWithLoadMissingSkipsCountsWhenNotRequested(): void
+    {
+        $user = User::create([
+            'name'  => 'NoCountLoad',
+            'email' => 'nocountload@example.com',
+        ]);
+
+        assert($this->app !== null);
+
+        /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
+        $parser  = $this->app->make('api.query');
+        $request = Request::create('/', HttpMethod::GET->getVerb(), [
+            'fields' => ['users' => 'id,name'],
+        ]);
+
+        $parser->parse($request);
+
+        new UserResource($user, true);
+
+        self::assertArrayNotHasKey('posts_count', $user->getAttributes());
+    }
+
+    /**
+     * Test that load_missing loads default counts and resolves them into the
+     * counts payload when the counts field is requested.
+     *
+     * @return void
+     */
+    public function testConstructorWithLoadMissingLoadsRequestedCounts(): void
+    {
+        $user = User::create([
+            'name'  => 'CountLoader',
+            'email' => 'countloader@example.com',
+        ]);
+
+        Post::create([
+            'user_id'   => $user->id,
+            'title'     => 'Counted One',
+            'body'      => 'Body',
+            'published' => true,
+        ]);
+
+        Post::create([
+            'user_id'   => $user->id,
+            'title'     => 'Counted Two',
+            'body'      => 'Body',
+            'published' => false,
+        ]);
+
+        assert($this->app !== null);
+
+        /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
+        $parser  = $this->app->make('api.query');
+        $request = Request::create('/', HttpMethod::GET->getVerb(), [
+            'fields' => ['users' => self::COUNTS_FIELDS],
+        ]);
+
+        $parser->parse($request);
+
+        $resource = new UserResource($user, true);
+        $result   = $resource->resolve();
+
+        self::assertArrayHasKey('counts', $result);
+        self::assertSame(2, $result['counts']['posts']);
+    }
+
+    /**
+     * Test that load_missing honours explicitly requested count aliases from
+     * the API query.
+     *
+     * @return void
+     */
+    public function testConstructorWithLoadMissingHonoursRequestedCountAliases(): void
+    {
+        $org = Organization::create([
+            'name' => 'Counted Corp',
+            'slug' => 'counted-corp',
+        ]);
+
+        User::create([
+            'name'            => 'Member',
+            'email'           => 'member@example.com',
+            'organization_id' => $org->id,
+        ]);
+
+        assert($this->app !== null);
+
+        /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
+        $parser  = $this->app->make('api.query');
+        $request = Request::create('/', HttpMethod::GET->getVerb(), [
+            'fields' => ['organizations' => self::COUNTS_FIELDS],
+            'counts' => ['organizations' => 'users'],
+        ]);
+
+        $parser->parse($request);
+
+        $resource = new OrganizationResource($org, true);
+        $result   = $resource->resolve();
+
+        self::assertArrayHasKey('counts', $result);
+        self::assertSame(1, $result['counts']['users']);
+    }
+
+    /**
+     * Test that sums payload is included in the resolved output when the sums
+     * virtual field is requested and loadMissing loads the aggregate
+     * attributes.
+     *
+     * Uses AggregateCapturingModel that intercepts loadSum to set the name that
+     * ValueResolver expects, since Eloquent's 'relation as alias' form produces
+     * only the bare alias key rather than the full presentKey_sum_column key.
+     *
+     * @return void
+     */
+    public function testSumsPayloadIsIncludedWhenLoadMissingAndSumsFieldRequested(): void
+    {
+        assert($this->app !== null);
+
+        /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
+        $parser  = $this->app->make('api.query');
+        $request = Request::create('/', HttpMethod::GET->getVerb(), [
+            'fields' => ['users' => 'id,sums'],
+        ]);
+
+        $parser->parse($request);
+
+        $model = new AggregateCapturingModel;
+
+        $resource = new UserResource($model, true);
+        $result   = $resource->resolve();
+
+        self::assertArrayHasKey('sums', $result);
+        self::assertIsFloat($result['sums']['posts_id']);
+    }
+
+    /**
+     * Test that the sums key is absent when the sums virtual field is requested
+     * but no aggregate attribute is loaded on the model.
+     *
+     * @return void
+     */
+    public function testSumsPayloadIsAbsentWhenNoSumsLoaded(): void
+    {
+        assert($this->app !== null);
+
+        /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
+        $parser  = $this->app->make('api.query');
+        $request = Request::create('/', HttpMethod::GET->getVerb(), [
+            'fields' => ['users' => 'id,sums'],
+        ]);
+
+        $parser->parse($request);
+
+        $user = User::create([
+            'name'  => 'NoSumUser',
+            'email' => 'nosumuser@example.com',
+        ]);
+
+        // No loadMissing and no manual preload - attribute not present on model
+        $resource = new UserResource($user);
+        $result   = $resource->resolve();
+
+        self::assertArrayNotHasKey('sums', $result);
+    }
+
+    /**
+     * Test that averages payload is included when the averages field is
+     * requested and loadMissing loads the aggregate attribute.
+     *
+     * Uses AggregateCapturingModel that intercepts loadAvg to set the name that
+     * ValueResolver expects, since Eloquent's 'relation as alias' form produces
+     * only the bare alias key rather than the full presentKey_avg_column key.
+     *
+     * @return void
+     */
+    public function testAveragesPayloadIsIncludedWhenLoadMissingAndAveragesFieldRequested(): void
+    {
+        assert($this->app !== null);
+
+        /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
+        $parser  = $this->app->make('api.query');
+        $request = Request::create('/', HttpMethod::GET->getVerb(), [
+            'fields'   => ['users' => 'id,averages'],
+            'averages' => ['users' => ['posts' => 'id']],
+        ]);
+
+        $parser->parse($request);
+
+        $model = new AggregateCapturingModel;
+
+        $resource = new UserResource($model, true);
+        $result   = $resource->resolve();
+
+        self::assertArrayHasKey('averages', $result);
+        self::assertIsFloat($result['averages']['posts_id']);
+    }
+
+    /**
+     * Test that the averages key is absent from the resolved output when the
+     * averages virtual field is not included in the requested fields, even when
+     * getAverages returns a non-null value and an attribute is preloaded.
+     *
+     * @return void
+     */
+    public function testAveragesPayloadIsAbsentWhenShouldIncludeIsFalse(): void
+    {
+        assert($this->app !== null);
+
+        /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
+        $parser  = $this->app->make('api.query');
+        $request = Request::create('/', HttpMethod::GET->getVerb(), [
+            // No 'averages' in fields - shouldInclude returns false
+            'averages' => ['users' => ['posts' => 'id']],
+        ]);
+
+        $parser->parse($request);
+
+        $user = User::create([
+            'name'  => 'AvgFalseUser',
+            'email' => 'avgfalse@example.com',
+        ]);
+
+        // Manually set the avg attribute so resolveAggregatesPayload would
+        // return a non-empty array if the shouldInclude guard is bypassed
+        $user->setAttribute('posts_id_avg_id', 3.0);
+
+        $resource = new UserResource($user);
+        $result   = $resource->resolve();
+
+        self::assertArrayNotHasKey('averages', $result);
+    }
+
+    /**
+     * Test that the averages key is absent when shouldInclude is true but no
+     * average attributes are loaded on the model.
+     *
+     * @return void
+     */
+    public function testAveragesPayloadIsAbsentWhenNoAveragesLoaded(): void
+    {
+        assert($this->app !== null);
+
+        /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
+        $parser  = $this->app->make('api.query');
+        $request = Request::create('/', HttpMethod::GET->getVerb(), [
+            'fields'   => ['users' => 'id,averages'],
+            'averages' => ['users' => ['posts' => 'id']],
+        ]);
+
+        $parser->parse($request);
+
+        $user = User::create([
+            'name'  => 'AvgEmptyUser',
+            'email' => 'avgempty@example.com',
+        ]);
+
+        // No loadMissing and no manual preload - attribute absent on model
+        $resource = new UserResource($user);
+        $result   = $resource->resolve();
+
+        self::assertArrayNotHasKey('averages', $result);
+    }
+
+    /**
+     * Test that loadMissing loads a non-default sum when it is explicitly
+     * requested via the sums query parameter.
+     *
+     * Uses AggregateCapturingModel that intercepts loadSum to set the name that
+     * ValueResolver expects, since Eloquent's 'relation as alias' form produces
+     * only the bare alias key rather than the full presentKey_sum_column key.
+     *
+     * @return void
+     */
+    public function testLoadMissingLoadsExplicitlyRequestedNonDefaultSum(): void
+    {
+        $this->clearSchemaCache();
+
+        $resourceClass = new class (null) extends ApiResource {
+            /** @var string */
+            public const string RESOURCE_TYPE = 'nondefault_sum_rt';
+
+            /** @var array<int, string> */
+            protected static array $default = ['id', 'sums'];
+
+            /**
+             * Get the resource schema.
+             *
+             * @return array<string, array<string, mixed>>
+             */
+            #[\Override]
+            public static function schema(): array
+            {
+                return [
+                    'id'               => [],
+                    '__sum__:posts_id' => [
+                        'metric'   => 'sum',
+                        'relation' => 'posts',
+                        'column'   => 'id',
+                        'default'  => false,
+                    ],
+                ];
+            }
+        };
+
+        assert($this->app !== null);
+
+        /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
+        $parser  = $this->app->make('api.query');
+        $request = Request::create('/', HttpMethod::GET->getVerb(), [
+            'fields' => ['nondefault_sum_rt' => 'id,sums'],
+            'sums'   => ['nondefault_sum_rt' => ['posts' => 'id']],
+        ]);
+
+        $parser->parse($request);
+
+        $model = new AggregateCapturingModel;
+
+        $instance = new $resourceClass($model, true);
+        $result   = $instance->resolve();
+
+        self::assertArrayHasKey('sums', $result, 'non-default sum must be loaded when explicitly requested');
+
+        $this->clearSchemaCache();
+    }
+
+    /**
+     * Test that fields declared on the resource's fixed property are merged
+     * with the config-driven fixed fields.
+     *
+     * @return void
+     */
+    public function testResolveMergesResourceFixedPropertyWithConfigFixedFields(): void
+    {
+        $resourceClass = new class (null) extends ApiResource {
+            /** @var string */
+            public const string RESOURCE_TYPE = 'fixed_prop_test';
+
+            /** @var array<int, string> */
+            protected static array $default = ['id', 'name'];
+
+            /** @var array<int, string> */
+            protected array $fixed = ['email'];
+
+            /**
+             * Get the resource schema.
+             *
+             * @return array<string, array<string, mixed>>
+             */
+            #[\Override]
+            public static function schema(): array
+            {
+                return Field::set(
+                    Field::scalar('id'),
+                    Field::scalar('name'),
+                    Field::scalar('email'),
+                );
+            }
+        };
+
+        $user = User::create([
+            'name'  => 'FixedProp',
+            'email' => 'fixedprop@example.com',
+        ]);
+
+        $resource = new $resourceClass($user);
+        $resource->withFields(['name']);
+
+        $result = $resource->resolve();
+
+        self::assertArrayHasKey('email', $result, 'resource-level fixed fields must be included');
+        self::assertArrayHasKey('id', $result, 'config-level fixed fields must be included');
     }
 
     /**
      * Clear the static schema cache between tests.
      *
      * @return void
-     *
-     * @SuppressWarnings("php:S3011")
      */
     private function clearSchemaCache(): void
     {
-        $property = new \ReflectionProperty(ApiResource::class, 'schemaCache');
-        $property->setValue(null, []);
+        SchemaCompiler::clearCache();
     }
 }

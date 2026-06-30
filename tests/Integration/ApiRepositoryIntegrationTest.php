@@ -1,11 +1,17 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Integration;
 
 use Illuminate\Http\Request;
+use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Facades\Config;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
 use SineMacula\ApiToolkit\Repositories\ApiRepository;
+use SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface;
+use SineMacula\Http\Enums\HttpMethod;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Repositories\UserRepository;
 use Tests\TestCase;
@@ -19,7 +25,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(ApiRepository::class)]
-class ApiRepositoryIntegrationTest extends TestCase
+final class ApiRepositoryIntegrationTest extends TestCase
 {
     /** @var \Tests\Fixtures\Repositories\UserRepository */
     private UserRepository $repository;
@@ -36,6 +42,11 @@ class ApiRepositoryIntegrationTest extends TestCase
 
         assert($this->app !== null);
 
+        // Pin the blocklist posture so criteria filtering follows the legacy
+        // isSearchable contract these mechanics tests assert; the allowlist
+        // default has dedicated coverage in QuerySurfaceIntegrationTest.
+        Config::set('api-toolkit.repositories.query_posture', QuerySurface::POSTURE_BLOCKLIST);
+
         /** @var \Tests\Fixtures\Repositories\UserRepository $repository */
         $repository = $this->app->make(UserRepository::class);
 
@@ -51,33 +62,34 @@ class ApiRepositoryIntegrationTest extends TestCase
      */
     public function testPaginateReturnsPaginatedCollection(): void
     {
-        $request = Request::create('/test', 'GET', ['limit' => '2']);
+        $request = Request::create('/test', HttpMethod::GET->getVerb(), ['limit' => '2']);
         ApiQuery::parse($request);
 
         $results = $this->repository->paginate();
 
-        static::assertCount(2, $results);
-        static::assertInstanceOf(\Illuminate\Pagination\LengthAwarePaginator::class, $results);
+        self::assertCount(2, $results);
+        self::assertInstanceOf(LengthAwarePaginator::class, $results);
     }
 
     /**
-     * Test that setAttributes persists model changes.
+     * Test that persist saves model changes to the database.
      *
      * @SuppressWarnings("php:S3011")
      *
      * @return void
      */
-    public function testSetAttributesPersistsModelChanges(): void
+    public function testPersistSavesModelChanges(): void
     {
         /** @var \Tests\Fixtures\Models\User $user */
         $user = User::where('name', 'Alice')->first();
 
-        $reflection = new \ReflectionProperty($this->repository, 'casts');
-        $reflection->setValue($this->repository, ['name' => 'string']);
+        $reflection      = new \ReflectionClass(ApiRepository::class);
+        $attributeSetter = $reflection->getProperty('attributeSetter')->getValue($this->repository);
+        (new \ReflectionProperty($attributeSetter, 'casts'))->setValue($attributeSetter, ['name' => 'string']);
 
-        $result = $this->repository->setAttributes($user, ['name' => 'Alice Updated']);
+        $result = $this->repository->persist($user, ['name' => 'Alice Updated']);
 
-        static::assertTrue($result);
+        self::assertTrue($result);
         $this->assertDatabaseHas('users', ['name' => 'Alice Updated']);
     }
 
@@ -94,8 +106,8 @@ class ApiRepositoryIntegrationTest extends TestCase
         /** @var \Tests\Fixtures\Models\User|null $result */
         $result = $this->repository->scopeById($user->id)->first(); // @phpstan-ignore staticMethod.dynamicCall
 
-        static::assertNotNull($result);
-        static::assertSame('Alice', $result->name);
+        self::assertNotNull($result);
+        self::assertSame('Alice', $result->name);
     }
 
     /**
@@ -113,9 +125,9 @@ class ApiRepositoryIntegrationTest extends TestCase
 
         $results = $this->repository->scopeByIds([$alice->id, $bob->id])->get(); // @phpstan-ignore staticMethod.dynamicCall
 
-        static::assertCount(2, $results);
-        static::assertTrue($results->pluck('name')->contains('Alice'));
-        static::assertTrue($results->pluck('name')->contains('Bob'));
+        self::assertCount(2, $results);
+        self::assertTrue($results->pluck('name')->contains('Alice'));
+        self::assertTrue($results->pluck('name')->contains('Bob'));
     }
 
     /**
@@ -125,19 +137,19 @@ class ApiRepositoryIntegrationTest extends TestCase
      */
     public function testWithApiCriteriaAppliesCriteriaToQuery(): void
     {
-        $request = Request::create('/test', 'GET', [
+        $request = Request::create('/test', HttpMethod::GET->getVerb(), [
             'filters' => json_encode(['name' => 'Alice']),
         ]);
         ApiQuery::parse($request);
 
         $results = $this->repository->withApiCriteria()->get(); // @phpstan-ignore staticMethod.dynamicCall
 
-        static::assertCount(1, $results);
+        self::assertCount(1, $results);
 
         /** @var \Tests\Fixtures\Models\User $first */
         $first = $results->first();
 
-        static::assertSame('Alice', $first->name);
+        self::assertSame('Alice', $first->name);
     }
 
     /**

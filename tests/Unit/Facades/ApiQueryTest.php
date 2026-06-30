@@ -1,10 +1,14 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Unit\Facades;
 
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Config;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
+use SineMacula\Http\Enums\HttpMethod;
 use Tests\TestCase;
 
 /**
@@ -16,7 +20,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(ApiQuery::class)]
-class ApiQueryTest extends TestCase
+final class ApiQueryTest extends TestCase
 {
     /**
      * Test that the facade accessor returns the config-based alias.
@@ -28,7 +32,38 @@ class ApiQueryTest extends TestCase
         $reflection = new \ReflectionMethod(ApiQuery::class, 'getFacadeAccessor');
         $accessor   = $reflection->invoke(null);
 
-        static::assertSame('api.query', $accessor);
+        self::assertSame('api.query', $accessor);
+    }
+
+    /**
+     * Test that the facade accessor returns a custom configured alias.
+     *
+     * @return void
+     */
+    public function testFacadeAccessorReturnsCustomConfiguredAlias(): void
+    {
+        Config::set('api-toolkit.parser.alias', 'custom.alias');
+
+        $reflection = new \ReflectionMethod(ApiQuery::class, 'getFacadeAccessor');
+        $accessor   = $reflection->invoke(null);
+
+        self::assertSame('custom.alias', $accessor);
+    }
+
+    /**
+     * Test that the facade accessor falls back to the default alias when the
+     * configured alias is not a string.
+     *
+     * @return void
+     */
+    public function testFacadeAccessorFallsBackWhenAliasIsNotString(): void
+    {
+        Config::set('api-toolkit.parser.alias', null);
+
+        $reflection = new \ReflectionMethod(ApiQuery::class, 'getFacadeAccessor');
+        $accessor   = $reflection->invoke(null);
+
+        self::assertSame('api.query', $accessor);
     }
 
     /**
@@ -38,7 +73,7 @@ class ApiQueryTest extends TestCase
      */
     public function testFacadeProxiesParseMethodCalls(): void
     {
-        $request = Request::create('/test', 'GET');
+        $request = Request::create('/test', HttpMethod::GET->getVerb());
 
         ApiQuery::shouldReceive('parse')
             ->once()
@@ -60,7 +95,7 @@ class ApiQueryTest extends TestCase
 
         $result = ApiQuery::getFields();
 
-        static::assertNull($result);
+        self::assertNull($result);
     }
 
     /**
@@ -76,7 +111,7 @@ class ApiQueryTest extends TestCase
 
         $result = ApiQuery::getPage();
 
-        static::assertSame(3, $result);
+        self::assertSame(3, $result);
     }
 
     /**
@@ -94,6 +129,6 @@ class ApiQueryTest extends TestCase
 
         $result = ApiQuery::getFilters();
 
-        static::assertSame($filters, $result);
+        self::assertSame($filters, $result);
     }
 }

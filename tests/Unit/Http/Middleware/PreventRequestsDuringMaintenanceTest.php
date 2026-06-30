@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Unit\Http\Middleware;
 
 use Illuminate\Foundation\Http\Middleware\PreventRequestsDuringMaintenance as LaravelMiddleware;
@@ -8,6 +10,7 @@ use Orchestra\Testbench\TestCase;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Exceptions\MaintenanceModeException;
 use SineMacula\ApiToolkit\Http\Middleware\PreventRequestsDuringMaintenance;
+use SineMacula\Http\Enums\HttpMethod;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 use Tests\Concerns\InteractsWithNonPublicMembers;
 
@@ -20,18 +23,19 @@ use Tests\Concerns\InteractsWithNonPublicMembers;
  * @internal
  */
 #[CoversClass(PreventRequestsDuringMaintenance::class)]
-class PreventRequestsDuringMaintenanceTest extends TestCase
+final class PreventRequestsDuringMaintenanceTest extends TestCase
 {
     use InteractsWithNonPublicMembers;
 
     /**
-     * Test that the middleware extends Laravel's PreventRequestsDuringMaintenance.
+     * Test that the middleware extends Laravel's
+     * PreventRequestsDuringMaintenance.
      *
      * @return void
      */
     public function testExtendsLaravelMiddleware(): void
     {
-        static::assertContains(LaravelMiddleware::class, class_parents(PreventRequestsDuringMaintenance::class) ?: []);
+        self::assertContains(LaravelMiddleware::class, class_parents(PreventRequestsDuringMaintenance::class) ?: []);
     }
 
     /**
@@ -48,11 +52,12 @@ class PreventRequestsDuringMaintenanceTest extends TestCase
         $middleware = new PreventRequestsDuringMaintenance($this->app);
         $except     = $this->getProperty($middleware, 'except');
 
-        static::assertSame(['/health', '/status'], $except);
+        self::assertSame(['/health', '/status'], $except);
     }
 
     /**
-     * Test that the constructor uses an empty array when config returns default.
+     * Test that the constructor uses an empty array when config returns
+     * default.
      *
      * @return void
      */
@@ -65,7 +70,7 @@ class PreventRequestsDuringMaintenanceTest extends TestCase
         $middleware = new PreventRequestsDuringMaintenance($this->app);
         $except     = $this->getProperty($middleware, 'except');
 
-        static::assertSame([], $except);
+        self::assertSame([], $except);
     }
 
     /**
@@ -79,7 +84,7 @@ class PreventRequestsDuringMaintenanceTest extends TestCase
         assert($this->app !== null);
 
         $middleware = new PreventRequestsDuringMaintenance($this->app);
-        $request    = Request::create('/test', 'GET');
+        $request    = Request::create('/test', HttpMethod::GET->getVerb());
         $passed     = false;
 
         $middleware->handle($request, function () use (&$passed): string {
@@ -88,7 +93,7 @@ class PreventRequestsDuringMaintenanceTest extends TestCase
             return 'ok';
         });
 
-        static::assertTrue($passed);
+        self::assertTrue($passed);
     }
 
     /**
@@ -104,7 +109,7 @@ class PreventRequestsDuringMaintenanceTest extends TestCase
         $this->expectException(MaintenanceModeException::class);
 
         $middleware = new PreventRequestsDuringMaintenance($this->app);
-        $request    = Request::create('/test', 'GET');
+        $request    = Request::create('/test', HttpMethod::GET->getVerb());
 
         $middleware->handle($request, function (): void {
             throw new HttpException(503, 'Service Unavailable');

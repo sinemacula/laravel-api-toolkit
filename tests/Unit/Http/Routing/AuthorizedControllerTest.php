@@ -1,8 +1,9 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Unit\Http\Routing;
 
-use LogicException;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 use SineMacula\ApiToolkit\Http\Routing\AuthorizedController;
@@ -21,7 +22,7 @@ use Tests\Fixtures\Models\User;
  * @internal
  */
 #[CoversClass(AuthorizedController::class)]
-class AuthorizedControllerTest extends TestCase
+final class AuthorizedControllerTest extends TestCase
 {
     use InteractsWithNonPublicMembers;
 
@@ -34,11 +35,12 @@ class AuthorizedControllerTest extends TestCase
     {
         $result = TestingAuthorizedController::getResourceModel();
 
-        static::assertSame(User::class, $result);
+        self::assertSame(User::class, $result);
     }
 
     /**
-     * Test that getResourceModel throws LogicException when constant is not defined.
+     * Test that getResourceModel throws LogicException when the constant is not
+     * defined.
      *
      * @return void
      */
@@ -69,7 +71,7 @@ class AuthorizedControllerTest extends TestCase
     {
         $result = TestingAuthorizedController::getRouteParameter();
 
-        static::assertSame('user', $result);
+        self::assertSame('user', $result);
     }
 
     /**
@@ -81,11 +83,12 @@ class AuthorizedControllerTest extends TestCase
     {
         $result = TestingMinimalAuthorizedController::getRouteParameter();
 
-        static::assertNull($result);
+        self::assertNull($result);
     }
 
     /**
-     * Test that getResourceModel works for minimal controller with RESOURCE_MODEL.
+     * Test that getResourceModel works for minimal controller with
+     * RESOURCE_MODEL.
      *
      * @return void
      */
@@ -93,7 +96,7 @@ class AuthorizedControllerTest extends TestCase
     {
         $result = TestingMinimalAuthorizedController::getResourceModel();
 
-        static::assertSame(User::class, $result);
+        self::assertSame(User::class, $result);
     }
 
     /**
@@ -105,8 +108,8 @@ class AuthorizedControllerTest extends TestCase
     {
         $parents = class_parents(AuthorizedController::class);
 
-        static::assertIsArray($parents);
-        static::assertArrayHasKey(Controller::class, $parents);
+        self::assertIsArray($parents);
+        self::assertArrayHasKey(Controller::class, $parents);
     }
 
     /**
@@ -124,12 +127,37 @@ class AuthorizedControllerTest extends TestCase
 
         // Call the constructor to exercise line 22 (authorizeResource call)
         $constructor = $reflection->getConstructor();
-        static::assertNotNull($constructor);
+        self::assertNotNull($constructor);
         $constructor->invoke($controller);
 
         $middleware = $this->getProperty($controller, 'middleware');
 
-        static::assertNotEmpty($middleware);
+        self::assertNotEmpty($middleware);
+    }
+
+    /**
+     * Test that the constructor forwards the guard exclusions to every
+     * registered authorization middleware entry under the `except` option.
+     *
+     * @return void
+     */
+    public function testConstructorForwardsGuardExclusionsToMiddlewareOptions(): void
+    {
+        $reflection = new \ReflectionClass(TestingAuthorizedController::class);
+        $controller = $reflection->newInstanceWithoutConstructor(); // qlty-ignore: radarlint-php:php:S3011
+
+        $constructor = $reflection->getConstructor();
+        self::assertNotNull($constructor);
+        $constructor->invoke($controller);
+
+        /** @var array<int, array{middleware: string, options: array<string, mixed>}> $middleware */
+        $middleware = $this->getProperty($controller, 'middleware');
+
+        self::assertNotEmpty($middleware);
+
+        foreach ($middleware as $entry) {
+            self::assertSame(['index', 'show'], $entry['options']['except'] ?? null);
+        }
     }
 
     /**
@@ -145,6 +173,6 @@ class AuthorizedControllerTest extends TestCase
 
         $result = $this->invokeMethod($controller, 'getGuardExclusions');
 
-        static::assertSame(['index', 'show'], $result);
+        self::assertSame(['index', 'show'], $result);
     }
 }

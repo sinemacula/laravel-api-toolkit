@@ -1,13 +1,16 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Unit\Traits;
 
 use Illuminate\Contracts\Cache\Lock;
 use Illuminate\Support\Facades\Cache;
-use PHPUnit\Framework\Attributes\CoversClass;
-use SineMacula\ApiToolkit\Exceptions\TooManyRequestsException;
-use SineMacula\ApiToolkit\Traits\Lockable;
-use Tests\Concerns\InteractsWithNonPublicMembers;
+use PHPUnit\Framework\Attributes\CoversTrait;
+use SineMacula\ApiToolkit\Concerns\Lockable;
+use SineMacula\ApiToolkit\Exceptions\LockOperationException;
+use SineMacula\ApiToolkit\Exceptions\LockUnavailableException;
+use Tests\Fixtures\Traits\StandaloneLockableFixture;
 use Tests\TestCase;
 
 /**
@@ -18,11 +21,9 @@ use Tests\TestCase;
  *
  * @internal
  */
-#[CoversClass(Lockable::class)]
-class LockableTest extends TestCase
+#[CoversTrait(Lockable::class)]
+final class LockableTest extends TestCase
 {
-    use InteractsWithNonPublicMembers;
-
     /**
      * Test that lock acquires a cache lock successfully.
      *
@@ -32,32 +33,34 @@ class LockableTest extends TestCase
     {
         $consumer = $this->createConsumer('test-lock-id');
 
-        $lock = $this->invokeMethod($consumer, 'lock');
+        $lock = $consumer->lock();
 
-        static::assertInstanceOf(Lock::class, $lock);
+        self::assertInstanceOf(Lock::class, $lock);
 
-        $this->invokeMethod($consumer, 'unlock');
+        $consumer->unlock();
     }
 
     /**
-     * Test that lock throws TooManyRequestsException when the lock is
+     * Test that lock throws LockUnavailableException when the lock is
      * unavailable.
      *
      * @return void
      */
-    public function testLockThrowsTooManyRequestsExceptionWhenUnavailable(): void
+    public function testLockThrowsLockUnavailableExceptionWhenUnavailable(): void
     {
         $consumer = $this->createConsumer('conflict-lock-id');
 
-        $lockKey = $this->invokeMethod($consumer, 'generateLockKey');
+        $lockKey = $consumer->getLockKey();
 
         $existingLock = Cache::lock($lockKey, 60);
         $existingLock->get();
 
         try {
-            $this->expectException(TooManyRequestsException::class);
 
-            $this->invokeMethod($consumer, 'lock');
+            $this->expectException(LockUnavailableException::class);
+
+            $consumer->lock();
+
         } finally {
             $existingLock->release();
         }
@@ -72,13 +75,13 @@ class LockableTest extends TestCase
     {
         $consumer = $this->createConsumer('release-lock-id');
 
-        $this->invokeMethod($consumer, 'lock');
-        $this->invokeMethod($consumer, 'unlock');
+        $consumer->lock();
+        $consumer->unlock();
 
-        $lockKey = $this->invokeMethod($consumer, 'generateLockKey');
+        $lockKey = $consumer->getLockKey();
         $newLock = Cache::lock($lockKey, 60);
 
-        static::assertTrue($newLock->get());
+        self::assertTrue($newLock->get());
 
         $newLock->release();
     }
@@ -90,58 +93,182 @@ class LockableTest extends TestCase
      */
     public function testGetLockExpirationReturnsDefault60Seconds(): void
     {
-        $consumer = $this->createConsumer('expiry-lock-id');
+        $fixture = new StandaloneLockableFixture('expiry-lock-id');
 
-        $expiration = $this->invokeMethod($consumer, 'getLockExpiration');
-
-        static::assertSame(60, $expiration);
+        self::assertSame(60, $fixture->lockExpiration());
     }
 
     /**
-     * Test that the lock key is generated via generateLockKey.
+     * Test that the lock key is generated via LockKeyProvider.
      *
      * @return void
      */
-    public function testLockKeyIsGeneratedViaGenerateLockKey(): void
+    public function testLockKeyIsGeneratedViaLockKeyProvider(): void
     {
         $lockId   = 'custom-lock-id';
         $consumer = $this->createConsumer($lockId);
 
-        $lockKey = $this->invokeMethod($consumer, 'generateLockKey');
+        $lockKey = $consumer->getLockKey();
 
-        static::assertNotEmpty($lockKey);
-        static::assertIsString($lockKey);
+        self::assertNotEmpty($lockKey);
+        self::assertIsString($lockKey);
     }
 
     /**
-     * Create a test consumer class that uses the Lockable trait.
+     * Test that the Lockable trait works in a standalone class that does not
+     * extend Service.
      *
-     * @param  string  $lockId
-     * @return object
+     * @return void
      */
-    private function createConsumer(string $lockId): object
+    public function testStandaloneFixtureCanAcquireAndReleaseLock(): void
     {
-        return new class ($lockId) {
+        $fixture = new StandaloneLockableFixture('standalone-test');
+
+        $lock = $fixture->acquireLock();
+
+        self::assertInstanceOf(Lock::class, $lock);
+
+        $fixture->releaseLock();
+
+        $verificationLock = Cache::lock(sha1(StandaloneLockableFixture::class . '|standalone-test'), 60);
+
+        self::assertTrue($verificationLock->get());
+
+        $verificationLock->release();
+    }
+
+    /**
+     * Test that the lock expiration can be customized at construction time.
+     *
+     * @return void
+     */
+    public function testCustomLockExpirationCanBeSetAtConstructionTime(): void
+    {
+        $fixture = new StandaloneLockableFixture('expiry-test', 120);
+
+        self::assertSame(120, $fixture->lockExpiration());
+    }
+
+    /**
+     * Test that lock throws LockOperationException when no LockKeyProvider is
+     * implemented.
+     *
+     * @return void
+     */
+    public function testLockThrowsLockOperationExceptionWhenNoLockKeyProviderImplemented(): void
+    {
+        $consumer = new class {
+            use Lockable;
+        };
+
+        $this->expectException(LockOperationException::class);
+        $this->expectExceptionMessage('LockKeyProvider');
+
+        $consumer->lock();
+    }
+
+    /**
+     * Test that the lock unavailable exception carries a descriptive message.
+     *
+     * @return void
+     */
+    public function testLockUnavailableExceptionCarriesMessage(): void
+    {
+        $consumer = $this->createConsumer('meta-lock-id');
+
+        $existingLock = Cache::lock($consumer->getLockKey(), 60);
+        $existingLock->get();
+
+        try {
+
+            $consumer->lock();
+
+            self::fail('Expected LockUnavailableException was not thrown');
+        } catch (LockUnavailableException $exception) {
+            self::assertNotEmpty($exception->getMessage());
+        } finally {
+            $existingLock->release();
+        }
+    }
+
+    /**
+     * Test that unlock is harmless when no lock has been acquired.
+     *
+     * @return void
+     */
+    public function testUnlockWithoutLockIsHarmless(): void
+    {
+        $consumer = $this->createConsumer('unlock-without-lock');
+
+        $consumer->unlock();
+
+        self::assertInstanceOf(Lock::class, $consumer->lock());
+
+        $consumer->unlock();
+    }
+
+    /**
+     * Test that getLockExpiration remains callable from a subclass of the trait
+     * consumer.
+     *
+     * @return void
+     */
+    public function testGetLockExpirationIsCallableFromSubclass(): void
+    {
+        $child = new class ('expiry-child', 90) extends StandaloneLockableFixture {
+            /**
+             * Expose the inherited lock expiration.
+             *
+             * @return int
+             */
+            public function exposeExpiration(): int
+            {
+                return $this->getLockExpiration();
+            }
+        };
+
+        self::assertSame(90, $child->exposeExpiration());
+    }
+
+    /**
+     * Test that a preset lock key property is respected without requiring the
+     * LockKeyProvider contract.
+     *
+     * @return void
+     */
+    public function testPresetLockKeyPropertyIsRespected(): void
+    {
+        $consumer = new class {
             use Lockable;
 
             /**
-             * Create a new instance.
-             *
-             * @param  string  $lockId
+             * Create the consumer with a preset lock key.
              */
-            public function __construct(
-                private readonly string $lockId,
-            ) {}
-
-            /**
-             * Generate the cache lock key.
-             *
-             * @return string
-             */
-            protected function generateLockKey(): string
+            public function __construct()
             {
-                return sha1(self::class . '|' . $this->lockId);
+                $this->lockKey = 'preset-lock-key';
             }
         };
+
+        $lock = $consumer->lock();
+
+        self::assertInstanceOf(Lock::class, $lock);
+
+        $verificationLock = Cache::lock('preset-lock-key', 60);
+
+        self::assertFalse($verificationLock->get());
+
+        $consumer->unlock();
+    }
+
+    /**
+     * Create a test consumer that uses the Lockable trait.
+     *
+     * @param  string  $lockId
+     * @return \Tests\Fixtures\Traits\StandaloneLockableFixture
+     */
+    private function createConsumer(string $lockId): StandaloneLockableFixture
+    {
+        return new StandaloneLockableFixture($lockId);
     }
 }

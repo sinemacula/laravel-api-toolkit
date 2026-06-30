@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Unit\Contracts;
 
 use PHPUnit\Framework\Attributes\CoversNothing;
@@ -15,7 +17,7 @@ use SineMacula\ApiToolkit\Contracts\ApiResourceInterface;
  * @internal
  */
 #[CoversNothing]
-class ApiResourceInterfaceTest extends TestCase
+final class ApiResourceInterfaceTest extends TestCase
 {
     /**
      * Test that the interface defines getResourceType as a static method.
@@ -27,8 +29,8 @@ class ApiResourceInterfaceTest extends TestCase
         $reflection = new \ReflectionClass(ApiResourceInterface::class);
         $method     = $reflection->getMethod('getResourceType');
 
-        static::assertTrue($method->isStatic());
-        static::assertTrue($method->isPublic());
+        self::assertTrue($method->isStatic());
+        self::assertTrue($method->isPublic());
     }
 
     /**
@@ -43,8 +45,8 @@ class ApiResourceInterfaceTest extends TestCase
 
         $returnType = $method->getReturnType();
 
-        static::assertInstanceOf(\ReflectionNamedType::class, $returnType);
-        static::assertSame('string', $returnType->getName());
+        self::assertInstanceOf(\ReflectionNamedType::class, $returnType);
+        self::assertSame('string', $returnType->getName());
     }
 
     /**
@@ -57,8 +59,8 @@ class ApiResourceInterfaceTest extends TestCase
         $reflection = new \ReflectionClass(ApiResourceInterface::class);
         $method     = $reflection->getMethod('getDefaultFields');
 
-        static::assertTrue($method->isStatic());
-        static::assertTrue($method->isPublic());
+        self::assertTrue($method->isStatic());
+        self::assertTrue($method->isPublic());
     }
 
     /**
@@ -73,21 +75,46 @@ class ApiResourceInterfaceTest extends TestCase
 
         $returnType = $method->getReturnType();
 
-        static::assertInstanceOf(\ReflectionNamedType::class, $returnType);
-        static::assertSame('array', $returnType->getName());
+        self::assertInstanceOf(\ReflectionNamedType::class, $returnType);
+        self::assertSame('array', $returnType->getName());
     }
 
     /**
-     * Test that the interface declares exactly two methods.
+     * Test that the interface declares all required methods.
      *
      * @return void
      */
-    public function testInterfaceDeclaresExactlyTwoMethods(): void
+    public function testApiResourceInterfaceDeclaresAllRequiredMethods(): void
     {
         $reflection = new \ReflectionClass(ApiResourceInterface::class);
         $methods    = $reflection->getMethods(\ReflectionMethod::IS_PUBLIC);
 
-        static::assertCount(2, $methods);
+        $expectedMethods = [
+            'getResourceType',
+            'getDefaultFields',
+            'schema',
+            'getAllFields',
+            'resolveFields',
+            'eagerLoadMapFor',
+            'eagerLoadCountsFor',
+            'eagerLoadSumsFor',
+            'eagerLoadAveragesFor',
+            'resolve',
+            'withFields',
+            'withoutFields',
+            'withAll',
+        ];
+
+        $actualMethods = array_map(
+            static fn (\ReflectionMethod $method): string => $method->getName(),
+            $methods,
+        );
+
+        self::assertCount(count($expectedMethods), $methods);
+
+        foreach ($expectedMethods as $name) {
+            self::assertContains($name, $actualMethods, "Missing method: {$name}");
+        }
     }
 
     /**
@@ -99,6 +126,6 @@ class ApiResourceInterfaceTest extends TestCase
     {
         $reflection = new \ReflectionClass(ApiResourceInterface::class);
 
-        static::assertTrue($reflection->isInterface());
+        self::assertTrue($reflection->isInterface());
     }
 }

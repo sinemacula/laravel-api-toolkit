@@ -1,10 +1,14 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace SineMacula\ApiToolkit\Http\Resources;
 
 use Illuminate\Http\Request;
+use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Facades\Config;
 use SineMacula\ApiToolkit\Contracts\ApiResourceInterface;
+use SineMacula\ApiToolkit\Exceptions\ResourceMappingException;
 
 /**
  * Polymorphic resource class for handling dynamic resource resolution in a
@@ -17,14 +21,64 @@ use SineMacula\ApiToolkit\Contracts\ApiResourceInterface;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-class PolymorphicResource extends BaseResource
+final class PolymorphicResource extends JsonResource
 {
+    /** @var bool Whether to return all fields in the response */
+    protected bool $all = false;
+
+    /** @var array<int, string>|null Explicit list of fields to be returned in the response */
+    protected ?array $fields = null;
+
+    /** @var array<int, string>|null Explicit list of fields to be excluded from the response */
+    protected ?array $excludedFields = null;
+
+    /**
+     * Force the response to include all available fields.
+     *
+     * @return static
+     */
+    public function withAll(): static
+    {
+        $this->all = true;
+
+        return $this;
+    }
+
+    /**
+     * Override the default fields and any requested fields.
+     *
+     * @param  array<int, string>|null  $fields
+     * @return static
+     */
+    public function withFields(?array $fields = null): static
+    {
+        $this->fields = $fields;
+
+        return $this;
+    }
+
+    /**
+     * Exclude specific fields from the response.
+     *
+     * @param  array<int, string>|null  $fields
+     * @return static
+     */
+    public function withoutFields(?array $fields = null): static
+    {
+        $this->excludedFields = $fields;
+
+        return $this;
+    }
+
     /**
      * Transform the resource into an array.
      *
-     * @param  Request  $request
-     * @return array|null
+     * @param  \Illuminate\Http\Request  $request
+     * @return array<string, mixed>|null
+     *
+     * @phpstan-ignore method.childReturnType
      */
+    #[\Override]
     public function toArray(Request $request): ?array
     {
         if (!$this->resource) {
@@ -35,6 +89,10 @@ class PolymorphicResource extends BaseResource
 
         if ($this->all) {
             $resource->withAll();
+        }
+
+        if ($this->excludedFields) {
+            $resource->withoutFields($this->excludedFields);
         }
 
         return [
@@ -50,17 +108,27 @@ class PolymorphicResource extends BaseResource
      * @param  mixed  $resource
      * @return \SineMacula\ApiToolkit\Contracts\ApiResourceInterface
      *
-     * @throws \LogicException
+     * @throws \SineMacula\ApiToolkit\Exceptions\ResourceMappingException
      */
     private function mapResource(mixed $resource): ApiResourceInterface
     {
+        if (!is_object($resource)) {
+            throw new ResourceMappingException('Resource must be an object to be mapped');
+        }
+
         $map   = Config::get('api-toolkit.resources.resource_map', []);
         $class = $resource::class;
 
-        if (isset($map[$class])) {
-            return new $map[$class]($resource, false, $this->fields ?? null);
+        if (!isset($map[$class]) || !is_string($map[$class])) {
+            throw new ResourceMappingException("Resource not found for: {$class}");
         }
 
-        throw new \LogicException("Resource not found for: {$class}");
+        $resourceClass = $map[$class];
+
+        if (!is_subclass_of($resourceClass, ApiResourceInterface::class)) {
+            throw new ResourceMappingException("Resource [{$resourceClass}] must implement " . ApiResourceInterface::class);
+        }
+
+        return new $resourceClass($resource, false, $this->fields ?? null);
     }
 }

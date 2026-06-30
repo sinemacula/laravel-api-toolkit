@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Unit;
 
 use Illuminate\Http\Request;
@@ -7,6 +9,8 @@ use Illuminate\Validation\ValidationException;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use SineMacula\ApiToolkit\ApiQueryParser;
+use SineMacula\ApiToolkit\Concerns\QueryParameterExtractor;
+use SineMacula\Http\Enums\HttpMethod;
 use Tests\Concerns\InteractsWithNonPublicMembers;
 use Tests\TestCase;
 
@@ -21,7 +25,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(ApiQueryParser::class)]
-class ApiQueryParserTest extends TestCase
+final class ApiQueryParserTest extends TestCase
 {
     use InteractsWithNonPublicMembers;
 
@@ -39,6 +43,7 @@ class ApiQueryParserTest extends TestCase
      *
      * @return void
      */
+    #[\Override]
     protected function setUp(): void
     {
         parent::setUp();
@@ -53,10 +58,10 @@ class ApiQueryParserTest extends TestCase
      */
     public function testGetFieldsReturnsNullWhenNoFieldsSet(): void
     {
-        $request = Request::create(self::TEST_URL, 'GET');
+        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb());
         $this->parser->parse($request);
 
-        static::assertNull($this->parser->getFields());
+        self::assertNull($this->parser->getFields());
     }
 
     /**
@@ -66,10 +71,10 @@ class ApiQueryParserTest extends TestCase
      */
     public function testGetFieldsParsesCommaSeparatedString(): void
     {
-        $request = Request::create(self::TEST_URL, 'GET', ['fields' => 'first_name,last_name,email']);
+        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['fields' => 'first_name,last_name,email']);
         $this->parser->parse($request);
 
-        static::assertSame(['first_name', 'last_name', 'email'], $this->parser->getFields());
+        self::assertSame(['first_name', 'last_name', 'email'], $this->parser->getFields());
     }
 
     /**
@@ -79,10 +84,10 @@ class ApiQueryParserTest extends TestCase
      */
     public function testGetFieldsTrimsValues(): void
     {
-        $request = Request::create(self::TEST_URL, 'GET', ['fields' => ' first_name , last_name ']);
+        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['fields' => ' first_name , last_name ']);
         $this->parser->parse($request);
 
-        static::assertSame(['first_name', 'last_name'], $this->parser->getFields());
+        self::assertSame(['first_name', 'last_name'], $this->parser->getFields());
     }
 
     /**
@@ -92,7 +97,7 @@ class ApiQueryParserTest extends TestCase
      */
     public function testGetFieldsWithResourceKeyReturnsSpecificFields(): void
     {
-        $request = Request::create(self::TEST_URL, 'GET', [
+        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), [
             'fields' => [
                 'user' => self::FIELDS_NAME_EMAIL,
                 'post' => 'title,body',
@@ -100,8 +105,8 @@ class ApiQueryParserTest extends TestCase
         ]);
         $this->parser->parse($request);
 
-        static::assertSame(['name', 'email'], $this->parser->getFields('user'));
-        static::assertSame(['title', 'body'], $this->parser->getFields('post'));
+        self::assertSame(['name', 'email'], $this->parser->getFields('user'));
+        self::assertSame(['title', 'body'], $this->parser->getFields('post'));
     }
 
     /**
@@ -111,12 +116,12 @@ class ApiQueryParserTest extends TestCase
      */
     public function testGetFieldsWithUnknownResourceReturnsNull(): void
     {
-        $request = Request::create(self::TEST_URL, 'GET', [
+        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), [
             'fields' => ['user' => self::FIELDS_NAME_EMAIL],
         ]);
         $this->parser->parse($request);
 
-        static::assertNull($this->parser->getFields('unknown'));
+        self::assertNull($this->parser->getFields('unknown'));
     }
 
     /**
@@ -126,10 +131,10 @@ class ApiQueryParserTest extends TestCase
      */
     public function testGetCountsReturnsNullWhenNoCountsSet(): void
     {
-        $request = Request::create(self::TEST_URL, 'GET');
+        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb());
         $this->parser->parse($request);
 
-        static::assertNull($this->parser->getCounts());
+        self::assertNull($this->parser->getCounts());
     }
 
     /**
@@ -139,12 +144,12 @@ class ApiQueryParserTest extends TestCase
      */
     public function testGetCountsParsesCommaSeparatedCounts(): void
     {
-        $request = Request::create(self::TEST_URL, 'GET', [
+        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), [
             'counts' => ['user' => 'posts,comments'],
         ]);
         $this->parser->parse($request);
 
-        static::assertSame(['posts', 'comments'], $this->parser->getCounts('user'));
+        self::assertSame(['posts', 'comments'], $this->parser->getCounts('user'));
     }
 
     /**
@@ -154,7 +159,7 @@ class ApiQueryParserTest extends TestCase
      */
     public function testGetSumsParsesAggregationFormat(): void
     {
-        $request = Request::create(self::TEST_URL, 'GET', [
+        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), [
             'sums' => [
                 'account' => [
                     'transaction' => 'amount,fee',
@@ -165,9 +170,9 @@ class ApiQueryParserTest extends TestCase
 
         $result = $this->parser->getSums('account');
 
-        static::assertIsArray($result);
-        static::assertArrayHasKey('transaction', $result);
-        static::assertSame(['amount', 'fee'], $result['transaction']);
+        self::assertIsArray($result);
+        self::assertArrayHasKey('transaction', $result);
+        self::assertSame(['amount', 'fee'], $result['transaction']);
     }
 
     /**
@@ -177,10 +182,10 @@ class ApiQueryParserTest extends TestCase
      */
     public function testGetSumsReturnsNullWhenNotSet(): void
     {
-        $request = Request::create(self::TEST_URL, 'GET');
+        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb());
         $this->parser->parse($request);
 
-        static::assertNull($this->parser->getSums());
+        self::assertNull($this->parser->getSums());
     }
 
     /**
@@ -190,7 +195,7 @@ class ApiQueryParserTest extends TestCase
      */
     public function testGetAveragesParsesAggregationFormat(): void
     {
-        $request = Request::create(self::TEST_URL, 'GET', [
+        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), [
             'averages' => [
                 'account' => [
                     'transaction' => 'amount',
@@ -201,9 +206,9 @@ class ApiQueryParserTest extends TestCase
 
         $result = $this->parser->getAverages('account');
 
-        static::assertIsArray($result);
-        static::assertArrayHasKey('transaction', $result);
-        static::assertSame(['amount'], $result['transaction']);
+        self::assertIsArray($result);
+        self::assertArrayHasKey('transaction', $result);
+        self::assertSame(['amount'], $result['transaction']);
     }
 
     /**
@@ -213,10 +218,10 @@ class ApiQueryParserTest extends TestCase
      */
     public function testGetFiltersReturnsEmptyArrayWhenNotSet(): void
     {
-        $request = Request::create(self::TEST_URL, 'GET');
+        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb());
         $this->parser->parse($request);
 
-        static::assertSame([], $this->parser->getFilters());
+        self::assertSame([], $this->parser->getFilters());
     }
 
     /**
@@ -227,227 +232,12 @@ class ApiQueryParserTest extends TestCase
     public function testGetFiltersParsesJsonFilterString(): void
     {
         $filters = json_encode(['status' => 'active', 'role' => 'admin']);
-        $request = Request::create(self::TEST_URL, 'GET', ['filters' => $filters]);
+        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['filters' => $filters]);
         $this->parser->parse($request);
 
         $result = $this->parser->getFilters();
 
-        static::assertSame(['status' => 'active', 'role' => 'admin'], $result);
-    }
-
-    /**
-     * Test that getOrder parses order with direction.
-     *
-     * @param  string  $orderString
-     * @param  array<string, string>  $expected
-     * @return void
-     */
-    #[DataProvider('orderProvider')]
-    public function testGetOrderParsesOrderWithDirection(string $orderString, array $expected): void
-    {
-        $request = Request::create(self::TEST_URL, 'GET', ['order' => $orderString]);
-        $this->parser->parse($request);
-
-        static::assertSame($expected, $this->parser->getOrder());
-    }
-
-    /**
-     * Test that getOrder returns an empty array when no order is set.
-     *
-     * @return void
-     */
-    public function testGetOrderReturnsEmptyArrayWhenNotSet(): void
-    {
-        $request = Request::create(self::TEST_URL, 'GET');
-        $this->parser->parse($request);
-
-        static::assertSame([], $this->parser->getOrder());
-    }
-
-    /**
-     * Test that getLimit returns a positive integer.
-     *
-     * @return void
-     */
-    public function testGetLimitReturnsPositiveInteger(): void
-    {
-        $request = Request::create(self::TEST_URL, 'GET', ['limit' => '25']);
-        $this->parser->parse($request);
-
-        static::assertSame(25, $this->parser->getLimit());
-    }
-
-    /**
-     * Test that getLimit returns null for zero.
-     *
-     * @return void
-     */
-    public function testGetLimitReturnsNullForZero(): void
-    {
-        $request = Request::create(self::TEST_URL, 'GET');
-        $this->parser->parse($request);
-
-        static::assertNull($this->parser->getLimit());
-    }
-
-    /**
-     * Test that getPage returns a positive integer.
-     *
-     * @return void
-     */
-    public function testGetPageReturnsPositiveInteger(): void
-    {
-        $request = Request::create(self::TEST_URL, 'GET', ['page' => '5']);
-        $this->parser->parse($request);
-
-        static::assertSame(5, $this->parser->getPage());
-    }
-
-    /**
-     * Test that getPage returns 1 when not set.
-     *
-     * @return void
-     */
-    public function testGetPageReturnsOneWhenNotSet(): void
-    {
-        $request = Request::create(self::TEST_URL, 'GET');
-        $this->parser->parse($request);
-
-        static::assertSame(1, $this->parser->getPage());
-    }
-
-    /**
-     * Test that getCursor returns a cursor string.
-     *
-     * @return void
-     */
-    public function testGetCursorReturnsCursorString(): void
-    {
-        $cursor  = 'eyJpZCI6MTAwfQ==';
-        $request = Request::create(self::TEST_URL, 'GET', ['cursor' => $cursor]);
-        $this->parser->parse($request);
-
-        static::assertSame($cursor, $this->parser->getCursor());
-    }
-
-    /**
-     * Test that getCursor returns an empty string when not set.
-     *
-     * @return void
-     */
-    public function testGetCursorReturnsEmptyStringWhenNotSet(): void
-    {
-        $request = Request::create(self::TEST_URL, 'GET');
-        $this->parser->parse($request);
-
-        static::assertSame('', $this->parser->getCursor());
-    }
-
-    /**
-     * Test that validation fails for invalid page parameter.
-     *
-     * @return void
-     */
-    public function testValidationFailsForInvalidPage(): void
-    {
-        $this->expectException(ValidationException::class);
-
-        $request = Request::create(self::TEST_URL, 'GET', ['page' => 'not-a-number']);
-        $this->parser->parse($request);
-    }
-
-    /**
-     * Test that validation fails for invalid limit parameter.
-     *
-     * @return void
-     */
-    public function testValidationFailsForInvalidLimit(): void
-    {
-        $this->expectException(ValidationException::class);
-
-        $request = Request::create(self::TEST_URL, 'GET', ['limit' => 'abc']);
-        $this->parser->parse($request);
-    }
-
-    /**
-     * Test that validation fails for invalid JSON filters.
-     *
-     * @return void
-     */
-    public function testValidationFailsForInvalidJsonFilters(): void
-    {
-        $this->expectException(ValidationException::class);
-
-        $request = Request::create(self::TEST_URL, 'GET', ['filters' => 'not-valid-json{']);
-        $this->parser->parse($request);
-    }
-
-    /**
-     * Test parsing multiple parameters simultaneously.
-     *
-     * @return void
-     */
-    public function testParsingMultipleParametersSimultaneously(): void
-    {
-        $request = Request::create(self::TEST_URL, 'GET', [
-            'fields'  => self::FIELDS_NAME_EMAIL,
-            'order'   => 'name:asc',
-            'page'    => '2',
-            'limit'   => '10',
-            'filters' => json_encode(['active' => true]),
-        ]);
-
-        $this->parser->parse($request);
-
-        static::assertSame(['name', 'email'], $this->parser->getFields());
-        static::assertSame(['name' => 'asc'], $this->parser->getOrder());
-        static::assertSame(2, $this->parser->getPage());
-        static::assertSame(10, $this->parser->getLimit());
-        static::assertSame(['active' => true], $this->parser->getFilters());
-    }
-
-    /**
-     * Test that normalizeFields returns an array value unchanged.
-     *
-     * This path is only reachable through direct method invocation because the
-     * parser's validation rules reject non-string aggregation field values
-     * before they can reach the parsing logic.
-     *
-     * @return void
-     */
-    public function testNormalizeFieldsPreservesArrayInput(): void
-    {
-        $result = $this->invokeMethod($this->parser, 'normalizeFields', ['amount', 'fee']);
-
-        static::assertSame(['amount', 'fee'], $result);
-    }
-
-    /**
-     * Test that normalizeFields wraps non-string non-array input in an array.
-     *
-     * @return void
-     */
-    public function testNormalizeFieldsWrapsOtherInputInArray(): void
-    {
-        $result = $this->invokeMethod($this->parser, 'normalizeFields', 42);
-
-        static::assertSame([42], $result);
-    }
-
-    /**
-     * Test that parseAggregations skips non-array relation entries.
-     *
-     * @return void
-     */
-    public function testParseAggregationsSkipsNonArrayRelations(): void
-    {
-        $result = $this->invokeMethod($this->parser, 'parseAggregations', [
-            'valid'   => ['fields' => 'amount'],
-            'invalid' => 'not_an_array',
-        ]);
-
-        static::assertArrayHasKey('valid', $result);
-        static::assertArrayNotHasKey('invalid', $result);
+        self::assertSame(['status' => 'active', 'role' => 'admin'], $result);
     }
 
     /**
@@ -463,5 +253,511 @@ class ApiQueryParserTest extends TestCase
         yield 'multiple fields' => ['name:asc,created_at:desc', ['name' => 'asc', 'created_at' => 'desc']];
         yield 'mixed directions' => ['first_name,last_name:desc', ['first_name' => 'asc', 'last_name' => 'desc']];
         yield 'random order' => ['random', ['random' => 'asc']];
+    }
+
+    /**
+     * Test that getOrder parses order with direction.
+     *
+     * @param  string  $orderString
+     * @param  array<string, string>  $expected
+     * @return void
+     */
+    #[DataProvider('orderProvider')]
+    public function testGetOrderParsesOrderWithDirection(string $orderString, array $expected): void
+    {
+        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['order' => $orderString]);
+        $this->parser->parse($request);
+
+        self::assertSame($expected, $this->parser->getOrder());
+    }
+
+    /**
+     * Test that getOrder returns an empty array when no order is set.
+     *
+     * @return void
+     */
+    public function testGetOrderReturnsEmptyArrayWhenNotSet(): void
+    {
+        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb());
+        $this->parser->parse($request);
+
+        self::assertSame([], $this->parser->getOrder());
+    }
+
+    /**
+     * Test that getLimit returns a positive integer.
+     *
+     * @return void
+     */
+    public function testGetLimitReturnsPositiveInteger(): void
+    {
+        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['limit' => '25']);
+        $this->parser->parse($request);
+
+        self::assertSame(25, $this->parser->getLimit());
+    }
+
+    /**
+     * Test that getLimit clamps a request above the configured maximum to that
+     * ceiling, so an unbounded page size cannot exhaust memory.
+     *
+     * @return void
+     */
+    public function testGetLimitClampsToConfiguredMaximum(): void
+    {
+        config()->set('api-toolkit.parser.max_limit', 100);
+
+        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['limit' => '100000']);
+        $this->parser->parse($request);
+
+        self::assertSame(100, $this->parser->getLimit());
+    }
+
+    /**
+     * Test that a numeric-string maximum is coerced to an integer before
+     * clamping, so the returned limit is a true int rather than the raw
+     * configured string.
+     *
+     * @return void
+     */
+    public function testGetLimitCoercesNumericStringMaximumToInteger(): void
+    {
+        config()->set('api-toolkit.parser.max_limit', '100');
+
+        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['limit' => '100000']);
+        $this->parser->parse($request);
+
+        self::assertSame(100, $this->parser->getLimit());
+    }
+
+    /**
+     * Test that getLimit leaves the requested value untouched when the maximum
+     * ceiling is disabled (zero).
+     *
+     * @return void
+     */
+    public function testGetLimitIsNotClampedWhenMaximumDisabled(): void
+    {
+        config()->set('api-toolkit.parser.max_limit', 0);
+
+        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['limit' => '100000']);
+        $this->parser->parse($request);
+
+        self::assertSame(100000, $this->parser->getLimit());
+    }
+
+    /**
+     * Test that a non-numeric maximum configuration disables clamping rather
+     * than capping the limit to an unintended value.
+     *
+     * @return void
+     */
+    public function testGetLimitTreatsNonNumericMaximumAsDisabled(): void
+    {
+        config()->set('api-toolkit.parser.max_limit', 'not-a-number');
+
+        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['limit' => '100000']);
+        $this->parser->parse($request);
+
+        self::assertSame(100000, $this->parser->getLimit());
+    }
+
+    /**
+     * Test that getLimit returns null for zero.
+     *
+     * @return void
+     */
+    public function testGetLimitReturnsNullForZero(): void
+    {
+        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb());
+        $this->parser->parse($request);
+
+        self::assertNull($this->parser->getLimit());
+    }
+
+    /**
+     * Test that getPage returns a positive integer.
+     *
+     * @return void
+     */
+    public function testGetPageReturnsPositiveInteger(): void
+    {
+        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['page' => '5']);
+        $this->parser->parse($request);
+
+        self::assertSame(5, $this->parser->getPage());
+    }
+
+    /**
+     * Test that getPage returns 1 when not set.
+     *
+     * @return void
+     */
+    public function testGetPageReturnsOneWhenNotSet(): void
+    {
+        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb());
+        $this->parser->parse($request);
+
+        self::assertSame(1, $this->parser->getPage());
+    }
+
+    /**
+     * Test that getCursor returns a cursor string.
+     *
+     * @return void
+     */
+    public function testGetCursorReturnsCursorString(): void
+    {
+        $cursor  = 'eyJpZCI6MTAwfQ==';
+        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['cursor' => $cursor]);
+        $this->parser->parse($request);
+
+        self::assertSame($cursor, $this->parser->getCursor());
+    }
+
+    /**
+     * Test that getCursor returns an empty string when not set.
+     *
+     * @return void
+     */
+    public function testGetCursorReturnsEmptyStringWhenNotSet(): void
+    {
+        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb());
+        $this->parser->parse($request);
+
+        self::assertSame('', $this->parser->getCursor());
+    }
+
+    /**
+     * Test that validation fails for invalid page parameter.
+     *
+     * @return void
+     */
+    public function testValidationFailsForInvalidPage(): void
+    {
+        $this->expectException(ValidationException::class);
+
+        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['page' => 'not-a-number']);
+        $this->parser->parse($request);
+    }
+
+    /**
+     * Test that validation fails for invalid limit parameter.
+     *
+     * @return void
+     */
+    public function testValidationFailsForInvalidLimit(): void
+    {
+        $this->expectException(ValidationException::class);
+
+        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['limit' => 'abc']);
+        $this->parser->parse($request);
+    }
+
+    /**
+     * Test that validation fails for invalid JSON filters.
+     *
+     * @return void
+     */
+    public function testValidationFailsForInvalidJsonFilters(): void
+    {
+        $this->expectException(ValidationException::class);
+
+        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['filters' => 'not-valid-json{']);
+        $this->parser->parse($request);
+    }
+
+    /**
+     * Test parsing multiple parameters simultaneously.
+     *
+     * @return void
+     */
+    public function testParsingMultipleParametersSimultaneously(): void
+    {
+        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), [
+            'fields'  => self::FIELDS_NAME_EMAIL,
+            'order'   => 'name:asc',
+            'page'    => '2',
+            'limit'   => '10',
+            'filters' => json_encode(['active' => true]),
+        ]);
+
+        $this->parser->parse($request);
+
+        self::assertSame(['name', 'email'], $this->parser->getFields());
+        self::assertSame(['name' => 'asc'], $this->parser->getOrder());
+        self::assertSame(2, $this->parser->getPage());
+        self::assertSame(10, $this->parser->getLimit());
+        self::assertSame(['active' => true], $this->parser->getFilters());
+    }
+
+    /**
+     * Test that normalizeFields returns an array value unchanged.
+     *
+     * This path is only reachable through direct method invocation because the
+     * parser's validation rules reject non-string aggregation field values
+     * before they can reach the parsing logic.
+     *
+     * @return void
+     */
+    public function testNormalizeFieldsPreservesArrayInput(): void
+    {
+        $result = $this->invokeMethod(new QueryParameterExtractor, 'normalizeFields', ['amount', 'fee']);
+
+        self::assertSame(['amount', 'fee'], $result);
+    }
+
+    /**
+     * Test that normalizeFields wraps non-string non-array input in an array.
+     *
+     * @return void
+     */
+    public function testNormalizeFieldsWrapsOtherInputInArray(): void
+    {
+        $result = $this->invokeMethod(new QueryParameterExtractor, 'normalizeFields', 42);
+
+        self::assertSame([42], $result);
+    }
+
+    /**
+     * Test that parseAggregations skips non-array relation entries.
+     *
+     * @return void
+     */
+    public function testParseAggregationsSkipsNonArrayRelations(): void
+    {
+        $result = $this->invokeMethod(new QueryParameterExtractor, 'parseAggregations', [
+            'valid'   => ['fields' => 'amount'],
+            'invalid' => 'not_an_array',
+        ]);
+
+        self::assertArrayHasKey('valid', $result);
+        self::assertArrayNotHasKey('invalid', $result);
+    }
+
+    /**
+     * Test that parseAggregations continues past a non-array entry and still
+     * parses subsequent valid entries.
+     *
+     * @return void
+     */
+    public function testParseAggregationsContinuesPastNonArrayRelations(): void
+    {
+        $result = $this->invokeMethod(new QueryParameterExtractor, 'parseAggregations', [
+            'invalid' => 'not_an_array',
+            'valid'   => ['fields' => 'amount'],
+        ]);
+
+        self::assertArrayNotHasKey('invalid', $result);
+        self::assertArrayHasKey('valid', $result);
+    }
+
+    /**
+     * Test that getFields trims values stored directly in the parameter state.
+     *
+     * @return void
+     */
+    public function testGetFieldsTrimsStoredParameterValues(): void
+    {
+        $this->setProperty($this->parser, 'parameters', ['fields' => [' first_name ', ' last_name ']]);
+
+        self::assertSame(['first_name', 'last_name'], $this->parser->getFields());
+    }
+
+    /**
+     * Test that getCounts trims values stored directly in the parameter state.
+     *
+     * @return void
+     */
+    public function testGetCountsTrimsStoredParameterValues(): void
+    {
+        $this->setProperty($this->parser, 'parameters', ['counts' => [' posts ', ' comments ']]);
+
+        self::assertSame(['posts', 'comments'], $this->parser->getCounts());
+    }
+
+    /**
+     * Test that getLimit truncates fractional values below one and returns
+     * null.
+     *
+     * @return void
+     */
+    public function testGetLimitReturnsNullForFractionalValueBelowOne(): void
+    {
+        $this->setProperty($this->parser, 'parameters', ['limit' => '0.5']);
+
+        self::assertNull($this->parser->getLimit());
+    }
+
+    /**
+     * Test that getPage truncates fractional values below one and returns the
+     * first page.
+     *
+     * @return void
+     */
+    public function testGetPageReturnsOneForFractionalValueBelowOne(): void
+    {
+        $this->setProperty($this->parser, 'parameters', ['page' => '0.5']);
+
+        self::assertSame(1, $this->parser->getPage());
+    }
+
+    /**
+     * Test that parse trims surrounding whitespace from the page and limit
+     * parameters.
+     *
+     * @return void
+     */
+    public function testParseTrimsPageAndLimitParameters(): void
+    {
+        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['page' => ' 2 ', 'limit' => ' 10 ']);
+        $this->parser->parse($request);
+
+        $parameters = $this->getProperty($this->parser, 'parameters');
+
+        self::assertSame('2', $parameters['page']);
+        self::assertSame('10', $parameters['limit']);
+    }
+
+    /**
+     * Test that getSums trims whitespace around aggregation field values.
+     *
+     * @return void
+     */
+    public function testGetSumsTrimsWhitespaceAroundFields(): void
+    {
+        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), [
+            'sums' => [
+                'account' => [
+                    'transaction' => ' amount , fee ',
+                ],
+            ],
+        ]);
+        $this->parser->parse($request);
+
+        $result = $this->parser->getSums('account');
+
+        self::assertIsArray($result);
+        self::assertSame(['amount', 'fee'], $result['transaction']);
+    }
+
+    /**
+     * Test that getSums parses every resource supplied in the query.
+     *
+     * @return void
+     */
+    public function testGetSumsParsesAllResources(): void
+    {
+        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), [
+            'sums' => [
+                'account' => ['transaction' => 'amount'],
+                'user'    => ['posts' => 'votes'],
+            ],
+        ]);
+        $this->parser->parse($request);
+
+        self::assertSame(['transaction' => ['amount']], $this->parser->getSums('account'));
+        self::assertSame(['posts' => ['votes']], $this->parser->getSums('user'));
+    }
+
+    /**
+     * Test that getOrder returns an empty array for an empty order string.
+     *
+     * @return void
+     */
+    public function testGetOrderReturnsEmptyArrayForEmptyOrderString(): void
+    {
+        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['order' => '']);
+        $this->parser->parse($request);
+
+        self::assertSame([], $this->parser->getOrder());
+    }
+
+    /**
+     * Test that getOrder treats everything after the first colon as the
+     * direction.
+     *
+     * @return void
+     */
+    public function testGetOrderTreatsEverythingAfterFirstColonAsDirection(): void
+    {
+        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['order' => 'name:desc:extra']);
+        $this->parser->parse($request);
+
+        self::assertSame(['name' => 'desc:extra'], $this->parser->getOrder());
+    }
+
+    /**
+     * Test that validation fails when a fields resource value is an array.
+     *
+     * @return void
+     */
+    public function testValidationFailsWhenFieldsResourceValueIsArray(): void
+    {
+        $this->expectException(ValidationException::class);
+
+        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), [
+            'fields' => ['user' => ['name', 'email']],
+        ]);
+        $this->parser->parse($request);
+    }
+
+    /**
+     * Test that validation fails when a counts resource value is an array.
+     *
+     * @return void
+     */
+    public function testValidationFailsWhenCountsResourceValueIsArray(): void
+    {
+        $this->expectException(ValidationException::class);
+
+        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), [
+            'counts' => ['user' => ['posts', 'comments']],
+        ]);
+        $this->parser->parse($request);
+    }
+
+    /**
+     * Test that validation fails when a sums resource value is not an array.
+     *
+     * @return void
+     */
+    public function testValidationFailsWhenSumsResourceValueIsNotArray(): void
+    {
+        $this->expectException(ValidationException::class);
+
+        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), [
+            'sums' => ['account' => 'amount'],
+        ]);
+        $this->parser->parse($request);
+    }
+
+    /**
+     * Test that validation fails when an averages resource value is not an
+     * array.
+     *
+     * @return void
+     */
+    public function testValidationFailsWhenAveragesResourceValueIsNotArray(): void
+    {
+        $this->expectException(ValidationException::class);
+
+        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), [
+            'averages' => ['account' => 'amount'],
+        ]);
+        $this->parser->parse($request);
+    }
+
+    /**
+     * Test that validation fails when the fields parameter is an integer.
+     *
+     * @return void
+     */
+    public function testValidationFailsWhenFieldsIsInteger(): void
+    {
+        $this->expectException(ValidationException::class);
+
+        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['fields' => 123]);
+        $this->parser->parse($request);
     }
 }

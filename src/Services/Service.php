@@ -1,254 +1,285 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace SineMacula\ApiToolkit\Services;
 
-use Exception;
-use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Str;
-use SineMacula\ApiToolkit\Services\Contracts\ServiceInterface;
-use SineMacula\ApiToolkit\Traits\Lockable;
+use Illuminate\Support\Facades\App;
+use SineMacula\ApiToolkit\Concerns\Lockable;
+use SineMacula\ApiToolkit\Contracts\LockKeyProvider;
+use SineMacula\ApiToolkit\Services\Actors\AnonymousActor;
+use SineMacula\ApiToolkit\Services\Contracts\Actor;
+use SineMacula\ApiToolkit\Services\Contracts\ServiceInput;
+use SineMacula\ApiToolkit\Services\Enums\ServiceSource;
+use SineMacula\ApiToolkit\Services\Jobs\ServiceJob;
 
 /**
- * Base API service.
+ * Abstract action skeleton.
+ *
+ * Holds a typed input and an explicit actor. Subclasses implement the six
+ * lifecycle hooks; the runner sequences them in a fixed, transaction-aware
+ * order and returns a total ServiceResult.
+ *
+ * @template TInput of \SineMacula\ApiToolkit\Services\Contracts\ServiceInput
+ * @template TOutput
+ *
+ * @phpstan-import-type ServiceHooks from \SineMacula\ApiToolkit\Services\ServiceRunner
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-abstract class Service implements ServiceInterface
+abstract class Service implements LockKeyProvider
 {
     use Lockable;
 
-    /** @var bool|null Service outcome status */
-    protected ?bool $status = null;
+    /** @var bool Wrap prepare()+handle() in a database transaction */
+    protected bool $transactional = true;
 
-    /** @var bool Indicate whether to use database transactions for the service */
-    protected bool $useTransaction = true;
+    /** @var int Transaction retry attempts */
+    protected int $transactionAttempts = 3;
 
-    /** @var bool Indicate whether to lock the task execution */
-    protected bool $useLock = false;
+    /** @var bool Whether this service acquires a cache lock */
+    protected bool $lockable = false;
+
+    /** @var \SineMacula\ApiToolkit\Services\Contracts\Actor|null Explicit causer; null until set by by() or withContext() */
+    private ?Actor $actor = null;
+
+    /** @var \SineMacula\ApiToolkit\Services\ServiceContext|null Fully-built execution context; null until set by withContext() */
+    private ?ServiceContext $context = null;
 
     /**
      * Constructor.
      *
-     * @param  array|\Illuminate\Support\Collection|\stdClass  $payload
+     * @param  TInput  $input
      */
     public function __construct(
 
-        /** The service input payload */
-        protected array|Collection|\stdClass $payload = [],
+        /** The typed input for this service action */
+        protected ServiceInput $input,
+    ) {}
 
-    ) {
-        $this->payload = (!$payload instanceof Collection && !$payload instanceof \stdClass) ? collect($payload) : $payload;
+    /**
+     * Resolve a new service instance from the container with the given input.
+     *
+     * @param  \SineMacula\ApiToolkit\Services\Contracts\ServiceInput  $input
+     * @return static
+     */
+    public static function make(ServiceInput $input): static
+    {
+        $class    = static::class;
+        $instance = App::make($class, ['input' => $input]);
+        assert($instance instanceof static);
 
-        $this->initialize();
+        return $instance;
     }
 
     /**
-     * Get the service status.
+     * Record the explicit causer for this invocation.
      *
-     * @return bool|null
+     * @param  \SineMacula\ApiToolkit\Services\Contracts\Actor  $actor
+     * @return static
      */
-    public function getStatus(): ?bool
+    public function by(Actor $actor): static
     {
-        return $this->status;
-    }
-
-    /**
-     * Instruct the service to use database transactions.
-     *
-     * NOTE: Transactions are only supported on MySQL databases running the
-     * InnoDB engine
-     *
-     * @return \SineMacula\ApiToolkit\Services\Service
-     */
-    public function useTransaction(): static
-    {
-        $this->useTransaction = true;
+        $this->actor = $actor;
 
         return $this;
     }
 
     /**
-     * Instruct the service not to use database transactions.
+     * Record a fully-built execution context supplied by ServiceJob on the
+     * worker, taking the actor from the context.
      *
-     * @return \SineMacula\ApiToolkit\Services\Service
+     * @param  \SineMacula\ApiToolkit\Services\ServiceContext  $context
+     * @return static
      */
-    public function dontUseTransaction(): static
+    public function withContext(ServiceContext $context): static
     {
-        $this->useTransaction = false;
+        $this->context = $context;
+        $this->actor   = $context->actor;
 
         return $this;
     }
 
     /**
-     * Instruct the service to use a cache lock.
+     * Return the actor for this invocation.
      *
-     * @return \SineMacula\ApiToolkit\Services\Service
+     * Defaults to an AnonymousActor when no actor has been supplied. Never
+     * reads Auth or any ambient state.
+     *
+     * @return \SineMacula\ApiToolkit\Services\Contracts\Actor
      */
-    public function useLock(): static
+    public function actor(): Actor
     {
-        if (!$this->getLockId()) {
-            throw new \RuntimeException('Lock key is not set');
-        }
-
-        $this->useLock = true;
-
-        return $this;
+        return $this->actor ?? new AnonymousActor;
     }
 
     /**
-     * Instruct the service not to use a cache lock.
+     * Execute the service synchronously and return a total result.
      *
-     * @return \SineMacula\ApiToolkit\Services\Service
+     * Builds or reuses a ServiceContext, then delegates lifecycle sequencing to
+     * ServiceRunner. Never throws for business failures.
+     *
+     * @return \SineMacula\ApiToolkit\Services\ServiceResult<TOutput>
      */
-    public function dontUseLock(): static
+    public function run(): ServiceResult
     {
-        $this->useLock = false;
+        $context = $this->context ?? ServiceContext::for($this->actor(), ServiceSource::INTERNAL);
+        $class   = ServiceRunner::class;
+        $runner  = App::make($class);
+        assert($runner instanceof ServiceRunner);
 
-        return $this;
+        return $runner->run($this, $context);
     }
 
     /**
-     * Prepare the service for execution.
+     * Push the service onto the queue via ServiceJob.
+     *
+     * @return mixed
+     */
+    public function dispatch(): mixed
+    {
+        $context = $this->context ?? ServiceContext::for($this->actor());
+
+        return ServiceJob::dispatch(static::class, $this->input, $context);
+    }
+
+    /**
+     * Generate the cache-lock key for this service.
+     *
+     * @return string
+     */
+    #[\Override]
+    public function getLockKey(): string
+    {
+        return sha1(static::class . '|' . $this->lockId());
+    }
+
+    /**
+     * Return the lifecycle hooks and configuration for this service.
+     *
+     * Package-internal seam: creates closures in Service scope so that
+     * protected method access is valid. Called exclusively by ServiceRunner.
+     *
+     * @internal
+     *
+     * @return ServiceHooks
+     */
+    final public function serviceHooks(): array
+    {
+        return [
+            'authorize' => function (): void {
+                $this->authorize();
+            },
+            'validate' => function (): void {
+                $this->validate();
+            },
+            'prepare' => function (): void {
+                $this->prepare();
+            },
+            'handle'      => fn (): mixed => $this->handle(),
+            'afterCommit' => function (mixed $output): void {
+                $this->afterCommit($output);
+            },
+            'onFailure' => function (\Throwable $exception): void {
+                $this->onFailure($exception);
+            },
+            'concerns'            => $this->concerns(),
+            'lockId'              => $this->lockId(),
+            'transactional'       => $this->transactional,
+            'transactionAttempts' => $this->transactionAttempts,
+            'lockable'            => $this->lockable,
+            // Flows verbatim to lifecycle-event listeners; scrub via toArray()
+            'inputSummary' => $this->input->toArray(),
+        ];
+    }
+
+    /**
+     * Authorize the current actor to perform this action.
+     *
+     * Runs before the lock and transaction. Throw AuthorizationException to
+     * deny access. Default: allow.
      *
      * @return void
-     *
-     * @throws \Exception
      */
-    public function prepare(): void {}
+    protected function authorize(): void {}
 
     /**
-     * Method is triggered if the handle method ran successfully.
+     * Validate the input data for this action.
+     *
+     * Runs before the lock and transaction. Throw ValidationException to signal
+     * invalid input. Default: pass.
      *
      * @return void
      */
-    public function success(): void {}
+    protected function validate(): void {}
 
     /**
-     * Method is triggered if the handle method failed.
+     * Perform pre-handle setup inside the transaction.
+     *
+     * Load or lock rows, pre-compute values, or perform any setup that must
+     * happen within the transaction but before handle(). Default: no-op.
+     *
+     * @return void
+     */
+    protected function prepare(): void {}
+
+    /**
+     * Execute the core domain action.
+     *
+     * Runs inside the transaction. Signal failure only by throwing; the return
+     * value is the typed output threaded through ServiceResult.
+     *
+     * @return TOutput
+     */
+    abstract protected function handle(): mixed;
+
+    /**
+     * React to a successful outcome after the transaction has committed.
+     *
+     * Runs outside the lock and transaction. Exceptions thrown here are
+     * captured as side-effect errors on the result and logged, leaving the
+     * committed outcome intact. Default: no-op.
+     *
+     * @param  TOutput  $output
+     * @return void
+     */
+    protected function afterCommit(mixed $output): void {}
+
+    /**
+     * React to a failed outcome after the transaction has rolled back.
+     *
+     * Runs after rollback and lock release. Exceptions thrown here are caught
+     * and logged. Default: no-op.
      *
      * @param  \Throwable  $exception
      * @return void
      */
-    public function failed(\Throwable $exception): void {}
+    protected function onFailure(\Throwable $exception): void {}
 
     /**
-     * Run the service.
+     * Return the ordered list of custom concern classes.
      *
-     * @return bool
+     * Concerns run inside the transaction, in declaration order, wrapping the
+     * core (prepare + handle). Default: none.
      *
-     * @throws \Throwable
+     * @return array<int, class-string<\SineMacula\ApiToolkit\Services\Contracts\ServiceConcern>>
      */
-    public function run(): bool
+    protected function concerns(): array
     {
-        if ($this->useLock) {
-            $this->lock();
-        }
-
-        try {
-
-            // Prepare the service for execution
-            $this->prepare();
-
-            // Execute the service handler
-            $this->status = $this->useTransaction
-                ? DB::transaction(fn () => $this->handle(), 3)
-                : $this->handle();
-
-        } catch (\Throwable $exception) {
-            $this->failed($exception);
-            throw $exception;
-        } finally {
-            $this->unlock();
-        }
-
-        // The success callback is run outside the try/catch block in order to
-        // ensure it does not trigger the failed callback if exceptions are
-        // thrown. Typically, if an exception is thrown in the success callback,
-        // then this would be a bug considering all changes are committed at
-        // this point
-        $this->success();
-
-        // Call any success callbacks defined on traits used by the service
-        $this->callTraitsSuccessCallbacks();
-
-        return $this->status;
+        return [];
     }
 
     /**
-     * Initialize the service.
+     * Return the unique lock identity for this invocation.
      *
-     * @return void
-     */
-    protected function initialize(): void
-    {
-        $this->initializeTraits();
-    }
-
-    /**
-     * Initialize each of the initializable traits on the service.
-     *
-     * @return void
-     */
-    protected static function initializeTraits(): void
-    {
-        $class = static::class;
-
-        foreach (class_uses_recursive($class) as $trait) {
-
-            $method = 'initialize' . class_basename($trait);
-
-            if (method_exists($class, $method)) {
-                forward_static_call([$class, $method]);
-            }
-        }
-    }
-
-    /**
-     * Handles the main execution of the service.
-     *
-     * @return bool
-     */
-    abstract protected function handle(): bool;
-
-    /**
-     * Generate the key used for locking the task execution.
+     * Required when $lockable is true; must be non-empty. The final lock key is
+     * sha1(class | lockId()). Default: empty string (disabled).
      *
      * @return string
      */
-    protected function generateLockKey(): string
-    {
-        return sha1(static::class . '|' . $this->getLockId());
-    }
-
-    /**
-     * Return the unique id to be used in the generation of the lock key.
-     *
-     * @return string
-     */
-    protected function getLockId(): string
+    protected function lockId(): string
     {
         return '';
-    }
-
-    /**
-     * Call any success callbacks that are defined on any traits used by the
-     * service.
-     *
-     * @return void
-     */
-    private function callTraitsSuccessCallbacks(): void
-    {
-        $traits = class_uses_recursive(static::class);
-
-        foreach ($traits as $trait) {
-
-            $method = Str::camel(class_basename($trait) . 'Success');
-
-            if (method_exists($this, $method)) {
-                $this->{$method}();
-            }
-        }
     }
 }

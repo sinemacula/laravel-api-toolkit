@@ -1,9 +1,11 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace SineMacula\ApiToolkit\Http\Middleware;
 
 use Illuminate\Routing\Middleware\ThrottleRequests as BaseThrottleRequests;
-use SineMacula\ApiToolkit\Http\Middleware\Traits\ThrottleRequestsTrait;
+use SineMacula\ApiToolkit\Http\Middleware\Concerns\ThrottleRequestsTrait;
 
 /**
  * Throttle requests middleware.
@@ -11,7 +13,7 @@ use SineMacula\ApiToolkit\Http\Middleware\Traits\ThrottleRequestsTrait;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-class ThrottleRequests extends BaseThrottleRequests
+final class ThrottleRequests extends BaseThrottleRequests
 {
     use ThrottleRequestsTrait;
 }

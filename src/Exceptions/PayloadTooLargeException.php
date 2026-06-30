@@ -1,0 +1,23 @@
+<?php
+
+declare(strict_types = 1);
+
+namespace SineMacula\ApiToolkit\Exceptions;
+
+use SineMacula\ApiToolkit\Enums\ErrorCode;
+use SineMacula\Http\Enums\HttpStatus;
+
+/**
+ * Payload too large exception.
+ *
+ * @author      Ben Carey <bdmc@sinemacula.co.uk>
+ * @copyright   2026 Sine Macula Limited.
+ */
+final class PayloadTooLargeException extends ApiException
+{
+    /** @var \SineMacula\ApiToolkit\Contracts\ErrorCodeInterface The internal error code */
+    public const \SineMacula\ApiToolkit\Contracts\ErrorCodeInterface CODE = ErrorCode::PAYLOAD_TOO_LARGE;
+
+    /** @var \SineMacula\Http\Enums\HttpStatus The HTTP status code */
+    public const HttpStatus HTTP_STATUS = HttpStatus::CONTENT_TOO_LARGE;
+}

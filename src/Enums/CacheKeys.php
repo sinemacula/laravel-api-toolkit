@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace SineMacula\ApiToolkit\Enums;
 
 use Illuminate\Support\Facades\Config;
@@ -18,28 +20,39 @@ enum CacheKeys: string
     // Store the columns associated with each model
     case MODEL_SCHEMA_COLUMNS = 'model-schema-columns:%s';
 
+    // Store the per-column type/nullability definitions for each model
+    case MODEL_SCHEMA_COLUMN_DEFINITIONS = 'model-schema-column-definitions:%s';
+
     // Store the relations associated with each model
     case MODEL_RELATIONS = 'model-relations:%s:%s';
 
     // Store the resource associated with each model
     case MODEL_RESOURCES = 'model-resources:%s';
 
-    // Store the eager loads associated with each model
-    case MODEL_EAGER_LOADS = 'model-eager-loads:%s:%s';
+    // Store the cached collection data for a repository (reference mode)
+    case REPOSITORY_CACHE = 'repository-cache:%s';
 
-    // Store the model relation instances associated with each model
-    case MODEL_RELATION_INSTANCES = 'model-relation-instances:%s:%s';
+    // Store the cache metadata for a repository
+    case REPOSITORY_CACHE_META = 'repository-cache-meta:%s';
+
+    // Store a per-query cached result for a repository (table, query hash)
+    case REPOSITORY_QUERY_CACHE = 'repository-query:%s:%s';
+
+    // Store the generational version that scopes a repository table's
+    // per-query keys
+    case REPOSITORY_CACHE_VERSION = 'repository-cache-version:%s';
 
     /**
      * Resolves the cache key with the necessary prefix and replaces any
      * placeholders.
      *
-     * @param  array  $replacements
+     * @param  array<int, string>  $replacements
      * @return string
      */
     public function resolveKey(array $replacements = []): string
     {
-        $prefix = Config::get('api-toolkit.cache.prefix', 'sm-api-toolkit');
+        $prefix = Config::get('api-toolkit.cache.prefix', 'api-toolkit');
+        $prefix = is_string($prefix) ? $prefix : 'api-toolkit';
 
         $key = $prefix . ':' . $this->value;
 

@@ -1,11 +1,14 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Unit\Http\Resources\Schema;
 
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
-use SineMacula\ApiToolkit\Http\Resources\Schema\BaseDefinition;
-use SineMacula\ApiToolkit\Http\Resources\Schema\Field;
+use SineMacula\ApiToolkit\Schema\BaseDefinition;
+use SineMacula\ApiToolkit\Schema\Field;
+use SineMacula\ApiToolkit\Schema\OpenApiFieldDeclaration;
 
 /**
  * Tests for the BaseDefinition abstract class.
@@ -18,7 +21,7 @@ use SineMacula\ApiToolkit\Http\Resources\Schema\Field;
  * @internal
  */
 #[CoversClass(BaseDefinition::class)]
-class BaseDefinitionTest extends TestCase
+final class BaseDefinitionTest extends TestCase
 {
     /**
      * Test that guard adds a callable and returns self for fluent chaining.
@@ -32,9 +35,9 @@ class BaseDefinitionTest extends TestCase
 
         $result = $field->guard($guard);
 
-        static::assertSame($field, $result);
-        static::assertCount(1, $field->getGuards());
-        static::assertSame($guard, $field->getGuards()[0]);
+        self::assertSame($field, $result);
+        self::assertCount(1, $field->getGuards());
+        self::assertSame($guard, $field->getGuards()[0]);
     }
 
     /**
@@ -52,9 +55,9 @@ class BaseDefinitionTest extends TestCase
 
         $guards = $field->getGuards();
 
-        static::assertCount(2, $guards);
-        static::assertSame($guard1, $guards[0]);
-        static::assertSame($guard2, $guards[1]);
+        self::assertCount(2, $guards);
+        self::assertSame($guard1, $guards[0]);
+        self::assertSame($guard2, $guards[1]);
     }
 
     /**
@@ -66,7 +69,7 @@ class BaseDefinitionTest extends TestCase
     {
         $field = Field::scalar('name');
 
-        static::assertSame([], $field->getGuards());
+        self::assertSame([], $field->getGuards());
     }
 
     /**
@@ -81,9 +84,9 @@ class BaseDefinitionTest extends TestCase
 
         $result = $field->transform($transformer);
 
-        static::assertSame($field, $result);
-        static::assertCount(1, $field->getTransformers());
-        static::assertSame($transformer, $field->getTransformers()[0]);
+        self::assertSame($field, $result);
+        self::assertCount(1, $field->getTransformers());
+        self::assertSame($transformer, $field->getTransformers()[0]);
     }
 
     /**
@@ -101,9 +104,9 @@ class BaseDefinitionTest extends TestCase
 
         $transformers = $field->getTransformers();
 
-        static::assertCount(2, $transformers);
-        static::assertSame($transformer1, $transformers[0]);
-        static::assertSame($transformer2, $transformers[1]);
+        self::assertCount(2, $transformers);
+        self::assertSame($transformer1, $transformers[0]);
+        self::assertSame($transformer2, $transformers[1]);
     }
 
     /**
@@ -115,7 +118,7 @@ class BaseDefinitionTest extends TestCase
     {
         $field = Field::scalar('name');
 
-        static::assertSame([], $field->getTransformers());
+        self::assertSame([], $field->getTransformers());
     }
 
     /**
@@ -131,7 +134,25 @@ class BaseDefinitionTest extends TestCase
 
         $array = $field->toArray();
 
-        static::assertSame(['relation.a', 'relation.b'], $array['name']['extras']);
+        self::assertSame(['relation.a', 'relation.b'], $array['name']['extras']);
+    }
+
+    /**
+     * Test that extras reindexes sequentially when deduplication removes an
+     * interior duplicate.
+     *
+     * @return void
+     */
+    public function testExtrasReindexesAfterInteriorDeduplication(): void
+    {
+        $field = Field::scalar('name');
+
+        $field->extras('relation.a', 'relation.b');
+        $field->extras('relation.a', 'relation.c');
+
+        $array = $field->toArray();
+
+        self::assertSame(['relation.a', 'relation.b', 'relation.c'], $array['name']['extras']);
     }
 
     /**
@@ -145,7 +166,7 @@ class BaseDefinitionTest extends TestCase
 
         $result = $field->extras('relation.a');
 
-        static::assertSame($field, $result);
+        self::assertSame($field, $result);
     }
 
     /**
@@ -161,7 +182,7 @@ class BaseDefinitionTest extends TestCase
 
         $array = $field->toArray();
 
-        static::assertSame(['relation.a', 'relation.b'], $array['name']['extras']);
+        self::assertSame(['relation.a', 'relation.b'], $array['name']['extras']);
     }
 
     /**
@@ -178,6 +199,100 @@ class BaseDefinitionTest extends TestCase
 
         $field->guard($guard1)->guard($guard2)->guard($guard3);
 
-        static::assertCount(3, $field->getGuards());
+        self::assertCount(3, $field->getGuards());
+    }
+
+    /**
+     * Test that openapi returns a declaration carrier.
+     *
+     * @return void
+     */
+    public function testOpenapiReturnsDeclarationCarrier(): void
+    {
+        $field = Field::scalar('name');
+
+        $declaration = $field->openapi();
+
+        self::assertInstanceOf(OpenApiFieldDeclaration::class, $declaration);
+    }
+
+    /**
+     * Test that openapi returns the same carrier on repeated calls.
+     *
+     * @return void
+     */
+    public function testOpenapiReturnsSameCarrierOnRepeatedCalls(): void
+    {
+        $field = Field::scalar('name');
+
+        self::assertSame($field->openapi(), $field->openapi());
+    }
+
+    /**
+     * Test that the carrier end() chains back to the owning definition.
+     *
+     * @return void
+     */
+    public function testOpenapiCarrierEndReturnsOwningDefinition(): void
+    {
+        $field = Field::scalar('name');
+
+        self::assertSame($field, $field->openapi()->end());
+    }
+
+    /**
+     * Test that getOpenApiDeclaration returns null until openapi is called.
+     *
+     * @return void
+     */
+    public function testGetOpenApiDeclarationReturnsNullByDefault(): void
+    {
+        $field = Field::scalar('name');
+
+        self::assertNull($field->getOpenApiDeclaration());
+    }
+
+    /**
+     * Test that getOpenApiDeclaration returns the carrier after openapi is
+     * called.
+     *
+     * @return void
+     */
+    public function testGetOpenApiDeclarationReturnsCarrierAfterDeclaration(): void
+    {
+        $field = Field::scalar('name');
+
+        $declaration = $field->openapi();
+
+        self::assertSame($declaration, $field->getOpenApiDeclaration());
+    }
+
+    /**
+     * Test that a definition with no openapi declaration serializes identically
+     * to the pre-feature output.
+     *
+     * This is the byte-for-byte backward-compatibility oracle (AC-11): the
+     * openapi key must never appear unless openapi() was explicitly called.
+     *
+     * @return void
+     */
+    public function testToArrayIsUnchangedWhenOpenapiNotDeclared(): void
+    {
+        $guard       = fn () => true;
+        $transformer = fn ($resource, $value) => $value;
+
+        $field = Field::accessor('display_name', 'name')
+            ->extras('profile')
+            ->guard($guard)
+            ->transform($transformer);
+
+        self::assertSame([
+            'display_name' => [
+                'accessor'     => 'name',
+                'extras'       => ['profile'],
+                'guards'       => [$guard],
+                'transformers' => [$transformer],
+            ],
+        ], $field->toArray());
     }
 }

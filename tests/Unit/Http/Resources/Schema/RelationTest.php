@@ -1,10 +1,13 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Unit\Http\Resources\Schema;
 
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
-use SineMacula\ApiToolkit\Http\Resources\Schema\Relation;
+use SineMacula\ApiToolkit\Schema\OpenApiFieldSchema;
+use SineMacula\ApiToolkit\Schema\Relation;
 use Tests\Fixtures\Resources\OrganizationResource;
 
 /**
@@ -16,7 +19,7 @@ use Tests\Fixtures\Resources\OrganizationResource;
  * @internal
  */
 #[CoversClass(Relation::class)]
-class RelationTest extends TestCase
+final class RelationTest extends TestCase
 {
     /**
      * Test that to with a class string sets the resource.
@@ -29,9 +32,33 @@ class RelationTest extends TestCase
 
         $array = $relation->toArray();
 
-        static::assertSame('organization', $array['organization']['relation']);
-        static::assertSame(OrganizationResource::class, $array['organization']['resource']);
-        static::assertArrayNotHasKey('accessor', $array['organization']);
+        self::assertSame('organization', $array['organization']['relation']);
+        self::assertSame(OrganizationResource::class, $array['organization']['resource']);
+        self::assertArrayNotHasKey('accessor', $array['organization']);
+    }
+
+    /**
+     * Test that traversable() emits the relation name.
+     *
+     * @return void
+     */
+    public function testTraversableMarkerEmitsTheRelationName(): void
+    {
+        $array = Relation::to('organization', OrganizationResource::class)->traversable()->toArray();
+
+        self::assertSame('organization', $array['organization']['traversable']);
+    }
+
+    /**
+     * Test that a relation without the traversable marker omits it.
+     *
+     * @return void
+     */
+    public function testRelationWithoutTraversableOmitsIt(): void
+    {
+        $array = Relation::to('organization', OrganizationResource::class)->toArray();
+
+        self::assertArrayNotHasKey('traversable', $array['organization']);
     }
 
     /**
@@ -45,9 +72,9 @@ class RelationTest extends TestCase
 
         $array = $relation->toArray();
 
-        static::assertSame('organization', $array['organization']['relation']);
-        static::assertSame('name', $array['organization']['accessor']);
-        static::assertArrayNotHasKey('resource', $array['organization']);
+        self::assertSame('organization', $array['organization']['relation']);
+        self::assertSame('name', $array['organization']['accessor']);
+        self::assertArrayNotHasKey('resource', $array['organization']);
     }
 
     /**
@@ -62,8 +89,8 @@ class RelationTest extends TestCase
 
         $array = $relation->toArray();
 
-        static::assertSame($accessor, $array['organization']['accessor']);
-        static::assertArrayNotHasKey('resource', $array['organization']);
+        self::assertSame($accessor, $array['organization']['accessor']);
+        self::assertArrayNotHasKey('resource', $array['organization']);
     }
 
     /**
@@ -79,9 +106,9 @@ class RelationTest extends TestCase
 
         $array = $relation->toArray();
 
-        static::assertArrayHasKey('org', $array);
-        static::assertArrayNotHasKey('organization', $array);
-        static::assertSame('organization', $array['org']['relation']);
+        self::assertArrayHasKey('org', $array);
+        self::assertArrayNotHasKey('organization', $array);
+        self::assertSame('organization', $array['org']['relation']);
     }
 
     /**
@@ -95,8 +122,8 @@ class RelationTest extends TestCase
 
         $array = $relation->toArray();
 
-        static::assertArrayHasKey('org_name', $array);
-        static::assertArrayNotHasKey('organization', $array);
+        self::assertArrayHasKey('org_name', $array);
+        self::assertArrayNotHasKey('organization', $array);
     }
 
     /**
@@ -112,7 +139,7 @@ class RelationTest extends TestCase
 
         $array = $relation->toArray();
 
-        static::assertSame(['id', 'name'], $array['organization']['fields']);
+        self::assertSame(['id', 'name'], $array['organization']['fields']);
     }
 
     /**
@@ -128,7 +155,24 @@ class RelationTest extends TestCase
 
         $array = $relation->toArray();
 
-        static::assertSame(['id', 'name'], $array['organization']['fields']);
+        self::assertSame(['id', 'name'], $array['organization']['fields']);
+    }
+
+    /**
+     * Test that fields reindexes sequentially when deduplication removes an
+     * interior duplicate.
+     *
+     * @return void
+     */
+    public function testFieldsReindexesAfterInteriorDeduplication(): void
+    {
+        $relation = Relation::to('organization', OrganizationResource::class);
+
+        $relation->fields(['id', 'name', 'id', 'slug']);
+
+        $array = $relation->toArray();
+
+        self::assertSame(['id', 'name', 'slug'], $array['organization']['fields']);
     }
 
     /**
@@ -145,7 +189,7 @@ class RelationTest extends TestCase
 
         $array = $relation->toArray();
 
-        static::assertSame($constraint, $array['organization']['constraint']);
+        self::assertSame($constraint, $array['organization']['constraint']);
     }
 
     /**
@@ -167,13 +211,13 @@ class RelationTest extends TestCase
 
         $array = $relation->toArray();
 
-        static::assertArrayHasKey('organization', $array);
-        static::assertSame('organization', $array['organization']['relation']);
-        static::assertSame(OrganizationResource::class, $array['organization']['resource']);
-        static::assertSame(['id', 'name'], $array['organization']['fields']);
-        static::assertSame($constraint, $array['organization']['constraint']);
-        static::assertSame([$guard], $array['organization']['guards']);
-        static::assertSame([$transformer], $array['organization']['transformers']);
+        self::assertArrayHasKey('organization', $array);
+        self::assertSame('organization', $array['organization']['relation']);
+        self::assertSame(OrganizationResource::class, $array['organization']['resource']);
+        self::assertSame(['id', 'name'], $array['organization']['fields']);
+        self::assertSame($constraint, $array['organization']['constraint']);
+        self::assertSame([$guard], $array['organization']['guards']);
+        self::assertSame([$transformer], $array['organization']['transformers']);
     }
 
     /**
@@ -187,11 +231,11 @@ class RelationTest extends TestCase
 
         $array = $relation->toArray();
 
-        static::assertArrayNotHasKey('accessor', $array['organization']);
-        static::assertArrayNotHasKey('fields', $array['organization']);
-        static::assertArrayNotHasKey('constraint', $array['organization']);
-        static::assertArrayNotHasKey('guards', $array['organization']);
-        static::assertArrayNotHasKey('transformers', $array['organization']);
+        self::assertArrayNotHasKey('accessor', $array['organization']);
+        self::assertArrayNotHasKey('fields', $array['organization']);
+        self::assertArrayNotHasKey('constraint', $array['organization']);
+        self::assertArrayNotHasKey('guards', $array['organization']);
+        self::assertArrayNotHasKey('transformers', $array['organization']);
     }
 
     /**
@@ -206,6 +250,85 @@ class RelationTest extends TestCase
 
         $array = $relation->toArray();
 
-        static::assertSame(['organization.owner'], $array['organization']['extras']);
+        self::assertSame(['organization.owner'], $array['organization']['extras']);
+    }
+
+    /**
+     * Test that the openapi key is absent when no declaration was made.
+     *
+     * Backward-compatibility oracle (AC-11): a relation with no openapi() call
+     * must serialize without the new key.
+     *
+     * @return void
+     */
+    public function testToArrayOmitsOpenApiWhenNotDeclared(): void
+    {
+        $relation = Relation::to('organization', OrganizationResource::class);
+
+        $array = $relation->toArray();
+
+        self::assertArrayNotHasKey('openapi', $array['organization']);
+    }
+
+    /**
+     * Test that the openapi key is emitted when a declaration was made.
+     *
+     * @return void
+     */
+    public function testToArrayIncludesOpenApiWhenDeclared(): void
+    {
+        $relation = Relation::to('organization', OrganizationResource::class);
+        $relation->openapi()->type('object')->description('The owning organization');
+
+        $array = $relation->toArray();
+
+        self::assertArrayHasKey('openapi', $array['organization']);
+        self::assertInstanceOf(OpenApiFieldSchema::class, $array['organization']['openapi']);
+        self::assertSame('object', $array['organization']['openapi']->type);
+    }
+
+    /**
+     * Test that toArray emits the needs key when declared.
+     *
+     * @return void
+     */
+    public function testToArrayEmitsNeedsWhenDeclared(): void
+    {
+        $relation = Relation::to('organization', OrganizationResource::class)
+            ->needs('owner_id', 'owner_type');
+
+        $array = $relation->toArray();
+
+        self::assertSame(['owner_id', 'owner_type'], $array['organization']['needs']);
+    }
+
+    /**
+     * Test that toArray omits the needs key when not declared.
+     *
+     * @return void
+     */
+    public function testToArrayOmitsNeedsWhenNotDeclared(): void
+    {
+        $relation = Relation::to('organization', OrganizationResource::class);
+
+        $array = $relation->toArray();
+
+        self::assertArrayNotHasKey('needs', $array['organization']);
+    }
+
+    /**
+     * Test that needs deduplicates across multiple calls.
+     *
+     * @return void
+     */
+    public function testNeedsDeduplicatesAcrossCalls(): void
+    {
+        $relation = Relation::to('organization', OrganizationResource::class)
+            ->needs('a')
+            ->needs('a', 'b');
+
+        $array = $relation->toArray();
+
+        self::assertSame(['a', 'b'], $array['organization']['needs']);
     }
 }

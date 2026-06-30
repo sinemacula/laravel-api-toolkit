@@ -1,0 +1,72 @@
+<?php
+
+declare(strict_types = 1);
+
+namespace Tests\Unit\Schema\Validation;
+
+use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\TestCase;
+use SineMacula\ApiToolkit\Schema\Validation\SchemaValidationError;
+
+/**
+ * Tests for the SchemaValidationError value object.
+ *
+ * @author      Ben Carey <bdmc@sinemacula.co.uk>
+ * @copyright   2026 Sine Macula Limited.
+ *
+ * @SuppressWarnings("php:S1192")
+ *
+ * @internal
+ */
+#[CoversClass(SchemaValidationError::class)]
+final class SchemaValidationErrorTest extends TestCase
+{
+    /**
+     * Test that the constructor sets properties.
+     *
+     * @return void
+     */
+    public function testConstructorSetsProperties(): void
+    {
+        $error = new SchemaValidationError(
+            resourceClass: 'App\Http\Resources\UserResource',
+            fieldKey: 'organization',
+            defect: 'Guard at index 0 is not callable',
+        );
+
+        self::assertSame('App\Http\Resources\UserResource', $error->resourceClass);
+        self::assertSame('organization', $error->fieldKey);
+        self::assertSame('Guard at index 0 is not callable', $error->defect);
+    }
+
+    /**
+     * Test that __toString formats all three elements.
+     *
+     * @return void
+     */
+    public function testToStringFormatsAllThreeElements(): void
+    {
+        $error = new SchemaValidationError(
+            resourceClass: 'App\Http\Resources\UserResource',
+            fieldKey: 'full_label',
+            defect: 'Missing accessor',
+        );
+
+        self::assertSame(
+            '[App\Http\Resources\UserResource] Field "full_label": Missing accessor',
+            (string) $error,
+        );
+    }
+
+    /**
+     * Test that properties are readonly.
+     *
+     * @return void
+     */
+    public function testPropertiesAreReadonly(): void
+    {
+        $reflection = new \ReflectionClass(SchemaValidationError::class);
+
+        self::assertTrue($reflection->isReadOnly());
+    }
+}

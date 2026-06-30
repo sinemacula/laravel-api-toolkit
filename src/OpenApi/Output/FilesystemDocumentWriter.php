@@ -1,0 +1,57 @@
+<?php
+
+declare(strict_types = 1);
+
+namespace SineMacula\ApiToolkit\OpenApi\Output;
+
+use Illuminate\Filesystem\Filesystem;
+use SineMacula\ApiToolkit\OpenApi\Contracts\DocumentWriter;
+use SineMacula\ApiToolkit\OpenApi\Exceptions\DocumentWriteException;
+
+/**
+ * Filesystem adapter for the DocumentWriter output port.
+ *
+ * Writes the serialized OpenAPI document to disk, creating the target directory
+ * tree when it does not yet exist. This is the only write of the entire
+ * exporter feature; failures surface as a DocumentWriteException so the command
+ * can report them rather than silently emitting nothing.
+ *
+ * @author      Ben Carey <bdmc@sinemacula.co.uk>
+ * @copyright   2026 Sine Macula Limited.
+ */
+final class FilesystemDocumentWriter implements DocumentWriter
+{
+    /**
+     * Create a new filesystem document writer.
+     *
+     * @param  \Illuminate\Filesystem\Filesystem  $files
+     */
+    public function __construct(
+
+        /** The filesystem used to write the document to disk. */
+        private readonly Filesystem $files,
+    ) {}
+
+    /**
+     * Persist the serialized document to the given filesystem path.
+     *
+     * @param  string  $path
+     * @param  string  $contents
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\OpenApi\Exceptions\DocumentWriteException
+     */
+    #[\Override]
+    public function write(string $path, string $contents): void
+    {
+        $directory = dirname($path);
+
+        if (!$this->files->isDirectory($directory) && !$this->files->makeDirectory($directory, 0o755, true, true)) {
+            throw new DocumentWriteException(sprintf('Unable to create directory [%s] for the OpenAPI document.', $directory));
+        }
+
+        if ($this->files->put($path, $contents) === false) {
+            throw new DocumentWriteException(sprintf('Unable to write the OpenAPI document to [%s].', $path));
+        }
+    }
+}

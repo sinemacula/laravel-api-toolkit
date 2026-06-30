@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Unit\Enums;
 
 use Illuminate\Support\Facades\Config;
@@ -17,8 +19,26 @@ use SineMacula\ApiToolkit\Enums\CacheKeys;
  * @internal
  */
 #[CoversClass(CacheKeys::class)]
-class CacheKeysTest extends TestCase
+final class CacheKeysTest extends TestCase
 {
+    /**
+     * Provide all CacheKeys cases with their expected values.
+     *
+     * @return iterable<string, array{\SineMacula\ApiToolkit\Enums\CacheKeys, string}>
+     */
+    public static function caseProvider(): iterable
+    {
+        yield 'REPOSITORY_MODEL_CASTS' => [CacheKeys::REPOSITORY_MODEL_CASTS, 'repository-model-casts:%s'];
+        yield 'MODEL_SCHEMA_COLUMNS' => [CacheKeys::MODEL_SCHEMA_COLUMNS, 'model-schema-columns:%s'];
+        yield 'MODEL_SCHEMA_COLUMN_DEFINITIONS' => [CacheKeys::MODEL_SCHEMA_COLUMN_DEFINITIONS, 'model-schema-column-definitions:%s'];
+        yield 'MODEL_RELATIONS' => [CacheKeys::MODEL_RELATIONS, 'model-relations:%s:%s'];
+        yield 'MODEL_RESOURCES' => [CacheKeys::MODEL_RESOURCES, 'model-resources:%s'];
+        yield 'REPOSITORY_CACHE' => [CacheKeys::REPOSITORY_CACHE, 'repository-cache:%s'];
+        yield 'REPOSITORY_CACHE_META' => [CacheKeys::REPOSITORY_CACHE_META, 'repository-cache-meta:%s'];
+        yield 'REPOSITORY_QUERY_CACHE' => [CacheKeys::REPOSITORY_QUERY_CACHE, 'repository-query:%s:%s'];
+        yield 'REPOSITORY_CACHE_VERSION' => [CacheKeys::REPOSITORY_CACHE_VERSION, 'repository-cache-version:%s'];
+    }
+
     /**
      * Test that resolveKey returns a prefixed key with no replacements.
      *
@@ -33,8 +53,8 @@ class CacheKeysTest extends TestCase
 
         $result = $case->resolveKey();
 
-        static::assertStringStartsWith('test-prefix:', $result);
-        static::assertSame('test-prefix:' . $expectedValue, $result);
+        self::assertStringStartsWith('test-prefix:', $result);
+        self::assertSame('test-prefix:' . $expectedValue, $result);
     }
 
     /**
@@ -46,8 +66,8 @@ class CacheKeysTest extends TestCase
     {
         $result = CacheKeys::REPOSITORY_MODEL_CASTS->resolveKey(['User']);
 
-        static::assertStringStartsWith('sm-api-toolkit:', $result);
-        static::assertSame('sm-api-toolkit:repository-model-casts:User', $result);
+        self::assertStringStartsWith('api-toolkit:', $result);
+        self::assertSame('api-toolkit:repository-model-casts:User', $result);
     }
 
     /**
@@ -61,7 +81,7 @@ class CacheKeysTest extends TestCase
 
         $result = CacheKeys::MODEL_SCHEMA_COLUMNS->resolveKey(['User']);
 
-        static::assertSame('app:model-schema-columns:User', $result);
+        self::assertSame('app:model-schema-columns:User', $result);
     }
 
     /**
@@ -75,7 +95,7 @@ class CacheKeysTest extends TestCase
 
         $result = CacheKeys::MODEL_RELATIONS->resolveKey(['User', 'posts']);
 
-        static::assertSame('app:model-relations:User:posts', $result);
+        self::assertSame('app:model-relations:User:posts', $result);
     }
 
     /**
@@ -88,7 +108,7 @@ class CacheKeysTest extends TestCase
     #[DataProvider('caseProvider')]
     public function testCaseHasExpectedValue(CacheKeys $case, string $expectedValue): void
     {
-        static::assertSame($expectedValue, $case->value);
+        self::assertSame($expectedValue, $case->value);
     }
 
     /**
@@ -98,21 +118,6 @@ class CacheKeysTest extends TestCase
      */
     public function testExpectedCaseCount(): void
     {
-        static::assertCount(6, CacheKeys::cases());
-    }
-
-    /**
-     * Provide all CacheKeys cases with their expected values.
-     *
-     * @return iterable<string, array{\SineMacula\ApiToolkit\Enums\CacheKeys, string}>
-     */
-    public static function caseProvider(): iterable
-    {
-        yield 'REPOSITORY_MODEL_CASTS' => [CacheKeys::REPOSITORY_MODEL_CASTS, 'repository-model-casts:%s'];
-        yield 'MODEL_SCHEMA_COLUMNS' => [CacheKeys::MODEL_SCHEMA_COLUMNS, 'model-schema-columns:%s'];
-        yield 'MODEL_RELATIONS' => [CacheKeys::MODEL_RELATIONS, 'model-relations:%s:%s'];
-        yield 'MODEL_RESOURCES' => [CacheKeys::MODEL_RESOURCES, 'model-resources:%s'];
-        yield 'MODEL_EAGER_LOADS' => [CacheKeys::MODEL_EAGER_LOADS, 'model-eager-loads:%s:%s'];
-        yield 'MODEL_RELATION_INSTANCES' => [CacheKeys::MODEL_RELATION_INSTANCES, 'model-relation-instances:%s:%s'];
+        self::assertCount(9, CacheKeys::cases());
     }
 }

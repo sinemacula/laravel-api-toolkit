@@ -1,11 +1,15 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Unit\Http\Resources\Schema;
 
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
-use SineMacula\ApiToolkit\Http\Resources\Schema\Field;
+use SineMacula\ApiToolkit\Exceptions\DuplicateSchemaKeyException;
+use SineMacula\ApiToolkit\Schema\Field;
+use SineMacula\ApiToolkit\Schema\OpenApiFieldSchema;
 
 /**
  * Tests for the Field schema definition.
@@ -16,7 +20,7 @@ use SineMacula\ApiToolkit\Http\Resources\Schema\Field;
  * @internal
  */
 #[CoversClass(Field::class)]
-class FieldTest extends TestCase
+final class FieldTest extends TestCase
 {
     /**
      * Test that scalar creates a field with the given name.
@@ -29,8 +33,8 @@ class FieldTest extends TestCase
 
         $array = $field->toArray();
 
-        static::assertArrayHasKey('email', $array);
-        static::assertSame([], $array['email']);
+        self::assertArrayHasKey('email', $array);
+        self::assertSame([], $array['email']);
     }
 
     /**
@@ -44,8 +48,47 @@ class FieldTest extends TestCase
 
         $array = $field->toArray();
 
-        static::assertArrayHasKey('email', $array);
-        static::assertArrayNotHasKey('email_address', $array);
+        self::assertArrayHasKey('email', $array);
+        self::assertArrayNotHasKey('email_address', $array);
+    }
+
+    /**
+     * Test that filterable() and sortable() emit the field's column name.
+     *
+     * @return void
+     */
+    public function testFilterableAndSortableMarkersEmitTheColumnName(): void
+    {
+        $array = Field::scalar('email')->filterable()->sortable()->toArray();
+
+        self::assertSame('email', $array['email']['filterable']);
+        self::assertSame('email', $array['email']['sortable']);
+    }
+
+    /**
+     * Test that the filterable marker declares the underlying column, not the
+     * presentation alias.
+     *
+     * @return void
+     */
+    public function testFilterableMarkerDeclaresColumnNotAlias(): void
+    {
+        $array = Field::scalar('email_address', 'email')->filterable()->toArray();
+
+        self::assertSame('email_address', $array['email']['filterable']);
+    }
+
+    /**
+     * Test that a field without markers omits them.
+     *
+     * @return void
+     */
+    public function testFieldWithoutMarkersOmitsThem(): void
+    {
+        $array = Field::scalar('email')->toArray();
+
+        self::assertArrayNotHasKey('filterable', $array['email']);
+        self::assertArrayNotHasKey('sortable', $array['email']);
     }
 
     /**
@@ -59,8 +102,8 @@ class FieldTest extends TestCase
 
         $array = $field->toArray();
 
-        static::assertArrayHasKey('display_name', $array);
-        static::assertSame('name', $array['display_name']['accessor']);
+        self::assertArrayHasKey('display_name', $array);
+        self::assertSame('name', $array['display_name']['accessor']);
     }
 
     /**
@@ -75,7 +118,7 @@ class FieldTest extends TestCase
 
         $array = $field->toArray();
 
-        static::assertSame($accessor, $array['display_name']['accessor']);
+        self::assertSame($accessor, $array['display_name']['accessor']);
     }
 
     /**
@@ -89,9 +132,9 @@ class FieldTest extends TestCase
 
         $array = $field->toArray();
 
-        static::assertArrayHasKey('created_at', $array);
-        static::assertArrayHasKey('accessor', $array['created_at']);
-        static::assertIsCallable($array['created_at']['accessor']);
+        self::assertArrayHasKey('created_at', $array);
+        self::assertArrayHasKey('accessor', $array['created_at']);
+        self::assertIsCallable($array['created_at']['accessor']);
     }
 
     /**
@@ -105,9 +148,9 @@ class FieldTest extends TestCase
 
         $array = $field->toArray();
 
-        static::assertArrayHasKey('birth_date', $array);
-        static::assertArrayHasKey('accessor', $array['birth_date']);
-        static::assertIsCallable($array['birth_date']['accessor']);
+        self::assertArrayHasKey('birth_date', $array);
+        self::assertArrayHasKey('accessor', $array['birth_date']);
+        self::assertIsCallable($array['birth_date']['accessor']);
     }
 
     /**
@@ -122,8 +165,8 @@ class FieldTest extends TestCase
 
         $array = $field->toArray();
 
-        static::assertArrayHasKey('full_name', $array);
-        static::assertSame($compute, $array['full_name']['compute']);
+        self::assertArrayHasKey('full_name', $array);
+        self::assertSame($compute, $array['full_name']['compute']);
     }
 
     /**
@@ -138,8 +181,8 @@ class FieldTest extends TestCase
 
         $array = $field->toArray();
 
-        static::assertArrayHasKey('display_name', $array);
-        static::assertArrayNotHasKey('full_name', $array);
+        self::assertArrayHasKey('display_name', $array);
+        self::assertArrayNotHasKey('full_name', $array);
     }
 
     /**
@@ -155,8 +198,8 @@ class FieldTest extends TestCase
 
         $array = $field->toArray();
 
-        static::assertArrayHasKey('email', $array);
-        static::assertArrayNotHasKey('email_address', $array);
+        self::assertArrayHasKey('email', $array);
+        self::assertArrayNotHasKey('email_address', $array);
     }
 
     /**
@@ -170,7 +213,7 @@ class FieldTest extends TestCase
 
         $array = $field->toArray();
 
-        static::assertSame(['name' => []], $array);
+        self::assertSame(['name' => []], $array);
     }
 
     /**
@@ -184,11 +227,27 @@ class FieldTest extends TestCase
 
         $array = $field->toArray();
 
-        static::assertArrayNotHasKey('accessor', $array['name']);
-        static::assertArrayNotHasKey('compute', $array['name']);
-        static::assertArrayNotHasKey('extras', $array['name']);
-        static::assertArrayNotHasKey('guards', $array['name']);
-        static::assertArrayNotHasKey('transformers', $array['name']);
+        self::assertArrayNotHasKey('accessor', $array['name']);
+        self::assertArrayNotHasKey('compute', $array['name']);
+        self::assertArrayNotHasKey('extras', $array['name']);
+        self::assertArrayNotHasKey('guards', $array['name']);
+        self::assertArrayNotHasKey('transformers', $array['name']);
+    }
+
+    /**
+     * Test that toArray includes extras when set.
+     *
+     * @return void
+     */
+    public function testToArrayIncludesExtrasWhenSet(): void
+    {
+        $field = Field::scalar('avatar');
+
+        $field->extras('media', 'media.thumbnails');
+
+        $array = $field->toArray();
+
+        self::assertSame(['media', 'media.thumbnails'], $array['avatar']['extras']);
     }
 
     /**
@@ -203,8 +262,8 @@ class FieldTest extends TestCase
 
         $array = $field->toArray();
 
-        static::assertArrayHasKey('guards', $array['name']);
-        static::assertSame([$guard], $array['name']['guards']);
+        self::assertArrayHasKey('guards', $array['name']);
+        self::assertSame([$guard], $array['name']['guards']);
     }
 
     /**
@@ -219,8 +278,8 @@ class FieldTest extends TestCase
 
         $array = $field->toArray();
 
-        static::assertArrayHasKey('transformers', $array['name']);
-        static::assertSame([$transformer], $array['name']['transformers']);
+        self::assertArrayHasKey('transformers', $array['name']);
+        self::assertSame([$transformer], $array['name']['transformers']);
     }
 
     /**
@@ -236,26 +295,73 @@ class FieldTest extends TestCase
             Field::scalar('status'),
         );
 
-        static::assertArrayHasKey('name', $result);
-        static::assertArrayHasKey('email', $result);
-        static::assertArrayHasKey('status', $result);
+        self::assertArrayHasKey('name', $result);
+        self::assertArrayHasKey('email', $result);
+        self::assertArrayHasKey('status', $result);
     }
 
     /**
-     * Test that set overwrites earlier definitions with later ones.
+     * Test that set throws on duplicate key from separate definitions.
      *
      * @return void
      */
-    public function testSetOverwritesEarlierWithLater(): void
+    public function testSetThrowsOnDuplicateKeyFromSeparateDefinitions(): void
     {
-        $accessor = fn ($resource) => 'computed';
+        $this->expectException(DuplicateSchemaKeyException::class);
 
+        Field::set(
+            Field::scalar('name'),
+            Field::accessor('name', fn ($resource) => 'computed'),
+        );
+    }
+
+    /**
+     * Test that set throws on duplicate key from Arrayable and scalar.
+     *
+     * @return void
+     */
+    public function testSetThrowsOnDuplicateKeyFromArrayableAndScalar(): void
+    {
+        $this->expectException(DuplicateSchemaKeyException::class);
+
+        Field::set(
+            Field::scalar('email'),
+            ['email' => []],
+        );
+    }
+
+    /**
+     * Test that set accepts unique keys without exception.
+     *
+     * @return void
+     */
+    public function testSetAcceptsUniqueKeysWithoutException(): void
+    {
         $result = Field::set(
             Field::scalar('name'),
-            Field::accessor('name', $accessor),
+            Field::scalar('email'),
+            Field::scalar('status'),
         );
 
-        static::assertSame($accessor, $result['name']['accessor']);
+        self::assertArrayHasKey('name', $result);
+        self::assertArrayHasKey('email', $result);
+        self::assertArrayHasKey('status', $result);
+    }
+
+    /**
+     * Test that set exception message contains the duplicate key name.
+     *
+     * @return void
+     */
+    public function testSetExceptionMessageContainsDuplicateKeyName(): void
+    {
+        $this->expectException(DuplicateSchemaKeyException::class);
+        $this->expectExceptionMessage('Duplicate schema key "title" detected in Field::set()');
+
+        Field::set(
+            Field::scalar('title'),
+            Field::scalar('title'),
+        );
     }
 
     /**
@@ -270,29 +376,14 @@ class FieldTest extends TestCase
 
         $result = Field::set($field1, $field2);
 
-        static::assertArrayHasKey('name', $result);
-        static::assertArrayHasKey('email', $result);
-    }
-
-    /**
-     * Test static factory methods create Field instances.
-     *
-     * @param  \SineMacula\ApiToolkit\Http\Resources\Schema\Field  $field
-     * @param  string  $expectedKey
-     * @return void
-     */
-    #[DataProvider('factoryMethodProvider')]
-    public function testFactoryMethodsCreateFieldInstances(Field $field, string $expectedKey): void
-    {
-        $array = $field->toArray();
-
-        static::assertArrayHasKey($expectedKey, $array);
+        self::assertArrayHasKey('name', $result);
+        self::assertArrayHasKey('email', $result);
     }
 
     /**
      * Provide factory method variations.
      *
-     * @return iterable<string, array{\SineMacula\ApiToolkit\Http\Resources\Schema\Field, string}>
+     * @return iterable<string, array{\SineMacula\ApiToolkit\Schema\Field, string}>
      */
     public static function factoryMethodProvider(): iterable
     {
@@ -305,5 +396,56 @@ class FieldTest extends TestCase
         yield 'date with alias' => [Field::date('birth_date', 'dob'), 'dob'];
         yield 'compute' => [Field::compute('full_name', fn () => 'value'), 'full_name'];
         yield 'compute with alias' => [Field::compute('full_name', fn () => 'value', 'name'), 'name'];
+    }
+
+    /**
+     * Test static factory methods create Field instances.
+     *
+     * @param  \SineMacula\ApiToolkit\Schema\Field  $field
+     * @param  string  $expectedKey
+     * @return void
+     */
+    #[DataProvider('factoryMethodProvider')]
+    public function testFactoryMethodsCreateFieldInstances(Field $field, string $expectedKey): void
+    {
+        $array = $field->toArray();
+
+        self::assertArrayHasKey($expectedKey, $array);
+    }
+
+    /**
+     * Test that the openapi key is absent when no declaration was made.
+     *
+     * This is the byte-for-byte backward-compatibility oracle (AC-11): a scalar
+     * field with no openapi() call must serialize identically.
+     *
+     * @return void
+     */
+    public function testToArrayOmitsOpenApiWhenNotDeclared(): void
+    {
+        $field = Field::scalar('name');
+
+        $array = $field->toArray();
+
+        self::assertArrayNotHasKey('openapi', $array['name']);
+        self::assertSame(['name' => []], $array);
+    }
+
+    /**
+     * Test that the openapi key is emitted when a declaration was made.
+     *
+     * @return void
+     */
+    public function testToArrayIncludesOpenApiWhenDeclared(): void
+    {
+        $field = Field::scalar('status');
+        $field->openapi()->type('string')->enum(['draft', 'published']);
+
+        $array = $field->toArray();
+
+        self::assertArrayHasKey('openapi', $array['status']);
+        self::assertInstanceOf(OpenApiFieldSchema::class, $array['status']['openapi']);
+        self::assertSame('string', $array['status']['openapi']->type);
+        self::assertSame(['draft', 'published'], $array['status']['openapi']->enum);
     }
 }

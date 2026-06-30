@@ -1,11 +1,13 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Fixtures\Resources;
 
 use SineMacula\ApiToolkit\Http\Resources\ApiResource;
-use SineMacula\ApiToolkit\Http\Resources\Schema\Count;
-use SineMacula\ApiToolkit\Http\Resources\Schema\Field;
-use SineMacula\ApiToolkit\Http\Resources\Schema\Relation;
+use SineMacula\ApiToolkit\Schema\Count;
+use SineMacula\ApiToolkit\Schema\Field;
+use SineMacula\ApiToolkit\Schema\Relation;
 
 /**
  * Fixture post resource.
@@ -13,24 +15,25 @@ use SineMacula\ApiToolkit\Http\Resources\Schema\Relation;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-class PostResource extends ApiResource
+final class PostResource extends ApiResource
 {
     /** @var string */
     public const string RESOURCE_TYPE = 'posts';
 
     /** @var array<int, string> */
-    protected static array $default = ['id', 'title']; // @phpstan-ignore property.phpDocType
+    protected static array $default = ['id', 'title'];
 
     /**
      * Return the resource schema.
      *
      * @return array<string, array<string, mixed>>
      */
+    #[\Override]
     public static function schema(): array
     {
         return Field::set(
             Field::scalar('id'),
-            Field::scalar('title'),
+            Field::scalar('title')->filterable(),
             Field::scalar('body'),
             Field::scalar('published'),
             Field::timestamp('created_at'),

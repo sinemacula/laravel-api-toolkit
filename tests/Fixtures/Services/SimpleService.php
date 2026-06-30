@@ -1,36 +1,55 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Fixtures\Services;
 
+use SineMacula\ApiToolkit\Services\Contracts\ServiceInput;
+use SineMacula\ApiToolkit\Services\Input\ArrayInput;
 use SineMacula\ApiToolkit\Services\Service;
 
 /**
  * Fixture service that always succeeds.
  *
+ * @extends \SineMacula\ApiToolkit\Services\Service<\SineMacula\ApiToolkit\Services\Input\ArrayInput, true>
+ *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-class SimpleService extends Service
+final class SimpleService extends Service
 {
-    /** @var bool Track whether success() was called */
-    public bool $successCalled = false;
+    /** @var bool Track whether afterCommit() was called */
+    public bool $afterCommitCalled = false;
 
     /**
-     * Method is triggered if the handle method ran successfully.
+     * Constructor.
      *
+     * @param  \SineMacula\ApiToolkit\Services\Contracts\ServiceInput  $input
+     */
+    public function __construct(ServiceInput $input = new ArrayInput([]))
+    {
+        parent::__construct($input);
+    }
+
+    /**
+     * React to a successful outcome after the transaction has committed.
+     *
+     * @param  mixed  $output
      * @return void
      */
-    public function success(): void
+    #[\Override]
+    protected function afterCommit(mixed $output): void
     {
-        $this->successCalled = true;
+        $this->afterCommitCalled = true;
     }
 
     /**
      * Handles the main execution of the service.
      *
-     * @return bool
+     * @return true
      */
-    protected function handle(): bool
+    #[\Override]
+    protected function handle(): mixed
     {
         return true;
     }

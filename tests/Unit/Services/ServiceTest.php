@@ -1,19 +1,27 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Tests\Unit\Services;
 
-use Illuminate\Support\Collection;
 use PHPUnit\Framework\Attributes\CoversClass;
+use SineMacula\ApiToolkit\Contracts\LockKeyProvider;
+use SineMacula\ApiToolkit\Services\Actors\AnonymousActor;
+use SineMacula\ApiToolkit\Services\Contracts\Actor;
+use SineMacula\ApiToolkit\Services\Contracts\ServiceInput;
+use SineMacula\ApiToolkit\Services\Input\ArrayInput;
 use SineMacula\ApiToolkit\Services\Service;
-use Tests\Concerns\InteractsWithNonPublicMembers;
-use Tests\Fixtures\Services\FailingService;
-use Tests\Fixtures\Services\LockableService;
-use Tests\Fixtures\Services\SimpleService;
-use Tests\Fixtures\Traits\HasTrackableCallbacks;
+use SineMacula\ApiToolkit\Services\ServiceContext;
+use SineMacula\ApiToolkit\Services\ServiceResult;
+use Tests\Fixtures\Services\OutputService;
+use Tests\Fixtures\Services\StubActor;
 use Tests\TestCase;
 
 /**
  * Tests for the Service base class.
+ *
+ * Covers the typed input skeleton, actor API, make/by/withContext fluent
+ * methods, run() totality, getLockKey(), and the serviceHooks() seam.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -21,363 +29,279 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(Service::class)]
-class ServiceTest extends TestCase
+final class ServiceTest extends TestCase
 {
-    use InteractsWithNonPublicMembers;
-
     /**
-     * Test that run executes handle within a transaction by default.
+     * Test that handle() is declared abstract and protected.
      *
      * @return void
      */
-    public function testRunExecutesHandleInTransactionByDefault(): void
+    public function testHandleIsAbstractAndProtected(): void
     {
-        $service = new SimpleService;
+        $method = new \ReflectionMethod(Service::class, 'handle');
 
-        static::assertTrue($this->getProperty($service, 'useTransaction'));
-
-        $result = $service->run();
-
-        static::assertTrue($result);
+        self::assertTrue($method->isAbstract());
+        self::assertTrue($method->isProtected());
     }
 
     /**
-     * Test that run calls success on successful execution.
+     * Test that a concrete service returns typed output through ServiceResult.
      *
      * @return void
      */
-    public function testRunCallsSuccessOnSuccessfulExecution(): void
+    public function testOutputServiceReturnsTypedOutput(): void
     {
-        $service = new SimpleService;
+        $service = new OutputService(new ArrayInput(['message' => 'hello']));
+        $result  = $service->run();
 
-        $service->run();
-
-        static::assertTrue($service->successCalled);
+        self::assertTrue($result->succeeded());
+        self::assertSame(['message' => 'hello'], $result->output());
     }
 
     /**
-     * Test that run returns true for a successful service.
+     * Test that actor() returns AnonymousActor when no actor has been set.
      *
      * @return void
      */
-    public function testRunReturnsTrueForSuccessfulService(): void
+    public function testActorDefaultsToAnonymousActor(): void
     {
-        $service = new SimpleService;
+        $service = new OutputService(new ArrayInput([]));
 
-        $result = $service->run();
-
-        static::assertTrue($result);
+        self::assertInstanceOf(AnonymousActor::class, $service->actor());
     }
 
     /**
-     * Test that getStatus returns null before run and true after success.
+     * Test that actor() never reads from Auth or any ambient state.
      *
      * @return void
      */
-    public function testGetStatusReturnsNullBeforeRunAndTrueAfterSuccess(): void
+    public function testActorReadsNoAmbientAuthState(): void
     {
-        $service = new SimpleService;
+        // Facade is NOT faked — any Auth call would throw or require setup.
+        // If actor() internally called Auth::user() without setup, it would
+        // produce a non-AnonymousActor or throw. AnonymousActor is the proof.
+        $service = new OutputService(new ArrayInput([]));
 
-        static::assertNull($service->getStatus());
-
-        $service->run();
-
-        static::assertTrue($service->getStatus());
+        self::assertInstanceOf(AnonymousActor::class, $service->actor());
     }
 
     /**
-     * Test that run calls failed and rethrows the exception on failure.
+     * Test that by() records the causer and returns the same instance.
      *
      * @return void
      */
-    public function testRunCallsFailedAndRethrowsOnException(): void
+    public function testByRecordsActorAndReturnsSelf(): void
     {
-        $service = new FailingService;
+        $stub    = new StubActor;
+        $service = new OutputService(new ArrayInput([]));
 
-        try {
-            $service->run();
-            static::fail('Expected RuntimeException was not thrown.');
-        } catch (\RuntimeException $exception) {
-            static::assertTrue($service->failedCalled);
-            static::assertSame($exception, $service->failedException);
-            static::assertSame('Service execution failed', $exception->getMessage());
-        }
+        $returned = $service->by($stub);
+
+        self::assertSame($service, $returned);
+        self::assertSame($stub, $service->actor());
     }
 
     /**
-     * Test that dontUseTransaction runs without a database transaction.
+     * Test that run() never throws even when handle() throws.
      *
      * @return void
      */
-    public function testDontUseTransactionRunsWithoutTransaction(): void
+    public function testRunNeverThrowsForBusinessFailures(): void
     {
-        $service = new SimpleService;
-
-        $result = $service->dontUseTransaction();
-
-        static::assertSame($service, $result);
-        static::assertFalse($this->getProperty($service, 'useTransaction'));
-
-        static::assertTrue($service->run());
-    }
-
-    /**
-     * Test that useTransaction enables the transaction.
-     *
-     * @return void
-     */
-    public function testUseTransactionEnablesTransaction(): void
-    {
-        $service = new SimpleService;
-
-        $service->dontUseTransaction();
-
-        static::assertFalse($this->getProperty($service, 'useTransaction'));
-
-        $result = $service->useTransaction();
-
-        static::assertSame($service, $result);
-        static::assertTrue($this->getProperty($service, 'useTransaction'));
-    }
-
-    /**
-     * Test that useLock throws RuntimeException when no lock ID is defined.
-     *
-     * @return void
-     */
-    public function testUseLockThrowsRuntimeExceptionWhenNoLockId(): void
-    {
-        $service = new SimpleService;
-
-        $this->expectException(\RuntimeException::class);
-        $this->expectExceptionMessage('Lock key is not set');
-
-        $service->useLock();
-    }
-
-    /**
-     * Test that useLock enables locking when a lock ID is defined.
-     *
-     * @return void
-     */
-    public function testUseLockEnablesLocking(): void
-    {
-        $service = new LockableService;
-
-        $result = $service->useLock();
-
-        static::assertSame($service, $result);
-        static::assertTrue($this->getProperty($service, 'useLock'));
-    }
-
-    /**
-     * Test that dontUseLock disables locking.
-     *
-     * @return void
-     */
-    public function testDontUseLockDisablesLocking(): void
-    {
-        $service = new LockableService;
-
-        $result = $service->dontUseLock();
-
-        static::assertSame($service, $result);
-        static::assertFalse($this->getProperty($service, 'useLock'));
-    }
-
-    /**
-     * Test that the constructor converts an array payload to a Collection.
-     *
-     * @return void
-     */
-    public function testConstructorConvertsArrayPayloadToCollection(): void
-    {
-        $service = new SimpleService(['key' => 'value']);
-
-        $payload = $this->getProperty($service, 'payload');
-
-        static::assertInstanceOf(Collection::class, $payload);
-        static::assertSame('value', $payload->get('key'));
-    }
-
-    /**
-     * Test that the constructor accepts a Collection payload.
-     *
-     * @return void
-     */
-    public function testConstructorAcceptsCollectionPayload(): void
-    {
-        $collection = collect(['key' => 'value']);
-
-        $service = new SimpleService($collection);
-
-        $payload = $this->getProperty($service, 'payload');
-
-        static::assertInstanceOf(Collection::class, $payload);
-        static::assertSame('value', $payload->get('key'));
-    }
-
-    /**
-     * Test that prepare is called before handle.
-     *
-     * @return void
-     */
-    public function testPrepareIsCalledBeforeHandle(): void
-    {
-        $callOrder = [];
-
-        $service = new class ($callOrder) extends Service {
-            /** @var array<int, string> */
-            private array $callOrder;
-
+        $service = new class (new ArrayInput([])) extends Service {
             /**
-             * Create a new instance.
-             *
-             * @param  array<int, string>  $callOrder
-             */
-            public function __construct(array &$callOrder)
-            {
-                $this->callOrder = &$callOrder;
-
-                parent::__construct([]);
-            }
-
-            /**
-             * Prepare the service for execution.
-             *
-             * @return void
-             */
-            public function prepare(): void
-            {
-                $this->callOrder[] = 'prepare';
-            }
-
-            /**
-             * Handle the service execution.
-             *
-             * @return bool
-             */
-            protected function handle(): bool
-            {
-                $this->callOrder[] = 'handle';
-
-                return true;
-            }
-
-            /**
-             * Get the recorded call order.
-             *
-             * @return array<int, string>
-             */
-            public function getCallOrder(): array
-            {
-                return $this->callOrder;
-            }
-        };
-
-        $service->run();
-
-        static::assertSame(['prepare', 'handle'], $service->getCallOrder());
-    }
-
-    /**
-     * Test that the lockable service runs successfully with locking.
-     *
-     * @return void
-     */
-    public function testLockableServiceRunsSuccessfully(): void
-    {
-        $service = new LockableService;
-
-        $result = $service->run();
-
-        static::assertTrue($result);
-    }
-
-    /**
-     * Test that the base failed() implementation is a no-op.
-     *
-     * @SuppressWarnings("php:S112")
-     *
-     * @return void
-     */
-    public function testBaseFailedIsANoop(): void
-    {
-        $service = new class extends Service {
-            /**
-             * Handle the service execution.
+             * Always throw a domain exception.
              *
              * @return never
              *
              * @throws \RuntimeException
              */
-            protected function handle(): bool
+            #[\Override]
+            protected function handle(): never
             {
-                throw new \RuntimeException('handled');
+                throw new \RuntimeException('domain failure');
             }
         };
 
-        try {
-            $service->run();
-        } catch (\RuntimeException) {
-            // Base failed() was called and did nothing — no secondary exception
-        }
+        $result = $service->run();
 
-        static::assertFalse($service->getStatus() ?? false);
+        self::assertInstanceOf(ServiceResult::class, $result);
+        self::assertTrue($result->failed());
+        self::assertInstanceOf(\RuntimeException::class, $result->exception);
+        self::assertSame('domain failure', $result->exception->getMessage());
     }
 
     /**
-     * Test that initializeTraits calls the initialize* method on used traits.
+     * Test that make() resolves the service from the container.
      *
      * @return void
      */
-    public function testInitializeTraitsCallsTraitInitializer(): void
+    public function testMakeResolvesFromContainer(): void
     {
-        $service = new class extends Service {
-            use HasTrackableCallbacks;
+        $input   = new ArrayInput(['message' => 'from-container']);
+        $service = OutputService::make($input);
 
-            /**
-             * Handle the service execution.
-             *
-             * @return bool
-             */
-            protected function handle(): bool
-            {
-                return true;
-            }
-        };
-
-        // The static property lives on the using (anonymous) class, not on the
-        // trait directly, because forward_static_call uses late static binding.
-        $class = $service::class;
-
-        static::assertTrue($class::$traitInitialized);
+        self::assertInstanceOf(OutputService::class, $service);
+        self::assertTrue($service->run()->succeeded());
     }
 
     /**
-     * Test that callTraitsSuccessCallbacks invokes the *Success method on
-     * used traits.
+     * Test that Service implements LockKeyProvider.
      *
      * @return void
      */
-    public function testCallTraitsSuccessCallbacksInvokesTraitSuccessMethod(): void
+    public function testImplementsLockKeyProvider(): void
     {
-        $service = new class extends Service {
-            use HasTrackableCallbacks;
+        self::assertInstanceOf(LockKeyProvider::class, new OutputService(new ArrayInput([])));
+    }
+
+    /**
+     * Test that getLockKey() returns sha1(class|lockId()).
+     *
+     * @return void
+     */
+    public function testGetLockKeyReturnsSha1OfClassAndLockId(): void
+    {
+        $service = new class (new ArrayInput([])) extends Service {
+            /**
+             * Return the lock identity for this action.
+             *
+             * @return string
+             */
+            #[\Override]
+            protected function lockId(): string
+            {
+                return 'my-lock';
+            }
 
             /**
-             * Handle the service execution.
+             * Execute the action.
              *
-             * @return bool
+             * @return mixed
              */
-            protected function handle(): bool
+            #[\Override]
+            protected function handle(): mixed
             {
-                return true;
+                return null;
             }
         };
 
-        $service->run();
+        $expected = sha1($service::class . '|my-lock');
 
-        static::assertTrue($service->traitSuccessRan);
+        self::assertSame($expected, $service->getLockKey());
+    }
+
+    /**
+     * Test that withContext() propagates the actor from the context.
+     *
+     * @return void
+     */
+    public function testWithContextPropagatesActor(): void
+    {
+        $stub    = new StubActor;
+        $context = ServiceContext::for($stub);
+        $service = new OutputService(new ArrayInput([]));
+
+        $returned = $service->withContext($context);
+
+        self::assertSame($service, $returned);
+        self::assertSame($stub, $service->actor());
+    }
+
+    /**
+     * Test that withContext() causes run() to reuse the provided context.
+     *
+     * @return void
+     */
+    public function testWithContextReusesSameContextInRun(): void
+    {
+        $stub    = new StubActor;
+        $context = ServiceContext::for($stub);
+
+        $service = new class (new ArrayInput([])) extends Service {
+            /** @var string|null */
+            public ?string $capturedType = null;
+
+            /**
+             * Capture the actor type and return null.
+             *
+             * @return mixed
+             */
+            #[\Override]
+            protected function handle(): mixed
+            {
+                $this->capturedType = $this->actor()->actorType();
+
+                return null;
+            }
+        };
+
+        $service->withContext($context)->run();
+
+        self::assertSame('stub', $service->capturedType);
+    }
+
+    /**
+     * Test that the typed input is accessible via $this->input.
+     *
+     * @return void
+     */
+    public function testTypedInputIsAccessibleViaInputProperty(): void
+    {
+        $input   = new ArrayInput(['key' => 'value']);
+        $service = new OutputService($input);
+        $result  = $service->run();
+
+        self::assertTrue($result->succeeded());
+    }
+
+    /**
+     * Test that serviceHooks() returns all expected lifecycle keys.
+     *
+     * @return void
+     */
+    public function testServiceHooksContainsAllLifecycleKeys(): void
+    {
+        $service = new OutputService(new ArrayInput(['msg' => 'x']));
+        $hooks   = $service->serviceHooks();
+
+        self::assertArrayHasKey('authorize', $hooks);
+        self::assertArrayHasKey('validate', $hooks);
+        self::assertArrayHasKey('prepare', $hooks);
+        self::assertArrayHasKey('handle', $hooks);
+        self::assertArrayHasKey('afterCommit', $hooks);
+        self::assertArrayHasKey('onFailure', $hooks);
+        self::assertArrayHasKey('concerns', $hooks);
+        self::assertArrayHasKey('lockId', $hooks);
+        self::assertArrayHasKey('transactional', $hooks);
+        self::assertArrayHasKey('transactionAttempts', $hooks);
+        self::assertArrayHasKey('lockable', $hooks);
+        self::assertArrayHasKey('inputSummary', $hooks);
+        self::assertSame(['msg' => 'x'], $hooks['inputSummary']);
+    }
+
+    /**
+     * Test that ServiceInput::toArray() is correctly exposed as the contract.
+     *
+     * @return void
+     */
+    public function testServiceInputContractExposesArray(): void
+    {
+        $input = new ArrayInput(['a' => 1, 'b' => 2]);
+
+        self::assertSame(['a' => 1, 'b' => 2], $input->toArray());
+        self::assertInstanceOf(ServiceInput::class, $input);
+    }
+
+    /**
+     * Test that actor() returns an Actor contract instance.
+     *
+     * @return void
+     */
+    public function testActorReturnsActorContractInstance(): void
+    {
+        $service = new OutputService(new ArrayInput([]));
+
+        self::assertInstanceOf(Actor::class, $service->actor());
     }
 }

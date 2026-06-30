@@ -1,9 +1,11 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace SineMacula\ApiToolkit\Exceptions;
 
 use SineMacula\ApiToolkit\Enums\ErrorCode;
-use SineMacula\ApiToolkit\Enums\HttpStatus;
+use SineMacula\Http\Enums\HttpStatus;
 
 /**
  * Too many requests exception.
@@ -11,11 +13,11 @@ use SineMacula\ApiToolkit\Enums\HttpStatus;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-class TooManyRequestsException extends ApiException
+final class TooManyRequestsException extends ApiException
 {
     /** @var \SineMacula\ApiToolkit\Contracts\ErrorCodeInterface The internal error code */
     public const \SineMacula\ApiToolkit\Contracts\ErrorCodeInterface CODE = ErrorCode::TOO_MANY_REQUESTS;
 
-    /** @var \SineMacula\ApiToolkit\Enums\HttpStatus The HTTP status code */
+    /** @var \SineMacula\Http\Enums\HttpStatus The HTTP status code */
     public const HttpStatus HTTP_STATUS = HttpStatus::TOO_MANY_REQUESTS;
 }
