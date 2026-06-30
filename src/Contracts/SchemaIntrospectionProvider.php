@@ -36,7 +36,7 @@ interface SchemaIntrospectionProvider
      * Results are cached forever per model, mirroring getColumns().
      *
      * @param  \Illuminate\Database\Eloquent\Model  $model
-     * @return array<string, \SineMacula\ApiToolkit\Services\Introspection\ColumnDefinition>
+     * @return array<string, \SineMacula\ApiToolkit\Schema\Introspection\ColumnDefinition>
      */
     public function getColumnDefinitions(Model $model): array;
 

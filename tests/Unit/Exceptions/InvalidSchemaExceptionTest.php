@@ -7,7 +7,7 @@ namespace Tests\Unit\Exceptions;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 use SineMacula\ApiToolkit\Exceptions\InvalidSchemaException;
-use SineMacula\ApiToolkit\Services\Validation\SchemaValidationError;
+use SineMacula\ApiToolkit\Schema\Validation\SchemaValidationError;
 
 /**
  * Tests for the InvalidSchemaException.

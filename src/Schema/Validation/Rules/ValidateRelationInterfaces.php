@@ -2,19 +2,20 @@
 
 declare(strict_types = 1);
 
-namespace SineMacula\ApiToolkit\Services\Validation\Rules;
+namespace SineMacula\ApiToolkit\Schema\Validation\Rules;
 
+use SineMacula\ApiToolkit\Contracts\ApiResourceInterface;
 use SineMacula\ApiToolkit\Contracts\SchemaValidationRule;
 use SineMacula\ApiToolkit\Schema\CompiledSchema;
-use SineMacula\ApiToolkit\Services\Validation\SchemaValidationError;
+use SineMacula\ApiToolkit\Schema\Validation\SchemaValidationError;
 
 /**
- * Validate that accessor paths are non-empty and non-null.
+ * Validate that relation resource classes implement ApiResourceInterface.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-final class ValidateAccessors implements SchemaValidationRule
+final class ValidateRelationInterfaces implements SchemaValidationRule
 {
     /**
      * Validate the compiled schema for the given resource class.
@@ -22,7 +23,7 @@ final class ValidateAccessors implements SchemaValidationRule
      * @param  string  $resourceClass
      * @param  string|null  $modelClass
      * @param  \SineMacula\ApiToolkit\Schema\CompiledSchema  $schema
-     * @return array<int, \SineMacula\ApiToolkit\Services\Validation\SchemaValidationError>
+     * @return array<int, \SineMacula\ApiToolkit\Schema\Validation\SchemaValidationError>
      */
     #[\Override]
     public function validate(string $resourceClass, ?string $modelClass, CompiledSchema $schema): array
@@ -33,22 +34,22 @@ final class ValidateAccessors implements SchemaValidationRule
 
             $field = $schema->getField($key);
 
-            if ($field === null || $field->accessor === null) {
+            if ($field === null || $field->resource === null) {
                 continue;
             }
 
-            if (is_callable($field->accessor)) {
+            if (!class_exists($field->resource)) {
                 continue;
             }
 
-            if (!is_string($field->accessor) || $field->accessor !== '') {
+            if (is_a($field->resource, ApiResourceInterface::class, true)) {
                 continue;
             }
 
             $errors[] = new SchemaValidationError(
                 resourceClass: $resourceClass,
                 fieldKey: $key,
-                defect: 'Accessor path must not be empty',
+                defect: sprintf('Relation resource class "%s" does not implement %s', $field->resource, ApiResourceInterface::class),
             );
         }
 

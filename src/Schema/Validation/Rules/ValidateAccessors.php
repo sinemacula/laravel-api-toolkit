@@ -2,20 +2,19 @@
 
 declare(strict_types = 1);
 
-namespace SineMacula\ApiToolkit\Services\Validation\Rules;
+namespace SineMacula\ApiToolkit\Schema\Validation\Rules;
 
 use SineMacula\ApiToolkit\Contracts\SchemaValidationRule;
 use SineMacula\ApiToolkit\Schema\CompiledSchema;
-use SineMacula\ApiToolkit\Services\Validation\SchemaValidationError;
+use SineMacula\ApiToolkit\Schema\Validation\SchemaValidationError;
 
 /**
- * Validate that computed field values are callable or reference valid methods
- * on the resource class.
+ * Validate that accessor paths are non-empty and non-null.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-final class ValidateComputedFields implements SchemaValidationRule
+final class ValidateAccessors implements SchemaValidationRule
 {
     /**
      * Validate the compiled schema for the given resource class.
@@ -23,7 +22,7 @@ final class ValidateComputedFields implements SchemaValidationRule
      * @param  string  $resourceClass
      * @param  string|null  $modelClass
      * @param  \SineMacula\ApiToolkit\Schema\CompiledSchema  $schema
-     * @return array<int, \SineMacula\ApiToolkit\Services\Validation\SchemaValidationError>
+     * @return array<int, \SineMacula\ApiToolkit\Schema\Validation\SchemaValidationError>
      */
     #[\Override]
     public function validate(string $resourceClass, ?string $modelClass, CompiledSchema $schema): array
@@ -34,22 +33,22 @@ final class ValidateComputedFields implements SchemaValidationRule
 
             $field = $schema->getField($key);
 
-            if ($field === null || $field->compute === null) {
+            if ($field === null || $field->accessor === null) {
                 continue;
             }
 
-            if ($field->compute instanceof \Closure || is_callable($field->compute)) {
+            if (is_callable($field->accessor)) {
                 continue;
             }
 
-            if (is_string($field->compute) && method_exists($resourceClass, $field->compute)) {
+            if (!is_string($field->accessor) || $field->accessor !== '') {
                 continue;
             }
 
             $errors[] = new SchemaValidationError(
                 resourceClass: $resourceClass,
                 fieldKey: $key,
-                defect: 'Computed field value is not callable and does not reference an existing method on the resource class',
+                defect: 'Accessor path must not be empty',
             );
         }
 

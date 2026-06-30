@@ -2,14 +2,14 @@
 
 declare(strict_types = 1);
 
-namespace Tests\Unit\Services\Validation\Rules;
+namespace Tests\Unit\Schema\Validation\Rules;
 
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 use SineMacula\ApiToolkit\Contracts\ApiResourceInterface;
 use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledSchema;
-use SineMacula\ApiToolkit\Services\Validation\Rules\ValidateRelationInterfaces;
+use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateRelationInterfaces;
 use Tests\Fixtures\Resources\OrganizationResource;
 
 /**
@@ -196,8 +196,8 @@ final class ValidateRelationInterfacesTest extends TestCase
     /**
      * Run the given callback while capturing any raised PHP warnings.
      *
-     * @param  callable(): array<int, \SineMacula\ApiToolkit\Services\Validation\SchemaValidationError>  $callback
-     * @param  array<int, \SineMacula\ApiToolkit\Services\Validation\SchemaValidationError>  $errors
+     * @param  callable(): array<int, \SineMacula\ApiToolkit\Schema\Validation\SchemaValidationError>  $callback
+     * @param  array<int, \SineMacula\ApiToolkit\Schema\Validation\SchemaValidationError>  $errors
      * @return array<int, string>
      */
     private function captureWarnings(callable $callback, array &$errors): array

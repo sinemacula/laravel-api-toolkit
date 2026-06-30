@@ -2,7 +2,7 @@
 
 declare(strict_types = 1);
 
-namespace Tests\Unit\Services;
+namespace Tests\Unit\Schema\Introspection;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -18,8 +18,8 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Cache\MetadataKeyRegistry;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Enums\CacheKeys;
-use SineMacula\ApiToolkit\Services\Introspection\ColumnDefinition;
-use SineMacula\ApiToolkit\Services\SchemaIntrospector;
+use SineMacula\ApiToolkit\Schema\Introspection\ColumnDefinition;
+use SineMacula\ApiToolkit\Schema\Introspection\SchemaIntrospector;
 use Tests\Concerns\InteractsWithNonPublicMembers;
 use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\User;
@@ -1087,7 +1087,7 @@ final class SchemaIntrospectorTest extends TestCase
      * Resolve a schema introspector with its dependencies wired from the
      * container.
      *
-     * @return \SineMacula\ApiToolkit\Services\SchemaIntrospector
+     * @return \SineMacula\ApiToolkit\Schema\Introspection\SchemaIntrospector
      */
     private function makeIntrospector(): SchemaIntrospector
     {

@@ -4,7 +4,7 @@ declare(strict_types = 1);
 
 namespace SineMacula\ApiToolkit\Exceptions;
 
-use SineMacula\ApiToolkit\Services\Validation\SchemaValidationError;
+use SineMacula\ApiToolkit\Schema\Validation\SchemaValidationError;
 
 /**
  * Exception thrown when schema validation fails at boot time.
@@ -17,7 +17,7 @@ final class InvalidSchemaException extends \RuntimeException
     /**
      * Create a new invalid schema exception.
      *
-     * @param  array<int, \SineMacula\ApiToolkit\Services\Validation\SchemaValidationError>  $errors
+     * @param  array<int, \SineMacula\ApiToolkit\Schema\Validation\SchemaValidationError>  $errors
      */
     public function __construct(
 
@@ -31,7 +31,7 @@ final class InvalidSchemaException extends \RuntimeException
     /**
      * Return the array of validation errors.
      *
-     * @return array<int, \SineMacula\ApiToolkit\Services\Validation\SchemaValidationError>
+     * @return array<int, \SineMacula\ApiToolkit\Schema\Validation\SchemaValidationError>
      */
     public function getErrors(): array
     {

@@ -2,17 +2,16 @@
 
 declare(strict_types = 1);
 
-namespace Tests\Unit\Services\Validation\Rules;
+namespace Tests\Unit\Schema\Validation\Rules;
 
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
-use SineMacula\ApiToolkit\Schema\CompiledCountDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledSchema;
-use SineMacula\ApiToolkit\Services\Validation\Rules\ValidateGuards;
+use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateTransformers;
 
 /**
- * Tests for the ValidateGuards validation rule.
+ * Tests for the ValidateTransformers validation rule.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -21,15 +20,15 @@ use SineMacula\ApiToolkit\Services\Validation\Rules\ValidateGuards;
  *
  * @internal
  */
-#[CoversClass(ValidateGuards::class)]
-final class ValidateGuardsTest extends TestCase
+#[CoversClass(ValidateTransformers::class)]
+final class ValidateTransformersTest extends TestCase
 {
     /**
-     * Test no errors for schema with callable guards.
+     * Test no errors for schema with callable transformers.
      *
      * @return void
      */
-    public function testNoErrorsForSchemaWithCallableGuards(): void
+    public function testNoErrorsForSchemaWithCallableTransformers(): void
     {
         $field = new CompiledFieldDefinition(
             accessor: 'name',
@@ -40,8 +39,8 @@ final class ValidateGuardsTest extends TestCase
             constraint: null,
             extras: [],
             needs: [],
-            guards: [fn ($value, $model) => true],
-            transformers: [],
+            guards: [],
+            transformers: [fn ($value, $model) => strtoupper($value)],
         );
 
         $schema = new CompiledSchema(
@@ -49,18 +48,18 @@ final class ValidateGuardsTest extends TestCase
             counts: [],
         );
 
-        $rule   = new ValidateGuards;
+        $rule   = new ValidateTransformers;
         $errors = $rule->validate('App\Http\Resources\UserResource', null, $schema);
 
         self::assertSame([], $errors);
     }
 
     /**
-     * Test reports non-callable guard on field.
+     * Test reports non-callable transformer on field.
      *
      * @return void
      */
-    public function testReportsNonCallableGuardOnField(): void
+    public function testReportsNonCallableTransformerOnField(): void
     {
         $field = new CompiledFieldDefinition(
             accessor: 'name',
@@ -71,8 +70,8 @@ final class ValidateGuardsTest extends TestCase
             constraint: null,
             extras: [],
             needs: [],
-            guards: ['not_a_function'],
-            transformers: [],
+            guards: [],
+            transformers: ['not_a_function'],
         );
 
         $schema = new CompiledSchema(
@@ -80,50 +79,21 @@ final class ValidateGuardsTest extends TestCase
             counts: [],
         );
 
-        $rule   = new ValidateGuards;
+        $rule   = new ValidateTransformers;
         $errors = $rule->validate('App\Http\Resources\UserResource', null, $schema);
 
         self::assertCount(1, $errors);
         self::assertSame('App\Http\Resources\UserResource', $errors[0]->resourceClass);
         self::assertSame('name', $errors[0]->fieldKey);
-        self::assertSame('Guard at index 0 is not callable', $errors[0]->defect);
+        self::assertSame('Transformer at index 0 is not callable', $errors[0]->defect);
     }
 
     /**
-     * Test reports non-callable guard on count definition.
+     * Test reports multiple non-callable transformers.
      *
      * @return void
      */
-    public function testReportsNonCallableGuardOnCountDefinition(): void
-    {
-        $count = new CompiledCountDefinition(
-            presentKey: 'comments_count',
-            relation: 'comments',
-            constraint: null,
-            isDefault: false,
-            guards: ['not_a_function'],
-        );
-
-        $schema = new CompiledSchema(
-            fields: [],
-            counts: ['comments_count' => $count],
-        );
-
-        $rule   = new ValidateGuards;
-        $errors = $rule->validate('App\Http\Resources\PostResource', null, $schema);
-
-        self::assertCount(1, $errors);
-        self::assertSame('App\Http\Resources\PostResource', $errors[0]->resourceClass);
-        self::assertSame('comments_count', $errors[0]->fieldKey);
-        self::assertSame('Guard at index 0 is not callable', $errors[0]->defect);
-    }
-
-    /**
-     * Test reports multiple non-callable guards.
-     *
-     * @return void
-     */
-    public function testReportsMultipleNonCallableGuards(): void
+    public function testReportsMultipleNonCallableTransformers(): void
     {
         $field = new CompiledFieldDefinition(
             accessor: 'email',
@@ -134,8 +104,8 @@ final class ValidateGuardsTest extends TestCase
             constraint: null,
             extras: [],
             needs: [],
-            guards: ['invalid_one', 'invalid_two'],
-            transformers: [],
+            guards: [],
+            transformers: ['invalid_one', 'invalid_two'],
         );
 
         $schema = new CompiledSchema(
@@ -143,20 +113,20 @@ final class ValidateGuardsTest extends TestCase
             counts: [],
         );
 
-        $rule   = new ValidateGuards;
+        $rule   = new ValidateTransformers;
         $errors = $rule->validate('App\Http\Resources\UserResource', null, $schema);
 
         self::assertCount(2, $errors);
-        self::assertSame('Guard at index 0 is not callable', $errors[0]->defect);
-        self::assertSame('Guard at index 1 is not callable', $errors[1]->defect);
+        self::assertSame('Transformer at index 0 is not callable', $errors[0]->defect);
+        self::assertSame('Transformer at index 1 is not callable', $errors[1]->defect);
     }
 
     /**
-     * Test no errors for schema with no guards.
+     * Test no errors for schema with no transformers.
      *
      * @return void
      */
-    public function testNoErrorsForSchemaWithNoGuards(): void
+    public function testNoErrorsForSchemaWithNoTransformers(): void
     {
         $field = new CompiledFieldDefinition(
             accessor: 'name',
@@ -176,7 +146,7 @@ final class ValidateGuardsTest extends TestCase
             counts: [],
         );
 
-        $rule   = new ValidateGuards;
+        $rule   = new ValidateTransformers;
         $errors = $rule->validate('App\Http\Resources\UserResource', null, $schema);
 
         self::assertSame([], $errors);

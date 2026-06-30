@@ -2,14 +2,14 @@
 
 declare(strict_types = 1);
 
-namespace Tests\Unit\Services;
+namespace Tests\Unit\Schema\Validation;
 
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Contracts\SchemaValidationRule;
 use SineMacula\ApiToolkit\Exceptions\InvalidSchemaException;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
-use SineMacula\ApiToolkit\Services\SchemaValidator;
-use SineMacula\ApiToolkit\Services\Validation\SchemaValidationError;
+use SineMacula\ApiToolkit\Schema\Validation\SchemaValidationError;
+use SineMacula\ApiToolkit\Schema\Validation\SchemaValidator;
 use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Resources\PostResource;

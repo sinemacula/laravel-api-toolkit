@@ -2,7 +2,7 @@
 
 declare(strict_types = 1);
 
-namespace SineMacula\ApiToolkit\Services;
+namespace SineMacula\ApiToolkit\Schema\Validation;
 
 use SineMacula\ApiToolkit\Contracts\SchemaValidationRule;
 use SineMacula\ApiToolkit\Exceptions\InvalidSchemaException;
@@ -39,7 +39,7 @@ final class SchemaValidator
      */
     public function validate(array $resourceMap): void
     {
-        /** @var array<int, \SineMacula\ApiToolkit\Services\Validation\SchemaValidationError> $errors */
+        /** @var array<int, \SineMacula\ApiToolkit\Schema\Validation\SchemaValidationError> $errors */
         $errors = [];
 
         foreach ($resourceMap as $modelClass => $resourceClass) {

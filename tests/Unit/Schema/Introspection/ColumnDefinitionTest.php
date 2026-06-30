@@ -2,11 +2,11 @@
 
 declare(strict_types = 1);
 
-namespace Tests\Unit\Services\Introspection;
+namespace Tests\Unit\Schema\Introspection;
 
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
-use SineMacula\ApiToolkit\Services\Introspection\ColumnDefinition;
+use SineMacula\ApiToolkit\Schema\Introspection\ColumnDefinition;
 
 /**
  * Tests for the ColumnDefinition value object.

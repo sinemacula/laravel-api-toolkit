@@ -7,7 +7,7 @@ namespace SineMacula\ApiToolkit\Console;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Config;
 use SineMacula\ApiToolkit\Exceptions\InvalidSchemaException;
-use SineMacula\ApiToolkit\Services\SchemaValidator;
+use SineMacula\ApiToolkit\Schema\Validation\SchemaValidator;
 
 /**
  * Artisan command to validate all registered resource schemas.
@@ -26,7 +26,7 @@ final class ValidateSchemasCommand extends Command
     /**
      * Execute the console command.
      *
-     * @param  \SineMacula\ApiToolkit\Services\SchemaValidator  $validator
+     * @param  \SineMacula\ApiToolkit\Schema\Validation\SchemaValidator  $validator
      * @return int
      */
     public function handle(SchemaValidator $validator): int

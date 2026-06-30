@@ -4,8 +4,8 @@ declare(strict_types = 1);
 
 namespace SineMacula\ApiToolkit\OpenApi\Resolution;
 
+use SineMacula\ApiToolkit\Schema\Introspection\ColumnDefinition;
 use SineMacula\ApiToolkit\Schema\OpenApiFieldSchema;
-use SineMacula\ApiToolkit\Services\Introspection\ColumnDefinition;
 
 /**
  * Maps a database column definition (and optional model cast) to a resolved
@@ -40,7 +40,7 @@ final class ColumnTypeMapper
     /**
      * Map a column definition (with an optional cast) to a resolved schema.
      *
-     * @param  \SineMacula\ApiToolkit\Services\Introspection\ColumnDefinition  $column
+     * @param  \SineMacula\ApiToolkit\Schema\Introspection\ColumnDefinition  $column
      * @param  string|null  $cast
      * @return \SineMacula\ApiToolkit\Schema\OpenApiFieldSchema
      */
