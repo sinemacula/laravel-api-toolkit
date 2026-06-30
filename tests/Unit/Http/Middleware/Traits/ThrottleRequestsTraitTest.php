@@ -8,12 +8,12 @@ use Illuminate\Cache\RateLimiter;
 use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Contracts\Cache\Repository;
 use Illuminate\Http\Request;
+use Illuminate\Routing\Middleware\ThrottleRequests as BaseThrottleRequests;
 use Illuminate\Routing\Route;
 use PHPUnit\Framework\Attributes\CoversTrait;
 use PHPUnit\Framework\TestCase;
 use SineMacula\ApiToolkit\Exceptions\RequestSignatureException;
 use SineMacula\ApiToolkit\Http\Middleware\Concerns\ThrottleRequestsTrait;
-use SineMacula\ApiToolkit\Http\Middleware\ThrottleRequests;
 use SineMacula\Http\Enums\HttpMethod;
 
 /**
@@ -170,7 +170,9 @@ final class ThrottleRequestsTraitTest extends TestCase
         $cache   = self::createStub(Repository::class);
         $limiter = new RateLimiter($cache);
 
-        $middleware = new class ($limiter) extends ThrottleRequests {
+        $middleware = new class ($limiter) extends BaseThrottleRequests {
+            use ThrottleRequestsTrait;
+
             /**
              * @param  \Illuminate\Http\Request  $request
              * @return string
