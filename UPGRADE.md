@@ -650,3 +650,9 @@ Or set the equivalent config keys to `false` in a published `config/api-toolkit.
 
 When a serving runtime is detected but the flush is opted out, the toolkit logs a one-line
 `Log::info` diagnostic so the disabled state is not silent.
+
+### Removed: ProvidesExclusiveLock listener trait
+
+The `ProvidesExclusiveLock` listener trait has been removed. It had no internal consumers - the
+shipped listeners are idempotent or boundary-driven and never mixed it in. Any downstream listener
+that used it must provide its own locking, for example via the toolkit's `Lockable` concern.
