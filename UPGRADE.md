@@ -528,16 +528,17 @@ now also covers `two_factor_secret`, `two_factor_recovery_codes`, `two_factor_co
 `email_verified_at` alongside the existing `password`, `token`, and `remember_token`, so even the legacy
 posture leaks fewer sensitive columns out of the box.
 
-### Deprecated: Request macros in favour of RequestCapabilities
+### Removed: Request macros in favour of RequestCapabilities
 
-The request macros registered by the toolkit -- `includeTrashed()`, `onlyTrashed()`, `expectsExport()`,
-`expectsCsv()`, `expectsXml()`, `expectsPdf()`, and `expectsStream()` -- are deprecated. They continue to
-work in 2.x but emit deprecation notices and will be removed in a future release. Use the typed
-`RequestCapabilities` value object instead.
+The request macros the toolkit used to register - `includeTrashed()`, `onlyTrashed()`, `expectsPdf()`,
+and `expectsStream()` - have been removed. Resolve these capabilities through the typed
+`RequestCapabilities` value object instead. The export-detection macros (`expectsExport()`,
+`expectsCsv()`, and `expectsXml()`) have been removed outright: content-negotiated exports now live in the
+`sinemacula/laravel-resource-exporter` package, not in the toolkit.
 
 **Before:**
 
-    if ($request->expectsCsv()) {
+    if ($request->expectsPdf()) {
         // ...
     }
 
@@ -547,7 +548,7 @@ work in 2.x but emit deprecation notices and will be removed in a future release
 
     $capabilities = RequestCapabilities::fromRequest($request);
 
-    if ($capabilities->expectsCsv()) {
+    if ($capabilities->expectsPdf()) {
         // ...
     }
 
