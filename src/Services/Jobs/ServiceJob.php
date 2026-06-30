@@ -59,15 +59,15 @@ final class ServiceJob implements ShouldQueue
      * Re-hydrate and run the service on the worker.
      *
      * Builds the service from the serialised class-string and input, attaches
-     * the serialised context, then runs it through ServiceRunner with the
-     * source forced to QUEUE.
+     * the dispatched actor, then runs it through ServiceRunner with a fresh
+     * context whose source is forced to QUEUE.
      *
      * @param  \SineMacula\ApiToolkit\Services\ServiceRunner  $runner
      * @return void
      */
     public function handle(ServiceRunner $runner): void
     {
-        $service = ($this->service)::make($this->input)->withContext($this->context); // @phpstan-ignore staticMethod.dynamicName
+        $service = ($this->service)::make($this->input)->by($this->context->actor); // @phpstan-ignore staticMethod.dynamicName
 
         $context = new ServiceContext(
             actor: $this->context->actor,

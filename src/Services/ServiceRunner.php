@@ -70,7 +70,7 @@ final class ServiceRunner
             $this->runOnFailure($hooks, $exception);
             $result = ServiceResult::failure($exception);
         } finally {
-            $this->dispatchEvent($service, $context, $result, $start);
+            $this->dispatchEvent($service, $context, $result, $start, $hooks['inputSummary']);
         }
 
         return $result; // @phpstan-ignore return.type
@@ -254,14 +254,14 @@ final class ServiceRunner
      * @param  \SineMacula\ApiToolkit\Services\ServiceContext  $context
      * @param  \SineMacula\ApiToolkit\Services\ServiceResult<mixed>  $result
      * @param  float  $startTime
+     * @param  array<string, mixed>  $inputSummary
      * @return void
      *
      * @phpstan-ignore missingType.generics
      */
-    private function dispatchEvent(Service $service, ServiceContext $context, ServiceResult $result, float $startTime): void
+    private function dispatchEvent(Service $service, ServiceContext $context, ServiceResult $result, float $startTime, array $inputSummary): void
     {
         $duration      = microtime(true) - $startTime;
-        $inputSummary  = $service->serviceHooks()['inputSummary'];
         $actor         = $service->actor();
         $serviceClass  = $service::class;
         $correlationId = $context->correlationId;
