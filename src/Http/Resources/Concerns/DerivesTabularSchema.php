@@ -18,11 +18,14 @@ use SineMacula\Exporter\Schema\TabularSchema;
  * Intended for use on {@see \SineMacula\ApiToolkit\Http\Resources\ApiResource}
  * subclasses that also implement
  * {@see \SineMacula\Exporter\Contracts\ProvidesTabularExport}. When mixed in,
- * the `tabular()` method is satisfied for free: it compiles the resource
- * schema and maps each non-relation field to a typed Column, routing accessor
- * and computed fields through a fresh resource instance so guards and
- * transformers are honoured in the export. Plain scalar fields fall through to
- * the default raw-attribute read via `data_get`.
+ * the `tabular()` method is satisfied for free: it compiles the resource schema
+ * and maps each non-relation field to a typed Column. Accessor and computed
+ * fields are resolved through a fresh resource instance, and plain scalar
+ * fields fall through to the default raw-attribute read via `data_get`. The
+ * resource's per-field guards and transformers are NOT applied to exported
+ * values: a guarded or transformed field still emits its underlying attribute
+ * or accessor result. Use the exporter's `->visible()` gate to keep a column
+ * out of an export; a schema-declared guard does not.
  *
  * The schema returned is request-aware so column visibility and field
  * selection can be narrowed by the active API query.
@@ -75,10 +78,12 @@ trait DerivesTabularSchema
     /**
      * Build a single tabular column for the given field definition.
      *
-     * Routes accessor and computed fields through a fresh resource instance
-     * so closures and method logic that the JSON response applies are honoured
-     * identically in the export. Plain scalar fields use the default
-     * raw-attribute read via data_get on the underlying model.
+     * Routes accessor and computed fields through a fresh resource instance so
+     * the field's own compute or accessor closure runs, and plain scalar fields
+     * use the default raw-attribute read via data_get on the underlying model.
+     * The resource's per-field guards and transformers are NOT applied here, so
+     * the column emits the raw resolved value; use the exporter's `->visible()`
+     * gate to exclude a column from an export.
      *
      * @param  string  $key
      * @param  \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition  $definition

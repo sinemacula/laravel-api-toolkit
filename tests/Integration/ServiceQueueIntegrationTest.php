@@ -22,8 +22,8 @@ use Tests\TestCase;
  * Queue integration tests for ServiceJob and the actor serialisation path.
  *
  * Proves that a queued run re-hydrates identically, the actor survives
- * serialisation without consulting Auth or Request (NFR-07, AC-36), and the
- * worker run carries source = QUEUE.
+ * serialisation without consulting Auth or Request, and the worker run carries
+ * source = QUEUE.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.

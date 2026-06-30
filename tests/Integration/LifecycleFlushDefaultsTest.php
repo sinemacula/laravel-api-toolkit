@@ -74,9 +74,8 @@ final class LifecycleFlushDefaultsTest extends TestCase
      * Test that an Octane boundary flushes stale metadata so request 2 reads
      * the new shape rather than the memoised old shape.
      *
-     * Validates AC-03 / AC-04: under a long-lived Octane worker, metadata
-     * written before the request boundary must not survive into the next
-     * request.
+     * Under a long-lived Octane worker, metadata written before the request
+     * boundary must not survive into the next request.
      *
      * @return void
      */
@@ -111,8 +110,8 @@ final class LifecycleFlushDefaultsTest extends TestCase
      * Test that a queue worker boundary flushes stale metadata so job 2 reads
      * the new shape rather than the memoised old shape.
      *
-     * Validates AC-06: under a long-lived queue worker, metadata must not leak
-     * across job boundaries.
+     * Under a long-lived queue worker, metadata must not leak across job
+     * boundaries.
      *
      * @return void
      */
@@ -148,8 +147,8 @@ final class LifecycleFlushDefaultsTest extends TestCase
      * Test that under php-fpm (no LARAVEL_OCTANE signal), the Octane listener
      * does not perform a flush even when the config flag is on.
      *
-     * Validates AC-09: the runtime gate, not the config flag, prevents flush
-     * engagement outside a long-lived Octane worker.
+     * The runtime gate, not the config flag, prevents flush engagement outside
+     * a long-lived Octane worker.
      *
      * @return void
      */
@@ -178,9 +177,9 @@ final class LifecycleFlushDefaultsTest extends TestCase
      * Test that the opt-out flag prevents the lifecycle flush from being wired
      * to its boundary at all.
      *
-     * Validates AC-02: with the lifecycle flag off, LifecycleRegistrar does not
-     * subscribe the flush, so no boundary can fire it. The queue path is the
-     * representative opt-out oracle - the Octane path additionally gates on
+     * With the lifecycle flag off, LifecycleRegistrar does not subscribe the
+     * flush, so no boundary can fire it. The queue path is the representative
+     * opt-out oracle - the Octane path additionally gates on
      * class_exists(OperationTerminated), which is always false here because
      * laravel/octane is not installed, so the queue gate is the one that can be
      * isolated. The enabled control proves the assertion tracks the flag rather
@@ -221,8 +220,7 @@ final class LifecycleFlushDefaultsTest extends TestCase
      * Test that a non-toolkit key written directly to the shared memo store
      * survives the scoped metadata flush while the toolkit key is cleared.
      *
-     * Validates NFR-01 / AC-08: the flush must not blast non-toolkit keys off
-     * the shared memo store.
+     * The flush must not blast non-toolkit keys off the shared memo store.
      *
      * @return void
      */
