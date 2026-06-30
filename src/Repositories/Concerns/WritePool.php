@@ -21,7 +21,7 @@ final class WritePool
     /** @var array<string, list<array<string, mixed>>> Records buffered by table name. */
     private array $buffer = [];
 
-    /** @var \SineMacula\ApiToolkit\Repositories\Concerns\WritePoolFlushResult|null The result from the most recent auto-flush. */
+    /** @var \SineMacula\ApiToolkit\Repositories\Concerns\WritePoolFlushResult|null The retained outcome of the most recent auto-flush; persists until the next auto-flush overwrites it. */
     private ?WritePoolFlushResult $lastAutoFlushResult = null;
 
     /**
@@ -69,6 +69,8 @@ final class WritePool
             return;
         }
 
+        // Retain the outcome so lastAutoFlushResult() can surface a
+        // non-throwing collect/log auto-flush failure.
         $this->lastAutoFlushResult = $this->flush();
     }
 
@@ -94,8 +96,16 @@ final class WritePool
     }
 
     /**
-     * Return the result from the most recent auto-flush triggered by add(), or
+     * Return the outcome of the most recent auto-flush triggered by add(), or
      * null if no auto-flush has occurred.
+     *
+     * This is a supported observability hook. Under the non-throwing collect
+     * and log strategies an auto-flush that fails inside add() returns without
+     * raising, so this accessor is the only in-process signal that an
+     * auto-flush failed. Because the pool is a scoped singleton it is reachable
+     * after a deferred write via app(WritePool::class)->lastAutoFlushResult(),
+     * which resolves the same instance the Deferrable trait and the boundary
+     * flush subscriber use.
      *
      * @return \SineMacula\ApiToolkit\Repositories\Concerns\WritePoolFlushResult|null
      */
