@@ -7,8 +7,6 @@ namespace Tests\Unit\Http;
 use Illuminate\Http\Request;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Http\RequestCapabilities;
-use SineMacula\Http\Enums\HttpHeader;
-use SineMacula\Http\Enums\MediaType;
 use Tests\TestCase;
 
 /**
@@ -55,8 +53,6 @@ final class RequestCapabilitiesTest extends TestCase
 
         self::assertFalse($capabilities->includeTrashed());
         self::assertFalse($capabilities->onlyTrashed());
-        self::assertFalse($capabilities->expectsPdf());
-        self::assertFalse($capabilities->expectsStream());
     }
 
     /**
@@ -104,36 +100,6 @@ final class RequestCapabilitiesTest extends TestCase
     }
 
     /**
-     * Test that resolve detects PDF via Accept header.
-     *
-     * @return void
-     */
-    public function testResolveDetectsExpectsPdf(): void
-    {
-        $request = Request::create(self::TEST_URL);
-        $request->headers->set(HttpHeader::ACCEPT->getName(), MediaType::APPLICATION_PDF->getMimeType());
-
-        $capabilities = RequestCapabilities::resolve($request);
-
-        self::assertTrue($capabilities->expectsPdf());
-    }
-
-    /**
-     * Test that resolve detects stream via Accept header.
-     *
-     * @return void
-     */
-    public function testResolveDetectsExpectsStream(): void
-    {
-        $request = Request::create(self::TEST_URL);
-        $request->headers->set(HttpHeader::ACCEPT->getName(), MediaType::TEXT_EVENT_STREAM->getMimeType());
-
-        $capabilities = RequestCapabilities::resolve($request);
-
-        self::assertTrue($capabilities->expectsStream());
-    }
-
-    /**
      * Test that storeOnRequest sets the attribute on the request.
      *
      * @return void
@@ -141,18 +107,18 @@ final class RequestCapabilitiesTest extends TestCase
     public function testStoreOnRequestSetsAttribute(): void
     {
         $request      = Request::create(self::TEST_URL);
-        $capabilities = $this->createCapabilities(expectsPdf: true);
+        $capabilities = $this->createCapabilities(includeTrashed: true);
 
         RequestCapabilities::storeOnRequest($request, $capabilities);
 
         $stored = $request->attributes->get(RequestCapabilities::class);
 
         self::assertInstanceOf(RequestCapabilities::class, $stored);
-        self::assertTrue($stored->expectsPdf());
+        self::assertTrue($stored->includeTrashed());
     }
 
     /**
-     * Test that all 4 accessor methods return the correct corresponding values.
+     * Test that all 2 accessor methods return the correct corresponding values.
      *
      * @return void
      */
@@ -161,14 +127,10 @@ final class RequestCapabilitiesTest extends TestCase
         $capabilities = $this->createCapabilities(
             includeTrashed: true,
             onlyTrashed: true,
-            expectsPdf: true,
-            expectsStream: true,
         );
 
         self::assertTrue($capabilities->includeTrashed());
         self::assertTrue($capabilities->onlyTrashed());
-        self::assertTrue($capabilities->expectsPdf());
-        self::assertTrue($capabilities->expectsStream());
     }
 
     /**
@@ -176,11 +138,9 @@ final class RequestCapabilitiesTest extends TestCase
      *
      * @param  bool  $includeTrashed
      * @param  bool  $onlyTrashed
-     * @param  bool  $expectsPdf
-     * @param  bool  $expectsStream
      * @return \SineMacula\ApiToolkit\Http\RequestCapabilities
      */
-    private function createCapabilities(bool $includeTrashed = false, bool $onlyTrashed = false, bool $expectsPdf = false, bool $expectsStream = false): RequestCapabilities
+    private function createCapabilities(bool $includeTrashed = false, bool $onlyTrashed = false): RequestCapabilities
     {
 
         $reflection  = new \ReflectionClass(RequestCapabilities::class);
@@ -196,8 +156,6 @@ final class RequestCapabilitiesTest extends TestCase
             $instance,
             $includeTrashed,
             $onlyTrashed,
-            $expectsPdf,
-            $expectsStream,
         );
 
         return $instance;
