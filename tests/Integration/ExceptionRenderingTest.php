@@ -12,6 +12,8 @@ use Illuminate\Session\TokenMismatchException;
 use Illuminate\Support\Facades\Route;
 use Monolog\Handler\NullHandler;
 use PHPUnit\Framework\Attributes\CoversClass;
+use SineMacula\ApiToolkit\Enums\ErrorCode;
+use SineMacula\ApiToolkit\Exceptions\ApiException;
 use SineMacula\ApiToolkit\Exceptions\ApiExceptionHandler;
 use SineMacula\ApiToolkit\Exceptions\ConflictException;
 use Tests\TestCase;
@@ -77,6 +79,40 @@ final class ExceptionRenderingTest extends TestCase
 
         Route::get('/api/token-mismatch', static function (): never {
             throw new TokenMismatchException('CSRF token mismatch.');
+        });
+
+        // Mirrors an exception like the dedicated 419 mismatch: a non-standard
+        // status with no HTTP status enum case (so getStatus() is null) and a
+        // namespace that registers no title translation, exercising the
+        // generic-title fallback during rendering.
+        Route::get('/api/missing-title', static function (): never {
+            throw new class extends ApiException {
+                /** The internal error code for the test exception. */
+                public const \SineMacula\ApiToolkit\Contracts\ErrorCodeInterface CODE = ErrorCode::TOKEN_MISMATCH;
+
+                /**
+                 * Return a non-standard status code with no HTTP status enum
+                 * case.
+                 *
+                 * @return int
+                 */
+                #[\Override]
+                public static function getHttpStatusCode(): int
+                {
+                    return 419;
+                }
+
+                /**
+                 * Resolve from a namespace with no registered translations.
+                 *
+                 * @return string
+                 */
+                #[\Override]
+                protected function getNamespace(): string
+                {
+                    return 'missing-title-namespace';
+                }
+            };
         });
 
         Route::get('/api/unhandled', static function (): never {
@@ -167,6 +203,22 @@ final class ExceptionRenderingTest extends TestCase
         $response->assertStatus(419);
         $response->assertJsonPath('error.status', 419);
         $response->assertJsonPath('error.code', 10105);
+    }
+
+    /**
+     * Test that an exception whose title translation is absent still renders,
+     * carrying its status code and a generic fallback title rather than
+     * throwing while deriving the title.
+     *
+     * @return void
+     */
+    public function testExceptionWithMissingTitleTranslationStillRenders(): void
+    {
+        $response = $this->getJson('/api/missing-title');
+
+        $response->assertStatus(419);
+        $response->assertJsonPath('error.status', 419);
+        $response->assertJsonPath('error.title', 'Unknown Error');
     }
 
     /**
