@@ -52,7 +52,7 @@ final class GreaterThanOperatorTest extends TestCase
     {
         $operator = new GreaterThanOperator;
         $query    = (new User)->newQuery();
-        $context  = FilterContext::nested('$or', FilterContext::root());
+        $context  = FilterContext::nested('$or');
 
         $operator->apply($query, 'id', 5, $context);
 

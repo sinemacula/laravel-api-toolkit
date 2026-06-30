@@ -201,7 +201,7 @@ final class FilterApplier
     {
         $method = ($context->getLogicalOperator() === '$and' && $operator === '$or')
             ? 'where' : $this->logicalOperatorMap[$operator];
-        $nested = FilterContext::nested($operator, $context);
+        $nested = FilterContext::nested($operator);
 
         $callback = function (Builder $query) use ($value, $nested): void {
             foreach ($value as $subKey => $subValue) {
@@ -234,11 +234,10 @@ final class FilterApplier
      */
     private function applyRelationFilter(Builder $query, string $relation, array $filters, FilterContext $context): void
     {
-        $method          = ($context->getLogicalOperator() === '$or') ? 'orWhereHas' : 'whereHas';
-        $relationContext = FilterContext::forRelation($context);
+        $method = ($context->getLogicalOperator() === '$or') ? 'orWhereHas' : 'whereHas';
 
-        $this->applyRelationalMethod($query, $method, $relation, function (Builder $query) use ($filters, $relationContext): void {
-            $this->processRelationFilters($query, $filters, $relationContext);
+        $this->applyRelationalMethod($query, $method, $relation, function (Builder $query) use ($filters, $context): void {
+            $this->processRelationFilters($query, $filters, $context);
         });
     }
 
@@ -257,9 +256,9 @@ final class FilterApplier
             /** @var array<string, mixed> $orFilters */
             $orFilters = is_array($filters['$or']) ? $filters['$or'] : [];
 
-            $query->where(function (Builder $nested) use ($orFilters, $context): void {
+            $query->where(function (Builder $nested) use ($orFilters): void {
                 foreach ($orFilters as $key => $value) {
-                    $this->applyFilters($nested, $value, $key, FilterContext::nested('$or', $context));
+                    $this->applyFilters($nested, $value, $key, FilterContext::nested('$or'));
                 }
             });
         } else {

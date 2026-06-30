@@ -52,7 +52,7 @@ final class EqualOperatorTest extends TestCase
     {
         $operator = new EqualOperator;
         $query    = (new User)->newQuery();
-        $context  = FilterContext::nested('$or', FilterContext::root());
+        $context  = FilterContext::nested('$or');
 
         $operator->apply($query, 'name', 'Bob', $context);
 

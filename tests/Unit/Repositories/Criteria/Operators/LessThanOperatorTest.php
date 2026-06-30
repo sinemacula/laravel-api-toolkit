@@ -52,7 +52,7 @@ final class LessThanOperatorTest extends TestCase
     {
         $query    = (new User)->newQuery();
         $operator = new LessThanOperator;
-        $context  = FilterContext::nested('$or', FilterContext::root());
+        $context  = FilterContext::nested('$or');
 
         $operator->apply($query, 'age', 30, $context);
 
