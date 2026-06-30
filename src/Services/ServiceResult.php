@@ -60,6 +60,12 @@ final readonly class ServiceResult
     /**
      * Create a failed service result.
      *
+     * The optional $output lets a caller attach partial or diagnostic output to
+     * a failed result. The package never populates it on its own failures; it
+     * exists purely for callers that construct a failure directly. Note that
+     * outputOr() still returns its default for a failed result, so any output
+     * attached here is reachable only via the output property or output().
+     *
      * @param  \Throwable|null  $exception
      * @param  mixed  $output
      * @return self<mixed>
@@ -102,9 +108,9 @@ final readonly class ServiceResult
     /**
      * Return the output when succeeded, or the given default otherwise.
      *
-     * A failed result always returns the default, even when a non-null output
-     * was captured alongside the failure. This lets the caller distinguish "no
-     * output" from "failed" without checking the status.
+     * A failed result intentionally returns the default, even when output was
+     * attached to the failure via failure(). This lets the caller distinguish
+     * "no output" from "failed" without checking the status.
      *
      * @param  mixed  $default
      * @return mixed

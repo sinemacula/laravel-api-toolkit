@@ -72,6 +72,10 @@ abstract class InputData implements ServiceInput
      * name-to-value map. Concrete subclasses need not implement toArray()
      * unless they require custom serialisation.
      *
+     * The returned map is carried on the service lifecycle events as
+     * inputSummary and reaches event listeners verbatim, so override this
+     * method to scrub sensitive keys before they are exposed.
+     *
      * @return array<string, mixed>
      */
     #[\Override]
