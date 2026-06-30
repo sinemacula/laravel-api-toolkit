@@ -28,7 +28,7 @@ final class ErrorResponseBuilder
     private const string RESPONSE_NAME_PREFIX = 'ErrorResponse';
 
     /** The reference to the shared error-envelope schema */
-    private const string ENVELOPE_SCHEMA_REF = '#/components/schemas/ErrorEnvelope';
+    private const string ENVELOPE_SCHEMA_REF = '#/components/schemas/' . self::ENVELOPE_SCHEMA_NAME;
 
     /**
      * Constructor.
