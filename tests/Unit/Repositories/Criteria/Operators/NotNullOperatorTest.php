@@ -63,7 +63,7 @@ final class NotNullOperatorTest extends TestCase
     {
         $query = (new User)->newQuery();
 
-        $this->operator->apply($query, 'name', true, FilterContext::nested('$or', FilterContext::root()));
+        $this->operator->apply($query, 'name', true, FilterContext::nested('$or'));
 
         $wheres = $query->getQuery()->wheres;
 

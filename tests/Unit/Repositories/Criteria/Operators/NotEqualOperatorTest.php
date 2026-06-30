@@ -52,7 +52,7 @@ final class NotEqualOperatorTest extends TestCase
     {
         $operator = new NotEqualOperator;
         $query    = (new User)->newQuery();
-        $context  = FilterContext::nested('$or', FilterContext::root());
+        $context  = FilterContext::nested('$or');
 
         $operator->apply($query, 'status', 'banned', $context);
 

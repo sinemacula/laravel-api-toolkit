@@ -52,7 +52,7 @@ final class LikeOperatorTest extends TestCase
     {
         $query    = (new User)->newQuery();
         $operator = new LikeOperator;
-        $context  = FilterContext::nested('$or', FilterContext::root());
+        $context  = FilterContext::nested('$or');
 
         $operator->apply($query, 'name', 'Ali', $context);
 
