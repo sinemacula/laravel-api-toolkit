@@ -345,9 +345,9 @@ final class ApiExceptionTest extends TestCase
             /**
              * Expose the inherited namespace for assertion.
              *
-             * @return string|null
+             * @return string
              */
-            public function exposedNamespace(): ?string
+            public function exposedNamespace(): string
             {
                 return $this->getNamespace();
             }

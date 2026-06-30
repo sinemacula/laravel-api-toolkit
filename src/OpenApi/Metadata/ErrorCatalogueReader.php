@@ -7,7 +7,6 @@ namespace SineMacula\ApiToolkit\OpenApi\Metadata;
 use Illuminate\Support\Facades\Lang;
 use SineMacula\ApiToolkit\Enums\ErrorCode;
 use SineMacula\ApiToolkit\Exceptions\ApiException;
-use SineMacula\ApiToolkit\Exceptions\TokenMismatchException;
 use SineMacula\ApiToolkit\OpenApi\Exceptions\MetadataReadException;
 
 /**
@@ -132,16 +131,7 @@ final class ErrorCatalogueReader
             return 500;
         }
 
-        // TokenMismatchException overrides getHttpStatusCode() to return 419
-        // directly (no HTTP_STATUS constant) — call the static method.
-        if ($exceptionClass === TokenMismatchException::class || !defined($exceptionClass . '::HTTP_STATUS')) {
-            return $exceptionClass::getHttpStatusCode();
-        }
-
-        /** @var \SineMacula\Http\Enums\HttpStatus $statusConstant */
-        $statusConstant = constant($exceptionClass . '::HTTP_STATUS');
-
-        return $statusConstant->getCode();
+        return $exceptionClass::getHttpStatusCode();
     }
 
     /**
