@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Validation\ValidationException;
 use SineMacula\ApiToolkit\Contracts\ApiResourceInterface;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
+use SineMacula\ApiToolkit\Schema\CompiledSchema;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 
 /**
@@ -27,7 +28,12 @@ use SineMacula\ApiToolkit\Schema\SchemaCompiler;
  * allowlist posture. When no mapped resource exists for a related model the
  * gate fails closed (rejects), matching the root secure-by-default behaviour.
  * Under the blocklist posture the legacy searchable predicate still applies for
- * related models. The relation-traversal gate (permitsRelation) is unchanged.
+ * related models. Relation traversal is gated the same way at every level: the
+ * root relation against the declared traversable set, and each onward relation
+ * against the related resource's declared traversable set, failing closed when
+ * the related model has no mapped resource. Traversal depth is therefore
+ * bounded by declarations rather than a fixed limit - a chain ends at the
+ * first undeclared or unmapped hop.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -132,7 +138,13 @@ final readonly class QuerySurface
      */
     public function guardRelation(string $relation, Model $model): bool
     {
-        return $this->guard($this->permitsRelation($relation, $model), 'filters', $relation, $model);
+        return $this->guard(
+            $this->permitsRelation($relation, $model),
+            'filters',
+            $relation,
+            $model,
+            $this->posture === self::POSTURE_ALLOWLIST,
+        );
     }
 
     /**
@@ -184,9 +196,34 @@ final readonly class QuerySurface
      */
     private function permitsRelation(string $relation, Model $model): bool
     {
-        return $this->governsRoot($model)
-            ? in_array($relation, $this->traversableRelations, true)
-            : $this->introspector->isRelation($relation, $model);
+        if ($this->governsRoot($model)) {
+            return in_array($relation, $this->traversableRelations, true);
+        }
+
+        if ($this->posture === self::POSTURE_ALLOWLIST) {
+            return $this->permitsRelatedRelation($relation, $model);
+        }
+
+        return $this->introspector->isRelation($relation, $model);
+    }
+
+    /**
+     * Determine whether the relation is traversable on a related (non-root)
+     * model under the allowlist posture by checking the related resource's
+     * declared traversable set.
+     *
+     * When no resource is mapped for the related model the gate fails closed,
+     * matching the root secure-by-default behaviour.
+     *
+     * @param  string  $relation
+     * @param  \Illuminate\Database\Eloquent\Model  $model
+     * @return bool
+     */
+    private function permitsRelatedRelation(string $relation, Model $model): bool
+    {
+        $schema = $this->resolveRelatedSchema($model);
+
+        return $schema !== null && in_array($relation, $schema->getTraversableRelations(), true);
     }
 
     /**
@@ -204,16 +241,34 @@ final readonly class QuerySurface
      */
     private function permitsRelatedColumn(string $column, Model $model, bool $filterable): bool
     {
-        $resourceClass = $this->resourceMap[$model::class] ?? null;
+        $schema = $this->resolveRelatedSchema($model);
 
-        if ($resourceClass === null || !is_subclass_of($resourceClass, ApiResourceInterface::class)) {
+        if ($schema === null) {
             return false;
         }
 
-        $schema  = SchemaCompiler::compile($resourceClass);
         $columns = $filterable ? $schema->getFilterableColumns() : $schema->getSortableColumns();
 
         return in_array($column, $columns, true);
+    }
+
+    /**
+     * Resolve the compiled schema for a related model's mapped resource, or
+     * null when the model has no mapped resource (or the mapping does not
+     * implement the resource contract).
+     *
+     * @param  \Illuminate\Database\Eloquent\Model  $model
+     * @return \SineMacula\ApiToolkit\Schema\CompiledSchema|null
+     */
+    private function resolveRelatedSchema(Model $model): ?CompiledSchema
+    {
+        $resourceClass = $this->resourceMap[$model::class] ?? null;
+
+        if ($resourceClass === null || !is_subclass_of($resourceClass, ApiResourceInterface::class)) {
+            return null;
+        }
+
+        return SchemaCompiler::compile($resourceClass);
     }
 
     /**

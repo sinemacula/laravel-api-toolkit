@@ -4,12 +4,14 @@ declare(strict_types = 1);
 
 namespace Tests\Unit\Repositories\Criteria;
 
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Validation\ValidationException;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface;
 use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\User;
+use Tests\Fixtures\Resources\FilterableUserResource;
 use Tests\Fixtures\Resources\PostResource;
 use Tests\TestCase;
 
@@ -154,6 +156,19 @@ final class QuerySurfaceTest extends TestCase
     }
 
     /**
+     * Test that a related model mapped to a class that is not an API resource
+     * fails closed rather than attempting to compile the bogus class.
+     *
+     * @return void
+     */
+    public function testAllowlistFailsClosedWhenMappedResourceIsNotAnApiResource(): void
+    {
+        $surface = $this->make(resourceMap: [Post::class => \stdClass::class]);
+
+        $this->assertRejects(fn () => $surface->guardFilter('title', new Post), 'filters.title');
+    }
+
+    /**
      * Test that fail-quiet silently drops an undeclared related-model column
      * without throwing, even under the allowlist posture.
      *
@@ -214,6 +229,114 @@ final class QuerySurfaceTest extends TestCase
     }
 
     /**
+     * Test that under the allowlist posture a relation declared traversable in
+     * the related model's mapped resource is permitted at a non-root hop.
+     *
+     * FilterableUserResource declares 'posts' traversable, so with User reached
+     * as a related model the traversal must pass.
+     *
+     * @return void
+     */
+    public function testAllowlistPermitsDeclaredTraversableRelationOnRelatedModel(): void
+    {
+        $surface = $this->make(
+            resourceMap: [User::class => FilterableUserResource::class],
+            rootModel: new Post,
+        );
+
+        self::assertTrue($surface->guardRelation('posts', new User));
+    }
+
+    /**
+     * Test that under the allowlist posture a relation NOT declared traversable
+     * in the related model's resource is rejected at a non-root hop.
+     *
+     * FilterableUserResource declares 'organization' as a relation but not as
+     * traversable, so traversing it from a related User must be rejected.
+     *
+     * @return void
+     */
+    public function testAllowlistRejectsUndeclaredTraversableRelationOnRelatedModel(): void
+    {
+        $surface = $this->make(
+            resourceMap: [User::class => FilterableUserResource::class],
+            rootModel: new Post,
+        );
+
+        $this->assertRejects(fn () => $surface->guardRelation('organization', new User), 'filters.organization');
+    }
+
+    /**
+     * Test that under the allowlist posture a related model with no mapped
+     * resource fails closed: every onward relation is rejected.
+     *
+     * @return void
+     */
+    public function testAllowlistFailsClosedWhenRelatedModelHasNoMappedResourceForRelation(): void
+    {
+        // Empty resource map - User is not mapped, so its traversable set is
+        // unresolvable.
+        $surface = $this->make(rootModel: new Post);
+
+        $this->assertRejects(fn () => $surface->guardRelation('posts', new User), 'filters.posts');
+    }
+
+    /**
+     * Test that fail-quiet silently drops an undeclared related-model relation
+     * without throwing, even under the allowlist posture.
+     *
+     * @return void
+     */
+    public function testFailQuietDropsUndeclaredRelatedRelationWithoutThrowing(): void
+    {
+        $surface = $this->make(
+            reject: false,
+            resourceMap: [User::class => FilterableUserResource::class],
+            rootModel: new Post,
+        );
+
+        self::assertFalse($surface->guardRelation('organization', new User));
+    }
+
+    /**
+     * Test that the blocklist posture delegates a related-model relation to the
+     * schema introspector rather than the resource's traversable set.
+     *
+     * @return void
+     */
+    public function testBlocklistDelegatesRelationToIntrospectorForRelatedModel(): void
+    {
+        $introspector = \Mockery::mock(SchemaIntrospectionProvider::class);
+        $introspector->shouldReceive('isRelation')->with('posts', \Mockery::type(User::class))->andReturnTrue(); // @phpstan-ignore method.notFound
+
+        $surface = $this->make(
+            posture: QuerySurface::POSTURE_BLOCKLIST,
+            introspector: $introspector,
+            resourceMap: [User::class => FilterableUserResource::class],
+            rootModel: new Post,
+        );
+
+        self::assertTrue($surface->guardRelation('posts', new User));
+    }
+
+    /**
+     * Test that the blocklist posture drops (rather than rejects) an undeclared
+     * relation the introspector does not recognise, confirming nested relations
+     * are not forced fail-closed outside the allowlist posture.
+     *
+     * @return void
+     */
+    public function testBlocklistDropsUndeclaredRelationWithoutThrowing(): void
+    {
+        $introspector = \Mockery::mock(SchemaIntrospectionProvider::class);
+        $introspector->shouldReceive('isRelation')->with('ghost', \Mockery::type(User::class))->andReturnFalse(); // @phpstan-ignore method.notFound
+
+        $surface = $this->make(posture: QuerySurface::POSTURE_BLOCKLIST, introspector: $introspector);
+
+        self::assertFalse($surface->guardRelation('ghost', new User));
+    }
+
+    /**
      * Build a query surface with sensible defaults for the test under focus.
      *
      * @param  array<int, string>  $filterable
@@ -223,6 +346,7 @@ final class QuerySurfaceTest extends TestCase
      * @param  bool  $reject
      * @param  \SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider|null  $introspector
      * @param  array<string, string>  $resourceMap
+     * @param  \Illuminate\Database\Eloquent\Model|null  $rootModel
      * @return \SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface
      */
     private function make(
@@ -233,6 +357,7 @@ final class QuerySurfaceTest extends TestCase
         bool $reject = true,
         ?SchemaIntrospectionProvider $introspector = null,
         array $resourceMap = [],
+        ?Model $rootModel = null,
     ): QuerySurface {
         return new QuerySurface(
             $filterable,
@@ -241,7 +366,7 @@ final class QuerySurfaceTest extends TestCase
             $posture,
             $reject,
             $introspector ?? \Mockery::mock(SchemaIntrospectionProvider::class),
-            new User,
+            $rootModel    ?? new User,
             $resourceMap,
         );
     }

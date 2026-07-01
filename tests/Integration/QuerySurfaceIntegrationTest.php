@@ -16,6 +16,7 @@ use SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface;
 use SineMacula\Http\Enums\HttpMethod;
 use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\User;
+use Tests\Fixtures\Resources\DeepTraversalPostResource;
 use Tests\Fixtures\Resources\FilterableUserResource;
 use Tests\Fixtures\Resources\PostResource;
 use Tests\TestCase;
@@ -227,6 +228,91 @@ final class QuerySurfaceIntegrationTest extends TestCase
         } catch (ValidationException $e) {
             self::assertArrayHasKey('filters.body', $e->errors());
         }
+    }
+
+    /**
+     * Under the allowlist posture a relation traversed at a nested hop is gated
+     * against the related resource's declared traversable set, not merely
+     * whether the relation exists.
+     *
+     * PostResource declares no traversable relations, so pivoting from a
+     * traversed post into its 'user' relation must be rejected fail-closed even
+     * though the relation is real.
+     *
+     * @return void
+     */
+    public function testNestedUndeclaredRelationTraversalIsRejectedFailClosed(): void
+    {
+        $this->parseQuery(['filters' => json_encode([
+            'posts' => [
+                'nested' => ['user' => ['name' => 'Alice']],
+            ],
+        ])]);
+
+        try {
+            $this->declaredCriteria()->apply(new User);
+            self::fail('Expected a ValidationException for undeclared nested relation "user".');
+        } catch (ValidationException $e) {
+            self::assertArrayHasKey('filters.user', $e->errors());
+        }
+    }
+
+    /**
+     * With fail-quiet rejection an undeclared nested relation is dropped rather
+     * than applied: the onward hop adds no constraint and no exception escapes.
+     *
+     * PostResource does not declare 'user' traversable, so under fail-quiet the
+     * nested 'user' constraint is dropped and only the outer 'posts' existence
+     * applies - the two users with posts remain (contrast the
+     * declared-traversal case, which narrows the same query to one).
+     *
+     * @return void
+     */
+    public function testNestedUndeclaredRelationTraversalIsDroppedFailQuiet(): void
+    {
+        Config::set('api-toolkit.repositories.reject_undeclared', false);
+
+        $this->parseQuery(['filters' => json_encode([
+            'posts' => [
+                'nested' => ['user' => ['name' => 'Alice']],
+            ],
+        ])]);
+
+        $results = $this->declaredCriteria()->apply(new User)->get();
+
+        self::assertCount(2, $results);
+    }
+
+    /**
+     * Under the allowlist posture a nested relation that the related resource
+     * declares traversable is applied end-to-end.
+     *
+     * DeepTraversalPostResource declares 'user' traversable, so the chain
+     * users -> posts -> user is permitted at every hop and the whereHas nesting
+     * is built: only Alice owns a post whose user is named Alice.
+     *
+     * @return void
+     */
+    public function testDeclaredNestedRelationTraversalIsAppliedUnderAllowlist(): void
+    {
+        Config::set('api-toolkit.resources.resource_map', [
+            Post::class => DeepTraversalPostResource::class,
+        ]);
+
+        $this->parseQuery(['filters' => json_encode([
+            'posts' => [
+                'nested' => ['user' => ['name' => 'Alice']],
+            ],
+        ])]);
+
+        $results = $this->declaredCriteria()->apply(new User)->get();
+
+        self::assertCount(1, $results);
+
+        /** @var \Tests\Fixtures\Models\User $first */
+        $first = $results->first();
+
+        self::assertSame('Alice', $first->name);
     }
 
     /**
