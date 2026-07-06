@@ -10,6 +10,7 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Enums\ErrorCode;
 use SineMacula\ApiToolkit\Exceptions\ApiException;
 use SineMacula\ApiToolkit\Exceptions\BadRequestException;
+use SineMacula\ApiToolkit\Exceptions\HttpException;
 use SineMacula\Http\Enums\HttpStatus;
 
 /**
@@ -373,6 +374,80 @@ final class ApiExceptionTest extends TestCase
         };
 
         self::assertSame('Unavailable For Legal Reasons', $exception->getCustomTitle());
+    }
+
+    /**
+     * Test that a published per-status translation localises the derived
+     * title for the generic HTTP error path.
+     *
+     * @return void
+     */
+    public function testGetCustomTitleUsesPerStatusTranslationWhenPublished(): void
+    {
+        Lang::addLines(['exceptions.http.451' => 'Statutairement Indisponible'], 'en', 'api-toolkit');
+
+        $exception = new HttpException(HttpStatus::UNAVAILABLE_FOR_LEGAL_REASONS);
+
+        self::assertSame('Statutairement Indisponible', $exception->getCustomTitle());
+    }
+
+    /**
+     * Test that an exception whose status has no enum case resolves its title
+     * through the unknown-status translation key, which a published lang file
+     * can localise.
+     *
+     * @return void
+     */
+    public function testGetCustomTitleResolvesUnknownStatusThroughTranslationKey(): void
+    {
+        $exception = new class extends ApiException {
+            /** The internal error code for the test exception. */
+            public const \SineMacula\ApiToolkit\Contracts\ErrorCodeInterface CODE = ErrorCode::HTTP_ERROR;
+
+            /**
+             * Get the HTTP status code for this exception instance.
+             *
+             * @return int
+             */
+            #[\Override]
+            public function getStatusCode(): int
+            {
+                return 419;
+            }
+
+            /**
+             * Get the HTTP status for this exception instance.
+             *
+             * @return \SineMacula\Http\Enums\HttpStatus|null
+             */
+            #[\Override]
+            public function getStatus(): ?HttpStatus
+            {
+                return null;
+            }
+        };
+
+        // The shipped lang file resolves the unknown-status key.
+        self::assertSame('Unknown Error', $exception->getCustomTitle());
+
+        Lang::addLines(['exceptions.http.unknown' => 'Erreur Inconnue'], 'en', 'api-toolkit');
+
+        self::assertSame('Erreur Inconnue', $exception->getCustomTitle());
+    }
+
+    /**
+     * Test that a non-string per-status translation yields an empty title
+     * rather than an error, matching the code-keyed title guard.
+     *
+     * @return void
+     */
+    public function testGetCustomTitleReturnsEmptyStringForNonStringStatusTranslation(): void
+    {
+        Lang::addLines(['exceptions.http.451' => ['nested' => 'value']], 'en', 'api-toolkit');
+
+        $exception = new HttpException(HttpStatus::UNAVAILABLE_FOR_LEGAL_REASONS);
+
+        self::assertSame('', $exception->getCustomTitle());
     }
 
     /**

@@ -106,4 +106,20 @@ return [
         'detail' => (is_string($name = config('app.name')) ? $name : 'The application') . ' is currently in maintenance mode, please try again a little later',
     ],
 
+    /*
+    |---------------------------------------------------------------------------
+    | Status-Derived Titles
+    |---------------------------------------------------------------------------
+    |
+    | Titles for the generic HTTP error path are derived from the HTTP status
+    | enum case name by default. Publish per-status overrides here to localise
+    | them, keyed by status code (e.g. 404 => 'Introuvable'). The unknown key
+    | covers exceptions whose status has no enum case.
+    |
+    */
+
+    'http' => [
+        'unknown' => 'Unknown Error',
+    ],
+
 ];
