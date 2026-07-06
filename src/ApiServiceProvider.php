@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Config;
 use Illuminate\Support\ServiceProvider;
 use SineMacula\ApiToolkit\Console\ExportOpenApiCommand;
 use SineMacula\ApiToolkit\Console\ValidateSchemasCommand;
+use SineMacula\ApiToolkit\Http\Resources\ResourceDiscovery;
 use SineMacula\ApiToolkit\Providers\Registrars\ContainerBindingRegistrar;
 use SineMacula\ApiToolkit\Providers\Registrars\LifecycleRegistrar;
 use SineMacula\ApiToolkit\Providers\Registrars\LoggingRegistrar;
@@ -35,6 +36,7 @@ final class ApiServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        $this->mergeDiscoveredResources();
         $this->loadTranslationFiles();
         $this->offerPublishing();
         $this->registerMorphMap();
@@ -106,6 +108,39 @@ final class ApiServiceProvider extends ServiceProvider
         $this->publishes([
             __DIR__ . '/../config/api-toolkit.php' => config_path('api-toolkit.php'),
         ], 'config');
+    }
+
+    /**
+     * Merge the attribute-discovered resources beneath the configured map.
+     *
+     * Discovery scans the configured resource paths for classes carrying the
+     * ForModel attribute; an explicit resource_map entry always wins over a
+     * discovered binding, so the static map remains the canonical-resource
+     * tiebreak and the seam for resources outside the scanned paths.
+     *
+     * The merge is skipped while the config cache is being built: baking
+     * discovered bindings into the cached config would make them
+     * indistinguishable from explicit entries and mask later discovery
+     * changes. Runtime boots always merge fresh discoveries on top.
+     *
+     * @return void
+     */
+    private function mergeDiscoveredResources(): void
+    {
+        if (in_array('config:cache', (array) ($_SERVER['argv'] ?? []), true)) {
+            return;
+        }
+
+        $discovered = $this->app->make(ResourceDiscovery::class)->discover();
+
+        if ($discovered === []) {
+            return;
+        }
+
+        $map = Config::get('api-toolkit.resources.resource_map', []);
+        $map = is_array($map) ? $map : [];
+
+        Config::set('api-toolkit.resources.resource_map', $map + $discovered);
     }
 
     /**

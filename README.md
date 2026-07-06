@@ -113,12 +113,15 @@ Extend `ApiResource` and declare a `schema()` method using the `Field`, `Relatio
 schema helpers. The compiled schema drives field resolution, guard evaluation, and eager-load planning automatically.
 
 ```php
+use App\Models\User;
+use SineMacula\ApiToolkit\Attributes\ForModel;
 use SineMacula\ApiToolkit\Http\Resources\ApiResource;
 use SineMacula\ApiToolkit\Schema\Count;
 use SineMacula\ApiToolkit\Schema\Field;
 use SineMacula\ApiToolkit\Schema\Relation;
 use SineMacula\ApiToolkit\Schema\Sum;
 
+#[ForModel(User::class)]
 class UserResource extends ApiResource
 {
     const RESOURCE_TYPE = 'user';
@@ -143,6 +146,15 @@ class UserResource extends ApiResource
 Fields marked `filterable()` or `sortable()` are exposed under the allowlist posture. Relations marked
 `traversable()` can be targeted by nested filters. The `$default` static property declares the fields returned
 when the client sends no `?fields` parameter.
+
+**Model binding and discovery** - the `#[ForModel(...)]` attribute binds a resource to its model, and may be
+repeated to bind one resource to several models. Resources under the configured `api-toolkit.resources.paths`
+(default `app/Http/Resources`) are discovered at boot and compiled into the model-to-resource map automatically,
+so no central map needs maintaining. An explicit `api-toolkit.resources.resource_map` entry always wins over a
+discovered binding - use it as the canonical-resource tiebreak when a model has more than one resource, or to
+bind resources living outside the scanned paths. When two discovered resources claim the same model and no
+explicit entry resolves it, the first (in sorted file order) wins and a warning is logged; with
+`validate_schemas` enabled the conflict fails the boot instead.
 
 **Eager-load planning** - the resource builds `with()`/`withCount()`/`withSum()`/`withAvg()` maps from the
 resolved field set, so relations are loaded precisely and automatically:
