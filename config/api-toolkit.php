@@ -76,11 +76,15 @@ return [
     | runtime based on the configured resource classes, allowing for a flexible,
     | type-safe API design.
     |
-    | `resource_map`: This array should contain the mappings of model classes to
-    | their corresponding resource classes. This is used to define explicit
-    | morph maps for Eloquent models when using polymorphic relationships,
-    | enhancing the API's ability to serialize and deserialize these relations
-    | correctly.
+    | `paths`: The filesystem paths scanned at boot for resources carrying the
+    | ForModel attribute. Discovered bindings merge beneath the resource_map
+    | (an explicit entry always wins), so annotating a resource is the primary
+    | way to bind it to its model. Missing paths are skipped.
+    |
+    | `resource_map`: Explicit model to resource overrides. An entry here wins
+    | over a discovered binding, acting as the canonical-resource tiebreak when
+    | a model has more than one resource, and as the binding mechanism for
+    | resource classes that live outside the scanned paths.
     |
     | `fixed_fields`: This array should contain all globally fixed fields i.e.
     | the fields that should always be present in resource responses.
@@ -91,8 +95,13 @@ return [
 
         'enable_dynamic_morph_mapping' => env('DYNAMIC_MORPH_MAPPING', true),
 
+        'paths' => [
+            app_path('Http/Resources'),
+        ],
+
         'resource_map' => [
-            // This should be filled with the application's resource map
+            // Explicit overrides only; resources inside the scanned paths are
+            // bound via the ForModel attribute
             // e.g. User::class => UserResource::class
         ],
 

@@ -29,6 +29,9 @@ enum CacheKeys: string
     // Store the resource associated with each model
     case MODEL_RESOURCES = 'model-resources:%s';
 
+    // Store the attribute-discovered model to resource bindings for a path set
+    case DISCOVERED_RESOURCES = 'discovered-resources:%s';
+
     // Store the cached collection data for a repository (reference mode)
     case REPOSITORY_CACHE = 'repository-cache:%s';
 

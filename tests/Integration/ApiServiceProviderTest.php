@@ -45,6 +45,8 @@ use SineMacula\ApiToolkit\Repositories\Concerns\WritePool;
 use SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry;
 use SineMacula\ApiToolkit\Schema\Introspection\SchemaIntrospector;
 use SineMacula\ApiToolkit\Schema\Validation\SchemaValidator;
+use Tests\Fixtures\Discovery\Primary\Nested\DiscoveredPostResource;
+use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Resources\BrokenResource;
 use Tests\Fixtures\Resources\UserResource;
@@ -325,6 +327,63 @@ final class ApiServiceProviderTest extends TestCase
 
         // If we reach here the early-return executed without error.
         self::assertFalse((bool) $this->getConfig()->get('api-toolkit.notifications.enable_logging'));
+    }
+
+    /**
+     * Test that boot merges attribute-discovered resources beneath the
+     * configured resource map, with an explicit entry winning for its model.
+     *
+     * @return void
+     */
+    public function testBootMergesDiscoveredResourcesBeneathConfiguredMap(): void
+    {
+        $app = $this->getApplication();
+
+        $this->getConfig()->set('api-toolkit.resources.paths', [dirname(__DIR__) . '/Fixtures/Discovery/Primary']);
+        $this->getConfig()->set('api-toolkit.resources.resource_map', [
+            User::class => UserResource::class,
+        ]);
+
+        $provider = new ApiServiceProvider($app);
+        $provider->boot();
+
+        $map = $this->getConfig()->get('api-toolkit.resources.resource_map');
+
+        self::assertIsArray($map);
+        self::assertSame(UserResource::class, $map[User::class]);
+        self::assertSame(DiscoveredPostResource::class, $map[Post::class]);
+    }
+
+    /**
+     * Test that the discovery merge is skipped while the config cache is
+     * being built, so discovered bindings are never baked into the cached
+     * config as pseudo-explicit entries.
+     *
+     * @return void
+     */
+    public function testConfigCacheBuildSkipsTheDiscoveryMerge(): void
+    {
+        $app = $this->getApplication();
+
+        $this->getConfig()->set('api-toolkit.resources.paths', [dirname(__DIR__) . '/Fixtures/Discovery/Primary']);
+        $this->getConfig()->set('api-toolkit.resources.resource_map', [
+            User::class => UserResource::class,
+        ]);
+
+        $argv = $_SERVER['argv'] ?? null;
+
+        $_SERVER['argv'] = ['artisan', 'config:cache'];
+
+        try {
+            $provider = new ApiServiceProvider($app);
+            $provider->boot();
+        } finally {
+            $_SERVER['argv'] = $argv;
+        }
+
+        self::assertSame([
+            User::class => UserResource::class,
+        ], $this->getConfig()->get('api-toolkit.resources.resource_map'));
     }
 
     /**
