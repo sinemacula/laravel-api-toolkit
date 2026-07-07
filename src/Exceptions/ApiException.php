@@ -192,17 +192,26 @@ abstract class ApiException extends \Exception
     }
 
     /**
-     * Derive a human-readable title from the HTTP status enum case name.
+     * Derive a human-readable title from the HTTP status.
      *
-     * Falls back to a generic title for exceptions whose status has no
-     * corresponding enum case, ensuring rendering never fails for a missing
-     * title.
+     * A per-status translation (`exceptions.http.{status}`, or
+     * `exceptions.http.unknown` when the status has no enum case) is consulted
+     * first so the generic path can be localised; otherwise the title is
+     * derived from the status enum case name, with a generic literal fallback
+     * ensuring rendering never fails for a missing title.
      *
      * @return string
      */
     private function getDefaultTitle(): string
     {
         $status = $this->getStatus();
+        $key    = sprintf('%s::exceptions.http.%s', $this->getNamespace(), $status->value ?? 'unknown');
+
+        if (Lang::has($key)) {
+            $translation = Lang::get($key);
+
+            return is_string($translation) ? $translation : '';
+        }
 
         if ($status === null) {
             return 'Unknown Error';
