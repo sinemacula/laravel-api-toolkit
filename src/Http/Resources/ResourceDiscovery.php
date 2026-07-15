@@ -282,7 +282,14 @@ final readonly class ResourceDiscovery
      */
     private function classesFromFile(string $file): array
     {
-        $contents = file_get_contents($file);
+        try {
+            $contents = file_get_contents($file);
+        } catch (\Throwable) {
+            // A file removed between enumeration and read - a hot deploy
+            // swapping resources mid-scan, or a concurrent test - must not
+            // abort discovery.
+            return [];
+        }
 
         if ($contents === false) {
             return []; // @codeCoverageIgnore
