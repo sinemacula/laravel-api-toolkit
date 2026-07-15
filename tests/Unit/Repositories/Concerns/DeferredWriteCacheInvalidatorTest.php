@@ -4,12 +4,13 @@ declare(strict_types = 1);
 
 namespace Tests\Unit\Repositories\Concerns;
 
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Config;
 use PHPUnit\Framework\Attributes\CoversClass;
-use SineMacula\ApiToolkit\Repositories\Concerns\CacheSizeGuard;
-use SineMacula\ApiToolkit\Repositories\Concerns\CacheStore;
-use SineMacula\ApiToolkit\Repositories\Concerns\CacheStoreOptions;
 use SineMacula\ApiToolkit\Repositories\Concerns\DeferredWriteCacheInvalidator;
+use SineMacula\Repositories\Concerns\CacheSizeGuard;
+use SineMacula\Repositories\Concerns\CacheStore;
+use SineMacula\Repositories\Concerns\CacheStoreOptions;
 use Tests\TestCase;
 
 /**
@@ -50,11 +51,11 @@ final class DeferredWriteCacheInvalidatorTest extends TestCase
         $warm = $this->cacheStore('widgets');
         $warm->put(self::HASH, collect(['a', 'b']), 2);
 
-        self::assertNotNull($warm->get(self::HASH));
+        self::assertNotNull($warm->fetch(self::HASH));
 
         (new DeferredWriteCacheInvalidator)->invalidate(['widgets']);
 
-        self::assertNull($this->cacheStore('widgets')->get(self::HASH));
+        self::assertNull($this->cacheStore('widgets')->fetch(self::HASH));
     }
 
     /**
@@ -65,14 +66,14 @@ final class DeferredWriteCacheInvalidatorTest extends TestCase
      */
     public function testInvalidateBumpsVersionOnNonTaggableStoreWhenRegistryEnabled(): void
     {
-        Config::set('api-toolkit.repositories.cache.store', 'file');
+        Config::set('repositories.cache.store', 'file');
 
         $warm = $this->cacheStore('widgets', 'file');
         $warm->put(self::HASH, collect(['a', 'b']), 2);
 
         (new DeferredWriteCacheInvalidator)->invalidate(['widgets']);
 
-        self::assertNull($this->cacheStore('widgets', 'file')->get(self::HASH));
+        self::assertNull($this->cacheStore('widgets', 'file')->fetch(self::HASH));
     }
 
     /**
@@ -80,19 +81,23 @@ final class DeferredWriteCacheInvalidatorTest extends TestCase
      * invalidation cannot bump the version, so the stale entry survives until
      * its TTL expires.
      *
+     * The disabled flag is supplied as a non-bool falsy value to exercise the
+     * boolean coercion that keeps a stringy env value from tripping the typed
+     * invalidation argument.
+     *
      * @return void
      */
     public function testInvalidateLeavesStaleEntryWhenRegistryDisabledOnNonTaggableStore(): void
     {
-        Config::set('api-toolkit.repositories.cache.store', 'file');
-        Config::set('api-toolkit.repositories.cache.registry_enabled', false);
+        Config::set('repositories.cache.store', 'file');
+        Config::set('repositories.cache.registry_enabled', 0);
 
         $warm = $this->cacheStore('widgets', 'file');
         $warm->put(self::HASH, collect(['a', 'b']), 2);
 
         (new DeferredWriteCacheInvalidator)->invalidate(['widgets']);
 
-        self::assertNotNull($this->cacheStore('widgets', 'file')->get(self::HASH));
+        self::assertNotNull($this->cacheStore('widgets', 'file')->fetch(self::HASH));
     }
 
     /**
@@ -107,8 +112,8 @@ final class DeferredWriteCacheInvalidatorTest extends TestCase
 
         (new DeferredWriteCacheInvalidator)->invalidate(['widgets', 'gadgets']);
 
-        self::assertNull($this->cacheStore('widgets')->get(self::HASH));
-        self::assertNull($this->cacheStore('gadgets')->get(self::HASH));
+        self::assertNull($this->cacheStore('widgets')->fetch(self::HASH));
+        self::assertNull($this->cacheStore('gadgets')->fetch(self::HASH));
     }
 
     /**
@@ -123,7 +128,7 @@ final class DeferredWriteCacheInvalidatorTest extends TestCase
 
         (new DeferredWriteCacheInvalidator)->invalidate([]);
 
-        self::assertNotNull($this->cacheStore('widgets')->get(self::HASH));
+        self::assertNotNull($this->cacheStore('widgets')->fetch(self::HASH));
     }
 
     /**
@@ -135,15 +140,15 @@ final class DeferredWriteCacheInvalidatorTest extends TestCase
     public function testInvalidateUsesConfiguredRepositoryStore(): void
     {
         Config::set('cache.stores.repo-cache', ['driver' => 'array']);
-        Config::set('api-toolkit.repositories.cache.store', 'repo-cache');
+        Config::set('repositories.cache.store', 'repo-cache');
 
         $options = new CacheStoreOptions(3600, new CacheSizeGuard(null, null), true, 0);
 
-        (new CacheStore('repo-cache', 'widgets', $options))->put(self::HASH, collect(['a']), 1);
+        (new CacheStore(Cache::store('repo-cache'), 'widgets', $options))->put(self::HASH, collect(['a']), 1);
 
         (new DeferredWriteCacheInvalidator)->invalidate(['widgets']);
 
-        self::assertNull((new CacheStore('repo-cache', 'widgets', $options))->get(self::HASH));
+        self::assertNull((new CacheStore(Cache::store('repo-cache'), 'widgets', $options))->fetch(self::HASH));
     }
 
     /**
@@ -154,14 +159,14 @@ final class DeferredWriteCacheInvalidatorTest extends TestCase
      */
     public function testInvalidateFallsBackToArrayStoreForNonStringStoreConfig(): void
     {
-        Config::set('api-toolkit.repositories.cache.store', null);
+        Config::set('repositories.cache.store', null);
         Config::set('cache.default', 123);
 
         $this->cacheStore('widgets')->put(self::HASH, collect(['a']), 1);
 
         (new DeferredWriteCacheInvalidator)->invalidate(['widgets']);
 
-        self::assertNull($this->cacheStore('widgets')->get(self::HASH));
+        self::assertNull($this->cacheStore('widgets')->fetch(self::HASH));
     }
 
     /**
@@ -169,10 +174,10 @@ final class DeferredWriteCacheInvalidatorTest extends TestCase
      *
      * @param  string  $table
      * @param  string  $store
-     * @return \SineMacula\ApiToolkit\Repositories\Concerns\CacheStore
+     * @return \SineMacula\Repositories\Concerns\CacheStore
      */
     private function cacheStore(string $table, string $store = 'array'): CacheStore
     {
-        return new CacheStore($store, $table, new CacheStoreOptions(3600, new CacheSizeGuard(null, null), true, 0));
+        return new CacheStore(Cache::store($store), $table, new CacheStoreOptions(3600, new CacheSizeGuard(null, null), true, 0));
     }
 }
