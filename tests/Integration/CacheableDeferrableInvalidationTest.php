@@ -13,7 +13,6 @@ use PHPUnit\Framework\Attributes\CoversTrait;
 use SineMacula\ApiToolkit\Listeners\WritePoolFlushSubscriber;
 use SineMacula\ApiToolkit\Repositories\Concerns\Deferrable;
 use SineMacula\ApiToolkit\Repositories\Concerns\DeferredWriteCacheInvalidator;
-use SineMacula\Repositories\Concerns\Cacheable;
 use Tests\Fixtures\Models\Tag;
 use Tests\Fixtures\Repositories\CacheableDeferrableTagRepository;
 use Tests\TestCase;
@@ -36,7 +35,6 @@ use Tests\TestCase;
  */
 #[CoversClass(DeferredWriteCacheInvalidator::class)]
 #[CoversClass(WritePoolFlushSubscriber::class)]
-#[CoversTrait(Cacheable::class)]
 #[CoversTrait(Deferrable::class)]
 final class CacheableDeferrableInvalidationTest extends TestCase
 {
