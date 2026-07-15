@@ -5,8 +5,8 @@ declare(strict_types = 1);
 namespace Tests\Fixtures\Repositories;
 
 use SineMacula\ApiToolkit\Repositories\ApiRepository;
-use SineMacula\ApiToolkit\Repositories\Concerns\Cacheable;
 use SineMacula\ApiToolkit\Repositories\Concerns\Deferrable;
+use SineMacula\Repositories\Concerns\Cacheable;
 use Tests\Fixtures\Models\Tag;
 
 /**

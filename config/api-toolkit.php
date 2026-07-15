@@ -183,51 +183,13 @@ return [
     | how various Laravel casts should be handled in the repository to ensure
     | data integrity and type safety before model-level casting is applied.
     |
-    | The `cache` block configures the opt-in repository cache (enabled per
-    | repository via the Cacheable trait). The default mode keys cache entries
-    | per executed query, so a filtered or by-id read never returns the full
-    | table. Each option may be overridden per repository via a property:
-    |
-    |   - `ttl`             → `protected int $cacheTtl`
-    |   - `store`           → `protected ?string $cacheStoreName`
-    |   - `max_rows`        → `protected ?int $cacheMaxRows`
-    |   - `max_bytes`       → `protected ?int $cacheMaxBytes`
-    |   - `reference_ttl`   → `protected int $cacheReferenceTtl`
-    |   - `negative_ttl`    → `protected ?int $cacheNegativeTtl`
-    |   - (key prefix)      → `protected ?string $cacheKeyPrefix`
-    |   - (reference mode)  → `protected bool $cacheReferenceTable`
-    |
-    | `max_rows` and `max_bytes` form the size guard: results larger than either
-    | limit are still fetched and returned, but not stored. Set either to null
-    | to disable that bound. `registry_enabled` controls how non-taggable stores
-    | invalidate per-query entries: when true a per-table key registry is
-    | kept so every live entry can be forgotten on a write; when false
-    | invalidation falls back to TTL expiry only (a documented degraded
-    | behaviour). `negative_ttl` is the shorter lifetime applied to negatively
-    | cached null/miss reads, bounding how long a stale "not found" is served
-    | and how much memory probe-fill can occupy; it defaults to 10 seconds.
+    | The per-query repository cache (the Cacheable trait) now lives in the
+    | sinemacula/laravel-repositories package and is configured there, under
+    | `repositories.cache` (env `REPOSITORY_CACHE_*`).
     |
     */
 
     'repositories' => [
-
-        'cache' => [
-
-            'ttl' => is_numeric($cacheTtl = env('API_TOOLKIT_REPOSITORY_CACHE_TTL', 3600)) ? (int) $cacheTtl : 3600,
-
-            'store' => env('API_TOOLKIT_REPOSITORY_CACHE_STORE'),
-
-            'max_rows' => is_numeric($cacheMaxRows = env('API_TOOLKIT_REPOSITORY_CACHE_MAX_ROWS', 1000)) ? (int) $cacheMaxRows : 1000,
-
-            'max_bytes' => is_numeric($cacheMaxBytes = env('API_TOOLKIT_REPOSITORY_CACHE_MAX_BYTES', 262144)) ? (int) $cacheMaxBytes : 262144,
-
-            'reference_ttl' => is_numeric($cacheReferenceTtl = env('API_TOOLKIT_REPOSITORY_CACHE_REFERENCE_TTL', 3600)) ? (int) $cacheReferenceTtl : 3600,
-
-            'negative_ttl' => is_numeric($cacheNegativeTtl = env('API_TOOLKIT_REPOSITORY_CACHE_NEGATIVE_TTL', 10)) ? (int) $cacheNegativeTtl : 10,
-
-            'registry_enabled' => env('API_TOOLKIT_REPOSITORY_CACHE_REGISTRY_ENABLED', true),
-
-        ],
 
         'cast_map' => [
             'string' => [

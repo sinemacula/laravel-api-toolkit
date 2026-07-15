@@ -32,19 +32,6 @@ enum CacheKeys: string
     // Store the attribute-discovered model to resource bindings for a path set
     case DISCOVERED_RESOURCES = 'discovered-resources:%s';
 
-    // Store the cached collection data for a repository (reference mode)
-    case REPOSITORY_CACHE = 'repository-cache:%s';
-
-    // Store the cache metadata for a repository
-    case REPOSITORY_CACHE_META = 'repository-cache-meta:%s';
-
-    // Store a per-query cached result for a repository (table, query hash)
-    case REPOSITORY_QUERY_CACHE = 'repository-query:%s:%s';
-
-    // Store the generational version that scopes a repository table's
-    // per-query keys
-    case REPOSITORY_CACHE_VERSION = 'repository-cache-version:%s';
-
     /**
      * Resolves the cache key with the necessary prefix and replaces any
      * placeholders.

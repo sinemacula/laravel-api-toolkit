@@ -5,6 +5,7 @@ declare(strict_types = 1);
 namespace SineMacula\ApiToolkit\Repositories\Concerns;
 
 use Illuminate\Support\Facades\Config;
+use SineMacula\Repositories\Concerns\CacheStore;
 
 /**
  * Invalidates the per-query repository cache for tables persisted by a deferred
@@ -32,7 +33,7 @@ final class DeferredWriteCacheInvalidator
     public function invalidate(array $tables): void
     {
         $store    = $this->resolveStore();
-        $registry = (bool) Config::get('api-toolkit.repositories.cache.registry_enabled', true);
+        $registry = (bool) Config::get('repositories.cache.registry_enabled', true);
 
         foreach ($tables as $table) {
             CacheStore::invalidateTable($store, $table, $registry);
@@ -47,7 +48,7 @@ final class DeferredWriteCacheInvalidator
      */
     private function resolveStore(): string
     {
-        $store = Config::get('api-toolkit.repositories.cache.store') ?? Config::get('cache.default');
+        $store = Config::get('repositories.cache.store') ?? Config::get('cache.default');
 
         return is_string($store) ? $store : 'array';
     }

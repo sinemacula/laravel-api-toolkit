@@ -34,10 +34,6 @@ final class CacheKeysTest extends TestCase
         yield 'MODEL_RELATIONS' => [CacheKeys::MODEL_RELATIONS, 'model-relations:%s:%s'];
         yield 'MODEL_RESOURCES' => [CacheKeys::MODEL_RESOURCES, 'model-resources:%s'];
         yield 'DISCOVERED_RESOURCES' => [CacheKeys::DISCOVERED_RESOURCES, 'discovered-resources:%s'];
-        yield 'REPOSITORY_CACHE' => [CacheKeys::REPOSITORY_CACHE, 'repository-cache:%s'];
-        yield 'REPOSITORY_CACHE_META' => [CacheKeys::REPOSITORY_CACHE_META, 'repository-cache-meta:%s'];
-        yield 'REPOSITORY_QUERY_CACHE' => [CacheKeys::REPOSITORY_QUERY_CACHE, 'repository-query:%s:%s'];
-        yield 'REPOSITORY_CACHE_VERSION' => [CacheKeys::REPOSITORY_CACHE_VERSION, 'repository-cache-version:%s'];
     }
 
     /**
@@ -119,6 +115,6 @@ final class CacheKeysTest extends TestCase
      */
     public function testExpectedCaseCount(): void
     {
-        self::assertCount(10, CacheKeys::cases());
+        self::assertCount(6, CacheKeys::cases());
     }
 }
