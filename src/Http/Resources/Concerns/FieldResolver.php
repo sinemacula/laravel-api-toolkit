@@ -17,9 +17,14 @@ use SineMacula\ApiToolkit\Schema\CompiledSchema;
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
+ *
+ * @managed-static
  */
 final class FieldResolver
 {
+    /** @var array<string, array<int, string>> Memo of assembled field lists, keyed by a fingerprint of the assembly inputs. */
+    private static array $resolvedCache = [];
+
     /** @var array<int, string>|null Explicit list of fields to be returned */
     private ?array $fields = null;
 
@@ -80,14 +85,33 @@ final class FieldResolver
             ? $schema->getFieldKeys()
             : (ApiQuery::getFields($resourceType) ?? $defaultFields);
 
-        $resolved = array_diff($this->fields, $this->excludedFields ?? []);
+        $excluded = $this->excludedFields ?? [];
 
         /** @var array<int, string> $configFixed */
         $configFixed = Config::get('api-toolkit.resources.fixed_fields', []);
-        $allFixed    = array_merge($configFixed, $fixedFields);
-        $merged      = array_merge($resolved, $allFixed);
 
-        return array_values(array_unique($merged));
+        // Memoise the assembled list keyed by a fingerprint of the exact inputs
+        // to the assembly, so a homogeneous collection page assembles it once
+        // instead of per row. The key fully determines the output, so a hit can
+        // only occur for identical inputs; the memo is request-scoped, cleared
+        // by CacheManager::flush() at request and worker boundaries.
+        $key = self::cacheKey($this->fields, $excluded, $configFixed, $fixedFields);
+
+        return self::$resolvedCache[$key] ??= array_values(array_unique(
+            array_merge(array_diff($this->fields, $excluded), $configFixed, $fixedFields),
+        ));
+    }
+
+    /**
+     * Clear the static assembled-field memo.
+     *
+     * Invoked by CacheManager::flush() at request and worker boundaries.
+     *
+     * @return void
+     */
+    public static function clearCache(): void
+    {
+        self::$resolvedCache = [];
     }
 
     /**
@@ -150,6 +174,25 @@ final class FieldResolver
     public function shouldIncludeAveragesField(string $resourceType, array $defaultFields): bool
     {
         return $this->shouldIncludeVirtualField('averages', $resourceType, $defaultFields);
+    }
+
+    /**
+     * Build the memo key fingerprinting the field-assembly inputs.
+     *
+     * @param  array<int, string>  $fields
+     * @param  array<int, string>  $excluded
+     * @param  array<int, string>  $configFixed
+     * @param  array<int, string>  $fixedFields
+     * @return string
+     */
+    private static function cacheKey(array $fields, array $excluded, array $configFixed, array $fixedFields): string
+    {
+        return implode('|', [
+            implode("\0", $fields),
+            implode("\0", $excluded),
+            implode("\0", $configFixed),
+            implode("\0", $fixedFields),
+        ]);
     }
 
     /**

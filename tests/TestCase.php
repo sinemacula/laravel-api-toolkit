@@ -11,6 +11,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Schema;
 use Orchestra\Testbench\TestCase as OrchestraTestCase;
 use SineMacula\ApiToolkit\ApiServiceProvider;
+use SineMacula\ApiToolkit\Http\Resources\Concerns\FieldResolver;
 use Tests\Fixtures\Support\FunctionOverrides;
 
 /**
@@ -42,6 +43,8 @@ abstract class TestCase extends OrchestraTestCase
     protected function tearDown(): void
     {
         FunctionOverrides::reset();
+
+        FieldResolver::clearCache();
 
         Relation::morphMap([], false);
         Relation::requireMorphMap(false);

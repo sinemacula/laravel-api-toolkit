@@ -9,6 +9,7 @@ use SineMacula\ApiToolkit\Facades\ApiQuery;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\FieldResolver;
 use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledSchema;
+use Tests\Concerns\InteractsWithNonPublicMembers;
 use Tests\TestCase;
 
 /**
@@ -22,6 +23,8 @@ use Tests\TestCase;
 #[CoversClass(FieldResolver::class)]
 final class FieldResolverTest extends TestCase
 {
+    use InteractsWithNonPublicMembers;
+
     /** @var \SineMacula\ApiToolkit\Http\Resources\Concerns\FieldResolver */
     private FieldResolver $resolver;
 
@@ -36,6 +39,127 @@ final class FieldResolverTest extends TestCase
         parent::setUp();
 
         $this->resolver = new FieldResolver;
+    }
+
+    /**
+     * Test that the assembled field list is memoised across resolver instances,
+     * so a homogeneous collection assembles it once rather than per row.
+     *
+     * @return void
+     */
+    public function testGetFieldsMemoisesTheAssembledListAcrossInstances(): void
+    {
+        config()->set('api-toolkit.resources.fixed_fields', []);
+
+        ApiQuery::shouldReceive('getFields')
+            ->with('users')
+            ->andReturn(['name', 'email']);
+
+        $schema = new CompiledSchema([], []);
+
+        $first = (new FieldResolver)->getFields($schema, 'users', ['name', 'email'], []);
+
+        // Tamper the single cached entry so a second resolver with identical
+        // inputs can only return the assembled list if it reads the memo.
+        /** @var array<string, array<int, string>> $cache */
+        $cache = $this->getStaticProperty(FieldResolver::class, 'resolvedCache');
+        $this->setStaticProperty(FieldResolver::class, 'resolvedCache', [array_key_first($cache) => ['sentinel']]);
+
+        $second = (new FieldResolver)->getFields($schema, 'users', ['name', 'email'], []);
+
+        self::assertSame(['name', 'email'], $first);
+        self::assertSame(['sentinel'], $second);
+    }
+
+    /**
+     * Test that excluded fields form part of the memo key, so a resolver that
+     * excludes a field is never handed a list cached for one that kept it.
+     *
+     * @return void
+     */
+    public function testExcludedFieldsAreDistinguishedInTheMemo(): void
+    {
+        config()->set('api-toolkit.resources.fixed_fields', []);
+
+        ApiQuery::shouldReceive('getFields')
+            ->with('users')
+            ->andReturn(null);
+
+        $schema = new CompiledSchema([], []);
+
+        $full = (new FieldResolver)->getFields($schema, 'users', ['name', 'email'], []);
+
+        $resolver = new FieldResolver;
+        $resolver->withoutFields(['email']);
+        $trimmed = $resolver->getFields($schema, 'users', ['name', 'email'], []);
+
+        self::assertSame(['name', 'email'], $full);
+        self::assertSame(['name'], $trimmed);
+    }
+
+    /**
+     * Test that the resolved base fields form part of the memo key, so two
+     * resolvers with different field sets never share a cached list.
+     *
+     * @return void
+     */
+    public function testBaseFieldsAreDistinguishedInTheMemo(): void
+    {
+        config()->set('api-toolkit.resources.fixed_fields', []);
+
+        ApiQuery::shouldReceive('getFields')->andReturn(null);
+
+        $schema = new CompiledSchema([], []);
+
+        $name  = (new FieldResolver)->getFields($schema, 'users', ['name'], []);
+        $title = (new FieldResolver)->getFields($schema, 'users', ['title'], []);
+
+        self::assertSame(['name'], $name);
+        self::assertSame(['title'], $title);
+    }
+
+    /**
+     * Test that the configured fixed fields form part of the memo key, so a
+     * change to the fixed-field config is reflected in the assembled list.
+     *
+     * @return void
+     */
+    public function testConfigFixedFieldsAreDistinguishedInTheMemo(): void
+    {
+        ApiQuery::shouldReceive('getFields')->with('users')->andReturn(null);
+
+        $schema = new CompiledSchema([], []);
+
+        config()->set('api-toolkit.resources.fixed_fields', ['id']);
+        $withId = (new FieldResolver)->getFields($schema, 'users', ['name'], []);
+
+        config()->set('api-toolkit.resources.fixed_fields', ['uuid']);
+        $withUuid = (new FieldResolver)->getFields($schema, 'users', ['name'], []);
+
+        self::assertSame(['name', 'id'], $withId);
+        self::assertSame(['name', 'uuid'], $withUuid);
+    }
+
+    /**
+     * Test that the per-resource fixed fields form part of the memo key, so a
+     * resource contributing its own fixed field is not handed a cached list
+     * assembled without it.
+     *
+     * @return void
+     */
+    public function testFixedFieldParameterIsDistinguishedInTheMemo(): void
+    {
+        config()->set('api-toolkit.resources.fixed_fields', []);
+
+        ApiQuery::shouldReceive('getFields')->with('users')->andReturn(null);
+
+        $schema = new CompiledSchema([], []);
+
+        $plain    = (new FieldResolver)->getFields($schema, 'users', ['name'], []);
+        $withUuid = (new FieldResolver)->getFields($schema, 'users', ['name'], ['uuid']);
+
+        self::assertSame(['name'], $plain);
+        self::assertSame(['name', 'uuid'], $withUuid);
     }
 
     /**
