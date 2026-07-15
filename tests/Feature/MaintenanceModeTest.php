@@ -4,12 +4,14 @@ declare(strict_types = 1);
 
 namespace Tests\Feature;
 
+use Illuminate\Contracts\Foundation\MaintenanceMode;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Route;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Exceptions\ApiExceptionHandler;
 use SineMacula\ApiToolkit\Http\Middleware\PreventRequestsDuringMaintenance;
 use Tests\Concerns\RegistersApiExceptionHandler;
+use Tests\Fixtures\Support\ArrayMaintenanceMode;
 use Tests\TestCase;
 
 /**
@@ -43,6 +45,12 @@ final class MaintenanceModeTest extends TestCase
         parent::setUp();
 
         $this->registerApiExceptionHandler();
+
+        // Use an in-memory maintenance driver so activation stays scoped to
+        // this test's app; the default file driver writes a process-global down
+        // file that 503s unrelated tests in parallel workers.
+        assert($this->app !== null);
+        $this->app->instance(MaintenanceMode::class, new ArrayMaintenanceMode);
 
         Config::set('api-toolkit.maintenance_mode.except', ['api/health']);
 
