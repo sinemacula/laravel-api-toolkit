@@ -321,7 +321,10 @@ abstract class ApiResource extends ToolkitResource implements ApiResourceInterfa
         $requestedCounts = ApiQuery::getCounts(static::getResourceType()) ?? [];
 
         if (method_exists($resource, 'loadCount') && $this->fieldResolver->shouldIncludeCountsField(static::getResourceType(), static::getDefaultFields())) {
-            $withCounts = EagerLoadPlanner::buildCountMap(static::class, $requestedCounts);
+            $withCounts = $this->rejectLoadedAggregates(
+                $resource,
+                EagerLoadPlanner::buildCountMap(static::class, $requestedCounts),
+            );
 
             if ($withCounts !== []) {
                 $resource->loadCount($withCounts);
@@ -384,6 +387,11 @@ abstract class ApiResource extends ToolkitResource implements ApiResourceInterfa
 
         if (method_exists($resource, 'loadSum') && $this->fieldResolver->shouldIncludeSumsField($resourceType, static::getDefaultFields())) {
             foreach (EagerLoadPlanner::buildSumMap(static::class, $requestedSums) as $entry) {
+
+                if ($this->isAggregateLoaded($resource, $entry['relation'])) {
+                    continue;
+                }
+
                 $resource->loadSum($entry['relation'], $entry['column']); // @phpstan-ignore argument.type
             }
         }
@@ -393,8 +401,54 @@ abstract class ApiResource extends ToolkitResource implements ApiResourceInterfa
         }
 
         foreach (EagerLoadPlanner::buildAvgMap(static::class, $requestedAverages) as $entry) {
+
+            if ($this->isAggregateLoaded($resource, $entry['relation'])) {
+                continue;
+            }
+
             $resource->loadAvg($entry['relation'], $entry['column']); // @phpstan-ignore argument.type
         }
+    }
+
+    /**
+     * Reject aggregate specifications already loaded on the resource.
+     *
+     * The criteria pre-loads counts and aggregates on the base query, so a
+     * per-row load would re-run them; unlike loadMissing() for relations, the
+     * load{Count,Sum,Avg} helpers are not idempotent, so filter them here.
+     *
+     * @param  object  $resource
+     * @param  array<int|string, mixed>  $specifications
+     * @return array<int|string, mixed>
+     */
+    private function rejectLoadedAggregates(object $resource, array $specifications): array
+    {
+        return array_filter(
+            $specifications,
+            fn ($value, $key): bool => !$this->isAggregateLoaded($resource, is_string($key) ? $key : $value),
+            ARRAY_FILTER_USE_BOTH,
+        );
+    }
+
+    /**
+     * Determine whether the aggregate for the given relation specification is
+     * already an attribute on the resource.
+     *
+     * @param  object  $resource
+     * @param  array<string, mixed>|string  $relation
+     * @return bool
+     */
+    private function isAggregateLoaded(object $resource, array|string $relation): bool
+    {
+        if (!method_exists($resource, 'getAttributes')) {
+            return false;
+        }
+
+        $specification = is_array($relation) ? (string) array_key_first($relation) : $relation;
+        $position      = strpos($specification, ' as ');
+        $alias         = $position === false ? $specification : substr($specification, $position + 4);
+
+        return array_key_exists($alias, $resource->getAttributes());
     }
 
     /**
