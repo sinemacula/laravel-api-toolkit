@@ -13,6 +13,7 @@ use SineMacula\ApiToolkit\Cache\MetadataKeyRegistry;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Events\CacheFlushed;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\EagerLoadPlanner;
+use SineMacula\ApiToolkit\Http\Resources\Concerns\FieldResolver;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\ValueResolver;
 use SineMacula\ApiToolkit\Schema\FieldColumnMapper;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
@@ -126,6 +127,28 @@ final class CacheManagerTest extends TestCase
 
         // Assert
         self::assertSame([], $this->getStaticProperty(EagerLoadPlanner::class, 'eagerLoadCache'));
+    }
+
+    /**
+     * Test that flush clears the FieldResolver assembled-field memo.
+     *
+     * @return void
+     */
+    public function testFlushClearsFieldResolverCache(): void
+    {
+        // Arrange
+        Event::fake();
+
+        $this->setStaticProperty(FieldResolver::class, 'resolvedCache', ['name\0email|||' => ['name', 'email']]);
+
+        self::assertNotEmpty($this->getStaticProperty(FieldResolver::class, 'resolvedCache'));
+
+        // Act
+        $manager = $this->app->make(CacheManager::class); // @phpstan-ignore method.nonObject
+        $manager->flush();
+
+        // Assert
+        self::assertSame([], $this->getStaticProperty(FieldResolver::class, 'resolvedCache'));
     }
 
     /**
