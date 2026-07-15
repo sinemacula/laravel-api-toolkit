@@ -98,6 +98,40 @@ final class CollectionEagerLoadRegressionTest extends TestCase
     }
 
     /**
+     * Count, sum, and average aggregates fold into the base query, so the
+     * fetch-and-serialise query count stays constant regardless of row count -
+     * a per-row re-load of the pre-loaded aggregates would scale with the rows.
+     *
+     * @return void
+     */
+    public function testAggregatesFoldIntoTheBaseQueryRegardlessOfRowCount(): void
+    {
+        $this->parseUserQuery('name,counts,sums,averages', [
+            'counts'   => ['users' => 'posts'],
+            'sums'     => ['users' => ['posts' => 'id']],
+            'averages' => ['users' => ['posts' => 'id']],
+        ]);
+
+        $small = $this->fetchAndSerialise();
+
+        /** @var \Tests\Fixtures\Models\Organization $organization */
+        $organization = Organization::query()->firstOrFail();
+
+        $this->seedUsers(45, $organization->id, 5);
+
+        $large = $this->fetchAndSerialise();
+
+        self::assertSame($small['queries'], $large['queries']);
+        self::assertSame(1, $large['queries']);
+
+        // Prove the aggregates actually resolved rather than the constant count
+        // reflecting nothing loaded.
+        self::assertSame(2, $large['first']['counts']['posts']);
+        self::assertArrayHasKey('posts_id', $large['first']['sums']);
+        self::assertArrayHasKey('posts_id', $large['first']['averages']);
+    }
+
+    /**
      * Fetch the seeded users through the criteria chain and serialise them
      * under a query log, returning the query count and the decoded record.
      *
@@ -125,15 +159,17 @@ final class CollectionEagerLoadRegressionTest extends TestCase
     }
 
     /**
-     * Parse a user request for the given field set.
+     * Parse a user request for the given field set and optional extra params.
      *
      * @param  string  $fields
+     * @param  array<string, mixed>  $extra
      * @return void
      */
-    private function parseUserQuery(string $fields): void
+    private function parseUserQuery(string $fields, array $extra = []): void
     {
         $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), [
             'fields' => ['users' => $fields],
+            ...$extra,
         ]);
 
         ApiQuery::parse($request);
