@@ -4,6 +4,7 @@ declare(strict_types = 1);
 
 namespace Tests\Unit\Http\Resources\Concerns;
 
+use Illuminate\Database\Eloquent\Relations\MorphTo;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
 use SineMacula\ApiToolkit\Http\Resources\ApiResource;
@@ -1008,5 +1009,142 @@ final class EagerLoadPlannerTest extends TestCase
 
         // An object without getAttributes() is never loaded.
         self::assertFalse(EagerLoadPlanner::isAggregateAttributeLoaded(new \stdClass, 'plain'));
+    }
+
+    /**
+     * Test that a blank extra path is skipped while a real extra path is still
+     * collected.
+     *
+     * @return void
+     */
+    public function testBuildEagerLoadMapSkipsBlankExtraPaths(): void
+    {
+
+        $blankExtraResource = new class {
+            /** @var string The resource type identifier. */
+            public const string RESOURCE_TYPE = 'blank_extra_test';
+
+            /**
+             * @return array<string, array<string, mixed>>
+             */
+            public static function schema(): array
+            {
+                return [
+                    'avatar' => [
+                        'extras' => ['', 'media'],
+                    ],
+                ];
+            }
+        };
+
+        $result = EagerLoadPlanner::buildEagerLoadMap($blankExtraResource::class, ['avatar']);
+
+        self::assertContains('media', $result);
+        self::assertNotContains('', $result);
+    }
+
+    /**
+     * Test that a wrapped constraint runs against a MorphTo query verbatim, is
+     * applied to a resolved builder, and is skipped for a query that resolves
+     * to no builder.
+     *
+     * @return void
+     */
+    public function testWrappedConstraintHandlesMorphToBuilderAndNonBuilderQueries(): void
+    {
+
+        /** @var list<mixed> $calls */
+        $calls = [];
+
+        $constrainedResource = new class {
+            /** @var string The resource type identifier. */
+            public const string RESOURCE_TYPE = 'wrap_constraint_test';
+
+            /** @var (\Closure(mixed): void)|null */
+            public static ?\Closure $constraint = null;
+
+            /**
+             * @return array<string, array<string, mixed>>
+             */
+            public static function schema(): array
+            {
+                return [
+                    'items' => [
+                        'relation'   => 'items',
+                        'constraint' => self::$constraint,
+                    ],
+                ];
+            }
+        };
+
+        $constrainedResource::$constraint = static function ($query) use (&$calls): void {
+            $calls[] = $query;
+        };
+
+        $map     = EagerLoadPlanner::buildEagerLoadMap($constrainedResource::class, ['items']);
+        $wrapped = $map['items'];
+
+        self::assertInstanceOf(\Closure::class, $wrapped);
+
+        // A MorphTo query and a plain builder are each handed to the constraint
+        // verbatim, while a query that is neither a relation nor a builder is
+        // skipped.
+        $morphTo = \Mockery::mock(MorphTo::class);
+        $builder = User::query();
+
+        $wrapped($morphTo);
+        $wrapped($builder);
+        $wrapped(new \stdClass);
+
+        self::assertCount(2, $calls);
+        self::assertSame($morphTo, $calls[0]);
+        self::assertSame($builder, $calls[1]);
+    }
+
+    /**
+     * Test that recursion halts when a child field projection resolves to an
+     * empty set, so the parent relation is loaded without any child paths.
+     *
+     * @return void
+     */
+    public function testBuildEagerLoadMapStopsRecursionWhenChildFieldsResolveEmpty(): void
+    {
+
+        $emptyChildFieldsResource = new class {
+            /** @var string The resource type identifier. */
+            public const string RESOURCE_TYPE = 'empty_child_fields_test';
+
+            /**
+             * @return array<string, array<string, mixed>>
+             */
+            public static function schema(): array
+            {
+                return [
+                    'posts' => [
+                        'relation' => 'posts',
+                        'resource' => PostResource::class,
+                        'fields'   => [''],
+                    ],
+                ];
+            }
+        };
+
+        $result = EagerLoadPlanner::buildEagerLoadMap($emptyChildFieldsResource::class, ['posts']);
+
+        self::assertContains('posts', $result);
+        self::assertNotContains('posts.tags', $result);
+    }
+
+    /**
+     * Test that the requested-child-field lookup returns an empty set for a
+     * class that is not an ApiResource.
+     *
+     * @return void
+     */
+    public function testGetRequestedChildFieldsReturnsEmptyForNonResourceClass(): void
+    {
+        $result = $this->invokeStaticMethod(EagerLoadPlanner::class, 'getRequestedChildFields', \stdClass::class);
+
+        self::assertSame([], $result);
     }
 }

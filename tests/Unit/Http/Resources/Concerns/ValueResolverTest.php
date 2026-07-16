@@ -1597,6 +1597,312 @@ final class ValueResolverTest extends TestCase
     }
 
     /**
+     * Test that a field listed in the model's appended attributes resolves
+     * through the magic getter.
+     *
+     * @return void
+     */
+    public function testResolveFieldValueResolvesAppendedAttribute(): void
+    {
+
+        $model = new class {
+            /** @var array<int, string> */
+            public array $appends = ['full_name'];
+
+            /**
+             * Return the attributes array.
+             *
+             * @return array<string, mixed>
+             */
+            public function getAttributes(): array
+            {
+                return [];
+            }
+
+            /**
+             * Resolve the appended attribute.
+             *
+             * @param  string  $key
+             * @return mixed
+             */
+            public function __get(string $key): mixed
+            {
+                return 'Appended Value';
+            }
+        };
+
+        $result = $this->resolver->resolveFieldValue('full_name', $this->makeFieldDefinition(), new JsonResource($model), null);
+
+        self::assertSame('Appended Value', $result);
+    }
+
+    /**
+     * Test that a field with no property, attribute, appended entry, cast
+     * accessor method, or magic isset resolves to a MissingValue.
+     *
+     * @return void
+     */
+    public function testResolveFieldValueReturnsMissingValueWhenNoAccessiblePathExists(): void
+    {
+
+        $model = new class {
+            /**
+             * Return the attributes array.
+             *
+             * @return array<string, mixed>
+             */
+            public function getAttributes(): array
+            {
+                return [];
+            }
+        };
+
+        $result = $this->resolver->resolveFieldValue('ghost_field', $this->makeFieldDefinition(), new JsonResource($model), null);
+
+        self::assertInstanceOf(MissingValue::class, $result);
+    }
+
+    /**
+     * Test that a relation field carrying a string accessor reads the accessor
+     * path from the loaded related model.
+     *
+     * @return void
+     */
+    public function testResolveFieldValueReadsStringAccessorFromLoadedRelation(): void
+    {
+
+        $resource   = new JsonResource($this->makeRelationOwner((object) ['label' => 'RelatedLabel']));
+        $definition = $this->makeFieldDefinition(accessor: 'label', relation: 'thing');
+
+        $result = $this->resolver->resolveFieldValue('thing', $definition, $resource, null);
+
+        self::assertSame('RelatedLabel', $result);
+    }
+
+    /**
+     * Test that a relation field carrying a callable accessor invokes the
+     * callable with the resource.
+     *
+     * @return void
+     */
+    public function testResolveFieldValueInvokesCallableAccessorForLoadedRelation(): void
+    {
+
+        $resource   = new JsonResource($this->makeRelationOwner((object) ['label' => 'ignored']));
+        $definition = new CompiledFieldDefinition(
+            accessor: static fn ($resource, $request): string => 'from-relation-callable',
+            compute: null,
+            relation: 'thing',
+            resource: null,
+            fields: null,
+            constraint: null,
+            extras: [],
+            needs: [],
+            guards: [],
+            transformers: [],
+        );
+
+        $result = $this->resolver->resolveFieldValue('thing', $definition, $resource, null);
+
+        self::assertSame('from-relation-callable', $result);
+    }
+
+    /**
+     * Test that a relation field carrying a non-string, non-callable accessor
+     * resolves to null rather than erroring.
+     *
+     * @return void
+     */
+    public function testResolveFieldValueReturnsNullForUnresolvableRelationAccessor(): void
+    {
+
+        $resource   = new JsonResource($this->makeRelationOwner((object) ['label' => 'ignored']));
+        $definition = new CompiledFieldDefinition(
+            accessor: 123,
+            compute: null,
+            relation: 'thing',
+            resource: null,
+            fields: null,
+            constraint: null,
+            extras: [],
+            needs: [],
+            guards: [],
+            transformers: [],
+        );
+
+        $result = $this->resolver->resolveFieldValue('thing', $definition, $resource, null);
+
+        self::assertNull($result);
+    }
+
+    /**
+     * Test that a count attribute exposed only through magic isset and get is
+     * read and included in the payload.
+     *
+     * @return void
+     */
+    public function testResolveCountsPayloadReadsAttributeViaMagicIsset(): void
+    {
+
+        ApiQuery::shouldReceive('getCounts')
+            ->with('users')
+            ->andReturn(null);
+
+        $model = new class {
+            /**
+             * Return the attributes array without the count attribute.
+             *
+             * @return array<string, mixed>
+             */
+            public function getAttributes(): array
+            {
+                return [];
+            }
+
+            /**
+             * Report the count attribute present through magic isset.
+             *
+             * @param  string  $key
+             * @return bool
+             */
+            public function __isset(string $key): bool
+            {
+                return $key === 'posts_count';
+            }
+
+            /**
+             * Resolve the count attribute through the magic getter.
+             *
+             * @param  string  $key
+             * @return mixed
+             */
+            public function __get(string $key): mixed
+            {
+                return $key === 'posts_count' ? 8 : null;
+            }
+        };
+
+        $resource = new JsonResource($model);
+        $schema   = new CompiledSchema([], [
+            'posts' => new CompiledCountDefinition('posts', 'posts', null, true, []),
+        ]);
+
+        $result = $this->resolver->resolveCountsPayload($resource, $schema, 'users', null);
+
+        self::assertSame(['posts' => 8], $result);
+    }
+
+    /**
+     * Test that a count whose attribute is not loaded at all is skipped.
+     *
+     * @return void
+     */
+    public function testResolveCountsPayloadSkipsCountWhenAttributeAbsent(): void
+    {
+
+        ApiQuery::shouldReceive('getCounts')
+            ->with('users')
+            ->andReturn(null);
+
+        $model = new class {
+            /**
+             * Return the attributes array without the count attribute.
+             *
+             * @return array<string, mixed>
+             */
+            public function getAttributes(): array
+            {
+                return [];
+            }
+        };
+
+        $resource = new JsonResource($model);
+        $schema   = new CompiledSchema([], [
+            'posts' => new CompiledCountDefinition('posts', 'posts', null, true, []),
+        ]);
+
+        $result = $this->resolver->resolveCountsPayload($resource, $schema, 'users', null);
+
+        self::assertSame([], $result);
+    }
+
+    /**
+     * Test that an aggregate whose attribute is not loaded at all is skipped.
+     *
+     * @return void
+     */
+    public function testResolveAggregatesPayloadSkipsAggregateWhenAttributeAbsent(): void
+    {
+
+        ApiQuery::shouldReceive('getSums')
+            ->with('users')
+            ->andReturn(null);
+
+        $model = new class {
+            /**
+             * Return the attributes array without the aggregate attribute.
+             *
+             * @return array<string, mixed>
+             */
+            public function getAttributes(): array
+            {
+                return [];
+            }
+        };
+
+        $resource = new JsonResource($model);
+        $schema   = new CompiledSchema([], [], [
+            'posts_id' => new CompiledAggregateDefinition('posts_id', 'posts', 'id', 'sum', null, true, []),
+        ]);
+
+        $result = $this->resolver->resolveAggregatesPayload('sum', $resource, $schema, 'users', null);
+
+        self::assertSame([], $result);
+    }
+
+    /**
+     * Build an owner exposing a single already-loaded relation.
+     *
+     * @param  object  $related
+     * @return object
+     */
+    private function makeRelationOwner(object $related): object
+    {
+        return new class ($related) {
+            /**
+             * @param  object  $related
+             */
+            public function __construct(
+
+                /** The related value returned for the loaded relation. */
+                private readonly object $related,
+            ) {}
+
+            /**
+             * Report the relation as loaded.
+             *
+             * @param  string  $name
+             * @return bool
+             */
+            public function relationLoaded(string $name): bool // phpcs:ignore SineMacula.NamingConventions.BooleanMethodName.NotPredicate
+            {
+                return true;
+            }
+
+            /**
+             * Return the loaded relation value.
+             *
+             * @param  string  $name
+             * @return object
+             */
+            public function getRelation(string $name): object
+            {
+                return $this->related;
+            }
+        };
+    }
+
+    /**
      * Create a compiled field definition with the given overrides.
      *
      * @param  string|null  $accessor

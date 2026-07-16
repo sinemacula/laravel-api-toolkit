@@ -239,6 +239,31 @@ final class CacheManagerTest extends TestCase
     }
 
     /**
+     * Test that flush skips the query parser reset when the configured alias is
+     * not bound in the container.
+     *
+     * @return void
+     */
+    public function testFlushSkipsQueryParserResetWhenAliasNotBound(): void
+    {
+        // Arrange
+        Event::fake();
+
+        config()->set('api-toolkit.parser.alias', 'api.query.unbound');
+
+        assert($this->app !== null);
+        self::assertFalse($this->app->bound('api.query.unbound'));
+
+        // Act
+        /** @var \SineMacula\ApiToolkit\Cache\CacheManager $manager */
+        $manager = $this->app->make(CacheManager::class); // @phpstan-ignore method.nonObject
+        $manager->flush();
+
+        // Assert
+        Event::assertDispatched(CacheFlushed::class);
+    }
+
+    /**
      * Test that flush on empty state does not throw an exception.
      *
      * @return void

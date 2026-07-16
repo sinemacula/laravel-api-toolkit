@@ -9,9 +9,12 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\CoversTrait;
 use SineMacula\ApiToolkit\Exceptions\PerItemGuardedFieldException;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
+use SineMacula\ApiToolkit\Http\Resources\ApiResource;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\DerivesTabularSchema;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\RowGuardProbe;
+use SineMacula\ApiToolkit\Schema\Field;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
+use SineMacula\Exporter\Contracts\ProvidesTabularExport;
 use SineMacula\Exporter\Schema\CastRegistry;
 use SineMacula\Exporter\Schema\Column;
 use Tests\Fixtures\Models\User;
@@ -153,6 +156,98 @@ final class DerivesTabularSchemaTest extends TestCase
         $this->expectException(PerItemGuardedFieldException::class);
 
         (new ThrowingGuardExportResource($user))->tabular($request);
+    }
+
+    /**
+     * Test that a plain string-accessor field maps to a model-sourced column
+     * that reads the accessor path rather than the exposed key.
+     *
+     * @return void
+     */
+    public function testStringAccessorFieldMapsToModelSourcedColumn(): void
+    {
+        $resource = new class (null) extends ApiResource implements ProvidesTabularExport {
+            use DerivesTabularSchema;
+
+            /** @var string */
+            public const string RESOURCE_TYPE = 'string_accessor_export';
+
+            /** @var array<int, string> */
+            protected static array $default = ['contact'];
+
+            /**
+             * Return the resource schema.
+             *
+             * @return array<string, array<string, mixed>>
+             */
+            #[\Override]
+            public static function schema(): array
+            {
+                return Field::set(
+                    Field::accessor('contact', 'email'),
+                );
+            }
+        };
+
+        $request = Request::create('/');
+
+        ApiQuery::parse($request);
+
+        $columns = $resource->tabular($request)->columns();
+
+        self::assertCount(1, $columns);
+        self::assertSame('contact', $columns[0]->getKey());
+        self::assertTrue($columns[0]->usesModelSource());
+        self::assertSame('email', $columns[0]->getModelPath());
+    }
+
+    /**
+     * Test that a non-callable guard entry is skipped during the column
+     * visibility check while a relation field is dropped from the schema,
+     * leaving a permitting callable guard to decide the remaining column.
+     *
+     * @return void
+     */
+    public function testNonCallableGuardIsSkippedDuringVisibilityCheck(): void
+    {
+        $resource = new class (null) extends ApiResource implements ProvidesTabularExport {
+            use DerivesTabularSchema;
+
+            /** @var string */
+            public const string RESOURCE_TYPE = 'non_callable_guard_export';
+
+            /** @var array<int, string> */
+            protected static array $default = ['flagged', 'related'];
+
+            /**
+             * Return a raw schema whose guard list holds a non-callable entry
+             * alongside a relation field that must be skipped.
+             *
+             * @return array<string, array<string, mixed>>
+             */
+            #[\Override]
+            public static function schema(): array
+            {
+                return [
+                    'flagged' => [
+                        'guards' => [123, static fn ($resource, $request): bool => true],
+                    ],
+                    'related' => [
+                        'relation' => 'related',
+                    ],
+                ];
+            }
+        };
+
+        $request = Request::create('/');
+
+        ApiQuery::parse($request);
+
+        $columns = $resource->tabular($request)->columns();
+
+        self::assertCount(1, $columns);
+        self::assertSame('flagged', $columns[0]->getKey());
+        self::assertTrue($columns[0]->isVisible($request));
     }
 
     /**

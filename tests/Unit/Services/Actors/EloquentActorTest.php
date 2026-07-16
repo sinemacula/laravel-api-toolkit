@@ -4,6 +4,9 @@ declare(strict_types = 1);
 
 namespace Tests\Unit\Services\Actors;
 
+use Illuminate\Auth\Authenticatable;
+use Illuminate\Contracts\Auth\Authenticatable as AuthenticatableContract;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Services\Actors\EloquentActor;
@@ -194,5 +197,87 @@ final class EloquentActorTest extends TestCase
         $second = $restored->toAuthenticatable();
 
         self::assertSame($first, $second);
+    }
+
+    /**
+     * Test that a string primary key is captured verbatim as the actor
+     * identifier.
+     *
+     * @return void
+     */
+    public function testCapturesStringPrimaryKeyAsIdentifier(): void
+    {
+        $model = $this->makeStringKeyedModel();
+
+        $model->setAttribute('code', 'GB');
+        $model->setAttribute('name', 'Great Britain');
+
+        $actor = new EloquentActor($model);
+
+        self::assertSame('GB', $actor->actorIdentifier());
+    }
+
+    /**
+     * Test that a model with an unset (null) primary key falls back to an empty
+     * string identifier.
+     *
+     * @return void
+     */
+    public function testFallsBackToEmptyIdentifierForNullKey(): void
+    {
+        $model = $this->makeStringKeyedModel();
+
+        $model->setAttribute('name', 'Keyless');
+
+        $actor = new EloquentActor($model);
+
+        self::assertSame('', $actor->actorIdentifier());
+    }
+
+    /**
+     * Test that the label falls back to the model's class basename when neither
+     * a name nor an email attribute is present.
+     *
+     * @return void
+     */
+    public function testLabelFallsBackToClassBasename(): void
+    {
+        $model = new class extends Model implements AuthenticatableContract {
+            use Authenticatable;
+
+            /** @var string|null */
+            protected $table = 'users';
+        };
+
+        $model->setAttribute('id', 5);
+
+        $actor = new EloquentActor($model);
+
+        self::assertSame(class_basename($model), $actor->actorLabel());
+    }
+
+    /**
+     * Build an Authenticatable model whose primary key is a non-incrementing
+     * string column.
+     *
+     * @return \Illuminate\Contracts\Auth\Authenticatable&\Illuminate\Database\Eloquent\Model
+     */
+    private function makeStringKeyedModel(): AuthenticatableContract&Model
+    {
+        return new class extends Model implements AuthenticatableContract {
+            use Authenticatable;
+
+            /** @var string|null */
+            protected $table = 'countries';
+
+            /** @var string */
+            protected $primaryKey = 'code';
+
+            /** @var string */
+            protected $keyType = 'string';
+
+            /** @var bool */
+            public $incrementing = false;
+        };
     }
 }

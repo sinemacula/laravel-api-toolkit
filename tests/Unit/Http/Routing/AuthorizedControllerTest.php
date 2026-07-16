@@ -175,4 +175,20 @@ final class AuthorizedControllerTest extends TestCase
 
         self::assertSame(['index', 'show'], $result);
     }
+
+    /**
+     * Test that getGuardExclusions returns null when the GUARD_EXCLUSIONS
+     * constant is not defined on the controller.
+     *
+     * @return void
+     */
+    public function testGetGuardExclusionsReturnsNullWhenNotDefined(): void
+    {
+        $reflection = new \ReflectionClass(TestingMinimalAuthorizedController::class);
+        $controller = $reflection->newInstanceWithoutConstructor(); // qlty-ignore: radarlint-php:php:S3011
+
+        $result = $this->invokeMethod($controller, 'getGuardExclusions');
+
+        self::assertNull($result);
+    }
 }

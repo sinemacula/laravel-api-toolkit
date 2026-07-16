@@ -188,4 +188,128 @@ final class InputDataTest extends TestCase
             $input->toArray(),
         );
     }
+
+    /**
+     * Test that from() skips constructor parameters that are not promoted, so
+     * such parameters are never hydrated from the validated input.
+     *
+     * @return void
+     */
+    public function testFromSkipsNonPromotedConstructorParameters(): void
+    {
+        $definition = new class extends InputData {
+            /** @var string The city, from a non-promoted parameter. */
+            public readonly string $city;
+
+            /**
+             * Create a new instance from a non-promoted and a promoted param.
+             *
+             * @param  string  $cityInput
+             * @param  int|null  $age
+             */
+            public function __construct(
+
+                // The city name from a non-promoted parameter.
+                string $cityInput = 'default',
+
+                /** The age, hydrated from validated input. */
+                public readonly ?int $age = null,
+            ) {
+                $this->city = $cityInput;
+            }
+
+            /**
+             * Validate both the promoted and the non-promoted parameter names.
+             *
+             * @return array<string, mixed>
+             */
+            #[\Override]
+            public static function rules(): array
+            {
+                return [
+                    'age'       => ['nullable', 'integer'],
+                    'cityInput' => ['nullable', 'string'],
+                ];
+            }
+        };
+
+        $result = $definition::from(['age' => 42, 'cityInput' => 'from-input']);
+
+        self::assertSame(42, $result->age);
+        self::assertSame('default', $result->city);
+    }
+
+    /**
+     * Test that toArray() skips public properties that are not promoted.
+     *
+     * @return void
+     */
+    public function testToArraySkipsNonPromotedPublicProperties(): void
+    {
+        $input = new class extends InputData {
+            /** @var string A public property that is not promoted. */
+            public string $manual = 'manual-value';
+
+            /**
+             * Create a new instance with a single promoted property.
+             *
+             * @param  string  $city
+             */
+            public function __construct(
+
+                /** The promoted city property. */
+                public readonly string $city = 'Y',
+            ) {}
+        };
+
+        self::assertSame(['city' => 'Y'], $input->toArray());
+    }
+
+    /**
+     * Test that toArray() skips promoted properties that are uninitialised.
+     *
+     * @return void
+     *
+     * @throws \ReflectionException
+     */
+    public function testToArraySkipsUninitialisedPromotedProperties(): void
+    {
+        $reflection = new \ReflectionClass(SampleInput::class);
+
+        /** @var \Tests\Fixtures\Input\SampleInput $input */
+        $input = $reflection->newInstanceWithoutConstructor();
+
+        $reflection->getProperty('city')->setValue($input, 'OnlyCity');
+
+        self::assertSame(['city' => 'OnlyCity'], $input->toArray());
+    }
+
+    /**
+     * Test that the base rules() returns an empty rule set when a subclass does
+     * not override it, permitting construction from an empty source.
+     *
+     * @return void
+     */
+    public function testBaseRulesReturnEmptyArrayWhenNotOverridden(): void
+    {
+        $definition = new class extends InputData {
+            /**
+             * Create a new instance with a defaulted promoted property.
+             *
+             * @param  string  $city
+             */
+            public function __construct(
+
+                /** The promoted city property. */
+                public readonly string $city = 'base',
+            ) {}
+        };
+
+        self::assertSame([], $definition::rules());
+
+        $result = $definition::from([]);
+
+        self::assertInstanceOf(InputData::class, $result);
+        self::assertSame('base', $result->city);
+    }
 }

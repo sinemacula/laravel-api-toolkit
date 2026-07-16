@@ -922,6 +922,52 @@ final class WritePoolTest extends TestCase
     }
 
     /**
+     * Test that a transactional flush commits every chunk of a table and counts
+     * each chunk and record as successfully flushed.
+     *
+     * @return void
+     */
+    public function testTransactionalFlushCommitsAndRecordsTableSuccess(): void
+    {
+        $pool = new WritePool(chunkSize: 1, poolLimit: 10000, strategy: FlushStrategy::COLLECT, transactional: true);
+
+        $pool->add('test_records', ['name' => 'foo', 'value' => 'bar']);
+        $pool->add('test_records', ['name' => 'baz', 'value' => 'qux']);
+
+        $flushResult = $pool->flush();
+
+        self::assertTrue($flushResult->isSuccessful());
+        self::assertSame(2, $flushResult->successCount());
+        self::assertSame(2, $flushResult->flushedRecordCount());
+        self::assertSame(2, DB::table('test_records')->count());
+        self::assertSame(0, $pool->count());
+    }
+
+    /**
+     * Test that a transactional log flush logs the rolled-back table and drops
+     * its records rather than retaining them.
+     *
+     * @return void
+     */
+    public function testTransactionalLogFlushLogsAndDropsRolledBackTable(): void
+    {
+        $pool = new WritePool(chunkSize: 1, poolLimit: 10000, strategy: FlushStrategy::LOG, transactional: true);
+
+        Log::shouldReceive('error')->once()->withAnyArgs();
+
+        $pool->add('test_unique', ['name' => 'alpha']);
+        $pool->add('test_unique', ['name' => 'alpha']);
+
+        $flushResult = $pool->flush();
+
+        self::assertFalse($flushResult->isSuccessful());
+        self::assertSame(0, DB::table('test_unique')->count());
+        self::assertTrue($pool->isEmpty());
+        self::assertSame(2, $flushResult->droppedRecordCount());
+        self::assertSame(0, $flushResult->retainedRecordCount());
+    }
+
+    /**
      * Define the database migrations.
      *
      * @return void

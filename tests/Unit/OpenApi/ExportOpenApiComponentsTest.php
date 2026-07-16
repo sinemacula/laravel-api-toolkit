@@ -5,6 +5,7 @@ declare(strict_types = 1);
 namespace Tests\Unit\OpenApi;
 
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 use SineMacula\ApiToolkit\OpenApi\Builder\ErrorResponseBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\QueryParameterBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\ResourceSchemaBuilder;
@@ -17,6 +18,7 @@ use SineMacula\ApiToolkit\OpenApi\Resolution\ColumnTypeMapper;
 use SineMacula\ApiToolkit\OpenApi\Resolution\FieldTypeResolver;
 use SineMacula\ApiToolkit\Schema\Introspection\SchemaIntrospector;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
+use Tests\Concerns\InteractsWithNonPublicMembers;
 use Tests\Fixtures\Models\Organization;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Resources\OrganizationResource;
@@ -35,6 +37,8 @@ use Tests\TestCase;
 #[CoversClass(ExportResult::class)]
 final class ExportOpenApiComponentsTest extends TestCase
 {
+    use InteractsWithNonPublicMembers;
+
     /**
      * Set up each test.
      *
@@ -93,6 +97,34 @@ final class ExportOpenApiComponentsTest extends TestCase
             $result->responseCount,
         );
         self::assertSame(1, $result->responseCount);
+    }
+
+    /**
+     * Provide documents whose components section is absent, non-array, or holds
+     * a non-array section value.
+     *
+     * @return iterable<string, array{array<string, mixed>}>
+     */
+    public static function malformedComponentsProvider(): iterable
+    {
+        yield 'components is not an array' => [['components' => 'nope']];
+        yield 'section is absent' => [['components' => []]];
+        yield 'section is not an array' => [['components' => ['parameters' => 'nope']]];
+    }
+
+    /**
+     * Test that a components section that is missing or not an array counts as
+     * zero rather than raising a type error.
+     *
+     * @param  array<string, mixed>  $document
+     * @return void
+     */
+    #[DataProvider('malformedComponentsProvider')]
+    public function testCountComponentsToleratesMalformedSections(array $document): void
+    {
+        $useCase = (new \ReflectionClass(ExportOpenApiComponents::class))->newInstanceWithoutConstructor();
+
+        self::assertSame(0, $this->invokeMethod($useCase, 'countComponents', $document, 'parameters'));
     }
 
     /**

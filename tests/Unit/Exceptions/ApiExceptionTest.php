@@ -436,6 +436,57 @@ final class ApiExceptionTest extends TestCase
     }
 
     /**
+     * Test that an exception whose status has no enum case falls back to the
+     * generic literal title when no unknown-status translation is registered
+     * under its namespace.
+     *
+     * @return void
+     */
+    public function testGetCustomTitleFallsBackToGenericLiteralWhenNoTranslationExists(): void
+    {
+        $exception = new class extends ApiException {
+            /** The internal error code for the test exception. */
+            public const \SineMacula\ApiToolkit\Contracts\ErrorCodeInterface CODE = ErrorCode::HTTP_ERROR;
+
+            /**
+             * Get the HTTP status code for this exception instance.
+             *
+             * @return int
+             */
+            #[\Override]
+            public function getStatusCode(): int
+            {
+                return 419;
+            }
+
+            /**
+             * Get the HTTP status for this exception instance.
+             *
+             * @return \SineMacula\Http\Enums\HttpStatus|null
+             */
+            #[\Override]
+            public function getStatus(): ?HttpStatus
+            {
+                return null;
+            }
+
+            /**
+             * Resolve from a namespace with no registered translations so the
+             * unknown-status key is absent.
+             *
+             * @return string
+             */
+            #[\Override]
+            protected function getNamespace(): string
+            {
+                return 'missing-namespace-for-title';
+            }
+        };
+
+        self::assertSame('Unknown Error', $exception->getCustomTitle());
+    }
+
+    /**
      * Test that a non-string per-status translation yields an empty title
      * rather than an error, matching the code-keyed title guard.
      *

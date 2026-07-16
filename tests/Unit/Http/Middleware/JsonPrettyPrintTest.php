@@ -221,6 +221,32 @@ final class JsonPrettyPrintTest extends TestCase
     }
 
     /**
+     * Test that a non-streamed response whose content is not a string (its
+     * body is served from a file) is left untouched even when it declares a
+     * JSON content type.
+     *
+     * @return void
+     */
+    public function testSkipsPlainResponseWhoseContentIsNotAString(): void
+    {
+        $request    = Request::create(self::TEST_URI, HttpMethod::GET->getVerb(), ['pretty' => 'true']);
+        $middleware = new JsonPrettyPrint;
+        $tempFile   = tempnam(sys_get_temp_dir(), 'test');
+
+        self::assertIsString($tempFile);
+
+        $binaryFileResponse = new BinaryFileResponse($tempFile);
+        $binaryFileResponse->headers->set('Content-Type', self::CONTENT_TYPE_JSON);
+
+        $response = $middleware->handle($request, fn () => $binaryFileResponse);
+
+        self::assertSame($binaryFileResponse, $response);
+        self::assertFalse($response->getContent());
+
+        unlink($tempFile);
+    }
+
+    /**
      * Test that plain Response with JSON content-type preserves malformed JSON.
      *
      * @return void
