@@ -14,7 +14,6 @@ use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Log;
 use SineMacula\ApiToolkit\Events\WritePoolFlushFailed;
 use SineMacula\ApiToolkit\Exceptions\WritePoolFlushException;
-use SineMacula\ApiToolkit\Repositories\Concerns\DeferredWriteCacheInvalidator;
 use SineMacula\ApiToolkit\Repositories\Concerns\WritePool;
 use SineMacula\ApiToolkit\Repositories\Concerns\WritePoolFlushResult;
 
@@ -59,17 +58,15 @@ final class WritePoolFlushSubscriber
      * Flush the write pool and handle any failures.
      *
      * The pool is resolved from the container at event time to ensure the
-     * correct scoped instance is used in Octane environments. When the flush
-     * returns a result with failures, or raises a WritePoolFlushException under
-     * the throw strategy, the failure is escalated loudly: a warning is logged
-     * and a WritePoolFlushFailed event is dispatched. The exception is only
-     * re-thrown when the rethrow_at_boundary config flag is enabled, so the
-     * lifecycle boundary is never hard-crashed by default. Any other throwable
-     * is unexpected and logged at error level.
-     *
-     * Regardless of outcome, the per-query cache for every table the flush
-     * attempted is invalidated so a deferred insert never leaves a stale cached
-     * collection behind.
+     * correct scoped instance is used in Octane environments. The flush itself
+     * invalidates the per-query cache for the tables it persists, so this
+     * subscriber only escalates failures: when the flush returns a result with
+     * failures, or raises a WritePoolFlushException under the throw strategy,
+     * the failure is escalated loudly - a warning is logged and a
+     * WritePoolFlushFailed event is dispatched. The exception is only re-thrown
+     * when the rethrow_at_boundary config flag is enabled, so the lifecycle
+     * boundary is never hard-crashed by default. Any other throwable is
+     * unexpected and logged at error level.
      *
      * @return void
      *
@@ -81,8 +78,6 @@ final class WritePoolFlushSubscriber
 
             $flushResult = $this->container->make(WritePool::class)->flush();
 
-            $this->invalidateQueryCache($flushResult);
-
             if ($flushResult->isSuccessful()) {
                 return;
             }
@@ -90,7 +85,6 @@ final class WritePoolFlushSubscriber
             $this->escalate($flushResult);
         } catch (WritePoolFlushException $exception) {
 
-            $this->invalidateQueryCache($exception->flushResult());
             $this->escalate($exception->flushResult());
 
             if (Config::get('api-toolkit.deferred_writes.rethrow_at_boundary', false)) {
@@ -100,28 +94,6 @@ final class WritePoolFlushSubscriber
 
             Log::error('WritePool flush subscriber failed', ['error' => $e->getMessage(), 'exception' => $e]);
         }
-    }
-
-    /**
-     * Invalidate the per-query cache for every table this flush attempted to
-     * persist.
-     *
-     * Best-effort and gated by the invalidate_query_cache config flag: it
-     * covers default-config Cacheable repositories, mirroring what an immediate
-     * write does. A repository on a custom cache store or key prefix is not
-     * covered and must invalidate manually.
-     *
-     * @param  \SineMacula\ApiToolkit\Repositories\Concerns\WritePoolFlushResult  $flushResult
-     * @return void
-     */
-    private function invalidateQueryCache(WritePoolFlushResult $flushResult): void
-    {
-        if (!Config::get('api-toolkit.deferred_writes.invalidate_query_cache', true)) {
-            return;
-        }
-
-        $this->container->make(DeferredWriteCacheInvalidator::class)
-            ->invalidate($flushResult->flushedTables());
     }
 
     /**

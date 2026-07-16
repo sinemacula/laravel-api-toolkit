@@ -6,6 +6,8 @@ namespace Tests\Unit\Repositories\Concerns;
 
 use Illuminate\Database\QueryException;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
@@ -14,6 +16,9 @@ use SineMacula\ApiToolkit\Enums\FlushStrategy;
 use SineMacula\ApiToolkit\Exceptions\WritePoolFlushException;
 use SineMacula\ApiToolkit\Repositories\Concerns\WritePool;
 use SineMacula\ApiToolkit\Repositories\Concerns\WritePoolFlushResult;
+use SineMacula\Repositories\Concerns\CacheSizeGuard;
+use SineMacula\Repositories\Concerns\CacheStore;
+use SineMacula\Repositories\Concerns\CacheStoreOptions;
 use Tests\TestCase;
 
 /**
@@ -968,6 +973,124 @@ final class WritePoolTest extends TestCase
     }
 
     /**
+     * Test that a successful flush invalidates the per-query cache for each
+     * table it persisted, so a Cacheable repository re-reads the committed rows
+     * rather than serving a stale collection.
+     *
+     * @return void
+     */
+    public function testFlushInvalidatesTheQueryCacheForFlushedTables(): void
+    {
+        Config::set('cache.default', 'array');
+        Config::set('api-toolkit.deferred_writes.invalidate_query_cache', true);
+
+        $warm = $this->cacheStore('test_records');
+        $warm->put('stale-query-hash', collect(['stale']), 60);
+
+        self::assertNotNull($warm->fetch('stale-query-hash'));
+
+        $this->pool->add('test_records', ['name' => 'foo', 'value' => 'bar']);
+        $this->pool->flush();
+
+        self::assertNull($this->cacheStore('test_records')->fetch('stale-query-hash'));
+    }
+
+    /**
+     * Test that the auto-flush triggered when the pool limit is reached
+     * invalidates the per-query cache, so a buffer that drains mid-request does
+     * not leave a Cacheable repository serving stale rows.
+     *
+     * @return void
+     */
+    public function testAutoFlushAtPoolLimitInvalidatesTheQueryCache(): void
+    {
+        Config::set('cache.default', 'array');
+        Config::set('api-toolkit.deferred_writes.invalidate_query_cache', true);
+
+        $warm = $this->cacheStore('test_records');
+        $warm->put('stale-query-hash', collect(['stale']), 60);
+
+        $pool = new WritePool(chunkSize: 500, poolLimit: 1);
+        $pool->add('test_records', ['name' => 'foo', 'value' => 'bar']);
+
+        self::assertSame(1, DB::table('test_records')->count());
+        self::assertNull($this->cacheStore('test_records')->fetch('stale-query-hash'));
+    }
+
+    /**
+     * Test that a flush invalidates the per-query cache by default when the
+     * config key is absent, so the safe default keeps cached collections in
+     * step with the committed rows.
+     *
+     * @return void
+     */
+    public function testFlushInvalidatesTheQueryCacheByDefaultWhenConfigKeyAbsent(): void
+    {
+        Config::set('cache.default', 'array');
+
+        $deferred = (array) Config::get('api-toolkit.deferred_writes');
+        unset($deferred['invalidate_query_cache']);
+        Config::set('api-toolkit.deferred_writes', $deferred);
+
+        $warm = $this->cacheStore('test_records');
+        $warm->put('stale-query-hash', collect(['stale']), 60);
+
+        $this->pool->add('test_records', ['name' => 'foo', 'value' => 'bar']);
+        $this->pool->flush();
+
+        self::assertNull($this->cacheStore('test_records')->fetch('stale-query-hash'));
+    }
+
+    /**
+     * Test that a flush leaves the per-query cache untouched when invalidation
+     * is disabled by config.
+     *
+     * @return void
+     */
+    public function testFlushDoesNotInvalidateTheQueryCacheWhenDisabled(): void
+    {
+        Config::set('cache.default', 'array');
+        Config::set('api-toolkit.deferred_writes.invalidate_query_cache', false);
+
+        $warm = $this->cacheStore('test_records');
+        $warm->put('stale-query-hash', collect(['stale']), 60);
+
+        $this->pool->add('test_records', ['name' => 'foo', 'value' => 'bar']);
+        $this->pool->flush();
+
+        self::assertNotNull($this->cacheStore('test_records')->fetch('stale-query-hash'));
+    }
+
+    /**
+     * Test that a flush that throws still invalidates the per-query cache for
+     * the tables it persisted before the failing table, so a partial commit
+     * does not leave stale cached collections behind.
+     *
+     * @return void
+     */
+    public function testFlushInvalidatesTheQueryCacheForTablesPersistedBeforeAThrow(): void
+    {
+        Config::set('cache.default', 'array');
+        Config::set('api-toolkit.deferred_writes.invalidate_query_cache', true);
+
+        $warm = $this->cacheStore('test_records');
+        $warm->put('stale-query-hash', collect(['stale']), 60);
+
+        $pool = new WritePool(chunkSize: 1, poolLimit: 10000, strategy: FlushStrategy::THROW);
+        $pool->add('test_records', ['name' => 'foo', 'value' => 'bar']);
+        $pool->add('nonexistent_table', ['col' => 'val']);
+
+        try {
+            $pool->flush();
+            self::fail('Expected WritePoolFlushException was not thrown');
+        } catch (WritePoolFlushException) {
+            // Expected: the second table fails under the throw strategy.
+        }
+
+        self::assertNull($this->cacheStore('test_records')->fetch('stale-query-hash'));
+    }
+
+    /**
      * Define the database migrations.
      *
      * @return void
@@ -992,5 +1115,16 @@ final class WritePoolTest extends TestCase
             $table->id();
             $table->string('name')->unique();
         });
+    }
+
+    /**
+     * Build a CacheStore on the array driver for the given table.
+     *
+     * @param  string  $table
+     * @return \SineMacula\Repositories\Concerns\CacheStore
+     */
+    private function cacheStore(string $table): CacheStore
+    {
+        return new CacheStore(Cache::store('array'), $table, new CacheStoreOptions(3600, new CacheSizeGuard(null, null), true, 0));
     }
 }
