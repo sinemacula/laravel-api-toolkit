@@ -145,6 +145,15 @@ final class OrdersFieldsTest extends TestCase
             ],
             ['id', 'name'],
         ];
+
+        yield 'requested field absent from data is skipped' => [
+            ['name', 'missing', 'id'],
+            [
+                'id'   => 1,
+                'name' => 'Alice',
+            ],
+            ['name', 'id'],
+        ];
     }
 
     /**

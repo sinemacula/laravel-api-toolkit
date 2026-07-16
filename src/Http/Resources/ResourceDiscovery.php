@@ -270,6 +270,29 @@ final readonly class ResourceDiscovery
     }
 
     /**
+     * Read a file's contents, tolerating a file removed between enumeration
+     * and read (a hot deploy swapping resources mid-scan, or a concurrent
+     * test) by returning null rather than aborting discovery.
+     *
+     * @param  string  $file
+     * @return string|null
+     */
+    private function readFileContents(string $file): ?string
+    {
+        try {
+            $contents = file_get_contents($file);
+        } catch (\Throwable) {
+            return null;
+        }
+
+        if ($contents === false) {
+            return null; // @codeCoverageIgnore
+        }
+
+        return $contents;
+    }
+
+    /**
      * Resolve the fully qualified class names declared in the given file.
      *
      * Tokenising avoids loading the file, so a scanned file that is not a
@@ -282,10 +305,10 @@ final readonly class ResourceDiscovery
      */
     private function classesFromFile(string $file): array
     {
-        $contents = file_get_contents($file);
+        $contents = $this->readFileContents($file);
 
-        if ($contents === false) {
-            return []; // @codeCoverageIgnore
+        if ($contents === null) {
+            return [];
         }
 
         $tokens    = \PhpToken::tokenize($contents);

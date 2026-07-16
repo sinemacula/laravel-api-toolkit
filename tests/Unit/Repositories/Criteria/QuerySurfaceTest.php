@@ -229,6 +229,24 @@ final class QuerySurfaceTest extends TestCase
     }
 
     /**
+     * Test that the blocklist posture delegates sort-column checks to the
+     * schema introspector and drops (rather than rejects) an unsortable key.
+     *
+     * @return void
+     */
+    public function testBlocklistDelegatesSortToIntrospectorAndDropsUnsearchable(): void
+    {
+        $introspector = \Mockery::mock(SchemaIntrospectionProvider::class);
+        $introspector->shouldReceive('isSearchable')->with(\Mockery::any(), 'created_at')->andReturnTrue(); // @phpstan-ignore method.notFound
+        $introspector->shouldReceive('isSearchable')->with(\Mockery::any(), 'secret')->andReturnFalse(); // @phpstan-ignore method.notFound
+
+        $surface = $this->make(posture: QuerySurface::POSTURE_BLOCKLIST, introspector: $introspector);
+
+        self::assertTrue($surface->guardSort('created_at', new User));
+        self::assertFalse($surface->guardSort('secret', new User));
+    }
+
+    /**
      * Test that under the allowlist posture a relation declared traversable in
      * the related model's mapped resource is permitted at a non-root hop.
      *

@@ -8,6 +8,7 @@ use Illuminate\Foundation\Application;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use PHPUnit\Framework\Attributes\CoversClass;
+use SineMacula\ApiToolkit\Exceptions\ResourceMappingException;
 use SineMacula\ApiToolkit\Http\Resources\PolymorphicResource;
 use Tests\Fixtures\Models\Organization;
 use Tests\Fixtures\Models\Post;
@@ -292,6 +293,75 @@ final class PolymorphicResourceTest extends TestCase
         self::assertIsArray($result);
         self::assertFalse($user->relationLoaded('organization'));
         self::assertArrayNotHasKey('organization', $result);
+    }
+
+    /**
+     * Test that excluded fields set through withoutFields propagate to the
+     * mapped resource and drop the field from the response.
+     *
+     * @return void
+     */
+    public function testToArrayPropagatesExcludedFieldsToMappedResource(): void
+    {
+        $user = User::create([
+            'name'   => 'ExcludePoly',
+            'email'  => 'excludepoly@example.com',
+            'status' => 'active',
+        ]);
+
+        $resource = new PolymorphicResource($user);
+        $resource->withoutFields(['email']);
+
+        $result = $resource->toArray(request());
+
+        self::assertArrayHasKey('_type', $result);
+        self::assertArrayHasKey('name', $result);
+        self::assertArrayNotHasKey('email', $result);
+    }
+
+    /**
+     * Test that a non-object resource is refused with the dedicated mapping
+     * exception.
+     *
+     * @return void
+     */
+    public function testToArrayThrowsWhenResourceIsNotAnObject(): void
+    {
+        $resource = new PolymorphicResource('not-an-object');
+
+        $this->expectException(ResourceMappingException::class);
+        $this->expectExceptionMessage('Resource must be an object to be mapped');
+
+        $resource->toArray(request());
+    }
+
+    /**
+     * Test that a mapped class not implementing the resource interface is
+     * refused with the dedicated mapping exception.
+     *
+     * @return void
+     */
+    public function testToArrayThrowsWhenMappedClassDoesNotImplementInterface(): void
+    {
+        assert($this->app !== null);
+
+        /** @var \Illuminate\Config\Repository $config */
+        $config = $this->app['config'];
+        $config->set('api-toolkit.resources.resource_map', [
+            User::class => \stdClass::class,
+        ]);
+
+        $user = User::create([
+            'name'  => 'BadMap',
+            'email' => 'badmap@example.com',
+        ]);
+
+        $resource = new PolymorphicResource($user);
+
+        $this->expectException(ResourceMappingException::class);
+        $this->expectExceptionMessage('must implement');
+
+        $resource->toArray(request());
     }
 
     /**

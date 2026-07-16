@@ -11,6 +11,9 @@ use Illuminate\Database\Eloquent\Relations\MorphToMany;
 /**
  * Fixture tag model.
  *
+ * @property int $id
+ * @property string $name
+ *
  * @method static static create(array<string, mixed> $attributes = [])
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>

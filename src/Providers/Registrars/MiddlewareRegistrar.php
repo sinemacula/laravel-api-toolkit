@@ -7,6 +7,7 @@ namespace SineMacula\ApiToolkit\Providers\Registrars;
 use Illuminate\Contracts\Container\Container;
 use Illuminate\Contracts\Http\Kernel;
 use Illuminate\Foundation\Http\Kernel as HttpKernel;
+use Illuminate\Foundation\Http\Middleware\PreventRequestsDuringMaintenance as FrameworkMaintenance;
 use Illuminate\Routing\Router;
 use Illuminate\Support\Facades\Config;
 use SineMacula\ApiToolkit\Http\Middleware\DetectsCapabilities;
@@ -65,10 +66,11 @@ final class MiddlewareRegistrar
     /**
      * Register the maintenance mode middleware swap.
      *
-     * When enabled, the toolkit's PreventRequestsDuringMaintenance middleware
-     * is prepended to the global middleware stack. Since it extends Laravel's
-     * built-in middleware, it takes precedence without requiring removal of the
-     * original.
+     * When enabled, the framework's built-in maintenance middleware is removed
+     * from the global stack and the toolkit's is prepended in its place. The
+     * toolkit middleware extends and fully supersedes the original, so leaving
+     * the original in place would re-throw a raw 503 for the paths the toolkit
+     * bypasses, defeating the configured maintenance exceptions.
      *
      * @param  \Illuminate\Foundation\Http\Kernel  $kernel
      * @return void
@@ -78,6 +80,11 @@ final class MiddlewareRegistrar
         if (!Config::get('api-toolkit.middleware.maintenance_mode_swap.enabled', true)) {
             return;
         }
+
+        $kernel->setGlobalMiddleware(array_filter(
+            $kernel->getGlobalMiddleware(),
+            static fn ($middleware): bool => $middleware !== FrameworkMaintenance::class,
+        ));
 
         $kernel->prependMiddleware(PreventRequestsDuringMaintenance::class);
     }

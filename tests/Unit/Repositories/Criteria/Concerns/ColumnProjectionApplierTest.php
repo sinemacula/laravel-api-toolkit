@@ -328,6 +328,37 @@ final class ColumnProjectionApplierTest extends TestCase
     }
 
     /**
+     * Test that an eager-load map entry whose relation path is not a string is
+     * skipped when deriving base-model relation names, so narrowing still
+     * proceeds over the remaining resolvable fields.
+     *
+     * @return void
+     */
+    public function testSkipsNonStringRelationPathInEagerLoadMap(): void
+    {
+        Config::set('api-toolkit.resources.narrow_columns', true);
+
+        $this->parseRequest(new Request);
+
+        $provider = self::createStub(ResourceMetadataProvider::class);
+        $provider->method('getResourceType')->willReturn('users');
+        $provider->method('resolveFields')->willReturn(self::USER_DEFAULT_FIELDS);
+        // Int-keyed entry carrying a non-string relation path (a nested array
+        // rather than a dot-path string).
+        $provider->method('eagerLoadMapFor')->willReturn([['nested', 'array']]);
+
+        $query  = (new User)->newQuery();
+        $result = $this->makeApplier()->apply($query, $provider, UserResource::class, []);
+
+        $columns = $result->getQuery()->columns;
+
+        self::assertNotNull($columns);
+        self::assertContains('id', $columns);
+        self::assertContains('name', $columns);
+        self::assertContains('email', $columns);
+    }
+
+    /**
      * Build a column projection applier over a stubbed introspection provider
      * reporting the fixture user columns.
      *

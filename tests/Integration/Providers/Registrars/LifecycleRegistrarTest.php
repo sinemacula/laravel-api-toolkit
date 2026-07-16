@@ -8,10 +8,12 @@ use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Http\Events\RequestHandled;
 use Illuminate\Queue\Events\JobProcessed;
 use Illuminate\Support\Facades\Log;
+use Laravel\Octane\Events\OperationTerminated;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Listeners\QueueFlushSubscriber;
 use SineMacula\ApiToolkit\Listeners\WritePoolFlushSubscriber;
 use SineMacula\ApiToolkit\Providers\Registrars\LifecycleRegistrar;
+use Tests\Fixtures\Support\FunctionOverrides;
 use Tests\TestCase;
 
 /**
@@ -81,6 +83,33 @@ final class LifecycleRegistrarTest extends TestCase
 
         self::assertTrue($this->hasSubscriberListener(RequestHandled::class, WritePoolFlushSubscriber::class));
         self::assertTrue($this->hasSubscriberListener(JobProcessed::class, QueueFlushSubscriber::class));
+    }
+
+    /**
+     * Test that the Octane flush listener is wired when the lifecycle Octane
+     * flush is enabled and the Octane event class is available.
+     *
+     * @return void
+     */
+    public function testOctaneFlushListenerRegisteredWhenClassPresentAndEnabled(): void
+    {
+        unset($_SERVER['LARAVEL_OCTANE']);
+
+        /** @var \Illuminate\Contracts\Config\Repository $config */
+        $config = $this->getApplication()->make('config');
+        $config->set('api-toolkit.lifecycle.octane', true);
+        $config->set('api-toolkit.lifecycle.queue', false);
+
+        // Simulate laravel/octane being installed so the class_exists guard
+        // passes and the listener binds to the event class name.
+        FunctionOverrides::set('class_exists', static fn (string $class): bool => $class === OperationTerminated::class || \class_exists($class)); // @phpstan-ignore class.notFound
+
+        (new LifecycleRegistrar)->register();
+
+        /** @var \Illuminate\Events\Dispatcher $events */
+        $events = $this->getApplication()->make('events');
+
+        self::assertTrue($events->hasListeners(OperationTerminated::class)); // @phpstan-ignore class.notFound
     }
 
     /**

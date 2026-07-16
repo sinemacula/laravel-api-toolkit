@@ -9,7 +9,10 @@ use SineMacula\ApiToolkit\OpenApi\Builder\ResourceSchemaBuilder;
 use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ColumnTypeMapper;
 use SineMacula\ApiToolkit\OpenApi\Resolution\FieldTypeResolver;
+use SineMacula\ApiToolkit\Schema\CompiledSchema;
 use SineMacula\ApiToolkit\Schema\Introspection\SchemaIntrospector;
+use SineMacula\ApiToolkit\Schema\SchemaCompiler;
+use Tests\Concerns\InteractsWithNonPublicMembers;
 use Tests\Fixtures\Models\Organization;
 use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\Tag;
@@ -31,6 +34,43 @@ use Tests\TestCase;
 #[CoversClass(ResourceSchemaBuilder::class)]
 final class ResourceSchemaBuilderTest extends TestCase
 {
+    use InteractsWithNonPublicMembers;
+
+    /**
+     * Tear down the test environment.
+     *
+     * @return void
+     */
+    #[\Override]
+    protected function tearDown(): void
+    {
+        SchemaCompiler::clearCache();
+
+        parent::tearDown();
+    }
+
+    /**
+     * Test that a compiled field key that resolves to no field definition is
+     * skipped when building the schema, emitting an empty-property object.
+     *
+     * @return void
+     */
+    public function testSkipsFieldKeyWithoutADefinition(): void
+    {
+        // A compiled schema whose only field key maps to a null definition -
+        // the builder must skip it rather than resolve a property.
+        $schema = new CompiledSchema(['ghost' => null], []); // @phpstan-ignore argument.type
+
+        $this->setStaticProperty(SchemaCompiler::class, 'cache', ['GhostResource' => $schema]);
+
+        $catalogue = self::createStub(MetadataCatalogue::class);
+        $catalogue->method('getResourceMap')->willReturn(['GhostModel' => 'GhostResource']);
+
+        $schemas = (new ResourceSchemaBuilder($catalogue, $this->resolver()))->build();
+
+        self::assertSame(['type' => 'object', 'properties' => []], $schemas['Ghost']);
+    }
+
     /**
      * Test that exactly one schema is emitted per registered resource, keyed by
      * its PascalCase component name.

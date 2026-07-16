@@ -4,6 +4,7 @@ declare(strict_types = 1);
 
 namespace SineMacula\ApiToolkit\Repositories\Concerns;
 
+use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use SineMacula\ApiToolkit\Enums\FlushStrategy;
@@ -92,7 +93,17 @@ final class WritePool
             return new WritePoolFlushResult(successCount: 0, failureCount: 0);
         }
 
-        return $this->executeFlush($strategy ?? $this->strategy);
+        try {
+            $result = $this->executeFlush($strategy ?? $this->strategy);
+        } catch (WritePoolFlushException $exception) {
+            $this->invalidateFlushedTables($exception->flushResult());
+
+            throw $exception;
+        }
+
+        $this->invalidateFlushedTables($result);
+
+        return $result;
     }
 
     /**
@@ -138,6 +149,26 @@ final class WritePool
     public function isEmpty(): bool
     {
         return $this->count() === 0;
+    }
+
+    /**
+     * Invalidate the per-query cache for the tables a flush persisted.
+     *
+     * Gated by the invalidate_query_cache config flag, so every flush - the
+     * auto-flush triggered when the pool limit is reached as well as the
+     * boundary flush - keeps a Cacheable repository's cached collections in
+     * step with the rows it just committed.
+     *
+     * @param  \SineMacula\ApiToolkit\Repositories\Concerns\WritePoolFlushResult  $result
+     * @return void
+     */
+    private function invalidateFlushedTables(WritePoolFlushResult $result): void
+    {
+        if (!Config::get('api-toolkit.deferred_writes.invalidate_query_cache', true)) {
+            return;
+        }
+
+        (new DeferredWriteCacheInvalidator)->invalidate($result->flushedTables());
     }
 
     /**

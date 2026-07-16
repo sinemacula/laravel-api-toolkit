@@ -252,6 +252,33 @@ final class ValidateRelationMethodsTest extends TestCase
     }
 
     /**
+     * Test that a count definition whose relation method is valid produces no
+     * error, so the loop advances past it.
+     *
+     * @return void
+     */
+    public function testNoErrorForCountDefinitionWithValidRelation(): void
+    {
+        $schema = new CompiledSchema(
+            fields: [],
+            counts: [
+                'posts_count' => new CompiledCountDefinition(
+                    presentKey: 'posts_count',
+                    relation: 'posts',
+                    constraint: null,
+                    isDefault: false,
+                    guards: [],
+                ),
+            ],
+        );
+
+        $rule   = new ValidateRelationMethods;
+        $errors = $rule->validate(UserResource::class, User::class, $schema);
+
+        self::assertSame([], $errors);
+    }
+
+    /**
      * Test reports relation method missing on model for count definition.
      *
      * @return void

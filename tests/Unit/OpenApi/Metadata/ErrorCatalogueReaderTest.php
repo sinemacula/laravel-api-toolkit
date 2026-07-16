@@ -7,8 +7,11 @@ namespace Tests\Unit\OpenApi\Metadata;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use SineMacula\ApiToolkit\Enums\ErrorCode;
+use SineMacula\ApiToolkit\Exceptions\NotFoundException;
+use SineMacula\ApiToolkit\OpenApi\Exceptions\MetadataReadException;
 use SineMacula\ApiToolkit\OpenApi\Metadata\ErrorCatalogueReader;
 use SineMacula\ApiToolkit\OpenApi\Metadata\ErrorDescriptor;
+use Tests\Fixtures\Support\FunctionOverrides;
 use Tests\TestCase;
 
 /**
@@ -176,6 +179,80 @@ final class ErrorCatalogueReaderTest extends TestCase
         foreach ($reader->read() as $descriptor) {
             self::assertNotSame('', $descriptor->detail, "Empty detail for code {$descriptor->code}");
         }
+    }
+
+    /**
+     * Test that the exception map is memoised so a second read does not
+     * re-scan the filesystem.
+     *
+     * @return void
+     */
+    public function testExceptionMapIsMemoisedAcrossReads(): void
+    {
+        $reader = new ErrorCatalogueReader;
+        $first  = $reader->read();
+
+        // Force the directory scan to fail; a re-scan would now throw, so a
+        // successful second read proves the map was memoised.
+        FunctionOverrides::set('glob', static fn (): false => false);
+
+        self::assertEquals($first, $reader->read());
+    }
+
+    /**
+     * Test that a failed exceptions-directory scan raises a metadata read
+     * exception naming the directory.
+     *
+     * @return void
+     */
+    public function testThrowsWhenExceptionsDirectoryScanFails(): void
+    {
+        FunctionOverrides::set('glob', static fn (): false => false);
+
+        $this->expectException(MetadataReadException::class);
+        $this->expectExceptionMessage('Unable to scan the exceptions directory');
+
+        (new ErrorCatalogueReader)->read();
+    }
+
+    /**
+     * Test that an error code with no owning exception subclass falls back to
+     * HTTP 500, matching the unhandled-exception default.
+     *
+     * @return void
+     */
+    public function testUnmappedErrorCodeFallsBackToStatus500(): void
+    {
+        // No exception files are discovered, so every code is unmapped.
+        FunctionOverrides::set('glob', static fn (): array => []);
+
+        $descriptor = $this->findDescriptor((new ErrorCatalogueReader)->read(), ErrorCode::NOT_FOUND->getCode());
+
+        self::assertNotNull($descriptor);
+        self::assertSame(500, $descriptor->httpStatus);
+    }
+
+    /**
+     * Test that a discovered exception subclass declaring no CODE constant is
+     * skipped, so its error code remains unmapped and falls back to HTTP 500.
+     *
+     * @return void
+     */
+    public function testSkipsExceptionSubclassWithoutCodeConstant(): void
+    {
+        $file = (new \ReflectionClass(NotFoundException::class))->getFileName();
+
+        self::assertIsString($file);
+
+        // The NotFoundException file is discovered, but its CODE constant is
+        // reported absent, so the scan skips it and NOT_FOUND stays unmapped.
+        FunctionOverrides::set('glob', static fn (): array => [$file]);
+        FunctionOverrides::set('defined', static fn (string $constant): bool => !str_ends_with($constant, '::CODE') && \defined($constant));
+
+        $descriptor = $this->findDescriptor((new ErrorCatalogueReader)->read(), ErrorCode::NOT_FOUND->getCode());
+
+        self::assertNotNull($descriptor);
+        self::assertSame(500, $descriptor->httpStatus);
     }
 
     /**

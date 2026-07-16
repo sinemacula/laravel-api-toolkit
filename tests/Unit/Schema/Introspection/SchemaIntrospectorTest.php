@@ -230,6 +230,28 @@ final class SchemaIntrospectorTest extends TestCase
     }
 
     /**
+     * Test that a fresh introspector serves column definitions from the memo
+     * cache populated by an earlier instance, without re-querying the schema.
+     *
+     * @return void
+     */
+    public function testGetColumnDefinitionsServesMemoCacheOnFreshInstance(): void
+    {
+        $model = new User;
+
+        $first = ($this->makeIntrospector())->getColumnDefinitions($model);
+
+        self::assertNotEmpty($first);
+
+        Schema::shouldReceive('getColumns')
+            ->never();
+
+        $second = ($this->makeIntrospector())->getColumnDefinitions($model);
+
+        self::assertEquals($first, $second);
+    }
+
+    /**
      * Test that getColumnDefinitions stores the result in the memo cache under
      * a key scoped to the model class.
      *
@@ -336,6 +358,24 @@ final class SchemaIntrospectorTest extends TestCase
         $model        = new User;
 
         self::assertContains('name', $introspector->getSearchableColumns($model));
+    }
+
+    /**
+     * Test that a second getSearchableColumns call on the same instance is
+     * served from the instance cache without recomputing.
+     *
+     * @return void
+     */
+    public function testGetSearchableColumnsServesInstanceCacheOnSecondCall(): void
+    {
+        $introspector = $this->makeIntrospector();
+        $model        = new User;
+
+        $first  = $introspector->getSearchableColumns($model);
+        $second = $introspector->getSearchableColumns($model);
+
+        self::assertSame($first, $second);
+        self::assertArrayHasKey(User::class, $this->getProperty($introspector, 'searchable'));
     }
 
     /**

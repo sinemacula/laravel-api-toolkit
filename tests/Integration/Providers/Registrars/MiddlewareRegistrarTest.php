@@ -6,6 +6,7 @@ namespace Tests\Integration\Providers\Registrars;
 
 use Illuminate\Contracts\Http\Kernel as HttpKernel;
 use Illuminate\Foundation\Application;
+use Illuminate\Foundation\Http\Middleware\PreventRequestsDuringMaintenance as FrameworkMaintenance;
 use Illuminate\Routing\Router;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Http\Middleware\DetectsCapabilities;
@@ -59,6 +60,10 @@ final class MiddlewareRegistrarTest extends TestCase
         self::assertContains(PreventRequestsDuringMaintenance::class, $middleware);
         self::assertContains(DetectsCapabilities::class, $middleware);
         self::assertContains(JsonPrettyPrint::class, $middleware);
+
+        // The maintenance swap removes the framework middleware so the toolkit
+        // middleware is the sole gate and its except list is authoritative.
+        self::assertNotContains(FrameworkMaintenance::class, $middleware);
 
         /** @var \Illuminate\Routing\Router $router */
         $router = $app->make(Router::class);

@@ -14,6 +14,7 @@ use SineMacula\ApiToolkit\Repositories\Concerns\AttributeSetter;
 use SineMacula\ApiToolkit\Repositories\Criteria\ApiCriteria;
 use SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface;
 use SineMacula\Http\Enums\HttpMethod;
+use SineMacula\Repositories\Contracts\CriteriaInterface;
 use Tests\Concerns\InteractsWithNonPublicMembers;
 use Tests\Fixtures\Enums\UserStatus;
 use Tests\Fixtures\Models\Organization;
@@ -108,6 +109,27 @@ final class ApiRepositoryTest extends TestCase
         self::assertTrue(
             $criteria->contains(fn ($c) => $c instanceof ApiCriteria),
         );
+    }
+
+    /**
+     * Test that usingResource skips registered criteria that are not
+     * ApiCriteria instances while still propagating to the ApiCriteria ones.
+     *
+     * @return void
+     */
+    public function testUsingResourceSkipsNonApiCriteria(): void
+    {
+        $this->repository->withApiCriteria();
+        $this->repository->pushCriteria(self::createStub(CriteriaInterface::class));
+
+        $result = $this->repository->usingResource(UserResource::class);
+
+        self::assertSame($this->repository, $result);
+
+        $criteria = $this->repository->getCriteria()->first(fn ($c) => $c instanceof ApiCriteria);
+
+        self::assertInstanceOf(ApiCriteria::class, $criteria);
+        self::assertSame(UserResource::class, $this->getProperty($criteria, 'customResourceClass'));
     }
 
     /**

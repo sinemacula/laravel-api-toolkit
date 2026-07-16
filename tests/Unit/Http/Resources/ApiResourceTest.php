@@ -2682,6 +2682,39 @@ final class ApiResourceTest extends TestCase
     }
 
     /**
+     * Test that already-loaded aggregate specifications are dropped while
+     * unloaded ones are retained, for both count specs and aggregate entries.
+     *
+     * @return void
+     */
+    public function testRejectLoadedAggregatesDropsPreloadedSpecifications(): void
+    {
+        $user = new User;
+        $user->setAttribute('posts_count', 2);
+        $user->setAttribute('posts_sum_id', 10);
+
+        $resource = new UserResource($user);
+        $method   = new \ReflectionMethod(UserResource::class, 'rejectLoadedAggregates');
+
+        /** @var array<int|string, mixed> $result */
+        $result = $method->invoke($resource, $user, [
+            'posts as posts_count',
+            'comments as comments_count',
+            'tags as tags_count' => static fn (): null => null,
+            ['relation'          => 'posts as posts_sum_id', 'column' => 'id'],
+            ['relation'          => 'authors as authors_sum_id', 'column' => 'id'],
+        ]);
+
+        $values = array_values($result);
+
+        self::assertContains('comments as comments_count', $values);
+        self::assertArrayHasKey('tags as tags_count', $result);
+        self::assertContains(['relation' => 'authors as authors_sum_id', 'column' => 'id'], $values);
+        self::assertNotContains('posts as posts_count', $values);
+        self::assertNotContains(['relation' => 'posts as posts_sum_id', 'column' => 'id'], $values);
+    }
+
+    /**
      * Clear the static schema cache between tests.
      *
      * @return void

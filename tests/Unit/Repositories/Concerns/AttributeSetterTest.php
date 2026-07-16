@@ -720,6 +720,38 @@ final class AttributeSetterTest extends TestCase
     }
 
     /**
+     * Test that an associate cast whose attribute does not resolve to a
+     * BelongsTo relation raises a LogicException.
+     *
+     * @return void
+     */
+    public function testSetAssociateAttributeThrowsWhenRelationIsNotBelongsTo(): void
+    {
+        $user = User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL]);
+
+        $this->expectException(\LogicException::class);
+        $this->expectExceptionMessage('does not resolve to a BelongsTo relation');
+
+        $this->invokeMethod($this->attributeSetter, 'setAttribute', $user, 'posts', 1, 'associate');
+    }
+
+    /**
+     * Test that a sync cast whose attribute does not resolve to a BelongsToMany
+     * relation raises a LogicException.
+     *
+     * @return void
+     */
+    public function testSetSyncAttributeThrowsWhenRelationIsNotBelongsToMany(): void
+    {
+        $user = User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL]);
+
+        $this->expectException(\LogicException::class);
+        $this->expectExceptionMessage('does not resolve to a BelongsToMany relation');
+
+        $this->invokeMethod($this->attributeSetter, 'setAttribute', $user, 'organization', 1, 'sync');
+    }
+
+    /**
      * Test that persist registers the REPOSITORY_MODEL_CASTS key in the
      * metadata key registry.
      *

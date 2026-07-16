@@ -4,6 +4,7 @@ declare(strict_types = 1);
 
 namespace Tests\Unit\Http\Resources\Schema;
 
+use Illuminate\Support\Carbon;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
@@ -138,6 +139,37 @@ final class FieldTest extends TestCase
     }
 
     /**
+     * Test that the timestamp accessor formats a Carbon value as an ISO-8601
+     * string.
+     *
+     * @return void
+     */
+    public function testTimestampAccessorFormatsCarbonValueAsIso8601(): void
+    {
+        $accessor = Field::timestamp('created_at')->toArray()['created_at']['accessor'];
+
+        self::assertIsCallable($accessor);
+
+        $carbon = Carbon::parse('2026-07-15T09:30:00+00:00');
+
+        self::assertSame($carbon->toIso8601String(), $accessor(['created_at' => $carbon]));
+    }
+
+    /**
+     * Test that the timestamp accessor returns null for a non-Carbon value.
+     *
+     * @return void
+     */
+    public function testTimestampAccessorReturnsNullForNonCarbonValue(): void
+    {
+        $accessor = Field::timestamp('created_at')->toArray()['created_at']['accessor'];
+
+        self::assertIsCallable($accessor);
+
+        self::assertNull($accessor(['created_at' => null]));
+    }
+
+    /**
      * Test that date creates a field with an accessor callable.
      *
      * @return void
@@ -151,6 +183,36 @@ final class FieldTest extends TestCase
         self::assertArrayHasKey('birth_date', $array);
         self::assertArrayHasKey('accessor', $array['birth_date']);
         self::assertIsCallable($array['birth_date']['accessor']);
+    }
+
+    /**
+     * Test that the date accessor formats a Carbon value as a date string.
+     *
+     * @return void
+     */
+    public function testDateAccessorFormatsCarbonValueAsDateString(): void
+    {
+        $accessor = Field::date('birth_date')->toArray()['birth_date']['accessor'];
+
+        self::assertIsCallable($accessor);
+
+        $carbon = Carbon::parse('2026-07-15T09:30:00+00:00');
+
+        self::assertSame('2026-07-15', $accessor(['birth_date' => $carbon]));
+    }
+
+    /**
+     * Test that the date accessor returns null for a non-Carbon value.
+     *
+     * @return void
+     */
+    public function testDateAccessorReturnsNullForNonCarbonValue(): void
+    {
+        $accessor = Field::date('birth_date')->toArray()['birth_date']['accessor'];
+
+        self::assertIsCallable($accessor);
+
+        self::assertNull($accessor(['birth_date' => 'not-a-carbon']));
     }
 
     /**

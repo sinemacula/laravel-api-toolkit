@@ -210,4 +210,135 @@ final class CompiledSchemaTest extends TestCase
         self::assertSame('sum', $aggregates['posts_id']->metric);
         self::assertSame('avg', $aggregates['posts_id_avg']->metric);
     }
+
+    /**
+     * Test that getAggregateDefinitionsByMetric returns only the definitions
+     * whose metric matches the requested value.
+     *
+     * @return void
+     */
+    public function testGetAggregateDefinitionsByMetricReturnsMatchingDefinitions(): void
+    {
+        $sum = new CompiledAggregateDefinition(
+            presentKey: 'posts_id',
+            relation: 'posts',
+            column: 'id',
+            metric: 'sum',
+            constraint: null,
+            isDefault: true,
+            guards: [],
+        );
+
+        $avg = new CompiledAggregateDefinition(
+            presentKey: 'posts_id_avg',
+            relation: 'posts',
+            column: 'id',
+            metric: 'avg',
+            constraint: null,
+            isDefault: false,
+            guards: [],
+        );
+
+        $schema = new CompiledSchema([], [], ['posts_id' => $sum, 'posts_id_avg' => $avg]);
+
+        $matches = $schema->getAggregateDefinitionsByMetric('sum');
+
+        self::assertSame(['posts_id' => $sum], $matches);
+    }
+
+    /**
+     * Test that getAggregateDefinitionsByMetric returns an empty array when no
+     * definition matches the requested metric.
+     *
+     * @return void
+     */
+    public function testGetAggregateDefinitionsByMetricReturnsEmptyWhenNoMatch(): void
+    {
+        $sum = new CompiledAggregateDefinition(
+            presentKey: 'posts_id',
+            relation: 'posts',
+            column: 'id',
+            metric: 'sum',
+            constraint: null,
+            isDefault: true,
+            guards: [],
+        );
+
+        $schema = new CompiledSchema([], [], ['posts_id' => $sum]);
+
+        self::assertSame([], $schema->getAggregateDefinitionsByMetric('avg'));
+    }
+
+    /**
+     * Test that getFilterableColumns returns the declared filterable columns.
+     *
+     * @return void
+     */
+    public function testGetFilterableColumnsReturnsDeclaredColumns(): void
+    {
+        $schema = new CompiledSchema([], [], [], ['email', 'status']);
+
+        self::assertSame(['email', 'status'], $schema->getFilterableColumns());
+    }
+
+    /**
+     * Test that getFilterableColumns defaults to an empty array.
+     *
+     * @return void
+     */
+    public function testGetFilterableColumnsDefaultsToEmpty(): void
+    {
+        $schema = new CompiledSchema([], []);
+
+        self::assertSame([], $schema->getFilterableColumns());
+    }
+
+    /**
+     * Test that getSortableColumns returns the declared sortable columns.
+     *
+     * @return void
+     */
+    public function testGetSortableColumnsReturnsDeclaredColumns(): void
+    {
+        $schema = new CompiledSchema([], [], [], [], ['created_at', 'name']);
+
+        self::assertSame(['created_at', 'name'], $schema->getSortableColumns());
+    }
+
+    /**
+     * Test that getSortableColumns defaults to an empty array.
+     *
+     * @return void
+     */
+    public function testGetSortableColumnsDefaultsToEmpty(): void
+    {
+        $schema = new CompiledSchema([], []);
+
+        self::assertSame([], $schema->getSortableColumns());
+    }
+
+    /**
+     * Test that getTraversableRelations returns the declared traversable
+     * relation names.
+     *
+     * @return void
+     */
+    public function testGetTraversableRelationsReturnsDeclaredRelations(): void
+    {
+        $schema = new CompiledSchema([], [], [], [], [], ['posts', 'organization']);
+
+        self::assertSame(['posts', 'organization'], $schema->getTraversableRelations());
+    }
+
+    /**
+     * Test that getTraversableRelations defaults to an empty array.
+     *
+     * @return void
+     */
+    public function testGetTraversableRelationsDefaultsToEmpty(): void
+    {
+        $schema = new CompiledSchema([], []);
+
+        self::assertSame([], $schema->getTraversableRelations());
+    }
 }

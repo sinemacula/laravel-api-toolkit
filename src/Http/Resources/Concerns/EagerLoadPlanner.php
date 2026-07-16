@@ -163,6 +163,36 @@ final class EagerLoadPlanner
     }
 
     /**
+     * Determine whether the aggregate for the given relation specification is
+     * already an attribute on the resource.
+     *
+     * The specification is a relation string, a `relation as alias` string, or
+     * a `[aliased => constraint]` map; the alias after ` as ` (or the plain
+     * relation) is matched against the model's loaded attributes.
+     *
+     * @param  object  $resource
+     * @param  mixed  $relation
+     * @return bool
+     */
+    public static function isAggregateAttributeLoaded(object $resource, mixed $relation): bool
+    {
+        if (!method_exists($resource, 'getAttributes')) {
+            return false;
+        }
+
+        $specification = is_array($relation) ? array_key_first($relation) : $relation;
+
+        if (!is_string($specification)) {
+            return false;
+        }
+
+        $position = strpos($specification, ' as ');
+        $alias    = $position === false ? $specification : substr($specification, $position + 4);
+
+        return array_key_exists($alias, $resource->getAttributes());
+    }
+
+    /**
      * Build a withSum/withAvg-ready entry list for the given resource class and
      * metric ('sum' or 'avg').
      *

@@ -760,4 +760,21 @@ final class ApiQueryParserTest extends TestCase
         $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['fields' => 123]);
         $this->parser->parse($request);
     }
+
+    /**
+     * Test that reset clears all previously parsed parameters.
+     *
+     * @return void
+     */
+    public function testResetClearsAllParsedParameters(): void
+    {
+        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['fields' => self::FIELDS_NAME_EMAIL]);
+        $this->parser->parse($request);
+
+        self::assertSame(['name', 'email'], $this->parser->getFields());
+
+        $this->parser->reset();
+
+        self::assertNull($this->parser->getFields());
+    }
 }

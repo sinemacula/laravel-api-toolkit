@@ -408,6 +408,22 @@ final class ResourceDiscoveryTest extends TestCase
     }
 
     /**
+     * Test that a file removed between enumeration and read yields no classes
+     * rather than aborting discovery, so a concurrent scan or a hot deploy
+     * swapping resources mid-scan cannot break resolution.
+     *
+     * @return void
+     */
+    public function testVanishedFileYieldsNoClasses(): void
+    {
+        $method = new \ReflectionMethod(ResourceDiscovery::class, 'classesFromFile');
+
+        $result = $method->invoke($this->discovery(), $this->fixturePath('Primary') . '/DoesNotExist.php');
+
+        self::assertSame([], $result);
+    }
+
+    /**
      * Test that every declared class in a multi-class, multi-namespace file
      * is considered: both attributed resources bind, and a trailing
      * unloadable class is skipped without disturbing the bindings already

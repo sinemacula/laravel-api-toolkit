@@ -23,6 +23,7 @@ use SineMacula\ApiToolkit\Repositories\Criteria\Operators\NotEqualOperator;
 use SineMacula\ApiToolkit\Repositories\Criteria\Operators\NotNullOperator;
 use SineMacula\ApiToolkit\Repositories\Criteria\Operators\NullOperator;
 use SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface;
+use Tests\Concerns\InteractsWithNonPublicMembers;
 use Tests\Fixtures\Models\User;
 use Tests\TestCase;
 
@@ -40,6 +41,8 @@ use Tests\TestCase;
 #[CoversClass(FilterApplier::class)]
 final class FilterApplierTest extends TestCase
 {
+    use InteractsWithNonPublicMembers;
+
     /** @var string */
     private const string OPERATOR_CONTAINS = '$contains';
 
@@ -676,6 +679,38 @@ final class FilterApplierTest extends TestCase
         ]);
 
         self::assertNotEmpty($result->getQuery()->wheres);
+    }
+
+    /**
+     * Test that a condition operator applied to a column that fails the query
+     * surface guard is skipped, leaving the query untouched.
+     *
+     * @return void
+     */
+    public function testConditionOperatorOnGuardedColumnIsSkipped(): void
+    {
+        $result = $this->applyFilters(['forbidden_column' => ['$eq' => 'Alice']]);
+
+        self::assertEmpty($result->getQuery()->wheres);
+    }
+
+    /**
+     * Test that a condition operator whose token is reported as registered but
+     * resolves to no handler is skipped, leaving the query untouched.
+     *
+     * @return void
+     */
+    public function testConditionOperatorWithNullHandlerIsSkipped(): void
+    {
+        // Force a token that the registry reports present but resolves to null,
+        // so has() and resolve() disagree - the guard must drop it silently.
+        $operators             = $this->getProperty($this->operatorRegistry, 'operators');
+        $operators['$phantom'] = null;
+        $this->setProperty($this->operatorRegistry, 'operators', $operators);
+
+        $result = $this->applyFilters(['name' => ['$phantom' => 'Alice']]);
+
+        self::assertEmpty($result->getQuery()->wheres);
     }
 
     /**
