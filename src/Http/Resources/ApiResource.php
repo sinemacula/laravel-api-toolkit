@@ -98,7 +98,7 @@ abstract class ApiResource extends ToolkitResource implements ApiResourceInterfa
             $schema,
             static::getResourceType(),
             static::getDefaultFields(),
-            $this->getFixedFields(),
+            $this->fixed,
         );
 
         foreach ($fields as $field) {
@@ -381,31 +381,26 @@ abstract class ApiResource extends ToolkitResource implements ApiResourceInterfa
      */
     private function loadMissingAggregates(object $resource): void
     {
-        $resourceType      = static::getResourceType();
-        $requestedSums     = ApiQuery::getSums($resourceType)     ?? [];
-        $requestedAverages = ApiQuery::getAverages($resourceType) ?? [];
+        $resourceType  = static::getResourceType();
+        $defaultFields = static::getDefaultFields();
 
-        if (method_exists($resource, 'loadSum') && $this->fieldResolver->shouldIncludeSumsField($resourceType, static::getDefaultFields())) {
-            foreach (EagerLoadPlanner::buildSumMap(static::class, $requestedSums) as $entry) {
+        if (method_exists($resource, 'loadSum') && $this->fieldResolver->shouldIncludeSumsField($resourceType, $defaultFields)) {
+            $sums = $this->rejectLoadedAggregates($resource, EagerLoadPlanner::buildSumMap(static::class, ApiQuery::getSums($resourceType) ?? []));
 
-                if ($this->isAggregateLoaded($resource, $entry['relation'])) {
-                    continue;
-                }
-
+            foreach ($sums as $entry) {
+                // @var array<string, mixed> $entry
                 $resource->loadSum($entry['relation'], $entry['column']); // @phpstan-ignore argument.type
             }
         }
 
-        if (!method_exists($resource, 'loadAvg') || !$this->fieldResolver->shouldIncludeAveragesField($resourceType, static::getDefaultFields())) {
+        if (!method_exists($resource, 'loadAvg') || !$this->fieldResolver->shouldIncludeAveragesField($resourceType, $defaultFields)) {
             return;
         }
 
-        foreach (EagerLoadPlanner::buildAvgMap(static::class, $requestedAverages) as $entry) {
+        $averages = $this->rejectLoadedAggregates($resource, EagerLoadPlanner::buildAvgMap(static::class, ApiQuery::getAverages($resourceType) ?? []));
 
-            if ($this->isAggregateLoaded($resource, $entry['relation'])) {
-                continue;
-            }
-
+        foreach ($averages as $entry) {
+            // @var array<string, mixed> $entry
             $resource->loadAvg($entry['relation'], $entry['column']); // @phpstan-ignore argument.type
         }
     }
@@ -415,7 +410,9 @@ abstract class ApiResource extends ToolkitResource implements ApiResourceInterfa
      *
      * The criteria pre-loads counts and aggregates on the base query, so a
      * per-row load would re-run them; unlike loadMissing() for relations, the
-     * load{Count,Sum,Avg} helpers are not idempotent, so filter them here.
+     * load{Count,Sum,Avg} helpers are not idempotent, so filter them here. The
+     * spec is read from a count entry (string, or aliased key with a closure)
+     * or from an aggregate entry's relation.
      *
      * @param  object  $resource
      * @param  array<int|string, mixed>  $specifications
@@ -423,41 +420,17 @@ abstract class ApiResource extends ToolkitResource implements ApiResourceInterfa
      */
     private function rejectLoadedAggregates(object $resource, array $specifications): array
     {
-        return array_filter(
-            $specifications,
-            fn ($value, $key): bool => !$this->isAggregateLoaded($resource, is_string($key) ? $key : $value),
-            ARRAY_FILTER_USE_BOTH,
-        );
-    }
+        return array_filter($specifications, static function ($value, $key) use ($resource): bool {
 
-    /**
-     * Determine whether the aggregate for the given relation specification is
-     * already an attribute on the resource.
-     *
-     * @param  object  $resource
-     * @param  array<string, mixed>|string  $relation
-     * @return bool
-     */
-    private function isAggregateLoaded(object $resource, array|string $relation): bool
-    {
-        if (!method_exists($resource, 'getAttributes')) {
-            return false;
-        }
+            $spec = $value;
 
-        $specification = is_array($relation) ? (string) array_key_first($relation) : $relation;
-        $position      = strpos($specification, ' as ');
-        $alias         = $position === false ? $specification : substr($specification, $position + 4);
+            if (is_array($value) && isset($value['relation'])) {
+                $spec = $value['relation'];
+            } elseif (is_string($key)) {
+                $spec = $key;
+            }
 
-        return array_key_exists($alias, $resource->getAttributes());
-    }
-
-    /**
-     * Get the fields that should always be included in the response.
-     *
-     * @return array<int, string>
-     */
-    private function getFixedFields(): array
-    {
-        return $this->fixed;
+            return !EagerLoadPlanner::isAggregateAttributeLoaded($resource, $spec);
+        }, ARRAY_FILTER_USE_BOTH);
     }
 }

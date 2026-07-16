@@ -2682,35 +2682,8 @@ final class ApiResourceTest extends TestCase
     }
 
     /**
-     * Test that an aggregate is recognised as loaded by matching the aliased
-     * attribute name, so a pre-loaded aggregate is not re-queried per row.
-     *
-     * @return void
-     */
-    public function testIsAggregateLoadedMatchesTheAliasedAttribute(): void
-    {
-        $user = new User;
-        $user->setAttribute('posts_sum_id', 10);
-        $user->setAttribute('plain', 1);
-
-        $resource = new UserResource($user);
-        $method   = new \ReflectionMethod(UserResource::class, 'isAggregateLoaded');
-
-        // The alias after ' as ' is matched against the loaded attributes.
-        self::assertTrue($method->invoke($resource, $user, 'posts as posts_sum_id'));
-        self::assertFalse($method->invoke($resource, $user, 'comments as comments_sum_id'));
-
-        // The constrained (array-keyed) form reads the key.
-        self::assertTrue($method->invoke($resource, $user, ['posts as posts_sum_id' => static fn (): null => null]));
-
-        // A specification without an alias is matched verbatim.
-        self::assertTrue($method->invoke($resource, $user, 'plain'));
-        self::assertFalse($method->invoke($resource, $user, 'missing'));
-    }
-
-    /**
      * Test that already-loaded aggregate specifications are dropped while
-     * unloaded ones are retained.
+     * unloaded ones are retained, for both count specs and aggregate entries.
      *
      * @return void
      */
@@ -2718,6 +2691,7 @@ final class ApiResourceTest extends TestCase
     {
         $user = new User;
         $user->setAttribute('posts_count', 2);
+        $user->setAttribute('posts_sum_id', 10);
 
         $resource = new UserResource($user);
         $method   = new \ReflectionMethod(UserResource::class, 'rejectLoadedAggregates');
@@ -2727,11 +2701,17 @@ final class ApiResourceTest extends TestCase
             'posts as posts_count',
             'comments as comments_count',
             'tags as tags_count' => static fn (): null => null,
+            ['relation'          => 'posts as posts_sum_id', 'column' => 'id'],
+            ['relation'          => 'authors as authors_sum_id', 'column' => 'id'],
         ]);
 
-        self::assertContains('comments as comments_count', $result);
+        $values = array_values($result);
+
+        self::assertContains('comments as comments_count', $values);
         self::assertArrayHasKey('tags as tags_count', $result);
-        self::assertNotContains('posts as posts_count', $result);
+        self::assertContains(['relation' => 'authors as authors_sum_id', 'column' => 'id'], $values);
+        self::assertNotContains('posts as posts_count', $values);
+        self::assertNotContains(['relation' => 'posts as posts_sum_id', 'column' => 'id'], $values);
     }
 
     /**

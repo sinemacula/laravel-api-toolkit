@@ -10,6 +10,7 @@ use SineMacula\ApiToolkit\Http\Resources\ApiResource;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\EagerLoadPlanner;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 use Tests\Concerns\InteractsWithNonPublicMembers;
+use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Resources\OrganizationResource;
 use Tests\Fixtures\Resources\PostResource;
 use Tests\Fixtures\Resources\TagResource;
@@ -976,5 +977,36 @@ final class EagerLoadPlannerTest extends TestCase
 
         self::assertContains('rel', $result);
         self::assertContains('rel.organization', $result);
+    }
+
+    /**
+     * Test that an aggregate is recognised as loaded by matching the aliased
+     * attribute against the model, so a pre-loaded aggregate is not re-queried
+     * per row.
+     *
+     * @return void
+     */
+    public function testIsAggregateAttributeLoadedMatchesTheAliasedAttribute(): void
+    {
+        $user = new User;
+        $user->setAttribute('posts_sum_id', 10);
+        $user->setAttribute('plain', 1);
+
+        // The alias after ' as ' is matched against the loaded attributes.
+        self::assertTrue(EagerLoadPlanner::isAggregateAttributeLoaded($user, 'posts as posts_sum_id'));
+        self::assertFalse(EagerLoadPlanner::isAggregateAttributeLoaded($user, 'comments as comments_sum_id'));
+
+        // The constrained (array-keyed) form reads the key.
+        self::assertTrue(EagerLoadPlanner::isAggregateAttributeLoaded($user, ['posts as posts_sum_id' => static fn (): null => null]));
+
+        // A specification without an alias is matched verbatim.
+        self::assertTrue(EagerLoadPlanner::isAggregateAttributeLoaded($user, 'plain'));
+        self::assertFalse(EagerLoadPlanner::isAggregateAttributeLoaded($user, 'missing'));
+
+        // A non-string, non-array specification is never loaded.
+        self::assertFalse(EagerLoadPlanner::isAggregateAttributeLoaded($user, 123));
+
+        // An object without getAttributes() is never loaded.
+        self::assertFalse(EagerLoadPlanner::isAggregateAttributeLoaded(new \stdClass, 'plain'));
     }
 }
