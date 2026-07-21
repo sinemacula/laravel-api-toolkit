@@ -120,8 +120,8 @@ final class ApiServiceProvider extends ServiceProvider
      *
      * The merge is skipped while the config cache is being built: baking
      * discovered bindings into the cached config would make them
-     * indistinguishable from explicit entries and mask later discovery
-     * changes. Runtime boots always merge fresh discoveries on top.
+     * indistinguishable from explicit entries and mask later discovery changes.
+     * Runtime boots always merge fresh discoveries on top.
      *
      * @return void
      */

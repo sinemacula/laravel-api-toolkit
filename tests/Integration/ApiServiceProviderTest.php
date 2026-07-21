@@ -355,9 +355,9 @@ final class ApiServiceProviderTest extends TestCase
     }
 
     /**
-     * Test that the discovery merge is skipped while the config cache is
-     * being built, so discovered bindings are never baked into the cached
-     * config as pseudo-explicit entries.
+     * Test that the discovery merge is skipped while the config cache is being
+     * built, so discovered bindings are never baked into the cached config as
+     * pseudo-explicit entries.
      *
      * @return void
      */
@@ -677,9 +677,9 @@ final class ApiServiceProviderTest extends TestCase
 
         // The WritePoolFlushSubscriber also listens to JobProcessed, so we
         // check that QueueFlushSubscriber specifically was not subscribed by
-        // verifying only the write pool subscriber listeners exist.
-        // Since both subscribers listen to the same events, we verify the
-        // disabled branch by confirming boot completes without error.
+        // verifying only the write pool subscriber listeners exist. Since both
+        // subscribers listen to the same events, we verify the disabled branch
+        // by confirming boot completes without error.
         self::assertFalse((bool) $this->getConfig()->get('api-toolkit.lifecycle.queue'));
     }
 

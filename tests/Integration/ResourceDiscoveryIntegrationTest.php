@@ -35,9 +35,9 @@ use Tests\TestCase;
 final class ResourceDiscoveryIntegrationTest extends TestCase
 {
     /**
-     * Test that discovered bindings merge beneath the configured resource
-     * map: an explicit entry wins for its model while discovered bindings
-     * fill the rest.
+     * Test that discovered bindings merge beneath the configured resource map:
+     * an explicit entry wins for its model while discovered bindings fill the
+     * rest.
      *
      * @return void
      */

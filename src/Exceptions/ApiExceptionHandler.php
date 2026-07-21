@@ -80,8 +80,8 @@ final class ApiExceptionHandler
             return null;
         }
 
-        // In auto mode, defer to Laravel's default rendering when the
-        // request does not expect JSON and debug mode is enabled
+        // In auto mode, defer to Laravel's default rendering when the request
+        // does not expect JSON and debug mode is enabled
         if ($strategy === 'auto' && !$request->expectsJson() && (bool) Config::get('app.debug')) {
             return null;
         }
@@ -187,9 +187,9 @@ final class ApiExceptionHandler
      */
     private static function mapGenericHttpException(SymfonyHttpExceptionInterface $exception, ?array $meta, array $headers): ApiException
     {
-        // Laravel's handler converts session token mismatches to a generic
-        // 419 HttpException before render callbacks run; 419 has no
-        // HttpStatus case, so map it back to the dedicated exception
+        // Laravel's handler converts session token mismatches to a generic 419
+        // HttpException before render callbacks run; 419 has no HttpStatus
+        // case, so map it back to the dedicated exception
         if ($exception->getStatusCode() === 419) {
             return new TokenMismatchException($meta, $headers, $exception);
         }

@@ -23,9 +23,9 @@ use Tests\TestCase;
  * ExportNegotiator.
  *
  * Exercises ToolkitResource and ToolkitCollection delegation to the
- * ExportNegotiator when the exporter package is bound, verifying JSON
- * envelope fallback, tabular streaming (CSV/TSV), hierarchical streaming
- * (XML/NDJSON), and 406 rejection for resources without a tabular schema.
+ * ExportNegotiator when the exporter package is bound, verifying JSON envelope
+ * fallback, tabular streaming (CSV/TSV), hierarchical streaming (XML/NDJSON),
+ * and 406 rejection for resources without a tabular schema.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -157,8 +157,8 @@ final class ExportNegotiatorIntegrationTest extends TestCase
     // -------------------------------------------------------------------------
 
     /**
-     * Test that a collection streams XML when the client sends
-     * Accept: application/xml (no tabular schema required).
+     * Test that a collection streams XML when the client sends Accept:
+     * application/xml (no tabular schema required).
      *
      * @return void
      */
@@ -181,8 +181,8 @@ final class ExportNegotiatorIntegrationTest extends TestCase
     // -------------------------------------------------------------------------
 
     /**
-     * Test that a collection streams NDJSON when the client sends
-     * Accept: application/x-ndjson (no tabular schema required).
+     * Test that a collection streams NDJSON when the client sends Accept:
+     * application/x-ndjson (no tabular schema required).
      *
      * @return void
      */
@@ -243,8 +243,8 @@ final class ExportNegotiatorIntegrationTest extends TestCase
     // -------------------------------------------------------------------------
 
     /**
-     * Test that a single item streams CSV when the client sends
-     * Accept: text/csv for a resource that implements ProvidesTabularExport.
+     * Test that a single item streams CSV when the client sends Accept:
+     * text/csv for a resource that implements ProvidesTabularExport.
      *
      * @return void
      */
@@ -301,8 +301,8 @@ final class ExportNegotiatorIntegrationTest extends TestCase
     }
 
     /**
-     * Test that the derived tabular schema resolves the timestamp accessor
-     * as an ISO 8601 string in the export.
+     * Test that the derived tabular schema resolves the timestamp accessor as
+     * an ISO 8601 string in the export.
      *
      * @return void
      */

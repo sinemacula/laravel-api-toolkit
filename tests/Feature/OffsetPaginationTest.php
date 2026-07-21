@@ -21,11 +21,11 @@ use Tests\TestCase;
 /**
  * Feature tests for offset-paginated collections through the kernel.
  *
- * Driving `page=` over the length-aware paginator returns the requested
- * slice of rows alongside the full meta block (total, count, continue), the
- * self, first, prev, next, and last links, and the total-count response
- * header. The terminal page reports no further pages and a null next link,
- * and the configured default limit applies when the client supplies none.
+ * Driving `page=` over the length-aware paginator returns the requested slice
+ * of rows alongside the full meta block (total, count, continue), the self,
+ * first, prev, next, and last links, and the total-count response header. The
+ * terminal page reports no further pages and a null next link, and the
+ * configured default limit applies when the client supplies none.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.

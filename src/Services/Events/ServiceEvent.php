@@ -14,9 +14,9 @@ use SineMacula\ApiToolkit\Services\ServiceResult;
  * metadata. Concrete subclasses (ServiceCompleted, ServiceFailed) distinguish
  * the success and failure cases so consumers can subscribe to each.
  *
- * The inputSummary is produced by the input's toArray() and flows verbatim
- * to every listener (audit, telemetry); it is not redacted here. Override
- * the input's toArray() to scrub sensitive keys before they reach listeners.
+ * The inputSummary is produced by the input's toArray() and flows verbatim to
+ * every listener (audit, telemetry); it is not redacted here. Override the
+ * input's toArray() to scrub sensitive keys before they reach listeners.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.

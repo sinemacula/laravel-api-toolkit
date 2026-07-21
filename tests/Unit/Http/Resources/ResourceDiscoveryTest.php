@@ -124,12 +124,12 @@ final class ResourceDiscoveryTest extends TestCase
     }
 
     /**
-     * Test that files are visited in sorted order across the configured
-     * paths, so the first-discovered-wins conflict rule is deterministic
-     * regardless of path order.
+     * Test that files are visited in sorted order across the configured paths,
+     * so the first-discovered-wins conflict rule is deterministic regardless of
+     * path order.
      *
-     * The Conflict directory sorts before Primary, so its resource must win
-     * the User binding even though Primary is configured first.
+     * The Conflict directory sorts before Primary, so its resource must win the
+     * User binding even though Primary is configured first.
      *
      * @return void
      */
@@ -149,8 +149,7 @@ final class ResourceDiscoveryTest extends TestCase
     }
 
     /**
-     * Test that a configured path that does not exist is skipped without
-     * error.
+     * Test that a configured path that does not exist is skipped without error.
      *
      * @return void
      */
@@ -182,8 +181,8 @@ final class ResourceDiscoveryTest extends TestCase
     }
 
     /**
-     * Test that the compiled map is memoised through the metadata cache: a
-     * warm cache entry for the scanned file fingerprint is returned without
+     * Test that the compiled map is memoised through the metadata cache: a warm
+     * cache entry for the scanned file fingerprint is returned without
      * rescanning the filesystem.
      *
      * @return void
@@ -319,8 +318,8 @@ final class ResourceDiscoveryTest extends TestCase
     }
 
     /**
-     * Test that changing a scanned file rotates the cache key, so the next
-     * boot rescans instead of serving the stale map.
+     * Test that changing a scanned file rotates the cache key, so the next boot
+     * rescans instead of serving the stale map.
      *
      * @return void
      */
@@ -424,10 +423,9 @@ final class ResourceDiscoveryTest extends TestCase
     }
 
     /**
-     * Test that every declared class in a multi-class, multi-namespace file
-     * is considered: both attributed resources bind, and a trailing
-     * unloadable class is skipped without disturbing the bindings already
-     * made.
+     * Test that every declared class in a multi-class, multi-namespace file is
+     * considered: both attributed resources bind, and a trailing unloadable
+     * class is skipped without disturbing the bindings already made.
      *
      * @return void
      */
@@ -566,8 +564,8 @@ final class ResourceDiscoveryTest extends TestCase
 
     /**
      * Test that the namespace name is read from the token that abuts the
-     * keyword: a non-name token sitting immediately after namespace resolves
-     * to no name rather than skipping ahead to a later identifier.
+     * keyword: a non-name token sitting immediately after namespace resolves to
+     * no name rather than skipping ahead to a later identifier.
      *
      * @return void
      */
@@ -576,9 +574,9 @@ final class ResourceDiscoveryTest extends TestCase
         $tokens = \PhpToken::tokenize('<?php namespace(Foo)');
         $method = new \ReflectionMethod(ResourceDiscovery::class, 'namespaceFromTokens');
 
-        // The keyword sits at index 1; the token at index 2 abuts it and is
-        // not a name token, so no namespace resolves. Beginning the scan a
-        // token later would wrongly read the identifier at index 3.
+        // The keyword sits at index 1; the token at index 2 abuts it and is not
+        // a name token, so no namespace resolves. Beginning the scan a token
+        // later would wrongly read the identifier at index 3.
         self::assertNull($method->invoke($this->discovery(), $tokens, 1));
     }
 
@@ -594,9 +592,9 @@ final class ResourceDiscoveryTest extends TestCase
         $tokens = \PhpToken::tokenize('<?php class(Foo)');
         $method = new \ReflectionMethod(ResourceDiscovery::class, 'declaredNameFromTokens');
 
-        // The keyword sits at index 1; the token at index 2 abuts it and is
-        // not a name token, so no declaration resolves. Beginning the scan a
-        // token later would wrongly read the identifier at index 3.
+        // The keyword sits at index 1; the token at index 2 abuts it and is not
+        // a name token, so no declaration resolves. Beginning the scan a token
+        // later would wrongly read the identifier at index 3.
         self::assertNull($method->invoke($this->discovery(), $tokens, 1, null));
     }
 

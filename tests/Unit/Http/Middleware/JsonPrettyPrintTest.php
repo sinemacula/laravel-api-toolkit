@@ -221,9 +221,9 @@ final class JsonPrettyPrintTest extends TestCase
     }
 
     /**
-     * Test that a non-streamed response whose content is not a string (its
-     * body is served from a file) is left untouched even when it declares a
-     * JSON content type.
+     * Test that a non-streamed response whose content is not a string (its body
+     * is served from a file) is left untouched even when it declares a JSON
+     * content type.
      *
      * @return void
      */

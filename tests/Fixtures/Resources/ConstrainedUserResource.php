@@ -12,8 +12,8 @@ use SineMacula\ApiToolkit\Schema\Relation;
 /**
  * Fixture user resource whose posts relation is eager-load constrained.
  *
- * The posts relation carries a constraint closure that limits the eager load
- * to published posts, so the whole collection resolves through one constrained
+ * The posts relation carries a constraint closure that limits the eager load to
+ * published posts, so the whole collection resolves through one constrained
  * sub-query rather than a per-row filtered load.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>

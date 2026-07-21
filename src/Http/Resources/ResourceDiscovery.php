@@ -15,20 +15,20 @@ use SineMacula\ApiToolkit\Enums\CacheKeys;
  * Boot-time discovery of attribute-bound API resources.
  *
  * Scans the configured resource paths for classes carrying the ForModel
- * attribute and compiles them into a model to resource map. The compiled map
- * is memoised through the metadata cache under a key fingerprinted by the
- * scanned file list and modification times, so the expensive tokenise and
- * reflect pass runs only when a scanned file actually changes, while adding,
- * editing, or removing a resource rotates the key and triggers a rescan on
- * the next boot. When schema validation is enabled the cache is bypassed
- * entirely so every diagnostic fires on every boot.
+ * attribute and compiles them into a model to resource map. The compiled map is
+ * memoised through the metadata cache under a key fingerprinted by the scanned
+ * file list and modification times, so the expensive tokenise and reflect pass
+ * runs only when a scanned file actually changes, while adding, editing, or
+ * removing a resource rotates the key and triggers a rescan on the next boot.
+ * When schema validation is enabled the cache is bypassed entirely so every
+ * diagnostic fires on every boot.
  *
- * Files are visited in a deterministic (sorted) order; when two resources
- * claim the same model the first discovered binding wins and a warning is
- * logged, or the scan fails hard when schema validation is enabled - unless
- * the model is explicitly declared in the resource map, which resolves the
- * ambiguity. A binding whose class is not an instantiable API resource, or
- * whose model does not exist, is skipped with a warning.
+ * Files are visited in a deterministic (sorted) order; when two resources claim
+ * the same model the first discovered binding wins and a warning is logged, or
+ * the scan fails hard when schema validation is enabled - unless the model is
+ * explicitly declared in the resource map, which resolves the ambiguity. A
+ * binding whose class is not an instantiable API resource, or whose model does
+ * not exist, is skipped with a warning.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -111,9 +111,9 @@ final readonly class ResourceDiscovery
      * Merge the bindings declared by the given class into the map.
      *
      * A class that is not autoloadable is skipped silently (the scan derives
-     * names from file contents, so a stray file is not an error). A model
-     * that is already bound is never rebound - the first discovered binding
-     * wins - and the duplicate claim is reported.
+     * names from file contents, so a stray file is not an error). A model that
+     * is already bound is never rebound - the first discovered binding wins -
+     * and the duplicate claim is reported.
      *
      * @param  array<class-string, class-string>  $map
      * @param  string  $class
@@ -174,8 +174,8 @@ final readonly class ResourceDiscovery
     }
 
     /**
-     * Determine whether the discovered binding is valid, logging a warning
-     * when it is not.
+     * Determine whether the discovered binding is valid, logging a warning when
+     * it is not.
      *
      * @param  class-string  $class
      * @param  string  $model
@@ -195,8 +195,8 @@ final readonly class ResourceDiscovery
     }
 
     /**
-     * Diagnose the discovered binding, returning null when it is valid, or
-     * the rejection message otherwise.
+     * Diagnose the discovered binding, returning null when it is valid, or the
+     * rejection message otherwise.
      *
      * @param  class-string  $class
      * @param  string  $model
@@ -270,9 +270,9 @@ final readonly class ResourceDiscovery
     }
 
     /**
-     * Read a file's contents, tolerating a file removed between enumeration
-     * and read (a hot deploy swapping resources mid-scan, or a concurrent
-     * test) by returning null rather than aborting discovery.
+     * Read a file's contents, tolerating a file removed between enumeration and
+     * read (a hot deploy swapping resources mid-scan, or a concurrent test) by
+     * returning null rather than aborting discovery.
      *
      * @param  string  $file
      * @return string|null
@@ -295,8 +295,8 @@ final readonly class ResourceDiscovery
     /**
      * Resolve the fully qualified class names declared in the given file.
      *
-     * Tokenising avoids loading the file, so a scanned file that is not a
-     * class (or is not autoloadable) has no side effects on the process. A
+     * Tokenising avoids loading the file, so a scanned file that is not a class
+     * (or is not autoloadable) has no side effects on the process. A
      * class keyword preceded by a double colon (a ::class constant) or by
      * new (an anonymous class) is not a declaration and is skipped.
      *

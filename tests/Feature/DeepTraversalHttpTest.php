@@ -24,9 +24,9 @@ use Tests\TestCase;
  *
  * When the related resource declares an onward traversable relation the chain
  * users -> posts -> user is permitted at every hop and compiles to nested
- * whereHas constraints. A real request proves the per-hop gating and the
- * nested existence constraint survive the HTTP layer: only the user owning a
- * post whose onward user matches the nested predicate is returned.
+ * whereHas constraints. A real request proves the per-hop gating and the nested
+ * existence constraint survive the HTTP layer: only the user owning a post
+ * whose onward user matches the nested predicate is returned.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.

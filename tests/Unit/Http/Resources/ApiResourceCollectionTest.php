@@ -280,13 +280,13 @@ final class ApiResourceCollectionTest extends TestCase
     {
         $user = User::create(['name' => 'Raw', 'email' => 'raw@example.com']);
 
-        // Construct with an empty collection to avoid wrapping overhead,
-        // then inject the raw model item directly.
+        // Construct with an empty collection to avoid wrapping overhead, then
+        // inject the raw model item directly.
         $collection = new ApiResourceCollection(collect([]), UserResource::class);
 
         // $this->collection is set to $this->resource->values() in the
-        // ResourceCollection constructor; inject the raw User directly so
-        // the false-branch of `instanceof ApiResource` in toArray() fires.
+        // ResourceCollection constructor; inject the raw User directly so the
+        // false-branch of `instanceof ApiResource` in toArray() fires.
         $reflection = new \ReflectionProperty($collection, 'collection');
         $reflection->setValue($collection, collect([$user])); // NOSONAR
 

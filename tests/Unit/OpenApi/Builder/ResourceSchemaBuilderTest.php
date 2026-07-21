@@ -73,8 +73,8 @@ final class ResourceSchemaBuilderTest extends TestCase
     }
 
     /**
-     * Test that a null field definition only skips its own key: later
-     * field keys in the same compiled schema are still emitted as properties.
+     * Test that a null field definition only skips its own key: later field
+     * keys in the same compiled schema are still emitted as properties.
      *
      * @return void
      */

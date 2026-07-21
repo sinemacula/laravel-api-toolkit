@@ -358,8 +358,8 @@ final class ApiExceptionTest extends TestCase
     }
 
     /**
-     * Test that getCustomTitle returns the code-keyed title translation
-     * when one is registered, over the status-derived default title.
+     * Test that getCustomTitle returns the code-keyed title translation when
+     * one is registered, over the status-derived default title.
      *
      * @return void
      */
@@ -412,8 +412,8 @@ final class ApiExceptionTest extends TestCase
     }
 
     /**
-     * Test that a published per-status translation localises the derived
-     * title for the generic HTTP error path.
+     * Test that a published per-status translation localises the derived title
+     * for the generic HTTP error path.
      *
      * @return void
      */

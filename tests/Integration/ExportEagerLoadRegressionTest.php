@@ -26,12 +26,11 @@ use Tests\TestCase;
  * were already eager-loaded before the export began.
  *
  * ResourceCollectionSource and ResourceItemSource do not implement
- * DerivesAggregates, so the engine's withCount/withSum plan is never applied
- * to them. DerivesTabularSchema.tabular() also produces a schema whose
- * with() is empty (relation fields are skipped entirely), so loadMissing()
- * is not called on the pre-loaded collection. The tests confirm both
- * invariants empirically by counting the queries issued exclusively during
- * the streaming phase.
+ * DerivesAggregates, so the engine's withCount/withSum plan is never applied to
+ * them. DerivesTabularSchema.tabular() also produces a schema whose with() is
+ * empty (relation fields are skipped entirely), so loadMissing() is not called
+ * on the pre-loaded collection. The tests confirm both invariants empirically
+ * by counting the queries issued exclusively during the streaming phase.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -78,16 +77,16 @@ final class ExportEagerLoadRegressionTest extends TestCase
     // -------------------------------------------------------------------------
 
     /**
-     * Test that a collection CSV export issues zero queries when the
-     * underlying models have their relations already eager-loaded.
+     * Test that a collection CSV export issues zero queries when the underlying
+     * models have their relations already eager-loaded.
      *
      * ResourceCollectionSource.rows() only calls loadMissing() when
-     * withRelations() received a non-empty list. DerivesTabularSchema skips
-     * all Relation fields, so the engine derives an empty with() list and
-     * the load is never triggered. The export also issues no withCount or
-     * withSum queries because ResourceCollectionSource does not implement
-     * DerivesAggregates. Pre-loaded models therefore reach the CSV writer
-     * with zero additional queries.
+     * withRelations() received a non-empty list. DerivesTabularSchema skips all
+     * Relation fields, so the engine derives an empty with() list and the load
+     * is never triggered. The export also issues no withCount or withSum
+     * queries because ResourceCollectionSource does not implement
+     * DerivesAggregates. Pre-loaded models therefore reach the CSV writer with
+     * zero additional queries.
      *
      * @return void
      */
@@ -214,11 +213,11 @@ final class ExportEagerLoadRegressionTest extends TestCase
      * Register the HTTP routes used by the eager-load regression scenarios.
      *
      * Both routes explicitly eager-load the organisation relation before
-     * returning the resource, mirroring what a real repository or service
-     * layer would do. The organisation column is a Relation field in
+     * returning the resource, mirroring what a real repository or service layer
+     * would do. The organisation column is a Relation field in
      * ExportableUserResource and is therefore excluded from the tabular
-     * schema - confirming that the export neither re-loads it nor uses it
-     * to derive aggregates.
+     * schema - confirming that the export neither re-loads it nor uses it to
+     * derive aggregates.
      *
      * @return void
      */

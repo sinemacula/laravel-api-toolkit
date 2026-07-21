@@ -20,9 +20,9 @@ use Tests\TestCase;
  * Feature tests for the authorized controller guard through the HTTP kernel.
  *
  * Dispatches real requests to an authorized controller backed by a policy: an
- * action outside the guard exclusions is gated by its ability and, when
- * denied, renders the toolkit forbidden envelope, while an excluded action
- * bypasses the guard entirely.
+ * action outside the guard exclusions is gated by its ability and, when denied,
+ * renders the toolkit forbidden envelope, while an excluded action bypasses the
+ * guard entirely.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.

@@ -78,9 +78,9 @@ final class CacheableDeferrableInvalidationTest extends TestCase
     }
 
     /**
-     * Test that a deferred write flushed at the request boundary
-     * invalidates the combined repository's own per-query cache, so the
-     * next read re-queries and reflects the freshly persisted row.
+     * Test that a deferred write flushed at the request boundary invalidates
+     * the combined repository's own per-query cache, so the next read
+     * re-queries and reflects the freshly persisted row.
      *
      * @return void
      */
@@ -129,8 +129,8 @@ final class CacheableDeferrableInvalidationTest extends TestCase
         $result = $this->freshRepository()->get(); // @phpstan-ignore staticMethod.dynamicCall
 
         // Invalidation was disabled, so the warmed collection is served
-        // straight from cache without a database round trip and stays
-        // stale until its TTL expires.
+        // straight from cache without a database round trip and stays stale
+        // until its TTL expires.
         self::assertCount(0, DB::getQueryLog());
         self::assertCount(2, $result);
 

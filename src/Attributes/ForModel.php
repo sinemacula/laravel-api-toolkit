@@ -11,8 +11,8 @@ namespace SineMacula\ApiToolkit\Attributes;
  * resource paths and compiled into the model to resource map, so the binding
  * lives on the resource itself rather than in a hand-maintained config entry.
  * The attribute may be repeated to bind one resource to several models. An
- * explicit `resource_map` entry for the same model always wins, acting as
- * the canonical-resource tiebreak when a model has more than one resource.
+ * explicit `resource_map` entry for the same model always wins, acting as the
+ * canonical-resource tiebreak when a model has more than one resource.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
