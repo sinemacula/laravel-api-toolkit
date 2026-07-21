@@ -149,3 +149,31 @@ function class_exists(string $class, bool $autoload = true): bool
 
     return \class_exists($class, $autoload);
 }
+
+/**
+ * Override interface_exists() within the Providers\Registrars namespace.
+ *
+ * Lets tests simulate the presence or absence of an optional integration's
+ * marker interface (Octane's OperationTerminated) so both branches of the
+ * interface_exists guard are observable without changing the installed
+ * dependency set.
+ *
+ * @SuppressWarnings("php:S100")
+ * @SuppressWarnings("php:S4144")
+ *
+ * @param  string  $interface
+ * @param  bool  $autoload
+ * @return bool
+ *
+ * @imperative
+ */
+function interface_exists(string $interface, bool $autoload = true): bool
+{
+    $override = FunctionOverrides::get('interface_exists');
+
+    if ($override !== null) {
+        return (bool) $override($interface, $autoload);
+    }
+
+    return \interface_exists($interface, $autoload);
+}

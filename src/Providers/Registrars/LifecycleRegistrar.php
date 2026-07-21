@@ -7,7 +7,7 @@ namespace SineMacula\ApiToolkit\Providers\Registrars;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Log;
-use Laravel\Octane\Events\OperationTerminated;
+use Laravel\Octane\Contracts\OperationTerminated;
 use SineMacula\ApiToolkit\Listeners\OctaneFlushListener;
 use SineMacula\ApiToolkit\Listeners\QueueFlushSubscriber;
 use SineMacula\ApiToolkit\Listeners\WritePoolFlushSubscriber;
@@ -59,7 +59,7 @@ final class LifecycleRegistrar
             return;
         }
 
-        if (!class_exists(OperationTerminated::class)) {
+        if (!interface_exists(OperationTerminated::class)) {
             return;
         }
 
