@@ -38,23 +38,10 @@ final class EloquentActor implements Actor
     /** @var string Human-readable label snapshotted at construction time. */
     private string $label;
 
-    /**
-     * The live model instance.
-     *
-     * Null after unserialisation until the first call to toAuthenticatable().
-     * Also null when the underlying record has been deleted and re-resolution
-     * returned nothing.
-     *
-     * @var (\Illuminate\Contracts\Auth\Authenticatable&\Illuminate\Database\Eloquent\Model)|null
-     */
+    /** @var (\Illuminate\Contracts\Auth\Authenticatable&\Illuminate\Database\Eloquent\Model)|null The live model, or null when unresolved or gone. */
     private (Authenticatable&Model)|null $model = null;
 
-    /**
-     * Whether the model has been resolved (or attempted) after unserialisation.
-     * False only between __unserialize and the first toAuthenticatable() call.
-     *
-     * @var bool
-     */
+    /** @var bool Whether resolution has run since unserialisation. */
     private bool $resolved = false;
 
     /**

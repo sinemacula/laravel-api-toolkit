@@ -29,11 +29,7 @@ final class ErrorCatalogueReader
     /** @var string The filesystem path to the Exceptions directory */
     private const string EXCEPTIONS_DIR = __DIR__ . '/../../Exceptions';
 
-    /**
-     * Memoised map from integer error-code value to owning exception class.
-     *
-     * @var array<int, class-string<\SineMacula\ApiToolkit\Exceptions\ApiException>>
-     */
+    /** @var array<int, class-string<\SineMacula\ApiToolkit\Exceptions\ApiException>> Memoised code-to-class map. */
     private array $exceptionMap = [];
 
     /**
