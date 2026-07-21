@@ -317,9 +317,9 @@ final class DerivesTabularSchemaTest extends TestCase
     }
 
     /**
-     * Test that a non-callable guard preceding a request-scoped guard
-     * that hides the field is skipped rather than ending the check early,
-     * so the hiding guard still drops the column.
+     * Test that a non-callable guard preceding a request-scoped guard that
+     * hides the field is skipped rather than ending the check early, so the
+     * hiding guard still drops the column.
      *
      * @return void
      */

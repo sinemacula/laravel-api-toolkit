@@ -32,8 +32,8 @@ use SineMacula\ApiToolkit\Schema\SchemaCompiler;
  * root relation against the declared traversable set, and each onward relation
  * against the related resource's declared traversable set, failing closed when
  * the related model has no mapped resource. Traversal depth is therefore
- * bounded by declarations rather than a fixed limit - a chain ends at the
- * first undeclared or unmapped hop.
+ * bounded by declarations rather than a fixed limit - a chain ends at the first
+ * undeclared or unmapped hop.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.

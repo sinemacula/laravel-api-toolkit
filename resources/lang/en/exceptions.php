@@ -88,9 +88,9 @@ return [
         'detail' => 'The service is temporarily unavailable, please try again a little later',
     ],
 
-    // No title is defined for the generic HTTP error; the handler derives
-    // it from the runtime HTTP status so the response reflects the original
-    // status phrase (e.g. "Conflict" for an abort(409))
+    // No title is defined for the generic HTTP error; the handler derives it
+    // from the runtime HTTP status so the response reflects the original status
+    // phrase (e.g. "Conflict" for an abort(409))
     ErrorCode::HTTP_ERROR->getCode() => [
         'detail' => 'The request could not be completed',
     ],

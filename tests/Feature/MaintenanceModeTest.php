@@ -59,8 +59,8 @@ final class MaintenanceModeTest extends TestCase
     }
 
     /**
-     * Test that a guarded route renders the service-unavailable envelope
-     * while maintenance mode is active.
+     * Test that a guarded route renders the service-unavailable envelope while
+     * maintenance mode is active.
      *
      * @return void
      */

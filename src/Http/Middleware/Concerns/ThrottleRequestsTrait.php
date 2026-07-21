@@ -27,8 +27,8 @@ trait ThrottleRequestsTrait
     protected function resolveRequestSignature(#[\SensitiveParameter] $request): string
     {
         // phpcs:enable
-        // Invoke the route resolver directly, as route() is documented as
-        // never returning null when called without arguments
+        // Invoke the route resolver directly, as route() is documented as never
+        // returning null when called without arguments
         $route = ($request->getRouteResolver())();
 
         if ($route === null) {

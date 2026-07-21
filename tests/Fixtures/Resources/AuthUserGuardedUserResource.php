@@ -10,9 +10,9 @@ use SineMacula\ApiToolkit\Schema\Field;
 /**
  * Fixture user resource whose email field is guarded on the authenticated user.
  *
- * The email guard reads the request's authenticated user and reveals the
- * field only when that user is an admin. The is_admin accessor on the User
- * and ActorUser fixtures resolves to true when the authenticated user's email
+ * The email guard reads the request's authenticated user and reveals the field
+ * only when that user is an admin. The is_admin accessor on the User and
+ * ActorUser fixtures resolves to true when the authenticated user's email
  * begins with "admin@", so the field is absent for a guest and present only
  * under actingAs() of an admin user.
  *

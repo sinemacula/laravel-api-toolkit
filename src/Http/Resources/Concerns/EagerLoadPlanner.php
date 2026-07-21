@@ -225,9 +225,9 @@ final class EagerLoadPlanner
                 continue;
             }
 
-            // Alias the aggregate to the full attribute name the resolver
-            // reads back ({presentKey}_{metric}_{column}); Laravel uses the
-            // "as" alias verbatim as the result column, so it must match.
+            // Alias the aggregate to the full attribute name the resolver reads
+            // back ({presentKey}_{metric}_{column}); Laravel uses the "as"
+            // alias verbatim as the result column, so it must match.
             $aliased    = $definition->relation . ' as ' . $definition->presentKey . '_' . $metric . '_' . $definition->column;
             $constraint = $definition->constraint;
 

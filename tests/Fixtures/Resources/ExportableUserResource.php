@@ -16,9 +16,9 @@ use Tests\Fixtures\Models\User;
  *
  * Used by the export-negotiator integration suite to prove that the
  * DerivesTabularSchema trait maps scalar, callable-accessor, and
- * callable-compute fields to the correct Column implementations without
- * manual column declarations. The relation field is present to confirm it is
- * skipped by the trait.
+ * callable-compute fields to the correct Column implementations without manual
+ * column declarations. The relation field is present to confirm it is skipped
+ * by the trait.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.

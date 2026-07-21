@@ -12,10 +12,10 @@ use Tests\Fixtures\Models\User;
 /**
  * Fixture user resource whose email field is guarded per row.
  *
- * The email guard reads the row being rendered and reveals the field only
- * when that user's status is active. Driven as a plain JSON collection, a
- * two-row set (one active, one inactive) therefore carries email on the
- * active row and omits it on the inactive row within the same body.
+ * The email guard reads the row being rendered and reveals the field only when
+ * that user's status is active. Driven as a plain JSON collection, a two-row
+ * set (one active, one inactive) therefore carries email on the active row and
+ * omits it on the inactive row within the same body.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.

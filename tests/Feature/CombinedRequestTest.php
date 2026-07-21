@@ -22,10 +22,10 @@ use Tests\TestCase;
  *
  * Under the default allowlist posture a real request narrows the fieldset,
  * applies a declared filter, orders by a declared sortable column, and
- * truncates with a page limit. The four modifiers are proven to apply
- * together: the fieldset drops undeclared keys, the filtered total excludes
- * non-matching rows, the ordering fixes row positions, and the limit caps the
- * page while the meta still reports the filtered total.
+ * truncates with a page limit. The four modifiers are proven to apply together:
+ * the fieldset drops undeclared keys, the filtered total excludes non-matching
+ * rows, the ordering fixes row positions, and the limit caps the page while the
+ * meta still reports the filtered total.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.

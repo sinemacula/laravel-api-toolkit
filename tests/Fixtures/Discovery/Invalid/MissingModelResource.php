@@ -9,8 +9,8 @@ use SineMacula\ApiToolkit\Http\Resources\ApiResource;
 use SineMacula\ApiToolkit\Schema\Field;
 
 /**
- * Fixture resource whose declared model does not exist; discovery must skip
- * it with a warning.
+ * Fixture resource whose declared model does not exist; discovery must skip it
+ * with a warning.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.

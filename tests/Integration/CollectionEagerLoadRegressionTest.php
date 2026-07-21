@@ -24,8 +24,8 @@ use Tests\TestCase;
  * Regression guard for N+1 queries when serialising a relation-bearing
  * collection.
  *
- * Drives the eager-load planner through the criteria chain, then serialises
- * the resulting collection under a query log. The query count must be constant
+ * Drives the eager-load planner through the criteria chain, then serialises the
+ * resulting collection under a query log. The query count must be constant
  * regardless of how many rows the collection holds: a regression that made a
  * nested relation resolve per-row would inflate the count in lockstep with the
  * row count. The serialised relations are asserted to prove the constant count

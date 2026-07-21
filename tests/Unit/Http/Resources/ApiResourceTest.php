@@ -1931,8 +1931,8 @@ final class ApiResourceTest extends TestCase
         $outerClass::$childClassName = $childClassName;
 
         // No fields set for 'no_defaults_child' in the query — defaults are
-        // empty — so resolveChildFields falls through to getAllFields
-        // (line 837).
+        // empty — so resolveChildFields falls through to getAllFields (line
+        // 837).
         $map = $outerClass::eagerLoadMapFor(['rel']);
 
         self::assertContains('rel', $map);
@@ -1949,8 +1949,8 @@ final class ApiResourceTest extends TestCase
     {
         $this->clearSchemaCache();
 
-        // Request 'posts' on a resource whose schema does NOT include it as
-        // a relation. resolveSimpleProperty() is then called for 'posts'.
+        // Request 'posts' on a resource whose schema does NOT include it as a
+        // relation. resolveSimpleProperty() is then called for 'posts'.
         // User.posts() exists (method_exists = true) → reflection runs → the
         // return type is HasMany, not Attribute → line 388 condition is false.
         $resourceClass = new class (null) extends ApiResource {
@@ -1986,9 +1986,9 @@ final class ApiResourceTest extends TestCase
         $result = $resource->resolve();
 
         // 'posts' resolves via Eloquent's __isset/__get (relation lazy-loaded),
-        // so the key is present in the result. The main goal is to exercise
-        // the ReflectionMethod path (lines 385-386, 388) before falling through
-        // to the __isset check.
+        // so the key is present in the result. The main goal is to exercise the
+        // ReflectionMethod path (lines 385-386, 388) before falling through to
+        // the __isset check.
         self::assertArrayHasKey('_type', $result);
     }
 

@@ -104,10 +104,10 @@ trait DerivesTabularSchema
     /**
      * Build the value-resolving column for the field, before guards.
      *
-     * Fields with a compute, a callable accessor, or transformers resolve
-     * their value through a fresh resource so the JSON value, transformers
-     * included, is mirrored in the cell. Plain scalar and string-accessor
-     * fields without transformers keep the exporter's raw attribute read.
+     * Fields with a compute, a callable accessor, or transformers resolve their
+     * value through a fresh resource so the JSON value, transformers included,
+     * is mirrored in the cell. Plain scalar and string-accessor fields without
+     * transformers keep the exporter's raw attribute read.
      *
      * @param  string  $key
      * @param  \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition  $definition
@@ -167,9 +167,9 @@ trait DerivesTabularSchema
     /**
      * Apply the field's guards to the column.
      *
-     * A field with no guards is returned untouched. A guard that inspects
-     * the row cannot gate a flat column, so the field is refused. Guards
-     * that depend only on the request map to the column-visibility gate.
+     * A field with no guards is returned untouched. A guard that inspects the
+     * row cannot gate a flat column, so the field is refused. Guards that
+     * depend only on the request map to the column-visibility gate.
      *
      * @param  string  $key
      * @param  \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition  $definition

@@ -28,8 +28,8 @@ use Tests\TestCase;
  * Drives the eager-load planner across users -> posts -> tags, then serialises
  * the collection under a query log. The count must be a small constant (one
  * query per level, batched) and identical for a small and a large row count:
- * were the third level loaded per row, the count would scale with the rows.
- * The tags are asserted to have hydrated so a constant count cannot mean the
+ * were the third level loaded per row, the count would scale with the rows. The
+ * tags are asserted to have hydrated so a constant count cannot mean the
  * deepest level simply never loaded.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>

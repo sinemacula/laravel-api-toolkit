@@ -183,8 +183,8 @@ final class ErrorCatalogueReaderTest extends TestCase
     }
 
     /**
-     * Test that the exception map is memoised so a second read does not
-     * re-scan the filesystem.
+     * Test that the exception map is memoised so a second read does not re-scan
+     * the filesystem.
      *
      * @return void
      */
@@ -223,9 +223,9 @@ final class ErrorCatalogueReaderTest extends TestCase
     }
 
     /**
-     * Test that a discovered subclass declaring no CODE constant does not
-     * abort the scan: a later file is still processed and mapped, proving the
-     * CODE guard skips the offending file rather than stopping the loop.
+     * Test that a discovered subclass declaring no CODE constant does not abort
+     * the scan: a later file is still processed and mapped, proving the CODE
+     * guard skips the offending file rather than stopping the loop.
      *
      * @return void
      */

@@ -78,8 +78,8 @@ final class DeferredWriteRequestBoundaryTest extends TestCase
 
         $response->assertStatus(202);
 
-        // The route handler observed an empty table: deferred records
-        // must not be persisted while the request is still in flight.
+        // The route handler observed an empty table: deferred records must not
+        // be persisted while the request is still in flight.
         $response->assertJsonPath('persisted_during_request', 0);
 
         self::assertSame(2, DB::table('users')->count());

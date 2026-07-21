@@ -103,8 +103,8 @@ final class DeferredWriteCacheInvalidationTest extends TestCase
 
         $result = $this->freshTagRepository()->get(); // @phpstan-ignore staticMethod.dynamicCall
 
-        // The cache was not invalidated: the stale two-row collection is
-        // served straight from cache without touching the database.
+        // The cache was not invalidated: the stale two-row collection is served
+        // straight from cache without touching the database.
         self::assertCount(0, DB::getQueryLog());
         self::assertCount(2, $result);
 

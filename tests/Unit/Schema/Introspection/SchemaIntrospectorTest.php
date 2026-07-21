@@ -1145,9 +1145,8 @@ final class SchemaIntrospectorTest extends TestCase
     }
 
     /**
-     * Test that a cached searchable set is served from the instance cache
-     * and is not recomputed when the exclusion configuration changes
-     * afterwards.
+     * Test that a cached searchable set is served from the instance cache and
+     * is not recomputed when the exclusion configuration changes afterwards.
      *
      * @return void
      */
@@ -1197,8 +1196,8 @@ final class SchemaIntrospectorTest extends TestCase
     }
 
     /**
-     * Test that parentKeysFor returns the parent local key for a
-     * MorphOneOrMany relation.
+     * Test that parentKeysFor returns the parent local key for a MorphOneOrMany
+     * relation.
      *
      * @return void
      */

@@ -12,8 +12,8 @@ use Tests\Fixtures\Models\User;
  * Fixture cacheable user repository operating in whole-table reference mode.
  *
  * Opts into the whole-table reference cache so a repeat read serves the
- * snapshot with zero queries, while a criteria-composed read falls through
- * to the database.
+ * snapshot with zero queries, while a criteria-composed read falls through to
+ * the database.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.

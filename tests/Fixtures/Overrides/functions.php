@@ -128,9 +128,9 @@ use Tests\Fixtures\Support\FunctionOverrides;
 /**
  * Override class_exists() within the Providers\Registrars namespace.
  *
- * Lets tests simulate the presence or absence of optional integration
- * packages (Octane, notifications) so the class_exists guards on both branches
- * are observable without changing the installed dependency set.
+ * Lets tests simulate the presence or absence of optional integration packages
+ * (Octane, notifications) so the class_exists guards on both branches are
+ * observable without changing the installed dependency set.
  *
  * @SuppressWarnings("php:S100")
  * @SuppressWarnings("php:S4144")
