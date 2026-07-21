@@ -2234,6 +2234,33 @@ final class ApiResourceTest extends TestCase
     }
 
     /**
+     * Test that resolve skips a field resolving to MissingValue and still
+     * resolves later fields in the list.
+     *
+     * @return void
+     */
+    public function testResolveContinuesPastMissingValueFields(): void
+    {
+        $user = User::create([
+            'name'  => 'MissingValueSkip',
+            'email' => 'missingvalueskip@example.com',
+        ]);
+
+        // The unloaded relation resolves to MissingValue and must be skipped
+        // without aborting resolution of the later 'name' field.
+        self::assertFalse($user->relationLoaded('organization'));
+
+        $resource = new UserResource($user);
+        $resource->withFields(['organization', 'name']);
+
+        $result = $resource->resolve();
+
+        self::assertArrayNotHasKey('organization', $result);
+        self::assertArrayHasKey('name', $result);
+        self::assertSame('MissingValueSkip', $result['name']);
+    }
+
+    /**
      * Test that the constructor does not eager load relations by default.
      *
      * @return void
@@ -2634,6 +2661,155 @@ final class ApiResourceTest extends TestCase
     }
 
     /**
+     * Test that load_missing does not load sum or average aggregates when the
+     * corresponding virtual fields are neither requested nor default, even
+     * though the aggregate definitions are themselves default.
+     *
+     * @return void
+     */
+    public function testLoadMissingSkipsAggregatesWhenVirtualFieldsNotRequested(): void
+    {
+        $this->clearSchemaCache();
+
+        $resourceClass = new class (null) extends ApiResource {
+            /** @var string */
+            public const string RESOURCE_TYPE = 'agg_gate_rt';
+
+            /** @var array<int, string> */
+            protected static array $default = ['id'];
+
+            /**
+             * Get the resource schema.
+             *
+             * @return array<string, array<string, mixed>>
+             */
+            #[\Override]
+            public static function schema(): array
+            {
+                return [
+                    'id'               => [],
+                    '__sum__:posts_id' => [
+                        'metric'   => 'sum',
+                        'relation' => 'posts',
+                        'column'   => 'id',
+                        'default'  => true,
+                    ],
+                    '__avg__:posts_id' => [
+                        'metric'   => 'avg',
+                        'relation' => 'posts',
+                        'column'   => 'id',
+                        'default'  => true,
+                    ],
+                ];
+            }
+        };
+
+        $spy = new class {
+            /** @var array<int, array<int, mixed>> */
+            public array $sumCalls = [];
+
+            /** @var array<int, array<int, mixed>> */
+            public array $avgCalls = [];
+
+            /** @var array<string, mixed> */
+            private array $attributes = [];
+
+            /**
+             * Magic getter for attribute access.
+             *
+             * @param  string  $key
+             * @return mixed
+             */
+            public function __get(string $key): mixed
+            {
+                return $this->attributes[$key] ?? null;
+            }
+
+            /**
+             * Magic isset for attribute existence check.
+             *
+             * @param  string  $key
+             * @return bool
+             */
+            public function __isset(string $key): bool
+            {
+                return isset($this->attributes[$key]);
+            }
+
+            /**
+             * Return the attribute map.
+             *
+             * @return array<string, mixed>
+             */
+            public function getAttributes(): array
+            {
+                return $this->attributes;
+            }
+
+            /**
+             * No-op for the eager-load relations path.
+             *
+             * @SuppressWarnings("php:S1172")
+             *
+             * @param  mixed  $with
+             * @return static
+             */
+            public function loadMissing(mixed $with): static
+            {
+                return $this;
+            }
+
+            /**
+             * No-op for the count-loading path.
+             *
+             * @SuppressWarnings("php:S1172")
+             *
+             * @param  mixed  $relations
+             * @return static
+             */
+            public function loadCount(mixed $relations): static
+            {
+                return $this;
+            }
+
+            /**
+             * Record a sum-loading call.
+             *
+             * @param  mixed  $relations
+             * @param  string  $column
+             * @return static
+             */
+            public function loadSum(mixed $relations, string $column): static
+            {
+                $this->sumCalls[] = [$relations, $column];
+
+                return $this;
+            }
+
+            /**
+             * Record an average-loading call.
+             *
+             * @param  mixed  $relations
+             * @param  string  $column
+             * @return static
+             */
+            public function loadAvg(mixed $relations, string $column): static
+            {
+                $this->avgCalls[] = [$relations, $column];
+
+                return $this;
+            }
+        };
+
+        new $resourceClass($spy, true);
+
+        static::assertSame([], $spy->sumCalls);
+        static::assertSame([], $spy->avgCalls);
+
+        $this->clearSchemaCache();
+    }
+
+    /**
      * Test that fields declared on the resource's fixed property are merged
      * with the config-driven fixed fields.
      *
@@ -2677,8 +2853,8 @@ final class ApiResourceTest extends TestCase
 
         $result = $resource->resolve();
 
-        self::assertArrayHasKey('email', $result, 'resource-level fixed fields must be included');
-        self::assertArrayHasKey('id', $result, 'config-level fixed fields must be included');
+        static::assertArrayHasKey('email', $result, 'resource-level fixed fields must be included');
+        static::assertArrayHasKey('id', $result, 'config-level fixed fields must be included');
     }
 
     /**
@@ -2707,11 +2883,11 @@ final class ApiResourceTest extends TestCase
 
         $values = array_values($result);
 
-        self::assertContains('comments as comments_count', $values);
-        self::assertArrayHasKey('tags as tags_count', $result);
-        self::assertContains(['relation' => 'authors as authors_sum_id', 'column' => 'id'], $values);
-        self::assertNotContains('posts as posts_count', $values);
-        self::assertNotContains(['relation' => 'posts as posts_sum_id', 'column' => 'id'], $values);
+        static::assertContains('comments as comments_count', $values);
+        static::assertArrayHasKey('tags as tags_count', $result);
+        static::assertContains(['relation' => 'authors as authors_sum_id', 'column' => 'id'], $values);
+        static::assertNotContains('posts as posts_count', $values);
+        static::assertNotContains(['relation' => 'posts as posts_sum_id', 'column' => 'id'], $values);
     }
 
     /**

@@ -4,12 +4,17 @@ declare(strict_types = 1);
 
 namespace Tests\Unit\Services;
 
+use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Queue;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Contracts\LockKeyProvider;
 use SineMacula\ApiToolkit\Services\Actors\AnonymousActor;
 use SineMacula\ApiToolkit\Services\Contracts\Actor;
 use SineMacula\ApiToolkit\Services\Contracts\ServiceInput;
+use SineMacula\ApiToolkit\Services\Enums\ServiceSource;
+use SineMacula\ApiToolkit\Services\Events\ServiceCompleted;
 use SineMacula\ApiToolkit\Services\Input\ArrayInput;
+use SineMacula\ApiToolkit\Services\Jobs\ServiceJob;
 use SineMacula\ApiToolkit\Services\Service;
 use SineMacula\ApiToolkit\Services\ServiceContext;
 use SineMacula\ApiToolkit\Services\ServiceResult;
@@ -303,5 +308,166 @@ final class ServiceTest extends TestCase
         $service = new OutputService(new ArrayInput([]));
 
         self::assertInstanceOf(Actor::class, $service->actor());
+    }
+
+    /**
+     * Test that run() reuses the context supplied via withContext() rather than
+     * building a fresh one.
+     *
+     * @return void
+     */
+    public function testRunReusesContextSuppliedByWithContext(): void
+    {
+        Event::fake();
+
+        $context = ServiceContext::for(new StubActor, ServiceSource::HTTP, [], 'fixed-correlation');
+        $service = new OutputService(new ArrayInput(['message' => 'hello']));
+
+        $service->withContext($context)->run();
+
+        Event::assertDispatched(
+            ServiceCompleted::class,
+            static fn (ServiceCompleted $event): bool => $event->correlationId === 'fixed-correlation',
+        );
+    }
+
+    /**
+     * Test that dispatch() reuses the context supplied via withContext() rather
+     * than building a fresh one.
+     *
+     * @return void
+     */
+    public function testDispatchReusesContextSuppliedByWithContext(): void
+    {
+        Queue::fake();
+
+        $context = ServiceContext::for(new StubActor, ServiceSource::HTTP, [], 'fixed-correlation');
+        $service = new OutputService(new ArrayInput([]));
+
+        $service->withContext($context)->dispatch();
+
+        Queue::assertPushed(
+            ServiceJob::class,
+            static fn (ServiceJob $job): bool => $job->context->correlationId === 'fixed-correlation'
+                && $job->context->source                                      === ServiceSource::HTTP,
+        );
+    }
+
+    /**
+     * Test that serviceHooks wires prepare() so it is invoked during a run.
+     *
+     * @return void
+     */
+    public function testServiceHooksInvokePrepareDuringRun(): void
+    {
+        $service = new class (new ArrayInput([])) extends Service {
+            /** @var bool */
+            public bool $prepareCalled = false;
+
+            /**
+             * Record the prepare call.
+             *
+             * @return void
+             */
+            #[\Override]
+            protected function prepare(): void
+            {
+                $this->prepareCalled = true;
+            }
+
+            /**
+             * Return null output.
+             *
+             * @return mixed
+             */
+            #[\Override]
+            protected function handle(): mixed
+            {
+                return null;
+            }
+        };
+
+        $service->run();
+
+        self::assertTrue($service->prepareCalled);
+    }
+
+    /**
+     * Test that serviceHooks wires onFailure() so it is invoked when the run
+     * fails.
+     *
+     * @return void
+     */
+    public function testServiceHooksInvokeOnFailureDuringRun(): void
+    {
+        $service = new class (new ArrayInput([])) extends Service {
+            /** @var bool */
+            public bool $onFailureCalled = false;
+
+            /**
+             * Always throw a domain exception.
+             *
+             * @return never
+             *
+             * @throws \RuntimeException
+             */
+            #[\Override]
+            protected function handle(): never
+            {
+                throw new \RuntimeException('domain failure');
+            }
+
+            /**
+             * Record the onFailure call.
+             *
+             * @param  \Throwable  $exception
+             * @return void
+             */
+            #[\Override]
+            protected function onFailure(\Throwable $exception): void
+            {
+                $this->onFailureCalled = true;
+            }
+        };
+
+        $service->run();
+
+        self::assertTrue($service->onFailureCalled);
+    }
+
+    /**
+     * Test that every overridable lifecycle hook remains protected so concrete
+     * services can override it.
+     *
+     * @return void
+     */
+    public function testLifecycleHooksRemainProtectedForOverriding(): void
+    {
+        // Exercise the non-overridden base hook bodies so they are covered.
+        (new OutputService(new ArrayInput([])))->run();
+
+        $failing = new class (new ArrayInput([])) extends Service {
+            /**
+             * Always throw so the base onFailure() hook is exercised.
+             *
+             * @return never
+             *
+             * @throws \RuntimeException
+             */
+            #[\Override]
+            protected function handle(): never
+            {
+                throw new \RuntimeException('domain failure');
+            }
+        };
+
+        $failing->run();
+
+        foreach (['authorize', 'validate', 'prepare', 'onFailure', 'concerns', 'lockId'] as $hook) {
+            self::assertTrue(
+                (new \ReflectionMethod(Service::class, $hook))->isProtected(),
+                $hook . '() must remain protected so subclasses can override it',
+            );
+        }
     }
 }

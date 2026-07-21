@@ -359,6 +359,98 @@ final class ColumnProjectionApplierTest extends TestCase
     }
 
     /**
+     * Test that when the narrow-columns flag is entirely absent from config the
+     * applier defaults to disabled, leaving the query unnarrowed.
+     *
+     * @return void
+     */
+    public function testAbsentNarrowFlagDefaultsToDisabled(): void
+    {
+        Config::set('api-toolkit.resources', []);
+
+        $this->parseRequest(new Request);
+
+        $provider = self::createStub(ResourceMetadataProvider::class);
+        $provider->method('getResourceType')->willReturn('users');
+        $provider->method('resolveFields')->willReturn(self::USER_DEFAULT_FIELDS);
+        $provider->method('eagerLoadMapFor')->willReturn([]);
+
+        $query  = (new User)->newQuery();
+        $result = $this->makeApplier()->apply($query, $provider, UserResource::class, ['name' => 'asc']);
+
+        self::assertNull($result->getQuery()->columns);
+    }
+
+    /**
+     * Test that a non-string relation path preceding a valid list-keyed
+     * relation is skipped without halting the loop, so the later relation's
+     * parent key is still retained.
+     *
+     * @return void
+     */
+    public function testProcessesListKeyedRelationAfterNonStringPath(): void
+    {
+        Config::set('api-toolkit.resources.narrow_columns', true);
+
+        $this->parseRequest(new Request);
+
+        $provider = self::createStub(ResourceMetadataProvider::class);
+        $provider->method('getResourceType')->willReturn('users');
+        $provider->method('resolveFields')->willReturn(self::USER_DEFAULT_FIELDS);
+        // A non-string path (nested array under an int key) precedes a valid
+        // list-keyed relation entry.
+        $provider->method('eagerLoadMapFor')->willReturn([['nested', 'array'], 'author']);
+
+        $author = self::createStub(Relation::class);
+
+        $introspector = self::createStub(SchemaIntrospectionProvider::class);
+        $introspector->method('getColumns')->willReturn([...self::USER_COLUMNS, 'author_id']);
+        $introspector->method('getDeletedAtColumn')->willReturn(null);
+        $introspector->method('resolveRelation')->willReturnCallback(
+            static fn (string $key): ?Relation => $key === 'author' ? $author : null,
+        );
+        $introspector->method('parentKeysFor')->willReturn(['author_id']);
+
+        $applier = new ColumnProjectionApplier(new SafetySetDeriver($introspector));
+
+        $columns = $applier->apply((new User)->newQuery(), $provider, UserResource::class, [])->getQuery()->columns;
+
+        self::assertNotNull($columns);
+        self::assertContains('author_id', $columns);
+    }
+
+    /**
+     * Test that the random-ordering keyword is excluded from the order-derived
+     * safety columns, so a real column that happens to share its name is not
+     * force-retained by a random-order request.
+     *
+     * @return void
+     */
+    public function testExcludesRandomOrderKeywordFromRetainedColumns(): void
+    {
+        Config::set('api-toolkit.resources.narrow_columns', true);
+
+        $this->parseRequest(new Request);
+
+        $provider = self::createStub(ResourceMetadataProvider::class);
+        $provider->method('getResourceType')->willReturn('users');
+        $provider->method('resolveFields')->willReturn(self::USER_DEFAULT_FIELDS);
+        $provider->method('eagerLoadMapFor')->willReturn([]);
+
+        $introspector = self::createStub(SchemaIntrospectionProvider::class);
+        $introspector->method('getColumns')->willReturn([...self::USER_COLUMNS, 'random']);
+        $introspector->method('getDeletedAtColumn')->willReturn(null);
+        $introspector->method('resolveRelation')->willReturn(null);
+
+        $applier = new ColumnProjectionApplier(new SafetySetDeriver($introspector));
+
+        $columns = $applier->apply((new User)->newQuery(), $provider, UserResource::class, ['random' => 'asc'])->getQuery()->columns;
+
+        self::assertNotNull($columns);
+        self::assertNotContains('random', $columns);
+    }
+
+    /**
      * Build a column projection applier over a stubbed introspection provider
      * reporting the fixture user columns.
      *

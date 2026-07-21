@@ -5,6 +5,7 @@ declare(strict_types = 1);
 namespace Tests\Unit\Repositories\Concerns;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Config;
@@ -368,6 +369,41 @@ final class AttributeSetterTest extends TestCase
     }
 
     /**
+     * Test that syncing honours an explicit detaching flag carried on the value
+     * array, passing it through to the relation's sync call rather than forcing
+     * the default of true.
+     *
+     * @return void
+     */
+    public function testSetSyncAttributeForwardsExplicitDetachingFlagToRelation(): void
+    {
+        $relation = $this->createMock(BelongsToMany::class);
+
+        $relation->expects(self::once())
+            ->method('sync')
+            ->with(['detaching' => false], false);
+
+        $model = new class extends Model {
+            /** @var \Illuminate\Database\Eloquent\Relations\BelongsToMany<\Illuminate\Database\Eloquent\Model, \Illuminate\Database\Eloquent\Model>|null The relation returned for the tags attribute. */
+            public ?BelongsToMany $tagRelation = null;
+
+            /**
+             * Return the stubbed tags relation.
+             *
+             * @return \Illuminate\Database\Eloquent\Relations\BelongsToMany<\Illuminate\Database\Eloquent\Model, \Illuminate\Database\Eloquent\Model>|null
+             */
+            public function tags(): ?BelongsToMany
+            {
+                return $this->tagRelation;
+            }
+        };
+
+        $model->tagRelation = $relation;
+
+        $this->invokeMethod($this->attributeSetter, 'setSyncAttribute', $model, 'tags', ['detaching' => false]);
+    }
+
+    /**
      * Test that persist skips attributes whose cast resolves to null.
      *
      * @return void
@@ -382,6 +418,26 @@ final class AttributeSetterTest extends TestCase
 
         self::assertTrue($result);
         self::assertSame('Alice', $user->fresh()?->name);
+    }
+
+    /**
+     * Test that persist continues to later attributes after skipping one whose
+     * cast resolves to null, rather than aborting the remaining attributes.
+     *
+     * @return void
+     */
+    public function testPersistContinuesToLaterAttributesAfterNullCast(): void
+    {
+        $user = User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL]);
+
+        $this->schemaIntrospector->method('resolveRelation')->willReturn(null);
+
+        $this->setProperty($this->attributeSetter, 'casts', ['name' => 'string']);
+
+        $result = $this->attributeSetter->persist($user, ['unknown_field' => 'value', 'name' => 'Bob'], User::class);
+
+        self::assertTrue($result);
+        self::assertSame('Bob', $user->fresh()?->name);
     }
 
     /**

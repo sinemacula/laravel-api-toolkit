@@ -505,6 +505,120 @@ final class ResourceDiscoveryTest extends TestCase
     }
 
     /**
+     * Test that a non-PHP file encountered while walking a resource directory
+     * does not halt enumeration: a resource sitting beside a stray file is
+     * still discovered.
+     *
+     * @return void
+     */
+    public function testNonPhpFilesDoNotHaltDiscovery(): void
+    {
+        $directory = sys_get_temp_dir() . '/resource-discovery-' . uniqid((string) getmypid(), true);
+
+        mkdir($directory, 0o755, true);
+
+        $contents = file_get_contents($this->fixturePath('Primary') . '/DiscoveredUserResource.php');
+
+        assert($contents !== false);
+
+        file_put_contents($directory . '/notes.txt', 'not a php file');
+        file_put_contents($directory . '/DiscoveredUserResource.php', $contents);
+
+        try {
+            Config::set('api-toolkit.resources.paths', [$directory]);
+
+            self::assertSame([
+                User::class => DiscoveredUserResource::class,
+            ], $this->discovery()->discover());
+        } finally {
+            unlink($directory . '/notes.txt');
+            unlink($directory . '/DiscoveredUserResource.php');
+            rmdir($directory);
+        }
+    }
+
+    /**
+     * Test that a class declared in the global namespace is resolved without a
+     * leading namespace separator, so the compiled name matches the value the
+     * autoloader and reflection expect.
+     *
+     * @return void
+     */
+    public function testGlobalNamespaceClassNameHasNoLeadingSeparator(): void
+    {
+        $directory = sys_get_temp_dir() . '/resource-discovery-' . uniqid((string) getmypid(), true);
+
+        mkdir($directory, 0o755, true);
+
+        $file = $directory . '/global-class.php';
+
+        file_put_contents($file, "<?php\n\nclass ResourceDiscoveryGlobalProbe {}\n");
+
+        $method = new \ReflectionMethod(ResourceDiscovery::class, 'classesFromFile');
+
+        try {
+            self::assertSame(['ResourceDiscoveryGlobalProbe'], $method->invoke($this->discovery(), $file));
+        } finally {
+            unlink($file);
+            rmdir($directory);
+        }
+    }
+
+    /**
+     * Test that the namespace name is read from the token that abuts the
+     * keyword: a non-name token sitting immediately after namespace resolves
+     * to no name rather than skipping ahead to a later identifier.
+     *
+     * @return void
+     */
+    public function testNamespaceNameIsReadFromTheTokenAbuttingTheKeyword(): void
+    {
+        $tokens = \PhpToken::tokenize('<?php namespace(Foo)');
+        $method = new \ReflectionMethod(ResourceDiscovery::class, 'namespaceFromTokens');
+
+        // The keyword sits at index 1; the token at index 2 abuts it and is
+        // not a name token, so no namespace resolves. Beginning the scan a
+        // token later would wrongly read the identifier at index 3.
+        self::assertNull($method->invoke($this->discovery(), $tokens, 1));
+    }
+
+    /**
+     * Test that the declared class name is read from the token that abuts the
+     * keyword: a non-name token sitting immediately after class resolves to no
+     * declaration rather than skipping ahead to a later identifier.
+     *
+     * @return void
+     */
+    public function testDeclaredNameIsReadFromTheTokenAbuttingTheKeyword(): void
+    {
+        $tokens = \PhpToken::tokenize('<?php class(Foo)');
+        $method = new \ReflectionMethod(ResourceDiscovery::class, 'declaredNameFromTokens');
+
+        // The keyword sits at index 1; the token at index 2 abuts it and is
+        // not a name token, so no declaration resolves. Beginning the scan a
+        // token later would wrongly read the identifier at index 3.
+        self::assertNull($method->invoke($this->discovery(), $tokens, 1, null));
+    }
+
+    /**
+     * Test that a class keyword preceded by a double colon is treated as a
+     * class-constant reference and never as a declaration, even when an
+     * identifier token follows it.
+     *
+     * @return void
+     */
+    public function testClassConstantReferenceIsNeverADeclaration(): void
+    {
+        $tokens = \PhpToken::tokenize('<?php Foo::class Bar');
+        $method = new \ReflectionMethod(ResourceDiscovery::class, 'declaredNameFromTokens');
+
+        // The class keyword sits at index 3, preceded by the double colon at
+        // index 2; the guard must short-circuit before the loop reads the
+        // trailing identifier at index 5.
+        self::assertNull($method->invoke($this->discovery(), $tokens, 3, $tokens[2]));
+    }
+
+    /**
      * Resolve the discovery service from the container.
      *
      * @return \SineMacula\ApiToolkit\Http\Resources\ResourceDiscovery

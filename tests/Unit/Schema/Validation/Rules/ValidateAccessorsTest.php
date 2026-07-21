@@ -187,6 +187,29 @@ final class ValidateAccessorsTest extends TestCase
     }
 
     /**
+     * Test that a valid non-empty string accessor does not halt iteration, so a
+     * later field's empty accessor is still reported.
+     *
+     * @return void
+     */
+    public function testContinuesPastValidStringAccessorFields(): void
+    {
+        $schema = new CompiledSchema(
+            fields: [
+                'clean' => $this->makeField('name'),
+                'bad'   => $this->makeField(''),
+            ],
+            counts: [],
+        );
+
+        $rule   = new ValidateAccessors;
+        $errors = $rule->validate('App\Http\Resources\UserResource', null, $schema);
+
+        self::assertCount(1, $errors);
+        self::assertSame('bad', $errors[0]->fieldKey);
+    }
+
+    /**
      * Test that every empty accessor is reported.
      *
      * @return void

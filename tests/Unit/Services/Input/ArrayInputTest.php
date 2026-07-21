@@ -55,6 +55,21 @@ final class ArrayInputTest extends TestCase
     }
 
     /**
+     * Test that non-scalar values coerce to the zero value of the target type.
+     *
+     * @return void
+     */
+    public function testNonScalarValuesCoerceToZeroValues(): void
+    {
+        $input = new ArrayInput([
+            'list' => ['a', 'b'],
+        ]);
+
+        self::assertSame('', $input->string('list'));
+        self::assertSame(0, $input->integer('list'));
+    }
+
+    /**
      * Test that get() returns the supplied default for a missing key.
      *
      * @return void

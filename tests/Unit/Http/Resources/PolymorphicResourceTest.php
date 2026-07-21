@@ -8,6 +8,7 @@ use Illuminate\Foundation\Application;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use PHPUnit\Framework\Attributes\CoversClass;
+use SineMacula\ApiToolkit\Contracts\ApiResourceInterface;
 use SineMacula\ApiToolkit\Exceptions\ResourceMappingException;
 use SineMacula\ApiToolkit\Http\Resources\PolymorphicResource;
 use Tests\Fixtures\Models\Organization;
@@ -359,7 +360,7 @@ final class PolymorphicResourceTest extends TestCase
         $resource = new PolymorphicResource($user);
 
         $this->expectException(ResourceMappingException::class);
-        $this->expectExceptionMessage('must implement');
+        $this->expectExceptionMessage('Resource [' . \stdClass::class . '] must implement ' . ApiResourceInterface::class);
 
         $resource->toArray(request());
     }

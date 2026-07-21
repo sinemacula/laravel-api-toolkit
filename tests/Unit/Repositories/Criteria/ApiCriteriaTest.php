@@ -1036,6 +1036,44 @@ final class ApiCriteriaTest extends TestCase
     }
 
     /**
+     * Test that a resolved resource that is not an ApiResource subclass yields
+     * an empty query surface rather than being compiled as a schema.
+     *
+     * @return void
+     */
+    public function testBuildQuerySurfaceYieldsEmptySurfaceForNonApiResource(): void
+    {
+        $this->criteria->usingResource(\stdClass::class);
+
+        $method  = new \ReflectionMethod($this->criteria, 'buildQuerySurface');
+        $surface = $method->invoke($this->criteria, new User);
+
+        self::assertInstanceOf(QuerySurface::class, $surface);
+
+        $property = new \ReflectionProperty($surface, 'filterableColumns');
+
+        self::assertSame([], $property->getValue($surface));
+    }
+
+    /**
+     * Test that when the reject-undeclared flag is entirely absent from config
+     * the query surface defaults to fail-closed.
+     *
+     * @return void
+     */
+    public function testAbsentRejectUndeclaredConfigDefaultsToFailClosed(): void
+    {
+        Config::set('api-toolkit.repositories', []);
+
+        $method  = new \ReflectionMethod($this->criteria, 'buildQuerySurface');
+        $surface = $method->invoke($this->criteria, new User);
+
+        $property = new \ReflectionProperty($surface, 'rejectUndeclared');
+
+        self::assertTrue($property->getValue($surface));
+    }
+
+    /**
      * Resolve the API query parser and parse the given request.
      *
      * @param  \Illuminate\Http\Request  $request

@@ -9,6 +9,7 @@ use SineMacula\ApiToolkit\OpenApi\Builder\ResourceSchemaBuilder;
 use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ColumnTypeMapper;
 use SineMacula\ApiToolkit\OpenApi\Resolution\FieldTypeResolver;
+use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledSchema;
 use SineMacula\ApiToolkit\Schema\Introspection\SchemaIntrospector;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
@@ -69,6 +70,43 @@ final class ResourceSchemaBuilderTest extends TestCase
         $schemas = (new ResourceSchemaBuilder($catalogue, $this->resolver()))->build();
 
         self::assertSame(['type' => 'object', 'properties' => []], $schemas['Ghost']);
+    }
+
+    /**
+     * Test that a null field definition only skips its own key: later
+     * field keys in the same compiled schema are still emitted as properties.
+     *
+     * @return void
+     */
+    public function testNullFieldKeySkipsOnlyItselfNotLaterKeys(): void
+    {
+        $relation = new CompiledFieldDefinition(
+            accessor: null,
+            compute: null,
+            relation: 'posts',
+            resource: 'PostResource',
+            fields: null,
+            constraint: null,
+            extras: [],
+            needs: [],
+            guards: [],
+            transformers: [],
+        );
+
+        // The null 'ghost' key precedes a valid relation key; skipping the null
+        // must not abandon the rest of the loop.
+        $schema = new CompiledSchema(['ghost' => null, 'posts' => $relation], []); // @phpstan-ignore argument.type
+
+        $this->setStaticProperty(SchemaCompiler::class, 'cache', ['GhostResource' => $schema]);
+
+        $catalogue = self::createStub(MetadataCatalogue::class);
+        $catalogue->method('getResourceMap')->willReturn(['GhostModel' => 'GhostResource']);
+
+        $properties = (new ResourceSchemaBuilder($catalogue, $this->resolver()))->build()['Ghost']['properties'];
+
+        self::assertArrayNotHasKey('ghost', $properties);
+        self::assertArrayHasKey('posts', $properties);
+        self::assertSame(['$ref' => '#/components/schemas/Post'], $properties['posts']['oneOf'][0]);
     }
 
     /**

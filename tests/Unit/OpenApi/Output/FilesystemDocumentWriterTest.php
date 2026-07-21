@@ -81,6 +81,28 @@ final class FilesystemDocumentWriterTest extends TestCase
     }
 
     /**
+     * Test that the parent directory is created with the expected mode and the
+     * recursive and force flags both enabled.
+     *
+     * @return void
+     */
+    public function testCreatesDirectoryWithExpectedModeAndFlags(): void
+    {
+        $path      = $this->directory . '/nested/openapi.json';
+        $directory = dirname($path);
+
+        $files = $this->createMock(Filesystem::class);
+        $files->method('isDirectory')->willReturn(false);
+        $files->expects(self::once())
+            ->method('makeDirectory')
+            ->with($directory, 0o755, true, true)
+            ->willReturn(true);
+        $files->method('put')->willReturn(8);
+
+        (new FilesystemDocumentWriter($files))->write($path, 'contents');
+    }
+
+    /**
      * Test that a write failure surfaces as a DocumentWriteException.
      *
      * @return void

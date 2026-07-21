@@ -4,6 +4,8 @@ declare(strict_types = 1);
 
 namespace Tests\Fixtures\Models;
 
+use Illuminate\Auth\Authenticatable;
+use Illuminate\Contracts\Auth\Authenticatable as AuthenticatableContract;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -14,12 +16,17 @@ use Tests\Fixtures\Enums\UserStatus;
 /**
  * Fixture user model.
  *
+ * Implements Authenticatable so tests can drive it through actingAs(). The
+ * is_admin accessor lets an authenticated-user-keyed field guard read a simple
+ * admin predicate without a dedicated column.
+ *
  * @property int $id
  * @property int|null $organization_id
  * @property string $name
  * @property string $email
  * @property string|null $password
  * @property string $status
+ * @property bool $is_admin
  * @property \Tests\Fixtures\Models\Organization|null $organization
  *
  * @formatter:off
@@ -36,8 +43,10 @@ use Tests\Fixtures\Enums\UserStatus;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-final class User extends Model
+final class User extends Model implements AuthenticatableContract
 {
+    use Authenticatable;
+
     /** @var string|null */
     protected $table = 'users';
 
@@ -83,6 +92,22 @@ final class User extends Model
     {
         return Attribute::make(
             get: fn () => $this->name . ' <' . $this->email . '>',
+        );
+    }
+
+    /**
+     * Determine whether the user is an admin.
+     *
+     * A fixture-only predicate: a user is treated as an admin when its email
+     * begins with "admin@", so an authenticated-user-keyed guard can toggle
+     * without a dedicated column.
+     *
+     * @return \Illuminate\Database\Eloquent\Casts\Attribute
+     */
+    public function isAdmin(): Attribute
+    {
+        return Attribute::make(
+            get: fn (): bool => str_starts_with($this->email, 'admin@'),
         );
     }
 

@@ -159,10 +159,12 @@ final class LifecycleRegistrarTest extends TestCase
         $config = $this->getApplication()->make('config');
         $config->set('api-toolkit.lifecycle.octane', false);
 
+        $expected = 'API Toolkit: serving under Octane but the lifecycle cache flush is disabled'
+            . ' (API_TOOLKIT_LIFECYCLE_OCTANE=false); cross-request metadata may go stale'
+            . ' and field-keyed metadata memos can grow unbounded per worker (memory tradeoff).';
+
         Log::shouldReceive('info')->once()->with(\Mockery::on(
-            fn (string $message): bool => str_contains($message, 'Octane')
-                && str_contains($message, 'API_TOOLKIT_LIFECYCLE_OCTANE')
-                && str_contains($message, 'unbounded'),
+            fn (string $message): bool => $message === $expected,
         ));
 
         (new LifecycleRegistrar)->register();

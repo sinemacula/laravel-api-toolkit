@@ -358,6 +358,41 @@ final class ApiExceptionTest extends TestCase
     }
 
     /**
+     * Test that getCustomTitle returns the code-keyed title translation
+     * when one is registered, over the status-derived default title.
+     *
+     * @return void
+     */
+    public function testGetCustomTitleUsesCodeKeyedTranslationWhenPresent(): void
+    {
+        // Register a code-keyed title under a custom namespace whose value
+        // differs from the status-derived default (which would be "Bad
+        // Request"), so resolving through the translation branch is the oracle.
+        Lang::addLines(['exceptions.10100.title' => 'Bespoke Title'], 'en', 'code-keyed-title-ns');
+
+        $exception = new class extends ApiException {
+            /** The internal error code for the test exception. */
+            public const \SineMacula\ApiToolkit\Contracts\ErrorCodeInterface CODE = ErrorCode::BAD_REQUEST;
+
+            /** The mapped HTTP status for the test exception. */
+            public const HttpStatus HTTP_STATUS = HttpStatus::BAD_REQUEST;
+
+            /**
+             * Resolve translations from the custom namespace.
+             *
+             * @return string
+             */
+            #[\Override]
+            protected function getNamespace(): string
+            {
+                return 'code-keyed-title-ns';
+            }
+        };
+
+        self::assertSame('Bespoke Title', $exception->getCustomTitle());
+    }
+
+    /**
      * Test that getCustomTitle derives a multi-word title from the HTTP status
      * enum case name when no translation exists.
      *

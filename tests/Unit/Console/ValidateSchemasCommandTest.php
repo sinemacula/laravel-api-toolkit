@@ -10,9 +10,12 @@ use Illuminate\Testing\PendingCommand;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Console\ValidateSchemasCommand;
 use SineMacula\ApiToolkit\Contracts\SchemaValidationRule;
+use SineMacula\ApiToolkit\Schema\SchemaCompiler;
+use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateRelationClasses;
 use SineMacula\ApiToolkit\Schema\Validation\SchemaValidationError;
 use SineMacula\ApiToolkit\Schema\Validation\SchemaValidator;
 use Tests\Fixtures\Models\User;
+use Tests\Fixtures\Resources\BrokenResource;
 use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
 
@@ -25,6 +28,8 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(ValidateSchemasCommand::class)]
+#[CoversClass(SchemaValidator::class)]
+#[CoversClass(ValidateRelationClasses::class)]
 final class ValidateSchemasCommandTest extends TestCase
 {
     /** @var string The command signature. */
@@ -75,6 +80,27 @@ final class ValidateSchemasCommandTest extends TestCase
 
         $this->runCommand()
             ->expectsOutputToContain('Schema validation failed:')
+            ->assertExitCode(1);
+    }
+
+    /**
+     * Test that the container-wired validator, exercised against a genuinely
+     * broken resource with no stub, drives the command's catch, format, and
+     * exit-one path using a real defect string from the shipped rule set.
+     *
+     * @return void
+     */
+    public function testCommandFailsWithRealValidatorAgainstBrokenResource(): void
+    {
+        SchemaCompiler::clearCache();
+
+        $this->getConfig()->set('api-toolkit.resources.resource_map', [
+            User::class => BrokenResource::class,
+        ]);
+
+        $this->runCommand()
+            ->expectsOutputToContain('Schema validation failed:')
+            ->expectsOutputToContain('does not exist')
             ->assertExitCode(1);
     }
 

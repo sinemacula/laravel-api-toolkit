@@ -152,6 +152,48 @@ final class ValidateGuardsTest extends TestCase
     }
 
     /**
+     * Test that field guard errors and count definition guard errors are both
+     * accumulated rather than the count loop discarding earlier errors.
+     *
+     * @return void
+     */
+    public function testAccumulatesFieldAndCountGuardErrors(): void
+    {
+        $field = new CompiledFieldDefinition(
+            accessor: 'name',
+            compute: null,
+            relation: null,
+            resource: null,
+            fields: null,
+            constraint: null,
+            extras: [],
+            needs: [],
+            guards: ['not_a_function'],
+            transformers: [],
+        );
+
+        $count = new CompiledCountDefinition(
+            presentKey: 'comments_count',
+            relation: 'comments',
+            constraint: null,
+            isDefault: false,
+            guards: ['not_a_function'],
+        );
+
+        $schema = new CompiledSchema(
+            fields: ['name' => $field],
+            counts: ['comments_count' => $count],
+        );
+
+        $rule   = new ValidateGuards;
+        $errors = $rule->validate('App\Http\Resources\PostResource', null, $schema);
+
+        self::assertCount(2, $errors);
+        self::assertSame('name', $errors[0]->fieldKey);
+        self::assertSame('comments_count', $errors[1]->fieldKey);
+    }
+
+    /**
      * Test no errors for schema with no guards.
      *
      * @return void

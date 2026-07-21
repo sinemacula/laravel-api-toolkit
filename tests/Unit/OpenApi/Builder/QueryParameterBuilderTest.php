@@ -133,9 +133,24 @@ final class QueryParameterBuilderTest extends TestCase
     {
         $schema = $this->makeBuilder()->build()['Filter']['schema'];
 
+        self::assertSame('object', $schema['type']);
         self::assertTrue($schema['additionalProperties']);
         self::assertArrayNotHasKey('enum', $schema);
         self::assertArrayNotHasKey('properties', $schema);
+    }
+
+    /**
+     * Test that the filter description states the grammar up front and
+     * disclaims any per-resource allow-list, keeping both clauses in order.
+     *
+     * @return void
+     */
+    public function testFilterDescriptionStatesTheGrammarAndDisclaimsAnyAllowList(): void
+    {
+        $description = $this->makeBuilder()->build()['Filter']['description'];
+
+        self::assertStringStartsWith('Generic filter grammar. Filters are keyed by field', $description);
+        self::assertStringContainsString('the toolkit applies no per-resource field allow-list.', $description);
     }
 
     /**
@@ -167,7 +182,72 @@ final class QueryParameterBuilderTest extends TestCase
         self::assertSame('integer', $parameters['Limit']['schema']['type']);
         self::assertSame(1, $parameters['Limit']['schema']['minimum']);
         self::assertSame('integer', $parameters['Page']['schema']['type']);
+        self::assertSame(1, $parameters['Page']['schema']['minimum']);
         self::assertSame('string', $parameters['Cursor']['schema']['type']);
+    }
+
+    /**
+     * Test that the sparse-fieldset parameter carries an object schema of
+     * string members, is optional, and uses the deepObject exploded style.
+     *
+     * @return void
+     */
+    public function testFieldsParameterCarriesObjectSchemaAndDeepObjectStyle(): void
+    {
+        $fields = $this->makeBuilder()->build()['Fields'];
+
+        self::assertSame(['type' => 'object', 'additionalProperties' => ['type' => 'string']], $fields['schema']);
+        self::assertFalse($fields['required']);
+        self::assertSame('deepObject', $fields['style']);
+        self::assertTrue($fields['explode']);
+    }
+
+    /**
+     * Test that a parameter without an explicit style omits both the style and
+     * explode keys.
+     *
+     * @return void
+     */
+    public function testNonStyledParametersOmitStyleAndExplode(): void
+    {
+        $order = $this->makeBuilder()->build()['Order'];
+
+        self::assertArrayNotHasKey('style', $order);
+        self::assertArrayNotHasKey('explode', $order);
+    }
+
+    /**
+     * Test that the ordering parameter is a plain string schema.
+     *
+     * @return void
+     */
+    public function testOrderParameterIsAPlainStringSchema(): void
+    {
+        self::assertSame(['type' => 'string'], $this->makeBuilder()->build()['Order']['schema']);
+    }
+
+    /**
+     * Test that the relation-aggregate parameters describe their nested
+     * string-keyed object maps.
+     *
+     * @return void
+     */
+    public function testDeepObjectSchemasDescribeNestedStringMaps(): void
+    {
+        $parameters = $this->makeBuilder()->build();
+
+        self::assertSame(
+            ['type' => 'object', 'additionalProperties' => ['type' => 'string']],
+            $parameters['Counts']['schema'],
+        );
+        self::assertSame(
+            ['type' => 'object', 'additionalProperties' => ['type' => 'object', 'additionalProperties' => ['type' => 'string']]],
+            $parameters['Sums']['schema'],
+        );
+        self::assertSame(
+            ['type' => 'object', 'additionalProperties' => ['type' => 'object', 'additionalProperties' => ['type' => 'string']]],
+            $parameters['Averages']['schema'],
+        );
     }
 
     /**

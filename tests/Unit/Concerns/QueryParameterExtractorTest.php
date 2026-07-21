@@ -264,6 +264,29 @@ final class QueryParameterExtractorTest extends TestCase
     }
 
     /**
+     * Test that extract retains every aggregation resource rather than
+     * truncating the parsed set.
+     *
+     * @return void
+     */
+    public function testExtractParsesEveryAggregationResource(): void
+    {
+        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), [
+            'sums' => [
+                'account' => ['transaction' => 'amount'],
+                'user'    => ['posts' => 'votes'],
+            ],
+        ]);
+
+        $parameters = $this->extractor->extract($request);
+
+        self::assertSame([
+            'account' => ['transaction' => ['amount']],
+            'user'    => ['posts' => ['votes']],
+        ], $parameters['sums']);
+    }
+
+    /**
      * Test that extract decodes a JSON filter string.
      *
      * @return void

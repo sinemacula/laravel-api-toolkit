@@ -429,6 +429,19 @@ final class ApiQueryParserTest extends TestCase
     }
 
     /**
+     * Test that getCursor coerces a non-string scalar into its string form
+     * rather than returning the raw scalar.
+     *
+     * @return void
+     */
+    public function testGetCursorCastsNonStringScalarToString(): void
+    {
+        $this->setProperty($this->parser, 'parameters', ['cursor' => 100]);
+
+        self::assertSame('100', $this->parser->getCursor());
+    }
+
+    /**
      * Test that validation fails for invalid page parameter.
      *
      * @return void

@@ -171,6 +171,29 @@ final class ValidateRelationInterfacesTest extends TestCase
     }
 
     /**
+     * Test that a relation class implementing the interface does not halt
+     * iteration, so a later non-conforming class is still reported.
+     *
+     * @return void
+     */
+    public function testContinuesPastConformingRelationClass(): void
+    {
+        $schema = new CompiledSchema(
+            fields: [
+                'good' => $this->makeField(OrganizationResource::class),
+                'bad'  => $this->makeField(\stdClass::class),
+            ],
+            counts: [],
+        );
+
+        $rule   = new ValidateRelationInterfaces;
+        $errors = $rule->validate('App\Http\Resources\UserResource', null, $schema);
+
+        self::assertCount(1, $errors);
+        self::assertSame('bad', $errors[0]->fieldKey);
+    }
+
+    /**
      * Test that every non-conforming relation class is reported.
      *
      * @return void

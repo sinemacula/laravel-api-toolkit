@@ -230,7 +230,40 @@ final class ColumnTypeMapperTest extends TestCase
 
         $schema = $mapper->map($column, 'date');
 
+        self::assertSame('string', $schema->type);
         self::assertSame('date', $schema->format);
+    }
+
+    /**
+     * Test that a cast is matched case-insensitively, mirroring the way
+     * Eloquent normalises cast names.
+     *
+     * @return void
+     */
+    public function testMatchesCastCaseInsensitively(): void
+    {
+        $mapper = new ColumnTypeMapper;
+        $column = new ColumnDefinition(name: 'active', typeName: 'varchar', nullable: false);
+
+        $schema = $mapper->map($column, 'BOOLEAN');
+
+        self::assertSame('boolean', $schema->type);
+    }
+
+    /**
+     * Test that a parameterised encrypted array cast resolves to an array
+     * schema off the full cast token, not just its colon-prefixed base.
+     *
+     * @return void
+     */
+    public function testEncryptedArrayCastResolvesToArray(): void
+    {
+        $mapper = new ColumnTypeMapper;
+        $column = new ColumnDefinition(name: 'meta', typeName: 'varchar', nullable: false);
+
+        $schema = $mapper->map($column, 'encrypted:array');
+
+        self::assertSame('array', $schema->type);
     }
 
     /**

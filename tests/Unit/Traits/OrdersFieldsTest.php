@@ -90,6 +90,16 @@ final class OrdersFieldsTest extends TestCase
             ],
             ['_type', 'id', 'age', 'name', 'created_at', 'updated_at'],
         ];
+
+        yield 'id keeps priority when a field name collides on its weight' => [
+            [
+                ''      => 'x',
+                'id'    => 1,
+                '_type' => 'users',
+                'name'  => 'Alice',
+            ],
+            ['_type', 'id', '', 'name'],
+        ];
     }
 
     /**
@@ -153,6 +163,16 @@ final class OrdersFieldsTest extends TestCase
                 'name' => 'Alice',
             ],
             ['name', 'id'],
+        ];
+
+        yield 'absent field mid-list keeps later requested fields in order' => [
+            ['name', 'missing', 'email'],
+            [
+                'id'    => 1,
+                'email' => self::TEST_EMAIL,
+                'name'  => 'Alice',
+            ],
+            ['name', 'email', 'id'],
         ];
     }
 

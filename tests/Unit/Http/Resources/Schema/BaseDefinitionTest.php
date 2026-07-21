@@ -203,6 +203,34 @@ final class BaseDefinitionTest extends TestCase
     }
 
     /**
+     * Test that needs accumulates columns across calls and deduplicates them.
+     *
+     * @return void
+     */
+    public function testNeedsAccumulatesColumnsAndDeduplicates(): void
+    {
+        $field = Field::scalar('name');
+
+        $field->needs('first_name')->needs('last_name', 'first_name');
+
+        $array = $field->toArray();
+
+        self::assertSame(['first_name', 'last_name'], $array['name']['needs']);
+    }
+
+    /**
+     * Test that needs returns self for fluent chaining.
+     *
+     * @return void
+     */
+    public function testNeedsReturnsSelfForChaining(): void
+    {
+        $field = Field::scalar('name');
+
+        self::assertSame($field, $field->needs('first_name'));
+    }
+
+    /**
      * Test that openapi returns a declaration carrier.
      *
      * @return void
