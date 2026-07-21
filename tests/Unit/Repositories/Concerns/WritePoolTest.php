@@ -804,6 +804,35 @@ final class WritePoolTest extends TestCase
     }
 
     /**
+     * Test that a transactional throw rollback retains the failing table and
+     * the tables after it, but not a table that already committed before it, so
+     * the retained buffer excludes rows that are already persisted.
+     *
+     * @return void
+     */
+    public function testTransactionalThrowRetainsUnprocessedTablesButNotCommittedOnes(): void
+    {
+        $pool = new WritePool(chunkSize: 1, poolLimit: 10000, strategy: FlushStrategy::THROW, transactional: true);
+
+        $pool->add('test_records', ['name' => 'foo', 'value' => 'bar']);
+        $pool->add('test_unique', ['name' => 'alpha']);
+        $pool->add('test_unique', ['name' => 'alpha']);
+        $pool->add('test_other', ['label' => 'baz']);
+
+        try {
+            $pool->flush();
+            self::fail('Expected WritePoolFlushException was not thrown');
+        } catch (WritePoolFlushException $exception) {
+            self::assertSame(3, $exception->flushResult()->retainedRecordCount());
+        }
+
+        self::assertSame(1, DB::table('test_records')->count());
+        self::assertSame(0, DB::table('test_unique')->count());
+        self::assertSame(0, DB::table('test_other')->count());
+        self::assertSame(3, $pool->count());
+    }
+
+    /**
      * Test that the collect strategy reports record-level counts for a
      * partially failing flush.
      *

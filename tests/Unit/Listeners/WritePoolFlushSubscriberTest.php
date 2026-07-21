@@ -414,6 +414,38 @@ final class WritePoolFlushSubscriberTest extends TestCase
     }
 
     /**
+     * Test that the subscriber does not re-throw a flush exception when the
+     * rethrow_at_boundary key is absent, so the safe default keeps the boundary
+     * from hard-crashing.
+     *
+     * @return void
+     */
+    public function testHandleFlushDoesNotRethrowWhenRethrowKeyAbsent(): void
+    {
+        $deferred = (array) Config::get('api-toolkit.deferred_writes');
+        unset($deferred['rethrow_at_boundary']);
+        Config::set('api-toolkit.deferred_writes', $deferred);
+
+        $pool = new WritePool(500, 10000, FlushStrategy::THROW);
+        $pool->add('nonexistent_table', ['col' => 'val']);
+
+        $container = \Mockery::mock(Container::class);
+        $container->shouldReceive('make')
+            ->with(WritePool::class)
+            ->andReturn($pool);
+
+        Log::shouldReceive('warning')->once();
+
+        Event::fake([WritePoolFlushFailed::class]);
+
+        $subscriber = new WritePoolFlushSubscriber($container);
+
+        $subscriber->handleFlush();
+
+        Event::assertDispatched(WritePoolFlushFailed::class);
+    }
+
+    /**
      * Test that the subscriber re-throws a flush exception after escalating it
      * when the rethrow_at_boundary flag is enabled.
      *

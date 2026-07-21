@@ -494,6 +494,50 @@ final class FieldTest extends TestCase
     }
 
     /**
+     * Test that toArray emits the declared base-table column reads when needs
+     * are set.
+     *
+     * @return void
+     */
+    public function testToArrayIncludesNeedsWhenSet(): void
+    {
+        $array = Field::scalar('display_name')->needs('first_name', 'last_name')->toArray();
+
+        self::assertArrayHasKey('needs', $array['display_name']);
+        self::assertSame(['first_name', 'last_name'], $array['display_name']['needs']);
+    }
+
+    /**
+     * Test that timestamp declares a nullable date-time OpenAPI contract.
+     *
+     * @return void
+     */
+    public function testTimestampDeclaresDateTimeOpenApiContract(): void
+    {
+        $openapi = Field::timestamp('created_at')->toArray()['created_at']['openapi'];
+
+        self::assertInstanceOf(OpenApiFieldSchema::class, $openapi);
+        self::assertSame('string', $openapi->type);
+        self::assertSame('date-time', $openapi->format);
+        self::assertTrue($openapi->nullable);
+    }
+
+    /**
+     * Test that date declares a nullable date OpenAPI contract.
+     *
+     * @return void
+     */
+    public function testDateDeclaresDateOpenApiContract(): void
+    {
+        $openapi = Field::date('birth_date')->toArray()['birth_date']['openapi'];
+
+        self::assertInstanceOf(OpenApiFieldSchema::class, $openapi);
+        self::assertSame('string', $openapi->type);
+        self::assertSame('date', $openapi->format);
+        self::assertTrue($openapi->nullable);
+    }
+
+    /**
      * Test that the openapi key is emitted when a declaration was made.
      *
      * @return void

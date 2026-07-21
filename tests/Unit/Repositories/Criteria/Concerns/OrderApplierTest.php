@@ -159,6 +159,24 @@ final class OrderApplierTest extends TestCase
     }
 
     /**
+     * Test that a column failing the sort guard is skipped without halting the
+     * loop, so a valid column declared after it is still applied.
+     *
+     * @return void
+     */
+    public function testAppliesValidColumnAfterSkippingAnInvalidOne(): void
+    {
+        $query  = (new User)->newQuery();
+        $result = $this->applier->apply($query, ['nonexistent' => 'asc', 'name' => 'asc'], $this->surface());
+
+        $orders = $result->getQuery()->orders ?? [];
+
+        self::assertCount(1, $orders);
+        self::assertSame('name', $orders[0]['column']);
+        self::assertSame('asc', $orders[0]['direction']);
+    }
+
+    /**
      * Test that the ORDER_BY_RANDOM constant equals 'random'.
      *
      * @return void

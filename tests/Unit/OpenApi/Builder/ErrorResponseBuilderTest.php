@@ -87,6 +87,21 @@ final class ErrorResponseBuilderTest extends TestCase
     }
 
     /**
+     * Test that the response description uses the descriptor title when one is
+     * defined, in preference to the detail.
+     *
+     * @return void
+     */
+    public function testResponseDescriptionUsesTitleWhenPresent(): void
+    {
+        $responses = $this->makeBuilder([
+            new ErrorDescriptor(code: 10103, httpStatus: 404, title: 'Not Found', detail: 'The resource was not found.'),
+        ])->build();
+
+        self::assertSame('Not Found', $responses['ErrorResponse10103']['description']);
+    }
+
+    /**
      * Test that the response carries an example payload mirroring the runtime
      * error envelope shape.
      *

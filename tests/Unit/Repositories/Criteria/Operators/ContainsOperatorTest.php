@@ -255,6 +255,51 @@ final class ContainsOperatorTest extends TestCase
     }
 
     /**
+     * Test that a non-string, non-empty scalar is routed to the defensive
+     * containment path and recorded verbatim rather than fed to JSON
+     * validation, which would reject a non-string argument.
+     *
+     * @return void
+     */
+    public function testApplyWithIntegerValueUsesWhereJsonContains(): void
+    {
+        $query = (new User)->newQuery();
+
+        $this->operator->apply($query, 'tags', 123, FilterContext::root());
+
+        $wheres = $query->getQuery()->wheres;
+
+        self::assertCount(1, $wheres);
+        self::assertSame(self::TYPE_JSON_CONTAINS, $wheres[0]['type']);
+        self::assertSame('tags', $wheres[0]['column']);
+        self::assertSame(123, $wheres[0]['value']);
+    }
+
+    /**
+     * Test that an array value takes the trusted direct containment path, so a
+     * grammar rejection surfaces as an exception rather than being swallowed by
+     * the defensive fall-back reserved for untrusted scalars.
+     *
+     * @return void
+     */
+    public function testApplyWithArrayThatTheGrammarRejectsPropagatesTheException(): void
+    {
+        Log::spy();
+
+        $base = \Mockery::mock(QueryBuilder::class);
+        $base->shouldReceive('whereJsonContains')
+            ->andThrow(new \RuntimeException('grammar rejects json-contains'));
+
+        $query = \Mockery::mock(Builder::class);
+        $query->shouldReceive('getQuery')->andReturn($base);
+        $query->shouldReceive('getModel')->andReturn(new User);
+
+        $this->expectException(\RuntimeException::class);
+
+        $this->operator->apply($query, 'tags', ['Alice'], FilterContext::root());
+    }
+
+    /**
      * Test that the comma-split conditions are grouped inside a single nested
      * where on the parent query.
      *

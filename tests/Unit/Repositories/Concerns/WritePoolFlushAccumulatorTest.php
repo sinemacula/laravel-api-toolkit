@@ -65,6 +65,25 @@ final class WritePoolFlushAccumulatorTest extends TestCase
     }
 
     /**
+     * Test that recordFailure accumulates the failed record count across
+     * multiple failed chunks rather than overwriting it with the latest chunk.
+     *
+     * @return void
+     */
+    public function testRecordFailureAccumulatesFailedRecordCountAcrossChunks(): void
+    {
+        $accumulator = new WritePoolFlushAccumulator;
+
+        $accumulator->recordFailure('orders', [['id' => 1], ['id' => 2]], new \RuntimeException);
+        $accumulator->recordFailure('orders', [['id' => 3], ['id' => 4], ['id' => 5]], new \RuntimeException);
+
+        $result = $accumulator->toResult(FlushStrategy::COLLECT);
+
+        self::assertSame(2, $result->failureCount());
+        self::assertSame(5, $result->failedRecordCount());
+    }
+
+    /**
      * Test that retain merges retained records per table and that failedRecords
      * exposes them for retry.
      *

@@ -7,6 +7,7 @@ namespace Tests\Unit\OpenApi\Metadata;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use SineMacula\ApiToolkit\Enums\ErrorCode;
+use SineMacula\ApiToolkit\Exceptions\BadRequestException;
 use SineMacula\ApiToolkit\Exceptions\NotFoundException;
 use SineMacula\ApiToolkit\OpenApi\Exceptions\MetadataReadException;
 use SineMacula\ApiToolkit\OpenApi\Metadata\ErrorCatalogueReader;
@@ -209,10 +210,40 @@ final class ErrorCatalogueReaderTest extends TestCase
     {
         FunctionOverrides::set('glob', static fn (): false => false);
 
-        $this->expectException(MetadataReadException::class);
-        $this->expectExceptionMessage('Unable to scan the exceptions directory');
+        try {
+            (new ErrorCatalogueReader)->read();
+        } catch (MetadataReadException $e) {
+            self::assertStringStartsWith('Unable to scan the exceptions directory: ', $e->getMessage());
+            self::assertStringContainsString('/Exceptions', $e->getMessage());
 
-        (new ErrorCatalogueReader)->read();
+            return;
+        }
+
+        self::fail('Expected a MetadataReadException to be thrown.');
+    }
+
+    /**
+     * Test that a discovered subclass declaring no CODE constant does not
+     * abort the scan: a later file is still processed and mapped, proving the
+     * CODE guard skips the offending file rather than stopping the loop.
+     *
+     * @return void
+     */
+    public function testContinuesScanningAfterCodelessSubclass(): void
+    {
+        $codeless = (new \ReflectionClass(BadRequestException::class))->getFileName();
+        $later    = (new \ReflectionClass(NotFoundException::class))->getFileName();
+
+        self::assertIsString($codeless);
+        self::assertIsString($later);
+
+        FunctionOverrides::set('glob', static fn (): array => [$codeless, $later]);
+        FunctionOverrides::set('defined', static fn (string $constant): bool => !str_starts_with($constant, BadRequestException::class . '::') && \defined($constant));
+
+        $descriptor = $this->findDescriptor((new ErrorCatalogueReader)->read(), ErrorCode::NOT_FOUND->getCode());
+
+        self::assertNotNull($descriptor);
+        self::assertSame(404, $descriptor->httpStatus);
     }
 
     /**

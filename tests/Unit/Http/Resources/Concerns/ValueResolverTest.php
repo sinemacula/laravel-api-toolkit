@@ -174,6 +174,47 @@ final class ValueResolverTest extends TestCase
     }
 
     /**
+     * Test that a method whose return type is a named type other than Attribute
+     * is not treated as a cast accessor, so the field resolves to MissingValue
+     * and the memo records the rejection.
+     *
+     * @return void
+     */
+    public function testComputeIsCastAccessorRejectsNonAttributeReturnType(): void
+    {
+
+        $model = new class {
+            /**
+             * A method whose return type is a named type other than Attribute.
+             *
+             * @return string
+             */
+            public function label(): string
+            {
+                return 'real';
+            }
+
+            /**
+             * Return the attributes array without the field.
+             *
+             * @return array<string, mixed>
+             */
+            public function getAttributes(): array
+            {
+                return [];
+            }
+        };
+
+        $result = $this->resolver->resolveFieldValue('label', $this->makeFieldDefinition(), new JsonResource($model), null);
+
+        self::assertInstanceOf(MissingValue::class, $result);
+
+        $cache = $this->getStaticProperty(ValueResolver::class, 'castAccessorCache');
+
+        self::assertFalse($cache[$model::class]['label']);
+    }
+
+    /**
      * Test that the resolved child field set is memoised per compiled
      * definition.
      *
@@ -661,6 +702,42 @@ final class ValueResolverTest extends TestCase
         $result = $this->resolver->resolveFieldValue('organization', $definition, $resource, null);
 
         self::assertInstanceOf(OrganizationResource::class, $result);
+    }
+
+    /**
+     * Test that wrapping a single related model in a child resource that does
+     * not expose withFields does not attempt to call it, even when an explicit
+     * child field set is declared.
+     *
+     * @return void
+     */
+    public function testResolveFieldValueDoesNotCallWithFieldsOnChildResourceWithoutIt(): void
+    {
+        $organization = Organization::create([
+            'name' => 'NoWithFieldsOrg',
+            'slug' => 'no-withfields-org',
+        ]);
+
+        $user = User::create([
+            'name'            => 'NoWithFieldsUser',
+            'email'           => 'no-withfields-user@example.com',
+            'organization_id' => $organization->id,
+        ]);
+
+        $user->load('organization');
+
+        $resource   = new JsonResource($user);
+        $definition = $this->makeFieldDefinition(
+            relation: 'organization',
+            resource: JsonResource::class,
+            fields: ['name'],
+        );
+
+        self::assertFalse(method_exists(JsonResource::class, 'withFields'));
+
+        $result = $this->resolver->resolveFieldValue('organization', $definition, $resource, null);
+
+        self::assertInstanceOf(JsonResource::class, $result);
     }
 
     /**
@@ -1858,6 +1935,106 @@ final class ValueResolverTest extends TestCase
         $result = $this->resolver->resolveAggregatesPayload('sum', $resource, $schema, 'users', null);
 
         self::assertSame([], $result);
+    }
+
+    /**
+     * Test that a count whose attribute is not loaded is skipped while a later
+     * count on the same payload is still resolved.
+     *
+     * @return void
+     */
+    public function testResolveCountsPayloadContinuesAfterNullValuedCount(): void
+    {
+
+        ApiQuery::shouldReceive('getCounts')
+            ->with('users')
+            ->andReturn(null);
+
+        $model = new class {
+            /** @var array<string, mixed> */
+            private array $attributes = ['posts_count' => 4];
+
+            /**
+             * Return the attributes array carrying only the later count.
+             *
+             * @return array<string, mixed>
+             */
+            public function getAttributes(): array
+            {
+                return $this->attributes;
+            }
+
+            /**
+             * Magic getter to resolve attributes.
+             *
+             * @param  string  $key
+             * @return mixed
+             */
+            public function __get(string $key): mixed
+            {
+                return $this->attributes[$key] ?? null;
+            }
+        };
+
+        $resource = new JsonResource($model);
+        $schema   = new CompiledSchema([], [
+            'missing' => new CompiledCountDefinition('missing', 'missing', null, true, []),
+            'posts'   => new CompiledCountDefinition('posts', 'posts', null, true, []),
+        ]);
+
+        $result = $this->resolver->resolveCountsPayload($resource, $schema, 'users', null);
+
+        self::assertSame(['posts' => 4], $result);
+    }
+
+    /**
+     * Test that an aggregate whose attribute is not loaded is skipped while a
+     * later aggregate on the same payload is still resolved.
+     *
+     * @return void
+     */
+    public function testResolveAggregatesPayloadContinuesAfterNullValuedAggregate(): void
+    {
+
+        ApiQuery::shouldReceive('getSums')
+            ->with('users')
+            ->andReturn(null);
+
+        $model = new class {
+            /** @var array<string, mixed> */
+            private array $attributes = ['posts_id_sum_id' => '20'];
+
+            /**
+             * Return the attributes array carrying only the later aggregate.
+             *
+             * @return array<string, mixed>
+             */
+            public function getAttributes(): array
+            {
+                return $this->attributes;
+            }
+
+            /**
+             * Magic getter to resolve attributes.
+             *
+             * @param  string  $key
+             * @return mixed
+             */
+            public function __get(string $key): mixed
+            {
+                return $this->attributes[$key] ?? null;
+            }
+        };
+
+        $resource = new JsonResource($model);
+        $schema   = new CompiledSchema([], [], [
+            'missing_id' => new CompiledAggregateDefinition('missing_id', 'missing', 'id', 'sum', null, true, []),
+            'posts_id'   => new CompiledAggregateDefinition('posts_id', 'posts', 'id', 'sum', null, true, []),
+        ]);
+
+        $result = $this->resolver->resolveAggregatesPayload('sum', $resource, $schema, 'users', null);
+
+        self::assertSame(['posts_id' => 20.0], $result);
     }
 
     /**

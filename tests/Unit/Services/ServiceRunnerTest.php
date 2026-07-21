@@ -5,6 +5,7 @@ declare(strict_types = 1);
 namespace Tests\Unit\Services;
 
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Log;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Exceptions\LockOperationException;
 use SineMacula\ApiToolkit\Services\Actors\AnonymousActor;
@@ -530,5 +531,177 @@ final class ServiceRunnerTest extends TestCase
         (new ServiceRunner)->run($service, ServiceContext::for(new AnonymousActor));
 
         self::assertSame(['A:before', 'B:before', 'B:after', 'A:after'], iterator_to_array($callOrder));
+    }
+
+    /**
+     * Test that an afterCommit throw is logged with the throwing exception in
+     * the log context.
+     *
+     * @return void
+     */
+    public function testAfterCommitThrowIsLoggedWithException(): void
+    {
+        Log::shouldReceive('error')
+            ->once()
+            ->with(
+                'Service afterCommit threw an exception.',
+                \Mockery::on(static fn (array $context): bool => ($context['exception'] ?? null) instanceof \RuntimeException),
+            );
+
+        $service = new class (new ArrayInput([])) extends Service {
+            /**
+             * Return a concrete output value.
+             *
+             * @return string
+             */
+            #[\Override]
+            protected function handle(): mixed
+            {
+                return 'output';
+            }
+
+            /**
+             * Throw a side-effect exception.
+             *
+             * @param  mixed  $output
+             * @return void
+             *
+             * @throws \RuntimeException
+             */
+            #[\Override]
+            protected function afterCommit(mixed $output): void
+            {
+                throw new \RuntimeException('after-commit-error');
+            }
+        };
+
+        $result = (new ServiceRunner)->run($service, ServiceContext::for(new AnonymousActor));
+
+        self::assertTrue($result->succeeded());
+        self::assertCount(1, $result->sideEffectErrors());
+    }
+
+    /**
+     * Test that an onFailure throw is logged with the throwing exception in the
+     * log context.
+     *
+     * @return void
+     */
+    public function testOnFailureThrowIsLoggedWithException(): void
+    {
+        Log::shouldReceive('error')
+            ->once()
+            ->with(
+                'Service onFailure threw an exception.',
+                \Mockery::on(static fn (array $context): bool => ($context['exception'] ?? null) instanceof \RuntimeException),
+            );
+
+        $service = new class (new ArrayInput([])) extends Service {
+            /**
+             * Always throw a domain exception.
+             *
+             * @return never
+             *
+             * @throws \RuntimeException
+             */
+            #[\Override]
+            protected function handle(): never
+            {
+                throw new \RuntimeException('domain error');
+            }
+
+            /**
+             * Throw a secondary exception from the failure hook.
+             *
+             * @param  \Throwable  $exception
+             * @return void
+             *
+             * @throws \RuntimeException
+             */
+            #[\Override]
+            protected function onFailure(\Throwable $exception): void
+            {
+                throw new \RuntimeException('on-failure-error');
+            }
+        };
+
+        $result = (new ServiceRunner)->run($service, ServiceContext::for(new AnonymousActor));
+
+        self::assertTrue($result->failed());
+    }
+
+    /**
+     * Test that the dispatched event carries the elapsed execution duration
+     * rather than a corrupted time value.
+     *
+     * @return void
+     */
+    public function testDispatchedEventCarriesElapsedDuration(): void
+    {
+        Event::fake();
+
+        $service = new OutputService(new ArrayInput(['message' => 'x']));
+
+        (new ServiceRunner)->run($service, ServiceContext::for(new AnonymousActor));
+
+        Event::assertDispatched(
+            ServiceCompleted::class,
+            static fn (ServiceCompleted $event): bool => $event->duration >= 0.0 && $event->duration < 3600.0,
+        );
+    }
+
+    /**
+     * Test that the observability event is still dispatched when the
+     * failure-handling path itself throws, proving the dispatch is guaranteed
+     * by the finally rather than merely reached on the ordinary catch path.
+     *
+     * @return void
+     */
+    public function testEventDispatchedEvenWhenFailureHandlingThrows(): void
+    {
+        Event::fake();
+        Log::shouldReceive('error')->andThrow(new \RuntimeException('log-error'));
+
+        $service = new class (new ArrayInput([])) extends Service {
+            /**
+             * Always throw a domain exception.
+             *
+             * @return never
+             *
+             * @throws \RuntimeException
+             */
+            #[\Override]
+            protected function handle(): never
+            {
+                throw new \RuntimeException('domain error');
+            }
+
+            /**
+             * Throw a secondary exception from the failure hook.
+             *
+             * @param  \Throwable  $exception
+             * @return void
+             *
+             * @throws \RuntimeException
+             */
+            #[\Override]
+            protected function onFailure(\Throwable $exception): void
+            {
+                throw new \RuntimeException('on-failure-error');
+            }
+        };
+
+        $caught = null;
+
+        try {
+            (new ServiceRunner)->run($service, ServiceContext::for(new AnonymousActor));
+        } catch (\RuntimeException $exception) {
+            $caught = $exception;
+        }
+
+        self::assertInstanceOf(\RuntimeException::class, $caught);
+        self::assertSame('log-error', $caught->getMessage());
+
+        Event::assertDispatched(ServiceFailed::class);
     }
 }

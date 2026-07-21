@@ -252,6 +252,86 @@ final class ValidateRelationMethodsTest extends TestCase
     }
 
     /**
+     * Test that a field whose relation method is valid does not halt iteration,
+     * so a later field's defect is still reported.
+     *
+     * @return void
+     */
+    public function testContinuesPastFieldWithValidRelation(): void
+    {
+        $schema = new CompiledSchema(
+            fields: [
+                'organization' => new CompiledFieldDefinition(
+                    accessor: 'organization',
+                    compute: null,
+                    relation: 'organization',
+                    resource: OrganizationResource::class,
+                    fields: null,
+                    constraint: null,
+                    extras: [],
+                    needs: [],
+                    guards: [],
+                    transformers: [],
+                ),
+                'bad' => new CompiledFieldDefinition(
+                    accessor: 'bad',
+                    compute: null,
+                    relation: 'missing_relation',
+                    resource: OrganizationResource::class,
+                    fields: null,
+                    constraint: null,
+                    extras: [],
+                    needs: [],
+                    guards: [],
+                    transformers: [],
+                ),
+            ],
+            counts: [],
+        );
+
+        $rule   = new ValidateRelationMethods;
+        $errors = $rule->validate(UserResource::class, User::class, $schema);
+
+        self::assertCount(1, $errors);
+        self::assertSame('bad', $errors[0]->fieldKey);
+    }
+
+    /**
+     * Test that a count definition whose relation method is valid does not halt
+     * iteration, so a later count definition's defect is still reported.
+     *
+     * @return void
+     */
+    public function testContinuesPastCountDefinitionWithValidRelation(): void
+    {
+        $schema = new CompiledSchema(
+            fields: [],
+            counts: [
+                'posts_count' => new CompiledCountDefinition(
+                    presentKey: 'posts_count',
+                    relation: 'posts',
+                    constraint: null,
+                    isDefault: false,
+                    guards: [],
+                ),
+                'bad_count' => new CompiledCountDefinition(
+                    presentKey: 'bad_count',
+                    relation: 'missing_relation',
+                    constraint: null,
+                    isDefault: false,
+                    guards: [],
+                ),
+            ],
+        );
+
+        $rule   = new ValidateRelationMethods;
+        $errors = $rule->validate(UserResource::class, User::class, $schema);
+
+        self::assertCount(1, $errors);
+        self::assertSame('bad_count', $errors[0]->fieldKey);
+    }
+
+    /**
      * Test that a count definition whose relation method is valid produces no
      * error, so the loop advances past it.
      *

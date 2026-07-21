@@ -279,9 +279,94 @@ final class InputDataTest extends TestCase
         /** @var \Tests\Fixtures\Input\SampleInput $input */
         $input = $reflection->newInstanceWithoutConstructor();
 
+        // Initialise the first and last properties, leaving the middle one
+        // uninitialised, so the loop must skip the gap and keep the later
+        // value.
         $reflection->getProperty('city')->setValue($input, 'OnlyCity');
+        $reflection->getProperty('status')->setValue($input, StubStatusEnum::ACTIVE);
 
-        self::assertSame(['city' => 'OnlyCity'], $input->toArray());
+        self::assertSame(
+            ['city' => 'OnlyCity', 'status' => StubStatusEnum::ACTIVE],
+            $input->toArray(),
+        );
+    }
+
+    /**
+     * Test that a value for a parameter without a named type is left unchanged.
+     *
+     * The enum cast only applies when the parameter declares a single named
+     * type, so a union-typed parameter must receive its value verbatim.
+     *
+     * @return void
+     */
+    public function testCastValueLeavesNonNamedTypeValueUnchanged(): void
+    {
+        $definition = new class (data: '') extends InputData {
+            /**
+             * Create a new instance with a union-typed promoted property.
+             *
+             * @param  int|string  $data
+             */
+            public function __construct(
+
+                /** A union-typed value that must not be cast. */
+                public readonly int|string $data = '',
+            ) {}
+
+            /**
+             * Require the union-typed field.
+             *
+             * @return array<string, mixed>
+             */
+            #[\Override]
+            public static function rules(): array
+            {
+                return ['data' => ['required']];
+            }
+        };
+
+        $result = $definition::from(['data' => 'hello']);
+
+        self::assertSame('hello', $result->data);
+    }
+
+    /**
+     * Test that a non-string value for an enum parameter is passed through.
+     *
+     * The enum cast only applies to string values, so an already-constructed
+     * enum instance must be returned unchanged rather than re-cast.
+     *
+     * @return void
+     */
+    public function testCastValueLeavesNonStringEnumValueUnchanged(): void
+    {
+        $definition = new class (status: StubStatusEnum::ACTIVE) extends InputData {
+            /**
+             * Create a new instance with an enum-typed promoted property.
+             *
+             * @param  \Tests\Fixtures\Services\Input\Enums\StubStatusEnum|null  $status
+             */
+            public function __construct(
+
+                /** An enum value given as an instance, not a string. */
+                public readonly ?StubStatusEnum $status = null,
+            ) {}
+
+            /**
+             * Accept the status field without transforming it.
+             *
+             * @return array<string, mixed>
+             */
+            #[\Override]
+            public static function rules(): array
+            {
+                return ['status' => []];
+            }
+        };
+
+        $result = $definition::from(['status' => StubStatusEnum::ACTIVE]);
+
+        self::assertSame(StubStatusEnum::ACTIVE, $result->status);
     }
 
     /**

@@ -853,9 +853,11 @@ final class SchemaIntrospectorTest extends TestCase
             // phpcs:enable Squiz.Commenting.FunctionComment.InvalidNoReturn
         };
 
+        $expectedMessage = 'Failed to resolve relation \'broken\' on ' . $model::class . ': Test logic failure';
+
         Log::shouldReceive('warning')
             ->once()
-            ->withArgs(fn (string $message) => str_contains($message, 'broken') && str_contains($message, 'Test logic failure'));
+            ->with($expectedMessage);
 
         $introspector = $this->makeIntrospector();
 
@@ -1121,6 +1123,129 @@ final class SchemaIntrospectorTest extends TestCase
         $expectedKey = CacheKeys::MODEL_RELATIONS->resolveKey([User::class, 'posts']);
 
         self::assertContains($expectedKey, $registry->keys());
+    }
+
+    /**
+     * Test that a fresh introspector serves the full multi-column listing from
+     * the memo cache populated by an earlier instance.
+     *
+     * @return void
+     */
+    public function testGetColumnsServesFullColumnListFromMemoCacheOnFreshInstance(): void
+    {
+        $model = new User;
+
+        $first = ($this->makeIntrospector())->getColumns($model);
+
+        self::assertGreaterThan(1, count($first));
+
+        $second = ($this->makeIntrospector())->getColumns($model);
+
+        self::assertSame($first, $second);
+    }
+
+    /**
+     * Test that a cached searchable set is served from the instance cache
+     * and is not recomputed when the exclusion configuration changes
+     * afterwards.
+     *
+     * @return void
+     */
+    public function testGetSearchableColumnsServesInstanceCacheAfterConfigChange(): void
+    {
+        Config::set('api-toolkit.repositories.searchable_exclusions', ['password']);
+
+        $introspector = $this->makeIntrospector();
+        $model        = new User;
+
+        $first = $introspector->getSearchableColumns($model);
+
+        self::assertNotContains('password', $first);
+
+        Config::set('api-toolkit.repositories.searchable_exclusions', []);
+
+        $second = $introspector->getSearchableColumns($model);
+
+        self::assertSame($first, $second);
+        self::assertNotContains('password', $second);
+    }
+
+    /**
+     * Test that getColumnDefinitions lower-cases a driver-reported type name
+     * that arrives in mixed case.
+     *
+     * @return void
+     */
+    public function testGetColumnDefinitionsLowerCasesDriverReportedTypeName(): void
+    {
+        Cache::memo()->flush(); // @phpstan-ignore method.notFound
+
+        Schema::shouldReceive('getColumns')
+            ->once()
+            ->andReturn([
+                ['name' => 'id', 'type_name' => 'INTEGER', 'nullable' => false],
+            ]);
+
+        $model = new class extends Model {
+            /** @var string|null */
+            protected $table = 'widgets';
+        };
+
+        $definitions = ($this->makeIntrospector())->getColumnDefinitions($model);
+
+        self::assertSame('integer', $definitions['id']->typeName);
+    }
+
+    /**
+     * Test that parentKeysFor returns the parent local key for a
+     * MorphOneOrMany relation.
+     *
+     * @return void
+     */
+    public function testParentKeysForMorphOneOrManyReturnsLocalKey(): void
+    {
+        $morphMany = self::createStub(MorphMany::class);
+
+        $morphMany->method('getLocalKeyName')->willReturn('taggable_local_id');
+
+        $introspector = $this->makeIntrospector();
+
+        self::assertSame(['taggable_local_id'], $introspector->parentKeysFor($morphMany));
+    }
+
+    /**
+     * Test that parentKeysFor drops empty key names and reindexes the survivors
+     * into a contiguous list.
+     *
+     * @return void
+     */
+    public function testParentKeysForFiltersEmptyKeyNamesAndReindexes(): void
+    {
+        $morphTo = self::createStub(MorphTo::class);
+
+        $morphTo->method('getForeignKeyName')->willReturn('');
+        $morphTo->method('getMorphType')->willReturn('taggable_type');
+
+        $introspector = $this->makeIntrospector();
+
+        self::assertSame(['taggable_type'], $introspector->parentKeysFor($morphTo));
+    }
+
+    /**
+     * Test that parentKeysFor de-duplicates repeated key names.
+     *
+     * @return void
+     */
+    public function testParentKeysForDeduplicatesRepeatedKeyNames(): void
+    {
+        $morphTo = self::createStub(MorphTo::class);
+
+        $morphTo->method('getForeignKeyName')->willReturn('shared_key');
+        $morphTo->method('getMorphType')->willReturn('shared_key');
+
+        $introspector = $this->makeIntrospector();
+
+        self::assertSame(['shared_key'], $introspector->parentKeysFor($morphTo));
     }
 
     /**

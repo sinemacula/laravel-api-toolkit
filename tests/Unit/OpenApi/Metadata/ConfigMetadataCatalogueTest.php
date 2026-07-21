@@ -13,7 +13,9 @@ use SineMacula\ApiToolkit\OpenApi\Metadata\ErrorDescriptor;
 use SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry;
 use SineMacula\ApiToolkit\Repositories\Criteria\Operators\EqualOperator;
 use SineMacula\ApiToolkit\Repositories\Criteria\Operators\NotEqualOperator;
+use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\User;
+use Tests\Fixtures\Resources\PostResource;
 use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
 
@@ -37,11 +39,15 @@ final class ConfigMetadataCatalogueTest extends TestCase
     {
         Config::set('api-toolkit.resources.resource_map', [
             User::class => UserResource::class,
+            Post::class => PostResource::class,
         ]);
 
         $catalogue = $this->makeCatalogue();
 
-        self::assertSame([User::class => UserResource::class], $catalogue->getResourceMap());
+        self::assertSame([
+            User::class => UserResource::class,
+            Post::class => PostResource::class,
+        ], $catalogue->getResourceMap());
     }
 
     /**

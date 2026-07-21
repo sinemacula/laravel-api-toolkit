@@ -174,6 +174,19 @@ final class OpenApiFieldSchemaTest extends TestCase
     }
 
     /**
+     * Test that the type keyword is omitted when the type is null even when the
+     * field is declared nullable.
+     *
+     * @return void
+     */
+    public function testTypeIsOmittedWhenNullEvenWhenNullable(): void
+    {
+        $schema = new OpenApiFieldSchema(type: null, nullable: true);
+
+        self::assertSame([], $schema->toArray());
+    }
+
+    /**
      * Test that an example value is included in the fragment.
      *
      * @return void

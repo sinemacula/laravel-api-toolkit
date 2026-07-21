@@ -9,6 +9,7 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
 use SineMacula\ApiToolkit\Http\Resources\ApiResource;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\EagerLoadPlanner;
+use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 use Tests\Concerns\InteractsWithNonPublicMembers;
 use Tests\Fixtures\Models\User;
@@ -1146,5 +1147,39 @@ final class EagerLoadPlannerTest extends TestCase
         $result = $this->invokeStaticMethod(EagerLoadPlanner::class, 'getRequestedChildFields', \stdClass::class);
 
         self::assertSame([], $result);
+    }
+
+    /**
+     * Test that explicit child fields are returned as a zero-indexed list with
+     * blank entries stripped, so a leading blank does not leave a gap in the
+     * keys and does not survive as an empty relation field.
+     *
+     * @return void
+     */
+    public function testResolveChildFieldsReturnsZeroIndexedListWithBlanksRemoved(): void
+    {
+        $definition = new CompiledFieldDefinition(null, null, null, null, ['', 'tags'], null, [], [], [], []);
+
+        $result = $this->invokeStaticMethod(EagerLoadPlanner::class, 'resolveChildFields', $definition, 'x');
+
+        self::assertSame(['tags'], $result);
+    }
+
+    /**
+     * Test that the requested child fields are returned as a zero-indexed list
+     * with blank entries stripped, so a leading blank does not leave a gap in
+     * the keys.
+     *
+     * @return void
+     */
+    public function testGetRequestedChildFieldsReturnsZeroIndexedListWithBlanksRemoved(): void
+    {
+        ApiQuery::shouldReceive('getFields')
+            ->with('users')
+            ->andReturn(['', 'name']);
+
+        $result = $this->invokeStaticMethod(EagerLoadPlanner::class, 'getRequestedChildFields', UserResource::class);
+
+        self::assertSame(['name'], $result);
     }
 }

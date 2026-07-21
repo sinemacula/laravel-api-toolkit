@@ -144,6 +144,29 @@ final class ValidateRelationClassesTest extends TestCase
     }
 
     /**
+     * Test that a field whose relation class exists does not halt iteration, so
+     * a later field's missing class is still reported.
+     *
+     * @return void
+     */
+    public function testContinuesPastExistingRelationClass(): void
+    {
+        $schema = new CompiledSchema(
+            fields: [
+                'clean' => $this->makeField(OrganizationResource::class),
+                'bad'   => $this->makeField('App\NonExistent\Resource'),
+            ],
+            counts: [],
+        );
+
+        $rule   = new ValidateRelationClasses;
+        $errors = $rule->validate('App\Http\Resources\UserResource', null, $schema);
+
+        self::assertCount(1, $errors);
+        self::assertSame('bad', $errors[0]->fieldKey);
+    }
+
+    /**
      * Test that every non-existent relation class is reported.
      *
      * @return void

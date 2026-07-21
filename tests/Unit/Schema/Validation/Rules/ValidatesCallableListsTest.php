@@ -96,6 +96,114 @@ final class ValidatesCallableListsTest extends TestCase
     }
 
     /**
+     * Test that a null field definition does not halt iteration, so a later
+     * field's non-callable entry is still reported.
+     *
+     * @return void
+     *
+     * @throws \ReflectionException
+     */
+    public function testContinuesPastNullFieldDefinition(): void
+    {
+        $bad = new CompiledFieldDefinition(
+            accessor: 'name',
+            compute: null,
+            relation: null,
+            resource: null,
+            fields: null,
+            constraint: null,
+            extras: [],
+            needs: [],
+            guards: ['not_a_function'],
+            transformers: [],
+        );
+
+        $reflection = new \ReflectionClass(CompiledSchema::class);
+        $schema     = $reflection->newInstanceWithoutConstructor();
+
+        $reflection->getProperty('fields')->setValue($schema, ['ghost' => null, 'name' => $bad]);
+        $reflection->getProperty('counts')->setValue($schema, []);
+
+        $errors = $this->makeRule()->validate('App\Http\Resources\UserResource', null, $schema);
+
+        self::assertCount(1, $errors);
+        self::assertSame('name', $errors[0]->fieldKey);
+    }
+
+    /**
+     * Test that errors from every field are accumulated rather than only the
+     * final field's errors surviving.
+     *
+     * @return void
+     */
+    public function testAccumulatesErrorsAcrossFields(): void
+    {
+        $first = new CompiledFieldDefinition(
+            accessor: 'first',
+            compute: null,
+            relation: null,
+            resource: null,
+            fields: null,
+            constraint: null,
+            extras: [],
+            needs: [],
+            guards: ['not_a_function'],
+            transformers: [],
+        );
+
+        $second = new CompiledFieldDefinition(
+            accessor: 'second',
+            compute: null,
+            relation: null,
+            resource: null,
+            fields: null,
+            constraint: null,
+            extras: [],
+            needs: [],
+            guards: ['also_not_a_function'],
+            transformers: [],
+        );
+
+        $schema = new CompiledSchema(fields: ['first' => $first, 'second' => $second], counts: []);
+
+        $errors = $this->makeRule()->validate('App\Http\Resources\UserResource', null, $schema);
+
+        self::assertCount(2, $errors);
+        self::assertSame('first', $errors[0]->fieldKey);
+        self::assertSame('second', $errors[1]->fieldKey);
+    }
+
+    /**
+     * Test that a callable entry does not halt the list scan, so a following
+     * non-callable entry is still reported at its true index.
+     *
+     * @return void
+     */
+    public function testContinuesPastCallableEntryInList(): void
+    {
+        $field = new CompiledFieldDefinition(
+            accessor: 'name',
+            compute: null,
+            relation: null,
+            resource: null,
+            fields: null,
+            constraint: null,
+            extras: [],
+            needs: [],
+            guards: [fn ($value, $model) => true, 'not_a_function'],
+            transformers: [],
+        );
+
+        $schema = new CompiledSchema(fields: ['name' => $field], counts: []);
+
+        $errors = $this->makeRule()->validate('App\Http\Resources\UserResource', null, $schema);
+
+        self::assertCount(1, $errors);
+        self::assertSame('name', $errors[0]->fieldKey);
+        self::assertSame('Item at index 1 is not callable', $errors[0]->defect);
+    }
+
+    /**
      * Build a concrete rule that validates each field's guard list.
      *
      * @return \SineMacula\ApiToolkit\Schema\Validation\Rules\ValidatesCallableLists
