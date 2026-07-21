@@ -9,6 +9,7 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Http\Resources\ApiResource;
 use Tests\Concerns\RegistersApiExceptionHandler;
 use Tests\Fixtures\Models\User;
+use Tests\Fixtures\Resources\AuthUserGuardedUserResource;
 use Tests\Fixtures\Resources\GuardedUserResource;
 use Tests\TestCase;
 
@@ -48,6 +49,8 @@ final class FieldGuardResponseTest extends TestCase
         // Fetch a fresh instance per request so the model is not flagged as
         // recently created, which would make the resource response a 201.
         Route::get('/api/guarded', static fn (): GuardedUserResource => new GuardedUserResource(User::query()->firstOrFail()));
+
+        Route::get('/api/auth-guarded', static fn (): AuthUserGuardedUserResource => new AuthUserGuardedUserResource(User::query()->firstOrFail()));
     }
 
     /**
@@ -75,6 +78,38 @@ final class FieldGuardResponseTest extends TestCase
     public function testGuardRevealsFieldWhenPermitted(): void
     {
         $response = $this->getJson('/api/guarded?show=yes');
+
+        $response->assertOk();
+        $response->assertJsonPath('data.email', 'alice@example.com');
+    }
+
+    /**
+     * Test that a guard keyed on the authenticated user hides the field for a
+     * guest.
+     *
+     * @return void
+     */
+    public function testAuthUserGuardHidesFieldForGuest(): void
+    {
+        $response = $this->getJson('/api/auth-guarded');
+
+        $response->assertOk();
+        $response->assertJsonPath('data.name', 'Alice');
+
+        self::assertArrayNotHasKey('email', (array) $response->json('data'));
+    }
+
+    /**
+     * Test that a guard keyed on the authenticated user reveals the field under
+     * an acting admin.
+     *
+     * @return void
+     */
+    public function testAuthUserGuardRevealsFieldForActingAdmin(): void
+    {
+        $admin = User::create(['name' => 'Admin', 'email' => 'admin@example.com', 'status' => 'active']);
+
+        $response = $this->actingAs($admin)->getJson('/api/auth-guarded');
 
         $response->assertOk();
         $response->assertJsonPath('data.email', 'alice@example.com');

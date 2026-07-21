@@ -6,9 +6,12 @@ namespace Tests\Unit\Console;
 
 use Illuminate\Contracts\Config\Repository as ConfigRepository;
 use Illuminate\Foundation\Application;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Testing\PendingCommand;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Console\ExportOpenApiCommand;
+use SineMacula\ApiToolkit\OpenApi\Contracts\DocumentWriter;
+use SineMacula\ApiToolkit\OpenApi\ExportOpenApiComponents;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 use Tests\Fixtures\Models\Organization;
 use Tests\Fixtures\Models\User;
@@ -25,6 +28,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(ExportOpenApiCommand::class)]
+#[CoversClass(ExportOpenApiComponents::class)]
 final class ExportOpenApiCommandTest extends TestCase
 {
     /** @var string The console command signature. */
@@ -160,6 +164,43 @@ final class ExportOpenApiCommandTest extends TestCase
         self::assertFileExists($default);
 
         @unlink($default);
+    }
+
+    /**
+     * Test that a document-write failure is surfaced as a non-zero outcome.
+     *
+     * The command has no try/catch around the write, so a failing writer port
+     * propagates its exception uncaught rather than reporting success.
+     *
+     * @return void
+     */
+    public function testCommandSurfacesDocumentWriteFailure(): void
+    {
+        $this->registerResourceMap();
+
+        assert($this->app instanceof Application);
+
+        $this->app->instance(DocumentWriter::class, new class implements DocumentWriter {
+            /**
+             * Persist the serialized document at the given path.
+             *
+             * @param  string  $path
+             * @param  string  $contents
+             * @return void
+             *
+             * @throws \RuntimeException
+             */
+            #[\Override]
+            public function write(string $path, string $contents): void
+            {
+                throw new \RuntimeException('Unable to write the OpenAPI document.');
+            }
+        });
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('Unable to write the OpenAPI document.');
+
+        Artisan::call(self::COMMAND, ['--output' => $this->outputPath]);
     }
 
     /**

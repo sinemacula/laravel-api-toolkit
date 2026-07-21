@@ -120,4 +120,59 @@ final class CursorPaginationTest extends TestCase
         // The prev cursor is populated once past the first page.
         self::assertIsString($second->json('links.prev'));
     }
+
+    /**
+     * Test that following the next cursors to the terminal page returns the
+     * single trailing row with no further cursor.
+     *
+     * @return void
+     */
+    public function testLastCursorPageHasNoNextCursor(): void
+    {
+        $response = $this->getJson('/api/users?pagination=cursor&limit=2');
+
+        $response->assertOk();
+
+        // Walk the next cursors until the terminal page is reached.
+        while (is_string($next = $response->json('links.next'))) {
+
+            $parts = parse_url($next);
+
+            self::assertIsArray($parts);
+            self::assertArrayHasKey('query', $parts);
+
+            $response = $this->getJson('/api/users?' . $parts['query']);
+
+            $response->assertOk();
+        }
+
+        // Five rows over pages of two leaves a single trailing row with no
+        // further pages and a null next cursor.
+        $response->assertJsonCount(1, 'data');
+        $response->assertJsonPath('data.0.name', 'Evan');
+
+        self::assertFalse($response->json('meta.continue'));
+        self::assertNull($response->json('links.next'));
+        self::assertIsString($response->json('links.prev'));
+    }
+
+    /**
+     * Test that a cursor request matching no rows returns the terminal envelope
+     * with empty data and null cursors on both sides.
+     *
+     * @return void
+     */
+    public function testEmptyCursorPageReturnsTerminalEnvelope(): void
+    {
+        $filters = json_encode(['id' => ['$gt' => 9999]]);
+
+        $response = $this->getJson('/api/users?pagination=cursor&limit=2&filters=' . urlencode((string) $filters));
+
+        $response->assertOk();
+        $response->assertJsonCount(0, 'data');
+
+        self::assertFalse($response->json('meta.continue'));
+        self::assertNull($response->json('links.next'));
+        self::assertNull($response->json('links.prev'));
+    }
 }

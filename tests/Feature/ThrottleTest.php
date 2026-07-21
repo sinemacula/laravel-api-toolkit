@@ -64,4 +64,43 @@ final class ThrottleTest extends TestCase
         $response->assertJsonPath('error.code', 10107);
         $response->assertHeader('Retry-After');
     }
+
+    /**
+     * Test that an allowed response carries the rate-limit headers and the
+     * remaining count decrements across successive successful requests.
+     *
+     * @return void
+     */
+    public function testAllowedResponseCarriesRateLimitHeaders(): void
+    {
+        Route::middleware(ThrottleRequests::class . ':2,1')->get('/api/multi', static fn (): array => ['ok' => true]);
+
+        $first = $this->getJson('/api/multi');
+
+        $first->assertOk();
+        $first->assertHeader('X-RateLimit-Limit', 2);
+        $first->assertHeader('X-RateLimit-Remaining', 1);
+
+        $second = $this->getJson('/api/multi');
+
+        $second->assertOk();
+        $second->assertHeader('X-RateLimit-Limit', 2);
+        $second->assertHeader('X-RateLimit-Remaining', 0);
+    }
+
+    /**
+     * Test that the throttled response carries the retry and reset headers.
+     *
+     * @return void
+     */
+    public function testThrottledResponseCarriesRetryAndResetHeaders(): void
+    {
+        $this->getJson('/api/ping')->assertOk();
+
+        $response = $this->getJson('/api/ping');
+
+        $response->assertStatus(429);
+        $response->assertHeader('Retry-After');
+        $response->assertHeader('X-RateLimit-Reset');
+    }
 }
