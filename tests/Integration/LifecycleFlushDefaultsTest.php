@@ -180,10 +180,9 @@ final class LifecycleFlushDefaultsTest extends TestCase
      * With the lifecycle flag off, LifecycleRegistrar does not subscribe the
      * flush, so no boundary can fire it. The queue path is the representative
      * opt-out oracle - the Octane path additionally gates on
-     * class_exists(OperationTerminated), which is always false here because
-     * laravel/octane is not installed, so the queue gate is the one that can be
-     * isolated. The enabled control proves the assertion tracks the flag rather
-     * than passing vacuously.
+     * interface_exists(OperationTerminated), so the queue gate is the one that
+     * can be isolated cleanly. The enabled control proves the assertion tracks
+     * the flag rather than passing vacuously.
      *
      * @return void
      */

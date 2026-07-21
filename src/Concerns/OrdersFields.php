@@ -14,11 +14,7 @@ use SineMacula\ApiToolkit\Enums\FieldOrderingStrategy;
  */
 trait OrdersFields
 {
-    /**
-     * The field-ordering strategy to use.
-     *
-     * @var \SineMacula\ApiToolkit\Enums\FieldOrderingStrategy
-     */
+    /** @var \SineMacula\ApiToolkit\Enums\FieldOrderingStrategy */
     protected FieldOrderingStrategy $fieldOrderingStrategy = FieldOrderingStrategy::DEFAULT;
 
     /**

@@ -28,6 +28,7 @@
     },
     "suggest": {
         "illuminate/notifications": "Required only for notification-event logging",
+        "laravel/octane": "Flushes toolkit caches between requests when serving under Laravel Octane",
         "sinemacula/laravel-log-cloudwatch": "CloudWatch log driver (Monolog), extracted from this package",
         "sinemacula/laravel-log-database": "Database log driver (Monolog), extracted from this package",
         "sinemacula/laravel-resource-exporter": "Content-negotiated exports (CSV/TSV/XLSX/XML/JSON/NDJSON) for resources and collections; wires into resource responses automatically when installed",
@@ -37,6 +38,7 @@
         "brianium/paratest": "^7.20",
         "friendsofphp/php-cs-fixer": "3.89.0",
         "infection/infection": "0.33.2",
+        "laravel/octane": "^2.0",
         "mockery/mockery": "^1.6",
         "opis/json-schema": "^2.4",
         "orchestra/testbench": "^9.0 || ^10.0",
@@ -80,7 +82,7 @@
             "@php vendor/bin/paratest --coverage-clover=clover.xml"
         ],
         "test:mutation": [
-            "@php -d memory_limit=-1 vendor/bin/infection --configuration=infection.json5 --test-framework-options=\"--do-not-fail-on-warning --do-not-fail-on-phpunit-warning\" --only-covering-test-cases --threads=max --git-diff-lines --git-diff-base=origin/master --map-source-class-to-test --min-msi=90 --min-covered-msi=90"
+            "@php -d memory_limit=-1 vendor/bin/infection --configuration=infection.json5 --test-framework-options=\"--do-not-fail-on-warning --do-not-fail-on-phpunit-warning\" --only-covering-test-cases --threads=max --git-diff-lines --git-diff-base=origin/master --map-source-class-to-test --min-msi=90 --min-covered-msi=90 --ignore-msi-with-no-mutations"
         ],
         "test:mutation:full": [
             "@php -d memory_limit=-1 vendor/bin/infection --configuration=infection.full.json5 --test-framework-options=\"--do-not-fail-on-warning --do-not-fail-on-phpunit-warning\" --only-covering-test-cases --threads=max"

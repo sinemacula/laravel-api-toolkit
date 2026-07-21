@@ -19,7 +19,7 @@ use Illuminate\Routing\Router;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
-use Laravel\Octane\Events\OperationTerminated;
+use Laravel\Octane\Contracts\OperationTerminated;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\ApiQueryParser;
 use SineMacula\ApiToolkit\ApiServiceProvider;
@@ -595,13 +595,13 @@ final class ApiServiceProviderTest extends TestCase
      */
     public function testOctaneFlushListenerRegisteredWhenConfigEnabled(): void
     {
-        if (!class_exists(OperationTerminated::class)) {
-            self::markTestSkipped('Laravel Octane is not installed.');
-        }
-
         $app = $this->getApplication();
 
         $this->getConfig()->set('api-toolkit.lifecycle.octane', true);
+
+        // Reset the dispatcher so Octane's own OperationTerminated listeners do
+        // not mask whether the provider wires the toolkit's listener.
+        Event::swap(new Dispatcher($app));
 
         $provider = new ApiServiceProvider($app);
         $provider->boot();
@@ -624,13 +624,17 @@ final class ApiServiceProviderTest extends TestCase
 
         $this->getConfig()->set('api-toolkit.lifecycle.octane', false);
 
+        // Reset the dispatcher so Octane's own OperationTerminated listeners do
+        // not mask that the provider leaves the toolkit's listener unwired.
+        Event::swap(new Dispatcher($app));
+
         $provider = new ApiServiceProvider($app);
         $provider->boot();
 
         /** @var \Illuminate\Contracts\Events\Dispatcher $events */
         $events = $app->make('events');
 
-        self::assertFalse($events->hasListeners(OperationTerminated::class)); // @phpstan-ignore class.notFound
+        self::assertFalse($events->hasListeners(OperationTerminated::class));
     }
 
     /**
