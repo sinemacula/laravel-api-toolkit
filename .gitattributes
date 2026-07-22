@@ -12,4 +12,3 @@ infection.full.json5 export-ignore
 .gitignore export-ignore
 .sinemacula export-ignore
 .claude export-ignore
-CLAUDE.md export-ignore
