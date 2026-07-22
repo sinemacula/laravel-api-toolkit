@@ -288,7 +288,7 @@ final class ApiResourceCollectionTest extends TestCase
         // ResourceCollection constructor; inject the raw User directly so the
         // false-branch of `instanceof ApiResource` in toArray() fires.
         $reflection = new \ReflectionProperty($collection, 'collection');
-        $reflection->setValue($collection, collect([$user])); // NOSONAR
+        $reflection->setValue($collection, collect([$user]));
 
         $request = Request::create('/', HttpMethod::GET->getVerb());
         $result  = $collection->toArray($request);
@@ -352,7 +352,7 @@ final class ApiResourceCollectionTest extends TestCase
         $collection = new ApiResourceCollection(collect([]), UserResource::class);
 
         $reflection = new \ReflectionProperty($collection, 'collection');
-        $reflection->setValue($collection, collect([$user])); // NOSONAR
+        $reflection->setValue($collection, collect([$user]));
 
         $result = $collection->toArray($request);
 
