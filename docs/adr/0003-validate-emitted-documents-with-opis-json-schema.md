@@ -1,12 +1,12 @@
 ---
-id: 0004
+id: 0003
 title: Validate emitted documents with opis/json-schema against a bundled 3.1 meta-schema
 status: Accepted
 date: 2026-06-13
 context_workflow: .sinemacula/build/workflows/openapi-exporter/
 ---
 
-# ADR 0004: Validate emitted documents with opis/json-schema against a bundled 3.1 meta-schema
+# ADR 0003: Validate emitted documents with opis/json-schema against a bundled 3.1 meta-schema
 
 **Status:** Accepted
 **Date:** 2026-06-13
@@ -14,7 +14,7 @@ context_workflow: .sinemacula/build/workflows/openapi-exporter/
 
 ## Context
 
-The OpenAPI 3.1 Exporter hand-rolls the emitted document (ADR 0003), so the package -- not a builder library -- owns the
+The OpenAPI 3.1 Exporter hand-rolls the emitted document (ADR 0002), so the package -- not a builder library -- owns the
 correctness of the 3.1 array shape. The spec's headline success metric is "100% of emitted documents validate as OpenAPI
 3.1", and the release criteria gate on an automated validity assertion. A test-time validator that understands JSON
 Schema 2020-12 (the dialect OpenAPI 3.1 is built on) is therefore required. OpenAPI 3.1 documents are validated against
@@ -61,7 +61,7 @@ Schema 2020-12, so it cannot validate OpenAPI 3.1. Rejected.
 
 ### Option B -- Delegate validity to the builder library
 
-Rejected upstream by ADR 0003 (hand-rolled builder). With no builder library there is nothing to delegate to; an
+Rejected upstream by ADR 0002 (hand-rolled builder). With no builder library there is nothing to delegate to; an
 independent meta-schema validator is the only way to prove correctness of a hand-assembled document.
 
 ### Option C -- No automated validation (manual review)
@@ -74,4 +74,4 @@ the feature's core premise -- a silent shape regression would defeat the purpose
 - Traces to: .sinemacula/build/workflows/openapi-exporter/
 - PRD: docs/prd/14-openapi-exporter.md
 - Architecture: .sinemacula/build/workflows/openapi-exporter/architecture.md
-- Related: ADR 0003 (hand-roll the OpenAPI 3.1 document builder)
+- Related: ADR 0002 (hand-roll the OpenAPI 3.1 document builder)

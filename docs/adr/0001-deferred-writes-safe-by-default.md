@@ -1,4 +1,4 @@
-# 0002 — Deferred writes are safe-by-default
+# 0001 — Deferred writes are safe-by-default
 
 - Status: Accepted
 - Date: 2026-06-13

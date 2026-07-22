@@ -1,12 +1,12 @@
 ---
-id: 0003
+id: 0002
 title: Hand-roll the OpenAPI 3.1 document builder
 status: Accepted
 date: 2026-06-13
 context_workflow: .sinemacula/build/workflows/openapi-exporter/
 ---
 
-# ADR 0003: Hand-roll the OpenAPI 3.1 document builder
+# ADR 0002: Hand-roll the OpenAPI 3.1 document builder
 
 **Status:** Accepted
 **Date:** 2026-06-13
@@ -29,7 +29,7 @@ Hand-roll the builder. OpenAPI 3.1 components are, by definition, plain JSON Sch
 assembler is structured-array assembly serialized via `json_encode(JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES)`. No
 runtime dependency is added. The assembler (`OpenApiAssembler`) is a pure transformer adapter invoked by the
 `ExportOpenApiComponents` use case; it sits behind the use case and is locally swappable. Document validity is proven at
-test time, not by the builder (see ADR 0004).
+test time, not by the builder (see ADR 0003).
 
 ## Consequences
 
@@ -42,7 +42,7 @@ test time, not by the builder (see ADR 0004).
 ### Negative
 
 - The package owns the correctness of the 3.1 array shape itself rather than delegating to a library, which is why a
-  test-time meta-schema validator (ADR 0004) is mandatory rather than optional.
+  test-time meta-schema validator (ADR 0003) is mandatory rather than optional.
 - Future OpenAPI specification-version changes require manual array updates rather than a library bump.
 
 ## Alternatives Considered

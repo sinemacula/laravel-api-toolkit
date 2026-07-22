@@ -3,7 +3,7 @@
 These fixtures back the OpenAPI exporter validity test
 (`tests/Integration/OpenApiExporterValidityTest.php`). They are the official,
 unmodified meta-schemas vendored for offline, deterministic validation per
-ADR 0004.
+ADR 0003.
 
 - `openapi-3.1-schema.json` — the official OpenAPI 3.1 meta-schema (the
   "without schema validation" variant), from
@@ -17,7 +17,7 @@ Both files are committed **byte-for-byte as published** — they are not hand-ed
 
 ## opis/json-schema compatibility transform (applied at runtime in the test)
 
-`opis/json-schema` (`^2.4`, the test-only validator chosen in ADR 0004) is a
+`opis/json-schema` (`^2.4`, the test-only validator chosen in ADR 0003) is a
 maintained JSON Schema 2020-12 validator, but version 2.6 has two annotation /
 reference gaps that prevent it from evaluating the OpenAPI 3.1 meta-schema as
 published:
