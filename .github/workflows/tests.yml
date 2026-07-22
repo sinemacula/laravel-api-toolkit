@@ -8,7 +8,7 @@ name: Tests
 # ==============================================================================
 on:
     push:
-        branches: [ master, 2.x ]
+        branches: [ master ]
     pull_request:
         types: [ opened, synchronize, reopened, ready_for_review ]
     workflow_dispatch:
@@ -70,7 +70,7 @@ jobs:
                     files: clover.xml
 
     # ==========================================================================
-    # JOB: DATABASE-BACKED TESTS (Integration + Feature on MySQL + PostgreSQL)
+    # JOB: DATABASE TESTS (MySQL + PostgreSQL)
     # ==========================================================================
     integration:
         name: Integration / ${{ matrix.database }}
@@ -132,7 +132,7 @@ jobs:
                     php-version: 8.3
                     extensions: pdo_mysql, pdo_pgsql
 
-            -   name: Run database-backed tests (Integration + Feature)
+            -   name: Database Tests
                 env:
                     DB_DRIVER: ${{ matrix.db_driver }}
                     DB_HOST: 127.0.0.1
