@@ -52,7 +52,7 @@ final class SparseFieldsetHttpTest extends TestCase
 
         $this->registerApiExceptionHandler();
 
-        Route::middleware(ParseApiQuery::class)->get('/api/users', function (UserRepository $repository): ApiResourceCollection {
+        Route::middleware(ParseApiQuery::class)->get('/users', function (UserRepository $repository): ApiResourceCollection {
 
             $users = $repository->usingResource(UserResource::class)->withApiCriteria()->paginate();
 
@@ -72,7 +72,7 @@ final class SparseFieldsetHttpTest extends TestCase
      */
     public function testAllTokenExpandsToEveryDeclaredField(): void
     {
-        $response = $this->getJson('/api/users?' . http_build_query([
+        $response = $this->getJson('/users?' . http_build_query([
             'fields' => ['users' => ':all'],
         ]));
 
@@ -96,7 +96,7 @@ final class SparseFieldsetHttpTest extends TestCase
      */
     public function testDefaultFieldSetAppliesWhenFieldsOmitted(): void
     {
-        $response = $this->getJson('/api/users');
+        $response = $this->getJson('/users');
 
         $response->assertOk();
 
@@ -119,7 +119,7 @@ final class SparseFieldsetHttpTest extends TestCase
      */
     public function testComputedAndAccessorFieldsSurface(): void
     {
-        $response = $this->getJson('/api/users?' . http_build_query([
+        $response = $this->getJson('/users?' . http_build_query([
             'fields' => ['users' => 'full_label,display_label'],
         ]));
 
@@ -136,7 +136,7 @@ final class SparseFieldsetHttpTest extends TestCase
      */
     public function testUndeclaredFieldIsSilentlyDropped(): void
     {
-        $response = $this->getJson('/api/users?' . http_build_query([
+        $response = $this->getJson('/users?' . http_build_query([
             'fields' => ['users' => 'name,not_a_real_field'],
         ]));
 

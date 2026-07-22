@@ -48,9 +48,9 @@ final class FieldGuardResponseTest extends TestCase
 
         // Fetch a fresh instance per request so the model is not flagged as
         // recently created, which would make the resource response a 201.
-        Route::get('/api/guarded', static fn (): GuardedUserResource => new GuardedUserResource(User::query()->firstOrFail()));
+        Route::get('/guarded', static fn (): GuardedUserResource => new GuardedUserResource(User::query()->firstOrFail()));
 
-        Route::get('/api/auth-guarded', static fn (): AuthUserGuardedUserResource => new AuthUserGuardedUserResource(User::query()->firstOrFail()));
+        Route::get('/auth-guarded', static fn (): AuthUserGuardedUserResource => new AuthUserGuardedUserResource(User::query()->firstOrFail()));
     }
 
     /**
@@ -61,7 +61,7 @@ final class FieldGuardResponseTest extends TestCase
      */
     public function testGuardHidesFieldAndTransformerAppliesInResponse(): void
     {
-        $response = $this->getJson('/api/guarded');
+        $response = $this->getJson('/guarded');
 
         $response->assertOk();
         $response->assertJsonPath('data.name', 'ALICE');
@@ -77,7 +77,7 @@ final class FieldGuardResponseTest extends TestCase
      */
     public function testGuardRevealsFieldWhenPermitted(): void
     {
-        $response = $this->getJson('/api/guarded?show=yes');
+        $response = $this->getJson('/guarded?show=yes');
 
         $response->assertOk();
         $response->assertJsonPath('data.email', 'alice@example.com');
@@ -91,7 +91,7 @@ final class FieldGuardResponseTest extends TestCase
      */
     public function testAuthUserGuardHidesFieldForGuest(): void
     {
-        $response = $this->getJson('/api/auth-guarded');
+        $response = $this->getJson('/auth-guarded');
 
         $response->assertOk();
         $response->assertJsonPath('data.name', 'Alice');
@@ -109,7 +109,7 @@ final class FieldGuardResponseTest extends TestCase
     {
         $admin = User::create(['name' => 'Admin', 'email' => 'admin@example.com', 'status' => 'active']);
 
-        $response = $this->actingAs($admin)->getJson('/api/auth-guarded');
+        $response = $this->actingAs($admin)->getJson('/auth-guarded');
 
         $response->assertOk();
         $response->assertJsonPath('data.email', 'alice@example.com');

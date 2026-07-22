@@ -42,11 +42,11 @@ final class ExceptionRenderStrategyTest extends TestCase
 
         $this->registerApiExceptionHandler();
 
-        Route::get('/api/abort-conflict', static function (): never {
+        Route::get('/abort-conflict', static function (): never {
             abort(409);
         });
 
-        Route::get('/api/unhandled', static function (): never {
+        Route::get('/unhandled', static function (): never {
             throw new \RuntimeException('Something broke internally');
         });
     }
@@ -61,7 +61,7 @@ final class ExceptionRenderStrategyTest extends TestCase
     {
         Config::set('api-toolkit.exceptions.render_strategy', 'always_json');
 
-        $response = $this->get('/api/abort-conflict', ['Accept' => 'text/html']);
+        $response = $this->get('/abort-conflict', ['Accept' => 'text/html']);
 
         $response->assertStatus(409);
         $response->assertHeader('Content-Type', 'application/json');
@@ -80,7 +80,7 @@ final class ExceptionRenderStrategyTest extends TestCase
         Config::set('app.debug', false);
         Config::set('api-toolkit.exceptions.include_debug_info', true);
 
-        $response = $this->getJson('/api/unhandled');
+        $response = $this->getJson('/unhandled');
 
         $response->assertStatus(500);
         $response->assertJsonPath('error.meta.message', 'Something broke internally');
@@ -106,7 +106,7 @@ final class ExceptionRenderStrategyTest extends TestCase
         Config::set('api-toolkit.exceptions.render_strategy', 'auto');
         Config::set('app.debug', true);
 
-        $response = $this->get('/api/abort-conflict', ['Accept' => 'text/html']);
+        $response = $this->get('/abort-conflict', ['Accept' => 'text/html']);
 
         $response->assertStatus(409);
 
@@ -129,7 +129,7 @@ final class ExceptionRenderStrategyTest extends TestCase
      */
     public function testPrettyFlagIndentsErrorBody(): void
     {
-        $pretty = $this->getJson('/api/abort-conflict?pretty=1');
+        $pretty = $this->getJson('/abort-conflict?pretty=1');
 
         $pretty->assertStatus(409);
 
@@ -139,7 +139,7 @@ final class ExceptionRenderStrategyTest extends TestCase
         self::assertStringContainsString("\n", $prettyContent);
         self::assertStringContainsString('    ', $prettyContent);
 
-        $compact = $this->getJson('/api/abort-conflict');
+        $compact = $this->getJson('/abort-conflict');
 
         $compact->assertStatus(409);
 

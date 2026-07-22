@@ -44,7 +44,7 @@ final class ThrottleTest extends TestCase
 
         $this->registerApiExceptionHandler();
 
-        Route::middleware(ThrottleRequests::class . ':1,1')->get('/api/ping', static fn (): array => ['ok' => true]);
+        Route::middleware(ThrottleRequests::class . ':1,1')->get('/ping', static fn (): array => ['ok' => true]);
     }
 
     /**
@@ -55,9 +55,9 @@ final class ThrottleTest extends TestCase
      */
     public function testExceedingTheRateLimitRendersTheThrottledEnvelope(): void
     {
-        $this->getJson('/api/ping')->assertOk();
+        $this->getJson('/ping')->assertOk();
 
-        $response = $this->getJson('/api/ping');
+        $response = $this->getJson('/ping');
 
         $response->assertStatus(429);
         $response->assertJsonPath('error.status', 429);
@@ -73,15 +73,15 @@ final class ThrottleTest extends TestCase
      */
     public function testAllowedResponseCarriesRateLimitHeaders(): void
     {
-        Route::middleware(ThrottleRequests::class . ':2,1')->get('/api/multi', static fn (): array => ['ok' => true]);
+        Route::middleware(ThrottleRequests::class . ':2,1')->get('/multi', static fn (): array => ['ok' => true]);
 
-        $first = $this->getJson('/api/multi');
+        $first = $this->getJson('/multi');
 
         $first->assertOk();
         $first->assertHeader('X-RateLimit-Limit', 2);
         $first->assertHeader('X-RateLimit-Remaining', 1);
 
-        $second = $this->getJson('/api/multi');
+        $second = $this->getJson('/multi');
 
         $second->assertOk();
         $second->assertHeader('X-RateLimit-Limit', 2);
@@ -95,9 +95,9 @@ final class ThrottleTest extends TestCase
      */
     public function testThrottledResponseCarriesRetryAndResetHeaders(): void
     {
-        $this->getJson('/api/ping')->assertOk();
+        $this->getJson('/ping')->assertOk();
 
-        $response = $this->getJson('/api/ping');
+        $response = $this->getJson('/ping');
 
         $response->assertStatus(429);
         $response->assertHeader('Retry-After');

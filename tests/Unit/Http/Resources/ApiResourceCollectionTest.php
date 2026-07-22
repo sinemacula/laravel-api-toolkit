@@ -33,7 +33,7 @@ use Tests\TestCase;
 final class ApiResourceCollectionTest extends TestCase
 {
     /** @var string Base path used to build paginator links in tests */
-    private const string PAGINATION_PATH = 'http://localhost/api/users';
+    private const string PAGINATION_PATH = 'http://localhost/users';
 
     /**
      * Test that toArray resolves each item via the resource class.

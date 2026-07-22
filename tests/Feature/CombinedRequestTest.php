@@ -56,7 +56,7 @@ final class CombinedRequestTest extends TestCase
 
         $this->registerApiExceptionHandler();
 
-        Route::middleware(ParseApiQuery::class)->get('/api/users', function (UserRepository $repository): ApiResourceCollection {
+        Route::middleware(ParseApiQuery::class)->get('/users', function (UserRepository $repository): ApiResourceCollection {
 
             $users = $repository->usingResource(FilterableUserResource::class)->withApiCriteria()->paginate();
 
@@ -79,7 +79,7 @@ final class CombinedRequestTest extends TestCase
      */
     public function testFieldsFilterSortAndLimitApplyTogether(): void
     {
-        $response = $this->getJson('/api/users?' . http_build_query([
+        $response = $this->getJson('/users?' . http_build_query([
             'fields'  => ['filterable_users' => 'name'],
             'filters' => json_encode(['email' => ['$like' => '@keep.com']]),
             'order'   => 'name:desc',

@@ -49,7 +49,7 @@ final class CursorPaginationTest extends TestCase
 
         $this->registerApiExceptionHandler();
 
-        Route::middleware(ParseApiQuery::class)->get('/api/users', function (UserRepository $repository): ApiResourceCollection {
+        Route::middleware(ParseApiQuery::class)->get('/users', function (UserRepository $repository): ApiResourceCollection {
 
             $users = $repository->usingResource(FilterableUserResource::class)->withApiCriteria()->paginate();
 
@@ -73,7 +73,7 @@ final class CursorPaginationTest extends TestCase
      */
     public function testCursorModeReturnsTheCursorEnvelope(): void
     {
-        $response = $this->getJson('/api/users?pagination=cursor&limit=2');
+        $response = $this->getJson('/users?pagination=cursor&limit=2');
 
         $response->assertOk();
         $response->assertJsonCount(2, 'data');
@@ -95,7 +95,7 @@ final class CursorPaginationTest extends TestCase
      */
     public function testFollowingTheNextCursorReturnsTheFollowingPage(): void
     {
-        $first = $this->getJson('/api/users?pagination=cursor&limit=2');
+        $first = $this->getJson('/users?pagination=cursor&limit=2');
 
         $first->assertOk();
 
@@ -108,7 +108,7 @@ final class CursorPaginationTest extends TestCase
         self::assertIsArray($parts);
         self::assertArrayHasKey('query', $parts);
 
-        $second = $this->getJson('/api/users?' . $parts['query']);
+        $second = $this->getJson('/users?' . $parts['query']);
 
         $second->assertOk();
         $second->assertJsonCount(2, 'data');
@@ -129,7 +129,7 @@ final class CursorPaginationTest extends TestCase
      */
     public function testLastCursorPageHasNoNextCursor(): void
     {
-        $response = $this->getJson('/api/users?pagination=cursor&limit=2');
+        $response = $this->getJson('/users?pagination=cursor&limit=2');
 
         $response->assertOk();
 
@@ -141,7 +141,7 @@ final class CursorPaginationTest extends TestCase
             self::assertIsArray($parts);
             self::assertArrayHasKey('query', $parts);
 
-            $response = $this->getJson('/api/users?' . $parts['query']);
+            $response = $this->getJson('/users?' . $parts['query']);
 
             $response->assertOk();
         }
@@ -166,7 +166,7 @@ final class CursorPaginationTest extends TestCase
     {
         $filters = json_encode(['id' => ['$gt' => 9999]]);
 
-        $response = $this->getJson('/api/users?pagination=cursor&limit=2&filters=' . urlencode((string) $filters));
+        $response = $this->getJson('/users?pagination=cursor&limit=2&filters=' . urlencode((string) $filters));
 
         $response->assertOk();
         $response->assertJsonCount(0, 'data');

@@ -49,8 +49,8 @@ final class AuthorizationTest extends TestCase
 
         Gate::policy(User::class, UserPolicy::class);
 
-        Route::get('/api/users', [TestingAuthorizedController::class, 'index']);
-        Route::post('/api/users', [TestingAuthorizedController::class, 'store']);
+        Route::get('/users', [TestingAuthorizedController::class, 'index']);
+        Route::post('/users', [TestingAuthorizedController::class, 'store']);
     }
 
     /**
@@ -62,7 +62,7 @@ final class AuthorizationTest extends TestCase
     {
         $actor = ActorUser::create(['name' => 'Alice', 'email' => 'alice@example.com']);
 
-        $response = $this->actingAs($actor)->getJson('/api/users');
+        $response = $this->actingAs($actor)->getJson('/users');
 
         $response->assertOk();
     }
@@ -76,7 +76,7 @@ final class AuthorizationTest extends TestCase
     {
         $actor = ActorUser::create(['name' => 'Alice', 'email' => 'alice@example.com']);
 
-        $response = $this->actingAs($actor)->postJson('/api/users', []);
+        $response = $this->actingAs($actor)->postJson('/users', []);
 
         $response->assertStatus(403);
         $response->assertJsonPath('error.status', 403);

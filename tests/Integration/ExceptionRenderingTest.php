@@ -63,21 +63,21 @@ final class ExceptionRenderingTest extends TestCase
             'handler' => NullHandler::class,
         ]);
 
-        Route::get('/api/abort-conflict', static function (): never {
+        Route::get('/abort-conflict', static function (): never {
             abort(409);
         });
 
-        Route::get('/api/toolkit-exception', static function (): never {
+        Route::get('/toolkit-exception', static function (): never {
             throw new ConflictException(['resource' => 'order']);
         });
 
-        Route::post('/api/validate', static function (Request $request): array {
+        Route::post('/validate', static function (Request $request): array {
             $request->validate(['email' => 'required|email']);
 
             return ['ok' => true];
         });
 
-        Route::get('/api/token-mismatch', static function (): never {
+        Route::get('/token-mismatch', static function (): never {
             throw new TokenMismatchException('CSRF token mismatch.');
         });
 
@@ -85,7 +85,7 @@ final class ExceptionRenderingTest extends TestCase
         // status with no HTTP status enum case (so getStatus() is null) and a
         // namespace that registers no title translation, exercising the
         // generic-title fallback during rendering.
-        Route::get('/api/missing-title', static function (): never {
+        Route::get('/missing-title', static function (): never {
             throw new class extends ApiException {
                 /** The internal error code for the test exception. */
                 public const \SineMacula\ApiToolkit\Contracts\ErrorCodeInterface CODE = ErrorCode::TOKEN_MISMATCH;
@@ -115,7 +115,7 @@ final class ExceptionRenderingTest extends TestCase
             };
         });
 
-        Route::get('/api/unhandled', static function (): never {
+        Route::get('/unhandled', static function (): never {
             throw new \RuntimeException('Something broke internally');
         });
     }
@@ -128,7 +128,7 @@ final class ExceptionRenderingTest extends TestCase
      */
     public function testAbortIsRenderedInToolkitErrorFormat(): void
     {
-        $response = $this->getJson('/api/abort-conflict');
+        $response = $this->getJson('/abort-conflict');
 
         $response->assertStatus(409);
         $response->assertExactJson([
@@ -149,7 +149,7 @@ final class ExceptionRenderingTest extends TestCase
      */
     public function testToolkitApiExceptionIsRenderedWithMeta(): void
     {
-        $response = $this->getJson('/api/toolkit-exception');
+        $response = $this->getJson('/toolkit-exception');
 
         $response->assertStatus(409);
         $response->assertJson([
@@ -170,7 +170,7 @@ final class ExceptionRenderingTest extends TestCase
      */
     public function testValidationExceptionIsRenderedWithValidationErrors(): void
     {
-        $response = $this->postJson('/api/validate', []);
+        $response = $this->postJson('/validate', []);
 
         $response->assertStatus(422);
         $response->assertJson([
@@ -198,7 +198,7 @@ final class ExceptionRenderingTest extends TestCase
      */
     public function testTokenMismatchIsRenderedAs419(): void
     {
-        $response = $this->getJson('/api/token-mismatch');
+        $response = $this->getJson('/token-mismatch');
 
         $response->assertStatus(419);
         $response->assertJsonPath('error.status', 419);
@@ -214,7 +214,7 @@ final class ExceptionRenderingTest extends TestCase
      */
     public function testExceptionWithMissingTitleTranslationStillRenders(): void
     {
-        $response = $this->getJson('/api/missing-title');
+        $response = $this->getJson('/missing-title');
 
         $response->assertStatus(419);
         $response->assertJsonPath('error.status', 419);
@@ -229,7 +229,7 @@ final class ExceptionRenderingTest extends TestCase
      */
     public function testUnhandledExceptionIsRenderedWithoutInternalDetails(): void
     {
-        $response = $this->getJson('/api/unhandled');
+        $response = $this->getJson('/unhandled');
 
         $response->assertStatus(500);
         $response->assertExactJson([
@@ -257,7 +257,7 @@ final class ExceptionRenderingTest extends TestCase
     {
         config()->set('api-toolkit.exceptions.render_strategy', 'json_when_expected');
 
-        $response = $this->get('/api/abort-conflict', ['Accept' => 'text/html']);
+        $response = $this->get('/abort-conflict', ['Accept' => 'text/html']);
 
         $response->assertStatus(409);
         $response->assertHeader('Content-Type', 'text/html; charset=UTF-8');

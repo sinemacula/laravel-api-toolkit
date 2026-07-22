@@ -47,7 +47,7 @@ final class DeferredWriteAutoFlushRequestTest extends TestCase
 
         Config::set('api-toolkit.deferred_writes.pool_limit', 2);
 
-        Route::post('/api/auto-flush-users', function (DeferrableUserRepository $repository): JsonResponse {
+        Route::post('/auto-flush-users', function (DeferrableUserRepository $repository): JsonResponse {
 
             $repository->defer(['name' => 'Alice', 'email' => 'alice@example.com', 'password' => 'secret']);
             $repository->defer(['name' => 'Bob', 'email' => 'bob@example.com', 'password' => 'secret']);
@@ -67,7 +67,7 @@ final class DeferredWriteAutoFlushRequestTest extends TestCase
      */
     public function testPoolLimitAutoFlushesMidRequest(): void
     {
-        $response = $this->postJson('/api/auto-flush-users');
+        $response = $this->postJson('/auto-flush-users');
 
         $response->assertStatus(202);
 

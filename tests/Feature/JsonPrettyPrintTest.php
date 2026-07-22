@@ -40,7 +40,7 @@ final class JsonPrettyPrintTest extends TestCase
     {
         parent::setUp();
 
-        Route::middleware(JsonPrettyPrint::class)->get('/api/pretty', static fn (): JsonResponse => new JsonResponse(self::PAYLOAD));
+        Route::middleware(JsonPrettyPrint::class)->get('/pretty', static fn (): JsonResponse => new JsonResponse(self::PAYLOAD));
     }
 
     /**
@@ -50,7 +50,7 @@ final class JsonPrettyPrintTest extends TestCase
      */
     public function testPrettyParameterRendersIndentedJson(): void
     {
-        $response = $this->getJson('/api/pretty?pretty=1');
+        $response = $this->getJson('/pretty?pretty=1');
 
         $response->assertOk();
 
@@ -69,7 +69,7 @@ final class JsonPrettyPrintTest extends TestCase
      */
     public function testMissingPrettyParameterRendersCompactJson(): void
     {
-        $response = $this->getJson('/api/pretty');
+        $response = $this->getJson('/pretty');
 
         $response->assertOk();
 
@@ -88,7 +88,7 @@ final class JsonPrettyPrintTest extends TestCase
      */
     public function testFalseyPrettyParameterRendersCompactJson(): void
     {
-        $response = $this->getJson('/api/pretty?pretty=0');
+        $response = $this->getJson('/pretty?pretty=0');
 
         $response->assertOk();
 

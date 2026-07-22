@@ -46,14 +46,14 @@ final class WithoutCacheBypassTest extends TestCase
 
         Config::set('cache.default', 'array');
 
-        Route::middleware(ParseApiQuery::class)->get('/api/cached-users', function (CacheableUserRepository $repository): ApiResourceCollection {
+        Route::middleware(ParseApiQuery::class)->get('/cached-users', function (CacheableUserRepository $repository): ApiResourceCollection {
 
             $users = $repository->usingResource(FilterableUserResource::class)->withApiCriteria()->get(); // @phpstan-ignore staticMethod.dynamicCall
 
             return new ApiResourceCollection($users, FilterableUserResource::class);
         });
 
-        Route::middleware(ParseApiQuery::class)->get('/api/fresh-users', function (CacheableUserRepository $repository): ApiResourceCollection {
+        Route::middleware(ParseApiQuery::class)->get('/fresh-users', function (CacheableUserRepository $repository): ApiResourceCollection {
 
             $users = $repository->withoutCache()->usingResource(FilterableUserResource::class)->withApiCriteria()->get(); // @phpstan-ignore staticMethod.dynamicCall
 
@@ -86,19 +86,19 @@ final class WithoutCacheBypassTest extends TestCase
     public function testWithoutCacheReQueriesAndReflectsFreshRow(): void
     {
         // Warm the per-query cache: two rows.
-        $this->getJson('/api/cached-users')->assertOk()->assertJsonCount(2, 'data');
+        $this->getJson('/cached-users')->assertOk()->assertJsonCount(2, 'data');
 
         // Insert out of band, bypassing the repository's write invalidation.
         User::create(['name' => 'Carol', 'email' => 'carol@example.com']);
 
         // The cached route still serves the stale two-row collection.
-        $this->getJson('/api/cached-users')->assertOk()->assertJsonCount(2, 'data');
+        $this->getJson('/cached-users')->assertOk()->assertJsonCount(2, 'data');
 
         DB::enableQueryLog();
         DB::flushQueryLog();
 
         // withoutCache() issues a fresh query and reflects the new row.
-        $fresh = $this->getJson('/api/fresh-users');
+        $fresh = $this->getJson('/fresh-users');
 
         $fresh->assertOk();
         $fresh->assertJsonCount(3, 'data');

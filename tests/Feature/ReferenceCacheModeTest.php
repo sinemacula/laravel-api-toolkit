@@ -46,14 +46,14 @@ final class ReferenceCacheModeTest extends TestCase
 
         Config::set('cache.default', 'array');
 
-        Route::middleware(ParseApiQuery::class)->get('/api/reference-users', function (ReferenceCacheUserRepository $repository): ApiResourceCollection {
+        Route::middleware(ParseApiQuery::class)->get('/reference-users', function (ReferenceCacheUserRepository $repository): ApiResourceCollection {
 
             $users = $repository->usingResource(FilterableUserResource::class)->get(); // @phpstan-ignore staticMethod.dynamicCall
 
             return new ApiResourceCollection($users, FilterableUserResource::class);
         });
 
-        Route::middleware(ParseApiQuery::class)->get('/api/reference-users-filtered', function (ReferenceCacheUserRepository $repository): ApiResourceCollection {
+        Route::middleware(ParseApiQuery::class)->get('/reference-users-filtered', function (ReferenceCacheUserRepository $repository): ApiResourceCollection {
 
             $users = $repository->usingResource(FilterableUserResource::class)->withApiCriteria()->get(); // @phpstan-ignore staticMethod.dynamicCall
 
@@ -87,13 +87,13 @@ final class ReferenceCacheModeTest extends TestCase
     public function testSnapshotReadHitsCacheWhileCriteriaReadFallsThrough(): void
     {
         // Warm the whole-table snapshot.
-        $this->getJson('/api/reference-users')->assertOk()->assertJsonCount(3, 'data');
+        $this->getJson('/reference-users')->assertOk()->assertJsonCount(3, 'data');
 
         DB::enableQueryLog();
         DB::flushQueryLog();
 
         // The repeat snapshot read is served with zero queries.
-        $snapshot = $this->getJson('/api/reference-users');
+        $snapshot = $this->getJson('/reference-users');
 
         $snapshot->assertOk();
         $snapshot->assertJsonCount(3, 'data');
@@ -103,7 +103,7 @@ final class ReferenceCacheModeTest extends TestCase
 
         // A criteria-composed read is an active composition: it bypasses the
         // snapshot, issues a fresh query, and narrows to the matching rows.
-        $filtered = $this->getJson('/api/reference-users-filtered?' . http_build_query([
+        $filtered = $this->getJson('/reference-users-filtered?' . http_build_query([
             'filters' => json_encode(['email' => ['$like' => '@keep.com']]),
         ]));
 

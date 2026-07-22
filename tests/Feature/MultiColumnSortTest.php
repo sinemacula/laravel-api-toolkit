@@ -47,7 +47,7 @@ final class MultiColumnSortTest extends TestCase
 
         $this->registerApiExceptionHandler();
 
-        Route::middleware(ParseApiQuery::class)->get('/api/users', function (UserRepository $repository): ApiResourceCollection {
+        Route::middleware(ParseApiQuery::class)->get('/users', function (UserRepository $repository): ApiResourceCollection {
 
             $users = $repository->usingResource(FilterableUserResource::class)->withApiCriteria()->paginate();
 
@@ -69,7 +69,7 @@ final class MultiColumnSortTest extends TestCase
      */
     public function testSecondaryColumnBreaksTheTie(): void
     {
-        $response = $this->getJson('/api/users?order=name:asc,id:desc');
+        $response = $this->getJson('/users?order=name:asc,id:desc');
 
         $response->assertOk();
         $response->assertJsonCount(3, 'data');

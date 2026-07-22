@@ -52,7 +52,7 @@ final class SensitiveDataRedactionTest extends TestCase
 
         $this->registerApiExceptionHandler();
 
-        Route::post('/api/orders', static function (): never {
+        Route::post('/orders', static function (): never {
             throw new ConflictException;
         });
     }
@@ -65,7 +65,7 @@ final class SensitiveDataRedactionTest extends TestCase
      */
     public function testSensitiveKeysAreRedactedInTheLoggedContext(): void
     {
-        $response = $this->postJson('/api/orders', [
+        $response = $this->postJson('/orders', [
             'email'     => 'alice@example.com',
             'password'  => 'hunter2',
             'api_token' => 'secret-value',

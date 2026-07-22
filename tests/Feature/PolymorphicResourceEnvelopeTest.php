@@ -52,7 +52,7 @@ final class PolymorphicResourceEnvelopeTest extends TestCase
 
         // Fetch a fresh instance per request so the model is not flagged as
         // recently created, which would alter the response status.
-        Route::get('/api/polymorphic-item', static fn (): PolymorphicResource => (new PolymorphicResource(User::query()->firstOrFail()))->withoutFields(['email']));
+        Route::get('/polymorphic-item', static fn (): PolymorphicResource => (new PolymorphicResource(User::query()->firstOrFail()))->withoutFields(['email']));
     }
 
     /**
@@ -63,7 +63,7 @@ final class PolymorphicResourceEnvelopeTest extends TestCase
      */
     public function testSinglePolymorphicResourceRendersTypedDataWrappedItem(): void
     {
-        $response = $this->getJson('/api/polymorphic-item');
+        $response = $this->getJson('/polymorphic-item');
 
         $response->assertOk();
         $response->assertJsonPath('data._type', 'users');

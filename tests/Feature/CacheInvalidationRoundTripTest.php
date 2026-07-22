@@ -58,7 +58,7 @@ final class CacheInvalidationRoundTripTest extends TestCase
         Config::set('cache.default', 'array');
         Config::set('api-toolkit.deferred_writes.invalidate_query_cache', true);
 
-        Route::middleware(ParseApiQuery::class)->get('/api/cached-users', function (CacheableUserRepository $repository): ApiResourceCollection {
+        Route::middleware(ParseApiQuery::class)->get('/cached-users', function (CacheableUserRepository $repository): ApiResourceCollection {
 
             /** @var \Illuminate\Support\Collection<int, \Tests\Fixtures\Models\User> $users */
             $users = $repository->usingResource(FilterableUserResource::class)->withApiCriteria()->get(); // @phpstan-ignore staticMethod.dynamicCall
@@ -68,7 +68,7 @@ final class CacheInvalidationRoundTripTest extends TestCase
             return new ApiResourceCollection($paginator, FilterableUserResource::class);
         });
 
-        Route::post('/api/deferred-users', function (DeferrableUserRepository $repository): JsonResponse {
+        Route::post('/deferred-users', function (DeferrableUserRepository $repository): JsonResponse {
 
             /** @var string $email */
             $email = request()->input('email');
@@ -104,20 +104,20 @@ final class CacheInvalidationRoundTripTest extends TestCase
     public function testBoundaryFlushMakesNextReadEnvelopeFresh(): void
     {
         // Warm the cached collection: two rows.
-        $this->getJson('/api/cached-users')
+        $this->getJson('/cached-users')
             ->assertOk()
             ->assertJsonPath('meta.total', 2)
             ->assertJsonCount(2, 'data');
 
         // Defer a create; completing the request flushes the pool at the
         // boundary and invalidates the users-table cache.
-        $this->postJson('/api/deferred-users', ['email' => 'carol@example.com'])->assertStatus(202);
+        $this->postJson('/deferred-users', ['email' => 'carol@example.com'])->assertStatus(202);
 
         self::assertSame(3, DB::table('users')->count());
 
         // The stale cached collection is gone: the read re-queried and the
         // envelope now reflects the freshly persisted row.
-        $fresh = $this->getJson('/api/cached-users');
+        $fresh = $this->getJson('/cached-users');
 
         $fresh->assertOk();
         $fresh->assertJsonPath('meta.total', 3);

@@ -45,7 +45,7 @@ final class ReportCollectionTest extends TestCase
 
         $this->registerApiExceptionHandler();
 
-        Route::get('/api/reports/sales', static function (): ReportCollection {
+        Route::get('/reports/sales', static function (): ReportCollection {
 
             $rows = [
                 new SalesSummaryRow('2026-06', 120, '15000.00'),
@@ -56,7 +56,7 @@ final class ReportCollectionTest extends TestCase
             return SalesSummaryResource::collection(new LengthAwarePaginator($rows, 2, 15, 1));
         });
 
-        Route::get('/api/reports/sales/first', static fn (): SalesSummaryResource => new SalesSummaryResource(new SalesSummaryRow('2026-06', 120, '15000.00')));
+        Route::get('/reports/sales/first', static fn (): SalesSummaryResource => new SalesSummaryResource(new SalesSummaryRow('2026-06', 120, '15000.00')));
     }
 
     /**
@@ -67,7 +67,7 @@ final class ReportCollectionTest extends TestCase
      */
     public function testPaginatedReportRendersTheToolkitEnvelope(): void
     {
-        $response = $this->getJson('/api/reports/sales');
+        $response = $this->getJson('/reports/sales');
 
         $response->assertOk();
         $response->assertJsonStructure(['data', 'meta', 'links']);
@@ -86,7 +86,7 @@ final class ReportCollectionTest extends TestCase
      */
     public function testSingleReportRendersTheDataWrappedItem(): void
     {
-        $response = $this->getJson('/api/reports/sales/first');
+        $response = $this->getJson('/reports/sales/first');
 
         $response->assertOk();
         $response->assertJsonPath('data._type', 'sales-summary');

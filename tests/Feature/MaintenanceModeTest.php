@@ -52,10 +52,10 @@ final class MaintenanceModeTest extends TestCase
         assert($this->app !== null);
         $this->app->instance(MaintenanceMode::class, new ArrayMaintenanceMode);
 
-        Config::set('api-toolkit.maintenance_mode.except', ['api/health']);
+        Config::set('api-toolkit.maintenance_mode.except', ['health']);
 
-        Route::middleware(PreventRequestsDuringMaintenance::class)->get('/api/data', static fn (): array => ['ok' => true]);
-        Route::middleware(PreventRequestsDuringMaintenance::class)->get('/api/health', static fn (): array => ['ok' => true]);
+        Route::middleware(PreventRequestsDuringMaintenance::class)->get('/data', static fn (): array => ['ok' => true]);
+        Route::middleware(PreventRequestsDuringMaintenance::class)->get('/health', static fn (): array => ['ok' => true]);
     }
 
     /**
@@ -66,7 +66,7 @@ final class MaintenanceModeTest extends TestCase
      */
     public function testGuardedRouteRendersServiceUnavailableEnvelope(): void
     {
-        $response = $this->duringMaintenance(fn () => $this->getJson('/api/data'));
+        $response = $this->duringMaintenance(fn () => $this->getJson('/data'));
 
         $response->assertStatus(503);
         $response->assertJsonPath('error.status', 503);
@@ -81,7 +81,7 @@ final class MaintenanceModeTest extends TestCase
      */
     public function testBypassListIsServedDuringMaintenance(): void
     {
-        $response = $this->duringMaintenance(fn () => $this->getJson('/api/health'));
+        $response = $this->duringMaintenance(fn () => $this->getJson('/health'));
 
         $response->assertOk();
         $response->assertJsonPath('ok', true);

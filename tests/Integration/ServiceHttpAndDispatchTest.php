@@ -54,7 +54,7 @@ final class ServiceHttpAndDispatchTest extends TestCase
 
         $this->registerApiExceptionHandler();
 
-        Route::post('/api/service-user', static function (Request $request): UserResource {
+        Route::post('/service-user', static function (Request $request): UserResource {
 
             $service = new class (new ArrayInput($request->all())) extends Service {
                 /**
@@ -94,7 +94,7 @@ final class ServiceHttpAndDispatchTest extends TestCase
      */
     public function testHttpActionRunsServiceAndReturnsOutput(): void
     {
-        $response = $this->postJson('/api/service-user', ['name' => 'Fabricated']);
+        $response = $this->postJson('/service-user', ['name' => 'Fabricated']);
 
         $response->assertStatus(201);
         $response->assertJsonPath('data._type', 'users');

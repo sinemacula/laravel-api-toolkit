@@ -51,47 +51,47 @@ final class ExceptionTaxonomyTest extends TestCase
         // findOrFail on an empty table raises a ModelNotFoundException, which
         // Laravel prepares into a NotFoundHttpException before the toolkit
         // render callback maps it to the not-found envelope.
-        Route::get('/api/model-missing', static function (): void {
+        Route::get('/model-missing', static function (): void {
             User::findOrFail(99999);
         });
 
         // A statusless AuthorizationException is prepared into an
         // AccessDeniedHttpException, which the toolkit maps to the forbidden
         // envelope. abort(403) would instead yield a generic HTTP error code.
-        Route::get('/api/forbidden', static function (): never {
+        Route::get('/forbidden', static function (): never {
             throw new AuthorizationException('This action is unauthorized.');
         });
 
         // A GET-only route so that a POST raises the router's
         // MethodNotAllowedHttpException, which the toolkit maps to the
         // not-allowed envelope.
-        Route::get('/api/get-only', static fn (): array => ['ok' => true]);
+        Route::get('/get-only', static fn (): array => ['ok' => true]);
 
         // A route behind the auth middleware so an unauthenticated JSON caller
         // raises an AuthenticationException, which the toolkit maps to the
         // unauthenticated envelope.
-        Route::get('/api/requires-auth', static fn (): array => ['ok' => true])
+        Route::get('/requires-auth', static fn (): array => ['ok' => true])
             ->middleware('auth');
 
         // Directly-thrown taxonomy exceptions render their dedicated envelopes
         // rather than the generic HTTP error an abort() would produce.
-        Route::get('/api/bad-request', static function (): never {
+        Route::get('/bad-request', static function (): never {
             throw new BadRequestException;
         });
 
-        Route::get('/api/gone', static function (): never {
+        Route::get('/gone', static function (): never {
             throw new GoneException;
         });
 
-        Route::get('/api/payload-too-large', static function (): never {
+        Route::get('/payload-too-large', static function (): never {
             throw new PayloadTooLargeException;
         });
 
-        Route::get('/api/locked', static function (): never {
+        Route::get('/locked', static function (): never {
             throw new LockedException;
         });
 
-        Route::get('/api/service-unavailable', static function (): never {
+        Route::get('/service-unavailable', static function (): never {
             throw new ServiceUnavailableException;
         });
     }
@@ -103,7 +103,7 @@ final class ExceptionTaxonomyTest extends TestCase
      */
     public function testModelNotFoundIsRenderedAsNotFound(): void
     {
-        $response = $this->getJson('/api/model-missing');
+        $response = $this->getJson('/model-missing');
 
         $response->assertStatus(404);
         $response->assertJsonPath('error.status', 404);
@@ -117,7 +117,7 @@ final class ExceptionTaxonomyTest extends TestCase
      */
     public function testAuthorizationFailureIsRenderedAsForbidden(): void
     {
-        $response = $this->getJson('/api/forbidden');
+        $response = $this->getJson('/forbidden');
 
         $response->assertStatus(403);
         $response->assertJsonPath('error.status', 403);
@@ -132,7 +132,7 @@ final class ExceptionTaxonomyTest extends TestCase
      */
     public function testMethodNotAllowedIsRenderedAsNotAllowed(): void
     {
-        $response = $this->postJson('/api/get-only');
+        $response = $this->postJson('/get-only');
 
         $response->assertStatus(405);
         $response->assertJsonPath('error.status', 405);
@@ -148,7 +148,7 @@ final class ExceptionTaxonomyTest extends TestCase
      */
     public function testAuthenticationFailureIsRenderedAsUnauthenticated(): void
     {
-        $response = $this->getJson('/api/requires-auth');
+        $response = $this->getJson('/requires-auth');
 
         $response->assertStatus(401);
         $response->assertJsonPath('error.status', 401);
@@ -164,11 +164,11 @@ final class ExceptionTaxonomyTest extends TestCase
     public static function taxonomyExceptionProvider(): iterable
     {
         yield from [
-            'bad request'         => ['/api/bad-request', 400, 10100, 'Bad Request', 'There was an issue with the request, please try again'],
-            'gone'                => ['/api/gone', 410, 10109, 'Gone', 'The requested resource is no longer available'],
-            'payload too large'   => ['/api/payload-too-large', 413, 10110, 'Payload Too Large', 'The request payload exceeds the maximum permitted size'],
-            'locked'              => ['/api/locked', 423, 10111, 'Locked', 'The requested resource is locked'],
-            'service unavailable' => ['/api/service-unavailable', 503, 10112, 'Service Unavailable', 'The service is temporarily unavailable, please try again a little later'],
+            'bad request'         => ['/bad-request', 400, 10100, 'Bad Request', 'There was an issue with the request, please try again'],
+            'gone'                => ['/gone', 410, 10109, 'Gone', 'The requested resource is no longer available'],
+            'payload too large'   => ['/payload-too-large', 413, 10110, 'Payload Too Large', 'The request payload exceeds the maximum permitted size'],
+            'locked'              => ['/locked', 423, 10111, 'Locked', 'The requested resource is locked'],
+            'service unavailable' => ['/service-unavailable', 503, 10112, 'Service Unavailable', 'The service is temporarily unavailable, please try again a little later'],
         ];
     }
 

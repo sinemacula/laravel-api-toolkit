@@ -57,7 +57,7 @@ final class DeepTraversalHttpTest extends TestCase
             Post::class => DeepTraversalPostResource::class,
         ]);
 
-        Route::middleware(ParseApiQuery::class)->get('/api/users', function (UserRepository $repository): ApiResourceCollection {
+        Route::middleware(ParseApiQuery::class)->get('/users', function (UserRepository $repository): ApiResourceCollection {
 
             $users = $repository->usingResource(FilterableUserResource::class)->withApiCriteria()->paginate();
 
@@ -81,7 +81,7 @@ final class DeepTraversalHttpTest extends TestCase
     {
         $filters = json_encode(['posts' => ['nested' => ['user' => ['name' => 'Alice']]]]);
 
-        $response = $this->getJson('/api/users?filters=' . urlencode((string) $filters));
+        $response = $this->getJson('/users?filters=' . urlencode((string) $filters));
 
         $response->assertOk();
         $response->assertJsonCount(1, 'data');

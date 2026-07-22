@@ -46,7 +46,7 @@ final class SortEdgeCaseTest extends TestCase
 
         $this->registerApiExceptionHandler();
 
-        Route::middleware(ParseApiQuery::class)->get('/api/users', function (UserRepository $repository): ApiResourceCollection {
+        Route::middleware(ParseApiQuery::class)->get('/users', function (UserRepository $repository): ApiResourceCollection {
 
             $users = $repository->usingResource(FilterableUserResource::class)->withApiCriteria()->paginate();
 
@@ -68,7 +68,7 @@ final class SortEdgeCaseTest extends TestCase
      */
     public function testRandomOrderReturnsTheFullSet(): void
     {
-        $response = $this->getJson('/api/users?order=random');
+        $response = $this->getJson('/users?order=random');
 
         $response->assertOk();
         $response->assertJsonCount(5, 'data');

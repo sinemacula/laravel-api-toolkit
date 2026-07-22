@@ -52,7 +52,7 @@ final class FilteredCacheFingerprintTest extends TestCase
 
         Config::set('cache.default', 'array');
 
-        Route::middleware(ParseApiQuery::class)->get('/api/cached-users', function (CacheableUserRepository $repository): ApiResourceCollection {
+        Route::middleware(ParseApiQuery::class)->get('/cached-users', function (CacheableUserRepository $repository): ApiResourceCollection {
 
             $users = $repository->usingResource(FilterableUserResource::class)->withApiCriteria()->get(); // @phpstan-ignore staticMethod.dynamicCall
 
@@ -85,8 +85,8 @@ final class FilteredCacheFingerprintTest extends TestCase
      */
     public function testDistinctFiltersAreCachedUnderSeparateFingerprints(): void
     {
-        $keepUrl = '/api/cached-users?' . http_build_query(['filters' => json_encode(['email' => ['$like' => '@keep.com']])]);
-        $dropUrl = '/api/cached-users?' . http_build_query(['filters' => json_encode(['email' => ['$like' => '@drop.com']])]);
+        $keepUrl = '/cached-users?' . http_build_query(['filters' => json_encode(['email' => ['$like' => '@keep.com']])]);
+        $dropUrl = '/cached-users?' . http_build_query(['filters' => json_encode(['email' => ['$like' => '@drop.com']])]);
 
         // Warm the cache for the first filter.
         $this->getJson($keepUrl)->assertOk()->assertJsonCount(2, 'data');

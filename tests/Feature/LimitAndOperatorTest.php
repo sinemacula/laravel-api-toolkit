@@ -48,7 +48,7 @@ final class LimitAndOperatorTest extends TestCase
 
         $this->registerApiExceptionHandler();
 
-        Route::middleware(ParseApiQuery::class)->get('/api/users', function (UserRepository $repository): ApiResourceCollection {
+        Route::middleware(ParseApiQuery::class)->get('/users', function (UserRepository $repository): ApiResourceCollection {
 
             $users = $repository->usingResource(FilterableUserResource::class)->withApiCriteria()->paginate();
 
@@ -72,7 +72,7 @@ final class LimitAndOperatorTest extends TestCase
     {
         Config::set('api-toolkit.parser.max_limit', 2);
 
-        $response = $this->getJson('/api/users?limit=50');
+        $response = $this->getJson('/users?limit=50');
 
         $response->assertOk();
 
@@ -93,7 +93,7 @@ final class LimitAndOperatorTest extends TestCase
     {
         $filters = json_encode(['id' => ['$gt' => 3]]);
 
-        $response = $this->getJson('/api/users?filters=' . urlencode((string) $filters));
+        $response = $this->getJson('/users?filters=' . urlencode((string) $filters));
 
         $response->assertOk();
         $response->assertJsonCount(2, 'data');
@@ -114,7 +114,7 @@ final class LimitAndOperatorTest extends TestCase
     {
         $filters = json_encode(['name' => ['$like' => 'Al']]);
 
-        $response = $this->getJson('/api/users?filters=' . urlencode((string) $filters));
+        $response = $this->getJson('/users?filters=' . urlencode((string) $filters));
 
         $response->assertOk();
         $response->assertJsonCount(2, 'data');
@@ -135,7 +135,7 @@ final class LimitAndOperatorTest extends TestCase
     {
         $filters = json_encode(['name' => ['$in' => ['Bob', 'Dave']]]);
 
-        $response = $this->getJson('/api/users?filters=' . urlencode((string) $filters));
+        $response = $this->getJson('/users?filters=' . urlencode((string) $filters));
 
         $response->assertOk();
         $response->assertJsonCount(2, 'data');

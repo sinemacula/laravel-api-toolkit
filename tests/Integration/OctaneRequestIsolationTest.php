@@ -109,7 +109,7 @@ final class OctaneRequestIsolationTest extends TestCase
         /** @var \SineMacula\ApiToolkit\ApiQueryParser $parserA */
         $parserA = $app->make($alias);
         $parserA->parse($this->request(
-            '/api/users?filters=' . urlencode('{"name":"Alice"}')
+            '/users?filters=' . urlencode('{"name":"Alice"}')
             . '&fields[users]=name&order=name:desc&limit=5',
         ));
 
@@ -124,7 +124,7 @@ final class OctaneRequestIsolationTest extends TestCase
         // Request B: a fresh instance with no query params.
         /** @var \SineMacula\ApiToolkit\ApiQueryParser $parserB */
         $parserB = $app->make($alias);
-        $parserB->parse($this->request('/api/users'));
+        $parserB->parse($this->request('/users'));
 
         self::assertNotSame($parserA, $parserB);
         self::assertSame([], $parserB->getFilters());

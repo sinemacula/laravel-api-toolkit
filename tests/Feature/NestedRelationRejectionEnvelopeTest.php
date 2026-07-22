@@ -60,7 +60,7 @@ final class NestedRelationRejectionEnvelopeTest extends TestCase
             Post::class => PostResource::class,
         ]);
 
-        Route::middleware(ParseApiQuery::class)->get('/api/users', function (UserRepository $repository): ApiResourceCollection {
+        Route::middleware(ParseApiQuery::class)->get('/users', function (UserRepository $repository): ApiResourceCollection {
 
             $users = $repository->usingResource(FilterableUserResource::class)->withApiCriteria()->paginate();
 
@@ -82,7 +82,7 @@ final class NestedRelationRejectionEnvelopeTest extends TestCase
     {
         $filters = json_encode(['posts' => ['body' => 'Content']]);
 
-        $response = $this->getJson('/api/users?filters=' . urlencode((string) $filters));
+        $response = $this->getJson('/users?filters=' . urlencode((string) $filters));
 
         $response->assertStatus(422);
         $response->assertJsonPath('error.status', 422);
@@ -101,7 +101,7 @@ final class NestedRelationRejectionEnvelopeTest extends TestCase
     {
         $filters = json_encode(['posts' => ['nested' => ['user' => ['name' => 'Alice']]]]);
 
-        $response = $this->getJson('/api/users?filters=' . urlencode((string) $filters));
+        $response = $this->getJson('/users?filters=' . urlencode((string) $filters));
 
         $response->assertStatus(422);
         $response->assertJsonPath('error.status', 422);

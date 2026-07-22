@@ -63,7 +63,7 @@ final class ServiceEnvelopeTest extends TestCase
 
         $this->registerApiExceptionHandler();
 
-        Route::post('/api/service-validate', static function (Request $request): array {
+        Route::post('/service-validate', static function (Request $request): array {
 
             $output = (new ValidatingUserService(new ArrayInput($request->all())))
                 ->run()
@@ -73,14 +73,14 @@ final class ServiceEnvelopeTest extends TestCase
             return ['output' => $output];
         });
 
-        Route::post('/api/service-lock', static function (): array {
+        Route::post('/service-lock', static function (): array {
 
             (new LockableService)->run()->throw()->output();
 
             return ['output' => true];
         });
 
-        Route::post('/api/service-authorize', static function (Request $request): array {
+        Route::post('/service-authorize', static function (Request $request): array {
 
             $service = new AuthorizingService;
             $user    = $request->user();
@@ -94,7 +94,7 @@ final class ServiceEnvelopeTest extends TestCase
             return ['output' => true];
         });
 
-        Route::post('/api/service-handle-fail', static function (): array {
+        Route::post('/service-handle-fail', static function (): array {
 
             (new InsertThenFailService)->run()->throw();
 
@@ -109,7 +109,7 @@ final class ServiceEnvelopeTest extends TestCase
      */
     public function testValidationFailureRendersInvalidInputEnvelope(): void
     {
-        $response = $this->postJson('/api/service-validate', ['age' => 30]);
+        $response = $this->postJson('/service-validate', ['age' => 30]);
 
         $response->assertStatus(422);
         $response->assertJsonPath('error.status', 422);
@@ -133,7 +133,7 @@ final class ServiceEnvelopeTest extends TestCase
         self::assertTrue($lock->get());
 
         try {
-            $response = $this->postJson('/api/service-lock');
+            $response = $this->postJson('/service-lock');
 
             $response->assertStatus(429);
             $response->assertJsonPath('error.status', 429);
@@ -152,7 +152,7 @@ final class ServiceEnvelopeTest extends TestCase
     {
         $user = User::create(['name' => 'Acting', 'email' => 'acting@service.test']);
 
-        $response = $this->actingAs($user)->postJson('/api/service-authorize');
+        $response = $this->actingAs($user)->postJson('/service-authorize');
 
         $response->assertStatus(403);
         $response->assertJsonPath('error.status', 403);
@@ -166,7 +166,7 @@ final class ServiceEnvelopeTest extends TestCase
      */
     public function testHandleFailureRollsBackAndRendersErrorEnvelope(): void
     {
-        $response = $this->postJson('/api/service-handle-fail');
+        $response = $this->postJson('/service-handle-fail');
 
         $response->assertStatus(500);
         $response->assertJsonPath('error.status', 500);

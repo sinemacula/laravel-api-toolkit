@@ -51,7 +51,7 @@ final class AllowlistRejectionTest extends TestCase
 
         // No query_posture is configured, so the default allowlist posture is
         // in force: only columns FilterableUserResource declares are usable.
-        Route::middleware(ParseApiQuery::class)->get('/api/users', function (UserRepository $repository): ApiResourceCollection {
+        Route::middleware(ParseApiQuery::class)->get('/users', function (UserRepository $repository): ApiResourceCollection {
 
             $users = $repository->usingResource(FilterableUserResource::class)->withApiCriteria()->paginate();
 
@@ -71,7 +71,7 @@ final class AllowlistRejectionTest extends TestCase
     {
         $filters = json_encode(['name' => 'Alice']);
 
-        $response = $this->getJson('/api/users?filters=' . urlencode((string) $filters));
+        $response = $this->getJson('/users?filters=' . urlencode((string) $filters));
 
         $response->assertOk();
         $response->assertJsonCount(1, 'data');
@@ -88,7 +88,7 @@ final class AllowlistRejectionTest extends TestCase
     {
         $filters = json_encode(['status' => 'active']);
 
-        $response = $this->getJson('/api/users?filters=' . urlencode((string) $filters));
+        $response = $this->getJson('/users?filters=' . urlencode((string) $filters));
 
         $response->assertStatus(422);
         $response->assertJsonPath('error.status', 422);
@@ -105,7 +105,7 @@ final class AllowlistRejectionTest extends TestCase
      */
     public function testUndeclaredSortKeyIsRejectedWithValidationEnvelope(): void
     {
-        $response = $this->getJson('/api/users?order=email:asc');
+        $response = $this->getJson('/users?order=email:asc');
 
         $response->assertStatus(422);
         $response->assertJsonPath('error.status', 422);

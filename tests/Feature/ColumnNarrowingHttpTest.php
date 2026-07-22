@@ -59,7 +59,7 @@ final class ColumnNarrowingHttpTest extends TestCase
 
         $this->registerApiExceptionHandler();
 
-        Route::middleware(ParseApiQuery::class)->get('/api/users', function (UserRepository $repository): ApiResourceCollection {
+        Route::middleware(ParseApiQuery::class)->get('/users', function (UserRepository $repository): ApiResourceCollection {
 
             $users = $repository->usingResource(UserResource::class)->withApiCriteria()->paginate();
 
@@ -97,7 +97,7 @@ final class ColumnNarrowingHttpTest extends TestCase
         Config::set('api-toolkit.resources.narrow_columns', false);
 
         DB::enableQueryLog();
-        $off = $this->getJson('/api/users?' . $query);
+        $off = $this->getJson('/users?' . $query);
         $off->assertOk();
         $offSql = $this->baseUsersSelect();
 
@@ -107,7 +107,7 @@ final class ColumnNarrowingHttpTest extends TestCase
         Config::set('api-toolkit.resources.narrow_columns', true);
 
         DB::enableQueryLog();
-        $on = $this->getJson('/api/users?' . $query);
+        $on = $this->getJson('/users?' . $query);
         $on->assertOk();
         $onSql = $this->baseUsersSelect();
 
@@ -136,7 +136,7 @@ final class ColumnNarrowingHttpTest extends TestCase
         Config::set('api-toolkit.resources.narrow_columns', true);
 
         DB::enableQueryLog();
-        $response = $this->getJson('/api/users?' . $query);
+        $response = $this->getJson('/users?' . $query);
         $sql      = $this->baseUsersSelect();
 
         $response->assertOk();

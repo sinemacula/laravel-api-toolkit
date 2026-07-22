@@ -50,7 +50,7 @@ final class PerItemGuardResponseTest extends TestCase
 
         // Fetch fresh instances per request so no model is flagged as recently
         // created, which would alter the response status.
-        Route::get('/api/per-item-guarded', static function (): ApiResourceCollection {
+        Route::get('/per-item-guarded', static function (): ApiResourceCollection {
             $users = User::query()->get();
 
             return new ApiResourceCollection($users, PerItemGuardedUserResource::class);
@@ -65,7 +65,7 @@ final class PerItemGuardResponseTest extends TestCase
      */
     public function testGuardVariesVisibilityPerRowInOneBody(): void
     {
-        $response = $this->getJson('/api/per-item-guarded');
+        $response = $this->getJson('/per-item-guarded');
 
         $response->assertOk();
 

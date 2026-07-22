@@ -45,7 +45,7 @@ final class DeferredWriteRequestBoundaryTest extends TestCase
     {
         parent::setUp();
 
-        Route::post('/api/deferred-users', function (DeferrableUserRepository $repository): JsonResponse {
+        Route::post('/deferred-users', function (DeferrableUserRepository $repository): JsonResponse {
 
             $repository->defer(['name' => 'Alice', 'email' => 'alice@example.com', 'password' => 'secret']);
             $repository->defer(['name' => 'Bob', 'email' => 'bob@example.com', 'password' => 'secret']);
@@ -55,7 +55,7 @@ final class DeferredWriteRequestBoundaryTest extends TestCase
             ], 202);
         });
 
-        Route::post('/api/deferred-single', function (DeferrableUserRepository $repository): Response {
+        Route::post('/deferred-single', function (DeferrableUserRepository $repository): Response {
 
             /** @var string $name */
             $name = request()->input('name');
@@ -74,7 +74,7 @@ final class DeferredWriteRequestBoundaryTest extends TestCase
      */
     public function testDeferredWritesAreFlushedWhenRequestCompletes(): void
     {
-        $response = $this->postJson('/api/deferred-users');
+        $response = $this->postJson('/deferred-users');
 
         $response->assertStatus(202);
 
@@ -95,7 +95,7 @@ final class DeferredWriteRequestBoundaryTest extends TestCase
      */
     public function testWritePoolIsEmptyAfterRequestBoundaryFlush(): void
     {
-        $this->postJson('/api/deferred-users')->assertStatus(202);
+        $this->postJson('/deferred-users')->assertStatus(202);
 
         /** @var \SineMacula\ApiToolkit\Repositories\Concerns\WritePool $pool */
         $pool = $this->app->make(WritePool::class); // @phpstan-ignore method.nonObject
@@ -112,12 +112,12 @@ final class DeferredWriteRequestBoundaryTest extends TestCase
      */
     public function testSequentialRequestsFlushIndependently(): void
     {
-        $this->postJson('/api/deferred-single', ['name' => 'Carol'])->assertNoContent();
+        $this->postJson('/deferred-single', ['name' => 'Carol'])->assertNoContent();
 
         self::assertSame(1, DB::table('users')->count());
         self::assertSame(1, DB::table('users')->where('name', 'Carol')->count());
 
-        $this->postJson('/api/deferred-single', ['name' => 'Dave'])->assertNoContent();
+        $this->postJson('/deferred-single', ['name' => 'Dave'])->assertNoContent();
 
         self::assertSame(2, DB::table('users')->count());
         self::assertSame(1, DB::table('users')->where('name', 'Dave')->count());

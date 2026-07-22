@@ -47,7 +47,7 @@ final class RequestLifecycleTest extends TestCase
         // in QuerySurfaceIntegrationTest.
         Config::set('api-toolkit.repositories.query_posture', QuerySurface::POSTURE_BLOCKLIST);
 
-        Route::middleware(ParseApiQuery::class)->get('/api/users', function (UserRepository $repository): ApiResourceCollection {
+        Route::middleware(ParseApiQuery::class)->get('/users', function (UserRepository $repository): ApiResourceCollection {
 
             $users = $repository->withApiCriteria()->paginate();
 
@@ -66,7 +66,7 @@ final class RequestLifecycleTest extends TestCase
      */
     public function testIndexReturnsDefaultFieldsForAllRecords(): void
     {
-        $response = $this->getJson('/api/users');
+        $response = $this->getJson('/users');
 
         $response->assertOk();
         $response->assertJsonCount(3, 'data');
@@ -83,7 +83,7 @@ final class RequestLifecycleTest extends TestCase
      */
     public function testFieldSelectionRestrictsPayload(): void
     {
-        $response = $this->getJson('/api/users?fields[users]=name');
+        $response = $this->getJson('/users?fields[users]=name');
 
         $response->assertOk();
 
@@ -104,7 +104,7 @@ final class RequestLifecycleTest extends TestCase
     {
         $filters = json_encode(['status' => ['$eq' => 'active']]);
 
-        $response = $this->getJson('/api/users?filters=' . urlencode((string) $filters));
+        $response = $this->getJson('/users?filters=' . urlencode((string) $filters));
 
         $response->assertOk();
         $response->assertJsonCount(2, 'data');
@@ -117,7 +117,7 @@ final class RequestLifecycleTest extends TestCase
      */
     public function testOrderingIsApplied(): void
     {
-        $response = $this->getJson('/api/users?order=name:desc');
+        $response = $this->getJson('/users?order=name:desc');
 
         $response->assertOk();
         $response->assertJsonPath('data.0.name', 'Carol');
@@ -131,7 +131,7 @@ final class RequestLifecycleTest extends TestCase
      */
     public function testPaginationLimitAndMetaArePresent(): void
     {
-        $response = $this->getJson('/api/users?limit=2');
+        $response = $this->getJson('/users?limit=2');
 
         $response->assertOk();
         $response->assertJsonCount(2, 'data');

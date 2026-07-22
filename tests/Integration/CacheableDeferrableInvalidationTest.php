@@ -50,7 +50,7 @@ final class CacheableDeferrableInvalidationTest extends TestCase
 
         Config::set('cache.default', 'array');
 
-        Route::post('/api/deferred-tags', function (CacheableDeferrableTagRepository $repository): JsonResponse {
+        Route::post('/deferred-tags', function (CacheableDeferrableTagRepository $repository): JsonResponse {
 
             /** @var string $name */
             $name = request()->input('name');
@@ -94,7 +94,7 @@ final class CacheableDeferrableInvalidationTest extends TestCase
 
         // Defer a create through the same combined repository inside a route,
         // then complete the request so RequestHandled flushes the pool.
-        $this->postJson('/api/deferred-tags', ['name' => 'vue'])->assertStatus(202);
+        $this->postJson('/deferred-tags', ['name' => 'vue'])->assertStatus(202);
 
         // The boundary flush persisted the deferred row.
         self::assertSame(3, DB::table('tags')->count());
@@ -122,7 +122,7 @@ final class CacheableDeferrableInvalidationTest extends TestCase
 
         $this->warmCache();
 
-        $this->postJson('/api/deferred-tags', ['name' => 'vue'])->assertStatus(202);
+        $this->postJson('/deferred-tags', ['name' => 'vue'])->assertStatus(202);
 
         DB::enableQueryLog();
 

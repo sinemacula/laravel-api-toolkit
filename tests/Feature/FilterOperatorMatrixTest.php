@@ -65,14 +65,14 @@ final class FilterOperatorMatrixTest extends TestCase
 
         $this->registerApiExceptionHandler();
 
-        Route::middleware(ParseApiQuery::class)->get('/api/users', function (UserRepository $repository): ApiResourceCollection {
+        Route::middleware(ParseApiQuery::class)->get('/users', function (UserRepository $repository): ApiResourceCollection {
 
             $users = $repository->usingResource(FilterableUserResource::class)->withApiCriteria()->paginate();
 
             return new ApiResourceCollection($users, FilterableUserResource::class);
         });
 
-        Route::middleware(ParseApiQuery::class)->get('/api/nullable-users', function (UserRepository $repository): ApiResourceCollection {
+        Route::middleware(ParseApiQuery::class)->get('/nullable-users', function (UserRepository $repository): ApiResourceCollection {
 
             $users = $repository->usingResource(NullableFilterableUserResource::class)->withApiCriteria()->paginate();
 
@@ -183,7 +183,7 @@ final class FilterOperatorMatrixTest extends TestCase
      */
     public function testNullOperatorReturnsOnlyNullRows(): void
     {
-        $names = $this->names($this->query(['organization_id' => ['$null' => true]], '/api/nullable-users'));
+        $names = $this->names($this->query(['organization_id' => ['$null' => true]], '/nullable-users'));
 
         self::assertEqualsCanonicalizing(['Alice', 'Bob', 'Dave'], $names);
     }
@@ -195,7 +195,7 @@ final class FilterOperatorMatrixTest extends TestCase
      */
     public function testNotNullOperatorReturnsOnlyNonNullRows(): void
     {
-        $names = $this->names($this->query(['organization_id' => ['$notNull' => true]], '/api/nullable-users'));
+        $names = $this->names($this->query(['organization_id' => ['$notNull' => true]], '/nullable-users'));
 
         self::assertEqualsCanonicalizing(['Alan', 'Carol'], $names);
     }
@@ -208,7 +208,7 @@ final class FilterOperatorMatrixTest extends TestCase
      */
     public function testNullOperatorIgnoresThePayloadBoolean(): void
     {
-        $names = $this->names($this->query(['organization_id' => ['$null' => false]], '/api/nullable-users'));
+        $names = $this->names($this->query(['organization_id' => ['$null' => false]], '/nullable-users'));
 
         self::assertEqualsCanonicalizing(['Alice', 'Bob', 'Dave'], $names);
     }
@@ -269,7 +269,7 @@ final class FilterOperatorMatrixTest extends TestCase
      * @param  string  $route
      * @return \Illuminate\Testing\TestResponse<\Illuminate\Http\JsonResponse>
      */
-    private function query(array $filters, string $route = '/api/users'): TestResponse
+    private function query(array $filters, string $route = '/users'): TestResponse
     {
         $response = $this->getJson($route . '?filters=' . urlencode((string) json_encode($filters)));
 

@@ -56,7 +56,7 @@ final class ContainsFilterHttpTest extends TestCase
 
         $this->registerApiExceptionHandler();
 
-        Route::middleware(ParseApiQuery::class)->get('/api/logs', function (LogRepository $repository): ApiResourceCollection {
+        Route::middleware(ParseApiQuery::class)->get('/logs', function (LogRepository $repository): ApiResourceCollection {
 
             $logs = $repository->usingResource(LogResource::class)->withApiCriteria()->paginate();
 
@@ -125,7 +125,7 @@ final class ContainsFilterHttpTest extends TestCase
      */
     private function query(array $filters): TestResponse
     {
-        $response = $this->getJson('/api/logs?filters=' . urlencode((string) json_encode($filters)));
+        $response = $this->getJson('/logs?filters=' . urlencode((string) json_encode($filters)));
 
         $response->assertOk();
 

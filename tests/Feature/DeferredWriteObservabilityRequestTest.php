@@ -48,7 +48,7 @@ final class DeferredWriteObservabilityRequestTest extends TestCase
         Config::set('api-toolkit.deferred_writes.on_failure', 'collect');
         Config::set('api-toolkit.deferred_writes.pool_limit', 1);
 
-        Route::post('/api/observable-flush', function (): JsonResponse {
+        Route::post('/observable-flush', function (): JsonResponse {
 
             $pool = app(WritePool::class);
 
@@ -72,7 +72,7 @@ final class DeferredWriteObservabilityRequestTest extends TestCase
     {
         Log::spy();
 
-        $response = $this->postJson('/api/observable-flush');
+        $response = $this->postJson('/observable-flush');
 
         $response->assertStatus(202);
         $response->assertJsonPath('failure_count', 1);

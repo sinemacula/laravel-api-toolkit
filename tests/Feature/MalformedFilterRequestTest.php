@@ -47,7 +47,7 @@ final class MalformedFilterRequestTest extends TestCase
 
         $this->registerApiExceptionHandler();
 
-        Route::middleware(ParseApiQuery::class)->get('/api/users', function (UserRepository $repository): ApiResourceCollection {
+        Route::middleware(ParseApiQuery::class)->get('/users', function (UserRepository $repository): ApiResourceCollection {
 
             $users = $repository->usingResource(FilterableUserResource::class)->withApiCriteria()->paginate();
 
@@ -65,7 +65,7 @@ final class MalformedFilterRequestTest extends TestCase
      */
     public function testNonJsonFiltersValueIsRejectedWithValidationEnvelope(): void
     {
-        $response = $this->getJson('/api/users?filters=' . urlencode('{not-valid-json'));
+        $response = $this->getJson('/users?filters=' . urlencode('{not-valid-json'));
 
         $response->assertStatus(422);
         $response->assertJsonPath('error.status', 422);

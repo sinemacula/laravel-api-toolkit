@@ -47,7 +47,7 @@ final class RepositoryCacheHitTest extends TestCase
 
         Config::set('cache.default', 'array');
 
-        Route::middleware(ParseApiQuery::class)->get('/api/cached-users', function (CacheableUserRepository $repository): ApiResourceCollection {
+        Route::middleware(ParseApiQuery::class)->get('/cached-users', function (CacheableUserRepository $repository): ApiResourceCollection {
 
             $users = $repository->usingResource(FilterableUserResource::class)->withApiCriteria()->get(); // @phpstan-ignore staticMethod.dynamicCall
 
@@ -81,7 +81,7 @@ final class RepositoryCacheHitTest extends TestCase
     public function testSecondIdenticalReadServesFromCacheWithZeroQueries(): void
     {
         // Warm the per-query cache with the first read.
-        $first = $this->getJson('/api/cached-users');
+        $first = $this->getJson('/cached-users');
 
         $first->assertOk();
         $first->assertJsonCount(3, 'data');
@@ -89,7 +89,7 @@ final class RepositoryCacheHitTest extends TestCase
         DB::enableQueryLog();
         DB::flushQueryLog();
 
-        $second = $this->getJson('/api/cached-users');
+        $second = $this->getJson('/cached-users');
 
         $second->assertOk();
 

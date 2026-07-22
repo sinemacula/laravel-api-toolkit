@@ -57,7 +57,7 @@ final class RelationExistenceFilterHttpTest extends TestCase
             Post::class => PostResource::class,
         ]);
 
-        Route::middleware(ParseApiQuery::class)->get('/api/users', function (UserRepository $repository): ApiResourceCollection {
+        Route::middleware(ParseApiQuery::class)->get('/users', function (UserRepository $repository): ApiResourceCollection {
 
             $users = $repository->usingResource(FilterableUserResource::class)->withApiCriteria()->paginate();
 
@@ -82,7 +82,7 @@ final class RelationExistenceFilterHttpTest extends TestCase
     {
         $filters = json_encode(['$has' => 'posts']);
 
-        $response = $this->getJson('/api/users?filters=' . urlencode((string) $filters));
+        $response = $this->getJson('/users?filters=' . urlencode((string) $filters));
 
         $response->assertOk();
         $response->assertJsonCount(2, 'data');
@@ -98,7 +98,7 @@ final class RelationExistenceFilterHttpTest extends TestCase
     {
         $filters = json_encode(['$hasnt' => 'posts']);
 
-        $response = $this->getJson('/api/users?filters=' . urlencode((string) $filters));
+        $response = $this->getJson('/users?filters=' . urlencode((string) $filters));
 
         $response->assertOk();
         $response->assertJsonCount(1, 'data');

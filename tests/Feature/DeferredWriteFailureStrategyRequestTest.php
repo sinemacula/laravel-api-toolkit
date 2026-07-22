@@ -54,7 +54,7 @@ final class DeferredWriteFailureStrategyRequestTest extends TestCase
         $this->registerApiExceptionHandler();
 
         // Buffers a record for a table that does not exist so the flush fails.
-        Route::post('/api/deferred-invalid-boundary', function (): JsonResponse {
+        Route::post('/deferred-invalid-boundary', function (): JsonResponse {
 
             app(WritePool::class)->add('nonexistent_table', ['col' => 'val']);
 
@@ -63,7 +63,7 @@ final class DeferredWriteFailureStrategyRequestTest extends TestCase
 
         // Buffers a record for a missing table with the pool limit at one, so
         // the auto-flush fires (and may throw) inside the handler itself.
-        Route::post('/api/deferred-invalid-handler', function (): JsonResponse {
+        Route::post('/deferred-invalid-handler', function (): JsonResponse {
 
             app(WritePool::class)->add('nonexistent_table', ['col' => 'val']);
 
@@ -85,7 +85,7 @@ final class DeferredWriteFailureStrategyRequestTest extends TestCase
 
         Log::spy();
 
-        $this->postJson('/api/deferred-invalid-boundary')->assertStatus(202);
+        $this->postJson('/deferred-invalid-boundary')->assertStatus(202);
 
         Event::assertDispatched(WritePoolFlushFailed::class, fn (WritePoolFlushFailed $event): bool => $event->flushResult->failureCount() === 1);
     }
@@ -108,7 +108,7 @@ final class DeferredWriteFailureStrategyRequestTest extends TestCase
         // rendered response.
         $this->expectException(WritePoolFlushException::class);
 
-        $this->postJson('/api/deferred-invalid-boundary');
+        $this->postJson('/deferred-invalid-boundary');
     }
 
     /**
@@ -123,7 +123,7 @@ final class DeferredWriteFailureStrategyRequestTest extends TestCase
 
         Log::spy();
 
-        $this->postJson('/api/deferred-invalid-boundary')->assertStatus(202);
+        $this->postJson('/deferred-invalid-boundary')->assertStatus(202);
 
         Log::shouldHaveReceived('error')->once(); // @phpstan-ignore staticMethod.notFound
 
@@ -146,6 +146,6 @@ final class DeferredWriteFailureStrategyRequestTest extends TestCase
 
         Log::spy();
 
-        $this->postJson('/api/deferred-invalid-handler')->assertStatus(500);
+        $this->postJson('/deferred-invalid-handler')->assertStatus(500);
     }
 }

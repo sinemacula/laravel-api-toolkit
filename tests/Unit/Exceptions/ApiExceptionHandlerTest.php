@@ -52,7 +52,7 @@ use Symfony\Component\HttpKernel\Exception\TooManyRequestsHttpException;
 final class ApiExceptionHandlerTest extends TestCase
 {
     /** @var string Test API endpoint path. */
-    private const string API_PATH = '/api/test';
+    private const string API_PATH = '/test';
 
     /** @var string JSON content type header value. */
     private const string ACCEPT_JSON = 'application/json';

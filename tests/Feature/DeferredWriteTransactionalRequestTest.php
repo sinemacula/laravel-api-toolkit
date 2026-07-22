@@ -52,7 +52,7 @@ final class DeferredWriteTransactionalRequestTest extends TestCase
         Config::set('api-toolkit.deferred_writes.transactional', true);
         Config::set('api-toolkit.deferred_writes.chunk_size', 1);
 
-        Route::post('/api/transactional-users', function (DeferrableUserRepository $repository): JsonResponse {
+        Route::post('/transactional-users', function (DeferrableUserRepository $repository): JsonResponse {
 
             $repository->defer(['name' => 'Alice', 'email' => 'clash@example.com', 'password' => 'secret']);
             $repository->defer(['name' => 'Bob', 'email' => 'clash@example.com', 'password' => 'secret']);
@@ -73,7 +73,7 @@ final class DeferredWriteTransactionalRequestTest extends TestCase
 
         Log::spy();
 
-        $this->postJson('/api/transactional-users')->assertStatus(202);
+        $this->postJson('/transactional-users')->assertStatus(202);
 
         self::assertSame(0, DB::table('users')->count());
 

@@ -48,7 +48,7 @@ final class ThrottlePerCallerKeyingTest extends TestCase
 
         $this->registerApiExceptionHandler();
 
-        Route::middleware(ThrottleRequests::class . ':1,1')->get('/api/ping', static fn (): array => ['ok' => true]);
+        Route::middleware(ThrottleRequests::class . ':1,1')->get('/ping', static fn (): array => ['ok' => true]);
     }
 
     /**
@@ -64,18 +64,18 @@ final class ThrottlePerCallerKeyingTest extends TestCase
 
         // The first caller exhausts its own single-request bucket.
         $this->actingAs($userOne);
-        $this->getJson('/api/ping')->assertOk();
-        $this->getJson('/api/ping')->assertStatus(429);
+        $this->getJson('/ping')->assertOk();
+        $this->getJson('/ping')->assertStatus(429);
 
         // A second authenticated caller is keyed by a different identifier and
         // still has its full allowance.
         $this->actingAs($userTwo);
-        $this->getJson('/api/ping')->assertOk();
+        $this->getJson('/ping')->assertOk();
 
         // A guest is keyed by the client IP rather than a user identifier, so
         // it is unaffected by the first caller's exhausted bucket.
         Auth::forgetGuards();
 
-        $this->getJson('/api/ping')->assertOk();
+        $this->getJson('/ping')->assertOk();
     }
 }

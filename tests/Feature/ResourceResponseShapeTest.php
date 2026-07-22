@@ -58,7 +58,7 @@ final class ResourceResponseShapeTest extends TestCase
 
         $this->registerApiExceptionHandler();
 
-        Route::middleware(ParseApiQuery::class)->get('/api/users', function (UserRepository $repository): ApiResourceCollection {
+        Route::middleware(ParseApiQuery::class)->get('/users', function (UserRepository $repository): ApiResourceCollection {
 
             $users = $repository->usingResource(UserResource::class)->withApiCriteria()->paginate();
 
@@ -80,7 +80,7 @@ final class ResourceResponseShapeTest extends TestCase
      */
     public function testNestedSparseFieldsetRestrictsTheEmbeddedRelation(): void
     {
-        $response = $this->getJson('/api/users?' . http_build_query([
+        $response = $this->getJson('/users?' . http_build_query([
             'fields' => ['users' => 'name,posts', 'posts' => 'title'],
         ]));
 
@@ -103,7 +103,7 @@ final class ResourceResponseShapeTest extends TestCase
      */
     public function testAggregatesSurfaceInThePayload(): void
     {
-        $response = $this->getJson('/api/users?' . http_build_query([
+        $response = $this->getJson('/users?' . http_build_query([
             'fields'   => ['users' => 'name,counts,sums,averages'],
             'counts'   => ['users' => 'posts'],
             'sums'     => ['users' => ['posts' => 'id']],
@@ -128,7 +128,7 @@ final class ResourceResponseShapeTest extends TestCase
      */
     public function testUndeclaredAggregateRelationsAreSilentlyOmitted(): void
     {
-        $response = $this->getJson('/api/users?' . http_build_query([
+        $response = $this->getJson('/users?' . http_build_query([
             'fields'   => ['users' => 'name,counts,sums,averages'],
             'counts'   => ['users' => 'posts,organization,comments'],
             'sums'     => ['users' => ['posts' => 'id', 'organization' => 'id', 'comments' => 'id']],
@@ -160,7 +160,7 @@ final class ResourceResponseShapeTest extends TestCase
      */
     public function testDefaultAggregatesSurfaceWhileNonDefaultsAreOmitted(): void
     {
-        $response = $this->getJson('/api/users?' . http_build_query([
+        $response = $this->getJson('/users?' . http_build_query([
             'fields' => ['users' => 'name,counts,sums,averages'],
         ]));
 
@@ -192,7 +192,7 @@ final class ResourceResponseShapeTest extends TestCase
         $expectedSum = array_sum($postIds);
         $expectedAvg = $expectedSum / count($postIds);
 
-        $response = $this->getJson('/api/users?' . http_build_query([
+        $response = $this->getJson('/users?' . http_build_query([
             'fields'   => ['users' => 'name,sums,averages'],
             'sums'     => ['users' => ['posts' => 'id']],
             'averages' => ['users' => ['posts' => 'id']],
@@ -222,7 +222,7 @@ final class ResourceResponseShapeTest extends TestCase
 
         $filters = json_encode(['name' => 'Bob']);
 
-        $response = $this->getJson('/api/users?' . http_build_query([
+        $response = $this->getJson('/users?' . http_build_query([
             'fields' => ['users' => 'name,counts'],
             'counts' => ['users' => 'posts'],
         ]) . '&filters=' . urlencode((string) $filters));

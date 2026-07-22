@@ -38,7 +38,7 @@ final class DetectsCapabilitiesTest extends TestCase
     {
         parent::setUp();
 
-        Route::middleware(DetectsCapabilities::class)->get('/api/capabilities', static function (Request $request): array {
+        Route::middleware(DetectsCapabilities::class)->get('/capabilities', static function (Request $request): array {
 
             $capabilities = RequestCapabilities::fromRequest($request);
 
@@ -56,7 +56,7 @@ final class DetectsCapabilitiesTest extends TestCase
      */
     public function testIncludeTrashedParameterSurfacesDownstream(): void
     {
-        $response = $this->getJson('/api/capabilities?include_trashed=true');
+        $response = $this->getJson('/capabilities?include_trashed=true');
 
         $response->assertOk();
         $response->assertJsonPath('include_trashed', true);
@@ -70,7 +70,7 @@ final class DetectsCapabilitiesTest extends TestCase
      */
     public function testOnlyTrashedParameterSurfacesDownstream(): void
     {
-        $response = $this->getJson('/api/capabilities?only_trashed=true');
+        $response = $this->getJson('/capabilities?only_trashed=true');
 
         $response->assertOk();
         $response->assertJsonPath('include_trashed', false);
@@ -84,7 +84,7 @@ final class DetectsCapabilitiesTest extends TestCase
      */
     public function testCapabilitiesDefaultToFalseWhenUnrequested(): void
     {
-        $response = $this->getJson('/api/capabilities');
+        $response = $this->getJson('/capabilities');
 
         $response->assertOk();
         $response->assertJsonPath('include_trashed', false);

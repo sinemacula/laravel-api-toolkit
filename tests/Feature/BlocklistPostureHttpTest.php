@@ -54,7 +54,7 @@ final class BlocklistPostureHttpTest extends TestCase
 
         Config::set('api-toolkit.repositories.query_posture', QuerySurface::POSTURE_BLOCKLIST);
 
-        Route::middleware(ParseApiQuery::class)->get('/api/users', function (UserRepository $repository): ApiResourceCollection {
+        Route::middleware(ParseApiQuery::class)->get('/users', function (UserRepository $repository): ApiResourceCollection {
 
             $users = $repository->usingResource(FilterableUserResource::class)->withApiCriteria()->paginate();
 
@@ -76,7 +76,7 @@ final class BlocklistPostureHttpTest extends TestCase
     {
         $filters = json_encode(['status' => 'active']);
 
-        $response = $this->getJson('/api/users?filters=' . urlencode((string) $filters));
+        $response = $this->getJson('/users?filters=' . urlencode((string) $filters));
 
         $response->assertOk();
         $response->assertJsonCount(2, 'data');
@@ -93,7 +93,7 @@ final class BlocklistPostureHttpTest extends TestCase
     {
         $filters = json_encode(['password' => 'no-such-value']);
 
-        $response = $this->getJson('/api/users?filters=' . urlencode((string) $filters));
+        $response = $this->getJson('/users?filters=' . urlencode((string) $filters));
 
         $response->assertOk();
         $response->assertJsonCount(3, 'data');

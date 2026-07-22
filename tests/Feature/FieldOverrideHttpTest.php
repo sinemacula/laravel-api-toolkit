@@ -44,7 +44,7 @@ final class FieldOverrideHttpTest extends TestCase
 
         $this->registerApiExceptionHandler();
 
-        Route::middleware(ParseApiQuery::class)->get('/api/user', function (): UserResource {
+        Route::middleware(ParseApiQuery::class)->get('/user', function (): UserResource {
 
             $user = User::query()->firstOrFail();
 
@@ -62,7 +62,7 @@ final class FieldOverrideHttpTest extends TestCase
      */
     public function testWithoutFieldsRemovesFieldFromBody(): void
     {
-        $response = $this->getJson('/api/user');
+        $response = $this->getJson('/user');
 
         $response->assertOk();
         $response->assertJsonPath('data.name', 'Alice');

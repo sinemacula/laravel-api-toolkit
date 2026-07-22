@@ -61,7 +61,7 @@ final class PolymorphicCollectionTest extends TestCase
         $user         = User::create(['name' => 'Alice', 'email' => 'alice@example.com', 'status' => 'active', 'organization_id' => $organization->id]);
         $post         = Post::create(['user_id' => $user->id, 'title' => 'Hello World', 'body' => 'Content', 'published' => true]);
 
-        Route::get('/api/feed', static fn () => PolymorphicResource::collection(collect([$user, $organization, $post])));
+        Route::get('/feed', static fn () => PolymorphicResource::collection(collect([$user, $organization, $post])));
     }
 
     /**
@@ -71,7 +71,7 @@ final class PolymorphicCollectionTest extends TestCase
      */
     public function testHeterogeneousCollectionCarriesPerTypeDiscriminators(): void
     {
-        $response = $this->getJson('/api/feed');
+        $response = $this->getJson('/feed');
 
         $response->assertOk();
         $response->assertJsonPath('data.0._type', 'users');
@@ -92,7 +92,7 @@ final class PolymorphicCollectionTest extends TestCase
     {
         Config::set('api-toolkit.resources.resource_map', []);
 
-        $response = $this->getJson('/api/feed');
+        $response = $this->getJson('/feed');
 
         $response->assertStatus(500);
         $response->assertJsonPath('error.status', 500);
