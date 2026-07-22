@@ -61,8 +61,10 @@ composer smells   # Advisory code smells (duplication, complexity)
 Run the full test suite before submitting:
 
 ```bash
-composer test            # Run the test suite in parallel using Paratest
-composer test:coverage   # With clover coverage report
+composer test                 # Run the test suite in parallel using Paratest
+composer test:coverage        # With clover coverage report
+composer test:mutation        # Mutation gate scoped to your diff against master
+composer test:mutation:full   # Full mutation run, no threshold
 ```
 
 Single test file or method:
