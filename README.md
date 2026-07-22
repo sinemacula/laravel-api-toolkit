@@ -15,8 +15,9 @@ development faster and more reliable.
 
 - **Exception Handling**: Implements a custom exception handler that captures and formats all exceptions for consistent
   API error responses, preserving the intended HTTP status codes.
-- **Queryable Models**: Allows fine-tuned control over which fields, filters, relations, and orderings are exposed via
-  your API endpoints, enhancing security and customization.
+- **Queryable Resources**: Resource schemas give fine-tuned control over which fields, filters, relations, and
+  orderings are exposed via your API endpoints under a fail-closed allowlist posture, enhancing security and
+  customization.
 - **Data Repositories**: Abstracts database interactions into repositories to promote a cleaner and more maintainable
   codebase, with safe-by-default deferred writes (failed flushes retain records rather than dropping them) and per-query
   caching (each query is cached against its own fingerprint, so a cache hit performs zero database queries and a filtered
@@ -43,8 +44,9 @@ php artisan vendor:publish --provider="SineMacula\ApiToolkit\ApiServiceProvider"
 ```
 
 This publishes `config/api-toolkit.php` to your application's config directory. The file is documented inline
-and covers exception rendering strategy, sensitive-key redaction, repository caching, query parser limits,
-deferred write behaviour, middleware toggles, and more.
+and covers exception rendering strategy, sensitive-key redaction, query-access posture, query parser limits,
+deferred write behaviour, middleware toggles, and more. Per-query repository caching is configured in the
+`sinemacula/laravel-repositories` package under `repositories.cache`.
 
 ## Usage
 
@@ -65,11 +67,14 @@ use SineMacula\ApiToolkit\Facades\ApiQuery;
 $fields = ApiQuery::getFields('user'); // ['id', 'name', 'email']
 ```
 
-**Filtering** - apply column-level filters using operator tokens:
+**Filtering** - apply column-level filters by passing a URL-encoded JSON object of operator tokens:
 
 ```http
-GET /users?filters[status][$eq]=active&filters[created_at][$ge]=2024-01-01
+GET /users?filters={"status":{"$eq":"active"},"created_at":{"$ge":"2024-01-01"}}
 ```
+
+The `filters` value must be a JSON string; requests carrying a non-JSON value are rejected with a validation
+error.
 
 Available built-in operator tokens: `$eq`, `$neq`, `$gt`, `$lt`, `$ge`, `$le`, `$like`, `$in`, `$between`,
 `$contains`, `$null`, `$notNull`.
@@ -134,7 +139,7 @@ class UserResource extends ApiResource
             Field::scalar('name')->filterable()->sortable(),
             Field::scalar('email')->filterable(),
             Field::timestamp('created_at')->sortable(),
-            Field::accessor('full_name', 'getFullName'),
+            Field::compute('full_name', 'getFullName'),
             Relation::to('organization', OrganizationResource::class)->traversable(),
             Count::of('memberships'),
             Sum::of('orders', 'total'),
@@ -174,8 +179,9 @@ new UserResource($user, excluded: ['email']);          // field set minus exclus
 ```
 
 **Schema validation** - enable `api-toolkit.resources.validate_schemas` (recommended for non-production
-environments) to have all registered schemas validated at boot time via the `api-toolkit:validate-schemas`
-Artisan command or automatically on first request.
+environments) to have all registered schemas validated during application boot. The
+`api-toolkit:validate-schemas` Artisan command runs the same validation on demand - independently of the
+flag - so it can also gate CI.
 
 ---
 
@@ -189,7 +195,7 @@ use SineMacula\ApiToolkit\Repositories\ApiRepository;
 
 class UserRepository extends ApiRepository
 {
-    protected function model(): string
+    public function model(): string
     {
         return User::class;
     }
@@ -211,7 +217,7 @@ restore the opt-out behaviour and exclude specific columns via `api-toolkit.repo
 **Cacheable trait** - add per-query transparent caching to any `ApiRepository` subclass:
 
 ```php
-use SineMacula\ApiToolkit\Repositories\Concerns\Cacheable;
+use SineMacula\Repositories\Concerns\Cacheable;
 
 class UserRepository extends ApiRepository
 {
@@ -301,7 +307,8 @@ with appropriate HTTP status codes. The rendering strategy is configurable:
 
 - `'auto'` (default) - renders JSON unless the request does not expect JSON and debug mode is on.
 - `'always_json'` - always renders JSON.
-- `'json_when_expected'` - renders JSON only when `Accept: application/json` is present.
+- `'json_when_expected'` - renders JSON only when the request expects a JSON response (Laravel's
+  `expectsJson()`, e.g. `Accept: application/json`).
 
 **Sensitive-key redaction** - request data written to the exception log is automatically scanned and values
 whose keys match any substring in `api-toolkit.exceptions.sensitive_keys` (default: `password`, `token`,
@@ -312,16 +319,19 @@ keys to that array in your published config to extend coverage.
 
 ### Middleware
 
-The service provider registers the following middleware automatically. Each registration can be disabled or
-scoped independently in `api-toolkit.middleware`:
+The service provider registers the following middleware automatically. Each registration can be disabled
+independently in `api-toolkit.middleware`:
 
 - **`maintenance_mode_swap`** - JSON `503` maintenance responses with an `except` URI allowlist.
-- **`detect_capabilities`** - resolves typed request capabilities (trashed/export/stream) once per request.
+- **`detect_capabilities`** - resolves typed request capabilities (soft-delete visibility via
+  `include_trashed` / `only_trashed`) once per request.
 - **`json_pretty_print`** - opt-in pretty-printed JSON responses via a query parameter.
 - **`throttle`** - API-friendly rate-limit responses; auto-selects the Redis variant when Redis is the cache driver.
 
-All four middleware accept `'scope': 'global'` (default, pushed to the global stack) or `'scope': 'api'`
-(appended to the `api` middleware group only).
+`detect_capabilities` and `json_pretty_print` accept `'scope': 'global'` (default, pushed to the global
+stack) or `'scope': 'api'` (appended to the `api` middleware group only). `maintenance_mode_swap` is always
+prepended to the global stack when enabled, and `throttle` is registered as the router's `throttle` alias,
+so neither takes a scope.
 
 **Request throttling and rate-limit keying** - each request is keyed by method, host, path, and caller
 identity. Authenticated requests are keyed by the user identifier; guests are keyed by their client IP
@@ -340,9 +350,10 @@ overrides `resolveRequestSignature()`. That config option is the supported custo
 
 ### Schema Introspection and OpenAPI Export
 
-The schema introspector resolves filterable columns, sortable columns, traversable relations, and all field
-keys for any registered resource without instantiating it. It is used internally by `ApiCriteria` and is
-available for injection:
+The schema compiler resolves filterable columns, sortable columns, traversable relations, and all field keys
+for any registered resource without instantiating it. A complementary database-schema introspector resolves
+model columns, searchable columns, and relations; it is used internally by `ApiCriteria` and is available
+for injection:
 
 ```php
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
@@ -367,7 +378,7 @@ the steps required to move from 1.x to 2.x.
 ## Requirements
 
 - PHP ^8.3
-- Laravel 12+
+- Laravel 12
 
 ## Testing
 
