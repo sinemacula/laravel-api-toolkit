@@ -70,7 +70,7 @@ jobs:
                     files: clover.xml
 
     # ==========================================================================
-    # JOB: INTEGRATION TESTS (MySQL + PostgreSQL)
+    # JOB: DATABASE-BACKED TESTS (Integration + Feature on MySQL + PostgreSQL)
     # ==========================================================================
     integration:
         name: Integration / ${{ matrix.database }}
@@ -132,7 +132,7 @@ jobs:
                     php-version: 8.3
                     extensions: pdo_mysql, pdo_pgsql
 
-            -   name: Run integration tests
+            -   name: Run database-backed tests (Integration + Feature)
                 env:
                     DB_DRIVER: ${{ matrix.db_driver }}
                     DB_HOST: 127.0.0.1
@@ -140,4 +140,4 @@ jobs:
                     DB_DATABASE: api_toolkit_test
                     DB_USERNAME: ${{ matrix.db_username }}
                     DB_PASSWORD: ${{ matrix.db_password }}
-                run: vendor/bin/phpunit --testsuite Integration
+                run: vendor/bin/phpunit --testsuite Integration,Feature
