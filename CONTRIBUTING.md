@@ -27,6 +27,8 @@ Branch from `master` using the appropriate prefix:
 | `bugfix/`   | Bug fixes                        |
 | `hotfix/`   | Urgent production fixes          |
 | `refactor/` | Refactoring without new features |
+| `test/`     | Test-only changes                |
+| `docs/`     | Documentation-only changes       |
 | `chore/`    | Tooling, CI, dependencies        |
 
 ### Commits
@@ -39,6 +41,10 @@ fix: preserve response headers through the exception handler
 test: cover the relation filter boundary
 chore: update qlty configuration
 ```
+
+Pull request titles must follow the same convention - and they are the ones that matter most: PRs are
+squash-merged, so the title becomes the commit on `master`, and release-please derives the changelog and
+the next version from those commits.
 
 ### Code Quality
 
@@ -77,5 +83,6 @@ vendor/bin/phpunit --filter testMethodName tests/Unit/SomeTest.php
 
 ## Pull Requests
 
+- Title the PR as a Conventional Commit - the squash-merge makes it the commit that drives the changelog
 - Keep changes minimal and scoped to a single concern
 - Do not change static analysis or formatting configuration without prior discussion
