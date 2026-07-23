@@ -461,9 +461,9 @@ support them.
 ### Removed: BaseResource; ApiResource internals decomposed
 
 `SineMacula\ApiToolkit\Http\Resources\BaseResource` has been removed. `ApiResource` now extends the
-toolkit's `ToolkitResource` base (itself a `Illuminate\Http\Resources\Json\JsonResource`), and
-`withFields()`, `withoutFields()`, and `withAll()` live on `ApiResource` itself. Update any type hints or subclasses referencing `BaseResource` to
-use `ApiResource` (or `ApiResourceInterface`).
+toolkit's `ToolkitResource` base (itself extending `Illuminate\Http\Resources\Json\JsonResource`), and
+`withFields()`, `withoutFields()`, and `withAll()` live on `ApiResource` itself. Update any type hints
+or subclasses referencing `BaseResource` to use `ApiResource` (or `ApiResourceInterface`).
 
 The protected resolution hooks have been removed from `ApiResource` and moved into internal collaborator
 classes:
