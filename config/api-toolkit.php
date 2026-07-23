@@ -358,16 +358,6 @@ return [
     | if you manage maintenance mode middleware in your own bootstrap/app.php.
     |   - `enabled`: true to swap (default), false to skip.
     |
-    | `detect_capabilities`: Controls the registration of the
-    | DetectsCapabilities middleware, which resolves the typed request
-    | capabilities (trashed visibility and PDF negotiation)
-    | once per request. Capabilities resolve lazily on first access even
-    | when disabled; the middleware simply precomputes them.
-    |   - `enabled`: true to register (default), false to skip entirely.
-    |   - `scope`: 'global' to push to the global middleware stack (default),
-    |              'api' to append to the 'api' middleware group only.
-    |              Ignored when `enabled` is false.
-    |
     | `json_pretty_print`: Controls the registration of the JsonPrettyPrint
     | middleware, which allows API consumers to request pretty-printed JSON
     | responses via a query parameter.
@@ -394,11 +384,6 @@ return [
 
         'maintenance_mode_swap' => [
             'enabled' => true,
-        ],
-
-        'detect_capabilities' => [
-            'enabled' => true,
-            'scope'   => 'global',
         ],
 
         'json_pretty_print' => [

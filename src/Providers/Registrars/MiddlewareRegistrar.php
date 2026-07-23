@@ -10,7 +10,6 @@ use Illuminate\Foundation\Http\Kernel as HttpKernel;
 use Illuminate\Foundation\Http\Middleware\PreventRequestsDuringMaintenance as FrameworkMaintenance;
 use Illuminate\Routing\Router;
 use Illuminate\Support\Facades\Config;
-use SineMacula\ApiToolkit\Http\Middleware\DetectsCapabilities;
 use SineMacula\ApiToolkit\Http\Middleware\JsonPrettyPrint;
 use SineMacula\ApiToolkit\Http\Middleware\ParseApiQuery;
 use SineMacula\ApiToolkit\Http\Middleware\PreventRequestsDuringMaintenance;
@@ -58,7 +57,6 @@ final class MiddlewareRegistrar
         }
 
         $this->registerMaintenanceModeMiddleware($kernel);
-        $this->registerScopedMiddleware($kernel, 'api-toolkit.middleware.detect_capabilities', DetectsCapabilities::class);
         $this->registerScopedMiddleware($kernel, 'api-toolkit.middleware.json_pretty_print', JsonPrettyPrint::class);
         $this->registerThrottleMiddleware($router);
     }

@@ -28,7 +28,6 @@ use SineMacula\ApiToolkit\Contracts\ResourceMetadataProvider;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Enums\FlushStrategy;
 use SineMacula\ApiToolkit\Exceptions\InvalidSchemaException;
-use SineMacula\ApiToolkit\Http\Middleware\DetectsCapabilities;
 use SineMacula\ApiToolkit\Http\Middleware\JsonPrettyPrint;
 use SineMacula\ApiToolkit\Http\Middleware\ParseApiQuery;
 use SineMacula\ApiToolkit\Http\Middleware\PreventRequestsDuringMaintenance;
@@ -212,63 +211,6 @@ final class ApiServiceProviderTest extends TestCase
         $middleware = $router->getMiddleware();
 
         self::assertArrayHasKey('throttle', $middleware);
-    }
-
-    /**
-     * Test that DetectsCapabilities middleware is registered globally.
-     *
-     * @return void
-     */
-    public function testDetectsCapabilitiesMiddlewareIsRegisteredGlobally(): void
-    {
-        /** @var \Illuminate\Foundation\Http\Kernel $kernel */
-        $kernel     = $this->getApplication()->make(HttpKernel::class);
-        $middleware = $kernel->getGlobalMiddleware();
-
-        self::assertContains(DetectsCapabilities::class, $middleware);
-    }
-
-    /**
-     * Test that DetectsCapabilities middleware is appended to the api group
-     * when scoped.
-     *
-     * @return void
-     */
-    public function testDetectsCapabilitiesMiddlewareIsScopedToApiGroup(): void
-    {
-        $app = $this->getApplication();
-
-        $this->getConfig()->set('api-toolkit.middleware.detect_capabilities.scope', 'api');
-
-        $provider = new ApiServiceProvider($app);
-        $provider->boot();
-
-        /** @var \Illuminate\Foundation\Http\Kernel $kernel */
-        $kernel = $app->make(HttpKernel::class);
-        $groups = $kernel->getMiddlewareGroups();
-
-        self::assertContains(DetectsCapabilities::class, $groups['api'] ?? []);
-    }
-
-    /**
-     * Test that DetectsCapabilities middleware is not registered when config is
-     * disabled.
-     *
-     * @return void
-     */
-    public function testDetectsCapabilitiesMiddlewareNotRegisteredWhenDisabled(): void
-    {
-        $app = $this->getApplication();
-
-        $this->getConfig()->set('api-toolkit.middleware.detect_capabilities.enabled', false);
-
-        // Re-boot with the middleware disabled to test the config gate
-        $provider = new ApiServiceProvider($app);
-        $provider->boot();
-
-        // The middleware was already pushed in the original boot from setUp.
-        // Verify the config gate by confirming boot completes without error.
-        self::assertFalse((bool) $this->getConfig()->get('api-toolkit.middleware.detect_capabilities.enabled'));
     }
 
     /**
@@ -814,7 +756,6 @@ final class ApiServiceProviderTest extends TestCase
 
         self::assertContains(ParseApiQuery::class, $middleware);
         self::assertContains(PreventRequestsDuringMaintenance::class, $middleware);
-        self::assertContains(DetectsCapabilities::class, $middleware);
         self::assertContains(JsonPrettyPrint::class, $middleware);
 
         /** @var \Illuminate\Routing\Router $router */
@@ -823,56 +764,6 @@ final class ApiServiceProviderTest extends TestCase
 
         self::assertArrayHasKey('throttle', $aliases);
         self::assertSame(ThrottleRequests::class, $aliases['throttle']);
-    }
-
-    /**
-     * Test that the DetectsCapabilities middleware is not registered on a fresh
-     * kernel when disabled via config.
-     *
-     * @return void
-     */
-    public function testDetectsCapabilitiesMiddlewareIsNotRegisteredOnFreshKernelWhenDisabled(): void
-    {
-        $app = $this->getApplication();
-
-        $this->getConfig()->set('api-toolkit.middleware.detect_capabilities.enabled', false);
-
-        $app->forgetInstance(HttpKernel::class);
-
-        $provider = new ApiServiceProvider($app);
-        $provider->boot();
-
-        /** @var \Illuminate\Foundation\Http\Kernel $kernel */
-        $kernel = $app->make(HttpKernel::class);
-        $groups = $kernel->getMiddlewareGroups();
-
-        self::assertNotContains(DetectsCapabilities::class, $kernel->getGlobalMiddleware());
-        self::assertNotContains(DetectsCapabilities::class, $groups['api'] ?? []);
-    }
-
-    /**
-     * Test that the DetectsCapabilities middleware scoped to the api group is
-     * not also pushed to the global stack.
-     *
-     * @return void
-     */
-    public function testDetectsCapabilitiesMiddlewareScopedToApiIsNotPushedGlobally(): void
-    {
-        $app = $this->getApplication();
-
-        $this->getConfig()->set('api-toolkit.middleware.detect_capabilities.scope', 'api');
-
-        $app->forgetInstance(HttpKernel::class);
-
-        $provider = new ApiServiceProvider($app);
-        $provider->boot();
-
-        /** @var \Illuminate\Foundation\Http\Kernel $kernel */
-        $kernel = $app->make(HttpKernel::class);
-        $groups = $kernel->getMiddlewareGroups();
-
-        self::assertContains(DetectsCapabilities::class, $groups['api'] ?? []);
-        self::assertNotContains(DetectsCapabilities::class, $kernel->getGlobalMiddleware());
     }
 
     /**
@@ -1195,7 +1086,6 @@ final class ApiServiceProviderTest extends TestCase
         $config = $app->make('config');
 
         $config->set('api-toolkit.parser.register_middleware', true);
-        $config->set('api-toolkit.middleware.detect_capabilities.enabled', true);
         $config->set('api-toolkit.notifications.enable_logging', true);
     }
 

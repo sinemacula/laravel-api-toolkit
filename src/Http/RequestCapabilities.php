@@ -38,9 +38,8 @@ final class RequestCapabilities
     /**
      * Retrieve the capabilities instance from the request.
      *
-     * Returns the instance stored by the DetectsCapabilities middleware when
-     * available, otherwise resolves the capabilities on demand and caches them
-     * on the request.
+     * Resolves the capabilities on first call and caches them on the request,
+     * returning the cached instance thereafter.
      *
      * @param  \Illuminate\Http\Request  $request
      * @return self

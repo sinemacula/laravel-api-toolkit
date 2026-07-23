@@ -325,15 +325,16 @@ The service provider registers the following middleware automatically. Each regi
 independently in `api-toolkit.middleware`:
 
 - **`maintenance_mode_swap`** - JSON `503` maintenance responses with an `except` URI allowlist.
-- **`detect_capabilities`** - resolves typed request capabilities (soft-delete visibility via
-  `include_trashed` / `only_trashed`) once per request.
 - **`json_pretty_print`** - opt-in pretty-printed JSON responses via a query parameter.
 - **`throttle`** - API-friendly rate-limit responses; auto-selects the Redis variant when Redis is the cache driver.
 
-`detect_capabilities` and `json_pretty_print` accept `'scope': 'global'` (default, pushed to the global
-stack) or `'scope': 'api'` (appended to the `api` middleware group only). `maintenance_mode_swap` is always
-prepended to the global stack when enabled, and `throttle` is registered as the router's `throttle` alias,
-so neither takes a scope.
+`json_pretty_print` accepts `'scope': 'global'` (default, pushed to the global stack) or `'scope': 'api'`
+(appended to the `api` middleware group only). `maintenance_mode_swap` is always prepended to the global
+stack when enabled, and `throttle` is registered as the router's `throttle` alias, so neither takes a scope.
+
+Typed request capabilities (soft-delete visibility via `includeTrashed()` / `onlyTrashed()`) are available
+on demand through `SineMacula\ApiToolkit\Http\RequestCapabilities::fromRequest($request)`, which resolves
+and caches them lazily on first access - no middleware registration is required.
 
 **Request throttling and rate-limit keying** - each request is keyed by method, host, path, and caller
 identity. Authenticated requests are keyed by the user identifier; guests are keyed by their client IP

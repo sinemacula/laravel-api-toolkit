@@ -586,9 +586,8 @@ been removed. Resolve these capabilities through the typed
         // ...
     }
 
-The new `DetectsCapabilities` middleware (registered globally by default, configurable via the
-`api-toolkit.middleware` config section) precomputes the capabilities once per request; `fromRequest()`
-falls back to resolving them lazily when the middleware has not run.
+`RequestCapabilities::fromRequest()` resolves the capabilities lazily on first access and caches them on
+the request, so no middleware or setup is required to read them.
 
 ### Exception handling changes
 
