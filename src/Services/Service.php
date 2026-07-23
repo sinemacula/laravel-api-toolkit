@@ -87,8 +87,10 @@ abstract class Service implements LockKeyProvider
     }
 
     /**
-     * Record a fully-built execution context supplied by ServiceJob on the
-     * worker, taking the actor from the context.
+     * Attach a prebuilt execution context (actor, correlation id, source, and
+     * metadata) to a synchronous run, taking the actor from it. This is the
+     * entry point for a caller that needs to tag a run with its own source or
+     * metadata; run() otherwise builds an INTERNAL context of its own.
      *
      * @param  \SineMacula\ApiToolkit\Services\ServiceContext  $context
      * @return static

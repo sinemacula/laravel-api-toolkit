@@ -33,10 +33,14 @@ final class RuntimeContext
     /**
      * Determine whether the current process is serving as a real queue worker.
      *
-     * When `$connection` is null, the default queue connection is resolved from
-     * config. Returns true only when the resolved driver is a non-`sync`
-     * string. The `sync` driver runs jobs inside the dispatching HTTP request
-     * and is therefore not a real worker boundary.
+     * With no `$connection` this is the boot-time check: the process is a
+     * worker only when it is running the `queue:work`/`queue:listen` command,
+     * mirroring how the Octane check keys on a real serving marker rather than
+     * mere installation - a web request whose default queue merely happens to
+     * be non-`sync` is not a worker. With a `$connection` (a fired job event's
+     * connection name) it returns true only when that driver is a non-`sync`
+     * string; the `sync` driver runs jobs inside the dispatching request and is
+     * not a real worker boundary.
      *
      * @param  string|null  $connection
      * @return bool
@@ -44,13 +48,7 @@ final class RuntimeContext
     public function isServingAsQueueWorker(?string $connection = null): bool
     {
         if ($connection === null) {
-            $default = Config::get('queue.default');
-
-            if (!is_string($default) || $default === '') {
-                return false;
-            }
-
-            $connection = $default;
+            return $this->isRunningQueueWorkerCommand();
         }
 
         $driver = Config::get("queue.connections.{$connection}.driver");
@@ -60,5 +58,22 @@ final class RuntimeContext
         }
 
         return $driver !== 'sync';
+    }
+
+    /**
+     * Determine whether the current process is executing a queue worker
+     * command, the boot-time signal that this process is an actual worker.
+     *
+     * @return bool
+     */
+    private function isRunningQueueWorkerCommand(): bool
+    {
+        $argv = $_SERVER['argv'] ?? null;
+
+        if (!is_array($argv)) {
+            return false;
+        }
+
+        return in_array('queue:work', $argv, true) || in_array('queue:listen', $argv, true);
     }
 }

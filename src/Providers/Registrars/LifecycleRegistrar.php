@@ -85,7 +85,8 @@ final class LifecycleRegistrar
      * the corresponding lifecycle flush is opted-out, so the off state is
      * observable rather than silent.
      *
-     * Under php-fpm both runtime checks return false and nothing is logged.
+     * Under php-fpm both runtime checks return false (no Octane marker, no
+     * worker command) and nothing is logged.
      *
      * @return void
      */

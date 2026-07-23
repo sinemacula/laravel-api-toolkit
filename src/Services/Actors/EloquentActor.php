@@ -54,14 +54,10 @@ final class EloquentActor implements Actor
         $key = $model->getKey();
 
         $this->morphType  = $model->getMorphClass();
-        $this->identifier = match (true) {
-            is_int($key)    => $key,
-            is_string($key) => $key,
-            default         => '',
-        };
-        $this->label    = $this->resolveLabel($model);
-        $this->model    = $model;
-        $this->resolved = true;
+        $this->identifier = is_int($key) || is_string($key) ? $key : '';
+        $this->label      = $this->resolveLabel($model);
+        $this->model      = $model;
+        $this->resolved   = true;
     }
 
     /**
