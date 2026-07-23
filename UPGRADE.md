@@ -29,12 +29,16 @@ The supporting value objects and validation rules moved alongside them:
 
 ### Composer dependency changes
 
-The CloudWatch logging dependencies (`aws/aws-sdk-php` and `phpnexus/cwh`) have moved from `require` to
-`suggest`. Applications that use the CloudWatch logging driver must now require them directly:
+The logging drivers and the server-sent event streaming support have been extracted into standalone
+packages: the CloudWatch log driver now lives in `sinemacula/laravel-log-cloudwatch`, the database log
+driver in `sinemacula/laravel-log-database`, and SSE streaming in `sinemacula/laravel-sse`. Applications
+that use any of them must require the relevant package directly:
 
-    composer require aws/aws-sdk-php phpnexus/cwh
+    composer require sinemacula/laravel-log-cloudwatch
+    composer require sinemacula/laravel-log-database
+    composer require sinemacula/laravel-sse
 
-Applications that do not use CloudWatch logging require no action.
+Applications that use none of these features require no action.
 
 The toolkit now depends on `sinemacula/http-primitives-php`, which is installed automatically and replaces
 the internal `HttpStatus` enum (see the next section).
@@ -380,24 +384,27 @@ are unchanged.
 
     $repository->persist($model, $attributes);
 
-### Changed: Repository caching is now per-query
+### Changed: Repository caching is now per-query (sinemacula/laravel-repositories)
 
-The `Cacheable` trait previously cached every read against a single whole-table snapshot. A filtered or
-by-id read could therefore be served the entire table from the cache, and populating the cache issued a
-second query. The trait now caches **per query**: each executed query is fingerprinted and stored under its
-own key, so a filtered read never returns the full-table collection, and a cache hit performs zero database
-queries.
+Repository caching lives in the `sinemacula/laravel-repositories` dependency, and its `Cacheable` trait
+(`SineMacula\Repositories\Concerns\Cacheable`) previously cached every read against a single whole-table
+snapshot. A filtered or by-id read could therefore be served the entire table from the cache, and
+populating the cache issued a second query. The trait now caches **per query**: each executed query is
+fingerprinted and stored under its own key, so a filtered read never returns the full-table collection,
+and a cache hit performs zero database queries.
 
 **What changed:**
 
-- The default cache key changed from `repository-cache:<table>` (whole table) to
-  `repository-query:<table>:<hash>` (per query). The old keys are retained for reference mode only.
+- Cache entries are keyed per query fingerprint instead of one whole-table snapshot; the whole-table
+  shape is retained for reference mode only.
 - Write invalidation is now driven by an explicit write-verb list (`create`, `forceCreate`, `firstOrCreate`,
   `updateOrCreate`, `updateOrInsert`, `update`, `delete`, `forceDelete`, `save`, `insert`, `insertGetId`,
   `upsert`, `increment`, `decrement`, `restore`) instead of sniffing the return type. `create()` returning
   a model now correctly invalidates the cache; `count()` returning an integer no longer does.
 - A size guard (`max_rows` / `max_bytes`) skips storing oversized results; the read still executes and
   returns normally.
+- A by-id read that misses (returns `null`) is negatively cached for a short, separate `negative_ttl`
+  (default 10 seconds), bounding how long a stale "not found" is served.
 
 The public API is unchanged: `withoutCache()`, `flushCache()`, and `getCacheStatus()` behave as before.
 
@@ -408,17 +415,18 @@ repository:
     protected bool $cacheReferenceTable = true;
 
 **Recommendation:** use a taggable cache store (Redis, Memcached) for precise per-table invalidation. On a
-non-taggable store (file, database) the toolkit keeps a per-table registry of live keys so writes can
-invalidate them; set `api-toolkit.repositories.cache.registry_enabled` to `false` to fall back to TTL-only
-staleness.
+non-taggable store (file, database) the package invalidates per-query entries through a generational table
+version that is bumped on every write; set `REPOSITORY_CACHE_REGISTRY_ENABLED=false` to fall back to
+TTL-only staleness.
 
-**Staleness boundary:** a by-id read that misses (returns `null`) is **not cached** — the query re-executes
-until the row exists. Empty Collections are cached normally. Writes made outside the repository (raw Eloquent
-inserts) are not observed for cached non-null results until the TTL expires or a repository write flushes the
-table.
+**Staleness boundary:** writes made outside the repository (raw Eloquent inserts) are not observed for
+cached results until the TTL (or `negative_ttl` for cached misses) expires or a repository write flushes
+the table.
 
-New configuration lives under `repositories.cache` (`ttl`, `store`, `max_rows`, `max_bytes`,
-`reference_ttl`, `registry_enabled`); each value is overridable per repository via a protected property.
+Configuration lives in that package under `repositories.cache` (`prefix`, `ttl`, `store`, `max_rows`,
+`max_bytes`, `reference_ttl`, `negative_ttl`, `registry_enabled`; env `REPOSITORY_CACHE_*`); each value is
+overridable per repository via a protected property. See the `sinemacula/laravel-repositories`
+documentation for full details.
 
 ### Changed: Relation detection requires return type declarations
 
@@ -444,7 +452,7 @@ one member of a union type) is a subclass of `Illuminate\Database\Eloquent\Relat
 
 Relation methods without a `Relation` return type are silently no longer detected -- filters and eager loads
 referencing them stop working -- so audit your models before upgrading. Enabling the new opt-in boot-time
-schema validation (`api-toolkit.resources.validate_schemas`, or the `api:validate-schemas` command) surfaces
+schema validation (`api-toolkit.resources.validate_schemas`, or the `api-toolkit:validate-schemas` command) surfaces
 schema relations that no longer resolve.
 
 Dynamic relations registered with `Model::resolveRelationUsing()` are now detected and resolved; 1.x did not
@@ -452,9 +460,9 @@ support them.
 
 ### Removed: BaseResource; ApiResource internals decomposed
 
-`SineMacula\ApiToolkit\Http\Resources\BaseResource` has been removed. `ApiResource` now extends
-`Illuminate\Http\Resources\Json\JsonResource` directly, and `withFields()`, `withoutFields()`, and
-`withAll()` live on `ApiResource` itself. Update any type hints or subclasses referencing `BaseResource` to
+`SineMacula\ApiToolkit\Http\Resources\BaseResource` has been removed. `ApiResource` now extends the
+toolkit's `ToolkitResource` base (itself a `Illuminate\Http\Resources\Json\JsonResource`), and
+`withFields()`, `withoutFields()`, and `withAll()` live on `ApiResource` itself. Update any type hints or subclasses referencing `BaseResource` to
 use `ApiResource` (or `ApiResourceInterface`).
 
 The protected resolution hooks have been removed from `ApiResource` and moved into internal collaborator
@@ -472,8 +480,9 @@ classes:
 Subclasses that overrode these methods must express the behavior through the resource schema definition
 (fields, computed values, accessors, guards) instead.
 
-`ApiResourceInterface` now declares the full field-resolution surface (`schema()`, `getAllFields()`,
-`resolveFields()`, `eagerLoadMapFor()`, `eagerLoadCountsFor()`, `resolve()`, `withFields()`,
+`ApiResourceInterface` now declares the full field-resolution surface (`getResourceType()`,
+`getDefaultFields()`, `schema()`, `getAllFields()`, `resolveFields()`, `eagerLoadMapFor()`,
+`eagerLoadCountsFor()`, `eagerLoadSumsFor()`, `eagerLoadAveragesFor()`, `resolve()`, `withFields()`,
 `withoutFields()`, and `withAll()`). Classes implementing the interface directly -- rather than extending
 `ApiResource` -- must implement the new methods.
 
