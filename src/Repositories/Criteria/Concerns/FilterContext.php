@@ -57,4 +57,24 @@ final class FilterContext
     {
         return $this->logicalOperator;
     }
+
+    /**
+     * Determine whether the current group combines its conditions with OR.
+     *
+     * @return bool
+     */
+    public function isOr(): bool
+    {
+        return $this->logicalOperator === '$or';
+    }
+
+    /**
+     * Resolve the query-builder boolean connective for the current group.
+     *
+     * @return string
+     */
+    public function sqlBoolean(): string
+    {
+        return $this->isOr() ? 'or' : 'and';
+    }
 }

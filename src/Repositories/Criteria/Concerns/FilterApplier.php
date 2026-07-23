@@ -147,7 +147,7 @@ final class FilterApplier
     {
         if ($column && $this->querySurface->guardFilter($column, $query->getModel())) {
 
-            if ($context->getLogicalOperator() === '$or') {
+            if ($context->isOr()) {
                 $query->orWhere($column, $value);
             } else {
                 $query->where($column, $value);
@@ -206,7 +206,7 @@ final class FilterApplier
         $callback = function (Builder $query) use ($value, $nested): void {
             foreach ($value as $subKey => $subValue) {
 
-                if ($subKey === '$has' || $subKey === self::OPERATOR_HASNT || $this->operatorRegistry->has($subKey)) {
+                if ($this->isConditionOperator($subKey)) {
                     $this->applyConditionOperator($query, $subKey, $subValue, null, $nested);
                 } elseif (array_key_exists($subKey, $this->logicalOperatorMap)) {
                     $this->applyLogicalOperator($query, $subKey, $subValue, $nested);
@@ -234,7 +234,7 @@ final class FilterApplier
      */
     private function applyRelationFilter(Builder $query, string $relation, array $filters, FilterContext $context): void
     {
-        $method = ($context->getLogicalOperator() === '$or') ? 'orWhereHas' : 'whereHas';
+        $method = $context->isOr() ? 'orWhereHas' : 'whereHas';
 
         $this->applyRelationalMethod($query, $method, $relation, function (Builder $query) use ($filters, $context): void {
             $this->processRelationFilters($query, $filters, $context);
@@ -280,7 +280,7 @@ final class FilterApplier
     private function applyHasFilter(Builder $query, array|string $relations, string $operator, FilterContext $context): void
     {
         $baseMethod = $this->relationalMethodMap[$operator];
-        $method     = ($context->getLogicalOperator() === '$or' && $operator === '$has') ? 'orWhereHas' : $baseMethod;
+        $method     = ($context->isOr() && $operator === '$has') ? 'orWhereHas' : $baseMethod;
 
         foreach ((array) $relations as $relation => $filters) {
 
