@@ -114,6 +114,13 @@ final class DeepNestingQueryBoundTest extends TestCase
         self::assertArrayHasKey('tags', $firstPost);
         self::assertNotEmpty($firstPost['tags']);
         self::assertArrayHasKey('name', $firstPost['tags'][0]);
+
+        // The user resource declares default count and sum metrics, but this
+        // request asks for neither, so no metric block may leak into the
+        // response - the schema gate must not run a payload the client did not
+        // request.
+        self::assertArrayNotHasKey('counts', $large['first']);
+        self::assertArrayNotHasKey('sums', $large['first']);
     }
 
     /**

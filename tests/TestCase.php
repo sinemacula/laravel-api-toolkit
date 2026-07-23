@@ -11,7 +11,10 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Schema;
 use Orchestra\Testbench\TestCase as OrchestraTestCase;
 use SineMacula\ApiToolkit\ApiServiceProvider;
+use SineMacula\ApiToolkit\Http\Resources\Concerns\EagerLoadPlanner;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\FieldResolver;
+use SineMacula\ApiToolkit\Http\Resources\Concerns\ValueResolver;
+use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 use Tests\Fixtures\Support\FunctionOverrides;
 
 /**
@@ -44,7 +47,13 @@ abstract class TestCase extends OrchestraTestCase
     {
         FunctionOverrides::reset();
 
+        // Mirror the process-static caches that CacheManager::flush() clears at
+        // a real request/worker boundary, so metadata resolved by one test
+        // cannot leak into the next (the harness never crosses that boundary).
         FieldResolver::clearCache();
+        ValueResolver::clearCache();
+        EagerLoadPlanner::clearCache();
+        SchemaCompiler::clearCache();
 
         Relation::morphMap([], false);
         Relation::requireMorphMap(false);
