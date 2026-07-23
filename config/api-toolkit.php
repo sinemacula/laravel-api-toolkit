@@ -77,9 +77,13 @@ return [
     | type-safe API design.
     |
     | `paths`: The filesystem paths scanned at boot for resources carrying the
-    | ForModel attribute. Discovered bindings merge beneath the resource_map
-    | (an explicit entry always wins), so annotating a resource is the primary
-    | way to bind it to its model. Missing paths are skipped.
+    | ForModel attribute. Null (the default) resolves at runtime to the
+    | application's own resource directory plus each module's, derived from
+    | app_path() so a modular application is covered with no configuration.
+    | Give an explicit array to override the roots, or an empty array to
+    | disable discovery. Discovered bindings merge beneath the resource_map (an
+    | explicit entry always wins), so annotating a resource is the primary way
+    | to bind it to its model. Missing paths are skipped.
     |
     | `resource_map`: Explicit model to resource overrides. An entry here wins
     | over a discovered binding, acting as the canonical-resource tiebreak when
@@ -95,9 +99,7 @@ return [
 
         'enable_dynamic_morph_mapping' => env('DYNAMIC_MORPH_MAPPING', true),
 
-        'paths' => [
-            app_path('Http/Resources'),
-        ],
+        'paths' => null,
 
         'resource_map' => [
             // Explicit overrides only; resources inside the scanned paths are

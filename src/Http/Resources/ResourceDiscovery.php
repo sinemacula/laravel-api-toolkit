@@ -54,12 +54,19 @@ final readonly class ResourceDiscovery
      */
     public function discover(): array
     {
-        // The default covers consumers whose published config predates the
-        // paths key; an explicit empty array still disables discovery.
-        $paths = Config::get('api-toolkit.resources.paths', [app_path('Http/Resources')]);
-        $paths = is_array($paths)
-            ? array_filter($paths, static fn (mixed $path): bool => is_string($path) && is_dir($path))
-            : [];
+        $configured = Config::get('api-toolkit.resources.paths');
+
+        // A null value - or an absent key on a config that predates it -
+        // resolves to the default roots; an explicit array is honoured as-is,
+        // so an empty array still disables discovery, and any other type
+        // disables it too.
+        $paths = match (true) {
+            $configured === null  => $this->defaultPaths(),
+            is_array($configured) => $configured,
+            default               => [],
+        };
+
+        $paths = array_filter($paths, static fn (mixed $path): bool => is_string($path) && is_dir($path));
 
         $files = $this->files($paths);
 
@@ -72,6 +79,26 @@ final readonly class ResourceDiscovery
         }
 
         return $this->cacheWriter->rememberMetadataForever($this->cacheKey($files), fn (): array => $this->scan($files));
+    }
+
+    /**
+     * The default scan roots when no paths are configured.
+     *
+     * Resolved from app_path() at runtime rather than baked into the cached
+     * config, so a newly added module is discovered without re-caching and a
+     * modular application - which repoints app_path() at its module root - is
+     * covered with no coupling to any modules package. The application's own
+     * resource directory is scanned alongside each module's, the latter sitting
+     * one level below the flat directory.
+     *
+     * @return array<int, string>
+     */
+    private function defaultPaths(): array
+    {
+        return array_merge(
+            [app_path('Http/Resources')],
+            glob(app_path('*/Http/Resources')) ?: [],
+        );
     }
 
     /**

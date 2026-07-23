@@ -153,11 +153,13 @@ Fields marked `filterable()` or `sortable()` are exposed under the allowlist pos
 when the client sends no `?fields` parameter.
 
 **Model binding and discovery** - the `#[ForModel(...)]` attribute binds a resource to its model, and may be
-repeated to bind one resource to several models. Resources under the configured `api-toolkit.resources.paths`
-(default `app/Http/Resources`) are discovered at boot and compiled into the model-to-resource map automatically,
-so no central map needs maintaining. An explicit `api-toolkit.resources.resource_map` entry always wins over a
-discovered binding - use it as the canonical-resource tiebreak when a model has more than one resource, or to
-bind resources living outside the scanned paths. When two discovered resources claim the same model and no
+repeated to bind one resource to several models. By default (`api-toolkit.resources.paths` left null) resources
+are discovered at boot from the application's own `Http/Resources` directory plus each module's, resolved from
+`app_path()` so a modular application is covered with no configuration, and compiled into the model-to-resource
+map automatically so no central map needs maintaining. Set `paths` to an explicit array to override the scanned
+roots, or an empty array to disable discovery. An explicit `api-toolkit.resources.resource_map` entry always
+wins over a discovered binding - use it as the canonical-resource tiebreak when a model has more than one
+resource, or to bind resources living outside the scanned paths. When two discovered resources claim the same model and no
 explicit entry resolves it, the first (in sorted file order) wins and a warning is logged; with
 `validate_schemas` enabled the conflict fails the boot instead.
 
