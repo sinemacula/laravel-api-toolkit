@@ -77,7 +77,7 @@ final class ContainsFilterHttpTest extends TestCase
     {
         $this->skipOnSqlite();
 
-        $response = $this->query(['context' => ['$contains' => ['php']]]);
+        $response = $this->queryFilters(['context' => ['$contains' => ['php']]]);
 
         $response->assertJsonCount(1, 'data');
         $response->assertJsonPath('meta.total', 1);
@@ -94,7 +94,7 @@ final class ContainsFilterHttpTest extends TestCase
     {
         $this->skipOnSqlite();
 
-        $response = $this->query(['context' => ['$contains' => 'php,rust']]);
+        $response = $this->queryFilters(['context' => ['$contains' => 'php,rust']]);
 
         $messages = array_column((array) $response->json('data'), 'message');
 
@@ -111,7 +111,7 @@ final class ContainsFilterHttpTest extends TestCase
     {
         $this->skipOnSqlite();
 
-        $response = $this->query(['context' => ['$contains' => 'go']]);
+        $response = $this->queryFilters(['context' => ['$contains' => 'go']]);
 
         $response->assertJsonCount(1, 'data');
         $response->assertJsonPath('data.0.message', 'third');
@@ -123,7 +123,7 @@ final class ContainsFilterHttpTest extends TestCase
      * @param  array<string, mixed>  $filters
      * @return \Illuminate\Testing\TestResponse<\Illuminate\Http\JsonResponse>
      */
-    private function query(array $filters): TestResponse
+    private function queryFilters(array $filters): TestResponse
     {
         $response = $this->getJson('/logs?filters=' . urlencode((string) json_encode($filters)));
 

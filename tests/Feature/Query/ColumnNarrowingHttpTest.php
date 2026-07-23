@@ -171,7 +171,7 @@ final class ColumnNarrowingHttpTest extends TestCase
 
             // Skip the paginator's row-count query and the schema introspection
             // statements so only the hydrating base select is returned.
-            if (str_contains($sql, 'as aggregate') || str_contains($sql, 'pragma') || str_contains($sql, 'sqlite_master')) {
+            if (str_contains($unquoted, 'as aggregate') || str_contains($unquoted, 'pragma') || str_contains($unquoted, 'sqlite_master')) {
                 continue;
             }
 

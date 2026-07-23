@@ -93,7 +93,7 @@ final class FilterOperatorMatrixTest extends TestCase
      */
     public function testNotEqualOperatorExcludesTheMatchingName(): void
     {
-        $names = $this->names($this->query(['name' => ['$neq' => 'Alice']]));
+        $names = $this->names($this->queryFilters(['name' => ['$neq' => 'Alice']]));
 
         self::assertCount(4, $names);
         self::assertNotContains('Alice', $names);
@@ -107,7 +107,7 @@ final class FilterOperatorMatrixTest extends TestCase
      */
     public function testLessThanOperatorNarrowsById(): void
     {
-        $names = $this->names($this->query(['id' => ['$lt' => 3]]));
+        $names = $this->names($this->queryFilters(['id' => ['$lt' => 3]]));
 
         self::assertEqualsCanonicalizing(['Alice', 'Alan'], $names);
     }
@@ -119,7 +119,7 @@ final class FilterOperatorMatrixTest extends TestCase
      */
     public function testGreaterThanOrEqualOperatorNarrowsById(): void
     {
-        $names = $this->names($this->query(['id' => ['$ge' => 4]]));
+        $names = $this->names($this->queryFilters(['id' => ['$ge' => 4]]));
 
         self::assertEqualsCanonicalizing(['Carol', 'Dave'], $names);
     }
@@ -131,7 +131,7 @@ final class FilterOperatorMatrixTest extends TestCase
      */
     public function testLessThanOrEqualOperatorNarrowsById(): void
     {
-        $names = $this->names($this->query(['id' => ['$le' => 2]]));
+        $names = $this->names($this->queryFilters(['id' => ['$le' => 2]]));
 
         self::assertEqualsCanonicalizing(['Alice', 'Alan'], $names);
     }
@@ -143,7 +143,7 @@ final class FilterOperatorMatrixTest extends TestCase
      */
     public function testBetweenOperatorAppliesAnInclusiveRange(): void
     {
-        $names = $this->names($this->query(['id' => ['$between' => [2, 4]]]));
+        $names = $this->names($this->queryFilters(['id' => ['$between' => [2, 4]]]));
 
         self::assertEqualsCanonicalizing(['Alan', 'Bob', 'Carol'], $names);
     }
@@ -156,7 +156,7 @@ final class FilterOperatorMatrixTest extends TestCase
      */
     public function testBetweenOperatorDropsAnUnderLongPayload(): void
     {
-        $response = $this->query(['id' => ['$between' => [2]]]);
+        $response = $this->queryFilters(['id' => ['$between' => [2]]]);
 
         $response->assertJsonPath('meta.total', 5);
         self::assertCount(5, $this->names($response));
@@ -170,7 +170,7 @@ final class FilterOperatorMatrixTest extends TestCase
      */
     public function testBetweenOperatorDropsAnOverLongPayload(): void
     {
-        $response = $this->query(['id' => ['$between' => [2, 3, 4]]]);
+        $response = $this->queryFilters(['id' => ['$between' => [2, 3, 4]]]);
 
         $response->assertJsonPath('meta.total', 5);
         self::assertCount(5, $this->names($response));
@@ -183,7 +183,7 @@ final class FilterOperatorMatrixTest extends TestCase
      */
     public function testNullOperatorReturnsOnlyNullRows(): void
     {
-        $names = $this->names($this->query(['organization_id' => ['$null' => true]], '/nullable-users'));
+        $names = $this->names($this->queryFilters(['organization_id' => ['$null' => true]], '/nullable-users'));
 
         self::assertEqualsCanonicalizing(['Alice', 'Bob', 'Dave'], $names);
     }
@@ -195,7 +195,7 @@ final class FilterOperatorMatrixTest extends TestCase
      */
     public function testNotNullOperatorReturnsOnlyNonNullRows(): void
     {
-        $names = $this->names($this->query(['organization_id' => ['$notNull' => true]], '/nullable-users'));
+        $names = $this->names($this->queryFilters(['organization_id' => ['$notNull' => true]], '/nullable-users'));
 
         self::assertEqualsCanonicalizing(['Alan', 'Carol'], $names);
     }
@@ -208,7 +208,7 @@ final class FilterOperatorMatrixTest extends TestCase
      */
     public function testNullOperatorIgnoresThePayloadBoolean(): void
     {
-        $names = $this->names($this->query(['organization_id' => ['$null' => false]], '/nullable-users'));
+        $names = $this->names($this->queryFilters(['organization_id' => ['$null' => false]], '/nullable-users'));
 
         self::assertEqualsCanonicalizing(['Alice', 'Bob', 'Dave'], $names);
     }
@@ -220,7 +220,7 @@ final class FilterOperatorMatrixTest extends TestCase
      */
     public function testTwoFiltersComposeWithAndSemantics(): void
     {
-        $names = $this->names($this->query([
+        $names = $this->names($this->queryFilters([
             'name' => ['$like' => 'Al'],
             'id'   => ['$gt' => 1],
         ]));
@@ -235,7 +235,7 @@ final class FilterOperatorMatrixTest extends TestCase
      */
     public function testOrGroupingReturnsTheUnionOfBranches(): void
     {
-        $names = $this->names($this->query([
+        $names = $this->names($this->queryFilters([
             '$or' => [
                 'name' => 'Alice',
                 'id'   => ['$gt' => 4],
@@ -252,7 +252,7 @@ final class FilterOperatorMatrixTest extends TestCase
      */
     public function testAndGroupingReturnsTheIntersectionOfBranches(): void
     {
-        $names = $this->names($this->query([
+        $names = $this->names($this->queryFilters([
             '$and' => [
                 'name' => ['$like' => 'Al'],
                 'id'   => ['$gt' => 1],
@@ -269,7 +269,7 @@ final class FilterOperatorMatrixTest extends TestCase
      * @param  string  $route
      * @return \Illuminate\Testing\TestResponse<\Illuminate\Http\JsonResponse>
      */
-    private function query(array $filters, string $route = '/users'): TestResponse
+    private function queryFilters(array $filters, string $route = '/users'): TestResponse
     {
         $response = $this->getJson($route . '?filters=' . urlencode((string) json_encode($filters)));
 
