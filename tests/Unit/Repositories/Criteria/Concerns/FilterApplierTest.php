@@ -714,6 +714,27 @@ final class FilterApplierTest extends TestCase
     }
 
     /**
+     * Test that the published STRUCTURAL_OPERATORS grammar stays aligned with
+     * the tokens the applier actually dispatches, so the OpenAPI exporter
+     * (which reads the constant) cannot drift from real behaviour.
+     *
+     * @return void
+     */
+    public function testStructuralOperatorsMatchTheDispatchMaps(): void
+    {
+        $dispatched = array_merge(
+            array_keys($this->getProperty($this->applier, 'logicalOperatorMap')),
+            array_keys($this->getProperty($this->applier, 'relationalMethodMap')),
+        );
+
+        sort($dispatched);
+        $declared = FilterApplier::STRUCTURAL_OPERATORS;
+        sort($declared);
+
+        self::assertSame($declared, $dispatched);
+    }
+
+    /**
      * Apply filters using the FilterApplier and return the resulting query
      * builder.
      *

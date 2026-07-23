@@ -6,6 +6,7 @@ namespace SineMacula\ApiToolkit\OpenApi\Metadata;
 
 use Illuminate\Support\Facades\Config;
 use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
+use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterApplier;
 use SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry;
 
 /**
@@ -20,9 +21,6 @@ use SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry;
  */
 final class ConfigMetadataCatalogue implements MetadataCatalogue
 {
-    /** @var array<int, string> The four structural filter operators */
-    private const array STRUCTURAL_OPERATORS = ['$and', '$or', '$has', '$hasnt'];
-
     /**
      * Create a new config metadata catalogue.
      *
@@ -68,14 +66,15 @@ final class ConfigMetadataCatalogue implements MetadataCatalogue
     }
 
     /**
-     * Return the four structural filter operators.
+     * Return the structural filter operators, read from the filter engine so
+     * the documented grammar cannot drift from what the engine dispatches.
      *
      * @return array<int, string>
      */
     #[\Override]
     public function getStructuralOperators(): array
     {
-        return self::STRUCTURAL_OPERATORS;
+        return FilterApplier::STRUCTURAL_OPERATORS;
     }
 
     /**

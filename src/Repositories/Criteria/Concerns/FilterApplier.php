@@ -19,6 +19,9 @@ use SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface;
  */
 final class FilterApplier
 {
+    /** @var array<int, string> The structural (logical + relational) filter operator tokens - the canonical grammar the OpenAPI exporter documents. Keep aligned with the dispatch maps below (guarded by a test). */
+    public const array STRUCTURAL_OPERATORS = ['$and', '$or', '$has', self::OPERATOR_HASNT];
+
     /** @var string */
     private const string OPERATOR_HASNT = '$hasnt';
 

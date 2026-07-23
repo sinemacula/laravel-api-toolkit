@@ -2,6 +2,8 @@
 
 declare(strict_types = 1);
 
+use SineMacula\ApiToolkit\Exceptions\ApiExceptionHandler;
+
 return [
 
     /*
@@ -53,7 +55,10 @@ return [
         // Lower-case substrings used to redact matching request keys (e.g.
         // password, *_token, *secret*) from the request data written to the
         // exception log context, preventing credentials from leaking to logs.
-        'sensitive_keys' => ['password', 'token', 'secret', 'authorization'],
+        // The handler's DEFAULT_SENSITIVE_KEYS is the single source of truth,
+        // reused here so the shipped default and the hard fallback cannot
+        // drift.
+        'sensitive_keys' => ApiExceptionHandler::DEFAULT_SENSITIVE_KEYS,
 
     ],
 
