@@ -5,7 +5,6 @@ declare(strict_types = 1);
 namespace Tests\Unit\Repositories\Concerns;
 
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Illuminate\Support\Facades\Cache;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -368,41 +367,6 @@ final class AttributeSetterTest extends TestCase
     }
 
     /**
-     * Test that syncing honours an explicit detaching flag carried on the value
-     * array, passing it through to the relation's sync call rather than forcing
-     * the default of true.
-     *
-     * @return void
-     */
-    public function testSetSyncAttributeForwardsExplicitDetachingFlagToRelation(): void
-    {
-        $relation = $this->createMock(BelongsToMany::class);
-
-        $relation->expects(self::once())
-            ->method('sync')
-            ->with(['detaching' => false], false);
-
-        $model = new class extends Model {
-            /** @var \Illuminate\Database\Eloquent\Relations\BelongsToMany<\Illuminate\Database\Eloquent\Model, \Illuminate\Database\Eloquent\Model>|null The relation returned for the tags attribute. */
-            public ?BelongsToMany $tagRelation = null;
-
-            /**
-             * Return the stubbed tags relation.
-             *
-             * @return \Illuminate\Database\Eloquent\Relations\BelongsToMany<\Illuminate\Database\Eloquent\Model, \Illuminate\Database\Eloquent\Model>|null
-             */
-            public function tags(): ?BelongsToMany
-            {
-                return $this->tagRelation;
-            }
-        };
-
-        $model->tagRelation = $relation;
-
-        $this->invokeMethod($this->attributeSetter, 'setSyncAttribute', $model, 'tags', ['detaching' => false]);
-    }
-
-    /**
      * Test that persist skips attributes whose cast resolves to null.
      *
      * @return void
@@ -658,21 +622,9 @@ final class AttributeSetterTest extends TestCase
     }
 
     /**
-     * Test that resolveCastForAttribute returns 'enum' for a cast string that
-     * is a valid enum class.
-     *
-     * @return void
-     */
-    public function testResolveCastForAttributeReturnsEnumForEnumClass(): void
-    {
-        $result = $this->invokeMethod($this->attributeSetter, 'resolveCastForAttribute', 'status', UserStatus::class, null);
-
-        self::assertSame('enum', $result);
-    }
-
-    /**
-     * Test that resolveCastForAttribute falls back to 'string' for any other
-     * cast that is neither an object cast nor an enum.
+     * Test that resolveCastForAttribute falls back to 'string' for any cast
+     * that is not an object cast - including scalar casts and enum classes,
+     * which Laravel's own cast converts on assignment.
      *
      * @return void
      */
@@ -680,6 +632,7 @@ final class AttributeSetterTest extends TestCase
     {
         self::assertSame('string', $this->invokeMethod($this->attributeSetter, 'resolveCastForAttribute', 'field', 'custom_type', null));
         self::assertSame('string', $this->invokeMethod($this->attributeSetter, 'resolveCastForAttribute', 'field', 'datetime', null));
+        self::assertSame('string', $this->invokeMethod($this->attributeSetter, 'resolveCastForAttribute', 'status', UserStatus::class, null));
     }
 
     /**

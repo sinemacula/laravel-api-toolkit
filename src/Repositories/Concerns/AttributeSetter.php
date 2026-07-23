@@ -109,9 +109,9 @@ final class AttributeSetter
      * Resolve the native cast key for the given attribute.
      *
      * An attribute with no cast is treated as a possible relation. A declared
-     * object cast is the only cast the setter normalises before assignment; an
-     * enum cast is labelled so, and everything else is assigned as-is and left
-     * to the model's own cast to convert.
+     * object cast is the only cast the setter normalises before assignment;
+     * everything else is assigned as-is and left to the model's own cast to
+     * convert.
      *
      * @param  string  $attribute
      * @param  string|null  $cast
@@ -126,11 +126,7 @@ final class AttributeSetter
             return $this->resolveCastForRelation($attribute, $model);
         }
 
-        if ($this->isObjectCast($cast)) {
-            return 'object';
-        }
-
-        return enum_exists($cast) ? 'enum' : 'string';
+        return $this->isObjectCast($cast) ? 'object' : 'string';
     }
 
     /**
@@ -236,20 +232,15 @@ final class AttributeSetter
             throw new \LogicException(sprintf('Attribute "%s" on %s does not resolve to a BelongsToMany relation', $attribute, $model::class));
         }
 
-        if ($value instanceof Model || $value instanceof Collection) {
-
-            $value = [
-                'values'    => $value instanceof Model ? collect([$value]) : $value,
-                'detaching' => true,
-            ];
-
-            $values = $value['values']->pluck($relation->getRelated()->getKeyName());
+        if ($value instanceof Model) {
+            $value = collect([$value]);
         }
 
-        $values ??= $value;
-        $detaching = $value['detaching'] ?? true;
+        if ($value instanceof Collection) {
+            $value = $value->pluck($relation->getRelated()->getKeyName());
+        }
 
-        $relation->sync($values, $detaching);
+        $relation->sync($value);
     }
 
     /**
