@@ -61,6 +61,11 @@ final class CollectionEagerLoadRegressionTest extends TestCase
         // isSearchable contract.
         Config::set('api-toolkit.repositories.query_posture', QuerySurface::POSTURE_BLOCKLIST);
 
+        // These assertions measure query shape and call counts; pin column
+        // narrowing off so the on-by-default narrowing metadata pass cannot
+        // skew them (narrowing behaviour has its own dedicated coverage).
+        Config::set('api-toolkit.resources.narrow_columns', false);
+
         $organization = Organization::create(['name' => 'Acme Corp', 'slug' => 'acme-corp']);
 
         $this->seedUsers(5, $organization->id);

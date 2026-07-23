@@ -451,9 +451,9 @@ one member of a union type) is a subclass of `Illuminate\Database\Eloquent\Relat
     }
 
 Relation methods without a `Relation` return type are silently no longer detected -- filters and eager loads
-referencing them stop working -- so audit your models before upgrading. Enabling the new opt-in boot-time
-schema validation (`api-toolkit.resources.validate_schemas`, or the `api-toolkit:validate-schemas` command) surfaces
-schema relations that no longer resolve.
+referencing them stop working -- so audit your models before upgrading. The new boot-time schema validation
+(`api-toolkit.resources.validate_schemas`, enabled by default outside production, or the
+`api-toolkit:validate-schemas` command) surfaces schema relations that no longer resolve.
 
 Dynamic relations registered with `Model::resolveRelationUsing()` are now detected and resolved; 1.x did not
 support them.

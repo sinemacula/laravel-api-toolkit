@@ -73,6 +73,11 @@ final class ApiCriteriaTest extends TestCase
         // the allowlist default has dedicated integration coverage.
         Config::set('api-toolkit.repositories.query_posture', QuerySurface::POSTURE_BLOCKLIST);
 
+        // These assertions measure query shape and call counts; pin column
+        // narrowing off so the on-by-default narrowing metadata pass cannot
+        // skew them (narrowing behaviour has its own dedicated coverage).
+        Config::set('api-toolkit.resources.narrow_columns', false);
+
         /** @var \SineMacula\ApiToolkit\Repositories\Criteria\ApiCriteria $criteria */
         $criteria       = $this->app->make(ApiCriteria::class);
         $this->criteria = $criteria;

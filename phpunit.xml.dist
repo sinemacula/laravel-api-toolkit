@@ -16,6 +16,16 @@
             <directory suffix="Test.php">./tests/Feature</directory>
         </testsuite>
     </testsuites>
+    <php>
+        <!-- Schema validation defaults to enabled outside production, but it
+             bypasses the discovery and metadata caches by design; the suite
+             pins it off so cache-sensitive assertions stay deterministic, and
+             the validation tests enable it explicitly. -->
+        <!-- The (false) spelling survives PHPUnit's boolean-literal coercion
+             (a bare "false" reaches $_ENV as an empty string) while Laravel's
+             env() still resolves it to a real boolean. -->
+        <env name="VALIDATE_SCHEMAS" value="(false)"/>
+    </php>
     <source>
         <include>
             <directory suffix=".php">./src</directory>

@@ -106,18 +106,20 @@ return [
         ],
 
         // When enabled, all registered resource schemas are validated during
-        // the boot phase. Recommended for non-production environments.
-        // e.g. env('VALIDATE_SCHEMAS', !app()->isProduction())
-        'validate_schemas' => false,
+        // the boot phase. Defaults to enabled outside production; an unset
+        // APP_ENV is treated as production so the validation cost is never
+        // paid by default on a misconfigured host.
+        'validate_schemas' => env('VALIDATE_SCHEMAS', env('APP_ENV', 'production') !== 'production'),
 
         'fixed_fields' => ['id', '_type'],
 
         // When enabled, the repository-driven query narrows the base-table
         // SELECT to only the columns the resolved field set needs plus a
         // per-model safety set, falling back to SELECT * whenever any resolved
-        // field's column reads are unknown. Default OFF; retained as a
-        // per-environment kill switch.
-        'narrow_columns' => env('API_TOOLKIT_NARROW_COLUMNS', false),
+        // field's column reads are unknown. Enabled by default; the env acts
+        // as a per-environment kill switch for code that reads attributes
+        // outside the declared field set on API-path models.
+        'narrow_columns' => env('API_TOOLKIT_NARROW_COLUMNS', true),
 
     ],
 

@@ -258,6 +258,8 @@ final class ColumnNarrowingIntegrationTest extends TestCase
      */
     public function testNarrowingReducesColumnsAndBytes(): void
     {
+        Config::set('api-toolkit.resources.narrow_columns', false);
+
         $offResponse = $this->serialiseArticles('title,slug,status', null);
         $offColumns  = $this->articleColumns();
         $fullModel   = $this->fetchFirstArticle();

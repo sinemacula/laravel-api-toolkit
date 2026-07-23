@@ -178,10 +178,10 @@ new UserResource($user, excluded: ['email']);          // field set minus exclus
 (new UserResource($user))->withAll();                 // all schema fields
 ```
 
-**Schema validation** - enable `api-toolkit.resources.validate_schemas` (recommended for non-production
-environments) to have all registered schemas validated during application boot. The
-`api-toolkit:validate-schemas` Artisan command runs the same validation on demand - independently of the
-flag - so it can also gate CI.
+**Schema validation** - `api-toolkit.resources.validate_schemas` has all registered schemas validated
+during application boot. It defaults to enabled outside production (set `VALIDATE_SCHEMAS=false` to opt
+out) and off in production, where the boot cost is not worth paying. The `api-toolkit:validate-schemas`
+Artisan command runs the same validation on demand - independently of the flag - so it can also gate CI.
 
 ---
 
