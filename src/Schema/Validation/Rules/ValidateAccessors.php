@@ -9,7 +9,10 @@ use SineMacula\ApiToolkit\Schema\CompiledSchema;
 use SineMacula\ApiToolkit\Schema\Validation\SchemaValidationError;
 
 /**
- * Validate that accessor paths are non-empty and non-null.
+ * Validate that a declared accessor path is not an empty string.
+ *
+ * A null accessor (none declared) and a callable accessor are both valid; only
+ * an empty-string path is a defect.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -33,15 +36,7 @@ final class ValidateAccessors implements SchemaValidationRule
 
             $field = $schema->getField($key);
 
-            if ($field === null || $field->accessor === null) {
-                continue;
-            }
-
-            if (is_callable($field->accessor)) {
-                continue;
-            }
-
-            if (!is_string($field->accessor) || $field->accessor !== '') {
+            if ($field === null || $field->accessor !== '') {
                 continue;
             }
 
