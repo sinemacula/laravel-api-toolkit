@@ -2,8 +2,6 @@
 
 declare(strict_types = 1);
 
-use Illuminate\Database\Eloquent\Casts\AsStringable;
-
 return [
 
     /*
@@ -182,10 +180,7 @@ return [
     |---------------------------------------------------------------------------
     |
     | This configuration governs the behavior of repositories acting as a layer
-    | between your application and the database, particularly in how data is
-    | prepared before being passed to the model. The `cast_map` array specifies
-    | how various Laravel casts should be handled in the repository to ensure
-    | data integrity and type safety before model-level casting is applied.
+    | between your application and the database.
     |
     | The per-query repository cache (the Cacheable trait) now lives in the
     | sinemacula/laravel-repositories package and is configured there, under
@@ -194,28 +189,6 @@ return [
     */
 
     'repositories' => [
-
-        'cast_map' => [
-            'string' => [
-                'string',
-                'date',
-                'datetime',
-                'datetime:.*',
-                'immutable_date',
-                'immutable_datetime',
-                'decimal:.*',
-                'double',
-                'encrypted',
-                'float',
-                'real',
-                'hashed',
-                AsStringable::class,
-            ],
-            'integer' => ['integer', 'int'],
-            'boolean' => ['boolean', 'bool'],
-            'array'   => ['array', 'collection', 'encrypted:array', 'encrypted:collection'],
-            'object'  => ['object', 'encrypted:object'],
-        ],
 
         // Query-access posture for filtering and sorting. 'allowlist' (the 2.0
         // default) exposes only the columns/relations a resource declares

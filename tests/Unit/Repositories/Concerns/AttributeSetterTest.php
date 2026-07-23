@@ -8,7 +8,6 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\Config;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\MockObject\Stub;
 use SineMacula\ApiToolkit\Cache\MetadataCacheWriter;
@@ -489,10 +488,6 @@ final class AttributeSetterTest extends TestCase
     {
         $model = new User;
 
-        Config::set('api-toolkit.repositories.cast_map', [
-            'enum' => [UserStatus::class],
-        ]);
-
         $this->attributeSetter->resolveAttributeCasts($model, User::class);
 
         $casts = $this->getProperty($this->attributeSetter, 'casts');
@@ -535,24 +530,6 @@ final class AttributeSetterTest extends TestCase
         $result = $this->invokeMethod($this->attributeSetter, 'resolveCastForAttribute', 'field', null, null);
 
         self::assertNull($result);
-    }
-
-    /**
-     * Test that resolveCastForAttribute resolves the native cast key from the
-     * configured cast map.
-     *
-     * @return void
-     */
-    public function testResolveCastForAttributeResolvesNativeCastFromMap(): void
-    {
-        Config::set('api-toolkit.repositories.cast_map', [
-            'boolean' => ['bool', 'boolean'],
-            'integer' => ['integer', 'int'],
-        ]);
-
-        $result = $this->invokeMethod($this->attributeSetter, 'resolveCastForAttribute', 'field', 'integer', null);
-
-        self::assertSame('integer', $result);
     }
 
     /**
@@ -669,80 +646,15 @@ final class AttributeSetterTest extends TestCase
     }
 
     /**
-     * Test that castMatchesLaravelCast returns true for an exact string match.
+     * Test that resolveCastForAttribute labels Laravel's object casts as
+     * 'object', the only cast the setter normalises before assignment.
      *
      * @return void
      */
-    public function testCastMatchesLaravelCastExactMatch(): void
+    public function testResolveCastForAttributeLabelsObjectCasts(): void
     {
-        $result = $this->invokeMethod($this->attributeSetter, 'matchesLaravelCast', 'string', 'string');
-
-        self::assertTrue($result);
-    }
-
-    /**
-     * Test that castMatchesLaravelCast returns true for a wildcard pattern
-     * match.
-     *
-     * @return void
-     */
-    public function testCastMatchesLaravelCastWildcardMatch(): void
-    {
-        $result = $this->invokeMethod($this->attributeSetter, 'matchesLaravelCast', 'decimal:2', 'decimal*');
-
-        self::assertTrue($result);
-    }
-
-    /**
-     * Test that castMatchesLaravelCast returns true when the Laravel cast is a
-     * class and the base cast matches exactly.
-     *
-     * @return void
-     */
-    public function testCastMatchesLaravelCastClassMatch(): void
-    {
-        $result = $this->invokeMethod($this->attributeSetter, 'matchesLaravelCast', UserStatus::class, UserStatus::class);
-
-        self::assertTrue($result);
-    }
-
-    /**
-     * Test that castMatchesLaravelCast matches a class-based cast that carries
-     * parameters.
-     *
-     * @return void
-     */
-    public function testCastMatchesLaravelCastClassMatchWithParameters(): void
-    {
-        $result = $this->invokeMethod($this->attributeSetter, 'matchesLaravelCast', UserStatus::class . ':foo', UserStatus::class);
-
-        self::assertTrue($result);
-    }
-
-    /**
-     * Test that castMatchesLaravelCast returns false when the Laravel cast is
-     * an existing class that does not match the base cast.
-     *
-     * @return void
-     */
-    public function testCastMatchesLaravelCastClassMismatchReturnsFalse(): void
-    {
-        $result = $this->invokeMethod($this->attributeSetter, 'matchesLaravelCast', 'string', UserStatus::class);
-
-        self::assertFalse($result);
-    }
-
-    /**
-     * Test that castMatchesLaravelCast returns false when the casts do not
-     * match.
-     *
-     * @return void
-     */
-    public function testCastMatchesLaravelCastNoMatch(): void
-    {
-        $result = $this->invokeMethod($this->attributeSetter, 'matchesLaravelCast', 'string', 'integer');
-
-        self::assertFalse($result);
+        self::assertSame('object', $this->invokeMethod($this->attributeSetter, 'resolveCastForAttribute', 'field', 'object', null));
+        self::assertSame('object', $this->invokeMethod($this->attributeSetter, 'resolveCastForAttribute', 'field', 'encrypted:object', null));
     }
 
     /**
@@ -753,26 +665,21 @@ final class AttributeSetterTest extends TestCase
      */
     public function testResolveCastForAttributeReturnsEnumForEnumClass(): void
     {
-        Config::set('api-toolkit.repositories.cast_map', []);
-
         $result = $this->invokeMethod($this->attributeSetter, 'resolveCastForAttribute', 'status', UserStatus::class, null);
 
         self::assertSame('enum', $result);
     }
 
     /**
-     * Test that resolveCastForAttribute falls back to 'string' for an
-     * unrecognized cast that is not an enum.
+     * Test that resolveCastForAttribute falls back to 'string' for any other
+     * cast that is neither an object cast nor an enum.
      *
      * @return void
      */
     public function testResolveCastForAttributeFallsBackToString(): void
     {
-        Config::set('api-toolkit.repositories.cast_map', []);
-
-        $result = $this->invokeMethod($this->attributeSetter, 'resolveCastForAttribute', 'field', 'custom_type', null);
-
-        self::assertSame('string', $result);
+        self::assertSame('string', $this->invokeMethod($this->attributeSetter, 'resolveCastForAttribute', 'field', 'custom_type', null));
+        self::assertSame('string', $this->invokeMethod($this->attributeSetter, 'resolveCastForAttribute', 'field', 'datetime', null));
     }
 
     /**

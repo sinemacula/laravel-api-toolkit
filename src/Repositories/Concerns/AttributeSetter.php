@@ -11,7 +11,6 @@ use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Illuminate\Database\Eloquent\Relations\MorphToMany;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Str;
 use SineMacula\ApiToolkit\Cache\MetadataCacheWriter;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
@@ -107,9 +106,12 @@ final class AttributeSetter
     }
 
     /**
-     * Resolve the native cast key for the given attribute by checking the
-     * configured cast map, then falling back to relation introspection or enum
-     * detection.
+     * Resolve the native cast key for the given attribute.
+     *
+     * An attribute with no cast is treated as a possible relation. A declared
+     * object cast is the only cast the setter normalises before assignment; an
+     * enum cast is labelled so, and everything else is assigned as-is and left
+     * to the model's own cast to convert.
      *
      * @param  string  $attribute
      * @param  string|null  $cast
@@ -124,17 +126,8 @@ final class AttributeSetter
             return $this->resolveCastForRelation($attribute, $model);
         }
 
-        /** @var array<string, array<int, string>> $map */
-        $map = Config::get('api-toolkit.repositories.cast_map');
-
-        foreach ($map as $nativeCast => $laravelCasts) {
-
-            foreach ($laravelCasts as $laravelCast) {
-
-                if ($this->matchesLaravelCast($cast, $laravelCast)) {
-                    return $nativeCast;
-                }
-            }
+        if ($this->isObjectCast($cast)) {
+            return 'object';
         }
 
         return enum_exists($cast) ? 'enum' : 'string';
@@ -170,29 +163,18 @@ final class AttributeSetter
     }
 
     /**
-     * Check whether a model cast matches a configured Laravel cast entry,
-     * supporting exact match, class-based match, and wildcard patterns.
+     * Determine whether the given model cast is one of Laravel's object casts.
+     *
+     * The object cast is the only cast the setter normalises before assignment
+     * - a falsy value becomes null and a truthy value is wrapped in stdClass;
+     * every other cast is assigned as-is.
      *
      * @param  string  $cast
-     * @param  string  $laravelCast
      * @return bool
      */
-    private function matchesLaravelCast(string $cast, string $laravelCast): bool
+    private function isObjectCast(string $cast): bool
     {
-        $baseCast = explode(':', $cast)[0];
-
-        if (class_exists($laravelCast) && $baseCast === $laravelCast) {
-            return true;
-        }
-
-        if (str_contains($laravelCast, '*')) {
-
-            $pattern = '/^' . str_replace('*', '.*', $laravelCast) . '$/';
-
-            return (bool) preg_match($pattern, $cast);
-        }
-
-        return $cast === $laravelCast;
+        return in_array($cast, ['object', 'encrypted:object'], true);
     }
 
     /**
