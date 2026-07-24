@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\HasOneThrough;
 use Illuminate\Database\Eloquent\Relations\MorphOne;
 use Illuminate\Database\Eloquent\Relations\Relation;
+use SineMacula\ApiToolkit\Contracts\ApiResourceInterface;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
 use SineMacula\ApiToolkit\OpenApi\Resolution\FieldTypeResolver;
@@ -24,8 +25,10 @@ use SineMacula\ApiToolkit\Schema\SchemaCompiler;
  * relations emit a single reference or an array of references according to
  * their resolved Eloquent cardinality, falling back to a conservative
  * object-or-array reference only when the relation cannot be resolved; count
- * keys are non-negative integers. Guarded fields are emitted as optional
- * (omitted from the schema's required list), and undocumented fields keep their
+ * keys are non-negative integers. Every schema leads with a required `_type`
+ * discriminator fixed to the resource's registered type, mirroring the value
+ * stamped on each runtime item. Guarded fields are emitted as optional (omitted
+ * from the schema's required list), and undocumented fields keep their
  * permissive marker while remaining schema-valid.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
@@ -106,6 +109,15 @@ final class ResourceSchemaBuilder
             // present key collides with a relation/field of the same name, the
             // richer field shape already emitted is preserved.
             $properties[$presentKey] ??= $this->buildCountProperty();
+        }
+
+        if (is_a($resourceClass, ApiResourceInterface::class, true)) {
+
+            // Every resource stamps its type discriminator on each item at
+            // runtime, so the schema leads with a constant meta key mirroring
+            // that value and always requires it.
+            $properties = ['_type' => $this->buildTypeProperty($resourceClass)] + $properties;
+            $required   = ['_type', ...$required];
         }
 
         return $this->wrapObjectSchema($properties, $required);
@@ -230,6 +242,18 @@ final class ResourceSchemaBuilder
     private function buildCountProperty(): array
     {
         return ['type' => 'integer', 'minimum' => 0];
+    }
+
+    /**
+     * Build the type-discriminator property: a string fixed to the resource's
+     * registered type, mirroring the value stamped on every runtime item.
+     *
+     * @param  class-string<\SineMacula\ApiToolkit\Contracts\ApiResourceInterface>  $resourceClass
+     * @return array<string, mixed>
+     */
+    private function buildTypeProperty(string $resourceClass): array
+    {
+        return ['type' => 'string', 'const' => $resourceClass::getResourceType()];
     }
 
     /**

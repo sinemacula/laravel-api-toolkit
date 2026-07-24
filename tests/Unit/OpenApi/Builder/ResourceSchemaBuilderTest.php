@@ -395,6 +395,56 @@ final class ResourceSchemaBuilderTest extends TestCase
     }
 
     /**
+     * Test that every resource schema leads with a `_type` discriminator fixed
+     * to the resource's registered type via a constant.
+     *
+     * @return void
+     */
+    public function testTypeDiscriminatorIsAConstantOfTheResourceType(): void
+    {
+        $schemas  = $this->makeBuilder($this->fullResourceMap())->build();
+        $property = $schemas['User']['properties']['_type'];
+
+        self::assertSame('string', $property['type']);
+        self::assertSame('users', $property['const']);
+    }
+
+    /**
+     * Test that the `_type` discriminator is listed as a required property of
+     * the resource schema.
+     *
+     * @return void
+     */
+    public function testTypeDiscriminatorIsRequired(): void
+    {
+        $schemas = $this->makeBuilder($this->fullResourceMap())->build();
+
+        self::assertContains('_type', $schemas['User']['required']);
+    }
+
+    /**
+     * Test that a resource whose class cannot be resolved as an API resource
+     * omits the `_type` discriminator rather than resolving a type from a
+     * non-existent class.
+     *
+     * @return void
+     */
+    public function testTypeDiscriminatorIsOmittedForUnresolvableResource(): void
+    {
+        $schema = new CompiledSchema([], []);
+
+        $this->setStaticProperty(SchemaCompiler::class, 'cache', ['GhostResource' => $schema]);
+
+        $catalogue = self::createStub(MetadataCatalogue::class);
+        $catalogue->method('getResourceMap')->willReturn(['GhostModel' => 'GhostResource']);
+
+        $ghost = (new ResourceSchemaBuilder($catalogue, $this->resolver(), $this->introspector()))->build()['Ghost'];
+
+        self::assertArrayNotHasKey('_type', $ghost['properties']);
+        self::assertArrayNotHasKey('required', $ghost);
+    }
+
+    /**
      * Build a ResourceSchemaBuilder backed by a stubbed catalogue returning the
      * given resource map, and a real resolver against the live test schema.
      *

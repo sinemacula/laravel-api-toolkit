@@ -213,6 +213,43 @@ final class OpenApiExporterValidityTest extends TestCase
     }
 
     /**
+     * Test that the shared response-envelope components (pagination schemas and
+     * the total-count header) are emitted and the document stays 3.1-valid.
+     *
+     * @return void
+     */
+    public function testEnvelopeComponentsArePresentAndValid(): void
+    {
+        $document   = $this->export()->document;
+        $components = $document['components'];
+
+        foreach (['PaginationMeta', 'PaginationLinks', 'CursorPaginationMeta', 'CursorPaginationLinks'] as $name) {
+            self::assertArrayHasKey($name, $components['schemas']);
+        }
+
+        self::assertArrayHasKey('Total-Count', $components['headers']);
+
+        self::assertTrue(
+            $this->validateAgainstMetaSchema($document)->isValid(),
+            'Emitted document with envelope components is not valid OpenAPI 3.1: ' . $this->formatErrors($this->validateAgainstMetaSchema($document)),
+        );
+    }
+
+    /**
+     * Test that each resource schema carries a `_type` discriminator fixed to
+     * the resource's registered type and lists it as required, end to end.
+     *
+     * @return void
+     */
+    public function testResourceSchemaCarriesTypeDiscriminator(): void
+    {
+        $user = $this->export()->document['components']['schemas']['User'];
+
+        self::assertSame(['type' => 'string', 'const' => 'users'], $user['properties']['_type']);
+        self::assertContains('_type', $user['required']);
+    }
+
+    /**
      * Test that a to-one relation property emits a concrete single reference
      * (cardinality-aware) rather than the conservative object-or-array shape.
      *

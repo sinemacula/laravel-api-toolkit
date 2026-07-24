@@ -4,6 +4,7 @@ declare(strict_types = 1);
 
 namespace SineMacula\ApiToolkit\OpenApi;
 
+use SineMacula\ApiToolkit\OpenApi\Builder\EnvelopeBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\ErrorResponseBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\QueryParameterBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\ResourceSchemaBuilder;
@@ -11,12 +12,14 @@ use SineMacula\ApiToolkit\OpenApi\Builder\ResourceSchemaBuilder;
 /**
  * Assembles the complete OpenAPI 3.1 components document.
  *
- * Composes the three builders into a single components-only document: one
- * schema per resource plus the shared Error envelope under components.schemas,
- * the shared query-parameter vocabulary under components.parameters, and one
- * response per error code under components.responses. The package emits
- * reusable components only and never declares path operations, so the document
- * carries an empty paths object that the consuming application completes.
+ * Composes the builders into a single components-only document: one schema per
+ * resource plus the shared Error envelope and the response-envelope schemas
+ * under components.schemas, the shared query-parameter vocabulary under
+ * components.parameters, one response per error code under
+ * components.responses, and the reusable total-count header under
+ * components.headers. The package emits reusable components only and never
+ * declares path operations, so the document carries an empty paths object that
+ * the consuming application completes.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -31,6 +34,9 @@ final class OpenApiAssembler
 
     /** The default document version */
     private const string INFO_VERSION = '1.0.0';
+
+    /** @var \SineMacula\ApiToolkit\OpenApi\Builder\EnvelopeBuilder */
+    private readonly EnvelopeBuilder $envelopeBuilder;
 
     /**
      * Constructor.
@@ -49,7 +55,9 @@ final class OpenApiAssembler
 
         /** The builder for shared error response definitions. */
         private readonly ErrorResponseBuilder $responseBuilder,
-    ) {}
+    ) {
+        $this->envelopeBuilder = new EnvelopeBuilder;
+    }
 
     /**
      * Assemble the full OpenAPI 3.1 components document.
@@ -90,12 +98,14 @@ final class OpenApiAssembler
             'schemas'    => $this->buildSchemas(),
             'parameters' => $this->parameterBuilder->build(),
             'responses'  => $this->responseBuilder->build(),
+            'headers'    => $this->envelopeBuilder->buildHeaders(),
         ];
     }
 
     /**
      * Build the schemas block: one schema per resource plus the shared error
-     * envelope referenced by every error response.
+     * envelope referenced by every error response and the shared
+     * response-envelope pagination schemas.
      *
      * @return array<string, array<string, mixed>>
      */
@@ -104,6 +114,7 @@ final class OpenApiAssembler
         return array_merge(
             $this->schemaBuilder->build(),
             [ErrorResponseBuilder::ENVELOPE_SCHEMA_NAME => $this->responseBuilder->buildEnvelopeSchema()],
+            $this->envelopeBuilder->buildSchemas(),
         );
     }
 }

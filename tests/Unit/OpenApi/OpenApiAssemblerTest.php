@@ -5,6 +5,7 @@ declare(strict_types = 1);
 namespace Tests\Unit\OpenApi;
 
 use PHPUnit\Framework\Attributes\CoversClass;
+use SineMacula\ApiToolkit\OpenApi\Builder\EnvelopeBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\ErrorResponseBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\QueryParameterBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\ResourceSchemaBuilder;
@@ -112,6 +113,35 @@ final class OpenApiAssemblerTest extends TestCase
         self::assertArrayHasKey('User', $schemas);
         self::assertArrayHasKey('Organization', $schemas);
         self::assertArrayHasKey(ErrorResponseBuilder::ENVELOPE_SCHEMA_NAME, $schemas);
+    }
+
+    /**
+     * Test that the shared response-envelope pagination schemas are emitted
+     * under components.schemas.
+     *
+     * @return void
+     */
+    public function testEnvelopeSchemasArePresent(): void
+    {
+        $schemas = $this->assemble()['components']['schemas'];
+
+        self::assertArrayHasKey(EnvelopeBuilder::PAGINATION_META_SCHEMA_NAME, $schemas);
+        self::assertArrayHasKey(EnvelopeBuilder::PAGINATION_LINKS_SCHEMA_NAME, $schemas);
+        self::assertArrayHasKey(EnvelopeBuilder::CURSOR_PAGINATION_META_SCHEMA_NAME, $schemas);
+        self::assertArrayHasKey(EnvelopeBuilder::CURSOR_PAGINATION_LINKS_SCHEMA_NAME, $schemas);
+    }
+
+    /**
+     * Test that the reusable total-count header is emitted under
+     * components.headers.
+     *
+     * @return void
+     */
+    public function testTotalCountHeaderIsPresent(): void
+    {
+        $headers = $this->assemble()['components']['headers'];
+
+        self::assertArrayHasKey(EnvelopeBuilder::TOTAL_COUNT_HEADER_NAME, $headers);
     }
 
     /**
