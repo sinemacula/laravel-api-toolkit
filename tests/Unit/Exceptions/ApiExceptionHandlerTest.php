@@ -774,12 +774,24 @@ final class ApiExceptionHandlerTest extends TestCase
             $data = $response->getData(true);
 
             static::assertIsArray($data);
+            static::assertArrayHasKey('error', $data);
+            static::assertArrayHasKey('meta', $data['error']);
+            static::assertArrayHasKey('trace', $data['error']['meta']);
             static::assertIsArray($data['error']['meta']['trace']);
             static::assertNotEmpty($data['error']['meta']['trace']);
 
-            foreach ($data['error']['meta']['trace'] as $frame) {
-                static::assertArrayNotHasKey('args', $frame);
-            }
+            // Assert on the whole frame set at once rather than per frame: the
+            // number of trace frames is the ambient call-stack depth, which
+            // differs between a serial run and a paratest worker, so a
+            // per-frame loop makes the assertion count runner-dependent (and
+            // the test non-deterministic). A single set assertion proves no
+            // rendered frame retains call arguments regardless of depth.
+            $renderedFramesWithArgs = array_filter(
+                $data['error']['meta']['trace'],
+                static fn (array $frame): bool => array_key_exists('args', $frame),
+            );
+
+            static::assertSame([], $renderedFramesWithArgs);
         } finally {
             if ($original !== false) {
                 ini_set('zend.exception_ignore_args', $original);
