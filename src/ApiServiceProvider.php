@@ -14,6 +14,7 @@ use SineMacula\ApiToolkit\Providers\Registrars\ContainerBindingRegistrar;
 use SineMacula\ApiToolkit\Providers\Registrars\LifecycleRegistrar;
 use SineMacula\ApiToolkit\Providers\Registrars\LoggingRegistrar;
 use SineMacula\ApiToolkit\Providers\Registrars\MiddlewareRegistrar;
+use SineMacula\ApiToolkit\Providers\Registrars\RouteMacroRegistrar;
 use SineMacula\ApiToolkit\Schema\Validation\SchemaValidator;
 
 /**
@@ -45,6 +46,7 @@ final class ApiServiceProvider extends ServiceProvider
         (new MiddlewareRegistrar($this->app))->register();
         (new LoggingRegistrar)->register();
         (new LifecycleRegistrar)->register();
+        (new RouteMacroRegistrar)->register();
     }
 
     /**

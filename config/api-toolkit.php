@@ -148,6 +148,24 @@ return [
 
         'output' => env('API_OPENAPI_OUTPUT', base_path('openapi.json')),
 
+        // The audiences the exporter can produce a document for. One codebase
+        // yields multiple documents, each tailored to who it is for (e.g.
+        // 'public', 'internal', 'partner'). An audience is keyed by name and
+        // may declare a 'posture' controlling how routes join it.
+        //
+        // A 'blocklist' posture (the default when 'posture' is omitted)
+        // documents every route except those explicitly excluded with
+        // #[NotDocumentedIn] or #[Undocumented] (or the matching route macros).
+        // An 'allowlist' posture documents nothing until a route opts in with
+        // #[DocumentedIn] or ->documentedIn().
+        //
+        // The shipped zero-config 'public' audience is a blocklist with no
+        // exclusions, so it documents everything. Routes marked #[Undocumented]
+        // appear in no audience at all.
+        'audiences' => [
+            'public' => [],
+        ],
+
     ],
 
     /*
