@@ -58,15 +58,13 @@ final class Count extends BaseDefinition
 
         return [
             $key => array_filter([
-                'key'          => $present,
-                'metric'       => 'count',
-                'relation'     => $this->name,
-                'constraint'   => $this->constraint,
-                'default'      => $this->isDefault ? true : null,
-                'extras'       => $this->extras ?: null,
-                'guards'       => $this->getGuards() ?: null,
-                'transformers' => $this->getTransformers() ?: null,
-                'openapi'      => $this->getOpenApiDeclaration()?->toSchema(),
+                'key'        => $present,
+                'metric'     => 'count',
+                'relation'   => $this->name,
+                'constraint' => $this->constraint,
+                'default'    => $this->isDefault ? true : null,
+                'extras'     => $this->extras ?: null,
+                ...$this->commonAttributes(),
             ], static fn ($value) => $value !== null),
         ];
     }

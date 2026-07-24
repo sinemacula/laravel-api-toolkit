@@ -67,16 +67,14 @@ abstract class AggregateDefinition extends BaseDefinition
 
         return [
             $key => array_filter([
-                'key'          => $present,
-                'metric'       => static::metric(),
-                'relation'     => $this->relation,
-                'column'       => $this->column,
-                'constraint'   => $this->constraint,
-                'default'      => $this->isDefault ? true : null,
-                'extras'       => $this->extras ?: null,
-                'guards'       => $this->getGuards() ?: null,
-                'transformers' => $this->getTransformers() ?: null,
-                'openapi'      => $this->getOpenApiDeclaration()?->toSchema(),
+                'key'        => $present,
+                'metric'     => static::metric(),
+                'relation'   => $this->relation,
+                'column'     => $this->column,
+                'constraint' => $this->constraint,
+                'default'    => $this->isDefault ? true : null,
+                'extras'     => $this->extras ?: null,
+                ...$this->commonAttributes(),
             ], static fn ($value) => $value !== null),
         ];
     }

@@ -139,17 +139,15 @@ final class Relation extends BaseDefinition
 
         return [
             $key => array_filter([
-                'relation'     => $this->name,
-                'traversable'  => $this->traversable ? $this->name : null,
-                'resource'     => $this->resource,
-                'accessor'     => $this->accessor,
-                'extras'       => $this->extras ?: null,
-                'needs'        => $this->needs ?: null,
-                'fields'       => $this->fields,
-                'constraint'   => $this->constraint,
-                'guards'       => $this->getGuards() ?: null,
-                'transformers' => $this->getTransformers() ?: null,
-                'openapi'      => $this->getOpenApiDeclaration()?->toSchema(),
+                'relation'    => $this->name,
+                'traversable' => $this->traversable ? $this->name : null,
+                'resource'    => $this->resource,
+                'accessor'    => $this->accessor,
+                'extras'      => $this->extras ?: null,
+                'needs'       => $this->needs ?: null,
+                'fields'      => $this->fields,
+                'constraint'  => $this->constraint,
+                ...$this->commonAttributes(),
             ], static fn ($value) => $value !== null),
         ];
     }
