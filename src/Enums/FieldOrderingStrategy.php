@@ -10,11 +10,11 @@ namespace SineMacula\ApiToolkit\Enums;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-enum FieldOrderingStrategy: string
+enum FieldOrderingStrategy
 {
     /** "_type" first, "id" second, others alphabetised, timestamps last. */
-    case DEFAULT = 'default';
+    case DEFAULT;
 
     /** Order resolved fields in the order they were requested. */
-    case BY_REQUESTED_FIELDS = 'by_requested_fields';
+    case BY_REQUESTED_FIELDS;
 }
