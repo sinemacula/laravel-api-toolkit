@@ -139,8 +139,10 @@ final class ExportOpenApiComponentsTest extends TestCase
 
         assert($this->app !== null);
 
+        $introspector = $this->app->make(SchemaIntrospector::class);
+
         $assembler = new OpenApiAssembler(
-            new ResourceSchemaBuilder($catalogue, new FieldTypeResolver($this->app->make(SchemaIntrospector::class), new ColumnTypeMapper)),
+            new ResourceSchemaBuilder($catalogue, new FieldTypeResolver($introspector, new ColumnTypeMapper), $introspector),
             new QueryParameterBuilder($catalogue),
             new ErrorResponseBuilder($catalogue),
         );

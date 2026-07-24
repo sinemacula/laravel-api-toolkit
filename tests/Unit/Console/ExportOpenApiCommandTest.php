@@ -204,6 +204,49 @@ final class ExportOpenApiCommandTest extends TestCase
     }
 
     /**
+     * Test that the command prints the no-database notice and still exports
+     * successfully when no database connection can be established.
+     *
+     * @return void
+     */
+    public function testCommandPrintsNoticeAndExportsWhenNoDatabaseConnection(): void
+    {
+        $this->registerResourceMap();
+
+        // Point the default connection at an unconfigured name so the PDO probe
+        // fails, then restore it before teardown so the transactional refresh
+        // can roll back the real connection.
+        $this->getConfig()->set('database.default', 'nonexistent');
+
+        $notice = 'No database connection - field types and nullability are inferred from declared casts only; run against a database for the most accurate output.';
+
+        try {
+            $this->runCommand(['--output' => $this->outputPath])
+                ->expectsOutputToContain($notice)
+                ->assertExitCode(0);
+        } finally {
+            $this->getConfig()->set('database.default', 'testing');
+        }
+
+        self::assertFileExists($this->outputPath);
+    }
+
+    /**
+     * Test that the command does not print the no-database notice when a live
+     * connection is available.
+     *
+     * @return void
+     */
+    public function testCommandDoesNotPrintNoticeWhenDatabaseConnectionIsAvailable(): void
+    {
+        $this->registerResourceMap();
+
+        $this->runCommand(['--output' => $this->outputPath])
+            ->doesntExpectOutputToContain('No database connection')
+            ->assertExitCode(0);
+    }
+
+    /**
      * Run the export command, returning the pending command for assertions.
      *
      * @param  array<string, mixed>  $arguments

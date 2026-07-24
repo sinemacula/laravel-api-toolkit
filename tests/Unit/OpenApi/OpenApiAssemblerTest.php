@@ -176,8 +176,10 @@ final class OpenApiAssemblerTest extends TestCase
     {
         $catalogue = $this->makeCatalogue();
 
+        assert($this->app !== null);
+
         return new OpenApiAssembler(
-            new ResourceSchemaBuilder($catalogue, $this->resolver()),
+            new ResourceSchemaBuilder($catalogue, $this->resolver(), $this->app->make(SchemaIntrospector::class)),
             new QueryParameterBuilder($catalogue),
             new ErrorResponseBuilder($catalogue),
         );

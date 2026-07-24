@@ -6,6 +6,7 @@ namespace SineMacula\ApiToolkit\Console;
 
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Config;
+use Illuminate\Support\Facades\DB;
 use SineMacula\ApiToolkit\OpenApi\Contracts\DocumentWriter;
 use SineMacula\ApiToolkit\OpenApi\ExportOpenApiComponents;
 
@@ -23,6 +24,10 @@ use SineMacula\ApiToolkit\OpenApi\ExportOpenApiComponents;
  */
 final class ExportOpenApiCommand extends Command
 {
+    /** @var string The notice printed when the export runs without a database. */
+    private const string NO_DATABASE_NOTICE = 'No database connection - field types and nullability are inferred'
+        . ' from declared casts only; run against a database for the most accurate output.';
+
     /** @var string The console command signature. */
     protected $signature = 'api-toolkit:export-openapi {--output= : The path to write the OpenAPI document to}';
 
@@ -38,6 +43,10 @@ final class ExportOpenApiCommand extends Command
      */
     public function handle(ExportOpenApiComponents $exporter, DocumentWriter $writer): int
     {
+        if (!$this->hasDatabaseConnection()) {
+            $this->warn(self::NO_DATABASE_NOTICE);
+        }
+
         $result = $exporter->export();
 
         if ($result->resourceCount === 0) {
@@ -60,6 +69,26 @@ final class ExportOpenApiCommand extends Command
         ));
 
         return self::SUCCESS;
+    }
+
+    /**
+     * Determine whether a live database connection is available.
+     *
+     * Column type and nullability inference is the only part of the export that
+     * needs a connection; when none can be established the export still runs
+     * against declared casts alone.
+     *
+     * @return bool
+     */
+    private function hasDatabaseConnection(): bool
+    {
+        try {
+            DB::connection()->getPdo();
+
+            return true;
+        } catch (\Throwable) {
+            return false;
+        }
     }
 
     /**

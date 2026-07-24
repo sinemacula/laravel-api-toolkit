@@ -213,19 +213,17 @@ final class OpenApiExporterValidityTest extends TestCase
     }
 
     /**
-     * Test that a relation property emits the conservative object-or-array
-     * reference shape rather than a concrete single shape.
+     * Test that a to-one relation property emits a concrete single reference
+     * (cardinality-aware) rather than the conservative object-or-array shape.
      *
      * @return void
      */
-    public function testRelationEmitsConservativeReferenceShape(): void
+    public function testToOneRelationEmitsSingleReference(): void
     {
         $document     = $this->export()->document;
         $organization = $document['components']['schemas']['User']['properties']['organization'];
 
-        self::assertArrayHasKey('oneOf', $organization);
-        self::assertSame('unknown', $organization['x-cardinality']);
-        self::assertSame(['$ref' => '#/components/schemas/Organization'], $organization['oneOf'][0]);
+        self::assertSame(['$ref' => '#/components/schemas/Organization'], $organization);
     }
 
     /**

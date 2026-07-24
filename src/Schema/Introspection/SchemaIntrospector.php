@@ -78,13 +78,17 @@ final class SchemaIntrospector implements SchemaIntrospectionProvider
             return $cached;
         }
 
-        $columns = Schema::getColumnListing($model->getTable());
+        try {
+            $columns = Schema::getColumnListing($model->getTable());
 
-        $this->metadataCacheWriter->rememberMetadataForever($cacheKey, fn () => $columns);
+            $this->metadataCacheWriter->rememberMetadataForever($cacheKey, fn () => $columns);
+        } catch (\Throwable) {
 
-        $this->columns[$model::class] = $columns;
+            // No live connection: degrade to an empty listing, uncached.
+            $columns = [];
+        }
 
-        return $columns;
+        return $this->columns[$model::class] = $columns;
     }
 
     /**
@@ -114,13 +118,17 @@ final class SchemaIntrospector implements SchemaIntrospectionProvider
             return $cached;
         }
 
-        $definitions = $this->mapColumnDefinitions(Schema::getColumns($model->getTable()));
+        try {
+            $definitions = $this->mapColumnDefinitions(Schema::getColumns($model->getTable()));
 
-        $this->metadataCacheWriter->rememberMetadataForever($cacheKey, fn () => $definitions);
+            $this->metadataCacheWriter->rememberMetadataForever($cacheKey, fn () => $definitions);
+        } catch (\Throwable) {
 
-        $this->columnDefinitions[$model::class] = $definitions;
+            // No live connection: degrade to an empty set, uncached.
+            $definitions = [];
+        }
 
-        return $definitions;
+        return $this->columnDefinitions[$model::class] = $definitions;
     }
 
     /**

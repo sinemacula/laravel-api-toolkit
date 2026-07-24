@@ -1248,6 +1248,106 @@ final class SchemaIntrospectorTest extends TestCase
     }
 
     /**
+     * Test that getColumns degrades to an empty listing when the schema lookup
+     * fails, as happens when no database connection is available, rather than
+     * letting the failure propagate.
+     *
+     * @return void
+     */
+    public function testGetColumnsDegradesToEmptyWhenConnectionUnavailable(): void
+    {
+        Cache::memo()->flush(); // @phpstan-ignore method.notFound
+
+        Schema::shouldReceive('getColumnListing')
+            ->once()
+            ->andThrow(new \RuntimeException('No database connection'));
+
+        $model = new class extends Model {
+            /** @var string|null */
+            protected $table = 'widgets';
+        };
+
+        self::assertSame([], ($this->makeIntrospector())->getColumns($model));
+    }
+
+    /**
+     * Test that a failed getColumns lookup does not write the empty result to
+     * the persistent cache, so a later run with a live connection is able to
+     * resolve the real columns.
+     *
+     * @return void
+     */
+    public function testGetColumnsDoesNotCacheEmptyResultOnFailure(): void
+    {
+        Cache::memo()->flush(); // @phpstan-ignore method.notFound
+
+        Schema::shouldReceive('getColumnListing')
+            ->once()
+            ->andThrow(new \RuntimeException('No database connection'));
+
+        $model = new class extends Model {
+            /** @var string|null */
+            protected $table = 'widgets';
+        };
+
+        ($this->makeIntrospector())->getColumns($model);
+
+        $key = CacheKeys::MODEL_SCHEMA_COLUMNS->resolveKey([$model::class]);
+
+        self::assertNull(Cache::memo()->get($key));
+    }
+
+    /**
+     * Test that getColumnDefinitions degrades to an empty set when the schema
+     * lookup fails, as happens when no database connection is available, rather
+     * than letting the failure propagate.
+     *
+     * @return void
+     */
+    public function testGetColumnDefinitionsDegradesToEmptyWhenConnectionUnavailable(): void
+    {
+        Cache::memo()->flush(); // @phpstan-ignore method.notFound
+
+        Schema::shouldReceive('getColumns')
+            ->once()
+            ->andThrow(new \RuntimeException('No database connection'));
+
+        $model = new class extends Model {
+            /** @var string|null */
+            protected $table = 'widgets';
+        };
+
+        self::assertSame([], ($this->makeIntrospector())->getColumnDefinitions($model));
+    }
+
+    /**
+     * Test that a failed getColumnDefinitions lookup does not write the empty
+     * result to the persistent cache, so a later run with a live connection is
+     * able to resolve the real definitions.
+     *
+     * @return void
+     */
+    public function testGetColumnDefinitionsDoesNotCacheEmptyResultOnFailure(): void
+    {
+        Cache::memo()->flush(); // @phpstan-ignore method.notFound
+
+        Schema::shouldReceive('getColumns')
+            ->once()
+            ->andThrow(new \RuntimeException('No database connection'));
+
+        $model = new class extends Model {
+            /** @var string|null */
+            protected $table = 'widgets';
+        };
+
+        ($this->makeIntrospector())->getColumnDefinitions($model);
+
+        $key = CacheKeys::MODEL_SCHEMA_COLUMN_DEFINITIONS->resolveKey([$model::class]);
+
+        self::assertNull(Cache::memo()->get($key));
+    }
+
+    /**
      * Resolve a schema introspector with its dependencies wired from the
      * container.
      *

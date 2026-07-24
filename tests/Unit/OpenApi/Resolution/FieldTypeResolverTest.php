@@ -359,6 +359,38 @@ final class FieldTypeResolverTest extends TestCase
     }
 
     /**
+     * Test that a scalar field degrades to its declared cast when no column
+     * definition is available, mirroring an export run without a database.
+     *
+     * @return void
+     */
+    public function testInfersFromCastWhenColumnAbsent(): void
+    {
+        $resolver = $this->makeResolver([]);
+
+        $schema = $resolver->resolve('published', $this->field(), Post::class);
+
+        self::assertSame('boolean', $schema->type);
+        self::assertFalse($schema->undocumented);
+    }
+
+    /**
+     * Test that a scalar field with neither a column definition nor a mappable
+     * cast is flagged undocumented rather than failing, when no database is
+     * available.
+     *
+     * @return void
+     */
+    public function testFlaggedWhenColumnAbsentAndNoCast(): void
+    {
+        $resolver = $this->makeResolver([]);
+
+        $schema = $resolver->resolve('title', $this->field(), Post::class);
+
+        $this->assertFlagged($schema);
+    }
+
+    /**
      * Build a resolver whose introspector returns the given column definitions
      * for any model.
      *

@@ -5,6 +5,7 @@ declare(strict_types = 1);
 namespace SineMacula\ApiToolkit\OpenApi\Metadata;
 
 use Illuminate\Support\Facades\Config;
+use SineMacula\ApiToolkit\Http\Resources\ResourceDiscovery;
 use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterApplier;
 use SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry;
@@ -26,6 +27,7 @@ final class ConfigMetadataCatalogue implements MetadataCatalogue
      *
      * @param  \SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry  $registry
      * @param  \SineMacula\ApiToolkit\OpenApi\Metadata\ErrorCatalogueReader  $errorReader
+     * @param  \SineMacula\ApiToolkit\Http\Resources\ResourceDiscovery  $discovery
      */
     public function __construct(
 
@@ -34,24 +36,32 @@ final class ConfigMetadataCatalogue implements MetadataCatalogue
 
         /** Reader that resolves the error catalogue metadata */
         private readonly ErrorCatalogueReader $errorReader,
+
+        /** Discovery of attribute-bound resources outside the config map */
+        private readonly ResourceDiscovery $discovery,
     ) {}
 
     /**
-     * Return the registered resource map (model class → resource class).
+     * Return the full resource map (model class → resource class).
+     *
+     * Unions the explicitly configured resource map with the resources found by
+     * attribute discovery, resolved at call time. Configured entries keep their
+     * existing order and always win on a model collision, so the static map
+     * stays the canonical tiebreak; discovered bindings for models absent from
+     * the config are appended. Discovery is resolved directly rather than read
+     * from the merged config because the boot-time merge is skipped under a
+     * cached config, so the full set is returned regardless of cache state.
      *
      * @return array<class-string, class-string>
      */
     #[\Override]
     public function getResourceMap(): array
     {
-        $resourceMap = Config::get('api-toolkit.resources.resource_map');
+        $configured = Config::get('api-toolkit.resources.resource_map');
+        $configured = is_array($configured) ? $configured : [];
 
-        if (!is_array($resourceMap)) {
-            return [];
-        }
-
-        /** @var array<class-string, class-string> $resourceMap */
-        return $resourceMap;
+        /** @var array<class-string, class-string> $configured */
+        return $configured + $this->discovery->discover();
     }
 
     /**

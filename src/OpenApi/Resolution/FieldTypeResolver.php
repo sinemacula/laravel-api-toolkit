@@ -83,7 +83,12 @@ final class FieldTypeResolver
 
     /**
      * Infer a plain scalar field's schema from its backing column and model
-     * cast, or flag it undocumented when no matching column exists.
+     * cast.
+     *
+     * When no database connection is available the column definition is absent,
+     * so inference degrades to the declared cast alone; a field with neither a
+     * matching column nor a mappable cast is flagged undocumented rather than
+     * guessed, and the path never fails.
      *
      * @param  string  $fieldKey
      * @param  class-string<\Illuminate\Database\Eloquent\Model>  $modelClass
@@ -93,12 +98,13 @@ final class FieldTypeResolver
     {
         $model  = new $modelClass;
         $column = $this->introspector->getColumnDefinitions($model)[$fieldKey] ?? null;
+        $cast   = $this->resolveCast($model, $fieldKey);
 
-        if ($column === null) {
+        if ($column === null && $cast === null) {
             return OpenApiFieldSchema::undocumented();
         }
 
-        return $this->mapper->map($column, $this->resolveCast($model, $fieldKey));
+        return $this->mapper->map($column, $cast);
     }
 
     /**
