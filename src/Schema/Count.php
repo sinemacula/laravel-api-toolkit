@@ -4,6 +4,8 @@ declare(strict_types = 1);
 
 namespace SineMacula\ApiToolkit\Schema;
 
+use SineMacula\ApiToolkit\Schema\Concerns\HasMetricModifiers;
+
 /**
  * Count schema helper for metric definitions.
  *
@@ -12,11 +14,7 @@ namespace SineMacula\ApiToolkit\Schema;
  */
 final class Count extends BaseDefinition
 {
-    /** @var (\Closure(\Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>): void)|null Optional eager-load constraint for this count */
-    private ?\Closure $constraint = null;
-
-    /** @var bool Whether this count should be included by default when metrics are requested */
-    private bool $isDefault = false;
+    use HasMetricModifiers;
 
     /**
      * Prevent direct instantiation.
@@ -29,9 +27,11 @@ final class Count extends BaseDefinition
         /** Canonical metric key (typically a relation alias) */
         private readonly string $name,
 
-        /** Optional alias to expose this metric under */
-        private ?string $alias = null,
-    ) {}
+        // Optional alias to expose this metric under
+        ?string $alias = null,
+    ) {
+        $this->alias = $alias;
+    }
 
     /**
      * Define a count metric by key.
@@ -43,45 +43,6 @@ final class Count extends BaseDefinition
     public static function of(string $key, ?string $alias = null): self
     {
         return new self($key, $alias);
-    }
-
-    /**
-     * Set or change the alias for this metric.
-     *
-     * @param  string  $alias
-     * @return self
-     */
-    public function as(string $alias): self
-    {
-        $this->alias = $alias;
-
-        return $this;
-    }
-
-    /**
-     * Apply an optional query constraint to this count.
-     *
-     * @param  \Closure(\Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>): void  $constraint
-     * @return self
-     */
-    public function constrain(\Closure $constraint): self
-    {
-        $this->constraint = $constraint;
-
-        return $this;
-    }
-
-    /**
-     * Mark this count as a default metric when metrics are requested without
-     * explicit count selections.
-     *
-     * @return self
-     */
-    public function default(): self
-    {
-        $this->isDefault = true;
-
-        return $this;
     }
 
     /**
