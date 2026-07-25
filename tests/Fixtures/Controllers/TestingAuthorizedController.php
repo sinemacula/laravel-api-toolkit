@@ -5,32 +5,40 @@ declare(strict_types = 1);
 namespace Tests\Fixtures\Controllers;
 
 use Illuminate\Http\JsonResponse;
+use SineMacula\ApiToolkit\Http\Routing\Attributes\AuthorizesResource;
 use SineMacula\ApiToolkit\Http\Routing\AuthorizedController;
 use Tests\Fixtures\Models\User;
 
 /**
  * Fixture authorized controller for testing authorization.
  *
+ * The parameter is declared mixed-case to assert the lowercase normalisation.
+ *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
+#[AuthorizesResource(User::class, parameter: 'User', except: ['index', 'show'])]
 final class TestingAuthorizedController extends AuthorizedController
 {
-    /** @var string */
-    public const string RESOURCE_MODEL = User::class;
-
-    /** @var string Deliberately mixed-case to assert the lowercase normalisation. */
-    public const string ROUTE_PARAMETER = 'User';
-
-    /** @var array<int, string> */
-    public const array GUARD_EXCLUSIONS = ['index', 'show'];
-
     /**
      * List users. Excluded from the authorization guard.
      *
      * @return \Illuminate\Http\JsonResponse
      */
     public function index(): JsonResponse
+    {
+        return new JsonResponse(['data' => []]);
+    }
+
+    /**
+     * Show a user. Excluded from the authorization guard.
+     *
+     * @param  \Tests\Fixtures\Models\User  $user
+     * @return \Illuminate\Http\JsonResponse
+     *
+     * @SuppressWarnings("php:S1172")
+     */
+    public function show(User $user): JsonResponse
     {
         return new JsonResponse(['data' => []]);
     }
@@ -43,5 +51,31 @@ final class TestingAuthorizedController extends AuthorizedController
     public function store(): JsonResponse
     {
         return new JsonResponse(['data' => []], 201);
+    }
+
+    /**
+     * Update a user. Guarded by the update ability.
+     *
+     * @param  \Tests\Fixtures\Models\User  $user
+     * @return \Illuminate\Http\JsonResponse
+     *
+     * @SuppressWarnings("php:S1172")
+     */
+    public function update(User $user): JsonResponse
+    {
+        return new JsonResponse(['data' => []]);
+    }
+
+    /**
+     * Delete a user. Guarded by the delete ability.
+     *
+     * @param  \Tests\Fixtures\Models\User  $user
+     * @return \Illuminate\Http\JsonResponse
+     *
+     * @SuppressWarnings("php:S1172")
+     */
+    public function destroy(User $user): JsonResponse
+    {
+        return new JsonResponse(['data' => []]);
     }
 }

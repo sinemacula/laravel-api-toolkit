@@ -4,6 +4,7 @@ declare(strict_types = 1);
 
 namespace Tests\Feature\Routing;
 
+use Illuminate\Routing\Middleware\SubstituteBindings;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Route;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -22,7 +23,8 @@ use Tests\TestCase;
  * Dispatches real requests to an authorized controller backed by a policy: an
  * action outside the guard exclusions is gated by its ability and, when denied,
  * renders the toolkit forbidden envelope, while an excluded action bypasses the
- * guard entirely.
+ * guard entirely. Model-bound actions resolve the route binding and authorize
+ * the resolved instance, proving the parameter-based gate end to end.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -49,7 +51,8 @@ final class AuthorizationTest extends TestCase
 
         Gate::policy(User::class, UserPolicy::class);
 
-        Route::apiResource('users', TestingAuthorizedController::class)->only(['index', 'store']);
+        Route::apiResource('users', TestingAuthorizedController::class)
+            ->middleware(SubstituteBindings::class);
     }
 
     /**
@@ -80,5 +83,36 @@ final class AuthorizationTest extends TestCase
         $response->assertStatus(403);
         $response->assertJsonPath('error.status', 403);
         $response->assertJsonPath('error.code', 10102);
+    }
+
+    /**
+     * Test that a denied model-bound ability renders the forbidden envelope.
+     *
+     * @return void
+     */
+    public function testDeniedModelBoundAbilityRendersForbiddenEnvelope(): void
+    {
+        $actor = ActorUser::create(['name' => 'Alice', 'email' => 'alice@example.com']);
+        $user  = User::create(['name' => 'Bob', 'email' => 'bob@example.com']);
+
+        $response = $this->actingAs($actor)->putJson('/users/' . $user->id, []);
+
+        $response->assertStatus(403);
+        $response->assertJsonPath('error.status', 403);
+    }
+
+    /**
+     * Test that an allowed model-bound ability passes through to the action.
+     *
+     * @return void
+     */
+    public function testAllowedModelBoundAbilityPasses(): void
+    {
+        $actor = ActorUser::create(['name' => 'Alice', 'email' => 'alice@example.com']);
+        $user  = User::create(['name' => 'Bob', 'email' => 'bob@example.com']);
+
+        $response = $this->actingAs($actor)->deleteJson('/users/' . $user->id);
+
+        $response->assertOk();
     }
 }

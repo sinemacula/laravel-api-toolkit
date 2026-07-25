@@ -4,6 +4,7 @@ declare(strict_types = 1);
 
 namespace Tests\Fixtures\OpenApi;
 
+use SineMacula\ApiToolkit\Http\Routing\Attributes\AuthorizesResource;
 use SineMacula\ApiToolkit\Http\Routing\AuthorizedController;
 use Tests\Fixtures\Models\Post;
 
@@ -16,11 +17,9 @@ use Tests\Fixtures\Models\Post;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
+#[AuthorizesResource(Post::class)]
 final class PathUnmappedController extends AuthorizedController
 {
-    /** @var string */
-    public const string RESOURCE_MODEL = Post::class;
-
     /**
      * List the resources.
      *

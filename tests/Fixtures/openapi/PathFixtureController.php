@@ -6,6 +6,7 @@ namespace Tests\Fixtures\OpenApi;
 
 use SineMacula\ApiToolkit\Exceptions\ConflictException;
 use SineMacula\ApiToolkit\Exceptions\NotFoundException;
+use SineMacula\ApiToolkit\Http\Routing\Attributes\AuthorizesResource;
 use SineMacula\ApiToolkit\Http\Routing\AuthorizedController;
 use Tests\Fixtures\Models\User;
 
@@ -19,11 +20,9 @@ use Tests\Fixtures\Models\User;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
+#[AuthorizesResource(User::class)]
 final class PathFixtureController extends AuthorizedController
 {
-    /** @var string */
-    public const string RESOURCE_MODEL = User::class;
-
     /**
      * List the resources.
      *

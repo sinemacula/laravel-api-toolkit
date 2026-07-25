@@ -4,6 +4,7 @@ declare(strict_types = 1);
 
 namespace Tests\Fixtures\OpenApi;
 
+use SineMacula\ApiToolkit\Http\Routing\Attributes\AuthorizesResource;
 use SineMacula\ApiToolkit\Http\Routing\AuthorizedController;
 use Tests\Fixtures\Models\Organization;
 
@@ -17,11 +18,9 @@ use Tests\Fixtures\Models\Organization;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
+#[AuthorizesResource(Organization::class)]
 final class PathOrganizationController extends AuthorizedController
 {
-    /** @var string */
-    public const string RESOURCE_MODEL = Organization::class;
-
     /**
      * List the resources.
      *
