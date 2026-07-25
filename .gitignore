@@ -8,3 +8,13 @@
 .DS_Store
 clover.xml
 composer.lock
+
+# Root-level shadows of the shared qlty configs (the canonical copies live in
+# .qlty/configs/); tooling may materialise these at the repo root - ignore them
+# so they are never committed and never shadow the real configs.
+/phpcs.xml
+/phpstan.neon
+/.php-cs-fixer.dist.php
+/.editorconfig-checker.json
+/.markdownlint.json
+/.yamllint.yaml

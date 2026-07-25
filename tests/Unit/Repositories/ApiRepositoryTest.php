@@ -168,6 +168,8 @@ final class ApiRepositoryTest extends TestCase
      * than being shadowed by a private base implementation.
      *
      * @return void
+     *
+     * @throws \SineMacula\Repositories\Exceptions\RepositoryException
      */
     public function testResourceResolutionUsesSubclassMetadataCacheWriterOverride(): void
     {
@@ -200,6 +202,8 @@ final class ApiRepositoryTest extends TestCase
      * Test that paginate returns paginated results using standard pagination.
      *
      * @return void
+     *
+     * @throws \SineMacula\Repositories\Exceptions\RepositoryException
      */
     public function testPaginateReturnsPaginatedResults(): void
     {
@@ -217,6 +221,8 @@ final class ApiRepositoryTest extends TestCase
      * Test that paginate uses cursor pagination when requested.
      *
      * @return void
+     *
+     * @throws \SineMacula\Repositories\Exceptions\RepositoryException
      */
     public function testPaginateUsesCursorPaginationWhenRequested(): void
     {
@@ -434,6 +440,8 @@ final class ApiRepositoryTest extends TestCase
      * Test that paginate applies registered criteria to the query.
      *
      * @return void
+     *
+     * @throws \SineMacula\Repositories\Exceptions\RepositoryException
      */
     public function testPaginateAppliesCriteria(): void
     {
@@ -456,6 +464,8 @@ final class ApiRepositoryTest extends TestCase
      * Test that paginate applies registered scopes to the query.
      *
      * @return void
+     *
+     * @throws \SineMacula\Repositories\Exceptions\RepositoryException
      */
     public function testPaginateAppliesScopes(): void
     {
@@ -479,6 +489,8 @@ final class ApiRepositoryTest extends TestCase
      * pagination URLs.
      *
      * @return void
+     *
+     * @throws \SineMacula\Repositories\Exceptions\RepositoryException
      */
     public function testPaginateAppendsRequestQueryToPaginationUrls(): void
     {
