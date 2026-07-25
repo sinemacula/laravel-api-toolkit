@@ -153,6 +153,13 @@ return [
         // declared below; defaults to the shipped 'public' audience.
         'default_audience' => env('API_OPENAPI_DEFAULT_AUDIENCE', 'public'),
 
+        // The default OpenAPI info block, applied to every audience that does
+        // not override a given key. Any key set here (e.g. title, version, an
+        // optional description) becomes the fallback for all audiences; title
+        // and version fall back to shipped hard defaults when omitted here too.
+        // Empty by default.
+        'info' => [],
+
         // The audiences the exporter can produce a document for. One codebase
         // yields multiple documents, each tailored to who it is for (e.g.
         // 'public', 'internal', 'partner'). An audience is keyed by name and
@@ -163,6 +170,10 @@ return [
         // #[NotDocumentedIn] or #[Undocumented] (or the matching route macros).
         // An 'allowlist' posture documents nothing until a route opts in with
         // #[DocumentedIn] or ->documentedIn().
+        //
+        // An audience may also carry an 'info' block that overrides the
+        // top-level 'info' defaults above, per key, for that audience's
+        // document, e.g. a distinct title or description for the internal one.
         //
         // The shipped zero-config 'public' audience is a blocklist with no
         // exclusions, so it documents everything. Routes marked #[Undocumented]

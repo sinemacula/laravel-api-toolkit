@@ -6,6 +6,7 @@ namespace SineMacula\ApiToolkit\OpenApi\Builder;
 
 use Illuminate\Routing\Route;
 use Illuminate\Routing\Router;
+use SineMacula\ApiToolkit\Exceptions\ApiException;
 use SineMacula\ApiToolkit\Http\Routing\AuthorizedController;
 use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
 use SineMacula\ApiToolkit\OpenApi\Naming\SchemaComponentName;
@@ -24,7 +25,10 @@ use SineMacula\ApiToolkit\OpenApi\Resolution\AudienceResolver;
  * update emit a single envelope, store emits a single envelope under 201, and
  * destroy emits an empty 204. Any other action is skipped, as are closure and
  * non-authorized routes. Each operation is tagged with the resource schema name
- * and carries a string path parameter per route segment.
+ * and carries a string path parameter per route segment. Alongside its success
+ * responses, every operation carries the error statuses that honestly apply to
+ * it - a baseline set keyed by action shape, merged with any ApiException
+ * reflected from the controller action's documented throws.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -36,6 +40,18 @@ final readonly class PathBuilder
 
     /** The path prefix under which header components are referenced */
     private const string HEADER_REF_PREFIX = '#/components/headers/';
+
+    /** The reference to the shared error-envelope schema */
+    private const string ERROR_ENVELOPE_REF = self::SCHEMA_REF_PREFIX . ErrorResponseBuilder::ENVELOPE_SCHEMA_NAME;
+
+    /** The standard reason phrase emitted for each baseline error status */
+    private const array BASELINE_PHRASES = [
+        401 => 'Unauthenticated.',
+        403 => 'Forbidden.',
+        404 => 'The requested resource does not exist.',
+        422 => 'The request payload failed validation.',
+        500 => 'An unexpected server error occurred.',
+    ];
 
     /** The media type every documented response body is served under */
     private const string MEDIA_TYPE = 'application/json';
@@ -159,11 +175,14 @@ final readonly class PathBuilder
             return null;
         }
 
-        $responses = $this->responsesForAction($route->getActionMethod(), self::SCHEMA_REF_PREFIX . $schemaName);
+        $action    = $route->getActionMethod();
+        $responses = $this->responsesForAction($action, self::SCHEMA_REF_PREFIX . $schemaName);
 
         if ($responses === null) {
             return null;
         }
+
+        $responses += $this->errorResponses($action, $route, $controllerClass);
 
         return $this->buildOperation($schemaName, $responses, $route);
     }
@@ -332,6 +351,148 @@ final readonly class PathBuilder
     {
         return [
             '204' => ['description' => 'The resource was deleted.'],
+        ];
+    }
+
+    /**
+     * Build the error responses for the action, merging the honest baseline set
+     * with any ApiException reflected from the action's documented throws.
+     *
+     * The result is keyed by numeric HTTP status. When a reflected exception's
+     * status coincides with a baseline status, the two collapse into a single
+     * response carrying the shared envelope schema plus a per-code example.
+     *
+     * @param  string  $action
+     * @param  \Illuminate\Routing\Route  $route
+     * @param  class-string<\SineMacula\ApiToolkit\Http\Routing\AuthorizedController>  $controllerClass
+     * @return array<int, array<string, mixed>>
+     */
+    private function errorResponses(string $action, Route $route, string $controllerClass): array
+    {
+        $throws    = $this->throwsErrorsFor($controllerClass, $action);
+        $responses = [];
+
+        foreach ($this->baselineErrorsFor($action, $route->parameterNames() !== []) as $status) {
+            $responses[$status] = $this->errorResponse(self::BASELINE_PHRASES[$status], $throws[$status]['examples'] ?? []);
+            unset($throws[$status]);
+        }
+
+        foreach ($throws as $status => $descriptor) {
+            $responses[$status] = $this->errorResponse($descriptor['phrase'], $descriptor['examples']);
+        }
+
+        ksort($responses);
+
+        return $responses;
+    }
+
+    /**
+     * List the baseline error statuses that honestly apply to the action.
+     *
+     * Every documented operation carries 401, 403, and 500; an operation for an
+     * existing resource (any route with path parameters) also carries 404, and
+     * an operation with a request body (store, update) also carries 422.
+     *
+     * @param  string  $action
+     * @param  bool  $hasPathParameters
+     * @return array<int, int>
+     */
+    private function baselineErrorsFor(string $action, bool $hasPathParameters): array
+    {
+        $statuses = [401, 403, 500];
+
+        if ($hasPathParameters) {
+            $statuses[] = 404;
+        }
+
+        if (in_array($action, ['store', 'update'], true)) {
+            $statuses[] = 422;
+        }
+
+        return $statuses;
+    }
+
+    /**
+     * Reflect the action's documented throws into a status-keyed map of
+     * concrete ApiException error descriptors.
+     *
+     * Each @throws tag is normalised to a class name, kept only when it
+     * resolves to an ApiException subclass, then grouped by its resolved HTTP
+     * status. The example name is the exception's short class name, and a
+     * non-baseline status derives its phrase from the status enum case name.
+     *
+     * @param  class-string<\SineMacula\ApiToolkit\Http\Routing\AuthorizedController>  $controllerClass
+     * @param  string  $action
+     * @return array<int, array{phrase: string, examples: array<string, array<string, mixed>>}>
+     */
+    private function throwsErrorsFor(string $controllerClass, string $action): array
+    {
+        try {
+            $docComment = (new \ReflectionMethod($controllerClass, $action))->getDocComment();
+        } catch (\ReflectionException) {
+            return [];
+        }
+
+        if ($docComment === false) {
+            return [];
+        }
+
+        preg_match_all('/@throws\s+([\\\\\w]+)/', $docComment, $matches);
+
+        $errors = [];
+
+        foreach ($matches[1] as $class) {
+
+            $exceptionClass = ltrim($class, '\\');
+
+            if (!is_subclass_of($exceptionClass, ApiException::class) || !defined($exceptionClass . '::HTTP_STATUS')) {
+                continue;
+            }
+
+            $status = $exceptionClass::getHttpStatusCode();
+
+            /** @var \SineMacula\Http\Enums\HttpStatus $enum */
+            $enum = constant($exceptionClass . '::HTTP_STATUS');
+
+            $errors[$status] ??= [
+                'phrase'   => self::BASELINE_PHRASES[$status] ?? ucfirst(strtolower(str_replace('_', ' ', $enum->name))) . '.',
+                'examples' => [],
+            ];
+
+            $short = substr((string) strrchr('\\' . $exceptionClass, '\\'), 1);
+            $error = ['status' => $status];
+
+            if (defined($exceptionClass . '::CODE')) {
+                /** @var \SineMacula\ApiToolkit\Contracts\ErrorCodeInterface $code */
+                $code          = constant($exceptionClass . '::CODE');
+                $error['code'] = $code->getCode();
+            }
+
+            $errors[$status]['examples'][$short] = ['value' => ['error' => $error]];
+        }
+
+        return $errors;
+    }
+
+    /**
+     * Build a single error response referencing the shared error-envelope
+     * schema, attaching a per-code examples map when concrete examples exist.
+     *
+     * @param  string  $description
+     * @param  array<string, array<string, mixed>>  $examples
+     * @return array<string, mixed>
+     */
+    private function errorResponse(string $description, array $examples): array
+    {
+        $media = ['schema' => ['$ref' => self::ERROR_ENVELOPE_REF]];
+
+        if ($examples !== []) {
+            $media['examples'] = $examples;
+        }
+
+        return [
+            'description' => $description,
+            'content'     => [self::MEDIA_TYPE => $media],
         ];
     }
 

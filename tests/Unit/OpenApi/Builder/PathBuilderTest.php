@@ -157,6 +157,165 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
+     * Test that the bodyless collection index carries only the baseline error
+     * statuses that apply to it, omitting the resource and validation statuses.
+     *
+     * @return void
+     */
+    public function testIndexCarriesCollectionBaselineErrors(): void
+    {
+        $this->registerRestRoutes();
+
+        $responses = $this->build()['/users']['get']['responses'];
+
+        foreach (['401', '403', '500'] as $status) {
+            self::assertArrayHasKey($status, $responses);
+        }
+
+        self::assertArrayNotHasKey('404', $responses);
+        self::assertArrayNotHasKey('422', $responses);
+    }
+
+    /**
+     * Test that a single-resource show carries the not-found status while a
+     * bodyless read omits the validation status.
+     *
+     * @return void
+     */
+    public function testShowCarriesResourceBaselineWithNotFound(): void
+    {
+        $this->registerRestRoutes();
+
+        $responses = $this->build()['/users/{user}']['get']['responses'];
+
+        foreach (['401', '403', '404', '500'] as $status) {
+            self::assertArrayHasKey($status, $responses);
+        }
+
+        self::assertArrayNotHasKey('422', $responses);
+    }
+
+    /**
+     * Test that a create carries the validation status yet omits not-found, as
+     * it addresses the collection rather than an existing resource.
+     *
+     * @return void
+     */
+    public function testStoreCarriesValidationBaseline(): void
+    {
+        $this->registerRestRoutes();
+
+        $responses = $this->build()['/users']['post']['responses'];
+
+        foreach (['401', '403', '422', '500'] as $status) {
+            self::assertArrayHasKey($status, $responses);
+        }
+
+        self::assertArrayNotHasKey('404', $responses);
+    }
+
+    /**
+     * Test that a destroy carries its no-content success alongside the resource
+     * baseline error statuses and omits the validation status.
+     *
+     * @return void
+     */
+    public function testDestroyCarriesBaselineErrorsAlongsideNoContent(): void
+    {
+        $this->registerRestRoutes();
+
+        $responses = $this->build()['/users/{user}']['delete']['responses'];
+
+        foreach (['204', '401', '403', '404', '500'] as $status) {
+            self::assertArrayHasKey($status, $responses);
+        }
+
+        self::assertArrayNotHasKey('422', $responses);
+    }
+
+    /**
+     * Test that a baseline-only status references the shared error-envelope
+     * schema under its standard phrase and carries no examples.
+     *
+     * @return void
+     */
+    public function testBaselineErrorReferencesSharedEnvelopeSchema(): void
+    {
+        $this->registerRestRoutes();
+
+        $response = $this->build()['/users']['get']['responses']['401'];
+
+        self::assertSame('Unauthenticated.', $response['description']);
+        self::assertSame(
+            ['$ref' => '#/components/schemas/ErrorEnvelope'],
+            $response['content']['application/json']['schema'],
+        );
+        self::assertArrayNotHasKey('examples', $response['content']['application/json']);
+    }
+
+    /**
+     * Test that a thrown ApiException whose status coincides with a baseline
+     * status collapses into one response keeping the baseline phrase and
+     * carrying the specific code as a named example.
+     *
+     * @return void
+     */
+    public function testThrownExceptionCollidesWithBaselineStatus(): void
+    {
+        $this->registerRestRoutes();
+
+        $notFound = $this->build()['/users/{user}']['get']['responses']['404'];
+
+        self::assertSame('The requested resource does not exist.', $notFound['description']);
+
+        $media = $notFound['content']['application/json'];
+
+        self::assertSame(['$ref' => '#/components/schemas/ErrorEnvelope'], $media['schema']);
+        self::assertArrayHasKey('NotFoundException', $media['examples']);
+        self::assertSame(
+            ['status' => 404, 'code' => 10103],
+            $media['examples']['NotFoundException']['value']['error'],
+        );
+    }
+
+    /**
+     * Test that a thrown ApiException whose status is not part of the baseline
+     * surfaces under its own status with a named example carrying its code.
+     *
+     * @return void
+     */
+    public function testThrownExceptionSurfacesUnderItsOwnStatus(): void
+    {
+        $this->registerRestRoutes();
+
+        $responses = $this->build()['/users']['post']['responses'];
+
+        self::assertArrayHasKey('409', $responses);
+        self::assertSame('Conflict.', $responses['409']['description']);
+        self::assertSame(
+            ['status' => 409, 'code' => 10108],
+            $responses['409']['content']['application/json']['examples']['ConflictException']['value']['error'],
+        );
+    }
+
+    /**
+     * Test that the merged responses carry exactly one entry per status, with
+     * the success and error statuses coexisting without collision.
+     *
+     * @return void
+     */
+    public function testResponsesHaveExactlyOneEntryPerStatus(): void
+    {
+        $this->registerRestRoutes();
+
+        $statuses = array_keys($this->build()['/users']['post']['responses']);
+
+        sort($statuses);
+
+        self::assertSame([201, 401, 403, 409, 422, 500], $statuses);
+    }
+
+    /**
      * Test that every operation is tagged with the resource schema name.
      *
      * @return void

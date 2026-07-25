@@ -4,6 +4,8 @@ declare(strict_types = 1);
 
 namespace Tests\Fixtures\OpenApi;
 
+use SineMacula\ApiToolkit\Exceptions\ConflictException;
+use SineMacula\ApiToolkit\Exceptions\NotFoundException;
 use SineMacula\ApiToolkit\Http\Routing\AuthorizedController;
 use Tests\Fixtures\Models\User;
 
@@ -33,15 +35,25 @@ final class PathFixtureController extends AuthorizedController
      * Show a single resource.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\NotFoundException
      */
-    public function show(): void {}
+    public function show(): void
+    {
+        throw new NotFoundException;
+    }
 
     /**
      * Create a resource.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\ConflictException
      */
-    public function store(): void {}
+    public function store(): void
+    {
+        throw new ConflictException;
+    }
 
     /**
      * Update a resource.

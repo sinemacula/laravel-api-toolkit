@@ -108,6 +108,98 @@ final class AudienceConfigurationTest extends TestCase
     }
 
     /**
+     * Test that a per-audience info block wins over the top-level default and
+     * the hard default, key by key.
+     *
+     * @return void
+     */
+    public function testInfoPrefersPerAudienceOverride(): void
+    {
+        $this->config()->set('api-toolkit.openapi.info', [
+            'title'   => 'Top Level',
+            'version' => '9.9.9',
+        ]);
+        $this->config()->set('api-toolkit.openapi.audiences', [
+            'internal' => [
+                'info' => [
+                    'title'       => 'Internal API',
+                    'description' => 'For staff only.',
+                ],
+            ],
+        ]);
+
+        self::assertSame([
+            'title'       => 'Internal API',
+            'version'     => '9.9.9',
+            'description' => 'For staff only.',
+        ], (new AudienceConfiguration)->infoFor('internal'));
+    }
+
+    /**
+     * Test that keys absent from the per-audience block fall back to the
+     * top-level info default.
+     *
+     * @return void
+     */
+    public function testInfoFallsBackToTopLevelDefault(): void
+    {
+        $this->config()->set('api-toolkit.openapi.info', [
+            'title'       => 'Acme API',
+            'version'     => '2.0.0',
+            'description' => 'Shared description.',
+        ]);
+        $this->config()->set('api-toolkit.openapi.audiences', ['public' => []]);
+
+        self::assertSame([
+            'title'       => 'Acme API',
+            'version'     => '2.0.0',
+            'description' => 'Shared description.',
+        ], (new AudienceConfiguration)->infoFor('public'));
+    }
+
+    /**
+     * Test that title and version fall back to the shipped hard defaults, and
+     * that an unset description is omitted entirely.
+     *
+     * @return void
+     */
+    public function testInfoFallsBackToHardDefaults(): void
+    {
+        $this->config()->set('api-toolkit.openapi.info', null);
+        $this->config()->set('api-toolkit.openapi.audiences', ['public' => []]);
+
+        self::assertSame([
+            'title'   => 'API Components',
+            'version' => '1.0.0',
+        ], (new AudienceConfiguration)->infoFor('public'));
+    }
+
+    /**
+     * Test that malformed info config (non-array blocks and non-string,
+     * empty-string values) is guarded and falls through to the hard defaults.
+     *
+     * @return void
+     */
+    public function testInfoGuardsMalformedConfig(): void
+    {
+        $this->config()->set('api-toolkit.openapi.info', 'not-an-array');
+        $this->config()->set('api-toolkit.openapi.audiences', [
+            'public' => [
+                'info' => [
+                    'title'       => '',
+                    'version'     => ['nested'],
+                    'description' => 42,
+                ],
+            ],
+        ]);
+
+        self::assertSame([
+            'title'   => 'API Components',
+            'version' => '1.0.0',
+        ], (new AudienceConfiguration)->infoFor('public'));
+    }
+
+    /**
      * Get the config repository instance.
      *
      * @return \Illuminate\Contracts\Config\Repository

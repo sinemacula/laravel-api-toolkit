@@ -4,6 +4,7 @@ declare(strict_types = 1);
 
 namespace Tests\Unit\OpenApi;
 
+use Illuminate\Contracts\Config\Repository as ConfigRepository;
 use Illuminate\Routing\Router;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\OpenApi\Builder\EnvelopeBuilder;
@@ -60,6 +61,53 @@ final class OpenApiAssemblerTest extends TestCase
 
         self::assertArrayHasKey('title', $document['info']);
         self::assertArrayHasKey('version', $document['info']);
+    }
+
+    /**
+     * Test that the assembled document's info block reflects the per-audience
+     * info configured for the resolved audience.
+     *
+     * @return void
+     */
+    public function testInfoReflectsPerAudienceConfiguration(): void
+    {
+        $this->config()->set('api-toolkit.openapi.default_audience', 'internal');
+        $this->config()->set('api-toolkit.openapi.audiences', [
+            'internal' => [
+                'info' => [
+                    'title'       => 'Internal API',
+                    'version'     => '3.4.5',
+                    'description' => 'For staff only.',
+                ],
+            ],
+        ]);
+
+        $info = $this->assemble()['info'];
+
+        self::assertSame('Internal API', $info['title']);
+        self::assertSame('3.4.5', $info['version']);
+        self::assertSame('For staff only.', $info['description']);
+    }
+
+    /**
+     * Test that the assembled document's info block falls back to the top-level
+     * info default when the audience declares none.
+     *
+     * @return void
+     */
+    public function testInfoFallsBackToTopLevelDefault(): void
+    {
+        $this->config()->set('api-toolkit.openapi.info', [
+            'title'   => 'Acme API',
+            'version' => '2.0.0',
+        ]);
+        $this->config()->set('api-toolkit.openapi.audiences', ['public' => []]);
+
+        $info = $this->assemble()['info'];
+
+        self::assertSame('Acme API', $info['title']);
+        self::assertSame('2.0.0', $info['version']);
+        self::assertArrayNotHasKey('description', $info);
     }
 
     /**
@@ -237,6 +285,19 @@ final class OpenApiAssemblerTest extends TestCase
         $router->get('users/{user}', [PathFixtureController::class, 'show']);
         $router->match(['PUT', 'PATCH'], 'users/{user}', [PathFixtureController::class, 'update']);
         $router->delete('users/{user}', [PathFixtureController::class, 'destroy']);
+    }
+
+    /**
+     * Get the config repository instance.
+     *
+     * @return \Illuminate\Contracts\Config\Repository
+     */
+    private function config(): ConfigRepository
+    {
+        assert($this->app !== null);
+
+        /** @var \Illuminate\Contracts\Config\Repository */
+        return $this->app->make('config');
     }
 
     /**

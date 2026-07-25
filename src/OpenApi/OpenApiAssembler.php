@@ -34,12 +34,6 @@ final readonly class OpenApiAssembler
     /** The emitted OpenAPI specification version */
     private const string OPENAPI_VERSION = '3.1.0';
 
-    /** The default document title */
-    private const string INFO_TITLE = 'API Components';
-
-    /** The default document version */
-    private const string INFO_VERSION = '1.0.0';
-
     /** @var \SineMacula\ApiToolkit\OpenApi\Builder\EnvelopeBuilder */
     private EnvelopeBuilder $envelopeBuilder;
 
@@ -91,23 +85,21 @@ final readonly class OpenApiAssembler
 
         return [
             'openapi'    => self::OPENAPI_VERSION,
-            'info'       => $this->buildInfo(),
+            'info'       => $this->buildInfo($audience),
             'paths'      => $paths === [] ? (object) [] : $paths,
             'components' => $this->buildComponents($paths),
         ];
     }
 
     /**
-     * Build the minimal info block.
+     * Build the info block for the audience from the audience configuration.
      *
+     * @param  string  $audience
      * @return array<string, mixed>
      */
-    private function buildInfo(): array
+    private function buildInfo(string $audience): array
     {
-        return [
-            'title'   => self::INFO_TITLE,
-            'version' => self::INFO_VERSION,
-        ];
+        return $this->audiences->infoFor($audience);
     }
 
     /**
