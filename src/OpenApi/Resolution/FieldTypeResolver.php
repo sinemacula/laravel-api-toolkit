@@ -22,7 +22,7 @@ use SineMacula\ApiToolkit\Schema\OpenApiFieldSchema;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-final class FieldTypeResolver
+final readonly class FieldTypeResolver
 {
     /**
      * Constructor.
@@ -33,10 +33,10 @@ final class FieldTypeResolver
     public function __construct(
 
         /** The provider used to introspect schema metadata. */
-        private readonly SchemaIntrospectionProvider $introspector,
+        private SchemaIntrospectionProvider $introspector,
 
         /** The mapper that converts column types to schema types. */
-        private readonly ColumnTypeMapper $mapper,
+        private ColumnTypeMapper $mapper,
     ) {}
 
     /**

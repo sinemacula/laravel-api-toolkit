@@ -49,8 +49,7 @@ final class AuthorizationTest extends TestCase
 
         Gate::policy(User::class, UserPolicy::class);
 
-        Route::get('/users', [TestingAuthorizedController::class, 'index']);
-        Route::post('/users', [TestingAuthorizedController::class, 'store']);
+        Route::apiResource('users', TestingAuthorizedController::class)->only(['index', 'store']);
     }
 
     /**

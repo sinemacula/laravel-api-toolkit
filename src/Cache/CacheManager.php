@@ -24,7 +24,7 @@ use SineMacula\ApiToolkit\Schema\SchemaCompiler;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-final class CacheManager
+final readonly class CacheManager
 {
     /**
      * Create a new cache manager instance.
@@ -36,10 +36,10 @@ final class CacheManager
     public function __construct(
 
         /** The service container for resolving cache site instances. */
-        private readonly Container $container,
+        private Container $container,
 
         /** The registry of toolkit metadata keys to forget on flush. */
-        private readonly MetadataKeyRegistry $registry,
+        private MetadataKeyRegistry $registry,
     ) {}
 
     /**

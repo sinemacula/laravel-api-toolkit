@@ -13,7 +13,7 @@ namespace SineMacula\ApiToolkit\Repositories\Criteria\Concerns;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-final class FilterContext
+final readonly class FilterContext
 {
     /**
      * Constructor.
@@ -24,7 +24,7 @@ final class FilterContext
     private function __construct(
 
         /** The current logical operator ('$and', '$or', or null) */
-        private readonly ?string $logicalOperator,
+        private ?string $logicalOperator,
     ) {}
 
     /**

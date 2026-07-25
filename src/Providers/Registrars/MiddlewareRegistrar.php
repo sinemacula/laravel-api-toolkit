@@ -26,7 +26,7 @@ use SineMacula\ApiToolkit\Http\Middleware\ThrottleRequestsWithRedis;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-final class MiddlewareRegistrar
+final readonly class MiddlewareRegistrar
 {
     /**
      * Create a new middleware registrar instance.
@@ -37,7 +37,7 @@ final class MiddlewareRegistrar
     public function __construct(
 
         /** The service container for resolving the router and kernel. */
-        private readonly Container $container,
+        private Container $container,
     ) {}
 
     /**

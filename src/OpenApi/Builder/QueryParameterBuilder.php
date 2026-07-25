@@ -19,7 +19,7 @@ use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-final class QueryParameterBuilder
+final readonly class QueryParameterBuilder
 {
     /**
      * Constructor.
@@ -29,7 +29,7 @@ final class QueryParameterBuilder
     public function __construct(
 
         /** The catalogue providing query parameter metadata. */
-        private readonly MetadataCatalogue $catalogue,
+        private MetadataCatalogue $catalogue,
     ) {}
 
     /**

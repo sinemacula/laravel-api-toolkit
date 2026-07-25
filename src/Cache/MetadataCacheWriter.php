@@ -16,7 +16,7 @@ use Illuminate\Support\Facades\Cache;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-final class MetadataCacheWriter
+final readonly class MetadataCacheWriter
 {
     /**
      * Create a new metadata cache writer instance.
@@ -27,7 +27,7 @@ final class MetadataCacheWriter
     public function __construct(
 
         /** The registry tracking live toolkit metadata keys for flushing. */
-        private readonly MetadataKeyRegistry $registry,
+        private MetadataKeyRegistry $registry,
     ) {}
 
     /**

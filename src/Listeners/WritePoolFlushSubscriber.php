@@ -26,7 +26,7 @@ use SineMacula\ApiToolkit\Repositories\Concerns\WritePoolFlushResult;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-final class WritePoolFlushSubscriber
+final readonly class WritePoolFlushSubscriber
 {
     /**
      * Create a new write pool flush subscriber instance.
@@ -37,7 +37,7 @@ final class WritePoolFlushSubscriber
     public function __construct(
 
         /** The container used to resolve the write pool */
-        private readonly Container $container,
+        private Container $container,
     ) {}
 
     /**

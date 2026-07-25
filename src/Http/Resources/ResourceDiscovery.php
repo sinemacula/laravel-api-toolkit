@@ -308,7 +308,9 @@ final readonly class ResourceDiscovery
     {
         try {
             $contents = file_get_contents($file);
-        } catch (\Throwable) {
+        } catch (\Throwable) { // @phpstan-ignore catch.neverThrown
+            // A booted error handler turns the read warning for a file removed
+            // mid-scan into a throwable; tolerate it rather than abort.
             return null;
         }
 

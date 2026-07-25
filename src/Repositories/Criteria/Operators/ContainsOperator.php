@@ -115,7 +115,7 @@ final class ContainsOperator implements FilterOperator
     {
         try {
             $query->getQuery()->whereJsonContains($column, $value);
-        } catch (\RuntimeException $exception) {
+        } catch (\RuntimeException $exception) { // @phpstan-ignore catch.neverThrown
             // Drop the constraint: the grammar may reject a JSON-containment
             // clause for non-JSON scalars (e.g. null). Log it so a recurring
             // rejection is diagnosable rather than silently widening results.

@@ -36,6 +36,8 @@ final class ErrorCatalogueReader
      * Resolve every ErrorCode case to its ErrorDescriptor.
      *
      * @return array<int, \SineMacula\ApiToolkit\OpenApi\Metadata\ErrorDescriptor>
+     *
+     * @throws \SineMacula\ApiToolkit\OpenApi\Exceptions\MetadataReadException
      */
     public function read(): array
     {

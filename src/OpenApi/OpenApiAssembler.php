@@ -29,7 +29,7 @@ use SineMacula\ApiToolkit\OpenApi\Resolution\ReachableSchemaResolver;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-final class OpenApiAssembler
+final readonly class OpenApiAssembler
 {
     /** The emitted OpenAPI specification version */
     private const string OPENAPI_VERSION = '3.1.0';
@@ -41,13 +41,13 @@ final class OpenApiAssembler
     private const string INFO_VERSION = '1.0.0';
 
     /** @var \SineMacula\ApiToolkit\OpenApi\Builder\EnvelopeBuilder */
-    private readonly EnvelopeBuilder $envelopeBuilder;
+    private EnvelopeBuilder $envelopeBuilder;
 
     /** @var \SineMacula\ApiToolkit\OpenApi\Resolution\ReachableSchemaResolver */
-    private readonly ReachableSchemaResolver $reachability;
+    private ReachableSchemaResolver $reachability;
 
     /** @var \SineMacula\ApiToolkit\OpenApi\Resolution\AudienceConfiguration */
-    private readonly AudienceConfiguration $audiences;
+    private AudienceConfiguration $audiences;
 
     /**
      * Constructor.
@@ -60,16 +60,16 @@ final class OpenApiAssembler
     public function __construct(
 
         /** The builder for resource component schemas. */
-        private readonly ResourceSchemaBuilder $schemaBuilder,
+        private ResourceSchemaBuilder $schemaBuilder,
 
         /** The builder for reusable query parameter definitions. */
-        private readonly QueryParameterBuilder $parameterBuilder,
+        private QueryParameterBuilder $parameterBuilder,
 
         /** The builder for shared error response definitions. */
-        private readonly ErrorResponseBuilder $responseBuilder,
+        private ErrorResponseBuilder $responseBuilder,
 
         /** The builder for the per-audience paths object. */
-        private readonly PathBuilder $pathBuilder,
+        private PathBuilder $pathBuilder,
     ) {
         $this->envelopeBuilder = new EnvelopeBuilder;
         $this->reachability    = new ReachableSchemaResolver;

@@ -20,7 +20,7 @@ use SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-final class ConfigMetadataCatalogue implements MetadataCatalogue
+final readonly class ConfigMetadataCatalogue implements MetadataCatalogue
 {
     /**
      * Create a new config metadata catalogue.
@@ -32,13 +32,13 @@ final class ConfigMetadataCatalogue implements MetadataCatalogue
     public function __construct(
 
         /** Registry of filter operator tokens (incl. app additions) */
-        private readonly OperatorRegistry $registry,
+        private OperatorRegistry $registry,
 
         /** Reader that resolves the error catalogue metadata */
-        private readonly ErrorCatalogueReader $errorReader,
+        private ErrorCatalogueReader $errorReader,
 
         /** Discovery of attribute-bound resources outside the config map */
-        private readonly ResourceDiscovery $discovery,
+        private ResourceDiscovery $discovery,
     ) {}
 
     /**

@@ -35,7 +35,7 @@ use SineMacula\ApiToolkit\Schema\SchemaCompiler;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-final class ResourceSchemaBuilder
+final readonly class ResourceSchemaBuilder
 {
     /** The path prefix under which resource component schemas are referenced */
     private const string SCHEMA_REF_PREFIX = '#/components/schemas/';
@@ -50,13 +50,13 @@ final class ResourceSchemaBuilder
     public function __construct(
 
         /** The metadata catalogue describing resource schemas. */
-        private readonly MetadataCatalogue $catalogue,
+        private MetadataCatalogue $catalogue,
 
         /** The resolver mapping resource fields to OpenAPI types. */
-        private readonly FieldTypeResolver $resolver,
+        private FieldTypeResolver $resolver,
 
         /** The provider used to resolve relation cardinality. */
-        private readonly SchemaIntrospectionProvider $introspector,
+        private SchemaIntrospectionProvider $introspector,
     ) {}
 
     /**

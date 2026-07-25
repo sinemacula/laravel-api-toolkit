@@ -15,7 +15,7 @@ use Illuminate\Http\Request;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-final class RequestCapabilities
+final readonly class RequestCapabilities
 {
     /** @var string The request attribute key used to store the instance. */
     private const string REQUEST_ATTRIBUTE_KEY = self::class;
@@ -29,10 +29,10 @@ final class RequestCapabilities
     private function __construct(
 
         /** Whether the request includes soft-deleted records. */
-        private readonly bool $includeTrashed,
+        private bool $includeTrashed,
 
         /** Whether the request returns only soft-deleted records. */
-        private readonly bool $onlyTrashed,
+        private bool $onlyTrashed,
     ) {}
 
     /**

@@ -225,7 +225,9 @@ final class QuerySurfaceIntegrationTest extends TestCase
         try {
             $this->declaredCriteria()->apply(new User);
             self::fail('Expected a ValidationException for undeclared nested column "body".');
-        } catch (ValidationException $e) {
+        } catch (ValidationException $e) { // @phpstan-ignore catch.neverThrown
+            // apply() rejects through the applier chain, which phpstan cannot
+            // trace back to a ValidationException.
             self::assertArrayHasKey('filters.body', $e->errors());
         }
     }
@@ -252,7 +254,9 @@ final class QuerySurfaceIntegrationTest extends TestCase
         try {
             $this->declaredCriteria()->apply(new User);
             self::fail('Expected a ValidationException for undeclared nested relation "user".');
-        } catch (ValidationException $e) {
+        } catch (ValidationException $e) { // @phpstan-ignore catch.neverThrown
+            // apply() rejects through the applier chain, which phpstan cannot
+            // trace back to a ValidationException.
             self::assertArrayHasKey('filters.user', $e->errors());
         }
     }
@@ -365,7 +369,9 @@ final class QuerySurfaceIntegrationTest extends TestCase
         try {
             $this->declaredCriteria()->apply(new User);
             self::fail('Expected a ValidationException for "' . $expectedKey . '".');
-        } catch (ValidationException $e) {
+        } catch (ValidationException $e) { // @phpstan-ignore catch.neverThrown
+            // apply() rejects through the applier chain, which phpstan cannot
+            // trace back to a ValidationException.
             self::assertArrayHasKey($expectedKey, $e->errors());
         }
     }

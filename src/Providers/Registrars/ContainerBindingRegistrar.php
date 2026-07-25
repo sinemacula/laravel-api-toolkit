@@ -54,7 +54,7 @@ use SineMacula\ApiToolkit\Services\ServiceRunner;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-final class ContainerBindingRegistrar
+final readonly class ContainerBindingRegistrar
 {
     /**
      * Create a new container binding registrar instance.
@@ -65,7 +65,7 @@ final class ContainerBindingRegistrar
     public function __construct(
 
         /** The service container to register the bindings on. */
-        private readonly Container $container,
+        private Container $container,
     ) {}
 
     /**

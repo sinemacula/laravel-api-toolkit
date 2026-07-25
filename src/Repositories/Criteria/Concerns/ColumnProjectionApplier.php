@@ -28,7 +28,7 @@ use SineMacula\ApiToolkit\Schema\SafetySetDeriver;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-final class ColumnProjectionApplier
+final readonly class ColumnProjectionApplier
 {
     /**
      * Create a new column projection applier instance.
@@ -38,7 +38,7 @@ final class ColumnProjectionApplier
     public function __construct(
 
         /** Derives the per-model safety set a narrowed query must retain. */
-        private readonly SafetySetDeriver $safetySetDeriver,
+        private SafetySetDeriver $safetySetDeriver,
     ) {}
 
     /**

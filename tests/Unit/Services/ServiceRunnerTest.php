@@ -691,17 +691,13 @@ final class ServiceRunnerTest extends TestCase
             }
         };
 
-        $caught = null;
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('log-error');
 
         try {
             (new ServiceRunner)->run($service, ServiceContext::for(new AnonymousActor));
-        } catch (\RuntimeException $exception) {
-            $caught = $exception;
+        } finally {
+            Event::assertDispatched(ServiceFailed::class);
         }
-
-        self::assertInstanceOf(\RuntimeException::class, $caught);
-        self::assertSame('log-error', $caught->getMessage());
-
-        Event::assertDispatched(ServiceFailed::class);
     }
 }
