@@ -6,6 +6,7 @@ namespace Tests\Integration\OpenApi;
 
 use Illuminate\Contracts\Config\Repository as ConfigRepository;
 use Illuminate\Foundation\Application;
+use Illuminate\Routing\Router;
 use Illuminate\Support\Facades\Artisan;
 use Opis\JsonSchema\Errors\ErrorFormatter;
 use Opis\JsonSchema\Helper;
@@ -15,13 +16,20 @@ use Opis\JsonSchema\Validator;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Console\ExportOpenApiCommand;
 use SineMacula\ApiToolkit\Enums\ErrorCode;
+use SineMacula\ApiToolkit\OpenApi\Builder\PathBuilder;
 use SineMacula\ApiToolkit\OpenApi\ExportOpenApiComponents;
 use SineMacula\ApiToolkit\OpenApi\ExportResult;
+use SineMacula\ApiToolkit\OpenApi\OpenApiAssembler;
+use SineMacula\ApiToolkit\OpenApi\Resolution\AudienceConfiguration;
+use SineMacula\ApiToolkit\OpenApi\Resolution\ReachableSchemaResolver;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 use Tests\Fixtures\Models\Organization;
 use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\Tag;
 use Tests\Fixtures\Models\User;
+use Tests\Fixtures\OpenApi\PathFixtureController;
+use Tests\Fixtures\OpenApi\PathOrganizationController;
+use Tests\Fixtures\OpenApi\PathTagInternalController;
 use Tests\Fixtures\Resources\OrganizationResource;
 use Tests\Fixtures\Resources\PostResource;
 use Tests\Fixtures\Resources\TagResource;
@@ -31,14 +39,16 @@ use Tests\TestCase;
 /**
  * End-to-end validity test for the OpenAPI exporter.
  *
- * Exports the components document for the fixture resource registry and proves
- * the headline success metric: the emitted document validates against the
- * official OpenAPI 3.1 meta-schema (via opis/json-schema). It then asserts the
- * remaining requirement oracles end to end -- 3.1.x version, populated
- * components, one schema per resource (FR-3), full operator vocabulary in the
- * filter parameter (FR-4), one response per error code (FR-5), no paths (FR-9),
- * created_at as a date-time string (AC-07), an opaque compute field flagged
- * x-undocumented (FR-8), and a regenerate-after-change diff (FR-2).
+ * Exports the document for the fixture resource registry against real routes
+ * and proves the headline success metric: the emitted document validates
+ * against the official OpenAPI 3.1 meta-schema (via opis/json-schema). It then
+ * asserts the remaining oracles end to end -- 3.1.x version, populated
+ * components, one schema per resource, full operator vocabulary in the filter
+ * parameter, one response per error code, an empty paths object for an audience
+ * with no route, created_at as a date-time string, an opaque compute field
+ * flagged x-undocumented, and a regenerate-after-change diff -- plus the
+ * per-audience paths, route scoping, reachable-only schema filtering, and the
+ * command's --audience / --all behaviour.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -47,6 +57,10 @@ use Tests\TestCase;
  */
 #[CoversClass(ExportOpenApiComponents::class)]
 #[CoversClass(ExportOpenApiCommand::class)]
+#[CoversClass(OpenApiAssembler::class)]
+#[CoversClass(PathBuilder::class)]
+#[CoversClass(ReachableSchemaResolver::class)]
+#[CoversClass(AudienceConfiguration::class)]
 final class OpenApiExporterValidityTest extends TestCase
 {
     /** @var string The identifier under which the OpenAPI 3.1 meta-schema is registered. */
@@ -78,6 +92,8 @@ final class OpenApiExporterValidityTest extends TestCase
      */
     public function testEmittedDocumentValidatesAsOpenApiThreeOne(): void
     {
+        $this->registerUserRoutes();
+
         $document = $this->export()->document;
 
         $result = $this->validateAgainstMetaSchema($document);
@@ -108,16 +124,29 @@ final class OpenApiExporterValidityTest extends TestCase
     }
 
     /**
-     * Test that the document declares no path operations (FR-9/AC-09).
+     * Test that an audience with no documented route emits an empty paths
+     * object rather than an array, keeping the document schema-valid.
      *
      * @return void
      */
-    public function testDocumentDeclaresNoPaths(): void
+    public function testAudienceWithNoDocumentedRoutesEmitsEmptyPathsObject(): void
     {
-        $document = $this->export()->document;
+        // The partner audience is an allowlist and no route opts into it, so it
+        // documents nothing even though the user routes are registered.
+        $this->getConfig()->set('api-toolkit.openapi.audiences', [
+            'public'  => [],
+            'partner' => ['posture' => 'allowlist'],
+        ]);
+
+        $document = $this->export('partner')->document;
 
         self::assertArrayHasKey('paths', $document);
         self::assertSame('{}', json_encode($document['paths']));
+
+        self::assertTrue(
+            $this->validateAgainstMetaSchema($document)->isValid(),
+            'A document with an empty paths object must validate as OpenAPI 3.1.',
+        );
     }
 
     /**
@@ -128,6 +157,8 @@ final class OpenApiExporterValidityTest extends TestCase
      */
     public function testOneSchemaPerRegisteredResource(): void
     {
+        $this->registerUserRoutes();
+
         $result = $this->export();
 
         self::assertSame(4, $result->resourceCount);
@@ -188,6 +219,8 @@ final class OpenApiExporterValidityTest extends TestCase
      */
     public function testCreatedAtIsEmittedAsADateTimeString(): void
     {
+        $this->registerUserRoutes();
+
         $document  = $this->export()->document;
         $createdAt = $document['components']['schemas']['User']['properties']['created_at'];
 
@@ -205,6 +238,8 @@ final class OpenApiExporterValidityTest extends TestCase
      */
     public function testComputeFieldIsFlaggedUndocumented(): void
     {
+        $this->registerUserRoutes();
+
         $document  = $this->export()->document;
         $fullLabel = $document['components']['schemas']['User']['properties']['full_label'];
 
@@ -243,6 +278,8 @@ final class OpenApiExporterValidityTest extends TestCase
      */
     public function testResourceSchemaCarriesTypeDiscriminator(): void
     {
+        $this->registerUserRoutes();
+
         $user = $this->export()->document['components']['schemas']['User'];
 
         self::assertSame(['type' => 'string', 'const' => 'users'], $user['properties']['_type']);
@@ -257,6 +294,8 @@ final class OpenApiExporterValidityTest extends TestCase
      */
     public function testToOneRelationEmitsSingleReference(): void
     {
+        $this->registerUserRoutes();
+
         $document     = $this->export()->document;
         $organization = $document['components']['schemas']['User']['properties']['organization'];
 
@@ -272,6 +311,8 @@ final class OpenApiExporterValidityTest extends TestCase
      */
     public function testRegenerateAfterChangeShowsADiff(): void
     {
+        $this->registerUserRoutes();
+
         $before = $this->export()->document['components']['schemas']['Organization'];
 
         // Drop a resource from the registry and re-export: the previously
@@ -301,6 +342,8 @@ final class OpenApiExporterValidityTest extends TestCase
      */
     public function testCommandWritesAValidDocumentWithExitZero(): void
     {
+        $this->registerUserRoutes();
+
         $path = sys_get_temp_dir() . '/api-toolkit-openapi-' . uniqid('', true) . '.json';
 
         try {
@@ -368,16 +411,202 @@ final class OpenApiExporterValidityTest extends TestCase
     }
 
     /**
+     * Test that registered routes surface as path operations with the correct
+     * REST responses for the exported audience, end to end.
+     *
+     * @return void
+     */
+    public function testRoutesSurfaceAsPathOperationsForAudience(): void
+    {
+        $this->registerUserRoutes();
+
+        $document = $this->export()->document;
+        $paths    = $document['paths'];
+
+        self::assertSame(['get', 'post'], array_keys($paths['/users']));
+        self::assertSame(['get', 'put', 'patch', 'delete'], array_keys($paths['/users/{user}']));
+
+        self::assertSame(['User'], $paths['/users']['get']['tags']);
+        self::assertArrayHasKey('200', $paths['/users']['get']['responses']);
+        self::assertArrayHasKey(
+            'Total-Count',
+            $paths['/users']['get']['responses']['200']['headers'],
+        );
+        self::assertArrayHasKey('201', $paths['/users']['post']['responses']);
+        self::assertArrayHasKey('204', $paths['/users/{user}']['delete']['responses']);
+
+        self::assertTrue(
+            $this->validateAgainstMetaSchema($document)->isValid(),
+            'A document with path operations must validate as OpenAPI 3.1: ' . $this->formatErrors($this->validateAgainstMetaSchema($document)),
+        );
+    }
+
+    /**
+     * Test that a route excluded from an audience is absent from that
+     * audience's paths while remaining present in an audience documenting it.
+     *
+     * @return void
+     */
+    public function testAudienceScopingFiltersRoutesBetweenAudiences(): void
+    {
+        $this->registerTwoAudiences();
+        $this->registerOrganizationRoute();
+        $this->registerTagInternalRoute();
+
+        $public = $this->export('public')->document['paths'];
+
+        self::assertArrayHasKey('/organizations', $public);
+        self::assertArrayNotHasKey('/tags', $public);
+
+        $internal = $this->export('internal')->document['paths'];
+
+        self::assertArrayHasKey('/organizations', $internal);
+        self::assertArrayHasKey('/tags', $internal);
+    }
+
+    /**
+     * Test that a resource reachable only through a route excluded from the
+     * audience is dropped from that audience's component schemas while the
+     * reachable resource is retained.
+     *
+     * @return void
+     */
+    public function testAudienceSchemasAreFilteredToReachableResources(): void
+    {
+        $this->registerTwoAudiences();
+        $this->registerOrganizationRoute();
+        $this->registerTagInternalRoute();
+
+        $public = $this->export('public')->document['components']['schemas'];
+
+        self::assertArrayHasKey('Organization', $public);
+        self::assertArrayNotHasKey('Tag', $public);
+        self::assertArrayNotHasKey('User', $public);
+
+        $internal = $this->export('internal')->document['components']['schemas'];
+
+        self::assertArrayHasKey('Tag', $internal);
+        self::assertArrayHasKey('Organization', $internal);
+    }
+
+    /**
+     * Test that the shared pagination and error-envelope schemas survive the
+     * per-audience filtering even for an audience documenting a single leaf
+     * resource.
+     *
+     * @return void
+     */
+    public function testSharedSchemasSurviveAudienceFiltering(): void
+    {
+        $this->registerOrganizationRoute();
+
+        $schemas = $this->export('public')->document['components']['schemas'];
+
+        foreach (['PaginationMeta', 'PaginationLinks', 'CursorPaginationMeta', 'CursorPaginationLinks', 'ErrorEnvelope'] as $name) {
+            self::assertArrayHasKey($name, $schemas);
+        }
+
+        self::assertArrayNotHasKey('User', $schemas);
+        self::assertArrayNotHasKey('Post', $schemas);
+        self::assertArrayNotHasKey('Tag', $schemas);
+    }
+
+    /**
+     * Test that the --all flag writes one valid document per configured
+     * audience, each scoped to its own routes.
+     *
+     * @return void
+     */
+    public function testCommandAllFlagWritesOneDocumentPerAudience(): void
+    {
+        $this->registerTwoAudiences();
+        $this->registerOrganizationRoute();
+        $this->registerTagInternalRoute();
+
+        $base     = sys_get_temp_dir() . '/api-toolkit-all-' . uniqid('', true) . '.json';
+        $public   = $this->audiencePath($base, 'public');
+        $internal = $this->audiencePath($base, 'internal');
+
+        try {
+
+            $exitCode = Artisan::call(ExportOpenApiCommand::class, ['--output' => $base, '--all' => true]);
+
+            self::assertSame(0, $exitCode);
+            self::assertFileExists($public);
+            self::assertFileExists($internal);
+
+            $publicPaths   = $this->decodePaths($public);
+            $internalPaths = $this->decodePaths($internal);
+
+            self::assertArrayHasKey('/organizations', $publicPaths);
+            self::assertArrayNotHasKey('/tags', $publicPaths);
+            self::assertArrayHasKey('/tags', $internalPaths);
+
+            self::assertTrue($this->validateJson($this->read($public))->isValid(), 'The public document must be valid.');
+            self::assertTrue($this->validateJson($this->read($internal))->isValid(), 'The internal document must be valid.');
+
+        } finally {
+            @unlink($public);
+            @unlink($internal);
+        }
+    }
+
+    /**
+     * Test that --audience exports the named audience to the resolved output
+     * path, scoped to that audience's routes.
+     *
+     * @return void
+     */
+    public function testCommandExportsNamedAudienceToResolvedPath(): void
+    {
+        $this->registerTwoAudiences();
+        $this->registerOrganizationRoute();
+        $this->registerTagInternalRoute();
+
+        $path = sys_get_temp_dir() . '/api-toolkit-named-' . uniqid('', true) . '.json';
+
+        try {
+
+            $exitCode = Artisan::call(ExportOpenApiCommand::class, ['--output' => $path, '--audience' => 'internal']);
+
+            self::assertSame(0, $exitCode);
+            self::assertFileExists($path);
+
+            self::assertArrayHasKey('/tags', $this->decodePaths($path));
+
+        } finally {
+            @unlink($path);
+        }
+    }
+
+    /**
+     * Test that an unknown audience name fails with a clear error and a
+     * non-zero exit code.
+     *
+     * @return void
+     */
+    public function testCommandFailsOnUnknownAudience(): void
+    {
+        $this->registerUserRoutes();
+
+        $exitCode = Artisan::call(ExportOpenApiCommand::class, ['--audience' => 'nonexistent']);
+
+        self::assertNotSame(0, $exitCode);
+        self::assertStringContainsString('Unknown audience', Artisan::output());
+    }
+
+    /**
      * Run the export use case against the container-resolved graph.
      *
+     * @param  string|null  $audience
      * @return \SineMacula\ApiToolkit\OpenApi\ExportResult
      */
-    private function export(): ExportResult
+    private function export(?string $audience = null): ExportResult
     {
         /** @var \SineMacula\ApiToolkit\OpenApi\ExportOpenApiComponents $exporter */
         $exporter = $this->makeApplication()->make(ExportOpenApiComponents::class);
 
-        return $exporter->export();
+        return $exporter->export($audience);
     }
 
     /**
@@ -511,6 +740,107 @@ final class OpenApiExporterValidityTest extends TestCase
         }
 
         return json_encode((new ErrorFormatter)->format($error), JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR);
+    }
+
+    /**
+     * Register a full REST route set for the user resource so the resource
+     * schemas are reachable from the exported paths.
+     *
+     * @return void
+     */
+    private function registerUserRoutes(): void
+    {
+        $router = $this->router();
+
+        $router->get('users', [PathFixtureController::class, 'index']);
+        $router->post('users', [PathFixtureController::class, 'store']);
+        $router->get('users/{user}', [PathFixtureController::class, 'show']);
+        $router->match(['PUT', 'PATCH'], 'users/{user}', [PathFixtureController::class, 'update']);
+        $router->delete('users/{user}', [PathFixtureController::class, 'destroy']);
+    }
+
+    /**
+     * Register a public organization route, a reachable leaf resource.
+     *
+     * @return void
+     */
+    private function registerOrganizationRoute(): void
+    {
+        $this->router()->get('organizations', [PathOrganizationController::class, 'index']);
+    }
+
+    /**
+     * Register the internal-only tag route.
+     *
+     * @return void
+     */
+    private function registerTagInternalRoute(): void
+    {
+        $this->router()->get('tags', [PathTagInternalController::class, 'index']);
+    }
+
+    /**
+     * Declare a public and an internal audience on the config repository.
+     *
+     * @return void
+     */
+    private function registerTwoAudiences(): void
+    {
+        $this->getConfig()->set('api-toolkit.openapi.audiences', [
+            'public'   => [],
+            'internal' => [],
+        ]);
+    }
+
+    /**
+     * Derive a per-audience output path the way the command does.
+     *
+     * @param  string  $base
+     * @param  string  $audience
+     * @return string
+     */
+    private function audiencePath(string $base, string $audience): string
+    {
+        return substr($base, 0, -strlen('.json')) . '.' . $audience . '.json';
+    }
+
+    /**
+     * Decode the paths object from a written document by path.
+     *
+     * @param  string  $path
+     * @return array<string, mixed>
+     */
+    private function decodePaths(string $path): array
+    {
+        /** @var array{paths?: array<string, mixed>} $document */
+        $document = json_decode($this->read($path), true, 512, JSON_THROW_ON_ERROR);
+
+        return $document['paths'] ?? [];
+    }
+
+    /**
+     * Read a written document by path, asserting the read succeeds.
+     *
+     * @param  string  $path
+     * @return string
+     */
+    private function read(string $path): string
+    {
+        $contents = file_get_contents($path);
+
+        self::assertIsString($contents);
+
+        return $contents;
+    }
+
+    /**
+     * Resolve the application router singleton.
+     *
+     * @return \Illuminate\Routing\Router
+     */
+    private function router(): Router
+    {
+        return $this->makeApplication()->make(Router::class);
     }
 
     /**

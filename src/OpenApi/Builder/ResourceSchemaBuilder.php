@@ -12,6 +12,7 @@ use Illuminate\Database\Eloquent\Relations\Relation;
 use SineMacula\ApiToolkit\Contracts\ApiResourceInterface;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
+use SineMacula\ApiToolkit\OpenApi\Naming\SchemaComponentName;
 use SineMacula\ApiToolkit\OpenApi\Resolution\FieldTypeResolver;
 use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
@@ -298,17 +299,11 @@ final class ResourceSchemaBuilder
     /**
      * Derive the PascalCase component schema name from a resource class.
      *
-     * The class basename has its trailing "Resource" suffix removed, so
-     * UserResource becomes User.
-     *
      * @param  class-string  $resourceClass
      * @return string
      */
     private function schemaName(string $resourceClass): string
     {
-        $position = strrpos($resourceClass, '\\');
-        $basename = $position === false ? $resourceClass : substr($resourceClass, $position + 1);
-
-        return preg_replace('/Resource$/', '', $basename) ?? $basename;
+        return SchemaComponentName::fromResource($resourceClass);
     }
 }

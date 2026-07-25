@@ -148,6 +148,11 @@ return [
 
         'output' => env('API_OPENAPI_OUTPUT', base_path('openapi.json')),
 
+        // The audience exported when the command runs without an explicit
+        // --audience option (and without --all). Must name one of the audiences
+        // declared below; defaults to the shipped 'public' audience.
+        'default_audience' => env('API_OPENAPI_DEFAULT_AUDIENCE', 'public'),
+
         // The audiences the exporter can produce a document for. One codebase
         // yields multiple documents, each tailored to who it is for (e.g.
         // 'public', 'internal', 'partner'). An audience is keyed by name and

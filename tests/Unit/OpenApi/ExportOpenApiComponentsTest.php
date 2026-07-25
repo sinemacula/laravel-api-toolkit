@@ -4,9 +4,12 @@ declare(strict_types = 1);
 
 namespace Tests\Unit\OpenApi;
 
+use Illuminate\Routing\Router;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
+use SineMacula\ApiToolkit\OpenApi\Builder\EnvelopeBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\ErrorResponseBuilder;
+use SineMacula\ApiToolkit\OpenApi\Builder\PathBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\QueryParameterBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\ResourceSchemaBuilder;
 use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
@@ -14,6 +17,7 @@ use SineMacula\ApiToolkit\OpenApi\ExportOpenApiComponents;
 use SineMacula\ApiToolkit\OpenApi\ExportResult;
 use SineMacula\ApiToolkit\OpenApi\Metadata\ErrorDescriptor;
 use SineMacula\ApiToolkit\OpenApi\OpenApiAssembler;
+use SineMacula\ApiToolkit\OpenApi\Resolution\AudienceResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ColumnTypeMapper;
 use SineMacula\ApiToolkit\OpenApi\Resolution\FieldTypeResolver;
 use SineMacula\ApiToolkit\Schema\Introspection\SchemaIntrospector;
@@ -140,11 +144,13 @@ final class ExportOpenApiComponentsTest extends TestCase
         assert($this->app !== null);
 
         $introspector = $this->app->make(SchemaIntrospector::class);
+        $router       = $this->app->make(Router::class);
 
         $assembler = new OpenApiAssembler(
             new ResourceSchemaBuilder($catalogue, new FieldTypeResolver($introspector, new ColumnTypeMapper), $introspector),
             new QueryParameterBuilder($catalogue),
             new ErrorResponseBuilder($catalogue),
+            new PathBuilder($router, $catalogue, new AudienceResolver, new EnvelopeBuilder),
         );
 
         return (new ExportOpenApiComponents($assembler, $catalogue))->export();

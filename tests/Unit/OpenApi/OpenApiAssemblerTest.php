@@ -4,19 +4,23 @@ declare(strict_types = 1);
 
 namespace Tests\Unit\OpenApi;
 
+use Illuminate\Routing\Router;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\OpenApi\Builder\EnvelopeBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\ErrorResponseBuilder;
+use SineMacula\ApiToolkit\OpenApi\Builder\PathBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\QueryParameterBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\ResourceSchemaBuilder;
 use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
 use SineMacula\ApiToolkit\OpenApi\Metadata\ErrorDescriptor;
 use SineMacula\ApiToolkit\OpenApi\OpenApiAssembler;
+use SineMacula\ApiToolkit\OpenApi\Resolution\AudienceResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ColumnTypeMapper;
 use SineMacula\ApiToolkit\OpenApi\Resolution\FieldTypeResolver;
 use SineMacula\ApiToolkit\Schema\Introspection\SchemaIntrospector;
 use Tests\Fixtures\Models\Organization;
 use Tests\Fixtures\Models\User;
+use Tests\Fixtures\OpenApi\PathFixtureController;
 use Tests\Fixtures\Resources\OrganizationResource;
 use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
@@ -101,13 +105,15 @@ final class OpenApiAssemblerTest extends TestCase
     }
 
     /**
-     * Test that the resource schemas appear under components.schemas alongside
-     * the shared error-envelope schema.
+     * Test that the resource schemas reachable from the audience's paths appear
+     * under components.schemas alongside the shared error-envelope schema.
      *
      * @return void
      */
     public function testResourceAndEnvelopeSchemasArePresent(): void
     {
+        $this->registerUserRoutes();
+
         $schemas = $this->assemble()['components']['schemas'];
 
         self::assertArrayHasKey('User', $schemas);
@@ -212,7 +218,37 @@ final class OpenApiAssemblerTest extends TestCase
             new ResourceSchemaBuilder($catalogue, $this->resolver(), $this->app->make(SchemaIntrospector::class)),
             new QueryParameterBuilder($catalogue),
             new ErrorResponseBuilder($catalogue),
+            new PathBuilder($this->router(), $catalogue, new AudienceResolver, new EnvelopeBuilder),
         );
+    }
+
+    /**
+     * Register a full REST route set for the user resource so its schema is
+     * reachable from the assembled paths.
+     *
+     * @return void
+     */
+    private function registerUserRoutes(): void
+    {
+        $router = $this->router();
+
+        $router->get('users', [PathFixtureController::class, 'index']);
+        $router->post('users', [PathFixtureController::class, 'store']);
+        $router->get('users/{user}', [PathFixtureController::class, 'show']);
+        $router->match(['PUT', 'PATCH'], 'users/{user}', [PathFixtureController::class, 'update']);
+        $router->delete('users/{user}', [PathFixtureController::class, 'destroy']);
+    }
+
+    /**
+     * Resolve the application router singleton.
+     *
+     * @return \Illuminate\Routing\Router
+     */
+    private function router(): Router
+    {
+        assert($this->app !== null);
+
+        return $this->app->make(Router::class);
     }
 
     /**
