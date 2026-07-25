@@ -22,6 +22,7 @@ use Illuminate\Support\Facades\Facade;
  * @method static int|null getLimit()
  * @method static int|null getPage()
  * @method static string|null getCursor()
+ * @method static \SineMacula\ApiToolkit\Enums\TrashedState getTrashed()
  * @method static void parse(\Illuminate\Http\Request $request)
  *
  * @see         \SineMacula\ApiToolkit\ApiQueryParser

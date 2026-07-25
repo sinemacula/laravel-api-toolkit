@@ -8,6 +8,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Config;
 use SineMacula\ApiToolkit\Concerns\QueryParameterExtractor;
 use SineMacula\ApiToolkit\Concerns\QueryParameterValidator;
+use SineMacula\ApiToolkit\Enums\TrashedState;
 
 /**
  * API query parser.
@@ -175,6 +176,19 @@ class ApiQueryParser
         $cursor = $this->getParameters('cursor');
 
         return is_scalar($cursor) ? (string) $cursor : '';
+    }
+
+    /**
+     * Returns the requested soft-delete visibility set with the URL modifiers.
+     *  - e.g. ?trashed=with.
+     *
+     * @return \SineMacula\ApiToolkit\Enums\TrashedState
+     */
+    public function getTrashed(): TrashedState
+    {
+        $trashed = $this->getParameters('trashed');
+
+        return TrashedState::fromParameter(is_scalar($trashed) ? (string) $trashed : null);
     }
 
     /**

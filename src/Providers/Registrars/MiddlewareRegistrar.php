@@ -19,9 +19,9 @@ use SineMacula\ApiToolkit\Http\Middleware\ThrottleRequestsWithRedis;
 /**
  * Registers the toolkit middleware.
  *
- * Pushes the query parser, maintenance mode, capability detection, and JSON
- * pretty print middleware onto the HTTP kernel, and aliases the throttle
- * middleware on the router, honouring the configured gates and scopes.
+ * Pushes the query parser, maintenance mode, and JSON pretty print middleware
+ * onto the HTTP kernel, and aliases the throttle middleware on the router,
+ * honouring the configured gates and scopes.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
