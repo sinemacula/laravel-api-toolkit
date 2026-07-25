@@ -84,6 +84,26 @@ final class User extends Model implements AuthenticatableContract
     }
 
     /**
+     * Get the user's articles.
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\HasMany<\Tests\Fixtures\Models\Article, $this>
+     */
+    public function articles(): HasMany
+    {
+        return $this->hasMany(Article::class, 'user_id');
+    }
+
+    /**
+     * Get the user's comments.
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\HasMany<\Tests\Fixtures\Models\Comment, $this>
+     */
+    public function comments(): HasMany
+    {
+        return $this->hasMany(Comment::class, 'user_id');
+    }
+
+    /**
      * Get the user's full label as a computed Eloquent attribute.
      *
      * @return \Illuminate\Database\Eloquent\Casts\Attribute
