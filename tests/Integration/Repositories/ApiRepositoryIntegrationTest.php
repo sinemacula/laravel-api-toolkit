@@ -59,6 +59,8 @@ final class ApiRepositoryIntegrationTest extends TestCase
      * Test that paginate returns a paginated collection.
      *
      * @return void
+     *
+     * @throws \SineMacula\Repositories\Exceptions\RepositoryException
      */
     public function testPaginateReturnsPaginatedCollection(): void
     {
