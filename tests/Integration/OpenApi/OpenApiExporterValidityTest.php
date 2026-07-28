@@ -31,6 +31,7 @@ use Tests\Fixtures\Models\User;
 use Tests\Fixtures\OpenApi\PathFixtureController;
 use Tests\Fixtures\OpenApi\PathInvokableController;
 use Tests\Fixtures\OpenApi\PathOrganizationController;
+use Tests\Fixtures\OpenApi\PathResponseSchemaController;
 use Tests\Fixtures\OpenApi\PathTagInternalController;
 use Tests\Fixtures\Resources\OrganizationResource;
 use Tests\Fixtures\Resources\PostResource;
@@ -481,6 +482,30 @@ final class OpenApiExporterValidityTest extends TestCase
         self::assertTrue(
             $this->validateAgainstMetaSchema($document)->isValid(),
             'A document with an undocumented operation must validate as OpenAPI 3.1: ' . $this->formatErrors($this->validateAgainstMetaSchema($document)),
+        );
+    }
+
+    /**
+     * Test that a non-resource route declaring a resource response body
+     * references that resource's component schema, that the component survives
+     * reachability filtering rather than dangling, and that the document stays
+     * valid OpenAPI 3.1.
+     *
+     * @return void
+     */
+    public function testDeclaredResponseSchemaKeepsReferencedResource(): void
+    {
+        $this->router()->get('single', [PathResponseSchemaController::class, 'single']);
+
+        $document = $this->export()->document;
+        $schema   = $document['paths']['/single']['get']['responses']['200']['content']['application/json']['schema'];
+
+        self::assertSame('#/components/schemas/User', $schema['properties']['data']['$ref']);
+        self::assertArrayHasKey('User', $document['components']['schemas']);
+
+        self::assertTrue(
+            $this->validateAgainstMetaSchema($document)->isValid(),
+            'A document referencing a declared response resource must validate as OpenAPI 3.1: ' . $this->formatErrors($this->validateAgainstMetaSchema($document)),
         );
     }
 

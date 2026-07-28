@@ -11,6 +11,7 @@ use SineMacula\ApiToolkit\Http\Routing\AuthorizedController;
 use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
 use SineMacula\ApiToolkit\OpenApi\Naming\SchemaComponentName;
 use SineMacula\ApiToolkit\OpenApi\Resolution\AudienceResolver;
+use SineMacula\ApiToolkit\OpenApi\Resolution\ResponseSchemaResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\TagResolver;
 
 /**
@@ -27,9 +28,12 @@ use SineMacula\ApiToolkit\OpenApi\Resolution\TagResolver;
  * with any ApiException the action documents. Every other route - a plain or
  * invokable controller, a non-REST action, an unmapped model, or a closure -
  * still emits an operation carrying the path template, verbs, path parameters,
- * and a resolved tag, with a single success response whose body is the shared
- * data envelope wrapping an x-undocumented marker; that success is 201 for a
- * store action, 204 for a destroy, and 200 otherwise, and it carries no error
+ * and a resolved tag, with a single success response whose body is the shape a
+ * #[ResponseSchema] directive on the action declares - a reference to a
+ * registered resource's component or an inlined self-describing fragment,
+ * single or wrapped in the collection envelope - and the shared data envelope
+ * wrapping an x-undocumented marker otherwise; that success is 201 for a store
+ * action, 204 for a destroy, and 200 otherwise, and it carries no error
  * responses. Audience membership is checked for every route regardless of its
  * handler, so a closure scoped out by a route macro is omitted exactly as an
  * attribute-scoped controller is. HEAD and OPTIONS are always excluded.
@@ -71,6 +75,7 @@ final readonly class PathBuilder
      * @param  \SineMacula\ApiToolkit\OpenApi\Resolution\AudienceResolver  $audience
      * @param  \SineMacula\ApiToolkit\OpenApi\Builder\EnvelopeBuilder  $envelope
      * @param  \SineMacula\ApiToolkit\OpenApi\Resolution\TagResolver  $tags
+     * @param  \SineMacula\ApiToolkit\OpenApi\Resolution\ResponseSchemaResolver  $responseSchema
      */
     public function __construct(
 
@@ -88,6 +93,9 @@ final readonly class PathBuilder
 
         /** The resolver naming the tag each operation is grouped under. */
         private TagResolver $tags,
+
+        /** The resolver of a non-resource action's declared response body. */
+        private ResponseSchemaResolver $responseSchema,
     ) {}
 
     /**
@@ -140,8 +148,8 @@ final readonly class PathBuilder
 
     /**
      * Resolve the operation object for the route, preferring the full resource
-     * contract and falling back to the shared undocumented success envelope for
-     * every non-resource route.
+     * contract, then a non-resource action's declared response body, and
+     * finally the shared undocumented success envelope.
      *
      * @param  class-string|null  $controllerClass
      * @param  string  $action
@@ -156,7 +164,8 @@ final readonly class PathBuilder
             return $resource;
         }
 
-        $body = ['content' => [self::MEDIA_TYPE => ['schema' => $this->envelope->undocumentedEnvelope()]]];
+        $schema = $this->responseSchema->resolve($controllerClass, $action) ?? $this->envelope->undocumentedEnvelope();
+        $body   = ['content' => [self::MEDIA_TYPE => ['schema' => $schema]]];
 
         $responses = match ($action) {
             'store'   => ['201' => ['description' => 'The request succeeded and a resource was created.', ...$body]],

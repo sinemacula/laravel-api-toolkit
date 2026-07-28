@@ -75,10 +75,26 @@ final readonly class EnvelopeBuilder
      */
     public function singleEnvelope(string $schemaRef): array
     {
+        return $this->singleEnvelopeFor(['$ref' => $schemaRef]);
+    }
+
+    /**
+     * Build the single-resource envelope wrapping the given data schema node in
+     * the inherited `data` wrapper.
+     *
+     * The node is either a reference to a registered component or an inline
+     * JSON-Schema fragment, so a declared non-resource body wraps in the same
+     * envelope as a resource reference.
+     *
+     * @param  array<string, mixed>  $data
+     * @return array<string, mixed>
+     */
+    public function singleEnvelopeFor(array $data): array
+    {
         return [
             'type'       => 'object',
             'properties' => [
-                'data' => ['$ref' => $schemaRef],
+                'data' => $data,
             ],
             'required' => ['data'],
         ];
@@ -114,10 +130,26 @@ final readonly class EnvelopeBuilder
      */
     public function collectionEnvelope(string $schemaRef): array
     {
+        return $this->collectionEnvelopeFor(['$ref' => $schemaRef]);
+    }
+
+    /**
+     * Build the length-aware collection envelope wrapping an array of the given
+     * item schema node alongside the pagination meta and links components.
+     *
+     * The item node is either a reference to a registered component or an
+     * inline JSON-Schema fragment, so a declared non-resource collection wraps
+     * in the same envelope as a resource reference.
+     *
+     * @param  array<string, mixed>  $items
+     * @return array<string, mixed>
+     */
+    public function collectionEnvelopeFor(array $items): array
+    {
         return [
             'type'       => 'object',
             'properties' => [
-                'data'  => ['type' => 'array', 'items' => ['$ref' => $schemaRef]],
+                'data'  => ['type' => 'array', 'items' => $items],
                 'meta'  => ['$ref' => self::SCHEMA_REF_PREFIX . self::PAGINATION_META_SCHEMA_NAME],
                 'links' => ['$ref' => self::SCHEMA_REF_PREFIX . self::PAGINATION_LINKS_SCHEMA_NAME],
             ],

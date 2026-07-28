@@ -10,6 +10,7 @@ use SineMacula\ApiToolkit\OpenApi\Builder\EnvelopeBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\PathBuilder;
 use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
 use SineMacula\ApiToolkit\OpenApi\Resolution\AudienceResolver;
+use SineMacula\ApiToolkit\OpenApi\Resolution\ResponseSchemaResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\TagResolver;
 use SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface;
 use Tests\Fixtures\Models\User;
@@ -17,8 +18,10 @@ use Tests\Fixtures\OpenApi\PathExcludedController;
 use Tests\Fixtures\OpenApi\PathFixtureController;
 use Tests\Fixtures\OpenApi\PathInvokableController;
 use Tests\Fixtures\OpenApi\PathPlainController;
+use Tests\Fixtures\OpenApi\PathResponseSchemaController;
 use Tests\Fixtures\OpenApi\PathTaggedController;
 use Tests\Fixtures\OpenApi\PathUnmappedController;
+use Tests\Fixtures\OpenApi\WidgetShape;
 use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
 
@@ -576,6 +579,73 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
+     * Test that a non-resource action declaring a registered resource emits a
+     * single-resource envelope referencing that resource's component schema.
+     *
+     * @return void
+     */
+    public function testResponseSchemaResourceActionEmitsSingleReference(): void
+    {
+        $this->router()->get('single', [PathResponseSchemaController::class, 'single']);
+
+        $schema = $this->build()['/single']['get']['responses']['200']['content']['application/json']['schema'];
+
+        self::assertSame(
+            (new EnvelopeBuilder)->singleEnvelope('#/components/schemas/User'),
+            $schema,
+        );
+    }
+
+    /**
+     * Test that a non-resource action declaring a registered resource as a
+     * collection emits the length-aware collection envelope for that resource.
+     *
+     * @return void
+     */
+    public function testResponseSchemaCollectionActionEmitsCollectionEnvelope(): void
+    {
+        $this->router()->get('collection', [PathResponseSchemaController::class, 'list']);
+
+        $schema = $this->build()['/collection']['get']['responses']['200']['content']['application/json']['schema'];
+
+        self::assertSame(
+            (new EnvelopeBuilder)->collectionEnvelope('#/components/schemas/User'),
+            $schema,
+        );
+    }
+
+    /**
+     * Test that a non-resource action declaring a self-describing DTO inlines
+     * the DTO's schema fragment under the single envelope's data property.
+     *
+     * @return void
+     */
+    public function testResponseSchemaDtoActionInlinesFragment(): void
+    {
+        $this->router()->get('widget', [PathResponseSchemaController::class, 'widget']);
+
+        $schema = $this->build()['/widget']['get']['responses']['200']['content']['application/json']['schema'];
+
+        self::assertSame(WidgetShape::schema(), $schema['properties']['data']);
+        self::assertSame(['data'], $schema['required']);
+    }
+
+    /**
+     * Test that a non-resource action carrying no directive still emits the
+     * shared x-undocumented success envelope.
+     *
+     * @return void
+     */
+    public function testUndeclaredNonResourceActionStaysUndocumented(): void
+    {
+        $this->router()->get('bare', [PathResponseSchemaController::class, 'bare']);
+
+        $schema = $this->build()['/bare']['get']['responses']['200']['content']['application/json']['schema'];
+
+        self::assertSame($this->undocumentedEnvelope(), $schema);
+    }
+
+    /**
      * Test that an audience documenting no route yields an empty paths object.
      *
      * @return void
@@ -640,7 +710,14 @@ final class PathBuilderTest extends TestCase
         $catalogue = self::createStub(MetadataCatalogue::class);
         $catalogue->method('getResourceMap')->willReturn([User::class => UserResource::class]);
 
-        return new PathBuilder($this->router(), $catalogue, new AudienceResolver, new EnvelopeBuilder, new TagResolver);
+        return new PathBuilder(
+            $this->router(),
+            $catalogue,
+            new AudienceResolver,
+            new EnvelopeBuilder,
+            new TagResolver,
+            new ResponseSchemaResolver($catalogue, new EnvelopeBuilder),
+        );
     }
 
     /**
