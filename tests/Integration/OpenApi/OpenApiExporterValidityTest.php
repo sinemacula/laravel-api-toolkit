@@ -23,6 +23,7 @@ use SineMacula\ApiToolkit\OpenApi\OpenApiAssembler;
 use SineMacula\ApiToolkit\OpenApi\Resolution\AudienceConfiguration;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ReachableSchemaResolver;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
+use Tests\Fixtures\Enums\AppErrorCode;
 use Tests\Fixtures\Models\Organization;
 use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\Tag;
@@ -194,8 +195,9 @@ final class OpenApiExporterValidityTest extends TestCase
     }
 
     /**
-     * Test that the emitted document carries exactly one error response per
-     * defined error code (FR-5).
+     * Test that the emitted document carries one error response per defined
+     * error code, covering the toolkit's own codes and any application
+     * exception discovered outside the toolkit.
      *
      * @return void
      */
@@ -205,11 +207,15 @@ final class OpenApiExporterValidityTest extends TestCase
         $responses  = $document['components']['responses'];
         $errorCodes = ErrorCode::cases();
 
-        self::assertCount(count($errorCodes), $responses);
+        // The toolkit's own codes plus the discovered application exception
+        // fixture, which lives in a non-vendor PSR-4 root.
+        self::assertCount(count($errorCodes) + 1, $responses);
 
         foreach ($errorCodes as $code) {
             self::assertArrayHasKey('ErrorResponse' . $code->getCode(), $responses);
         }
+
+        self::assertArrayHasKey('ErrorResponse' . AppErrorCode::WIDGET_FAILURE->getCode(), $responses);
     }
 
     /**

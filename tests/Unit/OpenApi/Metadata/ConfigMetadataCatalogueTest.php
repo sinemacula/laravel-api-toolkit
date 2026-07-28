@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\Config;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Enums\ErrorCode;
 use SineMacula\ApiToolkit\Http\Resources\ResourceDiscovery;
+use SineMacula\ApiToolkit\OpenApi\Metadata\ApiExceptionDiscoverer;
 use SineMacula\ApiToolkit\OpenApi\Metadata\ConfigMetadataCatalogue;
 use SineMacula\ApiToolkit\OpenApi\Metadata\ErrorCatalogueReader;
 use SineMacula\ApiToolkit\OpenApi\Metadata\ErrorDescriptor;
@@ -231,7 +232,7 @@ final class ConfigMetadataCatalogueTest extends TestCase
         /** @var \SineMacula\ApiToolkit\Http\Resources\ResourceDiscovery $discovery */
         $discovery = $this->app->make(ResourceDiscovery::class);
 
-        return new ConfigMetadataCatalogue($registry, new ErrorCatalogueReader, $discovery);
+        return new ConfigMetadataCatalogue($registry, new ErrorCatalogueReader(new ApiExceptionDiscoverer([])), $discovery);
     }
 
     /**
