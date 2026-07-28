@@ -20,16 +20,16 @@ use SineMacula\ApiToolkit\OpenApi\Resolution\TagResolver;
  * route, grouping every verb of the same URI under a shared path template. A
  * route handled by an AuthorizedController whose model maps to a registered
  * resource keeps the full resource contract: the REST action drives the
- * response shape through the shared envelope builder - index emits the
- * length-aware collection envelope with the total-count header, show and update
- * a single envelope, store a single envelope under 201, and destroy an empty
- * 204 - alongside the honest baseline error statuses merged with any
- * ApiException the action documents. Every other route - a plain or invokable
- * controller, a non-REST action, an unmapped model, or a closure - still emits
- * an operation carrying the path template, verbs, path parameters, and a
- * resolved tag, with a single success response whose body is the shared data
- * envelope wrapping an x-undocumented marker; that success is 201 for a store
- * action, 204 for a destroy, and 200 otherwise, and it carries no error
+ * response shape through the shared envelope builder - index emits a oneOf of
+ * the length-aware and cursor collection envelopes with the total-count header,
+ * show and update a single envelope, store a single envelope under 201, and
+ * destroy an empty 204 - alongside the honest baseline error statuses merged
+ * with any ApiException the action documents. Every other route - a plain or
+ * invokable controller, a non-REST action, an unmapped model, or a closure -
+ * still emits an operation carrying the path template, verbs, path parameters,
+ * and a resolved tag, with a single success response whose body is the shared
+ * data envelope wrapping an x-undocumented marker; that success is 201 for a
+ * store action, 204 for a destroy, and 200 otherwise, and it carries no error
  * responses. Audience membership is checked for every route regardless of its
  * handler, so a closure scoped out by a route macro is omitted exactly as an
  * attribute-scoped controller is. HEAD and OPTIONS are always excluded.
@@ -312,8 +312,13 @@ final readonly class PathBuilder
     }
 
     /**
-     * Build the length-aware collection response, carrying the shared
-     * total-count header alongside the collection envelope.
+     * Build the collection response, offering both pagination shapes as a oneOf
+     * of the length-aware and cursor collection envelopes.
+     *
+     * The toolkit's paginate() serves a length-aware page by default and
+     * switches to cursor pagination when the client sends ?cursor or
+     * ?pagination=cursor, so an index response can take either shape. The
+     * shared total-count header applies to the length-aware shape only.
      *
      * @param  string  $ref
      * @return array<int|string, mixed>
@@ -322,14 +327,21 @@ final readonly class PathBuilder
     {
         return [
             '200' => [
-                'description' => 'A paginated collection of resources.',
+                'description' => 'A paginated collection of resources. Length-aware by default; sending ?cursor or ?pagination=cursor returns the cursor shape.',
                 'headers'     => [
                     EnvelopeBuilder::TOTAL_COUNT_HEADER_NAME => [
                         '$ref' => self::HEADER_REF_PREFIX . EnvelopeBuilder::TOTAL_COUNT_HEADER_NAME,
                     ],
                 ],
                 'content' => [
-                    self::MEDIA_TYPE => ['schema' => $this->envelope->collectionEnvelope($ref)],
+                    self::MEDIA_TYPE => [
+                        'schema' => [
+                            'oneOf' => [
+                                $this->envelope->collectionEnvelope($ref),
+                                $this->envelope->cursorCollectionEnvelope($ref),
+                            ],
+                        ],
+                    ],
                 ],
             ],
         ];

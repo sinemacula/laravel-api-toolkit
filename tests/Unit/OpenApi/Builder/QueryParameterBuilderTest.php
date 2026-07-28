@@ -39,11 +39,11 @@ final class QueryParameterBuilderTest extends TestCase
     {
         $parameters = $this->makeBuilder()->build();
 
-        foreach (['Fields', 'Filter', 'Order', 'Limit', 'Page', 'Cursor', 'Counts', 'Sums', 'Averages'] as $name) {
+        foreach (['Fields', 'Filter', 'Order', 'Limit', 'Page', 'Cursor', 'Pagination', 'Counts', 'Sums', 'Averages'] as $name) {
             self::assertArrayHasKey($name, $parameters);
         }
 
-        self::assertCount(9, $parameters);
+        self::assertCount(10, $parameters);
     }
 
     /**
@@ -63,6 +63,7 @@ final class QueryParameterBuilderTest extends TestCase
         self::assertSame('limit', $parameters['Limit']['name']);
         self::assertSame('page', $parameters['Page']['name']);
         self::assertSame('cursor', $parameters['Cursor']['name']);
+        self::assertSame('pagination', $parameters['Pagination']['name']);
         self::assertSame('counts', $parameters['Counts']['name']);
         self::assertSame('sums', $parameters['Sums']['name']);
         self::assertSame('averages', $parameters['Averages']['name']);
@@ -184,6 +185,21 @@ final class QueryParameterBuilderTest extends TestCase
         self::assertSame('integer', $parameters['Page']['schema']['type']);
         self::assertSame(1, $parameters['Page']['schema']['minimum']);
         self::assertSame('string', $parameters['Cursor']['schema']['type']);
+    }
+
+    /**
+     * Test that the pagination-mode parameter documents cursor as its only
+     * behaviour-changing value and describes the default length-aware mode.
+     *
+     * @return void
+     */
+    public function testPaginationModeParameterEnumeratesCursorOnly(): void
+    {
+        $pagination = $this->makeBuilder()->build()['Pagination'];
+
+        self::assertSame(['type' => 'string', 'enum' => ['cursor']], $pagination['schema']);
+        self::assertStringContainsString('length-aware', $pagination['description']);
+        self::assertStringContainsString('cursor', $pagination['description']);
     }
 
     /**

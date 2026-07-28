@@ -67,19 +67,26 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
-     * Test that the index action emits the length-aware collection envelope and
-     * references the shared total-count header.
+     * Test that the index action offers both pagination shapes as a oneOf of
+     * the length-aware and cursor collection envelopes and still references the
+     * shared total-count header.
      *
      * @return void
      */
-    public function testIndexEmitsCollectionEnvelopeWithTotalCountHeader(): void
+    public function testIndexEmitsBothPaginationShapesWithTotalCountHeader(): void
     {
         $this->registerRestRoutes();
 
         $response = $this->build()['/users']['get']['responses']['200'];
+        $envelope = new EnvelopeBuilder;
 
         self::assertSame(
-            (new EnvelopeBuilder)->collectionEnvelope('#/components/schemas/User'),
+            [
+                'oneOf' => [
+                    $envelope->collectionEnvelope('#/components/schemas/User'),
+                    $envelope->cursorCollectionEnvelope('#/components/schemas/User'),
+                ],
+            ],
             $response['content']['application/json']['schema'],
         );
         self::assertSame(

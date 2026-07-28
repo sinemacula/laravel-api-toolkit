@@ -187,6 +187,38 @@ final class OpenApiAssemblerTest extends TestCase
     }
 
     /**
+     * Test that an index operation offers both pagination shapes as a oneOf of
+     * the length-aware and cursor collection envelopes, and that the cursor
+     * envelope's schemas survive the reachability filtering now a path
+     * references them.
+     *
+     * @return void
+     */
+    public function testIndexOffersBothPaginationShapesAndKeepsCursorSchemas(): void
+    {
+        $this->registerUserRoutes();
+
+        $document = $this->assemble();
+        $schema   = $document['paths']['/users']['get']['responses']['200']['content']['application/json']['schema'];
+        $envelope = new EnvelopeBuilder;
+
+        self::assertSame(
+            [
+                'oneOf' => [
+                    $envelope->collectionEnvelope('#/components/schemas/User'),
+                    $envelope->cursorCollectionEnvelope('#/components/schemas/User'),
+                ],
+            ],
+            $schema,
+        );
+
+        $schemas = $document['components']['schemas'];
+
+        self::assertArrayHasKey(EnvelopeBuilder::CURSOR_PAGINATION_META_SCHEMA_NAME, $schemas);
+        self::assertArrayHasKey(EnvelopeBuilder::CURSOR_PAGINATION_LINKS_SCHEMA_NAME, $schemas);
+    }
+
+    /**
      * Test that the reusable total-count header is emitted under
      * components.headers.
      *

@@ -439,6 +439,20 @@ final class OpenApiExporterValidityTest extends TestCase
             'Total-Count',
             $paths['/users']['get']['responses']['200']['headers'],
         );
+
+        // The index 200 offers both pagination shapes as a oneOf, and the whole
+        // document (validated below) proves that oneOf is valid OpenAPI 3.1.
+        $indexSchema = $paths['/users']['get']['responses']['200']['content']['application/json']['schema'];
+
+        self::assertCount(2, $indexSchema['oneOf']);
+        self::assertSame(
+            '#/components/schemas/PaginationMeta',
+            $indexSchema['oneOf'][0]['properties']['meta']['$ref'],
+        );
+        self::assertSame(
+            '#/components/schemas/CursorPaginationMeta',
+            $indexSchema['oneOf'][1]['properties']['meta']['$ref'],
+        );
         self::assertArrayHasKey('201', $paths['/users']['post']['responses']);
         self::assertArrayHasKey('204', $paths['/users/{user}']['delete']['responses']);
 
