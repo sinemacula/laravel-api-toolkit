@@ -219,6 +219,54 @@ final class QueryParameterBuilderTest extends TestCase
     }
 
     /**
+     * Test that every deep-object parameter carries the deepObject exploded
+     * style so bracketed keys serialise per the toolkit's query grammar.
+     *
+     * @return void
+     */
+    public function testDeepObjectParametersCarryDeepObjectExplodedStyle(): void
+    {
+        $parameters = $this->makeBuilder()->build();
+
+        foreach (['Fields', 'Filter', 'Counts', 'Sums', 'Averages'] as $name) {
+            self::assertSame('deepObject', $parameters[$name]['style'], $name);
+            self::assertTrue($parameters[$name]['explode'], $name);
+        }
+    }
+
+    /**
+     * Test that each parameter description carries the canonical query-grammar
+     * example token a developer copies verbatim.
+     *
+     * @return void
+     */
+    public function testDescriptionsCarryTheCanonicalGrammarExampleTokens(): void
+    {
+        $parameters = $this->makeBuilder()->build();
+
+        self::assertStringContainsString('fields[users]=id,name', $parameters['Fields']['description']);
+        self::assertStringContainsString('order=name,created_at:desc', $parameters['Order']['description']);
+        self::assertStringContainsString('counts[users]=posts', $parameters['Counts']['description']);
+        self::assertStringContainsString('sums[users][posts]=id', $parameters['Sums']['description']);
+        self::assertStringContainsString('averages[users][posts]=id', $parameters['Averages']['description']);
+    }
+
+    /**
+     * Test that the pagination-family descriptions state the behaviour each
+     * parameter controls so consumers pick the correct paging knob.
+     *
+     * @return void
+     */
+    public function testPaginationFamilyDescriptionsStateTheirBehaviour(): void
+    {
+        $parameters = $this->makeBuilder()->build();
+
+        self::assertStringContainsString('maximum number of records', $parameters['Limit']['description']);
+        self::assertStringContainsString('Page number', $parameters['Page']['description']);
+        self::assertStringContainsString('cursor', $parameters['Cursor']['description']);
+    }
+
+    /**
      * Test that a parameter without an explicit style omits both the style and
      * explode keys.
      *

@@ -19,6 +19,9 @@ use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\Profile;
 use Tests\Fixtures\Models\Tag;
 use Tests\Fixtures\Models\User;
+use Tests\Fixtures\Resources\DeclaredOpenApiUserResource;
+use Tests\Fixtures\Resources\GuardedUserResource;
+use Tests\Fixtures\Resources\NullableFilterableUserResource;
 use Tests\Fixtures\Resources\OrganizationResource;
 use Tests\Fixtures\Resources\PostResource;
 use Tests\Fixtures\Resources\TagResource;
@@ -483,6 +486,73 @@ final class ResourceSchemaBuilderTest extends TestCase
         $builder = $this->makeBuilder([]);
 
         self::assertTrue($this->invokeMethod($builder, 'isToOne', (new User)->hasOneThrough(Profile::class, Organization::class)));
+    }
+
+    /**
+     * Test that a guarded scalar field is emitted as an undocumented, optional
+     * property while a non-guarded sibling scalar remains required.
+     *
+     * @return void
+     */
+    public function testGuardedScalarIsUndocumentedAndOptionalWhileSiblingIsRequired(): void
+    {
+        $schema = $this->makeBuilder([User::class => GuardedUserResource::class])->build()['GuardedUser'];
+
+        self::assertSame(['x-undocumented' => true], $schema['properties']['email']);
+        self::assertContains('id', $schema['required']);
+        self::assertNotContains('email', $schema['required']);
+    }
+
+    /**
+     * Test that a field carrying a full author-declared OpenAPI contract is
+     * emitted verbatim through the compiler and builder, applying the 2020-12
+     * nullable type-array form.
+     *
+     * @return void
+     */
+    public function testFullOpenApiOverrideSurvivesVerbatim(): void
+    {
+        $schema = $this->makeBuilder([User::class => DeclaredOpenApiUserResource::class])->build()['DeclaredOpenApiUser'];
+
+        self::assertSame([
+            'type'        => ['string', 'null'],
+            'format'      => 'color',
+            'enum'        => ['bronze', 'silver', 'gold'],
+            'example'     => 'gold',
+            'description' => 'The membership tier of the user',
+        ], $schema['properties']['tier']);
+    }
+
+    /**
+     * Test that a to-one relation emits a single reference while a to-many
+     * relation on the same resource emits an array of references.
+     *
+     * @return void
+     */
+    public function testToOneEmitsSingleRefAndToManyEmitsArrayOfRefs(): void
+    {
+        $properties = $this->makeBuilder($this->fullResourceMap())->build()['User']['properties'];
+
+        self::assertSame(['$ref' => '#/components/schemas/Organization'], $properties['organization']);
+        self::assertSame([
+            'type'  => 'array',
+            'items' => ['$ref' => '#/components/schemas/Post'],
+        ], $properties['posts']);
+    }
+
+    /**
+     * Test that a nullable inferred scalar emits the 2020-12 null type member
+     * while a non-nullable sibling scalar emits a bare scalar type.
+     *
+     * @return void
+     */
+    public function testNullableInferredScalarEmitsNullMemberWhileSiblingDoesNot(): void
+    {
+        $properties = $this->makeBuilder([User::class => NullableFilterableUserResource::class])
+            ->build()['NullableFilterableUser']['properties'];
+
+        self::assertSame(['integer', 'null'], $properties['organization_id']['type']);
+        self::assertSame('string', $properties['name']['type']);
     }
 
     /**

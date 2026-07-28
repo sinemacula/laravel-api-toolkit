@@ -15,7 +15,9 @@ use Opis\JsonSchema\ValidationResult;
 use Opis\JsonSchema\Validator;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Console\ExportOpenApiCommand;
+use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Enums\ErrorCode;
+use SineMacula\ApiToolkit\OpenApi\Builder\EnvelopeBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\PathBuilder;
 use SineMacula\ApiToolkit\OpenApi\ExportOpenApiComponents;
 use SineMacula\ApiToolkit\OpenApi\ExportResult;
@@ -28,6 +30,7 @@ use Tests\Fixtures\Models\Organization;
 use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\Tag;
 use Tests\Fixtures\Models\User;
+use Tests\Fixtures\OpenApi\ColumnlessIntrospectionProvider;
 use Tests\Fixtures\OpenApi\PathFixtureController;
 use Tests\Fixtures\OpenApi\PathInvokableController;
 use Tests\Fixtures\OpenApi\PathOrganizationController;
@@ -713,6 +716,168 @@ final class OpenApiExporterValidityTest extends TestCase
         self::assertTrue(
             $this->validateAgainstMetaSchema($document)->isValid(),
             'A document with security requirements must validate as OpenAPI 3.1: ' . $this->formatErrors($this->validateAgainstMetaSchema($document)),
+        );
+    }
+
+    /**
+     * Test that the resource REST responses survive full assembly: show and
+     * store wrap the User reference in the single envelope under 200 and 201,
+     * and destroy emits an empty 204 with no body.
+     *
+     * @return void
+     */
+    public function testResourceResponseBodiesSurviveAssembly(): void
+    {
+        $this->registerUserRoutes();
+
+        $paths    = $this->export()->document['paths'];
+        $envelope = (new EnvelopeBuilder)->singleEnvelope('#/components/schemas/User');
+
+        self::assertSame(
+            $envelope,
+            $paths['/users/{user}']['get']['responses']['200']['content']['application/json']['schema'],
+        );
+        self::assertSame(
+            $envelope,
+            $paths['/users']['post']['responses']['201']['content']['application/json']['schema'],
+        );
+
+        $destroy = $paths['/users/{user}']['delete']['responses']['204'];
+
+        self::assertSame(['description' => 'The resource was deleted.'], $destroy);
+        self::assertArrayNotHasKey('content', $destroy);
+    }
+
+    /**
+     * Test that an action's documented @throws surfaces as a per-operation
+     * error response end to end: show carries a 404 referencing the shared
+     * error envelope with the NotFoundException example, and store a 409 with
+     * the ConflictException example.
+     *
+     * @return void
+     */
+    public function testThrowsDerivedErrorResponsesSurviveAssembly(): void
+    {
+        $this->registerUserRoutes();
+
+        $paths = $this->export()->document['paths'];
+
+        $notFound = $paths['/users/{user}']['get']['responses']['404']['content']['application/json'];
+
+        self::assertSame('#/components/schemas/ErrorEnvelope', $notFound['schema']['$ref']);
+        self::assertSame(
+            ['NotFoundException' => ['value' => ['error' => ['status' => 404, 'code' => 10103]]]],
+            $notFound['examples'],
+        );
+
+        $conflict = $paths['/users']['post']['responses']['409']['content']['application/json'];
+
+        self::assertSame('#/components/schemas/ErrorEnvelope', $conflict['schema']['$ref']);
+        self::assertSame(
+            ['ConflictException' => ['value' => ['error' => ['status' => 409, 'code' => 10108]]]],
+            $conflict['examples'],
+        );
+    }
+
+    /**
+     * Test that the honest baseline error statuses attach per REST action end
+     * to end: every action carries 401/403/500, an item read or write also 404,
+     * and a write also 422, merged with the throws-derived codes.
+     *
+     * @return void
+     */
+    public function testBaselineErrorStatusesAttachPerAction(): void
+    {
+        $this->registerUserRoutes();
+
+        $paths = $this->export()->document['paths'];
+
+        self::assertSame([200, 401, 403, 500], array_keys($paths['/users']['get']['responses']));
+        self::assertSame([201, 401, 403, 409, 422, 500], array_keys($paths['/users']['post']['responses']));
+        self::assertSame([200, 401, 403, 404, 500], array_keys($paths['/users/{user}']['get']['responses']));
+        self::assertSame([200, 401, 403, 404, 422, 500], array_keys($paths['/users/{user}']['put']['responses']));
+        self::assertSame([204, 401, 403, 404, 500], array_keys($paths['/users/{user}']['delete']['responses']));
+    }
+
+    /**
+     * Test that a to-many relation emits an array of references to the related
+     * component and that the referenced resource survives reachability
+     * filtering rather than dangling.
+     *
+     * @return void
+     */
+    public function testToManyRelationEmitsArrayOfReferencesAndKeepsChild(): void
+    {
+        $this->registerUserRoutes();
+
+        $document = $this->export()->document;
+        $posts    = $document['components']['schemas']['User']['properties']['posts'];
+
+        self::assertSame(
+            ['type' => 'array', 'items' => ['$ref' => '#/components/schemas/Post']],
+            $posts,
+        );
+
+        self::assertArrayHasKey('Post', $document['components']['schemas']);
+    }
+
+    /**
+     * Test that a nullable resource field emits the JSON Schema 2020-12
+     * nullable type union rather than the OpenAPI 3.0 nullable keyword, end to
+     * end.
+     *
+     * @return void
+     */
+    public function testNullableFieldEmitsTypeUnion(): void
+    {
+        $this->registerUserRoutes();
+
+        $document  = $this->export()->document;
+        $createdAt = $document['components']['schemas']['User']['properties']['created_at'];
+
+        self::assertSame(['string', 'null'], $createdAt['type']);
+        self::assertSame('date-time', $createdAt['format']);
+    }
+
+    /**
+     * Test that the export runs without live column introspection: cast-backed
+     * and declared fields stay typed, a purely column-inferred scalar degrades
+     * to undocumented, and the document still validates as OpenAPI 3.1.
+     *
+     * @return void
+     */
+    public function testExportSurvivesWithoutColumnIntrospection(): void
+    {
+        $this->registerUserRoutes();
+
+        $inner = $this->makeApplication()->make(SchemaIntrospectionProvider::class);
+
+        $this->makeApplication()->instance(
+            SchemaIntrospectionProvider::class,
+            new ColumnlessIntrospectionProvider($inner),
+        );
+
+        SchemaCompiler::clearCache();
+
+        $document = $this->export()->document;
+        $schemas  = $document['components']['schemas'];
+
+        // A boolean cast keeps the field typed even without a backing column.
+        self::assertSame(['type' => 'boolean'], $schemas['Post']['properties']['published']);
+
+        // A declared timestamp field keeps its nullable date-time contract.
+        self::assertSame(
+            ['type' => ['string', 'null'], 'format' => 'date-time'],
+            $schemas['User']['properties']['created_at'],
+        );
+
+        // A scalar resolvable only from its column degrades to undocumented
+        // once neither a column nor a mappable cast resolves it.
+        self::assertSame(['x-undocumented' => true], $schemas['User']['properties']['status']);
+
+        self::assertTrue(
+            $this->validateAgainstMetaSchema($document)->isValid(),
+            'A document exported without column introspection must validate as OpenAPI 3.1: ' . $this->formatErrors($this->validateAgainstMetaSchema($document)),
         );
     }
 

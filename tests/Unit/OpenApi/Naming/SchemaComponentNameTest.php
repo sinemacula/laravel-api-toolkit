@@ -10,6 +10,8 @@ use SineMacula\ApiToolkit\OpenApi\Naming\SchemaComponentName;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Resources\OrganizationResource;
 use Tests\Fixtures\Resources\UserResource;
+use Tests\Fixtures\Resources\V1\UserResource as V1UserResource;
+use Tests\Fixtures\Resources\V2\UserResource as V2UserResource;
 
 /**
  * Tests for the SchemaComponentName helper.
@@ -43,5 +45,22 @@ final class SchemaComponentNameTest extends TestCase
     public function testReturnsTheBasenameWhenThereIsNoResourceSuffix(): void
     {
         self::assertSame('User', SchemaComponentName::fromResource(User::class));
+    }
+
+    /**
+     * Test that two distinct resource classes sharing a basename across version
+     * namespaces both derive the same component name, so the derivation is
+     * driven purely by the basename and ignores the namespace.
+     *
+     * @return void
+     */
+    public function testTwoResourcesSharingABasenameAcrossNamespacesCollide(): void
+    {
+        $v1 = SchemaComponentName::fromResource(V1UserResource::class);
+        $v2 = SchemaComponentName::fromResource(V2UserResource::class);
+
+        self::assertSame('User', $v1);
+        self::assertSame('User', $v2);
+        self::assertSame($v1, $v2);
     }
 }

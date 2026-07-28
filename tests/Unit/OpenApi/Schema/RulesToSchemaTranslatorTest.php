@@ -103,6 +103,38 @@ final class RulesToSchemaTranslatorTest extends TestCase
     }
 
     /**
+     * Test that a field.*.child grid weaves an array of objects, nesting each
+     * child property and its required list under the items node.
+     *
+     * @return void
+     */
+    public function testStarChildGridBuildsArrayOfObjects(): void
+    {
+        $schema = $this->translator()->translate([
+            'items'       => ['array'],
+            'items.*.sku' => 'required|string',
+            'items.*.qty' => 'integer',
+        ]);
+
+        self::assertSame([
+            'type'       => 'object',
+            'properties' => [
+                'items' => [
+                    'type'  => 'array',
+                    'items' => [
+                        'type'       => 'object',
+                        'properties' => [
+                            'sku' => ['type' => 'string'],
+                            'qty' => ['type' => 'integer'],
+                        ],
+                        'required' => ['sku'],
+                    ],
+                ],
+            ],
+        ], $schema);
+    }
+
+    /**
      * Test that a confirmed field gains a confirmation sibling of the same base
      * type.
      *

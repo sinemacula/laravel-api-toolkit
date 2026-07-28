@@ -47,6 +47,14 @@ final class PathResponseSchemaController
     public function widget(): void {}
 
     /**
+     * Respond with a collection of an inlined self-describing DTO.
+     *
+     * @return void
+     */
+    #[ResponseSchema(WidgetShape::class, collection: true)]
+    public function widgets(): void {}
+
+    /**
      * Respond with a plain class that is neither a resource nor
      * self-describing.
      *

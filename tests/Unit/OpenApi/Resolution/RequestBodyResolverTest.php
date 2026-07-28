@@ -9,6 +9,7 @@ use SineMacula\ApiToolkit\OpenApi\Resolution\RequestBodyResolver;
 use SineMacula\ApiToolkit\OpenApi\Schema\FieldSchemaBuilder;
 use SineMacula\ApiToolkit\OpenApi\Schema\RuleNormaliser;
 use SineMacula\ApiToolkit\OpenApi\Schema\RulesToSchemaTranslator;
+use Tests\Fixtures\OpenApi\ParityRequestBodyController;
 use Tests\Fixtures\OpenApi\PathRequestBodyController;
 use Tests\TestCase;
 
@@ -40,8 +41,8 @@ final class RequestBodyResolverTest extends TestCase
     }
 
     /**
-     * Test that a type-hinted rules-source parameter is discovered when the
-     * action carries no directive.
+     * Test that a type-hinted Payload parameter is discovered and documented as
+     * the exact schema its own rules() translate to.
      *
      * @return void
      */
@@ -49,12 +50,22 @@ final class RequestBodyResolverTest extends TestCase
     {
         $body = $this->resolver()->resolve(PathRequestBodyController::class, 'update');
 
-        self::assertNotNull($body);
-
-        $properties = $body['content']['application/json']['schema']['properties'];
-
-        self::assertArrayHasKey('title', $properties);
-        self::assertArrayHasKey('quantity', $properties);
+        self::assertSame([
+            'required' => true,
+            'content'  => [
+                'application/json' => [
+                    'schema' => [
+                        'type'       => 'object',
+                        'properties' => [
+                            'title'    => ['type' => 'string'],
+                            'quantity' => ['type' => ['integer', 'null']],
+                            'status'   => ['enum' => ['active', 'inactive']],
+                        ],
+                        'required' => ['title'],
+                    ],
+                ],
+            ],
+        ], $body);
     }
 
     /**
@@ -122,8 +133,8 @@ final class RequestBodyResolverTest extends TestCase
     }
 
     /**
-     * Test that a type-hinted FormRequest source is instantiated and its rules
-     * documented as a required JSON body.
+     * Test that a type-hinted FormRequest source is instantiated and documented
+     * as the exact schema its rules() translate to.
      *
      * @return void
      */
@@ -131,19 +142,27 @@ final class RequestBodyResolverTest extends TestCase
     {
         $body = $this->resolver()->resolve(PathRequestBodyController::class, 'formRequest');
 
-        self::assertNotNull($body);
-        self::assertTrue($body['required']);
-        self::assertArrayHasKey('application/json', $body['content']);
-
-        $properties = $body['content']['application/json']['schema']['properties'];
-
-        self::assertArrayHasKey('name', $properties);
-        self::assertArrayHasKey('email', $properties);
+        self::assertSame([
+            'required' => true,
+            'content'  => [
+                'application/json' => [
+                    'schema' => [
+                        'type'       => 'object',
+                        'properties' => [
+                            'name'  => ['type' => 'string', 'maxLength' => 255],
+                            'email' => ['type' => 'string', 'format' => 'email'],
+                        ],
+                        'required' => ['name', 'email'],
+                    ],
+                ],
+            ],
+        ], $body);
     }
 
     /**
      * Test that a FormRequest also declaring static rules is read through its
-     * static rules rather than instantiated.
+     * static rules rather than its throwing constructor, documenting the static
+     * schema.
      *
      * @return void
      */
@@ -151,11 +170,20 @@ final class RequestBodyResolverTest extends TestCase
     {
         $body = $this->resolver()->resolve(PathRequestBodyController::class, 'hybrid');
 
-        self::assertNotNull($body);
-
-        $properties = $body['content']['application/json']['schema']['properties'];
-
-        self::assertArrayHasKey('headline', $properties);
+        self::assertSame([
+            'required' => true,
+            'content'  => [
+                'application/json' => [
+                    'schema' => [
+                        'type'       => 'object',
+                        'properties' => [
+                            'headline' => ['type' => 'string'],
+                        ],
+                        'required' => ['headline'],
+                    ],
+                ],
+            ],
+        ], $body);
     }
 
     /**
@@ -178,6 +206,41 @@ final class RequestBodyResolverTest extends TestCase
     public function testNonNamedTypeParameterResolvesToNull(): void
     {
         self::assertNull($this->resolver()->resolve(PathRequestBodyController::class, 'unionParam'));
+    }
+
+    /**
+     * Test that every discovery path documents a byte-identical body from one
+     * shared rule set, the equivalence oracle across the four input flows.
+     *
+     * @return void
+     */
+    public function testAllDiscoveryPathsDocumentIdenticalBody(): void
+    {
+        $expected = [
+            'required' => true,
+            'content'  => [
+                'application/json' => [
+                    'schema' => [
+                        'type'       => 'object',
+                        'properties' => [
+                            'title'   => ['type' => 'string', 'maxLength' => 255],
+                            'summary' => ['type' => ['string', 'null']],
+                            'tags'    => ['type' => 'array', 'items' => ['type' => 'string']],
+                            'status'  => ['enum' => ['active', 'inactive', 'banned']],
+                            'email'   => ['type' => 'string', 'format' => 'email'],
+                        ],
+                        'required' => ['title', 'email'],
+                    ],
+                ],
+            ],
+        ];
+
+        $resolver = $this->resolver();
+
+        self::assertSame($expected, $resolver->resolve(ParityRequestBodyController::class, 'plain'));
+        self::assertSame($expected, $resolver->resolve(ParityRequestBodyController::class, 'payload'));
+        self::assertSame($expected, $resolver->resolve(ParityRequestBodyController::class, 'formRequest'));
+        self::assertSame($expected, $resolver->resolve(ParityRequestBodyController::class, 'attribute'));
     }
 
     /**

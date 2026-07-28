@@ -4,8 +4,11 @@ declare(strict_types = 1);
 
 namespace Tests\Unit\OpenApi\Builder;
 
+use Illuminate\Pagination\CursorPaginator;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Routing\Router;
 use PHPUnit\Framework\Attributes\CoversClass;
+use SineMacula\ApiToolkit\Http\Resources\ApiResourceCollection;
 use SineMacula\ApiToolkit\OpenApi\Builder\EnvelopeBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\PathBuilder;
 use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
@@ -681,6 +684,86 @@ final class PathBuilderTest extends TestCase
 
         self::assertSame(WidgetShape::schema(), $schema['properties']['data']);
         self::assertSame(['data'], $schema['required']);
+    }
+
+    /**
+     * Test that a non-resource action declaring a self-describing DTO as a
+     * collection wraps the DTO fragment as the length-aware collection
+     * envelope's inline item schema.
+     *
+     * @return void
+     */
+    public function testResponseSchemaDtoCollectionActionInlinesItemFragment(): void
+    {
+        $this->router()->get('widgets', [PathResponseSchemaController::class, 'widgets']);
+
+        $schema = $this->build()['/widgets']['get']['responses']['200']['content']['application/json']['schema'];
+
+        self::assertSame(
+            (new EnvelopeBuilder)->collectionEnvelopeFor(WidgetShape::schema()),
+            $schema,
+        );
+        self::assertSame(WidgetShape::schema(), $schema['properties']['data']['items']);
+        self::assertSame(['data', 'meta', 'links'], $schema['required']);
+    }
+
+    /**
+     * Test that the documented envelope required-key sets exactly match the
+     * keys the runtime response path emits for a single resource, a
+     * length-aware collection, and a cursor collection, so the documentation
+     * never drifts from the shape the toolkit actually returns.
+     *
+     * @return void
+     */
+    public function testDocumentedEnvelopeKeysMatchRuntimeEmission(): void
+    {
+        $user      = User::create(['name' => 'Runtime', 'email' => 'runtime@example.com']);
+        $envelope  = new EnvelopeBuilder;
+        $schemas   = $envelope->buildSchemas();
+        $reference = '#/components/schemas/User';
+
+        $single = (new UserResource($user))->response()->getData(true);
+
+        self::assertSame(
+            $envelope->singleEnvelope($reference)['required'],
+            array_keys($single),
+        );
+
+        $lengthAware = (new ApiResourceCollection(
+            new LengthAwarePaginator([$user], 1, 15, 1, ['path' => 'http://localhost/users']),
+            UserResource::class,
+        ))->response()->getData(true);
+
+        self::assertSame(
+            $envelope->collectionEnvelope($reference)['required'],
+            array_keys($lengthAware),
+        );
+        self::assertSame(
+            $schemas[EnvelopeBuilder::PAGINATION_META_SCHEMA_NAME]['required'],
+            array_keys($lengthAware['meta']),
+        );
+        self::assertSame(
+            $schemas[EnvelopeBuilder::PAGINATION_LINKS_SCHEMA_NAME]['required'],
+            array_keys($lengthAware['links']),
+        );
+
+        $cursor = (new ApiResourceCollection(
+            new CursorPaginator([$user], 15, null, ['path' => 'http://localhost/users']),
+            UserResource::class,
+        ))->response()->getData(true);
+
+        self::assertSame(
+            $envelope->cursorCollectionEnvelope($reference)['required'],
+            array_keys($cursor),
+        );
+        self::assertSame(
+            $schemas[EnvelopeBuilder::CURSOR_PAGINATION_META_SCHEMA_NAME]['required'],
+            array_keys($cursor['meta']),
+        );
+        self::assertSame(
+            $schemas[EnvelopeBuilder::CURSOR_PAGINATION_LINKS_SCHEMA_NAME]['required'],
+            array_keys($cursor['links']),
+        );
     }
 
     /**
