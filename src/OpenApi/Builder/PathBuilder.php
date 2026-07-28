@@ -11,6 +11,7 @@ use SineMacula\ApiToolkit\Http\Routing\AuthorizedController;
 use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
 use SineMacula\ApiToolkit\OpenApi\Naming\SchemaComponentName;
 use SineMacula\ApiToolkit\OpenApi\Resolution\AudienceResolver;
+use SineMacula\ApiToolkit\OpenApi\Resolution\DocumentableRouteFilter;
 use SineMacula\ApiToolkit\OpenApi\Resolution\RequestBodyResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ResponseSchemaResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\TagResolver;
@@ -41,8 +42,11 @@ use SineMacula\ApiToolkit\OpenApi\Security\SecuritySchemeResolver;
  * #[RequestSchema] directive or a type-hinted rules-source parameter reaches; a
  * read-only route carries none. Audience membership is checked for every route
  * regardless of its handler, so a closure scoped out by a route macro is
- * omitted exactly as an attribute-scoped controller is. HEAD and OPTIONS are
- * always excluded.
+ * omitted exactly as an attribute-scoped controller is. A route whose handler
+ * is defined under a blocklisted namespace - the framework and common tooling
+ * by default - is dropped before any operation is built, so framework noise
+ * never reaches the document while the organisation's own packages stay
+ * documented. HEAD and OPTIONS are always excluded.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -82,6 +86,7 @@ final readonly class PathBuilder
      * @param  \Illuminate\Routing\Router  $router
      * @param  \SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue  $catalogue
      * @param  \SineMacula\ApiToolkit\OpenApi\Resolution\AudienceResolver  $audience
+     * @param  \SineMacula\ApiToolkit\OpenApi\Resolution\DocumentableRouteFilter  $routeFilter
      * @param  \SineMacula\ApiToolkit\OpenApi\Builder\EnvelopeBuilder  $envelope
      * @param  \SineMacula\ApiToolkit\OpenApi\Resolution\TagResolver  $tags
      * @param  \SineMacula\ApiToolkit\OpenApi\Resolution\ResponseSchemaResolver  $responseSchema
@@ -98,6 +103,9 @@ final readonly class PathBuilder
 
         /** The resolver deciding audience membership per route. */
         private AudienceResolver $audience,
+
+        /** The filter dropping framework and tooling routes from the surface. */
+        private DocumentableRouteFilter $routeFilter,
 
         /** The builder assembling the shared response envelopes. */
         private EnvelopeBuilder $envelope,
@@ -155,6 +163,10 @@ final readonly class PathBuilder
     {
         $controllerClass = $this->resolveControllerClass($route);
         $action          = $route->getActionMethod();
+
+        if ($this->routeFilter->isExcluded($controllerClass, $route)) {
+            return null;
+        }
 
         if (!$this->audience->isInAudience($audience, $posture, $controllerClass, $action, $route)) {
             return null;

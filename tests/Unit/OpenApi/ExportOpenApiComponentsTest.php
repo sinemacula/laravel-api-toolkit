@@ -19,6 +19,7 @@ use SineMacula\ApiToolkit\OpenApi\Metadata\ErrorDescriptor;
 use SineMacula\ApiToolkit\OpenApi\OpenApiAssembler;
 use SineMacula\ApiToolkit\OpenApi\Resolution\AudienceResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ColumnTypeMapper;
+use SineMacula\ApiToolkit\OpenApi\Resolution\DocumentableRouteFilter;
 use SineMacula\ApiToolkit\OpenApi\Resolution\FieldTypeResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\RequestBodyResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ResponseSchemaResolver;
@@ -162,6 +163,7 @@ final class ExportOpenApiComponentsTest extends TestCase
                 $router,
                 $catalogue,
                 new AudienceResolver,
+                new DocumentableRouteFilter,
                 new EnvelopeBuilder,
                 new TagResolver,
                 new ResponseSchemaResolver($catalogue, new EnvelopeBuilder),

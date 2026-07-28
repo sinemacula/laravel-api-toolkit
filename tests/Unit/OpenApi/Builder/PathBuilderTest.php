@@ -10,6 +10,7 @@ use SineMacula\ApiToolkit\OpenApi\Builder\EnvelopeBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\PathBuilder;
 use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
 use SineMacula\ApiToolkit\OpenApi\Resolution\AudienceResolver;
+use SineMacula\ApiToolkit\OpenApi\Resolution\DocumentableRouteFilter;
 use SineMacula\ApiToolkit\OpenApi\Resolution\RequestBodyResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ResponseSchemaResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\TagResolver;
@@ -29,6 +30,7 @@ use Tests\Fixtures\OpenApi\PathRequestBodyController;
 use Tests\Fixtures\OpenApi\PathResponseSchemaController;
 use Tests\Fixtures\OpenApi\PathTaggedController;
 use Tests\Fixtures\OpenApi\PathUnmappedController;
+use Tests\Fixtures\OpenApi\Vendor\PathVendorController;
 use Tests\Fixtures\OpenApi\WidgetShape;
 use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
@@ -524,6 +526,34 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
+     * Test that a route whose controller is defined under a blocklisted
+     * namespace contributes no path while a route in the ordinary fixture
+     * namespace still contributes.
+     *
+     * @return void
+     */
+    public function testBlocklistedNamespaceContributesNoPath(): void
+    {
+        assert($this->app !== null);
+
+        /** @var \Illuminate\Contracts\Config\Repository $config */
+        $config = $this->app->make('config');
+
+        $config->set(
+            'api-toolkit.openapi.exclude.namespaces',
+            ['Tests\Fixtures\OpenApi\Vendor'],
+        );
+
+        $this->router()->get('vendor', [PathVendorController::class, 'index']);
+        $this->router()->get('plain', [PathPlainController::class, 'index']);
+
+        $paths = $this->build();
+
+        self::assertArrayNotHasKey('/vendor', $paths);
+        self::assertArrayHasKey('/plain', $paths);
+    }
+
+    /**
      * Test that an allowlist audience excludes routes that opt into nothing.
      *
      * @return void
@@ -882,6 +912,7 @@ final class PathBuilderTest extends TestCase
             $this->router(),
             $catalogue,
             new AudienceResolver,
+            new DocumentableRouteFilter,
             new EnvelopeBuilder,
             new TagResolver,
             new ResponseSchemaResolver($catalogue, new EnvelopeBuilder),

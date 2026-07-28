@@ -3,6 +3,7 @@
 declare(strict_types = 1);
 
 use SineMacula\ApiToolkit\Exceptions\ApiExceptionHandler;
+use SineMacula\ApiToolkit\OpenApi\Resolution\DocumentableRouteFilter;
 
 return [
 
@@ -208,6 +209,20 @@ return [
             // sanctum, token, session).
             'drivers' => [],
 
+        ],
+
+        // Routes whose handler is defined under one of these namespace prefixes
+        // are excluded from every exported document. The shipped default blocks
+        // the framework and common first-party tooling only (Laravel, Horizon,
+        // Telescope, Sanctum, Ignition, and similar) so their routes never
+        // pollute the documentation. The list replaces the default rather than
+        // merging: add a prefix to hide another package, or remove one to
+        // document it. Your own internal packages are absent from the default
+        // and stay documented even when installed under vendor. A prefix
+        // matches on a namespace boundary, so 'Illuminate\' excludes
+        // Illuminate\Routing\Foo but never IlluminateApp\Foo.
+        'exclude' => [
+            'namespaces' => DocumentableRouteFilter::DEFAULT_NAMESPACES,
         ],
 
     ],
