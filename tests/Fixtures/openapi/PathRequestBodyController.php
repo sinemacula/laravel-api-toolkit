@@ -12,8 +12,10 @@ use Tests\Fixtures\Input\StorePayload;
  *
  * Carries one action per discovery branch: a directive-named source, a
  * type-hinted rules source, a directive winning over a competing type-hint, a
- * binary upload source, a throwing FormRequest, and read-only actions that must
- * never carry a body.
+ * binary upload source, a throwing FormRequest, a plainly readable FormRequest,
+ * a FormRequest that also declares static rules, a FormRequest yielding a
+ * non-array, a non-named-type parameter, and read-only actions that must never
+ * carry a body.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -60,6 +62,39 @@ final class PathRequestBodyController
      * @return void
      */
     public function throwing(ThrowingFormRequest $request): void {}
+
+    /**
+     * Update a resource from a plainly readable FormRequest source.
+     *
+     * @param  \Tests\Fixtures\OpenApi\WorkingFormRequest  $request
+     * @return void
+     */
+    public function formRequest(WorkingFormRequest $request): void {}
+
+    /**
+     * Create a resource from a FormRequest that also declares static rules.
+     *
+     * @param  \Tests\Fixtures\OpenApi\HybridRequestInput  $input
+     * @return void
+     */
+    public function hybrid(HybridRequestInput $input): void {}
+
+    /**
+     * Create a resource from a FormRequest whose rules() yields a non-array.
+     *
+     * @param  \Tests\Fixtures\OpenApi\NonArrayFormRequest  $request
+     * @return void
+     */
+    public function nonArray(NonArrayFormRequest $request): void {}
+
+    /**
+     * Create a resource from a parameter whose type is not a single named
+     * class, which names no rules source.
+     *
+     * @param  int|string  $input
+     * @return void
+     */
+    public function unionParam(int|string $input): void {}
 
     /**
      * List the resources without a request body.

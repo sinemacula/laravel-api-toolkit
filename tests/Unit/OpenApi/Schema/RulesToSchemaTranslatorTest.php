@@ -123,6 +123,44 @@ final class RulesToSchemaTranslatorTest extends TestCase
     }
 
     /**
+     * Test that a confirmed field carrying no scalar type gains a string
+     * confirmation sibling.
+     *
+     * @return void
+     */
+    public function testConfirmedTypelessFieldGainsStringSibling(): void
+    {
+        $schema = $this->translator()->translate(['status' => ['in:active,inactive', 'confirmed']]);
+
+        self::assertSame([
+            'type'       => 'object',
+            'properties' => [
+                'status'              => ['enum' => ['active', 'inactive']],
+                'status_confirmation' => ['type' => 'string'],
+            ],
+        ], $schema);
+    }
+
+    /**
+     * Test that a confirmed field's confirmation sibling mirrors a non-string
+     * base type verbatim.
+     *
+     * @return void
+     */
+    public function testConfirmedTypedFieldMirrorsBaseType(): void
+    {
+        $schema = $this->translator()->translate(['count' => ['integer', 'confirmed']]);
+
+        self::assertSame([
+            'type'       => 'object',
+            'properties' => [
+                'count'              => ['type' => 'integer'],
+                'count_confirmation' => ['type' => 'integer'],
+            ],
+        ], $schema);
+    }
+
+    /**
      * Test that an unrecognised rule is skipped while its field is kept.
      *
      * @return void

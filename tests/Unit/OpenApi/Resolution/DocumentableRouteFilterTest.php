@@ -141,6 +141,54 @@ final class DocumentableRouteFilterTest extends TestCase
     }
 
     /**
+     * Test that a string function-name handler is never reflected, so its
+     * declaring namespace cannot exclude the route.
+     *
+     * @return void
+     */
+    public function testNonClosureStringHandlerIsNeverReflected(): void
+    {
+        require_once __DIR__ . '/../../../Fixtures/openapi/RouteHandlerStubs.php';
+
+        $this->setBlocklist(['Tests\Fixtures\OpenApi\RouteHandlers']);
+
+        $handler = 'Tests\Fixtures\OpenApi\RouteHandlers\stub';
+
+        self::assertFalse($this->filter->isExcluded(null, $this->route($handler)));
+    }
+
+    /**
+     * Test that a stringable prefix in the configured blocklist excludes a
+     * matching class, proving each entry is cast to a string before use.
+     *
+     * @return void
+     */
+    public function testStringablePrefixExcludesMatchingClass(): void
+    {
+        $prefix = new class implements \Stringable {
+            /**
+             * Render the configured prefix as a string.
+             *
+             * @return string
+             */
+            #[\Override]
+            public function __toString(): string
+            {
+                return 'Acme\Internal';
+            }
+        };
+
+        assert($this->app !== null);
+
+        /** @var \Illuminate\Contracts\Config\Repository $config */
+        $config = $this->app->make('config');
+
+        $config->set('api-toolkit.openapi.exclude.namespaces', [$prefix]);
+
+        self::assertTrue($this->filter->isExcluded('Acme\Internal\Reports\Controller', $this->route()));
+    }
+
+    /**
      * Build a route carrying the given handler, defaulting to a no-op closure.
      *
      * @param  (\Closure(): mixed)|string|null  $handler

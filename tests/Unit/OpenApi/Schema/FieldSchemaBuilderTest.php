@@ -47,6 +47,13 @@ final class FieldSchemaBuilderTest extends TestCase
             'file binary'          => [['file'], ['type' => 'string', 'format' => 'binary']],
             'image binary'         => [['image'], ['type' => 'string', 'format' => 'binary']],
             'unknown rule skipped' => [['string', 'starts_with:foo'], ['type' => 'string']],
+            'boolean size skipped' => [['boolean', 'min:1'], ['type' => 'boolean']],
+            'array keys arguments' => [['array:name,email'], ['type' => 'array']],
+            'regex two char pairs' => [['regex://'], ['pattern' => '']],
+            'regex dotall newline' => [["regex:/a\nb/"], ['pattern' => "a\nb"]],
+            'regex caret anchored' => [['regex:a/b/'], ['pattern' => 'a/b/']],
+            'regex dollar trailer' => [['regex:/abc/;'], ['pattern' => '/abc/;']],
+            'regex colon argument' => [['regex:/^a:b$/'], ['pattern' => '^a:b$']],
         ];
     }
 

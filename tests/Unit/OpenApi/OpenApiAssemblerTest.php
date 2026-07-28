@@ -319,6 +319,57 @@ final class OpenApiAssemblerTest extends TestCase
     }
 
     /**
+     * Test that a non-empty audience argument is honoured verbatim rather than
+     * being coerced to the configured default audience.
+     *
+     * @return void
+     */
+    public function testExplicitAudienceIsHonouredOverDefault(): void
+    {
+        $this->config()->set('api-toolkit.openapi.default_audience', 'public');
+        $this->config()->set('api-toolkit.openapi.audiences', [
+            'public'   => ['info' => ['title' => 'Public API', 'version' => '1.0.0']],
+            'internal' => ['info' => ['title' => 'Internal API', 'version' => '9.9.9']],
+        ]);
+
+        $info = $this->makeAssembler()->assemble('internal')['info'];
+
+        self::assertSame('Internal API', $info['title']);
+        self::assertSame('9.9.9', $info['version']);
+    }
+
+    /**
+     * Test that an operation naming two single-scheme security requirements
+     * contributes both schemes to the components block, not just one.
+     *
+     * @return void
+     */
+    public function testSecuritySchemesAccumulateAcrossRequirements(): void
+    {
+        $this->configureGuards();
+
+        $this->router()->get('reports', [PathFixtureController::class, 'index'])->middleware('auth:api,web');
+
+        $schemes = $this->assemble()['components']['securitySchemes'];
+
+        self::assertArrayHasKey('bearerAuth', $schemes);
+        self::assertArrayHasKey('cookieAuth', $schemes);
+    }
+
+    /**
+     * Test that the shared error-envelope schema is retained even when the
+     * audience documents no paths that could reference it.
+     *
+     * @return void
+     */
+    public function testSharedErrorEnvelopeSurvivesWithoutPaths(): void
+    {
+        $schemas = $this->assembleEmptyAudience()['components']['schemas'];
+
+        self::assertArrayHasKey(ErrorResponseBuilder::ENVELOPE_SCHEMA_NAME, $schemas);
+    }
+
+    /**
      * Assemble a document from real builders backed by a stubbed catalogue and
      * a real resolver against the live test schema.
      *

@@ -16,6 +16,7 @@ use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 use Tests\Concerns\InteractsWithNonPublicMembers;
 use Tests\Fixtures\Models\Organization;
 use Tests\Fixtures\Models\Post;
+use Tests\Fixtures\Models\Profile;
 use Tests\Fixtures\Models\Tag;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Resources\OrganizationResource;
@@ -442,6 +443,46 @@ final class ResourceSchemaBuilderTest extends TestCase
 
         self::assertArrayNotHasKey('_type', $ghost['properties']);
         self::assertArrayNotHasKey('required', $ghost);
+    }
+
+    /**
+     * Test that a resolved HasOne relation is classified as to-one, emitting a
+     * single reference, while a to-many relation on the same model is not.
+     *
+     * @return void
+     */
+    public function testHasOneRelationIsClassifiedAsToOne(): void
+    {
+        $builder = $this->makeBuilder([]);
+
+        self::assertTrue($this->invokeMethod($builder, 'isToOne', (new User)->hasOne(Profile::class)));
+        self::assertFalse($this->invokeMethod($builder, 'isToOne', (new User)->hasMany(Post::class)));
+    }
+
+    /**
+     * Test that a resolved MorphOne relation is classified as to-one, emitting
+     * a single reference rather than an array of references.
+     *
+     * @return void
+     */
+    public function testMorphOneRelationIsClassifiedAsToOne(): void
+    {
+        $builder = $this->makeBuilder([]);
+
+        self::assertTrue($this->invokeMethod($builder, 'isToOne', (new User)->morphOne(Profile::class, 'imageable')));
+    }
+
+    /**
+     * Test that a resolved HasOneThrough relation is classified as to-one
+     * despite descending from the to-many HasManyThrough base class.
+     *
+     * @return void
+     */
+    public function testHasOneThroughRelationIsClassifiedAsToOne(): void
+    {
+        $builder = $this->makeBuilder([]);
+
+        self::assertTrue($this->invokeMethod($builder, 'isToOne', (new User)->hasOneThrough(Profile::class, Organization::class)));
     }
 
     /**

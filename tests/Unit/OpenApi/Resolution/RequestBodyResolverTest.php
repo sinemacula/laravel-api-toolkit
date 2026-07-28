@@ -122,6 +122,65 @@ final class RequestBodyResolverTest extends TestCase
     }
 
     /**
+     * Test that a type-hinted FormRequest source is instantiated and its rules
+     * documented as a required JSON body.
+     *
+     * @return void
+     */
+    public function testFormRequestSourceResolvesJsonBody(): void
+    {
+        $body = $this->resolver()->resolve(PathRequestBodyController::class, 'formRequest');
+
+        self::assertNotNull($body);
+        self::assertTrue($body['required']);
+        self::assertArrayHasKey('application/json', $body['content']);
+
+        $properties = $body['content']['application/json']['schema']['properties'];
+
+        self::assertArrayHasKey('name', $properties);
+        self::assertArrayHasKey('email', $properties);
+    }
+
+    /**
+     * Test that a FormRequest also declaring static rules is read through its
+     * static rules rather than instantiated.
+     *
+     * @return void
+     */
+    public function testHybridSourceReadThroughStaticRules(): void
+    {
+        $body = $this->resolver()->resolve(PathRequestBodyController::class, 'hybrid');
+
+        self::assertNotNull($body);
+
+        $properties = $body['content']['application/json']['schema']['properties'];
+
+        self::assertArrayHasKey('headline', $properties);
+    }
+
+    /**
+     * Test that a FormRequest whose rules() yields a non-array value degrades
+     * to no documented body.
+     *
+     * @return void
+     */
+    public function testNonArrayFormRequestResolvesToNull(): void
+    {
+        self::assertNull($this->resolver()->resolve(PathRequestBodyController::class, 'nonArray'));
+    }
+
+    /**
+     * Test that a parameter whose type is not a single named class names no
+     * rules source and resolves to null.
+     *
+     * @return void
+     */
+    public function testNonNamedTypeParameterResolvesToNull(): void
+    {
+        self::assertNull($this->resolver()->resolve(PathRequestBodyController::class, 'unionParam'));
+    }
+
+    /**
      * Build a resolver over the real translator graph.
      *
      * @return \SineMacula\ApiToolkit\OpenApi\Resolution\RequestBodyResolver

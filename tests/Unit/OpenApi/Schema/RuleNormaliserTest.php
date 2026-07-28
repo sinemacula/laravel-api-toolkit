@@ -76,6 +76,43 @@ final class RuleNormaliserTest extends TestCase
     }
 
     /**
+     * Test that an object definition passed directly, not wrapped in an array,
+     * is expanded.
+     *
+     * @return void
+     */
+    public function testObjectDefinitionIsExpandedDirectly(): void
+    {
+        self::assertSame(['in:active,inactive,banned'], (new RuleNormaliser)->normalise(Rule::enum(UserStatus::class)));
+    }
+
+    /**
+     * Test that an Enum whose backing type is a class but not an enum yields no
+     * tokens.
+     *
+     * @return void
+     */
+    public function testEnumWithNonEnumTypeYieldsNoTokens(): void
+    {
+        self::assertSame([], (new RuleNormaliser)->normalise(Rule::enum(\stdClass::class)));
+    }
+
+    /**
+     * Test that a Password whose minimum is zero yields only a string token,
+     * omitting the min token.
+     *
+     * @return void
+     */
+    public function testPasswordWithZeroMinimumYieldsOnlyString(): void
+    {
+        $rule = Password::min(1);
+
+        (new \ReflectionProperty($rule, 'min'))->setValue($rule, 0);
+
+        self::assertSame(['string'], (new RuleNormaliser)->normalise($rule));
+    }
+
+    /**
      * Test that a mixed array of tokens and objects is fully flattened in
      * order.
      *

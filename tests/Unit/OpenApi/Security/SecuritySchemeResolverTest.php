@@ -137,6 +137,100 @@ final class SecuritySchemeResolverTest extends TestCase
     }
 
     /**
+     * Test that a skipped guard does not halt the loop: guards after both a
+     * deduped scheme and an unconfigured guard still resolve.
+     *
+     * @return void
+     */
+    public function testSkippedGuardDoesNotHaltLaterGuards(): void
+    {
+        self::assertSame(
+            [['bearerAuth' => []], ['basicAuth' => []]],
+            $this->resolver()->securityFor($this->route('auth:api,sanctum,admin')),
+        );
+
+        self::assertSame([['bearerAuth' => []]], $this->resolver()->securityFor($this->route('auth:ghost,api')));
+    }
+
+    /**
+     * Test that guards accumulate across multiple separate auth middleware
+     * entries rather than only the last one surviving.
+     *
+     * @return void
+     */
+    public function testGuardsAccumulateAcrossMultipleAuthMiddleware(): void
+    {
+        self::assertSame(
+            [['bearerAuth' => []], ['basicAuth' => []]],
+            $this->resolver()->securityFor($this->route('auth:api', 'auth:admin')),
+        );
+    }
+
+    /**
+     * Test that whitespace around a guard name is trimmed so a spaced sibling
+     * still resolves to its scheme.
+     *
+     * @return void
+     */
+    public function testGuardWhitespaceIsTrimmed(): void
+    {
+        self::assertSame(
+            [['bearerAuth' => []], ['basicAuth' => []]],
+            $this->resolver()->securityFor($this->route('auth:api, admin')),
+        );
+    }
+
+    /**
+     * Test that a non-auth middleware is ignored even when its tail after the
+     * prefix spells a configured guard name.
+     *
+     * @return void
+     */
+    public function testNonAuthMiddlewareWithGuardLikeTailIsPublic(): void
+    {
+        self::assertSame([], $this->resolver()->securityFor($this->route('role:api')));
+    }
+
+    /**
+     * Test that a guard whose configured driver is not a string is skipped
+     * rather than resolved.
+     *
+     * @return void
+     */
+    public function testNonStringGuardDriverIsSkipped(): void
+    {
+        $this->config()->set('auth.guards.weird', ['driver' => 123]);
+
+        self::assertSame([], $this->resolver()->securityFor($this->route('auth:weird')));
+    }
+
+    /**
+     * Test that a configured default guard other than the fallback drives the
+     * bare auth middleware's scheme.
+     *
+     * @return void
+     */
+    public function testConfiguredDefaultGuardDrivesBareAuth(): void
+    {
+        $this->config()->set('auth.defaults.guard', 'api');
+
+        self::assertSame([['bearerAuth' => []]], $this->resolver()->securityFor($this->route('auth')));
+    }
+
+    /**
+     * Test that a non-string configured default guard falls back to the web
+     * guard for the bare auth middleware.
+     *
+     * @return void
+     */
+    public function testNonStringDefaultGuardFallsBackToWeb(): void
+    {
+        $this->config()->set('auth.defaults.guard', 123);
+
+        self::assertSame([['cookieAuth' => []]], $this->resolver()->securityFor($this->route('auth')));
+    }
+
+    /**
      * Test that definitionFor delegates to the mapper for a referenced scheme.
      *
      * @return void

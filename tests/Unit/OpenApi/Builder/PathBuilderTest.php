@@ -22,6 +22,7 @@ use SineMacula\ApiToolkit\OpenApi\Security\SecuritySchemeResolver;
 use SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\OpenApi\ArticleRequestInput;
+use Tests\Fixtures\OpenApi\PathErrorController;
 use Tests\Fixtures\OpenApi\PathExcludedController;
 use Tests\Fixtures\OpenApi\PathFixtureController;
 use Tests\Fixtures\OpenApi\PathInvokableController;
@@ -94,6 +95,10 @@ final class PathBuilderTest extends TestCase
         $envelope = new EnvelopeBuilder;
 
         self::assertSame(
+            'A paginated collection of resources. Length-aware by default; sending ?cursor or ?pagination=cursor returns the cursor shape.',
+            $response['description'],
+        );
+        self::assertSame(
             [
                 'oneOf' => [
                     $envelope->collectionEnvelope('#/components/schemas/User'),
@@ -120,6 +125,7 @@ final class PathBuilderTest extends TestCase
         $response = $this->build()['/users/{user}']['get']['responses'];
 
         self::assertArrayHasKey('200', $response);
+        self::assertSame('The requested resource.', $response['200']['description']);
         self::assertSame(
             (new EnvelopeBuilder)->singleEnvelope('#/components/schemas/User'),
             $response['200']['content']['application/json']['schema'],
@@ -138,6 +144,7 @@ final class PathBuilderTest extends TestCase
         $response = $this->build()['/users']['post']['responses'];
 
         self::assertArrayHasKey('201', $response);
+        self::assertSame('The newly created resource.', $response['201']['description']);
         self::assertSame(
             (new EnvelopeBuilder)->singleEnvelope('#/components/schemas/User'),
             $response['201']['content']['application/json']['schema'],
@@ -158,6 +165,7 @@ final class PathBuilderTest extends TestCase
 
         self::assertSame($item['put'], $item['patch']);
         self::assertArrayHasKey('200', $item['put']['responses']);
+        self::assertSame('The updated resource.', $item['put']['responses']['200']['description']);
         self::assertSame(
             (new EnvelopeBuilder)->singleEnvelope('#/components/schemas/User'),
             $item['put']['responses']['200']['content']['application/json']['schema'],
@@ -176,6 +184,7 @@ final class PathBuilderTest extends TestCase
         $response = $this->build()['/users/{user}']['delete']['responses'];
 
         self::assertArrayHasKey('204', $response);
+        self::assertSame('The resource was deleted.', $response['204']['description']);
         self::assertArrayNotHasKey('content', $response['204']);
     }
 
@@ -415,6 +424,7 @@ final class PathBuilderTest extends TestCase
         $operation = $this->build()['/plain']['get'];
 
         self::assertSame(['PathPlain'], $operation['tags']);
+        self::assertSame('The request succeeded.', $operation['responses']['200']['description']);
         self::assertSame(
             $this->undocumentedEnvelope(),
             $operation['responses']['200']['content']['application/json']['schema'],
@@ -597,6 +607,10 @@ final class PathBuilderTest extends TestCase
 
         self::assertArrayHasKey('201', $responses);
         self::assertSame(
+            'The request succeeded and a resource was created.',
+            $responses['201']['description'],
+        );
+        self::assertSame(
             $this->undocumentedEnvelope(),
             $responses['201']['content']['application/json']['schema'],
         );
@@ -613,6 +627,7 @@ final class PathBuilderTest extends TestCase
 
         $response = $this->build()['/posts/{post}']['delete']['responses']['204'];
 
+        self::assertSame('The request succeeded with no content.', $response['description']);
         self::assertArrayNotHasKey('content', $response);
     }
 
@@ -853,6 +868,179 @@ final class PathBuilderTest extends TestCase
         // Under the allowlist posture no route opts in, so even the framework's
         // default routes are excluded and the paths object stays empty.
         self::assertSame([], $this->build('partner', QuerySurface::POSTURE_ALLOWLIST));
+    }
+
+    /**
+     * Test that a non-resource read verb never carries a request body even when
+     * its action declares one.
+     *
+     * @return void
+     */
+    public function testNonResourceReadVerbSuppressesDeclaredRequestBody(): void
+    {
+        $this->router()->get('readbody', [PathRequestBodyController::class, 'store']);
+
+        self::assertArrayNotHasKey('requestBody', $this->build()['/readbody']['get']);
+    }
+
+    /**
+     * Test that a resource read verb never carries a request body even when its
+     * action declares one, while the collection response is still emitted.
+     *
+     * @return void
+     */
+    public function testResourceReadVerbSuppressesDeclaredRequestBody(): void
+    {
+        $this->router()->get('errors', [PathErrorController::class, 'index']);
+
+        $operation = $this->build()['/errors']['get'];
+
+        self::assertArrayNotHasKey('requestBody', $operation);
+        self::assertSame(
+            (new EnvelopeBuilder)->collectionEnvelope('#/components/schemas/User'),
+            $operation['responses']['200']['content']['application/json']['schema']['oneOf'][0],
+        );
+    }
+
+    /**
+     * Test that a resource write verb carries the request body resolved from
+     * the action's declared rules source.
+     *
+     * @return void
+     */
+    public function testResourceWriteVerbCarriesResolvedRequestBody(): void
+    {
+        $this->router()->post('errors', [PathErrorController::class, 'store']);
+
+        $operation = $this->build()['/errors']['post'];
+
+        self::assertArrayHasKey('requestBody', $operation);
+        self::assertArrayHasKey(
+            'title',
+            $operation['requestBody']['content']['application/json']['schema']['properties'],
+        );
+    }
+
+    /**
+     * Test that the merged responses are ordered by ascending status, with the
+     * success entry first and the error statuses following in numeric order.
+     *
+     * @return void
+     */
+    public function testMergedResponsesAreOrderedByStatus(): void
+    {
+        $this->registerRestRoutes();
+
+        self::assertSame(
+            [201, 401, 403, 409, 422, 500],
+            array_keys($this->build()['/users']['post']['responses']),
+        );
+    }
+
+    /**
+     * Test that two thrown exceptions sharing a status merge their examples
+     * under one response carrying the derived multi-word phrase.
+     *
+     * @return void
+     */
+    public function testThrownExceptionsSharingStatusMergeExamples(): void
+    {
+        $this->router()->get('errors/{error}', [PathErrorController::class, 'show']);
+
+        $responses = $this->build()['/errors/{error}']['get']['responses'];
+
+        self::assertArrayHasKey('503', $responses);
+        self::assertSame('Service unavailable.', $responses['503']['description']);
+        self::assertSame(
+            ['ServiceUnavailableException', 'MaintenanceModeException'],
+            array_keys($responses['503']['content']['application/json']['examples']),
+        );
+    }
+
+    /**
+     * Test that a thrown status coinciding with a known baseline phrase keeps
+     * that phrase even when the action's baseline set omits the status.
+     *
+     * @return void
+     */
+    public function testThrownBaselineStatusKeepsBaselinePhrase(): void
+    {
+        $this->router()->get('errors/{error}', [PathErrorController::class, 'show']);
+
+        $responses = $this->build()['/errors/{error}']['get']['responses'];
+
+        self::assertArrayHasKey('422', $responses);
+        self::assertSame('The request payload failed validation.', $responses['422']['description']);
+    }
+
+    /**
+     * Test that a throws tag resolving to a class outside the API exception
+     * base is ignored even when it declares an HTTP status constant.
+     *
+     * @return void
+     */
+    public function testNonApiThrowsAreIgnored(): void
+    {
+        $this->router()->put('errors/{error}', [PathErrorController::class, 'update']);
+
+        $statuses = array_keys($this->build()['/errors/{error}']['put']['responses']);
+
+        self::assertSame([200, 401, 403, 404, 422, 500], $statuses);
+    }
+
+    /**
+     * Test that a route listing an excluded verb before a documentable one
+     * still emits the documentable verb rather than stopping at the excluded
+     * one.
+     *
+     * @return void
+     */
+    public function testExcludedVerbBeforeDocumentableStillEmits(): void
+    {
+        $this->router()->match(['HEAD', 'GET'], 'ping', [PathPlainController::class, 'report']);
+
+        $paths = $this->build();
+
+        self::assertArrayHasKey('/ping', $paths);
+        self::assertSame(['get'], array_keys($paths['/ping']));
+    }
+
+    /**
+     * Test that a route with several path segments emits one parameter per
+     * segment rather than only the first.
+     *
+     * @return void
+     */
+    public function testEveryPathParameterIsEmitted(): void
+    {
+        $this->router()->get('teams/{team}/members/{member}', [PathPlainController::class, 'report']);
+
+        $parameters = $this->build()['/teams/{team}/members/{member}']['get']['parameters'];
+
+        self::assertSame(['team', 'member'], array_column($parameters, 'name'));
+    }
+
+    /**
+     * Test that a controller class carrying a leading namespace separator is
+     * still matched against the blocklist and excluded.
+     *
+     * @return void
+     */
+    public function testLeadingSeparatorControllerIsStillExcluded(): void
+    {
+        assert($this->app !== null);
+
+        /** @var \Illuminate\Contracts\Config\Repository $config */
+        $config = $this->app->make('config');
+
+        $config->set(
+            'api-toolkit.openapi.exclude.namespaces',
+            ['Tests\Fixtures\OpenApi\Vendor'],
+        );
+
+        $this->router()->get('vendor', ['\\' . PathVendorController::class, 'index']);
+
+        self::assertArrayNotHasKey('/vendor', $this->build());
     }
 
     /**
