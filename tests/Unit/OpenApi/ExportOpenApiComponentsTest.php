@@ -20,8 +20,12 @@ use SineMacula\ApiToolkit\OpenApi\OpenApiAssembler;
 use SineMacula\ApiToolkit\OpenApi\Resolution\AudienceResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ColumnTypeMapper;
 use SineMacula\ApiToolkit\OpenApi\Resolution\FieldTypeResolver;
+use SineMacula\ApiToolkit\OpenApi\Resolution\RequestBodyResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ResponseSchemaResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\TagResolver;
+use SineMacula\ApiToolkit\OpenApi\Schema\FieldSchemaBuilder;
+use SineMacula\ApiToolkit\OpenApi\Schema\RuleNormaliser;
+use SineMacula\ApiToolkit\OpenApi\Schema\RulesToSchemaTranslator;
 use SineMacula\ApiToolkit\Schema\Introspection\SchemaIntrospector;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 use Tests\Concerns\InteractsWithNonPublicMembers;
@@ -152,7 +156,15 @@ final class ExportOpenApiComponentsTest extends TestCase
             new ResourceSchemaBuilder($catalogue, new FieldTypeResolver($introspector, new ColumnTypeMapper), $introspector),
             new QueryParameterBuilder($catalogue),
             new ErrorResponseBuilder($catalogue),
-            new PathBuilder($router, $catalogue, new AudienceResolver, new EnvelopeBuilder, new TagResolver, new ResponseSchemaResolver($catalogue, new EnvelopeBuilder)),
+            new PathBuilder(
+                $router,
+                $catalogue,
+                new AudienceResolver,
+                new EnvelopeBuilder,
+                new TagResolver,
+                new ResponseSchemaResolver($catalogue, new EnvelopeBuilder),
+                new RequestBodyResolver(new RulesToSchemaTranslator(new RuleNormaliser, new FieldSchemaBuilder)),
+            ),
         );
 
         return (new ExportOpenApiComponents($assembler, $catalogue))->export();

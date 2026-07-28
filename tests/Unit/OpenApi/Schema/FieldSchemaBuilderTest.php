@@ -1,0 +1,97 @@
+<?php
+
+declare(strict_types = 1);
+
+namespace Tests\Unit\OpenApi\Schema;
+
+use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
+use SineMacula\ApiToolkit\OpenApi\Schema\FieldSchemaBuilder;
+use Tests\TestCase;
+
+/**
+ * Tests for the field-schema builder.
+ *
+ * @author      Ben Carey <bdmc@sinemacula.co.uk>
+ * @copyright   2026 Sine Macula Limited.
+ *
+ * @internal
+ */
+#[CoversClass(FieldSchemaBuilder::class)]
+final class FieldSchemaBuilderTest extends TestCase
+{
+    /**
+     * Provide the rule-token to schema-fragment mapping table.
+     *
+     * @return iterable<string, array{0: list<string>, 1: array<string, mixed>}>
+     */
+    public static function mappingProvider(): iterable
+    {
+        yield from [
+            'string with max'      => [['required', 'string', 'max:255'], ['type' => 'string', 'maxLength' => 255]],
+            'nullable integer'     => [['nullable', 'integer'], ['type' => ['integer', 'null']]],
+            'integer bounds'       => [['integer', 'min:1', 'max:5'], ['type' => 'integer', 'minimum' => 1, 'maximum' => 5]],
+            'numeric between'      => [['numeric', 'between:1.5,9'], ['type' => 'number', 'minimum' => 1.5, 'maximum' => 9]],
+            'array max items'      => [['array', 'max:3'], ['type' => 'array', 'maxItems' => 3]],
+            'string exact size'    => [['string', 'size:4'], ['type' => 'string', 'minLength' => 4, 'maxLength' => 4]],
+            'boolean'              => [['boolean'], ['type' => 'boolean']],
+            'email format'         => [['string', 'email'], ['type' => 'string', 'format' => 'email']],
+            'uuid format'          => [['uuid'], ['format' => 'uuid']],
+            'ulid format'          => [['ulid'], ['format' => 'ulid']],
+            'url format'           => [['url'], ['format' => 'uri']],
+            'ip format'            => [['ip'], ['format' => 'ipv4']],
+            'date format'          => [['date'], ['format' => 'date']],
+            'date_format format'   => [['date_format:Y-m-d H:i'], ['format' => 'date-time']],
+            'regex pattern'        => [['regex:/^a$/'], ['pattern' => '^a$']],
+            'in enum'              => [['in:a,b,c'], ['enum' => ['a', 'b', 'c']]],
+            'file binary'          => [['file'], ['type' => 'string', 'format' => 'binary']],
+            'image binary'         => [['image'], ['type' => 'string', 'format' => 'binary']],
+            'unknown rule skipped' => [['string', 'starts_with:foo'], ['type' => 'string']],
+        ];
+    }
+
+    /**
+     * Test that each rule-token family produces the expected schema fragment.
+     *
+     * @param  list<string>  $tokens
+     * @param  array<string, mixed>  $expected
+     * @return void
+     */
+    #[DataProvider('mappingProvider')]
+    public function testTokensMapToSchemaFragment(array $tokens, array $expected): void
+    {
+        self::assertSame($expected, (new FieldSchemaBuilder)->build($tokens)['schema']);
+    }
+
+    /**
+     * Test that a required token without a relaxing token marks the field
+     * required.
+     *
+     * @return void
+     */
+    public function testRequiredTokenMarksFieldRequired(): void
+    {
+        self::assertTrue((new FieldSchemaBuilder)->build(['required', 'string'])['required']);
+    }
+
+    /**
+     * Test that a sometimes token relaxes an otherwise required field.
+     *
+     * @return void
+     */
+    public function testSometimesRelaxesRequired(): void
+    {
+        self::assertFalse((new FieldSchemaBuilder)->build(['required', 'sometimes', 'string'])['required']);
+    }
+
+    /**
+     * Test that a field with neither a required nor sometimes token is not
+     * required.
+     *
+     * @return void
+     */
+    public function testAbsentPresenceTokenIsNotRequired(): void
+    {
+        self::assertFalse((new FieldSchemaBuilder)->build(['string'])['required']);
+    }
+}

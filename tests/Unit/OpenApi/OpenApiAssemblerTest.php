@@ -18,8 +18,12 @@ use SineMacula\ApiToolkit\OpenApi\OpenApiAssembler;
 use SineMacula\ApiToolkit\OpenApi\Resolution\AudienceResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ColumnTypeMapper;
 use SineMacula\ApiToolkit\OpenApi\Resolution\FieldTypeResolver;
+use SineMacula\ApiToolkit\OpenApi\Resolution\RequestBodyResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ResponseSchemaResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\TagResolver;
+use SineMacula\ApiToolkit\OpenApi\Schema\FieldSchemaBuilder;
+use SineMacula\ApiToolkit\OpenApi\Schema\RuleNormaliser;
+use SineMacula\ApiToolkit\OpenApi\Schema\RulesToSchemaTranslator;
 use SineMacula\ApiToolkit\Schema\Introspection\SchemaIntrospector;
 use Tests\Fixtures\Models\Organization;
 use Tests\Fixtures\Models\User;
@@ -316,7 +320,15 @@ final class OpenApiAssemblerTest extends TestCase
             new ResourceSchemaBuilder($catalogue, $this->resolver(), $this->app->make(SchemaIntrospector::class)),
             new QueryParameterBuilder($catalogue),
             new ErrorResponseBuilder($catalogue),
-            new PathBuilder($this->router(), $catalogue, new AudienceResolver, new EnvelopeBuilder, new TagResolver, new ResponseSchemaResolver($catalogue, new EnvelopeBuilder)),
+            new PathBuilder(
+                $this->router(),
+                $catalogue,
+                new AudienceResolver,
+                new EnvelopeBuilder,
+                new TagResolver,
+                new ResponseSchemaResolver($catalogue, new EnvelopeBuilder),
+                new RequestBodyResolver(new RulesToSchemaTranslator(new RuleNormaliser, new FieldSchemaBuilder)),
+            ),
         );
     }
 

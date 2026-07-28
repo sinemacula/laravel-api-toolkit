@@ -31,6 +31,7 @@ use Tests\Fixtures\Models\User;
 use Tests\Fixtures\OpenApi\PathFixtureController;
 use Tests\Fixtures\OpenApi\PathInvokableController;
 use Tests\Fixtures\OpenApi\PathOrganizationController;
+use Tests\Fixtures\OpenApi\PathRequestBodyController;
 use Tests\Fixtures\OpenApi\PathResponseSchemaController;
 use Tests\Fixtures\OpenApi\PathTagInternalController;
 use Tests\Fixtures\Resources\OrganizationResource;
@@ -506,6 +507,28 @@ final class OpenApiExporterValidityTest extends TestCase
         self::assertTrue(
             $this->validateAgainstMetaSchema($document)->isValid(),
             'A document referencing a declared response resource must validate as OpenAPI 3.1: ' . $this->formatErrors($this->validateAgainstMetaSchema($document)),
+        );
+    }
+
+    /**
+     * Test that a write route emits a requestBody translated from its rules
+     * source and the emitted document stays valid OpenAPI 3.1.
+     *
+     * @return void
+     */
+    public function testWriteRouteEmitsValidRequestBody(): void
+    {
+        $this->router()->post('articles', [PathRequestBodyController::class, 'store']);
+
+        $document = $this->export()->document;
+        $body     = $document['paths']['/articles']['post']['requestBody'];
+
+        self::assertTrue($body['required']);
+        self::assertArrayHasKey('title', $body['content']['application/json']['schema']['properties']);
+
+        self::assertTrue(
+            $this->validateAgainstMetaSchema($document)->isValid(),
+            'A document with a requestBody must validate as OpenAPI 3.1: ' . $this->formatErrors($this->validateAgainstMetaSchema($document)),
         );
     }
 

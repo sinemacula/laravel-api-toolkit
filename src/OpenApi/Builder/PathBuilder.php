@@ -11,6 +11,7 @@ use SineMacula\ApiToolkit\Http\Routing\AuthorizedController;
 use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
 use SineMacula\ApiToolkit\OpenApi\Naming\SchemaComponentName;
 use SineMacula\ApiToolkit\OpenApi\Resolution\AudienceResolver;
+use SineMacula\ApiToolkit\OpenApi\Resolution\RequestBodyResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ResponseSchemaResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\TagResolver;
 
@@ -34,9 +35,13 @@ use SineMacula\ApiToolkit\OpenApi\Resolution\TagResolver;
  * single or wrapped in the collection envelope - and the shared data envelope
  * wrapping an x-undocumented marker otherwise; that success is 201 for a store
  * action, 204 for a destroy, and 200 otherwise, and it carries no error
- * responses. Audience membership is checked for every route regardless of its
- * handler, so a closure scoped out by a route macro is omitted exactly as an
- * attribute-scoped controller is. HEAD and OPTIONS are always excluded.
+ * responses. A route whose verbs include a body-bearing method - POST, PUT, or
+ * PATCH - also carries a requestBody translated from the rules a
+ * #[RequestSchema] directive or a type-hinted rules-source parameter reaches; a
+ * read-only route carries none. Audience membership is checked for every route
+ * regardless of its handler, so a closure scoped out by a route macro is
+ * omitted exactly as an attribute-scoped controller is. HEAD and OPTIONS are
+ * always excluded.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -67,6 +72,9 @@ final readonly class PathBuilder
     /** The HTTP verbs excluded from the emitted path item */
     private const array EXCLUDED_VERBS = ['HEAD', 'OPTIONS'];
 
+    /** The lowercased HTTP verbs that carry a documented request body */
+    private const array BODY_VERBS = ['post', 'put', 'patch'];
+
     /**
      * Constructor.
      *
@@ -76,6 +84,7 @@ final readonly class PathBuilder
      * @param  \SineMacula\ApiToolkit\OpenApi\Builder\EnvelopeBuilder  $envelope
      * @param  \SineMacula\ApiToolkit\OpenApi\Resolution\TagResolver  $tags
      * @param  \SineMacula\ApiToolkit\OpenApi\Resolution\ResponseSchemaResolver  $responseSchema
+     * @param  \SineMacula\ApiToolkit\OpenApi\Resolution\RequestBodyResolver  $requestBody
      */
     public function __construct(
 
@@ -96,6 +105,9 @@ final readonly class PathBuilder
 
         /** The resolver of a non-resource action's declared response body. */
         private ResponseSchemaResolver $responseSchema,
+
+        /** The resolver of a write action's request body. */
+        private RequestBodyResolver $requestBody,
     ) {}
 
     /**
@@ -173,10 +185,15 @@ final readonly class PathBuilder
             default   => ['200' => ['description' => 'The request succeeded.', ...$body]],
         };
 
+        $requestBody = array_intersect($this->verbs($route), self::BODY_VERBS) === []
+            ? []
+            : $this->requestBody->resolve($controllerClass, $action) ?? [];
+
         return $this->assembleOperation(
             $this->tags->resolve($controllerClass, $action, $route, null),
             $responses,
             $route,
+            $requestBody,
         );
     }
 
@@ -207,10 +224,15 @@ final readonly class PathBuilder
 
         $responses += $this->errorResponses($action, $route, $controllerClass);
 
+        $requestBody = array_intersect($this->verbs($route), self::BODY_VERBS) === []
+            ? []
+            : $this->requestBody->resolve($controllerClass, $action) ?? [];
+
         return $this->assembleOperation(
             $this->tags->resolve($controllerClass, $action, $route, $schemaName),
             $responses,
             $route,
+            $requestBody,
         );
     }
 
@@ -284,15 +306,20 @@ final readonly class PathBuilder
      * @param  string  $tag
      * @param  array<int|string, mixed>  $responses
      * @param  \Illuminate\Routing\Route  $route
+     * @param  array<string, mixed>  $requestBody
      * @return array<string, mixed>
      */
-    private function assembleOperation(string $tag, array $responses, Route $route): array
+    private function assembleOperation(string $tag, array $responses, Route $route, array $requestBody = []): array
     {
         $operation  = ['tags' => [$tag]];
         $parameters = $this->pathParameters($route);
 
         if ($parameters !== []) {
             $operation['parameters'] = $parameters;
+        }
+
+        if ($requestBody !== []) {
+            $operation['requestBody'] = $requestBody;
         }
 
         $operation['responses'] = $responses;

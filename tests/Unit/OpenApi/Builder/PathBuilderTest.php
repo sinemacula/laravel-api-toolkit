@@ -10,14 +10,20 @@ use SineMacula\ApiToolkit\OpenApi\Builder\EnvelopeBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\PathBuilder;
 use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
 use SineMacula\ApiToolkit\OpenApi\Resolution\AudienceResolver;
+use SineMacula\ApiToolkit\OpenApi\Resolution\RequestBodyResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ResponseSchemaResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\TagResolver;
+use SineMacula\ApiToolkit\OpenApi\Schema\FieldSchemaBuilder;
+use SineMacula\ApiToolkit\OpenApi\Schema\RuleNormaliser;
+use SineMacula\ApiToolkit\OpenApi\Schema\RulesToSchemaTranslator;
 use SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface;
 use Tests\Fixtures\Models\User;
+use Tests\Fixtures\OpenApi\ArticleRequestInput;
 use Tests\Fixtures\OpenApi\PathExcludedController;
 use Tests\Fixtures\OpenApi\PathFixtureController;
 use Tests\Fixtures\OpenApi\PathInvokableController;
 use Tests\Fixtures\OpenApi\PathPlainController;
+use Tests\Fixtures\OpenApi\PathRequestBodyController;
 use Tests\Fixtures\OpenApi\PathResponseSchemaController;
 use Tests\Fixtures\OpenApi\PathTaggedController;
 use Tests\Fixtures\OpenApi\PathUnmappedController;
@@ -646,6 +652,94 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
+     * Test that a POST write operation carries a requestBody translated from
+     * the action's directive-named rules source.
+     *
+     * @return void
+     */
+    public function testWriteOperationCarriesRequestBody(): void
+    {
+        $this->router()->post('articles', [PathRequestBodyController::class, 'store']);
+
+        $operation = $this->build()['/articles']['post'];
+
+        self::assertSame(
+            [
+                'required' => true,
+                'content'  => [
+                    'application/json' => [
+                        'schema' => (new RulesToSchemaTranslator(new RuleNormaliser, new FieldSchemaBuilder))
+                            ->translate(ArticleRequestInput::rules()),
+                    ],
+                ],
+            ],
+            $operation['requestBody'],
+        );
+    }
+
+    /**
+     * Test that a PUT/PATCH write operation carries a requestBody discovered
+     * from a type-hinted rules-source parameter.
+     *
+     * @return void
+     */
+    public function testUpdateOperationCarriesRequestBodyFromTypeHint(): void
+    {
+        $this->router()->match(['PUT', 'PATCH'], 'articles/{article}', [PathRequestBodyController::class, 'update']);
+
+        $operation = $this->build()['/articles/{article}']['put'];
+
+        self::assertArrayHasKey('requestBody', $operation);
+        self::assertArrayHasKey(
+            'title',
+            $operation['requestBody']['content']['application/json']['schema']['properties'],
+        );
+    }
+
+    /**
+     * Test that a GET read operation carries no requestBody.
+     *
+     * @return void
+     */
+    public function testReadOperationHasNoRequestBody(): void
+    {
+        $this->router()->get('articles', [PathRequestBodyController::class, 'index']);
+
+        self::assertArrayNotHasKey('requestBody', $this->build()['/articles']['get']);
+    }
+
+    /**
+     * Test that a DELETE operation carries no requestBody.
+     *
+     * @return void
+     */
+    public function testDeleteOperationHasNoRequestBody(): void
+    {
+        $this->router()->delete('articles/{article}', [PathRequestBodyController::class, 'destroy']);
+
+        self::assertArrayNotHasKey('requestBody', $this->build()['/articles/{article}']['delete']);
+    }
+
+    /**
+     * Test that attaching a requestBody leaves the operation's response body
+     * unchanged.
+     *
+     * @return void
+     */
+    public function testWriteOperationResponseBodyUnchanged(): void
+    {
+        $this->router()->post('articles', [PathRequestBodyController::class, 'store']);
+
+        $responses = $this->build()['/articles']['post']['responses'];
+
+        self::assertArrayHasKey('201', $responses);
+        self::assertSame(
+            $this->undocumentedEnvelope(),
+            $responses['201']['content']['application/json']['schema'],
+        );
+    }
+
+    /**
      * Test that an audience documenting no route yields an empty paths object.
      *
      * @return void
@@ -717,6 +811,7 @@ final class PathBuilderTest extends TestCase
             new EnvelopeBuilder,
             new TagResolver,
             new ResponseSchemaResolver($catalogue, new EnvelopeBuilder),
+            new RequestBodyResolver(new RulesToSchemaTranslator(new RuleNormaliser, new FieldSchemaBuilder)),
         );
     }
 
