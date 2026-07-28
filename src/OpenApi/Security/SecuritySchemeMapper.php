@@ -11,13 +11,14 @@ use Illuminate\Support\Facades\Config;
  *
  * The toolkit ships no authentication of its own; it reads the standard auth
  * config so a custom auth package needs zero cooperation. Each supported driver
- * resolves to a stable scheme name (shared by every driver of the same shape,
- * so a bearer-token guard and a JWT guard collapse to one scheme) and its
- * OpenAPI definition. The built-in map covers the stock drivers; a config entry
- * under `api-toolkit.openapi.security.drivers` adds or overrides a driver,
- * keyed by driver name and carrying a scheme name and definition. A driver with
- * no mapping resolves to null so the exporter skips it rather than inventing a
- * scheme.
+ * resolves to a stable scheme name and its OpenAPI definition; every bearer
+ * driver (jwt, sanctum, token) shares one plain bearer scheme, so a document
+ * never claims a token format it cannot be sure of. A config entry under
+ * `api-toolkit.openapi.security.drivers` adds or overrides a driver, keyed by
+ * driver name and carrying a scheme name and definition, so an application that
+ * knows its bearer tokens are JWTs can add the bearerFormat there. A driver
+ * with no mapping resolves to null so the exporter skips it rather than
+ * inventing a scheme.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -77,7 +78,7 @@ final readonly class SecuritySchemeMapper
     private function defaults(): array
     {
         return [
-            'jwt'     => ['name' => 'bearerAuth', 'definition' => ['type' => 'http', 'scheme' => 'bearer', 'bearerFormat' => 'JWT']],
+            'jwt'     => ['name' => 'bearerAuth', 'definition' => ['type' => 'http', 'scheme' => 'bearer']],
             'basic'   => ['name' => 'basicAuth', 'definition' => ['type' => 'http', 'scheme' => 'basic']],
             'sanctum' => ['name' => 'bearerAuth', 'definition' => ['type' => 'http', 'scheme' => 'bearer']],
             'token'   => ['name' => 'bearerAuth', 'definition' => ['type' => 'http', 'scheme' => 'bearer']],

@@ -21,14 +21,15 @@ use Tests\TestCase;
 final class SecuritySchemeMapperTest extends TestCase
 {
     /**
-     * Test that the JWT driver maps to a bearer scheme carrying the JWT format.
+     * Test that the JWT driver maps to the plain bearer scheme, sharing it with
+     * the other bearer drivers rather than asserting an unverifiable format.
      *
      * @return void
      */
-    public function testJwtDriverMapsToBearerWithJwtFormat(): void
+    public function testJwtDriverMapsToPlainBearerScheme(): void
     {
         self::assertSame(
-            ['name' => 'bearerAuth', 'definition' => ['type' => 'http', 'scheme' => 'bearer', 'bearerFormat' => 'JWT']],
+            ['name' => 'bearerAuth', 'definition' => ['type' => 'http', 'scheme' => 'bearer']],
             (new SecuritySchemeMapper)->schemeFor('jwt'),
         );
     }
@@ -162,7 +163,7 @@ final class SecuritySchemeMapperTest extends TestCase
     public function testDefinitionForReturnsCanonicalBearerDefinition(): void
     {
         self::assertSame(
-            ['type' => 'http', 'scheme' => 'bearer', 'bearerFormat' => 'JWT'],
+            ['type' => 'http', 'scheme' => 'bearer'],
             (new SecuritySchemeMapper)->definitionFor('bearerAuth'),
         );
     }

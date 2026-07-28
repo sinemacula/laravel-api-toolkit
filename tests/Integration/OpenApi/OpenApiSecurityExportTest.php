@@ -89,16 +89,21 @@ final class OpenApiSecurityExportTest extends TestCase
 
         self::assertSame(['bearerAuth'], array_keys($document['components']['securitySchemes']));
 
+        self::assertSame(
+            ['type' => 'http', 'scheme' => 'bearer'],
+            $document['components']['securitySchemes']['bearerAuth'],
+        );
+
         $this->assertValid($document);
     }
 
     /**
-     * Test that a JWT guard emits the bearerAuth scheme carrying the JWT bearer
-     * format, referenced by the operation and defined in components.
+     * Test that a JWT guard references the shared plain bearer scheme, defined
+     * once in components without an unverifiable bearer format.
      *
      * @return void
      */
-    public function testJwtGuardEmitsBearerSchemeWithJwtFormat(): void
+    public function testJwtGuardEmitsPlainBearerScheme(): void
     {
         $this->setGuard('api', 'jwt');
 
@@ -110,7 +115,7 @@ final class OpenApiSecurityExportTest extends TestCase
         );
 
         self::assertSame(
-            ['type' => 'http', 'scheme' => 'bearer', 'bearerFormat' => 'JWT'],
+            ['type' => 'http', 'scheme' => 'bearer'],
             $document['components']['securitySchemes']['bearerAuth'],
         );
 
@@ -195,7 +200,7 @@ final class OpenApiSecurityExportTest extends TestCase
 
         $schemes = $document['components']['securitySchemes'];
 
-        self::assertSame(['type' => 'http', 'scheme' => 'bearer', 'bearerFormat' => 'JWT'], $schemes['bearerAuth']);
+        self::assertSame(['type' => 'http', 'scheme' => 'bearer'], $schemes['bearerAuth']);
         self::assertSame(['type' => 'apiKey', 'in' => 'cookie', 'name' => $this->defaultCookie()], $schemes['cookieAuth']);
 
         $this->assertValid($document);

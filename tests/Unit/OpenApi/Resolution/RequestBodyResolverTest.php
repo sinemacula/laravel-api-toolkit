@@ -59,7 +59,7 @@ final class RequestBodyResolverTest extends TestCase
                         'properties' => [
                             'title'    => ['type' => 'string'],
                             'quantity' => ['type' => ['integer', 'null']],
-                            'status'   => ['enum' => ['active', 'inactive']],
+                            'status'   => ['enum' => ['active', 'inactive', null]],
                         ],
                         'required' => ['title'],
                     ],

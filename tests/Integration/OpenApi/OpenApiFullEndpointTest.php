@@ -155,7 +155,7 @@ final class OpenApiFullEndpointTest extends TestCase
         $document = $this->export()->document;
 
         self::assertSame(
-            ['type' => 'http', 'scheme' => 'bearer', 'bearerFormat' => 'JWT'],
+            ['type' => 'http', 'scheme' => 'bearer'],
             $document['components']['securitySchemes']['bearerAuth'],
         );
     }

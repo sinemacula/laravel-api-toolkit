@@ -710,7 +710,7 @@ final class OpenApiExporterValidityTest extends TestCase
 
         $schemes = $document['components']['securitySchemes'];
 
-        self::assertSame(['type' => 'http', 'scheme' => 'bearer', 'bearerFormat' => 'JWT'], $schemes['bearerAuth']);
+        self::assertSame(['type' => 'http', 'scheme' => 'bearer'], $schemes['bearerAuth']);
         self::assertSame(['type' => 'http', 'scheme' => 'basic'], $schemes['basicAuth']);
 
         self::assertTrue(

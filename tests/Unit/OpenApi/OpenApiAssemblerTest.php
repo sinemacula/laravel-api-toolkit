@@ -244,7 +244,7 @@ final class OpenApiAssemblerTest extends TestCase
         $schemes = $this->assemble()['components']['securitySchemes'];
 
         self::assertSame(['bearerAuth', 'basicAuth', 'cookieAuth'], array_keys($schemes));
-        self::assertSame(['type' => 'http', 'scheme' => 'bearer', 'bearerFormat' => 'JWT'], $schemes['bearerAuth']);
+        self::assertSame(['type' => 'http', 'scheme' => 'bearer'], $schemes['bearerAuth']);
         self::assertSame(['type' => 'http', 'scheme' => 'basic'], $schemes['basicAuth']);
         self::assertSame('apiKey', $schemes['cookieAuth']['type']);
         self::assertSame('cookie', $schemes['cookieAuth']['in']);

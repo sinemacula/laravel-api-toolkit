@@ -76,7 +76,29 @@ final readonly class FieldSchemaBuilder
             }
         }
 
-        return null;
+        return $this->hasFormatToken($tokens) ? 'string' : null;
+    }
+
+    /**
+     * Determine whether the field carries a format token, which implies a
+     * string type even when the field declares no explicit scalar type token.
+     *
+     * @param  list<string>  $tokens
+     * @return bool
+     */
+    private function hasFormatToken(array $tokens): bool
+    {
+        if ($this->argument($tokens, 'date_format') !== null) {
+            return true;
+        }
+
+        foreach (array_keys(self::FORMAT_MAP) as $token) {
+            if ($this->hasToken($tokens, $token)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -192,8 +214,9 @@ final readonly class FieldSchemaBuilder
     }
 
     /**
-     * Widen the field's type into a nullable union when a nullable token is
-     * present and a concrete type was resolved.
+     * Widen a nullable field so null is permitted: the resolved type becomes a
+     * union with null, and null joins the enum's value set, so a nullable field
+     * is never documented as rejecting the null its rule allows.
      *
      * @param  array<string, mixed>  $schema
      * @param  list<string>  $tokens
@@ -201,11 +224,19 @@ final readonly class FieldSchemaBuilder
      */
     private function applyNullable(array &$schema, array $tokens): void
     {
-        if (!$this->hasToken($tokens, 'nullable') || !isset($schema['type'])) {
+        if (!$this->hasToken($tokens, 'nullable')) {
             return;
         }
 
-        $schema['type'] = [$schema['type'], 'null'];
+        if (isset($schema['type'])) {
+            $schema['type'] = [$schema['type'], 'null'];
+        }
+
+        if (!isset($schema['enum']) || !is_array($schema['enum'])) {
+            return;
+        }
+
+        $schema['enum'] = [...$schema['enum'], null];
     }
 
     /**
