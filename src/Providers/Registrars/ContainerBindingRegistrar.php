@@ -5,6 +5,7 @@ declare(strict_types = 1);
 namespace SineMacula\ApiToolkit\Providers\Registrars;
 
 use Illuminate\Contracts\Container\Container;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Config;
 use SineMacula\ApiToolkit\ApiQueryParser;
 use SineMacula\ApiToolkit\Cache\CacheManager;
@@ -43,6 +44,7 @@ use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateRelationInterfaces;
 use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateRelationMethods;
 use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateTransformers;
 use SineMacula\ApiToolkit\Schema\Validation\SchemaValidator;
+use SineMacula\ApiToolkit\Services\Input\Payload;
 use SineMacula\ApiToolkit\Services\ServiceRunner;
 
 /**
@@ -86,6 +88,7 @@ final readonly class ContainerBindingRegistrar
         $this->registerLifecycleRuntime();
         $this->registerOpenApiExporter();
         $this->registerServiceRunner();
+        $this->registerPayloadResolution();
     }
 
     /**
@@ -243,5 +246,30 @@ final readonly class ContainerBindingRegistrar
     private function registerServiceRunner(): void
     {
         $this->container->singleton(ServiceRunner::class);
+    }
+
+    /**
+     * Enable container resolution of concrete Payload subclasses.
+     *
+     * Registers a global before-resolving hook so a controller action can
+     * type-hint a concrete Payload subclass and receive a validated, hydrated
+     * instance built from the current request via from(). Invalid input throws
+     * during resolution, which the framework renders as a 422, matching the
+     * FormRequest experience. The hook binds the class only when it is asked
+     * for by name with no explicit parameters and is not already bound, so
+     * direct from() and named-argument construction stay untouched.
+     *
+     * @return void
+     */
+    private function registerPayloadResolution(): void
+    {
+        $this->container->beforeResolving(static function (callable|string $abstract, array $parameters, Container $app): void {
+
+            if (!is_string($abstract) || !str_contains($abstract, '\\') || $parameters !== [] || !is_subclass_of($abstract, Payload::class) || $app->bound($abstract)) {
+                return;
+            }
+
+            $app->bind($abstract, static fn (Container $app): Payload => $abstract::from($app->make(Request::class)));
+        });
     }
 }

@@ -7,6 +7,7 @@ namespace Tests\Unit\Services\Input;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 use PHPUnit\Framework\Attributes\CoversClass;
+use SineMacula\ApiToolkit\Services\Contracts\DefinesInputSchema;
 use SineMacula\ApiToolkit\Services\Input\Payload;
 use Tests\Fixtures\Input\SampleInput;
 use Tests\Fixtures\Services\Input\Enums\StubStatusEnum;
@@ -396,5 +397,28 @@ final class PayloadTest extends TestCase
 
         self::assertInstanceOf(Payload::class, $result);
         self::assertSame('base', $result->city);
+    }
+
+    /**
+     * Test that Payload and its subclasses satisfy the input-schema contract,
+     * so the exporter can read the rules through the shared interface.
+     *
+     * @return void
+     */
+    public function testPayloadImplementsInputSchemaContract(): void
+    {
+        self::assertTrue((new \ReflectionClass(Payload::class))->implementsInterface(DefinesInputSchema::class));
+        self::assertInstanceOf(DefinesInputSchema::class, new SampleInput(city: 'London'));
+    }
+
+    /**
+     * Test that the rules can be read statically with no instance or request,
+     * which is what lets the exporter read them faithfully.
+     *
+     * @return void
+     */
+    public function testRulesAreReadableStaticallyWithoutInstance(): void
+    {
+        self::assertArrayHasKey('city', SampleInput::rules());
     }
 }

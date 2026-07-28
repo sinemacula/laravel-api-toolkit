@@ -6,6 +6,7 @@ namespace SineMacula\ApiToolkit\Services\Input;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
+use SineMacula\ApiToolkit\Services\Contracts\DefinesInputSchema;
 use SineMacula\ApiToolkit\Services\Contracts\ServiceInput;
 
 /**
@@ -20,7 +21,7 @@ use SineMacula\ApiToolkit\Services\Contracts\ServiceInput;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-abstract class Payload implements ServiceInput
+abstract class Payload implements DefinesInputSchema, ServiceInput
 {
     /**
      * Validate the source and return a hydrated instance.
@@ -111,6 +112,7 @@ abstract class Payload implements ServiceInput
      *
      * @return array<string, mixed>
      */
+    #[\Override]
     public static function rules(): array
     {
         return [];
