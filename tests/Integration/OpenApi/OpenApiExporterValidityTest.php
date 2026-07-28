@@ -687,6 +687,50 @@ final class OpenApiExporterValidityTest extends TestCase
     }
 
     /**
+     * Test that an authenticated route emits per-operation security and the
+     * matching securitySchemes component, and the document stays valid OpenAPI
+     * 3.1.
+     *
+     * @return void
+     */
+    public function testAuthenticatedRouteEmitsValidSecurity(): void
+    {
+        $this->configureGuards();
+        $this->router()->get('users', [PathFixtureController::class, 'index'])->middleware('auth:api,admin');
+
+        $document = $this->export()->document;
+
+        self::assertSame(
+            [['bearerAuth' => []], ['basicAuth' => []]],
+            $document['paths']['/users']['get']['security'],
+        );
+
+        $schemes = $document['components']['securitySchemes'];
+
+        self::assertSame(['type' => 'http', 'scheme' => 'bearer', 'bearerFormat' => 'JWT'], $schemes['bearerAuth']);
+        self::assertSame(['type' => 'http', 'scheme' => 'basic'], $schemes['basicAuth']);
+
+        self::assertTrue(
+            $this->validateAgainstMetaSchema($document)->isValid(),
+            'A document with security requirements must validate as OpenAPI 3.1: ' . $this->formatErrors($this->validateAgainstMetaSchema($document)),
+        );
+    }
+
+    /**
+     * Configure the auth guards the security derivation reads drivers from.
+     *
+     * @return void
+     */
+    private function configureGuards(): void
+    {
+        $config = $this->getConfig();
+
+        $config->set('auth.defaults.guard', 'web');
+        $config->set('auth.guards.api', ['driver' => 'jwt']);
+        $config->set('auth.guards.admin', ['driver' => 'basic']);
+    }
+
+    /**
      * Run the export use case against the container-resolved graph.
      *
      * @param  string|null  $audience

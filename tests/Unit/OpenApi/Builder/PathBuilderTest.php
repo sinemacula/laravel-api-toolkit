@@ -16,6 +16,8 @@ use SineMacula\ApiToolkit\OpenApi\Resolution\TagResolver;
 use SineMacula\ApiToolkit\OpenApi\Schema\FieldSchemaBuilder;
 use SineMacula\ApiToolkit\OpenApi\Schema\RuleNormaliser;
 use SineMacula\ApiToolkit\OpenApi\Schema\RulesToSchemaTranslator;
+use SineMacula\ApiToolkit\OpenApi\Security\SecuritySchemeMapper;
+use SineMacula\ApiToolkit\OpenApi\Security\SecuritySchemeResolver;
 use SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\OpenApi\ArticleRequestInput;
@@ -740,6 +742,78 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
+     * Test that a route with no auth middleware is documented as public,
+     * carrying an explicit empty security list.
+     *
+     * @return void
+     */
+    public function testPublicOperationCarriesEmptySecurity(): void
+    {
+        $this->registerRestRoutes();
+
+        self::assertSame([], $this->build()['/users']['get']['security']);
+    }
+
+    /**
+     * Test that a single-guard auth route carries the guard driver's scheme as
+     * a single requirement.
+     *
+     * @return void
+     */
+    public function testSingleGuardOperationCarriesOneRequirement(): void
+    {
+        $this->configureGuards();
+        $this->router()->get('users', [PathFixtureController::class, 'index'])->middleware('auth:api');
+
+        self::assertSame([['bearerAuth' => []]], $this->build()['/users']['get']['security']);
+    }
+
+    /**
+     * Test that guards mapping to different schemes emit separate single-scheme
+     * requirements, expressing the OR of the two.
+     *
+     * @return void
+     */
+    public function testDifferentSchemeGuardsEmitSeparateRequirements(): void
+    {
+        $this->configureGuards();
+        $this->router()->get('users', [PathFixtureController::class, 'index'])->middleware('auth:api,admin');
+
+        self::assertSame(
+            [['bearerAuth' => []], ['basicAuth' => []]],
+            $this->build()['/users']['get']['security'],
+        );
+    }
+
+    /**
+     * Test that guards mapping to the same scheme collapse to one requirement,
+     * never revealing the second guard.
+     *
+     * @return void
+     */
+    public function testSameSchemeGuardsDedupeToOneRequirement(): void
+    {
+        $this->configureGuards();
+        $this->router()->get('users', [PathFixtureController::class, 'index'])->middleware('auth:api,sanctum');
+
+        self::assertSame([['bearerAuth' => []]], $this->build()['/users']['get']['security']);
+    }
+
+    /**
+     * Test that a bare auth middleware resolves the application's default
+     * guard.
+     *
+     * @return void
+     */
+    public function testBareAuthResolvesTheDefaultGuard(): void
+    {
+        $this->configureGuards();
+        $this->router()->get('users', [PathFixtureController::class, 'index'])->middleware('auth');
+
+        self::assertSame([['cookieAuth' => []]], $this->build()['/users']['get']['security']);
+    }
+
+    /**
      * Test that an audience documenting no route yields an empty paths object.
      *
      * @return void
@@ -812,6 +886,7 @@ final class PathBuilderTest extends TestCase
             new TagResolver,
             new ResponseSchemaResolver($catalogue, new EnvelopeBuilder),
             new RequestBodyResolver(new RulesToSchemaTranslator(new RuleNormaliser, new FieldSchemaBuilder)),
+            new SecuritySchemeResolver(new SecuritySchemeMapper),
         );
     }
 
@@ -825,5 +900,24 @@ final class PathBuilderTest extends TestCase
         assert($this->app !== null);
 
         return $this->app->make(Router::class);
+    }
+
+    /**
+     * Configure the auth guards the security tests resolve drivers from.
+     *
+     * @return void
+     */
+    private function configureGuards(): void
+    {
+        assert($this->app !== null);
+
+        /** @var \Illuminate\Contracts\Config\Repository $config */
+        $config = $this->app->make('config');
+
+        $config->set('auth.defaults.guard', 'web');
+        $config->set('auth.guards.api', ['driver' => 'jwt']);
+        $config->set('auth.guards.web', ['driver' => 'session']);
+        $config->set('auth.guards.sanctum', ['driver' => 'sanctum']);
+        $config->set('auth.guards.admin', ['driver' => 'basic']);
     }
 }

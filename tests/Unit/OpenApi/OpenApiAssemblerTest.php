@@ -24,6 +24,8 @@ use SineMacula\ApiToolkit\OpenApi\Resolution\TagResolver;
 use SineMacula\ApiToolkit\OpenApi\Schema\FieldSchemaBuilder;
 use SineMacula\ApiToolkit\OpenApi\Schema\RuleNormaliser;
 use SineMacula\ApiToolkit\OpenApi\Schema\RulesToSchemaTranslator;
+use SineMacula\ApiToolkit\OpenApi\Security\SecuritySchemeMapper;
+use SineMacula\ApiToolkit\OpenApi\Security\SecuritySchemeResolver;
 use SineMacula\ApiToolkit\Schema\Introspection\SchemaIntrospector;
 use Tests\Fixtures\Models\Organization;
 use Tests\Fixtures\Models\User;
@@ -224,6 +226,43 @@ final class OpenApiAssemblerTest extends TestCase
     }
 
     /**
+     * Test that components.securitySchemes carries exactly the distinct schemes
+     * referenced by the assembled paths, each with its correct definition.
+     *
+     * @return void
+     */
+    public function testSecuritySchemesReflectReferencedSchemes(): void
+    {
+        $this->configureGuards();
+
+        $router = $this->router();
+        $router->get('users', [PathFixtureController::class, 'index'])->middleware('auth:api');
+        $router->get('admins', [PathFixtureController::class, 'index'])->middleware('auth:admin');
+        $router->get('sessions', [PathFixtureController::class, 'index'])->middleware('auth:web');
+
+        $schemes = $this->assemble()['components']['securitySchemes'];
+
+        self::assertSame(['bearerAuth', 'basicAuth', 'cookieAuth'], array_keys($schemes));
+        self::assertSame(['type' => 'http', 'scheme' => 'bearer', 'bearerFormat' => 'JWT'], $schemes['bearerAuth']);
+        self::assertSame(['type' => 'http', 'scheme' => 'basic'], $schemes['basicAuth']);
+        self::assertSame('apiKey', $schemes['cookieAuth']['type']);
+        self::assertSame('cookie', $schemes['cookieAuth']['in']);
+    }
+
+    /**
+     * Test that a document whose paths reference no auth scheme omits the
+     * securitySchemes key entirely, keeping the components block valid.
+     *
+     * @return void
+     */
+    public function testSecuritySchemesOmittedWhenNoRouteIsAuthenticated(): void
+    {
+        $this->registerUserRoutes();
+
+        self::assertArrayNotHasKey('securitySchemes', $this->assemble()['components']);
+    }
+
+    /**
      * Test that the reusable total-count header is emitted under
      * components.headers.
      *
@@ -328,7 +367,9 @@ final class OpenApiAssemblerTest extends TestCase
                 new TagResolver,
                 new ResponseSchemaResolver($catalogue, new EnvelopeBuilder),
                 new RequestBodyResolver(new RulesToSchemaTranslator(new RuleNormaliser, new FieldSchemaBuilder)),
+                new SecuritySchemeResolver(new SecuritySchemeMapper),
             ),
+            new SecuritySchemeResolver(new SecuritySchemeMapper),
         );
     }
 
@@ -347,6 +388,21 @@ final class OpenApiAssemblerTest extends TestCase
         $router->get('users/{user}', [PathFixtureController::class, 'show']);
         $router->match(['PUT', 'PATCH'], 'users/{user}', [PathFixtureController::class, 'update']);
         $router->delete('users/{user}', [PathFixtureController::class, 'destroy']);
+    }
+
+    /**
+     * Configure the auth guards the security schemes are derived from.
+     *
+     * @return void
+     */
+    private function configureGuards(): void
+    {
+        $config = $this->config();
+
+        $config->set('auth.defaults.guard', 'web');
+        $config->set('auth.guards.api', ['driver' => 'jwt']);
+        $config->set('auth.guards.web', ['driver' => 'session']);
+        $config->set('auth.guards.admin', ['driver' => 'basic']);
     }
 
     /**

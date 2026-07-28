@@ -182,6 +182,34 @@ return [
             'public' => [],
         ],
 
+        // Per-operation security is derived from standard Laravel route
+        // middleware, orthogonal to authorization: the exporter reads a route's
+        // `auth`/`auth:*` middleware into a guard list (bare `auth` uses the
+        // default guard; `auth:user,guest` is an OR of both), resolves each
+        // guard's driver from `auth.guards.<guard>.driver`, and maps the driver
+        // to an OpenAPI security scheme. A route with no `auth` middleware is
+        // documented as public (`security: []`). Authorization middleware
+        // (`can:`) is not authentication and yields no scheme.
+        //
+        // The built-in map covers the stock drivers: jwt -> bearer (JWT),
+        // basic -> basic, sanctum/token -> bearer, session -> a cookie apiKey
+        // named after `session.cookie`. Guards sharing a scheme shape collapse
+        // to one scheme. Add or override a driver below, keyed by driver name,
+        // each carrying a stable scheme `name` and its OpenAPI `definition`; an
+        // entry wins over the built-in default. A driver with no mapping is
+        // skipped rather than invented.
+        'security' => [
+
+            // Override or extend the built-in driver-to-scheme map. Key each
+            // entry by the auth driver name; its value is an array with a
+            // scheme 'name' (the securityScheme component key) and a
+            // 'definition' (the OpenAPI security scheme object). Listed drivers
+            // merge over and win against the built-in defaults (jwt, basic,
+            // sanctum, token, session).
+            'drivers' => [],
+
+        ],
+
     ],
 
     /*

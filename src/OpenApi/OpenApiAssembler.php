@@ -11,6 +11,7 @@ use SineMacula\ApiToolkit\OpenApi\Builder\QueryParameterBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\ResourceSchemaBuilder;
 use SineMacula\ApiToolkit\OpenApi\Resolution\AudienceConfiguration;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ReachableSchemaResolver;
+use SineMacula\ApiToolkit\OpenApi\Security\SecuritySchemeResolver;
 
 /**
  * Assembles a per-audience OpenAPI 3.1 document.
@@ -50,6 +51,7 @@ final readonly class OpenApiAssembler
      * @param  \SineMacula\ApiToolkit\OpenApi\Builder\QueryParameterBuilder  $parameterBuilder
      * @param  \SineMacula\ApiToolkit\OpenApi\Builder\ErrorResponseBuilder  $responseBuilder
      * @param  \SineMacula\ApiToolkit\OpenApi\Builder\PathBuilder  $pathBuilder
+     * @param  \SineMacula\ApiToolkit\OpenApi\Security\SecuritySchemeResolver  $security
      */
     public function __construct(
 
@@ -64,6 +66,9 @@ final readonly class OpenApiAssembler
 
         /** The builder for the per-audience paths object. */
         private PathBuilder $pathBuilder,
+
+        /** The resolver of referenced security scheme definitions. */
+        private SecuritySchemeResolver $security,
     ) {
         $this->envelopeBuilder = new EnvelopeBuilder;
         $this->reachability    = new ReachableSchemaResolver;
@@ -111,12 +116,109 @@ final readonly class OpenApiAssembler
      */
     private function buildComponents(array $paths): array
     {
-        return [
+        $components = [
             'schemas'    => $this->buildSchemas($paths),
             'parameters' => $this->parameterBuilder->build(),
             'responses'  => $this->responseBuilder->build(),
             'headers'    => $this->envelopeBuilder->buildHeaders(),
         ];
+
+        $securitySchemes = $this->buildSecuritySchemes($paths);
+
+        if ($securitySchemes !== []) {
+            $components['securitySchemes'] = $securitySchemes;
+        }
+
+        return $components;
+    }
+
+    /**
+     * Build the securitySchemes block from the scheme names the assembled paths
+     * reference, so the block carries exactly the referenced schemes with no
+     * orphans and no omissions.
+     *
+     * @param  array<string, array<string, mixed>>  $paths
+     * @return array<string, array<string, mixed>>
+     */
+    private function buildSecuritySchemes(array $paths): array
+    {
+        $schemes = [];
+
+        foreach ($this->referencedSchemeNames($paths) as $name) {
+
+            $definition = $this->security->definitionFor($name);
+
+            if ($definition === null) {
+                continue;
+            }
+
+            $schemes[$name] = $definition;
+        }
+
+        return $schemes;
+    }
+
+    /**
+     * Collect the distinct security scheme names referenced across every
+     * operation's security requirements.
+     *
+     * @param  array<string, array<string, mixed>>  $paths
+     * @return list<string>
+     */
+    private function referencedSchemeNames(array $paths): array
+    {
+        $names = [];
+
+        foreach ($this->operations($paths) as $operation) {
+            foreach ($this->schemeNamesIn($operation) as $name) {
+                $names[$name] = true;
+            }
+        }
+
+        return array_keys($names);
+    }
+
+    /**
+     * Yield each operation object across the assembled paths.
+     *
+     * @param  array<string, array<string, mixed>>  $paths
+     * @return iterable<array<mixed, mixed>>
+     */
+    private function operations(array $paths): iterable
+    {
+        foreach ($paths as $operations) {
+            foreach ($operations as $operation) {
+
+                if (!is_array($operation)) {
+                    continue;
+                }
+
+                yield $operation;
+            }
+        }
+    }
+
+    /**
+     * List the security scheme names named by a single operation's security
+     * requirements.
+     *
+     * @param  array<mixed, mixed>  $operation
+     * @return list<string>
+     */
+    private function schemeNamesIn(array $operation): array
+    {
+        $names = [];
+
+        foreach ((array) ($operation['security'] ?? []) as $requirement) {
+
+            if (!is_array($requirement)) {
+                continue;
+            }
+
+            $names = array_merge($names, array_map('strval', array_keys($requirement)));
+        }
+
+        return $names;
     }
 
     /**

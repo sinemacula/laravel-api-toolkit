@@ -26,6 +26,8 @@ use SineMacula\ApiToolkit\OpenApi\Resolution\TagResolver;
 use SineMacula\ApiToolkit\OpenApi\Schema\FieldSchemaBuilder;
 use SineMacula\ApiToolkit\OpenApi\Schema\RuleNormaliser;
 use SineMacula\ApiToolkit\OpenApi\Schema\RulesToSchemaTranslator;
+use SineMacula\ApiToolkit\OpenApi\Security\SecuritySchemeMapper;
+use SineMacula\ApiToolkit\OpenApi\Security\SecuritySchemeResolver;
 use SineMacula\ApiToolkit\Schema\Introspection\SchemaIntrospector;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 use Tests\Concerns\InteractsWithNonPublicMembers;
@@ -164,7 +166,9 @@ final class ExportOpenApiComponentsTest extends TestCase
                 new TagResolver,
                 new ResponseSchemaResolver($catalogue, new EnvelopeBuilder),
                 new RequestBodyResolver(new RulesToSchemaTranslator(new RuleNormaliser, new FieldSchemaBuilder)),
+                new SecuritySchemeResolver(new SecuritySchemeMapper),
             ),
+            new SecuritySchemeResolver(new SecuritySchemeMapper),
         );
 
         return (new ExportOpenApiComponents($assembler, $catalogue))->export();

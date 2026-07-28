@@ -14,6 +14,7 @@ use SineMacula\ApiToolkit\OpenApi\Resolution\AudienceResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\RequestBodyResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ResponseSchemaResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\TagResolver;
+use SineMacula\ApiToolkit\OpenApi\Security\SecuritySchemeResolver;
 
 /**
  * Builds the OpenAPI paths object for a single audience.
@@ -85,6 +86,7 @@ final readonly class PathBuilder
      * @param  \SineMacula\ApiToolkit\OpenApi\Resolution\TagResolver  $tags
      * @param  \SineMacula\ApiToolkit\OpenApi\Resolution\ResponseSchemaResolver  $responseSchema
      * @param  \SineMacula\ApiToolkit\OpenApi\Resolution\RequestBodyResolver  $requestBody
+     * @param  \SineMacula\ApiToolkit\OpenApi\Security\SecuritySchemeResolver  $security
      */
     public function __construct(
 
@@ -108,6 +110,9 @@ final readonly class PathBuilder
 
         /** The resolver of a write action's request body. */
         private RequestBodyResolver $requestBody,
+
+        /** The resolver deriving a route's security requirement. */
+        private SecuritySchemeResolver $security,
     ) {}
 
     /**
@@ -323,6 +328,7 @@ final readonly class PathBuilder
         }
 
         $operation['responses'] = $responses;
+        $operation['security']  = $this->security->securityFor($route);
 
         return $operation;
     }
