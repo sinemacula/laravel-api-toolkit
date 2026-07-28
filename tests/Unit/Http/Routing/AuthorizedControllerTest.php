@@ -72,11 +72,10 @@ final class AuthorizedControllerTest extends TestCase
     /**
      * Test that middleware emits the exact gate check set for the full fixture.
      *
-     * The parameter is declared mixed-case and must be lowercased; the index
-     * and show actions are excluded; the model-less create and store actions
-     * target the model class while the model-bound update and destroy target
-     * the route parameter, and edit and update collapse into a single update
-     * check.
+     * The explicit route parameter is used verbatim; the index and show actions
+     * are excluded; the model-less create and store actions target the model
+     * class while the model-bound update and destroy target the route
+     * parameter, and edit and update collapse into a single update check.
      *
      * @return void
      */
@@ -136,18 +135,20 @@ final class AuthorizedControllerTest extends TestCase
     }
 
     /**
-     * Test that an explicit parameter distinct from the model basename is
-     * lowercased and used verbatim rather than derived from the model.
+     * Test that an explicit parameter distinct from the model basename is used
+     * verbatim, preserving its case rather than being lowercased or derived
+     * from the model.
      *
      * @return void
      */
-    public function testMiddlewareLowercasesExplicitParameterDistinctFromModel(): void
+    public function testMiddlewareUsesExplicitParameterVerbatimDistinctFromModel(): void
     {
         $controller = new #[AuthorizesResource(User::class, parameter: 'Admin')] class extends AuthorizedController {};
 
         $indexed = $this->indexByDefinition($controller::middleware());
 
-        self::assertArrayHasKey('can:update,admin', $indexed);
+        self::assertArrayHasKey('can:update,Admin', $indexed);
+        self::assertArrayNotHasKey('can:update,admin', $indexed);
         self::assertArrayNotHasKey('can:update,user', $indexed);
     }
 

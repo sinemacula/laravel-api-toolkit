@@ -7,21 +7,21 @@ namespace Tests\Unit\Services\Input;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 use PHPUnit\Framework\Attributes\CoversClass;
-use SineMacula\ApiToolkit\Services\Input\InputData;
+use SineMacula\ApiToolkit\Services\Input\Payload;
 use Tests\Fixtures\Input\SampleInput;
 use Tests\Fixtures\Services\Input\Enums\StubStatusEnum;
 use Tests\TestCase;
 
 /**
- * Tests for the InputData abstract base.
+ * Tests for the Payload abstract base.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  *
  * @internal
  */
-#[CoversClass(InputData::class)]
-final class InputDataTest extends TestCase
+#[CoversClass(Payload::class)]
+final class PayloadTest extends TestCase
 {
     /**
      * Test that from(array) validates and hydrates a typed instance.
@@ -111,7 +111,7 @@ final class InputDataTest extends TestCase
      */
     public function testRulesOverrideContributesRules(): void
     {
-        $class = new class extends InputData {
+        $class = new class extends Payload {
             /**
              * Create a new instance.
              *
@@ -197,7 +197,7 @@ final class InputDataTest extends TestCase
      */
     public function testFromSkipsNonPromotedConstructorParameters(): void
     {
-        $definition = new class extends InputData {
+        $definition = new class extends Payload {
             /** @var string The city, from a non-promoted parameter. */
             public readonly string $city;
 
@@ -246,7 +246,7 @@ final class InputDataTest extends TestCase
      */
     public function testToArraySkipsNonPromotedPublicProperties(): void
     {
-        $input = new class extends InputData {
+        $input = new class extends Payload {
             /** @var string A public property that is not promoted. */
             public string $manual = 'manual-value';
 
@@ -301,7 +301,7 @@ final class InputDataTest extends TestCase
      */
     public function testCastValueLeavesNonNamedTypeValueUnchanged(): void
     {
-        $definition = new class (data: '') extends InputData {
+        $definition = new class (data: '') extends Payload {
             /**
              * Create a new instance with a union-typed promoted property.
              *
@@ -340,7 +340,7 @@ final class InputDataTest extends TestCase
      */
     public function testCastValueLeavesNonStringEnumValueUnchanged(): void
     {
-        $definition = new class (status: StubStatusEnum::ACTIVE) extends InputData {
+        $definition = new class (status: StubStatusEnum::ACTIVE) extends Payload {
             /**
              * Create a new instance with an enum-typed promoted property.
              *
@@ -377,7 +377,7 @@ final class InputDataTest extends TestCase
      */
     public function testBaseRulesReturnEmptyArrayWhenNotOverridden(): void
     {
-        $definition = new class extends InputData {
+        $definition = new class extends Payload {
             /**
              * Create a new instance with a defaulted promoted property.
              *
@@ -394,7 +394,7 @@ final class InputDataTest extends TestCase
 
         $result = $definition::from([]);
 
-        self::assertInstanceOf(InputData::class, $result);
+        self::assertInstanceOf(Payload::class, $result);
         self::assertSame('base', $result->city);
     }
 }

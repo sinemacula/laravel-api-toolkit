@@ -12,12 +12,10 @@ use Tests\Fixtures\Models\User;
 /**
  * Fixture authorized controller for testing authorization.
  *
- * The parameter is declared mixed-case to assert the lowercase normalisation.
- *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-#[AuthorizesResource(User::class, parameter: 'User', except: ['index', 'show'])]
+#[AuthorizesResource(User::class, parameter: 'user', except: ['index', 'show'])]
 final class TestingAuthorizedController extends AuthorizedController
 {
     /**

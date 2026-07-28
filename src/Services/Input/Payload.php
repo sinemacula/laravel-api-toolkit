@@ -20,7 +20,7 @@ use SineMacula\ApiToolkit\Services\Contracts\ServiceInput;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-abstract class InputData implements ServiceInput
+abstract class Payload implements ServiceInput
 {
     /**
      * Validate the source and return a hydrated instance.

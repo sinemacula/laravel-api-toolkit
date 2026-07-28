@@ -115,7 +115,7 @@ abstract class AuthorizedController extends Controller implements HasMiddleware
     private static function resolveParameter(AuthorizesResource $attribute): string
     {
         return $attribute->parameter !== null && $attribute->parameter !== ''
-            ? strtolower($attribute->parameter)
+            ? $attribute->parameter
             : Str::snake(class_basename($attribute->model));
     }
 

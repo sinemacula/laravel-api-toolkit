@@ -7,7 +7,7 @@ namespace Tests\Integration\Services;
 use Illuminate\Validation\ValidationException;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Services\Input\ArrayInput;
-use SineMacula\ApiToolkit\Services\Input\InputData;
+use SineMacula\ApiToolkit\Services\Input\Payload;
 use SineMacula\ApiToolkit\Services\Service;
 use SineMacula\ApiToolkit\Services\ServiceRunner;
 use Tests\Fixtures\Services\ValidatingUserService;
@@ -16,7 +16,7 @@ use Tests\TestCase;
 /**
  * Integration tests for typed input validation on the real service path.
  *
- * Proves the headline contract: a typed InputData is validated inside the
+ * Proves the headline contract: a typed Payload is validated inside the
  * lifecycle, and a validation failure is captured in the total result without
  * ever throwing out of run(). The failed run opens no transaction and writes no
  * row, while a valid run reaches handle() and commits.
@@ -28,7 +28,7 @@ use Tests\TestCase;
  */
 #[CoversClass(Service::class)]
 #[CoversClass(ServiceRunner::class)]
-#[CoversClass(InputData::class)]
+#[CoversClass(Payload::class)]
 final class ServiceInputValidationTest extends TestCase
 {
     /**

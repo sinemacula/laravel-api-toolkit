@@ -5,11 +5,11 @@ declare(strict_types = 1);
 namespace Tests\Fixtures\Input;
 
 use Illuminate\Validation\Rule;
-use SineMacula\ApiToolkit\Services\Input\InputData;
+use SineMacula\ApiToolkit\Services\Input\Payload;
 use Tests\Fixtures\Services\Input\Enums\StubStatusEnum;
 
 /**
- * Concrete InputData fixture with typed promoted properties and explicit rules.
+ * Concrete Payload fixture with typed promoted properties and explicit rules.
  *
  * Demonstrates the canonical pattern for typed, immutable service inputs: a
  * final class with readonly promoted properties, a rules() override supplying
@@ -18,7 +18,7 @@ use Tests\Fixtures\Services\Input\Enums\StubStatusEnum;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-final class SampleInput extends InputData
+final class SampleInput extends Payload
 {
     /**
      * Create a new SampleInput instance.

@@ -12,8 +12,8 @@ namespace SineMacula\ApiToolkit\Http\Routing\Attributes;
  * authorizeResource() call: the named model is authorized against the gate for
  * each REST action, bound to the given route parameter, with the listed actions
  * left ungated. When no parameter is given the snake-cased model basename is
- * used, and a given parameter is lowercased to match the registered route
- * parameter.
+ * used; an explicit parameter is used verbatim, so it must match the registered
+ * route parameter name.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.

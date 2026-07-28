@@ -121,8 +121,8 @@ A service is constructed with a typed input rather than a raw payload, and the c
 explicitly - the action layer never reads `Auth` or the current `Request` ambiently.
 
 **Input.** The constructor takes a `ServiceInput` (the contract is a single `toArray(): array`). Two
-implementations ship: extend `InputData` to declare promoted readonly properties plus Laravel `rules()`
-and build a validated instance with `InputData::from($request)` (or `from($array)`), or wrap an
+implementations ship: extend `Payload` to declare promoted readonly properties plus Laravel `rules()`
+and build a validated instance with `Payload::from($request)` (or `from($array)`), or wrap an
 already-validated array in `ArrayInput` for the no-class case.
 
     use SineMacula\ApiToolkit\Services\Input\ArrayInput;
