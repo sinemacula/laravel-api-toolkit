@@ -26,4 +26,18 @@ final class PathUnmappedController extends AuthorizedController
      * @return void
      */
     public function index(): void {}
+
+    /**
+     * Create a resource.
+     *
+     * @return void
+     */
+    public function store(): void {}
+
+    /**
+     * Delete a resource.
+     *
+     * @return void
+     */
+    public function destroy(): void {}
 }

@@ -11,24 +11,28 @@ use SineMacula\ApiToolkit\Http\Routing\AuthorizedController;
 use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
 use SineMacula\ApiToolkit\OpenApi\Naming\SchemaComponentName;
 use SineMacula\ApiToolkit\OpenApi\Resolution\AudienceResolver;
+use SineMacula\ApiToolkit\OpenApi\Resolution\TagResolver;
 
 /**
  * Builds the OpenAPI paths object for a single audience.
  *
- * Walks the application's route table and emits one path item per documented
- * route, grouping every verb of the same URI under a shared template. Only
- * routes handled by an AuthorizedController subclass whose model maps to a
- * registered resource are considered, and each must pass the audience
- * membership check for the requested audience and posture. The REST action name
- * drives the response shape through the shared envelope builder: index emits
- * the length-aware collection envelope with the total-count header, show and
- * update emit a single envelope, store emits a single envelope under 201, and
- * destroy emits an empty 204. Any other action is skipped, as are closure and
- * non-authorized routes. Each operation is tagged with the resource schema name
- * and carries a string path parameter per route segment. Alongside its success
- * responses, every operation carries the error statuses that honestly apply to
- * it - a baseline set keyed by action shape, merged with any ApiException
- * reflected from the controller action's documented throws.
+ * Walks the application's route table and emits one operation per documentable
+ * route, grouping every verb of the same URI under a shared path template. A
+ * route handled by an AuthorizedController whose model maps to a registered
+ * resource keeps the full resource contract: the REST action drives the
+ * response shape through the shared envelope builder - index emits the
+ * length-aware collection envelope with the total-count header, show and update
+ * a single envelope, store a single envelope under 201, and destroy an empty
+ * 204 - alongside the honest baseline error statuses merged with any
+ * ApiException the action documents. Every other route - a plain or invokable
+ * controller, a non-REST action, an unmapped model, or a closure - still emits
+ * an operation carrying the path template, verbs, path parameters, and a
+ * resolved tag, with a single success response whose body is the shared data
+ * envelope wrapping an x-undocumented marker; that success is 201 for a store
+ * action, 204 for a destroy, and 200 otherwise, and it carries no error
+ * responses. Audience membership is checked for every route regardless of its
+ * handler, so a closure scoped out by a route macro is omitted exactly as an
+ * attribute-scoped controller is. HEAD and OPTIONS are always excluded.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -66,6 +70,7 @@ final readonly class PathBuilder
      * @param  \SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue  $catalogue
      * @param  \SineMacula\ApiToolkit\OpenApi\Resolution\AudienceResolver  $audience
      * @param  \SineMacula\ApiToolkit\OpenApi\Builder\EnvelopeBuilder  $envelope
+     * @param  \SineMacula\ApiToolkit\OpenApi\Resolution\TagResolver  $tags
      */
     public function __construct(
 
@@ -80,6 +85,9 @@ final readonly class PathBuilder
 
         /** The builder assembling the shared response envelopes. */
         private EnvelopeBuilder $envelope,
+
+        /** The resolver naming the tag each operation is grouped under. */
+        private TagResolver $tags,
     ) {}
 
     /**
@@ -120,71 +128,81 @@ final readonly class PathBuilder
      */
     private function buildPathItem(string $audience, string $posture, Route $route): ?array
     {
-        $controllerClass = $this->documentableController($audience, $posture, $route);
-
-        if ($controllerClass === null) {
-            return null;
-        }
-
-        $operation = $this->resolveOperation($controllerClass, $route);
-
-        if ($operation === null) {
-            return null;
-        }
-
-        return $this->groupOperationByVerb($operation, $route);
-    }
-
-    /**
-     * Resolve the authorized controller class handling the route when it is a
-     * member of the given audience, or null when the route is not documentable.
-     *
-     * @param  string  $audience
-     * @param  string  $posture
-     * @param  \Illuminate\Routing\Route  $route
-     * @return class-string<\SineMacula\ApiToolkit\Http\Routing\AuthorizedController>|null
-     */
-    private function documentableController(string $audience, string $posture, Route $route): ?string
-    {
         $controllerClass = $this->resolveControllerClass($route);
+        $action          = $route->getActionMethod();
 
-        if ($controllerClass === null) {
+        if (!$this->audience->isInAudience($audience, $posture, $controllerClass, $action, $route)) {
             return null;
         }
 
-        if (!$this->audience->isInAudience($audience, $posture, $controllerClass, $route->getActionMethod(), $route)) {
-            return null;
-        }
-
-        return $controllerClass;
+        return $this->groupOperationByVerb($this->resolveOperation($controllerClass, $action, $route), $route);
     }
 
     /**
-     * Resolve the operation object for the route, or null when the model has no
-     * registered resource or the action is not a supported REST action.
+     * Resolve the operation object for the route, preferring the full resource
+     * contract and falling back to the shared undocumented success envelope for
+     * every non-resource route.
      *
-     * @param  class-string<\SineMacula\ApiToolkit\Http\Routing\AuthorizedController>  $controllerClass
+     * @param  class-string|null  $controllerClass
+     * @param  string  $action
+     * @param  \Illuminate\Routing\Route  $route
+     * @return array<string, mixed>
+     */
+    private function resolveOperation(?string $controllerClass, string $action, Route $route): array
+    {
+        $resource = $this->resourceOperation($controllerClass, $action, $route);
+
+        if ($resource !== null) {
+            return $resource;
+        }
+
+        $body = ['content' => [self::MEDIA_TYPE => ['schema' => $this->envelope->undocumentedEnvelope()]]];
+
+        $responses = match ($action) {
+            'store'   => ['201' => ['description' => 'The request succeeded and a resource was created.', ...$body]],
+            'destroy' => ['204' => ['description' => 'The request succeeded with no content.']],
+            default   => ['200' => ['description' => 'The request succeeded.', ...$body]],
+        };
+
+        return $this->assembleOperation(
+            $this->tags->resolve($controllerClass, $action, $route, null),
+            $responses,
+            $route,
+        );
+    }
+
+    /**
+     * Resolve the full resource operation for the route, or null when the route
+     * is not a resource route: a non-authorized handler, an unmapped model, or
+     * an action outside the supported REST verbs.
+     *
+     * @param  class-string|null  $controllerClass
+     * @param  string  $action
      * @param  \Illuminate\Routing\Route  $route
      * @return array<string, mixed>|null
      */
-    private function resolveOperation(string $controllerClass, Route $route): ?array
+    private function resourceOperation(?string $controllerClass, string $action, Route $route): ?array
     {
-        $schemaName = $this->resolveSchemaName($controllerClass);
-
-        if ($schemaName === null) {
+        if ($controllerClass === null || !is_subclass_of($controllerClass, AuthorizedController::class)) {
             return null;
         }
 
-        $action    = $route->getActionMethod();
-        $responses = $this->responsesForAction($action, self::SCHEMA_REF_PREFIX . $schemaName);
+        $schemaName = $this->resolveSchemaName($controllerClass);
+        $responses  = $schemaName === null
+            ? null
+            : $this->responsesForAction($action, self::SCHEMA_REF_PREFIX . $schemaName);
 
-        if ($responses === null) {
+        if ($schemaName === null || $responses === null) {
             return null;
         }
 
         $responses += $this->errorResponses($action, $route, $controllerClass);
 
-        return $this->buildOperation($schemaName, $responses, $route);
+        return $this->assembleOperation(
+            $this->tags->resolve($controllerClass, $action, $route, $schemaName),
+            $responses,
+            $route,
+        );
     }
 
     /**
@@ -208,27 +226,23 @@ final readonly class PathBuilder
     }
 
     /**
-     * Resolve the authorized controller class handling the route, or null when
-     * the route has no controller or is not an authorized controller.
+     * Resolve the normalised controller class handling the route, or null when
+     * the route is served by a closure rather than a controller.
      *
      * @param  \Illuminate\Routing\Route  $route
-     * @return class-string<\SineMacula\ApiToolkit\Http\Routing\AuthorizedController>|null
+     * @return class-string|null
      */
     private function resolveControllerClass(Route $route): ?string
     {
         $controllerClass = $route->getControllerClass();
 
-        if ($controllerClass === null) {
+        if ($controllerClass === null || $controllerClass === '') {
             return null;
         }
 
         $controllerClass = ltrim($controllerClass, '\\');
 
-        if (!is_subclass_of($controllerClass, AuthorizedController::class)) {
-            return null;
-        }
-
-        return $controllerClass;
+        return class_exists($controllerClass) ? $controllerClass : null;
     }
 
     /**
@@ -258,14 +272,14 @@ final readonly class PathBuilder
     /**
      * Assemble the operation object shared by every verb of the route.
      *
-     * @param  string  $schemaName
+     * @param  string  $tag
      * @param  array<int|string, mixed>  $responses
      * @param  \Illuminate\Routing\Route  $route
      * @return array<string, mixed>
      */
-    private function buildOperation(string $schemaName, array $responses, Route $route): array
+    private function assembleOperation(string $tag, array $responses, Route $route): array
     {
-        $operation  = ['tags' => [$schemaName]];
+        $operation  = ['tags' => [$tag]];
         $parameters = $this->pathParameters($route);
 
         if ($parameters !== []) {

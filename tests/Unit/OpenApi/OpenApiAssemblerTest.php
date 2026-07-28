@@ -18,6 +18,7 @@ use SineMacula\ApiToolkit\OpenApi\OpenApiAssembler;
 use SineMacula\ApiToolkit\OpenApi\Resolution\AudienceResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ColumnTypeMapper;
 use SineMacula\ApiToolkit\OpenApi\Resolution\FieldTypeResolver;
+use SineMacula\ApiToolkit\OpenApi\Resolution\TagResolver;
 use SineMacula\ApiToolkit\Schema\Introspection\SchemaIntrospector;
 use Tests\Fixtures\Models\Organization;
 use Tests\Fixtures\Models\User;
@@ -118,7 +119,7 @@ final class OpenApiAssemblerTest extends TestCase
      */
     public function testDocumentDeclaresNoPaths(): void
     {
-        $document = $this->assemble();
+        $document = $this->assembleEmptyAudience();
 
         self::assertArrayHasKey('paths', $document);
         self::assertSame([], (array) $document['paths']);
@@ -132,7 +133,7 @@ final class OpenApiAssemblerTest extends TestCase
      */
     public function testPathsSerialiseToAnEmptyObject(): void
     {
-        $document = $this->assemble();
+        $document = $this->assembleEmptyAudience();
 
         self::assertSame('{}', json_encode($document['paths']));
     }
@@ -252,6 +253,22 @@ final class OpenApiAssemblerTest extends TestCase
     }
 
     /**
+     * Assemble a document for an allowlist audience no route opts into, so the
+     * paths object is genuinely empty even with the framework's default routes
+     * registered.
+     *
+     * @return array<string, mixed>
+     */
+    private function assembleEmptyAudience(): array
+    {
+        $this->config()->set('api-toolkit.openapi.audiences', [
+            'partner' => ['posture' => 'allowlist'],
+        ]);
+
+        return $this->makeAssembler()->assemble('partner');
+    }
+
+    /**
      * Build an assembler from the three real builders.
      *
      * @return \SineMacula\ApiToolkit\OpenApi\OpenApiAssembler
@@ -266,7 +283,7 @@ final class OpenApiAssemblerTest extends TestCase
             new ResourceSchemaBuilder($catalogue, $this->resolver(), $this->app->make(SchemaIntrospector::class)),
             new QueryParameterBuilder($catalogue),
             new ErrorResponseBuilder($catalogue),
-            new PathBuilder($this->router(), $catalogue, new AudienceResolver, new EnvelopeBuilder),
+            new PathBuilder($this->router(), $catalogue, new AudienceResolver, new EnvelopeBuilder, new TagResolver),
         );
     }
 

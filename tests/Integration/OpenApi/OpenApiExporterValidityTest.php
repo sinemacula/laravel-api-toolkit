@@ -28,6 +28,7 @@ use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\Tag;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\OpenApi\PathFixtureController;
+use Tests\Fixtures\OpenApi\PathInvokableController;
 use Tests\Fixtures\OpenApi\PathOrganizationController;
 use Tests\Fixtures\OpenApi\PathTagInternalController;
 use Tests\Fixtures\Resources\OrganizationResource;
@@ -438,6 +439,28 @@ final class OpenApiExporterValidityTest extends TestCase
         self::assertTrue(
             $this->validateAgainstMetaSchema($document)->isValid(),
             'A document with path operations must validate as OpenAPI 3.1: ' . $this->formatErrors($this->validateAgainstMetaSchema($document)),
+        );
+    }
+
+    /**
+     * Test that a non-resource route (here an invokable controller) surfaces as
+     * a documented operation carrying the shared x-undocumented success
+     * envelope, and the emitted document stays valid OpenAPI 3.1.
+     *
+     * @return void
+     */
+    public function testUndocumentedRouteEmitsValidOperation(): void
+    {
+        $this->router()->get('status', PathInvokableController::class);
+
+        $document = $this->export()->document;
+        $schema   = $document['paths']['/status']['get']['responses']['200']['content']['application/json']['schema'];
+
+        self::assertTrue($schema['properties']['data']['x-undocumented']);
+
+        self::assertTrue(
+            $this->validateAgainstMetaSchema($document)->isValid(),
+            'A document with an undocumented operation must validate as OpenAPI 3.1: ' . $this->formatErrors($this->validateAgainstMetaSchema($document)),
         );
     }
 

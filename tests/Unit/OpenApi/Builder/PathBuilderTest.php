@@ -10,11 +10,14 @@ use SineMacula\ApiToolkit\OpenApi\Builder\EnvelopeBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\PathBuilder;
 use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
 use SineMacula\ApiToolkit\OpenApi\Resolution\AudienceResolver;
+use SineMacula\ApiToolkit\OpenApi\Resolution\TagResolver;
 use SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\OpenApi\PathExcludedController;
 use Tests\Fixtures\OpenApi\PathFixtureController;
+use Tests\Fixtures\OpenApi\PathInvokableController;
 use Tests\Fixtures\OpenApi\PathPlainController;
+use Tests\Fixtures\OpenApi\PathTaggedController;
 use Tests\Fixtures\OpenApi\PathUnmappedController;
 use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
@@ -380,39 +383,112 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
-     * Test that a route handled by a non-authorized controller is skipped.
+     * Test that a route handled by a plain, non-authorized controller emits an
+     * undocumented success operation tagged from the controller basename.
      *
      * @return void
      */
-    public function testNonAuthorizedControllerRouteIsSkipped(): void
+    public function testPlainControllerEmitsUndocumentedOperation(): void
     {
-        $this->router()->get('plain', [PathPlainController::class, 'index']);
+        $this->router()->get('plain', [PathPlainController::class, 'report']);
 
-        self::assertArrayNotHasKey('/plain', $this->build());
+        $operation = $this->build()['/plain']['get'];
+
+        self::assertSame(['PathPlain'], $operation['tags']);
+        self::assertSame(
+            $this->undocumentedEnvelope(),
+            $operation['responses']['200']['content']['application/json']['schema'],
+        );
     }
 
     /**
-     * Test that a closure route is skipped.
+     * Test that an invokable controller emits an undocumented operation
+     * carrying its verb, path parameters, controller-derived tag, and the
+     * x-undocumented success envelope.
      *
      * @return void
      */
-    public function testClosureRouteIsSkipped(): void
+    public function testInvokableControllerEmitsUndocumentedOperation(): void
     {
-        $this->router()->get('closure', static fn (): null => null);
+        $this->router()->get('widgets/{widget}', PathInvokableController::class);
 
-        self::assertArrayNotHasKey('/closure', $this->build());
+        $operation = $this->build()['/widgets/{widget}']['get'];
+
+        self::assertSame(['PathInvokable'], $operation['tags']);
+        self::assertSame('widget', $operation['parameters'][0]['name']);
+        self::assertSame(
+            $this->undocumentedEnvelope(),
+            $operation['responses']['200']['content']['application/json']['schema'],
+        );
+        self::assertArrayNotHasKey('401', $operation['responses']);
     }
 
     /**
-     * Test that a route whose action is not a REST action is skipped.
+     * Test that a non-REST action on an authorized controller falls through to
+     * an undocumented operation rather than a resource operation.
      *
      * @return void
      */
-    public function testNonRestActionIsSkipped(): void
+    public function testNonRestActionEmitsUndocumentedOperation(): void
     {
         $this->router()->get('users/export', [PathFixtureController::class, 'export']);
 
-        self::assertArrayNotHasKey('/users/export', $this->build());
+        $operation = $this->build()['/users/export']['get'];
+
+        self::assertArrayHasKey('200', $operation['responses']);
+        self::assertSame(
+            $this->undocumentedEnvelope(),
+            $operation['responses']['200']['content']['application/json']['schema'],
+        );
+    }
+
+    /**
+     * Test that a closure route emits an undocumented operation carrying the
+     * x-undocumented success envelope and a tag derived from the URI.
+     *
+     * @return void
+     */
+    public function testClosureEmitsUndocumentedOperation(): void
+    {
+        $this->router()->get('health', static fn (): null => null);
+
+        $operation = $this->build()['/health']['get'];
+
+        self::assertSame(['health'], $operation['tags']);
+        self::assertSame(
+            $this->undocumentedEnvelope(),
+            $operation['responses']['200']['content']['application/json']['schema'],
+        );
+    }
+
+    /**
+     * Test that a closure scoped out with the undocumented route macro is
+     * omitted from the audience just as an attribute-scoped route is.
+     *
+     * @return void
+     */
+    public function testClosureExcludedViaMacroIsOmitted(): void
+    {
+        $this->router()->get('secret', static fn (): null => null)->undocumented(); // @phpstan-ignore method.notFound
+
+        self::assertArrayNotHasKey('/secret', $this->build());
+    }
+
+    /**
+     * Test that a #[Tag] attribute overrides the derived tag, with a
+     * method-level tag winning over the class-level one.
+     *
+     * @return void
+     */
+    public function testExplicitTagOverridesDerivedTag(): void
+    {
+        $this->router()->get('widgets', [PathTaggedController::class, 'index']);
+        $this->router()->get('reports', [PathTaggedController::class, 'report']);
+
+        $paths = $this->build();
+
+        self::assertSame(['Widgets'], $paths['/widgets']['get']['tags']);
+        self::assertSame(['Reports'], $paths['/reports']['get']['tags']);
     }
 
     /**
@@ -442,25 +518,80 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
-     * Test that a route whose model has no registered resource is skipped.
+     * Test that an authorized controller whose model has no registered resource
+     * falls through to an undocumented operation rather than being skipped.
      *
      * @return void
      */
-    public function testUnmappedModelRouteIsSkipped(): void
+    public function testUnmappedModelEmitsUndocumentedOperation(): void
     {
         $this->router()->get('posts', [PathUnmappedController::class, 'index']);
 
-        self::assertArrayNotHasKey('/posts', $this->build());
+        $operation = $this->build()['/posts']['get'];
+
+        self::assertSame(
+            $this->undocumentedEnvelope(),
+            $operation['responses']['200']['content']['application/json']['schema'],
+        );
     }
 
     /**
-     * Test that an empty route table yields an empty paths object.
+     * Test that a non-resource store action emits its success under 201 with
+     * the shared undocumented envelope.
      *
      * @return void
      */
-    public function testEmptyRouteTableYieldsEmptyPaths(): void
+    public function testNonResourceStoreEmitsCreatedStatus(): void
     {
-        self::assertSame([], $this->build());
+        $this->router()->post('posts', [PathUnmappedController::class, 'store']);
+
+        $responses = $this->build()['/posts']['post']['responses'];
+
+        self::assertArrayHasKey('201', $responses);
+        self::assertSame(
+            $this->undocumentedEnvelope(),
+            $responses['201']['content']['application/json']['schema'],
+        );
+    }
+
+    /**
+     * Test that a non-resource destroy action emits an empty 204 with no body.
+     *
+     * @return void
+     */
+    public function testNonResourceDestroyEmitsNoContent(): void
+    {
+        $this->router()->delete('posts/{post}', [PathUnmappedController::class, 'destroy']);
+
+        $response = $this->build()['/posts/{post}']['delete']['responses']['204'];
+
+        self::assertArrayNotHasKey('content', $response);
+    }
+
+    /**
+     * Test that an audience documenting no route yields an empty paths object.
+     *
+     * @return void
+     */
+    public function testNoDocumentedRoutesYieldsEmptyPaths(): void
+    {
+        // Under the allowlist posture no route opts in, so even the framework's
+        // default routes are excluded and the paths object stays empty.
+        self::assertSame([], $this->build('partner', QuerySurface::POSTURE_ALLOWLIST));
+    }
+
+    /**
+     * The expected shared data envelope wrapping the x-undocumented marker.
+     *
+     * @return array<string, mixed>
+     */
+    private function undocumentedEnvelope(): array
+    {
+        return [
+            'type'       => 'object',
+            'properties' => ['data' => ['x-undocumented' => true]],
+            'required'   => ['data'],
+        ];
     }
 
     /**
@@ -502,7 +633,7 @@ final class PathBuilderTest extends TestCase
         $catalogue = self::createStub(MetadataCatalogue::class);
         $catalogue->method('getResourceMap')->willReturn([User::class => UserResource::class]);
 
-        return new PathBuilder($this->router(), $catalogue, new AudienceResolver, new EnvelopeBuilder);
+        return new PathBuilder($this->router(), $catalogue, new AudienceResolver, new EnvelopeBuilder, new TagResolver);
     }
 
     /**

@@ -152,6 +152,25 @@ final class EnvelopeBuilderTest extends TestCase
     }
 
     /**
+     * Test that the undocumented envelope shares the data wrapper shape but
+     * marks the inner body with the x-undocumented extension.
+     *
+     * @return void
+     */
+    public function testUndocumentedEnvelopeWrapsAnUndocumentedBody(): void
+    {
+        $envelope = (new EnvelopeBuilder)->undocumentedEnvelope();
+
+        self::assertSame([
+            'type'       => 'object',
+            'properties' => [
+                'data' => ['x-undocumented' => true],
+            ],
+            'required' => ['data'],
+        ], $envelope);
+    }
+
+    /**
      * Test that the collection envelope wraps an array of the given reference
      * alongside the length-aware pagination meta and links references.
      *

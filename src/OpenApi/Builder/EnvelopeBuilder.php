@@ -85,6 +85,27 @@ final readonly class EnvelopeBuilder
     }
 
     /**
+     * Build the single envelope wrapping an opaque, undocumented body.
+     *
+     * Shares the `data` wrapper shape of the single envelope but marks the
+     * inner schema with the `x-undocumented` extension rather than a resource
+     * reference, so a route with no resolved resource still documents its
+     * envelope without asserting a body it cannot describe.
+     *
+     * @return array<string, mixed>
+     */
+    public function undocumentedEnvelope(): array
+    {
+        return [
+            'type'       => 'object',
+            'properties' => [
+                'data' => ['x-undocumented' => true],
+            ],
+            'required' => ['data'],
+        ];
+    }
+
+    /**
      * Build the length-aware collection envelope wrapping an array of the given
      * schema reference alongside the pagination meta and links components.
      *
