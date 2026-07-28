@@ -269,29 +269,51 @@ final readonly class ResourceDiscovery
         $files = [];
 
         foreach ($paths as $path) {
-
-            $iterator = new \RecursiveIteratorIterator(
-                new \RecursiveDirectoryIterator($path, \FilesystemIterator::SKIP_DOTS),
-            );
-
-            /** @var \SplFileInfo $file */
-            foreach ($iterator as $file) {
-
-                if ($file->getExtension() !== 'php') {
-                    continue;
-                }
-
-                $real = $file->getRealPath();
-
-                if ($real === false) {
-                    continue; // @codeCoverageIgnore
-                }
-
-                $files[] = $real;
-            }
+            $files = array_merge($files, $this->listPhpFiles($path));
         }
 
         sort($files);
+
+        return $files;
+    }
+
+    /**
+     * List every PHP file directly discoverable beneath a single path.
+     *
+     * A directory removed between the discovery filter and this scan - as
+     * happens under concurrent filesystem changes - yields an empty list rather
+     * than propagating the iterator failure.
+     *
+     * @param  string  $path
+     * @return array<int, string>
+     */
+    private function listPhpFiles(string $path): array
+    {
+        try {
+            $iterator = new \RecursiveIteratorIterator(
+                new \RecursiveDirectoryIterator($path, \FilesystemIterator::SKIP_DOTS),
+            );
+        } catch (\UnexpectedValueException) {
+            return []; // @codeCoverageIgnore
+        }
+
+        $files = [];
+
+        /** @var \SplFileInfo $file */
+        foreach ($iterator as $file) {
+
+            if ($file->getExtension() !== 'php') {
+                continue;
+            }
+
+            $real = $file->getRealPath();
+
+            if ($real === false) {
+                continue; // @codeCoverageIgnore
+            }
+
+            $files[] = $real;
+        }
 
         return $files;
     }
