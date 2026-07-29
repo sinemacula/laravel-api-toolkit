@@ -143,11 +143,21 @@ return [
     | `output`: The default filesystem path the exported document is written to
     | when the command is run without an explicit `--output` option.
     |
+    | `docs_path`: The directory of committed Markdown section files assembled,
+    | in filename (sorted) order, into every audience's info.description so the
+    | rendered documentation opens with the manual before listing the endpoints.
+    | Defaults to the application's own resource directory - the same target the
+    | `api-toolkit-docs` publish tag writes to - so publishing then editing the
+    | shipped templates is picked up automatically. The manual is opt-in: until
+    | the directory exists it resolves to empty and no description is injected.
+    |
     */
 
     'openapi' => [
 
         'output' => env('API_OPENAPI_OUTPUT', base_path('openapi.json')),
+
+        'docs_path' => env('API_OPENAPI_DOCS_PATH', resource_path('api-docs')),
 
         // The audience exported when the command runs without an explicit
         // --audience option (and without --all). Must name one of the audiences

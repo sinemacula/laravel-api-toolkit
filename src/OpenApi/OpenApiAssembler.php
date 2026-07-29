@@ -10,6 +10,7 @@ use SineMacula\ApiToolkit\OpenApi\Builder\ErrorResponseBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\PathBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\QueryParameterBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\ResourceSchemaBuilder;
+use SineMacula\ApiToolkit\OpenApi\Docs\DocManualAssembler;
 use SineMacula\ApiToolkit\OpenApi\Resolution\AudienceConfiguration;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ReachableSchemaResolver;
 use SineMacula\ApiToolkit\OpenApi\Schema\EnumSchemaRegistry;
@@ -56,6 +57,7 @@ final readonly class OpenApiAssembler
      * @param  \SineMacula\ApiToolkit\OpenApi\Security\SecuritySchemeResolver  $security
      * @param  \SineMacula\ApiToolkit\OpenApi\Builder\EnumSchemaBuilder  $enumBuilder
      * @param  \SineMacula\ApiToolkit\OpenApi\Schema\EnumSchemaRegistry  $enums
+     * @param  \SineMacula\ApiToolkit\OpenApi\Docs\DocManualAssembler  $manual
      */
     public function __construct(
 
@@ -79,6 +81,9 @@ final readonly class OpenApiAssembler
 
         /** The registry collecting enum classes referenced by a $ref. */
         private EnumSchemaRegistry $enums,
+
+        /** The assembler of the committed Markdown manual. */
+        private DocManualAssembler $manual,
     ) {
         $this->envelopeBuilder = new EnvelopeBuilder;
         $this->reachability    = new ReachableSchemaResolver;
@@ -109,14 +114,52 @@ final readonly class OpenApiAssembler
     }
 
     /**
-     * Build the info block for the audience from the audience configuration.
+     * Build the info block for the audience, injecting the committed Markdown
+     * manual into its description.
      *
      * @param  string  $audience
      * @return array<string, mixed>
      */
     private function buildInfo(string $audience): array
     {
-        return $this->audiences->infoFor($audience);
+        $info = $this->audiences->infoFor($audience);
+
+        $description = $this->composeDescription(
+            is_string($info['description'] ?? null) ? $info['description'] : null,
+            $this->manual->assemble(),
+        );
+
+        if ($description === '') {
+            unset($info['description']);
+
+            return $info;
+        }
+
+        $info['description'] = $description;
+
+        return $info;
+    }
+
+    /**
+     * Compose the info description from the configured description and the
+     * assembled manual, in that reading order, separated by a blank line.
+     *
+     * The configured description leads because it is the audience-specific
+     * preface an operator sets, with the shared manual following beneath it;
+     * either being empty is dropped, so an empty result signals no description.
+     *
+     * @param  string|null  $configured
+     * @param  string  $manual
+     * @return string
+     */
+    private function composeDescription(?string $configured, string $manual): string
+    {
+        $parts = array_filter(
+            [trim($configured ?? ''), trim($manual)],
+            static fn (string $part): bool => $part !== '',
+        );
+
+        return implode("\n\n", $parts);
     }
 
     /**

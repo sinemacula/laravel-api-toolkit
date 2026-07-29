@@ -14,6 +14,7 @@ use SineMacula\ApiToolkit\OpenApi\Builder\PathBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\QueryParameterBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\ResourceSchemaBuilder;
 use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
+use SineMacula\ApiToolkit\OpenApi\Docs\DocManualAssembler;
 use SineMacula\ApiToolkit\OpenApi\Metadata\ErrorDescriptor;
 use SineMacula\ApiToolkit\OpenApi\OpenApiAssembler;
 use SineMacula\ApiToolkit\OpenApi\Resolution\AudienceResolver;
@@ -48,6 +49,27 @@ use Tests\TestCase;
 #[CoversClass(OpenApiAssembler::class)]
 final class OpenApiAssemblerTest extends TestCase
 {
+    /** @var list<string> The temporary docs directories to clean up. */
+    private array $docsDirs = [];
+
+    /**
+     * Tear down each test, removing any temporary docs directories.
+     *
+     * @return void
+     */
+    #[\Override]
+    protected function tearDown(): void
+    {
+        foreach ($this->docsDirs as $dir) {
+            array_map('unlink', glob($dir . '/*') ?: []);
+            @rmdir($dir);
+        }
+
+        $this->docsDirs = [];
+
+        parent::tearDown();
+    }
+
     /**
      * Test that the assembled document declares a 3.1.x OpenAPI version.
      *
@@ -119,6 +141,57 @@ final class OpenApiAssemblerTest extends TestCase
         self::assertSame('Acme API', $info['title']);
         self::assertSame('2.0.0', $info['version']);
         self::assertArrayNotHasKey('description', $info);
+    }
+
+    /**
+     * Test that the committed Markdown manual is injected into
+     * info.description, with the configured description leading and the manual
+     * following.
+     *
+     * @return void
+     */
+    public function testManualIsAppendedAfterConfiguredDescription(): void
+    {
+        $dir = $this->makeDocsDir(['10-intro.md' => "# Intro\n\nWelcome."]);
+
+        $this->config()->set('api-toolkit.openapi.docs_path', $dir);
+        $this->config()->set('api-toolkit.openapi.audiences', [
+            'public' => ['info' => ['description' => 'Preface.']],
+        ]);
+
+        $description = $this->assemble()['info']['description'];
+
+        self::assertSame("Preface.\n\n# Intro\n\nWelcome.", $description);
+    }
+
+    /**
+     * Test that the manual becomes the whole description when no description is
+     * configured for the audience.
+     *
+     * @return void
+     */
+    public function testManualBecomesDescriptionWhenNoneConfigured(): void
+    {
+        $dir = $this->makeDocsDir(['20-body.md' => "# Body\n\nContent."]);
+
+        $this->config()->set('api-toolkit.openapi.docs_path', $dir);
+
+        $info = $this->assemble()['info'];
+
+        self::assertSame("# Body\n\nContent.", $info['description']);
+    }
+
+    /**
+     * Test that info carries no description when neither a description is
+     * configured nor a docs directory exists, keeping the info block valid.
+     *
+     * @return void
+     */
+    public function testDescriptionOmittedWhenManualAndConfigEmpty(): void
+    {
+        $this->config()->set('api-toolkit.openapi.docs_path', sys_get_temp_dir() . '/api-toolkit-absent-' . uniqid('', true));
+
+        self::assertArrayNotHasKey('description', $this->assemble()['info']);
     }
 
     /**
@@ -389,6 +462,28 @@ final class OpenApiAssemblerTest extends TestCase
     }
 
     /**
+     * Create a temporary docs directory seeded with the given files, registered
+     * for teardown, and return its path.
+     *
+     * @param  array<string, string>  $files
+     * @return string
+     */
+    private function makeDocsDir(array $files): string
+    {
+        $dir = sys_get_temp_dir() . '/api-toolkit-docs-' . uniqid('', true);
+
+        mkdir($dir);
+
+        foreach ($files as $name => $contents) {
+            file_put_contents($dir . '/' . $name, $contents);
+        }
+
+        $this->docsDirs[] = $dir;
+
+        return $dir;
+    }
+
+    /**
      * Assemble a document from real builders backed by a stubbed catalogue and
      * a real resolver against the live test schema.
      *
@@ -446,6 +541,7 @@ final class OpenApiAssemblerTest extends TestCase
             new SecuritySchemeResolver(new SecuritySchemeMapper),
             new EnumSchemaBuilder,
             $enums,
+            new DocManualAssembler,
         );
     }
 

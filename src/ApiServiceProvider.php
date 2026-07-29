@@ -110,6 +110,10 @@ final class ApiServiceProvider extends ServiceProvider
         $this->publishes([
             __DIR__ . '/../config/api-toolkit.php' => config_path('api-toolkit.php'),
         ], 'config');
+
+        $this->publishes([
+            __DIR__ . '/../resources/api-docs' => resource_path('api-docs'),
+        ], 'api-toolkit-docs');
     }
 
     /**

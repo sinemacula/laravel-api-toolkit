@@ -19,6 +19,7 @@ use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Enums\ErrorCode;
 use SineMacula\ApiToolkit\OpenApi\Builder\EnvelopeBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\PathBuilder;
+use SineMacula\ApiToolkit\OpenApi\Docs\DocManualAssembler;
 use SineMacula\ApiToolkit\OpenApi\ExportOpenApiComponents;
 use SineMacula\ApiToolkit\OpenApi\ExportResult;
 use SineMacula\ApiToolkit\OpenApi\OpenApiAssembler;
@@ -68,6 +69,7 @@ use Tests\TestCase;
 #[CoversClass(PathBuilder::class)]
 #[CoversClass(ReachableSchemaResolver::class)]
 #[CoversClass(AudienceConfiguration::class)]
+#[CoversClass(DocManualAssembler::class)]
 final class OpenApiExporterValidityTest extends TestCase
 {
     /** @var string The identifier under which the OpenAPI 3.1 meta-schema is registered. */
@@ -75,6 +77,9 @@ final class OpenApiExporterValidityTest extends TestCase
 
     /** @var string The identifier of the JSON Schema 2020-12 dialect document. */
     private const string DIALECT_ID = 'https://json-schema.org/draft/2020-12/schema';
+
+    /** @var list<string> The temporary docs directories to clean up. */
+    private array $docsDirs = [];
 
     /**
      * Set up each test.
@@ -89,6 +94,57 @@ final class OpenApiExporterValidityTest extends TestCase
         SchemaCompiler::clearCache();
 
         $this->registerResourceMap();
+    }
+
+    /**
+     * Tear down each test, removing any temporary docs directories.
+     *
+     * @return void
+     */
+    #[\Override]
+    protected function tearDown(): void
+    {
+        foreach ($this->docsDirs as $dir) {
+            array_map('unlink', glob($dir . '/*') ?: []);
+            @rmdir($dir);
+        }
+
+        $this->docsDirs = [];
+
+        parent::tearDown();
+    }
+
+    /**
+     * Test that the committed Markdown manual is assembled into
+     * info.description end to end, and the document carrying it still validates
+     * as OpenAPI 3.1.
+     *
+     * @return void
+     */
+    public function testDocsManualIsInjectedIntoDescriptionAndStaysValid(): void
+    {
+        $this->registerUserRoutes();
+
+        $dir = $this->makeDocsDir([
+            '20-querying.md'   => "# Advanced Querying\n\nFilter with operators.",
+            '30-pagination.md' => "# Pagination\n\nPage through records.",
+        ]);
+
+        $this->getConfig()->set('api-toolkit.openapi.docs_path', $dir);
+
+        $document = $this->export()->document;
+
+        self::assertStringContainsString('# Advanced Querying', $document['info']['description']);
+        self::assertStringContainsString('# Pagination', $document['info']['description']);
+        self::assertLessThan(
+            strpos($document['info']['description'], '# Pagination'),
+            strpos($document['info']['description'], '# Advanced Querying'),
+        );
+
+        self::assertTrue(
+            $this->validateAgainstMetaSchema($document)->isValid(),
+            'A document carrying the docs manual must validate as OpenAPI 3.1: ' . $this->formatErrors($this->validateAgainstMetaSchema($document)),
+        );
     }
 
     /**
@@ -880,6 +936,28 @@ final class OpenApiExporterValidityTest extends TestCase
             $this->validateAgainstMetaSchema($document)->isValid(),
             'A document exported without column introspection must validate as OpenAPI 3.1: ' . $this->formatErrors($this->validateAgainstMetaSchema($document)),
         );
+    }
+
+    /**
+     * Create a temporary docs directory seeded with the given files, registered
+     * for teardown, and return its path.
+     *
+     * @param  array<string, string>  $files
+     * @return string
+     */
+    private function makeDocsDir(array $files): string
+    {
+        $dir = sys_get_temp_dir() . '/api-toolkit-docs-' . uniqid('', true);
+
+        mkdir($dir);
+
+        foreach ($files as $name => $contents) {
+            file_put_contents($dir . '/' . $name, $contents);
+        }
+
+        $this->docsDirs[] = $dir;
+
+        return $dir;
     }
 
     /**

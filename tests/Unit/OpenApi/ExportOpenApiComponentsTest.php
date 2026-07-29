@@ -14,6 +14,7 @@ use SineMacula\ApiToolkit\OpenApi\Builder\PathBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\QueryParameterBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\ResourceSchemaBuilder;
 use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
+use SineMacula\ApiToolkit\OpenApi\Docs\DocManualAssembler;
 use SineMacula\ApiToolkit\OpenApi\ExportOpenApiComponents;
 use SineMacula\ApiToolkit\OpenApi\ExportResult;
 use SineMacula\ApiToolkit\OpenApi\Metadata\ErrorDescriptor;
@@ -176,6 +177,7 @@ final class ExportOpenApiComponentsTest extends TestCase
             new SecuritySchemeResolver(new SecuritySchemeMapper),
             new EnumSchemaBuilder,
             $enums,
+            new DocManualAssembler,
         );
 
         return (new ExportOpenApiComponents($assembler, $catalogue))->export();
