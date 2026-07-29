@@ -175,6 +175,7 @@ final class ErrorCatalogueReader
             httpStatus: $this->resolveHttpStatus($map[$intCode] ?? null),
             title     : $this->resolveTitle($intCode),
             detail    : $this->resolveDetail($intCode),
+            source    : $map[$intCode] ?? null,
         );
     }
 
@@ -228,6 +229,7 @@ final class ErrorCatalogueReader
             httpStatus: $class::getHttpStatusCode(),
             title     : $exception->getCustomTitle(),
             detail    : $exception->getCustomDetail(),
+            source    : $class,
         );
     }
 

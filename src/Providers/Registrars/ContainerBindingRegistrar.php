@@ -17,8 +17,11 @@ use SineMacula\ApiToolkit\Enums\FlushStrategy;
 use SineMacula\ApiToolkit\Http\Resources\ResourceMetadataService;
 use SineMacula\ApiToolkit\OpenApi\Contracts\DocumentWriter;
 use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
+use SineMacula\ApiToolkit\OpenApi\Contracts\ModuleResolver;
+use SineMacula\ApiToolkit\OpenApi\Docs\NamespaceModuleResolver;
 use SineMacula\ApiToolkit\OpenApi\Metadata\ApiExceptionDiscoverer;
 use SineMacula\ApiToolkit\OpenApi\Metadata\ConfigMetadataCatalogue;
+use SineMacula\ApiToolkit\OpenApi\Metadata\Psr4RootMap;
 use SineMacula\ApiToolkit\OpenApi\Output\FilesystemDocumentWriter;
 use SineMacula\ApiToolkit\OpenApi\Schema\EnumSchemaRegistry;
 use SineMacula\ApiToolkit\Repositories\Concerns\WritePool;
@@ -230,7 +233,10 @@ final readonly class ContainerBindingRegistrar
      * filesystem/config adapters; the use case, builders, and assembler are
      * auto-resolved through constructor injection from these bindings. The enum
      * schema registry is a singleton so the request-side and response-side
-     * resolvers and the assembler share one collected set per document.
+     * resolvers and the assembler share one collected set per document. The
+     * module resolver binds to the namespace-key detector by default; an
+     * application may bind its own ModuleResolver to override how the generated
+     * documentation is grouped by module.
      *
      * @return void
      */
@@ -239,6 +245,7 @@ final readonly class ContainerBindingRegistrar
         $this->container->singleton(MetadataCatalogue::class, ConfigMetadataCatalogue::class);
         $this->container->singleton(DocumentWriter::class, FilesystemDocumentWriter::class);
         $this->container->singleton(ApiExceptionDiscoverer::class, static fn (): ApiExceptionDiscoverer => ApiExceptionDiscoverer::fromComposer());
+        $this->container->singleton(ModuleResolver::class, static fn (): NamespaceModuleResolver => new NamespaceModuleResolver(Psr4RootMap::fromComposer()));
         $this->container->singleton(EnumSchemaRegistry::class);
     }
 

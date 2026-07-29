@@ -314,6 +314,52 @@ final class ErrorCatalogueReaderTest extends TestCase
     }
 
     /**
+     * Test that a discovered application exception's descriptor carries the
+     * owning exception class as its source, so the catalogue can group it.
+     *
+     * @return void
+     */
+    public function testDiscoveredApplicationExceptionCarriesSource(): void
+    {
+        $descriptors = $this->reader($this->fixturesDiscoverer())->read();
+
+        $descriptor = $this->findDescriptor($descriptors, AppErrorCode::WIDGET_FAILURE->getCode());
+
+        self::assertNotNull($descriptor);
+        self::assertSame(WidgetFailureException::class, $descriptor->source);
+    }
+
+    /**
+     * Test that a toolkit code with a discovered owning exception carries that
+     * class as its source.
+     *
+     * @return void
+     */
+    public function testToolkitCodeCarriesOwningExceptionSource(): void
+    {
+        $descriptor = $this->findDescriptor($this->reader()->read(), ErrorCode::NOT_FOUND->getCode());
+
+        self::assertNotNull($descriptor);
+        self::assertSame(NotFoundException::class, $descriptor->source);
+    }
+
+    /**
+     * Test that a code with no owning exception subclass carries a null source,
+     * keeping the generic path safe to group into the shared section.
+     *
+     * @return void
+     */
+    public function testUnmappedCodeCarriesNullSource(): void
+    {
+        FunctionOverrides::set('glob', static fn (): array => []);
+
+        $descriptor = $this->findDescriptor($this->reader()->read(), ErrorCode::NOT_FOUND->getCode());
+
+        self::assertNotNull($descriptor);
+        self::assertNull($descriptor->source);
+    }
+
+    /**
      * Test that two exceptions declaring the same code are reported: the first
      * discovered wins and a warning names the ignored class rather than the
      * clash being silently resolved.

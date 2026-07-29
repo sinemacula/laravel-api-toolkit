@@ -4,7 +4,6 @@ declare(strict_types = 1);
 
 namespace SineMacula\ApiToolkit\OpenApi\Metadata;
 
-use Composer\Autoload\ClassLoader;
 use SineMacula\ApiToolkit\Exceptions\ApiException;
 
 /**
@@ -15,8 +14,8 @@ use SineMacula\ApiToolkit\Exceptions\ApiException;
  * application throws, not only the toolkit's own. The prefix-to-directories map
  * is injected so the source can be driven from the registered Composer
  * autoloader in production and pointed at a controlled directory under test.
- * Vendor roots are excluded, restricting the scan to the application, its
- * modules, and any local path packages.
+ * The shared root map excludes vendor and non-existent roots, restricting the
+ * scan to the application, its modules, and any local path packages.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -46,9 +45,7 @@ final readonly class ApiExceptionDiscoverer
      */
     public static function fromComposer(): self
     {
-        $loader = self::locateClassLoader();
-
-        return new self($loader?->getPrefixesPsr4() ?? []);
+        return new self(Psr4RootMap::fromComposer()->all());
     }
 
     /**
@@ -60,7 +57,7 @@ final readonly class ApiExceptionDiscoverer
     {
         $classes = [];
 
-        foreach ($this->prefixes as $prefix => $dirs) {
+        foreach ((new Psr4RootMap($this->prefixes))->roots() as $prefix => $dirs) {
             foreach ($dirs as $dir) {
                 foreach ($this->scan($prefix, $dir) as $class) {
                     $classes[] = $class;
@@ -72,39 +69,17 @@ final readonly class ApiExceptionDiscoverer
     }
 
     /**
-     * Locate the Composer ClassLoader among the registered SPL autoloaders.
-     *
-     * @return \Composer\Autoload\ClassLoader|null
-     */
-    private static function locateClassLoader(): ?ClassLoader
-    {
-        foreach (spl_autoload_functions() as $autoloader) {
-            if (is_array($autoloader) && ($autoloader[0] ?? null) instanceof ClassLoader) {
-                return $autoloader[0];
-            }
-        }
-
-        return null;
-    }
-
-    /**
      * Scan one PSR-4 root, returning the qualifying exception classes.
      *
-     * A root whose real path sits inside a vendor directory is skipped so only
-     * the application and its modules are scanned.
+     * The root map has already reduced the directory to an existing, non-vendor
+     * real path, so the scan walks it directly.
      *
      * @param  string  $prefix
-     * @param  string  $dir
+     * @param  string  $root
      * @return array<int, class-string<\SineMacula\ApiToolkit\Exceptions\ApiException>>
      */
-    private function scan(string $prefix, string $dir): array
+    private function scan(string $prefix, string $root): array
     {
-        $root = realpath($dir);
-
-        if ($root === false || str_contains($root, '/vendor/')) {
-            return [];
-        }
-
         $classes = [];
 
         foreach ($this->phpFiles($root) as $file) {
