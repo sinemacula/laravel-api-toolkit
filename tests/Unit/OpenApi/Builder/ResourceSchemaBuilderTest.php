@@ -7,6 +7,7 @@ namespace Tests\Unit\OpenApi\Builder;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\OpenApi\Builder\ResourceSchemaBuilder;
 use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
+use SineMacula\ApiToolkit\OpenApi\Exceptions\SchemaNameCollisionException;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ColumnTypeMapper;
 use SineMacula\ApiToolkit\OpenApi\Resolution\FieldTypeResolver;
 use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
@@ -26,6 +27,9 @@ use Tests\Fixtures\Resources\OrganizationResource;
 use Tests\Fixtures\Resources\PostResource;
 use Tests\Fixtures\Resources\TagResource;
 use Tests\Fixtures\Resources\UserResource;
+use Tests\Fixtures\Resources\V1\UserResource as V1UserResource;
+use Tests\Fixtures\Resources\V2\UserResource as V2UserResource;
+use Tests\Fixtures\Resources\V3\UserResource as V3UserResource;
 use Tests\TestCase;
 
 /**
@@ -553,6 +557,62 @@ final class ResourceSchemaBuilderTest extends TestCase
 
         self::assertSame(['integer', 'null'], $properties['organization_id']['type']);
         self::assertSame('string', $properties['name']['type']);
+    }
+
+    /**
+     * Test that two distinct resources deriving the same component name make
+     * the build fail loud, naming the collided name and both resource classes.
+     *
+     * @return void
+     */
+    public function testCollidingComponentNamesThrow(): void
+    {
+        $builder = $this->makeBuilder([
+            User::class => V1UserResource::class,
+            Post::class => V2UserResource::class,
+        ]);
+
+        $this->expectException(SchemaNameCollisionException::class);
+        $this->expectExceptionMessage(V1UserResource::class);
+        $this->expectExceptionMessage(V2UserResource::class);
+
+        $builder->build();
+    }
+
+    /**
+     * Test that the same resource claimed under two models does not collide, so
+     * a resource shared across models still builds a single schema.
+     *
+     * @return void
+     */
+    public function testSameResourceUnderTwoModelsDoesNotThrow(): void
+    {
+        $schemas = $this->makeBuilder([
+            User::class => V1UserResource::class,
+            Post::class => V1UserResource::class,
+        ])->build();
+
+        self::assertCount(1, $schemas);
+        self::assertArrayHasKey('User', $schemas);
+    }
+
+    /**
+     * Test that a #[SchemaName] override on one of two basename-colliding
+     * resources disambiguates them, so both schemas survive under distinct
+     * keys.
+     *
+     * @return void
+     */
+    public function testSchemaNameOverrideAvoidsCollision(): void
+    {
+        $schemas = $this->makeBuilder([
+            User::class => V1UserResource::class,
+            Post::class => V3UserResource::class,
+        ])->build();
+
+        self::assertCount(2, $schemas);
+        self::assertArrayHasKey('User', $schemas);
+        self::assertArrayHasKey('UserV3', $schemas);
     }
 
     /**

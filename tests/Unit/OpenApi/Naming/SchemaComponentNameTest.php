@@ -8,6 +8,8 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 use SineMacula\ApiToolkit\OpenApi\Naming\SchemaComponentName;
 use Tests\Fixtures\Models\User;
+use Tests\Fixtures\Resources\CustomNamedResource;
+use Tests\Fixtures\Resources\EmptyNamedResource;
 use Tests\Fixtures\Resources\OrganizationResource;
 use Tests\Fixtures\Resources\UserResource;
 use Tests\Fixtures\Resources\V1\UserResource as V1UserResource;
@@ -62,5 +64,27 @@ final class SchemaComponentNameTest extends TestCase
         self::assertSame('User', $v1);
         self::assertSame('User', $v2);
         self::assertSame($v1, $v2);
+    }
+
+    /**
+     * Test that a #[SchemaName] override on the class wins over the basename
+     * derivation, so a resource can declare a distinct component name.
+     *
+     * @return void
+     */
+    public function testSchemaNameOverrideWinsOverTheBasename(): void
+    {
+        self::assertSame('CustomName', SchemaComponentName::fromResource(CustomNamedResource::class));
+    }
+
+    /**
+     * Test that an empty #[SchemaName] override is ignored and the derivation
+     * falls back to the class basename.
+     *
+     * @return void
+     */
+    public function testEmptySchemaNameOverrideFallsBackToTheBasename(): void
+    {
+        self::assertSame('EmptyNamed', SchemaComponentName::fromResource(EmptyNamedResource::class));
     }
 }

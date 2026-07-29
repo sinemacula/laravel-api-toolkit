@@ -12,6 +12,7 @@ use Illuminate\Database\Eloquent\Relations\Relation;
 use SineMacula\ApiToolkit\Contracts\ApiResourceInterface;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
+use SineMacula\ApiToolkit\OpenApi\Exceptions\SchemaNameCollisionException;
 use SineMacula\ApiToolkit\OpenApi\Naming\SchemaComponentName;
 use SineMacula\ApiToolkit\OpenApi\Resolution\FieldTypeResolver;
 use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
@@ -40,6 +41,9 @@ final readonly class ResourceSchemaBuilder
     /** The path prefix under which resource component schemas are referenced */
     private const string SCHEMA_REF_PREFIX = '#/components/schemas/';
 
+    /** The message describing a component schema name collision */
+    private const string COLLISION_MESSAGE = 'The OpenAPI component schema name "%s" is derived by both [%s] and [%s]. Disambiguate one with the #[SchemaName] attribute.';
+
     /**
      * Constructor.
      *
@@ -67,12 +71,43 @@ final readonly class ResourceSchemaBuilder
     public function build(): array
     {
         $schemas = [];
+        $claimed = [];
 
         foreach ($this->catalogue->getResourceMap() as $modelClass => $resourceClass) {
-            $schemas[$this->schemaName($resourceClass)] = $this->buildResourceSchema($resourceClass, $modelClass);
+            $name = $this->schemaName($resourceClass);
+
+            $this->guardCollision($claimed, $name, $resourceClass);
+
+            $claimed[$name] = $resourceClass;
+            $schemas[$name] = $this->buildResourceSchema($resourceClass, $modelClass);
         }
 
         return $schemas;
+    }
+
+    /**
+     * Guard against two distinct resources claiming the same component name.
+     *
+     * The same resource re-claiming a name (two models mapping to one resource)
+     * is allowed; only a different resource behind an already-claimed name is a
+     * collision that would silently overwrite a schema.
+     *
+     * @param  array<string, class-string>  $claimed
+     * @param  string  $name
+     * @param  class-string  $resourceClass
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\OpenApi\Exceptions\SchemaNameCollisionException
+     */
+    private function guardCollision(array $claimed, string $name, string $resourceClass): void
+    {
+        $existing = $claimed[$name] ?? null;
+
+        if ($existing === null || $existing === $resourceClass) {
+            return;
+        }
+
+        throw new SchemaNameCollisionException(sprintf(self::COLLISION_MESSAGE, $name, $existing, $resourceClass));
     }
 
     /**
