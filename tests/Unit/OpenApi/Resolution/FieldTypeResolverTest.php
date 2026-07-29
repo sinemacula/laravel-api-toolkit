@@ -9,9 +9,11 @@ use PHPUnit\Framework\TestCase;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ColumnTypeMapper;
 use SineMacula\ApiToolkit\OpenApi\Resolution\FieldTypeResolver;
+use SineMacula\ApiToolkit\OpenApi\Schema\EnumSchemaRegistry;
 use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
 use SineMacula\ApiToolkit\Schema\Introspection\ColumnDefinition;
 use SineMacula\ApiToolkit\Schema\OpenApiFieldSchema;
+use Tests\Fixtures\Enums\UserStatus;
 use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\Tag;
 use Tests\Fixtures\Models\User;
@@ -104,21 +106,46 @@ final class FieldTypeResolverTest extends TestCase
     }
 
     /**
-     * Test that an enum cast that carries no JSON-Schema-relevant mapping falls
-     * back to the column type rather than producing a wrong shape.
+     * Test that a backed-enum cast resolves to a reference to the enum's named
+     * component rather than an inline type, registering the enum.
      *
      * @return void
      */
-    public function testEnumCastFallsBackToColumnType(): void
+    public function testBackedEnumCastResolvesToComponentReference(): void
     {
+        $enums    = new EnumSchemaRegistry;
         $resolver = $this->makeResolver([
             'status' => new ColumnDefinition(name: 'status', typeName: 'varchar', nullable: false),
+        ], $enums);
+
+        $schema = $resolver->resolve('status', $this->field(), User::class);
+
+        self::assertSame('#/components/schemas/UserStatus', $schema->ref);
+        self::assertNull($schema->type);
+        self::assertFalse($schema->undocumented);
+        self::assertSame(['$ref' => '#/components/schemas/UserStatus'], $schema->toArray());
+        self::assertSame([UserStatus::class], $enums->classes());
+    }
+
+    /**
+     * Test that a nullable backed-enum cast widens the reference to an anyOf
+     * with a null member, since a bare $ref cannot carry the null type.
+     *
+     * @return void
+     */
+    public function testNullableBackedEnumCastWidensToAnyOf(): void
+    {
+        $resolver = $this->makeResolver([
+            'status' => new ColumnDefinition(name: 'status', typeName: 'varchar', nullable: true),
         ]);
 
         $schema = $resolver->resolve('status', $this->field(), User::class);
 
-        self::assertSame('string', $schema->type);
-        self::assertFalse($schema->undocumented);
+        self::assertTrue($schema->nullable);
+        self::assertSame(
+            ['anyOf' => [['$ref' => '#/components/schemas/UserStatus'], ['type' => 'null']]],
+            $schema->toArray(),
+        );
     }
 
     /**
@@ -395,14 +422,15 @@ final class FieldTypeResolverTest extends TestCase
      * for any model.
      *
      * @param  array<string, \SineMacula\ApiToolkit\Schema\Introspection\ColumnDefinition>  $columns
+     * @param  \SineMacula\ApiToolkit\OpenApi\Schema\EnumSchemaRegistry|null  $enums
      * @return \SineMacula\ApiToolkit\OpenApi\Resolution\FieldTypeResolver
      */
-    private function makeResolver(array $columns): FieldTypeResolver
+    private function makeResolver(array $columns, ?EnumSchemaRegistry $enums = null): FieldTypeResolver
     {
         $introspector = self::createStub(SchemaIntrospectionProvider::class);
         $introspector->method('getColumnDefinitions')->willReturn($columns);
 
-        return new FieldTypeResolver($introspector, new ColumnTypeMapper);
+        return new FieldTypeResolver($introspector, new ColumnTypeMapper, $enums ?? new EnumSchemaRegistry);
     }
 
     /**

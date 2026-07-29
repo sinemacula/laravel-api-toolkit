@@ -4,6 +4,7 @@ declare(strict_types = 1);
 
 namespace SineMacula\ApiToolkit\OpenApi;
 
+use SineMacula\ApiToolkit\OpenApi\Builder\EnumSchemaBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\EnvelopeBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\ErrorResponseBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\PathBuilder;
@@ -11,6 +12,7 @@ use SineMacula\ApiToolkit\OpenApi\Builder\QueryParameterBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\ResourceSchemaBuilder;
 use SineMacula\ApiToolkit\OpenApi\Resolution\AudienceConfiguration;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ReachableSchemaResolver;
+use SineMacula\ApiToolkit\OpenApi\Schema\EnumSchemaRegistry;
 use SineMacula\ApiToolkit\OpenApi\Security\SecuritySchemeResolver;
 
 /**
@@ -52,6 +54,8 @@ final readonly class OpenApiAssembler
      * @param  \SineMacula\ApiToolkit\OpenApi\Builder\ErrorResponseBuilder  $responseBuilder
      * @param  \SineMacula\ApiToolkit\OpenApi\Builder\PathBuilder  $pathBuilder
      * @param  \SineMacula\ApiToolkit\OpenApi\Security\SecuritySchemeResolver  $security
+     * @param  \SineMacula\ApiToolkit\OpenApi\Builder\EnumSchemaBuilder  $enumBuilder
+     * @param  \SineMacula\ApiToolkit\OpenApi\Schema\EnumSchemaRegistry  $enums
      */
     public function __construct(
 
@@ -69,6 +73,12 @@ final readonly class OpenApiAssembler
 
         /** The resolver of referenced security scheme definitions. */
         private SecuritySchemeResolver $security,
+
+        /** The builder for referenced enum component schemas. */
+        private EnumSchemaBuilder $enumBuilder,
+
+        /** The registry collecting enum classes referenced by a $ref. */
+        private EnumSchemaRegistry $enums,
     ) {
         $this->envelopeBuilder = new EnvelopeBuilder;
         $this->reachability    = new ReachableSchemaResolver;
@@ -84,6 +94,8 @@ final readonly class OpenApiAssembler
      */
     public function assemble(?string $audience = null): array
     {
+        $this->enums->reset();
+
         $audience = $audience === null || $audience === '' ? $this->audiences->defaultAudience() : $audience;
         $posture  = $this->audiences->postureFor($audience);
         $paths    = $this->pathBuilder->build($audience, $posture);
@@ -226,15 +238,32 @@ final readonly class OpenApiAssembler
      * audience's paths plus the always-shared pagination and error-envelope
      * schemas.
      *
+     * The resource schemas are built first so response-side enum references are
+     * registered, then the enum components are built against the names already
+     * reserved by the resource and envelope schemas so a cross-source collision
+     * fails loud rather than silently overwriting a schema.
+     *
      * @param  array<string, array<string, mixed>>  $paths
      * @return array<string, array<string, mixed>>
      */
     private function buildSchemas(array $paths): array
     {
-        $schemas = array_merge(
-            $this->schemaBuilder->build(),
+        $resourceSchemas = $this->schemaBuilder->build();
+        $envelopeSchemas = array_merge(
             [ErrorResponseBuilder::ENVELOPE_SCHEMA_NAME => $this->responseBuilder->buildEnvelopeSchema()],
             $this->envelopeBuilder->buildSchemas(),
+        );
+
+        $reserved = $this->schemaBuilder->claims();
+
+        foreach (array_keys($envelopeSchemas) as $name) {
+            $reserved[$name] = EnvelopeBuilder::class;
+        }
+
+        $schemas = array_merge(
+            $resourceSchemas,
+            $envelopeSchemas,
+            $this->enumBuilder->build($this->enums->classes(), $reserved),
         );
 
         return $this->reachability->reachable($schemas, $paths, $this->sharedSchemaNames());

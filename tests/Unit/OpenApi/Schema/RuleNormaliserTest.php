@@ -54,14 +54,14 @@ final class RuleNormaliserTest extends TestCase
     }
 
     /**
-     * Test that an Enum rule object expands to an in token of its backing
-     * values.
+     * Test that an Enum rule object expands to an enum-class token naming the
+     * enum class rather than inlining its backing values.
      *
      * @return void
      */
-    public function testEnumObjectExpandsToInToken(): void
+    public function testEnumObjectExpandsToEnumClassToken(): void
     {
-        self::assertSame(['in:active,inactive,banned'], (new RuleNormaliser)->normalise([Rule::enum(UserStatus::class)]));
+        self::assertSame(['enum-class:' . UserStatus::class], (new RuleNormaliser)->normalise([Rule::enum(UserStatus::class)]));
     }
 
     /**
@@ -83,7 +83,7 @@ final class RuleNormaliserTest extends TestCase
      */
     public function testObjectDefinitionIsExpandedDirectly(): void
     {
-        self::assertSame(['in:active,inactive,banned'], (new RuleNormaliser)->normalise(Rule::enum(UserStatus::class)));
+        self::assertSame(['enum-class:' . UserStatus::class], (new RuleNormaliser)->normalise(Rule::enum(UserStatus::class)));
     }
 
     /**

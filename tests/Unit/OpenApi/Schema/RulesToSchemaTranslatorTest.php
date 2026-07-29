@@ -39,7 +39,7 @@ final class RulesToSchemaTranslatorTest extends TestCase
                 'title'                 => ['type' => 'string', 'maxLength' => 255],
                 'summary'               => ['type' => ['string', 'null']],
                 'tags'                  => ['type' => 'array', 'items' => ['type' => 'string']],
-                'status'                => ['enum' => ['active', 'inactive', 'banned']],
+                'status'                => ['$ref' => '#/components/schemas/UserStatus'],
                 'email'                 => ['type' => 'string', 'format' => 'email'],
                 'password'              => ['type' => 'string', 'minLength' => 8],
                 'password_confirmation' => ['type' => 'string'],

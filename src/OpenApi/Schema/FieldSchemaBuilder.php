@@ -4,21 +4,29 @@ declare(strict_types = 1);
 
 namespace SineMacula\ApiToolkit\OpenApi\Schema;
 
+use SineMacula\ApiToolkit\OpenApi\Naming\SchemaComponentName;
+
 /**
  * Builds a single field's JSON-Schema fragment from its normalised tokens.
  *
  * Given the flat token list for one field, the builder resolves the scalar
  * type, then layers on the enum, format, pattern, binary, size, and nullability
- * constraints that token list expresses. Size tokens are mapped to the keyword
- * pair matching the resolved type - lengths for strings, bounds for numbers,
- * item counts for arrays - and any token it does not recognise is skipped so
- * the field survives even when a constraint cannot be expressed.
+ * constraints that token list expresses. An `enum-class:` token short-circuits
+ * to a reference to the enum's named component - widened to an anyOf with null
+ * when nullable - registering the enum so its component is emitted, while a
+ * bare `in:` value list stays an inline enum. Size tokens are mapped to the
+ * keyword pair matching the resolved type - lengths for strings, bounds for
+ * numbers, item counts for arrays - and any token it does not recognise is
+ * skipped so the field survives even when a constraint cannot be expressed.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
 final readonly class FieldSchemaBuilder
 {
+    /** The path prefix under which component schemas are referenced */
+    private const string SCHEMA_REF_PREFIX = '#/components/schemas/';
+
     /** The scalar rule tokens mapped to their JSON-Schema type */
     private const array TYPE_MAP = [
         'string'  => 'string',
@@ -41,6 +49,17 @@ final readonly class FieldSchemaBuilder
     ];
 
     /**
+     * Constructor.
+     *
+     * @param  \SineMacula\ApiToolkit\OpenApi\Schema\EnumSchemaRegistry  $enums
+     */
+    public function __construct(
+
+        /** The registry collecting enum classes referenced by a $ref. */
+        private EnumSchemaRegistry $enums = new EnumSchemaRegistry,
+    ) {}
+
+    /**
      * Build the field schema and presence flag from the field's tokens.
      *
      * @param  list<string>  $tokens
@@ -48,6 +67,12 @@ final readonly class FieldSchemaBuilder
      */
     public function build(array $tokens): array
     {
+        $enumClass = $this->argument($tokens, 'enum-class');
+
+        if ($enumClass !== null && $enumClass !== '') {
+            return ['schema' => $this->enumReferenceSchema($enumClass, $tokens), 'required' => $this->isRequired($tokens)];
+        }
+
         $type   = $this->resolveType($tokens);
         $schema = $type === null ? [] : ['type' => $type];
 
@@ -59,6 +84,30 @@ final readonly class FieldSchemaBuilder
         $this->applyNullable($schema, $tokens);
 
         return ['schema' => $schema, 'required' => $this->isRequired($tokens)];
+    }
+
+    /**
+     * Build a reference to the enum's named component, registering the enum so
+     * its component is emitted, and widening to an anyOf with a null member
+     * when the field is nullable, since a bare $ref cannot carry the null type.
+     *
+     * @param  string  $enumClass
+     * @param  list<string>  $tokens
+     * @return array<string, mixed>
+     */
+    private function enumReferenceSchema(string $enumClass, array $tokens): array
+    {
+        if (!enum_exists($enumClass)) {
+            return [];
+        }
+
+        $this->enums->register($enumClass);
+
+        $reference = ['$ref' => self::SCHEMA_REF_PREFIX . SchemaComponentName::fromEnum($enumClass)];
+
+        return $this->hasToken($tokens, 'nullable')
+            ? ['anyOf' => [$reference, ['type' => 'null']]]
+            : $reference;
     }
 
     /**

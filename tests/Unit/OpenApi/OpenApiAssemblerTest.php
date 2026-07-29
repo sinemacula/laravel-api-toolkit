@@ -7,6 +7,7 @@ namespace Tests\Unit\OpenApi;
 use Illuminate\Contracts\Config\Repository as ConfigRepository;
 use Illuminate\Routing\Router;
 use PHPUnit\Framework\Attributes\CoversClass;
+use SineMacula\ApiToolkit\OpenApi\Builder\EnumSchemaBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\EnvelopeBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\ErrorResponseBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\PathBuilder;
@@ -22,6 +23,7 @@ use SineMacula\ApiToolkit\OpenApi\Resolution\FieldTypeResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\RequestBodyResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ResponseSchemaResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\TagResolver;
+use SineMacula\ApiToolkit\OpenApi\Schema\EnumSchemaRegistry;
 use SineMacula\ApiToolkit\OpenApi\Schema\FieldSchemaBuilder;
 use SineMacula\ApiToolkit\OpenApi\Schema\RuleNormaliser;
 use SineMacula\ApiToolkit\OpenApi\Schema\RulesToSchemaTranslator;
@@ -176,6 +178,23 @@ final class OpenApiAssemblerTest extends TestCase
         self::assertArrayHasKey('User', $schemas);
         self::assertArrayHasKey('Organization', $schemas);
         self::assertArrayHasKey(ErrorResponseBuilder::ENVELOPE_SCHEMA_NAME, $schemas);
+    }
+
+    /**
+     * Test that an enum referenced by a reachable resource field is emitted as
+     * its own component, typed by its backing type, and survives reachability
+     * filtering because the resource schema references it.
+     *
+     * @return void
+     */
+    public function testReferencedEnumComponentIsPresentAndReachable(): void
+    {
+        $this->registerUserRoutes();
+
+        $schemas = $this->assemble()['components']['schemas'];
+
+        self::assertSame(['$ref' => '#/components/schemas/UserStatus'], $schemas['User']['properties']['status']);
+        self::assertSame(['type' => 'string'], $schemas['UserStatus']);
     }
 
     /**
@@ -407,8 +426,10 @@ final class OpenApiAssemblerTest extends TestCase
 
         assert($this->app !== null);
 
+        $enums = new EnumSchemaRegistry;
+
         return new OpenApiAssembler(
-            new ResourceSchemaBuilder($catalogue, $this->resolver(), $this->app->make(SchemaIntrospector::class)),
+            new ResourceSchemaBuilder($catalogue, $this->resolver($enums), $this->app->make(SchemaIntrospector::class)),
             new QueryParameterBuilder($catalogue),
             new ErrorResponseBuilder($catalogue),
             new PathBuilder(
@@ -419,10 +440,12 @@ final class OpenApiAssemblerTest extends TestCase
                 new EnvelopeBuilder,
                 new TagResolver,
                 new ResponseSchemaResolver($catalogue, new EnvelopeBuilder),
-                new RequestBodyResolver(new RulesToSchemaTranslator(new RuleNormaliser, new FieldSchemaBuilder)),
+                new RequestBodyResolver(new RulesToSchemaTranslator(new RuleNormaliser, new FieldSchemaBuilder($enums))),
                 new SecuritySchemeResolver(new SecuritySchemeMapper),
             ),
             new SecuritySchemeResolver(new SecuritySchemeMapper),
+            new EnumSchemaBuilder,
+            $enums,
         );
     }
 
@@ -509,12 +532,13 @@ final class OpenApiAssemblerTest extends TestCase
      * Build a real field-type resolver against the container-bound
      * introspector.
      *
+     * @param  \SineMacula\ApiToolkit\OpenApi\Schema\EnumSchemaRegistry  $enums
      * @return \SineMacula\ApiToolkit\OpenApi\Resolution\FieldTypeResolver
      */
-    private function resolver(): FieldTypeResolver
+    private function resolver(EnumSchemaRegistry $enums): FieldTypeResolver
     {
         assert($this->app !== null);
 
-        return new FieldTypeResolver($this->app->make(SchemaIntrospector::class), new ColumnTypeMapper);
+        return new FieldTypeResolver($this->app->make(SchemaIntrospector::class), new ColumnTypeMapper, $enums);
     }
 }

@@ -14,9 +14,10 @@ use Illuminate\Validation\Rules\Password;
  * mixture of tokens and rule objects. This normaliser reduces every form to a
  * single flat list of string tokens so the field-schema builder has one shape
  * to interpret. Rule objects are expanded best-effort: an Enum contributes an
- * `in:` token carrying its backing values and a Password contributes `string`
- * plus its minimum length; any other object is dropped, keeping the field while
- * discarding the constraint it could not translate.
+ * `enum-class:` token naming the enum class so the builder can reference its
+ * named component, and a Password contributes `string` plus its minimum length;
+ * any other object is dropped, keeping the field while discarding the
+ * constraint it could not translate.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -88,8 +89,8 @@ final readonly class RuleNormaliser
     }
 
     /**
-     * Expand an Enum rule into a single `in:` token carrying its backing
-     * values, or nothing when the values cannot be read.
+     * Expand an Enum rule into a single `enum-class:` token naming the enum
+     * class, or nothing when the class cannot be read or is not an enum.
      *
      * @param  \Illuminate\Validation\Rules\Enum  $rule
      * @return list<string>
@@ -108,17 +109,7 @@ final readonly class RuleNormaliser
             return [];
         }
 
-        $values = [];
-
-        foreach ($type::cases() as $case) {
-            if (!($case instanceof \BackedEnum)) {
-                continue;
-            }
-
-            $values[] = (string) $case->value;
-        }
-
-        return $values === [] ? [] : ['in:' . implode(',', $values)];
+        return ['enum-class:' . $type];
     }
 
     /**

@@ -194,17 +194,17 @@ final class ResourceSchemaBuilderTest extends TestCase
     }
 
     /**
-     * Test that a plain scalar field backed by a string column is inferred as a
-     * string without a format hint.
+     * Test that a scalar field whose model cast is a backed enum emits a
+     * reference to the enum's named component rather than an inline type.
      *
      * @return void
      */
-    public function testPlainScalarStringFieldIsInferred(): void
+    public function testBackedEnumCastFieldEmitsComponentReference(): void
     {
         $schemas  = $this->makeBuilder($this->fullResourceMap())->build();
         $property = $schemas['User']['properties']['status'];
 
-        self::assertSame('string', $property['type']);
+        self::assertSame(['$ref' => '#/components/schemas/UserStatus'], $property);
         self::assertArrayNotHasKey('x-undocumented', $property);
     }
 

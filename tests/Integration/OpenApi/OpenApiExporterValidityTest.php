@@ -871,9 +871,10 @@ final class OpenApiExporterValidityTest extends TestCase
             $schemas['User']['properties']['created_at'],
         );
 
-        // A scalar resolvable only from its column degrades to undocumented
-        // once neither a column nor a mappable cast resolves it.
-        self::assertSame(['x-undocumented' => true], $schemas['User']['properties']['status']);
+        // A backed-enum cast documents as a reference to its named component
+        // even without a backing column, and that component is emitted.
+        self::assertSame(['$ref' => '#/components/schemas/UserStatus'], $schemas['User']['properties']['status']);
+        self::assertSame(['type' => 'string'], $schemas['UserStatus']);
 
         self::assertTrue(
             $this->validateAgainstMetaSchema($document)->isValid(),

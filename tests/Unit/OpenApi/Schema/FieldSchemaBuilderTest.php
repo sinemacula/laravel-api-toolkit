@@ -6,7 +6,9 @@ namespace Tests\Unit\OpenApi\Schema;
 
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
+use SineMacula\ApiToolkit\OpenApi\Schema\EnumSchemaRegistry;
 use SineMacula\ApiToolkit\OpenApi\Schema\FieldSchemaBuilder;
+use Tests\Fixtures\Enums\UserStatus;
 use Tests\TestCase;
 
 /**
@@ -45,6 +47,8 @@ final class FieldSchemaBuilderTest extends TestCase
             'regex pattern'        => [['regex:/^a$/'], ['pattern' => '^a$']],
             'in enum'              => [['in:a,b,c'], ['enum' => ['a', 'b', 'c']]],
             'typed enum'           => [['string', 'in:a,b,c'], ['type' => 'string', 'enum' => ['a', 'b', 'c']]],
+            'enum class ref'       => [['enum-class:' . UserStatus::class], ['$ref' => '#/components/schemas/UserStatus']],
+            'nullable enum class'  => [['nullable', 'enum-class:' . UserStatus::class], ['anyOf' => [['$ref' => '#/components/schemas/UserStatus'], ['type' => 'null']]]],
             'string between'       => [['string', 'between:5,50'], ['type' => 'string', 'minLength' => 5, 'maxLength' => 50]],
             'integer exact size'   => [['integer', 'size:4'], ['type' => 'integer', 'minimum' => 4, 'maximum' => 4]],
             'array between items'  => [['array', 'between:1,3'], ['type' => 'array', 'minItems' => 1, 'maxItems' => 3]],
@@ -76,6 +80,21 @@ final class FieldSchemaBuilderTest extends TestCase
     public function testTokensMapToSchemaFragment(array $tokens, array $expected): void
     {
         self::assertSame($expected, (new FieldSchemaBuilder)->build($tokens)['schema']);
+    }
+
+    /**
+     * Test that building an enum-class field registers the enum so its
+     * component is later emitted.
+     *
+     * @return void
+     */
+    public function testEnumClassTokenRegistersTheEnum(): void
+    {
+        $enums = new EnumSchemaRegistry;
+
+        (new FieldSchemaBuilder($enums))->build(['enum-class:' . UserStatus::class]);
+
+        self::assertSame([UserStatus::class], $enums->classes());
     }
 
     /**

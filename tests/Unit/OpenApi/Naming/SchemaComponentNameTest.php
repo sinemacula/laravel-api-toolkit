@@ -7,6 +7,8 @@ namespace Tests\Unit\OpenApi\Naming;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 use SineMacula\ApiToolkit\OpenApi\Naming\SchemaComponentName;
+use Tests\Fixtures\Enums\Alternate\Tier as AlternateTier;
+use Tests\Fixtures\Enums\UserStatus;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Resources\CustomNamedResource;
 use Tests\Fixtures\Resources\EmptyNamedResource;
@@ -86,5 +88,27 @@ final class SchemaComponentNameTest extends TestCase
     public function testEmptySchemaNameOverrideFallsBackToTheBasename(): void
     {
         self::assertSame('EmptyNamed', SchemaComponentName::fromResource(EmptyNamedResource::class));
+    }
+
+    /**
+     * Test that an enum keeps its class basename verbatim, with no Resource
+     * suffix stripping applied.
+     *
+     * @return void
+     */
+    public function testEnumKeepsItsBasenameVerbatim(): void
+    {
+        self::assertSame('UserStatus', SchemaComponentName::fromEnum(UserStatus::class));
+    }
+
+    /**
+     * Test that a #[SchemaName] override on an enum wins over its basename, so
+     * two basename-colliding enums can declare distinct component names.
+     *
+     * @return void
+     */
+    public function testSchemaNameOverrideWinsOverTheEnumBasename(): void
+    {
+        self::assertSame('AlternateTier', SchemaComponentName::fromEnum(AlternateTier::class));
     }
 }

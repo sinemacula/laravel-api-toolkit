@@ -6,6 +6,8 @@ namespace SineMacula\ApiToolkit\OpenApi\Resolution;
 
 use Illuminate\Database\Eloquent\Model;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
+use SineMacula\ApiToolkit\OpenApi\Naming\SchemaComponentName;
+use SineMacula\ApiToolkit\OpenApi\Schema\EnumSchemaRegistry;
 use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
 use SineMacula\ApiToolkit\Schema\OpenApiFieldSchema;
 
@@ -24,11 +26,15 @@ use SineMacula\ApiToolkit\Schema\OpenApiFieldSchema;
  */
 final readonly class FieldTypeResolver
 {
+    /** The path prefix under which component schemas are referenced */
+    private const string SCHEMA_REF_PREFIX = '#/components/schemas/';
+
     /**
      * Constructor.
      *
      * @param  \SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider  $introspector
      * @param  \SineMacula\ApiToolkit\OpenApi\Resolution\ColumnTypeMapper  $mapper
+     * @param  \SineMacula\ApiToolkit\OpenApi\Schema\EnumSchemaRegistry  $enums
      */
     public function __construct(
 
@@ -37,6 +43,9 @@ final readonly class FieldTypeResolver
 
         /** The mapper that converts column types to schema types. */
         private ColumnTypeMapper $mapper,
+
+        /** The registry collecting enum classes referenced by a $ref. */
+        private EnumSchemaRegistry $enums = new EnumSchemaRegistry,
     ) {}
 
     /**
@@ -100,11 +109,44 @@ final readonly class FieldTypeResolver
         $column = $this->introspector->getColumnDefinitions($model)[$fieldKey] ?? null;
         $cast   = $this->resolveCast($model, $fieldKey);
 
+        if ($cast !== null && $this->isBackedEnum($cast)) {
+            return $this->enumReference($cast, $column !== null && $column->nullable);
+        }
+
         if ($column === null && $cast === null) {
             return OpenApiFieldSchema::undocumented();
         }
 
         return $this->mapper->map($column, $cast);
+    }
+
+    /**
+     * Determine whether the cast names a backed-enum class, which documents as
+     * a reference to a named component rather than an inline type.
+     *
+     * @param  string  $cast
+     * @return bool
+     *
+     * @phpstan-assert-if-true class-string<\BackedEnum> $cast
+     */
+    private function isBackedEnum(string $cast): bool
+    {
+        return enum_exists($cast) && is_a($cast, \BackedEnum::class, true);
+    }
+
+    /**
+     * Build a reference to the enum's component schema, registering the enum so
+     * the component is emitted, and widening to admit null when nullable.
+     *
+     * @param  class-string  $cast
+     * @param  bool  $nullable
+     * @return \SineMacula\ApiToolkit\Schema\OpenApiFieldSchema
+     */
+    private function enumReference(string $cast, bool $nullable): OpenApiFieldSchema
+    {
+        $this->enums->register($cast);
+
+        return OpenApiFieldSchema::reference(self::SCHEMA_REF_PREFIX . SchemaComponentName::fromEnum($cast), $nullable);
     }
 
     /**

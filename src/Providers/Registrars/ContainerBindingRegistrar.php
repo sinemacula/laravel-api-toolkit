@@ -20,6 +20,7 @@ use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
 use SineMacula\ApiToolkit\OpenApi\Metadata\ApiExceptionDiscoverer;
 use SineMacula\ApiToolkit\OpenApi\Metadata\ConfigMetadataCatalogue;
 use SineMacula\ApiToolkit\OpenApi\Output\FilesystemDocumentWriter;
+use SineMacula\ApiToolkit\OpenApi\Schema\EnumSchemaRegistry;
 use SineMacula\ApiToolkit\Repositories\Concerns\WritePool;
 use SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry;
 use SineMacula\ApiToolkit\Repositories\Criteria\Operators\BetweenOperator;
@@ -227,7 +228,9 @@ final readonly class ContainerBindingRegistrar
      *
      * The metadata catalogue and document-writer ports bind to their
      * filesystem/config adapters; the use case, builders, and assembler are
-     * auto-resolved through constructor injection from these bindings.
+     * auto-resolved through constructor injection from these bindings. The enum
+     * schema registry is a singleton so the request-side and response-side
+     * resolvers and the assembler share one collected set per document.
      *
      * @return void
      */
@@ -236,6 +239,7 @@ final readonly class ContainerBindingRegistrar
         $this->container->singleton(MetadataCatalogue::class, ConfigMetadataCatalogue::class);
         $this->container->singleton(DocumentWriter::class, FilesystemDocumentWriter::class);
         $this->container->singleton(ApiExceptionDiscoverer::class, static fn (): ApiExceptionDiscoverer => ApiExceptionDiscoverer::fromComposer());
+        $this->container->singleton(EnumSchemaRegistry::class);
     }
 
     /**

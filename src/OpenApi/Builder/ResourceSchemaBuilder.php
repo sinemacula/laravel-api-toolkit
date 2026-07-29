@@ -12,8 +12,8 @@ use Illuminate\Database\Eloquent\Relations\Relation;
 use SineMacula\ApiToolkit\Contracts\ApiResourceInterface;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
-use SineMacula\ApiToolkit\OpenApi\Exceptions\SchemaNameCollisionException;
 use SineMacula\ApiToolkit\OpenApi\Naming\SchemaComponentName;
+use SineMacula\ApiToolkit\OpenApi\Naming\SchemaNameCollisionGuard;
 use SineMacula\ApiToolkit\OpenApi\Resolution\FieldTypeResolver;
 use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
@@ -40,9 +40,6 @@ final readonly class ResourceSchemaBuilder
 {
     /** The path prefix under which resource component schemas are referenced */
     private const string SCHEMA_REF_PREFIX = '#/components/schemas/';
-
-    /** The message describing a component schema name collision */
-    private const string COLLISION_MESSAGE = 'The OpenAPI component schema name "%s" is derived by both [%s] and [%s]. Disambiguate one with the #[SchemaName] attribute.';
 
     /**
      * Constructor.
@@ -72,13 +69,13 @@ final readonly class ResourceSchemaBuilder
     {
         $schemas = [];
         $claimed = [];
+        $guard   = new SchemaNameCollisionGuard;
 
         foreach ($this->catalogue->getResourceMap() as $modelClass => $resourceClass) {
             $name = $this->schemaName($resourceClass);
 
-            $this->guardCollision($claimed, $name, $resourceClass);
+            $guard->claim($claimed, $name, $resourceClass);
 
-            $claimed[$name] = $resourceClass;
             $schemas[$name] = $this->buildResourceSchema($resourceClass, $modelClass);
         }
 
@@ -86,28 +83,22 @@ final readonly class ResourceSchemaBuilder
     }
 
     /**
-     * Guard against two distinct resources claiming the same component name.
+     * Build the map of component name to deriving resource class, failing loud
+     * when two distinct resources derive one name, so a caller can reserve the
+     * resource names before merging other schemas into the same map.
      *
-     * The same resource re-claiming a name (two models mapping to one resource)
-     * is allowed; only a different resource behind an already-claimed name is a
-     * collision that would silently overwrite a schema.
-     *
-     * @param  array<string, class-string>  $claimed
-     * @param  string  $name
-     * @param  class-string  $resourceClass
-     * @return void
-     *
-     * @throws \SineMacula\ApiToolkit\OpenApi\Exceptions\SchemaNameCollisionException
+     * @return array<string, string>
      */
-    private function guardCollision(array $claimed, string $name, string $resourceClass): void
+    public function claims(): array
     {
-        $existing = $claimed[$name] ?? null;
+        $claimed = [];
+        $guard   = new SchemaNameCollisionGuard;
 
-        if ($existing === null || $existing === $resourceClass) {
-            return;
+        foreach ($this->catalogue->getResourceMap() as $resourceClass) {
+            $guard->claim($claimed, $this->schemaName($resourceClass), $resourceClass);
         }
 
-        throw new SchemaNameCollisionException(sprintf(self::COLLISION_MESSAGE, $name, $existing, $resourceClass));
+        return $claimed;
     }
 
     /**

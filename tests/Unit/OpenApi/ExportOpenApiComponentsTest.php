@@ -7,6 +7,7 @@ namespace Tests\Unit\OpenApi;
 use Illuminate\Routing\Router;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
+use SineMacula\ApiToolkit\OpenApi\Builder\EnumSchemaBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\EnvelopeBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\ErrorResponseBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\PathBuilder;
@@ -24,6 +25,7 @@ use SineMacula\ApiToolkit\OpenApi\Resolution\FieldTypeResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\RequestBodyResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ResponseSchemaResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\TagResolver;
+use SineMacula\ApiToolkit\OpenApi\Schema\EnumSchemaRegistry;
 use SineMacula\ApiToolkit\OpenApi\Schema\FieldSchemaBuilder;
 use SineMacula\ApiToolkit\OpenApi\Schema\RuleNormaliser;
 use SineMacula\ApiToolkit\OpenApi\Schema\RulesToSchemaTranslator;
@@ -154,9 +156,10 @@ final class ExportOpenApiComponentsTest extends TestCase
 
         $introspector = $this->app->make(SchemaIntrospector::class);
         $router       = $this->app->make(Router::class);
+        $enums        = new EnumSchemaRegistry;
 
         $assembler = new OpenApiAssembler(
-            new ResourceSchemaBuilder($catalogue, new FieldTypeResolver($introspector, new ColumnTypeMapper), $introspector),
+            new ResourceSchemaBuilder($catalogue, new FieldTypeResolver($introspector, new ColumnTypeMapper, $enums), $introspector),
             new QueryParameterBuilder($catalogue),
             new ErrorResponseBuilder($catalogue),
             new PathBuilder(
@@ -167,10 +170,12 @@ final class ExportOpenApiComponentsTest extends TestCase
                 new EnvelopeBuilder,
                 new TagResolver,
                 new ResponseSchemaResolver($catalogue, new EnvelopeBuilder),
-                new RequestBodyResolver(new RulesToSchemaTranslator(new RuleNormaliser, new FieldSchemaBuilder)),
+                new RequestBodyResolver(new RulesToSchemaTranslator(new RuleNormaliser, new FieldSchemaBuilder($enums))),
                 new SecuritySchemeResolver(new SecuritySchemeMapper),
             ),
             new SecuritySchemeResolver(new SecuritySchemeMapper),
+            new EnumSchemaBuilder,
+            $enums,
         );
 
         return (new ExportOpenApiComponents($assembler, $catalogue))->export();
