@@ -11,11 +11,14 @@ use Illuminate\Http\Request;
 use Illuminate\Session\TokenMismatchException;
 use Illuminate\Support\Facades\Route;
 use Monolog\Handler\NullHandler;
+use Opis\JsonSchema\Helper;
+use Opis\JsonSchema\Validator;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Enums\ErrorCode;
 use SineMacula\ApiToolkit\Exceptions\ApiException;
 use SineMacula\ApiToolkit\Exceptions\ApiExceptionHandler;
 use SineMacula\ApiToolkit\Exceptions\ConflictException;
+use SineMacula\ApiToolkit\OpenApi\Builder\ErrorResponseBuilder;
 use Tests\TestCase;
 
 /**
@@ -266,5 +269,44 @@ final class ExceptionRenderingTest extends TestCase
 
         self::assertIsString($content);
         self::assertStringNotContainsString('"error"', $content);
+    }
+
+    /**
+     * Test that the rendered error payload matches the envelope schema the
+     * OpenAPI exporter documents, so the hand-mirrored ErrorEnvelope schema
+     * cannot drift from the runtime payload without this test failing.
+     *
+     * The toolkit-exception fixture populates every optional key (title and
+     * meta), so its rendered key set is the full set the runtime emits; the
+     * unhandled fixture omits meta. Both payloads must validate against the
+     * documented schema, catching a renamed key, a missing required key, or a
+     * type change on either side.
+     *
+     * @return void
+     */
+    public function testRenderedErrorPayloadMatchesDocumentedEnvelopeSchema(): void
+    {
+        assert($this->app !== null);
+
+        $schema     = $this->app->make(ErrorResponseBuilder::class)->buildEnvelopeSchema();
+        $properties = data_get($schema, 'properties.error.properties');
+
+        assert(is_array($properties));
+
+        $full = (array) $this->getJson('/toolkit-exception')->json('error');
+
+        self::assertEqualsCanonicalizing(array_keys($properties), array_keys($full));
+
+        $minimal = (array) $this->getJson('/unhandled')->json('error');
+
+        foreach ([$full, $minimal] as $payload) {
+
+            $result = (new Validator)->validate(Helper::toJSON(['error' => $payload]), Helper::toJSON($schema));
+
+            self::assertTrue(
+                $result->isValid(),
+                'The rendered error payload must validate against the ErrorEnvelope schema.',
+            );
+        }
     }
 }
