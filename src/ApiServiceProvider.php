@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\ServiceProvider;
 use SineMacula\ApiToolkit\Console\ExportOpenApiCommand;
+use SineMacula\ApiToolkit\Console\GenerateDocsCommand;
 use SineMacula\ApiToolkit\Console\ValidateSchemasCommand;
 use SineMacula\ApiToolkit\Http\Resources\ResourceDiscovery;
 use SineMacula\ApiToolkit\Providers\Registrars\ContainerBindingRegistrar;
@@ -72,6 +73,7 @@ final class ApiServiceProvider extends ServiceProvider
         $this->commands([
             ValidateSchemasCommand::class,
             ExportOpenApiCommand::class,
+            GenerateDocsCommand::class,
         ]);
     }
 
