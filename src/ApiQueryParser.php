@@ -53,10 +53,7 @@ class ApiQueryParser
      */
     public function getFields(?string $resource = null): ?array
     {
-        /** @var array<int, string>|null $fields */
-        $fields = $this->getParameters('fields', $resource);
-
-        return is_array($fields) ? array_map('trim', $fields) : $fields;
+        return $this->trimStringList($this->getParameters('fields', $resource));
     }
 
     /**
@@ -68,10 +65,7 @@ class ApiQueryParser
      */
     public function getCounts(?string $resource = null): ?array
     {
-        /** @var array<int, string>|null $counts */
-        $counts = $this->getParameters('counts', $resource);
-
-        return is_array($counts) ? array_map('trim', $counts) : $counts;
+        return $this->trimStringList($this->getParameters('counts', $resource));
     }
 
     /**
@@ -212,6 +206,25 @@ class ApiQueryParser
         $this->validator->validate($request->all());
 
         $this->parameters = $this->extractor->extract($request);
+    }
+
+    /**
+     * Trim a flat list of string values, tolerating a malformed shape.
+     *
+     * A missing value stays null, while a nested or otherwise non-string entry
+     * is skipped rather than allowed to raise a type error on the public
+     * accessors.
+     *
+     * @param  mixed  $values
+     * @return array<int, string>|null
+     */
+    private function trimStringList(mixed $values): ?array
+    {
+        if (!is_array($values)) {
+            return null;
+        }
+
+        return array_values(array_map('trim', array_filter($values, 'is_string')));
     }
 
     /**

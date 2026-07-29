@@ -31,17 +31,19 @@ final class ContainsOperator implements FilterOperator
     #[\Override]
     public function apply(Builder $query, string $column, mixed $value, FilterContext $context): void
     {
+        $boolean = $context->sqlBoolean();
+
         if ($this->isJsonContainable($value)) {
-            $query->getQuery()->whereJsonContains($column, $value);
+            $query->getQuery()->whereJsonContains($column, $value, $boolean);
             return;
         }
 
         if (is_string($value) && str_contains($value, ',')) {
-            $this->applyCommaSeparated($query, $column, $value);
+            $this->applyCommaSeparated($query, $column, $value, $context);
             return;
         }
 
-        $this->applyJsonContainsSafely($query, $column, $value);
+        $this->applyJsonContainsSafely($query, $column, $value, $boolean);
     }
 
     /**
@@ -67,9 +69,10 @@ final class ContainsOperator implements FilterOperator
      * @param  \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>  $query
      * @param  string  $column
      * @param  string  $value
+     * @param  \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext  $context
      * @return void
      */
-    private function applyCommaSeparated(Builder $query, string $column, string $value): void
+    private function applyCommaSeparated(Builder $query, string $column, string $value, FilterContext $context): void
     {
         $items = array_filter(array_map('trim', explode(',', $value)), static fn (string $item): bool => $item !== '');
 
@@ -77,9 +80,15 @@ final class ContainsOperator implements FilterOperator
             return;
         }
 
-        $query->where(function (Builder $query) use ($column, $items): void {
+        $callback = function (Builder $query) use ($column, $items): void {
             $this->applyJsonContainsGroup($query, $column, $items);
-        });
+        };
+
+        if ($context->isOr()) {
+            $query->orWhere($callback);
+        } else {
+            $query->where($callback);
+        }
     }
 
     /**
@@ -109,12 +118,13 @@ final class ContainsOperator implements FilterOperator
      * @param  \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>  $query
      * @param  string  $column
      * @param  mixed  $value
+     * @param  string  $boolean
      * @return void
      */
-    private function applyJsonContainsSafely(Builder $query, string $column, mixed $value): void
+    private function applyJsonContainsSafely(Builder $query, string $column, mixed $value, string $boolean): void
     {
         try {
-            $query->getQuery()->whereJsonContains($column, $value);
+            $query->getQuery()->whereJsonContains($column, $value, $boolean);
         } catch (\RuntimeException $exception) { // @phpstan-ignore catch.neverThrown
             // Drop the constraint: the grammar may reject a JSON-containment
             // clause for non-JSON scalars (e.g. null). Log it so a recurring

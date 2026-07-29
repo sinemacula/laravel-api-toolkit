@@ -9,7 +9,9 @@ use Illuminate\Http\Request;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Enums\TrashedState;
+use SineMacula\ApiToolkit\Facades\ApiQuery;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\RelationTrashedGate;
+use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\SoftDeleteVisibilityApplier;
 use Tests\Fixtures\Models\Article;
 use Tests\Fixtures\Models\Comment;
 use Tests\Fixtures\Models\User;
@@ -27,6 +29,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(RelationTrashedGate::class)]
+#[CoversClass(SoftDeleteVisibilityApplier::class)]
 final class RelationTrashedGateTest extends TestCase
 {
     /**
@@ -128,6 +131,80 @@ final class RelationTrashedGateTest extends TestCase
 
         self::assertStringContainsString('status', $sql);
         self::assertStringNotContainsString('deleted_at', $sql);
+    }
+
+    /**
+     * Test that a nested multi-segment relation path resolves its leaf gate, so
+     * an opted-in leaf reached through several segments still widens the scope
+     * to include trashed rows.
+     *
+     * @return void
+     */
+    public function testNestedPathOpenLeafGateWrapsWithTrashed(): void
+    {
+        $result = $this->gate()->decorate(['author.articles'], new Article, TrashedState::WITH);
+
+        self::assertArrayHasKey('author.articles', $result);
+        self::assertInstanceOf(\Closure::class, $result['author.articles']);
+        self::assertStringNotContainsString('deleted_at', $this->sqlAfter($result['author.articles']));
+    }
+
+    /**
+     * Test that a nested multi-segment relation path whose leaf resource has
+     * not opted in is left with its default live-only scope, even under a
+     * trashed request.
+     *
+     * @return void
+     */
+    public function testNestedPathClosedLeafGateLeftUntouched(): void
+    {
+        $result = $this->gate()->decorate(['author.comments'], new Article, TrashedState::WITH);
+
+        self::assertSame(['author.comments'], $result);
+    }
+
+    /**
+     * Test that a closed leaf gate wins over a user-supplied constraint under a
+     * trashed request: the constraint is preserved verbatim and the scope is
+     * never widened.
+     *
+     * @return void
+     */
+    public function testClosedGateWithConstraintKeepsScopeNarrow(): void
+    {
+        $existing = static function (Builder $query): void {
+            $query->where('status', 'published');
+        };
+
+        $result = $this->gate()->decorate(['comments' => $existing], new User, TrashedState::WITH);
+
+        self::assertSame($existing, $result['comments']);
+
+        $sql = $this->sqlAfter($result['comments']);
+
+        self::assertStringContainsString('status', $sql);
+        self::assertStringContainsString('is null', $sql);
+    }
+
+    /**
+     * Test that a single trashed request widens both a soft-deleting root that
+     * opts in and its opted-in eager-loaded relation together.
+     *
+     * @return void
+     */
+    public function testRootAndRelationWidenTogether(): void
+    {
+        ApiQuery::parse(Request::create('/test', 'GET', ['trashed' => 'with']));
+
+        $root = Article::query();
+
+        (new SoftDeleteVisibilityApplier)->apply($root, ArticleResource::class, Request::create('/test', 'GET'));
+
+        $result = $this->gate()->decorate(['author.articles'], new Article, TrashedState::WITH);
+
+        self::assertStringNotContainsString('deleted_at', $root->toSql()); // @phpstan-ignore staticMethod.dynamicCall
+        self::assertInstanceOf(\Closure::class, $result['author.articles']);
+        self::assertStringNotContainsString('deleted_at', $this->sqlAfter($result['author.articles']));
     }
 
     /**

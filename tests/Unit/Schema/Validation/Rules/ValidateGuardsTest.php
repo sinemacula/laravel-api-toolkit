@@ -6,6 +6,7 @@ namespace Tests\Unit\Schema\Validation\Rules;
 
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
+use SineMacula\ApiToolkit\Schema\CompiledAggregateDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledCountDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledSchema;
@@ -115,6 +116,38 @@ final class ValidateGuardsTest extends TestCase
         self::assertCount(1, $errors);
         self::assertSame('App\Http\Resources\PostResource', $errors[0]->resourceClass);
         self::assertSame('comments_count', $errors[0]->fieldKey);
+        self::assertSame('Guard at index 0 is not callable', $errors[0]->defect);
+    }
+
+    /**
+     * Test reports non-callable guard on aggregate definition.
+     *
+     * @return void
+     */
+    public function testReportsNonCallableGuardOnAggregateDefinition(): void
+    {
+        $aggregate = new CompiledAggregateDefinition(
+            presentKey: 'reviews_rating',
+            relation: 'reviews',
+            column: 'rating',
+            metric: 'sum',
+            constraint: null,
+            isDefault: false,
+            guards: ['not_a_function'],
+        );
+
+        $schema = new CompiledSchema(
+            fields: [],
+            counts: [],
+            aggregates: ['sum:reviews_rating' => $aggregate],
+        );
+
+        $rule   = new ValidateGuards;
+        $errors = $rule->validate('App\Http\Resources\ProductResource', null, $schema);
+
+        self::assertCount(1, $errors);
+        self::assertSame('App\Http\Resources\ProductResource', $errors[0]->resourceClass);
+        self::assertSame('reviews_rating', $errors[0]->fieldKey);
         self::assertSame('Guard at index 0 is not callable', $errors[0]->defect);
     }
 

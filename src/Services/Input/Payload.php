@@ -6,6 +6,7 @@ namespace SineMacula\ApiToolkit\Services\Input;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\ValidationException;
 use SineMacula\ApiToolkit\Services\Contracts\DefinesInputSchema;
 use SineMacula\ApiToolkit\Services\Contracts\ServiceInput;
 
@@ -123,25 +124,47 @@ abstract class Payload implements DefinesInputSchema, ServiceInput
      *
      * Only backed enum parameters require casting from string; all other types
      * are returned as-is because Laravel's validator already yields the correct
-     * scalar representation.
+     * scalar representation. When a subclass omits Rule::enum, an invalid string
+     * still reaches this cast; tryFrom degrades that to a validation failure so
+     * the caller sees a 422 rather than an unhandled ValueError.
      *
      * @param  \ReflectionParameter  $parameter
      * @param  mixed  $value
      * @return mixed
+     *
+     * @throws \Illuminate\Validation\ValidationException
      */
     private static function castValue(\ReflectionParameter $parameter, mixed $value): mixed
     {
         $type = $parameter->getType();
 
-        if ($value !== null && $type instanceof \ReflectionNamedType) {
-            $typeName = $type->getName();
-
-            if (is_string($value) && class_exists($typeName) && is_a($typeName, \BackedEnum::class, true)) {
-                /** @var class-string<\BackedEnum> $typeName */
-                return $typeName::from($value);
-            }
+        if ($value === null || !$type instanceof \ReflectionNamedType) {
+            return $value;
         }
 
-        return $value;
+        $typeName = $type->getName();
+
+        if (!is_string($value) || !class_exists($typeName) || !is_a($typeName, \BackedEnum::class, true)) {
+            return $value;
+        }
+
+        /** @var class-string<\BackedEnum> $typeName */
+        return $typeName::tryFrom($value) ?? self::failEnumCast($parameter->getName());
+    }
+
+    /**
+     * Fail an unmatched enum value as a validation error.
+     *
+     * Mirrors Laravel's enum-rule message so a missing Rule::enum degrades to
+     * the same 422 contract instead of a fatal ValueError from ::from().
+     *
+     * @param  string  $field
+     * @return never
+     *
+     * @throws \Illuminate\Validation\ValidationException
+     */
+    private static function failEnumCast(string $field): never
+    {
+        throw ValidationException::withMessages([$field => ["The selected {$field} is invalid."]]);
     }
 }

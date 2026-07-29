@@ -23,6 +23,7 @@ final readonly class CompiledCountDefinition
      * @param  (\Closure(\Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>): void)|null  $constraint
      * @param  bool  $isDefault
      * @param  array<int, callable(mixed, mixed): bool>  $guards
+     * @param  array<int, callable(mixed, mixed): mixed>  $transformers
      */
     public function __construct(
 
@@ -40,5 +41,8 @@ final readonly class CompiledCountDefinition
 
         /** Guard closures that control visibility */
         public array $guards,
+
+        /** Value transformer closures */
+        public array $transformers = [],
     ) {}
 }

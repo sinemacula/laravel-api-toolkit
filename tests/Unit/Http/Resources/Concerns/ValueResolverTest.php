@@ -477,6 +477,57 @@ final class ValueResolverTest extends TestCase
     }
 
     /**
+     * Test that a count definition's transformers are applied to the resolved
+     * count value.
+     *
+     * @return void
+     */
+    public function testResolveCountsPayloadAppliesTransformers(): void
+    {
+
+        ApiQuery::shouldReceive('getCounts')
+            ->with('users')
+            ->andReturn(null);
+
+        $model = new class {
+            /** @var array<string, mixed> */
+            private array $attributes = ['posts_count' => 5];
+
+            /**
+             * Return the attributes array.
+             *
+             * @return array<string, mixed>
+             */
+            public function getAttributes(): array
+            {
+                return $this->attributes;
+            }
+
+            /**
+             * Magic getter to resolve attributes.
+             *
+             * @param  string  $key
+             * @return mixed
+             */
+            public function __get(string $key): mixed
+            {
+                return $this->attributes[$key] ?? null;
+            }
+        };
+
+        $resource = new JsonResource($model);
+        $schema   = new CompiledSchema([], [
+            'posts' => new CompiledCountDefinition('posts', 'posts', null, true, [], [
+                static fn ($resource, $value) => $value * 10,
+            ]),
+        ]);
+
+        $result = $this->resolver->resolveCountsPayload($resource, $schema, 'users', null);
+
+        self::assertSame(['posts' => 50], $result);
+    }
+
+    /**
      * Test that two counts on the same relation but with different presentation
      * keys resolve to their own `{presentKey}_count` attributes rather than
      * colliding on a single `{relation}_count` value.
@@ -986,6 +1037,57 @@ final class ValueResolverTest extends TestCase
         $result = $this->resolver->resolveAggregatesPayload('sum', $resource, $schema, 'users', null);
 
         self::assertSame(['posts_id' => 15.0], $result);
+    }
+
+    /**
+     * Test that an aggregate definition's transformers are applied to the
+     * resolved aggregate value.
+     *
+     * @return void
+     */
+    public function testResolveAggregatesPayloadAppliesTransformers(): void
+    {
+
+        ApiQuery::shouldReceive('getSums')
+            ->with('users')
+            ->andReturn(null);
+
+        $model = new class {
+            /** @var array<string, mixed> */
+            private array $attributes = ['posts_id_sum_id' => '15'];
+
+            /**
+             * Return the attributes array.
+             *
+             * @return array<string, mixed>
+             */
+            public function getAttributes(): array
+            {
+                return $this->attributes;
+            }
+
+            /**
+             * Magic getter to resolve attributes.
+             *
+             * @param  string  $key
+             * @return mixed
+             */
+            public function __get(string $key): mixed
+            {
+                return $this->attributes[$key] ?? null;
+            }
+        };
+
+        $resource = new JsonResource($model);
+        $schema   = new CompiledSchema([], [], [
+            'posts_id' => new CompiledAggregateDefinition('posts_id', 'posts', 'id', 'sum', null, true, [], [
+                static fn ($resource, $value) => $value + 1.0,
+            ]),
+        ]);
+
+        $result = $this->resolver->resolveAggregatesPayload('sum', $resource, $schema, 'users', null);
+
+        self::assertSame(['posts_id' => 16.0], $result);
     }
 
     /**

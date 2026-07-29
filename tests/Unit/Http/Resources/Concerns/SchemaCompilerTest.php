@@ -572,6 +572,30 @@ final class SchemaCompilerTest extends TestCase
     }
 
     /**
+     * Test that count transformers from the raw schema are carried onto the
+     * compiled count definition.
+     *
+     * @return void
+     */
+    public function testCompilePreservesCountTransformers(): void
+    {
+        $transformer = fn ($resource, $value) => $value + 1;
+
+        $resourceClass = $this->createStubResourceClass([
+            '__count__:comments' => [
+                'metric'       => 'count',
+                'relation'     => 'comments',
+                'transformers' => [$transformer],
+            ],
+        ]);
+
+        $schema = SchemaCompiler::compile($resourceClass);
+        $count  = $schema->getCountDefinitions()['comments'];
+
+        self::assertSame([$transformer], $count->transformers);
+    }
+
+    /**
      * Test that a truthy non-boolean count default is normalized to a real
      * boolean.
      *
@@ -860,6 +884,31 @@ final class SchemaCompilerTest extends TestCase
 
         self::assertFalse($agg->isDefault);
         self::assertSame([$guard], $agg->guards);
+    }
+
+    /**
+     * Test that aggregate transformers from the raw schema are carried onto the
+     * compiled aggregate definition.
+     *
+     * @return void
+     */
+    public function testCompilePreservesAggregateTransformers(): void
+    {
+        $transformer = fn ($resource, $value) => $value * 2;
+
+        $resourceClass = $this->createStubResourceClass([
+            '__sum__:posts_id' => [
+                'metric'       => 'sum',
+                'relation'     => 'posts',
+                'column'       => 'id',
+                'transformers' => [$transformer],
+            ],
+        ]);
+
+        $schema = SchemaCompiler::compile($resourceClass);
+        $agg    = $schema->getAggregateDefinitions()['sum:posts_id'];
+
+        self::assertSame([$transformer], $agg->transformers);
     }
 
     /**

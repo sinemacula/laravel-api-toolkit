@@ -91,6 +91,21 @@ final class AuthorizedControllerTest extends TestCase
     }
 
     /**
+     * Test that the show action maps to the view ability, bound to the resolved
+     * route parameter rather than the model class.
+     *
+     * @return void
+     */
+    public function testMiddlewareEmitsViewCheckForShow(): void
+    {
+        $controller = new #[AuthorizesResource(User::class, parameter: 'account')] class extends AuthorizedController {};
+
+        $indexed = $this->indexByDefinition($controller::middleware());
+
+        self::assertSame(['show'], $indexed['can:view,account'] ?? null);
+    }
+
+    /**
      * Test that the excluded actions are gated by no middleware entry.
      *
      * @return void

@@ -12,6 +12,7 @@ use SineMacula\ApiToolkit\Exceptions\ApiExceptionHandler;
 use SineMacula\ApiToolkit\Http\Routing\AuthorizedController;
 use Tests\Concerns\RegistersApiExceptionHandler;
 use Tests\Fixtures\Actors\ActorUser;
+use Tests\Fixtures\Controllers\SkipAuthorizationController;
 use Tests\Fixtures\Controllers\TestingAuthorizedController;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Policies\UserPolicy;
@@ -65,6 +66,26 @@ final class AuthorizationTest extends TestCase
         $actor = ActorUser::create(['name' => 'Alice', 'email' => 'alice@example.com']);
 
         $response = $this->actingAs($actor)->getJson('/users');
+
+        $response->assertOk();
+    }
+
+    /**
+     * Test that an action marked #[SkipAuthorization] bypasses the guard over a
+     * real request, succeeding with no gate applied even though the view
+     * ability has no granting policy method and would otherwise be denied.
+     *
+     * @return void
+     */
+    public function testSkipAuthorizationActionBypassesTheGuardOverHttp(): void
+    {
+        Route::apiResource('skippers', SkipAuthorizationController::class)
+            ->middleware(SubstituteBindings::class);
+
+        $actor = ActorUser::create(['name' => 'Alice', 'email' => 'alice@example.com']);
+        $user  = User::create(['name' => 'Bob', 'email' => 'bob@example.com']);
+
+        $response = $this->actingAs($actor)->getJson('/skippers/' . $user->id);
 
         $response->assertOk();
     }

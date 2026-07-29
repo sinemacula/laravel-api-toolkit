@@ -241,6 +241,69 @@ final class ApiQueryParserTest extends TestCase
     }
 
     /**
+     * Provide filter values that are valid JSON but not a filter map.
+     *
+     * @return iterable<string, array{string}>
+     */
+    public static function nonAssociativeFilterProvider(): iterable
+    {
+        yield 'integer scalar' => ['123'];
+        yield 'boolean scalar' => ['true'];
+        yield 'false scalar' => ['false'];
+        yield 'zero scalar' => ['0'];
+        yield 'quoted string scalar' => ['"x"'];
+        yield 'numeric-keyed list' => ['[1,2,3]'];
+        yield 'list of objects' => ['[{"a":1}]'];
+    }
+
+    /**
+     * Test that getFilters returns an empty array for a valid-JSON but
+     * non-associative filter value rather than surfacing the decoded scalar or
+     * list, which would break the array return contract.
+     *
+     * @param  string  $filters
+     * @return void
+     */
+    #[DataProvider('nonAssociativeFilterProvider')]
+    public function testGetFiltersReturnsEmptyArrayForNonAssociativeJson(string $filters): void
+    {
+        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['filters' => $filters]);
+        $this->parser->parse($request);
+
+        self::assertSame([], $this->parser->getFilters());
+    }
+
+    /**
+     * Test that getFields tolerates a list-form parameter without a resource
+     * key, returning a safe result instead of raising a type error while
+     * trimming the nested value.
+     *
+     * @return void
+     */
+    public function testGetFieldsToleratesListFormParameter(): void
+    {
+        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['fields' => ['name', 'email']]);
+        $this->parser->parse($request);
+
+        self::assertSame([], $this->parser->getFields());
+    }
+
+    /**
+     * Test that getCounts tolerates a list-form parameter without a resource
+     * key, returning a safe result instead of raising a type error while
+     * trimming the nested value.
+     *
+     * @return void
+     */
+    public function testGetCountsToleratesListFormParameter(): void
+    {
+        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['counts' => ['posts', 'comments']]);
+        $this->parser->parse($request);
+
+        self::assertSame([], $this->parser->getCounts());
+    }
+
+    /**
      * Provide order string parsing scenarios.
      *
      * @return iterable<string, array{string, array<string, string>}>
@@ -253,6 +316,9 @@ final class ApiQueryParserTest extends TestCase
         yield 'multiple fields' => ['name:asc,created_at:desc', ['name' => 'asc', 'created_at' => 'desc']];
         yield 'mixed directions' => ['first_name,last_name:desc', ['first_name' => 'asc', 'last_name' => 'desc']];
         yield 'random order' => ['random', ['random' => 'asc']];
+        yield 'trailing empty segment' => ['name,', ['name' => 'asc']];
+        yield 'leading empty segment' => [',name', ['name' => 'asc']];
+        yield 'empty column with direction' => [':desc', []];
     }
 
     /**

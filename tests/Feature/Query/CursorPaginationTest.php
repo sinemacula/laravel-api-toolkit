@@ -157,6 +157,44 @@ final class CursorPaginationTest extends TestCase
     }
 
     /**
+     * Test that supplying a cursor token alone, without an explicit
+     * pagination=cursor flag, resolves cursor pagination and returns the page
+     * addressed by the token rather than falling back to page pagination.
+     *
+     * @return void
+     */
+    public function testCursorTokenAloneResolvesCursorPagination(): void
+    {
+        $first = $this->getJson('/users?pagination=cursor&limit=2');
+
+        $first->assertOk();
+
+        $next = $first->json('links.next');
+
+        self::assertIsString($next);
+
+        $parts = parse_url($next);
+
+        self::assertIsArray($parts);
+        self::assertArrayHasKey('query', $parts);
+
+        parse_str($parts['query'], $params);
+
+        self::assertArrayHasKey('cursor', $params);
+        self::assertIsString($params['cursor']);
+
+        $second = $this->getJson('/users?limit=2&cursor=' . urlencode($params['cursor']));
+
+        $second->assertOk();
+        $second->assertJsonCount(2, 'data');
+        $second->assertJsonPath('data.0.name', 'Cara');
+        $second->assertJsonPath('data.1.name', 'Dan');
+
+        self::assertTrue($second->json('meta.continue'));
+        self::assertIsString($second->json('links.prev'));
+    }
+
+    /**
      * Test that a cursor request matching no rows returns the terminal envelope
      * with empty data and null cursors on both sides.
      *

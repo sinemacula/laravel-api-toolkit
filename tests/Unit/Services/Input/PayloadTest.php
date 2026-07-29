@@ -78,6 +78,48 @@ final class PayloadTest extends TestCase
     }
 
     /**
+     * Test that an invalid enum value degrades to a validation failure when the
+     * subclass omits Rule::enum, so the caller sees a 422 rather than a fatal
+     * ValueError from the string-to-enum cast.
+     *
+     * @return void
+     */
+    public function testFromDegradesInvalidEnumWithoutRuleToValidationFailure(): void
+    {
+        $definition = new class (status: StubStatusEnum::ACTIVE) extends Payload {
+            /**
+             * Create a new instance with an enum-typed promoted property.
+             *
+             * @param  \Tests\Fixtures\Services\Input\Enums\StubStatusEnum|null  $status
+             */
+            public function __construct(
+
+                /** An enum property whose rules deliberately omit Rule::enum. */
+                public readonly ?StubStatusEnum $status = null,
+            ) {}
+
+            /**
+             * Validate the status as a plain string, without an enum rule.
+             *
+             * @return array<string, mixed>
+             */
+            #[\Override]
+            public static function rules(): array
+            {
+                return ['status' => ['sometimes', 'nullable', 'string']];
+            }
+        };
+
+        try {
+            $definition::from(['status' => 'not_a_valid_status']);
+
+            self::fail('Expected a ValidationException for the invalid enum value.');
+        } catch (ValidationException $exception) {
+            self::assertArrayHasKey('status', $exception->errors());
+        }
+    }
+
+    /**
      * Test that a nullable field is hydrated as null when absent from source.
      *
      * @return void

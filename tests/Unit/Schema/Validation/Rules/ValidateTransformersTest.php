@@ -6,6 +6,8 @@ namespace Tests\Unit\Schema\Validation\Rules;
 
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
+use SineMacula\ApiToolkit\Schema\CompiledAggregateDefinition;
+use SineMacula\ApiToolkit\Schema\CompiledCountDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledSchema;
 use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateTransformers;
@@ -119,6 +121,67 @@ final class ValidateTransformersTest extends TestCase
         self::assertCount(2, $errors);
         self::assertSame('Transformer at index 0 is not callable', $errors[0]->defect);
         self::assertSame('Transformer at index 1 is not callable', $errors[1]->defect);
+    }
+
+    /**
+     * Test reports non-callable transformer on count definition.
+     *
+     * @return void
+     */
+    public function testReportsNonCallableTransformerOnCountDefinition(): void
+    {
+        $count = new CompiledCountDefinition(
+            presentKey: 'comments_count',
+            relation: 'comments',
+            constraint: null,
+            isDefault: false,
+            guards: [],
+            transformers: ['not_a_function'],
+        );
+
+        $schema = new CompiledSchema(
+            fields: [],
+            counts: ['comments_count' => $count],
+        );
+
+        $rule   = new ValidateTransformers;
+        $errors = $rule->validate('App\Http\Resources\PostResource', null, $schema);
+
+        self::assertCount(1, $errors);
+        self::assertSame('comments_count', $errors[0]->fieldKey);
+        self::assertSame('Transformer at index 0 is not callable', $errors[0]->defect);
+    }
+
+    /**
+     * Test reports non-callable transformer on aggregate definition.
+     *
+     * @return void
+     */
+    public function testReportsNonCallableTransformerOnAggregateDefinition(): void
+    {
+        $aggregate = new CompiledAggregateDefinition(
+            presentKey: 'reviews_rating',
+            relation: 'reviews',
+            column: 'rating',
+            metric: 'sum',
+            constraint: null,
+            isDefault: false,
+            guards: [],
+            transformers: ['not_a_function'],
+        );
+
+        $schema = new CompiledSchema(
+            fields: [],
+            counts: [],
+            aggregates: ['sum:reviews_rating' => $aggregate],
+        );
+
+        $rule   = new ValidateTransformers;
+        $errors = $rule->validate('App\Http\Resources\ProductResource', null, $schema);
+
+        self::assertCount(1, $errors);
+        self::assertSame('reviews_rating', $errors[0]->fieldKey);
+        self::assertSame('Transformer at index 0 is not callable', $errors[0]->defect);
     }
 
     /**

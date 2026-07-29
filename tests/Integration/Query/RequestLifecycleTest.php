@@ -111,6 +111,20 @@ final class RequestLifecycleTest extends TestCase
     }
 
     /**
+     * Test that a scalar but valid-JSON filter value does not crash the request
+     * lifecycle, instead falling back to no filtering.
+     *
+     * @return void
+     */
+    public function testScalarJsonFilterDoesNotError(): void
+    {
+        $response = $this->getJson('/users?filters=123');
+
+        $response->assertOk();
+        $response->assertJsonCount(3, 'data');
+    }
+
+    /**
      * Test that ordering from the query string is applied to the result set.
      *
      * @return void
