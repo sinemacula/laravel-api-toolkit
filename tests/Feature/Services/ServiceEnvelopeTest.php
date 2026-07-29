@@ -75,7 +75,7 @@ final class ServiceEnvelopeTest extends TestCase
 
         Route::post('/service-lock', static function (): array {
 
-            (new LockableService)->run()->throw()->output();
+            (new LockableService)->run()->throw();
 
             return ['output' => true];
         });
@@ -89,7 +89,7 @@ final class ServiceEnvelopeTest extends TestCase
                 $service->by(EloquentActor::for($user));
             }
 
-            $service->run()->throw()->output();
+            $service->run()->throw();
 
             return ['output' => true];
         });

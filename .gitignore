@@ -24,3 +24,6 @@ composer.lock
 /var/
 *.public.json
 *.internal.json
+
+# Working reference (example docs structure), not part of the package
+/SAMPLE.md
