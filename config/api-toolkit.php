@@ -285,6 +285,14 @@ return [
         // instead (the prior fail-quiet behaviour).
         'reject_undeclared' => env('API_TOOLKIT_REJECT_UNDECLARED', true),
 
+        // Time-to-live, in seconds, for the cached relation-detection lookup
+        // (whether a given key names an Eloquent relation on a model). Relation
+        // structure is schema-static, so the default of one day still caches
+        // effectively; the expiry is a defence-in-depth bound on the relation
+        // cache key space so a key derived from client input cannot accumulate
+        // permanently under a long-running worker.
+        'relation_cache_ttl' => env('API_TOOLKIT_RELATION_CACHE_TTL', 86400),
+
         // Columns excluded from the blocklist posture's searchable set. Allows
         // both bare columns and table-scoped columns e.g. users.password. The
         // default covers the stock Laravel + Fortify auth column family so the

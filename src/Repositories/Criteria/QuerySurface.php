@@ -130,6 +130,34 @@ final readonly class QuerySurface
     }
 
     /**
+     * Determine whether the allowlist posture is in force.
+     *
+     * @return bool
+     */
+    public function isAllowlist(): bool
+    {
+        return $this->posture === self::POSTURE_ALLOWLIST;
+    }
+
+    /**
+     * Determine whether the key is a declared traversable relation on the model
+     * without consulting schema introspection or throwing.
+     *
+     * The filter router calls this under the allowlist posture to route a key
+     * to the relation filter before any introspection runs, so an undeclared
+     * key never reaches the cached relation lookup and cannot grow the relation
+     * cache key space per distinct sprayed key.
+     *
+     * @param  string  $relation
+     * @param  \Illuminate\Database\Eloquent\Model  $model
+     * @return bool
+     */
+    public function isDeclaredRelation(string $relation, Model $model): bool
+    {
+        return $this->permitsRelation($relation, $model);
+    }
+
+    /**
      * Determine whether the column is filterable on the given model.
      *
      * @param  string  $column

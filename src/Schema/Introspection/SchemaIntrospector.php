@@ -191,7 +191,7 @@ final class SchemaIntrospector implements SchemaIntrospectionProvider
     #[\Override]
     public function isRelation(string $key, Model $model): bool
     {
-        return $this->metadataCacheWriter->rememberMetadataForever(CacheKeys::MODEL_RELATIONS->resolveKey([
+        return $this->metadataCacheWriter->rememberMetadata(CacheKeys::MODEL_RELATIONS->resolveKey([
             $model::class,
             $key,
         ]), function () use ($key, $model): bool {
@@ -200,7 +200,7 @@ final class SchemaIntrospector implements SchemaIntrospectionProvider
             }
 
             return $model->relationResolver($model::class, $key) !== null;
-        });
+        }, $this->relationCacheTtl());
     }
 
     /**
@@ -309,6 +309,24 @@ final class SchemaIntrospector implements SchemaIntrospectionProvider
         }
 
         return $definitions;
+    }
+
+    /**
+     * Resolve the time-to-live, in seconds, applied to the cached relation
+     * lookup, falling back to roughly a day when the config value is unset or
+     * non-numeric.
+     *
+     * Relation detection is schema-static, so a long expiry still caches
+     * effectively; the expiry exists to bound the relation cache key space, not
+     * to refresh it.
+     *
+     * @return int
+     */
+    private function relationCacheTtl(): int
+    {
+        $ttl = Config::get('api-toolkit.repositories.relation_cache_ttl', 86400);
+
+        return is_numeric($ttl) ? (int) $ttl : 86400;
     }
 
     /**

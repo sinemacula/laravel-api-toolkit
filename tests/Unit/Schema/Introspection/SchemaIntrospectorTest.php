@@ -4,6 +4,7 @@ declare(strict_types = 1);
 
 namespace Tests\Unit\Schema\Introspection;
 
+use Illuminate\Contracts\Cache\Repository;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
@@ -683,6 +684,56 @@ final class SchemaIntrospectorTest extends TestCase
 
         self::assertTrue($first);
         self::assertSame($first, $second);
+    }
+
+    /**
+     * Test that isRelation caches its result under the configured time-to-live
+     * rather than storing it forever, bounding the relation cache key space.
+     *
+     * @return void
+     */
+    public function testIsRelationCachesWithConfiguredTtl(): void
+    {
+        Config::set('api-toolkit.repositories.relation_cache_ttl', 4321);
+
+        $expectedKey = CacheKeys::MODEL_RELATIONS->resolveKey([User::class, 'posts']);
+
+        $repository = \Mockery::mock(Repository::class);
+        $repository->shouldReceive('remember')
+            ->once()
+            ->with($expectedKey, 4321, \Mockery::type(\Closure::class))
+            ->andReturn(true);
+
+        Cache::shouldReceive('memo')
+            ->once()
+            ->andReturn($repository);
+
+        self::assertTrue($this->makeIntrospector()->isRelation('posts', new User));
+    }
+
+    /**
+     * Test that isRelation falls back to the default day-long time-to-live when
+     * the configured value is missing or non-numeric.
+     *
+     * @return void
+     */
+    public function testIsRelationFallsBackToDefaultTtlWhenConfigNonNumeric(): void
+    {
+        Config::set('api-toolkit.repositories.relation_cache_ttl', 'not-a-number');
+
+        $expectedKey = CacheKeys::MODEL_RELATIONS->resolveKey([User::class, 'posts']);
+
+        $repository = \Mockery::mock(Repository::class);
+        $repository->shouldReceive('remember')
+            ->once()
+            ->with($expectedKey, 86400, \Mockery::type(\Closure::class))
+            ->andReturn(true);
+
+        Cache::shouldReceive('memo')
+            ->once()
+            ->andReturn($repository);
+
+        self::assertTrue($this->makeIntrospector()->isRelation('posts', new User));
     }
 
     /**

@@ -116,14 +116,61 @@ final class FilterApplier
             return;
         }
 
-        if ($this->schemaIntrospector->isRelation($key, $query->getModel())) {
-            if ($this->querySurface->guardRelation($key, $query->getModel())) {
+        $this->routePlainKey($query, $key, $value, $context);
+    }
+
+    /**
+     * Route a plain (non-operator) key to its relation or column handler.
+     *
+     * Under the allowlist posture the declared surface routes the key without
+     * schema introspection: a declared traversable relation goes to the
+     * relation filter, and any other key is gated as a filter column so an
+     * undeclared key is rejected (fail-closed) or dropped (fail-quiet) at that
+     * key before the cached relation lookup is ever reached, rather than
+     * descending into its value. Under the blocklist posture the surface allows
+     * any unblocked key, so introspection is still required to route arbitrary
+     * keys.
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>  $query
+     * @param  string  $key
+     * @param  mixed  $value
+     * @param  \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext  $context
+     * @return void
+     */
+    private function routePlainKey(Builder $query, string $key, mixed $value, FilterContext $context): void
+    {
+        $model = $query->getModel();
+
+        if ($this->routesToRelation($query, $key)) {
+            if ($this->querySurface->guardRelation($key, $model)) {
                 $this->applyRelationFilter($query, $key, $value, $context);
             }
             return;
         }
 
+        if ($this->querySurface->isAllowlist() && !$this->querySurface->guardFilter($key, $model)) {
+            return;
+        }
+
         $this->applyFilters($query, $value, $key, $context);
+    }
+
+    /**
+     * Determine whether a plain key routes to a relation filter, consulting the
+     * declared surface under the allowlist posture and schema introspection
+     * under the blocklist posture.
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>  $query
+     * @param  string  $key
+     * @return bool
+     */
+    private function routesToRelation(Builder $query, string $key): bool
+    {
+        $model = $query->getModel();
+
+        return $this->querySurface->isAllowlist()
+            ? $this->querySurface->isDeclaredRelation($key, $model)
+            : $this->schemaIntrospector->isRelation($key, $model);
     }
 
     /**

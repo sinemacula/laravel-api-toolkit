@@ -6,7 +6,10 @@ namespace Tests\Unit\Repositories\Criteria\Concerns;
 
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Validation\ValidationException;
 use PHPUnit\Framework\Attributes\CoversClass;
+use SineMacula\ApiToolkit\Cache\MetadataCacheWriter;
+use SineMacula\ApiToolkit\Cache\MetadataKeyRegistry;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterApplier;
 use SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry;
@@ -23,8 +26,11 @@ use SineMacula\ApiToolkit\Repositories\Criteria\Operators\NotEqualOperator;
 use SineMacula\ApiToolkit\Repositories\Criteria\Operators\NotNullOperator;
 use SineMacula\ApiToolkit\Repositories\Criteria\Operators\NullOperator;
 use SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface;
+use SineMacula\ApiToolkit\Schema\Introspection\SchemaIntrospector;
 use Tests\Concerns\InteractsWithNonPublicMembers;
+use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\User;
+use Tests\Fixtures\Resources\PostResource;
 use Tests\TestCase;
 
 /**
@@ -732,6 +738,166 @@ final class FilterApplierTest extends TestCase
         sort($declared);
 
         self::assertSame($declared, $dispatched);
+    }
+
+    /**
+     * Test that under the allowlist posture an undeclared filter key is
+     * rejected with a validation error and relation introspection is never
+     * consulted, so the growth-prone relation cache is never touched for the
+     * bad key.
+     *
+     * @return void
+     */
+    public function testAllowlistRejectsUndeclaredKeyWithoutIntrospection(): void
+    {
+        $introspector = \Mockery::mock(SchemaIntrospectionProvider::class);
+        $introspector->shouldReceive('isRelation')->never(); // @phpstan-ignore method.notFound
+
+        $surface = $this->allowlistSurface(filterable: ['name'], introspector: $introspector);
+
+        $this->expectException(ValidationException::class);
+
+        $this->applier->apply((new User)->newQuery(), ['unknown_key' => 'x'], $introspector, $this->operatorRegistry, $surface);
+    }
+
+    /**
+     * Test that under the allowlist posture a declared filterable column
+     * applies a simple where clause.
+     *
+     * @return void
+     */
+    public function testAllowlistAppliesDeclaredFilterableColumn(): void
+    {
+        $surface = $this->allowlistSurface(filterable: ['name']);
+
+        $result = $this->applier->apply((new User)->newQuery(), ['name' => 'Alice'], $this->schemaIntrospector, $this->operatorRegistry, $surface);
+        $wheres = $result->getQuery()->wheres;
+
+        self::assertNotEmpty($wheres);
+        self::assertSame('name', $wheres[0]['column']);
+        self::assertSame('Alice', $wheres[0]['value']);
+    }
+
+    /**
+     * Test that under the allowlist posture a declared traversable relation
+     * routes to a relation filter without any schema introspection.
+     *
+     * @return void
+     */
+    public function testAllowlistAppliesDeclaredTraversableRelation(): void
+    {
+        $introspector = \Mockery::mock(SchemaIntrospectionProvider::class);
+        $introspector->shouldReceive('isRelation')->never(); // @phpstan-ignore method.notFound
+
+        $surface = $this->allowlistSurface(
+            relations: ['posts'],
+            introspector: $introspector,
+            resourceMap: [Post::class => PostResource::class],
+        );
+
+        $result = $this->applier->apply((new User)->newQuery(), ['posts' => ['title' => 'test']], $introspector, $this->operatorRegistry, $surface);
+        $wheres = $result->getQuery()->wheres;
+
+        self::assertNotEmpty($wheres);
+        self::assertSame('Exists', $wheres[0]['type']);
+    }
+
+    /**
+     * Test that condition and logical operators keep working under the
+     * allowlist posture, applied against a declared column.
+     *
+     * @return void
+     */
+    public function testAllowlistPreservesConditionAndLogicalOperators(): void
+    {
+        $surface = $this->allowlistSurface(filterable: ['name', 'email']);
+
+        $eq = $this->applier->apply((new User)->newQuery(), ['name' => ['$eq' => 'Alice']], $this->schemaIntrospector, $this->operatorRegistry, $surface);
+
+        self::assertSame('=', $eq->getQuery()->wheres[0]['operator']);
+
+        $orFilters = ['$or' => ['name' => 'Alice', 'email' => 'bob@example.com']];
+
+        $or = $this->applier->apply((new User)->newQuery(), $orFilters, $this->schemaIntrospector, $this->operatorRegistry, $surface);
+
+        self::assertSame('Nested', $or->getQuery()->wheres[0]['type']);
+        self::assertSame('or', $or->getQuery()->wheres[0]['boolean']);
+    }
+
+    /**
+     * Test that the $has structural operator still routes to a relation
+     * existence clause under the allowlist posture for a declared relation.
+     *
+     * @return void
+     */
+    public function testAllowlistPreservesHasOperator(): void
+    {
+        $surface = $this->allowlistSurface(relations: ['posts']);
+
+        $result = $this->applier->apply((new User)->newQuery(), ['$has' => ['posts']], $this->schemaIntrospector, $this->operatorRegistry, $surface);
+        $wheres = $result->getQuery()->wheres;
+
+        self::assertNotEmpty($wheres);
+        self::assertSame('Exists', $wheres[0]['type']);
+    }
+
+    /**
+     * Test that spraying many distinct undeclared filter keys under the
+     * allowlist posture writes zero relation-cache entries, guarding against
+     * the unbounded cache growth that the pre-gate routing allowed.
+     *
+     * @return void
+     */
+    public function testAllowlistSprayingUnknownKeysWritesNoRelationCacheEntries(): void
+    {
+        $registry     = new MetadataKeyRegistry;
+        $introspector = new SchemaIntrospector(new MetadataCacheWriter($registry));
+
+        $surface = $this->allowlistSurface(filterable: ['name'], introspector: $introspector);
+
+        foreach (['rand1', 'rand2', 'rand3', 'rand4', 'rand5'] as $key) {
+            try {
+                $this->applier->apply((new User)->newQuery(), [$key => 'x'], $introspector, $this->operatorRegistry, $surface);
+            } catch (ValidationException) { // @phpstan-ignore catch.neverThrown
+                // Each undeclared key is rejected fail-closed; the rejection
+                // itself is asserted by
+                // testAllowlistRejectsUndeclaredKeyWithoutIntrospection. This
+                // test asserts only that no relation-cache entry is written.
+            }
+        }
+
+        $relationKeys = array_filter($registry->keys(), static fn (string $key): bool => str_contains($key, 'model-relations'));
+
+        self::assertSame([], array_values($relationKeys));
+    }
+
+    /**
+     * Build an allowlist query surface for the User root model.
+     *
+     * @param  array<int, string>  $filterable
+     * @param  array<int, string>  $sortable
+     * @param  array<int, string>  $relations
+     * @param  \SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider|null  $introspector
+     * @param  array<string, string>  $resourceMap
+     * @return \SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface
+     */
+    private function allowlistSurface(
+        array $filterable = [],
+        array $sortable = [],
+        array $relations = [],
+        ?SchemaIntrospectionProvider $introspector = null,
+        array $resourceMap = [],
+    ): QuerySurface {
+        return new QuerySurface(
+            $filterable,
+            $sortable,
+            $relations,
+            QuerySurface::POSTURE_ALLOWLIST,
+            true,
+            $introspector ?? $this->schemaIntrospector,
+            new User,
+            $resourceMap,
+        );
     }
 
     /**
