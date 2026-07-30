@@ -4,6 +4,7 @@ declare(strict_types = 1);
 
 namespace SineMacula\ApiToolkit\OpenApi\Metadata;
 
+use Illuminate\Support\Facades\Config;
 use SineMacula\ApiToolkit\Exceptions\ApiException;
 
 /**
@@ -15,7 +16,10 @@ use SineMacula\ApiToolkit\Exceptions\ApiException;
  * is injected so the source can be driven from the registered Composer
  * autoloader in production and pointed at a controlled directory under test.
  * The shared root map excludes vendor and non-existent roots, restricting the
- * scan to the application, its modules, and any local path packages.
+ * scan to the application, its modules, and any local path packages. A caller
+ * may list extra namespace prefixes to scan in addition, matched against the
+ * full prefix map so an installed package's exceptions can be catalogued on
+ * request even though they resolve under vendor.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -26,12 +30,16 @@ final readonly class ApiExceptionDiscoverer
      * Create a new discoverer for the given PSR-4 roots.
      *
      * @param  array<string, array<int, string>>  $prefixes
+     * @param  array<int, string>  $extraNamespaces
      * @return void
      */
     public function __construct(
 
         /** PSR-4 namespace prefix to source directories to scan. */
         private array $prefixes,
+
+        /** Extra namespace prefixes to scan even when resolved under vendor. */
+        private array $extraNamespaces = [],
     ) {}
 
     /**
@@ -39,13 +47,17 @@ final readonly class ApiExceptionDiscoverer
      *
      * Locates the ClassLoader among the registered SPL autoloaders and reads
      * its public PSR-4 prefix map. Vendor directories are filtered at scan
-     * time, so the full prefix map is handed over untouched.
+     * time, so the full prefix map is handed over untouched, alongside the
+     * configured extra namespaces to also scan under vendor.
      *
      * @return self
      */
     public static function fromComposer(): self
     {
-        return new self(Psr4RootMap::fromComposer()->all());
+        $configured = Config::get('api-toolkit.openapi.exception_namespaces', []);
+        $namespaces = is_array($configured) ? array_filter($configured, 'is_string') : [];
+
+        return new self(Psr4RootMap::fromComposer()->all(), $namespaces);
     }
 
     /**
@@ -57,15 +69,70 @@ final readonly class ApiExceptionDiscoverer
     {
         $classes = [];
 
-        foreach ((new Psr4RootMap($this->prefixes))->roots() as $prefix => $dirs) {
-            foreach ($dirs as $dir) {
-                foreach ($this->scan($prefix, $dir) as $class) {
-                    $classes[] = $class;
-                }
+        foreach ($this->scanTargets() as [$prefix, $dir]) {
+            foreach ($this->scan($prefix, $dir) as $class) {
+                $classes[] = $class;
             }
         }
 
-        return $classes;
+        return array_values(array_unique($classes));
+    }
+
+    /**
+     * Resolve the prefix and directory pairs to scan: the non-vendor roots plus
+     * the directories of any configured extra namespace, which are included
+     * even when they resolve under vendor.
+     *
+     * @return array<int, array{0: string, 1: string}>
+     */
+    private function scanTargets(): array
+    {
+        $targets = [];
+
+        foreach ((new Psr4RootMap($this->prefixes))->roots() as $prefix => $dirs) {
+            foreach ($dirs as $dir) {
+                $targets[] = [$prefix, $dir];
+            }
+        }
+
+        foreach ($this->extraNamespaceTargets() as $target) {
+            $targets[] = $target;
+        }
+
+        return $targets;
+    }
+
+    /**
+     * Resolve the prefix and real-directory pairs for the configured extra
+     * namespaces, each looked up as a registered PSR-4 root in the full prefix
+     * map so a package installed under vendor is scanned when its root
+     * namespace is listed. The lookup key is normalised to a single trailing
+     * separator so a listed namespace matches with or without one. A class also
+     * reached by a non-vendor root is de-duplicated by discover().
+     *
+     * @return array<int, array{0: string, 1: string}>
+     */
+    private function extraNamespaceTargets(): array
+    {
+        $targets = [];
+
+        foreach ($this->extraNamespaces as $namespace) {
+
+            $prefix = rtrim($namespace, '\\') . '\\';
+
+            foreach ($this->prefixes[$prefix] ?? [] as $dir) {
+
+                $real = realpath($dir);
+
+                if ($real === false) {
+                    continue;
+                }
+
+                $targets[] = [$prefix, $real];
+            }
+        }
+
+        return $targets;
     }
 
     /**

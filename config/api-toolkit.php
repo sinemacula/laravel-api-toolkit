@@ -235,6 +235,16 @@ return [
             'namespaces' => DocumentableRouteFilter::DEFAULT_NAMESPACES,
         ],
 
+        // Additional PSR-4 namespace prefixes to scan for documentable
+        // ApiException subclasses, on top of the application and its modules
+        // (which are always scanned). The application scan deliberately skips
+        // vendor, so an installed ecosystem package's exceptions are not
+        // catalogued by default; list its root namespace here (e.g.
+        // 'SineMacula\Authentication\') to include its error codes. Every
+        // registered PSR-4 root at or below a listed prefix is scanned, and
+        // only ApiException subclasses declaring a CODE are documented.
+        'exception_namespaces' => [],
+
     ],
 
     /*
