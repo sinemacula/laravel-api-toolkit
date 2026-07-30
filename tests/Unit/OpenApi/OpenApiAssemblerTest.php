@@ -53,6 +53,21 @@ final class OpenApiAssemblerTest extends TestCase
     private array $docsDirs = [];
 
     /**
+     * Set up each test with an absent docs directory, so the assembled info
+     * block never picks up a manual from the environment's resources and the
+     * info-configuration assertions stay independent of any published docs.
+     *
+     * @return void
+     */
+    #[\Override]
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->config()->set('api-toolkit.openapi.docs_path', sys_get_temp_dir() . '/api-toolkit-absent-' . uniqid('', true));
+    }
+
+    /**
      * Tear down each test, removing any temporary docs directories.
      *
      * @return void

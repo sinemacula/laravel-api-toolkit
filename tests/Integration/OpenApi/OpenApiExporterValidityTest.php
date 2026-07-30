@@ -1097,7 +1097,7 @@ final class OpenApiExporterValidityTest extends TestCase
      */
     private function fixture(string $name): string
     {
-        $contents = file_get_contents(__DIR__ . '/../../Fixtures/openapi/' . $name);
+        $contents = file_get_contents(__DIR__ . '/../../Fixtures/OpenApi/' . $name);
 
         assert(is_string($contents));
 

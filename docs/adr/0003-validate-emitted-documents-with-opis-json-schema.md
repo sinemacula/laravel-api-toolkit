@@ -27,7 +27,7 @@ own test suite.
 
 Add `opis/json-schema` (`^2.4`) as a `require-dev` dependency. It is maintained and supports JSON Schema 2020-12. The
 integration validity test (`tests/Integration/OpenApiExporterValidityTest.php`) loads the official OpenAPI 3.1
-meta-schema -- vendored under `tests/Fixtures/openapi/openapi-3.1-schema.json` along with any referenced 2020-12 dialect
+meta-schema -- vendored under `tests/Fixtures/OpenApi/openapi-3.1-schema.json` along with any referenced 2020-12 dialect
 documents -- registers it with the `opis` resolver, and asserts the emitted document validates. The validator sits behind
 the integration test, decoupled from the emitter, so it can be swapped for another maintained 2020-12 validator without
 touching production code.

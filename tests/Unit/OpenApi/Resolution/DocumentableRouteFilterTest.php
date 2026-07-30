@@ -148,7 +148,7 @@ final class DocumentableRouteFilterTest extends TestCase
      */
     public function testNonClosureStringHandlerIsNeverReflected(): void
     {
-        require_once __DIR__ . '/../../../Fixtures/openapi/RouteHandlerStubs.php';
+        require_once __DIR__ . '/../../../Fixtures/OpenApi/RouteHandlerStubs.php';
 
         $this->setBlocklist(['Tests\Fixtures\OpenApi\RouteHandlers']);
 
