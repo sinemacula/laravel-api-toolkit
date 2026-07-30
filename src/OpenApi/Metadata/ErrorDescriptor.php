@@ -10,7 +10,9 @@ namespace SineMacula\ApiToolkit\OpenApi\Metadata;
  * Carries the integer error code, its resolved HTTP status, and the canonical
  * title and detail strings sourced from the package language file. Consumed by
  * the error-response builder to assemble the components.responses section of
- * the emitted document.
+ * the emitted document. The owning exception class is carried so the
+ * documentation can group errors by the module the exception belongs to, and is
+ * null for a code with no discoverable owning exception.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -24,6 +26,7 @@ final readonly class ErrorDescriptor
      * @param  int  $httpStatus
      * @param  string|null  $title
      * @param  string  $detail
+     * @param  string|null  $source
      */
     public function __construct(
 
@@ -38,5 +41,8 @@ final readonly class ErrorDescriptor
 
         /** The canonical detail string */
         public string $detail,
+
+        /** The owning exception class, or null when none is known */
+        public ?string $source = null,
     ) {}
 }

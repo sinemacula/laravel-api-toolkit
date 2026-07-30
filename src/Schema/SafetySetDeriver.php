@@ -18,7 +18,7 @@ use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-final class SafetySetDeriver
+final readonly class SafetySetDeriver
 {
     /**
      * Create a new safety-set deriver instance.
@@ -28,7 +28,7 @@ final class SafetySetDeriver
     public function __construct(
 
         /** The schema introspection port for column and relation metadata. */
-        private readonly SchemaIntrospectionProvider $schemaIntrospector,
+        private SchemaIntrospectionProvider $schemaIntrospector,
     ) {}
 
     /**

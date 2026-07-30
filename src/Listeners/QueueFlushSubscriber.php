@@ -22,7 +22,7 @@ use SineMacula\ApiToolkit\Runtime\RuntimeContext;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-final class QueueFlushSubscriber
+final readonly class QueueFlushSubscriber
 {
     /**
      * Create a new queue flush subscriber instance.
@@ -34,10 +34,10 @@ final class QueueFlushSubscriber
     public function __construct(
 
         /** The cache manager for flushing toolkit caches. */
-        private readonly CacheManager $cacheManager,
+        private CacheManager $cacheManager,
 
         /** The runtime context for detecting the serving environment. */
-        private readonly RuntimeContext $runtime,
+        private RuntimeContext $runtime,
     ) {}
 
     /**
@@ -69,7 +69,9 @@ final class QueueFlushSubscriber
 
         try {
             $this->cacheManager->flush();
-        } catch (\Throwable $exception) {
+        } catch (\Throwable $exception) { // @phpstan-ignore catch.neverThrown
+            // A flush failure must not crash the queue worker at the job
+            // boundary; container resolution can throw at runtime.
             Log::error('Queue worker cache flush failed', ['exception' => $exception]);
         }
     }

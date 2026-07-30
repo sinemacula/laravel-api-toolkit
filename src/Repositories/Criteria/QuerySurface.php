@@ -98,13 +98,7 @@ final readonly class QuerySurface
      */
     public function guardFilter(string $column, Model $model): bool
     {
-        return $this->guard(
-            $this->permitsFilter($column, $model),
-            'filters',
-            $column,
-            $model,
-            $this->posture === self::POSTURE_ALLOWLIST,
-        );
+        return $this->guard($this->permitsFilter($column, $model), 'filters', $column);
     }
 
     /**
@@ -118,13 +112,7 @@ final readonly class QuerySurface
      */
     public function guardSort(string $column, Model $model): bool
     {
-        return $this->guard(
-            $this->permitsSort($column, $model),
-            'order',
-            $column,
-            $model,
-            $this->posture === self::POSTURE_ALLOWLIST,
-        );
+        return $this->guard($this->permitsSort($column, $model), 'order', $column);
     }
 
     /**
@@ -138,13 +126,35 @@ final readonly class QuerySurface
      */
     public function guardRelation(string $relation, Model $model): bool
     {
-        return $this->guard(
-            $this->permitsRelation($relation, $model),
-            'filters',
-            $relation,
-            $model,
-            $this->posture === self::POSTURE_ALLOWLIST,
-        );
+        return $this->guard($this->permitsRelation($relation, $model), 'filters', $relation);
+    }
+
+    /**
+     * Determine whether the allowlist posture is in force.
+     *
+     * @return bool
+     */
+    public function isAllowlist(): bool
+    {
+        return $this->posture === self::POSTURE_ALLOWLIST;
+    }
+
+    /**
+     * Determine whether the key is a declared traversable relation on the model
+     * without consulting schema introspection or throwing.
+     *
+     * The filter router calls this under the allowlist posture to route a key
+     * to the relation filter before any introspection runs, so an undeclared
+     * key never reaches the cached relation lookup and cannot grow the relation
+     * cache key space per distinct sprayed key.
+     *
+     * @param  string  $relation
+     * @param  \Illuminate\Database\Eloquent\Model  $model
+     * @return bool
+     */
+    public function isDeclaredRelation(string $relation, Model $model): bool
+    {
+        return $this->permitsRelation($relation, $model);
     }
 
     /**
@@ -286,26 +296,24 @@ final readonly class QuerySurface
     /**
      * Resolve a permission result into an apply/skip decision.
      *
-     * Rejects with a named ValidationException when fail-closed and the active
-     * posture covers the given model: root keys under allowlist, or any key
-     * under allowlist when rejectForAllowlist is true.
+     * Rejects an undeclared key with a named ValidationException only under the
+     * allowlist posture (which fails closed); the blocklist posture drops
+     * undeclared keys silently.
      *
      * @param  bool  $permitted
      * @param  string  $parameter
      * @param  string  $key
-     * @param  \Illuminate\Database\Eloquent\Model  $model
-     * @param  bool  $rejectForAllowlist
      * @return bool
      *
      * @throws \Illuminate\Validation\ValidationException
      */
-    private function guard(bool $permitted, string $parameter, string $key, Model $model, bool $rejectForAllowlist = false): bool
+    private function guard(bool $permitted, string $parameter, string $key): bool
     {
         if ($permitted) {
             return true;
         }
 
-        if ($this->rejectUndeclared && ($this->governsRoot($model) || $rejectForAllowlist)) {
+        if ($this->rejectUndeclared && $this->posture === self::POSTURE_ALLOWLIST) {
             throw ValidationException::withMessages([$parameter . '.' . $key => sprintf('The "%s" key is not a permitted query parameter for this resource.', $key)]);
         }
 

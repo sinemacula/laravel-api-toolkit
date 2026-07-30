@@ -11,7 +11,10 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Schema;
 use Orchestra\Testbench\TestCase as OrchestraTestCase;
 use SineMacula\ApiToolkit\ApiServiceProvider;
+use SineMacula\ApiToolkit\Http\Resources\Concerns\EagerLoadPlanner;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\FieldResolver;
+use SineMacula\ApiToolkit\Http\Resources\Concerns\ValueResolver;
+use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 use Tests\Fixtures\Support\FunctionOverrides;
 
 /**
@@ -44,7 +47,13 @@ abstract class TestCase extends OrchestraTestCase
     {
         FunctionOverrides::reset();
 
+        // Mirror the process-static caches that CacheManager::flush() clears at
+        // a real request/worker boundary, so metadata resolved by one test
+        // cannot leak into the next (the harness never crosses that boundary).
         FieldResolver::clearCache();
+        ValueResolver::clearCache();
+        EagerLoadPlanner::clearCache();
+        SchemaCompiler::clearCache();
 
         Relation::morphMap([], false);
         Relation::requireMorphMap(false);
@@ -117,6 +126,7 @@ abstract class TestCase extends OrchestraTestCase
         $this->createCountryPostTable();
         $this->createLogsTable();
         $this->createArticlesTable();
+        $this->createCommentsTable();
     }
 
     /**
@@ -326,6 +336,27 @@ abstract class TestCase extends OrchestraTestCase
             $table->text('summary');
             $table->string('status')->default('draft');
             $table->unsignedInteger('views')->default(0);
+            $table->timestamps();
+            $table->softDeletes();
+        });
+    }
+
+    /**
+     * Create the comments table.
+     *
+     * Soft-deleting child table backing the Comment fixture used to prove that
+     * trashed visibility cascades to eager-loaded relations only when the
+     * child's resource opts in.
+     *
+     * @return void
+     */
+    private function createCommentsTable(): void
+    {
+        Schema::dropIfExists('comments');
+        Schema::create('comments', function (Blueprint $table): void {
+            $table->id();
+            $table->unsignedBigInteger('user_id');
+            $table->string('body');
             $table->timestamps();
             $table->softDeletes();
         });

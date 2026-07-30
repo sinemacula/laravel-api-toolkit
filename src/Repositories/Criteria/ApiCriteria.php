@@ -19,6 +19,8 @@ use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\EagerLoadApplier;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterApplier;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\LimitApplier;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\OrderApplier;
+use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\RelationTrashedGate;
+use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\SoftDeleteVisibilityApplier;
 use SineMacula\ApiToolkit\Schema\SafetySetDeriver;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 use SineMacula\Repositories\Contracts\CriteriaInterface;
@@ -53,6 +55,12 @@ final class ApiCriteria implements CriteriaInterface
     /** @var \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\ColumnProjectionApplier */
     private readonly ColumnProjectionApplier $columnProjectionApplier;
 
+    /** @var \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\SoftDeleteVisibilityApplier */
+    private readonly SoftDeleteVisibilityApplier $softDeleteVisibilityApplier;
+
+    /** @var \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\RelationTrashedGate */
+    private readonly RelationTrashedGate $relationTrashedGate;
+
     /**
      * Constructor.
      *
@@ -80,11 +88,20 @@ final class ApiCriteria implements CriteriaInterface
         /** Writes resolved resource metadata to the persistent cache */
         private readonly MetadataCacheWriter $metadataCacheWriter,
     ) {
-        $this->filterApplier           = new FilterApplier;
-        $this->orderApplier            = new OrderApplier;
-        $this->eagerLoadApplier        = new EagerLoadApplier;
-        $this->limitApplier            = new LimitApplier;
-        $this->columnProjectionApplier = new ColumnProjectionApplier(new SafetySetDeriver($this->schemaIntrospector));
+        $this->filterApplier               = new FilterApplier;
+        $this->orderApplier                = new OrderApplier;
+        $this->eagerLoadApplier            = new EagerLoadApplier;
+        $this->limitApplier                = new LimitApplier;
+        $this->columnProjectionApplier     = new ColumnProjectionApplier(new SafetySetDeriver($this->schemaIntrospector));
+        $this->softDeleteVisibilityApplier = new SoftDeleteVisibilityApplier;
+
+        $resourceMap = Config::get('api-toolkit.resources.resource_map', []);
+
+        $this->relationTrashedGate = new RelationTrashedGate(
+            $this->schemaIntrospector,
+            $this->request,
+            is_array($resourceMap) ? $resourceMap : [],
+        );
     }
 
     /**
@@ -101,8 +118,17 @@ final class ApiCriteria implements CriteriaInterface
 
         $surface = $this->buildQuerySurface($query->getModel());
 
+        /** @var \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model> $query */
+        $query = $this->softDeleteVisibilityApplier->apply($query, $this->resolveResource($query->getModel()), $this->request);
+
         $query = $this->filterApplier->apply($query, $this->getFilters(), $this->schemaIntrospector, $this->operatorRegistry, $surface);
-        $query = $this->eagerLoadApplier->apply($query, $this->metadataProvider, $this->resolveResource($query->getModel()), $this->getResourceType($query->getModel()));
+        $query = $this->eagerLoadApplier->apply(
+            $query,
+            $this->metadataProvider,
+            $this->resolveResource($query->getModel()),
+            $this->getResourceType($query->getModel()),
+            $this->relationTrashedGate,
+        );
 
         $query = $this->limitApplier->apply($query, $this->getLimit());
 

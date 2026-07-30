@@ -407,6 +407,59 @@ final class ResourceDiscoveryTest extends TestCase
     }
 
     /**
+     * Test that the null default resolves to the application resource directory
+     * plus each module's, so a modular application - which repoints app_path()
+     * at its module root - has its module resources discovered with no
+     * configuration.
+     *
+     * A module's resources sit at app_path('{Module}/Http/Resources'), one
+     * level below the flat app_path('Http/Resources'); the default scan must
+     * reach that nested directory. The app path is redirected to an isolated
+     * temporary tree so the assertion is deterministic under parallel runs.
+     *
+     * @return void
+     */
+    public function testNullDefaultDiscoversApplicationAndModuleResources(): void
+    {
+        assert($this->app !== null);
+
+        $base = sys_get_temp_dir() . '/resource-discovery-app-' . uniqid((string) getmypid(), true);
+
+        mkdir($base . '/Http/Resources', 0o755, true);
+        mkdir($base . '/Blog/Http/Resources', 0o755, true);
+
+        $contents = file_get_contents($this->fixturePath('Primary') . '/DiscoveredUserResource.php');
+
+        assert($contents !== false);
+
+        file_put_contents($base . '/Blog/Http/Resources/DiscoveredUserResource.php', $contents);
+
+        $this->app->useAppPath($base);
+
+        $resources = Config::get('api-toolkit.resources');
+
+        assert(is_array($resources));
+
+        $resources['paths'] = null;
+
+        Config::set('api-toolkit.resources', $resources);
+
+        try {
+            self::assertSame([
+                User::class => DiscoveredUserResource::class,
+            ], $this->discovery()->discover());
+        } finally {
+            unlink($base . '/Blog/Http/Resources/DiscoveredUserResource.php');
+            rmdir($base . '/Blog/Http/Resources');
+            rmdir($base . '/Blog/Http');
+            rmdir($base . '/Blog');
+            rmdir($base . '/Http/Resources');
+            rmdir($base . '/Http');
+            rmdir($base);
+        }
+    }
+
+    /**
      * Test that a file removed between enumeration and read yields no classes
      * rather than aborting discovery, so a concurrent scan or a hot deploy
      * swapping resources mid-scan cannot break resolution.

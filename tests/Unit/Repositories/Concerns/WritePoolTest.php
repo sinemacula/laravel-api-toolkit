@@ -1120,6 +1120,123 @@ final class WritePoolTest extends TestCase
     }
 
     /**
+     * Test that a systemic failure, where every deferred record fails, is fully
+     * collected under COLLECT without any exception escaping flush, with every
+     * failing table present in the returned result.
+     *
+     * @return void
+     */
+    public function testCollectStrategySystemicFailureCollectsEveryFailureWithoutThrowing(): void
+    {
+        $pool = new WritePool(chunkSize: 500, poolLimit: 10000, strategy: FlushStrategy::COLLECT);
+
+        $pool->add('nonexistent_table', ['col' => 'a']);
+        $pool->add('nonexistent_table', ['col' => 'b']);
+        $pool->add('another_missing_table', ['col' => 'c']);
+
+        $flushResult = $pool->flush();
+
+        self::assertFalse($flushResult->isSuccessful());
+        self::assertSame(0, $flushResult->successCount());
+        self::assertSame(2, $flushResult->failureCount());
+        self::assertSame(0, $flushResult->flushedRecordCount());
+        self::assertSame(3, $flushResult->failedRecordCount());
+        self::assertSame(3, $flushResult->retainedRecordCount());
+        self::assertSame(0, $flushResult->droppedRecordCount());
+        self::assertArrayHasKey('nonexistent_table', $flushResult->failures());
+        self::assertArrayHasKey('another_missing_table', $flushResult->failures());
+        self::assertSame(3, $pool->count());
+    }
+
+    /**
+     * Test that records retained by a COLLECT failure persist on a later flush
+     * once the underlying cause is resolved, so the retry succeeds and drains
+     * the buffer.
+     *
+     * @return void
+     */
+    public function testCollectRetainedRecordsPersistOnRetryAfterCauseResolved(): void
+    {
+        $pool = new WritePool(chunkSize: 500, poolLimit: 10000, strategy: FlushStrategy::COLLECT);
+
+        $pool->add('test_deferred_retry', ['label' => 'first']);
+        $pool->add('test_deferred_retry', ['label' => 'second']);
+
+        $firstResult = $pool->flush();
+
+        self::assertFalse($firstResult->isSuccessful());
+        self::assertSame(2, $pool->count());
+
+        Schema::create('test_deferred_retry', function (Blueprint $table): void {
+            $table->id();
+            $table->string('label');
+        });
+
+        $secondResult = $pool->flush();
+
+        self::assertTrue($secondResult->isSuccessful());
+        self::assertSame(2, $secondResult->flushedRecordCount());
+        self::assertSame(0, $pool->count());
+        self::assertSame(['first', 'second'], DB::table('test_deferred_retry')->orderBy('id')->pluck('label')->all());
+    }
+
+    /**
+     * Test that a non-transactional flush spanning three chunks commits the
+     * chunks before and after a failing middle chunk, collecting only the
+     * failed chunk's records.
+     *
+     * @return void
+     */
+    public function testNonTransactionalMiddleChunkFailureCommitsSurroundingChunks(): void
+    {
+        $pool = new WritePool(chunkSize: 2, poolLimit: 10000, strategy: FlushStrategy::COLLECT);
+
+        $pool->add('test_unique', ['name' => 'alpha']);
+        $pool->add('test_unique', ['name' => 'beta']);
+        $pool->add('test_unique', ['name' => 'gamma']);
+        $pool->add('test_unique', ['name' => 'gamma']);
+        $pool->add('test_unique', ['name' => 'delta']);
+        $pool->add('test_unique', ['name' => 'epsilon']);
+
+        $flushResult = $pool->flush();
+
+        self::assertSame(2, $flushResult->successCount());
+        self::assertSame(1, $flushResult->failureCount());
+        self::assertSame(4, $flushResult->flushedRecordCount());
+        self::assertSame(2, $flushResult->failedRecordCount());
+        self::assertSame(['alpha', 'beta', 'delta', 'epsilon'], DB::table('test_unique')->orderBy('id')->pluck('name')->all());
+        self::assertSame(2, $pool->count());
+    }
+
+    /**
+     * Test that a transactional COLLECT flush across multiple tables commits an
+     * earlier table while rolling back a later failing table, proving the
+     * transaction boundary is per-table rather than spanning the whole flush.
+     *
+     * @return void
+     */
+    public function testTransactionalCollectCommitsEarlierTableAndRollsBackLaterTable(): void
+    {
+        $pool = new WritePool(chunkSize: 1, poolLimit: 10000, strategy: FlushStrategy::COLLECT, transactional: true);
+
+        $pool->add('test_records', ['name' => 'foo', 'value' => 'bar']);
+        $pool->add('test_records', ['name' => 'baz', 'value' => 'qux']);
+        $pool->add('test_unique', ['name' => 'alpha']);
+        $pool->add('test_unique', ['name' => 'alpha']);
+
+        $flushResult = $pool->flush();
+
+        self::assertSame(2, DB::table('test_records')->count());
+        self::assertSame(0, DB::table('test_unique')->count());
+        self::assertSame(2, $flushResult->flushedRecordCount());
+        self::assertSame(2, $flushResult->retainedRecordCount());
+        self::assertSame(0, $flushResult->droppedRecordCount());
+        self::assertSame(2, $pool->count());
+        self::assertArrayHasKey('test_unique', $flushResult->failures());
+        self::assertArrayNotHasKey('test_records', $flushResult->failures());
+    }
+
+    /**
      * Define the database migrations.
      *
      * @return void

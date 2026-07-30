@@ -11,6 +11,7 @@ use SineMacula\ApiToolkit\Contracts\ApiResourceInterface;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\EagerLoadPlanner;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\FieldResolver;
+use SineMacula\ApiToolkit\Http\Resources\Concerns\GatesTrashedVisibility;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\GuardEvaluator;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\ValueResolver;
 use SineMacula\ApiToolkit\Schema\CompiledSchema;
@@ -30,6 +31,7 @@ use SineMacula\ApiToolkit\Schema\SchemaCompiler;
  */
 abstract class ApiResource extends ToolkitResource implements ApiResourceInterface
 {
+    use GatesTrashedVisibility;
     use OrdersFields;
 
     /** @var array<int, string> Default fields to include if no specific fields are requested */

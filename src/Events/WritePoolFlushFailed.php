@@ -14,7 +14,7 @@ use SineMacula\ApiToolkit\Repositories\Concerns\WritePoolFlushResult;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-final class WritePoolFlushFailed
+final readonly class WritePoolFlushFailed
 {
     /**
      * Create a new write pool flush failed event instance.
@@ -25,6 +25,6 @@ final class WritePoolFlushFailed
     public function __construct(
 
         /** The flush result containing failure details. */
-        public readonly WritePoolFlushResult $flushResult,
+        public WritePoolFlushResult $flushResult,
     ) {}
 }

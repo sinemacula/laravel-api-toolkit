@@ -84,4 +84,26 @@ final class BetweenOperatorTest extends TestCase
 
         self::assertEmpty($query->getQuery()->wheres);
     }
+
+    /**
+     * Test that apply honours the OR boolean of the current filter context so a
+     * $between branch inside an $or group is combined with OR rather than AND.
+     *
+     * @return void
+     */
+    public function testBetweenApplyInOrContextUsesOrBoolean(): void
+    {
+        $query    = (new User)->newQuery();
+        $operator = new BetweenOperator;
+
+        $query->where('name', 'Alice');
+
+        $operator->apply($query, 'age', [18, 65], FilterContext::nested('$or'));
+
+        $wheres = $query->getQuery()->wheres;
+
+        self::assertCount(2, $wheres);
+        self::assertSame('between', $wheres[1]['type']);
+        self::assertSame('or', $wheres[1]['boolean']);
+    }
 }

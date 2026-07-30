@@ -112,19 +112,36 @@ final class RuntimeContextTest extends TestCase
     }
 
     /**
-     * Test that isServingAsQueueWorker resolves the default connection when
-     * called with null and that connection uses a non-sync driver.
+     * Test that the no-connection check detects an actual worker from the
+     * running command, not from the default queue driver: a web request whose
+     * default queue is non-sync is not a worker.
      *
      * @return void
      */
-    public function testIsServingAsQueueWorkerResolvesDefaultConnectionWhenNull(): void
+    public function testIsServingAsQueueWorkerDetectsTheWorkerCommand(): void
     {
-        Config::set('queue.default', 'redis');
-        Config::set('queue.connections.redis', ['driver' => 'redis']);
+        Config::set('queue.default', 'database');
+        Config::set('queue.connections.database', ['driver' => 'database']);
 
         $context = new RuntimeContext;
+        $argv    = $_SERVER['argv'] ?? null;
 
-        self::assertTrue($context->isServingAsQueueWorker(null));
+        try {
+            $_SERVER['argv'] = ['artisan', 'queue:work', 'redis'];
+            self::assertTrue($context->isServingAsQueueWorker(null));
+
+            $_SERVER['argv'] = ['artisan', 'queue:listen'];
+            self::assertTrue($context->isServingAsQueueWorker(null));
+
+            $_SERVER['argv'] = ['artisan', 'route:list'];
+            self::assertFalse($context->isServingAsQueueWorker(null));
+        } finally {
+            if ($argv === null) {
+                unset($_SERVER['argv']);
+            } else {
+                $_SERVER['argv'] = $argv;
+            }
+        }
     }
 
     /**
@@ -138,22 +155,5 @@ final class RuntimeContextTest extends TestCase
         $context = new RuntimeContext;
 
         self::assertFalse($context->isServingAsQueueWorker('nonexistent-connection'));
-    }
-
-    /**
-     * Test that an empty default connection name is treated as not-a-worker,
-     * even when a connection registered under the empty name resolves a
-     * non-sync driver.
-     *
-     * @return void
-     */
-    public function testIsServingAsQueueWorkerReturnsFalseForEmptyDefaultConnection(): void
-    {
-        Config::set('queue.default', '');
-        Config::set('queue.connections..driver', 'database');
-
-        $context = new RuntimeContext;
-
-        self::assertFalse($context->isServingAsQueueWorker());
     }
 }

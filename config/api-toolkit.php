@@ -2,7 +2,8 @@
 
 declare(strict_types = 1);
 
-use Illuminate\Database\Eloquent\Casts\AsStringable;
+use SineMacula\ApiToolkit\Exceptions\ApiExceptionHandler;
+use SineMacula\ApiToolkit\OpenApi\Resolution\DocumentableRouteFilter;
 
 return [
 
@@ -55,7 +56,10 @@ return [
         // Lower-case substrings used to redact matching request keys (e.g.
         // password, *_token, *secret*) from the request data written to the
         // exception log context, preventing credentials from leaking to logs.
-        'sensitive_keys' => ['password', 'token', 'secret', 'authorization'],
+        // The handler's DEFAULT_SENSITIVE_KEYS is the single source of truth,
+        // reused here so the shipped default and the hard fallback cannot
+        // drift.
+        'sensitive_keys' => ApiExceptionHandler::DEFAULT_SENSITIVE_KEYS,
 
     ],
 
@@ -77,9 +81,13 @@ return [
     | type-safe API design.
     |
     | `paths`: The filesystem paths scanned at boot for resources carrying the
-    | ForModel attribute. Discovered bindings merge beneath the resource_map
-    | (an explicit entry always wins), so annotating a resource is the primary
-    | way to bind it to its model. Missing paths are skipped.
+    | ForModel attribute. Null (the default) resolves at runtime to the
+    | application's own resource directory plus each module's, derived from
+    | app_path() so a modular application is covered with no configuration.
+    | Give an explicit array to override the roots, or an empty array to
+    | disable discovery. Discovered bindings merge beneath the resource_map (an
+    | explicit entry always wins), so annotating a resource is the primary way
+    | to bind it to its model. Missing paths are skipped.
     |
     | `resource_map`: Explicit model to resource overrides. An entry here wins
     | over a discovered binding, acting as the canonical-resource tiebreak when
@@ -95,9 +103,7 @@ return [
 
         'enable_dynamic_morph_mapping' => env('DYNAMIC_MORPH_MAPPING', true),
 
-        'paths' => [
-            app_path('Http/Resources'),
-        ],
+        'paths' => null,
 
         'resource_map' => [
             // Explicit overrides only; resources inside the scanned paths are
@@ -106,18 +112,20 @@ return [
         ],
 
         // When enabled, all registered resource schemas are validated during
-        // the boot phase. Recommended for non-production environments.
-        // e.g. env('VALIDATE_SCHEMAS', !app()->isProduction())
-        'validate_schemas' => false,
+        // the boot phase. Defaults to enabled outside production; an unset
+        // APP_ENV counts as production so a misconfigured host never pays the
+        // validation cost by default.
+        'validate_schemas' => env('VALIDATE_SCHEMAS', env('APP_ENV', 'production') !== 'production'),
 
         'fixed_fields' => ['id', '_type'],
 
         // When enabled, the repository-driven query narrows the base-table
         // SELECT to only the columns the resolved field set needs plus a
         // per-model safety set, falling back to SELECT * whenever any resolved
-        // field's column reads are unknown. Default OFF; retained as a
-        // per-environment kill switch.
-        'narrow_columns' => env('API_TOOLKIT_NARROW_COLUMNS', false),
+        // field's column reads are unknown. Enabled by default; the env acts as
+        // a per-environment kill switch for code that reads attributes outside
+        // the declared field set on API-path models.
+        'narrow_columns' => env('API_TOOLKIT_NARROW_COLUMNS', true),
 
     ],
 
@@ -135,11 +143,97 @@ return [
     | `output`: The default filesystem path the exported document is written to
     | when the command is run without an explicit `--output` option.
     |
+    | `docs_path`: The directory of committed Markdown section files assembled,
+    | in filename (sorted) order, into every audience's info.description so the
+    | rendered documentation opens with the manual before listing the endpoints.
+    | Defaults to the application's own resource directory - the same target the
+    | `api-toolkit-docs` publish tag writes to - so publishing then editing the
+    | shipped templates is picked up automatically. The manual is opt-in: until
+    | the directory exists it resolves to empty and no description is injected.
+    |
     */
 
     'openapi' => [
 
         'output' => env('API_OPENAPI_OUTPUT', base_path('openapi.json')),
+
+        'docs_path' => env('API_OPENAPI_DOCS_PATH', resource_path('api-docs')),
+
+        // The audience exported when the command runs without an explicit
+        // --audience option (and without --all). Must name one of the audiences
+        // declared below; defaults to the shipped 'public' audience.
+        'default_audience' => env('API_OPENAPI_DEFAULT_AUDIENCE', 'public'),
+
+        // The default OpenAPI info block, applied to every audience that does
+        // not override a given key. Any key set here (e.g. title, version, an
+        // optional description) becomes the fallback for all audiences; title
+        // and version fall back to shipped hard defaults when omitted here too.
+        // Empty by default.
+        'info' => [],
+
+        // The audiences the exporter can produce a document for. One codebase
+        // yields multiple documents, each tailored to who it is for (e.g.
+        // 'public', 'internal', 'partner'). An audience is keyed by name and
+        // may declare a 'posture' controlling how routes join it.
+        //
+        // A 'blocklist' posture (the default when 'posture' is omitted)
+        // documents every route except those explicitly excluded with
+        // #[NotDocumentedIn] or #[Undocumented] (or the matching route macros).
+        // An 'allowlist' posture documents nothing until a route opts in with
+        // #[DocumentedIn] or ->documentedIn().
+        //
+        // An audience may also carry an 'info' block that overrides the
+        // top-level 'info' defaults above, per key, for that audience's
+        // document, e.g. a distinct title or description for the internal one.
+        //
+        // The shipped zero-config 'public' audience is a blocklist with no
+        // exclusions, so it documents everything. Routes marked #[Undocumented]
+        // appear in no audience at all.
+        'audiences' => [
+            'public' => [],
+        ],
+
+        // Per-operation security is derived from standard Laravel route
+        // middleware, orthogonal to authorization: the exporter reads a route's
+        // `auth`/`auth:*` middleware into a guard list (bare `auth` uses the
+        // default guard; `auth:user,guest` is an OR of both), resolves each
+        // guard's driver from `auth.guards.<guard>.driver`, and maps the driver
+        // to an OpenAPI security scheme. A route with no `auth` middleware is
+        // documented as public (`security: []`). Authorization middleware
+        // (`can:`) is not authentication and yields no scheme.
+        //
+        // The built-in map covers the stock drivers: jwt -> bearer (JWT),
+        // basic -> basic, sanctum/token -> bearer, session -> a cookie apiKey
+        // named after `session.cookie`. Guards sharing a scheme shape collapse
+        // to one scheme. Add or override a driver below, keyed by driver name,
+        // each carrying a stable scheme `name` and its OpenAPI `definition`; an
+        // entry wins over the built-in default. A driver with no mapping is
+        // skipped rather than invented.
+        'security' => [
+
+            // Override or extend the built-in driver-to-scheme map. Key each
+            // entry by the auth driver name; its value is an array with a
+            // scheme 'name' (the securityScheme component key) and a
+            // 'definition' (the OpenAPI security scheme object). Listed drivers
+            // merge over and win against the built-in defaults (jwt, basic,
+            // sanctum, token, session).
+            'drivers' => [],
+
+        ],
+
+        // Routes whose handler is defined under one of these namespace prefixes
+        // are excluded from every exported document. The shipped default blocks
+        // the framework and common first-party tooling only (Laravel, Horizon,
+        // Telescope, Sanctum, Ignition, and similar) so their routes never
+        // pollute the documentation. The list replaces the default rather than
+        // merging: add a prefix to hide another package, or remove one to
+        // document it. Your own internal packages are absent from the default
+        // and stay documented even when installed under vendor. A prefix
+        // matches on a namespace boundary, so 'Illuminate\' excludes
+        // Illuminate\Routing\Foo but never IlluminateApp\Foo.
+        'exclude' => [
+            'namespaces' => DocumentableRouteFilter::DEFAULT_NAMESPACES,
+        ],
 
     ],
 
@@ -178,10 +272,7 @@ return [
     |---------------------------------------------------------------------------
     |
     | This configuration governs the behavior of repositories acting as a layer
-    | between your application and the database, particularly in how data is
-    | prepared before being passed to the model. The `cast_map` array specifies
-    | how various Laravel casts should be handled in the repository to ensure
-    | data integrity and type safety before model-level casting is applied.
+    | between your application and the database.
     |
     | The per-query repository cache (the Cacheable trait) now lives in the
     | sinemacula/laravel-repositories package and is configured there, under
@@ -190,28 +281,6 @@ return [
     */
 
     'repositories' => [
-
-        'cast_map' => [
-            'string' => [
-                'string',
-                'date',
-                'datetime',
-                'datetime:.*',
-                'immutable_date',
-                'immutable_datetime',
-                'decimal:.*',
-                'double',
-                'encrypted',
-                'float',
-                'real',
-                'hashed',
-                AsStringable::class,
-            ],
-            'integer' => ['integer', 'int'],
-            'boolean' => ['boolean', 'bool'],
-            'array'   => ['array', 'collection', 'encrypted:array', 'encrypted:collection'],
-            'object'  => ['object', 'encrypted:object'],
-        ],
 
         // Query-access posture for filtering and sorting. 'allowlist' (the 2.0
         // default) exposes only the columns/relations a resource declares
@@ -225,6 +294,14 @@ return [
         // key (fail-closed). Set to false to silently drop undeclared keys
         // instead (the prior fail-quiet behaviour).
         'reject_undeclared' => env('API_TOOLKIT_REJECT_UNDECLARED', true),
+
+        // Time-to-live, in seconds, for the cached relation-detection lookup
+        // (whether a given key names an Eloquent relation on a model). Relation
+        // structure is schema-static, so the default of one day still caches
+        // effectively; the expiry is a defence-in-depth bound on the relation
+        // cache key space so a key derived from client input cannot accumulate
+        // permanently under a long-running worker.
+        'relation_cache_ttl' => env('API_TOOLKIT_RELATION_CACHE_TTL', 86400),
 
         // Columns excluded from the blocklist posture's searchable set. Allows
         // both bare columns and table-scoped columns e.g. users.password. The
@@ -381,16 +458,6 @@ return [
     | if you manage maintenance mode middleware in your own bootstrap/app.php.
     |   - `enabled`: true to swap (default), false to skip.
     |
-    | `detect_capabilities`: Controls the registration of the
-    | DetectsCapabilities middleware, which resolves the typed request
-    | capabilities (trashed visibility and PDF negotiation)
-    | once per request. Capabilities resolve lazily on first access even
-    | when disabled; the middleware simply precomputes them.
-    |   - `enabled`: true to register (default), false to skip entirely.
-    |   - `scope`: 'global' to push to the global middleware stack (default),
-    |              'api' to append to the 'api' middleware group only.
-    |              Ignored when `enabled` is false.
-    |
     | `json_pretty_print`: Controls the registration of the JsonPrettyPrint
     | middleware, which allows API consumers to request pretty-printed JSON
     | responses via a query parameter.
@@ -417,11 +484,6 @@ return [
 
         'maintenance_mode_swap' => [
             'enabled' => true,
-        ],
-
-        'detect_capabilities' => [
-            'enabled' => true,
-            'scope'   => 'global',
         ],
 
         'json_pretty_print' => [

@@ -176,6 +176,8 @@ final class ResolvesResourceTest extends TestCase
      * repository subclasses as protected extension points.
      *
      * @return void
+     *
+     * @throws \SineMacula\Repositories\Exceptions\RepositoryException
      */
     public function testResolutionMethodsAreAccessibleFromSubclasses(): void
     {

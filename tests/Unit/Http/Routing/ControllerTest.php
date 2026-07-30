@@ -161,6 +161,59 @@ final class ControllerTest extends TestCase
     }
 
     /**
+     * Test that respondWithItem carries custom headers alongside the enveloped
+     * resource body and status, proving the header, status, and payload survive
+     * together on a single response.
+     *
+     * @return void
+     */
+    public function testRespondWithItemCarriesCustomHeadersBodyAndStatus(): void
+    {
+        $resource = new JsonResource(['id' => 7, 'name' => 'Item']);
+        $headers  = ['X-Custom-Header' => 'custom-value'];
+
+        /** @var \Illuminate\Http\JsonResponse $response */
+        $response = $this->invokeMethod($this->controller, 'respondWithItem', $resource, HttpStatus::CREATED, $headers);
+
+        self::assertSame(201, $response->getStatusCode());
+        self::assertSame('custom-value', $response->headers->get('X-Custom-Header'));
+
+        $content = json_decode((string) $response->getContent(), true);
+
+        self::assertSame(['data' => ['id' => 7, 'name' => 'Item']], $content);
+    }
+
+    /**
+     * Test that respondWithCollection carries custom headers alongside the
+     * enveloped collection body and status.
+     *
+     * @return void
+     */
+    public function testRespondWithCollectionCarriesCustomHeadersBodyAndStatus(): void
+    {
+        $collection = new ResourceCollection(collect([
+            new JsonResource(['id' => 1, 'name' => 'First']),
+            new JsonResource(['id' => 2, 'name' => 'Second']),
+        ]));
+        $headers = ['X-Total-Count' => '2'];
+
+        /** @var \Illuminate\Http\JsonResponse $response */
+        $response = $this->invokeMethod($this->controller, 'respondWithCollection', $collection, HttpStatus::ACCEPTED, $headers);
+
+        self::assertSame(202, $response->getStatusCode());
+        self::assertSame('2', $response->headers->get('X-Total-Count'));
+
+        $content = json_decode((string) $response->getContent(), true);
+
+        self::assertSame([
+            'data' => [
+                ['id' => 1, 'name' => 'First'],
+                ['id' => 2, 'name' => 'Second'],
+            ],
+        ], $content);
+    }
+
+    /**
      * Test that respondWithData is callable from a subclass, asserting the
      * protected extension surface remains available to consuming controllers.
      *

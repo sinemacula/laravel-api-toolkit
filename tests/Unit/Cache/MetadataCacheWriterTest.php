@@ -4,6 +4,7 @@ declare(strict_types = 1);
 
 namespace Tests\Unit\Cache;
 
+use Illuminate\Contracts\Cache\Repository;
 use Illuminate\Support\Facades\Cache;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Cache\MetadataCacheWriter;
@@ -101,5 +102,91 @@ final class MetadataCacheWriterTest extends TestCase
         // Assert
         self::assertContains($key, $registry->keys());
         self::assertSame('pre-warmed-value', Cache::memo()->get($key));
+    }
+
+    /**
+     * Test that rememberMetadata returns the value produced by the callback.
+     *
+     * @return void
+     */
+    public function testRememberMetadataReturnsTheCallbackValue(): void
+    {
+        // Arrange
+        $registry = new MetadataKeyRegistry;
+        $writer   = new MetadataCacheWriter($registry);
+
+        // Act
+        $value = $writer->rememberMetadata('ttl-key', fn () => 'expected-value', 3600);
+
+        // Assert
+        self::assertSame('expected-value', $value);
+    }
+
+    /**
+     * Test that rememberMetadata registers the key in the injected registry so
+     * a scoped flush still forgets it.
+     *
+     * @return void
+     */
+    public function testRememberMetadataRegistersTheKey(): void
+    {
+        // Arrange
+        $registry = new MetadataKeyRegistry;
+        $writer   = new MetadataCacheWriter($registry);
+
+        // Act
+        $writer->rememberMetadata('ttl-metadata-key', fn () => 'value', 3600);
+
+        // Assert
+        self::assertContains('ttl-metadata-key', $registry->keys());
+    }
+
+    /**
+     * Test that rememberMetadata persists the value to the memo store.
+     *
+     * @return void
+     */
+    public function testRememberMetadataWritesToTheMemoStore(): void
+    {
+        // Arrange
+        $registry = new MetadataKeyRegistry;
+        $writer   = new MetadataCacheWriter($registry);
+        $key      = 'ttl-memo-store-key';
+
+        // Act
+        $writer->rememberMetadata($key, fn () => 'stored-value', 3600);
+
+        // Assert
+        self::assertSame('stored-value', Cache::memo()->get($key));
+    }
+
+    /**
+     * Test that rememberMetadata passes the given time-to-live through to the
+     * underlying store rather than storing the value forever.
+     *
+     * @return void
+     */
+    public function testRememberMetadataPassesTheTtlToTheStore(): void
+    {
+        // Arrange
+        $registry = new MetadataKeyRegistry;
+        $writer   = new MetadataCacheWriter($registry);
+
+        $repository = \Mockery::mock(Repository::class);
+        $repository->shouldReceive('remember')
+            ->once()
+            ->with('ttl-passthrough-key', 1234, \Mockery::type(\Closure::class))
+            ->andReturn('value');
+
+        Cache::shouldReceive('memo')
+            ->once()
+            ->andReturn($repository);
+
+        // Act
+        $value = $writer->rememberMetadata('ttl-passthrough-key', fn () => 'value', 1234);
+
+        // Assert
+        self::assertSame('value', $value);
+        self::assertContains('ttl-passthrough-key', $registry->keys());
     }
 }

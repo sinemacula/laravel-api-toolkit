@@ -35,7 +35,7 @@ use Tests\TestCase;
 final class ReportCollectionTest extends TestCase
 {
     /** @var string Base path used to build paginator links in tests */
-    private const string PAGINATION_PATH = 'http://localhost/api/reports/sales';
+    private const string PAGINATION_PATH = 'http://localhost/reports/sales';
 
     /**
      * Test that toArray transforms each DTO item via the report resource.

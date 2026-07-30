@@ -10,8 +10,8 @@ use Illuminate\Http\Request;
  * Extracts and parses API query parameters from a request.
  *
  * Walks the supported query keys (page, limit, cursor, fields, counts, sums,
- * averages, filters, order) and normalises each raw value into its parsed
- * representation.
+ * averages, filters, order, trashed) and normalises each raw value into its
+ * parsed representation.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -38,6 +38,7 @@ final class QueryParameterExtractor
             'averages' => fn ($value) => $this->parseAverages($value),
             'filters'  => fn ($value) => $this->parseFilters($value),
             'order'    => fn ($value) => $this->parseOrder($value),
+            'trashed'  => fn ($value) => is_string($value) ? strtolower(trim($value)) : '',
         ];
 
         foreach ($parsers as $key => $parser) {
@@ -180,10 +181,11 @@ final class QueryParameterExtractor
      */
     private function parseFilters(string $query): array
     {
-        /** @var array<string, mixed>|null $filters */
         $filters = json_decode($query, true);
 
-        return $filters ?? [];
+        // A scalar or a numeric-keyed list is a valid JSON document but not a
+        // filter map, so discard it rather than leak a non-associative value.
+        return is_array($filters) && !array_is_list($filters) ? $filters : [];
     }
 
     /**
@@ -194,16 +196,17 @@ final class QueryParameterExtractor
      */
     private function parseOrder(string $query): array
     {
-        $order  = [];
-        $fields = explode(',', $query);
+        $order = [];
 
-        if (!empty(array_filter($fields, static fn (string $value): bool => (bool) $value))) {
-            foreach ($fields as $field) {
-                $orderParts     = explode(':', $field, 2);
-                $column         = $orderParts[0];
-                $direction      = $orderParts[1] ?? 'asc';
-                $order[$column] = $direction;
+        foreach (explode(',', $query) as $field) {
+            $parts  = explode(':', $field, 2);
+            $column = trim($parts[0]);
+
+            if ($column === '') {
+                continue;
             }
+
+            $order[$column] = $parts[1] ?? 'asc';
         }
 
         return $order;

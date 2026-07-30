@@ -5,6 +5,7 @@ declare(strict_types = 1);
 namespace SineMacula\ApiToolkit\Schema\Validation\Rules;
 
 use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
+use SineMacula\ApiToolkit\Schema\CompiledSchema;
 
 /**
  * Validate that all transformer entries in the compiled schema are callable.
@@ -14,6 +15,30 @@ use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
  */
 final class ValidateTransformers extends ValidatesCallableLists
 {
+    /**
+     * Validate the compiled schema for the given resource class.
+     *
+     * @param  string  $resourceClass
+     * @param  string|null  $modelClass
+     * @param  \SineMacula\ApiToolkit\Schema\CompiledSchema  $schema
+     * @return array<int, \SineMacula\ApiToolkit\Schema\Validation\SchemaValidationError>
+     */
+    #[\Override]
+    public function validate(string $resourceClass, ?string $modelClass, CompiledSchema $schema): array
+    {
+        $errors = parent::validate($resourceClass, $modelClass, $schema);
+
+        foreach ($schema->getCountDefinitions() as $count) {
+            $errors = array_merge($errors, $this->collectCallableErrors($resourceClass, $count->presentKey, $count->transformers));
+        }
+
+        foreach ($schema->getAggregateDefinitions() as $aggregate) {
+            $errors = array_merge($errors, $this->collectCallableErrors($resourceClass, $aggregate->presentKey, $aggregate->transformers));
+        }
+
+        return $errors;
+    }
+
     /**
      * Return the callable list to validate for the given field definition.
      *

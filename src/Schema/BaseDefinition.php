@@ -135,4 +135,26 @@ abstract class BaseDefinition implements Arrayable
      */
     #[\Override]
     abstract public function toArray(): array;
+
+    /**
+     * The guard, transformer, and OpenAPI attributes shared by every
+     * definition's toArray() tail.
+     *
+     * Concrete definitions spread this into their own attribute array, which
+     * applies its own array_filter - so key order and per-definition filtering
+     * are preserved while the shared resolution lives in one place. These three
+     * values are null-or-non-empty (guards/transformers via `?: null`) or
+     * null-or-object (openapi), so both the `!== null` and the stricter
+     * `!== null && !== []` predicates treat them identically.
+     *
+     * @return array<string, mixed>
+     */
+    protected function commonAttributes(): array
+    {
+        return [
+            'guards'       => $this->getGuards() ?: null,
+            'transformers' => $this->getTransformers() ?: null,
+            'openapi'      => $this->getOpenApiDeclaration()?->toSchema(),
+        ];
+    }
 }

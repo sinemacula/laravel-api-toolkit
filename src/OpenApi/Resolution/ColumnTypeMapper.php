@@ -40,13 +40,19 @@ final class ColumnTypeMapper
     /**
      * Map a column definition (with an optional cast) to a resolved schema.
      *
-     * @param  \SineMacula\ApiToolkit\Schema\Introspection\ColumnDefinition  $column
+     * The column is optional: with no live database connection there is no
+     * column to introspect, so the mapping degrades to the declared cast alone
+     * and the schema is treated as non-nullable in the absence of column
+     * nullability.
+     *
+     * @param  \SineMacula\ApiToolkit\Schema\Introspection\ColumnDefinition|null  $column
      * @param  string|null  $cast
      * @return \SineMacula\ApiToolkit\Schema\OpenApiFieldSchema
      */
-    public function map(ColumnDefinition $column, ?string $cast = null): OpenApiFieldSchema
+    public function map(?ColumnDefinition $column, ?string $cast = null): OpenApiFieldSchema
     {
-        $resolved = $this->resolveFromCast($cast) ?? $this->resolveFromTypeName($column->typeName);
+        $resolved = $this->resolveFromCast($cast)
+            ?? ($column !== null ? $this->resolveFromTypeName($column->typeName) : null);
 
         if ($resolved === null) {
             return OpenApiFieldSchema::undocumented();
@@ -55,7 +61,7 @@ final class ColumnTypeMapper
         return new OpenApiFieldSchema(
             type    : $resolved['type'],
             format  : $resolved['format'] ?? null,
-            nullable: $column->nullable,
+            nullable: $column->nullable   ?? false,
         );
     }
 

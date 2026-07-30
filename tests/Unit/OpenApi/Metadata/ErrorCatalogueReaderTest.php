@@ -4,14 +4,18 @@ declare(strict_types = 1);
 
 namespace Tests\Unit\OpenApi\Metadata;
 
+use Illuminate\Support\Facades\Log;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use SineMacula\ApiToolkit\Enums\ErrorCode;
 use SineMacula\ApiToolkit\Exceptions\BadRequestException;
 use SineMacula\ApiToolkit\Exceptions\NotFoundException;
 use SineMacula\ApiToolkit\OpenApi\Exceptions\MetadataReadException;
+use SineMacula\ApiToolkit\OpenApi\Metadata\ApiExceptionDiscoverer;
 use SineMacula\ApiToolkit\OpenApi\Metadata\ErrorCatalogueReader;
 use SineMacula\ApiToolkit\OpenApi\Metadata\ErrorDescriptor;
+use Tests\Fixtures\Enums\AppErrorCode;
+use Tests\Fixtures\Exceptions\WidgetFailureException;
 use Tests\Fixtures\Support\FunctionOverrides;
 use Tests\TestCase;
 
@@ -33,7 +37,7 @@ final class ErrorCatalogueReaderTest extends TestCase
      */
     public function testReadReturnsOneDescriptorPerErrorCode(): void
     {
-        $reader      = new ErrorCatalogueReader;
+        $reader      = $this->reader();
         $descriptors = $reader->read();
 
         self::assertCount(count(ErrorCode::cases()), $descriptors);
@@ -47,7 +51,7 @@ final class ErrorCatalogueReaderTest extends TestCase
      */
     public function testReadReturnsOnlyErrorDescriptorInstances(): void
     {
-        $reader = new ErrorCatalogueReader;
+        $reader = $this->reader();
 
         foreach ($reader->read() as $descriptor) {
             self::assertInstanceOf(ErrorDescriptor::class, $descriptor);
@@ -91,7 +95,7 @@ final class ErrorCatalogueReaderTest extends TestCase
     #[DataProvider('errorCodeStatusProvider')]
     public function testDescriptorCarriesCorrectHttpStatus(ErrorCode $errorCode, int $expectedHttpStatus): void
     {
-        $reader      = new ErrorCatalogueReader;
+        $reader      = $this->reader();
         $descriptors = $reader->read();
 
         $descriptor = $this->findDescriptor($descriptors, $errorCode->getCode());
@@ -108,7 +112,7 @@ final class ErrorCatalogueReaderTest extends TestCase
      */
     public function testDescriptorsCarryRealTitleStrings(): void
     {
-        $reader      = new ErrorCatalogueReader;
+        $reader      = $this->reader();
         $descriptors = $reader->read();
 
         // NOT_FOUND has a defined title in the language file
@@ -125,7 +129,7 @@ final class ErrorCatalogueReaderTest extends TestCase
      */
     public function testDescriptorsCarryRealDetailStrings(): void
     {
-        $reader      = new ErrorCatalogueReader;
+        $reader      = $this->reader();
         $descriptors = $reader->read();
 
         $descriptor = $this->findDescriptor($descriptors, ErrorCode::NOT_FOUND->getCode());
@@ -142,7 +146,7 @@ final class ErrorCatalogueReaderTest extends TestCase
      */
     public function testHttpErrorCodeHasNullTitle(): void
     {
-        $reader      = new ErrorCatalogueReader;
+        $reader      = $this->reader();
         $descriptors = $reader->read();
 
         $descriptor = $this->findDescriptor($descriptors, ErrorCode::HTTP_ERROR->getCode());
@@ -159,7 +163,7 @@ final class ErrorCatalogueReaderTest extends TestCase
      */
     public function testTokenMismatchResolvesToStatus419(): void
     {
-        $reader      = new ErrorCatalogueReader;
+        $reader      = $this->reader();
         $descriptors = $reader->read();
 
         $descriptor = $this->findDescriptor($descriptors, ErrorCode::TOKEN_MISMATCH->getCode());
@@ -175,7 +179,7 @@ final class ErrorCatalogueReaderTest extends TestCase
      */
     public function testEveryDescriptorHasNonEmptyDetail(): void
     {
-        $reader = new ErrorCatalogueReader;
+        $reader = $this->reader();
 
         foreach ($reader->read() as $descriptor) {
             self::assertNotSame('', $descriptor->detail, "Empty detail for code {$descriptor->code}");
@@ -190,7 +194,7 @@ final class ErrorCatalogueReaderTest extends TestCase
      */
     public function testExceptionMapIsMemoisedAcrossReads(): void
     {
-        $reader = new ErrorCatalogueReader;
+        $reader = $this->reader();
         $first  = $reader->read();
 
         // Force the directory scan to fail; a re-scan would now throw, so a
@@ -211,7 +215,7 @@ final class ErrorCatalogueReaderTest extends TestCase
         FunctionOverrides::set('glob', static fn (): false => false);
 
         try {
-            (new ErrorCatalogueReader)->read();
+            $this->reader()->read();
         } catch (MetadataReadException $e) {
             self::assertStringStartsWith('Unable to scan the exceptions directory: ', $e->getMessage());
             self::assertStringContainsString('/Exceptions', $e->getMessage());
@@ -240,7 +244,7 @@ final class ErrorCatalogueReaderTest extends TestCase
         FunctionOverrides::set('glob', static fn (): array => [$codeless, $later]);
         FunctionOverrides::set('defined', static fn (string $constant): bool => !str_starts_with($constant, BadRequestException::class . '::') && \defined($constant));
 
-        $descriptor = $this->findDescriptor((new ErrorCatalogueReader)->read(), ErrorCode::NOT_FOUND->getCode());
+        $descriptor = $this->findDescriptor($this->reader()->read(), ErrorCode::NOT_FOUND->getCode());
 
         self::assertNotNull($descriptor);
         self::assertSame(404, $descriptor->httpStatus);
@@ -257,7 +261,7 @@ final class ErrorCatalogueReaderTest extends TestCase
         // No exception files are discovered, so every code is unmapped.
         FunctionOverrides::set('glob', static fn (): array => []);
 
-        $descriptor = $this->findDescriptor((new ErrorCatalogueReader)->read(), ErrorCode::NOT_FOUND->getCode());
+        $descriptor = $this->findDescriptor($this->reader()->read(), ErrorCode::NOT_FOUND->getCode());
 
         self::assertNotNull($descriptor);
         self::assertSame(500, $descriptor->httpStatus);
@@ -280,10 +284,177 @@ final class ErrorCatalogueReaderTest extends TestCase
         FunctionOverrides::set('glob', static fn (): array => [$file]);
         FunctionOverrides::set('defined', static fn (string $constant): bool => !str_ends_with($constant, '::CODE') && \defined($constant));
 
-        $descriptor = $this->findDescriptor((new ErrorCatalogueReader)->read(), ErrorCode::NOT_FOUND->getCode());
+        $descriptor = $this->findDescriptor($this->reader()->read(), ErrorCode::NOT_FOUND->getCode());
 
         self::assertNotNull($descriptor);
         self::assertSame(500, $descriptor->httpStatus);
+    }
+
+    /**
+     * Test that an application ApiException discovered outside the toolkit is
+     * documented with its own code and HTTP status, while the toolkit's
+     * baseline codes remain present alongside it.
+     *
+     * @return void
+     */
+    public function testDiscoveredApplicationExceptionJoinsTheCatalogue(): void
+    {
+        $descriptors = $this->reader($this->fixturesDiscoverer())->read();
+
+        $application = $this->findDescriptor($descriptors, AppErrorCode::WIDGET_FAILURE->getCode());
+
+        self::assertNotNull($application);
+        self::assertSame(502, $application->httpStatus);
+        self::assertSame(WidgetFailureException::getHttpStatusCode(), $application->httpStatus);
+
+        $baseline = $this->findDescriptor($descriptors, ErrorCode::NOT_FOUND->getCode());
+
+        self::assertNotNull($baseline);
+        self::assertSame(404, $baseline->httpStatus);
+    }
+
+    /**
+     * Test that a discovered application exception's descriptor carries the
+     * owning exception class as its source, so the catalogue can group it.
+     *
+     * @return void
+     */
+    public function testDiscoveredApplicationExceptionCarriesSource(): void
+    {
+        $descriptors = $this->reader($this->fixturesDiscoverer())->read();
+
+        $descriptor = $this->findDescriptor($descriptors, AppErrorCode::WIDGET_FAILURE->getCode());
+
+        self::assertNotNull($descriptor);
+        self::assertSame(WidgetFailureException::class, $descriptor->source);
+    }
+
+    /**
+     * Test that a toolkit code with a discovered owning exception carries that
+     * class as its source.
+     *
+     * @return void
+     */
+    public function testToolkitCodeCarriesOwningExceptionSource(): void
+    {
+        $descriptor = $this->findDescriptor($this->reader()->read(), ErrorCode::NOT_FOUND->getCode());
+
+        self::assertNotNull($descriptor);
+        self::assertSame(NotFoundException::class, $descriptor->source);
+    }
+
+    /**
+     * Test that a code with no owning exception subclass carries a null source,
+     * keeping the generic path safe to group into the shared section.
+     *
+     * @return void
+     */
+    public function testUnmappedCodeCarriesNullSource(): void
+    {
+        FunctionOverrides::set('glob', static fn (): array => []);
+
+        $descriptor = $this->findDescriptor($this->reader()->read(), ErrorCode::NOT_FOUND->getCode());
+
+        self::assertNotNull($descriptor);
+        self::assertNull($descriptor->source);
+    }
+
+    /**
+     * Test that two exceptions declaring the same code are reported: the first
+     * discovered wins and a warning names the ignored class rather than the
+     * clash being silently resolved.
+     *
+     * @return void
+     */
+    public function testDuplicateCodeLogsAWarning(): void
+    {
+        $directory = $this->makeCollisionFixtures();
+
+        Log::shouldReceive('warning')
+            ->once()
+            ->withArgs(static fn (string $message): bool => str_contains($message, 'multiple exceptions for code')
+                && str_contains($message, (string) AppErrorCode::WIDGET_FAILURE->getCode())
+                && str_contains($message, 'BetaException'));
+
+        try {
+            $discoverer = new ApiExceptionDiscoverer(['Tests\Fixtures\Runtime\\' => [$directory]]);
+
+            $this->reader($discoverer)->read();
+        } finally {
+            $this->removeDirectory($directory);
+        }
+    }
+
+    /**
+     * Build a reader backed by the given discoverer, defaulting to one that
+     * discovers no application exceptions so the toolkit baseline is isolated.
+     *
+     * @param  \SineMacula\ApiToolkit\OpenApi\Metadata\ApiExceptionDiscoverer|null  $discoverer
+     * @return \SineMacula\ApiToolkit\OpenApi\Metadata\ErrorCatalogueReader
+     */
+    private function reader(?ApiExceptionDiscoverer $discoverer = null): ErrorCatalogueReader
+    {
+        return new ErrorCatalogueReader($discoverer ?? new ApiExceptionDiscoverer([]));
+    }
+
+    /**
+     * Build a discoverer pointing at the fixture exceptions directory.
+     *
+     * @return \SineMacula\ApiToolkit\OpenApi\Metadata\ApiExceptionDiscoverer
+     */
+    private function fixturesDiscoverer(): ApiExceptionDiscoverer
+    {
+        $file = (new \ReflectionClass(WidgetFailureException::class))->getFileName();
+
+        self::assertIsString($file);
+
+        return new ApiExceptionDiscoverer(['Tests\Fixtures\Exceptions\\' => [dirname($file)]]);
+    }
+
+    /**
+     * Create and load two temporary exceptions that declare the same code.
+     *
+     * @return string
+     */
+    private function makeCollisionFixtures(): string
+    {
+        $directory = sys_get_temp_dir() . '/api-toolkit-collision-' . uniqid('', true);
+
+        mkdir($directory, 0777, true);
+
+        foreach (['AlphaException', 'BetaException'] as $name) {
+
+            $source = "<?php\n\ndeclare(strict_types = 1);\n\nnamespace Tests\\Fixtures\\Runtime;\n\n"
+                . "use SineMacula\\ApiToolkit\\Exceptions\\ApiException;\n"
+                . "use SineMacula\\Http\\Enums\\HttpStatus;\n"
+                . "use Tests\\Fixtures\\Enums\\AppErrorCode;\n\n"
+                . "final class {$name} extends ApiException\n{\n"
+                . "    public const CODE = AppErrorCode::WIDGET_FAILURE;\n"
+                . "    public const HTTP_STATUS = HttpStatus::BAD_GATEWAY;\n}\n";
+
+            $file = $directory . '/' . $name . '.php';
+
+            file_put_contents($file, $source);
+
+            require_once $file;
+        }
+
+        return $directory;
+    }
+
+    /**
+     * Remove a temporary fixtures directory and its files.
+     *
+     * @param  string  $directory
+     * @return void
+     */
+    private function removeDirectory(string $directory): void
+    {
+        foreach (glob($directory . '/*') ?: [] as $file) {
+            unlink($file);
+        }
+
+        rmdir($directory);
     }
 
     /**

@@ -13,7 +13,7 @@ namespace SineMacula\ApiToolkit\Repositories\Criteria\Concerns;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-final class FilterContext
+final readonly class FilterContext
 {
     /**
      * Constructor.
@@ -24,7 +24,7 @@ final class FilterContext
     private function __construct(
 
         /** The current logical operator ('$and', '$or', or null) */
-        private readonly ?string $logicalOperator,
+        private ?string $logicalOperator,
     ) {}
 
     /**
@@ -56,5 +56,25 @@ final class FilterContext
     public function getLogicalOperator(): ?string
     {
         return $this->logicalOperator;
+    }
+
+    /**
+     * Determine whether the current group combines its conditions with OR.
+     *
+     * @return bool
+     */
+    public function isOr(): bool
+    {
+        return $this->logicalOperator === '$or';
+    }
+
+    /**
+     * Resolve the query-builder boolean connective for the current group.
+     *
+     * @return string
+     */
+    public function sqlBoolean(): string
+    {
+        return $this->isOr() ? 'or' : 'and';
     }
 }

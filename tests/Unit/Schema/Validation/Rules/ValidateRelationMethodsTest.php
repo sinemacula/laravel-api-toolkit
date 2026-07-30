@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
+use SineMacula\ApiToolkit\Schema\CompiledAggregateDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledCountDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledSchema;
@@ -151,6 +152,7 @@ final class ValidateRelationMethodsTest extends TestCase
 
         $reflection->getProperty('fields')->setValue($schema, ['ghost' => null]);
         $reflection->getProperty('counts')->setValue($schema, []);
+        $reflection->getProperty('aggregates')->setValue($schema, []);
 
         $rule   = new ValidateRelationMethods;
         $errors = [];
@@ -646,6 +648,69 @@ final class ValidateRelationMethodsTest extends TestCase
         self::assertCount(1, $errors);
         self::assertStringContainsString('is not a Relation subclass', $errors[0]->defect);
         self::assertStringContainsString('string', $errors[0]->defect);
+    }
+
+    /**
+     * Test reports relation method missing on model for an aggregate
+     * definition.
+     *
+     * @return void
+     */
+    public function testReportsRelationMethodMissingOnModelForAggregateDefinition(): void
+    {
+        $schema = new CompiledSchema(
+            fields: [],
+            counts: [],
+            aggregates: [
+                'sum:reveiws_rating' => new CompiledAggregateDefinition(
+                    presentKey: 'reveiws_rating',
+                    relation: 'reveiws',
+                    column: 'rating',
+                    metric: 'sum',
+                    constraint: null,
+                    isDefault: false,
+                    guards: [],
+                ),
+            ],
+        );
+
+        $rule   = new ValidateRelationMethods;
+        $errors = $rule->validate(UserResource::class, User::class, $schema);
+
+        self::assertCount(1, $errors);
+        self::assertSame('reveiws_rating', $errors[0]->fieldKey);
+        self::assertStringContainsString('reveiws', $errors[0]->defect);
+        self::assertStringContainsString(User::class, $errors[0]->defect);
+    }
+
+    /**
+     * Test that an aggregate definition whose relation method is valid produces
+     * no error.
+     *
+     * @return void
+     */
+    public function testNoErrorForAggregateDefinitionWithValidRelation(): void
+    {
+        $schema = new CompiledSchema(
+            fields: [],
+            counts: [],
+            aggregates: [
+                'sum:posts_id' => new CompiledAggregateDefinition(
+                    presentKey: 'posts_id',
+                    relation: 'posts',
+                    column: 'id',
+                    metric: 'sum',
+                    constraint: null,
+                    isDefault: false,
+                    guards: [],
+                ),
+            ],
+        );
+
+        $rule   = new ValidateRelationMethods;
+        $errors = $rule->validate(UserResource::class, User::class, $schema);
+
+        self::assertSame([], $errors);
     }
 
     /**

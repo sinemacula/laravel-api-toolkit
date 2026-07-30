@@ -30,7 +30,7 @@ final class LikeOperator implements FilterOperator
     {
         $term = is_scalar($value) || $value instanceof \Stringable ? (string) $value : '';
 
-        if ($context->getLogicalOperator() === '$or') {
+        if ($context->isOr()) {
             $query->orWhere($column, 'like', "%{$term}%");
         } else {
             $query->where($column, 'like', "%{$term}%");

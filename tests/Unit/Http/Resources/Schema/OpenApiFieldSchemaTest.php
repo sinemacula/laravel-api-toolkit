@@ -200,4 +200,49 @@ final class OpenApiFieldSchemaTest extends TestCase
             'example' => 42,
         ], $schema->toArray());
     }
+
+    /**
+     * Test that the reference factory emits a bare $ref to the named component
+     * when the field is not nullable.
+     *
+     * @return void
+     */
+    public function testReferenceFactoryEmitsBareRef(): void
+    {
+        $schema = OpenApiFieldSchema::reference('#/components/schemas/UserStatus');
+
+        self::assertSame('#/components/schemas/UserStatus', $schema->ref);
+        self::assertSame(['$ref' => '#/components/schemas/UserStatus'], $schema->toArray());
+    }
+
+    /**
+     * Test that a nullable reference widens to an anyOf with a null member,
+     * since a bare $ref cannot itself carry the null type.
+     *
+     * @return void
+     */
+    public function testNullableReferenceEmitsAnyOfWithNull(): void
+    {
+        $schema = OpenApiFieldSchema::reference('#/components/schemas/UserStatus', true);
+
+        self::assertSame([
+            'anyOf' => [
+                ['$ref' => '#/components/schemas/UserStatus'],
+                ['type' => 'null'],
+            ],
+        ], $schema->toArray());
+    }
+
+    /**
+     * Test that a reference takes precedence over a declared type, so an enum
+     * field never emits both a $ref and an inline type.
+     *
+     * @return void
+     */
+    public function testReferenceTakesPrecedenceOverType(): void
+    {
+        $schema = new OpenApiFieldSchema(type: 'string', ref: '#/components/schemas/UserStatus');
+
+        self::assertSame(['$ref' => '#/components/schemas/UserStatus'], $schema->toArray());
+    }
 }

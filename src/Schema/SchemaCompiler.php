@@ -173,11 +173,12 @@ final class SchemaCompiler
         $constraint = $definition['constraint'] ?? null;
 
         return new CompiledCountDefinition(
-            presentKey: $presentKey,
-            relation  : is_string($definition['relation'] ?? null) ? $definition['relation'] : $presentKey,
-            constraint: $constraint instanceof \Closure ? $constraint : null,
-            isDefault : (bool) ($definition['default'] ?? false),
-            guards    : $definition['guards'] ?? [],
+            presentKey  : $presentKey,
+            relation    : is_string($definition['relation'] ?? null) ? $definition['relation'] : $presentKey,
+            constraint  : $constraint instanceof \Closure ? $constraint : null,
+            isDefault   : (bool) ($definition['default'] ?? false),
+            guards      : $definition['guards']       ?? [],
+            transformers: $definition['transformers'] ?? [],
         );
     }
 
@@ -224,13 +225,14 @@ final class SchemaCompiler
         $column     = self::stringOr($definition['column'] ?? null, '');
 
         return new CompiledAggregateDefinition(
-            presentKey: $presentKey,
-            relation  : self::stringOr($definition['relation'] ?? null, $presentKey),
-            column    : $column,
-            metric    : $metric,
-            constraint: $constraint instanceof \Closure ? $constraint : null,
-            isDefault : (bool) ($definition['default'] ?? false),
-            guards    : $definition['guards'] ?? [],
+            presentKey  : $presentKey,
+            relation    : self::stringOr($definition['relation'] ?? null, $presentKey),
+            column      : $column,
+            metric      : $metric,
+            constraint  : $constraint instanceof \Closure ? $constraint : null,
+            isDefault   : (bool) ($definition['default'] ?? false),
+            guards      : $definition['guards']       ?? [],
+            transformers: $definition['transformers'] ?? [],
         );
     }
 

@@ -4,6 +4,7 @@ declare(strict_types = 1);
 
 namespace Tests\Unit\Schema\Introspection;
 
+use Illuminate\Contracts\Cache\Repository;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
@@ -686,6 +687,56 @@ final class SchemaIntrospectorTest extends TestCase
     }
 
     /**
+     * Test that isRelation caches its result under the configured time-to-live
+     * rather than storing it forever, bounding the relation cache key space.
+     *
+     * @return void
+     */
+    public function testIsRelationCachesWithConfiguredTtl(): void
+    {
+        Config::set('api-toolkit.repositories.relation_cache_ttl', 4321);
+
+        $expectedKey = CacheKeys::MODEL_RELATIONS->resolveKey([User::class, 'posts']);
+
+        $repository = \Mockery::mock(Repository::class);
+        $repository->shouldReceive('remember')
+            ->once()
+            ->with($expectedKey, 4321, \Mockery::type(\Closure::class))
+            ->andReturn(true);
+
+        Cache::shouldReceive('memo')
+            ->once()
+            ->andReturn($repository);
+
+        self::assertTrue($this->makeIntrospector()->isRelation('posts', new User));
+    }
+
+    /**
+     * Test that isRelation falls back to the default day-long time-to-live when
+     * the configured value is missing or non-numeric.
+     *
+     * @return void
+     */
+    public function testIsRelationFallsBackToDefaultTtlWhenConfigNonNumeric(): void
+    {
+        Config::set('api-toolkit.repositories.relation_cache_ttl', 'not-a-number');
+
+        $expectedKey = CacheKeys::MODEL_RELATIONS->resolveKey([User::class, 'posts']);
+
+        $repository = \Mockery::mock(Repository::class);
+        $repository->shouldReceive('remember')
+            ->once()
+            ->with($expectedKey, 86400, \Mockery::type(\Closure::class))
+            ->andReturn(true);
+
+        Cache::shouldReceive('memo')
+            ->once()
+            ->andReturn($repository);
+
+        self::assertTrue($this->makeIntrospector()->isRelation('posts', new User));
+    }
+
+    /**
      * Test that resolveRelation returns a Relation instance for a valid
      * relation.
      *
@@ -1245,6 +1296,106 @@ final class SchemaIntrospectorTest extends TestCase
         $introspector = $this->makeIntrospector();
 
         self::assertSame(['shared_key'], $introspector->parentKeysFor($morphTo));
+    }
+
+    /**
+     * Test that getColumns degrades to an empty listing when the schema lookup
+     * fails, as happens when no database connection is available, rather than
+     * letting the failure propagate.
+     *
+     * @return void
+     */
+    public function testGetColumnsDegradesToEmptyWhenConnectionUnavailable(): void
+    {
+        Cache::memo()->flush(); // @phpstan-ignore method.notFound
+
+        Schema::shouldReceive('getColumnListing')
+            ->once()
+            ->andThrow(new \RuntimeException('No database connection'));
+
+        $model = new class extends Model {
+            /** @var string|null */
+            protected $table = 'widgets';
+        };
+
+        self::assertSame([], ($this->makeIntrospector())->getColumns($model));
+    }
+
+    /**
+     * Test that a failed getColumns lookup does not write the empty result to
+     * the persistent cache, so a later run with a live connection is able to
+     * resolve the real columns.
+     *
+     * @return void
+     */
+    public function testGetColumnsDoesNotCacheEmptyResultOnFailure(): void
+    {
+        Cache::memo()->flush(); // @phpstan-ignore method.notFound
+
+        Schema::shouldReceive('getColumnListing')
+            ->once()
+            ->andThrow(new \RuntimeException('No database connection'));
+
+        $model = new class extends Model {
+            /** @var string|null */
+            protected $table = 'widgets';
+        };
+
+        ($this->makeIntrospector())->getColumns($model);
+
+        $key = CacheKeys::MODEL_SCHEMA_COLUMNS->resolveKey([$model::class]);
+
+        self::assertNull(Cache::memo()->get($key));
+    }
+
+    /**
+     * Test that getColumnDefinitions degrades to an empty set when the schema
+     * lookup fails, as happens when no database connection is available, rather
+     * than letting the failure propagate.
+     *
+     * @return void
+     */
+    public function testGetColumnDefinitionsDegradesToEmptyWhenConnectionUnavailable(): void
+    {
+        Cache::memo()->flush(); // @phpstan-ignore method.notFound
+
+        Schema::shouldReceive('getColumns')
+            ->once()
+            ->andThrow(new \RuntimeException('No database connection'));
+
+        $model = new class extends Model {
+            /** @var string|null */
+            protected $table = 'widgets';
+        };
+
+        self::assertSame([], ($this->makeIntrospector())->getColumnDefinitions($model));
+    }
+
+    /**
+     * Test that a failed getColumnDefinitions lookup does not write the empty
+     * result to the persistent cache, so a later run with a live connection is
+     * able to resolve the real definitions.
+     *
+     * @return void
+     */
+    public function testGetColumnDefinitionsDoesNotCacheEmptyResultOnFailure(): void
+    {
+        Cache::memo()->flush(); // @phpstan-ignore method.notFound
+
+        Schema::shouldReceive('getColumns')
+            ->once()
+            ->andThrow(new \RuntimeException('No database connection'));
+
+        $model = new class extends Model {
+            /** @var string|null */
+            protected $table = 'widgets';
+        };
+
+        ($this->makeIntrospector())->getColumnDefinitions($model);
+
+        $key = CacheKeys::MODEL_SCHEMA_COLUMN_DEFINITIONS->resolveKey([$model::class]);
+
+        self::assertNull(Cache::memo()->get($key));
     }
 
     /**

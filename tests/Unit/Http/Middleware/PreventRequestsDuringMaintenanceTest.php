@@ -78,6 +78,8 @@ final class PreventRequestsDuringMaintenanceTest extends TestCase
      * maintenance mode.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\MaintenanceModeException
      */
     public function testHandlePassesThroughWhenNotInMaintenanceMode(): void
     {
@@ -101,6 +103,8 @@ final class PreventRequestsDuringMaintenanceTest extends TestCase
      * MaintenanceModeException when the app is in maintenance mode.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\MaintenanceModeException
      */
     public function testHandleConvertsHttpExceptionToMaintenanceModeException(): void
     {

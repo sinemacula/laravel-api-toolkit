@@ -17,7 +17,7 @@ use SineMacula\ApiToolkit\Services\Contracts\ServiceInput;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-final class ArrayInput implements ServiceInput
+final readonly class ArrayInput implements ServiceInput
 {
     /**
      * Constructor.
@@ -27,7 +27,7 @@ final class ArrayInput implements ServiceInput
     public function __construct(
 
         /** Immutable attribute snapshot supplied by the caller */
-        private readonly array $attributes,
+        private array $attributes,
     ) {}
 
     /**

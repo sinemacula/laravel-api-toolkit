@@ -12,14 +12,14 @@ use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
  * Emits the toolkit's query-parameter grammar as reusable components: sparse
  * fieldsets, the generic filter grammar (documenting the full operator
  * vocabulary at the pattern level, never a per-resource allow-list), ordering,
- * the pagination set (limit, page, cursor), and relation counts. Resource
- * components and the assembled document reference these by name; the
- * definitions are never duplicated per resource.
+ * the pagination set (limit, page, cursor, and the pagination-mode switch), and
+ * relation counts. Resource components and the assembled document reference
+ * these by name; the definitions are never duplicated per resource.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-final class QueryParameterBuilder
+final readonly class QueryParameterBuilder
 {
     /**
      * Constructor.
@@ -29,7 +29,7 @@ final class QueryParameterBuilder
     public function __construct(
 
         /** The catalogue providing query parameter metadata. */
-        private readonly MetadataCatalogue $catalogue,
+        private MetadataCatalogue $catalogue,
     ) {}
 
     /**
@@ -40,15 +40,16 @@ final class QueryParameterBuilder
     public function build(): array
     {
         return [
-            'Fields'   => $this->buildFieldsParameter(),
-            'Filter'   => $this->buildFilterParameter(),
-            'Order'    => $this->buildOrderParameter(),
-            'Limit'    => $this->buildLimitParameter(),
-            'Page'     => $this->buildPageParameter(),
-            'Cursor'   => $this->buildCursorParameter(),
-            'Counts'   => $this->buildCountsParameter(),
-            'Sums'     => $this->buildSumsParameter(),
-            'Averages' => $this->buildAveragesParameter(),
+            'Fields'     => $this->buildFieldsParameter(),
+            'Filter'     => $this->buildFilterParameter(),
+            'Order'      => $this->buildOrderParameter(),
+            'Limit'      => $this->buildLimitParameter(),
+            'Page'       => $this->buildPageParameter(),
+            'Cursor'     => $this->buildCursorParameter(),
+            'Pagination' => $this->buildPaginationParameter(),
+            'Counts'     => $this->buildCountsParameter(),
+            'Sums'       => $this->buildSumsParameter(),
+            'Averages'   => $this->buildAveragesParameter(),
         ];
     }
 
@@ -150,6 +151,24 @@ final class QueryParameterBuilder
             'cursor',
             'Opaque cursor token for cursor pagination.',
             ['type' => 'string'],
+        );
+    }
+
+    /**
+     * Build the pagination-mode parameter.
+     *
+     * The toolkit paginates length-aware by default and switches to cursor
+     * pagination when this parameter is set to `cursor` (or when a `cursor`
+     * token is supplied), so `cursor` is the only value that changes behaviour.
+     *
+     * @return array<string, mixed>
+     */
+    private function buildPaginationParameter(): array
+    {
+        return $this->parameter(
+            'pagination',
+            'Pagination mode: set to cursor to switch from the default length-aware pagination to cursor pagination.',
+            ['type' => 'string', 'enum' => ['cursor']],
         );
     }
 

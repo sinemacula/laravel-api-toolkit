@@ -8,12 +8,14 @@ use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\ServiceProvider;
 use SineMacula\ApiToolkit\Console\ExportOpenApiCommand;
+use SineMacula\ApiToolkit\Console\GenerateDocsCommand;
 use SineMacula\ApiToolkit\Console\ValidateSchemasCommand;
 use SineMacula\ApiToolkit\Http\Resources\ResourceDiscovery;
 use SineMacula\ApiToolkit\Providers\Registrars\ContainerBindingRegistrar;
 use SineMacula\ApiToolkit\Providers\Registrars\LifecycleRegistrar;
 use SineMacula\ApiToolkit\Providers\Registrars\LoggingRegistrar;
 use SineMacula\ApiToolkit\Providers\Registrars\MiddlewareRegistrar;
+use SineMacula\ApiToolkit\Providers\Registrars\RouteMacroRegistrar;
 use SineMacula\ApiToolkit\Schema\Validation\SchemaValidator;
 
 /**
@@ -45,6 +47,7 @@ final class ApiServiceProvider extends ServiceProvider
         (new MiddlewareRegistrar($this->app))->register();
         (new LoggingRegistrar)->register();
         (new LifecycleRegistrar)->register();
+        (new RouteMacroRegistrar)->register();
     }
 
     /**
@@ -70,6 +73,7 @@ final class ApiServiceProvider extends ServiceProvider
         $this->commands([
             ValidateSchemasCommand::class,
             ExportOpenApiCommand::class,
+            GenerateDocsCommand::class,
         ]);
     }
 
@@ -108,6 +112,10 @@ final class ApiServiceProvider extends ServiceProvider
         $this->publishes([
             __DIR__ . '/../config/api-toolkit.php' => config_path('api-toolkit.php'),
         ], 'config');
+
+        $this->publishes([
+            __DIR__ . '/../resources/api-docs' => resource_path('api-docs'),
+        ], 'api-toolkit-docs');
     }
 
     /**

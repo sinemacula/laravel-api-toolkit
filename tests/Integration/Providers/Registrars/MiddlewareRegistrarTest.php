@@ -9,7 +9,6 @@ use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Http\Middleware\PreventRequestsDuringMaintenance as FrameworkMaintenance;
 use Illuminate\Routing\Router;
 use PHPUnit\Framework\Attributes\CoversClass;
-use SineMacula\ApiToolkit\Http\Middleware\DetectsCapabilities;
 use SineMacula\ApiToolkit\Http\Middleware\JsonPrettyPrint;
 use SineMacula\ApiToolkit\Http\Middleware\ParseApiQuery;
 use SineMacula\ApiToolkit\Http\Middleware\PreventRequestsDuringMaintenance;
@@ -58,7 +57,6 @@ final class MiddlewareRegistrarTest extends TestCase
 
         self::assertContains(ParseApiQuery::class, $middleware);
         self::assertContains(PreventRequestsDuringMaintenance::class, $middleware);
-        self::assertContains(DetectsCapabilities::class, $middleware);
         self::assertContains(JsonPrettyPrint::class, $middleware);
 
         // The maintenance swap removes the framework middleware so the toolkit

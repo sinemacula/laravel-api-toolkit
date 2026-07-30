@@ -13,7 +13,7 @@ use SineMacula\ApiToolkit\Enums\FlushStrategy;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-final class WritePoolFlushContext
+final readonly class WritePoolFlushContext
 {
     /**
      * Create a new write pool flush context instance.
@@ -29,22 +29,22 @@ final class WritePoolFlushContext
     public function __construct(
 
         /** The failure handling strategy for the flush operation. */
-        private readonly FlushStrategy $strategy,
+        private FlushStrategy $strategy,
 
         /** The table currently being flushed. */
-        private readonly string $table,
+        private string $table,
 
         /** The chunks of rows queued for the current table. */
-        private readonly array $chunks,
+        private array $chunks,
 
         /** The list of tables participating in the flush. */
-        private readonly array $tables,
+        private array $tables,
 
         /** The index of the current table within the table list. */
-        private readonly int $tableIndex,
+        private int $tableIndex,
 
         /** The index of the current chunk, or null when not chunked. */
-        private readonly ?int $chunkIndex = null,
+        private ?int $chunkIndex = null,
     ) {}
 
     /**

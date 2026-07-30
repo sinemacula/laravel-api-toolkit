@@ -10,7 +10,6 @@ use Illuminate\Foundation\Http\Kernel as HttpKernel;
 use Illuminate\Foundation\Http\Middleware\PreventRequestsDuringMaintenance as FrameworkMaintenance;
 use Illuminate\Routing\Router;
 use Illuminate\Support\Facades\Config;
-use SineMacula\ApiToolkit\Http\Middleware\DetectsCapabilities;
 use SineMacula\ApiToolkit\Http\Middleware\JsonPrettyPrint;
 use SineMacula\ApiToolkit\Http\Middleware\ParseApiQuery;
 use SineMacula\ApiToolkit\Http\Middleware\PreventRequestsDuringMaintenance;
@@ -20,14 +19,14 @@ use SineMacula\ApiToolkit\Http\Middleware\ThrottleRequestsWithRedis;
 /**
  * Registers the toolkit middleware.
  *
- * Pushes the query parser, maintenance mode, capability detection, and JSON
- * pretty print middleware onto the HTTP kernel, and aliases the throttle
- * middleware on the router, honouring the configured gates and scopes.
+ * Pushes the query parser, maintenance mode, and JSON pretty print middleware
+ * onto the HTTP kernel, and aliases the throttle middleware on the router,
+ * honouring the configured gates and scopes.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-final class MiddlewareRegistrar
+final readonly class MiddlewareRegistrar
 {
     /**
      * Create a new middleware registrar instance.
@@ -38,7 +37,7 @@ final class MiddlewareRegistrar
     public function __construct(
 
         /** The service container for resolving the router and kernel. */
-        private readonly Container $container,
+        private Container $container,
     ) {}
 
     /**
@@ -58,7 +57,6 @@ final class MiddlewareRegistrar
         }
 
         $this->registerMaintenanceModeMiddleware($kernel);
-        $this->registerScopedMiddleware($kernel, 'api-toolkit.middleware.detect_capabilities', DetectsCapabilities::class);
         $this->registerScopedMiddleware($kernel, 'api-toolkit.middleware.json_pretty_print', JsonPrettyPrint::class);
         $this->registerThrottleMiddleware($router);
     }

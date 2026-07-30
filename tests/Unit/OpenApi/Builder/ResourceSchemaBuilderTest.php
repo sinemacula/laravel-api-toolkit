@@ -7,6 +7,7 @@ namespace Tests\Unit\OpenApi\Builder;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\OpenApi\Builder\ResourceSchemaBuilder;
 use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
+use SineMacula\ApiToolkit\OpenApi\Exceptions\SchemaNameCollisionException;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ColumnTypeMapper;
 use SineMacula\ApiToolkit\OpenApi\Resolution\FieldTypeResolver;
 use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
@@ -16,12 +17,19 @@ use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 use Tests\Concerns\InteractsWithNonPublicMembers;
 use Tests\Fixtures\Models\Organization;
 use Tests\Fixtures\Models\Post;
+use Tests\Fixtures\Models\Profile;
 use Tests\Fixtures\Models\Tag;
 use Tests\Fixtures\Models\User;
+use Tests\Fixtures\Resources\DeclaredOpenApiUserResource;
+use Tests\Fixtures\Resources\GuardedUserResource;
+use Tests\Fixtures\Resources\NullableFilterableUserResource;
 use Tests\Fixtures\Resources\OrganizationResource;
 use Tests\Fixtures\Resources\PostResource;
 use Tests\Fixtures\Resources\TagResource;
 use Tests\Fixtures\Resources\UserResource;
+use Tests\Fixtures\Resources\V1\UserResource as V1UserResource;
+use Tests\Fixtures\Resources\V2\UserResource as V2UserResource;
+use Tests\Fixtures\Resources\V3\UserResource as V3UserResource;
 use Tests\TestCase;
 
 /**
@@ -67,7 +75,7 @@ final class ResourceSchemaBuilderTest extends TestCase
         $catalogue = self::createStub(MetadataCatalogue::class);
         $catalogue->method('getResourceMap')->willReturn(['GhostModel' => 'GhostResource']);
 
-        $schemas = (new ResourceSchemaBuilder($catalogue, $this->resolver()))->build();
+        $schemas = (new ResourceSchemaBuilder($catalogue, $this->resolver(), $this->introspector()))->build();
 
         self::assertSame(['type' => 'object', 'properties' => []], $schemas['Ghost']);
     }
@@ -102,7 +110,7 @@ final class ResourceSchemaBuilderTest extends TestCase
         $catalogue = self::createStub(MetadataCatalogue::class);
         $catalogue->method('getResourceMap')->willReturn(['GhostModel' => 'GhostResource']);
 
-        $properties = (new ResourceSchemaBuilder($catalogue, $this->resolver()))->build()['Ghost']['properties'];
+        $properties = (new ResourceSchemaBuilder($catalogue, $this->resolver(), $this->introspector()))->build()['Ghost']['properties'];
 
         self::assertArrayNotHasKey('ghost', $properties);
         self::assertArrayHasKey('posts', $properties);
@@ -186,38 +194,105 @@ final class ResourceSchemaBuilderTest extends TestCase
     }
 
     /**
-     * Test that a plain scalar field backed by a string column is inferred as a
-     * string without a format hint.
+     * Test that a scalar field whose model cast is a backed enum emits a
+     * reference to the enum's named component rather than an inline type.
      *
      * @return void
      */
-    public function testPlainScalarStringFieldIsInferred(): void
+    public function testBackedEnumCastFieldEmitsComponentReference(): void
     {
         $schemas  = $this->makeBuilder($this->fullResourceMap())->build();
         $property = $schemas['User']['properties']['status'];
 
-        self::assertSame('string', $property['type']);
+        self::assertSame(['$ref' => '#/components/schemas/UserStatus'], $property);
         self::assertArrayNotHasKey('x-undocumented', $property);
     }
 
     /**
-     * Test that a relation field with a child resource emits the conservative
-     * object-or-array reference shape, nullable and flagged with an unknown
-     * cardinality.
+     * Test that a resolved to-one relation (a BelongsTo) emits a single
+     * reference to the related component with no cardinality flag.
      *
      * @return void
      */
-    public function testRelationFieldEmitsConservativeReferenceShape(): void
+    public function testToOneBelongsToRelationEmitsSingleReference(): void
     {
         $schemas  = $this->makeBuilder($this->fullResourceMap())->build();
         $property = $schemas['User']['properties']['organization'];
 
-        self::assertArrayHasKey('oneOf', $property);
-        self::assertSame(['$ref' => '#/components/schemas/Organization'], $property['oneOf'][0]);
+        self::assertSame(['$ref' => '#/components/schemas/Organization'], $property);
+        self::assertArrayNotHasKey('oneOf', $property);
+        self::assertArrayNotHasKey('x-cardinality', $property);
+    }
+
+    /**
+     * Test that a resolved to-many relation (a HasMany) emits an array of
+     * references to the related component with no cardinality flag.
+     *
+     * @return void
+     */
+    public function testToManyHasManyRelationEmitsArrayOfReferences(): void
+    {
+        $schemas  = $this->makeBuilder($this->fullResourceMap())->build();
+        $property = $schemas['User']['properties']['posts'];
+
+        self::assertSame('array', $property['type']);
+        self::assertSame(['$ref' => '#/components/schemas/Post'], $property['items']);
+        self::assertArrayNotHasKey('oneOf', $property);
+        self::assertArrayNotHasKey('x-cardinality', $property);
+    }
+
+    /**
+     * Test that a resolved many-to-many relation (a BelongsToMany) emits an
+     * array of references to the related component.
+     *
+     * @return void
+     */
+    public function testToManyBelongsToManyRelationEmitsArrayOfReferences(): void
+    {
+        $schemas  = $this->makeBuilder($this->fullResourceMap())->build();
+        $property = $schemas['Post']['properties']['tags'];
+
+        self::assertSame('array', $property['type']);
+        self::assertSame(['$ref' => '#/components/schemas/Tag'], $property['items']);
+        self::assertArrayNotHasKey('x-cardinality', $property);
+    }
+
+    /**
+     * Test that a relation whose owning model cannot be instantiated falls back
+     * to the conservative object-or-array-or-null reference shape flagged with
+     * an unknown cardinality.
+     *
+     * @return void
+     */
+    public function testUnresolvableRelationFallsBackToConservativeShape(): void
+    {
+        $relation = new CompiledFieldDefinition(
+            accessor: null,
+            compute: null,
+            relation: 'posts',
+            resource: 'PostResource',
+            fields: null,
+            constraint: null,
+            extras: [],
+            needs: [],
+            guards: [],
+            transformers: [],
+        );
+
+        $schema = new CompiledSchema(['posts' => $relation], []); // @phpstan-ignore argument.type
+
+        $this->setStaticProperty(SchemaCompiler::class, 'cache', ['GhostResource' => $schema]);
+
+        $catalogue = self::createStub(MetadataCatalogue::class);
+        $catalogue->method('getResourceMap')->willReturn(['GhostModel' => 'GhostResource']);
+
+        $property = (new ResourceSchemaBuilder($catalogue, $this->resolver(), $this->introspector()))
+            ->build()['Ghost']['properties']['posts'];
+
+        self::assertSame(['$ref' => '#/components/schemas/Post'], $property['oneOf'][0]);
         self::assertSame('array', $property['oneOf'][1]['type']);
-        self::assertSame(['$ref' => '#/components/schemas/Organization'], $property['oneOf'][1]['items']);
+        self::assertSame(['$ref' => '#/components/schemas/Post'], $property['oneOf'][1]['items']);
         self::assertSame(['type' => 'null'], $property['oneOf'][2]);
-        self::assertArrayNotHasKey('nullable', $property);
         self::assertSame('unknown', $property['x-cardinality']);
     }
 
@@ -261,8 +336,8 @@ final class ResourceSchemaBuilderTest extends TestCase
         $schemas  = $this->makeBuilder($this->fullResourceMap())->build();
         $property = $schemas['User']['properties']['posts'];
 
-        self::assertArrayHasKey('oneOf', $property);
-        self::assertSame(['$ref' => '#/components/schemas/Post'], $property['oneOf'][0]);
+        self::assertSame('array', $property['type']);
+        self::assertSame(['$ref' => '#/components/schemas/Post'], $property['items']);
     }
 
     /**
@@ -324,7 +399,220 @@ final class ResourceSchemaBuilderTest extends TestCase
         $schemas  = $this->makeBuilder($this->fullResourceMap())->build();
         $property = $schemas['Post']['properties']['user'];
 
-        self::assertSame(['$ref' => '#/components/schemas/User'], $property['oneOf'][0]);
+        self::assertSame(['$ref' => '#/components/schemas/User'], $property);
+    }
+
+    /**
+     * Test that every resource schema leads with a `_type` discriminator fixed
+     * to the resource's registered type via a constant.
+     *
+     * @return void
+     */
+    public function testTypeDiscriminatorIsAConstantOfTheResourceType(): void
+    {
+        $schemas  = $this->makeBuilder($this->fullResourceMap())->build();
+        $property = $schemas['User']['properties']['_type'];
+
+        self::assertSame('string', $property['type']);
+        self::assertSame('users', $property['const']);
+    }
+
+    /**
+     * Test that the `_type` discriminator is listed as a required property of
+     * the resource schema.
+     *
+     * @return void
+     */
+    public function testTypeDiscriminatorIsRequired(): void
+    {
+        $schemas = $this->makeBuilder($this->fullResourceMap())->build();
+
+        self::assertContains('_type', $schemas['User']['required']);
+    }
+
+    /**
+     * Test that a resource whose class cannot be resolved as an API resource
+     * omits the `_type` discriminator rather than resolving a type from a
+     * non-existent class.
+     *
+     * @return void
+     */
+    public function testTypeDiscriminatorIsOmittedForUnresolvableResource(): void
+    {
+        $schema = new CompiledSchema([], []);
+
+        $this->setStaticProperty(SchemaCompiler::class, 'cache', ['GhostResource' => $schema]);
+
+        $catalogue = self::createStub(MetadataCatalogue::class);
+        $catalogue->method('getResourceMap')->willReturn(['GhostModel' => 'GhostResource']);
+
+        $ghost = (new ResourceSchemaBuilder($catalogue, $this->resolver(), $this->introspector()))->build()['Ghost'];
+
+        self::assertArrayNotHasKey('_type', $ghost['properties']);
+        self::assertArrayNotHasKey('required', $ghost);
+    }
+
+    /**
+     * Test that a resolved HasOne relation is classified as to-one, emitting a
+     * single reference, while a to-many relation on the same model is not.
+     *
+     * @return void
+     */
+    public function testHasOneRelationIsClassifiedAsToOne(): void
+    {
+        $builder = $this->makeBuilder([]);
+
+        self::assertTrue($this->invokeMethod($builder, 'isToOne', (new User)->hasOne(Profile::class)));
+        self::assertFalse($this->invokeMethod($builder, 'isToOne', (new User)->hasMany(Post::class)));
+    }
+
+    /**
+     * Test that a resolved MorphOne relation is classified as to-one, emitting
+     * a single reference rather than an array of references.
+     *
+     * @return void
+     */
+    public function testMorphOneRelationIsClassifiedAsToOne(): void
+    {
+        $builder = $this->makeBuilder([]);
+
+        self::assertTrue($this->invokeMethod($builder, 'isToOne', (new User)->morphOne(Profile::class, 'imageable')));
+    }
+
+    /**
+     * Test that a resolved HasOneThrough relation is classified as to-one
+     * despite descending from the to-many HasManyThrough base class.
+     *
+     * @return void
+     */
+    public function testHasOneThroughRelationIsClassifiedAsToOne(): void
+    {
+        $builder = $this->makeBuilder([]);
+
+        self::assertTrue($this->invokeMethod($builder, 'isToOne', (new User)->hasOneThrough(Profile::class, Organization::class)));
+    }
+
+    /**
+     * Test that a guarded scalar field is emitted as an undocumented, optional
+     * property while a non-guarded sibling scalar remains required.
+     *
+     * @return void
+     */
+    public function testGuardedScalarIsUndocumentedAndOptionalWhileSiblingIsRequired(): void
+    {
+        $schema = $this->makeBuilder([User::class => GuardedUserResource::class])->build()['GuardedUser'];
+
+        self::assertSame(['x-undocumented' => true], $schema['properties']['email']);
+        self::assertContains('id', $schema['required']);
+        self::assertNotContains('email', $schema['required']);
+    }
+
+    /**
+     * Test that a field carrying a full author-declared OpenAPI contract is
+     * emitted verbatim through the compiler and builder, applying the 2020-12
+     * nullable type-array form.
+     *
+     * @return void
+     */
+    public function testFullOpenApiOverrideSurvivesVerbatim(): void
+    {
+        $schema = $this->makeBuilder([User::class => DeclaredOpenApiUserResource::class])->build()['DeclaredOpenApiUser'];
+
+        self::assertSame([
+            'type'        => ['string', 'null'],
+            'format'      => 'color',
+            'enum'        => ['bronze', 'silver', 'gold'],
+            'example'     => 'gold',
+            'description' => 'The membership tier of the user',
+        ], $schema['properties']['tier']);
+    }
+
+    /**
+     * Test that a to-one relation emits a single reference while a to-many
+     * relation on the same resource emits an array of references.
+     *
+     * @return void
+     */
+    public function testToOneEmitsSingleRefAndToManyEmitsArrayOfRefs(): void
+    {
+        $properties = $this->makeBuilder($this->fullResourceMap())->build()['User']['properties'];
+
+        self::assertSame(['$ref' => '#/components/schemas/Organization'], $properties['organization']);
+        self::assertSame([
+            'type'  => 'array',
+            'items' => ['$ref' => '#/components/schemas/Post'],
+        ], $properties['posts']);
+    }
+
+    /**
+     * Test that a nullable inferred scalar emits the 2020-12 null type member
+     * while a non-nullable sibling scalar emits a bare scalar type.
+     *
+     * @return void
+     */
+    public function testNullableInferredScalarEmitsNullMemberWhileSiblingDoesNot(): void
+    {
+        $properties = $this->makeBuilder([User::class => NullableFilterableUserResource::class])
+            ->build()['NullableFilterableUser']['properties'];
+
+        self::assertSame(['integer', 'null'], $properties['organization_id']['type']);
+        self::assertSame('string', $properties['name']['type']);
+    }
+
+    /**
+     * Test that two distinct resources deriving the same component name make
+     * the build fail loud, naming the collided name and both resource classes.
+     *
+     * @return void
+     */
+    public function testCollidingComponentNamesThrow(): void
+    {
+        $builder = $this->makeBuilder([
+            User::class => V1UserResource::class,
+            Post::class => V2UserResource::class,
+        ]);
+
+        $this->expectException(SchemaNameCollisionException::class);
+        $this->expectExceptionMessage(V1UserResource::class);
+        $this->expectExceptionMessage(V2UserResource::class);
+
+        $builder->build();
+    }
+
+    /**
+     * Test that the same resource claimed under two models does not collide, so
+     * a resource shared across models still builds a single schema.
+     *
+     * @return void
+     */
+    public function testSameResourceUnderTwoModelsDoesNotThrow(): void
+    {
+        $schemas = $this->makeBuilder([
+            User::class => V1UserResource::class,
+            Post::class => V1UserResource::class,
+        ])->build();
+
+        self::assertCount(1, $schemas);
+        self::assertArrayHasKey('User', $schemas);
+    }
+
+    /**
+     * Test that a #[SchemaName] override on one of two basename-colliding
+     * resources disambiguates them, so both schemas survive under distinct
+     * keys.
+     *
+     * @return void
+     */
+    public function testSchemaNameOverrideAvoidsCollision(): void
+    {
+        $schemas = $this->makeBuilder([
+            User::class => V1UserResource::class,
+            Post::class => V3UserResource::class,
+        ])->build();
+
+        self::assertCount(2, $schemas);
+        self::assertArrayHasKey('User', $schemas);
+        self::assertArrayHasKey('UserV3', $schemas);
     }
 
     /**
@@ -339,7 +627,7 @@ final class ResourceSchemaBuilderTest extends TestCase
         $catalogue = self::createStub(MetadataCatalogue::class);
         $catalogue->method('getResourceMap')->willReturn($resourceMap);
 
-        return new ResourceSchemaBuilder($catalogue, $this->resolver());
+        return new ResourceSchemaBuilder($catalogue, $this->resolver(), $this->introspector());
     }
 
     /**
@@ -350,9 +638,19 @@ final class ResourceSchemaBuilderTest extends TestCase
      */
     private function resolver(): FieldTypeResolver
     {
+        return new FieldTypeResolver($this->introspector(), new ColumnTypeMapper);
+    }
+
+    /**
+     * Resolve the container-bound schema introspector.
+     *
+     * @return \SineMacula\ApiToolkit\Schema\Introspection\SchemaIntrospector
+     */
+    private function introspector(): SchemaIntrospector
+    {
         assert($this->app !== null);
 
-        return new FieldTypeResolver($this->app->make(SchemaIntrospector::class), new ColumnTypeMapper);
+        return $this->app->make(SchemaIntrospector::class);
     }
 
     /**

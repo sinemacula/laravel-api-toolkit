@@ -7,19 +7,20 @@ namespace SineMacula\ApiToolkit\OpenApi;
 use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
 
 /**
- * Application use case that exports the toolkit's OpenAPI 3.1 components.
+ * Application use case that exports the toolkit's OpenAPI 3.1 document.
  *
  * Composes the metadata catalogue and the document assembler (which in turn
- * drives the resource-schema, query-parameter, and error-response builders and
- * the field-type resolver) into a single emission: it assembles the
- * components-only document and records a summary of what was walked. The use
- * case is pure orchestration over read-only metadata and schema introspection;
- * persistence is the command's concern, through the DocumentWriter port.
+ * drives the path, resource-schema, query-parameter, and error-response
+ * builders and the field-type resolver) into a single emission: it assembles
+ * the document for the requested audience and records a summary of what was
+ * walked. The use case is pure orchestration over read-only metadata and schema
+ * introspection; persistence is the command's concern, through the
+ * DocumentWriter port.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-final class ExportOpenApiComponents
+final readonly class ExportOpenApiComponents
 {
     /**
      * Create a new export use case.
@@ -30,20 +31,21 @@ final class ExportOpenApiComponents
     public function __construct(
 
         /** The assembler that builds the OpenAPI components document. */
-        private readonly OpenApiAssembler $assembler,
+        private OpenApiAssembler $assembler,
 
         /** The catalogue of resource metadata to export. */
-        private readonly MetadataCatalogue $catalogue,
+        private MetadataCatalogue $catalogue,
     ) {}
 
     /**
-     * Assemble the components document and summarise the emission.
+     * Assemble the document for the given audience and summarise the emission.
      *
+     * @param  string|null  $audience
      * @return \SineMacula\ApiToolkit\OpenApi\ExportResult
      */
-    public function export(): ExportResult
+    public function export(?string $audience = null): ExportResult
     {
-        $document = $this->assembler->assemble();
+        $document = $this->assembler->assemble($audience);
 
         return new ExportResult(
             document      : $document,

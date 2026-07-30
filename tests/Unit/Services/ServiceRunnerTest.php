@@ -17,6 +17,8 @@ use SineMacula\ApiToolkit\Services\Input\ArrayInput;
 use SineMacula\ApiToolkit\Services\Service;
 use SineMacula\ApiToolkit\Services\ServiceContext;
 use SineMacula\ApiToolkit\Services\ServiceRunner;
+use Tests\Fixtures\Services\AuthorizingService;
+use Tests\Fixtures\Services\Input\ScrubbedInput;
 use Tests\Fixtures\Services\OutputService;
 use Tests\TestCase;
 
@@ -409,6 +411,95 @@ final class ServiceRunnerTest extends TestCase
     }
 
     /**
+     * Test that the ServiceCompleted event carries the input's scrubbed summary
+     * and never the raw secret, proving toArray() redaction reaches listeners
+     * on the success path.
+     *
+     * @return void
+     */
+    public function testCompletedEventCarriesScrubbedInputSummary(): void
+    {
+        Event::fake();
+
+        $service = new class (new ScrubbedInput(username: 'alice', password: 'super-secret')) extends Service {
+            /**
+             * Return null output.
+             *
+             * @return mixed
+             */
+            #[\Override]
+            protected function handle(): mixed
+            {
+                return null;
+            }
+        };
+
+        (new ServiceRunner)->run($service, ServiceContext::for(new AnonymousActor));
+
+        Event::assertDispatched(
+            ServiceCompleted::class,
+            static fn (ServiceCompleted $event): bool => $event->inputSummary === ['username' => 'alice', 'password' => '[redacted]'],
+        );
+    }
+
+    /**
+     * Test that the ServiceFailed event carries the input's scrubbed summary
+     * and never the raw secret, proving toArray() redaction reaches listeners
+     * on the failure path.
+     *
+     * @return void
+     */
+    public function testFailedEventCarriesScrubbedInputSummary(): void
+    {
+        Event::fake();
+
+        $service = new class (new ScrubbedInput(username: 'alice', password: 'super-secret')) extends Service {
+            /**
+             * Always throw a domain exception.
+             *
+             * @return never
+             *
+             * @throws \RuntimeException
+             */
+            #[\Override]
+            protected function handle(): never
+            {
+                throw new \RuntimeException('boom');
+            }
+        };
+
+        (new ServiceRunner)->run($service, ServiceContext::for(new AnonymousActor));
+
+        Event::assertDispatched(
+            ServiceFailed::class,
+            static fn (ServiceFailed $event): bool => $event->inputSummary === ['username' => 'alice', 'password' => '[redacted]'],
+        );
+    }
+
+    /**
+     * Test that a listener auditing a denied service reads the scrubbed input
+     * summary from the ServiceFailed event, so an authorization failure never
+     * leaks the raw secret to downstream audit consumers.
+     *
+     * @return void
+     */
+    public function testFailureListenerReadsScrubbedInputSummary(): void
+    {
+        $captured = null;
+
+        Event::listen(ServiceFailed::class, static function (ServiceFailed $event) use (&$captured): void {
+            $captured = $event->inputSummary;
+        });
+
+        $service = new AuthorizingService(new ScrubbedInput(username: 'alice', password: 'super-secret'));
+
+        $result = (new ServiceRunner)->run($service, ServiceContext::for(new AnonymousActor));
+
+        self::assertTrue($result->failed());
+        self::assertSame(['username' => 'alice', 'password' => '[redacted]'], $captured);
+    }
+
+    /**
      * Test that concerns execute in declaration order with the first concern
      * acting as the outermost wrapper.
      *
@@ -691,17 +782,13 @@ final class ServiceRunnerTest extends TestCase
             }
         };
 
-        $caught = null;
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('log-error');
 
         try {
             (new ServiceRunner)->run($service, ServiceContext::for(new AnonymousActor));
-        } catch (\RuntimeException $exception) {
-            $caught = $exception;
+        } finally {
+            Event::assertDispatched(ServiceFailed::class);
         }
-
-        self::assertInstanceOf(\RuntimeException::class, $caught);
-        self::assertSame('log-error', $caught->getMessage());
-
-        Event::assertDispatched(ServiceFailed::class);
     }
 }

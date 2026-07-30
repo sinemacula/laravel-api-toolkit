@@ -9,9 +9,10 @@ namespace SineMacula\ApiToolkit\Schema;
  *
  * Carries the per-field type, format, nullability, enumerated values, example,
  * and description, plus an explicit undocumented flag for fields whose type
- * could not be resolved. Converts to a JSON Schema 2020-12 fragment suitable
- * for embedding in an OpenAPI 3.1 components document. Read only by the
- * emission path; never consulted during runtime serialization.
+ * could not be resolved and an optional reference to a named component for an
+ * enum-typed field. Converts to a JSON Schema 2020-12 fragment suitable for
+ * embedding in an OpenAPI 3.1 components document. Read only by the emission
+ * path; never consulted during runtime serialization.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -28,6 +29,7 @@ final readonly class OpenApiFieldSchema
      * @param  mixed  $example
      * @param  string|null  $description
      * @param  bool  $undocumented
+     * @param  string|null  $ref
      */
     public function __construct(
 
@@ -51,7 +53,23 @@ final readonly class OpenApiFieldSchema
 
         /** Whether the field's type could not be resolved and is flagged */
         public bool $undocumented = false,
+
+        /** Reference to a named component schema, e.g. an enum's component */
+        public ?string $ref = null,
     ) {}
+
+    /**
+     * Create a schema referencing a named component, widening to admit null
+     * when the field is nullable.
+     *
+     * @param  string  $ref
+     * @param  bool  $nullable
+     * @return self
+     */
+    public static function reference(string $ref, bool $nullable = false): self
+    {
+        return new self(nullable: $nullable, ref: $ref);
+    }
 
     /**
      * Create a permissive schema explicitly flagged as undocumented.
@@ -74,6 +92,10 @@ final readonly class OpenApiFieldSchema
      */
     public function toArray(): array
     {
+        if ($this->ref !== null) {
+            return $this->referenceSchema();
+        }
+
         if ($this->undocumented) {
             return array_filter([
                 'x-undocumented' => true,
@@ -88,6 +110,22 @@ final readonly class OpenApiFieldSchema
             'example'     => $this->example,
             'description' => $this->description,
         ], static fn ($value) => $value !== null);
+    }
+
+    /**
+     * Convert this schema to a component reference, wrapping the reference in
+     * an anyOf with a null member when the field admits null, since a bare $ref
+     * cannot itself carry the null type.
+     *
+     * @return array<string, mixed>
+     */
+    private function referenceSchema(): array
+    {
+        $reference = ['$ref' => $this->ref];
+
+        return $this->nullable
+            ? ['anyOf' => [$reference, ['type' => 'null']]]
+            : $reference;
     }
 
     /**

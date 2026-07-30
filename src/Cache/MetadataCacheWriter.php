@@ -16,7 +16,7 @@ use Illuminate\Support\Facades\Cache;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-final class MetadataCacheWriter
+final readonly class MetadataCacheWriter
 {
     /**
      * Create a new metadata cache writer instance.
@@ -27,7 +27,7 @@ final class MetadataCacheWriter
     public function __construct(
 
         /** The registry tracking live toolkit metadata keys for flushing. */
-        private readonly MetadataKeyRegistry $registry,
+        private MetadataKeyRegistry $registry,
     ) {}
 
     /**
@@ -47,5 +47,27 @@ final class MetadataCacheWriter
         $this->registry->register($key);
 
         return Cache::memo()->rememberForever($key, static fn () => $callback()); // @phpstan-ignore method.notFound
+    }
+
+    /**
+     * Store a metadata value under a time-to-live and register its key.
+     *
+     * Mirrors {@see rememberMetadataForever()} but bounds the entry with an
+     * expiry, so a value keyed by unbounded client input cannot accumulate
+     * permanently. The key is registered before the memo write so it is tracked
+     * for a scoped flush even when the value is already warm.
+     *
+     * @template TValue
+     *
+     * @param  string  $key
+     * @param  callable():TValue  $callback
+     * @param  int  $ttl
+     * @return TValue
+     */
+    public function rememberMetadata(string $key, callable $callback, int $ttl): mixed
+    {
+        $this->registry->register($key);
+
+        return Cache::memo()->remember($key, $ttl, static fn () => $callback()); // @phpstan-ignore method.notFound
     }
 }

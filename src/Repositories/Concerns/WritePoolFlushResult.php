@@ -11,7 +11,7 @@ namespace SineMacula\ApiToolkit\Repositories\Concerns;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-final class WritePoolFlushResult
+final readonly class WritePoolFlushResult
 {
     /**
      * Create a new flush result instance.
@@ -29,28 +29,28 @@ final class WritePoolFlushResult
     public function __construct(
 
         /** The number of successfully inserted chunks. */
-        private readonly int $successCount,
+        private int $successCount,
 
         /** The number of failed chunks. */
-        private readonly int $failureCount,
+        private int $failureCount,
 
         /** The failure details keyed by table name. */
-        private readonly array $failures = [],
+        private array $failures = [],
 
         /** The number of records persisted to the database. */
-        private readonly int $flushedRecordCount = 0,
+        private int $flushedRecordCount = 0,
 
         /** The number of records contained in failed chunks. */
-        private readonly int $failedRecordCount = 0,
+        private int $failedRecordCount = 0,
 
         /** The number of records retained in the buffer for retry. */
-        private readonly int $retainedRecordCount = 0,
+        private int $retainedRecordCount = 0,
 
         /** The number of records discarded without retry. */
-        private readonly int $droppedRecordCount = 0,
+        private int $droppedRecordCount = 0,
 
         /** The distinct tables this flush attempted to persist. */
-        private readonly array $flushedTables = [],
+        private array $flushedTables = [],
     ) {}
 
     /**

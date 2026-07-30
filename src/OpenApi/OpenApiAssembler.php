@@ -4,33 +4,48 @@ declare(strict_types = 1);
 
 namespace SineMacula\ApiToolkit\OpenApi;
 
+use SineMacula\ApiToolkit\OpenApi\Builder\EnumSchemaBuilder;
+use SineMacula\ApiToolkit\OpenApi\Builder\EnvelopeBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\ErrorResponseBuilder;
+use SineMacula\ApiToolkit\OpenApi\Builder\PathBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\QueryParameterBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\ResourceSchemaBuilder;
+use SineMacula\ApiToolkit\OpenApi\Docs\DocManualAssembler;
+use SineMacula\ApiToolkit\OpenApi\Resolution\AudienceConfiguration;
+use SineMacula\ApiToolkit\OpenApi\Resolution\ReachableSchemaResolver;
+use SineMacula\ApiToolkit\OpenApi\Schema\EnumSchemaRegistry;
+use SineMacula\ApiToolkit\OpenApi\Security\SecuritySchemeResolver;
 
 /**
- * Assembles the complete OpenAPI 3.1 components document.
+ * Assembles a per-audience OpenAPI 3.1 document.
  *
- * Composes the three builders into a single components-only document: one
- * schema per resource plus the shared Error envelope under components.schemas,
- * the shared query-parameter vocabulary under components.parameters, and one
- * response per error code under components.responses. The package emits
- * reusable components only and never declares path operations, so the document
- * carries an empty paths object that the consuming application completes.
+ * Composes the builders into one document for a target audience: the path
+ * builder walks the route table for the audience and posture, and its
+ * operations drive which resource schemas survive. The components block carries
+ * the shared query-parameter vocabulary, error responses, and total-count
+ * header globally, but its schemas are filtered to only those reachable from
+ * the audience's paths (via the transitive reference closure) plus the
+ * always-shared pagination and error-envelope schemas, so an internal-only
+ * resource never leaks into another audience's document. When no route is
+ * documented the paths object is emitted empty, keeping the document
+ * schema-valid.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-final class OpenApiAssembler
+final readonly class OpenApiAssembler
 {
     /** The emitted OpenAPI specification version */
     private const string OPENAPI_VERSION = '3.1.0';
 
-    /** The default document title */
-    private const string INFO_TITLE = 'API Components';
+    /** @var \SineMacula\ApiToolkit\OpenApi\Builder\EnvelopeBuilder */
+    private EnvelopeBuilder $envelopeBuilder;
 
-    /** The default document version */
-    private const string INFO_VERSION = '1.0.0';
+    /** @var \SineMacula\ApiToolkit\OpenApi\Resolution\ReachableSchemaResolver */
+    private ReachableSchemaResolver $reachability;
+
+    /** @var \SineMacula\ApiToolkit\OpenApi\Resolution\AudienceConfiguration */
+    private AudienceConfiguration $audiences;
 
     /**
      * Constructor.
@@ -38,72 +53,277 @@ final class OpenApiAssembler
      * @param  \SineMacula\ApiToolkit\OpenApi\Builder\ResourceSchemaBuilder  $schemaBuilder
      * @param  \SineMacula\ApiToolkit\OpenApi\Builder\QueryParameterBuilder  $parameterBuilder
      * @param  \SineMacula\ApiToolkit\OpenApi\Builder\ErrorResponseBuilder  $responseBuilder
+     * @param  \SineMacula\ApiToolkit\OpenApi\Builder\PathBuilder  $pathBuilder
+     * @param  \SineMacula\ApiToolkit\OpenApi\Security\SecuritySchemeResolver  $security
+     * @param  \SineMacula\ApiToolkit\OpenApi\Builder\EnumSchemaBuilder  $enumBuilder
+     * @param  \SineMacula\ApiToolkit\OpenApi\Schema\EnumSchemaRegistry  $enums
+     * @param  \SineMacula\ApiToolkit\OpenApi\Docs\DocManualAssembler  $manual
      */
     public function __construct(
 
         /** The builder for resource component schemas. */
-        private readonly ResourceSchemaBuilder $schemaBuilder,
+        private ResourceSchemaBuilder $schemaBuilder,
 
         /** The builder for reusable query parameter definitions. */
-        private readonly QueryParameterBuilder $parameterBuilder,
+        private QueryParameterBuilder $parameterBuilder,
 
         /** The builder for shared error response definitions. */
-        private readonly ErrorResponseBuilder $responseBuilder,
-    ) {}
+        private ErrorResponseBuilder $responseBuilder,
+
+        /** The builder for the per-audience paths object. */
+        private PathBuilder $pathBuilder,
+
+        /** The resolver of referenced security scheme definitions. */
+        private SecuritySchemeResolver $security,
+
+        /** The builder for referenced enum component schemas. */
+        private EnumSchemaBuilder $enumBuilder,
+
+        /** The registry collecting enum classes referenced by a $ref. */
+        private EnumSchemaRegistry $enums,
+
+        /** The assembler of the committed Markdown manual. */
+        private DocManualAssembler $manual,
+    ) {
+        $this->envelopeBuilder = new EnvelopeBuilder;
+        $this->reachability    = new ReachableSchemaResolver;
+        $this->audiences       = new AudienceConfiguration;
+    }
 
     /**
-     * Assemble the full OpenAPI 3.1 components document.
+     * Assemble the OpenAPI 3.1 document for the given audience, defaulting to
+     * the configured default audience when none is named.
      *
+     * @param  string|null  $audience
      * @return array<string, mixed>
      */
-    public function assemble(): array
+    public function assemble(?string $audience = null): array
     {
+        $this->enums->reset();
+
+        $audience = $audience === null || $audience === '' ? $this->audiences->defaultAudience() : $audience;
+        $posture  = $this->audiences->postureFor($audience);
+        $paths    = $this->pathBuilder->build($audience, $posture);
+
         return [
             'openapi'    => self::OPENAPI_VERSION,
-            'info'       => $this->buildInfo(),
-            'paths'      => (object) [],
-            'components' => $this->buildComponents(),
+            'info'       => $this->buildInfo($audience),
+            'paths'      => $paths === [] ? (object) [] : $paths,
+            'components' => $this->buildComponents($paths),
         ];
     }
 
     /**
-     * Build the minimal info block.
+     * Build the info block for the audience, injecting the committed Markdown
+     * manual into its description.
      *
+     * @param  string  $audience
      * @return array<string, mixed>
      */
-    private function buildInfo(): array
+    private function buildInfo(string $audience): array
     {
-        return [
-            'title'   => self::INFO_TITLE,
-            'version' => self::INFO_VERSION,
-        ];
+        $info = $this->audiences->infoFor($audience);
+
+        $description = $this->composeDescription(
+            is_string($info['description'] ?? null) ? $info['description'] : null,
+            $this->manual->assemble(),
+        );
+
+        if ($description === '') {
+            unset($info['description']);
+
+            return $info;
+        }
+
+        $info['description'] = $description;
+
+        return $info;
     }
 
     /**
-     * Build the components block from the three builders.
+     * Compose the info description from the configured description and the
+     * assembled manual, in that reading order, separated by a blank line.
      *
+     * The configured description leads because it is the audience-specific
+     * preface an operator sets, with the shared manual following beneath it;
+     * either being empty is dropped, so an empty result signals no description.
+     *
+     * @param  string|null  $configured
+     * @param  string  $manual
+     * @return string
+     */
+    private function composeDescription(?string $configured, string $manual): string
+    {
+        $parts = array_filter(
+            [trim($configured ?? ''), trim($manual)],
+            static fn (string $part): bool => $part !== '',
+        );
+
+        return implode("\n\n", $parts);
+    }
+
+    /**
+     * Build the components block, filtering the schemas to those the audience's
+     * paths reach while keeping the parameters, responses, and headers global.
+     *
+     * @param  array<string, array<string, mixed>>  $paths
      * @return array<string, mixed>
      */
-    private function buildComponents(): array
+    private function buildComponents(array $paths): array
     {
-        return [
-            'schemas'    => $this->buildSchemas(),
+        $components = [
+            'schemas'    => $this->buildSchemas($paths),
             'parameters' => $this->parameterBuilder->build(),
             'responses'  => $this->responseBuilder->build(),
+            'headers'    => $this->envelopeBuilder->buildHeaders(),
         ];
+
+        $securitySchemes = $this->buildSecuritySchemes($paths);
+
+        if ($securitySchemes !== []) {
+            $components['securitySchemes'] = $securitySchemes;
+        }
+
+        return $components;
     }
 
     /**
-     * Build the schemas block: one schema per resource plus the shared error
-     * envelope referenced by every error response.
+     * Build the securitySchemes block from the scheme names the assembled paths
+     * reference, so the block carries exactly the referenced schemes with no
+     * orphans and no omissions.
      *
+     * @param  array<string, array<string, mixed>>  $paths
      * @return array<string, array<string, mixed>>
      */
-    private function buildSchemas(): array
+    private function buildSecuritySchemes(array $paths): array
     {
-        return array_merge(
-            $this->schemaBuilder->build(),
+        $schemes = [];
+
+        foreach ($this->referencedSchemeNames($paths) as $name) {
+
+            $definition = $this->security->definitionFor($name);
+
+            if ($definition === null) {
+                continue;
+            }
+
+            $schemes[$name] = $definition;
+        }
+
+        return $schemes;
+    }
+
+    /**
+     * Collect the distinct security scheme names referenced across every
+     * operation's security requirements.
+     *
+     * @param  array<string, array<string, mixed>>  $paths
+     * @return list<string>
+     */
+    private function referencedSchemeNames(array $paths): array
+    {
+        $names = [];
+
+        foreach ($this->operations($paths) as $operation) {
+            foreach ($this->schemeNamesIn($operation) as $name) {
+                $names[$name] = true;
+            }
+        }
+
+        return array_keys($names);
+    }
+
+    /**
+     * Yield each operation object across the assembled paths.
+     *
+     * @param  array<string, array<string, mixed>>  $paths
+     * @return iterable<array<mixed, mixed>>
+     */
+    private function operations(array $paths): iterable
+    {
+        foreach ($paths as $operations) {
+            foreach ($operations as $operation) {
+
+                if (!is_array($operation)) {
+                    continue;
+                }
+
+                yield $operation;
+            }
+        }
+    }
+
+    /**
+     * List the security scheme names named by a single operation's security
+     * requirements.
+     *
+     * @param  array<mixed, mixed>  $operation
+     * @return list<string>
+     */
+    private function schemeNamesIn(array $operation): array
+    {
+        $names = [];
+
+        foreach ((array) ($operation['security'] ?? []) as $requirement) {
+
+            if (!is_array($requirement)) {
+                continue;
+            }
+
+            $names = array_merge($names, array_map('strval', array_keys($requirement)));
+        }
+
+        return $names;
+    }
+
+    /**
+     * Build the schemas block and reduce it to the schemas reachable from the
+     * audience's paths plus the always-shared pagination and error-envelope
+     * schemas.
+     *
+     * The resource schemas are built first so response-side enum references are
+     * registered, then the enum components are built against the names already
+     * reserved by the resource and envelope schemas so a cross-source collision
+     * fails loud rather than silently overwriting a schema.
+     *
+     * @param  array<string, array<string, mixed>>  $paths
+     * @return array<string, array<string, mixed>>
+     */
+    private function buildSchemas(array $paths): array
+    {
+        $resourceSchemas = $this->schemaBuilder->build();
+        $envelopeSchemas = array_merge(
             [ErrorResponseBuilder::ENVELOPE_SCHEMA_NAME => $this->responseBuilder->buildEnvelopeSchema()],
+            $this->envelopeBuilder->buildSchemas(),
         );
+
+        $reserved = $this->schemaBuilder->claims();
+
+        foreach (array_keys($envelopeSchemas) as $name) {
+            $reserved[$name] = EnvelopeBuilder::class;
+        }
+
+        $schemas = array_merge(
+            $resourceSchemas,
+            $envelopeSchemas,
+            $this->enumBuilder->build($this->enums->classes(), $reserved),
+        );
+
+        return $this->reachability->reachable($schemas, $paths, $this->sharedSchemaNames());
+    }
+
+    /**
+     * List the schema names always retained regardless of path reachability:
+     * the pagination meta/links (and cursor) schemas and the error envelope the
+     * shared responses reference.
+     *
+     * @return list<string>
+     */
+    private function sharedSchemaNames(): array
+    {
+        return [
+            ErrorResponseBuilder::ENVELOPE_SCHEMA_NAME,
+            ...array_keys($this->envelopeBuilder->buildSchemas()),
+        ];
     }
 }
