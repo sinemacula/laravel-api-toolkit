@@ -86,10 +86,17 @@ final readonly class DocumentableRouteFilter
         }
 
         try {
-            $namespace = (new \ReflectionFunction($handler))->getNamespaceName();
+            $reflection = new \ReflectionFunction($handler);
         } catch (\Throwable) {
             return null;
         }
+
+        // PHP 8.4 stopped reporting a namespace for a closure via
+        // getNamespaceName(), so prefer the lexical scope class (stable across
+        // versions) and fall back to the function namespace for a closure
+        // defined outside a class.
+        $scope     = $reflection->getClosureScopeClass();
+        $namespace = $scope !== null ? $scope->getNamespaceName() : $reflection->getNamespaceName();
 
         return $namespace === '' ? null : $namespace;
     }
