@@ -7,12 +7,16 @@ namespace Tests\Unit\OpenApi\Metadata;
 use Illuminate\Support\Facades\Config;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Enums\ErrorCode;
+use SineMacula\ApiToolkit\Http\Resources\ResourceDiscovery;
+use SineMacula\ApiToolkit\OpenApi\Metadata\ApiExceptionDiscoverer;
 use SineMacula\ApiToolkit\OpenApi\Metadata\ConfigMetadataCatalogue;
 use SineMacula\ApiToolkit\OpenApi\Metadata\ErrorCatalogueReader;
 use SineMacula\ApiToolkit\OpenApi\Metadata\ErrorDescriptor;
 use SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry;
 use SineMacula\ApiToolkit\Repositories\Criteria\Operators\EqualOperator;
 use SineMacula\ApiToolkit\Repositories\Criteria\Operators\NotEqualOperator;
+use Tests\Fixtures\Discovery\Primary\DiscoveredUserResource;
+use Tests\Fixtures\Discovery\Primary\Nested\DiscoveredPostResource;
 use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Resources\PostResource;
@@ -37,6 +41,7 @@ final class ConfigMetadataCatalogueTest extends TestCase
      */
     public function testGetResourceMapReturnsConfiguredMap(): void
     {
+        Config::set('api-toolkit.resources.paths', []);
         Config::set('api-toolkit.resources.resource_map', [
             User::class => UserResource::class,
             Post::class => PostResource::class,
@@ -51,17 +56,60 @@ final class ConfigMetadataCatalogueTest extends TestCase
     }
 
     /**
-     * Test that getResourceMap returns an empty array when config is absent.
+     * Test that getResourceMap returns an empty array when neither the config
+     * map nor discovery yields any binding.
      *
      * @return void
      */
     public function testGetResourceMapReturnsEmptyArrayWhenUnconfigured(): void
     {
+        Config::set('api-toolkit.resources.paths', []);
         Config::set('api-toolkit.resources.resource_map', null);
 
         $catalogue = $this->makeCatalogue();
 
         self::assertSame([], $catalogue->getResourceMap());
+    }
+
+    /**
+     * Test that discovered resources absent from the config map appear in the
+     * returned map, even when the config map is empty.
+     *
+     * @return void
+     */
+    public function testGetResourceMapIncludesDiscoveredResourcesWhenConfigEmpty(): void
+    {
+        Config::set('api-toolkit.resources.paths', [$this->discoveryFixturePath()]);
+        Config::set('api-toolkit.resources.resource_map', []);
+
+        $catalogue = $this->makeCatalogue();
+
+        self::assertSame([
+            User::class => DiscoveredUserResource::class,
+            Post::class => DiscoveredPostResource::class,
+        ], $catalogue->getResourceMap());
+    }
+
+    /**
+     * Test that discovered resources are unioned with the configured map:
+     * configured entries keep their order and win on a model collision, while
+     * discovered bindings for models absent from the config are appended.
+     *
+     * @return void
+     */
+    public function testGetResourceMapUnionsConfiguredAndDiscoveredResources(): void
+    {
+        Config::set('api-toolkit.resources.paths', [$this->discoveryFixturePath()]);
+        Config::set('api-toolkit.resources.resource_map', [
+            User::class => UserResource::class,
+        ]);
+
+        $catalogue = $this->makeCatalogue();
+
+        self::assertSame([
+            User::class => UserResource::class,
+            Post::class => DiscoveredPostResource::class,
+        ], $catalogue->getResourceMap());
     }
 
     /**
@@ -179,6 +227,21 @@ final class ConfigMetadataCatalogueTest extends TestCase
      */
     private function makeCatalogueWithRegistry(OperatorRegistry $registry): ConfigMetadataCatalogue
     {
-        return new ConfigMetadataCatalogue($registry, new ErrorCatalogueReader);
+        assert($this->app !== null);
+
+        /** @var \SineMacula\ApiToolkit\Http\Resources\ResourceDiscovery $discovery */
+        $discovery = $this->app->make(ResourceDiscovery::class);
+
+        return new ConfigMetadataCatalogue($registry, new ErrorCatalogueReader(new ApiExceptionDiscoverer([])), $discovery);
+    }
+
+    /**
+     * Resolve the absolute path to the primary discovery fixture directory.
+     *
+     * @return string
+     */
+    private function discoveryFixturePath(): string
+    {
+        return dirname(__DIR__, 3) . '/Fixtures/Discovery/Primary';
     }
 }

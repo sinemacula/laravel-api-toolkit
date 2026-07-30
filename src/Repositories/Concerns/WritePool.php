@@ -280,15 +280,8 @@ final class WritePool
         $accumulator->recordFailure($context->table(), $records, $exception);
 
         if ($context->strategy() === FlushStrategy::THROW) {
-            // Whole-table retain: set buffer to the merged records + all
-            // remaining tables. Mirror of per-chunk retainUnprocessedRecords -
-            // keep in sync if either path changes.
-            $retainedBuffer = [$context->table() => $records];
-
-            foreach (array_slice($context->tables(), $context->tableIndex() + 1) as $remainingTable) {
-                $retainedBuffer[$remainingTable] = $this->buffer[$remainingTable];
-            }
-            $this->buffer = $retainedBuffer;
+            // Whole-table retain: the failed table keeps its merged records.
+            $this->retainBuffer($context, $records);
 
             throw new WritePoolFlushException($accumulator->toThrowResult($this->count(), $context->tables()), $exception);
         }
@@ -389,9 +382,21 @@ final class WritePool
     {
         $chunkIndex      = (int) $context->chunkIndex();
         $remainingChunks = array_slice($context->chunks(), $chunkIndex + 1);
-        $retainedBuffer  = [];
 
-        $retainedBuffer[$context->table()] = array_merge($chunk, ...$remainingChunks);
+        $this->retainBuffer($context, array_merge($chunk, ...$remainingChunks));
+    }
+
+    /**
+     * Rebuild the buffer to retain the failed table's records plus every table
+     * not yet reached, discarding the tables already flushed.
+     *
+     * @param  \SineMacula\ApiToolkit\Repositories\Concerns\WritePoolFlushContext  $context
+     * @param  list<array<string, mixed>>  $failedTableRecords
+     * @return void
+     */
+    private function retainBuffer(WritePoolFlushContext $context, array $failedTableRecords): void
+    {
+        $retainedBuffer = [$context->table() => $failedTableRecords];
 
         foreach (array_slice($context->tables(), $context->tableIndex() + 1) as $remainingTable) {
             $retainedBuffer[$remainingTable] = $this->buffer[$remainingTable];

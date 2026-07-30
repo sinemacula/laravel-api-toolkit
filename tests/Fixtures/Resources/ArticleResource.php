@@ -4,6 +4,7 @@ declare(strict_types = 1);
 
 namespace Tests\Fixtures\Resources;
 
+use Illuminate\Http\Request;
 use SineMacula\ApiToolkit\Http\Resources\ApiResource;
 use SineMacula\ApiToolkit\Schema\Field;
 use SineMacula\ApiToolkit\Schema\Relation;
@@ -26,6 +27,21 @@ final class ArticleResource extends ApiResource
 
     /** @var array<int, string> */
     protected static array $default = ['id', 'title', 'slug', 'status'];
+
+    /**
+     * Opt in to soft-delete visibility so the trashed criteria can widen the
+     * scope for this fixture.
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @return bool
+     *
+     * @SuppressWarnings("php:S1172")
+     */
+    #[\Override]
+    public static function allowsTrashed(Request $request): bool
+    {
+        return true;
+    }
 
     /**
      * Return the resource schema.

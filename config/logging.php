@@ -2,10 +2,6 @@
 
 declare(strict_types = 1);
 
-$base = [
-    'level' => env('LOG_LEVEL', 'debug'),
-];
-
 return [
 
     /*
@@ -19,15 +15,17 @@ return [
 
     'channels' => [
 
-        'notifications' => array_merge($base, [
+        'notifications' => [
             'driver' => 'daily',
             'path'   => storage_path('logs/notifications.log'),
-        ]),
+            'level'  => env('LOG_LEVEL', 'debug'),
+        ],
 
-        'api-exceptions' => array_merge($base, [
+        'api-exceptions' => [
             'driver' => 'daily',
             'path'   => storage_path('logs/api-exceptions.log'),
-        ]),
+            'level'  => env('LOG_LEVEL', 'debug'),
+        ],
 
     ],
 ];

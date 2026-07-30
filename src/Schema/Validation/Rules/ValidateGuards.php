@@ -32,6 +32,10 @@ final class ValidateGuards extends ValidatesCallableLists
             $errors = array_merge($errors, $this->collectCallableErrors($resourceClass, $count->presentKey, $count->guards));
         }
 
+        foreach ($schema->getAggregateDefinitions() as $aggregate) {
+            $errors = array_merge($errors, $this->collectCallableErrors($resourceClass, $aggregate->presentKey, $aggregate->guards));
+        }
+
         return $errors;
     }
 

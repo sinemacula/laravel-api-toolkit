@@ -4,18 +4,36 @@ declare(strict_types = 1);
 
 namespace Tests\Unit\OpenApi;
 
+use Illuminate\Contracts\Config\Repository as ConfigRepository;
+use Illuminate\Routing\Router;
 use PHPUnit\Framework\Attributes\CoversClass;
+use SineMacula\ApiToolkit\OpenApi\Builder\EnumSchemaBuilder;
+use SineMacula\ApiToolkit\OpenApi\Builder\EnvelopeBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\ErrorResponseBuilder;
+use SineMacula\ApiToolkit\OpenApi\Builder\PathBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\QueryParameterBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\ResourceSchemaBuilder;
 use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
+use SineMacula\ApiToolkit\OpenApi\Docs\DocManualAssembler;
 use SineMacula\ApiToolkit\OpenApi\Metadata\ErrorDescriptor;
 use SineMacula\ApiToolkit\OpenApi\OpenApiAssembler;
+use SineMacula\ApiToolkit\OpenApi\Resolution\AudienceResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ColumnTypeMapper;
+use SineMacula\ApiToolkit\OpenApi\Resolution\DocumentableRouteFilter;
 use SineMacula\ApiToolkit\OpenApi\Resolution\FieldTypeResolver;
+use SineMacula\ApiToolkit\OpenApi\Resolution\RequestBodyResolver;
+use SineMacula\ApiToolkit\OpenApi\Resolution\ResponseSchemaResolver;
+use SineMacula\ApiToolkit\OpenApi\Resolution\TagResolver;
+use SineMacula\ApiToolkit\OpenApi\Schema\EnumSchemaRegistry;
+use SineMacula\ApiToolkit\OpenApi\Schema\FieldSchemaBuilder;
+use SineMacula\ApiToolkit\OpenApi\Schema\RuleNormaliser;
+use SineMacula\ApiToolkit\OpenApi\Schema\RulesToSchemaTranslator;
+use SineMacula\ApiToolkit\OpenApi\Security\SecuritySchemeMapper;
+use SineMacula\ApiToolkit\OpenApi\Security\SecuritySchemeResolver;
 use SineMacula\ApiToolkit\Schema\Introspection\SchemaIntrospector;
 use Tests\Fixtures\Models\Organization;
 use Tests\Fixtures\Models\User;
+use Tests\Fixtures\OpenApi\PathFixtureController;
 use Tests\Fixtures\Resources\OrganizationResource;
 use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
@@ -31,6 +49,42 @@ use Tests\TestCase;
 #[CoversClass(OpenApiAssembler::class)]
 final class OpenApiAssemblerTest extends TestCase
 {
+    /** @var list<string> The temporary docs directories to clean up. */
+    private array $docsDirs = [];
+
+    /**
+     * Set up each test with an absent docs directory, so the assembled info
+     * block never picks up a manual from the environment's resources and the
+     * info-configuration assertions stay independent of any published docs.
+     *
+     * @return void
+     */
+    #[\Override]
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->config()->set('api-toolkit.openapi.docs_path', sys_get_temp_dir() . '/api-toolkit-absent-' . uniqid('', true));
+    }
+
+    /**
+     * Tear down each test, removing any temporary docs directories.
+     *
+     * @return void
+     */
+    #[\Override]
+    protected function tearDown(): void
+    {
+        foreach ($this->docsDirs as $dir) {
+            array_map('unlink', glob($dir . '/*') ?: []);
+            @rmdir($dir);
+        }
+
+        $this->docsDirs = [];
+
+        parent::tearDown();
+    }
+
     /**
      * Test that the assembled document declares a 3.1.x OpenAPI version.
      *
@@ -58,6 +112,104 @@ final class OpenApiAssemblerTest extends TestCase
     }
 
     /**
+     * Test that the assembled document's info block reflects the per-audience
+     * info configured for the resolved audience.
+     *
+     * @return void
+     */
+    public function testInfoReflectsPerAudienceConfiguration(): void
+    {
+        $this->config()->set('api-toolkit.openapi.default_audience', 'internal');
+        $this->config()->set('api-toolkit.openapi.audiences', [
+            'internal' => [
+                'info' => [
+                    'title'       => 'Internal API',
+                    'version'     => '3.4.5',
+                    'description' => 'For staff only.',
+                ],
+            ],
+        ]);
+
+        $info = $this->assemble()['info'];
+
+        self::assertSame('Internal API', $info['title']);
+        self::assertSame('3.4.5', $info['version']);
+        self::assertSame('For staff only.', $info['description']);
+    }
+
+    /**
+     * Test that the assembled document's info block falls back to the top-level
+     * info default when the audience declares none.
+     *
+     * @return void
+     */
+    public function testInfoFallsBackToTopLevelDefault(): void
+    {
+        $this->config()->set('api-toolkit.openapi.info', [
+            'title'   => 'Acme API',
+            'version' => '2.0.0',
+        ]);
+        $this->config()->set('api-toolkit.openapi.audiences', ['public' => []]);
+
+        $info = $this->assemble()['info'];
+
+        self::assertSame('Acme API', $info['title']);
+        self::assertSame('2.0.0', $info['version']);
+        self::assertArrayNotHasKey('description', $info);
+    }
+
+    /**
+     * Test that the committed Markdown manual is injected into
+     * info.description, with the configured description leading and the manual
+     * following.
+     *
+     * @return void
+     */
+    public function testManualIsAppendedAfterConfiguredDescription(): void
+    {
+        $dir = $this->makeDocsDir(['10-intro.md' => "# Intro\n\nWelcome."]);
+
+        $this->config()->set('api-toolkit.openapi.docs_path', $dir);
+        $this->config()->set('api-toolkit.openapi.audiences', [
+            'public' => ['info' => ['description' => 'Preface.']],
+        ]);
+
+        $description = $this->assemble()['info']['description'];
+
+        self::assertSame("Preface.\n\n# Intro\n\nWelcome.", $description);
+    }
+
+    /**
+     * Test that the manual becomes the whole description when no description is
+     * configured for the audience.
+     *
+     * @return void
+     */
+    public function testManualBecomesDescriptionWhenNoneConfigured(): void
+    {
+        $dir = $this->makeDocsDir(['20-body.md' => "# Body\n\nContent."]);
+
+        $this->config()->set('api-toolkit.openapi.docs_path', $dir);
+
+        $info = $this->assemble()['info'];
+
+        self::assertSame("# Body\n\nContent.", $info['description']);
+    }
+
+    /**
+     * Test that info carries no description when neither a description is
+     * configured nor a docs directory exists, keeping the info block valid.
+     *
+     * @return void
+     */
+    public function testDescriptionOmittedWhenManualAndConfigEmpty(): void
+    {
+        $this->config()->set('api-toolkit.openapi.docs_path', sys_get_temp_dir() . '/api-toolkit-absent-' . uniqid('', true));
+
+        self::assertArrayNotHasKey('description', $this->assemble()['info']);
+    }
+
+    /**
      * Test that the document declares no path operations, so the package never
      * crosses the components/paths seam.
      *
@@ -65,7 +217,7 @@ final class OpenApiAssemblerTest extends TestCase
      */
     public function testDocumentDeclaresNoPaths(): void
     {
-        $document = $this->assemble();
+        $document = $this->assembleEmptyAudience();
 
         self::assertArrayHasKey('paths', $document);
         self::assertSame([], (array) $document['paths']);
@@ -79,7 +231,7 @@ final class OpenApiAssemblerTest extends TestCase
      */
     public function testPathsSerialiseToAnEmptyObject(): void
     {
-        $document = $this->assemble();
+        $document = $this->assembleEmptyAudience();
 
         self::assertSame('{}', json_encode($document['paths']));
     }
@@ -100,18 +252,135 @@ final class OpenApiAssemblerTest extends TestCase
     }
 
     /**
-     * Test that the resource schemas appear under components.schemas alongside
-     * the shared error-envelope schema.
+     * Test that the resource schemas reachable from the audience's paths appear
+     * under components.schemas alongside the shared error-envelope schema.
      *
      * @return void
      */
     public function testResourceAndEnvelopeSchemasArePresent(): void
     {
+        $this->registerUserRoutes();
+
         $schemas = $this->assemble()['components']['schemas'];
 
         self::assertArrayHasKey('User', $schemas);
         self::assertArrayHasKey('Organization', $schemas);
         self::assertArrayHasKey(ErrorResponseBuilder::ENVELOPE_SCHEMA_NAME, $schemas);
+    }
+
+    /**
+     * Test that an enum referenced by a reachable resource field is emitted as
+     * its own component, typed by its backing type, and survives reachability
+     * filtering because the resource schema references it.
+     *
+     * @return void
+     */
+    public function testReferencedEnumComponentIsPresentAndReachable(): void
+    {
+        $this->registerUserRoutes();
+
+        $schemas = $this->assemble()['components']['schemas'];
+
+        self::assertSame(['$ref' => '#/components/schemas/UserStatus'], $schemas['User']['properties']['status']);
+        self::assertSame(['type' => 'string'], $schemas['UserStatus']);
+    }
+
+    /**
+     * Test that the shared response-envelope pagination schemas are emitted
+     * under components.schemas.
+     *
+     * @return void
+     */
+    public function testEnvelopeSchemasArePresent(): void
+    {
+        $schemas = $this->assemble()['components']['schemas'];
+
+        self::assertArrayHasKey(EnvelopeBuilder::PAGINATION_META_SCHEMA_NAME, $schemas);
+        self::assertArrayHasKey(EnvelopeBuilder::PAGINATION_LINKS_SCHEMA_NAME, $schemas);
+        self::assertArrayHasKey(EnvelopeBuilder::CURSOR_PAGINATION_META_SCHEMA_NAME, $schemas);
+        self::assertArrayHasKey(EnvelopeBuilder::CURSOR_PAGINATION_LINKS_SCHEMA_NAME, $schemas);
+    }
+
+    /**
+     * Test that an index operation offers both pagination shapes as a oneOf of
+     * the length-aware and cursor collection envelopes, and that the cursor
+     * envelope's schemas survive the reachability filtering now a path
+     * references them.
+     *
+     * @return void
+     */
+    public function testIndexOffersBothPaginationShapesAndKeepsCursorSchemas(): void
+    {
+        $this->registerUserRoutes();
+
+        $document = $this->assemble();
+        $schema   = $document['paths']['/users']['get']['responses']['200']['content']['application/json']['schema'];
+        $envelope = new EnvelopeBuilder;
+
+        self::assertSame(
+            [
+                'oneOf' => [
+                    $envelope->collectionEnvelope('#/components/schemas/User'),
+                    $envelope->cursorCollectionEnvelope('#/components/schemas/User'),
+                ],
+            ],
+            $schema,
+        );
+
+        $schemas = $document['components']['schemas'];
+
+        self::assertArrayHasKey(EnvelopeBuilder::CURSOR_PAGINATION_META_SCHEMA_NAME, $schemas);
+        self::assertArrayHasKey(EnvelopeBuilder::CURSOR_PAGINATION_LINKS_SCHEMA_NAME, $schemas);
+    }
+
+    /**
+     * Test that components.securitySchemes carries exactly the distinct schemes
+     * referenced by the assembled paths, each with its correct definition.
+     *
+     * @return void
+     */
+    public function testSecuritySchemesReflectReferencedSchemes(): void
+    {
+        $this->configureGuards();
+
+        $router = $this->router();
+        $router->get('users', [PathFixtureController::class, 'index'])->middleware('auth:api');
+        $router->get('admins', [PathFixtureController::class, 'index'])->middleware('auth:admin');
+        $router->get('sessions', [PathFixtureController::class, 'index'])->middleware('auth:web');
+
+        $schemes = $this->assemble()['components']['securitySchemes'];
+
+        self::assertSame(['bearerAuth', 'basicAuth', 'cookieAuth'], array_keys($schemes));
+        self::assertSame(['type' => 'http', 'scheme' => 'bearer'], $schemes['bearerAuth']);
+        self::assertSame(['type' => 'http', 'scheme' => 'basic'], $schemes['basicAuth']);
+        self::assertSame('apiKey', $schemes['cookieAuth']['type']);
+        self::assertSame('cookie', $schemes['cookieAuth']['in']);
+    }
+
+    /**
+     * Test that a document whose paths reference no auth scheme omits the
+     * securitySchemes key entirely, keeping the components block valid.
+     *
+     * @return void
+     */
+    public function testSecuritySchemesOmittedWhenNoRouteIsAuthenticated(): void
+    {
+        $this->registerUserRoutes();
+
+        self::assertArrayNotHasKey('securitySchemes', $this->assemble()['components']);
+    }
+
+    /**
+     * Test that the reusable total-count header is emitted under
+     * components.headers.
+     *
+     * @return void
+     */
+    public function testTotalCountHeaderIsPresent(): void
+    {
+        $headers = $this->assemble()['components']['headers'];
+
+        self::assertArrayHasKey(EnvelopeBuilder::TOTAL_COUNT_HEADER_NAME, $headers);
     }
 
     /**
@@ -157,6 +426,79 @@ final class OpenApiAssemblerTest extends TestCase
     }
 
     /**
+     * Test that a non-empty audience argument is honoured verbatim rather than
+     * being coerced to the configured default audience.
+     *
+     * @return void
+     */
+    public function testExplicitAudienceIsHonouredOverDefault(): void
+    {
+        $this->config()->set('api-toolkit.openapi.default_audience', 'public');
+        $this->config()->set('api-toolkit.openapi.audiences', [
+            'public'   => ['info' => ['title' => 'Public API', 'version' => '1.0.0']],
+            'internal' => ['info' => ['title' => 'Internal API', 'version' => '9.9.9']],
+        ]);
+
+        $info = $this->makeAssembler()->assemble('internal')['info'];
+
+        self::assertSame('Internal API', $info['title']);
+        self::assertSame('9.9.9', $info['version']);
+    }
+
+    /**
+     * Test that an operation naming two single-scheme security requirements
+     * contributes both schemes to the components block, not just one.
+     *
+     * @return void
+     */
+    public function testSecuritySchemesAccumulateAcrossRequirements(): void
+    {
+        $this->configureGuards();
+
+        $this->router()->get('reports', [PathFixtureController::class, 'index'])->middleware('auth:api,web');
+
+        $schemes = $this->assemble()['components']['securitySchemes'];
+
+        self::assertArrayHasKey('bearerAuth', $schemes);
+        self::assertArrayHasKey('cookieAuth', $schemes);
+    }
+
+    /**
+     * Test that the shared error-envelope schema is retained even when the
+     * audience documents no paths that could reference it.
+     *
+     * @return void
+     */
+    public function testSharedErrorEnvelopeSurvivesWithoutPaths(): void
+    {
+        $schemas = $this->assembleEmptyAudience()['components']['schemas'];
+
+        self::assertArrayHasKey(ErrorResponseBuilder::ENVELOPE_SCHEMA_NAME, $schemas);
+    }
+
+    /**
+     * Create a temporary docs directory seeded with the given files, registered
+     * for teardown, and return its path.
+     *
+     * @param  array<string, string>  $files
+     * @return string
+     */
+    private function makeDocsDir(array $files): string
+    {
+        $dir = sys_get_temp_dir() . '/api-toolkit-docs-' . uniqid('', true);
+
+        mkdir($dir);
+
+        foreach ($files as $name => $contents) {
+            file_put_contents($dir . '/' . $name, $contents);
+        }
+
+        $this->docsDirs[] = $dir;
+
+        return $dir;
+    }
+
+    /**
      * Assemble a document from real builders backed by a stubbed catalogue and
      * a real resolver against the live test schema.
      *
@@ -168,6 +510,22 @@ final class OpenApiAssemblerTest extends TestCase
     }
 
     /**
+     * Assemble a document for an allowlist audience no route opts into, so the
+     * paths object is genuinely empty even with the framework's default routes
+     * registered.
+     *
+     * @return array<string, mixed>
+     */
+    private function assembleEmptyAudience(): array
+    {
+        $this->config()->set('api-toolkit.openapi.audiences', [
+            'partner' => ['posture' => 'allowlist'],
+        ]);
+
+        return $this->makeAssembler()->assemble('partner');
+    }
+
+    /**
      * Build an assembler from the three real builders.
      *
      * @return \SineMacula\ApiToolkit\OpenApi\OpenApiAssembler
@@ -176,11 +534,87 @@ final class OpenApiAssemblerTest extends TestCase
     {
         $catalogue = $this->makeCatalogue();
 
+        assert($this->app !== null);
+
+        $enums = new EnumSchemaRegistry;
+
         return new OpenApiAssembler(
-            new ResourceSchemaBuilder($catalogue, $this->resolver()),
+            new ResourceSchemaBuilder($catalogue, $this->resolver($enums), $this->app->make(SchemaIntrospector::class)),
             new QueryParameterBuilder($catalogue),
             new ErrorResponseBuilder($catalogue),
+            new PathBuilder(
+                $this->router(),
+                $catalogue,
+                new AudienceResolver,
+                new DocumentableRouteFilter,
+                new EnvelopeBuilder,
+                new TagResolver,
+                new ResponseSchemaResolver($catalogue, new EnvelopeBuilder),
+                new RequestBodyResolver(new RulesToSchemaTranslator(new RuleNormaliser, new FieldSchemaBuilder($enums))),
+                new SecuritySchemeResolver(new SecuritySchemeMapper),
+            ),
+            new SecuritySchemeResolver(new SecuritySchemeMapper),
+            new EnumSchemaBuilder,
+            $enums,
+            new DocManualAssembler,
         );
+    }
+
+    /**
+     * Register a full REST route set for the user resource so its schema is
+     * reachable from the assembled paths.
+     *
+     * @return void
+     */
+    private function registerUserRoutes(): void
+    {
+        $router = $this->router();
+
+        $router->get('users', [PathFixtureController::class, 'index']);
+        $router->post('users', [PathFixtureController::class, 'store']);
+        $router->get('users/{user}', [PathFixtureController::class, 'show']);
+        $router->match(['PUT', 'PATCH'], 'users/{user}', [PathFixtureController::class, 'update']);
+        $router->delete('users/{user}', [PathFixtureController::class, 'destroy']);
+    }
+
+    /**
+     * Configure the auth guards the security schemes are derived from.
+     *
+     * @return void
+     */
+    private function configureGuards(): void
+    {
+        $config = $this->config();
+
+        $config->set('auth.defaults.guard', 'web');
+        $config->set('auth.guards.api', ['driver' => 'jwt']);
+        $config->set('auth.guards.web', ['driver' => 'session']);
+        $config->set('auth.guards.admin', ['driver' => 'basic']);
+    }
+
+    /**
+     * Get the config repository instance.
+     *
+     * @return \Illuminate\Contracts\Config\Repository
+     */
+    private function config(): ConfigRepository
+    {
+        assert($this->app !== null);
+
+        /** @var \Illuminate\Contracts\Config\Repository */
+        return $this->app->make('config');
+    }
+
+    /**
+     * Resolve the application router singleton.
+     *
+     * @return \Illuminate\Routing\Router
+     */
+    private function router(): Router
+    {
+        assert($this->app !== null);
+
+        return $this->app->make(Router::class);
     }
 
     /**
@@ -209,12 +643,13 @@ final class OpenApiAssemblerTest extends TestCase
      * Build a real field-type resolver against the container-bound
      * introspector.
      *
+     * @param  \SineMacula\ApiToolkit\OpenApi\Schema\EnumSchemaRegistry  $enums
      * @return \SineMacula\ApiToolkit\OpenApi\Resolution\FieldTypeResolver
      */
-    private function resolver(): FieldTypeResolver
+    private function resolver(EnumSchemaRegistry $enums): FieldTypeResolver
     {
         assert($this->app !== null);
 
-        return new FieldTypeResolver($this->app->make(SchemaIntrospector::class), new ColumnTypeMapper);
+        return new FieldTypeResolver($this->app->make(SchemaIntrospector::class), new ColumnTypeMapper, $enums);
     }
 }

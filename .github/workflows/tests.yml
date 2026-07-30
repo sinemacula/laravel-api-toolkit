@@ -8,7 +8,7 @@ name: Tests
 # ==============================================================================
 on:
     push:
-        branches: [ master, 2.x ]
+        branches: [ master ]
     pull_request:
         types: [ opened, synchronize, reopened, ready_for_review ]
     workflow_dispatch:
@@ -37,16 +37,16 @@ defaults:
 jobs:
 
     # ==========================================================================
-    # JOB: TESTS
+    # JOB: PHP TESTS
     # ==========================================================================
-    tests:
+    php:
         name: Test / PHP ${{ matrix.php }}
         runs-on: ubuntu-latest
 
         strategy:
             fail-fast: false
             matrix:
-                php: [ 8.3, 8.4 ]
+                php: [ 8.3, 8.4, 8.5 ]
 
         steps:
             -   name: Checkout
@@ -70,7 +70,42 @@ jobs:
                     files: clover.xml
 
     # ==========================================================================
-    # JOB: DATABASE-BACKED TESTS (Integration + Feature on MySQL + PostgreSQL)
+    # JOB: LARAVEL TESTS
+    # ==========================================================================
+    laravel:
+        name: Test / Laravel ${{ matrix.laravel.label }}
+        runs-on: ubuntu-latest
+
+        strategy:
+            fail-fast: false
+            matrix:
+                laravel:
+                    -   constraint: ^12.0
+                        label: 12
+                    -   constraint: ^13.0
+                        label: 13
+
+        steps:
+            -   name: Checkout
+                uses: actions/checkout@v5
+                with:
+                    persist-credentials: false
+
+            -   name: Setup PHP
+                uses: sinemacula/.github/.github/actions/setup-php@v1.1.1
+                with:
+                    php-version: 8.3
+
+            -   name: Pin Laravel version
+                env:
+                    LARAVEL_CONSTRAINT: ${{ matrix.laravel.constraint }}
+                run: composer update --with="laravel/framework:${LARAVEL_CONSTRAINT}" --prefer-dist --no-interaction --no-progress
+
+            -   name: PHPUnit
+                run: composer test
+
+    # ==========================================================================
+    # JOB: DATABASE TESTS (MySQL + PostgreSQL)
     # ==========================================================================
     integration:
         name: Integration / ${{ matrix.database }}
@@ -132,7 +167,7 @@ jobs:
                     php-version: 8.3
                     extensions: pdo_mysql, pdo_pgsql
 
-            -   name: Run database-backed tests (Integration + Feature)
+            -   name: Database Tests
                 env:
                     DB_DRIVER: ${{ matrix.db_driver }}
                     DB_HOST: 127.0.0.1

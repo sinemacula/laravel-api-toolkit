@@ -87,6 +87,7 @@ abstract class ApiRepository extends Repository
      * @return mixed
      *
      * @throws \Illuminate\Contracts\Container\BindingResolutionException
+     * @throws \SineMacula\Repositories\Exceptions\RepositoryException
      */
     public function paginate(): mixed
     {

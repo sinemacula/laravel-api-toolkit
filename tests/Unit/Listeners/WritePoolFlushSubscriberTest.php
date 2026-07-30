@@ -258,6 +258,38 @@ final class WritePoolFlushSubscriberTest extends TestCase
     }
 
     /**
+     * Test that a systemic COLLECT failure, where every table fails, dispatches
+     * a WritePoolFlushFailed event whose result carries every failing table so
+     * downstream escalation can act on the full set.
+     *
+     * @return void
+     */
+    public function testHandleFlushDispatchesEventCarryingEverySystemicFailure(): void
+    {
+        $pool = new WritePool(500, 10000);
+        $pool->add('nonexistent_table', ['col' => 'a']);
+        $pool->add('another_missing_table', ['col' => 'b']);
+
+        $container = \Mockery::mock(Container::class);
+        $container->shouldReceive('make')
+            ->with(WritePool::class)
+            ->andReturn($pool);
+
+        Log::shouldReceive('error')->never();
+        Log::shouldReceive('warning')->once();
+
+        Event::fake([WritePoolFlushFailed::class]);
+
+        $subscriber = new WritePoolFlushSubscriber($container);
+
+        $subscriber->handleFlush();
+
+        Event::assertDispatched(WritePoolFlushFailed::class, fn (WritePoolFlushFailed $event): bool => $event->flushResult->failureCount() === 2
+            && array_key_exists('nonexistent_table', $event->flushResult->failures())
+            && array_key_exists('another_missing_table', $event->flushResult->failures()));
+    }
+
+    /**
      * Test that handleFlush does not log a warning on success.
      *
      * @return void

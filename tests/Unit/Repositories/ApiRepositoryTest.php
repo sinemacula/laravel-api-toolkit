@@ -168,6 +168,8 @@ final class ApiRepositoryTest extends TestCase
      * than being shadowed by a private base implementation.
      *
      * @return void
+     *
+     * @throws \SineMacula\Repositories\Exceptions\RepositoryException
      */
     public function testResourceResolutionUsesSubclassMetadataCacheWriterOverride(): void
     {
@@ -200,6 +202,8 @@ final class ApiRepositoryTest extends TestCase
      * Test that paginate returns paginated results using standard pagination.
      *
      * @return void
+     *
+     * @throws \SineMacula\Repositories\Exceptions\RepositoryException
      */
     public function testPaginateReturnsPaginatedResults(): void
     {
@@ -217,6 +221,8 @@ final class ApiRepositoryTest extends TestCase
      * Test that paginate uses cursor pagination when requested.
      *
      * @return void
+     *
+     * @throws \SineMacula\Repositories\Exceptions\RepositoryException
      */
     public function testPaginateUsesCursorPaginationWhenRequested(): void
     {
@@ -266,8 +272,6 @@ final class ApiRepositoryTest extends TestCase
      */
     public function testPersistSetsIntegerAttributes(): void
     {
-        Config::set('api-toolkit.repositories.cast_map.integer', ['integer', 'int']);
-
         $user = User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL]);
 
         assert($this->app !== null);
@@ -436,6 +440,8 @@ final class ApiRepositoryTest extends TestCase
      * Test that paginate applies registered criteria to the query.
      *
      * @return void
+     *
+     * @throws \SineMacula\Repositories\Exceptions\RepositoryException
      */
     public function testPaginateAppliesCriteria(): void
     {
@@ -458,6 +464,8 @@ final class ApiRepositoryTest extends TestCase
      * Test that paginate applies registered scopes to the query.
      *
      * @return void
+     *
+     * @throws \SineMacula\Repositories\Exceptions\RepositoryException
      */
     public function testPaginateAppliesScopes(): void
     {
@@ -481,6 +489,8 @@ final class ApiRepositoryTest extends TestCase
      * pagination URLs.
      *
      * @return void
+     *
+     * @throws \SineMacula\Repositories\Exceptions\RepositoryException
      */
     public function testPaginateAppendsRequestQueryToPaginationUrls(): void
     {
@@ -684,23 +694,13 @@ final class ApiRepositoryTest extends TestCase
     }
 
     /**
-     * Test that castMatchesLaravelCast returns true for a class-based cast that
-     * matches exactly (line 314 in ApiRepository.php).
-     *
-     * Registers UserStatus::class under the 'enum' native key so that the
-     * class_exists branch fires and returns true before the string-equality
-     * fallback is reached.
+     * Test that persist resolves and sets an enum-cast attribute, with the cast
+     * resolved from the model rather than a pre-populated cache.
      *
      * @return void
      */
-    public function testCastMatchesExactClassBasedCast(): void
+    public function testPersistSetsEnumCastAttributes(): void
     {
-        // Add UserStatus::class as a recognized laravel cast under 'enum' so
-        // that class_exists($laravel_cast) is true AND $base_cast matches.
-        $existingEnumCasts   = Config::get('api-toolkit.repositories.cast_map.enum', []);
-        $existingEnumCasts[] = UserStatus::class;
-        Config::set('api-toolkit.repositories.cast_map.enum', $existingEnumCasts);
-
         $user = User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL, 'status' => 'active']);
 
         assert($this->app !== null);
@@ -713,6 +713,7 @@ final class ApiRepositoryTest extends TestCase
         $result = $repository->persist($user, ['status' => UserStatus::BANNED]);
 
         self::assertTrue($result);
+        self::assertSame(UserStatus::BANNED, $user->fresh()?->getAttribute('status'));
     }
 
     /**

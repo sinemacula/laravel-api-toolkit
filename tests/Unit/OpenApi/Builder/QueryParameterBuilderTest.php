@@ -39,11 +39,11 @@ final class QueryParameterBuilderTest extends TestCase
     {
         $parameters = $this->makeBuilder()->build();
 
-        foreach (['Fields', 'Filter', 'Order', 'Limit', 'Page', 'Cursor', 'Counts', 'Sums', 'Averages'] as $name) {
+        foreach (['Fields', 'Filter', 'Order', 'Limit', 'Page', 'Cursor', 'Pagination', 'Counts', 'Sums', 'Averages'] as $name) {
             self::assertArrayHasKey($name, $parameters);
         }
 
-        self::assertCount(9, $parameters);
+        self::assertCount(10, $parameters);
     }
 
     /**
@@ -63,6 +63,7 @@ final class QueryParameterBuilderTest extends TestCase
         self::assertSame('limit', $parameters['Limit']['name']);
         self::assertSame('page', $parameters['Page']['name']);
         self::assertSame('cursor', $parameters['Cursor']['name']);
+        self::assertSame('pagination', $parameters['Pagination']['name']);
         self::assertSame('counts', $parameters['Counts']['name']);
         self::assertSame('sums', $parameters['Sums']['name']);
         self::assertSame('averages', $parameters['Averages']['name']);
@@ -187,6 +188,21 @@ final class QueryParameterBuilderTest extends TestCase
     }
 
     /**
+     * Test that the pagination-mode parameter documents cursor as its only
+     * behaviour-changing value and describes the default length-aware mode.
+     *
+     * @return void
+     */
+    public function testPaginationModeParameterEnumeratesCursorOnly(): void
+    {
+        $pagination = $this->makeBuilder()->build()['Pagination'];
+
+        self::assertSame(['type' => 'string', 'enum' => ['cursor']], $pagination['schema']);
+        self::assertStringContainsString('length-aware', $pagination['description']);
+        self::assertStringContainsString('cursor', $pagination['description']);
+    }
+
+    /**
      * Test that the sparse-fieldset parameter carries an object schema of
      * string members, is optional, and uses the deepObject exploded style.
      *
@@ -200,6 +216,54 @@ final class QueryParameterBuilderTest extends TestCase
         self::assertFalse($fields['required']);
         self::assertSame('deepObject', $fields['style']);
         self::assertTrue($fields['explode']);
+    }
+
+    /**
+     * Test that every deep-object parameter carries the deepObject exploded
+     * style so bracketed keys serialise per the toolkit's query grammar.
+     *
+     * @return void
+     */
+    public function testDeepObjectParametersCarryDeepObjectExplodedStyle(): void
+    {
+        $parameters = $this->makeBuilder()->build();
+
+        foreach (['Fields', 'Filter', 'Counts', 'Sums', 'Averages'] as $name) {
+            self::assertSame('deepObject', $parameters[$name]['style'], $name);
+            self::assertTrue($parameters[$name]['explode'], $name);
+        }
+    }
+
+    /**
+     * Test that each parameter description carries the canonical query-grammar
+     * example token a developer copies verbatim.
+     *
+     * @return void
+     */
+    public function testDescriptionsCarryTheCanonicalGrammarExampleTokens(): void
+    {
+        $parameters = $this->makeBuilder()->build();
+
+        self::assertStringContainsString('fields[users]=id,name', $parameters['Fields']['description']);
+        self::assertStringContainsString('order=name,created_at:desc', $parameters['Order']['description']);
+        self::assertStringContainsString('counts[users]=posts', $parameters['Counts']['description']);
+        self::assertStringContainsString('sums[users][posts]=id', $parameters['Sums']['description']);
+        self::assertStringContainsString('averages[users][posts]=id', $parameters['Averages']['description']);
+    }
+
+    /**
+     * Test that the pagination-family descriptions state the behaviour each
+     * parameter controls so consumers pick the correct paging knob.
+     *
+     * @return void
+     */
+    public function testPaginationFamilyDescriptionsStateTheirBehaviour(): void
+    {
+        $parameters = $this->makeBuilder()->build();
+
+        self::assertStringContainsString('maximum number of records', $parameters['Limit']['description']);
+        self::assertStringContainsString('Page number', $parameters['Page']['description']);
+        self::assertStringContainsString('cursor', $parameters['Cursor']['description']);
     }
 
     /**

@@ -33,7 +33,7 @@ use Tests\TestCase;
 final class ApiResourceCollectionTest extends TestCase
 {
     /** @var string Base path used to build paginator links in tests */
-    private const string PAGINATION_PATH = 'http://localhost/api/users';
+    private const string PAGINATION_PATH = 'http://localhost/users';
 
     /**
      * Test that toArray resolves each item via the resource class.
@@ -288,7 +288,7 @@ final class ApiResourceCollectionTest extends TestCase
         // ResourceCollection constructor; inject the raw User directly so the
         // false-branch of `instanceof ApiResource` in toArray() fires.
         $reflection = new \ReflectionProperty($collection, 'collection');
-        $reflection->setValue($collection, collect([$user])); // NOSONAR
+        $reflection->setValue($collection, collect([$user]));
 
         $request = Request::create('/', HttpMethod::GET->getVerb());
         $result  = $collection->toArray($request);
@@ -352,7 +352,7 @@ final class ApiResourceCollectionTest extends TestCase
         $collection = new ApiResourceCollection(collect([]), UserResource::class);
 
         $reflection = new \ReflectionProperty($collection, 'collection');
-        $reflection->setValue($collection, collect([$user])); // NOSONAR
+        $reflection->setValue($collection, collect([$user]));
 
         $result = $collection->toArray($request);
 

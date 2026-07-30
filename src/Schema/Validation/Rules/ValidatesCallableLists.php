@@ -4,48 +4,33 @@ declare(strict_types = 1);
 
 namespace SineMacula\ApiToolkit\Schema\Validation\Rules;
 
-use SineMacula\ApiToolkit\Contracts\SchemaValidationRule;
 use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
-use SineMacula\ApiToolkit\Schema\CompiledSchema;
 use SineMacula\ApiToolkit\Schema\Validation\SchemaValidationError;
 
 /**
  * Base rule for validating callable lists on compiled field definitions.
  *
- * Iterates the compiled fields and reports a validation error for every list
- * entry that is not callable, using the callable list and label declared by the
- * concrete subclass.
+ * Reports a validation error for every list entry that is not callable, using
+ * the callable list and label declared by the concrete subclass. The field-key
+ * iteration is inherited from ValidatesEachField.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-abstract class ValidatesCallableLists implements SchemaValidationRule
+abstract class ValidatesCallableLists extends ValidatesEachField
 {
     /**
-     * Validate the compiled schema for the given resource class.
+     * Return the validation errors for a single compiled field.
      *
      * @param  string  $resourceClass
-     * @param  string|null  $modelClass
-     * @param  \SineMacula\ApiToolkit\Schema\CompiledSchema  $schema
+     * @param  string  $key
+     * @param  \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition  $field
      * @return array<int, \SineMacula\ApiToolkit\Schema\Validation\SchemaValidationError>
      */
     #[\Override]
-    public function validate(string $resourceClass, ?string $modelClass, CompiledSchema $schema): array
+    protected function checkField(string $resourceClass, string $key, CompiledFieldDefinition $field): array
     {
-        $errors = [];
-
-        foreach ($schema->getFieldKeys() as $key) {
-
-            $field = $schema->getField($key);
-
-            if ($field === null) {
-                continue;
-            }
-
-            $errors = array_merge($errors, $this->collectCallableErrors($resourceClass, $key, $this->getCallables($field)));
-        }
-
-        return $errors;
+        return $this->collectCallableErrors($resourceClass, $key, $this->getCallables($field));
     }
 
     /**

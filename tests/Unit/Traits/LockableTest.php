@@ -119,6 +119,8 @@ final class LockableTest extends TestCase
      * extend Service.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\ApiException
      */
     public function testStandaloneFixtureCanAcquireAndReleaseLock(): void
     {

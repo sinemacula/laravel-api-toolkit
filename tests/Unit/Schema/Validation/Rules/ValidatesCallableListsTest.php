@@ -174,6 +174,36 @@ final class ValidatesCallableListsTest extends TestCase
     }
 
     /**
+     * Test that every non-callable entry in a single field's list is reported,
+     * so the collected errors accumulate rather than only the first surviving.
+     *
+     * @return void
+     */
+    public function testReportsEveryNonCallableEntryInAList(): void
+    {
+        $field = new CompiledFieldDefinition(
+            accessor: 'name',
+            compute: null,
+            relation: null,
+            resource: null,
+            fields: null,
+            constraint: null,
+            extras: [],
+            needs: [],
+            guards: ['not_a_function', 'also_not_a_function'],
+            transformers: [],
+        );
+
+        $schema = new CompiledSchema(fields: ['name' => $field], counts: []);
+
+        $errors = $this->makeRule()->validate('App\Http\Resources\UserResource', null, $schema);
+
+        self::assertCount(2, $errors);
+        self::assertSame('Item at index 0 is not callable', $errors[0]->defect);
+        self::assertSame('Item at index 1 is not callable', $errors[1]->defect);
+    }
+
+    /**
      * Test that a callable entry does not halt the list scan, so a following
      * non-callable entry is still reported at its true index.
      *

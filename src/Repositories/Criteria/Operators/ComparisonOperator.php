@@ -32,7 +32,7 @@ abstract class ComparisonOperator implements FilterOperator
     #[\Override]
     public function apply(Builder $query, string $column, mixed $value, FilterContext $context): void
     {
-        $boolean = $context->getLogicalOperator() === '$or' ? 'or' : 'and';
+        $boolean = $context->sqlBoolean();
 
         $query->getQuery()->where($column, $this->operator(), $value, $boolean);
     }

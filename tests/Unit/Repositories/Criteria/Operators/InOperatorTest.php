@@ -60,4 +60,26 @@ final class InOperatorTest extends TestCase
         self::assertSame('status', $wheres[0]['column']);
         self::assertSame(['active'], $wheres[0]['values']);
     }
+
+    /**
+     * Test that apply honours the OR boolean of the current filter context so
+     * an $in branch inside an $or group is combined with OR rather than AND.
+     *
+     * @return void
+     */
+    public function testInApplyInOrContextUsesOrBoolean(): void
+    {
+        $query    = (new User)->newQuery();
+        $operator = new InOperator;
+
+        $query->where('name', 'Alice');
+
+        $operator->apply($query, 'status', ['active'], FilterContext::nested('$or'));
+
+        $wheres = $query->getQuery()->wheres;
+
+        self::assertCount(2, $wheres);
+        self::assertSame('In', $wheres[1]['type']);
+        self::assertSame('or', $wheres[1]['boolean']);
+    }
 }

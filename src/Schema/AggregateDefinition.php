@@ -4,6 +4,8 @@ declare(strict_types = 1);
 
 namespace SineMacula\ApiToolkit\Schema;
 
+use SineMacula\ApiToolkit\Schema\Concerns\HasMetricModifiers;
+
 /**
  * Abstract base for relation aggregate (sum / average) schema definitions.
  *
@@ -16,11 +18,7 @@ namespace SineMacula\ApiToolkit\Schema;
  */
 abstract class AggregateDefinition extends BaseDefinition
 {
-    /** @var (\Closure(\Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>): void)|null Optional eager-load constraint for this aggregate */
-    private ?\Closure $constraint = null;
-
-    /** @var bool Whether this aggregate is included by default when metrics are requested */
-    private bool $isDefault = false;
+    use HasMetricModifiers;
 
     /**
      * Prevent direct instantiation; use of() on the concrete subclass.
@@ -37,9 +35,11 @@ abstract class AggregateDefinition extends BaseDefinition
         /** The database column to aggregate */
         private readonly string $column,
 
-        /** Optional alias to expose this metric under */
-        private ?string $alias = null,
-    ) {}
+        // Optional alias to expose this metric under
+        ?string $alias = null,
+    ) {
+        $this->alias = $alias;
+    }
 
     /**
      * Define an aggregate metric by relation and column.
@@ -55,45 +55,6 @@ abstract class AggregateDefinition extends BaseDefinition
     }
 
     /**
-     * Set or change the alias for this metric.
-     *
-     * @param  string  $alias
-     * @return static
-     */
-    public function as(string $alias): static
-    {
-        $this->alias = $alias;
-
-        return $this;
-    }
-
-    /**
-     * Apply an optional query constraint to this aggregate.
-     *
-     * @param  \Closure(\Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>): void  $constraint
-     * @return static
-     */
-    public function constrain(\Closure $constraint): static
-    {
-        $this->constraint = $constraint;
-
-        return $this;
-    }
-
-    /**
-     * Mark this aggregate as a default metric when metrics are requested
-     * without explicit aggregate selections.
-     *
-     * @return static
-     */
-    public function default(): static
-    {
-        $this->isDefault = true;
-
-        return $this;
-    }
-
-    /**
      * Convert this definition to a normalized array.
      *
      * @return array<string, array<string, mixed>>
@@ -106,16 +67,14 @@ abstract class AggregateDefinition extends BaseDefinition
 
         return [
             $key => array_filter([
-                'key'          => $present,
-                'metric'       => static::metric(),
-                'relation'     => $this->relation,
-                'column'       => $this->column,
-                'constraint'   => $this->constraint,
-                'default'      => $this->isDefault ? true : null,
-                'extras'       => $this->extras ?: null,
-                'guards'       => $this->getGuards() ?: null,
-                'transformers' => $this->getTransformers() ?: null,
-                'openapi'      => $this->getOpenApiDeclaration()?->toSchema(),
+                'key'        => $present,
+                'metric'     => static::metric(),
+                'relation'   => $this->relation,
+                'column'     => $this->column,
+                'constraint' => $this->constraint,
+                'default'    => $this->isDefault ? true : null,
+                'extras'     => $this->extras ?: null,
+                ...$this->commonAttributes(),
             ], static fn ($value) => $value !== null),
         ];
     }

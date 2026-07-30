@@ -14,10 +14,10 @@ use SineMacula\ApiToolkit\Schema\SchemaCompiler;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-final class SchemaValidator
+final readonly class SchemaValidator
 {
     /** @var array<int|string, \SineMacula\ApiToolkit\Contracts\SchemaValidationRule> */
-    private readonly array $rules;
+    private array $rules;
 
     /**
      * Create a new schema validator.

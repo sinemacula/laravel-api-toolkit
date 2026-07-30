@@ -204,6 +204,116 @@ final class ExportOpenApiCommandTest extends TestCase
     }
 
     /**
+     * Test that the command prints the no-database notice and still exports
+     * successfully when no database connection can be established.
+     *
+     * @return void
+     */
+    public function testCommandPrintsNoticeAndExportsWhenNoDatabaseConnection(): void
+    {
+        $this->registerResourceMap();
+
+        // Point the default connection at an unconfigured name so the PDO probe
+        // fails, then restore it before teardown so the transactional refresh
+        // can roll back the real connection.
+        $this->getConfig()->set('database.default', 'nonexistent');
+
+        $notice = 'No database connection - field types and nullability are inferred from declared casts only; run against a database for the most accurate output.';
+
+        try {
+            $this->runCommand(['--output' => $this->outputPath])
+                ->expectsOutputToContain($notice)
+                ->assertExitCode(0);
+        } finally {
+            $this->getConfig()->set('database.default', 'testing');
+        }
+
+        self::assertFileExists($this->outputPath);
+    }
+
+    /**
+     * Test that the command does not print the no-database notice when a live
+     * connection is available.
+     *
+     * @return void
+     */
+    public function testCommandDoesNotPrintNoticeWhenDatabaseConnectionIsAvailable(): void
+    {
+        $this->registerResourceMap();
+
+        $this->runCommand(['--output' => $this->outputPath])
+            ->doesntExpectOutputToContain('No database connection')
+            ->assertExitCode(0);
+    }
+
+    /**
+     * Test that an unknown audience fails with a clear error and a non-zero
+     * exit code, writing nothing.
+     *
+     * @return void
+     */
+    public function testCommandFailsOnUnknownAudience(): void
+    {
+        $this->registerResourceMap();
+
+        $this->runCommand(['--output' => $this->outputPath, '--audience' => 'nonexistent'])
+            ->expectsOutputToContain('Unknown audience [nonexistent]')
+            ->assertExitCode(1);
+
+        self::assertFileDoesNotExist($this->outputPath);
+    }
+
+    /**
+     * Test that a configured named audience is exported to the resolved output
+     * path.
+     *
+     * @return void
+     */
+    public function testCommandExportsNamedAudience(): void
+    {
+        $this->registerResourceMap();
+
+        $this->runCommand(['--output' => $this->outputPath, '--audience' => 'public'])
+            ->expectsOutputToContain('for the public audience')
+            ->assertExitCode(0);
+
+        self::assertFileExists($this->outputPath);
+    }
+
+    /**
+     * Test that the --all flag writes one file per configured audience, each
+     * with the audience name injected before the extension.
+     *
+     * @return void
+     */
+    public function testCommandAllFlagWritesOneFilePerAudience(): void
+    {
+        $this->registerResourceMap();
+        $this->getConfig()->set('api-toolkit.openapi.audiences', [
+            'public'   => [],
+            'internal' => [],
+        ]);
+
+        $base     = sys_get_temp_dir() . '/api-toolkit-all-' . uniqid('', true) . '.json';
+        $public   = substr($base, 0, -strlen('.json')) . '.public.json';
+        $internal = substr($base, 0, -strlen('.json')) . '.internal.json';
+
+        try {
+
+            $this->runCommand(['--output' => $base, '--all' => true])
+                ->assertExitCode(0);
+
+            self::assertFileExists($public);
+            self::assertFileExists($internal);
+            self::assertFileDoesNotExist($base);
+
+        } finally {
+            @unlink($public);
+            @unlink($internal);
+        }
+    }
+
+    /**
      * Run the export command, returning the pending command for assertions.
      *
      * @param  array<string, mixed>  $arguments

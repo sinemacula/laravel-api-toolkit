@@ -5,6 +5,7 @@ declare(strict_types = 1);
 namespace SineMacula\ApiToolkit\Providers\Registrars;
 
 use Illuminate\Contracts\Container\Container;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Config;
 use SineMacula\ApiToolkit\ApiQueryParser;
 use SineMacula\ApiToolkit\Cache\CacheManager;
@@ -16,8 +17,13 @@ use SineMacula\ApiToolkit\Enums\FlushStrategy;
 use SineMacula\ApiToolkit\Http\Resources\ResourceMetadataService;
 use SineMacula\ApiToolkit\OpenApi\Contracts\DocumentWriter;
 use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
+use SineMacula\ApiToolkit\OpenApi\Contracts\ModuleResolver;
+use SineMacula\ApiToolkit\OpenApi\Docs\NamespaceModuleResolver;
+use SineMacula\ApiToolkit\OpenApi\Metadata\ApiExceptionDiscoverer;
 use SineMacula\ApiToolkit\OpenApi\Metadata\ConfigMetadataCatalogue;
+use SineMacula\ApiToolkit\OpenApi\Metadata\Psr4RootMap;
 use SineMacula\ApiToolkit\OpenApi\Output\FilesystemDocumentWriter;
+use SineMacula\ApiToolkit\OpenApi\Schema\EnumSchemaRegistry;
 use SineMacula\ApiToolkit\Repositories\Concerns\WritePool;
 use SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry;
 use SineMacula\ApiToolkit\Repositories\Criteria\Operators\BetweenOperator;
@@ -42,6 +48,7 @@ use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateRelationInterfaces;
 use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateRelationMethods;
 use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateTransformers;
 use SineMacula\ApiToolkit\Schema\Validation\SchemaValidator;
+use SineMacula\ApiToolkit\Services\Input\Payload;
 use SineMacula\ApiToolkit\Services\ServiceRunner;
 
 /**
@@ -54,7 +61,7 @@ use SineMacula\ApiToolkit\Services\ServiceRunner;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-final class ContainerBindingRegistrar
+final readonly class ContainerBindingRegistrar
 {
     /**
      * Create a new container binding registrar instance.
@@ -65,7 +72,7 @@ final class ContainerBindingRegistrar
     public function __construct(
 
         /** The service container to register the bindings on. */
-        private readonly Container $container,
+        private Container $container,
     ) {}
 
     /**
@@ -85,6 +92,7 @@ final class ContainerBindingRegistrar
         $this->registerLifecycleRuntime();
         $this->registerOpenApiExporter();
         $this->registerServiceRunner();
+        $this->registerPayloadResolution();
     }
 
     /**
@@ -223,7 +231,12 @@ final class ContainerBindingRegistrar
      *
      * The metadata catalogue and document-writer ports bind to their
      * filesystem/config adapters; the use case, builders, and assembler are
-     * auto-resolved through constructor injection from these bindings.
+     * auto-resolved through constructor injection from these bindings. The enum
+     * schema registry is a singleton so the request-side and response-side
+     * resolvers and the assembler share one collected set per document. The
+     * module resolver binds to the namespace-key detector by default; an
+     * application may bind its own ModuleResolver to override how the generated
+     * documentation is grouped by module.
      *
      * @return void
      */
@@ -231,6 +244,9 @@ final class ContainerBindingRegistrar
     {
         $this->container->singleton(MetadataCatalogue::class, ConfigMetadataCatalogue::class);
         $this->container->singleton(DocumentWriter::class, FilesystemDocumentWriter::class);
+        $this->container->singleton(ApiExceptionDiscoverer::class, static fn (): ApiExceptionDiscoverer => ApiExceptionDiscoverer::fromComposer());
+        $this->container->singleton(ModuleResolver::class, static fn (): NamespaceModuleResolver => new NamespaceModuleResolver(Psr4RootMap::fromComposer()));
+        $this->container->singleton(EnumSchemaRegistry::class);
     }
 
     /**
@@ -241,5 +257,30 @@ final class ContainerBindingRegistrar
     private function registerServiceRunner(): void
     {
         $this->container->singleton(ServiceRunner::class);
+    }
+
+    /**
+     * Enable container resolution of concrete Payload subclasses.
+     *
+     * Registers a global before-resolving hook so a controller action can
+     * type-hint a concrete Payload subclass and receive a validated, hydrated
+     * instance built from the current request via from(). Invalid input throws
+     * during resolution, which the framework renders as a 422, matching the
+     * FormRequest experience. The hook binds the class only when it is asked
+     * for by name with no explicit parameters and is not already bound, so
+     * direct from() and named-argument construction stay untouched.
+     *
+     * @return void
+     */
+    private function registerPayloadResolution(): void
+    {
+        $this->container->beforeResolving(static function (callable|string $abstract, array $parameters, Container $app): void {
+
+            if (!is_string($abstract) || !str_contains($abstract, '\\') || $parameters !== [] || !is_subclass_of($abstract, Payload::class) || $app->bound($abstract)) {
+                return;
+            }
+
+            $app->bind($abstract, static fn (Container $app): Payload => $abstract::from($app->make(Request::class)));
+        });
     }
 }

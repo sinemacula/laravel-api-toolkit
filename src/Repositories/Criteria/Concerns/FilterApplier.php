@@ -19,6 +19,9 @@ use SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface;
  */
 final class FilterApplier
 {
+    /** @var array<int, string> The structural (logical + relational) filter operator tokens - the canonical grammar the OpenAPI exporter documents. Keep aligned with the dispatch maps below (guarded by a test). */
+    public const array STRUCTURAL_OPERATORS = ['$and', '$or', '$has', self::OPERATOR_HASNT];
+
     /** @var string */
     private const string OPERATOR_HASNT = '$hasnt';
 
@@ -113,14 +116,61 @@ final class FilterApplier
             return;
         }
 
-        if ($this->schemaIntrospector->isRelation($key, $query->getModel())) {
-            if ($this->querySurface->guardRelation($key, $query->getModel())) {
+        $this->routePlainKey($query, $key, $value, $context);
+    }
+
+    /**
+     * Route a plain (non-operator) key to its relation or column handler.
+     *
+     * Under the allowlist posture the declared surface routes the key without
+     * schema introspection: a declared traversable relation goes to the
+     * relation filter, and any other key is gated as a filter column so an
+     * undeclared key is rejected (fail-closed) or dropped (fail-quiet) at that
+     * key before the cached relation lookup is ever reached, rather than
+     * descending into its value. Under the blocklist posture the surface allows
+     * any unblocked key, so introspection is still required to route arbitrary
+     * keys.
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>  $query
+     * @param  string  $key
+     * @param  mixed  $value
+     * @param  \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext  $context
+     * @return void
+     */
+    private function routePlainKey(Builder $query, string $key, mixed $value, FilterContext $context): void
+    {
+        $model = $query->getModel();
+
+        if ($this->routesToRelation($query, $key)) {
+            if ($this->querySurface->guardRelation($key, $model)) {
                 $this->applyRelationFilter($query, $key, $value, $context);
             }
             return;
         }
 
+        if ($this->querySurface->isAllowlist() && !$this->querySurface->guardFilter($key, $model)) {
+            return;
+        }
+
         $this->applyFilters($query, $value, $key, $context);
+    }
+
+    /**
+     * Determine whether a plain key routes to a relation filter, consulting the
+     * declared surface under the allowlist posture and schema introspection
+     * under the blocklist posture.
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>  $query
+     * @param  string  $key
+     * @return bool
+     */
+    private function routesToRelation(Builder $query, string $key): bool
+    {
+        $model = $query->getModel();
+
+        return $this->querySurface->isAllowlist()
+            ? $this->querySurface->isDeclaredRelation($key, $model)
+            : $this->schemaIntrospector->isRelation($key, $model);
     }
 
     /**
@@ -147,7 +197,7 @@ final class FilterApplier
     {
         if ($column && $this->querySurface->guardFilter($column, $query->getModel())) {
 
-            if ($context->getLogicalOperator() === '$or') {
+            if ($context->isOr()) {
                 $query->orWhere($column, $value);
             } else {
                 $query->where($column, $value);
@@ -206,7 +256,7 @@ final class FilterApplier
         $callback = function (Builder $query) use ($value, $nested): void {
             foreach ($value as $subKey => $subValue) {
 
-                if ($subKey === '$has' || $subKey === self::OPERATOR_HASNT || $this->operatorRegistry->has($subKey)) {
+                if ($this->isConditionOperator($subKey)) {
                     $this->applyConditionOperator($query, $subKey, $subValue, null, $nested);
                 } elseif (array_key_exists($subKey, $this->logicalOperatorMap)) {
                     $this->applyLogicalOperator($query, $subKey, $subValue, $nested);
@@ -234,7 +284,7 @@ final class FilterApplier
      */
     private function applyRelationFilter(Builder $query, string $relation, array $filters, FilterContext $context): void
     {
-        $method = ($context->getLogicalOperator() === '$or') ? 'orWhereHas' : 'whereHas';
+        $method = $context->isOr() ? 'orWhereHas' : 'whereHas';
 
         $this->applyRelationalMethod($query, $method, $relation, function (Builder $query) use ($filters, $context): void {
             $this->processRelationFilters($query, $filters, $context);
@@ -280,7 +330,7 @@ final class FilterApplier
     private function applyHasFilter(Builder $query, array|string $relations, string $operator, FilterContext $context): void
     {
         $baseMethod = $this->relationalMethodMap[$operator];
-        $method     = ($context->getLogicalOperator() === '$or' && $operator === '$has') ? 'orWhereHas' : $baseMethod;
+        $method     = ($context->isOr() && $operator === '$has') ? 'orWhereHas' : $baseMethod;
 
         foreach ((array) $relations as $relation => $filters) {
 

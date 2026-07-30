@@ -180,22 +180,32 @@ final class LifecycleRegistrarTest extends TestCase
     {
         unset($_SERVER['LARAVEL_OCTANE']);
 
+        $argv            = $_SERVER['argv'] ?? null;
+        $_SERVER['argv'] = ['artisan', 'queue:work'];
+
         /** @var \Illuminate\Contracts\Config\Repository $config */
         $config = $this->getApplication()->make('config');
-        $config->set('queue.default', 'database');
-        $config->set('queue.connections.database.driver', 'database');
         $config->set('api-toolkit.lifecycle.queue', false);
 
         Log::shouldReceive('info')->once()->with(\Mockery::on(
             fn (string $message): bool => str_contains($message, 'queue worker') && str_contains($message, 'API_TOOLKIT_LIFECYCLE_QUEUE'),
         ));
 
-        (new LifecycleRegistrar)->register();
+        try {
+            (new LifecycleRegistrar)->register();
+        } finally {
+            if ($argv === null) {
+                unset($_SERVER['argv']);
+            } else {
+                $_SERVER['argv'] = $argv;
+            }
+        }
     }
 
     /**
-     * Test that no off-state diagnostic is logged under php-fpm (no serving
-     * runtime detected).
+     * Test that no off-state diagnostic is logged under php-fpm even when the
+     * default queue driver is non-sync: a web request is not a worker, so the
+     * flush opt-out must stay silent.
      *
      * @return void
      */
@@ -203,15 +213,27 @@ final class LifecycleRegistrarTest extends TestCase
     {
         unset($_SERVER['LARAVEL_OCTANE']);
 
+        $argv            = $_SERVER['argv'] ?? null;
+        $_SERVER['argv'] = ['artisan', 'route:list'];
+
         /** @var \Illuminate\Contracts\Config\Repository $config */
         $config = $this->getApplication()->make('config');
-        $config->set('queue.default', 'sync');
+        $config->set('queue.default', 'database');
+        $config->set('queue.connections.database.driver', 'database');
         $config->set('api-toolkit.lifecycle.octane', false);
         $config->set('api-toolkit.lifecycle.queue', false);
 
         Log::shouldReceive('info')->never();
 
-        (new LifecycleRegistrar)->register();
+        try {
+            (new LifecycleRegistrar)->register();
+        } finally {
+            if ($argv === null) {
+                unset($_SERVER['argv']);
+            } else {
+                $_SERVER['argv'] = $argv;
+            }
+        }
     }
 
     /**

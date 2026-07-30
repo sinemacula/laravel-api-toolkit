@@ -4,11 +4,14 @@ declare(strict_types = 1);
 
 namespace Tests\Unit\Http\Routing;
 
+use Illuminate\Routing\Controllers\Middleware;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
+use SineMacula\ApiToolkit\Http\Routing\Attributes\AuthorizesResource;
+use SineMacula\ApiToolkit\Http\Routing\Attributes\SkipAuthorization;
 use SineMacula\ApiToolkit\Http\Routing\AuthorizedController;
 use SineMacula\ApiToolkit\Http\Routing\Controller;
-use Tests\Concerns\InteractsWithNonPublicMembers;
+use Tests\Fixtures\Controllers\SkipAuthorizationController;
 use Tests\Fixtures\Controllers\TestingAuthorizedController;
 use Tests\Fixtures\Controllers\TestingMinimalAuthorizedController;
 use Tests\Fixtures\Models\User;
@@ -24,83 +27,213 @@ use Tests\Fixtures\Models\User;
 #[CoversClass(AuthorizedController::class)]
 final class AuthorizedControllerTest extends TestCase
 {
-    use InteractsWithNonPublicMembers;
-
     /**
-     * Test that getResourceModel returns the RESOURCE_MODEL constant value.
+     * Test that getResourceModel returns the attribute model.
      *
      * @return void
      */
-    public function testGetResourceModelReturnsConstantValue(): void
+    public function testGetResourceModelReturnsAttributeModel(): void
     {
-        $result = TestingAuthorizedController::getResourceModel();
-
-        self::assertSame(User::class, $result);
+        self::assertSame(User::class, TestingAuthorizedController::getResourceModel());
+        self::assertSame(User::class, TestingMinimalAuthorizedController::getResourceModel());
     }
 
     /**
-     * Test that getResourceModel throws LogicException when the constant is not
-     * defined.
+     * Test that getResourceModel throws when the attribute is absent.
      *
      * @return void
      */
-    public function testGetResourceModelThrowsLogicExceptionWhenNotDefined(): void
+    public function testGetResourceModelThrowsWhenAttributeAbsent(): void
     {
-        $this->expectException(\LogicException::class);
-        $this->expectExceptionMessage('The RESOURCE_MODEL constant must be defined on the authorized controller');
+        $controller = new class extends AuthorizedController {};
 
-        $controller = new class extends AuthorizedController {
-            /**
-             * Create a new instance without parent constructor.
-             */
-            public function __construct() // @phpstan-ignore constructor.missingParentCall
-            {
-                // Skip parent constructor to avoid authorizeResource call
-            }
-        };
+        $this->expectException(\LogicException::class);
+        $this->expectExceptionMessage('The #[AuthorizesResource] attribute must be declared on the authorized controller');
 
         $controller::getResourceModel();
     }
 
     /**
-     * Test that getRouteParameter returns lowercase ROUTE_PARAMETER value.
+     * Test that getResourceModel throws when the model is not an Eloquent
+     * model.
      *
      * @return void
      */
-    public function testGetRouteParameterReturnsLowercaseValue(): void
+    public function testGetResourceModelThrowsWhenModelIsNotEloquent(): void
     {
-        $result = TestingAuthorizedController::getRouteParameter();
+        $controller = new #[AuthorizesResource(\stdClass::class)] class extends AuthorizedController {};
 
-        self::assertSame('user', $result);
+        $this->expectException(\LogicException::class);
+        $this->expectExceptionMessage('The #[AuthorizesResource] model must be an Eloquent model');
+
+        $controller::getResourceModel();
     }
 
     /**
-     * Test that getRouteParameter returns null when constant is not defined.
+     * Test that middleware emits the exact gate check set for the full fixture.
+     *
+     * The explicit route parameter is used verbatim; the index and show actions
+     * are excluded; the model-less create and store actions target the model
+     * class while the model-bound update and destroy target the route
+     * parameter, and edit and update collapse into a single update check.
      *
      * @return void
      */
-    public function testGetRouteParameterReturnsNullWhenNotDefined(): void
+    public function testMiddlewareEmitsExpectedGateChecks(): void
     {
-        $result = TestingMinimalAuthorizedController::getRouteParameter();
+        $indexed = $this->indexByDefinition(TestingAuthorizedController::middleware());
 
-        self::assertNull($result);
+        self::assertSame([
+            'can:create,' . User::class => ['create', 'store'],
+            'can:update,user'           => ['edit', 'update'],
+            'can:delete,user'           => ['destroy'],
+        ], $indexed);
     }
 
     /**
-     * Test that getResourceModel works for minimal controller with
-     * RESOURCE_MODEL.
+     * Test that the show action maps to the view ability, bound to the resolved
+     * route parameter rather than the model class.
      *
      * @return void
      */
-    public function testMinimalControllerReturnsResourceModel(): void
+    public function testMiddlewareEmitsViewCheckForShow(): void
     {
-        $result = TestingMinimalAuthorizedController::getResourceModel();
+        $controller = new #[AuthorizesResource(User::class, parameter: 'account')] class extends AuthorizedController {};
 
-        self::assertSame(User::class, $result);
+        $indexed = $this->indexByDefinition($controller::middleware());
+
+        self::assertSame(['show'], $indexed['can:view,account'] ?? null);
     }
 
     /**
-     * Test that the controller extends Controller.
+     * Test that the excluded actions are gated by no middleware entry.
+     *
+     * @return void
+     */
+    public function testMiddlewareExcludesConfiguredActions(): void
+    {
+        foreach (TestingAuthorizedController::middleware() as $entry) {
+            self::assertNotContains('index', $entry->only ?? []);
+            self::assertNotContains('show', $entry->only ?? []);
+        }
+    }
+
+    /**
+     * Test that middleware honours the #[SkipAuthorization] marker, leaving the
+     * marked action ungated while every other action stays gated.
+     *
+     * @return void
+     */
+    public function testMiddlewareHonoursSkipAuthorization(): void
+    {
+        $indexed = $this->indexByDefinition(SkipAuthorizationController::middleware());
+        $gated   = array_merge(...array_values($indexed));
+
+        self::assertNotContains('show', $gated);
+        self::assertContains('update', $gated);
+        self::assertContains('index', $gated);
+    }
+
+    /**
+     * Test that middleware derives the parameter from the model when none is
+     * declared, snake-casing the model basename.
+     *
+     * @return void
+     */
+    public function testMiddlewareDerivesParameterFromModel(): void
+    {
+        $indexed = $this->indexByDefinition(TestingMinimalAuthorizedController::middleware());
+
+        self::assertSame(['edit', 'update'], $indexed['can:update,user'] ?? null);
+        self::assertSame(['destroy'], $indexed['can:delete,user'] ?? null);
+        self::assertSame(['index'], $indexed['can:viewAny,' . User::class] ?? null);
+    }
+
+    /**
+     * Test that an explicit parameter distinct from the model basename is used
+     * verbatim, preserving its case rather than being lowercased or derived
+     * from the model.
+     *
+     * @return void
+     */
+    public function testMiddlewareUsesExplicitParameterVerbatimDistinctFromModel(): void
+    {
+        $controller = new #[AuthorizesResource(User::class, parameter: 'Admin')] class extends AuthorizedController {};
+
+        $indexed = $this->indexByDefinition($controller::middleware());
+
+        self::assertArrayHasKey('can:update,Admin', $indexed);
+        self::assertArrayNotHasKey('can:update,admin', $indexed);
+        self::assertArrayNotHasKey('can:update,user', $indexed);
+    }
+
+    /**
+     * Test that an empty explicit parameter falls back to the model-derived
+     * parameter rather than being used as an empty target.
+     *
+     * @return void
+     */
+    public function testMiddlewareDerivesParameterWhenExplicitParameterIsEmpty(): void
+    {
+        $controller = new #[AuthorizesResource(User::class, parameter: '')] class extends AuthorizedController {};
+
+        $indexed = $this->indexByDefinition($controller::middleware());
+
+        self::assertArrayHasKey('can:update,user', $indexed);
+        self::assertArrayNotHasKey('can:update,', $indexed);
+    }
+
+    /**
+     * Test that every action carrying the marker is excluded, not just the
+     * first one discovered.
+     *
+     * @return void
+     */
+    public function testMiddlewareExcludesEveryMarkedAction(): void
+    {
+        $controller = new #[AuthorizesResource(User::class)] class extends AuthorizedController {
+            /**
+             * Update, marked as skipped.
+             *
+             * @return void
+             */
+            #[SkipAuthorization]
+            public function update(): void {}
+
+            /**
+             * Destroy, marked as skipped.
+             *
+             * @return void
+             */
+            #[SkipAuthorization]
+            public function destroy(): void {}
+        };
+
+        $indexed = $this->indexByDefinition($controller::middleware());
+        $gated   = $indexed === [] ? [] : array_merge(...array_values($indexed));
+
+        self::assertNotContains('update', $gated);
+        self::assertNotContains('destroy', $gated);
+    }
+
+    /**
+     * Test that middleware fails closed when no attribute is declared, rather
+     * than silently registering an ungated resource.
+     *
+     * @return void
+     */
+    public function testMiddlewareThrowsWhenAttributeAbsent(): void
+    {
+        $controller = new class extends AuthorizedController {};
+
+        $this->expectException(\LogicException::class);
+        $this->expectExceptionMessage('The #[AuthorizesResource] attribute must be declared on the authorized controller');
+
+        $controller::middleware();
+    }
+
+    /**
+     * Test that the controller extends the base controller.
      *
      * @return void
      */
@@ -113,82 +246,23 @@ final class AuthorizedControllerTest extends TestCase
     }
 
     /**
-     * Test that the constructor registers authorizeResource middleware.
+     * Index the controller middleware by its definition string, mapping each to
+     * its only-list.
      *
-     * Using newInstanceWithoutConstructor avoids running authorizeResource
-     * twice; we then manually invoke the constructor to exercise line 22.
-     *
-     * @return void
+     * @param  array<int, \Illuminate\Routing\Controllers\Middleware>  $middleware
+     * @return array<string, array<int, string>>
      */
-    public function testConstructorRegistersAuthorizeResourceMiddleware(): void
+    private function indexByDefinition(array $middleware): array
     {
-        $reflection = new \ReflectionClass(TestingAuthorizedController::class);
-        $controller = $reflection->newInstanceWithoutConstructor(); // qlty-ignore: radarlint-php:php:S3011
-
-        // Call the constructor to exercise line 22 (authorizeResource call)
-        $constructor = $reflection->getConstructor();
-        self::assertNotNull($constructor);
-        $constructor->invoke($controller);
-
-        $middleware = $this->getProperty($controller, 'middleware');
-
-        self::assertNotEmpty($middleware);
-    }
-
-    /**
-     * Test that the constructor forwards the guard exclusions to every
-     * registered authorization middleware entry under the `except` option.
-     *
-     * @return void
-     */
-    public function testConstructorForwardsGuardExclusionsToMiddlewareOptions(): void
-    {
-        $reflection = new \ReflectionClass(TestingAuthorizedController::class);
-        $controller = $reflection->newInstanceWithoutConstructor(); // qlty-ignore: radarlint-php:php:S3011
-
-        $constructor = $reflection->getConstructor();
-        self::assertNotNull($constructor);
-        $constructor->invoke($controller);
-
-        /** @var array<int, array{middleware: string, options: array<string, mixed>}> $middleware */
-        $middleware = $this->getProperty($controller, 'middleware');
-
-        self::assertNotEmpty($middleware);
+        $indexed = [];
 
         foreach ($middleware as $entry) {
-            self::assertSame(['index', 'show'], $entry['options']['except'] ?? null);
+            self::assertInstanceOf(Middleware::class, $entry);
+            self::assertIsString($entry->middleware);
+
+            $indexed[$entry->middleware] = $entry->only ?? [];
         }
-    }
 
-    /**
-     * Test that getGuardExclusions returns the GUARD_EXCLUSIONS constant value
-     * when defined.
-     *
-     * @return void
-     */
-    public function testGetGuardExclusionsReturnsConstantValueWhenDefined(): void
-    {
-        $reflection = new \ReflectionClass(TestingAuthorizedController::class);
-        $controller = $reflection->newInstanceWithoutConstructor(); // qlty-ignore: radarlint-php:php:S3011
-
-        $result = $this->invokeMethod($controller, 'getGuardExclusions');
-
-        self::assertSame(['index', 'show'], $result);
-    }
-
-    /**
-     * Test that getGuardExclusions returns null when the GUARD_EXCLUSIONS
-     * constant is not defined on the controller.
-     *
-     * @return void
-     */
-    public function testGetGuardExclusionsReturnsNullWhenNotDefined(): void
-    {
-        $reflection = new \ReflectionClass(TestingMinimalAuthorizedController::class);
-        $controller = $reflection->newInstanceWithoutConstructor(); // qlty-ignore: radarlint-php:php:S3011
-
-        $result = $this->invokeMethod($controller, 'getGuardExclusions');
-
-        self::assertNull($result);
+        return $indexed;
     }
 }

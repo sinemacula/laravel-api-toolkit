@@ -5,6 +5,8 @@ declare(strict_types = 1);
 namespace Tests\Integration\Providers\Registrars;
 
 use Illuminate\Foundation\Application;
+use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\ApiQueryParser;
 use SineMacula\ApiToolkit\Cache\CacheManager;
@@ -21,6 +23,8 @@ use SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry;
 use SineMacula\ApiToolkit\Runtime\RuntimeContext;
 use SineMacula\ApiToolkit\Schema\Validation\SchemaValidator;
 use SineMacula\ApiToolkit\Services\ServiceRunner;
+use Tests\Fixtures\Input\StorePayload;
+use Tests\Fixtures\Services\Input\Enums\StubStatusEnum;
 use Tests\TestCase;
 
 /**
@@ -110,6 +114,105 @@ final class ContainerBindingRegistrarTest extends TestCase
         self::assertSame(700, $this->readProperty($pool, 'chunkSize'));
         self::assertSame(900, $this->readProperty($pool, 'poolLimit'));
         self::assertFalse($this->readProperty($pool, 'transactional'));
+    }
+
+    /**
+     * Test that resolving a Payload subclass by name yields a validated,
+     * hydrated instance built from the current request.
+     *
+     * @return void
+     */
+    public function testPayloadResolutionBuildsValidatedInstanceFromRequest(): void
+    {
+        $app = $this->getApplication();
+
+        $app->instance('request', Request::create('/', 'GET', [
+            'title'    => 'Widget',
+            'quantity' => 5,
+            'status'   => 'active',
+        ]));
+
+        (new ContainerBindingRegistrar($app))->register();
+
+        $payload = $app->make(StorePayload::class);
+
+        self::assertInstanceOf(StorePayload::class, $payload);
+        self::assertSame('Widget', $payload->title);
+        self::assertSame(5, $payload->quantity);
+        self::assertSame(StubStatusEnum::ACTIVE, $payload->status);
+    }
+
+    /**
+     * Test that resolving a Payload subclass throws a validation exception when
+     * the current request fails the payload's rules.
+     *
+     * @return void
+     */
+    public function testPayloadResolutionThrowsValidationExceptionOnInvalidRequest(): void
+    {
+        $app = $this->getApplication();
+
+        $app->instance('request', Request::create('/', 'GET', []));
+
+        (new ContainerBindingRegistrar($app))->register();
+
+        $this->expectException(ValidationException::class);
+
+        $app->make(StorePayload::class);
+    }
+
+    /**
+     * Test that a non-Payload resolution is left untouched by the hook, so the
+     * hook binds nothing for classes outside the Payload hierarchy.
+     *
+     * @return void
+     */
+    public function testPayloadResolutionLeavesNonPayloadClassesUntouched(): void
+    {
+        $app = $this->getApplication();
+
+        (new ContainerBindingRegistrar($app))->register();
+
+        $app->make(\stdClass::class);
+
+        self::assertFalse($app->bound(\stdClass::class));
+    }
+
+    /**
+     * Test that explicit make() parameters bypass the hook, so the class builds
+     * directly from the given values without request validation.
+     *
+     * @return void
+     */
+    public function testPayloadResolutionSkipsResolutionWithExplicitParameters(): void
+    {
+        $app = $this->getApplication();
+
+        (new ContainerBindingRegistrar($app))->register();
+
+        $payload = $app->make(StorePayload::class, ['title' => 'Direct']);
+
+        self::assertSame('Direct', $payload->title);
+        self::assertNull($payload->quantity);
+    }
+
+    /**
+     * Test that an already-bound Payload subclass is not hijacked, so a
+     * pre-registered binding wins over the request-building hook.
+     *
+     * @return void
+     */
+    public function testPayloadResolutionSkipsAlreadyBoundClass(): void
+    {
+        $app = $this->getApplication();
+
+        $bound = new StorePayload('Prebound');
+
+        $app->instance(StorePayload::class, $bound);
+
+        (new ContainerBindingRegistrar($app))->register();
+
+        self::assertSame($bound, $app->make(StorePayload::class));
     }
 
     /**

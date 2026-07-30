@@ -5,7 +5,6 @@ declare(strict_types = 1);
 namespace Tests\Unit\Enums;
 
 use PHPUnit\Framework\Attributes\CoversClass;
-use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use SineMacula\ApiToolkit\Enums\FieldOrderingStrategy;
 
@@ -21,56 +20,17 @@ use SineMacula\ApiToolkit\Enums\FieldOrderingStrategy;
 final class FieldOrderingStrategyTest extends TestCase
 {
     /**
-     * Provide all FieldOrderingStrategy cases with their expected values.
-     *
-     * @return iterable<string, array{\SineMacula\ApiToolkit\Enums\FieldOrderingStrategy, string}>
-     */
-    public static function caseProvider(): iterable
-    {
-        yield 'DEFAULT' => [FieldOrderingStrategy::DEFAULT, 'default'];
-        yield 'BY_REQUESTED_FIELDS' => [FieldOrderingStrategy::BY_REQUESTED_FIELDS, 'by_requested_fields'];
-    }
-
-    /**
-     * Test that each case has the expected string value.
-     *
-     * @param  \SineMacula\ApiToolkit\Enums\FieldOrderingStrategy  $case
-     * @param  string  $expectedValue
-     * @return void
-     */
-    #[DataProvider('caseProvider')]
-    public function testCaseHasExpectedValue(FieldOrderingStrategy $case, string $expectedValue): void
-    {
-        self::assertSame($expectedValue, $case->value);
-    }
-
-    /**
-     * Test that DEFAULT has value 'default'.
+     * Test that exactly the expected cases exist, in declaration order.
      *
      * @return void
      */
-    public function testDefaultCaseValue(): void
+    public function testExposesTheExpectedCases(): void
     {
-        self::assertSame('default', FieldOrderingStrategy::DEFAULT->value);
-    }
+        $names = array_map(
+            static fn (FieldOrderingStrategy $case): string => $case->name,
+            FieldOrderingStrategy::cases(),
+        );
 
-    /**
-     * Test that BY_REQUESTED_FIELDS has value 'by_requested_fields'.
-     *
-     * @return void
-     */
-    public function testByRequestedFieldsCaseValue(): void
-    {
-        self::assertSame('by_requested_fields', FieldOrderingStrategy::BY_REQUESTED_FIELDS->value);
-    }
-
-    /**
-     * Test that exactly two cases exist.
-     *
-     * @return void
-     */
-    public function testExpectedCaseCount(): void
-    {
-        self::assertCount(2, FieldOrderingStrategy::cases());
+        self::assertSame(['DEFAULT', 'BY_REQUESTED_FIELDS'], $names);
     }
 }

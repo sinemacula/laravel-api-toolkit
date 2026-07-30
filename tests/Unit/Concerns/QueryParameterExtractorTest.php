@@ -316,6 +316,39 @@ final class QueryParameterExtractorTest extends TestCase
     }
 
     /**
+     * Provide filter values that are valid JSON but not a filter map.
+     *
+     * @return iterable<string, array{string}>
+     */
+    public static function nonAssociativeFilterProvider(): iterable
+    {
+        yield 'integer scalar' => ['123'];
+        yield 'boolean scalar' => ['true'];
+        yield 'false scalar' => ['false'];
+        yield 'zero scalar' => ['0'];
+        yield 'quoted string scalar' => ['"x"'];
+        yield 'numeric-keyed list' => ['[1,2,3]'];
+        yield 'list of objects' => ['[{"a":1}]'];
+    }
+
+    /**
+     * Test that extract coerces a valid-JSON but non-associative filter value
+     * to an empty array rather than leaking the decoded scalar or list.
+     *
+     * @param  string  $filters
+     * @return void
+     */
+    #[DataProvider('nonAssociativeFilterProvider')]
+    public function testExtractCoercesNonAssociativeFiltersToEmptyArray(string $filters): void
+    {
+        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['filters' => $filters]);
+
+        $parameters = $this->extractor->extract($request);
+
+        self::assertSame([], $parameters['filters']);
+    }
+
+    /**
      * Provide order string parsing scenarios.
      *
      * @return iterable<string, array{string, array<string, string>}>
@@ -330,6 +363,9 @@ final class QueryParameterExtractorTest extends TestCase
         yield 'direction containing colons' => ['name:desc:extra', ['name' => 'desc:extra']];
         yield 'empty order string' => ['', []];
         yield 'order string of empty values' => [',,', []];
+        yield 'trailing empty segment' => ['name,', ['name' => 'asc']];
+        yield 'leading empty segment' => [',name', ['name' => 'asc']];
+        yield 'empty column with direction' => [':desc', []];
     }
 
     /**
@@ -347,6 +383,22 @@ final class QueryParameterExtractorTest extends TestCase
         $parameters = $this->extractor->extract($request);
 
         self::assertSame($expected, $parameters['order']);
+    }
+
+    /**
+     * Test that an empty order segment never produces an empty-string column
+     * key, which would emit a column-less clause into the generated SQL.
+     *
+     * @return void
+     */
+    public function testExtractDropsEmptyOrderColumns(): void
+    {
+        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['order' => ',name,:desc,']);
+
+        $parameters = $this->extractor->extract($request);
+
+        self::assertSame(['name' => 'asc'], $parameters['order']);
+        self::assertArrayNotHasKey('', $parameters['order']);
     }
 
     /**

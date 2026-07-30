@@ -32,6 +32,37 @@ final class ValidateRelationMethods implements SchemaValidationRule
             return [];
         }
 
+        $errors = $this->collectFieldErrors($resourceClass, $modelClass, $schema);
+
+        $metrics = array_merge(
+            array_values($schema->getCountDefinitions()),
+            array_values($schema->getAggregateDefinitions()),
+        );
+
+        foreach ($metrics as $metric) {
+
+            $error = $this->validateRelationMethod($resourceClass, $metric->presentKey, $modelClass, $metric->relation);
+
+            if ($error === null) {
+                continue;
+            }
+
+            $errors[] = $error;
+        }
+
+        return $errors;
+    }
+
+    /**
+     * Collect relation-method errors for every field with a declared relation.
+     *
+     * @param  string  $resourceClass
+     * @param  string  $modelClass
+     * @param  \SineMacula\ApiToolkit\Schema\CompiledSchema  $schema
+     * @return array<int, \SineMacula\ApiToolkit\Schema\Validation\SchemaValidationError>
+     */
+    private function collectFieldErrors(string $resourceClass, string $modelClass, CompiledSchema $schema): array
+    {
         $errors = [];
 
         foreach ($schema->getFieldKeys() as $key) {
@@ -43,17 +74,6 @@ final class ValidateRelationMethods implements SchemaValidationRule
             }
 
             $error = $this->validateRelationMethod($resourceClass, $key, $modelClass, $field->relation);
-
-            if ($error === null) {
-                continue;
-            }
-
-            $errors[] = $error;
-        }
-
-        foreach ($schema->getCountDefinitions() as $count) {
-
-            $error = $this->validateRelationMethod($resourceClass, $count->presentKey, $modelClass, $count->relation);
 
             if ($error === null) {
                 continue;

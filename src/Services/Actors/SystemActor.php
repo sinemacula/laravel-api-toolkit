@@ -16,7 +16,7 @@ use SineMacula\ApiToolkit\Services\Contracts\Actor;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-final class SystemActor implements Actor
+final readonly class SystemActor implements Actor
 {
     /**
      * Create a new SystemActor instance.
@@ -26,7 +26,7 @@ final class SystemActor implements Actor
     public function __construct(
 
         /** Human-readable label for this system context. */
-        private readonly string $label = 'System',
+        private string $label = 'System',
     ) {}
 
     /**

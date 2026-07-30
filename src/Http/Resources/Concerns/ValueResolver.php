@@ -10,7 +10,6 @@ use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Http\Resources\MissingValue;
 use Illuminate\Support\Collection;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
-use SineMacula\ApiToolkit\Schema\CompiledAggregateDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledSchema;
 
@@ -106,7 +105,7 @@ final class ValueResolver
      * @param  \SineMacula\ApiToolkit\Schema\CompiledSchema  $schema
      * @param  string  $resourceType
      * @param  \Illuminate\Http\Request|null  $request
-     * @return array<string, int>
+     * @return array<string, mixed>
      */
     public function resolveCountsPayload(mixed $resource, CompiledSchema $schema, string $resourceType, ?Request $request): array
     {
@@ -125,22 +124,19 @@ final class ValueResolver
                 ? in_array($presentKey, $requested, true)
                 : $definition->isDefault;
 
-            if (!$include) {
+            if (!$include || !$this->guardEvaluator->passesGuards($definition->guards, $resource, $request)) {
                 continue;
             }
 
-            if (!$this->guardEvaluator->passesGuards($definition->guards, $resource, $request)) {
-                continue;
-            }
-
-            $attribute = $definition->presentKey . '_count';
-            $value     = $this->getAttributeIfLoaded($owner, $attribute);
+            $value = $this->getAttributeIfLoaded($owner, $definition->presentKey . '_count');
 
             if ($value === null) {
                 continue;
             }
 
-            $result[$presentKey] = (int) $value; // @phpstan-ignore cast.int
+            $count = (int) $value; // @phpstan-ignore cast.int
+
+            $result[$presentKey] = $this->applyTransformers($definition->transformers, $resource, $count);
         }
 
         return $result;
@@ -158,7 +154,7 @@ final class ValueResolver
      * @param  \SineMacula\ApiToolkit\Schema\CompiledSchema  $schema
      * @param  string  $resourceType
      * @param  \Illuminate\Http\Request|null  $request
-     * @return array<string, float>
+     * @return array<string, mixed>
      */
     public function resolveAggregatesPayload(string $metric, mixed $resource, CompiledSchema $schema, string $resourceType, ?Request $request): array
     {
@@ -170,30 +166,27 @@ final class ValueResolver
 
         $requested = (array) ($metric === 'sum' ? ApiQuery::getSums($resourceType) : ApiQuery::getAverages($resourceType));
 
-        $isIncluded = static function (CompiledAggregateDefinition $definition) use ($requested): bool {
-            if ($requested !== []) {
-                $columns = $requested[$definition->relation] ?? null;
-                return is_array($columns) && in_array($definition->column, $columns, true);
-            }
-            return $definition->isDefault;
-        };
-
         $result = [];
 
         foreach ($schema->getAggregateDefinitionsByMetric($metric) as $definition) {
 
-            if (!$isIncluded($definition) || !$this->guardEvaluator->passesGuards($definition->guards, $resource, $request)) {
+            $include = $requested === []
+                ? $definition->isDefault
+                : in_array($definition->column, (array) ($requested[$definition->relation] ?? []), true);
+
+            if (!$include || !$this->guardEvaluator->passesGuards($definition->guards, $resource, $request)) {
                 continue;
             }
 
-            $attribute = $definition->presentKey . '_' . $metric . '_' . $definition->column;
-            $value     = $this->getAttributeIfLoaded($owner, $attribute);
+            $value = $this->getAttributeIfLoaded($owner, $definition->presentKey . '_' . $metric . '_' . $definition->column);
 
             if ($value === null) {
                 continue;
             }
 
-            $result[$definition->presentKey] = (float) $value; // @phpstan-ignore cast.double
+            $aggregate = (float) $value; // @phpstan-ignore cast.double
+
+            $result[$definition->presentKey] = $this->applyTransformers($definition->transformers, $resource, $aggregate);
         }
 
         return $result;

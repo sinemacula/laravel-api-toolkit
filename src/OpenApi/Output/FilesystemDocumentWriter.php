@@ -19,7 +19,7 @@ use SineMacula\ApiToolkit\OpenApi\Exceptions\DocumentWriteException;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-final class FilesystemDocumentWriter implements DocumentWriter
+final readonly class FilesystemDocumentWriter implements DocumentWriter
 {
     /**
      * Create a new filesystem document writer.
@@ -29,7 +29,7 @@ final class FilesystemDocumentWriter implements DocumentWriter
     public function __construct(
 
         /** The filesystem used to write the document to disk. */
-        private readonly Filesystem $files,
+        private Filesystem $files,
     ) {}
 
     /**

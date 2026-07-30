@@ -179,15 +179,13 @@ final class Field extends BaseDefinition
 
         return [
             $key => array_filter([
-                'accessor'     => $this->accessor,
-                'compute'      => $this->compute,
-                'filterable'   => $this->filterable ? $this->name : null,
-                'sortable'     => $this->sortable ? $this->name : null,
-                'extras'       => $this->extras ?: null,
-                'needs'        => $this->needs ?: null,
-                'guards'       => $this->getGuards() ?: null,
-                'transformers' => $this->getTransformers() ?: null,
-                'openapi'      => $this->getOpenApiDeclaration()?->toSchema(),
+                'accessor'   => $this->accessor,
+                'compute'    => $this->compute,
+                'filterable' => $this->filterable ? $this->name : null,
+                'sortable'   => $this->sortable ? $this->name : null,
+                'extras'     => $this->extras ?: null,
+                'needs'      => $this->needs ?: null,
+                ...$this->commonAttributes(),
             ], static fn ($value) => $value !== null && $value !== []),
         ];
     }

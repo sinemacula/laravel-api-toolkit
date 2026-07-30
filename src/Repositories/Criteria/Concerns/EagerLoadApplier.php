@@ -28,9 +28,10 @@ final class EagerLoadApplier
      * @param  \SineMacula\ApiToolkit\Contracts\ResourceMetadataProvider  $metadataProvider
      * @param  string|null  $resourceClass
      * @param  string|null  $resourceType
+     * @param  \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\RelationTrashedGate  $trashedGate
      * @return \Illuminate\Contracts\Database\Eloquent\Builder
      */
-    public function apply(Builder $query, ResourceMetadataProvider $metadataProvider, ?string $resourceClass, ?string $resourceType): Builder
+    public function apply(Builder $query, ResourceMetadataProvider $metadataProvider, ?string $resourceClass, ?string $resourceType, RelationTrashedGate $trashedGate): Builder
     {
         if ($resourceClass === null || !is_subclass_of($resourceClass, ApiResourceInterface::class)) {
             return $query;
@@ -44,7 +45,11 @@ final class EagerLoadApplier
             return $query;
         }
 
-        $with = $metadataProvider->eagerLoadMapFor($resourceClass, $fields);
+        $with = $trashedGate->decorate(
+            $metadataProvider->eagerLoadMapFor($resourceClass, $fields),
+            $query->getModel(),
+            ApiQuery::getTrashed(),
+        );
 
         if (!empty($with)) {
             $query->with($with);

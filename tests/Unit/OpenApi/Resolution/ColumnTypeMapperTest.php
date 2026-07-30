@@ -356,4 +356,37 @@ final class ColumnTypeMapperTest extends TestCase
 
         self::assertInstanceOf(OpenApiFieldSchema::class, $mapper->map($column));
     }
+
+    /**
+     * Test that a mappable cast still resolves when no column is available,
+     * degrading to a non-nullable schema derived from the cast alone.
+     *
+     * @return void
+     */
+    public function testMapsFromCastWhenColumnAbsent(): void
+    {
+        $mapper = new ColumnTypeMapper;
+
+        $schema = $mapper->map(null, 'boolean');
+
+        self::assertSame('boolean', $schema->type);
+        self::assertFalse($schema->nullable);
+        self::assertFalse($schema->undocumented);
+    }
+
+    /**
+     * Test that an absent column and absent cast resolves to an undocumented
+     * schema rather than failing.
+     *
+     * @return void
+     */
+    public function testUndocumentedWhenColumnAndCastAbsent(): void
+    {
+        $mapper = new ColumnTypeMapper;
+
+        $schema = $mapper->map(null, null);
+
+        self::assertTrue($schema->undocumented);
+        self::assertNull($schema->type);
+    }
 }

@@ -319,4 +319,48 @@ final class ContainsOperatorTest extends TestCase
         self::assertSame('Nested', $wheres[1]['type']);
         self::assertInstanceOf(Builder::class, $query);
     }
+
+    /**
+     * Test that apply honours the OR boolean of the current filter context so a
+     * direct $contains branch inside an $or group is combined with OR rather
+     * than AND.
+     *
+     * @return void
+     */
+    public function testApplyInOrContextUsesOrBoolean(): void
+    {
+        $query = (new User)->newQuery();
+
+        $query->where('name', 'Alice');
+
+        $this->operator->apply($query, 'tags', ['php'], FilterContext::nested('$or'));
+
+        $wheres = $query->getQuery()->wheres;
+
+        self::assertCount(2, $wheres);
+        self::assertSame(self::TYPE_JSON_CONTAINS, $wheres[1]['type']);
+        self::assertSame('or', $wheres[1]['boolean']);
+    }
+
+    /**
+     * Test that apply honours the OR boolean when grouping a comma-separated
+     * $contains branch inside an $or group, so the nested group is combined with
+     * OR rather than AND.
+     *
+     * @return void
+     */
+    public function testApplyCommaSeparatedInOrContextUsesOrBoolean(): void
+    {
+        $query = (new User)->newQuery();
+
+        $query->where('name', 'Alice');
+
+        $this->operator->apply($query, 'tags', 'php,laravel', FilterContext::nested('$or'));
+
+        $wheres = $query->getQuery()->wheres;
+
+        self::assertCount(2, $wheres);
+        self::assertSame('Nested', $wheres[1]['type']);
+        self::assertSame('or', $wheres[1]['boolean']);
+    }
 }

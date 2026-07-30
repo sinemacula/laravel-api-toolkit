@@ -31,12 +31,31 @@ final class ErrorDescriptorTest extends TestCase
             httpStatus: 404,
             title     : 'Not Found',
             detail    : 'The requested resource could not be found',
+            source    : 'App\Account\Exceptions\Missing',
         );
 
         self::assertSame(10103, $descriptor->code);
         self::assertSame(404, $descriptor->httpStatus);
         self::assertSame('Not Found', $descriptor->title);
         self::assertSame('The requested resource could not be found', $descriptor->detail);
+        self::assertSame('App\Account\Exceptions\Missing', $descriptor->source);
+    }
+
+    /**
+     * Test that the owning source class defaults to null when omitted.
+     *
+     * @return void
+     */
+    public function testSourceDefaultsToNull(): void
+    {
+        $descriptor = new ErrorDescriptor(
+            code      : 10103,
+            httpStatus: 404,
+            title     : 'Not Found',
+            detail    : 'The requested resource could not be found',
+        );
+
+        self::assertNull($descriptor->source);
     }
 
     /**

@@ -7,7 +7,9 @@ namespace Tests\Unit\Repositories\Criteria\Concerns;
 use Illuminate\Http\Request;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Contracts\ResourceMetadataProvider;
+use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\EagerLoadApplier;
+use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\RelationTrashedGate;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
@@ -56,7 +58,7 @@ final class EagerLoadApplierTest extends TestCase
         $provider->expects(self::never())->method('getAllFields');
 
         $query  = (new User)->newQuery();
-        $result = $this->applier->apply($query, $provider, null, 'users');
+        $result = $this->applier->apply($query, $provider, null, 'users', $this->gate());
 
         self::assertEmpty($result->getEagerLoads());
     }
@@ -76,7 +78,7 @@ final class EagerLoadApplierTest extends TestCase
         $provider->expects(self::never())->method('getAllFields');
 
         $query  = (new User)->newQuery();
-        $result = $this->applier->apply($query, $provider, \stdClass::class, 'users');
+        $result = $this->applier->apply($query, $provider, \stdClass::class, 'users', $this->gate());
 
         self::assertEmpty($result->getEagerLoads());
     }
@@ -110,7 +112,7 @@ final class EagerLoadApplierTest extends TestCase
             ->willReturn([]);
 
         $query = (new User)->newQuery();
-        $this->applier->apply($query, $provider, UserResource::class, 'users');
+        $this->applier->apply($query, $provider, UserResource::class, 'users', $this->gate());
     }
 
     /**
@@ -142,7 +144,7 @@ final class EagerLoadApplierTest extends TestCase
             ->willReturn([]);
 
         $query = (new User)->newQuery();
-        $this->applier->apply($query, $provider, UserResource::class, 'users');
+        $this->applier->apply($query, $provider, UserResource::class, 'users', $this->gate());
     }
 
     /**
@@ -169,7 +171,7 @@ final class EagerLoadApplierTest extends TestCase
             ->method('eagerLoadCountsFor');
 
         $query  = (new User)->newQuery();
-        $result = $this->applier->apply($query, $provider, UserResource::class, 'users');
+        $result = $this->applier->apply($query, $provider, UserResource::class, 'users', $this->gate());
 
         self::assertEmpty($result->getEagerLoads());
     }
@@ -198,7 +200,7 @@ final class EagerLoadApplierTest extends TestCase
             ->willReturn([]);
 
         $query  = (new User)->newQuery();
-        $result = $this->applier->apply($query, $provider, UserResource::class, 'users');
+        $result = $this->applier->apply($query, $provider, UserResource::class, 'users', $this->gate());
 
         self::assertArrayHasKey('organization', $result->getEagerLoads());
     }
@@ -227,7 +229,7 @@ final class EagerLoadApplierTest extends TestCase
             ->willReturn([]);
 
         $query  = (new User)->newQuery();
-        $result = $this->applier->apply($query, $provider, UserResource::class, 'users');
+        $result = $this->applier->apply($query, $provider, UserResource::class, 'users', $this->gate());
 
         self::assertEmpty($result->getEagerLoads());
     }
@@ -258,7 +260,7 @@ final class EagerLoadApplierTest extends TestCase
             ->willReturn(['posts']);
 
         $query  = (new User)->newQuery();
-        $result = $this->applier->apply($query, $provider, UserResource::class, 'users');
+        $result = $this->applier->apply($query, $provider, UserResource::class, 'users', $this->gate());
 
         $columns = $result->getQuery()->columns ?? [];
 
@@ -289,7 +291,7 @@ final class EagerLoadApplierTest extends TestCase
             ->willReturn([]);
 
         $query  = (new User)->newQuery();
-        $result = $this->applier->apply($query, $provider, UserResource::class, 'users');
+        $result = $this->applier->apply($query, $provider, UserResource::class, 'users', $this->gate());
 
         self::assertEmpty($result->getQuery()->columns ?? []);
     }
@@ -325,7 +327,7 @@ final class EagerLoadApplierTest extends TestCase
             ->willReturn([]);
 
         $query  = (new User)->newQuery();
-        $result = $this->applier->apply($query, $provider, UserResource::class, 'users');
+        $result = $this->applier->apply($query, $provider, UserResource::class, 'users', $this->gate());
 
         // withSum adds a select sub-query, so columns should be non-empty
         self::assertNotNull($result->getQuery()->columns);
@@ -360,7 +362,7 @@ final class EagerLoadApplierTest extends TestCase
             ->willReturn([]);
 
         $query  = (new User)->newQuery();
-        $result = $this->applier->apply($query, $provider, UserResource::class, 'users');
+        $result = $this->applier->apply($query, $provider, UserResource::class, 'users', $this->gate());
 
         self::assertEmpty($result->getQuery()->columns ?? []);
     }
@@ -398,7 +400,7 @@ final class EagerLoadApplierTest extends TestCase
             ->willReturn([]);
 
         $query = (new User)->newQuery();
-        $this->applier->apply($query, $provider, UserResource::class, 'users');
+        $this->applier->apply($query, $provider, UserResource::class, 'users', $this->gate());
     }
 
     /**
@@ -434,7 +436,7 @@ final class EagerLoadApplierTest extends TestCase
             ->willReturn([]);
 
         $query = (new User)->newQuery();
-        $this->applier->apply($query, $provider, UserResource::class, 'users');
+        $this->applier->apply($query, $provider, UserResource::class, 'users', $this->gate());
     }
 
     /**
@@ -468,7 +470,7 @@ final class EagerLoadApplierTest extends TestCase
             ->willReturn([['relation' => 'posts as posts_id', 'column' => 'id']]);
 
         $query  = (new User)->newQuery();
-        $result = $this->applier->apply($query, $provider, UserResource::class, 'users');
+        $result = $this->applier->apply($query, $provider, UserResource::class, 'users', $this->gate());
 
         // withAvg appends a select sub-query; columns list must be non-empty
         self::assertNotNull($result->getQuery()->columns, 'withAvg must be applied when avg entries are returned');
@@ -487,5 +489,21 @@ final class EagerLoadApplierTest extends TestCase
         /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
         $parser = $this->app->make('api.query');
         $parser->parse($request);
+    }
+
+    /**
+     * Build a relation trashed gate for the applier under test.
+     *
+     * @return \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\RelationTrashedGate
+     */
+    private function gate(): RelationTrashedGate
+    {
+        assert($this->app !== null);
+
+        return new RelationTrashedGate(
+            $this->app->make(SchemaIntrospectionProvider::class),
+            new Request,
+            [],
+        );
     }
 }
