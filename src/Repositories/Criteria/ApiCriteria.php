@@ -96,7 +96,16 @@ class ApiCriteria implements CriteriaInterface
     {
         $query = $model instanceof Model ? $model->query() : $model;
 
-        $query = $this->applyFilters($query, $this->getFilters());
+        // Wrap the whole filter expression in a nested WHERE group so a
+        // top-level `$or` cannot escape a constraint the caller ANDs onto
+        // the query afterwards (e.g. a tenant/security scope). Without the
+        // group, SQL `AND` binds tighter than a root-level `OR`, leaving
+        // the constraint attached to only one disjunct. An empty filter set
+        // produces an empty group, which the query grammar elides.
+        $query->where(function (Builder $query): void {
+            $this->applyFilters($query, $this->getFilters());
+        });
+
         $query = $this->applyEagerLoading($query);
         $query = $this->applyLimit($query, $this->getLimit());
 
