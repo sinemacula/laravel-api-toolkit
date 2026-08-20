@@ -8,7 +8,6 @@ use Illuminate\Routing\Route;
 use SineMacula\ApiToolkit\OpenApi\Attributes\DocumentedIn;
 use SineMacula\ApiToolkit\OpenApi\Attributes\NotDocumentedIn;
 use SineMacula\ApiToolkit\OpenApi\Attributes\Undocumented;
-use SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface;
 
 /**
  * Decides whether a route belongs to a given OpenAPI audience.
@@ -27,6 +26,12 @@ use SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface;
  */
 final readonly class AudienceResolver
 {
+    /** @var string The posture under which a route joins only by opting in. */
+    public const string POSTURE_ALLOWLIST = 'allowlist';
+
+    /** @var string The posture under which a route joins unless excluded. */
+    public const string POSTURE_BLOCKLIST = 'blocklist';
+
     /** @var string The route action key the route macros store directives on. */
     public const string ROUTE_ACTION_KEY = 'sinemacula.openapi.audience';
 
@@ -67,7 +72,7 @@ final readonly class AudienceResolver
             return $included && !$excluded;
         }
 
-        return $posture !== QuerySurface::POSTURE_ALLOWLIST;
+        return $posture !== self::POSTURE_ALLOWLIST;
     }
 
     /**

@@ -4,10 +4,9 @@ declare(strict_types = 1);
 
 namespace Tests\Unit\Repositories\Criteria\Concerns;
 
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Config;
+use Illuminate\Validation\ValidationException;
 use PHPUnit\Framework\Attributes\CoversClass;
-use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\OrderApplier;
 use SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface;
 use Tests\Fixtures\Models\User;
@@ -24,9 +23,6 @@ use Tests\TestCase;
 #[CoversClass(OrderApplier::class)]
 final class OrderApplierTest extends TestCase
 {
-    /** @var \SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider */
-    private SchemaIntrospectionProvider $schemaIntrospector;
-
     /** @var \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\OrderApplier */
     private OrderApplier $applier;
 
@@ -39,11 +35,6 @@ final class OrderApplierTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-
-        $this->schemaIntrospector = self::createStub(SchemaIntrospectionProvider::class);
-        $this->schemaIntrospector->method('isSearchable')->willReturnCallback(
-            fn (Model $model, string $column) => in_array($column, ['name', 'email', 'created_at'], true),
-        );
 
         $this->applier = new OrderApplier;
     }
@@ -119,17 +110,16 @@ final class OrderApplierTest extends TestCase
 
     /**
      * Test that the random keyword is passed to the sort guard while the
-     * capability is disabled, so it is skipped like any undeclared column
+     * capability is disabled, so it is rejected like any undeclared column
      * rather than bypassing the guard.
      *
      * @return void
      */
     public function testApplyWithRandomOrderIsGuardedWhileTheCapabilityIsDisabled(): void
     {
-        $query  = (new User)->newQuery();
-        $result = $this->applier->apply($query, ['random' => 'asc'], $this->surface());
+        $query = (new User)->newQuery();
 
-        self::assertEmpty($result->getQuery()->orders ?? []);
+        $this->assertRejects(fn () => $this->applier->apply($query, ['random' => 'asc'], $this->surface()), 'random');
     }
 
     /**
@@ -143,10 +133,9 @@ final class OrderApplierTest extends TestCase
     {
         Config::set('api-toolkit.repositories', []);
 
-        $query  = (new User)->newQuery();
-        $result = $this->applier->apply($query, ['random' => 'asc'], $this->surface());
+        $query = (new User)->newQuery();
 
-        self::assertEmpty($result->getQuery()->orders ?? []);
+        $this->assertRejects(fn () => $this->applier->apply($query, ['random' => 'asc'], $this->surface()), 'random');
     }
 
     /**
@@ -179,16 +168,15 @@ final class OrderApplierTest extends TestCase
     }
 
     /**
-     * Test that apply with a non-searchable column silently skips it.
+     * Test that apply with an undeclared column rejects the request.
      *
      * @return void
      */
-    public function testApplyWithNonSearchableColumnSkipsColumn(): void
+    public function testApplyWithUndeclaredColumnIsRejected(): void
     {
-        $query  = (new User)->newQuery();
-        $result = $this->applier->apply($query, ['nonexistent' => 'asc'], $this->surface());
+        $query = (new User)->newQuery();
 
-        self::assertEmpty($result->getQuery()->orders ?? []);
+        $this->assertRejects(fn () => $this->applier->apply($query, ['nonexistent' => 'asc'], $this->surface()), 'nonexistent');
     }
 
     /**
@@ -213,15 +201,15 @@ final class OrderApplierTest extends TestCase
     }
 
     /**
-     * Test that a column failing the sort guard is skipped without halting the
-     * loop, so a valid column declared after it is still applied.
+     * Test that a column carrying an unusable direction is skipped without
+     * halting the loop, so a valid column declared after it is still applied.
      *
      * @return void
      */
     public function testAppliesValidColumnAfterSkippingAnInvalidOne(): void
     {
         $query  = (new User)->newQuery();
-        $result = $this->applier->apply($query, ['nonexistent' => 'asc', 'name' => 'asc'], $this->surface());
+        $result = $this->applier->apply($query, ['email' => 'sideways', 'name' => 'asc'], $this->surface());
 
         $orders = $result->getQuery()->orders ?? [];
 
@@ -241,13 +229,34 @@ final class OrderApplierTest extends TestCase
     }
 
     /**
-     * Build a blocklist query surface that delegates to the stubbed
-     * introspector, preserving the legacy searchable gating these tests assert.
+     * Build a query surface declaring the sortable columns these tests order
+     * by, so the gate under test is the applier rather than the declaration.
      *
      * @return \SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface
      */
     private function surface(): QuerySurface
     {
-        return new QuerySurface([], [], [], QuerySurface::POSTURE_BLOCKLIST, $this->schemaIntrospector, new User);
+        return new QuerySurface([], ['name', 'email', 'created_at'], [], new User);
+    }
+
+    /**
+     * Assert that applying the order rejects the given column with a named
+     * validation error.
+     *
+     * @param  callable(): void  $apply
+     * @param  string  $column
+     * @return void
+     */
+    private function assertRejects(callable $apply, string $column): void
+    {
+        try {
+            $apply();
+            self::fail('Expected a ValidationException for the "' . $column . '" order key.');
+        } catch (ValidationException $exception) {
+            self::assertSame(
+                ['The "' . $column . '" key is not a permitted query parameter for this resource.'],
+                $exception->errors()['order.' . $column] ?? [],
+            );
+        }
     }
 }

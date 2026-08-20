@@ -56,7 +56,7 @@ final class ArticleResource extends ApiResource
             Field::scalar('title'),
             Field::scalar('slug'),
             Field::scalar('status'),
-            Field::scalar('views'),
+            Field::scalar('views')->sortable(),
             Field::accessor('summary_excerpt', static function ($resource): string {
 
                 $article = $resource->resource;

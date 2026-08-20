@@ -22,7 +22,7 @@ use SineMacula\ApiToolkit\Enums\CacheKeys;
 /**
  * Schema introspector.
  *
- * Provides column listing, searchable column resolution, relation detection,
+ * Provides column listing, column definition resolution, relation detection,
  * and relation type reporting for Eloquent models.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
@@ -35,9 +35,6 @@ final class SchemaIntrospector implements SchemaIntrospectionProvider
 
     /** @var array<string, array<string, \SineMacula\ApiToolkit\Schema\Introspection\ColumnDefinition>> */
     private array $columnDefinitions = [];
-
-    /** @var array<string, array<int, string>> */
-    private array $searchable = [];
 
     /**
      * Create a new schema introspector.
@@ -129,54 +126,6 @@ final class SchemaIntrospector implements SchemaIntrospectionProvider
         }
 
         return $this->columnDefinitions[$model::class] = $definitions;
-    }
-
-    /**
-     * Get the searchable columns for the given model, with configured
-     * exclusions applied.
-     *
-     * @param  \Illuminate\Database\Eloquent\Model  $model
-     * @return array<int, string>
-     */
-    #[\Override]
-    public function getSearchableColumns(Model $model): array
-    {
-        if (isset($this->searchable[$model::class])) {
-            return $this->searchable[$model::class];
-        }
-
-        $table      = $model->getTable();
-        $exclusions = [];
-
-        /** @var array<int, string> $configExclusions */
-        $configExclusions = Config::get('api-toolkit.repositories.searchable_exclusions', []);
-
-        foreach ($configExclusions as $exclusion) {
-            if (str_contains($exclusion, '.') && strtok($exclusion, '.') === $table) {
-                $exclusions[] = substr(strstr($exclusion, '.'), 1);
-            } else {
-                $exclusions[] = $exclusion;
-            }
-        }
-
-        $searchable = array_diff($this->getColumns($model), $exclusions);
-
-        $this->searchable[$model::class] = $searchable;
-
-        return $searchable;
-    }
-
-    /**
-     * Determine whether the given column is searchable for the model.
-     *
-     * @param  \Illuminate\Database\Eloquent\Model  $model
-     * @param  string  $column
-     * @return bool
-     */
-    #[\Override]
-    public function isSearchable(Model $model, string $column): bool
-    {
-        return in_array($column, $this->getSearchableColumns($model), true);
     }
 
     /**
@@ -279,7 +228,6 @@ final class SchemaIntrospector implements SchemaIntrospectionProvider
     {
         $this->columns           = [];
         $this->columnDefinitions = [];
-        $this->searchable        = [];
     }
 
     /**

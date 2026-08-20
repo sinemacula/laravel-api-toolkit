@@ -11,7 +11,7 @@ use Illuminate\Database\Eloquent\Relations\Relation;
  * Schema introspection provider interface.
  *
  * Defines the public API for all schema introspection operations, including
- * column listing, searchable column resolution, relation detection, and
+ * column listing, column definition resolution, relation detection, and
  * relation type reporting.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
@@ -39,24 +39,6 @@ interface SchemaIntrospectionProvider
      * @return array<string, \SineMacula\ApiToolkit\Schema\Introspection\ColumnDefinition>
      */
     public function getColumnDefinitions(Model $model): array;
-
-    /**
-     * Get the searchable columns for the given model, with configured
-     * exclusions applied.
-     *
-     * @param  \Illuminate\Database\Eloquent\Model  $model
-     * @return array<int, string>
-     */
-    public function getSearchableColumns(Model $model): array;
-
-    /**
-     * Determine whether the given column is searchable for the model.
-     *
-     * @param  \Illuminate\Database\Eloquent\Model  $model
-     * @param  string  $column
-     * @return bool
-     */
-    public function isSearchable(Model $model, string $column): bool;
 
     /**
      * Determine whether the given key is an Eloquent relation on the model.

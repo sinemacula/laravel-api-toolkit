@@ -13,7 +13,6 @@ use SineMacula\ApiToolkit\Cache\MetadataCacheWriter;
 use SineMacula\ApiToolkit\Repositories\ApiRepository;
 use SineMacula\ApiToolkit\Repositories\Concerns\AttributeSetter;
 use SineMacula\ApiToolkit\Repositories\Criteria\ApiCriteria;
-use SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface;
 use SineMacula\Http\Enums\HttpMethod;
 use SineMacula\Repositories\Contracts\CriteriaInterface;
 use Tests\Concerns\InteractsWithNonPublicMembers;
@@ -63,11 +62,6 @@ final class ApiRepositoryTest extends TestCase
         parent::setUp();
 
         assert($this->app !== null);
-
-        // Pin the blocklist posture so criteria filtering follows the legacy
-        // isSearchable contract these mechanics tests assert; the allowlist
-        // default has dedicated coverage in QuerySurfaceIntegrationTest.
-        Config::set('api-toolkit.repositories.query_posture', QuerySurface::POSTURE_BLOCKLIST);
 
         $this->repository = $this->app->make(UserRepository::class);
     }
@@ -456,7 +450,7 @@ final class ApiRepositoryTest extends TestCase
             'limit'   => '10',
         ]));
 
-        $result = $this->repository->withApiCriteria()->paginate();
+        $result = $this->repository->usingResource(UserResource::class)->withApiCriteria()->paginate();
 
         self::assertCount(1, $result);
         self::assertInstanceOf(User::class, $result[0]);

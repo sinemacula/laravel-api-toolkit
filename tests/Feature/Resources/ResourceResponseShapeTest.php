@@ -215,10 +215,6 @@ final class ResourceResponseShapeTest extends TestCase
      */
     public function testAggregatesRespectAnAppliedFilter(): void
     {
-        // The blocklist posture lets a filter narrow on an undeclared column,
-        // since UserResource declares no filterable columns of its own.
-        Config::set('api-toolkit.repositories.query_posture', 'blocklist');
-
         $bob = User::create(['name' => 'Bob', 'email' => 'bob@example.com', 'status' => 'active']);
 
         Post::create(['user_id' => $bob->id, 'title' => 'Bob One', 'body' => 'Content', 'published' => true]);

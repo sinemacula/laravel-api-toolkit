@@ -41,6 +41,8 @@ final class OrderApplier
      * @param  array<string, string>  $order
      * @param  \SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface  $querySurface
      * @return \Illuminate\Database\Eloquent\Builder<TModel>
+     *
+     * @throws \Illuminate\Validation\ValidationException
      */
     public function apply(Builder $query, array $order, QuerySurface $querySurface): Builder
     {
@@ -55,7 +57,9 @@ final class OrderApplier
                 continue;
             }
 
-            if (!$querySurface->guardSort($column, $query->getModel()) || !in_array($direction, $this->directions, true)) {
+            $querySurface->guardSort($column, $query->getModel());
+
+            if (!in_array($direction, $this->directions, true)) {
                 continue;
             }
 

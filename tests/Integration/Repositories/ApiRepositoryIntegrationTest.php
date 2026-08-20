@@ -6,14 +6,13 @@ namespace Tests\Integration\Repositories;
 
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
-use Illuminate\Support\Facades\Config;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
 use SineMacula\ApiToolkit\Repositories\ApiRepository;
-use SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface;
 use SineMacula\Http\Enums\HttpMethod;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Repositories\UserRepository;
+use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
 
 /**
@@ -42,15 +41,10 @@ final class ApiRepositoryIntegrationTest extends TestCase
 
         assert($this->app !== null);
 
-        // Pin the blocklist posture so criteria filtering follows the legacy
-        // isSearchable contract these mechanics tests assert; the allowlist
-        // default has dedicated coverage in QuerySurfaceIntegrationTest.
-        Config::set('api-toolkit.repositories.query_posture', QuerySurface::POSTURE_BLOCKLIST);
-
         /** @var \Tests\Fixtures\Repositories\UserRepository $repository */
         $repository = $this->app->make(UserRepository::class);
 
-        $this->repository = $repository;
+        $this->repository = $repository->usingResource(UserResource::class);
 
         $this->seedUsers();
     }

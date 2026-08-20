@@ -5,7 +5,6 @@ declare(strict_types = 1);
 namespace SineMacula\ApiToolkit\Repositories\Criteria\Concerns;
 
 use Illuminate\Database\Eloquent\Builder;
-use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Query\QueryCostLimits;
 use SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry;
 use SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface;
@@ -37,9 +36,6 @@ final class FilterApplier
     /** @var array<string, string> */
     private array $relationalMethodMap = ['$has' => 'whereHas', self::OPERATOR_HASNT => 'whereDoesntHave'];
 
-    /** @var \SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider */
-    private SchemaIntrospectionProvider $schemaIntrospector;
-
     /** @var \SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry */
     private OperatorRegistry $operatorRegistry;
 
@@ -56,24 +52,18 @@ final class FilterApplier
      *
      * @param  \Illuminate\Database\Eloquent\Builder<TModel>  $query
      * @param  array<string, mixed>|null  $filters
-     * @param  \SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider  $schemaIntrospector
      * @param  \SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry  $operatorRegistry
      * @param  \SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface  $querySurface
      * @return \Illuminate\Database\Eloquent\Builder<TModel>
      *
+     * @throws \Illuminate\Validation\ValidationException
      * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
-    public function apply(
-        Builder $query,
-        ?array $filters,
-        SchemaIntrospectionProvider $schemaIntrospector,
-        OperatorRegistry $operatorRegistry,
-        QuerySurface $querySurface,
-    ): Builder {
-        $this->schemaIntrospector = $schemaIntrospector;
-        $this->operatorRegistry   = $operatorRegistry;
-        $this->querySurface       = $querySurface;
-        $this->limits             = QueryCostLimits::fromConfig();
+    public function apply(Builder $query, ?array $filters, OperatorRegistry $operatorRegistry, QuerySurface $querySurface): Builder
+    {
+        $this->operatorRegistry = $operatorRegistry;
+        $this->querySurface     = $querySurface;
+        $this->limits           = QueryCostLimits::fromConfig();
 
         $this->applyFilters($query, $filters, null, FilterContext::root(new FilterCostBudget($this->limits)));
 
@@ -89,6 +79,7 @@ final class FilterApplier
      * @param  \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext  $context
      * @return \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>
      *
+     * @throws \Illuminate\Validation\ValidationException
      * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     private function applyFilters(Builder $query, array|string|null $filters, ?string $field, FilterContext $context): Builder
@@ -118,6 +109,7 @@ final class FilterApplier
      * @param  \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext  $context
      * @return void
      *
+     * @throws \Illuminate\Validation\ValidationException
      * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     private function applyFilterEntry(Builder $query, string $key, mixed $value, ?string $field, FilterContext $context): void
@@ -140,14 +132,11 @@ final class FilterApplier
     /**
      * Route a plain (non-operator) key to its relation or column handler.
      *
-     * Under the allowlist posture the declared surface routes the key without
-     * schema introspection: a declared traversable relation goes to the
-     * relation filter, and any other key is gated as a filter column so an
-     * undeclared key is rejected (fail-closed) or dropped (fail-quiet) at that
+     * The declared surface routes the key without schema introspection: a
+     * declared traversable relation goes to the relation filter, and any other
+     * key is gated as a filter column so an undeclared key is rejected at that
      * key before the cached relation lookup is ever reached, rather than
-     * descending into its value. Under the blocklist posture the surface allows
-     * any unblocked key, so introspection is still required to route arbitrary
-     * keys.
+     * descending into its value.
      *
      * @param  \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>  $query
      * @param  string  $key
@@ -155,42 +144,21 @@ final class FilterApplier
      * @param  \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext  $context
      * @return void
      *
+     * @throws \Illuminate\Validation\ValidationException
      * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     private function routePlainKey(Builder $query, string $key, mixed $value, FilterContext $context): void
     {
         $model = $query->getModel();
 
-        if ($this->routesToRelation($query, $key)) {
-            if ($this->querySurface->guardRelation($key, $model)) {
-                $this->applyRelationFilter($query, $key, $value, $context);
-            }
+        if ($this->querySurface->isDeclaredRelation($key, $model)) {
+            $this->applyRelationFilter($query, $key, $value, $context);
             return;
         }
 
-        if ($this->querySurface->isAllowlist() && !$this->querySurface->guardFilter($key, $model)) {
-            return;
-        }
+        $this->querySurface->guardFilter($key, $model);
 
         $this->applyFilters($query, $value, $key, $context);
-    }
-
-    /**
-     * Determine whether a plain key routes to a relation filter, consulting the
-     * declared surface under the allowlist posture and schema introspection
-     * under the blocklist posture.
-     *
-     * @param  \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>  $query
-     * @param  string  $key
-     * @return bool
-     */
-    private function routesToRelation(Builder $query, string $key): bool
-    {
-        $model = $query->getModel();
-
-        return $this->querySurface->isAllowlist()
-            ? $this->querySurface->isDeclaredRelation($key, $model)
-            : $this->schemaIntrospector->isRelation($key, $model);
     }
 
     /**
@@ -212,10 +180,14 @@ final class FilterApplier
      * @param  string  $value
      * @param  \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext  $context
      * @return \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>
+     *
+     * @throws \Illuminate\Validation\ValidationException
      */
     private function applySimpleFilter(Builder $query, ?string $column, string $value, FilterContext $context): Builder
     {
-        if ($column && $this->querySurface->guardFilter($column, $query->getModel())) {
+        if ($column) {
+
+            $this->querySurface->guardFilter($column, $query->getModel());
 
             if ($context->isOr()) {
                 $query->orWhere($column, $value);
@@ -237,6 +209,7 @@ final class FilterApplier
      * @param  \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext  $context
      * @return void
      *
+     * @throws \Illuminate\Validation\ValidationException
      * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     private function applyConditionOperator(Builder $query, string $operator, mixed $value, ?string $field, FilterContext $context): void
@@ -247,9 +220,11 @@ final class FilterApplier
             return;
         }
 
-        if (!$field || !$this->querySurface->guardFilter($field, $query->getModel())) {
+        if (!$field) {
             return;
         }
+
+        $this->querySurface->guardFilter($field, $query->getModel());
 
         if (is_array($value)) {
             $this->limits->enforce(QueryCostLimits::MAX_IN_ITEMS, count($value), 'filters', $context->pointerTo($field) . '/' . $operator);
@@ -332,6 +307,7 @@ final class FilterApplier
      * @param  \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext  $context
      * @return void
      *
+     * @throws \Illuminate\Validation\ValidationException
      * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     private function processRelationFilters(Builder $query, array $filters, FilterContext $context): void
@@ -366,6 +342,7 @@ final class FilterApplier
      * @param  \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext  $context
      * @return void
      *
+     * @throws \Illuminate\Validation\ValidationException
      * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     private function applyHasFilter(Builder $query, array|string $relations, string $operator, FilterContext $context): void
@@ -378,10 +355,14 @@ final class FilterApplier
             $context->admit((string) $relation);
 
             if (is_int($relation)) {
-                if ($this->querySurface->guardRelation($filters, $query->getModel())) {
-                    $this->applyRelationalMethod($query, $method, $filters);
-                }
-            } elseif ($this->querySurface->guardRelation($relation, $query->getModel())) {
+
+                $this->querySurface->guardRelation($filters, $query->getModel());
+
+                $this->applyRelationalMethod($query, $method, $filters);
+
+            } else {
+
+                $this->querySurface->guardRelation($relation, $query->getModel());
 
                 $nested = $context->descend($relation, null);
 

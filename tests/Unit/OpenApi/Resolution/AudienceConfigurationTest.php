@@ -7,7 +7,7 @@ namespace Tests\Unit\OpenApi\Resolution;
 use Illuminate\Contracts\Config\Repository as ConfigRepository;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\OpenApi\Resolution\AudienceConfiguration;
-use SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface;
+use SineMacula\ApiToolkit\OpenApi\Resolution\AudienceResolver;
 use Tests\TestCase;
 
 /**
@@ -85,10 +85,10 @@ final class AudienceConfigurationTest extends TestCase
     public function testReturnsExplicitPosture(): void
     {
         $this->config()->set('api-toolkit.openapi.audiences', [
-            'partner' => ['posture' => QuerySurface::POSTURE_ALLOWLIST],
+            'partner' => ['posture' => AudienceResolver::POSTURE_ALLOWLIST],
         ]);
 
-        self::assertSame(QuerySurface::POSTURE_ALLOWLIST, (new AudienceConfiguration)->postureFor('partner'));
+        self::assertSame(AudienceResolver::POSTURE_ALLOWLIST, (new AudienceConfiguration)->postureFor('partner'));
     }
 
     /**
@@ -103,8 +103,8 @@ final class AudienceConfigurationTest extends TestCase
 
         $configuration = new AudienceConfiguration;
 
-        self::assertSame(QuerySurface::POSTURE_BLOCKLIST, $configuration->postureFor('public'));
-        self::assertSame(QuerySurface::POSTURE_BLOCKLIST, $configuration->postureFor('unconfigured'));
+        self::assertSame(AudienceResolver::POSTURE_BLOCKLIST, $configuration->postureFor('public'));
+        self::assertSame(AudienceResolver::POSTURE_BLOCKLIST, $configuration->postureFor('unconfigured'));
     }
 
     /**

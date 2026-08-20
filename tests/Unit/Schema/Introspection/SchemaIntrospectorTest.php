@@ -291,136 +291,6 @@ final class SchemaIntrospectorTest extends TestCase
     }
 
     /**
-     * Test that getSearchableColumns returns columns with exclusions applied.
-     *
-     * @return void
-     */
-    public function testGetSearchableColumnsReturnsColumnsWithExclusionsApplied(): void
-    {
-        Config::set('api-toolkit.repositories.searchable_exclusions', ['password']);
-
-        $introspector = $this->makeIntrospector();
-        $model        = new User;
-
-        $searchable = $introspector->getSearchableColumns($model);
-
-        self::assertNotContains('password', $searchable);
-        self::assertContains('name', $searchable);
-        self::assertContains('email', $searchable);
-    }
-
-    /**
-     * Test that getSearchableColumns respects table-specific exclusions.
-     *
-     * @return void
-     */
-    public function testGetSearchableColumnsRespectsTableSpecificExclusions(): void
-    {
-        Config::set('api-toolkit.repositories.searchable_exclusions', ['users.password']);
-
-        $introspector = $this->makeIntrospector();
-        $model        = new User;
-
-        $searchable = $introspector->getSearchableColumns($model);
-
-        self::assertNotContains('password', $searchable);
-    }
-
-    /**
-     * Test that getSearchableColumns ignores table-specific exclusions intended
-     * for other tables.
-     *
-     * @return void
-     */
-    public function testGetSearchableColumnsIgnoresTableSpecificExclusionForOtherTables(): void
-    {
-        Config::set('api-toolkit.repositories.searchable_exclusions', ['users.password']);
-
-        $introspector = $this->makeIntrospector();
-        $model        = new Post;
-
-        $searchable = $introspector->getSearchableColumns($model);
-        $allColumns = Schema::getColumnListing('posts');
-
-        self::assertCount(count($allColumns), $searchable);
-    }
-
-    /**
-     * Test that getSearchableColumns keeps a column when a table-specific
-     * exclusion targets another table.
-     *
-     * @return void
-     */
-    public function testGetSearchableColumnsKeepsColumnWhenExclusionTargetsAnotherTable(): void
-    {
-        Config::set('api-toolkit.repositories.searchable_exclusions', ['posts.name']);
-
-        $introspector = $this->makeIntrospector();
-        $model        = new User;
-
-        self::assertContains('name', $introspector->getSearchableColumns($model));
-    }
-
-    /**
-     * Test that a second getSearchableColumns call on the same instance is
-     * served from the instance cache without recomputing.
-     *
-     * @return void
-     */
-    public function testGetSearchableColumnsServesInstanceCacheOnSecondCall(): void
-    {
-        $introspector = $this->makeIntrospector();
-        $model        = new User;
-
-        $first  = $introspector->getSearchableColumns($model);
-        $second = $introspector->getSearchableColumns($model);
-
-        self::assertSame($first, $second);
-        self::assertArrayHasKey(User::class, $this->getProperty($introspector, 'searchable'));
-    }
-
-    /**
-     * Test that isSearchable returns true for a searchable column.
-     *
-     * @return void
-     */
-    public function testIsSearchableReturnsTrueForSearchableColumn(): void
-    {
-        $introspector = $this->makeIntrospector();
-        $model        = new User;
-
-        self::assertTrue($introspector->isSearchable($model, 'name'));
-    }
-
-    /**
-     * Test that isSearchable returns false for an excluded column.
-     *
-     * @return void
-     */
-    public function testIsSearchableReturnsFalseForExcludedColumn(): void
-    {
-        Config::set('api-toolkit.repositories.searchable_exclusions', ['password']);
-
-        $introspector = $this->makeIntrospector();
-        $model        = new User;
-
-        self::assertFalse($introspector->isSearchable($model, 'password'));
-    }
-
-    /**
-     * Test that isSearchable returns false for a non-existent column.
-     *
-     * @return void
-     */
-    public function testIsSearchableReturnsFalseForNonExistentColumn(): void
-    {
-        $introspector = $this->makeIntrospector();
-        $model        = new User;
-
-        self::assertFalse($introspector->isSearchable($model, 'nonexistent'));
-    }
-
-    /**
      * Test that isRelation returns true for a valid relation.
      *
      * @return void
@@ -826,42 +696,6 @@ final class SchemaIntrospectorTest extends TestCase
     }
 
     /**
-     * Test that flush clears cached searchable columns so the next
-     * getSearchableColumns call re-computes.
-     *
-     * @return void
-     */
-    public function testFlushClearsSearchable(): void
-    {
-        // Arrange
-        Config::set('api-toolkit.repositories.searchable_exclusions', ['password']);
-
-        $introspector = $this->makeIntrospector();
-        $model        = new User;
-
-        $originalSearchable = $introspector->getSearchableColumns($model);
-
-        self::assertNotContains('password', $originalSearchable);
-
-        // Act
-        $introspector->flush();
-        Cache::memo()->flush(); // @phpstan-ignore method.notFound
-
-        Schema::shouldReceive('getColumnListing')
-            ->once()
-            ->with('users')
-            ->andReturn(['id', 'name', 'extra_column']);
-
-        Config::set('api-toolkit.repositories.searchable_exclusions', []);
-
-        $refreshedSearchable = $introspector->getSearchableColumns($model);
-
-        // Assert
-        self::assertSame(['id', 'name', 'extra_column'], $refreshedSearchable);
-        self::assertNotSame($originalSearchable, $refreshedSearchable);
-    }
-
-    /**
      * Test that calling flush on a freshly constructed introspector with no
      * prior calls does not throw an exception.
      *
@@ -874,7 +708,7 @@ final class SchemaIntrospectorTest extends TestCase
         $introspector->flush();
 
         self::assertSame([], $this->getProperty($introspector, 'columns'));
-        self::assertSame([], $this->getProperty($introspector, 'searchable'));
+        self::assertSame([], $this->getProperty($introspector, 'columnDefinitions'));
     }
 
     /**
@@ -1193,31 +1027,6 @@ final class SchemaIntrospectorTest extends TestCase
         $second = ($this->makeIntrospector())->getColumns($model);
 
         self::assertSame($first, $second);
-    }
-
-    /**
-     * Test that a cached searchable set is served from the instance cache and
-     * is not recomputed when the exclusion configuration changes afterwards.
-     *
-     * @return void
-     */
-    public function testGetSearchableColumnsServesInstanceCacheAfterConfigChange(): void
-    {
-        Config::set('api-toolkit.repositories.searchable_exclusions', ['password']);
-
-        $introspector = $this->makeIntrospector();
-        $model        = new User;
-
-        $first = $introspector->getSearchableColumns($model);
-
-        self::assertNotContains('password', $first);
-
-        Config::set('api-toolkit.repositories.searchable_exclusions', []);
-
-        $second = $introspector->getSearchableColumns($model);
-
-        self::assertSame($first, $second);
-        self::assertNotContains('password', $second);
     }
 
     /**

@@ -14,10 +14,10 @@ use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterApplier;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\LimitApplier;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\OrderApplier;
-use SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface;
 use SineMacula\Http\Enums\HttpMethod;
 use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\User;
+use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
 
 /**
@@ -45,12 +45,6 @@ final class ApiCriteriaIntegrationTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-
-        // These tests assert posture-independent applier mechanics end-to-end
-        // against a real database. Pin the blocklist posture so column gating
-        // follows the legacy isSearchable contract; the allowlist default has
-        // dedicated coverage in QuerySurfaceIntegrationTest.
-        Config::set('api-toolkit.repositories.query_posture', QuerySurface::POSTURE_BLOCKLIST);
 
         $this->seedData();
     }
@@ -162,15 +156,13 @@ final class ApiCriteriaIntegrationTest extends TestCase
      */
     public function testFilteringWithNullOperator(): void
     {
-        $this->parseQuery(['filters' => json_encode(['password' => ['$null' => true]])]);
+        User::where('name', 'Alice')->update(['organization_id' => 1]);
+
+        $this->parseQuery(['filters' => json_encode(['organization_id' => ['$null' => true]])]);
 
         $results = $this->makeCriteria()->apply(new User)->get();
 
-        foreach ($results as $user) {
-
-            assert($user instanceof User);
-            self::assertNull($user->password);
-        }
+        self::assertSame(['Bob', 'Charlie'], $results->pluck('name')->all());
     }
 
     /**
@@ -182,20 +174,13 @@ final class ApiCriteriaIntegrationTest extends TestCase
      */
     public function testFilteringWithNotNullOperator(): void
     {
-        // Set one user's organization_id to a non-null value
         User::where('name', 'Alice')->update(['organization_id' => 1]);
 
         $this->parseQuery(['filters' => json_encode(['organization_id' => ['$notNull' => true]])]);
 
         $results = $this->makeCriteria()->apply(new User)->get();
 
-        self::assertGreaterThan(0, $results->count());
-
-        foreach ($results as $user) {
-
-            assert($user instanceof User);
-            self::assertNotNull($user->organization_id);
-        }
+        self::assertSame(['Alice'], $results->pluck('name')->all());
     }
 
     /**
@@ -316,6 +301,8 @@ final class ApiCriteriaIntegrationTest extends TestCase
      */
     public function testOrderingByRandom(): void
     {
+        Config::set('api-toolkit.repositories.allow_random_order', true);
+
         $this->parseQuery(['order' => 'random']);
 
         $results = $this->makeCriteria()->apply(new User)->get();
@@ -387,8 +374,10 @@ final class ApiCriteriaIntegrationTest extends TestCase
     {
         assert($this->app !== null);
 
-        /** @var \SineMacula\ApiToolkit\Repositories\Criteria\ApiCriteria */
-        return $this->app->make(ApiCriteria::class);
+        /** @var \SineMacula\ApiToolkit\Repositories\Criteria\ApiCriteria $criteria */
+        $criteria = $this->app->make(ApiCriteria::class);
+
+        return $criteria->usingResource(UserResource::class);
     }
 
     /**

@@ -35,7 +35,7 @@ final class DeepTraversalPostResource extends ApiResource
     public static function schema(): array
     {
         return Field::set(
-            Field::scalar('id'),
+            Field::scalar('id')->filterable(),
             Field::scalar('title')->filterable(),
             Relation::to('user', UserResource::class)->traversable(),
         );

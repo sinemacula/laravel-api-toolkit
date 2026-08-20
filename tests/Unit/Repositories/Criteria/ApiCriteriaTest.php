@@ -8,6 +8,7 @@ use Illuminate\Contracts\Database\Eloquent\Builder as BuilderContract;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Config;
+use Illuminate\Validation\ValidationException;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use SineMacula\ApiToolkit\Cache\MetadataCacheWriter;
@@ -25,7 +26,10 @@ use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\OrderApplier;
 use SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry;
 use SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface;
 use SineMacula\Http\Enums\HttpMethod;
+use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\User;
+use Tests\Fixtures\Resources\FilterableUserResource;
+use Tests\Fixtures\Resources\PostResource;
 use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
 
@@ -71,20 +75,19 @@ final class ApiCriteriaTest extends TestCase
 
         assert($this->app !== null);
 
-        // These tests assert posture-independent applier mechanics (operators,
-        // logical groups, relations, ordering, limits). Pin the blocklist
-        // posture so column gating follows the legacy isSearchable contract;
-        // the allowlist default has dedicated integration coverage.
-        Config::set('api-toolkit.repositories.query_posture', QuerySurface::POSTURE_BLOCKLIST);
-
         // These assertions measure query shape and call counts; pin column
         // narrowing off so the on-by-default narrowing metadata pass cannot
         // skew them (narrowing behaviour has its own dedicated coverage).
         Config::set('api-toolkit.resources.narrow_columns', false);
 
+        // These tests assert applier mechanics (operators, logical groups,
+        // relations, ordering, limits), so they run against resources that
+        // declare the surface they query rather than empty ones.
+        Config::set('api-toolkit.resources.resource_map', [Post::class => PostResource::class]);
+
         /** @var \SineMacula\ApiToolkit\Repositories\Criteria\ApiCriteria $criteria */
         $criteria       = $this->app->make(ApiCriteria::class);
-        $this->criteria = $criteria;
+        $this->criteria = $criteria->usingResource(UserResource::class);
     }
 
     /**
@@ -119,7 +122,7 @@ final class ApiCriteriaTest extends TestCase
     {
         $this->parseRequest(new Request);
 
-        $query = $this->criteria->apply(User::query()->where('status', 'active'));
+        $query = $this->metricFreeCriteria()->apply(User::query()->where('status', 'active'));
 
         self::assertSame('select * from "users" where "status" = ?', $this->sqlOf($query));
     }
@@ -392,7 +395,7 @@ final class ApiCriteriaTest extends TestCase
             ]),
         ]));
 
-        $query = $this->criteria->apply(User::query()->where('status', 'active'));
+        $query = $this->metricFreeCriteria()->apply(User::query()->where('status', 'active'));
 
         self::assertSame(
             'select * from "users" where "status" = ? and (("name" = ? or "email" = ?))',
@@ -504,22 +507,28 @@ final class ApiCriteriaTest extends TestCase
     }
 
     /**
-     * Test that 'random' order adds no ordering while the capability is
-     * disabled, so the most expensive sort is not reachable by default.
+     * Test that 'random' order is rejected while the capability is disabled, so
+     * the most expensive sort is not reachable by default.
      *
      * @return void
      *
      * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
-    public function testApplyWithRandomOrderAddsNoOrderingWhileDisabled(): void
+    public function testApplyWithRandomOrderIsRejectedWhileDisabled(): void
     {
         $this->parseRequest(new Request([
             'order' => 'random',
         ]));
 
-        $query = $this->criteria->apply(new User);
-
-        self::assertEmpty($query->getQuery()->orders ?? []);
+        try {
+            $this->criteria->apply(new User);
+            self::fail('Expected a ValidationException for the disabled random order keyword.');
+        } catch (ValidationException $exception) {
+            self::assertSame(
+                ['The "random" key is not a permitted query parameter for this resource.'],
+                $exception->errors()['order.random'] ?? [],
+            );
+        }
     }
 
     /**
@@ -567,52 +576,27 @@ final class ApiCriteriaTest extends TestCase
     }
 
     /**
-     * Test that searchable exclusions from config are respected.
+     * Test that an undeclared column is rejected rather than dropped.
      *
      * @return void
      *
      * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
-    public function testSearchableExclusionsFromConfigAreRespected(): void
-    {
-        Config::set('api-toolkit.repositories.searchable_exclusions', ['password']);
-
-        $this->parseRequest(new Request([
-            'filters' => json_encode(['password' => 'secret']),
-        ]));
-
-        assert($this->app !== null);
-
-        /** @var \SineMacula\ApiToolkit\Repositories\Criteria\ApiCriteria $criteria */
-        $criteria = $this->app->make(ApiCriteria::class);
-
-        $model = new User;
-        $query = $criteria->apply($model);
-
-        $wheres = $query->getQuery()->wheres;
-
-        self::assertEmpty($wheres);
-    }
-
-    /**
-     * Test that invalid or unsearchable columns are ignored.
-     *
-     * @return void
-     *
-     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
-     */
-    public function testInvalidColumnsAreIgnored(): void
+    public function testUndeclaredColumnsAreRejected(): void
     {
         $this->parseRequest(new Request([
             'filters' => json_encode(['nonexistent_column' => 'value']),
         ]));
 
-        $model = new User;
-        $query = $this->criteria->apply($model);
-
-        $wheres = $query->getQuery()->wheres;
-
-        self::assertEmpty($wheres);
+        try {
+            $this->criteria->apply(new User);
+            self::fail('Expected a ValidationException for an undeclared filter key.');
+        } catch (ValidationException $exception) {
+            self::assertSame(
+                ['The "nonexistent_column" key is not a permitted query parameter for this resource.'],
+                $exception->errors()['filters.nonexistent_column'] ?? [],
+            );
+        }
     }
 
     /**
@@ -883,32 +867,6 @@ final class ApiCriteriaTest extends TestCase
         $query = $this->criteria->apply($model);
 
         self::assertNotEmpty($query->getQuery()->wheres);
-    }
-
-    /**
-     * Test that a table-specific searchable exclusion is respected.
-     *
-     * @return void
-     *
-     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
-     */
-    public function testTableSpecificSearchableExclusionIsRespected(): void
-    {
-        Config::set('api-toolkit.repositories.searchable_exclusions', ['users.password']);
-
-        $this->parseRequest(new Request([
-            'filters' => json_encode(['password' => 'secret']),
-        ]));
-
-        assert($this->app !== null);
-
-        /** @var \SineMacula\ApiToolkit\Repositories\Criteria\ApiCriteria $criteria */
-        $criteria = $this->app->make(ApiCriteria::class);
-
-        $model = new User;
-        $query = $criteria->apply($model);
-
-        self::assertEmpty($query->getQuery()->wheres);
     }
 
     /**
@@ -1211,24 +1169,6 @@ final class ApiCriteriaTest extends TestCase
     }
 
     /**
-     * Test that when the repository configuration is entirely absent the query
-     * surface defaults to the fail-closed allowlist posture.
-     *
-     * @return void
-     */
-    public function testAbsentRepositoryConfigDefaultsToTheAllowlistPosture(): void
-    {
-        Config::set('api-toolkit.repositories', []);
-
-        $method  = new \ReflectionMethod($this->criteria, 'buildQuerySurface');
-        $surface = $method->invoke($this->criteria, new User);
-
-        $property = new \ReflectionProperty($surface, 'posture');
-
-        self::assertSame(QuerySurface::POSTURE_ALLOWLIST, $property->getValue($surface));
-    }
-
-    /**
      * Test that the flat cost caps are enforced before the query is built, so
      * an over-cost request never reaches the appliers.
      *
@@ -1270,6 +1210,22 @@ final class ApiCriteriaTest extends TestCase
         self::assertSame('Nested', $wheres[0]['type']);
 
         return $wheres[0]['query']->wheres;
+    }
+
+    /**
+     * Build a criteria bound to a resource that declares no default metrics, so
+     * an asserted SQL string is the query the filters built and nothing more.
+     *
+     * @return \SineMacula\ApiToolkit\Repositories\Criteria\ApiCriteria
+     */
+    private function metricFreeCriteria(): ApiCriteria
+    {
+        assert($this->app !== null);
+
+        /** @var \SineMacula\ApiToolkit\Repositories\Criteria\ApiCriteria $criteria */
+        $criteria = $this->app->make(ApiCriteria::class);
+
+        return $criteria->usingResource(FilterableUserResource::class);
     }
 
     /**

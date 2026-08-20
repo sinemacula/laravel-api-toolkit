@@ -11,10 +11,11 @@ use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
  *
  * Emits the toolkit's query-parameter grammar as reusable components: sparse
  * fieldsets, the generic filter grammar (documenting the full operator
- * vocabulary at the pattern level, never a per-resource allow-list), ordering,
- * the pagination set (limit, page, cursor, and the pagination-mode switch), and
- * relation counts. Resource components and the assembled document reference
- * these by name; the definitions are never duplicated per resource.
+ * vocabulary at the pattern level, leaving the accepted fields to each
+ * resource's own declarations), ordering, the pagination set (limit, page,
+ * cursor, and the pagination-mode switch), and relation counts. Resource
+ * components and the assembled document reference these by name; the
+ * definitions are never duplicated per resource.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -74,7 +75,7 @@ final readonly class QueryParameterBuilder
      *
      * The operator tokens enumerate both the registered comparison operators
      * and the structural operators, so consumers learn the grammar without the
-     * exporter claiming a per-resource field allow-list.
+     * exporter restating each resource's declared field set.
      *
      * @return array<string, mixed>
      */
@@ -86,7 +87,7 @@ final readonly class QueryParameterBuilder
             'filter',
             sprintf(
                 'Generic filter grammar. Filters are keyed by field and combined with the operator vocabulary: %s. '
-                . 'Documented at the pattern level; the toolkit applies no per-resource field allow-list.',
+                . 'The operator grammar is documented at the pattern level; each resource accepts only the fields it declares filterable.',
                 implode(', ', $operators),
             ),
             [

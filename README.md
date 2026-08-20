@@ -44,7 +44,7 @@ php artisan vendor:publish --provider="SineMacula\ApiToolkit\ApiServiceProvider"
 ```
 
 This publishes `config/api-toolkit.php` to your application's config directory. The file is documented inline
-and covers exception rendering strategy, sensitive-key redaction, query-access posture, query parser limits,
+and covers exception rendering strategy, sensitive-key redaction, sensitive columns, query parser limits,
 deferred write behaviour, middleware toggles, and more. Per-query repository caching is configured in the
 `sinemacula/laravel-repositories` package under `repositories.cache`.
 
@@ -148,7 +148,7 @@ class UserResource extends ApiResource
 }
 ```
 
-Fields marked `filterable()` or `sortable()` are exposed under the allowlist posture. Relations marked
+Fields marked `filterable()` or `sortable()` are the only ones a client may query. Relations marked
 `traversable()` can be targeted by nested filters. The `$default` static property declares the fields returned
 when the client sends no `?fields` parameter.
 
@@ -211,10 +211,14 @@ current request automatically:
 $users = $repository->withApiCriteria()->paginate();
 ```
 
-**Allowlist posture** - by default (`api-toolkit.repositories.query_posture = 'allowlist'`) only schema fields
-declared `filterable()`, `sortable()`, or `traversable()` are accepted. Undeclared keys are always rejected
-with a validation error. Switch to `'blocklist'` to restore the opt-out behaviour and exclude specific columns
-via `api-toolkit.repositories.searchable_exclusions`.
+**Allowlist posture** - only schema fields declared `filterable()`, `sortable()`, or `traversable()` are
+accepted, and every undeclared key is rejected with a validation error. There is no opt-out: a resource that
+declares nothing is queryable by nothing.
+
+**Sensitive columns** - the columns listed in `api-toolkit.resources.sensitive_columns` may never be declared
+`filterable()` or `sortable()`. Schema validation refuses a resource that declares one, so a credential or
+verification column cannot become an oracle a client narrows on without ever reading the value. The default
+covers the stock Laravel and Fortify auth column family.
 
 **Random ordering** - `?order=random` is disabled by default because it sorts the whole table to return one
 page. Enable it with `api-toolkit.repositories.allow_random_order` (`API_TOOLKIT_ALLOW_RANDOM_ORDER=true`);
@@ -366,8 +370,8 @@ overrides `resolveRequestSignature()`. That config option is the supported custo
 
 The schema compiler resolves filterable columns, sortable columns, traversable relations, and all field keys
 for any registered resource without instantiating it. A complementary database-schema introspector resolves
-model columns, searchable columns, and relations; it is used internally by `ApiCriteria` and is available
-for injection:
+model columns, their type and nullability, and relations; it is used internally by `ApiCriteria` and is
+available for injection:
 
 ```php
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;

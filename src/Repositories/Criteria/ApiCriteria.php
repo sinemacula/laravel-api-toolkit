@@ -84,7 +84,7 @@ final class ApiCriteria implements CriteriaInterface
         /** Resolves fields, eager loads, and counts from resource schemas */
         private readonly ResourceMetadataProvider $metadataProvider,
 
-        /** Validates column searchability and relation existence */
+        /** Resolves model columns and relation existence */
         private readonly SchemaIntrospectionProvider $schemaIntrospector,
 
         /** Registry of filter operator handlers */
@@ -116,6 +116,7 @@ final class ApiCriteria implements CriteriaInterface
      * @param  \Illuminate\Contracts\Database\Eloquent\Builder|\Illuminate\Database\Eloquent\Model  $model
      * @return \Illuminate\Contracts\Database\Eloquent\Builder
      *
+     * @throws \Illuminate\Validation\ValidationException
      * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     #[\Override]
@@ -175,7 +176,7 @@ final class ApiCriteria implements CriteriaInterface
     private function applyGroupedFilters(EloquentBuilder $query, QuerySurface $surface): EloquentBuilder
     {
         $query->where(function (EloquentBuilder $group) use ($surface): void {
-            $this->filterApplier->apply($group, $this->getFilters(), $this->schemaIntrospector, $this->operatorRegistry, $surface);
+            $this->filterApplier->apply($group, $this->getFilters(), $this->operatorRegistry, $surface);
         });
 
         return $query;
@@ -187,6 +188,8 @@ final class ApiCriteria implements CriteriaInterface
      * @param  \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>  $query
      * @param  \SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface  $surface
      * @return \Illuminate\Contracts\Database\Eloquent\Builder
+     *
+     * @throws \Illuminate\Validation\ValidationException
      */
     private function applyOrderingAndProjection(Builder $query, QuerySurface $surface): Builder
     {
@@ -249,9 +252,8 @@ final class ApiCriteria implements CriteriaInterface
     }
 
     /**
-     * Build the declared query surface for the resolved resource, honouring the
-     * configured posture. A model with no mapped resource yields an empty
-     * surface, so the allowlist posture rejects every key.
+     * Build the declared query surface for the resolved resource. A model with
+     * no mapped resource yields an empty surface, so every key is rejected.
      *
      * @param  \Illuminate\Database\Eloquent\Model  $model
      * @return \SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface
@@ -264,15 +266,12 @@ final class ApiCriteria implements CriteriaInterface
             ? SchemaCompiler::compile($resource)
             : null;
 
-        $posture     = Config::get('api-toolkit.repositories.query_posture', QuerySurface::POSTURE_ALLOWLIST);
         $resourceMap = Config::get('api-toolkit.resources.resource_map', []);
 
         return new QuerySurface(
             $schema?->getFilterableColumns()    ?? [],
             $schema?->getSortableColumns()      ?? [],
             $schema?->getTraversableRelations() ?? [],
-            is_string($posture) ? $posture : QuerySurface::POSTURE_ALLOWLIST,
-            $this->schemaIntrospector,
             $model,
             is_array($resourceMap) ? $resourceMap : [],
         );

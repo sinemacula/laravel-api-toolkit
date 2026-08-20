@@ -22,7 +22,6 @@ use SineMacula\ApiToolkit\OpenApi\Schema\RuleNormaliser;
 use SineMacula\ApiToolkit\OpenApi\Schema\RulesToSchemaTranslator;
 use SineMacula\ApiToolkit\OpenApi\Security\SecuritySchemeMapper;
 use SineMacula\ApiToolkit\OpenApi\Security\SecuritySchemeResolver;
-use SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\OpenApi\ArticleRequestInput;
 use Tests\Fixtures\OpenApi\PathErrorController;
@@ -575,7 +574,7 @@ final class PathBuilderTest extends TestCase
     {
         $this->registerRestRoutes();
 
-        self::assertSame([], $this->build('partner', QuerySurface::POSTURE_ALLOWLIST));
+        self::assertSame([], $this->build('partner', AudienceResolver::POSTURE_ALLOWLIST));
     }
 
     /**
@@ -950,7 +949,7 @@ final class PathBuilderTest extends TestCase
     {
         // Under the allowlist posture no route opts in, so even the framework's
         // default routes are excluded and the paths object stays empty.
-        self::assertSame([], $this->build('partner', QuerySurface::POSTURE_ALLOWLIST));
+        self::assertSame([], $this->build('partner', AudienceResolver::POSTURE_ALLOWLIST));
     }
 
     /**
@@ -1163,7 +1162,7 @@ final class PathBuilderTest extends TestCase
      * @param  string  $posture
      * @return array<string, array<string, mixed>>
      */
-    private function build(string $audience = 'public', string $posture = QuerySurface::POSTURE_BLOCKLIST): array
+    private function build(string $audience = 'public', string $posture = AudienceResolver::POSTURE_BLOCKLIST): array
     {
         return $this->builder()->build($audience, $posture);
     }

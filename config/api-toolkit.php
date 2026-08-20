@@ -119,6 +119,22 @@ return [
 
         'fixed_fields' => ['id', '_type'],
 
+        // Columns that may never be declared filterable or sortable. Schema
+        // validation refuses a resource that declares one, so a credential or
+        // verification column cannot become an oracle a client narrows on one
+        // comparison at a time without ever reading the value. The default
+        // covers the stock Laravel + Fortify auth column family, keeping the
+        // query layer's sensitive set a superset of the export layer's.
+        'sensitive_columns' => [
+            'password',
+            'token',
+            'remember_token',
+            'two_factor_secret',
+            'two_factor_recovery_codes',
+            'two_factor_confirmed_at',
+            'email_verified_at',
+        ],
+
         // When enabled, the repository-driven query narrows the base-table
         // SELECT to only the columns the resolved field set needs plus a
         // per-model safety set, falling back to SELECT * whenever any resolved
@@ -292,13 +308,6 @@ return [
 
     'repositories' => [
 
-        // Query-access posture for filtering and sorting. 'allowlist' (the 2.0
-        // default) exposes only the columns/relations a resource declares
-        // filterable/sortable/traversable and rejects everything else;
-        // 'blocklist' restores the prior opt-out behaviour where every column
-        // except the searchable_exclusions below is queryable.
-        'query_posture' => env('API_TOOLKIT_QUERY_POSTURE', 'allowlist'),
-
         // Whether the `random` order keyword may apply a random ordering.
         // Disabled by default because a random sort materialises and sorts the
         // whole table to return a single page. While disabled the keyword has
@@ -313,21 +322,6 @@ return [
         // permanently under a long-running worker.
         'relation_cache_ttl' => env('API_TOOLKIT_RELATION_CACHE_TTL', 86400),
 
-        // Columns excluded from the blocklist posture's searchable set. Allows
-        // both bare columns and table-scoped columns e.g. users.password. The
-        // default covers the stock Laravel + Fortify auth column family so the
-        // filter layer's sensitive set stays a superset of the export layer's
-        // ignored_fields even under the blocklist opt-out.
-        'searchable_exclusions' => [
-            'password',
-            'token',
-            'remember_token',
-            'two_factor_secret',
-            'two_factor_recovery_codes',
-            'two_factor_confirmed_at',
-            'email_verified_at',
-        ],
-
     ],
 
     /*
@@ -336,11 +330,11 @@ return [
     |---------------------------------------------------------------------------
     |
     | These caps bound the structural cost of a single request. Every part of an
-    | amplified query is individually cheap and, under the allowlist posture,
-    | individually declared - it is the multiplication that is expensive. A
-    | request that exceeds a cap is rejected before any SQL is issued, with a
-    | 422 naming the parameter, the position within it, the cap, the limit, and
-    | the value supplied, so the client can correct the query itself.
+    | amplified query is individually cheap and individually declared - it is
+    | the multiplication that is expensive. A request that exceeds a cap is
+    | rejected before any SQL is issued, with a 422 naming the parameter, the
+    | position within it, the cap, the limit, and the value supplied, so the
+    | client can correct the query itself.
     |
     | The shipped values are calibrated against the package's own fixture
     | schemas. They are not measured against production traffic, which is

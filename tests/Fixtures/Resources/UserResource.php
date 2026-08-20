@@ -35,12 +35,13 @@ final class UserResource extends ApiResource
     public static function schema(): array
     {
         return Field::set(
-            Field::scalar('id'),
-            Field::scalar('name'),
-            Field::scalar('email'),
-            Field::scalar('status'),
-            Field::timestamp('created_at'),
-            Field::timestamp('updated_at'),
+            Field::scalar('id')->filterable()->sortable(),
+            Field::scalar('name')->filterable()->sortable(),
+            Field::scalar('email')->filterable()->sortable(),
+            Field::scalar('status')->filterable()->sortable(),
+            Field::scalar('organization_id')->filterable(),
+            Field::timestamp('created_at')->sortable(),
+            Field::timestamp('updated_at')->sortable(),
             Field::compute('full_label', static function ($resource): string {
 
                 $user = $resource->resource;
@@ -57,9 +58,9 @@ final class UserResource extends ApiResource
 
                 return $user->name . ' <' . $user->email . '>';
             })->needs('name', 'email'),
-            Relation::to('organization', OrganizationResource::class),
+            Relation::to('organization', OrganizationResource::class)->traversable(),
             Relation::to('profile', 'bio', 'profile_bio'),
-            Relation::to('posts', PostResource::class),
+            Relation::to('posts', PostResource::class)->traversable(),
             Count::of('posts')->default(),
             Sum::of('posts', 'id')->default(),
             Average::of('posts', 'id'),

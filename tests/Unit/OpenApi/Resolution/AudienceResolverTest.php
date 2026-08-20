@@ -8,7 +8,6 @@ use Illuminate\Routing\Route;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 use SineMacula\ApiToolkit\OpenApi\Resolution\AudienceResolver;
-use SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface;
 use Tests\Fixtures\OpenApi\AudienceFixtureController;
 use Tests\Fixtures\OpenApi\NotDocumentedInPublicController;
 use Tests\Fixtures\OpenApi\OnlyInternalController;
@@ -50,7 +49,7 @@ final class AudienceResolverTest extends TestCase
     {
         self::assertTrue($this->resolver->isInAudience(
             'public',
-            QuerySurface::POSTURE_BLOCKLIST,
+            AudienceResolver::POSTURE_BLOCKLIST,
             AudienceFixtureController::class,
             'none',
             $this->bareRoute(),
@@ -66,7 +65,7 @@ final class AudienceResolverTest extends TestCase
     {
         self::assertFalse($this->resolver->isInAudience(
             'public',
-            QuerySurface::POSTURE_BLOCKLIST,
+            AudienceResolver::POSTURE_BLOCKLIST,
             NotDocumentedInPublicController::class,
             'none',
             $this->bareRoute(),
@@ -82,7 +81,7 @@ final class AudienceResolverTest extends TestCase
     {
         self::assertFalse($this->resolver->isInAudience(
             'partner',
-            QuerySurface::POSTURE_ALLOWLIST,
+            AudienceResolver::POSTURE_ALLOWLIST,
             AudienceFixtureController::class,
             'none',
             $this->bareRoute(),
@@ -98,7 +97,7 @@ final class AudienceResolverTest extends TestCase
     {
         self::assertTrue($this->resolver->isInAudience(
             'partner',
-            QuerySurface::POSTURE_ALLOWLIST,
+            AudienceResolver::POSTURE_ALLOWLIST,
             AudienceFixtureController::class,
             'documentedInPartner',
             $this->bareRoute(),
@@ -114,7 +113,7 @@ final class AudienceResolverTest extends TestCase
     {
         self::assertFalse($this->resolver->isInAudience(
             'public',
-            QuerySurface::POSTURE_BLOCKLIST,
+            AudienceResolver::POSTURE_BLOCKLIST,
             UndocumentedController::class,
             'none',
             $this->bareRoute(),
@@ -122,7 +121,7 @@ final class AudienceResolverTest extends TestCase
 
         self::assertFalse($this->resolver->isInAudience(
             'internal',
-            QuerySurface::POSTURE_BLOCKLIST,
+            AudienceResolver::POSTURE_BLOCKLIST,
             UndocumentedController::class,
             'none',
             $this->bareRoute(),
@@ -139,7 +138,7 @@ final class AudienceResolverTest extends TestCase
     {
         self::assertTrue($this->resolver->isInAudience(
             'internal',
-            QuerySurface::POSTURE_BLOCKLIST,
+            AudienceResolver::POSTURE_BLOCKLIST,
             OnlyInternalController::class,
             'none',
             $this->bareRoute(),
@@ -147,7 +146,7 @@ final class AudienceResolverTest extends TestCase
 
         self::assertFalse($this->resolver->isInAudience(
             'public',
-            QuerySurface::POSTURE_BLOCKLIST,
+            AudienceResolver::POSTURE_BLOCKLIST,
             OnlyInternalController::class,
             'none',
             $this->bareRoute(),
@@ -163,7 +162,7 @@ final class AudienceResolverTest extends TestCase
     {
         self::assertTrue($this->resolver->isInAudience(
             'public',
-            QuerySurface::POSTURE_BLOCKLIST,
+            AudienceResolver::POSTURE_BLOCKLIST,
             NotDocumentedInPublicController::class,
             'documentedInPublic',
             $this->bareRoute(),
@@ -181,7 +180,7 @@ final class AudienceResolverTest extends TestCase
 
         self::assertFalse($this->resolver->isInAudience(
             'public',
-            QuerySurface::POSTURE_BLOCKLIST,
+            AudienceResolver::POSTURE_BLOCKLIST,
             AudienceFixtureController::class,
             'documentedInPublic',
             $route,
@@ -197,7 +196,7 @@ final class AudienceResolverTest extends TestCase
     {
         self::assertFalse($this->resolver->isInAudience(
             'partner',
-            QuerySurface::POSTURE_BLOCKLIST,
+            AudienceResolver::POSTURE_BLOCKLIST,
             AudienceFixtureController::class,
             'conflict',
             $this->bareRoute(),
@@ -214,7 +213,7 @@ final class AudienceResolverTest extends TestCase
     {
         self::assertTrue($this->resolver->isInAudience(
             'public',
-            QuerySurface::POSTURE_BLOCKLIST,
+            AudienceResolver::POSTURE_BLOCKLIST,
             null,
             null,
             $this->bareRoute(),
@@ -222,7 +221,7 @@ final class AudienceResolverTest extends TestCase
 
         self::assertFalse($this->resolver->isInAudience(
             'partner',
-            QuerySurface::POSTURE_ALLOWLIST,
+            AudienceResolver::POSTURE_ALLOWLIST,
             null,
             null,
             $this->bareRoute(),
@@ -240,7 +239,7 @@ final class AudienceResolverTest extends TestCase
 
         self::assertTrue($this->resolver->isInAudience(
             'partner',
-            QuerySurface::POSTURE_ALLOWLIST,
+            AudienceResolver::POSTURE_ALLOWLIST,
             null,
             null,
             $route,
@@ -258,7 +257,7 @@ final class AudienceResolverTest extends TestCase
 
         self::assertFalse($this->resolver->isInAudience(
             'public',
-            QuerySurface::POSTURE_BLOCKLIST,
+            AudienceResolver::POSTURE_BLOCKLIST,
             AudienceFixtureController::class,
             'documentedInPublic',
             $route,
@@ -275,7 +274,7 @@ final class AudienceResolverTest extends TestCase
     {
         self::assertTrue($this->resolver->isInAudience(
             'public',
-            QuerySurface::POSTURE_BLOCKLIST,
+            AudienceResolver::POSTURE_BLOCKLIST,
             AudienceFixtureController::class,
             'missingMethod',
             $this->bareRoute(),

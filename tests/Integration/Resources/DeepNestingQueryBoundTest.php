@@ -13,7 +13,6 @@ use SineMacula\ApiToolkit\Facades\ApiQuery;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\EagerLoadPlanner;
 use SineMacula\ApiToolkit\Repositories\Criteria\ApiCriteria;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\EagerLoadApplier;
-use SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface;
 use SineMacula\Http\Enums\HttpMethod;
 use Tests\Fixtures\Models\Organization;
 use Tests\Fixtures\Models\Post;
@@ -52,7 +51,7 @@ final class DeepNestingQueryBoundTest extends TestCase
     private array $tagIds = [];
 
     /**
-     * Set up each test with the blocklist posture and a tag pool.
+     * Set up each test with a tag pool and a seeded organization.
      *
      * @return void
      */
@@ -60,11 +59,6 @@ final class DeepNestingQueryBoundTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-
-        // This test measures eager-load query shape, not the query posture; pin
-        // the blocklist posture so the empty-surface criteria uses the legacy
-        // isSearchable contract.
-        Config::set('api-toolkit.repositories.query_posture', QuerySurface::POSTURE_BLOCKLIST);
 
         // These assertions measure query shape and call counts; pin column
         // narrowing off so the on-by-default narrowing metadata pass cannot

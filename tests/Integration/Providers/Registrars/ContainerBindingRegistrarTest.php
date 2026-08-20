@@ -27,6 +27,7 @@ use SineMacula\ApiToolkit\Schema\Validation\SchemaValidator;
 use SineMacula\ApiToolkit\Services\ServiceRunner;
 use Tests\Fixtures\Input\StorePayload;
 use Tests\Fixtures\Models\User;
+use Tests\Fixtures\Resources\SensitiveQueryableResource;
 use Tests\Fixtures\Resources\UnbackedQueryableResource;
 use Tests\Fixtures\Services\Input\Enums\StubStatusEnum;
 use Tests\TestCase;
@@ -111,6 +112,27 @@ final class ContainerBindingRegistrarTest extends TestCase
         $this->expectException(InvalidSchemaException::class);
 
         $validator->validate([User::class => UnbackedQueryableResource::class]);
+    }
+
+    /**
+     * Test that the shipped rule set refuses a resource declaring a sensitive
+     * column filterable, so the defence-in-depth denylist is enforced at boot.
+     *
+     * @return void
+     */
+    public function testRegisterBindsSchemaValidatorRefusingASensitiveColumnDeclaration(): void
+    {
+        $app = $this->getApplication();
+
+        (new ContainerBindingRegistrar($app))->register();
+
+        SchemaCompiler::clearCache();
+
+        $validator = $app->make(SchemaValidator::class);
+
+        $this->expectException(InvalidSchemaException::class);
+
+        $validator->validate([User::class => SensitiveQueryableResource::class]);
     }
 
     /**
