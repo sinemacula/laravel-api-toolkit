@@ -63,7 +63,7 @@ name = "osv-scanner"
 
 [[plugin]]
 name = "php-codesniffer"
-version = "4.0.1"
+version = "4.0.4"
 mode = "comment"
 package_file = "composer.json"
 package_filters = ["slevomat", "dealerdirect", "sinemacula"]
