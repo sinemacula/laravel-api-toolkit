@@ -4,6 +4,7 @@ declare(strict_types = 1);
 
 namespace Tests\Unit\Repositories\Criteria;
 
+use Illuminate\Contracts\Database\Eloquent\Builder as BuilderContract;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Config;
@@ -102,6 +103,21 @@ final class ApiCriteriaTest extends TestCase
     }
 
     /**
+     * Test that an empty filter set adds no group of its own, leaving a
+     * caller-applied constraint as the only clause on the query.
+     *
+     * @return void
+     */
+    public function testEmptyFilterSetEmitsNoGroup(): void
+    {
+        $this->parseRequest(new Request);
+
+        $query = $this->criteria->apply(User::query()->where('status', 'active'));
+
+        self::assertSame('select * from "users" where "status" = ?', $this->sqlOf($query));
+    }
+
+    /**
      * Test that apply with a simple filter applies a where clause.
      *
      * @return void
@@ -115,7 +131,7 @@ final class ApiCriteriaTest extends TestCase
         $model = new User;
         $query = $this->criteria->apply($model);
 
-        $wheres = $query->getQuery()->wheres;
+        $wheres = $this->filterGroupWheres($query);
 
         self::assertNotEmpty($wheres);
         self::assertSame('name', $wheres[0]['column']);
@@ -158,7 +174,7 @@ final class ApiCriteriaTest extends TestCase
         $model = new User;
         $query = $this->criteria->apply($model);
 
-        $wheres = $query->getQuery()->wheres;
+        $wheres = $this->filterGroupWheres($query);
 
         self::assertNotEmpty($wheres);
         self::assertSame($expectedType, $wheres[0]['type']);
@@ -178,7 +194,7 @@ final class ApiCriteriaTest extends TestCase
         $model = new User;
         $query = $this->criteria->apply($model);
 
-        $wheres = $query->getQuery()->wheres;
+        $wheres = $this->filterGroupWheres($query);
 
         self::assertNotEmpty($wheres);
         self::assertSame('%Ali%', $wheres[0]['value']);
@@ -198,7 +214,7 @@ final class ApiCriteriaTest extends TestCase
         $model = new User;
         $query = $this->criteria->apply($model);
 
-        $wheres = $query->getQuery()->wheres;
+        $wheres = $this->filterGroupWheres($query);
 
         self::assertNotEmpty($wheres);
         self::assertSame('In', $wheres[0]['type']);
@@ -219,7 +235,7 @@ final class ApiCriteriaTest extends TestCase
         $model = new User;
         $query = $this->criteria->apply($model);
 
-        $wheres = $query->getQuery()->wheres;
+        $wheres = $this->filterGroupWheres($query);
 
         self::assertNotEmpty($wheres);
         self::assertSame('between', $wheres[0]['type']);
@@ -239,7 +255,7 @@ final class ApiCriteriaTest extends TestCase
         $model = new User;
         $query = $this->criteria->apply($model);
 
-        $wheres = $query->getQuery()->wheres;
+        $wheres = $this->filterGroupWheres($query);
 
         self::assertNotEmpty($wheres);
         self::assertSame('Null', $wheres[0]['type']);
@@ -260,7 +276,7 @@ final class ApiCriteriaTest extends TestCase
         $model = new User;
         $query = $this->criteria->apply($model);
 
-        $wheres = $query->getQuery()->wheres;
+        $wheres = $this->filterGroupWheres($query);
 
         self::assertNotEmpty($wheres);
         self::assertSame('NotNull', $wheres[0]['type']);
@@ -280,7 +296,7 @@ final class ApiCriteriaTest extends TestCase
         $model = new User;
         $query = $this->criteria->apply($model);
 
-        $wheres = $query->getQuery()->wheres;
+        $wheres = $this->filterGroupWheres($query);
 
         self::assertNotEmpty($wheres);
         self::assertSame('Exists', $wheres[0]['type']);
@@ -300,7 +316,7 @@ final class ApiCriteriaTest extends TestCase
         $model = new User;
         $query = $this->criteria->apply($model);
 
-        $wheres = $query->getQuery()->wheres;
+        $wheres = $this->filterGroupWheres($query);
 
         self::assertNotEmpty($wheres);
         self::assertSame('NotExists', $wheres[0]['type']);
@@ -328,6 +344,33 @@ final class ApiCriteriaTest extends TestCase
         $wheres = $query->getQuery()->wheres;
 
         self::assertNotEmpty($wheres);
+    }
+
+    /**
+     * Test that a root-level $or is grouped so it cannot escape a constraint
+     * the caller applies to the query before the criteria run.
+     *
+     * @return void
+     */
+    public function testRootOrCannotEscapeACallerAppliedConstraint(): void
+    {
+        $this->parseRequest(new Request([
+            'filters' => json_encode([
+                '$or' => [
+                    'name'  => 'Alice',
+                    'email' => 'charlie@example.com',
+                ],
+            ]),
+        ]));
+
+        $query = $this->criteria->apply(User::query()->where('status', 'active'));
+
+        self::assertSame(
+            'select * from "users" where "status" = ? and (("name" = ? or "email" = ?))',
+            $this->sqlOf($query),
+        );
+
+        self::assertSame(['active', 'Alice', 'charlie@example.com'], $query->getBindings()); // @phpstan-ignore staticMethod.dynamicCall
     }
 
     /**
@@ -373,7 +416,7 @@ final class ApiCriteriaTest extends TestCase
         $model = new User;
         $query = $this->criteria->apply($model);
 
-        $wheres = $query->getQuery()->wheres;
+        $wheres = $this->filterGroupWheres($query);
 
         self::assertNotEmpty($wheres);
         self::assertSame('Exists', $wheres[0]['type']);
@@ -630,7 +673,7 @@ final class ApiCriteriaTest extends TestCase
         $model = new User;
         $query = $this->criteria->apply($model);
 
-        $wheres = $query->getQuery()->wheres;
+        $wheres = $this->filterGroupWheres($query);
 
         self::assertNotEmpty($wheres);
         self::assertSame('Exists', $wheres[0]['type']);
@@ -655,7 +698,7 @@ final class ApiCriteriaTest extends TestCase
         $model = new User;
         $query = $this->criteria->apply($model);
 
-        $wheres = $query->getQuery()->wheres;
+        $wheres = $this->filterGroupWheres($query);
 
         self::assertNotEmpty($wheres);
         self::assertSame('NotExists', $wheres[0]['type']);
@@ -1076,6 +1119,32 @@ final class ApiCriteriaTest extends TestCase
         $property = new \ReflectionProperty($surface, 'rejectUndeclared');
 
         self::assertTrue($property->getValue($surface));
+    }
+
+    /**
+     * Resolve the where clauses nested inside the grouped filter expression.
+     *
+     * @param  \Illuminate\Contracts\Database\Eloquent\Builder  $query
+     * @return array<int, mixed>
+     */
+    private function filterGroupWheres(BuilderContract $query): array
+    {
+        $wheres = $query->getQuery()->wheres;
+
+        self::assertSame('Nested', $wheres[0]['type']);
+
+        return $wheres[0]['query']->wheres;
+    }
+
+    /**
+     * Compile the query to its SQL string for assertion.
+     *
+     * @param  \Illuminate\Contracts\Database\Eloquent\Builder  $query
+     * @return string
+     */
+    private function sqlOf(BuilderContract $query): string
+    {
+        return $query->toSql(); // @phpstan-ignore staticMethod.dynamicCall
     }
 
     /**

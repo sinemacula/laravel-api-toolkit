@@ -220,6 +220,28 @@ final class ApiCriteriaIntegrationTest extends TestCase
     }
 
     /**
+     * Test that a root-level $or cannot escape a constraint the caller applies
+     * to the query before the criteria run.
+     *
+     * @return void
+     */
+    public function testRootOrCannotEscapeACallerAppliedConstraint(): void
+    {
+        $this->parseQuery([
+            'filters' => json_encode([
+                '$or' => [
+                    'name'  => 'Alice',
+                    'email' => 'charlie@example.com',
+                ],
+            ]),
+        ]);
+
+        $results = $this->makeCriteria()->apply(User::query()->where('status', 'active'))->get();
+
+        self::assertSame(['Alice'], $results->pluck('name')->all());
+    }
+
+    /**
      * Test ordering by column ascending.
      *
      * @return void

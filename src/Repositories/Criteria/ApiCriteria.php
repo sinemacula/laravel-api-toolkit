@@ -5,6 +5,7 @@ declare(strict_types = 1);
 namespace SineMacula\ApiToolkit\Repositories\Criteria;
 
 use Illuminate\Contracts\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Builder as EloquentBuilder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Config;
@@ -121,7 +122,7 @@ final class ApiCriteria implements CriteriaInterface
         /** @var \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model> $query */
         $query = $this->softDeleteVisibilityApplier->apply($query, $this->resolveResource($query->getModel()), $this->request);
 
-        $query = $this->filterApplier->apply($query, $this->getFilters(), $this->schemaIntrospector, $this->operatorRegistry, $surface);
+        $query = $this->applyGroupedFilters($query, $surface);
         $query = $this->eagerLoadApplier->apply(
             $query,
             $this->metadataProvider,
@@ -145,6 +146,28 @@ final class ApiCriteria implements CriteriaInterface
     protected function metadataCacheWriter(): MetadataCacheWriter
     {
         return $this->metadataCacheWriter;
+    }
+
+    /**
+     * Apply the filter expression inside a nested WHERE group.
+     *
+     * The group stops a root-level `$or` escaping a constraint the caller ANDs
+     * onto the query afterwards, such as a tenant or security scope. Ungrouped,
+     * SQL `AND` binds tighter than a root-level `OR`, so that constraint would
+     * bind to only one disjunct. An empty filter set yields an empty group,
+     * which the builder discards.
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>  $query
+     * @param  \SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface  $surface
+     * @return \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>
+     */
+    private function applyGroupedFilters(EloquentBuilder $query, QuerySurface $surface): EloquentBuilder
+    {
+        $query->where(function (EloquentBuilder $group) use ($surface): void {
+            $this->filterApplier->apply($group, $this->getFilters(), $this->schemaIntrospector, $this->operatorRegistry, $surface);
+        });
+
+        return $query;
     }
 
     /**
