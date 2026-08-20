@@ -18,10 +18,10 @@ use SineMacula\ApiToolkit\Schema\SchemaCompiler;
  * schema DSL) to the filter and sort enforcement gates. Under the allowlist
  * posture a key on the root resource is permitted only when the resource
  * declared it; under the blocklist posture the legacy shape-derived predicates
- * apply. An undeclared root key is rejected with a named ValidationException
- * when fail-closed, or dropped when fail-quiet. A resource with no declared
- * surface (e.g. a model with no mapped resource) yields empty sets, so the
- * allowlist posture rejects every root key - secure by default.
+ * apply. An undeclared root key is always rejected with a named
+ * ValidationException. A resource with no declared surface (e.g. a model with
+ * no mapped resource) yields empty sets, so the allowlist posture rejects every
+ * root key - secure by default.
  *
  * Keys that target a nested/related model (within a declared-traversable
  * relation) are gated against that related model's resource schema under the
@@ -53,7 +53,6 @@ final readonly class QuerySurface
      * @param  array<int, string>  $sortableColumns
      * @param  array<int, string>  $traversableRelations
      * @param  string  $posture
-     * @param  bool  $rejectUndeclared
      * @param  \SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider  $introspector
      * @param  \Illuminate\Database\Eloquent\Model  $rootModel
      * @param  array<string, string>  $resourceMap
@@ -72,9 +71,6 @@ final readonly class QuerySurface
         /** The active enforcement posture (allowlist or blocklist). */
         private string $posture,
 
-        /** Whether to reject undeclared root keys (fail-closed). */
-        private bool $rejectUndeclared,
-
         /** Schema introspection provider for the root model. */
         private SchemaIntrospectionProvider $introspector,
 
@@ -87,8 +83,7 @@ final readonly class QuerySurface
 
     /**
      * Guard a filter column on the given model, returning whether it may be
-     * applied and throwing on an undeclared key under the fail-closed allowlist
-     * posture.
+     * applied and throwing on an undeclared key under the allowlist posture.
      *
      * @param  string  $column
      * @param  \Illuminate\Database\Eloquent\Model  $model
@@ -296,7 +291,7 @@ final readonly class QuerySurface
     /**
      * Resolve a permission result into an apply/skip decision.
      *
-     * Rejects an undeclared key with a named ValidationException only under the
+     * Rejects an undeclared key with a named ValidationException under the
      * allowlist posture (which fails closed); the blocklist posture drops
      * undeclared keys silently.
      *
@@ -313,7 +308,7 @@ final readonly class QuerySurface
             return true;
         }
 
-        if ($this->rejectUndeclared && $this->posture === self::POSTURE_ALLOWLIST) {
+        if ($this->posture === self::POSTURE_ALLOWLIST) {
             throw ValidationException::withMessages([$parameter . '.' . $key => sprintf('The "%s" key is not a permitted query parameter for this resource.', $key)]);
         }
 

@@ -5,14 +5,15 @@ declare(strict_types = 1);
 namespace SineMacula\ApiToolkit\Repositories\Criteria\Operators;
 
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Support\Facades\Log;
 use SineMacula\ApiToolkit\Contracts\FilterOperator;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext;
 
 /**
  * Filter operator handler for the $contains (JSON containment) token.
  *
- * @SuppressWarnings("php:S3776")
+ * A containment clause the active grammar cannot express propagates the
+ * grammar's exception rather than being discarded: dropping the predicate would
+ * widen the result set, so the request fails instead.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -31,19 +32,12 @@ final class ContainsOperator implements FilterOperator
     #[\Override]
     public function apply(Builder $query, string $column, mixed $value, FilterContext $context): void
     {
-        $boolean = $context->sqlBoolean();
-
-        if ($this->isJsonContainable($value)) {
-            $query->getQuery()->whereJsonContains($column, $value, $boolean);
-            return;
-        }
-
-        if (is_string($value) && str_contains($value, ',')) {
+        if (!$this->isJsonContainable($value) && is_string($value) && str_contains($value, ',')) {
             $this->applyCommaSeparated($query, $column, $value, $context);
             return;
         }
 
-        $this->applyJsonContainsSafely($query, $column, $value, $boolean);
+        $query->getQuery()->whereJsonContains($column, $value, $context->sqlBoolean());
     }
 
     /**
@@ -108,33 +102,6 @@ final class ContainsOperator implements FilterOperator
             } else {
                 $query->getQuery()->orWhereJsonContains($column, $item);
             }
-        }
-    }
-
-    /**
-     * Apply a JSON containment constraint, logging and discarding values that
-     * the active grammar rejects (e.g. non-JSON-compatible scalars like null).
-     *
-     * @param  \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>  $query
-     * @param  string  $column
-     * @param  mixed  $value
-     * @param  string  $boolean
-     * @return void
-     */
-    private function applyJsonContainsSafely(Builder $query, string $column, mixed $value, string $boolean): void
-    {
-        try {
-            $query->getQuery()->whereJsonContains($column, $value, $boolean);
-        } catch (\RuntimeException $exception) { // @phpstan-ignore catch.neverThrown
-            // Drop the constraint: the grammar may reject a JSON-containment
-            // clause for non-JSON scalars (e.g. null). Log it so a recurring
-            // rejection is diagnosable rather than silently widening results.
-            Log::debug('Dropped unsupported $contains filter constraint', [
-                'table'      => $query->getModel()->getTable(),
-                'column'     => $column,
-                'value_type' => get_debug_type($value),
-                'reason'     => $exception->getMessage(),
-            ]);
         }
     }
 }

@@ -13,6 +13,7 @@ use SineMacula\ApiToolkit\Cache\CacheManager;
 use SineMacula\ApiToolkit\Cache\MetadataCacheWriter;
 use SineMacula\ApiToolkit\Contracts\ResourceMetadataProvider;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
+use SineMacula\ApiToolkit\Exceptions\InvalidSchemaException;
 use SineMacula\ApiToolkit\OpenApi\Contracts\DocumentWriter;
 use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
 use SineMacula\ApiToolkit\OpenApi\Metadata\ConfigMetadataCatalogue;
@@ -21,9 +22,12 @@ use SineMacula\ApiToolkit\Providers\Registrars\ContainerBindingRegistrar;
 use SineMacula\ApiToolkit\Repositories\Concerns\WritePool;
 use SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry;
 use SineMacula\ApiToolkit\Runtime\RuntimeContext;
+use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 use SineMacula\ApiToolkit\Schema\Validation\SchemaValidator;
 use SineMacula\ApiToolkit\Services\ServiceRunner;
 use Tests\Fixtures\Input\StorePayload;
+use Tests\Fixtures\Models\User;
+use Tests\Fixtures\Resources\UnbackedQueryableResource;
 use Tests\Fixtures\Services\Input\Enums\StubStatusEnum;
 use Tests\TestCase;
 
@@ -86,6 +90,27 @@ final class ContainerBindingRegistrarTest extends TestCase
         self::assertSame($app->make(RuntimeContext::class), $app->make(RuntimeContext::class));
         self::assertSame($app->make(MetadataCacheWriter::class), $app->make(MetadataCacheWriter::class));
         self::assertSame($app->make(ServiceRunner::class), $app->make(ServiceRunner::class));
+    }
+
+    /**
+     * Test that the bound schema validator carries the shipped rule set rather
+     * than resolving as an empty validator that accepts every schema.
+     *
+     * @return void
+     */
+    public function testRegisterBindsSchemaValidatorWithTheShippedRuleSet(): void
+    {
+        $app = $this->getApplication();
+
+        (new ContainerBindingRegistrar($app))->register();
+
+        SchemaCompiler::clearCache();
+
+        $validator = $app->make(SchemaValidator::class);
+
+        $this->expectException(InvalidSchemaException::class);
+
+        $validator->validate([User::class => UnbackedQueryableResource::class]);
     }
 
     /**

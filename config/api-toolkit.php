@@ -299,11 +299,11 @@ return [
         // except the searchable_exclusions below is queryable.
         'query_posture' => env('API_TOOLKIT_QUERY_POSTURE', 'allowlist'),
 
-        // When true (the default), an undeclared filter/sort/relation key under
-        // the allowlist posture is rejected with a validation error naming the
-        // key (fail-closed). Set to false to silently drop undeclared keys
-        // instead (the prior fail-quiet behaviour).
-        'reject_undeclared' => env('API_TOOLKIT_REJECT_UNDECLARED', true),
+        // Whether the `random` order keyword may apply a random ordering.
+        // Disabled by default because a random sort materialises and sorts the
+        // whole table to return a single page. While disabled the keyword has
+        // no special meaning and is gated like any other sort column.
+        'allow_random_order' => env('API_TOOLKIT_ALLOW_RANDOM_ORDER', false),
 
         // Time-to-live, in seconds, for the cached relation-detection lookup
         // (whether a given key names an Eloquent relation on a model). Relation

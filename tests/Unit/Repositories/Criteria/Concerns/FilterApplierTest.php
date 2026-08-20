@@ -893,7 +893,6 @@ final class FilterApplierTest extends TestCase
             $sortable,
             $relations,
             QuerySurface::POSTURE_ALLOWLIST,
-            true,
             $introspector ?? $this->schemaIntrospector,
             new User,
             $resourceMap,
@@ -927,6 +926,6 @@ final class FilterApplierTest extends TestCase
      */
     private function surface(): QuerySurface
     {
-        return new QuerySurface([], [], [], QuerySurface::POSTURE_BLOCKLIST, true, $this->schemaIntrospector, new User);
+        return new QuerySurface([], [], [], QuerySurface::POSTURE_BLOCKLIST, $this->schemaIntrospector, new User);
     }
 }

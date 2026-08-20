@@ -212,9 +212,13 @@ $users = $repository->withApiCriteria()->paginate();
 ```
 
 **Allowlist posture** - by default (`api-toolkit.repositories.query_posture = 'allowlist'`) only schema fields
-declared `filterable()`, `sortable()`, or `traversable()` are accepted. Undeclared keys are rejected with a
-validation error (controlled by `api-toolkit.repositories.reject_undeclared`). Switch to `'blocklist'` to
-restore the opt-out behaviour and exclude specific columns via `api-toolkit.repositories.searchable_exclusions`.
+declared `filterable()`, `sortable()`, or `traversable()` are accepted. Undeclared keys are always rejected
+with a validation error. Switch to `'blocklist'` to restore the opt-out behaviour and exclude specific columns
+via `api-toolkit.repositories.searchable_exclusions`.
+
+**Random ordering** - `?order=random` is disabled by default because it sorts the whole table to return one
+page. Enable it with `api-toolkit.repositories.allow_random_order` (`API_TOOLKIT_ALLOW_RANDOM_ORDER=true`);
+while it is disabled the keyword is treated as an ordinary sort key and rejected like any undeclared column.
 
 **Cacheable trait** - add per-query transparent caching to any `ApiRepository` subclass:
 

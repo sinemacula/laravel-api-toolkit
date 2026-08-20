@@ -5,6 +5,7 @@ declare(strict_types = 1);
 namespace SineMacula\ApiToolkit\Concerns;
 
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 
 /**
  * Extracts and parses API query parameters from a request.
@@ -23,6 +24,8 @@ final class QueryParameterExtractor
      *
      * @param  \Illuminate\Http\Request  $request
      * @return array<string, mixed>
+     *
+     * @throws \Illuminate\Validation\ValidationException
      */
     public function extract(Request $request): array
     {
@@ -176,16 +179,26 @@ final class QueryParameterExtractor
     /**
      * Extract the filter parameters from the query string.
      *
+     * A document that fails to decode - malformed, or nested beyond the decoder
+     * depth limit - and one that decodes to a scalar or a populated
+     * numeric-keyed list are both rejected. Coercing either to an empty set
+     * would drop the filter and answer with the unfiltered table. An empty
+     * document carries no filter to drop and is accepted.
+     *
      * @param  string  $query
      * @return array<string, mixed>
+     *
+     * @throws \Illuminate\Validation\ValidationException
      */
     private function parseFilters(string $query): array
     {
         $filters = json_decode($query, true);
 
-        // A scalar or a numeric-keyed list is a valid JSON document but not a
-        // filter map, so discard it rather than leak a non-associative value.
-        return is_array($filters) && !array_is_list($filters) ? $filters : [];
+        if (!is_array($filters) || ($filters !== [] && array_is_list($filters))) {
+            throw ValidationException::withMessages(['filters' => 'The filters parameter must be a JSON object.']);
+        }
+
+        return $filters;
     }
 
     /**

@@ -7,6 +7,7 @@ namespace Tests\Feature\Query;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Route;
 use PHPUnit\Framework\Attributes\CoversClass;
+use SineMacula\ApiToolkit\Exceptions\ApiExceptionHandler;
 use SineMacula\ApiToolkit\Http\Middleware\ParseApiQuery;
 use SineMacula\ApiToolkit\Http\Resources\ApiResourceCollection;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterApplier;
@@ -18,13 +19,12 @@ use Tests\Fixtures\Resources\FilterableUserResource;
 use Tests\TestCase;
 
 /**
- * Feature test for the fail-quiet allowlist posture over HTTP.
+ * Feature test proving undeclared-key rejection cannot be configured away.
  *
- * With reject_undeclared disabled the allowlist posture drops an undeclared key
- * rather than rejecting it: no ValidationException surfaces, so a real request
- * carrying an undeclared filter returns 200 with the full unfiltered set rather
- * than the fail-closed 422 envelope. This proves the dropped-key path travels
- * through the kernel without escaping as a client error.
+ * Rejection of an undeclared key under the allowlist posture is unconditional,
+ * so a published configuration file still carrying the withdrawn fail-quiet
+ * toggle does not reopen the hole: the request is answered with the 422
+ * envelope rather than the unfiltered set.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -33,14 +33,14 @@ use Tests\TestCase;
  */
 #[CoversClass(QuerySurface::class)]
 #[CoversClass(FilterApplier::class)]
-#[CoversClass(ApiResourceCollection::class)]
-final class FailQuietPostureHttpTest extends TestCase
+#[CoversClass(ApiExceptionHandler::class)]
+final class LegacyFailQuietConfigHttpTest extends TestCase
 {
     use RegistersApiExceptionHandler;
 
     /**
-     * Set up each test under the allowlist posture with fail-quiet rejection
-     * and seeded rows.
+     * Set up each test with the withdrawn fail-quiet toggle present in the
+     * configuration and seeded rows.
      *
      * @return void
      */
@@ -66,19 +66,20 @@ final class FailQuietPostureHttpTest extends TestCase
     }
 
     /**
-     * Test that an undeclared filter key is dropped and returns the full set
-     * with a 200 status rather than a validation error.
+     * Test that an undeclared filter key is rejected with the 422 envelope
+     * rather than dropped and answered with the full set.
      *
      * @return void
      */
-    public function testUndeclaredFilterIsDroppedAndReturnsFullSet(): void
+    public function testUndeclaredFilterIsRejectedRegardlessOfTheWithdrawnToggle(): void
     {
         $filters = json_encode(['status' => 'active']);
 
         $response = $this->getJson('/users?filters=' . urlencode((string) $filters));
 
-        $response->assertOk();
-        $response->assertJsonCount(3, 'data');
-        $response->assertJsonPath('meta.total', 3);
+        $response->assertStatus(422);
+        $response->assertJsonPath('error.status', 422);
+
+        self::assertArrayHasKey('filters.status', (array) $response->json('error.meta'));
     }
 }

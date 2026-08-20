@@ -254,7 +254,6 @@ final class ApiCriteria implements CriteriaInterface
             : null;
 
         $posture     = Config::get('api-toolkit.repositories.query_posture', QuerySurface::POSTURE_ALLOWLIST);
-        $reject      = Config::get('api-toolkit.repositories.reject_undeclared', true);
         $resourceMap = Config::get('api-toolkit.resources.resource_map', []);
 
         return new QuerySurface(
@@ -262,7 +261,6 @@ final class ApiCriteria implements CriteriaInterface
             $schema?->getSortableColumns()      ?? [],
             $schema?->getTraversableRelations() ?? [],
             is_string($posture) ? $posture : QuerySurface::POSTURE_ALLOWLIST,
-            (bool) $reject,
             $this->schemaIntrospector,
             $model,
             is_array($resourceMap) ? $resourceMap : [],

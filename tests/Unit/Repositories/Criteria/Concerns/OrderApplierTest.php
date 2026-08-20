@@ -5,6 +5,7 @@ declare(strict_types = 1);
 namespace Tests\Unit\Repositories\Criteria\Concerns;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Config;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\OrderApplier;
@@ -98,12 +99,15 @@ final class OrderApplierTest extends TestCase
     }
 
     /**
-     * Test that apply with the random keyword calls inRandomOrder.
+     * Test that apply with the random keyword calls inRandomOrder once the
+     * capability is enabled.
      *
      * @return void
      */
     public function testApplyWithRandomOrderAppliesInRandomOrder(): void
     {
+        Config::set('api-toolkit.repositories.allow_random_order', true);
+
         $query  = (new User)->newQuery();
         $result = $this->applier->apply($query, ['random' => 'asc'], $this->surface());
 
@@ -111,6 +115,54 @@ final class OrderApplierTest extends TestCase
 
         self::assertNotEmpty($orders);
         self::assertSame('RANDOM()', $orders[0]['sql'] ?? $orders[0]['column'] ?? '');
+    }
+
+    /**
+     * Test that the random keyword is passed to the sort guard while the
+     * capability is disabled, so it is skipped like any undeclared column
+     * rather than bypassing the guard.
+     *
+     * @return void
+     */
+    public function testApplyWithRandomOrderIsGuardedWhileTheCapabilityIsDisabled(): void
+    {
+        $query  = (new User)->newQuery();
+        $result = $this->applier->apply($query, ['random' => 'asc'], $this->surface());
+
+        self::assertEmpty($result->getQuery()->orders ?? []);
+    }
+
+    /**
+     * Test that the random keyword stays disabled when the repository
+     * configuration is absent entirely, so an unpublished config cannot enable
+     * the capability by omission.
+     *
+     * @return void
+     */
+    public function testApplyWithRandomOrderIsDisabledWhenTheConfigurationIsAbsent(): void
+    {
+        Config::set('api-toolkit.repositories', []);
+
+        $query  = (new User)->newQuery();
+        $result = $this->applier->apply($query, ['random' => 'asc'], $this->surface());
+
+        self::assertEmpty($result->getQuery()->orders ?? []);
+    }
+
+    /**
+     * Test that a truthy configured value enables the capability, so a value
+     * arriving from the environment as a string still applies.
+     *
+     * @return void
+     */
+    public function testApplyWithRandomOrderHonoursATruthyConfiguredValue(): void
+    {
+        Config::set('api-toolkit.repositories.allow_random_order', '1');
+
+        $query  = (new User)->newQuery();
+        $result = $this->applier->apply($query, ['random' => 'asc'], $this->surface());
+
+        self::assertNotEmpty($result->getQuery()->orders ?? []);
     }
 
     /**
@@ -147,6 +199,8 @@ final class OrderApplierTest extends TestCase
      */
     public function testApplyWithRandomAndRegularColumnsAppliesBoth(): void
     {
+        Config::set('api-toolkit.repositories.allow_random_order', true);
+
         $query  = (new User)->newQuery();
         $result = $this->applier->apply($query, ['random' => 'asc', 'name' => 'desc'], $this->surface());
 
@@ -194,6 +248,6 @@ final class OrderApplierTest extends TestCase
      */
     private function surface(): QuerySurface
     {
-        return new QuerySurface([], [], [], QuerySurface::POSTURE_BLOCKLIST, true, $this->schemaIntrospector, new User);
+        return new QuerySurface([], [], [], QuerySurface::POSTURE_BLOCKLIST, $this->schemaIntrospector, new User);
     }
 }

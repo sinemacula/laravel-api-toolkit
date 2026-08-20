@@ -301,7 +301,20 @@ final class SchemaCompiler
             guards      : $definition['guards']       ?? [],
             transformers: $definition['transformers'] ?? [],
             openApi     : self::resolveFieldOpenApi($definition),
+            filterable  : self::nullableString($definition['filterable'] ?? null),
+            sortable    : self::nullableString($definition['sortable'] ?? null),
         );
+    }
+
+    /**
+     * Return $value as a string, or null when $value is not a string.
+     *
+     * @param  mixed  $value
+     * @return string|null
+     */
+    private static function nullableString(mixed $value): ?string
+    {
+        return is_string($value) ? $value : null;
     }
 
     /**

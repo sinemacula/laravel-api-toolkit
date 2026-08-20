@@ -548,19 +548,41 @@ Under `blocklist` the legacy shape-derived behaviour applies: every model column
 sortable unless excluded via `searchable_exclusions`. This is a transitional escape hatch; new
 applications should adopt the allowlist posture.
 
-**Fail-closed vs fail-quiet.** By default an undeclared key on the root resource is rejected with a named
-`422` validation error so clients learn immediately which key is not permitted (`reject_undeclared`,
-default `true`). Switch it off to silently drop undeclared keys instead:
-
-    API_TOOLKIT_REJECT_UNDECLARED=false
-
-A dropped key applies no constraint, so a filter the client believes is active is silently ignored --
-prefer the default fail-closed behaviour unless a quiet drop is specifically required.
+**Fail-closed only.** An undeclared key on the root resource is always rejected with a named `422`
+validation error so clients learn immediately which key is not permitted. There is no opt-out: a
+dropped key applies no constraint, so a filter the client believes is active would silently widen the
+result set. `API_TOOLKIT_REJECT_UNDECLARED` and the `reject_undeclared` config key are gone, and a
+value left behind in a published config file is ignored.
 
 **Widened default exclusions.** The default `searchable_exclusions` (used under the blocklist posture)
 now also covers `two_factor_secret`, `two_factor_recovery_codes`, `two_factor_confirmed_at`, and
 `email_verified_at` alongside the existing `password`, `token`, and `remember_token`, so even the legacy
 posture leaks fewer sensitive columns out of the box.
+
+### Changed: the query layer no longer fails open
+
+Four query-layer behaviours that quietly widened a result set now fail the request instead.
+
+**`?order=random` is opt-in.** The keyword used to bypass the sortable-column enforcement entirely and
+apply the most expensive sort available on any resource. It is now disabled by default; while it is
+disabled the keyword is gated like any other sort key and rejected as undeclared. Re-enable it with:
+
+    API_TOOLKIT_ALLOW_RANDOM_ORDER=true
+
+**A `filters` document must be a JSON object.** A document that cannot be decoded -- malformed, or
+nested beyond the decoder's 512-level depth limit -- or that decodes to a scalar or a populated list is
+now rejected with a `422` naming the `filters` parameter. Previously it was reduced to an empty filter
+set and the request answered with the unfiltered table.
+
+**`$contains` no longer discards a clause the grammar rejects.** A JSON-containment predicate the
+active database grammar cannot express now propagates the grammar's exception rather than being logged
+and dropped, which returned a wider result set than the client asked for.
+
+**Filterable and sortable declarations are validated at boot.** A `filterable()` or `sortable()` marker
+on a computed field, or on a field whose accessor reads a different path from the column it declares,
+is reported by schema validation. Such a declaration used to compile cleanly and fail at request time
+with a database error naming a column that does not exist. Run `php artisan api-toolkit:validate-schemas`
+after upgrading and either drop the marker or move it to the backing column.
 
 ### Removed: Request macros in favour of RequestCapabilities
 

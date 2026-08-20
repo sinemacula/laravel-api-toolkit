@@ -257,20 +257,24 @@ final class ApiQueryParserTest extends TestCase
     }
 
     /**
-     * Test that getFilters returns an empty array for a valid-JSON but
-     * non-associative filter value rather than surfacing the decoded scalar or
-     * list, which would break the array return contract.
+     * Test that parsing rejects a valid-JSON but non-associative filter value
+     * rather than reducing it to an empty set, which would answer with the
+     * unfiltered table.
      *
      * @param  string  $filters
      * @return void
      */
     #[DataProvider('nonAssociativeFilterProvider')]
-    public function testGetFiltersReturnsEmptyArrayForNonAssociativeJson(string $filters): void
+    public function testParseRejectsNonAssociativeJsonFilters(string $filters): void
     {
         $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['filters' => $filters]);
-        $this->parser->parse($request);
 
-        self::assertSame([], $this->parser->getFilters());
+        try {
+            $this->parser->parse($request);
+            self::fail('Expected a ValidationException for the filters parameter.');
+        } catch (ValidationException $exception) {
+            self::assertSame(['filters' => ['The filters parameter must be a JSON object.']], $exception->errors());
+        }
     }
 
     /**

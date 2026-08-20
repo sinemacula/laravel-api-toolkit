@@ -444,12 +444,15 @@ final class ApiCriteriaTest extends TestCase
     }
 
     /**
-     * Test that apply with 'random' order applies inRandomOrder.
+     * Test that apply with 'random' order applies inRandomOrder once the
+     * capability is enabled.
      *
      * @return void
      */
     public function testApplyWithRandomOrderAppliesInRandomOrder(): void
     {
+        Config::set('api-toolkit.repositories.allow_random_order', true);
+
         $this->parseRequest(new Request([
             'order' => 'random',
         ]));
@@ -461,6 +464,23 @@ final class ApiCriteriaTest extends TestCase
 
         self::assertNotEmpty($orders);
         self::assertSame('RANDOM()', $orders[0]['sql'] ?? $orders[0]['column'] ?? '');
+    }
+
+    /**
+     * Test that 'random' order adds no ordering while the capability is
+     * disabled, so the most expensive sort is not reachable by default.
+     *
+     * @return void
+     */
+    public function testApplyWithRandomOrderAddsNoOrderingWhileDisabled(): void
+    {
+        $this->parseRequest(new Request([
+            'order' => 'random',
+        ]));
+
+        $query = $this->criteria->apply(new User);
+
+        self::assertEmpty($query->getQuery()->orders ?? []);
     }
 
     /**
@@ -1104,21 +1124,21 @@ final class ApiCriteriaTest extends TestCase
     }
 
     /**
-     * Test that when the reject-undeclared flag is entirely absent from config
-     * the query surface defaults to fail-closed.
+     * Test that when the repository configuration is entirely absent the query
+     * surface defaults to the fail-closed allowlist posture.
      *
      * @return void
      */
-    public function testAbsentRejectUndeclaredConfigDefaultsToFailClosed(): void
+    public function testAbsentRepositoryConfigDefaultsToTheAllowlistPosture(): void
     {
         Config::set('api-toolkit.repositories', []);
 
         $method  = new \ReflectionMethod($this->criteria, 'buildQuerySurface');
         $surface = $method->invoke($this->criteria, new User);
 
-        $property = new \ReflectionProperty($surface, 'rejectUndeclared');
+        $property = new \ReflectionProperty($surface, 'posture');
 
-        self::assertTrue($property->getValue($surface));
+        self::assertSame(QuerySurface::POSTURE_ALLOWLIST, $property->getValue($surface));
     }
 
     /**

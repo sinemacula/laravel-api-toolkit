@@ -65,18 +65,6 @@ final class QuerySurfaceTest extends TestCase
     }
 
     /**
-     * Test that the fail-quiet toggle drops an undeclared key without throwing.
-     *
-     * @return void
-     */
-    public function testFailQuietDropsUndeclaredKeyWithoutThrowing(): void
-    {
-        $surface = $this->make(filterable: ['email'], reject: false);
-
-        self::assertFalse($surface->guardFilter('password', new User));
-    }
-
-    /**
      * Test that a resource with no declared surface rejects every root key
      * under the default allowlist posture (secure by default).
      *
@@ -166,23 +154,6 @@ final class QuerySurfaceTest extends TestCase
         $surface = $this->make(resourceMap: [Post::class => \stdClass::class]);
 
         $this->assertRejects(fn () => $surface->guardFilter('title', new Post), 'filters.title');
-    }
-
-    /**
-     * Test that fail-quiet silently drops an undeclared related-model column
-     * without throwing, even under the allowlist posture.
-     *
-     * @return void
-     */
-    public function testFailQuietDropsUndeclaredRelatedColumnWithoutThrowing(): void
-    {
-        $surface = $this->make(
-            filterable: ['email'],
-            reject: false,
-            resourceMap: [Post::class => PostResource::class],
-        );
-
-        self::assertFalse($surface->guardFilter('secret', new Post));
     }
 
     /**
@@ -300,23 +271,6 @@ final class QuerySurfaceTest extends TestCase
     }
 
     /**
-     * Test that fail-quiet silently drops an undeclared related-model relation
-     * without throwing, even under the allowlist posture.
-     *
-     * @return void
-     */
-    public function testFailQuietDropsUndeclaredRelatedRelationWithoutThrowing(): void
-    {
-        $surface = $this->make(
-            reject: false,
-            resourceMap: [User::class => FilterableUserResource::class],
-            rootModel: new Post,
-        );
-
-        self::assertFalse($surface->guardRelation('organization', new User));
-    }
-
-    /**
      * Test that the blocklist posture delegates a related-model relation to the
      * schema introspector rather than the resource's traversable set.
      *
@@ -361,7 +315,6 @@ final class QuerySurfaceTest extends TestCase
      * @param  array<int, string>  $sortable
      * @param  array<int, string>  $relations
      * @param  string  $posture
-     * @param  bool  $reject
      * @param  \SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider|null  $introspector
      * @param  array<string, string>  $resourceMap
      * @param  \Illuminate\Database\Eloquent\Model|null  $rootModel
@@ -372,7 +325,6 @@ final class QuerySurfaceTest extends TestCase
         array $sortable = [],
         array $relations = [],
         string $posture = QuerySurface::POSTURE_ALLOWLIST,
-        bool $reject = true,
         ?SchemaIntrospectionProvider $introspector = null,
         array $resourceMap = [],
         ?Model $rootModel = null,
@@ -382,7 +334,6 @@ final class QuerySurfaceTest extends TestCase
             $sortable,
             $relations,
             $posture,
-            $reject,
             $introspector ?? \Mockery::mock(SchemaIntrospectionProvider::class),
             $rootModel    ?? new User,
             $resourceMap,

@@ -5,6 +5,7 @@ declare(strict_types = 1);
 namespace SineMacula\ApiToolkit\Repositories\Criteria\Concerns;
 
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\Config;
 use SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface;
 
 /**
@@ -13,6 +14,12 @@ use SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface;
  * Supports single and multiple column ordering, random ordering via the
  * `ORDER_BY_RANDOM` keyword, direction validation, and sortable-column
  * enforcement via the declared query surface.
+ *
+ * Random ordering is an opt-in capability: it sorts the whole table to return a
+ * single page, so it applies only when it is enabled in configuration. While it
+ * is disabled the keyword carries no special meaning and is gated by the
+ * sortable-column enforcement like any other key, so it is rejected unless the
+ * resource declares a column of that name sortable.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -43,7 +50,7 @@ final class OrderApplier
 
         foreach ($order as $column => $direction) {
 
-            if ($column === self::ORDER_BY_RANDOM) {
+            if ($this->permitsRandomOrder($column)) {
                 $query->getQuery()->inRandomOrder();
                 continue;
             }
@@ -56,5 +63,21 @@ final class OrderApplier
         }
 
         return $query;
+    }
+
+    /**
+     * Determine whether the column names the random-ordering keyword and the
+     * capability is enabled.
+     *
+     * @param  string  $column
+     * @return bool
+     */
+    private function permitsRandomOrder(string $column): bool
+    {
+        if ($column !== self::ORDER_BY_RANDOM) {
+            return false;
+        }
+
+        return (bool) Config::get('api-toolkit.repositories.allow_random_order', false);
     }
 }

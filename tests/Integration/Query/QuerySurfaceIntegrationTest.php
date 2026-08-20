@@ -26,12 +26,11 @@ use Tests\TestCase;
  *
  * Exercises the secure-by-default posture against a real database: declared
  * filterable/sortable columns and traversable relations are applied, while
- * undeclared keys on the root resource are rejected (fail-closed) or dropped
- * (fail-quiet). Under the allowlist posture, nested columns on a traversed
- * relation are gated against the related resource's declared filterable set
- * -not against the legacy isSearchable predicate. When no mapped resource
- * exists for a related model the gate fails closed. A model with no mapped
- * resource rejects every key.
+ * undeclared keys on the root resource are rejected. Under the allowlist
+ * posture, nested columns on a traversed relation are gated against the related
+ * resource's declared filterable set -not against the legacy isSearchable
+ * predicate. When no mapped resource exists for a related model the gate fails
+ * closed. A model with no mapped resource rejects every key.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -262,32 +261,6 @@ final class QuerySurfaceIntegrationTest extends TestCase
     }
 
     /**
-     * With fail-quiet rejection an undeclared nested relation is dropped rather
-     * than applied: the onward hop adds no constraint and no exception escapes.
-     *
-     * PostResource does not declare 'user' traversable, so under fail-quiet the
-     * nested 'user' constraint is dropped and only the outer 'posts' existence
-     * applies - the two users with posts remain (contrast the
-     * declared-traversal case, which narrows the same query to one).
-     *
-     * @return void
-     */
-    public function testNestedUndeclaredRelationTraversalIsDroppedFailQuiet(): void
-    {
-        Config::set('api-toolkit.repositories.reject_undeclared', false);
-
-        $this->parseQuery(['filters' => json_encode([
-            'posts' => [
-                'nested' => ['user' => ['name' => 'Alice']],
-            ],
-        ])]);
-
-        $results = $this->declaredCriteria()->apply(new User)->get();
-
-        self::assertCount(2, $results);
-    }
-
-    /**
      * Under the allowlist posture a nested relation that the related resource
      * declares traversable is applied end-to-end.
      *
@@ -317,25 +290,6 @@ final class QuerySurfaceIntegrationTest extends TestCase
         $first = $results->first();
 
         self::assertSame('Alice', $first->name);
-    }
-
-    /**
-     * With fail-quiet rejection an undeclared key is silently dropped: it adds
-     * no constraint and no exception escapes.
-     *
-     * @return void
-     */
-    public function testFailQuietDropsUndeclaredKey(): void
-    {
-        Config::set('api-toolkit.repositories.reject_undeclared', false);
-
-        $this->parseQuery(['filters' => json_encode(['status' => 'active'])]);
-
-        $query   = $this->declaredCriteria()->apply(new User);
-        $results = $query->get();
-
-        self::assertEmpty($query->getQuery()->wheres);
-        self::assertCount(3, $results);
     }
 
     /**

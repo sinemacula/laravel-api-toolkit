@@ -111,17 +111,17 @@ final class RequestLifecycleTest extends TestCase
     }
 
     /**
-     * Test that a scalar but valid-JSON filter value does not crash the request
-     * lifecycle, instead falling back to no filtering.
+     * Test that a scalar but valid-JSON filter value is rejected rather than
+     * falling back to no filtering and answering with the whole table.
      *
      * @return void
      */
-    public function testScalarJsonFilterDoesNotError(): void
+    public function testScalarJsonFilterIsRejected(): void
     {
         $response = $this->getJson('/users?filters=123');
 
-        $response->assertOk();
-        $response->assertJsonCount(3, 'data');
+        $response->assertStatus(422);
+        $response->assertJsonPath('errors.filters.0', 'The filters parameter must be a JSON object.');
     }
 
     /**
