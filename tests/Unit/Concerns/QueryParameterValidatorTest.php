@@ -4,10 +4,13 @@ declare(strict_types = 1);
 
 namespace Tests\Unit\Concerns;
 
+use Illuminate\Support\Facades\Config;
 use Illuminate\Validation\ValidationException;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use SineMacula\ApiToolkit\Concerns\QueryParameterValidator;
+use SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException;
+use SineMacula\ApiToolkit\Query\QueryCostLimits;
 use Tests\TestCase;
 
 /**
@@ -21,6 +24,9 @@ use Tests\TestCase;
 #[CoversClass(QueryParameterValidator::class)]
 final class QueryParameterValidatorTest extends TestCase
 {
+    /** @var string A well-formed filter document used to pin the byte cap */
+    private const string FILTER_DOCUMENT = '{"status":{"$eq":"active"}}';
+
     /** @var \SineMacula\ApiToolkit\Concerns\QueryParameterValidator */
     private QueryParameterValidator $validator;
 
@@ -62,6 +68,8 @@ final class QueryParameterValidatorTest extends TestCase
      *
      * @param  array<string, mixed>  $parameters
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     #[DataProvider('validParameterProvider')]
     public function testValidParametersPassValidation(array $parameters): void
@@ -99,6 +107,8 @@ final class QueryParameterValidatorTest extends TestCase
      *
      * @param  array<string, mixed>  $parameters
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     #[DataProvider('invalidParameterProvider')]
     public function testInvalidParametersFailValidation(array $parameters): void
@@ -106,5 +116,140 @@ final class QueryParameterValidatorTest extends TestCase
         $this->expectException(ValidationException::class);
 
         $this->validator->validate($parameters);
+    }
+
+    /**
+     * Test that a filter document of exactly the byte cap is accepted.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testFilterDocumentAtTheByteCapIsAccepted(): void
+    {
+        Config::set('api-toolkit.query_cost.max_bytes', strlen(self::FILTER_DOCUMENT));
+
+        $this->expectNotToPerformAssertions();
+
+        $this->validator->validate(['filters' => self::FILTER_DOCUMENT]);
+    }
+
+    /**
+     * Test that a filter document one byte over the cap is rejected, reporting
+     * the cap and the size supplied.
+     *
+     * @return void
+     */
+    public function testFilterDocumentOverTheByteCapIsRejected(): void
+    {
+        $size = strlen(self::FILTER_DOCUMENT);
+
+        Config::set('api-toolkit.query_cost.max_bytes', $size - 1);
+
+        $this->assertRejectedForCost(
+            ['filters' => self::FILTER_DOCUMENT],
+            QueryCostLimits::MAX_BYTES,
+            $size - 1,
+            $size,
+        );
+    }
+
+    /**
+     * Test that a filter document nested to exactly the parse-depth cap is
+     * accepted.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testFilterDocumentAtTheParseDepthCapIsAccepted(): void
+    {
+        Config::set('api-toolkit.query_cost.max_parse_depth', 3);
+
+        $this->expectNotToPerformAssertions();
+
+        $this->validator->validate(['filters' => '{"posts":{"title":{"$eq":"test"}}}']);
+    }
+
+    /**
+     * Test that a filter document one level deeper than the parse-depth cap is
+     * rejected, measured across the whole document rather than its first
+     * branch.
+     *
+     * @return void
+     */
+    public function testFilterDocumentOverTheParseDepthCapIsRejected(): void
+    {
+        Config::set('api-toolkit.query_cost.max_parse_depth', 3);
+
+        $this->assertRejectedForCost(
+            ['filters' => '{"name":"Alice","posts":{"tags":{"name":{"$eq":"test"}}}}'],
+            QueryCostLimits::MAX_PARSE_DEPTH,
+            3,
+            4,
+        );
+    }
+
+    /**
+     * Test that a malformed filter document within the byte cap keeps its own
+     * validation failure rather than being reported as a cost.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testMalformedFilterDocumentStillFailsValidation(): void
+    {
+        Config::set('api-toolkit.query_cost.max_bytes', 1024);
+        Config::set('api-toolkit.query_cost.max_parse_depth', 1);
+
+        $this->expectException(ValidationException::class);
+
+        $this->validator->validate(['filters' => '{not-valid-json']);
+    }
+
+    /**
+     * Test that a non-string filters value is left to the shape rules, so the
+     * cost guards never assume a decodable document.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testNonStringFilterValueIsLeftToTheShapeRules(): void
+    {
+        Config::set('api-toolkit.query_cost.max_bytes', 1);
+        Config::set('api-toolkit.query_cost.max_parse_depth', 1);
+
+        $this->expectException(ValidationException::class);
+
+        $this->validator->validate(['filters' => ['status' => 'active']]);
+    }
+
+    /**
+     * Assert that the given parameters are rejected on cost, carrying the cap
+     * that rejected them and both sides of the comparison.
+     *
+     * @param  array<string, mixed>  $parameters
+     * @param  string  $reason
+     * @param  int  $limit
+     * @param  int  $actual
+     * @return void
+     */
+    private function assertRejectedForCost(array $parameters, string $reason, int $limit, int $actual): void
+    {
+        try {
+            $this->validator->validate($parameters);
+
+            self::fail('Expected a rejection for the "' . $reason . '" cap.');
+        } catch (QueryTooExpensiveException $exception) {
+            self::assertSame([
+                'parameter' => 'filters',
+                'pointer'   => '',
+                'reason'    => $reason,
+                'limit'     => $limit,
+                'actual'    => $actual,
+            ], $exception->getCustomMeta());
+        }
     }
 }

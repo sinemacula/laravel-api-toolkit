@@ -204,6 +204,7 @@ final class ApiRepositoryTest extends TestCase
      * @return void
      *
      * @throws \SineMacula\Repositories\Exceptions\RepositoryException
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testPaginateReturnsPaginatedResults(): void
     {
@@ -223,6 +224,7 @@ final class ApiRepositoryTest extends TestCase
      * @return void
      *
      * @throws \SineMacula\Repositories\Exceptions\RepositoryException
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testPaginateUsesCursorPaginationWhenRequested(): void
     {
@@ -442,6 +444,7 @@ final class ApiRepositoryTest extends TestCase
      * @return void
      *
      * @throws \SineMacula\Repositories\Exceptions\RepositoryException
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testPaginateAppliesCriteria(): void
     {
@@ -466,6 +469,7 @@ final class ApiRepositoryTest extends TestCase
      * @return void
      *
      * @throws \SineMacula\Repositories\Exceptions\RepositoryException
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testPaginateAppliesScopes(): void
     {
@@ -491,6 +495,7 @@ final class ApiRepositoryTest extends TestCase
      * @return void
      *
      * @throws \SineMacula\Repositories\Exceptions\RepositoryException
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testPaginateAppendsRequestQueryToPaginationUrls(): void
     {
@@ -778,6 +783,8 @@ final class ApiRepositoryTest extends TestCase
      *
      * @param  \Illuminate\Http\Request  $request
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     private function parseRequest(Request $request): void
     {

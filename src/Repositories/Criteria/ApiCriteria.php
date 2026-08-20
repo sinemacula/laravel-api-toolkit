@@ -20,6 +20,7 @@ use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\EagerLoadApplier;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterApplier;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\LimitApplier;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\OrderApplier;
+use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\QueryCostGuard;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\RelationTrashedGate;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\SoftDeleteVisibilityApplier;
 use SineMacula\ApiToolkit\Schema\SafetySetDeriver;
@@ -62,6 +63,9 @@ final class ApiCriteria implements CriteriaInterface
     /** @var \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\RelationTrashedGate */
     private readonly RelationTrashedGate $relationTrashedGate;
 
+    /** @var \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\QueryCostGuard */
+    private readonly QueryCostGuard $queryCostGuard;
+
     /**
      * Constructor.
      *
@@ -95,6 +99,7 @@ final class ApiCriteria implements CriteriaInterface
         $this->limitApplier                = new LimitApplier;
         $this->columnProjectionApplier     = new ColumnProjectionApplier(new SafetySetDeriver($this->schemaIntrospector));
         $this->softDeleteVisibilityApplier = new SoftDeleteVisibilityApplier;
+        $this->queryCostGuard              = new QueryCostGuard;
 
         $resourceMap = Config::get('api-toolkit.resources.resource_map', []);
 
@@ -110,12 +115,18 @@ final class ApiCriteria implements CriteriaInterface
      *
      * @param  \Illuminate\Contracts\Database\Eloquent\Builder|\Illuminate\Database\Eloquent\Model  $model
      * @return \Illuminate\Contracts\Database\Eloquent\Builder
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     #[\Override]
     public function apply(Builder|Model $model): Builder
     {
         /** @var \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model> $query */
         $query = $model instanceof Model ? $model::query() : $model;
+
+        $resourceType = $this->getResourceType($query->getModel());
+
+        $this->queryCostGuard->guard($resourceType);
 
         $surface = $this->buildQuerySurface($query->getModel());
 
@@ -127,7 +138,7 @@ final class ApiCriteria implements CriteriaInterface
             $query,
             $this->metadataProvider,
             $this->resolveResource($query->getModel()),
-            $this->getResourceType($query->getModel()),
+            $resourceType,
             $this->relationTrashedGate,
         );
 

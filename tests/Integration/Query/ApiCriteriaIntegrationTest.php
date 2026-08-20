@@ -59,6 +59,8 @@ final class ApiCriteriaIntegrationTest extends TestCase
      * Test filtering by simple field value.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testFilteringBySimpleFieldValue(): void
     {
@@ -78,6 +80,8 @@ final class ApiCriteriaIntegrationTest extends TestCase
      * Test filtering with $eq operator.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testFilteringWithEqOperator(): void
     {
@@ -97,6 +101,8 @@ final class ApiCriteriaIntegrationTest extends TestCase
      * Test filtering with $neq operator.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testFilteringWithNeqOperator(): void
     {
@@ -112,6 +118,8 @@ final class ApiCriteriaIntegrationTest extends TestCase
      * Test filtering with $like operator.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testFilteringWithLikeOperator(): void
     {
@@ -131,6 +139,8 @@ final class ApiCriteriaIntegrationTest extends TestCase
      * Test filtering with $in operator.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testFilteringWithInOperator(): void
     {
@@ -147,6 +157,8 @@ final class ApiCriteriaIntegrationTest extends TestCase
      * Test filtering with $null operator.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testFilteringWithNullOperator(): void
     {
@@ -165,6 +177,8 @@ final class ApiCriteriaIntegrationTest extends TestCase
      * Test filtering with $notNull operator.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testFilteringWithNotNullOperator(): void
     {
@@ -188,6 +202,8 @@ final class ApiCriteriaIntegrationTest extends TestCase
      * Test filtering with relation ($has operator).
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testFilteringWithHasRelation(): void
     {
@@ -203,6 +219,8 @@ final class ApiCriteriaIntegrationTest extends TestCase
      * Test filtering with relation ($hasnt operator).
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testFilteringWithHasntRelation(): void
     {
@@ -224,6 +242,8 @@ final class ApiCriteriaIntegrationTest extends TestCase
      * to the query before the criteria run.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testRootOrCannotEscapeACallerAppliedConstraint(): void
     {
@@ -245,6 +265,8 @@ final class ApiCriteriaIntegrationTest extends TestCase
      * Test ordering by column ascending.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testOrderingByColumnAsc(): void
     {
@@ -266,6 +288,8 @@ final class ApiCriteriaIntegrationTest extends TestCase
      * Test ordering by column descending.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testOrderingByColumnDesc(): void
     {
@@ -287,6 +311,8 @@ final class ApiCriteriaIntegrationTest extends TestCase
      * Test ordering by random.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testOrderingByRandom(): void
     {
@@ -302,6 +328,8 @@ final class ApiCriteriaIntegrationTest extends TestCase
      * Test that limit is applied.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testLimitIsApplied(): void
     {
@@ -316,6 +344,8 @@ final class ApiCriteriaIntegrationTest extends TestCase
      * Test combined filters, order, and limit.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testCombinedFiltersOrderAndLimit(): void
     {

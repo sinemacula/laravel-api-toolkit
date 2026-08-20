@@ -217,6 +217,8 @@ final class CacheManagerTest extends TestCase
      * Test that flush resets the bound query parser state.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testFlushResetsBoundQueryParser(): void
     {

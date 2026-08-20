@@ -67,6 +67,8 @@ final class QuerySurfaceIntegrationTest extends TestCase
      * configuration set.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testAllowlistIsTheDefaultPosture(): void
     {
@@ -86,6 +88,8 @@ final class QuerySurfaceIntegrationTest extends TestCase
      * A declared filterable column is applied through an operator.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testDeclaredFilterableColumnIsApplied(): void
     {
@@ -105,6 +109,8 @@ final class QuerySurfaceIntegrationTest extends TestCase
      * An undeclared filter column is rejected with a named validation error.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testUndeclaredFilterColumnIsRejectedFailClosed(): void
     {
@@ -118,6 +124,8 @@ final class QuerySurfaceIntegrationTest extends TestCase
      * A declared sortable column orders the results.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testDeclaredSortableColumnIsApplied(): void
     {
@@ -140,6 +148,8 @@ final class QuerySurfaceIntegrationTest extends TestCase
      * used for ordering: the filterable and sortable sets are independent.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testFilterableColumnIsNotImplicitlySortable(): void
     {
@@ -153,6 +163,8 @@ final class QuerySurfaceIntegrationTest extends TestCase
      * A declared traversable relation is applied through the $has operator.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testDeclaredTraversableRelationIsApplied(): void
     {
@@ -168,6 +180,8 @@ final class QuerySurfaceIntegrationTest extends TestCase
      * An undeclared relation is rejected even though the model defines it.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testUndeclaredRelationIsRejected(): void
     {
@@ -185,6 +199,8 @@ final class QuerySurfaceIntegrationTest extends TestCase
      * return only the user whose post title matches.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testDeclaredNestedRelationColumnIsPermittedUnderAllowlist(): void
     {
@@ -212,6 +228,8 @@ final class QuerySurfaceIntegrationTest extends TestCase
      * posts.body must throw.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testUndeclaredNestedRelationColumnIsRejectedUnderAllowlist(): void
     {
@@ -241,6 +259,8 @@ final class QuerySurfaceIntegrationTest extends TestCase
      * though the relation is real.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testNestedUndeclaredRelationTraversalIsRejectedFailClosed(): void
     {
@@ -269,6 +289,8 @@ final class QuerySurfaceIntegrationTest extends TestCase
      * is built: only Alice owns a post whose user is named Alice.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testDeclaredNestedRelationTraversalIsAppliedUnderAllowlist(): void
     {
@@ -297,6 +319,8 @@ final class QuerySurfaceIntegrationTest extends TestCase
      * posture rejects every key - secure by default.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testModelWithoutMappedResourceRejectsEveryKey(): void
     {
@@ -315,6 +339,8 @@ final class QuerySurfaceIntegrationTest extends TestCase
      * @param  array<string, string>  $params
      * @param  string  $expectedKey
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     private function assertRejects(array $params, string $expectedKey): void
     {

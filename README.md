@@ -220,6 +220,13 @@ via `api-toolkit.repositories.searchable_exclusions`.
 page. Enable it with `api-toolkit.repositories.allow_random_order` (`API_TOOLKIT_ALLOW_RANDOM_ORDER=true`);
 while it is disabled the keyword is treated as an ordinary sort key and rejected like any undeclared column.
 
+**Query cost caps** - a request whose parts are each cheap and each declared can still multiply into an
+expensive query. The `api-toolkit.query_cost` caps bound the filter document's size and nesting, the keys and
+value-list items it dispatches, the sort keys and relation aggregates it asks for, and how deep it pages. A
+request over a cap is rejected before any SQL is issued, with a `422` naming the parameter, the position
+within it, the cap, the limit, and the value supplied, so the client can correct the query itself. Every cap
+is tunable, and setting one to `0` disables it.
+
 **Cacheable trait** - add per-query transparent caching to any `ApiRepository` subclass:
 
 ```php

@@ -325,6 +325,8 @@ final class ApiResourceCollectionTest extends TestCase
      * model items.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testToArrayDoesNotEagerLoadRelationsForRawItems(): void
     {

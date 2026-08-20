@@ -106,6 +106,11 @@ return [
         'detail' => (is_string($name = config('app.name')) ? $name : 'The application') . ' is currently in maintenance mode, please try again a little later',
     ],
 
+    ErrorCode::QUERY_TOO_EXPENSIVE->getCode() => [
+        'title'  => 'Query Too Expensive',
+        'detail' => 'The query exceeds a limit on how much work a single request may ask for, please narrow it and try again',
+    ],
+
     /*
     |---------------------------------------------------------------------------
     | Status-Derived Titles

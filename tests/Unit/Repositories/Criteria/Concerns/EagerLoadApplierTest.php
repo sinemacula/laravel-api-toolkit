@@ -48,6 +48,8 @@ final class EagerLoadApplierTest extends TestCase
      * Test that apply with a null resource class returns the query unmodified.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testApplyWithNullResourceClassReturnsUnmodifiedQuery(): void
     {
@@ -68,6 +70,8 @@ final class EagerLoadApplierTest extends TestCase
      * unmodified.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testApplyWithNonApiResourceClassReturnsUnmodifiedQuery(): void
     {
@@ -88,6 +92,8 @@ final class EagerLoadApplierTest extends TestCase
      * fields array.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testApplyWithAllTokenUsesGetAllFields(): void
     {
@@ -120,6 +126,8 @@ final class EagerLoadApplierTest extends TestCase
      * in the fields array.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testApplyWithSpecificFieldsUsesResolveFields(): void
     {
@@ -152,6 +160,8 @@ final class EagerLoadApplierTest extends TestCase
      * resolved fields array is empty.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testApplyWithEmptyFieldsReturnsEarlyWithoutEagerLoading(): void
     {
@@ -181,6 +191,8 @@ final class EagerLoadApplierTest extends TestCase
      * empty.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testApplyAddsEagerLoadsWhenMapIsNotEmpty(): void
     {
@@ -210,6 +222,8 @@ final class EagerLoadApplierTest extends TestCase
      * is empty.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testApplySkipsEagerLoadsWhenMapIsEmpty(): void
     {
@@ -239,6 +253,8 @@ final class EagerLoadApplierTest extends TestCase
      * map is not empty.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testApplyAddsEagerLoadCountsWhenCountMapIsNotEmpty(): void
     {
@@ -272,6 +288,8 @@ final class EagerLoadApplierTest extends TestCase
      * load count map is empty.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testApplySkipsEagerLoadCountsWhenCountMapIsEmpty(): void
     {
@@ -301,6 +319,8 @@ final class EagerLoadApplierTest extends TestCase
      * not empty.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testApplyAddsWithSumWhenSumEntriesExist(): void
     {
@@ -337,6 +357,8 @@ final class EagerLoadApplierTest extends TestCase
      * Test that apply skips withSum() when the sum entry list is empty.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testApplySkipsWithSumWhenSumEntriesEmpty(): void
     {
@@ -372,6 +394,8 @@ final class EagerLoadApplierTest extends TestCase
      * an empty array produced by coalescing.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testApplyPassesActualRequestedSumsToEagerLoadSumsFor(): void
     {
@@ -408,6 +432,8 @@ final class EagerLoadApplierTest extends TestCase
      * eagerLoadAveragesFor, not an empty array produced by coalescing.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testApplyPassesActualRequestedAveragesToEagerLoadAveragesFor(): void
     {
@@ -444,6 +470,8 @@ final class EagerLoadApplierTest extends TestCase
      * eagerLoadAveragesFor.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testApplyAddsWithAvgWhenAvgEntriesExist(): void
     {
@@ -481,6 +509,8 @@ final class EagerLoadApplierTest extends TestCase
      *
      * @param  \Illuminate\Http\Request  $request
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     private function parseRequest(Request $request): void
     {

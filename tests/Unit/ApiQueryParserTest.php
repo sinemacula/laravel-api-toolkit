@@ -55,6 +55,8 @@ final class ApiQueryParserTest extends TestCase
      * Test that getFields returns null when no fields are set.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testGetFieldsReturnsNullWhenNoFieldsSet(): void
     {
@@ -68,6 +70,8 @@ final class ApiQueryParserTest extends TestCase
      * Test that getFields parses a comma-separated string.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testGetFieldsParsesCommaSeparatedString(): void
     {
@@ -81,6 +85,8 @@ final class ApiQueryParserTest extends TestCase
      * Test that getFields trims field values.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testGetFieldsTrimsValues(): void
     {
@@ -94,6 +100,8 @@ final class ApiQueryParserTest extends TestCase
      * Test that getFields with resource key returns specific resource fields.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testGetFieldsWithResourceKeyReturnsSpecificFields(): void
     {
@@ -113,6 +121,8 @@ final class ApiQueryParserTest extends TestCase
      * Test that getFields with unknown resource key returns null.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testGetFieldsWithUnknownResourceReturnsNull(): void
     {
@@ -128,6 +138,8 @@ final class ApiQueryParserTest extends TestCase
      * Test that getCounts returns null when no counts are set.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testGetCountsReturnsNullWhenNoCountsSet(): void
     {
@@ -141,6 +153,8 @@ final class ApiQueryParserTest extends TestCase
      * Test that getCounts parses comma-separated counts.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testGetCountsParsesCommaSeparatedCounts(): void
     {
@@ -156,6 +170,8 @@ final class ApiQueryParserTest extends TestCase
      * Test that getSums parses aggregation format.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testGetSumsParsesAggregationFormat(): void
     {
@@ -179,6 +195,8 @@ final class ApiQueryParserTest extends TestCase
      * Test that getSums returns null when no sums are set.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testGetSumsReturnsNullWhenNotSet(): void
     {
@@ -192,6 +210,8 @@ final class ApiQueryParserTest extends TestCase
      * Test that getAverages parses aggregation format.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testGetAveragesParsesAggregationFormat(): void
     {
@@ -215,6 +235,8 @@ final class ApiQueryParserTest extends TestCase
      * Test that getFilters returns an empty array when no filters are set.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testGetFiltersReturnsEmptyArrayWhenNotSet(): void
     {
@@ -228,6 +250,8 @@ final class ApiQueryParserTest extends TestCase
      * Test that getFilters parses a JSON filter string.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testGetFiltersParsesJsonFilterString(): void
     {
@@ -263,6 +287,8 @@ final class ApiQueryParserTest extends TestCase
      *
      * @param  string  $filters
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     #[DataProvider('nonAssociativeFilterProvider')]
     public function testParseRejectsNonAssociativeJsonFilters(string $filters): void
@@ -283,6 +309,8 @@ final class ApiQueryParserTest extends TestCase
      * trimming the nested value.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testGetFieldsToleratesListFormParameter(): void
     {
@@ -298,6 +326,8 @@ final class ApiQueryParserTest extends TestCase
      * trimming the nested value.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testGetCountsToleratesListFormParameter(): void
     {
@@ -331,6 +361,8 @@ final class ApiQueryParserTest extends TestCase
      * @param  string  $orderString
      * @param  array<string, string>  $expected
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     #[DataProvider('orderProvider')]
     public function testGetOrderParsesOrderWithDirection(string $orderString, array $expected): void
@@ -345,6 +377,8 @@ final class ApiQueryParserTest extends TestCase
      * Test that getOrder returns an empty array when no order is set.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testGetOrderReturnsEmptyArrayWhenNotSet(): void
     {
@@ -358,6 +392,8 @@ final class ApiQueryParserTest extends TestCase
      * Test that getLimit returns a positive integer.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testGetLimitReturnsPositiveInteger(): void
     {
@@ -372,6 +408,8 @@ final class ApiQueryParserTest extends TestCase
      * ceiling, so an unbounded page size cannot exhaust memory.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testGetLimitClampsToConfiguredMaximum(): void
     {
@@ -389,6 +427,8 @@ final class ApiQueryParserTest extends TestCase
      * configured string.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testGetLimitCoercesNumericStringMaximumToInteger(): void
     {
@@ -405,6 +445,8 @@ final class ApiQueryParserTest extends TestCase
      * ceiling is disabled (zero).
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testGetLimitIsNotClampedWhenMaximumDisabled(): void
     {
@@ -421,6 +463,8 @@ final class ApiQueryParserTest extends TestCase
      * than capping the limit to an unintended value.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testGetLimitTreatsNonNumericMaximumAsDisabled(): void
     {
@@ -436,6 +480,8 @@ final class ApiQueryParserTest extends TestCase
      * Test that getLimit returns null for zero.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testGetLimitReturnsNullForZero(): void
     {
@@ -449,6 +495,8 @@ final class ApiQueryParserTest extends TestCase
      * Test that getPage returns a positive integer.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testGetPageReturnsPositiveInteger(): void
     {
@@ -462,6 +510,8 @@ final class ApiQueryParserTest extends TestCase
      * Test that getPage returns 1 when not set.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testGetPageReturnsOneWhenNotSet(): void
     {
@@ -475,6 +525,8 @@ final class ApiQueryParserTest extends TestCase
      * Test that getCursor returns a cursor string.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testGetCursorReturnsCursorString(): void
     {
@@ -489,6 +541,8 @@ final class ApiQueryParserTest extends TestCase
      * Test that getCursor returns an empty string when not set.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testGetCursorReturnsEmptyStringWhenNotSet(): void
     {
@@ -515,6 +569,8 @@ final class ApiQueryParserTest extends TestCase
      * Test that validation fails for invalid page parameter.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testValidationFailsForInvalidPage(): void
     {
@@ -528,6 +584,8 @@ final class ApiQueryParserTest extends TestCase
      * Test that validation fails for invalid limit parameter.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testValidationFailsForInvalidLimit(): void
     {
@@ -541,6 +599,8 @@ final class ApiQueryParserTest extends TestCase
      * Test that validation fails for invalid JSON filters.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testValidationFailsForInvalidJsonFilters(): void
     {
@@ -554,6 +614,8 @@ final class ApiQueryParserTest extends TestCase
      * Test parsing multiple parameters simultaneously.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testParsingMultipleParametersSimultaneously(): void
     {
@@ -690,6 +752,8 @@ final class ApiQueryParserTest extends TestCase
      * parameters.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testParseTrimsPageAndLimitParameters(): void
     {
@@ -706,6 +770,8 @@ final class ApiQueryParserTest extends TestCase
      * Test that getSums trims whitespace around aggregation field values.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testGetSumsTrimsWhitespaceAroundFields(): void
     {
@@ -728,6 +794,8 @@ final class ApiQueryParserTest extends TestCase
      * Test that getSums parses every resource supplied in the query.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testGetSumsParsesAllResources(): void
     {
@@ -747,6 +815,8 @@ final class ApiQueryParserTest extends TestCase
      * Test that getOrder returns an empty array for an empty order string.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testGetOrderReturnsEmptyArrayForEmptyOrderString(): void
     {
@@ -761,6 +831,8 @@ final class ApiQueryParserTest extends TestCase
      * direction.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testGetOrderTreatsEverythingAfterFirstColonAsDirection(): void
     {
@@ -774,6 +846,8 @@ final class ApiQueryParserTest extends TestCase
      * Test that validation fails when a fields resource value is an array.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testValidationFailsWhenFieldsResourceValueIsArray(): void
     {
@@ -789,6 +863,8 @@ final class ApiQueryParserTest extends TestCase
      * Test that validation fails when a counts resource value is an array.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testValidationFailsWhenCountsResourceValueIsArray(): void
     {
@@ -804,6 +880,8 @@ final class ApiQueryParserTest extends TestCase
      * Test that validation fails when a sums resource value is not an array.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testValidationFailsWhenSumsResourceValueIsNotArray(): void
     {
@@ -820,6 +898,8 @@ final class ApiQueryParserTest extends TestCase
      * array.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testValidationFailsWhenAveragesResourceValueIsNotArray(): void
     {
@@ -835,6 +915,8 @@ final class ApiQueryParserTest extends TestCase
      * Test that validation fails when the fields parameter is an integer.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testValidationFailsWhenFieldsIsInteger(): void
     {
@@ -848,6 +930,8 @@ final class ApiQueryParserTest extends TestCase
      * Test that reset clears all previously parsed parameters.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testResetClearsAllParsedParameters(): void
     {

@@ -78,6 +78,8 @@ final class ConstrainedRelationQueryBoundTest extends TestCase
      * collection regardless of row count, and only published posts surface.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testConstrainedRelationLoadsOnceAndAppliesTheConstraint(): void
     {
@@ -117,6 +119,8 @@ final class ConstrainedRelationQueryBoundTest extends TestCase
      * under a query log, returning the query count and the decoded record.
      *
      * @return array{queries: int, first: array<string, mixed>}
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     private function fetchAndSerialise(): array
     {
@@ -162,6 +166,8 @@ final class ConstrainedRelationQueryBoundTest extends TestCase
      * resource.
      *
      * @return \Illuminate\Database\Eloquent\Builder<\Tests\Fixtures\Models\User>
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     private function applyUserCriteria(): Builder
     {

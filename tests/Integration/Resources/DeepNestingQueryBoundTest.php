@@ -86,6 +86,8 @@ final class DeepNestingQueryBoundTest extends TestCase
      * count, proving the tag level is batched rather than loaded per row.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testDeepNestingQueryCountIsConstantRegardlessOfRowCount(): void
     {
@@ -128,6 +130,8 @@ final class DeepNestingQueryBoundTest extends TestCase
      * under a query log, returning the query count and the decoded record.
      *
      * @return array{queries: int, first: array<string, mixed>}
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     private function fetchAndSerialise(): array
     {
@@ -173,6 +177,8 @@ final class DeepNestingQueryBoundTest extends TestCase
      * Apply the criteria chain to a user query bound to the user resource.
      *
      * @return \Illuminate\Database\Eloquent\Builder<\Tests\Fixtures\Models\User>
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     private function applyUserCriteria(): Builder
     {

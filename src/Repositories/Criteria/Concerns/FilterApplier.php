@@ -6,11 +6,17 @@ namespace SineMacula\ApiToolkit\Repositories\Criteria\Concerns;
 
 use Illuminate\Database\Eloquent\Builder;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
+use SineMacula\ApiToolkit\Query\QueryCostLimits;
 use SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry;
 use SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface;
 
 /**
  * Applies filter trees to an Eloquent query builder.
+ *
+ * The walk carries a cost budget on the dispatch context, so a document that
+ * nests too deeply, visits too many keys, or hands an operator too long a value
+ * list is refused where it is reached rather than after the whole tree has been
+ * built.
  *
  * @SuppressWarnings("php:S1448")
  *
@@ -40,6 +46,9 @@ final class FilterApplier
     /** @var \SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface */
     private QuerySurface $querySurface;
 
+    /** @var \SineMacula\ApiToolkit\Query\QueryCostLimits */
+    private QueryCostLimits $limits;
+
     /**
      * Apply filters to the query.
      *
@@ -51,6 +60,8 @@ final class FilterApplier
      * @param  \SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry  $operatorRegistry
      * @param  \SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface  $querySurface
      * @return \Illuminate\Database\Eloquent\Builder<TModel>
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function apply(
         Builder $query,
@@ -62,8 +73,9 @@ final class FilterApplier
         $this->schemaIntrospector = $schemaIntrospector;
         $this->operatorRegistry   = $operatorRegistry;
         $this->querySurface       = $querySurface;
+        $this->limits             = QueryCostLimits::fromConfig();
 
-        $this->applyFilters($query, $filters, null, FilterContext::root());
+        $this->applyFilters($query, $filters, null, FilterContext::root(new FilterCostBudget($this->limits)));
 
         return $query;
     }
@@ -76,6 +88,8 @@ final class FilterApplier
      * @param  string|null  $field
      * @param  \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext  $context
      * @return \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     private function applyFilters(Builder $query, array|string|null $filters, ?string $field, FilterContext $context): Builder
     {
@@ -103,9 +117,13 @@ final class FilterApplier
      * @param  string|null  $field
      * @param  \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext  $context
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     private function applyFilterEntry(Builder $query, string $key, mixed $value, ?string $field, FilterContext $context): void
     {
+        $context->admit($key);
+
         if ($this->isConditionOperator($key)) {
             $this->applyConditionOperator($query, $key, $value, $field, $context);
             return;
@@ -136,6 +154,8 @@ final class FilterApplier
      * @param  mixed  $value
      * @param  \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext  $context
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     private function routePlainKey(Builder $query, string $key, mixed $value, FilterContext $context): void
     {
@@ -216,6 +236,8 @@ final class FilterApplier
      * @param  string|null  $field
      * @param  \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext  $context
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     private function applyConditionOperator(Builder $query, string $operator, mixed $value, ?string $field, FilterContext $context): void
     {
@@ -227,6 +249,10 @@ final class FilterApplier
 
         if (!$field || !$this->querySurface->guardFilter($field, $query->getModel())) {
             return;
+        }
+
+        if (is_array($value)) {
+            $this->limits->enforce(QueryCostLimits::MAX_IN_ITEMS, count($value), 'filters', $context->pointerTo($field) . '/' . $operator);
         }
 
         $handler = $this->operatorRegistry->resolve($operator);
@@ -246,15 +272,19 @@ final class FilterApplier
      * @param  array<string, mixed>  $value
      * @param  \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext  $context
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     private function applyLogicalOperator(Builder $query, string $operator, array $value, FilterContext $context): void
     {
         $method = ($context->getLogicalOperator() === '$and' && $operator === '$or')
             ? 'where' : $this->logicalOperatorMap[$operator];
-        $nested = FilterContext::nested($operator);
+        $nested = $context->descend($operator, $operator);
 
         $callback = function (Builder $query) use ($value, $nested): void {
             foreach ($value as $subKey => $subValue) {
+
+                $nested->admit($subKey);
 
                 if ($this->isConditionOperator($subKey)) {
                     $this->applyConditionOperator($query, $subKey, $subValue, null, $nested);
@@ -281,13 +311,16 @@ final class FilterApplier
      * @param  array<string, mixed>  $filters
      * @param  \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext  $context
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     private function applyRelationFilter(Builder $query, string $relation, array $filters, FilterContext $context): void
     {
         $method = $context->isOr() ? 'orWhereHas' : 'whereHas';
+        $nested = $context->descend($relation, $context->getLogicalOperator());
 
-        $this->applyRelationalMethod($query, $method, $relation, function (Builder $query) use ($filters, $context): void {
-            $this->processRelationFilters($query, $filters, $context);
+        $this->applyRelationalMethod($query, $method, $relation, function (Builder $query) use ($filters, $nested): void {
+            $this->processRelationFilters($query, $filters, $nested);
         });
     }
 
@@ -298,6 +331,8 @@ final class FilterApplier
      * @param  array<string, mixed>  $filters
      * @param  \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext  $context
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     private function processRelationFilters(Builder $query, array $filters, FilterContext $context): void
     {
@@ -306,13 +341,17 @@ final class FilterApplier
             /** @var array<string, mixed> $orFilters */
             $orFilters = is_array($filters['$or']) ? $filters['$or'] : [];
 
-            $query->where(function (Builder $nested) use ($orFilters): void {
+            $nested = $context->descend('$or', '$or');
+
+            $query->where(function (Builder $group) use ($orFilters, $nested): void {
                 foreach ($orFilters as $key => $value) {
-                    $this->applyFilters($nested, $value, $key, FilterContext::nested('$or'));
+                    $nested->admit($key);
+                    $this->applyFilters($group, $value, $key, $nested);
                 }
             });
         } else {
             foreach ($filters as $key => $value) {
+                $context->admit($key);
                 $this->applyFilters($query, $value, $key, $context);
             }
         }
@@ -326,6 +365,8 @@ final class FilterApplier
      * @param  string  $operator
      * @param  \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext  $context
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     private function applyHasFilter(Builder $query, array|string $relations, string $operator, FilterContext $context): void
     {
@@ -334,13 +375,18 @@ final class FilterApplier
 
         foreach ((array) $relations as $relation => $filters) {
 
+            $context->admit((string) $relation);
+
             if (is_int($relation)) {
                 if ($this->querySurface->guardRelation($filters, $query->getModel())) {
                     $this->applyRelationalMethod($query, $method, $filters);
                 }
             } elseif ($this->querySurface->guardRelation($relation, $query->getModel())) {
-                $this->applyRelationalMethod($query, $method, $relation, function (Builder $query) use ($filters): void {
-                    $this->processRelationFilters($query, $filters, FilterContext::root());
+
+                $nested = $context->descend($relation, null);
+
+                $this->applyRelationalMethod($query, $method, $relation, function (Builder $query) use ($filters, $nested): void {
+                    $this->processRelationFilters($query, $filters, $nested);
                 });
             }
         }

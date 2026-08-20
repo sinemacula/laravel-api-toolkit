@@ -128,6 +128,11 @@ final class ResourceResponseShapeTest extends TestCase
      */
     public function testUndeclaredAggregateRelationsAreSilentlyOmitted(): void
     {
+        // The spray asks for more aggregates than the shipped cap allows, so
+        // disable the cap here: this test measures what is dropped, not what is
+        // rejected for cost.
+        Config::set('api-toolkit.query_cost.max_aggregates', 0);
+
         $response = $this->getJson('/users?' . http_build_query([
             'fields'   => ['users' => 'name,counts,sums,averages'],
             'counts'   => ['users' => 'posts,organization,comments'],

@@ -6,11 +6,14 @@ namespace Tests\Unit\Repositories\Criteria\Concerns;
 
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Config;
 use Illuminate\Validation\ValidationException;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Cache\MetadataCacheWriter;
 use SineMacula\ApiToolkit\Cache\MetadataKeyRegistry;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
+use SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException;
+use SineMacula\ApiToolkit\Query\QueryCostLimits;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterApplier;
 use SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry;
 use SineMacula\ApiToolkit\Repositories\Criteria\Operators\BetweenOperator;
@@ -102,6 +105,8 @@ final class FilterApplierTest extends TestCase
      * Test that apply with null filters returns an unmodified query.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testApplyWithNullFiltersReturnsUnmodifiedQuery(): void
     {
@@ -114,6 +119,8 @@ final class FilterApplierTest extends TestCase
      * Test that apply with empty filters returns an unmodified query.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testApplyWithEmptyFiltersReturnsUnmodifiedQuery(): void
     {
@@ -126,6 +133,8 @@ final class FilterApplierTest extends TestCase
      * Test that apply with a simple filter applies a where clause.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testApplyWithSimpleFilterAppliesWhereClause(): void
     {
@@ -142,6 +151,8 @@ final class FilterApplierTest extends TestCase
      * Test that $eq operator applies an equals condition.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testApplyWithEqOperatorAppliesEqualsCondition(): void
     {
@@ -158,6 +169,8 @@ final class FilterApplierTest extends TestCase
      * Test that $neq operator applies a not-equals condition.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testApplyWithNeqOperatorAppliesNotEqualsCondition(): void
     {
@@ -172,6 +185,8 @@ final class FilterApplierTest extends TestCase
      * Test that $gt operator applies a greater-than condition.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testApplyWithGtOperatorAppliesGreaterThan(): void
     {
@@ -186,6 +201,8 @@ final class FilterApplierTest extends TestCase
      * Test that $lt operator applies a less-than condition.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testApplyWithLtOperatorAppliesLessThan(): void
     {
@@ -200,6 +217,8 @@ final class FilterApplierTest extends TestCase
      * Test that $ge operator applies a greater-than-or-equal condition.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testApplyWithGeOperatorAppliesGreaterThanOrEqual(): void
     {
@@ -214,6 +233,8 @@ final class FilterApplierTest extends TestCase
      * Test that $le operator applies a less-than-or-equal condition.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testApplyWithLeOperatorAppliesLessThanOrEqual(): void
     {
@@ -228,6 +249,8 @@ final class FilterApplierTest extends TestCase
      * Test that $like operator wraps value with percent signs.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testApplyWithLikeOperatorWrapsValueWithPercent(): void
     {
@@ -242,6 +265,8 @@ final class FilterApplierTest extends TestCase
      * Test that $in operator uses whereIn.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testApplyWithInOperatorUsesWhereIn(): void
     {
@@ -257,6 +282,8 @@ final class FilterApplierTest extends TestCase
      * Test that $between operator uses whereBetween.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testApplyWithBetweenOperatorUsesWhereBetween(): void
     {
@@ -271,6 +298,8 @@ final class FilterApplierTest extends TestCase
      * Test that $between with wrong array size is ignored.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testApplyWithBetweenWrongArraySizeIsIgnored(): void
     {
@@ -283,6 +312,8 @@ final class FilterApplierTest extends TestCase
      * Test that $null operator adds whereNull.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testApplyWithNullOperatorAddsWhereNull(): void
     {
@@ -298,6 +329,8 @@ final class FilterApplierTest extends TestCase
      * Test that $notNull operator adds whereNotNull.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testApplyWithNotNullOperatorAddsWhereNotNull(): void
     {
@@ -312,6 +345,8 @@ final class FilterApplierTest extends TestCase
      * Test that $contains with an array uses whereJsonContains.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testApplyWithContainsArrayUsesWhereJsonContains(): void
     {
@@ -325,6 +360,8 @@ final class FilterApplierTest extends TestCase
      * contains conditions.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testApplyWithContainsCommaSeparatedStringCreatesMultipleConditions(): void
     {
@@ -337,6 +374,8 @@ final class FilterApplierTest extends TestCase
      * Test that $contains with a plain string uses whereJsonContains.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testApplyWithContainsPlainStringUsesWhereJsonContains(): void
     {
@@ -349,6 +388,8 @@ final class FilterApplierTest extends TestCase
      * Test that $has operator adds whereHas.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testApplyWithHasOperatorAddsWhereHas(): void
     {
@@ -364,6 +405,8 @@ final class FilterApplierTest extends TestCase
      * Test that $hasnt operator adds whereDoesntHave.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testApplyWithHasntOperatorAddsWhereDoesntHave(): void
     {
@@ -379,6 +422,8 @@ final class FilterApplierTest extends TestCase
      * whereHas.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testApplyWithHasNamedRelationAndConditions(): void
     {
@@ -407,6 +452,8 @@ final class FilterApplierTest extends TestCase
      * Test that $or logical operator groups conditions.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testApplyWithOrLogicalOperatorGroupsConditions(): void
     {
@@ -437,6 +484,8 @@ final class FilterApplierTest extends TestCase
      * Test that $and logical operator groups conditions.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testApplyWithAndLogicalOperatorGroupsConditions(): void
     {
@@ -465,6 +514,8 @@ final class FilterApplierTest extends TestCase
      * Test that nested logical operators produce nested grouping.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testApplyWithNestedLogicalOperators(): void
     {
@@ -501,6 +552,8 @@ final class FilterApplierTest extends TestCase
      * Test that a relation filter applies whereHas with nested conditions.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testApplyWithRelationFilterAppliesWhereHas(): void
     {
@@ -528,6 +581,8 @@ final class FilterApplierTest extends TestCase
      * Test that a relation filter under $or uses orWhereHas.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testApplyWithRelationFilterUnderOrUsesOrWhereHas(): void
     {
@@ -555,6 +610,8 @@ final class FilterApplierTest extends TestCase
      * Test that $or inside a relation filter creates a grouped orWhere.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testApplyWithOrInsideRelationFilterCreatesOrWhereGroup(): void
     {
@@ -596,6 +653,8 @@ final class FilterApplierTest extends TestCase
      * Test that $or combined with $has uses orWhereHas.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testApplyWithOrAndHasUsesOrWhereHas(): void
     {
@@ -621,6 +680,8 @@ final class FilterApplierTest extends TestCase
      * Test that $hasnt under $or adds whereDoesntHave inside the group.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testApplyWithOrAndHasntAddsWhereDoesntHave(): void
     {
@@ -647,6 +708,8 @@ final class FilterApplierTest extends TestCase
      * registry.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testHasFilterIsNotReappliedAsColumnConditionWhenRegistered(): void
     {
@@ -663,6 +726,8 @@ final class FilterApplierTest extends TestCase
      * Test that a non-searchable column is ignored.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testApplyWithNonSearchableColumnIsIgnored(): void
     {
@@ -675,6 +740,8 @@ final class FilterApplierTest extends TestCase
      * Test that $notNull under $or uses orWhereNotNull.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testApplyWithNotNullUnderOrUsesOrWhereNotNull(): void
     {
@@ -692,6 +759,8 @@ final class FilterApplierTest extends TestCase
      * surface guard is skipped, leaving the query untouched.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testConditionOperatorOnGuardedColumnIsSkipped(): void
     {
@@ -705,6 +774,8 @@ final class FilterApplierTest extends TestCase
      * resolves to no handler is skipped, leaving the query untouched.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testConditionOperatorWithNullHandlerIsSkipped(): void
     {
@@ -747,6 +818,8 @@ final class FilterApplierTest extends TestCase
      * bad key.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testAllowlistRejectsUndeclaredKeyWithoutIntrospection(): void
     {
@@ -765,6 +838,8 @@ final class FilterApplierTest extends TestCase
      * applies a simple where clause.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testAllowlistAppliesDeclaredFilterableColumn(): void
     {
@@ -783,6 +858,8 @@ final class FilterApplierTest extends TestCase
      * routes to a relation filter without any schema introspection.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testAllowlistAppliesDeclaredTraversableRelation(): void
     {
@@ -807,6 +884,8 @@ final class FilterApplierTest extends TestCase
      * allowlist posture, applied against a declared column.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testAllowlistPreservesConditionAndLogicalOperators(): void
     {
@@ -829,6 +908,8 @@ final class FilterApplierTest extends TestCase
      * existence clause under the allowlist posture for a declared relation.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testAllowlistPreservesHasOperator(): void
     {
@@ -847,6 +928,8 @@ final class FilterApplierTest extends TestCase
      * the unbounded cache growth that the pre-gate routing allowed.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testAllowlistSprayingUnknownKeysWritesNoRelationCacheEntries(): void
     {
@@ -869,6 +952,264 @@ final class FilterApplierTest extends TestCase
         $relationKeys = array_filter($registry->keys(), static fn (string $key): bool => str_contains($key, 'model-relations'));
 
         self::assertSame([], array_values($relationKeys));
+    }
+
+    /**
+     * Test that a document nested to exactly the depth cap is applied.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testDocumentNestedToExactlyTheDepthCapIsApplied(): void
+    {
+        Config::set('api-toolkit.query_cost.max_depth', 3);
+
+        $result = $this->applyFilters([
+            '$or' => ['$and' => ['$or' => ['name' => 'Alice']]],
+        ]);
+
+        self::assertNotEmpty($result->getQuery()->wheres);
+    }
+
+    /**
+     * Test that a document nested one level beyond the depth cap is rejected,
+     * pointing at the level it was refused at.
+     *
+     * @return void
+     */
+    public function testDocumentNestedBeyondTheDepthCapIsRejected(): void
+    {
+        Config::set('api-toolkit.query_cost.max_depth', 3);
+
+        $this->assertRejectedForCost(
+            ['$or' => ['$and' => ['$or' => ['$and' => ['name' => 'Alice']]]]],
+            QueryCostLimits::MAX_DEPTH,
+            '/$or/$and/$or/$and',
+            3,
+            4,
+        );
+    }
+
+    /**
+     * Test that a relation subquery counts as a level, since each traversal
+     * adds its own correlated subquery.
+     *
+     * @return void
+     */
+    public function testRelationTraversalCountsTowardTheDepthCap(): void
+    {
+        Config::set('api-toolkit.query_cost.max_depth', 1);
+
+        $this->assertRejectedForCost(
+            ['posts' => ['nested' => ['organization' => ['name' => 'Acme']]]],
+            QueryCostLimits::MAX_DEPTH,
+            '/posts/organization',
+            1,
+            2,
+        );
+    }
+
+    /**
+     * Test that a document visiting exactly the node cap is applied.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testDocumentVisitingExactlyTheNodeCapIsApplied(): void
+    {
+        Config::set('api-toolkit.query_cost.max_nodes', 3);
+
+        $result = $this->applyFilters([
+            'name'  => 'Alice',
+            'email' => 'alice@example.com',
+            'id'    => '1',
+        ]);
+
+        self::assertCount(3, $result->getQuery()->wheres);
+    }
+
+    /**
+     * Test that a document visiting one node too many is rejected.
+     *
+     * @return void
+     */
+    public function testDocumentVisitingOneNodeTooManyIsRejected(): void
+    {
+        Config::set('api-toolkit.query_cost.max_nodes', 3);
+
+        $this->assertRejectedForCost(
+            [
+                'name'            => 'Alice',
+                'email'           => 'alice@example.com',
+                'id'              => '1',
+                'organization_id' => '2',
+            ],
+            QueryCostLimits::MAX_NODES,
+            '/organization_id',
+            3,
+            4,
+        );
+    }
+
+    /**
+     * Test that the keys inside a logical group count toward the node cap.
+     *
+     * @return void
+     */
+    public function testKeysInsideALogicalGroupCountTowardTheNodeCap(): void
+    {
+        Config::set('api-toolkit.query_cost.max_nodes', 2);
+
+        $this->assertRejectedForCost(
+            ['$or' => ['name' => 'Alice', 'email' => 'alice@example.com']],
+            QueryCostLimits::MAX_NODES,
+            '/$or/email',
+            2,
+            3,
+        );
+    }
+
+    /**
+     * Test that the keys inside a traversed relation count toward the node cap.
+     *
+     * @return void
+     */
+    public function testKeysInsideARelationCountTowardTheNodeCap(): void
+    {
+        Config::set('api-toolkit.query_cost.max_nodes', 2);
+
+        $this->assertRejectedForCost(
+            ['posts' => ['title' => 'first', 'id' => '1']],
+            QueryCostLimits::MAX_NODES,
+            '/posts/id',
+            2,
+            3,
+        );
+    }
+
+    /**
+     * Test that the keys inside a logical group within a traversed relation
+     * count toward the node cap.
+     *
+     * @return void
+     */
+    public function testKeysInsideAGroupWithinARelationCountTowardTheNodeCap(): void
+    {
+        Config::set('api-toolkit.query_cost.max_nodes', 2);
+
+        $this->assertRejectedForCost(
+            ['posts' => ['$or' => ['title' => 'first', 'id' => '1']]],
+            QueryCostLimits::MAX_NODES,
+            '/posts/$or/id',
+            2,
+            3,
+        );
+    }
+
+    /**
+     * Test that each relation listed by an existence operator counts toward the
+     * node cap.
+     *
+     * @return void
+     */
+    public function testRelationsListedByAnExistenceOperatorCountTowardTheNodeCap(): void
+    {
+        Config::set('api-toolkit.query_cost.max_nodes', 2);
+
+        $this->assertRejectedForCost(
+            ['$has' => ['posts', 'organization']],
+            QueryCostLimits::MAX_NODES,
+            '/1',
+            2,
+            3,
+        );
+    }
+
+    /**
+     * Test that an operator value list of exactly the item cap is applied.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testOperatorValueListAtExactlyTheItemCapIsApplied(): void
+    {
+        Config::set('api-toolkit.query_cost.max_in_items', 3);
+
+        $result = $this->applyFilters(['name' => ['$in' => ['Alice', 'Bob', 'Carol']]]);
+        $wheres = $result->getQuery()->wheres;
+
+        self::assertNotEmpty($wheres);
+        self::assertSame(['Alice', 'Bob', 'Carol'], $wheres[0]['values']);
+    }
+
+    /**
+     * Test that an operator value list one item over the cap is rejected before
+     * the values are bound.
+     *
+     * @return void
+     */
+    public function testOperatorValueListOverTheItemCapIsRejected(): void
+    {
+        Config::set('api-toolkit.query_cost.max_in_items', 3);
+
+        $this->assertRejectedForCost(
+            ['name' => ['$in' => ['Alice', 'Bob', 'Carol', 'Dave']]],
+            QueryCostLimits::MAX_IN_ITEMS,
+            '/name/$in',
+            3,
+            4,
+        );
+    }
+
+    /**
+     * Test that a rejection inside a traversed relation points at the position
+     * within the document rather than at the root.
+     *
+     * @return void
+     */
+    public function testRejectionInsideARelationPointsAtItsPosition(): void
+    {
+        Config::set('api-toolkit.query_cost.max_in_items', 1);
+
+        $this->assertRejectedForCost(
+            ['posts' => ['title' => ['$in' => ['first', 'second']]]],
+            QueryCostLimits::MAX_IN_ITEMS,
+            '/posts/title/$in',
+            1,
+            2,
+        );
+    }
+
+    /**
+     * Assert that the given filters are rejected on cost, carrying the cap that
+     * rejected them, the position within the document, and both sides of the
+     * comparison.
+     *
+     * @param  array<string, mixed>  $filters
+     * @param  string  $reason
+     * @param  string  $pointer
+     * @param  int  $limit
+     * @param  int  $actual
+     * @return void
+     */
+    private function assertRejectedForCost(array $filters, string $reason, string $pointer, int $limit, int $actual): void
+    {
+        try {
+            $this->applyFilters($filters);
+
+            self::fail('Expected a rejection for the "' . $reason . '" cap.');
+        } catch (QueryTooExpensiveException $exception) {
+            self::assertSame([
+                'parameter' => 'filters',
+                'pointer'   => $pointer,
+                'reason'    => $reason,
+                'limit'     => $limit,
+                'actual'    => $actual,
+            ], $exception->getCustomMeta());
+        }
     }
 
     /**
@@ -905,6 +1246,8 @@ final class FilterApplierTest extends TestCase
      *
      * @param  array<string, mixed>|null  $filters
      * @return \Illuminate\Database\Eloquent\Builder<\Tests\Fixtures\Models\User>
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     private function applyFilters(?array $filters): Builder
     {
