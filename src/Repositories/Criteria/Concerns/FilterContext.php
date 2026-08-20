@@ -65,7 +65,7 @@ final readonly class FilterContext
      */
     public static function nested(string $logicalOperator): self
     {
-        return new self($logicalOperator, 1, '/' . $logicalOperator);
+        return new self($logicalOperator, pointer: '/' . $logicalOperator);
     }
 
     /**
@@ -84,6 +84,21 @@ final readonly class FilterContext
         $this->budget?->admitLevel($this->depth + 1, $pointer);
 
         return new self($logicalOperator, $this->depth + 1, $pointer, $this->budget);
+    }
+
+    /**
+     * Create the context for the given segment of the current level.
+     *
+     * A key that positions the walk without opening a query scope of its own
+     * moves the pointer but not the depth, so the position it reports resolves
+     * against the client's document without spending a level of the budget.
+     *
+     * @param  string  $segment
+     * @return self
+     */
+    public function at(string $segment): self
+    {
+        return new self($this->logicalOperator, $this->depth, $this->pointerTo($segment), $this->budget);
     }
 
     /**
@@ -108,16 +123,6 @@ final readonly class FilterContext
     public function pointerTo(string $key): string
     {
         return $this->pointer . '/' . $key;
-    }
-
-    /**
-     * Return the number of levels descended from the root.
-     *
-     * @return int
-     */
-    public function getDepth(): int
-    {
-        return $this->depth;
     }
 
     /**

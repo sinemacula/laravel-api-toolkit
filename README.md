@@ -305,6 +305,12 @@ A `FilterOperator` is any class implementing `SineMacula\ApiToolkit\Contracts\Fi
 with the same signature. Operators registered via `register()` throw `InvalidArgumentException` if the token
 is already taken; use `override()` to replace unconditionally.
 
+An operator that fans a single value out into one predicate per item should also implement
+`SineMacula\ApiToolkit\Contracts\ExpandsValueList` and report that item count from `countValueItems()`. The
+dispatcher measures the reported count against the `max_in_items` cap, so a list spelled as a delimited
+string is bounded the same way as one spelled as an array. An operator that does not implement the contract
+is measured as one item per non-list value.
+
 ---
 
 ### Exception Handling

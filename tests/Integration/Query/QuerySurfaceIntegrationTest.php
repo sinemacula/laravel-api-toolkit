@@ -26,11 +26,10 @@ use Tests\TestCase;
  *
  * Exercises the secure-by-default posture against a real database: declared
  * filterable/sortable columns and traversable relations are applied, while
- * undeclared keys on the root resource are rejected. Under the allowlist
- * posture, nested columns on a traversed relation are gated against the related
- * resource's declared filterable set -not against the legacy isSearchable
- * predicate. When no mapped resource exists for a related model the gate fails
- * closed. A model with no mapped resource rejects every key.
+ * undeclared keys on the root resource are rejected. Nested columns on a
+ * traversed relation are gated against the related resource's declared
+ * filterable set, and when no mapped resource exists for a related model the
+ * gate fails closed. A model with no mapped resource rejects every key.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.

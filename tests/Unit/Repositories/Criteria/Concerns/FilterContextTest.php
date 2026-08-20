@@ -33,7 +33,6 @@ final class FilterContextTest extends TestCase
         $root = FilterContext::root();
 
         self::assertNull($root->getLogicalOperator());
-        self::assertSame(0, $root->getDepth());
         self::assertSame('/name', $root->pointerTo('name'));
     }
 
@@ -47,25 +46,89 @@ final class FilterContextTest extends TestCase
         $nested = FilterContext::nested('$and');
 
         self::assertSame('$and', $nested->getLogicalOperator());
-        self::assertSame(1, $nested->getDepth());
         self::assertSame('/$and/name', $nested->pointerTo('name'));
     }
 
     /**
-     * Test that descending records the level, the position, and the operator
-     * asked for rather than the one in effect above it.
+     * Test that descending records the position and the operator asked for
+     * rather than the one in effect above it.
      *
      * @return void
      *
      * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
-    public function testDescendRecordsTheLevelPositionAndOperator(): void
+    public function testDescendRecordsThePositionAndOperator(): void
     {
         $child = FilterContext::root()->descend('posts', '$or')->descend('tags', null);
 
         self::assertNull($child->getLogicalOperator());
-        self::assertSame(2, $child->getDepth());
         self::assertSame('/posts/tags/name', $child->pointerTo('name'));
+    }
+
+    /**
+     * Test that a segment entered without descending moves the position but
+     * keeps the operator in effect and the level already reached, so the next
+     * descent is measured from where the walk actually stands.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testEnteringASegmentMovesThePositionWithoutSpendingALevel(): void
+    {
+        Config::set('api-toolkit.query_cost.max_depth', 2);
+
+        $context = FilterContext::root(new FilterCostBudget(QueryCostLimits::fromConfig()))
+            ->descend('posts', '$or')
+            ->at('$has');
+
+        self::assertSame('$or', $context->getLogicalOperator());
+        self::assertSame('/posts/$has/name', $context->pointerTo('name'));
+
+        try {
+            $context->descend('tags', null)->descend('country', null);
+
+            self::fail('Expected a rejection for a descent beyond the depth cap.');
+        } catch (QueryTooExpensiveException $exception) {
+            self::assertSame([
+                'parameter' => 'filters',
+                'pointer'   => '/posts/$has/tags/country',
+                'reason'    => QueryCostLimits::MAX_DEPTH,
+                'limit'     => 2,
+                'actual'    => 3,
+            ], $exception->getCustomMeta());
+        }
+    }
+
+    /**
+     * Test that a segment entered without descending carries the budget, so a
+     * node admitted there counts against the walk.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testEnteringASegmentCarriesTheBudget(): void
+    {
+        Config::set('api-toolkit.query_cost.max_nodes', 1);
+
+        $root = FilterContext::root(new FilterCostBudget(QueryCostLimits::fromConfig()));
+
+        $root->admit('name');
+
+        try {
+            $root->at('$has')->admit('posts');
+
+            self::fail('Expected a rejection for a node beyond the node cap.');
+        } catch (QueryTooExpensiveException $exception) {
+            self::assertSame([
+                'parameter' => 'filters',
+                'pointer'   => '/$has/posts',
+                'reason'    => QueryCostLimits::MAX_NODES,
+                'limit'     => 1,
+                'actual'    => 2,
+            ], $exception->getCustomMeta());
+        }
     }
 
     /**

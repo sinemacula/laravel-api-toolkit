@@ -184,14 +184,64 @@ final class ValidateSensitiveColumnsTest extends TestCase
     }
 
     /**
-     * Test that a non-string entry in the configured list is ignored rather
-     * than compared against a column name.
+     * Test that a configured entry matches a column name only when both the
+     * value and its type agree, so a numeric column name is never matched by a
+     * numerically equal entry of another type.
      *
      * @return void
      */
-    public function testIgnoresNonStringConfiguredEntries(): void
+    public function testConfiguredEntriesAreComparedStrictly(): void
     {
         Config::set('api-toolkit.resources.sensitive_columns', [42, 'password']);
+
+        $schema = new CompiledSchema(
+            fields: [
+                'code'     => $this->makeField(filterable: '42'),
+                'password' => $this->makeField(filterable: 'password'),
+            ],
+            counts: [],
+        );
+
+        $errors = (new ValidateSensitiveColumns)->validate(UserResource::class, null, $schema);
+
+        self::assertCount(1, $errors);
+        self::assertSame(self::PASSWORD_FILTERABLE_DEFECT, $errors[0]->defect);
+    }
+
+    /**
+     * Test that a configured value that is not a list falls back to the shipped
+     * names rather than throwing at boot or leaving the rule inert.
+     *
+     * @return void
+     */
+    public function testNonArrayConfigurationFallsBackToTheShippedDefaults(): void
+    {
+        Config::set('api-toolkit.resources.sensitive_columns', 'password');
+
+        $schema = new CompiledSchema(
+            fields: ['token' => $this->makeField(filterable: 'token')],
+            counts: [],
+        );
+
+        $errors = (new ValidateSensitiveColumns)->validate(UserResource::class, null, $schema);
+
+        self::assertCount(1, $errors);
+        self::assertSame(
+            'Field is declared filterable against "token", which is configured as a sensitive column and may never be queried',
+            $errors[0]->defect,
+        );
+    }
+
+    /**
+     * Test that a published config predating the list falls back to the shipped
+     * names, so an application whose resources block omits the key is still
+     * refused a queryable credential column.
+     *
+     * @return void
+     */
+    public function testConfigurationWithoutTheKeyFallsBackToTheShippedDefaults(): void
+    {
+        Config::set('api-toolkit.resources', ['fixed_fields' => ['id', '_type']]);
 
         $schema = new CompiledSchema(
             fields: ['password' => $this->makeField(filterable: 'password')],
@@ -205,21 +255,14 @@ final class ValidateSensitiveColumnsTest extends TestCase
     }
 
     /**
-     * Test that a configured value that is not a list degrades to no sensitive
-     * columns rather than throwing at boot.
+     * Test that the shipped config declares exactly the fallback names, so the
+     * published file and the fallback cannot drift apart.
      *
      * @return void
      */
-    public function testNonArrayConfigurationYieldsNoSensitiveColumns(): void
+    public function testShippedConfigMatchesTheFallbackDefaults(): void
     {
-        Config::set('api-toolkit.resources.sensitive_columns', 'password');
-
-        $schema = new CompiledSchema(
-            fields: ['password' => $this->makeField(filterable: 'password')],
-            counts: [],
-        );
-
-        self::assertSame([], (new ValidateSensitiveColumns)->validate(UserResource::class, null, $schema));
+        self::assertSame(ValidateSensitiveColumns::DEFAULTS, Config::get('api-toolkit.resources.sensitive_columns'));
     }
 
     /**

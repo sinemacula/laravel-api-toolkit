@@ -25,6 +25,9 @@ final class QueryCostGuard
     /**
      * Reject the request when it exceeds one of the flat caps.
      *
+     * A parser reporting no page number leaves the offset cap nothing to
+     * measure, so only a page the request actually asked for is bounded.
+     *
      * @param  string|null  $resourceType
      * @return void
      *
@@ -36,7 +39,14 @@ final class QueryCostGuard
 
         $limits->enforce(QueryCostLimits::MAX_ORDER_KEYS, count(ApiQuery::getOrder()), 'order');
         $limits->enforce(QueryCostLimits::MAX_AGGREGATES, $this->countAggregates($resourceType), 'aggregates');
-        $limits->enforce(QueryCostLimits::MAX_OFFSET, ApiQuery::getPage() ?? 1, 'page');
+
+        $page = ApiQuery::getPage();
+
+        if ($page === null) {
+            return;
+        }
+
+        $limits->enforce(QueryCostLimits::MAX_OFFSET, $page, 'page');
     }
 
     /**

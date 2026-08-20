@@ -5,6 +5,7 @@ declare(strict_types = 1);
 namespace SineMacula\ApiToolkit\Repositories\Criteria\Operators;
 
 use Illuminate\Database\Eloquent\Builder;
+use SineMacula\ApiToolkit\Contracts\ExpandsValueList;
 use SineMacula\ApiToolkit\Contracts\FilterOperator;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext;
 
@@ -15,10 +16,14 @@ use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext;
  * grammar's exception rather than being discarded: dropping the predicate would
  * widen the result set, so the request fails instead.
  *
+ * The comma-separated spelling fans one value out into a containment clause per
+ * item, so the operator reports that item count to the dispatcher and is capped
+ * on the same footing as the list spelling.
+ *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-final class ContainsOperator implements FilterOperator
+final class ContainsOperator implements ExpandsValueList, FilterOperator
 {
     /**
      * Apply the JSON containment constraint to the query builder.
@@ -32,12 +37,44 @@ final class ContainsOperator implements FilterOperator
     #[\Override]
     public function apply(Builder $query, string $column, mixed $value, FilterContext $context): void
     {
-        if (!$this->isJsonContainable($value) && is_string($value) && str_contains($value, ',')) {
-            $this->applyCommaSeparated($query, $column, $value, $context);
+        $items = $this->listItems($value);
+
+        if ($items !== null) {
+            $this->applyCommaSeparated($query, $column, $items, $context);
             return;
         }
 
         $query->getQuery()->whereJsonContains($column, $value, $context->sqlBoolean());
+    }
+
+    /**
+     * Return the number of containment clauses the given value expands to.
+     *
+     * @param  mixed  $value
+     * @return int
+     */
+    #[\Override]
+    public function countValueItems(mixed $value): int
+    {
+        $items = $this->listItems($value);
+
+        return $items === null ? 1 : count($items);
+    }
+
+    /**
+     * Split a comma-separated value into its trimmed, non-empty items, or
+     * return null when the value is applied as a single containment clause.
+     *
+     * @param  mixed  $value
+     * @return array<int, string>|null
+     */
+    private function listItems(mixed $value): ?array
+    {
+        if ($this->isJsonContainable($value) || !is_string($value) || !str_contains($value, ',')) {
+            return null;
+        }
+
+        return array_filter(array_map('trim', explode(',', $value)), static fn (string $item): bool => $item !== '');
     }
 
     /**
@@ -57,19 +94,16 @@ final class ContainsOperator implements FilterOperator
     }
 
     /**
-     * Split a comma-separated string into trimmed, non-empty items and apply
-     * them as a grouped JSON containment constraint.
+     * Apply the split items as a grouped JSON containment constraint.
      *
      * @param  \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>  $query
      * @param  string  $column
-     * @param  string  $value
+     * @param  array<int, string>  $items
      * @param  \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext  $context
      * @return void
      */
-    private function applyCommaSeparated(Builder $query, string $column, string $value, FilterContext $context): void
+    private function applyCommaSeparated(Builder $query, string $column, array $items, FilterContext $context): void
     {
-        $items = array_filter(array_map('trim', explode(',', $value)), static fn (string $item): bool => $item !== '');
-
         if (empty($items)) {
             return;
         }

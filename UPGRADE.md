@@ -408,8 +408,8 @@ and a cache hit performs zero database queries.
 
 The public API is unchanged: `withoutCache()`, `flushCache()`, and `getCacheStatus()` behave as before.
 
-**Action required:** none for most applications. If you relied on the old whole-table behaviour — a small,
-static reference table served entirely from cache with cross-request persistence — opt back into it per
+**Action required:** none for most applications. If you relied on the old whole-table behaviour - a small,
+static reference table served entirely from cache with cross-request persistence - opt back into it per
 repository:
 
     protected bool $cacheReferenceTable = true;
@@ -561,9 +561,11 @@ fails the build rather than being filtered out per request. The shipped list cov
 and Fortify auth column family: `password`, `token`, `remember_token`, `two_factor_secret`,
 `two_factor_recovery_codes`, `two_factor_confirmed_at`, and `email_verified_at`. Unlike the exclusion
 list it replaces, entries are whole column names -- the `users.password` table-scoped form is no longer
-recognised, and a bare `password` applies to every resource.
+recognised, and a bare `password` applies to every resource. A published config file that does not
+declare the key at all falls back to that same list, so a `resources` block predating this release
+still refuses a queryable credential column.
 
-### Changed: the query layer no longer fails open
+### Changed: The query layer no longer fails open
 
 Four query-layer behaviours that quietly widened a result set now fail the request instead.
 

@@ -22,6 +22,17 @@ use SineMacula\ApiToolkit\Schema\Validation\SchemaValidationError;
  */
 final class ValidateSensitiveColumns extends ValidatesEachField
 {
+    /** @var array<int, string> The shipped column names, mirrored by the published config file and used as the fallback whenever that file does not declare its own list */
+    public const array DEFAULTS = [
+        'password',
+        'token',
+        'remember_token',
+        'two_factor_secret',
+        'two_factor_recovery_codes',
+        'two_factor_confirmed_at',
+        'email_verified_at',
+    ];
+
     /**
      * Return the validation errors for a single compiled field.
      *
@@ -55,14 +66,19 @@ final class ValidateSensitiveColumns extends ValidatesEachField
     /**
      * Read the configured sensitive column names.
      *
-     * @return array<int, string>
+     * A published config predating the list, or declaring something other than
+     * a list, falls back to the shipped names rather than leaving the rule
+     * inert: the package config is merged one key deep, so an application that
+     * publishes its own resources block replaces this key wholesale. Entries
+     * that are not strings never match a column name, since the comparison is
+     * strict.
+     *
+     * @return array<mixed>
      */
     private function sensitiveColumns(): array
     {
-        $configured = Config::get('api-toolkit.resources.sensitive_columns', []);
+        $configured = Config::get('api-toolkit.resources.sensitive_columns', self::DEFAULTS);
 
-        return is_array($configured)
-            ? array_values(array_filter($configured, 'is_string'))
-            : [];
+        return is_array($configured) ? $configured : self::DEFAULTS;
     }
 }

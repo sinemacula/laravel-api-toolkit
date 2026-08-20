@@ -353,4 +353,33 @@ final class ContainsOperatorTest extends TestCase
         self::assertSame('Nested', $wheres[1]['type']);
         self::assertSame('or', $wheres[1]['boolean']);
     }
+
+    /**
+     * Test that a comma-separated value reports one item per containment clause
+     * it expands to, counting the items that survive trimming.
+     *
+     * @return void
+     */
+    public function testCommaSeparatedValueReportsItsExpandedItemCount(): void
+    {
+        self::assertSame(2, $this->operator->countValueItems('Alice,Bob'));
+        self::assertSame(3, $this->operator->countValueItems('a,b,c'));
+        self::assertSame(2, $this->operator->countValueItems(' Alice , , Bob '));
+        self::assertSame(0, $this->operator->countValueItems(',,'));
+    }
+
+    /**
+     * Test that a value applied as a single containment clause reports one
+     * item, whatever commas it happens to carry.
+     *
+     * @return void
+     */
+    public function testValueAppliedAsASingleClauseReportsOneItem(): void
+    {
+        self::assertSame(1, $this->operator->countValueItems('Alice'));
+        self::assertSame(1, $this->operator->countValueItems('["a","b"]'));
+        self::assertSame(1, $this->operator->countValueItems(['Alice', 'Bob']));
+        self::assertSame(1, $this->operator->countValueItems(null));
+        self::assertSame(1, $this->operator->countValueItems(123));
+    }
 }

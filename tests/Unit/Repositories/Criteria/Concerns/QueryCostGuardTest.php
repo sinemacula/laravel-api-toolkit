@@ -118,6 +118,45 @@ final class QueryCostGuardTest extends TestCase
     }
 
     /**
+     * Test that expressions spread across several relations of the same map
+     * accumulate, and that exactly the cap is accepted.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testExpressionsAcrossRelationsAccumulateToExactlyTheCap(): void
+    {
+        Config::set('api-toolkit.query_cost.max_aggregates', 3);
+
+        $this->parseQuery([
+            'sums' => [self::RESOURCE_TYPE => ['posts' => 'id,views', 'comments' => 'id']],
+        ]);
+
+        $this->expectNotToPerformAssertions();
+
+        $this->guard->guard(self::RESOURCE_TYPE);
+    }
+
+    /**
+     * Test that expressions spread across several relations of the same map
+     * accumulate, so a request one expression over the cap is rejected rather
+     * than being measured by its last relation alone.
+     *
+     * @return void
+     */
+    public function testExpressionsAcrossRelationsAccumulateBeyondTheCap(): void
+    {
+        Config::set('api-toolkit.query_cost.max_aggregates', 2);
+
+        $this->parseQuery([
+            'sums' => [self::RESOURCE_TYPE => ['posts' => 'id,views', 'comments' => 'id']],
+        ]);
+
+        $this->assertRejectedForCost('aggregates', QueryCostLimits::MAX_AGGREGATES, 2, 3);
+    }
+
+    /**
      * Test that an aggregate whose columns are not a list counts as a single
      * expression rather than raising a type error.
      *
@@ -169,6 +208,29 @@ final class QueryCostGuardTest extends TestCase
         $this->assertRejectedForCost('page', QueryCostLimits::MAX_OFFSET, 10, 11);
 
         self::assertSame(11, ApiQuery::getPage());
+    }
+
+    /**
+     * Test that a parser reporting no page number leaves the offset cap with
+     * nothing to measure rather than being read as a page of its own.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testRequestWithoutAPageIsNotBoundedByTheOffsetCap(): void
+    {
+        Config::set('api-toolkit.query_cost.max_offset', 1);
+
+        ApiQuery::shouldReceive('getOrder')->andReturn([]);
+        ApiQuery::shouldReceive('getCounts')->andReturn(null);
+        ApiQuery::shouldReceive('getSums')->andReturn(null);
+        ApiQuery::shouldReceive('getAverages')->andReturn(null);
+        ApiQuery::shouldReceive('getPage')->andReturn(null);
+
+        $this->expectNotToPerformAssertions();
+
+        $this->guard->guard(self::RESOURCE_TYPE);
     }
 
     /**

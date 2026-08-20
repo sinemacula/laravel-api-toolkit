@@ -17,6 +17,7 @@ use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\OrderApplier;
 use SineMacula\Http\Enums\HttpMethod;
 use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\User;
+use Tests\Fixtures\Resources\PostResource;
 use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
 
@@ -350,6 +351,33 @@ final class ApiCriteriaIntegrationTest extends TestCase
         $first = $results->first();
 
         self::assertSame('Bob', $first->name);
+    }
+
+    /**
+     * Test that a relation filter reached through an $or group narrows to the
+     * rows that own a matching related record, rather than matching every row
+     * as soon as the relation holds one anywhere in the table.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testRelationFilterUnderOrMatchesOnlyTheOwningRows(): void
+    {
+        Config::set('api-toolkit.resources.resource_map', [Post::class => PostResource::class]);
+
+        $this->parseQuery([
+            'filters' => json_encode([
+                '$or' => [
+                    'nested' => ['posts' => ['title' => 'Alice Post']],
+                    'name'   => 'Charlie',
+                ],
+            ]),
+        ]);
+
+        $results = $this->makeCriteria()->apply(new User)->get();
+
+        self::assertSame(['Alice', 'Charlie'], $results->pluck('name')->sort()->values()->all());
     }
 
     /**

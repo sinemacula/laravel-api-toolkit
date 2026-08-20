@@ -589,6 +589,35 @@ final class FilterApplierTest extends TestCase
     }
 
     /**
+     * Test that the conditions inside a relation filter under $or are combined
+     * with AND, so the OR stays at the parent level rather than being combined
+     * with the relation's own correlation predicate.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testConditionsInsideARelationFilterUnderOrAreCombinedWithAnd(): void
+    {
+        $result = $this->applyFilters([
+            '$or' => [
+                'nested' => [
+                    'posts' => ['title' => 'first', 'id' => '1'],
+                ],
+            ],
+        ]);
+
+        $nested = $result->getQuery()->wheres[0]['query']->wheres;
+
+        self::assertSame('Exists', $nested[0]['type']);
+        self::assertSame('or', $nested[0]['boolean']);
+
+        $booleans = array_column($nested[0]['query']->wheres, 'boolean');
+
+        self::assertSame(['and', 'and', 'and'], $booleans);
+    }
+
+    /**
      * Test that $or inside a relation filter creates a grouped orWhere.
      *
      * @return void
@@ -1117,7 +1146,8 @@ final class FilterApplierTest extends TestCase
 
     /**
      * Test that each relation listed by an existence operator counts toward the
-     * node cap.
+     * node cap, reported at its position beneath the operator rather than at
+     * the root.
      *
      * @return void
      */
@@ -1128,9 +1158,28 @@ final class FilterApplierTest extends TestCase
         $this->assertRejectedForCost(
             ['$has' => ['posts', 'organization']],
             QueryCostLimits::MAX_NODES,
-            '/1',
+            '/$has/1',
             2,
             3,
+        );
+    }
+
+    /**
+     * Test that a rejection inside a relation named by an existence operator
+     * points at its position beneath the operator.
+     *
+     * @return void
+     */
+    public function testRejectionInsideANamedExistenceRelationPointsAtItsPosition(): void
+    {
+        Config::set('api-toolkit.query_cost.max_in_items', 1);
+
+        $this->assertRejectedForCost(
+            ['$has' => ['posts' => ['title' => ['$in' => ['first', 'second']]]]],
+            QueryCostLimits::MAX_IN_ITEMS,
+            '/$has/posts/title/$in',
+            1,
+            2,
         );
     }
 
@@ -1169,6 +1218,64 @@ final class FilterApplierTest extends TestCase
             3,
             4,
         );
+    }
+
+    /**
+     * Test that a delimited value list of exactly the item cap is applied, so
+     * the cap counts the items an operator reads rather than the shape of the
+     * value it was handed.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testDelimitedValueListAtExactlyTheItemCapIsApplied(): void
+    {
+        Config::set('api-toolkit.query_cost.max_in_items', 3);
+
+        $result = $this->applyFilters(['name' => [self::OPERATOR_CONTAINS => 'Alice,Bob,Carol']]);
+        $wheres = $result->getQuery()->wheres;
+
+        self::assertNotEmpty($wheres);
+        self::assertCount(3, $wheres[0]['query']->wheres);
+    }
+
+    /**
+     * Test that a delimited value list one item over the cap is rejected, so
+     * the delimited spelling cannot outrun the list spelling.
+     *
+     * @return void
+     */
+    public function testDelimitedValueListOverTheItemCapIsRejected(): void
+    {
+        Config::set('api-toolkit.query_cost.max_in_items', 3);
+
+        $this->assertRejectedForCost(
+            ['name' => [self::OPERATOR_CONTAINS => 'Alice,Bob,Carol,Dave']],
+            QueryCostLimits::MAX_IN_ITEMS,
+            '/name/$contains',
+            3,
+            4,
+        );
+    }
+
+    /**
+     * Test that an operator value carrying no list counts as a single item, so
+     * an ordinary scalar comparison is never measured as a list.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testScalarOperatorValueCountsAsOneItem(): void
+    {
+        Config::set('api-toolkit.query_cost.max_in_items', 1);
+
+        $result = $this->applyFilters(['name' => ['$like' => 'Alice, Bob, Carol, Dave']]);
+        $wheres = $result->getQuery()->wheres;
+
+        self::assertNotEmpty($wheres);
+        self::assertSame('%Alice, Bob, Carol, Dave%', $wheres[0]['value']);
     }
 
     /**

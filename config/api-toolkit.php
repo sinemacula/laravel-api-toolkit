@@ -124,7 +124,8 @@ return [
         // verification column cannot become an oracle a client narrows on one
         // comparison at a time without ever reading the value. The default
         // covers the stock Laravel + Fortify auth column family, keeping the
-        // query layer's sensitive set a superset of the export layer's.
+        // query layer's sensitive set a superset of the export layer's. A
+        // published file that omits the key falls back to this same list.
         'sensitive_columns' => [
             'password',
             'token',
@@ -349,7 +350,9 @@ return [
     | bounds the levels the filter dispatcher descends (a logical group or a
     | relation subquery is one level) and `max_nodes` the total keys it visits;
     | both abort part-way through rather than after the whole tree is built.
-    | `max_in_items` bounds a single operator value list, such as `$in`.
+    | `max_in_items` bounds a single operator value list, such as `$in`, and is
+    | measured against the items an operator reads rather than the shape of the
+    | value, so a list spelled as a delimited string is bounded the same way.
     | `max_order_keys` bounds the sort columns, and `max_aggregates` the
     | relation counts, sums, and averages combined, since each adds its own
     | correlated subquery. `max_offset` bounds the requested page number, beyond

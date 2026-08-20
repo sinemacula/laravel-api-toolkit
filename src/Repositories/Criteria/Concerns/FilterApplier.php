@@ -5,6 +5,8 @@ declare(strict_types = 1);
 namespace SineMacula\ApiToolkit\Repositories\Criteria\Concerns;
 
 use Illuminate\Database\Eloquent\Builder;
+use SineMacula\ApiToolkit\Contracts\ExpandsValueList;
+use SineMacula\ApiToolkit\Contracts\FilterOperator;
 use SineMacula\ApiToolkit\Query\QueryCostLimits;
 use SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry;
 use SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface;
@@ -226,17 +228,35 @@ final class FilterApplier
 
         $this->querySurface->guardFilter($field, $query->getModel());
 
-        if (is_array($value)) {
-            $this->limits->enforce(QueryCostLimits::MAX_IN_ITEMS, count($value), 'filters', $context->pointerTo($field) . '/' . $operator);
-        }
-
         $handler = $this->operatorRegistry->resolve($operator);
+
+        $this->limits->enforce(QueryCostLimits::MAX_IN_ITEMS, $this->countValueItems($handler, $value), 'filters', $context->pointerTo($field) . '/' . $operator);
 
         if ($handler === null) {
             return;
         }
 
         $handler->apply($query, $field, $value, $context);
+    }
+
+    /**
+     * Count the items the given handler will read out of the operator value.
+     *
+     * A handler that fans a single value out into one predicate per item
+     * reports its own count, so a list spelled as a delimited string is capped
+     * on the same footing as one spelled as an array.
+     *
+     * @param  \SineMacula\ApiToolkit\Contracts\FilterOperator|null  $handler
+     * @param  mixed  $value
+     * @return int
+     */
+    private function countValueItems(?FilterOperator $handler, mixed $value): int
+    {
+        if (is_array($value)) {
+            return count($value);
+        }
+
+        return $handler instanceof ExpandsValueList ? $handler->countValueItems($value) : 1;
     }
 
     /**
@@ -281,6 +301,11 @@ final class FilterApplier
     /**
      * Apply a relation filter using whereHas or orWhereHas.
      *
+     * The relation scope is entered with no logical operator in effect: an OR
+     * above the relation is carried by orWhereHas at the parent level, and
+     * repeating it inside the subquery would OR the conditions against the
+     * correlation predicate, matching every parent row.
+     *
      * @param  \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>  $query
      * @param  string  $relation
      * @param  array<string, mixed>  $filters
@@ -292,7 +317,7 @@ final class FilterApplier
     private function applyRelationFilter(Builder $query, string $relation, array $filters, FilterContext $context): void
     {
         $method = $context->isOr() ? 'orWhereHas' : 'whereHas';
-        $nested = $context->descend($relation, $context->getLogicalOperator());
+        $nested = $context->descend($relation, null);
 
         $this->applyRelationalMethod($query, $method, $relation, function (Builder $query) use ($filters, $nested): void {
             $this->processRelationFilters($query, $filters, $nested);
@@ -349,10 +374,11 @@ final class FilterApplier
     {
         $baseMethod = $this->relationalMethodMap[$operator];
         $method     = ($context->isOr() && $operator === '$has') ? 'orWhereHas' : $baseMethod;
+        $scope      = $context->at($operator);
 
         foreach ((array) $relations as $relation => $filters) {
 
-            $context->admit((string) $relation);
+            $scope->admit((string) $relation);
 
             if (is_int($relation)) {
 
@@ -364,7 +390,7 @@ final class FilterApplier
 
                 $this->querySurface->guardRelation($relation, $query->getModel());
 
-                $nested = $context->descend($relation, null);
+                $nested = $scope->descend($relation, null);
 
                 $this->applyRelationalMethod($query, $method, $relation, function (Builder $query) use ($filters, $nested): void {
                     $this->processRelationFilters($query, $filters, $nested);

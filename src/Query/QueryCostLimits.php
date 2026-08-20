@@ -72,6 +72,10 @@ final readonly class QueryCostLimits
     /**
      * Resolve every cap from configuration.
      *
+     * A cap configured as null is disabled rather than defaulted, so the two
+     * documented ways of turning a dimension off agree. A cap the published
+     * config never declares falls back to its shipped default instead.
+     *
      * @return self
      */
     public static function fromConfig(): self
@@ -82,7 +86,11 @@ final readonly class QueryCostLimits
 
             $value = Config::get('api-toolkit.query_cost.' . $cap, $default);
 
-            $limits[$cap] = is_numeric($value) ? (int) $value : $default;
+            $limits[$cap] = match (true) {
+                $value === null    => 0,
+                is_numeric($value) => (int) $value,
+                default            => $default,
+            };
         }
 
         return new self($limits);

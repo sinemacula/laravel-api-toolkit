@@ -114,6 +114,28 @@ final class QueryCostLimitsTest extends TestCase
     }
 
     /**
+     * Test that a cap set to null disables enforcement, matching the other
+     * documented way of turning a dimension off rather than quietly restoring
+     * the shipped default.
+     *
+     * @param  string  $cap
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    #[DataProvider('capProvider')]
+    public function testCapOfNullDisablesEnforcement(string $cap): void
+    {
+        Config::set(self::CONFIG_PREFIX . $cap, null);
+
+        $limits = QueryCostLimits::fromConfig();
+
+        $limits->enforce($cap, 1000000, 'filters');
+
+        self::assertSame(0, $limits->limit($cap));
+    }
+
+    /**
      * Test that a negative cap disables enforcement rather than rejecting every
      * request.
      *
