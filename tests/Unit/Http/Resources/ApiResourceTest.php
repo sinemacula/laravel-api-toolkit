@@ -1960,8 +1960,8 @@ final class ApiResourceTest extends TestCase
 
         $outerClass::$childClassName = $childClassName;
 
-        // No fields set for 'no_defaults_child' in the query — defaults are
-        // empty — so resolveChildFields falls through to getAllFields (line
+        // No fields set for 'no_defaults_child' in the query - defaults are
+        // empty - so resolveChildFields falls through to getAllFields (line
         // 837).
         $map = $outerClass::eagerLoadMapFor(['rel']);
 

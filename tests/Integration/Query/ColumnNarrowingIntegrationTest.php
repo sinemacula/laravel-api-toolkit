@@ -259,7 +259,7 @@ final class ColumnNarrowingIntegrationTest extends TestCase
      * the output). The genuine data-layer reduction is proven by comparing the
      * serialised attribute map of a model fetched with a narrowed SELECT (which
      * omits heavy columns like `body` from the result set) against a model
-     * fetched with a full SELECT – the narrowed model's attributes must weigh
+     * fetched with a full SELECT - the narrowed model's attributes must weigh
      * less.
      *
      * @return void
