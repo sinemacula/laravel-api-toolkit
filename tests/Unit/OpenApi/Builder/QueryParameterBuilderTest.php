@@ -141,17 +141,17 @@ final class QueryParameterBuilderTest extends TestCase
     }
 
     /**
-     * Test that the filter description states the grammar up front and
-     * disclaims any per-resource allow-list, keeping both clauses in order.
+     * Test that the filter description states the grammar up front and defers
+     * the accepted fields to the resource, keeping both clauses in order.
      *
      * @return void
      */
-    public function testFilterDescriptionStatesTheGrammarAndDisclaimsAnyAllowList(): void
+    public function testFilterDescriptionStatesTheGrammarAndDefersFieldsToTheResource(): void
     {
         $description = $this->makeBuilder()->build()['Filter']['description'];
 
         self::assertStringStartsWith('Generic filter grammar. Filters are keyed by field', $description);
-        self::assertStringContainsString('the toolkit applies no per-resource field allow-list.', $description);
+        self::assertStringContainsString('each resource accepts only the fields it declares filterable.', $description);
     }
 
     /**

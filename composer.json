@@ -53,7 +53,7 @@
         "sinemacula/coding-standards-laravel": "^1.5.0",
         "sinemacula/laravel-resource-exporter": "^3.0",
         "slevomat/coding-standard": "^8.28",
-        "squizlabs/php_codesniffer": "4.0.1"
+        "squizlabs/php_codesniffer": "4.0.4"
     },
     "autoload": {
         "psr-4": {

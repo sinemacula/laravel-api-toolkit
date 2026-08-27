@@ -63,7 +63,7 @@ name = "osv-scanner"
 
 [[plugin]]
 name = "php-codesniffer"
-version = "4.0.1"
+version = "4.0.4"
 mode = "comment"
 package_file = "composer.json"
 package_filters = ["slevomat", "dealerdirect", "sinemacula"]
@@ -108,7 +108,7 @@ name = "trufflehog"
 [[plugin]]
 name = "yamllint"
 
-# Skip radarlint smell analysis on the test tree — reused fixture literals and
+# Skip radarlint smell analysis on the test tree - reused fixture literals and
 # multi-branch data providers trip duplication/return-count rules without value.
 [[exclude]]
 plugins = ["radarlint-php"]

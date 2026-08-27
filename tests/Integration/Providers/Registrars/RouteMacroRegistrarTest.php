@@ -8,7 +8,6 @@ use Illuminate\Routing\Route;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\OpenApi\Resolution\AudienceResolver;
 use SineMacula\ApiToolkit\Providers\Registrars\RouteMacroRegistrar;
-use SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface;
 use Tests\TestCase;
 
 /**
@@ -116,7 +115,7 @@ final class RouteMacroRegistrarTest extends TestCase
 
         self::assertFalse($resolver->isInAudience(
             'public',
-            QuerySurface::POSTURE_BLOCKLIST,
+            AudienceResolver::POSTURE_BLOCKLIST,
             null,
             null,
             $route,

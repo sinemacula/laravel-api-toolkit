@@ -5,7 +5,6 @@ declare(strict_types = 1);
 namespace SineMacula\ApiToolkit\OpenApi\Resolution;
 
 use Illuminate\Support\Facades\Config;
-use SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface;
 
 /**
  * Reads the OpenAPI audience registry from the toolkit config.
@@ -78,7 +77,7 @@ final readonly class AudienceConfiguration
         $definition = $this->audiences()[$audience] ?? [];
         $posture    = is_array($definition) ? ($definition['posture'] ?? null) : null;
 
-        return is_string($posture) && $posture !== '' ? $posture : QuerySurface::POSTURE_BLOCKLIST;
+        return is_string($posture) && $posture !== '' ? $posture : AudienceResolver::POSTURE_BLOCKLIST;
     }
 
     /**

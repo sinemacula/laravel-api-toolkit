@@ -408,8 +408,8 @@ and a cache hit performs zero database queries.
 
 The public API is unchanged: `withoutCache()`, `flushCache()`, and `getCacheStatus()` behave as before.
 
-**Action required:** none for most applications. If you relied on the old whole-table behaviour — a small,
-static reference table served entirely from cache with cross-request persistence — opt back into it per
+**Action required:** none for most applications. If you relied on the old whole-table behaviour - a small,
+static reference table served entirely from cache with cross-request persistence - opt back into it per
 repository:
 
     protected bool $cacheReferenceTable = true;
@@ -505,16 +505,16 @@ contract and register it on the `OperatorRegistry` singleton (for example, in a 
 
 The registry also exposes `override()` and `remove()` for adjusting the built-in operator set.
 
-### Changed: Filtering and sorting are allowlist-by-default
+### Changed: Filtering and sorting are allowlist-only
 
-API query filtering and sorting are now **allowlist-by-default**. A resource declares which columns are
+API query filtering and sorting are now **allowlist-only**. A resource declares which columns are
 filterable and sortable, and which relations may be traversed, in its schema. Any filter, sort, or
 relation key the resource has not declared is rejected with a `422` validation error.
 
-In 1.x and earlier 2.x builds the posture was the opposite: every column the model exposed was
-filterable and sortable unless it was named in `searchable_exclusions` (a blocklist). The exclusion list
-was the only line of defence, so a newly added column was queryable the moment it reached the table. The
-posture is now inverted -- a key is queryable only when the schema declares it intentionally.
+In 1.x the posture was the opposite: every column the model exposed was filterable and sortable unless
+it was named in `searchable_exclusions` (a blocklist). The exclusion list was the only line of defence,
+so a newly added column was queryable the moment it reached the table. A key is now queryable only when
+the schema declares it intentionally.
 
 **Declare the query surface** with the fluent markers on the schema DSL:
 
@@ -540,27 +540,55 @@ to the fields and relations clients are expected to query. Keys that clients cur
 schema does not declare will start returning `422` until they are declared. A resource with no declared
 surface rejects every filter and sort key.
 
-**Restore the previous behaviour** by switching back to the blocklist posture:
+**There is no opt-out.** The `query_posture` config key, its `API_TOOLKIT_QUERY_POSTURE` environment
+variable, and the `blocklist` posture they selected are gone. The blocklist silently dropped every
+undeclared key, so a filter the client believed was active widened the result set instead of narrowing
+it -- a fail-open path in a fail-closed package. Values left behind in a published config file or a
+`.env` are ignored. The `getSearchableColumns()` and `isSearchable()` methods that backed the blocklist
+have been removed from `SchemaIntrospectionProvider` and `SchemaIntrospector`; a custom implementation
+of that contract must drop them.
 
-    API_TOOLKIT_QUERY_POSTURE=blocklist
+**Fail-closed only.** An undeclared key on the root resource is always rejected with a named `422`
+validation error so clients learn immediately which key is not permitted. There is no opt-out: a
+dropped key applies no constraint, so a filter the client believes is active would silently widen the
+result set. `API_TOOLKIT_REJECT_UNDECLARED` and the `reject_undeclared` config key are gone, and a
+value left behind in a published config file is ignored.
 
-Under `blocklist` the legacy shape-derived behaviour applies: every model column is filterable and
-sortable unless excluded via `searchable_exclusions`. This is a transitional escape hatch; new
-applications should adopt the allowlist posture.
+**Sensitive columns are refused at the declaration.** `searchable_exclusions` has been replaced by
+`api-toolkit.resources.sensitive_columns`, which names the columns that may never be declared
+`filterable()` or `sortable()`. Schema validation reports a resource that declares one, so the defect
+fails the build rather than being filtered out per request. The shipped list covers the stock Laravel
+and Fortify auth column family: `password`, `token`, `remember_token`, `two_factor_secret`,
+`two_factor_recovery_codes`, `two_factor_confirmed_at`, and `email_verified_at`. Unlike the exclusion
+list it replaces, entries are whole column names -- the `users.password` table-scoped form is no longer
+recognised, and a bare `password` applies to every resource. A published config file that does not
+declare the key at all falls back to that same list, so a `resources` block predating this release
+still refuses a queryable credential column.
 
-**Fail-closed vs fail-quiet.** By default an undeclared key on the root resource is rejected with a named
-`422` validation error so clients learn immediately which key is not permitted (`reject_undeclared`,
-default `true`). Switch it off to silently drop undeclared keys instead:
+### Changed: The query layer no longer fails open
 
-    API_TOOLKIT_REJECT_UNDECLARED=false
+Four query-layer behaviours that quietly widened a result set now fail the request instead.
 
-A dropped key applies no constraint, so a filter the client believes is active is silently ignored --
-prefer the default fail-closed behaviour unless a quiet drop is specifically required.
+**`?order=random` is opt-in.** The keyword used to bypass the sortable-column enforcement entirely and
+apply the most expensive sort available on any resource. It is now disabled by default; while it is
+disabled the keyword is gated like any other sort key and rejected as undeclared. Re-enable it with:
 
-**Widened default exclusions.** The default `searchable_exclusions` (used under the blocklist posture)
-now also covers `two_factor_secret`, `two_factor_recovery_codes`, `two_factor_confirmed_at`, and
-`email_verified_at` alongside the existing `password`, `token`, and `remember_token`, so even the legacy
-posture leaks fewer sensitive columns out of the box.
+    API_TOOLKIT_ALLOW_RANDOM_ORDER=true
+
+**A `filters` document must be a JSON object.** A document that cannot be decoded -- malformed, or
+nested beyond the decoder's 512-level depth limit -- or that decodes to a scalar or a populated list is
+now rejected with a `422` naming the `filters` parameter. Previously it was reduced to an empty filter
+set and the request answered with the unfiltered table.
+
+**`$contains` no longer discards a clause the grammar rejects.** A JSON-containment predicate the
+active database grammar cannot express now propagates the grammar's exception rather than being logged
+and dropped, which returned a wider result set than the client asked for.
+
+**Filterable and sortable declarations are validated at boot.** A `filterable()` or `sortable()` marker
+on a computed field, or on a field whose accessor reads a different path from the column it declares,
+is reported by schema validation. Such a declaration used to compile cleanly and fail at request time
+with a database error naming a column that does not exist. Run `php artisan api-toolkit:validate-schemas`
+after upgrading and either drop the marker or move it to the backing column.
 
 ### Removed: Request macros in favour of RequestCapabilities
 

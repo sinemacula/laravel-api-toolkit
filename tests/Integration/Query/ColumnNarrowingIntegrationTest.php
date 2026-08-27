@@ -12,7 +12,6 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
 use SineMacula\ApiToolkit\Repositories\Criteria\ApiCriteria;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\ColumnProjectionApplier;
-use SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface;
 use SineMacula\ApiToolkit\Schema\FieldColumnMapper;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 use SineMacula\Http\Enums\HttpMethod;
@@ -57,11 +56,6 @@ final class ColumnNarrowingIntegrationTest extends TestCase
         FieldColumnMapper::clearCache();
         SchemaCompiler::clearCache();
 
-        // Pin the blocklist posture so ordering follows the legacy isSearchable
-        // contract; this test asserts column-narrowing mechanics, not the
-        // allowlist posture (covered in QuerySurfaceIntegrationTest).
-        Config::set('api-toolkit.repositories.query_posture', QuerySurface::POSTURE_BLOCKLIST);
-
         $this->seedData();
     }
 
@@ -84,6 +78,8 @@ final class ColumnNarrowingIntegrationTest extends TestCase
      * byte-identical to the baseline across the field taxonomy.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testFlagOffEmitsSelectStarAndByteIdenticalResponses(): void
     {
@@ -105,6 +101,8 @@ final class ColumnNarrowingIntegrationTest extends TestCase
      * strict subset of the table columns and the response is byte-identical.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testNarrowsForScalarAndDeclaredFields(): void
     {
@@ -126,6 +124,8 @@ final class ColumnNarrowingIntegrationTest extends TestCase
      * falls back and the base query selects every column.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testFallsBackForUnannotatedOpaqueField(): void
     {
@@ -147,6 +147,8 @@ final class ColumnNarrowingIntegrationTest extends TestCase
      * hydrates.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testSafetySetKeepsRelationSoftDeleteAliasAndOrder(): void
     {
@@ -175,6 +177,8 @@ final class ColumnNarrowingIntegrationTest extends TestCase
      * resolving to null.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testSafetySetRetainsParentKeyForExtrasEagerLoadedBelongsTo(): void
     {
@@ -195,6 +199,8 @@ final class ColumnNarrowingIntegrationTest extends TestCase
      * selecting all columns while the late field set still renders correctly.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testLateOverrideUsesSelectStar(): void
     {
@@ -225,6 +231,8 @@ final class ColumnNarrowingIntegrationTest extends TestCase
      * paginate('*') only applies when no columns have been set on the query.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testNarrowedSelectSurvivesPaginate(): void
     {
@@ -251,10 +259,12 @@ final class ColumnNarrowingIntegrationTest extends TestCase
      * the output). The genuine data-layer reduction is proven by comparing the
      * serialised attribute map of a model fetched with a narrowed SELECT (which
      * omits heavy columns like `body` from the result set) against a model
-     * fetched with a full SELECT – the narrowed model's attributes must weigh
+     * fetched with a full SELECT - the narrowed model's attributes must weigh
      * less.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testNarrowingReducesColumnsAndBytes(): void
     {
@@ -283,6 +293,8 @@ final class ColumnNarrowingIntegrationTest extends TestCase
      * compiled field-column map across requests of the same type.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testScalarOnlyResourceNarrowsWithoutAnnotationAndReusesMap(): void
     {
@@ -306,6 +318,8 @@ final class ColumnNarrowingIntegrationTest extends TestCase
      * baseline. The canonical source name never reaches the narrowed SELECT.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testAliasedScalarSurvivesNarrowing(): void
     {
@@ -328,6 +342,8 @@ final class ColumnNarrowingIntegrationTest extends TestCase
      *
      * @param  string  $fields
      * @return string
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     private function serialiseAliasedUsers(string $fields): string
     {
@@ -344,6 +360,8 @@ final class ColumnNarrowingIntegrationTest extends TestCase
      *
      * @param  string  $fields
      * @return array<int, string>
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     private function captureAliasedUserColumns(string $fields): array
     {
@@ -372,6 +390,8 @@ final class ColumnNarrowingIntegrationTest extends TestCase
      * resource.
      *
      * @return \Illuminate\Database\Eloquent\Builder<\Tests\Fixtures\Models\User>
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     private function applyAliasedUserCriteria(): Builder
     {
@@ -384,6 +404,8 @@ final class ColumnNarrowingIntegrationTest extends TestCase
      *
      * @param  string  $fields
      * @return string
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     private function serialiseUsers(string $fields): string
     {
@@ -400,6 +422,8 @@ final class ColumnNarrowingIntegrationTest extends TestCase
      * @param  string  $fields
      * @param  string  $table
      * @return string
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     private function captureUserSql(string $fields, string $table): string
     {
@@ -417,6 +441,8 @@ final class ColumnNarrowingIntegrationTest extends TestCase
      *
      * @param  string  $fields
      * @return array<int, string>
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     private function captureUserColumns(string $fields): array
     {
@@ -431,6 +457,8 @@ final class ColumnNarrowingIntegrationTest extends TestCase
      * @param  string  $fields
      * @param  string|null  $order
      * @return string
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     private function serialiseArticles(string $fields, ?string $order): string
     {
@@ -447,6 +475,8 @@ final class ColumnNarrowingIntegrationTest extends TestCase
      * @param  string  $fields
      * @param  string|null  $order
      * @return array<int, string>
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     private function captureArticleColumns(string $fields, ?string $order): array
     {
@@ -494,6 +524,8 @@ final class ColumnNarrowingIntegrationTest extends TestCase
      * Apply the criteria chain to a user query bound to the user resource.
      *
      * @return \Illuminate\Database\Eloquent\Builder<\Tests\Fixtures\Models\User>
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     private function applyUserCriteria(): Builder
     {
@@ -506,6 +538,8 @@ final class ColumnNarrowingIntegrationTest extends TestCase
      * resource.
      *
      * @return \Illuminate\Database\Eloquent\Builder<\Tests\Fixtures\Models\Article>
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     private function applyArticleCriteria(): Builder
     {
@@ -594,6 +628,8 @@ final class ColumnNarrowingIntegrationTest extends TestCase
      * currently configured.
      *
      * @return \Tests\Fixtures\Models\Article
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     private function fetchFirstArticle(): Article
     {

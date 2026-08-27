@@ -58,31 +58,6 @@ final readonly class ColumnlessIntrospectionProvider implements SchemaIntrospect
     }
 
     /**
-     * Get the searchable columns for the given model.
-     *
-     * @param  \Illuminate\Database\Eloquent\Model  $model
-     * @return array<int, string>
-     */
-    #[\Override]
-    public function getSearchableColumns(Model $model): array
-    {
-        return [];
-    }
-
-    /**
-     * Determine whether the given column is searchable for the model.
-     *
-     * @param  \Illuminate\Database\Eloquent\Model  $model
-     * @param  string  $column
-     * @return bool
-     */
-    #[\Override]
-    public function isSearchable(Model $model, string $column): bool
-    {
-        return false;
-    }
-
-    /**
      * Determine whether the given key is an Eloquent relation on the model.
      *
      * @param  string  $key

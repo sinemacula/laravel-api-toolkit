@@ -13,7 +13,6 @@ use SineMacula\ApiToolkit\Facades\ApiQuery;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\EagerLoadPlanner;
 use SineMacula\ApiToolkit\Repositories\Criteria\ApiCriteria;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\EagerLoadApplier;
-use SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface;
 use SineMacula\Http\Enums\HttpMethod;
 use Tests\Fixtures\Models\Organization;
 use Tests\Fixtures\Models\Post;
@@ -49,7 +48,7 @@ final class ConstrainedRelationQueryBoundTest extends TestCase
     private const int PUBLISHED_PER_USER = 2;
 
     /**
-     * Set up each test with the blocklist posture and a seeded organization.
+     * Set up each test with a seeded organization.
      *
      * @return void
      */
@@ -57,11 +56,6 @@ final class ConstrainedRelationQueryBoundTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-
-        // This test measures eager-load query shape, not the query posture; pin
-        // the blocklist posture so the empty-surface criteria uses the legacy
-        // isSearchable contract.
-        Config::set('api-toolkit.repositories.query_posture', QuerySurface::POSTURE_BLOCKLIST);
 
         // These assertions measure query shape and call counts; pin column
         // narrowing off so the on-by-default narrowing metadata pass cannot
@@ -78,6 +72,8 @@ final class ConstrainedRelationQueryBoundTest extends TestCase
      * collection regardless of row count, and only published posts surface.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testConstrainedRelationLoadsOnceAndAppliesTheConstraint(): void
     {
@@ -117,6 +113,8 @@ final class ConstrainedRelationQueryBoundTest extends TestCase
      * under a query log, returning the query count and the decoded record.
      *
      * @return array{queries: int, first: array<string, mixed>}
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     private function fetchAndSerialise(): array
     {
@@ -162,6 +160,8 @@ final class ConstrainedRelationQueryBoundTest extends TestCase
      * resource.
      *
      * @return \Illuminate\Database\Eloquent\Builder<\Tests\Fixtures\Models\User>
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     private function applyUserCriteria(): Builder
     {

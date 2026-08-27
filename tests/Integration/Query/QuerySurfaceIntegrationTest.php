@@ -26,12 +26,10 @@ use Tests\TestCase;
  *
  * Exercises the secure-by-default posture against a real database: declared
  * filterable/sortable columns and traversable relations are applied, while
- * undeclared keys on the root resource are rejected (fail-closed) or dropped
- * (fail-quiet). Under the allowlist posture, nested columns on a traversed
- * relation are gated against the related resource's declared filterable set
- * -not against the legacy isSearchable predicate. When no mapped resource
- * exists for a related model the gate fails closed. A model with no mapped
- * resource rejects every key.
+ * undeclared keys on the root resource are rejected. Nested columns on a
+ * traversed relation are gated against the related resource's declared
+ * filterable set, and when no mapped resource exists for a related model the
+ * gate fails closed. A model with no mapped resource rejects every key.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -68,6 +66,8 @@ final class QuerySurfaceIntegrationTest extends TestCase
      * configuration set.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testAllowlistIsTheDefaultPosture(): void
     {
@@ -87,6 +87,8 @@ final class QuerySurfaceIntegrationTest extends TestCase
      * A declared filterable column is applied through an operator.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testDeclaredFilterableColumnIsApplied(): void
     {
@@ -106,6 +108,8 @@ final class QuerySurfaceIntegrationTest extends TestCase
      * An undeclared filter column is rejected with a named validation error.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testUndeclaredFilterColumnIsRejectedFailClosed(): void
     {
@@ -119,6 +123,8 @@ final class QuerySurfaceIntegrationTest extends TestCase
      * A declared sortable column orders the results.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testDeclaredSortableColumnIsApplied(): void
     {
@@ -141,6 +147,8 @@ final class QuerySurfaceIntegrationTest extends TestCase
      * used for ordering: the filterable and sortable sets are independent.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testFilterableColumnIsNotImplicitlySortable(): void
     {
@@ -154,6 +162,8 @@ final class QuerySurfaceIntegrationTest extends TestCase
      * A declared traversable relation is applied through the $has operator.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testDeclaredTraversableRelationIsApplied(): void
     {
@@ -169,6 +179,8 @@ final class QuerySurfaceIntegrationTest extends TestCase
      * An undeclared relation is rejected even though the model defines it.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testUndeclaredRelationIsRejected(): void
     {
@@ -186,6 +198,8 @@ final class QuerySurfaceIntegrationTest extends TestCase
      * return only the user whose post title matches.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testDeclaredNestedRelationColumnIsPermittedUnderAllowlist(): void
     {
@@ -213,6 +227,8 @@ final class QuerySurfaceIntegrationTest extends TestCase
      * posts.body must throw.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testUndeclaredNestedRelationColumnIsRejectedUnderAllowlist(): void
     {
@@ -242,6 +258,8 @@ final class QuerySurfaceIntegrationTest extends TestCase
      * though the relation is real.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testNestedUndeclaredRelationTraversalIsRejectedFailClosed(): void
     {
@@ -262,32 +280,6 @@ final class QuerySurfaceIntegrationTest extends TestCase
     }
 
     /**
-     * With fail-quiet rejection an undeclared nested relation is dropped rather
-     * than applied: the onward hop adds no constraint and no exception escapes.
-     *
-     * PostResource does not declare 'user' traversable, so under fail-quiet the
-     * nested 'user' constraint is dropped and only the outer 'posts' existence
-     * applies - the two users with posts remain (contrast the
-     * declared-traversal case, which narrows the same query to one).
-     *
-     * @return void
-     */
-    public function testNestedUndeclaredRelationTraversalIsDroppedFailQuiet(): void
-    {
-        Config::set('api-toolkit.repositories.reject_undeclared', false);
-
-        $this->parseQuery(['filters' => json_encode([
-            'posts' => [
-                'nested' => ['user' => ['name' => 'Alice']],
-            ],
-        ])]);
-
-        $results = $this->declaredCriteria()->apply(new User)->get();
-
-        self::assertCount(2, $results);
-    }
-
-    /**
      * Under the allowlist posture a nested relation that the related resource
      * declares traversable is applied end-to-end.
      *
@@ -296,6 +288,8 @@ final class QuerySurfaceIntegrationTest extends TestCase
      * is built: only Alice owns a post whose user is named Alice.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testDeclaredNestedRelationTraversalIsAppliedUnderAllowlist(): void
     {
@@ -320,29 +314,12 @@ final class QuerySurfaceIntegrationTest extends TestCase
     }
 
     /**
-     * With fail-quiet rejection an undeclared key is silently dropped: it adds
-     * no constraint and no exception escapes.
-     *
-     * @return void
-     */
-    public function testFailQuietDropsUndeclaredKey(): void
-    {
-        Config::set('api-toolkit.repositories.reject_undeclared', false);
-
-        $this->parseQuery(['filters' => json_encode(['status' => 'active'])]);
-
-        $query   = $this->declaredCriteria()->apply(new User);
-        $results = $query->get();
-
-        self::assertEmpty($query->getQuery()->wheres);
-        self::assertCount(3, $results);
-    }
-
-    /**
      * A model with no mapped resource yields an empty surface, so the allowlist
      * posture rejects every key - secure by default.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testModelWithoutMappedResourceRejectsEveryKey(): void
     {
@@ -361,6 +338,8 @@ final class QuerySurfaceIntegrationTest extends TestCase
      * @param  array<string, string>  $params
      * @param  string  $expectedKey
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     private function assertRejects(array $params, string $expectedKey): void
     {

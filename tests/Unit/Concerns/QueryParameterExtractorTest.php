@@ -5,6 +5,7 @@ declare(strict_types = 1);
 namespace Tests\Unit\Concerns;
 
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use SineMacula\ApiToolkit\Concerns\QueryParameterExtractor;
@@ -302,17 +303,46 @@ final class QueryParameterExtractorTest extends TestCase
     }
 
     /**
-     * Test that extract returns an empty array for undecodable filters.
+     * Test that extract rejects an undecodable filters document rather than
+     * dropping the filter and answering with the unfiltered set.
      *
      * @return void
      */
-    public function testExtractReturnsEmptyArrayForUndecodableFilters(): void
+    public function testExtractRejectsUndecodableFilters(): void
     {
         $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['filters' => 'not-valid-json{']);
 
+        $this->assertRejectsFilters($request);
+    }
+
+    /**
+     * Test that extract rejects a filters document nested beyond the decoder
+     * depth limit, which decodes to nothing at all.
+     *
+     * @return void
+     */
+    public function testExtractRejectsFiltersNestedBeyondTheDecoderDepthLimit(): void
+    {
+        $filters = str_repeat('{"a":', 512) . '1' . str_repeat('}', 512);
+        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['filters' => $filters]);
+
+        $this->assertRejectsFilters($request);
+    }
+
+    /**
+     * Test that extract accepts a filters document nested to exactly the
+     * decoder depth limit, so the rejection lands on the breach alone.
+     *
+     * @return void
+     */
+    public function testExtractAcceptsFiltersNestedToTheDecoderDepthLimit(): void
+    {
+        $filters = str_repeat('{"a":', 511) . '1' . str_repeat('}', 511);
+        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['filters' => $filters]);
+
         $parameters = $this->extractor->extract($request);
 
-        self::assertSame([], $parameters['filters']);
+        self::assertArrayHasKey('a', $parameters['filters']);
     }
 
     /**
@@ -332,16 +362,29 @@ final class QueryParameterExtractorTest extends TestCase
     }
 
     /**
-     * Test that extract coerces a valid-JSON but non-associative filter value
-     * to an empty array rather than leaking the decoded scalar or list.
+     * Test that extract rejects a valid-JSON but non-associative filter value
+     * rather than coercing it to an empty set, which would drop the filter.
      *
      * @param  string  $filters
      * @return void
      */
     #[DataProvider('nonAssociativeFilterProvider')]
-    public function testExtractCoercesNonAssociativeFiltersToEmptyArray(string $filters): void
+    public function testExtractRejectsNonAssociativeFilters(string $filters): void
     {
         $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['filters' => $filters]);
+
+        $this->assertRejectsFilters($request);
+    }
+
+    /**
+     * Test that an empty JSON object is accepted, so a filter-free document is
+     * not mistaken for a dropped filter.
+     *
+     * @return void
+     */
+    public function testExtractAcceptsAnEmptyFilterDocument(): void
+    {
+        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['filters' => '{}']);
 
         $parameters = $this->extractor->extract($request);
 
@@ -423,5 +466,22 @@ final class QueryParameterExtractorTest extends TestCase
         self::assertSame('2', $parameters['page']);
         self::assertSame('10', $parameters['limit']);
         self::assertSame(['active' => true], $parameters['filters']);
+    }
+
+    /**
+     * Assert that extracting the given request rejects the filters parameter
+     * with a validation error naming it.
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @return void
+     */
+    private function assertRejectsFilters(Request $request): void
+    {
+        try {
+            $this->extractor->extract($request);
+            self::fail('Expected a ValidationException for the filters parameter.');
+        } catch (ValidationException $exception) {
+            self::assertSame(['filters' => ['The filters parameter must be a JSON object.']], $exception->errors());
+        }
     }
 }

@@ -44,7 +44,7 @@ php artisan vendor:publish --provider="SineMacula\ApiToolkit\ApiServiceProvider"
 ```
 
 This publishes `config/api-toolkit.php` to your application's config directory. The file is documented inline
-and covers exception rendering strategy, sensitive-key redaction, query-access posture, query parser limits,
+and covers exception rendering strategy, sensitive-key redaction, sensitive columns, query parser limits,
 deferred write behaviour, middleware toggles, and more. Per-query repository caching is configured in the
 `sinemacula/laravel-repositories` package under `repositories.cache`.
 
@@ -148,7 +148,7 @@ class UserResource extends ApiResource
 }
 ```
 
-Fields marked `filterable()` or `sortable()` are exposed under the allowlist posture. Relations marked
+Fields marked `filterable()` or `sortable()` are the only ones a client may query. Relations marked
 `traversable()` can be targeted by nested filters. The `$default` static property declares the fields returned
 when the client sends no `?fields` parameter.
 
@@ -211,10 +211,25 @@ current request automatically:
 $users = $repository->withApiCriteria()->paginate();
 ```
 
-**Allowlist posture** - by default (`api-toolkit.repositories.query_posture = 'allowlist'`) only schema fields
-declared `filterable()`, `sortable()`, or `traversable()` are accepted. Undeclared keys are rejected with a
-validation error (controlled by `api-toolkit.repositories.reject_undeclared`). Switch to `'blocklist'` to
-restore the opt-out behaviour and exclude specific columns via `api-toolkit.repositories.searchable_exclusions`.
+**Allowlist posture** - only schema fields declared `filterable()`, `sortable()`, or `traversable()` are
+accepted, and every undeclared key is rejected with a validation error. There is no opt-out: a resource that
+declares nothing is queryable by nothing.
+
+**Sensitive columns** - the columns listed in `api-toolkit.resources.sensitive_columns` may never be declared
+`filterable()` or `sortable()`. Schema validation refuses a resource that declares one, so a credential or
+verification column cannot become an oracle a client narrows on without ever reading the value. The default
+covers the stock Laravel and Fortify auth column family.
+
+**Random ordering** - `?order=random` is disabled by default because it sorts the whole table to return one
+page. Enable it with `api-toolkit.repositories.allow_random_order` (`API_TOOLKIT_ALLOW_RANDOM_ORDER=true`);
+while it is disabled the keyword is treated as an ordinary sort key and rejected like any undeclared column.
+
+**Query cost caps** - a request whose parts are each cheap and each declared can still multiply into an
+expensive query. The `api-toolkit.query_cost` caps bound the filter document's size and nesting, the keys and
+value-list items it dispatches, the sort keys and relation aggregates it asks for, and how deep it pages. A
+request over a cap is rejected before any SQL is issued, with a `422` naming the parameter, the position
+within it, the cap, the limit, and the value supplied, so the client can correct the query itself. Every cap
+is tunable, and setting one to `0` disables it.
 
 **Cacheable trait** - add per-query transparent caching to any `ApiRepository` subclass:
 
@@ -290,6 +305,12 @@ A `FilterOperator` is any class implementing `SineMacula\ApiToolkit\Contracts\Fi
 with the same signature. Operators registered via `register()` throw `InvalidArgumentException` if the token
 is already taken; use `override()` to replace unconditionally.
 
+An operator that fans a single value out into one predicate per item should also implement
+`SineMacula\ApiToolkit\Contracts\ExpandsValueList` and report that item count from `countValueItems()`. The
+dispatcher measures the reported count against the `max_in_items` cap, so a list spelled as a delimited
+string is bounded the same way as one spelled as an array. An operator that does not implement the contract
+is measured as one item per non-list value.
+
 ---
 
 ### Exception Handling
@@ -355,8 +376,8 @@ overrides `resolveRequestSignature()`. That config option is the supported custo
 
 The schema compiler resolves filterable columns, sortable columns, traversable relations, and all field keys
 for any registered resource without instantiating it. A complementary database-schema introspector resolves
-model columns, searchable columns, and relations; it is used internally by `ApiCriteria` and is available
-for injection:
+model columns, their type and nullability, and relations; it is used internally by `ApiCriteria` and is
+available for injection:
 
 ```php
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;

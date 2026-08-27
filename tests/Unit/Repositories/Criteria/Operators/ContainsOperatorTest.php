@@ -6,7 +6,6 @@ namespace Tests\Unit\Repositories\Criteria\Operators;
 
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Query\Builder as QueryBuilder;
-use Illuminate\Support\Facades\Log;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext;
 use SineMacula\ApiToolkit\Repositories\Criteria\Operators\ContainsOperator;
@@ -227,12 +226,12 @@ final class ContainsOperatorTest extends TestCase
     }
 
     /**
-     * Test that a grammar rejection of the JSON-contains clause is logged with
-     * diagnostic context rather than dropped without a trace.
+     * Test that a grammar rejection of the JSON-contains clause propagates
+     * rather than dropping the predicate and widening the result set.
      *
      * @return void
      */
-    public function testApplyLogsWhenTheGrammarRejectsTheJsonContainsConstraint(): void
+    public function testApplyPropagatesWhenTheGrammarRejectsTheJsonContainsConstraint(): void
     {
         $base = \Mockery::mock(QueryBuilder::class);
         $base->shouldReceive('whereJsonContains')
@@ -241,15 +240,9 @@ final class ContainsOperatorTest extends TestCase
 
         $query = \Mockery::mock(Builder::class);
         $query->shouldReceive('getQuery')->andReturn($base);
-        $query->shouldReceive('getModel')->andReturn(new User);
 
-        Log::shouldReceive('debug')
-            ->once()
-            ->withArgs(fn (string $message, array $context): bool => $message === 'Dropped unsupported $contains filter constraint'
-                && $context['table']                                          === (new User)->getTable()
-                && $context['column']                                         === 'tags'
-                && $context['value_type']                                     === 'null'
-                && $context['reason']                                         === 'grammar rejects json-contains');
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('grammar rejects json-contains');
 
         $this->operator->apply($query, 'tags', null, FilterContext::root());
     }
@@ -276,25 +269,22 @@ final class ContainsOperatorTest extends TestCase
     }
 
     /**
-     * Test that an array value takes the trusted direct containment path, so a
-     * grammar rejection surfaces as an exception rather than being swallowed by
-     * the defensive fall-back reserved for untrusted scalars.
+     * Test that a grammar rejection of an array payload propagates too, so
+     * every containment path fails the request rather than dropping it.
      *
      * @return void
      */
     public function testApplyWithArrayThatTheGrammarRejectsPropagatesTheException(): void
     {
-        Log::spy();
-
         $base = \Mockery::mock(QueryBuilder::class);
         $base->shouldReceive('whereJsonContains')
             ->andThrow(new \RuntimeException('grammar rejects json-contains'));
 
         $query = \Mockery::mock(Builder::class);
         $query->shouldReceive('getQuery')->andReturn($base);
-        $query->shouldReceive('getModel')->andReturn(new User);
 
         $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('grammar rejects json-contains');
 
         $this->operator->apply($query, 'tags', ['Alice'], FilterContext::root());
     }
@@ -362,5 +352,34 @@ final class ContainsOperatorTest extends TestCase
         self::assertCount(2, $wheres);
         self::assertSame('Nested', $wheres[1]['type']);
         self::assertSame('or', $wheres[1]['boolean']);
+    }
+
+    /**
+     * Test that a comma-separated value reports one item per containment clause
+     * it expands to, counting the items that survive trimming.
+     *
+     * @return void
+     */
+    public function testCommaSeparatedValueReportsItsExpandedItemCount(): void
+    {
+        self::assertSame(2, $this->operator->countValueItems('Alice,Bob'));
+        self::assertSame(3, $this->operator->countValueItems('a,b,c'));
+        self::assertSame(2, $this->operator->countValueItems(' Alice , , Bob '));
+        self::assertSame(0, $this->operator->countValueItems(',,'));
+    }
+
+    /**
+     * Test that a value applied as a single containment clause reports one
+     * item, whatever commas it happens to carry.
+     *
+     * @return void
+     */
+    public function testValueAppliedAsASingleClauseReportsOneItem(): void
+    {
+        self::assertSame(1, $this->operator->countValueItems('Alice'));
+        self::assertSame(1, $this->operator->countValueItems('["a","b"]'));
+        self::assertSame(1, $this->operator->countValueItems(['Alice', 'Bob']));
+        self::assertSame(1, $this->operator->countValueItems(null));
+        self::assertSame(1, $this->operator->countValueItems(123));
     }
 }

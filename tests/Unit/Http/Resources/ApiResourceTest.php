@@ -145,6 +145,8 @@ final class ApiResourceTest extends TestCase
      * Test that resolveFields returns API query fields when set.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testResolveFieldsReturnsApiQueryFieldsWhenSet(): void
     {
@@ -168,6 +170,8 @@ final class ApiResourceTest extends TestCase
      * Test that resolveFields returns defaults when no API query fields set.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testResolveFieldsReturnsDefaultsWhenNoQueryFields(): void
     {
@@ -208,6 +212,8 @@ final class ApiResourceTest extends TestCase
      * Test that resolve includes fixed fields (id, _type from config).
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testResolveIncludesFixedFields(): void
     {
@@ -238,6 +244,8 @@ final class ApiResourceTest extends TestCase
      * Test that resolve filters based on requested fields.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testResolveFiltersBasedOnRequestedFields(): void
     {
@@ -314,6 +322,8 @@ final class ApiResourceTest extends TestCase
      * Test that resolve with :all in API query includes all fields.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testResolveWithAllInApiQueryIncludesAllFields(): void
     {
@@ -698,6 +708,8 @@ final class ApiResourceTest extends TestCase
      * Test that counts payload is included when requested.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testCountsPayloadIsIncludedWhenRequested(): void
     {
@@ -744,6 +756,8 @@ final class ApiResourceTest extends TestCase
      * Test that counts are included when default flag is set.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testCountsIncludedWhenDefaultFlagIsSet(): void
     {
@@ -939,6 +953,8 @@ final class ApiResourceTest extends TestCase
      * Test that withFields overrides API query fields.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testWithFieldsOverridesApiQueryFields(): void
     {
@@ -1075,6 +1091,8 @@ final class ApiResourceTest extends TestCase
      * Test constructor with load_missing triggers eager loading.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testConstructorWithLoadMissingTriggersEagerLoading(): void
     {
@@ -1114,6 +1132,8 @@ final class ApiResourceTest extends TestCase
      * Test that eagerLoadMapFor recurses into child resources.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testEagerLoadMapForRecursesIntoChildResources(): void
     {
@@ -1450,6 +1470,8 @@ final class ApiResourceTest extends TestCase
      * Test that load_missing with ':all' uses getAllFields for eager loading.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testConstructorWithLoadMissingAndAllUsesGetAllFields(): void
     {
@@ -1477,6 +1499,8 @@ final class ApiResourceTest extends TestCase
      * included fields.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testConstructorWithLoadMissingAndCountsField(): void
     {
@@ -1509,6 +1533,8 @@ final class ApiResourceTest extends TestCase
      * exercising the early-return branch (line 255).
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testResolveCountsPayloadReturnsEmptyForNullResource(): void
     {
@@ -1537,6 +1563,8 @@ final class ApiResourceTest extends TestCase
      * @SuppressWarnings("php:S2014")
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testCountExcludedByGuardIsOmittedFromPayload(): void
     {
@@ -1738,6 +1766,8 @@ final class ApiResourceTest extends TestCase
      * reach the underlying model (line 863).
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testUnwrapResourceLoopsThroughNestedJsonResource(): void
     {
@@ -1930,8 +1960,8 @@ final class ApiResourceTest extends TestCase
 
         $outerClass::$childClassName = $childClassName;
 
-        // No fields set for 'no_defaults_child' in the query — defaults are
-        // empty — so resolveChildFields falls through to getAllFields (line
+        // No fields set for 'no_defaults_child' in the query - defaults are
+        // empty - so resolveChildFields falls through to getAllFields (line
         // 837).
         $map = $outerClass::eagerLoadMapFor(['rel']);
 
@@ -2100,6 +2130,8 @@ final class ApiResourceTest extends TestCase
      * getAttributes method (line 555).
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testGetAttributeIfLoadedTakesIssetPathForNonEloquentOwner(): void
     {
@@ -2264,6 +2296,8 @@ final class ApiResourceTest extends TestCase
      * Test that the constructor does not eager load relations by default.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testConstructorDoesNotEagerLoadRelationsByDefault(): void
     {
@@ -2300,6 +2334,8 @@ final class ApiResourceTest extends TestCase
      * that are absent from the resolved field list.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testConstructorWithLoadMissingAndAllEagerLoadsSchemaRelations(): void
     {
@@ -2334,6 +2370,8 @@ final class ApiResourceTest extends TestCase
      * requested.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testConstructorWithLoadMissingSkipsCountsWhenNotRequested(): void
     {
@@ -2362,6 +2400,8 @@ final class ApiResourceTest extends TestCase
      * counts payload when the counts field is requested.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testConstructorWithLoadMissingLoadsRequestedCounts(): void
     {
@@ -2406,6 +2446,8 @@ final class ApiResourceTest extends TestCase
      * the API query.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testConstructorWithLoadMissingHonoursRequestedCountAliases(): void
     {
@@ -2448,6 +2490,8 @@ final class ApiResourceTest extends TestCase
      * only the bare alias key rather than the full presentKey_sum_column key.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testSumsPayloadIsIncludedWhenLoadMissingAndSumsFieldRequested(): void
     {
@@ -2475,6 +2519,8 @@ final class ApiResourceTest extends TestCase
      * but no aggregate attribute is loaded on the model.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testSumsPayloadIsAbsentWhenNoSumsLoaded(): void
     {
@@ -2509,6 +2555,8 @@ final class ApiResourceTest extends TestCase
      * only the bare alias key rather than the full presentKey_avg_column key.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testAveragesPayloadIsIncludedWhenLoadMissingAndAveragesFieldRequested(): void
     {
@@ -2538,6 +2586,8 @@ final class ApiResourceTest extends TestCase
      * getAverages returns a non-null value and an attribute is preloaded.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testAveragesPayloadIsAbsentWhenShouldIncludeIsFalse(): void
     {
@@ -2572,6 +2622,8 @@ final class ApiResourceTest extends TestCase
      * average attributes are loaded on the model.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testAveragesPayloadIsAbsentWhenNoAveragesLoaded(): void
     {
@@ -2607,6 +2659,8 @@ final class ApiResourceTest extends TestCase
      * only the bare alias key rather than the full presentKey_sum_column key.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testLoadMissingLoadsExplicitlyRequestedNonDefaultSum(): void
     {

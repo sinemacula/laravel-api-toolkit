@@ -43,9 +43,11 @@ use SineMacula\ApiToolkit\Schema\Introspection\SchemaIntrospector;
 use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateAccessors;
 use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateComputedFields;
 use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateGuards;
+use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateQueryableFields;
 use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateRelationClasses;
 use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateRelationInterfaces;
 use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateRelationMethods;
+use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateSensitiveColumns;
 use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateTransformers;
 use SineMacula\ApiToolkit\Schema\Validation\SchemaValidator;
 use SineMacula\ApiToolkit\Services\Input\Payload;
@@ -174,6 +176,8 @@ final readonly class ContainerBindingRegistrar
             new ValidateRelationMethods,
             new ValidateComputedFields,
             new ValidateAccessors,
+            new ValidateQueryableFields,
+            new ValidateSensitiveColumns,
         ));
     }
 

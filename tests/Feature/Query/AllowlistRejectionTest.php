@@ -21,10 +21,9 @@ use Tests\TestCase;
  *
  * Exercises the secure-by-default posture as a consuming application does: a
  * real request travels through the ParseApiQuery middleware and the repository
- * criteria under the default posture (no posture configured). A declared column
- * is applied and narrows the result set, while an undeclared filter or sort key
- * is rejected and rendered as the toolkit 422 envelope keyed on the offending
- * field.
+ * criteria. A declared column is applied and narrows the result set, while an
+ * undeclared filter or sort key is rejected and rendered as the toolkit 422
+ * envelope keyed on the offending field.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -49,8 +48,6 @@ final class AllowlistRejectionTest extends TestCase
 
         $this->registerApiExceptionHandler();
 
-        // No query_posture is configured, so the default allowlist posture is
-        // in force: only columns FilterableUserResource declares are usable.
         Route::middleware(ParseApiQuery::class)->get('/users', function (UserRepository $repository): ApiResourceCollection {
 
             $users = $repository->usingResource(FilterableUserResource::class)->withApiCriteria()->paginate();

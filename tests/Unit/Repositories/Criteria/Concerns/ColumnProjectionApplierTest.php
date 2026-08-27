@@ -68,6 +68,8 @@ final class ColumnProjectionApplierTest extends TestCase
      * Test that apply returns the query unchanged when the narrow flag is off.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testFlagOffReturnsQueryWithoutSelect(): void
     {
@@ -89,6 +91,8 @@ final class ColumnProjectionApplierTest extends TestCase
      * Test that apply returns the query unchanged for a null resource class.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testNullResourceClassReturnsQueryWithoutSelect(): void
     {
@@ -110,6 +114,8 @@ final class ColumnProjectionApplierTest extends TestCase
      * Test that apply returns the query unchanged for a non-ApiResource class.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testNonApiResourceClassReturnsQueryWithoutSelect(): void
     {
@@ -132,6 +138,8 @@ final class ColumnProjectionApplierTest extends TestCase
      * is empty.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testEmptyResolvedFieldsReturnsQueryWithoutSelect(): void
     {
@@ -154,6 +162,8 @@ final class ColumnProjectionApplierTest extends TestCase
      * unchanged.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testFallbackDecisionAppliesNoSelect(): void
     {
@@ -177,6 +187,8 @@ final class ColumnProjectionApplierTest extends TestCase
      * level carrying the offending field key and query context.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testFallbackLogsOffendingFieldAtDebugLevel(): void
     {
@@ -204,6 +216,8 @@ final class ColumnProjectionApplierTest extends TestCase
      * decision columns.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testNarrowDecisionAppliesSelectOnce(): void
     {
@@ -227,6 +241,8 @@ final class ColumnProjectionApplierTest extends TestCase
      * via getAllFields rather than the request-narrowed resolveFields.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testAllFieldsTokenResolvesViaGetAllFields(): void
     {
@@ -253,6 +269,8 @@ final class ColumnProjectionApplierTest extends TestCase
      * yield integer indices that resolve to no relation.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testRetainsParentKeysForEveryListKeyedRelation(): void
     {
@@ -297,6 +315,8 @@ final class ColumnProjectionApplierTest extends TestCase
      * resolved rather than the whole path, which matches no relation.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testStripsDottedPathToBaseRelationForParentKey(): void
     {
@@ -333,6 +353,8 @@ final class ColumnProjectionApplierTest extends TestCase
      * proceeds over the remaining resolvable fields.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testSkipsNonStringRelationPathInEagerLoadMap(): void
     {
@@ -363,6 +385,8 @@ final class ColumnProjectionApplierTest extends TestCase
      * applier defaults to disabled, leaving the query unnarrowed.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testAbsentNarrowFlagDefaultsToDisabled(): void
     {
@@ -387,6 +411,8 @@ final class ColumnProjectionApplierTest extends TestCase
      * parent key is still retained.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testProcessesListKeyedRelationAfterNonStringPath(): void
     {
@@ -425,6 +451,8 @@ final class ColumnProjectionApplierTest extends TestCase
      * force-retained by a random-order request.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testExcludesRandomOrderKeywordFromRetainedColumns(): void
     {
@@ -471,6 +499,8 @@ final class ColumnProjectionApplierTest extends TestCase
      *
      * @param  \Illuminate\Http\Request  $request
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     private function parseRequest(Request $request): void
     {

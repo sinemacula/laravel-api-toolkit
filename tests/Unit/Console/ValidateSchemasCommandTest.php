@@ -11,11 +11,13 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Console\ValidateSchemasCommand;
 use SineMacula\ApiToolkit\Contracts\SchemaValidationRule;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
+use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateQueryableFields;
 use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateRelationClasses;
 use SineMacula\ApiToolkit\Schema\Validation\SchemaValidationError;
 use SineMacula\ApiToolkit\Schema\Validation\SchemaValidator;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Resources\BrokenResource;
+use Tests\Fixtures\Resources\UnbackedQueryableResource;
 use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
 
@@ -30,6 +32,7 @@ use Tests\TestCase;
 #[CoversClass(ValidateSchemasCommand::class)]
 #[CoversClass(SchemaValidator::class)]
 #[CoversClass(ValidateRelationClasses::class)]
+#[CoversClass(ValidateQueryableFields::class)]
 final class ValidateSchemasCommandTest extends TestCase
 {
     /** @var string The command signature. */
@@ -101,6 +104,27 @@ final class ValidateSchemasCommandTest extends TestCase
         $this->runCommand()
             ->expectsOutputToContain('Schema validation failed:')
             ->expectsOutputToContain('does not exist')
+            ->assertExitCode(1);
+    }
+
+    /**
+     * Test that the container-wired rule set catches a query declaration on a
+     * field with no backing column, so the defect is reported before a request
+     * can reach the database with it.
+     *
+     * @return void
+     */
+    public function testCommandFailsForAQueryDeclarationWithNoBackingColumn(): void
+    {
+        SchemaCompiler::clearCache();
+
+        $this->getConfig()->set('api-toolkit.resources.resource_map', [
+            User::class => UnbackedQueryableResource::class,
+        ]);
+
+        $this->runCommand()
+            ->expectsOutputToContain('Schema validation failed:')
+            ->expectsOutputToContain('Field is declared filterable but is computed, so there is no "full_name" column to query')
             ->assertExitCode(1);
     }
 

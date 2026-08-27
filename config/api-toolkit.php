@@ -119,6 +119,23 @@ return [
 
         'fixed_fields' => ['id', '_type'],
 
+        // Columns that may never be declared filterable or sortable. Schema
+        // validation refuses a resource that declares one, so a credential or
+        // verification column cannot become an oracle a client narrows on one
+        // comparison at a time without ever reading the value. The default
+        // covers the stock Laravel + Fortify auth column family, keeping the
+        // query layer's sensitive set a superset of the export layer's. A
+        // published file that omits the key falls back to this same list.
+        'sensitive_columns' => [
+            'password',
+            'token',
+            'remember_token',
+            'two_factor_secret',
+            'two_factor_recovery_codes',
+            'two_factor_confirmed_at',
+            'email_verified_at',
+        ],
+
         // When enabled, the repository-driven query narrows the base-table
         // SELECT to only the columns the resolved field set needs plus a
         // per-model safety set, falling back to SELECT * whenever any resolved
@@ -292,18 +309,11 @@ return [
 
     'repositories' => [
 
-        // Query-access posture for filtering and sorting. 'allowlist' (the 2.0
-        // default) exposes only the columns/relations a resource declares
-        // filterable/sortable/traversable and rejects everything else;
-        // 'blocklist' restores the prior opt-out behaviour where every column
-        // except the searchable_exclusions below is queryable.
-        'query_posture' => env('API_TOOLKIT_QUERY_POSTURE', 'allowlist'),
-
-        // When true (the default), an undeclared filter/sort/relation key under
-        // the allowlist posture is rejected with a validation error naming the
-        // key (fail-closed). Set to false to silently drop undeclared keys
-        // instead (the prior fail-quiet behaviour).
-        'reject_undeclared' => env('API_TOOLKIT_REJECT_UNDECLARED', true),
+        // Whether the `random` order keyword may apply a random ordering.
+        // Disabled by default because a random sort materialises and sorts the
+        // whole table to return a single page. While disabled the keyword has
+        // no special meaning and is gated like any other sort column.
+        'allow_random_order' => env('API_TOOLKIT_ALLOW_RANDOM_ORDER', false),
 
         // Time-to-live, in seconds, for the cached relation-detection lookup
         // (whether a given key names an Eloquent relation on a model). Relation
@@ -313,20 +323,61 @@ return [
         // permanently under a long-running worker.
         'relation_cache_ttl' => env('API_TOOLKIT_RELATION_CACHE_TTL', 86400),
 
-        // Columns excluded from the blocklist posture's searchable set. Allows
-        // both bare columns and table-scoped columns e.g. users.password. The
-        // default covers the stock Laravel + Fortify auth column family so the
-        // filter layer's sensitive set stays a superset of the export layer's
-        // ignored_fields even under the blocklist opt-out.
-        'searchable_exclusions' => [
-            'password',
-            'token',
-            'remember_token',
-            'two_factor_secret',
-            'two_factor_recovery_codes',
-            'two_factor_confirmed_at',
-            'email_verified_at',
-        ],
+    ],
+
+    /*
+    |---------------------------------------------------------------------------
+    | Query Cost Configuration
+    |---------------------------------------------------------------------------
+    |
+    | These caps bound the structural cost of a single request. Every part of an
+    | amplified query is individually cheap and individually declared - it is
+    | the multiplication that is expensive. A request that exceeds a cap is
+    | rejected before any SQL is issued, with a 422 naming the parameter, the
+    | position within it, the cap, the limit, and the value supplied, so the
+    | client can correct the query itself.
+    |
+    | The shipped values are calibrated against the package's own fixture
+    | schemas. They are not measured against production traffic, which is
+    | exactly why they are configuration: raise or lower each one against what
+    | your own API is asked for. Set a cap to 0 (or null) to disable it.
+    |
+    | `max_bytes` and `max_parse_depth` are enforced while the query string is
+    | validated, before the filter document is interpreted: the first bounds its
+    | byte length, the second the number of nested object levels it declares.
+    |
+    | The remaining caps are enforced as the criteria are applied. `max_depth`
+    | bounds the levels the filter dispatcher descends (a logical group or a
+    | relation subquery is one level) and `max_nodes` the total keys it visits;
+    | both abort part-way through rather than after the whole tree is built.
+    | `max_in_items` bounds a single operator value list, such as `$in`, and is
+    | measured against the items an operator reads rather than the shape of the
+    | value, so a list spelled as a delimited string is bounded the same way.
+    | `max_order_keys` bounds the sort columns, and `max_aggregates` the
+    | relation counts, sums, and averages combined, since each adds its own
+    | correlated subquery. `max_offset` bounds the requested page number, beyond
+    | which a paginated read scans and discards more rows than it returns; it
+    | rejects rather than clamps, unlike the parser's `max_limit` ceiling.
+    |
+    */
+
+    'query_cost' => [
+
+        'max_bytes' => env('API_TOOLKIT_QUERY_MAX_BYTES', 8192),
+
+        'max_parse_depth' => env('API_TOOLKIT_QUERY_MAX_PARSE_DEPTH', 16),
+
+        'max_depth' => env('API_TOOLKIT_QUERY_MAX_DEPTH', 3),
+
+        'max_nodes' => env('API_TOOLKIT_QUERY_MAX_NODES', 100),
+
+        'max_in_items' => env('API_TOOLKIT_QUERY_MAX_IN_ITEMS', 500),
+
+        'max_order_keys' => env('API_TOOLKIT_QUERY_MAX_ORDER_KEYS', 3),
+
+        'max_aggregates' => env('API_TOOLKIT_QUERY_MAX_AGGREGATES', 5),
+
+        'max_offset' => env('API_TOOLKIT_QUERY_MAX_OFFSET', 10000),
 
     ],
 

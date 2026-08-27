@@ -5,12 +5,11 @@ declare(strict_types = 1);
 namespace Tests\Unit\Repositories\Criteria\Concerns;
 
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Config;
 use Illuminate\Validation\ValidationException;
 use PHPUnit\Framework\Attributes\CoversClass;
-use SineMacula\ApiToolkit\Cache\MetadataCacheWriter;
-use SineMacula\ApiToolkit\Cache\MetadataKeyRegistry;
-use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
+use SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException;
+use SineMacula\ApiToolkit\Query\QueryCostLimits;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterApplier;
 use SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry;
 use SineMacula\ApiToolkit\Repositories\Criteria\Operators\BetweenOperator;
@@ -26,11 +25,10 @@ use SineMacula\ApiToolkit\Repositories\Criteria\Operators\NotEqualOperator;
 use SineMacula\ApiToolkit\Repositories\Criteria\Operators\NotNullOperator;
 use SineMacula\ApiToolkit\Repositories\Criteria\Operators\NullOperator;
 use SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface;
-use SineMacula\ApiToolkit\Schema\Introspection\SchemaIntrospector;
 use Tests\Concerns\InteractsWithNonPublicMembers;
 use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\User;
-use Tests\Fixtures\Resources\PostResource;
+use Tests\Fixtures\Resources\DeepTraversalPostResource;
 use Tests\TestCase;
 
 /**
@@ -52,9 +50,6 @@ final class FilterApplierTest extends TestCase
     /** @var string */
     private const string OPERATOR_CONTAINS = '$contains';
 
-    /** @var \SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider */
-    private SchemaIntrospectionProvider $schemaIntrospector;
-
     /** @var \SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry */
     private OperatorRegistry $operatorRegistry;
 
@@ -70,16 +65,6 @@ final class FilterApplierTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-
-        $this->schemaIntrospector = self::createStub(SchemaIntrospectionProvider::class);
-
-        $this->schemaIntrospector->method('isSearchable')->willReturnCallback(
-            fn (Model $model, string $column) => in_array($column, ['name', 'email', 'id', 'organization_id', 'title', 'password'], true),
-        );
-
-        $this->schemaIntrospector->method('isRelation')->willReturnCallback(
-            fn (string $key, Model $model) => in_array($key, ['posts', 'organization'], true),
-        );
 
         $this->operatorRegistry = new OperatorRegistry;
         $this->operatorRegistry->register('$eq', new EqualOperator);
@@ -102,6 +87,8 @@ final class FilterApplierTest extends TestCase
      * Test that apply with null filters returns an unmodified query.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testApplyWithNullFiltersReturnsUnmodifiedQuery(): void
     {
@@ -114,6 +101,8 @@ final class FilterApplierTest extends TestCase
      * Test that apply with empty filters returns an unmodified query.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testApplyWithEmptyFiltersReturnsUnmodifiedQuery(): void
     {
@@ -126,6 +115,8 @@ final class FilterApplierTest extends TestCase
      * Test that apply with a simple filter applies a where clause.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testApplyWithSimpleFilterAppliesWhereClause(): void
     {
@@ -142,6 +133,8 @@ final class FilterApplierTest extends TestCase
      * Test that $eq operator applies an equals condition.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testApplyWithEqOperatorAppliesEqualsCondition(): void
     {
@@ -158,6 +151,8 @@ final class FilterApplierTest extends TestCase
      * Test that $neq operator applies a not-equals condition.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testApplyWithNeqOperatorAppliesNotEqualsCondition(): void
     {
@@ -172,6 +167,8 @@ final class FilterApplierTest extends TestCase
      * Test that $gt operator applies a greater-than condition.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testApplyWithGtOperatorAppliesGreaterThan(): void
     {
@@ -186,6 +183,8 @@ final class FilterApplierTest extends TestCase
      * Test that $lt operator applies a less-than condition.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testApplyWithLtOperatorAppliesLessThan(): void
     {
@@ -200,6 +199,8 @@ final class FilterApplierTest extends TestCase
      * Test that $ge operator applies a greater-than-or-equal condition.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testApplyWithGeOperatorAppliesGreaterThanOrEqual(): void
     {
@@ -214,6 +215,8 @@ final class FilterApplierTest extends TestCase
      * Test that $le operator applies a less-than-or-equal condition.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testApplyWithLeOperatorAppliesLessThanOrEqual(): void
     {
@@ -228,6 +231,8 @@ final class FilterApplierTest extends TestCase
      * Test that $like operator wraps value with percent signs.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testApplyWithLikeOperatorWrapsValueWithPercent(): void
     {
@@ -242,6 +247,8 @@ final class FilterApplierTest extends TestCase
      * Test that $in operator uses whereIn.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testApplyWithInOperatorUsesWhereIn(): void
     {
@@ -257,6 +264,8 @@ final class FilterApplierTest extends TestCase
      * Test that $between operator uses whereBetween.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testApplyWithBetweenOperatorUsesWhereBetween(): void
     {
@@ -271,6 +280,8 @@ final class FilterApplierTest extends TestCase
      * Test that $between with wrong array size is ignored.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testApplyWithBetweenWrongArraySizeIsIgnored(): void
     {
@@ -283,6 +294,8 @@ final class FilterApplierTest extends TestCase
      * Test that $null operator adds whereNull.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testApplyWithNullOperatorAddsWhereNull(): void
     {
@@ -298,6 +311,8 @@ final class FilterApplierTest extends TestCase
      * Test that $notNull operator adds whereNotNull.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testApplyWithNotNullOperatorAddsWhereNotNull(): void
     {
@@ -312,6 +327,8 @@ final class FilterApplierTest extends TestCase
      * Test that $contains with an array uses whereJsonContains.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testApplyWithContainsArrayUsesWhereJsonContains(): void
     {
@@ -325,6 +342,8 @@ final class FilterApplierTest extends TestCase
      * contains conditions.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testApplyWithContainsCommaSeparatedStringCreatesMultipleConditions(): void
     {
@@ -337,6 +356,8 @@ final class FilterApplierTest extends TestCase
      * Test that $contains with a plain string uses whereJsonContains.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testApplyWithContainsPlainStringUsesWhereJsonContains(): void
     {
@@ -349,6 +370,8 @@ final class FilterApplierTest extends TestCase
      * Test that $has operator adds whereHas.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testApplyWithHasOperatorAddsWhereHas(): void
     {
@@ -364,6 +387,8 @@ final class FilterApplierTest extends TestCase
      * Test that $hasnt operator adds whereDoesntHave.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testApplyWithHasntOperatorAddsWhereDoesntHave(): void
     {
@@ -379,6 +404,8 @@ final class FilterApplierTest extends TestCase
      * whereHas.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testApplyWithHasNamedRelationAndConditions(): void
     {
@@ -407,6 +434,8 @@ final class FilterApplierTest extends TestCase
      * Test that $or logical operator groups conditions.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testApplyWithOrLogicalOperatorGroupsConditions(): void
     {
@@ -437,6 +466,8 @@ final class FilterApplierTest extends TestCase
      * Test that $and logical operator groups conditions.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testApplyWithAndLogicalOperatorGroupsConditions(): void
     {
@@ -465,6 +496,8 @@ final class FilterApplierTest extends TestCase
      * Test that nested logical operators produce nested grouping.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testApplyWithNestedLogicalOperators(): void
     {
@@ -501,6 +534,8 @@ final class FilterApplierTest extends TestCase
      * Test that a relation filter applies whereHas with nested conditions.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testApplyWithRelationFilterAppliesWhereHas(): void
     {
@@ -528,13 +563,15 @@ final class FilterApplierTest extends TestCase
      * Test that a relation filter under $or uses orWhereHas.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testApplyWithRelationFilterUnderOrUsesOrWhereHas(): void
     {
         $result = $this->applyFilters([
             '$or' => [
-                'posts' => [
-                    'organization' => ['name' => ['$eq' => 'Acme']],
+                'nested' => [
+                    'posts' => ['title' => ['$eq' => 'test']],
                 ],
             ],
         ]);
@@ -552,9 +589,40 @@ final class FilterApplierTest extends TestCase
     }
 
     /**
+     * Test that the conditions inside a relation filter under $or are combined
+     * with AND, so the OR stays at the parent level rather than being combined
+     * with the relation's own correlation predicate.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testConditionsInsideARelationFilterUnderOrAreCombinedWithAnd(): void
+    {
+        $result = $this->applyFilters([
+            '$or' => [
+                'nested' => [
+                    'posts' => ['title' => 'first', 'id' => '1'],
+                ],
+            ],
+        ]);
+
+        $nested = $result->getQuery()->wheres[0]['query']->wheres;
+
+        self::assertSame('Exists', $nested[0]['type']);
+        self::assertSame('or', $nested[0]['boolean']);
+
+        $booleans = array_column($nested[0]['query']->wheres, 'boolean');
+
+        self::assertSame(['and', 'and', 'and'], $booleans);
+    }
+
+    /**
      * Test that $or inside a relation filter creates a grouped orWhere.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testApplyWithOrInsideRelationFilterCreatesOrWhereGroup(): void
     {
@@ -596,6 +664,8 @@ final class FilterApplierTest extends TestCase
      * Test that $or combined with $has uses orWhereHas.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testApplyWithOrAndHasUsesOrWhereHas(): void
     {
@@ -621,6 +691,8 @@ final class FilterApplierTest extends TestCase
      * Test that $hasnt under $or adds whereDoesntHave inside the group.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testApplyWithOrAndHasntAddsWhereDoesntHave(): void
     {
@@ -647,6 +719,8 @@ final class FilterApplierTest extends TestCase
      * registry.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testHasFilterIsNotReappliedAsColumnConditionWhenRegistered(): void
     {
@@ -660,21 +734,23 @@ final class FilterApplierTest extends TestCase
     }
 
     /**
-     * Test that a non-searchable column is ignored.
+     * Test that an undeclared column is rejected.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
-    public function testApplyWithNonSearchableColumnIsIgnored(): void
+    public function testApplyWithUndeclaredColumnIsRejected(): void
     {
-        $result = $this->applyFilters(['nonexistent_column' => 'value']);
-
-        self::assertEmpty($result->getQuery()->wheres);
+        $this->assertRejectsKey(['nonexistent_column' => 'value'], 'nonexistent_column');
     }
 
     /**
      * Test that $notNull under $or uses orWhereNotNull.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testApplyWithNotNullUnderOrUsesOrWhereNotNull(): void
     {
@@ -688,16 +764,82 @@ final class FilterApplierTest extends TestCase
     }
 
     /**
-     * Test that a condition operator applied to a column that fails the query
-     * surface guard is skipped, leaving the query untouched.
+     * Test that an undeclared key is rejected at the key itself rather than
+     * after descending into its value, so the error names what the client sent
+     * at that level.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
-    public function testConditionOperatorOnGuardedColumnIsSkipped(): void
+    public function testUndeclaredKeyIsRejectedBeforeDescendingIntoItsValue(): void
     {
-        $result = $this->applyFilters(['forbidden_column' => ['$eq' => 'Alice']]);
+        $this->assertRejectsKey(['ghost' => ['deeper' => 'value']], 'ghost');
+    }
 
-        self::assertEmpty($result->getQuery()->wheres);
+    /**
+     * Test that an undeclared column inside a logical group is rejected, so the
+     * group is not a way around the declared surface.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testUndeclaredColumnInsideALogicalGroupIsRejected(): void
+    {
+        $this->assertRejectsKey(['$or' => ['nonexistent_column' => 'value']], 'nonexistent_column');
+    }
+
+    /**
+     * Test that an undeclared column carrying a condition operator inside a
+     * logical group is rejected before the operator handler runs.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testUndeclaredColumnUnderAnOperatorInsideALogicalGroupIsRejected(): void
+    {
+        $this->assertRejectsKey(['$or' => ['nonexistent_column' => ['$eq' => 'Alice']]], 'nonexistent_column');
+    }
+
+    /**
+     * Test that a relation listed by an existence operator is rejected when the
+     * resource does not declare it traversable.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testUndeclaredRelationListedByAnExistenceOperatorIsRejected(): void
+    {
+        $this->assertRejectsKey(['$has' => ['organization']], 'organization');
+    }
+
+    /**
+     * Test that a named relation carrying conditions under an existence
+     * operator is rejected when the resource does not declare it traversable.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testUndeclaredNamedRelationUnderAnExistenceOperatorIsRejected(): void
+    {
+        $this->assertRejectsKey(['$has' => ['organization' => ['name' => 'Acme']]], 'organization');
+    }
+
+    /**
+     * Test that a condition operator applied to a column that fails the query
+     * surface guard is rejected rather than reaching the operator handler.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testConditionOperatorOnGuardedColumnIsRejected(): void
+    {
+        $this->assertRejectsKey(['forbidden_column' => ['$eq' => 'Alice']], 'forbidden_column');
     }
 
     /**
@@ -705,6 +847,8 @@ final class FilterApplierTest extends TestCase
      * resolves to no handler is skipped, leaving the query untouched.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testConditionOperatorWithNullHandlerIsSkipped(): void
     {
@@ -741,36 +885,40 @@ final class FilterApplierTest extends TestCase
     }
 
     /**
-     * Test that under the allowlist posture an undeclared filter key is
-     * rejected with a validation error and relation introspection is never
-     * consulted, so the growth-prone relation cache is never touched for the
-     * bad key.
+     * Test that an undeclared filter key is rejected with a validation error
+     * naming the key.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
-    public function testAllowlistRejectsUndeclaredKeyWithoutIntrospection(): void
+    public function testUndeclaredKeyIsRejected(): void
     {
-        $introspector = \Mockery::mock(SchemaIntrospectionProvider::class);
-        $introspector->shouldReceive('isRelation')->never(); // @phpstan-ignore method.notFound
+        $surface = $this->declaredSurface(filterable: ['name']);
 
-        $surface = $this->allowlistSurface(filterable: ['name'], introspector: $introspector);
-
-        $this->expectException(ValidationException::class);
-
-        $this->applier->apply((new User)->newQuery(), ['unknown_key' => 'x'], $introspector, $this->operatorRegistry, $surface);
+        try {
+            $this->applier->apply((new User)->newQuery(), ['unknown_key' => 'x'], $this->operatorRegistry, $surface);
+            self::fail('Expected a ValidationException for an undeclared filter key.');
+        } catch (ValidationException $exception) {
+            self::assertSame(
+                ['The "unknown_key" key is not a permitted query parameter for this resource.'],
+                $exception->errors()['filters.unknown_key'] ?? [],
+            );
+        }
     }
 
     /**
-     * Test that under the allowlist posture a declared filterable column
-     * applies a simple where clause.
+     * Test that a declared filterable column applies a simple where clause.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
-    public function testAllowlistAppliesDeclaredFilterableColumn(): void
+    public function testDeclaredFilterableColumnIsApplied(): void
     {
-        $surface = $this->allowlistSurface(filterable: ['name']);
+        $surface = $this->declaredSurface(filterable: ['name']);
 
-        $result = $this->applier->apply((new User)->newQuery(), ['name' => 'Alice'], $this->schemaIntrospector, $this->operatorRegistry, $surface);
+        $result = $this->applier->apply((new User)->newQuery(), ['name' => 'Alice'], $this->operatorRegistry, $surface);
         $wheres = $result->getQuery()->wheres;
 
         self::assertNotEmpty($wheres);
@@ -779,23 +927,20 @@ final class FilterApplierTest extends TestCase
     }
 
     /**
-     * Test that under the allowlist posture a declared traversable relation
-     * routes to a relation filter without any schema introspection.
+     * Test that a declared traversable relation routes to a relation filter.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
-    public function testAllowlistAppliesDeclaredTraversableRelation(): void
+    public function testDeclaredTraversableRelationIsApplied(): void
     {
-        $introspector = \Mockery::mock(SchemaIntrospectionProvider::class);
-        $introspector->shouldReceive('isRelation')->never(); // @phpstan-ignore method.notFound
-
-        $surface = $this->allowlistSurface(
-            relations: ['posts'],
-            introspector: $introspector,
-            resourceMap: [Post::class => PostResource::class],
+        $surface = $this->declaredSurface(
+            relations  : ['posts'],
+            resourceMap: [Post::class => DeepTraversalPostResource::class],
         );
 
-        $result = $this->applier->apply((new User)->newQuery(), ['posts' => ['title' => 'test']], $introspector, $this->operatorRegistry, $surface);
+        $result = $this->applier->apply((new User)->newQuery(), ['posts' => ['title' => 'test']], $this->operatorRegistry, $surface);
         $wheres = $result->getQuery()->wheres;
 
         self::assertNotEmpty($wheres);
@@ -803,22 +948,24 @@ final class FilterApplierTest extends TestCase
     }
 
     /**
-     * Test that condition and logical operators keep working under the
-     * allowlist posture, applied against a declared column.
+     * Test that condition and logical operators keep working when applied
+     * against a declared column.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
-    public function testAllowlistPreservesConditionAndLogicalOperators(): void
+    public function testDeclaredColumnPreservesConditionAndLogicalOperators(): void
     {
-        $surface = $this->allowlistSurface(filterable: ['name', 'email']);
+        $surface = $this->declaredSurface(filterable: ['name', 'email']);
 
-        $eq = $this->applier->apply((new User)->newQuery(), ['name' => ['$eq' => 'Alice']], $this->schemaIntrospector, $this->operatorRegistry, $surface);
+        $eq = $this->applier->apply((new User)->newQuery(), ['name' => ['$eq' => 'Alice']], $this->operatorRegistry, $surface);
 
         self::assertSame('=', $eq->getQuery()->wheres[0]['operator']);
 
         $orFilters = ['$or' => ['name' => 'Alice', 'email' => 'bob@example.com']];
 
-        $or = $this->applier->apply((new User)->newQuery(), $orFilters, $this->schemaIntrospector, $this->operatorRegistry, $surface);
+        $or = $this->applier->apply((new User)->newQuery(), $orFilters, $this->operatorRegistry, $surface);
 
         self::assertSame('Nested', $or->getQuery()->wheres[0]['type']);
         self::assertSame('or', $or->getQuery()->wheres[0]['boolean']);
@@ -826,15 +973,17 @@ final class FilterApplierTest extends TestCase
 
     /**
      * Test that the $has structural operator still routes to a relation
-     * existence clause under the allowlist posture for a declared relation.
+     * existence clause for a declared relation.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
-    public function testAllowlistPreservesHasOperator(): void
+    public function testDeclaredRelationPreservesHasOperator(): void
     {
-        $surface = $this->allowlistSurface(relations: ['posts']);
+        $surface = $this->declaredSurface(relations: ['posts']);
 
-        $result = $this->applier->apply((new User)->newQuery(), ['$has' => ['posts']], $this->schemaIntrospector, $this->operatorRegistry, $surface);
+        $result = $this->applier->apply((new User)->newQuery(), ['$has' => ['posts']], $this->operatorRegistry, $surface);
         $wheres = $result->getQuery()->wheres;
 
         self::assertNotEmpty($wheres);
@@ -842,62 +991,353 @@ final class FilterApplierTest extends TestCase
     }
 
     /**
-     * Test that spraying many distinct undeclared filter keys under the
-     * allowlist posture writes zero relation-cache entries, guarding against
-     * the unbounded cache growth that the pre-gate routing allowed.
+     * Test that a document nested to exactly the depth cap is applied.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
-    public function testAllowlistSprayingUnknownKeysWritesNoRelationCacheEntries(): void
+    public function testDocumentNestedToExactlyTheDepthCapIsApplied(): void
     {
-        $registry     = new MetadataKeyRegistry;
-        $introspector = new SchemaIntrospector(new MetadataCacheWriter($registry));
+        Config::set('api-toolkit.query_cost.max_depth', 3);
 
-        $surface = $this->allowlistSurface(filterable: ['name'], introspector: $introspector);
+        $result = $this->applyFilters([
+            '$or' => ['$and' => ['$or' => ['name' => 'Alice']]],
+        ]);
 
-        foreach (['rand1', 'rand2', 'rand3', 'rand4', 'rand5'] as $key) {
-            try {
-                $this->applier->apply((new User)->newQuery(), [$key => 'x'], $introspector, $this->operatorRegistry, $surface);
-            } catch (ValidationException) { // @phpstan-ignore catch.neverThrown
-                // Each undeclared key is rejected fail-closed; the rejection
-                // itself is asserted by
-                // testAllowlistRejectsUndeclaredKeyWithoutIntrospection. This
-                // test asserts only that no relation-cache entry is written.
-            }
-        }
-
-        $relationKeys = array_filter($registry->keys(), static fn (string $key): bool => str_contains($key, 'model-relations'));
-
-        self::assertSame([], array_values($relationKeys));
+        self::assertNotEmpty($result->getQuery()->wheres);
     }
 
     /**
-     * Build an allowlist query surface for the User root model.
+     * Test that a document nested one level beyond the depth cap is rejected,
+     * pointing at the level it was refused at.
+     *
+     * @return void
+     */
+    public function testDocumentNestedBeyondTheDepthCapIsRejected(): void
+    {
+        Config::set('api-toolkit.query_cost.max_depth', 3);
+
+        $this->assertRejectedForCost(
+            ['$or' => ['$and' => ['$or' => ['$and' => ['name' => 'Alice']]]]],
+            QueryCostLimits::MAX_DEPTH,
+            '/$or/$and/$or/$and',
+            3,
+            4,
+        );
+    }
+
+    /**
+     * Test that a relation subquery counts as a level, since each traversal
+     * adds its own correlated subquery.
+     *
+     * @return void
+     */
+    public function testRelationTraversalCountsTowardTheDepthCap(): void
+    {
+        Config::set('api-toolkit.query_cost.max_depth', 1);
+
+        $this->assertRejectedForCost(
+            ['posts' => ['nested' => ['user' => ['name' => 'Alice']]]],
+            QueryCostLimits::MAX_DEPTH,
+            '/posts/user',
+            1,
+            2,
+        );
+    }
+
+    /**
+     * Test that a document visiting exactly the node cap is applied.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testDocumentVisitingExactlyTheNodeCapIsApplied(): void
+    {
+        Config::set('api-toolkit.query_cost.max_nodes', 3);
+
+        $result = $this->applyFilters([
+            'name'  => 'Alice',
+            'email' => 'alice@example.com',
+            'id'    => '1',
+        ]);
+
+        self::assertCount(3, $result->getQuery()->wheres);
+    }
+
+    /**
+     * Test that a document visiting one node too many is rejected.
+     *
+     * @return void
+     */
+    public function testDocumentVisitingOneNodeTooManyIsRejected(): void
+    {
+        Config::set('api-toolkit.query_cost.max_nodes', 3);
+
+        $this->assertRejectedForCost(
+            [
+                'name'            => 'Alice',
+                'email'           => 'alice@example.com',
+                'id'              => '1',
+                'organization_id' => '2',
+            ],
+            QueryCostLimits::MAX_NODES,
+            '/organization_id',
+            3,
+            4,
+        );
+    }
+
+    /**
+     * Test that the keys inside a logical group count toward the node cap.
+     *
+     * @return void
+     */
+    public function testKeysInsideALogicalGroupCountTowardTheNodeCap(): void
+    {
+        Config::set('api-toolkit.query_cost.max_nodes', 2);
+
+        $this->assertRejectedForCost(
+            ['$or' => ['name' => 'Alice', 'email' => 'alice@example.com']],
+            QueryCostLimits::MAX_NODES,
+            '/$or/email',
+            2,
+            3,
+        );
+    }
+
+    /**
+     * Test that the keys inside a traversed relation count toward the node cap.
+     *
+     * @return void
+     */
+    public function testKeysInsideARelationCountTowardTheNodeCap(): void
+    {
+        Config::set('api-toolkit.query_cost.max_nodes', 2);
+
+        $this->assertRejectedForCost(
+            ['posts' => ['title' => 'first', 'id' => '1']],
+            QueryCostLimits::MAX_NODES,
+            '/posts/id',
+            2,
+            3,
+        );
+    }
+
+    /**
+     * Test that the keys inside a logical group within a traversed relation
+     * count toward the node cap.
+     *
+     * @return void
+     */
+    public function testKeysInsideAGroupWithinARelationCountTowardTheNodeCap(): void
+    {
+        Config::set('api-toolkit.query_cost.max_nodes', 2);
+
+        $this->assertRejectedForCost(
+            ['posts' => ['$or' => ['title' => 'first', 'id' => '1']]],
+            QueryCostLimits::MAX_NODES,
+            '/posts/$or/id',
+            2,
+            3,
+        );
+    }
+
+    /**
+     * Test that each relation listed by an existence operator counts toward the
+     * node cap, reported at its position beneath the operator rather than at
+     * the root.
+     *
+     * @return void
+     */
+    public function testRelationsListedByAnExistenceOperatorCountTowardTheNodeCap(): void
+    {
+        Config::set('api-toolkit.query_cost.max_nodes', 2);
+
+        $this->assertRejectedForCost(
+            ['$has' => ['posts', 'organization']],
+            QueryCostLimits::MAX_NODES,
+            '/$has/1',
+            2,
+            3,
+        );
+    }
+
+    /**
+     * Test that a rejection inside a relation named by an existence operator
+     * points at its position beneath the operator.
+     *
+     * @return void
+     */
+    public function testRejectionInsideANamedExistenceRelationPointsAtItsPosition(): void
+    {
+        Config::set('api-toolkit.query_cost.max_in_items', 1);
+
+        $this->assertRejectedForCost(
+            ['$has' => ['posts' => ['title' => ['$in' => ['first', 'second']]]]],
+            QueryCostLimits::MAX_IN_ITEMS,
+            '/$has/posts/title/$in',
+            1,
+            2,
+        );
+    }
+
+    /**
+     * Test that an operator value list of exactly the item cap is applied.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testOperatorValueListAtExactlyTheItemCapIsApplied(): void
+    {
+        Config::set('api-toolkit.query_cost.max_in_items', 3);
+
+        $result = $this->applyFilters(['name' => ['$in' => ['Alice', 'Bob', 'Carol']]]);
+        $wheres = $result->getQuery()->wheres;
+
+        self::assertNotEmpty($wheres);
+        self::assertSame(['Alice', 'Bob', 'Carol'], $wheres[0]['values']);
+    }
+
+    /**
+     * Test that an operator value list one item over the cap is rejected before
+     * the values are bound.
+     *
+     * @return void
+     */
+    public function testOperatorValueListOverTheItemCapIsRejected(): void
+    {
+        Config::set('api-toolkit.query_cost.max_in_items', 3);
+
+        $this->assertRejectedForCost(
+            ['name' => ['$in' => ['Alice', 'Bob', 'Carol', 'Dave']]],
+            QueryCostLimits::MAX_IN_ITEMS,
+            '/name/$in',
+            3,
+            4,
+        );
+    }
+
+    /**
+     * Test that a delimited value list of exactly the item cap is applied, so
+     * the cap counts the items an operator reads rather than the shape of the
+     * value it was handed.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testDelimitedValueListAtExactlyTheItemCapIsApplied(): void
+    {
+        Config::set('api-toolkit.query_cost.max_in_items', 3);
+
+        $result = $this->applyFilters(['name' => [self::OPERATOR_CONTAINS => 'Alice,Bob,Carol']]);
+        $wheres = $result->getQuery()->wheres;
+
+        self::assertNotEmpty($wheres);
+        self::assertCount(3, $wheres[0]['query']->wheres);
+    }
+
+    /**
+     * Test that a delimited value list one item over the cap is rejected, so
+     * the delimited spelling cannot outrun the list spelling.
+     *
+     * @return void
+     */
+    public function testDelimitedValueListOverTheItemCapIsRejected(): void
+    {
+        Config::set('api-toolkit.query_cost.max_in_items', 3);
+
+        $this->assertRejectedForCost(
+            ['name' => [self::OPERATOR_CONTAINS => 'Alice,Bob,Carol,Dave']],
+            QueryCostLimits::MAX_IN_ITEMS,
+            '/name/$contains',
+            3,
+            4,
+        );
+    }
+
+    /**
+     * Test that an operator value carrying no list counts as a single item, so
+     * an ordinary scalar comparison is never measured as a list.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testScalarOperatorValueCountsAsOneItem(): void
+    {
+        Config::set('api-toolkit.query_cost.max_in_items', 1);
+
+        $result = $this->applyFilters(['name' => ['$like' => 'Alice, Bob, Carol, Dave']]);
+        $wheres = $result->getQuery()->wheres;
+
+        self::assertNotEmpty($wheres);
+        self::assertSame('%Alice, Bob, Carol, Dave%', $wheres[0]['value']);
+    }
+
+    /**
+     * Test that a rejection inside a traversed relation points at the position
+     * within the document rather than at the root.
+     *
+     * @return void
+     */
+    public function testRejectionInsideARelationPointsAtItsPosition(): void
+    {
+        Config::set('api-toolkit.query_cost.max_in_items', 1);
+
+        $this->assertRejectedForCost(
+            ['posts' => ['title' => ['$in' => ['first', 'second']]]],
+            QueryCostLimits::MAX_IN_ITEMS,
+            '/posts/title/$in',
+            1,
+            2,
+        );
+    }
+
+    /**
+     * Assert that the given filters are rejected on cost, carrying the cap that
+     * rejected them, the position within the document, and both sides of the
+     * comparison.
+     *
+     * @param  array<string, mixed>  $filters
+     * @param  string  $reason
+     * @param  string  $pointer
+     * @param  int  $limit
+     * @param  int  $actual
+     * @return void
+     */
+    private function assertRejectedForCost(array $filters, string $reason, string $pointer, int $limit, int $actual): void
+    {
+        try {
+            $this->applyFilters($filters);
+
+            self::fail('Expected a rejection for the "' . $reason . '" cap.');
+        } catch (QueryTooExpensiveException $exception) {
+            self::assertSame([
+                'parameter' => 'filters',
+                'pointer'   => $pointer,
+                'reason'    => $reason,
+                'limit'     => $limit,
+                'actual'    => $actual,
+            ], $exception->getCustomMeta());
+        }
+    }
+
+    /**
+     * Build a query surface for the User root model.
      *
      * @param  array<int, string>  $filterable
      * @param  array<int, string>  $sortable
      * @param  array<int, string>  $relations
-     * @param  \SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider|null  $introspector
      * @param  array<string, string>  $resourceMap
      * @return \SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface
      */
-    private function allowlistSurface(
-        array $filterable = [],
-        array $sortable = [],
-        array $relations = [],
-        ?SchemaIntrospectionProvider $introspector = null,
-        array $resourceMap = [],
-    ): QuerySurface {
-        return new QuerySurface(
-            $filterable,
-            $sortable,
-            $relations,
-            QuerySurface::POSTURE_ALLOWLIST,
-            true,
-            $introspector ?? $this->schemaIntrospector,
-            new User,
-            $resourceMap,
-        );
+    private function declaredSurface(array $filterable = [], array $sortable = [], array $relations = [], array $resourceMap = []): QuerySurface
+    {
+        return new QuerySurface($filterable, $sortable, $relations, new User, $resourceMap);
     }
 
     /**
@@ -906,27 +1346,51 @@ final class FilterApplierTest extends TestCase
      *
      * @param  array<string, mixed>|null  $filters
      * @return \Illuminate\Database\Eloquent\Builder<\Tests\Fixtures\Models\User>
+     *
+     * @throws \Illuminate\Validation\ValidationException
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     private function applyFilters(?array $filters): Builder
     {
-        return $this->applier->apply(
-            (new User)->newQuery(),
-            $filters,
-            $this->schemaIntrospector,
-            $this->operatorRegistry,
-            $this->surface(),
-        );
+        return $this->applier->apply((new User)->newQuery(), $filters, $this->operatorRegistry, $this->surface());
     }
 
     /**
-     * Build a blocklist query surface that delegates to the stubbed
-     * introspector, preserving the legacy shape-derived gating these tests
-     * assert.
+     * Build the query surface these mechanics tests filter against, declaring
+     * the root columns and relation they use plus the related post resource
+     * that governs the nested hops.
      *
      * @return \SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface
      */
     private function surface(): QuerySurface
     {
-        return new QuerySurface([], [], [], QuerySurface::POSTURE_BLOCKLIST, true, $this->schemaIntrospector, new User);
+        return $this->declaredSurface(
+            filterable : ['name', 'email', 'id', 'organization_id'],
+            relations  : ['posts'],
+            resourceMap: [Post::class => DeepTraversalPostResource::class],
+        );
+    }
+
+    /**
+     * Assert that applying the filters rejects the given key with a named
+     * validation error.
+     *
+     * @param  array<string, mixed>  $filters
+     * @param  string  $key
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    private function assertRejectsKey(array $filters, string $key): void
+    {
+        try {
+            $this->applyFilters($filters);
+            self::fail('Expected a ValidationException for the "' . $key . '" filter key.');
+        } catch (ValidationException $exception) {
+            self::assertSame(
+                ['The "' . $key . '" key is not a permitted query parameter for this resource.'],
+                $exception->errors()['filters.' . $key] ?? [],
+            );
+        }
     }
 }

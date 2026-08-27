@@ -74,4 +74,38 @@ final class MalformedFilterRequestTest extends TestCase
         self::assertArrayHasKey('filters', (array) $response->json('error.meta'));
         self::assertArrayNotHasKey('filters.status', (array) $response->json('error.meta'));
     }
+
+    /**
+     * Test that a filters document nested beyond the decoder depth limit is
+     * rejected rather than dropped, which would answer with the whole table.
+     *
+     * @return void
+     */
+    public function testFiltersNestedBeyondTheDecoderDepthLimitAreRejected(): void
+    {
+        $filters = str_repeat('{"a":', 512) . '1' . str_repeat('}', 512);
+
+        $response = $this->getJson('/users?filters=' . urlencode($filters));
+
+        $response->assertStatus(422);
+        $response->assertJsonPath('error.status', 422);
+
+        self::assertArrayHasKey('filters', (array) $response->json('error.meta'));
+    }
+
+    /**
+     * Test that a JSON list is rejected rather than dropped, which would answer
+     * with the whole table.
+     *
+     * @return void
+     */
+    public function testJsonListFiltersValueIsRejected(): void
+    {
+        $response = $this->getJson('/users?filters=' . urlencode('[{"name":"Alice"}]'));
+
+        $response->assertStatus(422);
+        $response->assertJsonPath('error.status', 422);
+
+        self::assertArrayHasKey('filters', (array) $response->json('error.meta'));
+    }
 }

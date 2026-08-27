@@ -4,15 +4,19 @@ declare(strict_types = 1);
 
 namespace Tests\Unit\Repositories\Criteria;
 
+use Illuminate\Contracts\Database\Eloquent\Builder as BuilderContract;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Config;
+use Illuminate\Validation\ValidationException;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use SineMacula\ApiToolkit\Cache\MetadataCacheWriter;
 use SineMacula\ApiToolkit\Contracts\ResourceMetadataProvider;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
+use SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException;
 use SineMacula\ApiToolkit\Http\Resources\ApiResource;
+use SineMacula\ApiToolkit\Query\QueryCostLimits;
 use SineMacula\ApiToolkit\Repositories\Criteria\ApiCriteria;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\EagerLoadApplier;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterApplier;
@@ -21,7 +25,11 @@ use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\LimitApplier;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\OrderApplier;
 use SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry;
 use SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface;
+use SineMacula\Http\Enums\HttpMethod;
+use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\User;
+use Tests\Fixtures\Resources\FilterableUserResource;
+use Tests\Fixtures\Resources\PostResource;
 use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
 
@@ -67,20 +75,19 @@ final class ApiCriteriaTest extends TestCase
 
         assert($this->app !== null);
 
-        // These tests assert posture-independent applier mechanics (operators,
-        // logical groups, relations, ordering, limits). Pin the blocklist
-        // posture so column gating follows the legacy isSearchable contract;
-        // the allowlist default has dedicated integration coverage.
-        Config::set('api-toolkit.repositories.query_posture', QuerySurface::POSTURE_BLOCKLIST);
-
         // These assertions measure query shape and call counts; pin column
         // narrowing off so the on-by-default narrowing metadata pass cannot
         // skew them (narrowing behaviour has its own dedicated coverage).
         Config::set('api-toolkit.resources.narrow_columns', false);
 
+        // These tests assert applier mechanics (operators, logical groups,
+        // relations, ordering, limits), so they run against resources that
+        // declare the surface they query rather than empty ones.
+        Config::set('api-toolkit.resources.resource_map', [Post::class => PostResource::class]);
+
         /** @var \SineMacula\ApiToolkit\Repositories\Criteria\ApiCriteria $criteria */
         $criteria       = $this->app->make(ApiCriteria::class);
-        $this->criteria = $criteria;
+        $this->criteria = $criteria->usingResource(UserResource::class);
     }
 
     /**
@@ -88,6 +95,8 @@ final class ApiCriteriaTest extends TestCase
      * query.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testApplyWithNoFiltersOrderOrLimitReturnsUnmodifiedQuery(): void
     {
@@ -102,9 +111,28 @@ final class ApiCriteriaTest extends TestCase
     }
 
     /**
+     * Test that an empty filter set adds no group of its own, leaving a
+     * caller-applied constraint as the only clause on the query.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testEmptyFilterSetEmitsNoGroup(): void
+    {
+        $this->parseRequest(new Request);
+
+        $query = $this->metricFreeCriteria()->apply(User::query()->where('status', 'active'));
+
+        self::assertSame('select * from "users" where "status" = ?', $this->sqlOf($query));
+    }
+
+    /**
      * Test that apply with a simple filter applies a where clause.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testApplyWithSimpleFilterAppliesWhereClause(): void
     {
@@ -115,7 +143,7 @@ final class ApiCriteriaTest extends TestCase
         $model = new User;
         $query = $this->criteria->apply($model);
 
-        $wheres = $query->getQuery()->wheres;
+        $wheres = $this->filterGroupWheres($query);
 
         self::assertNotEmpty($wheres);
         self::assertSame('name', $wheres[0]['column']);
@@ -145,6 +173,8 @@ final class ApiCriteriaTest extends TestCase
      * @param  mixed  $value
      * @param  string  $expectedType
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     #[DataProvider('conditionOperatorProvider')]
     public function testApplyWithConditionOperator(string $operator, string $expectedSqlOperator, mixed $value, string $expectedType): void
@@ -158,7 +188,7 @@ final class ApiCriteriaTest extends TestCase
         $model = new User;
         $query = $this->criteria->apply($model);
 
-        $wheres = $query->getQuery()->wheres;
+        $wheres = $this->filterGroupWheres($query);
 
         self::assertNotEmpty($wheres);
         self::assertSame($expectedType, $wheres[0]['type']);
@@ -168,6 +198,8 @@ final class ApiCriteriaTest extends TestCase
      * Test that apply with $like operator wraps value with percent signs.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testApplyWithLikeOperatorWrapsValueWithPercent(): void
     {
@@ -178,7 +210,7 @@ final class ApiCriteriaTest extends TestCase
         $model = new User;
         $query = $this->criteria->apply($model);
 
-        $wheres = $query->getQuery()->wheres;
+        $wheres = $this->filterGroupWheres($query);
 
         self::assertNotEmpty($wheres);
         self::assertSame('%Ali%', $wheres[0]['value']);
@@ -188,6 +220,8 @@ final class ApiCriteriaTest extends TestCase
      * Test that apply with $in operator uses whereIn.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testApplyWithInOperatorUsesWhereIn(): void
     {
@@ -198,7 +232,7 @@ final class ApiCriteriaTest extends TestCase
         $model = new User;
         $query = $this->criteria->apply($model);
 
-        $wheres = $query->getQuery()->wheres;
+        $wheres = $this->filterGroupWheres($query);
 
         self::assertNotEmpty($wheres);
         self::assertSame('In', $wheres[0]['type']);
@@ -209,6 +243,8 @@ final class ApiCriteriaTest extends TestCase
      * Test that apply with $between operator uses whereBetween.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testApplyWithBetweenOperatorUsesWhereBetween(): void
     {
@@ -219,7 +255,7 @@ final class ApiCriteriaTest extends TestCase
         $model = new User;
         $query = $this->criteria->apply($model);
 
-        $wheres = $query->getQuery()->wheres;
+        $wheres = $this->filterGroupWheres($query);
 
         self::assertNotEmpty($wheres);
         self::assertSame('between', $wheres[0]['type']);
@@ -229,6 +265,8 @@ final class ApiCriteriaTest extends TestCase
      * Test that apply with $null operator adds whereNull clause.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testApplyWithNullOperatorAddsWhereNull(): void
     {
@@ -239,7 +277,7 @@ final class ApiCriteriaTest extends TestCase
         $model = new User;
         $query = $this->criteria->apply($model);
 
-        $wheres = $query->getQuery()->wheres;
+        $wheres = $this->filterGroupWheres($query);
 
         self::assertNotEmpty($wheres);
         self::assertSame('Null', $wheres[0]['type']);
@@ -250,6 +288,8 @@ final class ApiCriteriaTest extends TestCase
      * Test that apply with $notNull operator adds whereNotNull clause.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testApplyWithNotNullOperatorAddsWhereNotNull(): void
     {
@@ -260,7 +300,7 @@ final class ApiCriteriaTest extends TestCase
         $model = new User;
         $query = $this->criteria->apply($model);
 
-        $wheres = $query->getQuery()->wheres;
+        $wheres = $this->filterGroupWheres($query);
 
         self::assertNotEmpty($wheres);
         self::assertSame('NotNull', $wheres[0]['type']);
@@ -270,6 +310,8 @@ final class ApiCriteriaTest extends TestCase
      * Test that apply with $has relational operator adds whereHas.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testApplyWithHasOperatorAddsWhereHas(): void
     {
@@ -280,7 +322,7 @@ final class ApiCriteriaTest extends TestCase
         $model = new User;
         $query = $this->criteria->apply($model);
 
-        $wheres = $query->getQuery()->wheres;
+        $wheres = $this->filterGroupWheres($query);
 
         self::assertNotEmpty($wheres);
         self::assertSame('Exists', $wheres[0]['type']);
@@ -290,6 +332,8 @@ final class ApiCriteriaTest extends TestCase
      * Test that apply with $hasnt relational operator adds whereDoesntHave.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testApplyWithHasntOperatorAddsWhereDoesntHave(): void
     {
@@ -300,7 +344,7 @@ final class ApiCriteriaTest extends TestCase
         $model = new User;
         $query = $this->criteria->apply($model);
 
-        $wheres = $query->getQuery()->wheres;
+        $wheres = $this->filterGroupWheres($query);
 
         self::assertNotEmpty($wheres);
         self::assertSame('NotExists', $wheres[0]['type']);
@@ -310,6 +354,8 @@ final class ApiCriteriaTest extends TestCase
      * Test that apply with $or logical operator groups conditions.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testApplyWithOrLogicalOperator(): void
     {
@@ -331,9 +377,40 @@ final class ApiCriteriaTest extends TestCase
     }
 
     /**
+     * Test that a root-level $or is grouped so it cannot escape a constraint
+     * the caller applies to the query before the criteria run.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testRootOrCannotEscapeACallerAppliedConstraint(): void
+    {
+        $this->parseRequest(new Request([
+            'filters' => json_encode([
+                '$or' => [
+                    'name'  => 'Alice',
+                    'email' => 'charlie@example.com',
+                ],
+            ]),
+        ]));
+
+        $query = $this->metricFreeCriteria()->apply(User::query()->where('status', 'active'));
+
+        self::assertSame(
+            'select * from "users" where "status" = ? and (("name" = ? or "email" = ?))',
+            $this->sqlOf($query),
+        );
+
+        self::assertSame(['active', 'Alice', 'charlie@example.com'], $query->getBindings()); // @phpstan-ignore staticMethod.dynamicCall
+    }
+
+    /**
      * Test that apply with $and logical operator groups conditions.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testApplyWithAndLogicalOperator(): void
     {
@@ -359,6 +436,8 @@ final class ApiCriteriaTest extends TestCase
      * conditions.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testApplyWithNestedRelationFilters(): void
     {
@@ -373,7 +452,7 @@ final class ApiCriteriaTest extends TestCase
         $model = new User;
         $query = $this->criteria->apply($model);
 
-        $wheres = $query->getQuery()->wheres;
+        $wheres = $this->filterGroupWheres($query);
 
         self::assertNotEmpty($wheres);
         self::assertSame('Exists', $wheres[0]['type']);
@@ -383,6 +462,8 @@ final class ApiCriteriaTest extends TestCase
      * Test that apply with order applies orderBy to the query.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testApplyWithOrderAppliesOrderBy(): void
     {
@@ -401,12 +482,17 @@ final class ApiCriteriaTest extends TestCase
     }
 
     /**
-     * Test that apply with 'random' order applies inRandomOrder.
+     * Test that apply with 'random' order applies inRandomOrder once the
+     * capability is enabled.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testApplyWithRandomOrderAppliesInRandomOrder(): void
     {
+        Config::set('api-toolkit.repositories.allow_random_order', true);
+
         $this->parseRequest(new Request([
             'order' => 'random',
         ]));
@@ -421,9 +507,36 @@ final class ApiCriteriaTest extends TestCase
     }
 
     /**
+     * Test that 'random' order is rejected while the capability is disabled, so
+     * the most expensive sort is not reachable by default.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testApplyWithRandomOrderIsRejectedWhileDisabled(): void
+    {
+        $this->parseRequest(new Request([
+            'order' => 'random',
+        ]));
+
+        try {
+            $this->criteria->apply(new User);
+            self::fail('Expected a ValidationException for the disabled random order keyword.');
+        } catch (ValidationException $exception) {
+            self::assertSame(
+                ['The "random" key is not a permitted query parameter for this resource.'],
+                $exception->errors()['order.random'] ?? [],
+            );
+        }
+    }
+
+    /**
      * Test that apply with limit applies a query limit.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testApplyWithLimitAppliesQueryLimit(): void
     {
@@ -441,6 +554,8 @@ final class ApiCriteriaTest extends TestCase
      * Test that applyEagerLoading adds eager loads from the resource schema.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testApplyEagerLoadingAddsEagerLoadsFromResource(): void
     {
@@ -461,54 +576,35 @@ final class ApiCriteriaTest extends TestCase
     }
 
     /**
-     * Test that searchable exclusions from config are respected.
+     * Test that an undeclared column is rejected rather than dropped.
      *
      * @return void
-     */
-    public function testSearchableExclusionsFromConfigAreRespected(): void
-    {
-        Config::set('api-toolkit.repositories.searchable_exclusions', ['password']);
-
-        $this->parseRequest(new Request([
-            'filters' => json_encode(['password' => 'secret']),
-        ]));
-
-        assert($this->app !== null);
-
-        /** @var \SineMacula\ApiToolkit\Repositories\Criteria\ApiCriteria $criteria */
-        $criteria = $this->app->make(ApiCriteria::class);
-
-        $model = new User;
-        $query = $criteria->apply($model);
-
-        $wheres = $query->getQuery()->wheres;
-
-        self::assertEmpty($wheres);
-    }
-
-    /**
-     * Test that invalid or unsearchable columns are ignored.
      *
-     * @return void
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
-    public function testInvalidColumnsAreIgnored(): void
+    public function testUndeclaredColumnsAreRejected(): void
     {
         $this->parseRequest(new Request([
             'filters' => json_encode(['nonexistent_column' => 'value']),
         ]));
 
-        $model = new User;
-        $query = $this->criteria->apply($model);
-
-        $wheres = $query->getQuery()->wheres;
-
-        self::assertEmpty($wheres);
+        try {
+            $this->criteria->apply(new User);
+            self::fail('Expected a ValidationException for an undeclared filter key.');
+        } catch (ValidationException $exception) {
+            self::assertSame(
+                ['The "nonexistent_column" key is not a permitted query parameter for this resource.'],
+                $exception->errors()['filters.nonexistent_column'] ?? [],
+            );
+        }
     }
 
     /**
      * Test that order with an invalid direction is ignored.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testOrderWithInvalidDirectionIsIgnored(): void
     {
@@ -528,6 +624,8 @@ final class ApiCriteriaTest extends TestCase
      * Test that applyEagerLoading uses getAllFields when ':all' is requested.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testApplyEagerLoadingUsesGetAllFieldsWhenAllRequested(): void
     {
@@ -550,6 +648,8 @@ final class ApiCriteriaTest extends TestCase
      * Test that a condition operator inside a logical group is handled.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testConditionOperatorInsideLogicalGroupIsHandled(): void
     {
@@ -568,6 +668,8 @@ final class ApiCriteriaTest extends TestCase
      * Test that a nested logical operator inside a logical group is handled.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testNestedLogicalOperatorInsideLogicalGroupIsHandled(): void
     {
@@ -592,6 +694,8 @@ final class ApiCriteriaTest extends TestCase
      * Test that $or inside a relation filter creates a grouped orWhere.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testOrInsideRelationFilterCreatesOrWhereGroup(): void
     {
@@ -616,6 +720,8 @@ final class ApiCriteriaTest extends TestCase
      * nested constraints.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testHasFilterWithNamedRelationAndConditions(): void
     {
@@ -630,7 +736,7 @@ final class ApiCriteriaTest extends TestCase
         $model = new User;
         $query = $this->criteria->apply($model);
 
-        $wheres = $query->getQuery()->wheres;
+        $wheres = $this->filterGroupWheres($query);
 
         self::assertNotEmpty($wheres);
         self::assertSame('Exists', $wheres[0]['type']);
@@ -641,6 +747,8 @@ final class ApiCriteriaTest extends TestCase
      * whereDoesntHave.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testHasntFilterWithNamedRelationAndConditions(): void
     {
@@ -655,7 +763,7 @@ final class ApiCriteriaTest extends TestCase
         $model = new User;
         $query = $this->criteria->apply($model);
 
-        $wheres = $query->getQuery()->wheres;
+        $wheres = $this->filterGroupWheres($query);
 
         self::assertNotEmpty($wheres);
         self::assertSame('NotExists', $wheres[0]['type']);
@@ -665,6 +773,8 @@ final class ApiCriteriaTest extends TestCase
      * Test that $or combined with $has uses orWhereHas.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testOrWithHasOperatorUsesOrWhereHas(): void
     {
@@ -686,6 +796,8 @@ final class ApiCriteriaTest extends TestCase
      * Test that $between with a single-element array is ignored.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testBetweenWithWrongArraySizeIsIgnored(): void
     {
@@ -703,6 +815,8 @@ final class ApiCriteriaTest extends TestCase
      * Test that $contains with an array value uses whereJsonContains.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testContainsWithArrayValueUsesWhereJsonContains(): void
     {
@@ -721,6 +835,8 @@ final class ApiCriteriaTest extends TestCase
      * whereJsonContains conditions.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testContainsWithCommaSeparatedStringCreatesMultipleConditions(): void
     {
@@ -738,6 +854,8 @@ final class ApiCriteriaTest extends TestCase
      * Test that $contains with a plain scalar string uses whereJsonContains.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testContainsWithPlainStringUsesWhereJsonContains(): void
     {
@@ -752,33 +870,11 @@ final class ApiCriteriaTest extends TestCase
     }
 
     /**
-     * Test that a table-specific searchable exclusion is respected.
-     *
-     * @return void
-     */
-    public function testTableSpecificSearchableExclusionIsRespected(): void
-    {
-        Config::set('api-toolkit.repositories.searchable_exclusions', ['users.password']);
-
-        $this->parseRequest(new Request([
-            'filters' => json_encode(['password' => 'secret']),
-        ]));
-
-        assert($this->app !== null);
-
-        /** @var \SineMacula\ApiToolkit\Repositories\Criteria\ApiCriteria $criteria */
-        $criteria = $this->app->make(ApiCriteria::class);
-
-        $model = new User;
-        $query = $criteria->apply($model);
-
-        self::assertEmpty($query->getQuery()->wheres);
-    }
-
-    /**
      * Test that $notNull with $or logical operator uses orWhereNotNull.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testNotNullWithOrLogicalOperatorUsesOrWhereNotNull(): void
     {
@@ -801,6 +897,8 @@ final class ApiCriteriaTest extends TestCase
      * defensive catch inside applyJsonContains.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testContainsWithNullValueIsHandledGracefully(): void
     {
@@ -821,6 +919,8 @@ final class ApiCriteriaTest extends TestCase
      * @SuppressWarnings("php:S2014")
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testApplyEagerLoadingReturnsEarlyWhenFieldsAreEmpty(): void
     {
@@ -862,6 +962,8 @@ final class ApiCriteriaTest extends TestCase
      * provider.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testApplyEagerLoadingUsesMetadataProviderForResourceType(): void
     {
@@ -900,6 +1002,8 @@ final class ApiCriteriaTest extends TestCase
      * Test that applyEagerLoading calls resolveFields on the metadata provider.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testApplyEagerLoadingUsesMetadataProviderForFieldResolution(): void
     {
@@ -939,6 +1043,8 @@ final class ApiCriteriaTest extends TestCase
      * provider.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testApplyEagerLoadingUsesMetadataProviderForEagerLoadMap(): void
     {
@@ -978,6 +1084,8 @@ final class ApiCriteriaTest extends TestCase
      * provider.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testApplyEagerLoadingUsesMetadataProviderForCountMap(): void
     {
@@ -1061,21 +1169,74 @@ final class ApiCriteriaTest extends TestCase
     }
 
     /**
-     * Test that when the reject-undeclared flag is entirely absent from config
-     * the query surface defaults to fail-closed.
+     * Test that the flat cost caps are enforced before the query is built, so
+     * an over-cost request never reaches the appliers.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
-    public function testAbsentRejectUndeclaredConfigDefaultsToFailClosed(): void
+    public function testApplyEnforcesTheFlatCostCapsBeforeBuildingTheQuery(): void
     {
-        Config::set('api-toolkit.repositories', []);
+        Config::set('api-toolkit.query_cost.max_offset', 10);
 
-        $method  = new \ReflectionMethod($this->criteria, 'buildQuerySurface');
-        $surface = $method->invoke($this->criteria, new User);
+        $this->parseRequest(Request::create('/test', HttpMethod::GET->getVerb(), ['page' => '11']));
 
-        $property = new \ReflectionProperty($surface, 'rejectUndeclared');
+        try {
+            $this->criteria->apply(new User);
 
-        self::assertTrue($property->getValue($surface));
+            self::fail('Expected a rejection for a page beyond the offset cap.');
+        } catch (QueryTooExpensiveException $exception) {
+            self::assertSame([
+                'parameter' => 'page',
+                'pointer'   => '',
+                'reason'    => QueryCostLimits::MAX_OFFSET,
+                'limit'     => 10,
+                'actual'    => 11,
+            ], $exception->getCustomMeta());
+        }
+    }
+
+    /**
+     * Resolve the where clauses nested inside the grouped filter expression.
+     *
+     * @param  \Illuminate\Contracts\Database\Eloquent\Builder  $query
+     * @return array<int, mixed>
+     */
+    private function filterGroupWheres(BuilderContract $query): array
+    {
+        $wheres = $query->getQuery()->wheres;
+
+        self::assertSame('Nested', $wheres[0]['type']);
+
+        return $wheres[0]['query']->wheres;
+    }
+
+    /**
+     * Build a criteria bound to a resource that declares no default metrics, so
+     * an asserted SQL string is the query the filters built and nothing more.
+     *
+     * @return \SineMacula\ApiToolkit\Repositories\Criteria\ApiCriteria
+     */
+    private function metricFreeCriteria(): ApiCriteria
+    {
+        assert($this->app !== null);
+
+        /** @var \SineMacula\ApiToolkit\Repositories\Criteria\ApiCriteria $criteria */
+        $criteria = $this->app->make(ApiCriteria::class);
+
+        return $criteria->usingResource(FilterableUserResource::class);
+    }
+
+    /**
+     * Compile the query to its SQL string for assertion.
+     *
+     * @param  \Illuminate\Contracts\Database\Eloquent\Builder  $query
+     * @return string
+     */
+    private function sqlOf(BuilderContract $query): string
+    {
+        return $query->toSql(); // @phpstan-ignore staticMethod.dynamicCall
     }
 
     /**
@@ -1083,6 +1244,8 @@ final class ApiCriteriaTest extends TestCase
      *
      * @param  \Illuminate\Http\Request  $request
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     private function parseRequest(Request $request): void
     {

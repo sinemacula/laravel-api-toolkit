@@ -5,6 +5,7 @@ declare(strict_types = 1);
 namespace SineMacula\ApiToolkit\Repositories\Criteria;
 
 use Illuminate\Contracts\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Builder as EloquentBuilder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Config;
@@ -19,6 +20,7 @@ use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\EagerLoadApplier;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterApplier;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\LimitApplier;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\OrderApplier;
+use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\QueryCostGuard;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\RelationTrashedGate;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\SoftDeleteVisibilityApplier;
 use SineMacula\ApiToolkit\Schema\SafetySetDeriver;
@@ -61,6 +63,9 @@ final class ApiCriteria implements CriteriaInterface
     /** @var \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\RelationTrashedGate */
     private readonly RelationTrashedGate $relationTrashedGate;
 
+    /** @var \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\QueryCostGuard */
+    private readonly QueryCostGuard $queryCostGuard;
+
     /**
      * Constructor.
      *
@@ -79,7 +84,7 @@ final class ApiCriteria implements CriteriaInterface
         /** Resolves fields, eager loads, and counts from resource schemas */
         private readonly ResourceMetadataProvider $metadataProvider,
 
-        /** Validates column searchability and relation existence */
+        /** Resolves model columns and relation existence */
         private readonly SchemaIntrospectionProvider $schemaIntrospector,
 
         /** Registry of filter operator handlers */
@@ -94,6 +99,7 @@ final class ApiCriteria implements CriteriaInterface
         $this->limitApplier                = new LimitApplier;
         $this->columnProjectionApplier     = new ColumnProjectionApplier(new SafetySetDeriver($this->schemaIntrospector));
         $this->softDeleteVisibilityApplier = new SoftDeleteVisibilityApplier;
+        $this->queryCostGuard              = new QueryCostGuard;
 
         $resourceMap = Config::get('api-toolkit.resources.resource_map', []);
 
@@ -109,6 +115,9 @@ final class ApiCriteria implements CriteriaInterface
      *
      * @param  \Illuminate\Contracts\Database\Eloquent\Builder|\Illuminate\Database\Eloquent\Model  $model
      * @return \Illuminate\Contracts\Database\Eloquent\Builder
+     *
+     * @throws \Illuminate\Validation\ValidationException
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     #[\Override]
     public function apply(Builder|Model $model): Builder
@@ -116,17 +125,21 @@ final class ApiCriteria implements CriteriaInterface
         /** @var \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model> $query */
         $query = $model instanceof Model ? $model::query() : $model;
 
+        $resourceType = $this->getResourceType($query->getModel());
+
+        $this->queryCostGuard->guard($resourceType);
+
         $surface = $this->buildQuerySurface($query->getModel());
 
         /** @var \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model> $query */
         $query = $this->softDeleteVisibilityApplier->apply($query, $this->resolveResource($query->getModel()), $this->request);
 
-        $query = $this->filterApplier->apply($query, $this->getFilters(), $this->schemaIntrospector, $this->operatorRegistry, $surface);
+        $query = $this->applyGroupedFilters($query, $surface);
         $query = $this->eagerLoadApplier->apply(
             $query,
             $this->metadataProvider,
             $this->resolveResource($query->getModel()),
-            $this->getResourceType($query->getModel()),
+            $resourceType,
             $this->relationTrashedGate,
         );
 
@@ -148,11 +161,35 @@ final class ApiCriteria implements CriteriaInterface
     }
 
     /**
+     * Apply the filter expression inside a nested WHERE group.
+     *
+     * The group stops a root-level `$or` escaping a constraint the caller ANDs
+     * onto the query afterwards, such as a tenant or security scope. Ungrouped,
+     * SQL `AND` binds tighter than a root-level `OR`, so that constraint would
+     * bind to only one disjunct. An empty filter set yields an empty group,
+     * which the builder discards.
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>  $query
+     * @param  \SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface  $surface
+     * @return \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>
+     */
+    private function applyGroupedFilters(EloquentBuilder $query, QuerySurface $surface): EloquentBuilder
+    {
+        $query->where(function (EloquentBuilder $group) use ($surface): void {
+            $this->filterApplier->apply($group, $this->getFilters(), $this->operatorRegistry, $surface);
+        });
+
+        return $query;
+    }
+
+    /**
      * Apply ordering, then narrow the base-table projection as the final step.
      *
      * @param  \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>  $query
      * @param  \SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface  $surface
      * @return \Illuminate\Contracts\Database\Eloquent\Builder
+     *
+     * @throws \Illuminate\Validation\ValidationException
      */
     private function applyOrderingAndProjection(Builder $query, QuerySurface $surface): Builder
     {
@@ -215,9 +252,8 @@ final class ApiCriteria implements CriteriaInterface
     }
 
     /**
-     * Build the declared query surface for the resolved resource, honouring the
-     * configured posture. A model with no mapped resource yields an empty
-     * surface, so the allowlist posture rejects every key.
+     * Build the declared query surface for the resolved resource. A model with
+     * no mapped resource yields an empty surface, so every key is rejected.
      *
      * @param  \Illuminate\Database\Eloquent\Model  $model
      * @return \SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface
@@ -230,17 +266,12 @@ final class ApiCriteria implements CriteriaInterface
             ? SchemaCompiler::compile($resource)
             : null;
 
-        $posture     = Config::get('api-toolkit.repositories.query_posture', QuerySurface::POSTURE_ALLOWLIST);
-        $reject      = Config::get('api-toolkit.repositories.reject_undeclared', true);
         $resourceMap = Config::get('api-toolkit.resources.resource_map', []);
 
         return new QuerySurface(
             $schema?->getFilterableColumns()    ?? [],
             $schema?->getSortableColumns()      ?? [],
             $schema?->getTraversableRelations() ?? [],
-            is_string($posture) ? $posture : QuerySurface::POSTURE_ALLOWLIST,
-            (bool) $reject,
-            $this->schemaIntrospector,
             $model,
             is_array($resourceMap) ? $resourceMap : [],
         );

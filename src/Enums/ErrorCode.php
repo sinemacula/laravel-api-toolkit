@@ -49,5 +49,6 @@ enum ErrorCode: int implements ErrorCodeInterface
     | API Errors
     |---------------------------------------------------------------------------
     */
-    case MAINTENANCE_MODE = 10200;
+    case MAINTENANCE_MODE    = 10200;
+    case QUERY_TOO_EXPENSIVE = 10201;
 }

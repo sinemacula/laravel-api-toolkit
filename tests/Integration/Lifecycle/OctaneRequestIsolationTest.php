@@ -94,6 +94,8 @@ final class OctaneRequestIsolationTest extends TestCase
      * from request A survives.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testApiQueryParserScopedStateDoesNotLeakAcrossRequests(): void
     {

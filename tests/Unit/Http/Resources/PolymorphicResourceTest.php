@@ -264,6 +264,8 @@ final class PolymorphicResourceTest extends TestCase
      * underlying model.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testToArrayDoesNotEagerLoadMissingRelations(): void
     {

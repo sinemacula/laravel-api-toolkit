@@ -44,6 +44,7 @@ final class ErrorCodeTest extends TestCase
         yield 'SERVICE_UNAVAILABLE' => [ErrorCode::SERVICE_UNAVAILABLE, 10112];
         yield 'HTTP_ERROR' => [ErrorCode::HTTP_ERROR, 10113];
         yield 'MAINTENANCE_MODE' => [ErrorCode::MAINTENANCE_MODE, 10200];
+        yield 'QUERY_TOO_EXPENSIVE' => [ErrorCode::QUERY_TOO_EXPENSIVE, 10201];
     }
 
     /**
@@ -93,6 +94,7 @@ final class ErrorCodeTest extends TestCase
             'SERVICE_UNAVAILABLE',
             'HTTP_ERROR',
             'MAINTENANCE_MODE',
+            'QUERY_TOO_EXPENSIVE',
         ];
 
         $actualNames = array_map(fn (ErrorCode $case) => $case->name, ErrorCode::cases());

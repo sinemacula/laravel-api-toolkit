@@ -29,6 +29,8 @@ final readonly class CompiledFieldDefinition
      * @param  array<int, callable(mixed, mixed): bool>  $guards
      * @param  array<int, callable(mixed, mixed): mixed>  $transformers
      * @param  \SineMacula\ApiToolkit\Schema\OpenApiFieldSchema|null  $openApi
+     * @param  string|null  $filterable
+     * @param  string|null  $sortable
      */
     public function __construct(
 
@@ -64,5 +66,11 @@ final readonly class CompiledFieldDefinition
 
         /** Declared OpenAPI contract for this field; read by the exporter */
         public ?OpenApiFieldSchema $openApi = null,
+
+        /** Column this field declares filterable, or null when undeclared */
+        public ?string $filterable = null,
+
+        /** Column this field declares sortable, or null when undeclared */
+        public ?string $sortable = null,
     ) {}
 }

@@ -128,6 +128,11 @@ final class ResourceResponseShapeTest extends TestCase
      */
     public function testUndeclaredAggregateRelationsAreSilentlyOmitted(): void
     {
+        // The spray asks for more aggregates than the shipped cap allows, so
+        // disable the cap here: this test measures what is dropped, not what is
+        // rejected for cost.
+        Config::set('api-toolkit.query_cost.max_aggregates', 0);
+
         $response = $this->getJson('/users?' . http_build_query([
             'fields'   => ['users' => 'name,counts,sums,averages'],
             'counts'   => ['users' => 'posts,organization,comments'],
@@ -210,10 +215,6 @@ final class ResourceResponseShapeTest extends TestCase
      */
     public function testAggregatesRespectAnAppliedFilter(): void
     {
-        // The blocklist posture lets a filter narrow on an undeclared column,
-        // since UserResource declares no filterable columns of its own.
-        Config::set('api-toolkit.repositories.query_posture', 'blocklist');
-
         $bob = User::create(['name' => 'Bob', 'email' => 'bob@example.com', 'status' => 'active']);
 
         Post::create(['user_id' => $bob->id, 'title' => 'Bob One', 'body' => 'Content', 'published' => true]);
