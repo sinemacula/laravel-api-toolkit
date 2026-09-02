@@ -207,7 +207,7 @@ final readonly class ContainerBindingRegistrar
             new ValidateRelationMethods,
             new ValidateComputedFields,
             new ValidateAccessors,
-            new ValidateQueryableFields,
+            new ValidateQueryableFields($app->make(SchemaIntrospectionProvider::class)),
             new ValidateIndexBacking($app->make(SchemaIntrospectionProvider::class)),
             new ValidateSearchableFields,
             new ValidateSearchIndexes($app->make(SearchDriverRegistry::class)),

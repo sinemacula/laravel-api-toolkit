@@ -48,7 +48,12 @@ type separately:
 Filters are expressed as a JSON object, then URL-encoded and passed as the
 `filters` parameter. Each key is a field name, a relationship, a logical
 operator, or a comparison operator, and its value depends on which it is.
-Unrecognised fields are ignored rather than rejected.
+
+A resource declares which of its fields may be filtered and which of its
+relationships may be filtered through. A key it has not declared is rejected
+rather than ignored: the response is a `422` naming the key. A filter that was
+quietly dropped would widen the result set instead of narrowing it, and nothing
+in the response would say so.
 
 ### Comparison operators
 
@@ -65,6 +70,23 @@ Unrecognised fields are ignored rather than rejected.
 | `$contains` | JSON containment: the column contains the given value. |
 | `$null`     | The field is null.                                     |
 | `$notNull`  | The field is not null.                                 |
+
+Not every operator is available on every field. Each filterable field is
+declared with the access path it has, and answers only the operators that path
+serves from an index:
+
+| The field is                                         | It answers                                                                |
+|------------------------------------------------------|---------------------------------------------------------------------------|
+| A key read by equality: an id, a reference, an email | `$eq`, `$in`, `$null`, `$notNull`                                         |
+| A small closed set: a status, a type                 | `$eq`, `$in`, `$neq`, `$null`, `$notNull`                                 |
+| An ordered value: a number, a date, a timestamp      | `$eq`, `$in`, `$gt`, `$ge`, `$lt`, `$le`, `$between`, `$null`, `$notNull` |
+| A JSON document                                      | `$contains`                                                               |
+| A value described no further than queryable          | `$eq`                                                                     |
+
+Pairing an operator with a field that does not answer it is rejected with a
+`422` naming the operator, the field, and the operators that field does accept,
+so the correction is carried in the error itself. The refusal is decided before
+the query is built, so a rejected request reads nothing.
 
 ### Logical operators
 
@@ -281,6 +303,12 @@ order takes no column:
 ```text
 ?order=random
 ```
+
+Ordering is limited to the fields the resource declares sortable, and any other
+column is rejected with a `422` naming it. Sorting the whole table at random to
+return a single page is expensive enough that `random` is available only where
+the API has enabled it; where it has not, it is rejected like any undeclared
+column.
 
 ## Limiting and paging
 

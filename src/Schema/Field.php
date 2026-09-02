@@ -175,6 +175,11 @@ final class Field extends BaseDefinition
     /**
      * Declare this field's column as sortable.
      *
+     * An offer to order the whole table by the column, so schema validation
+     * asks the connection whether an ordered index leads with it. Where none
+     * does, {@see indexed()} names the index the catalogue cannot show and
+     * {@see unindexed()} records why the sort is affordable without one.
+     *
      * @return self
      */
     public function sortable(): self

@@ -32,6 +32,7 @@ use SineMacula\ApiToolkit\Services\ServiceRunner;
 use Tests\Fixtures\Input\StorePayload;
 use Tests\Fixtures\Models\Log;
 use Tests\Fixtures\Models\User;
+use Tests\Fixtures\Resources\MissingColumnQueryableResource;
 use Tests\Fixtures\Resources\SearchableComputedResource;
 use Tests\Fixtures\Resources\SensitiveQueryableResource;
 use Tests\Fixtures\Resources\TrailingIndexSortableResource;
@@ -120,6 +121,32 @@ final class ContainerBindingRegistrarTest extends TestCase
         $this->expectException(InvalidSchemaException::class);
 
         $validator->validate([User::class => UnbackedQueryableResource::class]);
+    }
+
+    /**
+     * Test that the shipped rule set refuses a filterable declaration naming a
+     * column the table does not carry, so the rule is wired to a live column
+     * listing rather than deciding from the schema alone.
+     *
+     * @return void
+     */
+    public function testRegisterBindsSchemaValidatorRefusingAColumnTheTableDoesNotCarry(): void
+    {
+        $app = $this->getApplication();
+
+        (new ContainerBindingRegistrar($app))->register();
+
+        SchemaCompiler::clearCache();
+
+        $validator = $app->make(SchemaValidator::class);
+
+        $this->expectException(InvalidSchemaException::class);
+        $this->expectExceptionMessage(sprintf(
+            '[%s] Field "nickname": Field is declared filterable against "nickname", and table "users" carries no such column',
+            MissingColumnQueryableResource::class,
+        ));
+
+        $validator->validate([User::class => MissingColumnQueryableResource::class]);
     }
 
     /**

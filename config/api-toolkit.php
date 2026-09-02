@@ -114,18 +114,22 @@ return [
         // When enabled, all registered resource schemas are validated during
         // the boot phase. Defaults to enabled outside production; an unset
         // APP_ENV counts as production so a misconfigured host never pays the
-        // validation cost by default.
+        // validation cost by default. Validation reads the column and index
+        // catalogues behind each mapped model, once per model and cached from
+        // there, and stays silent where the connection cannot be inspected, so
+        // a boot with no database behind it is not a failed one.
         'validate_schemas' => env('VALIDATE_SCHEMAS', env('APP_ENV', 'production') !== 'production'),
 
         'fixed_fields' => ['id', '_type'],
 
-        // Columns that may never be declared filterable or sortable. Schema
-        // validation refuses a resource that declares one, so a credential or
-        // verification column cannot become an oracle a client narrows on one
-        // comparison at a time without ever reading the value. The default
-        // covers the stock Laravel + Fortify auth column family, keeping the
-        // query layer's sensitive set a superset of the export layer's. A
-        // published file that omits the key falls back to this same list.
+        // Columns that may never be declared filterable, sortable, or
+        // searchable. Schema validation refuses a resource that declares one,
+        // so a credential or verification column cannot become an oracle a
+        // client narrows on one comparison at a time without ever reading the
+        // value. The default covers the stock Laravel + Fortify auth column
+        // family, keeping the query layer's sensitive set a superset of the
+        // export layer's. A published file that omits the key falls back to
+        // this same list.
         'sensitive_columns' => [
             'password',
             'token',

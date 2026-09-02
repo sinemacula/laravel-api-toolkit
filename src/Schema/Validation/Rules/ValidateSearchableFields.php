@@ -15,8 +15,9 @@ use SineMacula\ApiToolkit\Schema\Validation\SchemaValidationError;
  * read from the table fails at request time with a database error. Two such
  * fields are provable from the schema alone: a computed field, which has no
  * column at all, and a field whose accessor reads a different path from the one
- * it declares. A closure accessor is opaque here and is left to the
- * column-existence checks that consult the database.
+ * it declares. A closure accessor is opaque here, and what it reads is left to
+ * the index proof taken against the connection, which resolves no index over a
+ * column the table does not carry.
  *
  * A column declared with no strategy is reported for a different reason: the
  * compiled plan drops it, so the resource would present a searchable field that
