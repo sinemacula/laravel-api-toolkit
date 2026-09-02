@@ -6,7 +6,6 @@ namespace SineMacula\ApiToolkit\OpenApi\Docs;
 
 use SineMacula\ApiToolkit\Concerns\QueryParameterValidator;
 use SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException;
-use SineMacula\ApiToolkit\OpenApi\Contracts\ModuleResolver;
 use SineMacula\ApiToolkit\OpenApi\Metadata\QueryColumnDescriptor;
 use SineMacula\ApiToolkit\OpenApi\Metadata\QuerySurfaceDescriptor;
 use SineMacula\ApiToolkit\OpenApi\Naming\SchemaComponentName;
@@ -59,9 +58,6 @@ final readonly class QuerySurfaceDocGenerator
     private const string ORDERS = 'An order reads as Index-backed where the resource recorded no exemption for it; the index itself is proven by '
         . 'schema validation, which reads the catalogue behind the model where a connection can be inspected.';
 
-    /** The heading for resources that belong to no module. */
-    private const string COMMON = 'Common';
-
     /** The cell shown where a column answers nothing, or a row is undescribed. */
     private const string NO_VALUE = '-';
 
@@ -97,13 +93,13 @@ final readonly class QuerySurfaceDocGenerator
     /**
      * Create a new query surface documentation generator.
      *
-     * @param  \SineMacula\ApiToolkit\OpenApi\Contracts\ModuleResolver  $resolver
+     * @param  \SineMacula\ApiToolkit\OpenApi\Docs\ModuleSectionGrouper  $grouper
      * @return void
      */
     public function __construct(
 
-        /** Resolves the module each resource belongs to. */
-        private ModuleResolver $resolver,
+        /** Groups the resources into the sections the reference renders. */
+        private ModuleSectionGrouper $grouper,
     ) {}
 
     /**
@@ -235,10 +231,15 @@ final readonly class QuerySurfaceDocGenerator
      */
     private function resourceSections(array $surfaces): array
     {
-        $sections = $this->sections($surfaces);
-        $lines    = [];
+        $sections = $this->grouper->group(
+            $surfaces,
+            static fn (QuerySurfaceDescriptor $surface): string => $surface->resource,
+            $this->compareByComponentName(...),
+        );
 
-        if ($this->isCombined($sections)) {
+        $lines = [];
+
+        if ($this->grouper->isCombined($sections)) {
 
             foreach ($sections[0]['items'] ?? [] as $surface) {
                 $lines = array_merge($lines, $this->resourceSection($surface, '##'));
@@ -257,78 +258,6 @@ final readonly class QuerySurfaceDocGenerator
         }
 
         return $lines;
-    }
-
-    /**
-     * Group the surfaces into an ordered list of sections, the shared section
-     * first followed by one section per module sorted by name.
-     *
-     * @param  array<int, \SineMacula\ApiToolkit\OpenApi\Metadata\QuerySurfaceDescriptor>  $surfaces
-     * @return list<array{heading: string, items: list<\SineMacula\ApiToolkit\OpenApi\Metadata\QuerySurfaceDescriptor>}>
-     */
-    private function sections(array $surfaces): array
-    {
-        $common  = [];
-        $modules = [];
-
-        foreach ($surfaces as $surface) {
-
-            $module = $this->resolver->resolve($surface->resource);
-
-            if ($module === null) {
-                $common[] = $surface;
-                continue;
-            }
-
-            $modules[$module->key] ??= ['name' => $module->name, 'items' => []];
-            $modules[$module->key]['items'][] = $surface;
-        }
-
-        return $this->orderSections($common, $modules);
-    }
-
-    /**
-     * Assemble the ordered section list, sorting the shared bucket and each
-     * module's resources by component name and the modules by name.
-     *
-     * @param  list<\SineMacula\ApiToolkit\OpenApi\Metadata\QuerySurfaceDescriptor>  $common
-     * @param  array<string, array{name: string, items: list<\SineMacula\ApiToolkit\OpenApi\Metadata\QuerySurfaceDescriptor>}>  $modules
-     * @return list<array{heading: string, items: list<\SineMacula\ApiToolkit\OpenApi\Metadata\QuerySurfaceDescriptor>}>
-     */
-    private function orderSections(array $common, array $modules): array
-    {
-        usort($common, $this->compareByComponentName(...));
-        uasort($modules, static fn (array $a, array $b): int => $a['name'] <=> $b['name']);
-
-        $sections = [];
-
-        if ($common !== []) {
-            $sections[] = ['heading' => self::COMMON, 'items' => $common];
-        }
-
-        foreach ($modules as $module) {
-
-            $items = $module['items'];
-
-            usort($items, $this->compareByComponentName(...));
-
-            $sections[] = ['heading' => $module['name'], 'items' => $items];
-        }
-
-        return $sections;
-    }
-
-    /**
-     * Determine whether the sections collapse to the flat per-resource output,
-     * which holds when nothing is grouped under a module.
-     *
-     * @param  list<array{heading: string, items: list<\SineMacula\ApiToolkit\OpenApi\Metadata\QuerySurfaceDescriptor>}>  $sections
-     * @return bool
-     */
-    private function isCombined(array $sections): bool
-    {
-        return $sections === []
-            || (count($sections) === 1 && $sections[0]['heading'] === self::COMMON);
     }
 
     /**

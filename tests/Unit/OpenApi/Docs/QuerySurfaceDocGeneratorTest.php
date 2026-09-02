@@ -8,6 +8,7 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Enums\Capability;
 use SineMacula\ApiToolkit\Enums\SearchStrategy;
 use SineMacula\ApiToolkit\OpenApi\Docs\Module;
+use SineMacula\ApiToolkit\OpenApi\Docs\ModuleSectionGrouper;
 use SineMacula\ApiToolkit\OpenApi\Docs\QuerySurfaceDocGenerator;
 use SineMacula\ApiToolkit\OpenApi\Metadata\QueryColumnDescriptor;
 use SineMacula\ApiToolkit\OpenApi\Metadata\QuerySurfaceDescriptor;
@@ -508,29 +509,29 @@ final class QuerySurfaceDocGeneratorTest extends TestCase
     }
 
     /**
-     * Build a generator whose resolver groups nothing, yielding combined
+     * Build a generator whose grouper resolves no module, yielding combined
      * output.
      *
      * @return \SineMacula\ApiToolkit\OpenApi\Docs\QuerySurfaceDocGenerator
      */
     private function combinedGenerator(): QuerySurfaceDocGenerator
     {
-        return new QuerySurfaceDocGenerator(new MappedModuleResolver);
+        return new QuerySurfaceDocGenerator(new ModuleSectionGrouper(new MappedModuleResolver));
     }
 
     /**
-     * Build a generator whose resolver groups the fixture resources into
-     * modules, yielding grouped output.
+     * Build a generator whose grouper maps the fixture resources into modules,
+     * yielding grouped output.
      *
      * @return \SineMacula\ApiToolkit\OpenApi\Docs\QuerySurfaceDocGenerator
      */
     private function groupedGenerator(): QuerySurfaceDocGenerator
     {
-        return new QuerySurfaceDocGenerator(new MappedModuleResolver([
+        return new QuerySurfaceDocGenerator(new ModuleSectionGrouper(new MappedModuleResolver([
             UserResource::class         => new Module('App\Account', 'Account'),
             PostResource::class         => new Module('App\Account', 'Account'),
             OrganizationResource::class => new Module('App\Billing', 'Billing'),
-        ]));
+        ])));
     }
 
     /**

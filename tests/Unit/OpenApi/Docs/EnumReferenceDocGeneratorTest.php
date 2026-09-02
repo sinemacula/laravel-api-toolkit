@@ -7,6 +7,7 @@ namespace Tests\Unit\OpenApi\Docs;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\OpenApi\Docs\EnumReferenceDocGenerator;
 use SineMacula\ApiToolkit\OpenApi\Docs\Module;
+use SineMacula\ApiToolkit\OpenApi\Docs\ModuleSectionGrouper;
 use Tests\Fixtures\Enums\Alternate\Tier as AlternateTier;
 use Tests\Fixtures\Enums\DocumentFormat;
 use Tests\Fixtures\Enums\UserLevel;
@@ -191,27 +192,27 @@ final class EnumReferenceDocGeneratorTest extends TestCase
     }
 
     /**
-     * Build a generator whose resolver groups nothing, yielding combined
+     * Build a generator whose grouper resolves no module, yielding combined
      * output.
      *
      * @return \SineMacula\ApiToolkit\OpenApi\Docs\EnumReferenceDocGenerator
      */
     private function combinedGenerator(): EnumReferenceDocGenerator
     {
-        return new EnumReferenceDocGenerator(new MappedModuleResolver);
+        return new EnumReferenceDocGenerator(new ModuleSectionGrouper(new MappedModuleResolver));
     }
 
     /**
-     * Build a generator whose resolver maps the fixture enums to modules,
+     * Build a generator whose grouper maps the fixture enums to modules,
      * leaving the pure enum shared so the Common section is exercised.
      *
      * @return \SineMacula\ApiToolkit\OpenApi\Docs\EnumReferenceDocGenerator
      */
     private function groupedGenerator(): EnumReferenceDocGenerator
     {
-        return new EnumReferenceDocGenerator(new MappedModuleResolver([
+        return new EnumReferenceDocGenerator(new ModuleSectionGrouper(new MappedModuleResolver([
             UserStatus::class => new Module('App\Account', 'Account'),
             UserLevel::class  => new Module('App\Billing', 'Billing'),
-        ]));
+        ])));
     }
 }

@@ -4,7 +4,6 @@ declare(strict_types = 1);
 
 namespace SineMacula\ApiToolkit\OpenApi\Docs;
 
-use SineMacula\ApiToolkit\OpenApi\Contracts\ModuleResolver;
 use SineMacula\ApiToolkit\OpenApi\Naming\SchemaComponentName;
 
 /**
@@ -35,19 +34,16 @@ final readonly class EnumReferenceDocGenerator
     /** The value cell shown for a case with no backing value. */
     private const string NO_VALUE = '-';
 
-    /** The heading for enums that belong to no module. */
-    private const string COMMON = 'Common';
-
     /**
      * Create a new enum reference documentation generator.
      *
-     * @param  \SineMacula\ApiToolkit\OpenApi\Contracts\ModuleResolver  $resolver
+     * @param  \SineMacula\ApiToolkit\OpenApi\Docs\ModuleSectionGrouper  $grouper
      * @return void
      */
     public function __construct(
 
-        /** Resolves the module each enum belongs to. */
-        private ModuleResolver $resolver,
+        /** Groups the enums into the sections the reference renders. */
+        private ModuleSectionGrouper $grouper,
     ) {}
 
     /**
@@ -58,10 +54,15 @@ final readonly class EnumReferenceDocGenerator
      */
     public function generate(array $enums): string
     {
-        $sections = $this->sections($enums);
-        $lines    = [self::BANNER, '', '# Enum Reference', '', self::INTRO];
+        $sections = $this->grouper->group(
+            $enums,
+            static fn (string $enum): string => $enum,
+            $this->compareByComponentName(...),
+        );
 
-        if ($this->isCombined($sections)) {
+        $lines = [self::BANNER, '', '# Enum Reference', '', self::INTRO];
+
+        if ($this->grouper->isCombined($sections)) {
 
             foreach ($sections[0]['items'] ?? [] as $enum) {
                 $lines = array_merge($lines, $this->enumSection($enum, '##'));
@@ -80,79 +81,6 @@ final readonly class EnumReferenceDocGenerator
         }
 
         return implode("\n", $lines) . "\n";
-    }
-
-    /**
-     * Group the enums into an ordered list of sections, the shared section
-     * first followed by one section per module sorted by name, each enum list
-     * sorted by component name.
-     *
-     * @param  list<class-string>  $enums
-     * @return list<array{heading: string, items: list<class-string>}>
-     */
-    private function sections(array $enums): array
-    {
-        $common  = [];
-        $modules = [];
-
-        foreach ($enums as $enum) {
-
-            $module = $this->resolver->resolve($enum);
-
-            if ($module === null) {
-                $common[] = $enum;
-                continue;
-            }
-
-            $modules[$module->key] ??= ['name' => $module->name, 'items' => []];
-            $modules[$module->key]['items'][] = $enum;
-        }
-
-        return $this->orderSections($common, $modules);
-    }
-
-    /**
-     * Assemble the ordered section list, sorting the shared bucket and each
-     * module's enums by component name and the modules by name.
-     *
-     * @param  list<class-string>  $common
-     * @param  array<string, array{name: string, items: list<class-string>}>  $modules
-     * @return list<array{heading: string, items: list<class-string>}>
-     */
-    private function orderSections(array $common, array $modules): array
-    {
-        usort($common, $this->compareByComponentName(...));
-        uasort($modules, static fn (array $a, array $b): int => $a['name'] <=> $b['name']);
-
-        $sections = [];
-
-        if ($common !== []) {
-            $sections[] = ['heading' => self::COMMON, 'items' => $common];
-        }
-
-        foreach ($modules as $module) {
-
-            $items = $module['items'];
-
-            usort($items, $this->compareByComponentName(...));
-
-            $sections[] = ['heading' => $module['name'], 'items' => $items];
-        }
-
-        return $sections;
-    }
-
-    /**
-     * Determine whether the sections collapse to the flat per-enum output,
-     * which holds when nothing is grouped under a module.
-     *
-     * @param  list<array{heading: string, items: list<class-string>}>  $sections
-     * @return bool
-     */
-    private function isCombined(array $sections): bool
-    {
-        return $sections === []
-            || (count($sections) === 1 && $sections[0]['heading'] === self::COMMON);
     }
 
     /**
