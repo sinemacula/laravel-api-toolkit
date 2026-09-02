@@ -14,6 +14,7 @@ use Opis\JsonSchema\ValidationResult;
 use Opis\JsonSchema\Validator;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\OpenApi\Builder\PathBuilder;
+use SineMacula\ApiToolkit\OpenApi\Builder\ResourceSchemaBuilder;
 use SineMacula\ApiToolkit\OpenApi\ExportOpenApiComponents;
 use SineMacula\ApiToolkit\OpenApi\ExportResult;
 use SineMacula\ApiToolkit\OpenApi\OpenApiAssembler;
@@ -32,6 +33,7 @@ use Tests\Fixtures\OpenApi\PathTaggedController;
 use Tests\Fixtures\OpenApi\UndocumentedOrganizationController;
 use Tests\Fixtures\Resources\OrganizationResource;
 use Tests\Fixtures\Resources\PostResource;
+use Tests\Fixtures\Resources\QueryableTagResource;
 use Tests\Fixtures\Resources\TagResource;
 use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
@@ -44,10 +46,11 @@ use Tests\TestCase;
  * and which reachable resource schemas survive into each per-audience document,
  * against real routes and the container-resolved builder graph. Covers
  * allowlist opt-in, the blanket-Undocumented drop from every audience, the
- * canonical internal-only pattern, the route-macro exclusion, and the
+ * canonical internal-only pattern, the route-macro exclusion, the
  * reachable-schema isolation guaranteeing an internal-only resource never leaks
- * into the public document. Every produced document is asserted valid OpenAPI
- * 3.1.
+ * into the public document, and the same isolation for the per-property query
+ * surface that schema carries. Every produced document is asserted valid
+ * OpenAPI 3.1.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -59,6 +62,7 @@ use Tests\TestCase;
 #[CoversClass(AudienceResolver::class)]
 #[CoversClass(AudienceConfiguration::class)]
 #[CoversClass(ReachableSchemaResolver::class)]
+#[CoversClass(ResourceSchemaBuilder::class)]
 final class OpenApiAudienceExportTest extends TestCase
 {
     /** @var string The identifier under which the OpenAPI 3.1 meta-schema is registered. */
@@ -247,6 +251,53 @@ final class OpenApiAudienceExportTest extends TestCase
 
         $this->assertValid($public);
         $this->assertValid($internal);
+    }
+
+    /**
+     * Test that the query surface a resource declares travels with its schema:
+     * the audience reaching the resource learns which of its properties accept
+     * a filter, an order, and a search, while the audience that never reaches
+     * it carries no query surface anywhere in its document.
+     *
+     * @return void
+     */
+    public function testInternalOnlyQuerySurfaceDoesNotLeakIntoPublicDocument(): void
+    {
+        $this->getConfig()->set('api-toolkit.openapi.audiences', [
+            'public'   => [],
+            'internal' => [],
+        ]);
+
+        $this->getConfig()->set('api-toolkit.resources.resource_map', [
+            Organization::class => OrganizationResource::class,
+            Tag::class          => QueryableTagResource::class,
+        ]);
+
+        $this->router()->get('organizations', [PathOrganizationController::class, 'index']);
+        $this->router()->get('tags', [InternalOnlyTagController::class, 'index']);
+
+        $internal = $this->export('internal')->document;
+
+        self::assertSame(
+            [
+                'filter' => ['key' => 'name', 'capability' => 'exact', 'operators' => ['$eq', '$in', '$null', '$notNull']],
+                'sort'   => ['key' => 'name', 'indexed' => true],
+                'search' => ['key' => 'name', 'strategy' => 'prefix'],
+            ],
+            $internal['components']['schemas']['QueryableTag']['properties']['name']['x-query-surface'],
+        );
+
+        $public = $this->export('public')->document;
+
+        self::assertArrayNotHasKey('QueryableTag', $public['components']['schemas']);
+
+        // The surface rides the property rather than the parameter components,
+        // which are emitted globally, so an audience that never reaches the
+        // resource carries no trace of what that resource may be asked.
+        self::assertStringNotContainsString('x-query-surface', json_encode($public, JSON_THROW_ON_ERROR));
+
+        $this->assertValid($internal);
+        $this->assertValid($public);
     }
 
     /**

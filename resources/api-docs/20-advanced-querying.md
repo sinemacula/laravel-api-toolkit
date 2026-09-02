@@ -324,3 +324,39 @@ with a `422` naming the ceiling and the size asked for, rather than answered
 with a smaller page: a page quietly reduced cannot be told apart from the end of
 the result set. See the Pagination section for the shape of a paginated
 response.
+
+## Discovering what a resource accepts
+
+The sections above describe the grammar; which fields a given resource answers
+it with is declared by the resource itself, and the OpenAPI document names them.
+Every property of a resource schema that answers a query carries an
+`x-query-surface` extension:
+
+```json
+"email": {
+  "type": "string",
+  "x-query-surface": {
+    "filter": {
+      "key": "email",
+      "capability": "exact",
+      "operators": ["$eq", "$in", "$null", "$notNull"]
+    },
+    "sort": {"key": "email", "indexed": true},
+    "search": {"key": "email", "strategy": "prefix"}
+  }
+}
+```
+
+Each part appears only where the resource declared it, so a property carrying no
+`x-query-surface` answers no filter, no order, and no search. The `key` is the
+name to send in `filters` and `order`, which differs from the property name
+wherever a field is presented under an alias. A `sort` reporting `"indexed":
+false` also carries the reason the resource recorded for ordering by a column no
+index holds.
+
+The relations a filter may descend through belong to the resource rather than to
+any one property, so the schema names them itself:
+
+```json
+"x-traversable-relations": ["organization", "posts"]
+```

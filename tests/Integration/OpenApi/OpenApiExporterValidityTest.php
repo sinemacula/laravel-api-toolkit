@@ -981,14 +981,12 @@ final class OpenApiExporterValidityTest extends TestCase
         self::assertSame(['type' => 'boolean'], $schemas['Post']['properties']['published']);
 
         // A declared timestamp field keeps its nullable date-time contract.
-        self::assertSame(
-            ['type' => ['string', 'null'], 'format' => 'date-time'],
-            $schemas['User']['properties']['created_at'],
-        );
+        self::assertSame(['string', 'null'], $schemas['User']['properties']['created_at']['type']);
+        self::assertSame('date-time', $schemas['User']['properties']['created_at']['format']);
 
         // A backed-enum cast documents as a reference to its named component
         // even without a backing column, and that component is emitted.
-        self::assertSame(['$ref' => '#/components/schemas/UserStatus'], $schemas['User']['properties']['status']);
+        self::assertSame('#/components/schemas/UserStatus', $schemas['User']['properties']['status']['$ref']);
         self::assertSame(['type' => 'string'], $schemas['UserStatus']);
 
         self::assertTrue(

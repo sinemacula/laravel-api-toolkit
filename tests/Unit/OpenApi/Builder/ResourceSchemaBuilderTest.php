@@ -5,6 +5,8 @@ declare(strict_types = 1);
 namespace Tests\Unit\OpenApi\Builder;
 
 use PHPUnit\Framework\Attributes\CoversClass;
+use SineMacula\ApiToolkit\Enums\Capability;
+use SineMacula\ApiToolkit\Enums\SearchStrategy;
 use SineMacula\ApiToolkit\OpenApi\Builder\ResourceSchemaBuilder;
 use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
 use SineMacula\ApiToolkit\OpenApi\Exceptions\SchemaNameCollisionException;
@@ -25,6 +27,7 @@ use Tests\Fixtures\Resources\GuardedUserResource;
 use Tests\Fixtures\Resources\NullableFilterableUserResource;
 use Tests\Fixtures\Resources\OrganizationResource;
 use Tests\Fixtures\Resources\PostResource;
+use Tests\Fixtures\Resources\SearchableUserResource;
 use Tests\Fixtures\Resources\TagResource;
 use Tests\Fixtures\Resources\UserResource;
 use Tests\Fixtures\Resources\V1\UserResource as V1UserResource;
@@ -204,7 +207,8 @@ final class ResourceSchemaBuilderTest extends TestCase
         $schemas  = $this->makeBuilder($this->fullResourceMap())->build();
         $property = $schemas['User']['properties']['status'];
 
-        self::assertSame(['$ref' => '#/components/schemas/UserStatus'], $property);
+        self::assertSame('#/components/schemas/UserStatus', $property['$ref']);
+        self::assertArrayNotHasKey('type', $property);
         self::assertArrayNotHasKey('x-undocumented', $property);
     }
 
@@ -560,6 +564,161 @@ final class ResourceSchemaBuilderTest extends TestCase
     }
 
     /**
+     * Test that a filterable field documents the key a filter names it by, the
+     * capability it was declared with, and the operator tokens that capability
+     * answers, so two capabilities on one resource carry two operator sets.
+     *
+     * @return void
+     */
+    public function testFilterableFieldDocumentsItsCapabilityAndPermittedOperators(): void
+    {
+        $properties = $this->makeBuilder($this->fullResourceMap())->build()['User']['properties'];
+
+        self::assertSame([
+            'key'        => 'id',
+            'capability' => 'range',
+            'operators'  => ['$eq', '$in', '$gt', '$ge', '$lt', '$le', '$between', '$null', '$notNull'],
+        ], $properties['id']['x-query-surface']['filter']);
+
+        self::assertSame([
+            'key'        => 'status',
+            'capability' => 'enum',
+            'operators'  => ['$eq', '$in', '$neq', '$null', '$notNull'],
+        ], $properties['status']['x-query-surface']['filter']);
+    }
+
+    /**
+     * Test that a field declaring nothing queryable carries no query surface at
+     * all, rather than an empty one.
+     *
+     * @return void
+     */
+    public function testFieldDeclaringNothingQueryableCarriesNoSurface(): void
+    {
+        $properties = $this->makeBuilder($this->fullResourceMap())->build()['User']['properties'];
+
+        self::assertArrayNotHasKey('x-query-surface', $properties['full_label']);
+    }
+
+    /**
+     * Test that a field declared sortable and nothing else documents only the
+     * order it answers, and is documented as index-backed, no exemption having
+     * been recorded against it.
+     *
+     * @return void
+     */
+    public function testSortableFieldWithoutAnExemptionIsDocumentedIndexBacked(): void
+    {
+        $properties = $this->makeBuilder($this->fullResourceMap())->build()['User']['properties'];
+
+        self::assertSame(
+            ['sort' => ['key' => 'created_at', 'indexed' => true]],
+            $properties['created_at']['x-query-surface'],
+        );
+    }
+
+    /**
+     * Test that a sortable column exempted from needing an index is documented
+     * as unindexed and carries the reason the resource recorded for it.
+     *
+     * @return void
+     */
+    public function testIndexExemptSortableFieldDocumentsWhyItIsUnindexed(): void
+    {
+        $field = $this->queryableField(sortable: 'name', unindexedReason: 'The table holds a fixed handful of rows');
+
+        $properties = $this->buildGhost(new CompiledSchema(['name' => $field], [], [], [], ['name']))['properties'];
+
+        self::assertSame(
+            ['sort' => ['key' => 'name', 'indexed' => false, 'reason' => 'The table holds a fixed handful of rows']],
+            $properties['name']['x-query-surface'],
+        );
+    }
+
+    /**
+     * Test that a searchable field documents the strategy its column is matched
+     * by, so two columns under different strategies read differently.
+     *
+     * @return void
+     */
+    public function testSearchableFieldDocumentsItsMatchStrategy(): void
+    {
+        $properties = $this->makeBuilder([User::class => SearchableUserResource::class])
+            ->build()['SearchableUser']['properties'];
+
+        self::assertSame(['key' => 'id', 'strategy' => 'exact'], $properties['id']['x-query-surface']['search']);
+        self::assertSame(['key' => 'name', 'strategy' => 'substring'], $properties['name']['x-query-surface']['search']);
+        self::assertArrayNotHasKey('x-query-surface', $properties['status']);
+    }
+
+    /**
+     * Test that a declaration the compiled query sets do not carry is never
+     * documented, so the document cannot offer a column the request-time gates
+     * would reject.
+     *
+     * @return void
+     */
+    public function testDeclarationTheCompiledQuerySetsOmitIsNotDocumented(): void
+    {
+        $field = $this->queryableField(
+            filterable: 'email',
+            capability: Capability::EXACT,
+            sortable: 'email',
+            searchable: 'email',
+            strategy: SearchStrategy::PREFIX,
+        );
+
+        $properties = $this->buildGhost(new CompiledSchema(['email' => $field], []))['properties'];
+
+        self::assertArrayNotHasKey('x-query-surface', $properties['email']);
+    }
+
+    /**
+     * Test that an aliased field documents the key the query grammar accepts
+     * rather than the key the resource is presented under, the two differing
+     * wherever a field carries an alias.
+     *
+     * @return void
+     */
+    public function testAliasedFieldDocumentsTheKeyTheQueryGrammarAccepts(): void
+    {
+        $field = $this->queryableField(filterable: 'email', capability: Capability::EXACT);
+
+        $schema = new CompiledSchema(['email_address' => $field], [], [], ['email' => Capability::EXACT]);
+
+        $properties = $this->buildGhost($schema)['properties'];
+
+        self::assertSame('email', $properties['email_address']['x-query-surface']['filter']['key']);
+    }
+
+    /**
+     * Test that the relations a filter may descend through are named on the
+     * schema itself, the grammar accepting the relation name rather than the
+     * property key.
+     *
+     * @return void
+     */
+    public function testTraversableRelationsAreNamedOnTheSchema(): void
+    {
+        $schema = $this->makeBuilder($this->fullResourceMap())->build()['User'];
+
+        self::assertSame(['organization', 'posts'], $schema['x-traversable-relations']);
+    }
+
+    /**
+     * Test that a resource declaring no traversable relation carries no such
+     * key, rather than an empty list.
+     *
+     * @return void
+     */
+    public function testResourceWithoutTraversableRelationsCarriesNoRelationKey(): void
+    {
+        $schema = $this->makeBuilder($this->fullResourceMap())->build()['Tag'];
+
+        self::assertArrayNotHasKey('x-traversable-relations', $schema);
+    }
+
+    /**
      * Test that two distinct resources deriving the same component name make
      * the build fail loud, naming the collided name and both resource classes.
      *
@@ -613,6 +772,66 @@ final class ResourceSchemaBuilderTest extends TestCase
         self::assertCount(2, $schemas);
         self::assertArrayHasKey('User', $schemas);
         self::assertArrayHasKey('UserV3', $schemas);
+    }
+
+    /**
+     * Build the single schema of a synthetic resource compiled from the given
+     * schema, so a compiled shape the schema DSL cannot express is still put
+     * through the builder. The user model backs it, so a scalar property still
+     * resolves against a real table.
+     *
+     * @param  \SineMacula\ApiToolkit\Schema\CompiledSchema  $schema
+     * @return array<string, mixed>
+     */
+    private function buildGhost(CompiledSchema $schema): array
+    {
+        $this->setStaticProperty(SchemaCompiler::class, 'cache', ['GhostResource' => $schema]);
+
+        $catalogue = self::createStub(MetadataCatalogue::class);
+        $catalogue->method('getResourceMap')->willReturn([User::class => 'GhostResource']);
+
+        return (new ResourceSchemaBuilder($catalogue, $this->resolver(), $this->introspector()))->build()['Ghost'];
+    }
+
+    /**
+     * Build a compiled field definition carrying only the query declarations a
+     * test names.
+     *
+     * @param  string|null  $filterable
+     * @param  \SineMacula\ApiToolkit\Enums\Capability|null  $capability
+     * @param  string|null  $sortable
+     * @param  string|null  $unindexedReason
+     * @param  string|null  $searchable
+     * @param  \SineMacula\ApiToolkit\Enums\SearchStrategy|null  $strategy
+     * @return \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition
+     */
+    private function queryableField(
+        ?string $filterable = null,
+        ?Capability $capability = null,
+        ?string $sortable = null,
+        ?string $unindexedReason = null,
+        ?string $searchable = null,
+        ?SearchStrategy $strategy = null,
+    ): CompiledFieldDefinition {
+        return new CompiledFieldDefinition(
+            accessor: null,
+            compute: null,
+            relation: null,
+            resource: null,
+            fields: null,
+            constraint: null,
+            extras: [],
+            needs: [],
+            guards: [],
+            transformers: [],
+            openApi: null,
+            filterable: $filterable,
+            filterCapability: $capability,
+            sortable: $sortable,
+            unindexedReason: $unindexedReason,
+            searchable: $searchable,
+            searchStrategy: $strategy,
+        );
     }
 
     /**

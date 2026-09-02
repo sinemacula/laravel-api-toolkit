@@ -16,6 +16,7 @@ use SineMacula\ApiToolkit\OpenApi\Naming\SchemaComponentName;
 use SineMacula\ApiToolkit\OpenApi\Naming\SchemaNameCollisionGuard;
 use SineMacula\ApiToolkit\OpenApi\Resolution\FieldTypeResolver;
 use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
+use SineMacula\ApiToolkit\Schema\CompiledSchema;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 
 /**
@@ -33,6 +34,23 @@ use SineMacula\ApiToolkit\Schema\SchemaCompiler;
  * from the schema's required list), and undocumented fields keep their
  * permissive marker while remaining schema-valid.
  *
+ * Each property also carries the query surface its field declares, read from
+ * the same compiled schema the request-time gates read: the key a filter or an
+ * order names the column by, the capability it was declared filterable with and
+ * the operator tokens that capability answers, whether an index backs the sort
+ * and the reason recorded where none does, and the strategy a free-text search
+ * matches it by. A declaration the gates do not hold is never documented, so
+ * the document cannot claim a column the request would reject.
+ *
+ * The surface is emitted per property rather than as a schema-level list or a
+ * shared parameter component. A parameter component is global to the document,
+ * so a per-resource surface placed there would carry one audience's columns
+ * into every other audience's document; a property travels with the schema its
+ * audience reaches and is dropped along with it. The relations a filter may
+ * descend through are named on the schema itself rather than on a property,
+ * since the grammar accepts the relation name while an aliased relation is
+ * exposed under a key it does not accept.
+ *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
@@ -40,6 +58,12 @@ final readonly class ResourceSchemaBuilder
 {
     /** The path prefix under which resource component schemas are referenced */
     private const string SCHEMA_REF_PREFIX = '#/components/schemas/';
+
+    /** The property extension naming what a field may be queried by */
+    private const string QUERY_SURFACE_KEY = 'x-query-surface';
+
+    /** The schema extension naming the relations a filter may descend through */
+    private const string TRAVERSABLE_RELATIONS_KEY = 'x-traversable-relations';
 
     /**
      * Constructor.
@@ -121,7 +145,11 @@ final readonly class ResourceSchemaBuilder
                 continue;
             }
 
-            $properties[$fieldKey] = $this->buildFieldProperty($fieldKey, $field, $modelClass);
+            $properties[$fieldKey] = $this->withQuerySurface(
+                $this->buildFieldProperty($fieldKey, $field, $modelClass),
+                $field,
+                $compiled,
+            );
 
             if (!$this->isRequired($field)) {
                 continue;
@@ -147,7 +175,7 @@ final readonly class ResourceSchemaBuilder
             $required   = ['_type', ...$required];
         }
 
-        return $this->wrapObjectSchema($properties, $required);
+        return $this->wrapObjectSchema($properties, $required, $compiled->getTraversableRelations());
     }
 
     /**
@@ -284,16 +312,19 @@ final readonly class ResourceSchemaBuilder
     }
 
     /**
-     * Wrap a property map and its required keys into an object schema.
+     * Wrap a property map, its required keys, and the relations a filter may
+     * descend through into an object schema.
      *
      * The required list is omitted entirely when no field qualifies, keeping
-     * the emitted schema minimal and valid.
+     * the emitted schema minimal and valid, and the traversable relations the
+     * same way: a resource declaring none says so by carrying no such key.
      *
      * @param  array<string, array<string, mixed>>  $properties
      * @param  array<int, string>  $required
+     * @param  array<int, string>  $relations
      * @return array<string, mixed>
      */
-    private function wrapObjectSchema(array $properties, array $required): array
+    private function wrapObjectSchema(array $properties, array $required, array $relations): array
     {
         $schema = [
             'type'       => 'object',
@@ -304,7 +335,135 @@ final readonly class ResourceSchemaBuilder
             $schema['required'] = $required;
         }
 
+        if ($relations !== []) {
+            $schema[self::TRAVERSABLE_RELATIONS_KEY] = $relations;
+        }
+
         return $schema;
+    }
+
+    /**
+     * Attach the query surface a field declares to its emitted property,
+     * leaving a property whose field declares none untouched.
+     *
+     * @param  array<string, mixed>  $property
+     * @param  \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition  $field
+     * @param  \SineMacula\ApiToolkit\Schema\CompiledSchema  $compiled
+     * @return array<string, mixed>
+     */
+    private function withQuerySurface(array $property, CompiledFieldDefinition $field, CompiledSchema $compiled): array
+    {
+        $surface = $this->querySurface($field, $compiled);
+
+        if ($surface === []) {
+            return $property;
+        }
+
+        return [...$property, self::QUERY_SURFACE_KEY => $surface];
+    }
+
+    /**
+     * Build the query surface for a single field: what it may be filtered,
+     * ordered, and searched by.
+     *
+     * Each part is omitted where the field declares nothing, so a surface that
+     * comes back empty means the field answers no query parameter at all.
+     *
+     * @param  \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition  $field
+     * @param  \SineMacula\ApiToolkit\Schema\CompiledSchema  $compiled
+     * @return array<string, array<string, mixed>>
+     */
+    private function querySurface(CompiledFieldDefinition $field, CompiledSchema $compiled): array
+    {
+        $surface = [
+            'filter' => $this->filterSurface($field, $compiled),
+            'sort'   => $this->sortSurface($field, $compiled),
+            'search' => $this->searchSurface($field, $compiled),
+        ];
+
+        return array_filter($surface, static fn (?array $part): bool => $part !== null);
+    }
+
+    /**
+     * Describe what a filter may ask of the field's column: the key it is named
+     * by, the capability it was declared with, and the operator tokens that
+     * capability answers.
+     *
+     * The capability is read from the compiled column map the request-time gate
+     * reads rather than from the field, so the operators the document lists are
+     * the operators the gate accepts. A column the map does not carry is not
+     * filterable however the field is declared, and is documented as such.
+     *
+     * @param  \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition  $field
+     * @param  \SineMacula\ApiToolkit\Schema\CompiledSchema  $compiled
+     * @return array<string, mixed>|null
+     */
+    private function filterSurface(CompiledFieldDefinition $field, CompiledSchema $compiled): ?array
+    {
+        $columns = $compiled->getFilterableColumns();
+
+        if ($field->filterable === null || !array_key_exists($field->filterable, $columns)) {
+            return null;
+        }
+
+        $capability = $columns[$field->filterable];
+
+        return [
+            'key'        => $field->filterable,
+            'capability' => $capability->value,
+            'operators'  => $capability->permittedOperators(),
+        ];
+    }
+
+    /**
+     * Describe what an order may ask of the field's column: the key it is named
+     * by and whether an index holds the order.
+     *
+     * A sortable declaration only survives validation where an ordered index
+     * leads with the column or the resource exempted it, so an exemption is the
+     * one thing that leaves the sort unindexed, and its recorded reason travels
+     * with it. The index behind a backed sort is not named: which index serves
+     * a column is a property of the database rather than of the API.
+     *
+     * @param  \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition  $field
+     * @param  \SineMacula\ApiToolkit\Schema\CompiledSchema  $compiled
+     * @return array<string, mixed>|null
+     */
+    private function sortSurface(CompiledFieldDefinition $field, CompiledSchema $compiled): ?array
+    {
+        if ($field->sortable === null || !in_array($field->sortable, $compiled->getSortableColumns(), true)) {
+            return null;
+        }
+
+        $surface = [
+            'key'     => $field->sortable,
+            'indexed' => $field->unindexedReason === null,
+        ];
+
+        if ($field->unindexedReason === null) {
+            return $surface;
+        }
+
+        return [...$surface, 'reason' => $field->unindexedReason];
+    }
+
+    /**
+     * Describe how a free-text search matches the field's column: the key it is
+     * matched on and the strategy it is matched by.
+     *
+     * @param  \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition  $field
+     * @param  \SineMacula\ApiToolkit\Schema\CompiledSchema  $compiled
+     * @return array<string, mixed>|null
+     */
+    private function searchSurface(CompiledFieldDefinition $field, CompiledSchema $compiled): ?array
+    {
+        $columns = $compiled->getSearchableColumns();
+
+        if ($field->searchable === null || !array_key_exists($field->searchable, $columns)) {
+            return null;
+        }
+
+        return ['key' => $field->searchable, 'strategy' => $columns[$field->searchable]->value];
     }
 
     /**
