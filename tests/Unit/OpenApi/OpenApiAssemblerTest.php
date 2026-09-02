@@ -393,9 +393,10 @@ final class OpenApiAssemblerTest extends TestCase
     {
         $parameters = $this->assemble()['components']['parameters'];
 
-        self::assertArrayHasKey('Filter', $parameters);
+        self::assertArrayHasKey('Filters', $parameters);
         self::assertArrayHasKey('Fields', $parameters);
         self::assertArrayHasKey('Order', $parameters);
+        self::assertArrayHasKey('Trashed', $parameters);
     }
 
     /**
@@ -552,6 +553,7 @@ final class OpenApiAssemblerTest extends TestCase
                 new ResponseSchemaResolver($catalogue, new EnvelopeBuilder),
                 new RequestBodyResolver(new RulesToSchemaTranslator(new RuleNormaliser, new FieldSchemaBuilder($enums))),
                 new SecuritySchemeResolver(new SecuritySchemeMapper),
+                new QueryParameterBuilder($catalogue),
             ),
             new SecuritySchemeResolver(new SecuritySchemeMapper),
             new EnumSchemaBuilder,

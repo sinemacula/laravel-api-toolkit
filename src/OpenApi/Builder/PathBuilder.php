@@ -40,13 +40,18 @@ use SineMacula\ApiToolkit\OpenApi\Security\SecuritySchemeResolver;
  * responses. A route whose verbs include a body-bearing method - POST, PUT, or
  * PATCH - also carries a requestBody translated from the rules a
  * #[RequestSchema] directive or a type-hinted rules-source parameter reaches; a
- * read-only route carries none. Audience membership is checked for every route
- * regardless of its handler, so a closure scoped out by a route macro is
- * omitted exactly as an attribute-scoped controller is. A route whose handler
- * is defined under a blocklisted namespace - the framework and common tooling
- * by default - is dropped before any operation is built, so framework noise
- * never reaches the document while the organisation's own packages stay
- * documented. HEAD and OPTIONS are always excluded.
+ * read-only route carries none. A resource operation also references the query
+ * parameters its action honours: an index the whole grammar, a show what shapes
+ * and scopes a single record, a store and an update what shapes the resource
+ * they return, and a destroy none. A non-resource operation references none,
+ * there being no knowing whether such an action consults the query parser.
+ * Audience membership is checked for every route regardless of its handler, so
+ * a closure scoped out by a route macro is omitted exactly as an
+ * attribute-scoped controller is. A route whose handler is defined under a
+ * blocklisted namespace - the framework and common tooling by default - is
+ * dropped before any operation is built, so framework noise never reaches the
+ * document while the organisation's own packages stay documented. HEAD and
+ * OPTIONS are always excluded.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -92,6 +97,7 @@ final readonly class PathBuilder
      * @param  \SineMacula\ApiToolkit\OpenApi\Resolution\ResponseSchemaResolver  $responseSchema
      * @param  \SineMacula\ApiToolkit\OpenApi\Resolution\RequestBodyResolver  $requestBody
      * @param  \SineMacula\ApiToolkit\OpenApi\Security\SecuritySchemeResolver  $security
+     * @param  \SineMacula\ApiToolkit\OpenApi\Builder\QueryParameterBuilder  $queryParameters
      */
     public function __construct(
 
@@ -121,6 +127,9 @@ final readonly class PathBuilder
 
         /** The resolver deriving a route's security requirement. */
         private SecuritySchemeResolver $security,
+
+        /** The builder naming the query parameters each action accepts. */
+        private QueryParameterBuilder $queryParameters,
     ) {}
 
     /**
@@ -250,6 +259,7 @@ final readonly class PathBuilder
             $responses,
             $route,
             $requestBody,
+            $this->queryParameters->referencesFor($action),
         );
     }
 
@@ -324,12 +334,13 @@ final readonly class PathBuilder
      * @param  array<int|string, mixed>  $responses
      * @param  \Illuminate\Routing\Route  $route
      * @param  array<string, mixed>  $requestBody
+     * @param  array<int, array<string, string>>  $queryParameters
      * @return array<string, mixed>
      */
-    private function assembleOperation(string $tag, array $responses, Route $route, array $requestBody = []): array
+    private function assembleOperation(string $tag, array $responses, Route $route, array $requestBody = [], array $queryParameters = []): array
     {
         $operation  = ['tags' => [$tag]];
-        $parameters = $this->pathParameters($route);
+        $parameters = array_merge($this->pathParameters($route), $queryParameters);
 
         if ($parameters !== []) {
             $operation['parameters'] = $parameters;

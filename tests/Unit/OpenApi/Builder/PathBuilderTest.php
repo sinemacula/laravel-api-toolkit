@@ -11,6 +11,7 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Http\Resources\ApiResourceCollection;
 use SineMacula\ApiToolkit\OpenApi\Builder\EnvelopeBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\PathBuilder;
+use SineMacula\ApiToolkit\OpenApi\Builder\QueryParameterBuilder;
 use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
 use SineMacula\ApiToolkit\OpenApi\Resolution\AudienceResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\DocumentableRouteFilter;
@@ -365,7 +366,8 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
-     * Test that path parameters are derived from the route segments.
+     * Test that path parameters are derived from the route segments and lead
+     * the parameter list, ahead of the shared query references.
      *
      * @return void
      */
@@ -376,13 +378,12 @@ final class PathBuilderTest extends TestCase
         $parameters = $this->build()['/users/{user}']['get']['parameters'];
 
         self::assertSame([
-            [
-                'name'     => 'user',
-                'in'       => 'path',
-                'required' => true,
-                'schema'   => ['type' => 'string'],
-            ],
-        ], $parameters);
+            'name'     => 'user',
+            'in'       => 'path',
+            'required' => true,
+            'schema'   => ['type' => 'string'],
+        ], $parameters[0]);
+        self::assertSame([], $this->pathParametersIn(array_slice($parameters, 1)));
     }
 
     /**
@@ -394,7 +395,82 @@ final class PathBuilderTest extends TestCase
     {
         $this->registerRestRoutes();
 
-        self::assertArrayNotHasKey('parameters', $this->build()['/users']['get']);
+        self::assertSame([], $this->pathParametersIn($this->build()['/users']['get']['parameters']));
+    }
+
+    /**
+     * Test that an index references the whole shared query grammar so a
+     * generated client sees the parameters the document defines.
+     *
+     * @return void
+     */
+    public function testIndexReferencesTheWholeSharedQueryGrammar(): void
+    {
+        $this->registerRestRoutes();
+
+        self::assertSame(
+            ['Fields', 'Counts', 'Sums', 'Averages', 'Filters', 'Search', 'Order', 'Limit', 'Page', 'Cursor', 'Pagination', 'Trashed'],
+            $this->referencedParameterNames($this->build()['/users']['get']),
+        );
+    }
+
+    /**
+     * Test that a show references only what shapes and scopes a single record,
+     * so the document never claims a single resource can be paged or filtered.
+     *
+     * @return void
+     */
+    public function testShowReferencesOnlyTheSingleRecordGrammar(): void
+    {
+        $this->registerRestRoutes();
+
+        self::assertSame(
+            ['Fields', 'Counts', 'Sums', 'Averages', 'Trashed'],
+            $this->referencedParameterNames($this->build()['/users/{user}']['get']),
+        );
+    }
+
+    /**
+     * Test that a store and an update reference only what shapes the resource
+     * they return.
+     *
+     * @return void
+     */
+    public function testWriteActionsReferenceOnlyTheShapingGrammar(): void
+    {
+        $this->registerRestRoutes();
+
+        $paths    = $this->build();
+        $expected = ['Fields', 'Counts', 'Sums', 'Averages'];
+
+        self::assertSame($expected, $this->referencedParameterNames($paths['/users']['post']));
+        self::assertSame($expected, $this->referencedParameterNames($paths['/users/{user}']['patch']));
+    }
+
+    /**
+     * Test that a destroy references no query parameter, its empty body having
+     * nothing to shape.
+     *
+     * @return void
+     */
+    public function testDestroyReferencesNoQueryParameter(): void
+    {
+        $this->registerRestRoutes();
+
+        self::assertSame([], $this->referencedParameterNames($this->build()['/users/{user}']['delete']));
+    }
+
+    /**
+     * Test that a non-resource operation references no query parameter, the
+     * builder having no way to know whether the action reads the query at all.
+     *
+     * @return void
+     */
+    public function testNonResourceOperationReferencesNoQueryParameter(): void
+    {
+        $this->router()->get('plain', [PathPlainController::class, 'report']);
+
+        self::assertSame([], $this->referencedParameterNames($this->build()['/plain']['get']));
     }
 
     /**
@@ -1168,6 +1244,50 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
+     * List the shared query-parameter component names the operation references,
+     * in the order it carries them.
+     *
+     * @param  array<string, mixed>  $operation
+     * @return array<int, string>
+     */
+    private function referencedParameterNames(array $operation): array
+    {
+        $names      = [];
+        $parameters = $operation['parameters'] ?? [];
+
+        if (!is_array($parameters)) {
+            return [];
+        }
+
+        foreach ($parameters as $parameter) {
+
+            $reference = is_array($parameter) ? $parameter['$ref'] ?? null : null;
+
+            if (!is_string($reference)) {
+                continue;
+            }
+
+            $names[] = str_replace('#/components/parameters/', '', $reference);
+        }
+
+        return $names;
+    }
+
+    /**
+     * Reduce a parameter list to its path parameters.
+     *
+     * @param  array<int, array<string, mixed>>  $parameters
+     * @return array<int, array<string, mixed>>
+     */
+    private function pathParametersIn(array $parameters): array
+    {
+        return array_values(array_filter(
+            $parameters,
+            static fn (array $parameter): bool => ($parameter['in'] ?? null) === 'path',
+        ));
+    }
+
+    /**
      * Build a path builder backed by a catalogue mapping the user model to its
      * resource.
      *
@@ -1188,6 +1308,7 @@ final class PathBuilderTest extends TestCase
             new ResponseSchemaResolver($catalogue, new EnvelopeBuilder),
             new RequestBodyResolver(new RulesToSchemaTranslator(new RuleNormaliser, new FieldSchemaBuilder)),
             new SecuritySchemeResolver(new SecuritySchemeMapper),
+            new QueryParameterBuilder($catalogue),
         );
     }
 

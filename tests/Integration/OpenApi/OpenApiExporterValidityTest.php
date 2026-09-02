@@ -169,7 +169,7 @@ final class OpenApiExporterValidityTest extends TestCase
 
     /**
      * Test that the emitted document declares a 3.1.x version and a populated
-     * components block (AC-01/AC-09).
+     * components block.
      *
      * @return void
      */
@@ -214,7 +214,7 @@ final class OpenApiExporterValidityTest extends TestCase
 
     /**
      * Test that exactly one component schema is emitted per registered resource
-     * (FR-3) and the summary count matches the registry size.
+     * and the summary count matches the registry size.
      *
      * @return void
      */
@@ -235,14 +235,14 @@ final class OpenApiExporterValidityTest extends TestCase
 
     /**
      * Test that every registered operator and structural operator appears in
-     * the emitted filter parameter (FR-4).
+     * the emitted filter parameter.
      *
      * @return void
      */
     public function testEveryOperatorAppearsInTheFilterParameter(): void
     {
         $document  = $this->export()->document;
-        $operators = $document['components']['parameters']['Filter']['schema']['x-operators'];
+        $operators = $document['components']['parameters']['Filters']['schema']['x-operators'];
 
         $expected = [
             '$eq', '$neq', '$gt', '$lt', '$ge', '$le', '$in',
@@ -255,6 +255,64 @@ final class OpenApiExporterValidityTest extends TestCase
         }
 
         self::assertNotContains('$like', $operators);
+    }
+
+    /**
+     * Test that the index operation reaches the query grammar end to end, so a
+     * generated client sees the parameters the components block defines rather
+     * than an operation carrying none.
+     *
+     * @return void
+     */
+    public function testIndexOperationReferencesTheSharedQueryParameters(): void
+    {
+        $this->registerUserRoutes();
+
+        /** @var array<string, array<string, array<string, mixed>>> $paths */
+        $paths = $this->export()->document['paths'];
+
+        self::assertSame(
+            ['Fields', 'Counts', 'Sums', 'Averages', 'Filters', 'Search', 'Order', 'Limit', 'Page', 'Cursor', 'Pagination', 'Trashed'],
+            $this->referencedParameterNames($paths['/users']['get']),
+        );
+    }
+
+    /**
+     * Test that every parameter reference across every operation resolves to a
+     * defined component, so no operation dangles.
+     *
+     * @return void
+     */
+    public function testEveryParameterReferenceResolvesToAComponent(): void
+    {
+        $this->registerUserRoutes();
+
+        $document = $this->export()->document;
+
+        /** @var array<string, mixed> $parameters */
+        $parameters = $document['components']['parameters'];
+
+        /** @var array<string, array<string, mixed>> $paths */
+        $paths = $document['paths'];
+
+        $defined = array_keys($parameters);
+        $seen    = 0;
+
+        foreach ($paths as $operations) {
+            foreach ($operations as $operation) {
+
+                if (!is_array($operation)) {
+                    continue;
+                }
+
+                foreach ($this->referencedParameterNames($operation) as $name) {
+                    self::assertContains($name, $defined);
+                    $seen++;
+                }
+            }
+        }
+
+        self::assertGreaterThan(0, $seen);
     }
 
     /**
@@ -283,7 +341,7 @@ final class OpenApiExporterValidityTest extends TestCase
 
     /**
      * Test that an un-annotated timestamp field is inferred as a date-time
-     * string end to end (AC-07).
+     * string end to end.
      *
      * @return void
      */
@@ -295,14 +353,14 @@ final class OpenApiExporterValidityTest extends TestCase
         $createdAt = $document['components']['schemas']['User']['properties']['created_at'];
 
         // The column is nullable, so the 2020-12 nullable type-array form is
-        // emitted; the date-time format is the AC-07 signal either way.
+        // emitted; the date-time format is the signal either way.
         self::assertContains('string', (array) $createdAt['type']);
         self::assertSame('date-time', $createdAt['format']);
     }
 
     /**
      * Test that an opaque compute field with no declaration carries the
-     * x-undocumented marker and remains permissive (FR-8).
+     * x-undocumented marker and remains permissive.
      *
      * @return void
      */
@@ -374,8 +432,7 @@ final class OpenApiExporterValidityTest extends TestCase
 
     /**
      * Test that regenerating the document after a documented surface changes
-     * produces a different component, and the new document stays 3.1-valid
-     * (FR-2/AC-02).
+     * produces a different component, and the new document stays 3.1-valid.
      *
      * @return void
      */
@@ -406,7 +463,7 @@ final class OpenApiExporterValidityTest extends TestCase
 
     /**
      * Test that the artisan command writes a non-empty 3.1-valid document and
-     * reports a non-zero resource count, exit 0 (AC-01).
+     * reports a non-zero resource count, exit 0.
      *
      * @return void
      */
@@ -1121,6 +1178,36 @@ final class OpenApiExporterValidityTest extends TestCase
         }
 
         return json_encode((new ErrorFormatter)->format($error), JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR);
+    }
+
+    /**
+     * List the shared query-parameter component names the operation references,
+     * in the order it carries them.
+     *
+     * @param  array<string, mixed>  $operation
+     * @return array<int, string>
+     */
+    private function referencedParameterNames(array $operation): array
+    {
+        $names      = [];
+        $parameters = $operation['parameters'] ?? [];
+
+        if (!is_array($parameters)) {
+            return [];
+        }
+
+        foreach ($parameters as $parameter) {
+
+            $reference = is_array($parameter) ? $parameter['$ref'] ?? null : null;
+
+            if (!is_string($reference)) {
+                continue;
+            }
+
+            $names[] = str_replace('#/components/parameters/', '', $reference);
+        }
+
+        return $names;
     }
 
     /**

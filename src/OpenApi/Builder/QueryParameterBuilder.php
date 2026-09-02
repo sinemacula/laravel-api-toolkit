@@ -7,21 +7,43 @@ namespace SineMacula\ApiToolkit\OpenApi\Builder;
 use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
 
 /**
- * Builds the shared components.parameters set once.
+ * Builds the shared components.parameters set once and names which of them each
+ * REST action accepts.
  *
  * Emits the toolkit's query-parameter grammar as reusable components: sparse
  * fieldsets, the generic filter grammar (documenting the full operator
  * vocabulary at the pattern level, leaving the accepted fields to each
  * resource's own declarations), free-text search, ordering, the pagination set
- * (limit, page, cursor, and the pagination-mode switch), and relation counts.
- * Resource components and the assembled document reference these by name; the
- * definitions are never duplicated per resource.
+ * (limit, page, cursor, and the pagination-mode switch), the relation
+ * aggregates, and soft-delete visibility. Resource components and the assembled
+ * document reference these by name; the definitions are never duplicated per
+ * resource.
+ *
+ * The grammar splits in two. One half shapes the representation of a resource
+ * that is returned - the sparse fieldset and the relation aggregates - and is
+ * honoured wherever a resource is serialised, whatever the verb that produced
+ * it. The other half selects, orders, and pages a collection, which only an
+ * index answers. Soft-delete visibility widens the scope a read is served from,
+ * so it joins the two read actions. A destroy answers none of it, having no
+ * body to shape and no collection to select.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
 final readonly class QueryParameterBuilder
 {
+    /** The path prefix under which parameter components are referenced */
+    private const string PARAMETER_REF_PREFIX = '#/components/parameters/';
+
+    /** The component names shaping the representation of a serialised resource */
+    private const array SHAPING_PARAMETERS = ['Fields', 'Counts', 'Sums', 'Averages'];
+
+    /** The component names selecting, ordering, and paging a collection */
+    private const array SELECTION_PARAMETERS = ['Filters', 'Search', 'Order', 'Limit', 'Page', 'Cursor', 'Pagination'];
+
+    /** The component name widening the soft-delete scope a read is served from */
+    private const string VISIBILITY_PARAMETER = 'Trashed';
+
     /**
      * Constructor.
      *
@@ -42,7 +64,7 @@ final readonly class QueryParameterBuilder
     {
         return [
             'Fields'     => $this->buildFieldsParameter(),
-            'Filter'     => $this->buildFilterParameter(),
+            'Filters'    => $this->buildFiltersParameter(),
             'Search'     => $this->buildSearchParameter(),
             'Order'      => $this->buildOrderParameter(),
             'Limit'      => $this->buildLimitParameter(),
@@ -52,7 +74,34 @@ final readonly class QueryParameterBuilder
             'Counts'     => $this->buildCountsParameter(),
             'Sums'       => $this->buildSumsParameter(),
             'Averages'   => $this->buildAveragesParameter(),
+            'Trashed'    => $this->buildTrashedParameter(),
         ];
+    }
+
+    /**
+     * List the parameter references the given REST action accepts, in the order
+     * an operation carries them.
+     *
+     * An index answers the whole grammar; a show answers what shapes and scopes
+     * a single record; a store and an update answer what shapes the resource
+     * they return; a destroy and any action outside the REST set answer none.
+     *
+     * @param  string  $action
+     * @return array<int, array<string, string>>
+     */
+    public function referencesFor(string $action): array
+    {
+        $names = match ($action) {
+            'index' => [...self::SHAPING_PARAMETERS, ...self::SELECTION_PARAMETERS, self::VISIBILITY_PARAMETER],
+            'show'  => [...self::SHAPING_PARAMETERS, self::VISIBILITY_PARAMETER],
+            'store', 'update' => self::SHAPING_PARAMETERS,
+            default => [],
+        };
+
+        return array_map(
+            static fn (string $name): array => ['$ref' => self::PARAMETER_REF_PREFIX . $name],
+            $names,
+        );
     }
 
     /**
@@ -74,29 +123,32 @@ final readonly class QueryParameterBuilder
      * Build the generic filter parameter documenting the full operator
      * vocabulary at the pattern level.
      *
-     * The operator tokens enumerate both the registered comparison operators
-     * and the structural operators, so consumers learn the grammar without the
-     * exporter restating each resource's declared field set.
+     * The document arrives as a single URL-encoded JSON object rather than
+     * bracketed query keys, which is the only shape the parser accepts, so the
+     * schema is a JSON-carrying string rather than an object. The operator
+     * tokens enumerate both the registered comparison operators and the
+     * structural operators, so consumers learn the grammar without the exporter
+     * restating each resource's declared field set.
      *
      * @return array<string, mixed>
      */
-    private function buildFilterParameter(): array
+    private function buildFiltersParameter(): array
     {
         $operators = $this->operatorVocabulary();
 
         return $this->parameter(
-            'filter',
+            'filters',
             sprintf(
-                'Generic filter grammar. Filters are keyed by field and combined with the operator vocabulary: %s. '
+                'Generic filter grammar. Filters are a URL-encoded JSON object keyed by field and combined with the operator vocabulary: %s. '
+                . 'A whole document is sent under the one key, e.g. filters={"status":{"$eq":"active"}}. '
                 . 'The operator grammar is documented at the pattern level; each resource accepts only the fields it declares filterable.',
                 implode(', ', $operators),
             ),
             [
-                'type'                 => 'object',
-                'additionalProperties' => true,
-                'x-operators'          => $operators,
+                'type'             => 'string',
+                'contentMediaType' => 'application/json',
+                'x-operators'      => $operators,
             ],
-            'deepObject',
         );
     }
 
@@ -231,6 +283,26 @@ final readonly class QueryParameterBuilder
             'Relation averages: request average aggregates per resource type and relation, e.g. averages[users][posts]=id.',
             ['type' => 'object', 'additionalProperties' => ['type' => 'object', 'additionalProperties' => ['type' => 'string']]],
             'deepObject',
+        );
+    }
+
+    /**
+     * Build the soft-delete visibility parameter.
+     *
+     * Live records only is the default, so the parameter carries just the two
+     * values that widen it. A resource exposes its soft-deleted records only by
+     * opting in, and the description says so rather than leaving a client to
+     * infer the refusal from an unchanged result set.
+     *
+     * @return array<string, mixed>
+     */
+    private function buildTrashedParameter(): array
+    {
+        return $this->parameter(
+            'trashed',
+            'Soft-delete visibility: with returns soft-deleted records alongside the live ones and only returns the soft-deleted records alone, '
+            . 'e.g. trashed=with. Omitting it returns live records only. A resource that has not opted in to exposing its soft-deleted records ignores it.',
+            ['type' => 'string', 'enum' => ['with', 'only']],
         );
     }
 

@@ -173,6 +173,7 @@ final class ExportOpenApiComponentsTest extends TestCase
                 new ResponseSchemaResolver($catalogue, new EnvelopeBuilder),
                 new RequestBodyResolver(new RulesToSchemaTranslator(new RuleNormaliser, new FieldSchemaBuilder($enums))),
                 new SecuritySchemeResolver(new SecuritySchemeMapper),
+                new QueryParameterBuilder($catalogue),
             ),
             new SecuritySchemeResolver(new SecuritySchemeMapper),
             new EnumSchemaBuilder,
