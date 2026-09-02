@@ -291,6 +291,189 @@ final class SchemaIntrospectorTest extends TestCase
     }
 
     /**
+     * Test that getIndexes returns the indexes the connection reports, carrying
+     * each composite index in the order the connection lists its columns.
+     *
+     * @return void
+     */
+    public function testGetIndexesReturnsTheCatalogueTheConnectionReports(): void
+    {
+        $indexes = ($this->makeIntrospector())->getIndexes(new User);
+
+        self::assertIsArray($indexes);
+        self::assertSame(['status', 'name'], $this->columnsOf($indexes, 'users_status_name_index'));
+        self::assertSame(['name'], $this->columnsOf($indexes, 'users_name_index'));
+    }
+
+    /**
+     * Test that a table the connection reads and finds no index on reports an
+     * empty catalogue rather than an unverifiable one, since an empty answer is
+     * a real answer a declaration can be refused against.
+     *
+     * @return void
+     */
+    public function testGetIndexesReturnsAnEmptyCatalogueForATableCarryingNoIndex(): void
+    {
+        self::assertSame([], ($this->makeIntrospector())->getIndexes($this->keylessModel()));
+    }
+
+    /**
+     * Test that a connection that cannot be inspected reports null rather than
+     * an empty catalogue, so a boot with no database behind it proves nothing
+     * instead of proving every table indexless.
+     *
+     * The two answers must never be conflated: reading the unverifiable one as
+     * an empty catalogue turns every such boot into a refusal.
+     *
+     * @return void
+     */
+    public function testGetIndexesReportsAnUninspectableConnectionAsUnverifiableRatherThanEmpty(): void
+    {
+        Cache::memo()->flush(); // @phpstan-ignore method.notFound
+
+        Schema::shouldReceive('getIndexes')
+            ->once()
+            ->andThrow(new \RuntimeException('No database connection'));
+
+        self::assertNull(($this->makeIntrospector())->getIndexes($this->keylessModel()));
+    }
+
+    /**
+     * Test that an unverifiable catalogue is not written to the persistent
+     * cache, so a later run against a live connection resolves the real
+     * indexes.
+     *
+     * @return void
+     */
+    public function testGetIndexesDoesNotCacheAnUnverifiableCatalogue(): void
+    {
+        Cache::memo()->flush(); // @phpstan-ignore method.notFound
+
+        Schema::shouldReceive('getIndexes')
+            ->once()
+            ->andThrow(new \RuntimeException('No database connection'));
+
+        $model = $this->keylessModel();
+
+        ($this->makeIntrospector())->getIndexes($model);
+
+        self::assertNull(Cache::memo()->get(CacheKeys::MODEL_SCHEMA_INDEXES->resolveKey([$model::class])));
+    }
+
+    /**
+     * Test that getIndexes stores the result in the memo cache under a key
+     * scoped to the model class.
+     *
+     * @return void
+     */
+    public function testGetIndexesStoresResultInMemoCacheUnderModelKey(): void
+    {
+        $indexes = ($this->makeIntrospector())->getIndexes(new User);
+
+        self::assertEquals($indexes, Cache::memo()->get(CacheKeys::MODEL_SCHEMA_INDEXES->resolveKey([User::class])));
+    }
+
+    /**
+     * Test that getIndexes registers the MODEL_SCHEMA_INDEXES key in the
+     * metadata key registry, so a scoped flush forgets it.
+     *
+     * @return void
+     */
+    public function testGetIndexesRegistersSchemaIndexesKey(): void
+    {
+        $registry = app(MetadataKeyRegistry::class);
+
+        ($this->makeIntrospector())->getIndexes(new User);
+
+        self::assertContains(CacheKeys::MODEL_SCHEMA_INDEXES->resolveKey([User::class]), $registry->keys());
+    }
+
+    /**
+     * Test that getIndexes serves the instance cache on a second call without
+     * consulting the schema again.
+     *
+     * @return void
+     */
+    public function testGetIndexesServesInstanceCacheWithoutSchemaLookup(): void
+    {
+        $introspector = $this->makeIntrospector();
+        $model        = new User;
+
+        $first = $introspector->getIndexes($model);
+
+        Cache::memo()->flush(); // @phpstan-ignore method.notFound
+
+        Schema::shouldReceive('getIndexes')
+            ->never();
+
+        self::assertSame($first, $introspector->getIndexes($model));
+    }
+
+    /**
+     * Test that an empty catalogue is served from the memo cache on a later
+     * instance rather than being read again, since an empty catalogue is a
+     * valid cached result and a miss would be read as unverifiable.
+     *
+     * @return void
+     */
+    public function testGetIndexesCachesAnEmptyCatalogueAcrossInstances(): void
+    {
+        Cache::memo()->flush(); // @phpstan-ignore method.notFound
+
+        Schema::shouldReceive('getIndexes')
+            ->once()
+            ->andReturn([]);
+
+        $model = new User;
+
+        self::assertSame([], ($this->makeIntrospector())->getIndexes($model));
+        self::assertSame([], ($this->makeIntrospector())->getIndexes($model));
+    }
+
+    /**
+     * Test that a catalogue entry the connection reports in a shape that cannot
+     * be read is passed over, leaving the readable entries behind it.
+     *
+     * @return void
+     */
+    public function testGetIndexesPassesOverAnUnreadableCatalogueEntry(): void
+    {
+        Cache::memo()->flush(); // @phpstan-ignore method.notFound
+
+        Schema::shouldReceive('getIndexes')
+            ->once()
+            ->andReturn([
+                ['name' => null, 'columns' => ['name'], 'type' => 'btree'],
+                ['name' => 'users_name_index', 'columns' => ['name'], 'type' => 'btree'],
+            ]);
+
+        $indexes = ($this->makeIntrospector())->getIndexes(new User);
+
+        self::assertIsArray($indexes);
+        self::assertCount(1, $indexes);
+        self::assertSame('users_name_index', $indexes[0]->name);
+    }
+
+    /**
+     * Test that flush clears cached indexes so the next call reads the
+     * catalogue again.
+     *
+     * @return void
+     */
+    public function testFlushClearsIndexes(): void
+    {
+        $introspector = $this->makeIntrospector();
+
+        $introspector->getIndexes(new User);
+
+        self::assertNotSame([], $this->getProperty($introspector, 'indexes'));
+
+        $introspector->flush();
+
+        self::assertSame([], $this->getProperty($introspector, 'indexes'));
+    }
+
+    /**
      * Test that isRelation returns true for a valid relation.
      *
      * @return void
@@ -1205,6 +1388,40 @@ final class SchemaIntrospectorTest extends TestCase
         $key = CacheKeys::MODEL_SCHEMA_COLUMN_DEFINITIONS->resolveKey([$model::class]);
 
         self::assertNull(Cache::memo()->get($key));
+    }
+
+    /**
+     * Build a model backed by the keyless staging table, which carries no
+     * primary key and no index.
+     *
+     * @return \Illuminate\Database\Eloquent\Model
+     */
+    private function keylessModel(): Model
+    {
+        return new class extends Model {
+            /** @var string|null */
+            protected $table = 'import_rows';
+        };
+    }
+
+    /**
+     * Return the columns the named index covers, or null when the catalogue
+     * carries no index of that name.
+     *
+     * @param  array<int, \SineMacula\ApiToolkit\Schema\Introspection\IndexDefinition>  $indexes
+     * @param  string  $name
+     * @return array<int, string>|null
+     */
+    private function columnsOf(array $indexes, string $name): ?array
+    {
+        foreach ($indexes as $index) {
+
+            if ($index->name === $name) {
+                return $index->columns;
+            }
+        }
+
+        return null;
     }
 
     /**

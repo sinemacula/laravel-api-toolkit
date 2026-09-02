@@ -58,6 +58,18 @@ final readonly class ColumnlessIntrospectionProvider implements SchemaIntrospect
     }
 
     /**
+     * Get the indexes declared on the given model's table.
+     *
+     * @param  \Illuminate\Database\Eloquent\Model  $model
+     * @return array<int, \SineMacula\ApiToolkit\Schema\Introspection\IndexDefinition>|null
+     */
+    #[\Override]
+    public function getIndexes(Model $model): ?array
+    {
+        return $this->inner->getIndexes($model);
+    }
+
+    /**
      * Determine whether the given key is an Eloquent relation on the model.
      *
      * @param  string  $key

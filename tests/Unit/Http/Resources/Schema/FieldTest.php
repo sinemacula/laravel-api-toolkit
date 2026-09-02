@@ -72,6 +72,98 @@ final class FieldTest extends TestCase
     }
 
     /**
+     * Test that indexed() records the index the author names behind the
+     * sortable column.
+     *
+     * @return void
+     */
+    public function testIndexedRecordsTheNamedIndex(): void
+    {
+        $array = Field::scalar('name')->sortable()->indexed('users_lower_name_index')->toArray();
+
+        self::assertSame('users_lower_name_index', $array['name']['indexed']);
+    }
+
+    /**
+     * Test that indexed() trims the name it records, so an index is matched on
+     * what the connection reports rather than on the surrounding whitespace.
+     *
+     * @return void
+     */
+    public function testIndexedTrimsTheNamedIndex(): void
+    {
+        $array = Field::scalar('name')->sortable()->indexed('  users_lower_name_index  ')->toArray();
+
+        self::assertSame('users_lower_name_index', $array['name']['indexed']);
+    }
+
+    /**
+     * Test that indexed() refuses a name that is nothing but whitespace, since
+     * a declaration naming no index governs nothing.
+     *
+     * @return void
+     */
+    public function testIndexedRefusesANameThatIsBlank(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('An index declaration must name an index');
+
+        Field::scalar('name')->sortable()->indexed('   ');
+    }
+
+    /**
+     * Test that unindexed() records the reason behind the exemption.
+     *
+     * @return void
+     */
+    public function testUnindexedRecordsTheReason(): void
+    {
+        $array = Field::scalar('name')->sortable()->unindexed('The table is bounded at a few hundred rows')->toArray();
+
+        self::assertSame('The table is bounded at a few hundred rows', $array['name']['unindexed']);
+    }
+
+    /**
+     * Test that unindexed() trims the reason it records.
+     *
+     * @return void
+     */
+    public function testUnindexedTrimsTheReason(): void
+    {
+        $array = Field::scalar('name')->sortable()->unindexed('  Bounded table  ')->toArray();
+
+        self::assertSame('Bounded table', $array['name']['unindexed']);
+    }
+
+    /**
+     * Test that unindexed() refuses a reason that is nothing but whitespace, so
+     * an exemption is never silent.
+     *
+     * @return void
+     */
+    public function testUnindexedRefusesAReasonThatIsBlank(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('An index exemption must carry a reason');
+
+        Field::scalar('name')->sortable()->unindexed('   ');
+    }
+
+    /**
+     * Test that a field declaring neither override emits neither key, so an
+     * undeclared field carries no override into the compiled schema.
+     *
+     * @return void
+     */
+    public function testAFieldDeclaringNoOverrideEmitsNeitherKey(): void
+    {
+        $array = Field::scalar('name')->sortable()->toArray();
+
+        self::assertArrayNotHasKey('indexed', $array['name']);
+        self::assertArrayNotHasKey('unindexed', $array['name']);
+    }
+
+    /**
      * Test that the filterable marker declares the underlying column, not the
      * presentation alias.
      *

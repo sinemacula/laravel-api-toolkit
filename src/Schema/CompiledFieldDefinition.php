@@ -35,6 +35,8 @@ final readonly class CompiledFieldDefinition
      * @param  string|null  $filterable
      * @param  \SineMacula\ApiToolkit\Enums\Capability|null  $filterCapability
      * @param  string|null  $sortable
+     * @param  string|null  $indexedBy
+     * @param  string|null  $unindexedReason
      * @param  string|null  $searchable
      * @param  \SineMacula\ApiToolkit\Enums\SearchStrategy|null  $searchStrategy
      */
@@ -81,6 +83,12 @@ final readonly class CompiledFieldDefinition
 
         /** Column this field declares sortable, or null when undeclared */
         public ?string $sortable = null,
+
+        /** Index the author names as backing the sortable column */
+        public ?string $indexedBy = null,
+
+        /** Reason the sortable column is deliberately left unindexed */
+        public ?string $unindexedReason = null,
 
         /** Column this field declares searchable, or null when undeclared */
         public ?string $searchable = null,

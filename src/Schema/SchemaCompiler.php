@@ -349,6 +349,8 @@ final class SchemaCompiler
             filterable      : self::declaredColumn($definition, 'filterable'),
             filterCapability: self::resolveCapability($definition),
             sortable        : self::declaredColumn($definition, 'sortable'),
+            indexedBy       : self::declaredColumn($definition, 'indexed'),
+            unindexedReason : self::declaredColumn($definition, 'unindexed'),
             searchable    : self::declaredColumn($definition, 'searchable'),
             searchStrategy: self::resolveSearchStrategy($definition),
         );

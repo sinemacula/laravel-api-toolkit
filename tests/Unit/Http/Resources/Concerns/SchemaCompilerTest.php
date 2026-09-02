@@ -201,6 +201,56 @@ final class SchemaCompilerTest extends TestCase
     }
 
     /**
+     * Test that compile carries the index overrides declared behind a sortable
+     * column onto the compiled field.
+     *
+     * @return void
+     */
+    public function testCompileCarriesTheIndexOverridesOntoTheField(): void
+    {
+        $schema = SchemaCompiler::compile($this->createStubResourceClass([
+            'name'       => ['sortable' => 'name', 'indexed' => 'users_lower_name_index'],
+            'created_at' => ['sortable' => 'created_at', 'unindexed' => 'Bounded table'],
+            'email'      => ['sortable' => 'email'],
+        ]));
+
+        $name      = $schema->getField('name');
+        $createdAt = $schema->getField('created_at');
+        $email     = $schema->getField('email');
+
+        self::assertInstanceOf(CompiledFieldDefinition::class, $name);
+        self::assertInstanceOf(CompiledFieldDefinition::class, $createdAt);
+        self::assertInstanceOf(CompiledFieldDefinition::class, $email);
+
+        self::assertSame('users_lower_name_index', $name->indexedBy);
+        self::assertNull($name->unindexedReason);
+        self::assertSame('Bounded table', $createdAt->unindexedReason);
+        self::assertNull($createdAt->indexedBy);
+        self::assertNull($email->indexedBy);
+        self::assertNull($email->unindexedReason);
+    }
+
+    /**
+     * Test that an index override the schema carries as something other than a
+     * name is left off the compiled field, so a malformed marker never reads as
+     * a declaration.
+     *
+     * @return void
+     */
+    public function testCompileIgnoresMalformedIndexOverrides(): void
+    {
+        $schema = SchemaCompiler::compile($this->createStubResourceClass([
+            'name' => ['sortable' => 'name', 'indexed' => 123, 'unindexed' => true],
+        ]));
+
+        $name = $schema->getField('name');
+
+        self::assertInstanceOf(CompiledFieldDefinition::class, $name);
+        self::assertNull($name->indexedBy);
+        self::assertNull($name->unindexedReason);
+    }
+
+    /**
      * Test that compile aggregates the declared searchable columns with the
      * match strategy each was declared with.
      *

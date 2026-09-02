@@ -132,6 +132,7 @@ abstract class TestCase extends OrchestraTestCase
         $this->createLogsTable();
         $this->createArticlesTable();
         $this->createCommentsTable();
+        $this->createImportRowsTable();
         $this->createSearchIndexes();
     }
 
@@ -193,7 +194,10 @@ abstract class TestCase extends OrchestraTestCase
             $table->string('status')->default('active');
             $table->timestamps();
 
+            $table->index('name');
             $table->index('organization_id');
+            $table->index('created_at');
+            $table->index('updated_at');
             $table->index(['status', 'name']);
         });
     }
@@ -354,6 +358,7 @@ abstract class TestCase extends OrchestraTestCase
             $table->softDeletes();
 
             $table->index('user_id');
+            $table->index('views');
             $table->index(['status', 'views']);
         });
     }
@@ -378,6 +383,24 @@ abstract class TestCase extends OrchestraTestCase
             $table->softDeletes();
 
             $table->index('user_id');
+        });
+    }
+
+    /**
+     * Create the import rows table.
+     *
+     * Keyless staging table carrying no primary key and no index, so a test
+     * reading its catalogue back gets an answer that is genuinely empty rather
+     * than one that could not be read.
+     *
+     * @return void
+     */
+    private function createImportRowsTable(): void
+    {
+        Schema::dropIfExists('import_rows');
+        Schema::create('import_rows', function (Blueprint $table): void {
+            $table->string('reference');
+            $table->string('payload');
         });
     }
 

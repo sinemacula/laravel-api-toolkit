@@ -33,6 +33,12 @@ final class Field extends BaseDefinition
     /** @var \SineMacula\ApiToolkit\Enums\SearchStrategy|null The strategy this field's column is declared searchable with */
     private ?SearchStrategy $searchable = null;
 
+    /** @var string|null The index the author declares behind this field's sortable column */
+    private ?string $indexed = null;
+
+    /** @var string|null The reason this field's sortable column is deliberately left unindexed */
+    private ?string $unindexed = null;
+
     /**
      * Prevent direct instantiation.
      *
@@ -179,6 +185,54 @@ final class Field extends BaseDefinition
     }
 
     /**
+     * Name the index that backs this field's sortable column.
+     *
+     * The connection is the authority on which index leads with a column, so
+     * this exists only for what reading the catalogue cannot show: an index
+     * over an expression, or one whose predicate the catalogue reports apart
+     * from its columns. Validation still asks the connection for the index by
+     * name, so an override naming an index the table does not carry is a defect
+     * rather than a way past the check.
+     *
+     * @param  string  $index
+     * @return self
+     *
+     * @throws \InvalidArgumentException
+     */
+    public function indexed(string $index): self
+    {
+        if (trim($index) === '') {
+            throw new \InvalidArgumentException('An index declaration must name an index');
+        }
+
+        $this->indexed = trim($index);
+
+        return $this;
+    }
+
+    /**
+     * Exempt this field's sortable column from needing an index, recording why.
+     *
+     * The reason is required so an exemption is never silent: it is the whole
+     * artefact a reviewer has to weigh a sort that reads the table against.
+     *
+     * @param  string  $reason
+     * @return self
+     *
+     * @throws \InvalidArgumentException
+     */
+    public function unindexed(string $reason): self
+    {
+        if (trim($reason) === '') {
+            throw new \InvalidArgumentException('An index exemption must carry a reason');
+        }
+
+        $this->unindexed = trim($reason);
+
+        return $this;
+    }
+
+    /**
      * Declare this field's column as searchable with the given match strategy.
      *
      * The strategy is explicit because it decides which index has to back the
@@ -213,6 +267,8 @@ final class Field extends BaseDefinition
                 'filterable' => $this->filterable !== null ? $this->name : null,
                 'capability' => $this->filterable,
                 'sortable'   => $this->sortable ? $this->name : null,
+                'indexed'    => $this->indexed,
+                'unindexed'  => $this->unindexed,
                 'searchable' => $this->searchable !== null ? $this->name : null,
                 'strategy'   => $this->searchable,
                 'extras'     => $this->extras ?: null,

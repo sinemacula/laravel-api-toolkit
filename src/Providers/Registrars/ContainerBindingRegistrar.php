@@ -42,6 +42,7 @@ use SineMacula\ApiToolkit\Schema\Introspection\SchemaIntrospector;
 use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateAccessors;
 use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateComputedFields;
 use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateGuards;
+use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateIndexBacking;
 use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateQueryableFields;
 use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateRelationClasses;
 use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateRelationInterfaces;
@@ -207,6 +208,7 @@ final readonly class ContainerBindingRegistrar
             new ValidateComputedFields,
             new ValidateAccessors,
             new ValidateQueryableFields,
+            new ValidateIndexBacking($app->make(SchemaIntrospectionProvider::class)),
             new ValidateSearchableFields,
             new ValidateSearchIndexes($app->make(SearchDriverRegistry::class)),
             new ValidateSensitiveColumns,

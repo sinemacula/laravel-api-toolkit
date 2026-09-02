@@ -280,6 +280,20 @@ refused.
 verification column cannot become an oracle a client narrows on without ever reading the value. The default
 covers the stock Laravel and Fortify auth column family.
 
+**Index backing** - a `sortable()` declaration offers to order the whole table by that column on request, so
+schema validation asks the connection whether an index leads with it. Leading is the whole test: a column named
+second in a composite index is covered by that index and still cannot be ordered by on its own, so checking
+mere membership would pass exactly the declaration the database cannot serve. Where the connection names index
+kinds, only a kind that holds an order counts, so a full-text or trigram index over a column does not make it
+sortable. A connection that cannot be inspected at all reports nothing rather than reporting nothing found, so
+booting with no database behind the application skips the check instead of failing it. The catalogue is read
+during validation and never while a request is served.
+
+Two narrow overrides exist for what reading the catalogue cannot show. `indexed('users_lower_name_index')`
+names the index behind the column - an expression or partial index, say - and is still checked against the
+connection by name, so it cannot wave the check through. `unindexed('the table is bounded at a few hundred
+rows')` records a deliberate exemption, and the reason is required so an exemption is never silent.
+
 **Random ordering** - `?order=random` is disabled by default because it sorts the whole table to return one
 page. Enable it with `api-toolkit.repositories.allow_random_order` (`API_TOOLKIT_ALLOW_RANDOM_ORDER=true`);
 while it is disabled the keyword is treated as an ordinary sort key and rejected like any undeclared column.

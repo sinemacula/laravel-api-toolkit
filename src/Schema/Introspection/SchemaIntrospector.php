@@ -36,6 +36,9 @@ final class SchemaIntrospector implements SchemaIntrospectionProvider
     /** @var array<string, array<string, \SineMacula\ApiToolkit\Schema\Introspection\ColumnDefinition>> */
     private array $columnDefinitions = [];
 
+    /** @var array<string, array<int, \SineMacula\ApiToolkit\Schema\Introspection\IndexDefinition>|null> */
+    private array $indexes = [];
+
     /**
      * Create a new schema introspector.
      *
@@ -126,6 +129,29 @@ final class SchemaIntrospector implements SchemaIntrospectionProvider
         }
 
         return $this->columnDefinitions[$model::class] = $definitions;
+    }
+
+    /**
+     * Get the indexes declared on the given model's table, or null when the
+     * connection could not be inspected.
+     *
+     * A connection that could not be read reports null, so a boot with no
+     * database behind it proves nothing rather than proving the table has no
+     * index. A connection that was read and carries nothing reports an empty
+     * list, which is a real answer. The failure is not cached, so a later run
+     * against a live connection resolves the catalogue.
+     *
+     * Results are cached forever per model, mirroring getColumns().
+     *
+     * @param  \Illuminate\Database\Eloquent\Model  $model
+     * @return array<int, \SineMacula\ApiToolkit\Schema\Introspection\IndexDefinition>|null
+     */
+    #[\Override]
+    public function getIndexes(Model $model): ?array
+    {
+        return array_key_exists($model::class, $this->indexes)
+            ? $this->indexes[$model::class]
+            : $this->resolveIndexes($model);
     }
 
     /**
@@ -228,6 +254,7 @@ final class SchemaIntrospector implements SchemaIntrospectionProvider
     {
         $this->columns           = [];
         $this->columnDefinitions = [];
+        $this->indexes           = [];
     }
 
     /**
@@ -254,6 +281,68 @@ final class SchemaIntrospector implements SchemaIntrospectionProvider
                 typeName: strtolower($typeName),
                 nullable: (bool) $column['nullable'],
             );
+        }
+
+        return $definitions;
+    }
+
+    /**
+     * Read the catalogue behind the model's table, serving the persistent cache
+     * where it is warm and reporting null where the connection could not be
+     * inspected.
+     *
+     * The answer is held on the instance whichever way it resolved. The failure
+     * is not written to the persistent cache, so a later run against a live
+     * connection resolves the catalogue rather than serving the silence back.
+     *
+     * @param  \Illuminate\Database\Eloquent\Model  $model
+     * @return array<int, \SineMacula\ApiToolkit\Schema\Introspection\IndexDefinition>|null
+     */
+    private function resolveIndexes(Model $model): ?array
+    {
+        $cacheKey = CacheKeys::MODEL_SCHEMA_INDEXES->resolveKey([$model::class]);
+
+        if (Cache::memo()->has($cacheKey)) {
+
+            /** @var array<int, \SineMacula\ApiToolkit\Schema\Introspection\IndexDefinition> $cached */
+            $cached = Cache::memo()->get($cacheKey, []);
+
+            return $this->indexes[$model::class] = $cached;
+        }
+
+        try {
+            $indexes = $this->mapIndexDefinitions(Schema::getIndexes($model->getTable()));
+        } catch (\Throwable) {
+
+            // No live connection: the catalogue is unverifiable, not empty.
+            return $this->indexes[$model::class] = null;
+        }
+
+        $this->metadataCacheWriter->rememberMetadataForever($cacheKey, fn (): array => $indexes);
+
+        return $this->indexes[$model::class] = $indexes;
+    }
+
+    /**
+     * Map the raw index catalogue entries into index definitions, passing over
+     * any entry the connection reported in a shape that cannot be read.
+     *
+     * @param  array<int, mixed>  $indexes
+     * @return array<int, \SineMacula\ApiToolkit\Schema\Introspection\IndexDefinition>
+     */
+    private function mapIndexDefinitions(array $indexes): array
+    {
+        $definitions = [];
+
+        foreach ($indexes as $index) {
+
+            $definition = IndexDefinition::fromCatalogueEntry($index);
+
+            if ($definition === null) {
+                continue;
+            }
+
+            $definitions[] = $definition;
         }
 
         return $definitions;

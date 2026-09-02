@@ -8,6 +8,7 @@ use Illuminate\Database\Connection;
 use Illuminate\Database\Eloquent\Builder;
 use SineMacula\ApiToolkit\Contracts\SearchDriver;
 use SineMacula\ApiToolkit\Enums\SearchStrategy;
+use SineMacula\ApiToolkit\Schema\Introspection\IndexDefinition;
 use SineMacula\ApiToolkit\Search\SearchTerm;
 
 /**
@@ -211,26 +212,29 @@ abstract class EngineSearchDriver implements SearchDriver
     }
 
     /**
-     * Return the indexes declared on the table, normalised to a name, an
-     * ordered column list, and a type.
+     * Return the indexes declared on the table whose kind the connection names.
+     *
+     * An index the connection reports without a kind is left out: a driver here
+     * proves a match against an index of a particular kind, and an unnamed kind
+     * proves nothing about the shape the strategy needs.
      *
      * @param  string  $table
      * @param  \Illuminate\Database\Connection  $connection
-     * @return array<int, array{name: string, columns: array<int, string>, type: string}>
+     * @return array<int, \SineMacula\ApiToolkit\Schema\Introspection\IndexDefinition>
      */
     protected function indexes(string $table, Connection $connection): array
     {
         $indexes = [];
 
-        foreach ($connection->getSchemaBuilder()->getIndexes($table) as $index) {
+        foreach ($connection->getSchemaBuilder()->getIndexes($table) as $entry) {
 
-            $normalised = $this->normalise($index);
+            $index = IndexDefinition::fromCatalogueEntry($entry);
 
-            if ($normalised === null) {
+            if ($index === null || $index->type === null) {
                 continue;
             }
 
-            $indexes[] = $normalised;
+            $indexes[] = $index;
         }
 
         return $indexes;
@@ -252,72 +256,11 @@ abstract class EngineSearchDriver implements SearchDriver
     {
         foreach ($this->indexes($table, $connection) as $index) {
 
-            if ($index['type'] === 'btree' && ($index['columns'][0] ?? null) === $column) {
+            if ($index->type === 'btree' && $index->leadsWith($column)) {
                 return true;
             }
         }
 
         return false;
-    }
-
-    /**
-     * Normalise one catalogue entry, or return null when the connection
-     * reported anything but an entry carrying a name, a kind, and columns that
-     * are names.
-     *
-     * The entry is read as unknown rather than as the shape the schema builder
-     * promises, because what the connection actually returned is what decides
-     * whether it can be read at all.
-     *
-     * @param  mixed  $index
-     * @return array{name: string, columns: array<int, string>, type: string}|null
-     */
-    private function normalise(mixed $index): ?array
-    {
-        if (!is_array($index)) {
-            return null;
-        }
-
-        $name    = $index['name']    ?? null;
-        $type    = $index['type']    ?? null;
-        $columns = $index['columns'] ?? null;
-        $names   = is_array($columns) ? $this->columnNames($columns) : null;
-
-        if (!is_string($name) || !is_string($type) || $names === null) {
-            return null;
-        }
-
-        return [
-            'name'    => $name,
-            'columns' => $names,
-            'type'    => strtolower($type),
-        ];
-    }
-
-    /**
-     * Return the column names an index covers, or null when the connection
-     * reported one as something other than a name.
-     *
-     * An entry that is not a name leaves the position of every column after it
-     * unknown, and the leading one is what a proof reads, so the whole index is
-     * passed over rather than resequenced around the gap.
-     *
-     * @param  array<mixed>  $columns
-     * @return array<int, string>|null
-     */
-    private function columnNames(array $columns): ?array
-    {
-        $names = [];
-
-        foreach ($columns as $column) {
-
-            if (!is_string($column)) {
-                return null;
-            }
-
-            $names[] = $column;
-        }
-
-        return $names;
     }
 }

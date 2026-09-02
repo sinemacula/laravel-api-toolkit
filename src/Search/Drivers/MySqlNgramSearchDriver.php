@@ -185,11 +185,11 @@ final class MySqlNgramSearchDriver extends EngineSearchDriver
 
         foreach ($this->indexes($table, $connection) as $index) {
 
-            $covered = $index['columns'];
+            $covered = $index->columns;
 
             sort($covered);
 
-            if ($index['type'] === 'fulltext' && $covered === $declared && $this->usesNgramParser($index['name'], $definition)) {
+            if ($index->type === 'fulltext' && $covered === $declared && $this->usesNgramParser($index->name, $definition)) {
                 return true;
             }
         }
