@@ -10,7 +10,7 @@ The parameters combine freely on any endpoint that returns resources. A typical
 request looks like this:
 
 ```text
-?fields[user]=first_name,last_name&filters={"last_name":{"$like":"Smith"}}&order=created_at:desc&limit=25&page=1
+?fields[user]=first_name,last_name&filters={"last_name":{"$eq":"Smith"}}&order=created_at:desc&limit=25&page=1
 ```
 
 | Parameter | Example                          | Description                                                                 |
@@ -60,7 +60,6 @@ Unrecognised fields are ignored rather than rejected.
 | `$lt`       | Less than the given value.                             |
 | `$ge`       | Greater than or equal to the given value.              |
 | `$le`       | Less than or equal to the given value.                 |
-| `$like`     | Partial match containing the given value.              |
 | `$in`       | Matches any value in the given array.                  |
 | `$between`  | Falls within the given `[min, max]` range.             |
 | `$contains` | JSON containment: the column contains the given value. |
@@ -82,7 +81,7 @@ nested filter:
 {
   "posts": {
     "title": {
-      "$like": "Announcement"
+      "$eq": "Announcement"
     }
   }
 }
@@ -136,9 +135,6 @@ takes a two-element range, and `$in` takes an array:
 
 ```json
 {
-  "last_name": {
-    "$like": "Smith"
-  },
   "created_at": {
     "$between": ["2024-01-01 00:00:00", "2024-12-31 23:59:59"]
   },
@@ -158,7 +154,7 @@ instead, wrap the conditions:
       "$in": ["Ben", "John"]
     },
     "last_name": {
-      "$like": "Smith"
+      "$eq": "Smith"
     }
   }
 }
@@ -171,6 +167,24 @@ Use `search` for free-text matching across a resource's searchable fields:
 ```text
 ?search=John Smith
 ```
+
+The term is matched against the requested resource only. It does not follow a
+relationship, so searching a list of users never reaches the titles of their
+posts; nest a filter under the relationship name for that.
+
+Each searchable field is matched in one of three shapes, chosen per field by
+the resource: the whole value equals the term, the value begins with the term,
+or the value carries the term anywhere within it. A record matches when any
+searchable field matches, and the search always narrows a request further,
+whatever the filters alongside it ask for.
+
+A term is rejected with a `422` rather than trimmed when it is too short, too
+long, or carries too many words. The minimum length exists because a shorter
+term cannot be answered from an index: the response would be either wrong or
+paid for by reading the whole table.
+
+A resource that declares no searchable field rejects the parameter rather than
+answering it with an unnarrowed list.
 
 ## Ordering
 

@@ -4,6 +4,7 @@ declare(strict_types = 1);
 
 namespace Tests\Unit\Search;
 
+use Illuminate\Support\Facades\Config;
 use Illuminate\Validation\ValidationException;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -139,8 +140,9 @@ final class SearchTermTest extends TestCase
     }
 
     /**
-     * Test that the minimum length counts characters rather than bytes, so a
-     * three-character multibyte term is accepted.
+     * Test that the minimum length counts characters rather than bytes: a
+     * three-character multibyte term is accepted, and a two-character one is
+     * rejected even though its bytes would clear the bound.
      *
      * @return void
      *
@@ -149,6 +151,8 @@ final class SearchTermTest extends TestCase
     public function testMinimumLengthCountsCharactersNotBytes(): void
     {
         self::assertSame('ábç', SearchTerm::from('ábç')->value());
+
+        $this->assertRejects('áb', self::TOO_SHORT);
     }
 
     /**
@@ -198,6 +202,95 @@ final class SearchTermTest extends TestCase
     public function testTermAboveTheWordLimitIsRejected(): void
     {
         $this->assertRejects(implode(' ', array_fill(0, SearchTerm::MAX_WORDS + 1, 'abc')), self::TOO_MANY_WORDS);
+    }
+
+    /**
+     * Test that a configured minimum above the shipped floor is enforced, at
+     * exactly the configured length and one character below it.
+     *
+     * @return void
+     *
+     * @throws \Illuminate\Validation\ValidationException
+     */
+    public function testConfiguredMinimumLengthAboveTheFloorIsEnforced(): void
+    {
+        Config::set('api-toolkit.search.min_length', 5);
+
+        self::assertSame('abcde', SearchTerm::from('abcde')->value());
+        $this->assertRejects('abcd', 'The search term must be at least 5 characters.');
+    }
+
+    /**
+     * Test that a configured minimum below the shipped floor is held at the
+     * floor, so the measured bound cannot be configured away.
+     *
+     * @return void
+     */
+    public function testConfiguredMinimumLengthBelowTheFloorIsHeldAtTheFloor(): void
+    {
+        Config::set('api-toolkit.search.min_length', 1);
+
+        $this->assertRejects('ab', self::TOO_SHORT);
+    }
+
+    /**
+     * Test that a configured maximum length is enforced, at exactly the
+     * configured length and one character above it.
+     *
+     * @return void
+     *
+     * @throws \Illuminate\Validation\ValidationException
+     */
+    public function testConfiguredMaximumLengthIsEnforced(): void
+    {
+        Config::set('api-toolkit.search.max_length', 4);
+
+        self::assertSame('abcd', SearchTerm::from('abcd')->value());
+        $this->assertRejects('abcde', 'The search term may not be longer than 4 characters.');
+    }
+
+    /**
+     * Test that a configured word cap is enforced, at exactly the configured
+     * count and one word beyond it.
+     *
+     * @return void
+     *
+     * @throws \Illuminate\Validation\ValidationException
+     */
+    public function testConfiguredWordCapIsEnforced(): void
+    {
+        Config::set('api-toolkit.search.max_words', 2);
+
+        self::assertSame('abc abc', SearchTerm::from('abc abc')->value());
+        $this->assertRejects('abc abc abc', 'The search term may not carry more than 2 words.');
+    }
+
+    /**
+     * Test that a fractional bound is measured as the whole number it truncates
+     * to, so a term of exactly that many characters is accepted.
+     *
+     * @return void
+     *
+     * @throws \Illuminate\Validation\ValidationException
+     */
+    public function testFractionalBoundIsTruncatedToAWholeNumber(): void
+    {
+        Config::set('api-toolkit.search.min_length', '4.7');
+
+        self::assertSame('abcd', SearchTerm::from('abcd')->value());
+    }
+
+    /**
+     * Test that a bound configured as something other than a number falls back
+     * to the shipped default rather than to nothing at all.
+     *
+     * @return void
+     */
+    public function testNonNumericBoundFallsBackToTheShippedDefault(): void
+    {
+        Config::set('api-toolkit.search.max_length', 'unbounded');
+
+        $this->assertRejects(str_repeat('a', SearchTerm::MAX_LENGTH + 1), self::TOO_LONG);
     }
 
     /**

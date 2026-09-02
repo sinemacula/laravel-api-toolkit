@@ -61,6 +61,7 @@ final class QueryParameterValidatorTest extends TestCase
         yield 'page of one' => [['page' => '1']];
         yield 'limit of one' => [['limit' => '1']];
         yield 'cursor string' => [['cursor' => 'eyJpZCI6MTAwfQ==']];
+        yield 'search string' => [['search' => 'john smith']];
     }
 
     /**
@@ -94,6 +95,8 @@ final class QueryParameterValidatorTest extends TestCase
         yield 'integer fields' => [['fields' => 123]];
         yield 'array order' => [['order' => ['name' => 'asc']]];
         yield 'array cursor' => [['cursor' => ['id' => 100]]];
+        yield 'array search' => [['search' => ['smith']]];
+        yield 'integer search' => [['search' => 42]];
         yield 'array fields resource value' => [['fields' => ['user' => ['name', 'email']]]];
         yield 'array counts resource value' => [['counts' => ['user' => ['posts', 'comments']]]];
         yield 'string sums resource value' => [['sums' => ['account' => 'amount']]];

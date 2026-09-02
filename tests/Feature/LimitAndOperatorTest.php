@@ -22,8 +22,8 @@ use Tests\TestCase;
  *
  * A client-supplied page limit above the configured ceiling is clamped down to
  * the ceiling rather than honoured, and a small sample of declared filter
- * operators - greater-than, like, and in - each narrow the result set through
- * the parsed query string.
+ * operators - greater-than and in - each narrow the result set through the
+ * parsed query string.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -103,27 +103,6 @@ final class LimitAndOperatorTest extends TestCase
         self::assertContains('Carol', $names);
         self::assertContains('Dave', $names);
         self::assertNotContains('Alice', $names);
-    }
-
-    /**
-     * Test that the like operator narrows the result set by a name substring.
-     *
-     * @return void
-     */
-    public function testLikeOperatorNarrowsByName(): void
-    {
-        $filters = json_encode(['name' => ['$like' => 'Al']]);
-
-        $response = $this->getJson('/users?filters=' . urlencode((string) $filters));
-
-        $response->assertOk();
-        $response->assertJsonCount(2, 'data');
-
-        $names = array_column((array) $response->json('data'), 'name');
-
-        self::assertContains('Alice', $names);
-        self::assertContains('Alan', $names);
-        self::assertNotContains('Bob', $names);
     }
 
     /**

@@ -107,6 +107,23 @@ final class SearchPlanTest extends TestCase
     }
 
     /**
+     * Test that a strategy repeated by a later column is skipped rather than
+     * ending the walk, so a strategy declared after it still reaches a driver.
+     *
+     * @return void
+     */
+    public function testARepeatedStrategyDoesNotHideALaterOne(): void
+    {
+        $plan = SearchPlan::build(new CompiledSchema([], [], [], [], [], [], [
+            'name'   => SearchStrategy::SUBSTRING,
+            'email'  => SearchStrategy::SUBSTRING,
+            'status' => SearchStrategy::EXACT,
+        ]));
+
+        self::assertSame([SearchStrategy::SUBSTRING, SearchStrategy::EXACT], $plan->strategies());
+    }
+
+    /**
      * Test that a schema declaring nothing searchable yields an empty plan
      * rather than a plan over every column.
      *

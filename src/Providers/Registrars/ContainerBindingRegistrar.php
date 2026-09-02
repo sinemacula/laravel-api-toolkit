@@ -34,7 +34,6 @@ use SineMacula\ApiToolkit\Repositories\Criteria\Operators\GreaterThanOrEqualOper
 use SineMacula\ApiToolkit\Repositories\Criteria\Operators\InOperator;
 use SineMacula\ApiToolkit\Repositories\Criteria\Operators\LessThanOperator;
 use SineMacula\ApiToolkit\Repositories\Criteria\Operators\LessThanOrEqualOperator;
-use SineMacula\ApiToolkit\Repositories\Criteria\Operators\LikeOperator;
 use SineMacula\ApiToolkit\Repositories\Criteria\Operators\NotEqualOperator;
 use SineMacula\ApiToolkit\Repositories\Criteria\Operators\NotNullOperator;
 use SineMacula\ApiToolkit\Repositories\Criteria\Operators\NullOperator;
@@ -154,7 +153,6 @@ final readonly class ContainerBindingRegistrar
             $registry->register('$lt', new LessThanOperator);
             $registry->register('$ge', new GreaterThanOrEqualOperator);
             $registry->register('$le', new LessThanOrEqualOperator);
-            $registry->register('$like', new LikeOperator);
             $registry->register('$in', new InOperator);
             $registry->register('$between', new BetweenOperator);
             $registry->register('$contains', new ContainsOperator);

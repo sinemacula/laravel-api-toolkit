@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Config;
 use SineMacula\ApiToolkit\Concerns\QueryParameterExtractor;
 use SineMacula\ApiToolkit\Concerns\QueryParameterValidator;
 use SineMacula\ApiToolkit\Enums\TrashedState;
+use SineMacula\ApiToolkit\Search\SearchTerm;
 
 /**
  * API query parser.
@@ -105,6 +106,19 @@ class ApiQueryParser
         $filters = $this->getParameters('filters');
 
         return $filters ?? [];
+    }
+
+    /**
+     * Returns the parsed free-text search term set with the URL modifiers.
+     *  - e.g. ?search=John Smith.
+     *
+     * @return \SineMacula\ApiToolkit\Search\SearchTerm|null
+     */
+    public function getSearch(): ?SearchTerm
+    {
+        $search = $this->getParameters('search');
+
+        return $search instanceof SearchTerm ? $search : null;
     }
 
     /**

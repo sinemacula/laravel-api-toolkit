@@ -566,6 +566,67 @@ final class ApiQueryParserTest extends TestCase
     }
 
     /**
+     * Test that getSearch returns the parsed term.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testGetSearchReturnsTheParsedTerm(): void
+    {
+        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['search' => 'john smith']);
+        $this->parser->parse($request);
+
+        self::assertSame('john smith', $this->parser->getSearch()?->value());
+    }
+
+    /**
+     * Test that getSearch returns null when no term was supplied, so an absent
+     * parameter is distinguishable from an empty one.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testGetSearchReturnsNullWhenNotSet(): void
+    {
+        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb());
+        $this->parser->parse($request);
+
+        self::assertNull($this->parser->getSearch());
+    }
+
+    /**
+     * Test that getSearch returns null for a stored parameter that is not a
+     * parsed term, rather than handing the raw value to the criteria layer.
+     *
+     * @return void
+     */
+    public function testGetSearchReturnsNullForAnUnparsedParameter(): void
+    {
+        $this->setProperty($this->parser, 'parameters', ['search' => 'smith']);
+
+        self::assertNull($this->parser->getSearch());
+    }
+
+    /**
+     * Test that reset clears a parsed search term.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testResetClearsTheParsedSearchTerm(): void
+    {
+        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['search' => 'smith']);
+        $this->parser->parse($request);
+
+        $this->parser->reset();
+
+        self::assertNull($this->parser->getSearch());
+    }
+
+    /**
      * Test that validation fails for invalid page parameter.
      *
      * @return void

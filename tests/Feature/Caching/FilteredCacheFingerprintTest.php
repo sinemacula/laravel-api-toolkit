@@ -85,8 +85,8 @@ final class FilteredCacheFingerprintTest extends TestCase
      */
     public function testDistinctFiltersAreCachedUnderSeparateFingerprints(): void
     {
-        $keepUrl = '/cached-users?' . http_build_query(['filters' => json_encode(['email' => ['$like' => '@keep.com']])]);
-        $dropUrl = '/cached-users?' . http_build_query(['filters' => json_encode(['email' => ['$like' => '@drop.com']])]);
+        $keepUrl = '/cached-users?' . http_build_query(['filters' => json_encode(['name' => ['$in' => ['Alpha', 'Bravo']]])]);
+        $dropUrl = '/cached-users?' . http_build_query(['filters' => json_encode(['name' => ['$in' => ['Charlie']]])]);
 
         // Warm the cache for the first filter.
         $this->getJson($keepUrl)->assertOk()->assertJsonCount(2, 'data');

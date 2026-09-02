@@ -16,6 +16,11 @@ use SineMacula\ApiToolkit\Query\QueryCostLimits;
  * document is additionally bounded by size and by nesting, so a document that
  * is too large to be worth interpreting is refused before it is interpreted.
  *
+ * Shape is all this settles. A parameter whose value has to be interpreted
+ * before it can be judged - the filter document, the search term - carries its
+ * own bounds where it is parsed, so one parameter has one set of rules rather
+ * than a copy here that can drift from it.
+ *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
@@ -162,6 +167,7 @@ final class QueryParameterValidator
             'page'    => 'integer|min:1',
             'limit'   => 'integer|min:1',
             'cursor'  => 'string',
+            'search'  => 'string',
         ];
     }
 

@@ -76,8 +76,20 @@ GET /users?filters={"status":{"$eq":"active"},"created_at":{"$ge":"2024-01-01"}}
 The `filters` value must be a JSON string; requests carrying a non-JSON value are rejected with a validation
 error.
 
-Available built-in operator tokens: `$eq`, `$neq`, `$gt`, `$lt`, `$ge`, `$le`, `$like`, `$in`, `$between`,
+Available built-in operator tokens: `$eq`, `$neq`, `$gt`, `$lt`, `$ge`, `$le`, `$in`, `$between`,
 `$contains`, `$null`, `$notNull`.
+
+**Free-text search** - match a term against the fields a resource declares searchable:
+
+```http
+GET /users?search=smith
+```
+
+The term is matched against the requested resource only; it never traverses a relation. Each searchable
+field declares the match shape it is served with - an exact match, a prefix match, or an anywhere-match -
+and the connection's registered search driver refuses a shape it cannot serve from an index rather than
+scanning the table. Terms are bounded by `api-toolkit.search`; one outside the bounds is rejected with a
+422 rather than trimmed to fit.
 
 **Sorting** - sort by one or more columns, with optional direction:
 
@@ -296,7 +308,7 @@ class AppServiceProvider extends ServiceProvider
         $registry->register('$regex', new RegexOperator);
 
         // Override an existing operator
-        $registry->override('$like', new CaseInsensitiveLikeOperator);
+        $registry->override('$contains', new StrictContainsOperator);
     }
 }
 ```

@@ -20,7 +20,6 @@ use SineMacula\ApiToolkit\Repositories\Criteria\Operators\GreaterThanOrEqualOper
 use SineMacula\ApiToolkit\Repositories\Criteria\Operators\InOperator;
 use SineMacula\ApiToolkit\Repositories\Criteria\Operators\LessThanOperator;
 use SineMacula\ApiToolkit\Repositories\Criteria\Operators\LessThanOrEqualOperator;
-use SineMacula\ApiToolkit\Repositories\Criteria\Operators\LikeOperator;
 use SineMacula\ApiToolkit\Repositories\Criteria\Operators\NotEqualOperator;
 use SineMacula\ApiToolkit\Repositories\Criteria\Operators\NotNullOperator;
 use SineMacula\ApiToolkit\Repositories\Criteria\Operators\NullOperator;
@@ -73,7 +72,6 @@ final class FilterApplierTest extends TestCase
         $this->operatorRegistry->register('$lt', new LessThanOperator);
         $this->operatorRegistry->register('$ge', new GreaterThanOrEqualOperator);
         $this->operatorRegistry->register('$le', new LessThanOrEqualOperator);
-        $this->operatorRegistry->register('$like', new LikeOperator);
         $this->operatorRegistry->register('$in', new InOperator);
         $this->operatorRegistry->register('$between', new BetweenOperator);
         $this->operatorRegistry->register('$contains', new ContainsOperator);
@@ -225,22 +223,6 @@ final class FilterApplierTest extends TestCase
 
         self::assertNotEmpty($wheres);
         self::assertSame('<=', $wheres[0]['operator']);
-    }
-
-    /**
-     * Test that $like operator wraps value with percent signs.
-     *
-     * @return void
-     *
-     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
-     */
-    public function testApplyWithLikeOperatorWrapsValueWithPercent(): void
-    {
-        $result = $this->applyFilters(['name' => ['$like' => 'Ali']]);
-        $wheres = $result->getQuery()->wheres;
-
-        self::assertNotEmpty($wheres);
-        self::assertSame('%Ali%', $wheres[0]['value']);
     }
 
     /**
@@ -411,7 +393,7 @@ final class FilterApplierTest extends TestCase
     {
         $result = $this->applyFilters([
             '$has' => [
-                'posts' => ['title' => ['$like' => 'test']],
+                'posts' => ['title' => ['$eq' => 'test']],
             ],
         ]);
 
@@ -426,7 +408,7 @@ final class FilterApplierTest extends TestCase
         $subWheres = collect($subQuery->wheres);
 
         self::assertTrue(
-            $subWheres->contains(fn (array $where): bool => ($where['column'] ?? null) === 'title' && ($where['value'] ?? null) === '%test%'),
+            $subWheres->contains(fn (array $where): bool => ($where['column'] ?? null) === 'title' && ($where['value'] ?? null) === 'test'),
         );
     }
 
@@ -540,7 +522,7 @@ final class FilterApplierTest extends TestCase
     public function testApplyWithRelationFilterAppliesWhereHas(): void
     {
         $result = $this->applyFilters([
-            'posts' => ['title' => ['$like' => 'test']],
+            'posts' => ['title' => ['$eq' => 'test']],
         ]);
 
         $wheres = $result->getQuery()->wheres;
@@ -555,7 +537,7 @@ final class FilterApplierTest extends TestCase
         $subWheres = collect($subQuery->wheres);
 
         self::assertTrue(
-            $subWheres->contains(fn (array $where): bool => ($where['column'] ?? null) === 'title' && ($where['value'] ?? null) === '%test%'),
+            $subWheres->contains(fn (array $where): bool => ($where['column'] ?? null) === 'title' && ($where['value'] ?? null) === 'test'),
         );
     }
 
@@ -629,7 +611,7 @@ final class FilterApplierTest extends TestCase
         $result = $this->applyFilters([
             'posts' => [
                 '$or' => [
-                    'title' => ['$like' => 'test'],
+                    'title' => ['$eq' => 'test'],
                     'id'    => ['$eq' => 1],
                 ],
             ],
@@ -655,7 +637,7 @@ final class FilterApplierTest extends TestCase
 
         self::assertCount(2, $orWheres);
         self::assertSame('title', $orWheres[0]['column']);
-        self::assertSame('%test%', $orWheres[0]['value']);
+        self::assertSame('test', $orWheres[0]['value']);
         self::assertSame('or', $orWheres[0]['boolean']);
         self::assertSame('or', $orWheres[1]['boolean']);
     }
@@ -1271,11 +1253,11 @@ final class FilterApplierTest extends TestCase
     {
         Config::set('api-toolkit.query_cost.max_in_items', 1);
 
-        $result = $this->applyFilters(['name' => ['$like' => 'Alice, Bob, Carol, Dave']]);
+        $result = $this->applyFilters(['name' => ['$eq' => 'Alice, Bob, Carol, Dave']]);
         $wheres = $result->getQuery()->wheres;
 
         self::assertNotEmpty($wheres);
-        self::assertSame('%Alice, Bob, Carol, Dave%', $wheres[0]['value']);
+        self::assertSame('Alice, Bob, Carol, Dave', $wheres[0]['value']);
     }
 
     /**

@@ -18,6 +18,7 @@ use Illuminate\Support\Facades\Facade;
  * @method static array<string, mixed>|null getSums(?string $resource = null)
  * @method static array<string, mixed>|null getAverages(?string $resource = null)
  * @method static array<string, mixed>|null getFilters()
+ * @method static \SineMacula\ApiToolkit\Search\SearchTerm|null getSearch()
  * @method static array<string, string> getOrder()
  * @method static int|null getLimit()
  * @method static int|null getPage()

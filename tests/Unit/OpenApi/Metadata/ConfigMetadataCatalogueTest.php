@@ -130,7 +130,8 @@ final class ConfigMetadataCatalogueTest extends TestCase
     }
 
     /**
-     * Test that getOperatorTokens covers all twelve default registered tokens.
+     * Test that getOperatorTokens covers all eleven default registered tokens,
+     * and that the deleted partial-match token is not among them.
      *
      * @return void
      */
@@ -150,13 +151,13 @@ final class ConfigMetadataCatalogueTest extends TestCase
         self::assertContains('$lt', $tokens);
         self::assertContains('$ge', $tokens);
         self::assertContains('$le', $tokens);
-        self::assertContains('$like', $tokens);
+        self::assertNotContains('$like', $tokens);
         self::assertContains('$in', $tokens);
         self::assertContains('$between', $tokens);
         self::assertContains('$contains', $tokens);
         self::assertContains('$null', $tokens);
         self::assertContains('$notNull', $tokens);
-        self::assertCount(12, $tokens);
+        self::assertCount(11, $tokens);
     }
 
     /**

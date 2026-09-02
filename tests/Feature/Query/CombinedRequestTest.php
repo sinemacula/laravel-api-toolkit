@@ -43,9 +43,9 @@ final class CombinedRequestTest extends TestCase
     /**
      * Set up each test with a repository-backed users route and seeded rows.
      *
-     * Four rows carry the retained email domain and two carry a dropped domain
-     * whose names sort ahead of every retained row, so a missing filter would
-     * surface them first under the descending sort.
+     * Four rows carry a retained name and two carry an excluded name that sorts
+     * ahead of every retained row, so a missing filter would surface them first
+     * under the descending sort.
      *
      * @return void
      */
@@ -81,7 +81,7 @@ final class CombinedRequestTest extends TestCase
     {
         $response = $this->getJson('/users?' . http_build_query([
             'fields'  => ['filterable_users' => 'name'],
-            'filters' => json_encode(['email' => ['$like' => '@keep.com']]),
+            'filters' => json_encode(['name' => ['$in' => ['Alpha', 'Bravo', 'Charlie', 'Delta']]]),
             'order'   => 'name:desc',
             'limit'   => 2,
         ]));
@@ -96,7 +96,7 @@ final class CombinedRequestTest extends TestCase
         $response->assertJsonPath('data.1.name', 'Charlie');
 
         // Filter applied: the meta total reflects the four retained rows only,
-        // and the two dropped-domain rows never reach the top of the sort.
+        // and the two excluded rows never reach the top of the sort.
         $response->assertJsonPath('meta.total', 4);
         $response->assertJsonPath('meta.count', 2);
         $response->assertJsonPath('meta.continue', true);

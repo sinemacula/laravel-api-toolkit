@@ -104,7 +104,7 @@ final class ReferenceCacheModeTest extends TestCase
         // A criteria-composed read is an active composition: it bypasses the
         // snapshot, issues a fresh query, and narrows to the matching rows.
         $filtered = $this->getJson('/reference-users-filtered?' . http_build_query([
-            'filters' => json_encode(['email' => ['$like' => '@keep.com']]),
+            'filters' => json_encode(['name' => ['$in' => ['Alpha', 'Bravo']]]),
         ]));
 
         $filtered->assertOk();

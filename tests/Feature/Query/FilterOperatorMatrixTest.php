@@ -221,8 +221,8 @@ final class FilterOperatorMatrixTest extends TestCase
     public function testTwoFiltersComposeWithAndSemantics(): void
     {
         $names = $this->names($this->queryFilters([
-            'name' => ['$like' => 'Al'],
-            'id'   => ['$gt' => 1],
+            'name' => ['$neq' => 'Alice'],
+            'id'   => ['$lt' => 3],
         ]));
 
         self::assertSame(['Alan'], $names);
@@ -254,8 +254,8 @@ final class FilterOperatorMatrixTest extends TestCase
     {
         $names = $this->names($this->queryFilters([
             '$and' => [
-                'name' => ['$like' => 'Al'],
-                'id'   => ['$gt' => 1],
+                'name' => ['$neq' => 'Alice'],
+                'id'   => ['$lt' => 3],
             ],
         ]));
 

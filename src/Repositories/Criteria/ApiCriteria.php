@@ -22,16 +22,19 @@ use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\LimitApplier;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\OrderApplier;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\QueryCostGuard;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\RelationTrashedGate;
+use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\SearchApplier;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\SoftDeleteVisibilityApplier;
 use SineMacula\ApiToolkit\Schema\SafetySetDeriver;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
+use SineMacula\ApiToolkit\Search\SearchDriverRegistry;
+use SineMacula\ApiToolkit\Search\SearchTerm;
 use SineMacula\Repositories\Contracts\CriteriaInterface;
 
 /**
  * API criteria.
  *
- * Thin orchestrator that delegates filtering, eager loading, limiting, and
- * ordering to single-responsibility concern classes.
+ * Thin orchestrator that delegates searching, filtering, eager loading,
+ * limiting, and ordering to single-responsibility concern classes.
  *
  * @implements \SineMacula\Repositories\Contracts\CriteriaInterface<\Illuminate\Database\Eloquent\Model>
  *
@@ -60,6 +63,9 @@ final class ApiCriteria implements CriteriaInterface
     /** @var \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\SoftDeleteVisibilityApplier */
     private readonly SoftDeleteVisibilityApplier $softDeleteVisibilityApplier;
 
+    /** @var \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\SearchApplier */
+    private readonly SearchApplier $searchApplier;
+
     /** @var \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\RelationTrashedGate */
     private readonly RelationTrashedGate $relationTrashedGate;
 
@@ -73,6 +79,7 @@ final class ApiCriteria implements CriteriaInterface
      * @param  \SineMacula\ApiToolkit\Contracts\ResourceMetadataProvider  $metadataProvider
      * @param  \SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider  $schemaIntrospector
      * @param  \SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry  $operatorRegistry
+     * @param  \SineMacula\ApiToolkit\Search\SearchDriverRegistry  $searchDriverRegistry
      * @param  \SineMacula\ApiToolkit\Cache\MetadataCacheWriter  $metadataCacheWriter
      * @return void
      */
@@ -90,6 +97,9 @@ final class ApiCriteria implements CriteriaInterface
         /** Registry of filter operator handlers */
         private readonly OperatorRegistry $operatorRegistry,
 
+        /** Registry of per-connection search drivers */
+        private readonly SearchDriverRegistry $searchDriverRegistry,
+
         /** Writes resolved resource metadata to the persistent cache */
         private readonly MetadataCacheWriter $metadataCacheWriter,
     ) {
@@ -99,6 +109,7 @@ final class ApiCriteria implements CriteriaInterface
         $this->limitApplier                = new LimitApplier;
         $this->columnProjectionApplier     = new ColumnProjectionApplier(new SafetySetDeriver($this->schemaIntrospector));
         $this->softDeleteVisibilityApplier = new SoftDeleteVisibilityApplier;
+        $this->searchApplier               = new SearchApplier($this->searchDriverRegistry);
         $this->queryCostGuard              = new QueryCostGuard;
 
         $resourceMap = Config::get('api-toolkit.resources.resource_map', []);
@@ -117,7 +128,9 @@ final class ApiCriteria implements CriteriaInterface
      * @return \Illuminate\Contracts\Database\Eloquent\Builder
      *
      * @throws \Illuminate\Validation\ValidationException
+     * @throws \SineMacula\ApiToolkit\Exceptions\MissingSearchDriverException
      * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     * @throws \SineMacula\ApiToolkit\Exceptions\UnservableSearchException
      */
     #[\Override]
     public function apply(Builder|Model $model): Builder
@@ -134,6 +147,7 @@ final class ApiCriteria implements CriteriaInterface
         /** @var \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model> $query */
         $query = $this->softDeleteVisibilityApplier->apply($query, $this->resolveResource($query->getModel()), $this->request);
 
+        $query = $this->searchApplier->apply($query, $this->getSearch(), $this->resolveResource($query->getModel()));
         $query = $this->applyGroupedFilters($query, $surface);
         $query = $this->eagerLoadApplier->apply(
             $query,
@@ -212,6 +226,16 @@ final class ApiCriteria implements CriteriaInterface
     private function getFilters(): ?array
     {
         return ApiQuery::getFilters();
+    }
+
+    /**
+     * Get the search term to be applied to the query.
+     *
+     * @return \SineMacula\ApiToolkit\Search\SearchTerm|null
+     */
+    private function getSearch(): ?SearchTerm
+    {
+        return ApiQuery::getSearch();
     }
 
     /**

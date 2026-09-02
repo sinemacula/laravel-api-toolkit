@@ -590,6 +590,66 @@ is reported by schema validation. Such a declaration used to compile cleanly and
 with a database error naming a column that does not exist. Run `php artisan api-toolkit:validate-schemas`
 after upgrading and either drop the marker or move it to the backing column.
 
+### Removed: the `$like` operator, replaced by `?search=`
+
+The `$like` filter operator has been deleted from the shipped operator set, and
+`SineMacula\ApiToolkit\Repositories\Criteria\Operators\LikeOperator` no longer exists. A request using the
+token is now rejected as an unknown operator, and the token no longer appears in the exported OpenAPI
+document.
+
+`$like` was the only shipped operator that could not be served from an index. It compiled to
+`column LIKE '%term%'`, which reads every row of the table on every supported engine, and it could be
+applied to any filterable column and carried into a relation subquery, where the cost is paid once per
+candidate row. Free-text matching now has a parameter of its own that is declared per field and served by
+a driver that refuses a shape it cannot answer from an index:
+
+    GET /users?search=smith
+
+Declare which fields the term is matched against, and how, in the resource schema:
+
+    use SineMacula\ApiToolkit\Enums\SearchStrategy;
+    use SineMacula\ApiToolkit\Schema\Field;
+
+    public static function schema(): array
+    {
+        return Field::set(
+            Field::scalar('reference')->searchable(SearchStrategy::EXACT),
+            Field::scalar('email')->searchable(SearchStrategy::PREFIX),
+            Field::scalar('name')->searchable(SearchStrategy::SUBSTRING),
+        );
+    }
+
+The search applies to the requested resource only and never traverses a relation. Terms are bounded by the
+new `api-toolkit.search` config block, and a term outside those bounds is rejected with a `422`.
+
+**Action required.** Replace client calls using `$like` with `?search=`, having declared the fields it may
+match. Where the old behaviour is genuinely wanted -- an unindexed partial match on an arbitrary filterable
+column -- register the operator yourself, in a service provider's `boot()`:
+
+    use Illuminate\Database\Eloquent\Builder;
+    use SineMacula\ApiToolkit\Contracts\FilterOperator;
+    use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext;
+    use SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry;
+
+    final class LikeOperator implements FilterOperator
+    {
+        public function apply(Builder $query, string $column, mixed $value, FilterContext $context): void
+        {
+            $term = is_scalar($value) || $value instanceof \Stringable ? (string) $value : '';
+
+            if ($context->isOr()) {
+                $query->orWhere($column, 'like', "%{$term}%");
+            } else {
+                $query->where($column, 'like', "%{$term}%");
+            }
+        }
+    }
+
+    app(OperatorRegistry::class)->register('$like', new LikeOperator);
+
+Registering it restores the full-table scan the removal exists to prevent, including inside relation
+subqueries. Prefer `?search=` unless you have measured the alternative.
+
 ### Removed: Request macros in favour of RequestCapabilities
 
 The request macros the toolkit used to register - `includeTrashed()` and `onlyTrashed()` - have

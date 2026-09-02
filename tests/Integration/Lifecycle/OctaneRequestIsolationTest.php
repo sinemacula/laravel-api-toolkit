@@ -219,7 +219,7 @@ final class OctaneRequestIsolationTest extends TestCase
         // Schema-level state established at boot.
         /** @var \SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry $registry */
         $registry = $app->make(OperatorRegistry::class);
-        $registry->register('$starts', $registry->resolve('$like'));
+        $registry->register('$starts', $registry->resolve('$eq'));
 
         Relation::morphMap(['users' => User::class]);
 

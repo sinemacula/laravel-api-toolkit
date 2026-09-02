@@ -383,6 +383,53 @@ return [
 
     /*
     |---------------------------------------------------------------------------
+    | Free-Text Search Configuration
+    |---------------------------------------------------------------------------
+    |
+    | These settings bound the `search` parameter and decide which connections
+    | may serve it. A search matches only the columns the root resource declares
+    | searchable, and never follows a relation.
+    |
+    | `min_length` is the shortest term accepted. The shipped value of 3 is
+    | measured rather than chosen: a shorter term is answered incorrectly by one
+    | supported engine and read out of a full table scan by another, and neither
+    | is visible to the client. It may be raised but not lowered - a smaller
+    | value is held at 3.
+    |
+    | `max_length` and `max_words` bound the other end, capping the work a
+    | single term may ask an index for. All three are refusals: a term outside
+    | them is rejected with a 422 naming the bound it missed, never quietly
+    | trimmed to fit.
+    |
+    | `unverified_connections` lists the database connections on which a search
+    | driver that cannot prove an index backs a declared match strategy may
+    | serve it anyway. The shipped list covers SQLite, which has neither the
+    | trigram nor the n-gram index the substring strategy needs and is therefore
+    | a development connection here. Listing a connection that serves traffic
+    | reinstates the silent full-table scan this layer exists to remove; leaving
+    | one off means an unprovable declaration fails loudly instead.
+    |
+    | No driver is registered by default. Register one per connection against
+    | the SearchDriverRegistry to serve the parameter; until then a resource
+    | that declares a searchable column refuses the search rather than answering
+    | it with the whole table.
+    |
+    */
+
+    'search' => [
+
+        'min_length' => env('API_TOOLKIT_SEARCH_MIN_LENGTH', 3),
+
+        'max_length' => env('API_TOOLKIT_SEARCH_MAX_LENGTH', 128),
+
+        'max_words' => env('API_TOOLKIT_SEARCH_MAX_WORDS', 10),
+
+        'unverified_connections' => ['sqlite'],
+
+    ],
+
+    /*
+    |---------------------------------------------------------------------------
     | Deferred Writes Configuration
     |---------------------------------------------------------------------------
     |

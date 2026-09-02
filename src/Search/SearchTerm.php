@@ -4,6 +4,7 @@ declare(strict_types = 1);
 
 namespace SineMacula\ApiToolkit\Search;
 
+use Illuminate\Support\Facades\Config;
 use Illuminate\Validation\ValidationException;
 use SineMacula\ApiToolkit\Enums\SearchStrategy;
 
@@ -16,23 +17,26 @@ use SineMacula\ApiToolkit\Enums\SearchStrategy;
  * here: a term of "%" matches a literal percent sign rather than every row, and
  * a term carrying a double quote cannot close the phrase it is wrapped in.
  *
- * The bounds are refusals, never silent truncations. The minimum is the
- * shortest term the supported indexes answer both correctly and without
- * scanning; below it one engine returns nothing at all and another falls back
- * to reading the whole table, and neither failure is visible to the caller.
+ * The bounds are refusals, never silent truncations, and each is operator
+ * tunable. The minimum is the shortest term the supported indexes answer both
+ * correctly and without scanning; below it one engine returns nothing at all
+ * and another falls back to reading the whole table, and neither failure is
+ * visible to the caller. Configuration may raise that minimum but never lower
+ * it, so the floor cannot be configured back into the hazard it exists to
+ * close.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
 final readonly class SearchTerm
 {
-    /** @var int The shortest term every supported index answers correctly and without scanning */
+    /** @var int The shortest term every supported index answers correctly and without scanning, and the floor no configured minimum may fall below */
     public const int MIN_LENGTH = 3;
 
-    /** @var int The longest term accepted, bounding the work one search may ask for */
+    /** @var int The shipped longest term accepted, bounding the work one search may ask for */
     public const int MAX_LENGTH = 128;
 
-    /** @var int The most whitespace-separated words one term may carry */
+    /** @var int The shipped ceiling on the whitespace-separated words one term may carry */
     public const int MAX_WORDS = 10;
 
     /** @var string The character escaping a wildcard within a rendered pattern */
@@ -60,19 +64,22 @@ final readonly class SearchTerm
      */
     public static function from(string $term): self
     {
-        $value  = self::normalise($term);
-        $length = mb_strlen($value);
+        $value   = self::normalise($term);
+        $length  = mb_strlen($value);
+        $minimum = max(self::MIN_LENGTH, self::configured('min_length', self::MIN_LENGTH));
+        $maximum = self::configured('max_length', self::MAX_LENGTH);
+        $words   = self::configured('max_words', self::MAX_WORDS);
 
-        if ($length < self::MIN_LENGTH) {
-            self::reject(sprintf('The search term must be at least %d characters.', self::MIN_LENGTH));
+        if ($length < $minimum) {
+            self::reject(sprintf('The search term must be at least %d characters.', $minimum));
         }
 
-        if ($length > self::MAX_LENGTH) {
-            self::reject(sprintf('The search term may not be longer than %d characters.', self::MAX_LENGTH));
+        if ($length > $maximum) {
+            self::reject(sprintf('The search term may not be longer than %d characters.', $maximum));
         }
 
-        if (count(explode(' ', $value)) > self::MAX_WORDS) {
-            self::reject(sprintf('The search term may not carry more than %d words.', self::MAX_WORDS));
+        if (count(explode(' ', $value)) > $words) {
+            self::reject(sprintf('The search term may not carry more than %d words.', $words));
         }
 
         return new self($value);
@@ -118,6 +125,20 @@ final readonly class SearchTerm
     public function phrase(): string
     {
         return '"' . str_replace('"', '', $this->value) . '"';
+    }
+
+    /**
+     * Resolve a configured bound, falling back to the shipped default.
+     *
+     * @param  string  $key
+     * @param  int  $default
+     * @return int
+     */
+    private static function configured(string $key, int $default): int
+    {
+        $value = Config::get('api-toolkit.search.' . $key, $default);
+
+        return is_numeric($value) ? (int) $value : $default;
     }
 
     /**
