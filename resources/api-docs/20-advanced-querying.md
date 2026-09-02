@@ -168,24 +168,83 @@ Use `search` for free-text matching across a resource's searchable fields:
 ?search=John Smith
 ```
 
-The term is matched against the requested resource only. It does not follow a
-relationship, so searching a list of users never reaches the titles of their
-posts; nest a filter under the relationship name for that.
+### What the term is matched against
 
-Each searchable field is matched in one of three shapes, chosen per field by
-the resource: the whole value equals the term, the value begins with the term,
-or the value carries the term anywhere within it. A record matches when any
-searchable field matches, and the search always narrows a request further,
-whatever the filters alongside it ask for. A field matched on its beginning or
-anywhere within it ignores case.
+The term is matched against the columns of the requested resource only. It does
+not follow a relationship, so searching a list of users never reaches the titles
+of their posts; nest a filter under the relationship name for that. The limit is
+deliberate: a text predicate inside a relationship subquery is paid once per
+candidate row, which is the cost this parameter exists to avoid.
 
-A term is rejected with a `422` rather than trimmed when it is too short, too
-long, or carries too many words. The minimum length exists because a shorter
-term cannot be answered from an index: the response would be either wrong or
-paid for by reading the whole table.
-
-A resource that declares no searchable field rejects the parameter rather than
+A record matches when any one of its searchable fields matches, and the search
+always narrows a request further, whatever the filters alongside it ask for. A
+resource that declares no searchable field rejects the parameter rather than
 answering it with an unnarrowed list.
+
+### Match strategies
+
+Each searchable field is matched in one of three shapes, chosen per field by the
+resource:
+
+| Strategy    | Matches                                     | Term matching `Highsmith` |
+|-------------|---------------------------------------------|---------------------------|
+| `exact`     | The whole value equals the term.            | `Highsmith`               |
+| `prefix`    | The value begins with the term.             | `High`                    |
+| `substring` | The value carries the term at any position. | `smith`                   |
+
+A prefix or substring match ignores case. An exact match is a plain comparison,
+so whether it ignores case follows the column's own collation.
+
+### Term bounds
+
+A term outside these bounds is rejected with a `422` naming the bound it missed,
+never trimmed to fit:
+
+| Bound                           | Value          |
+|---------------------------------|----------------|
+| Shortest term accepted          | 3 characters   |
+| Longest term accepted           | 128 characters |
+| Most whitespace-separated words | 10             |
+
+The minimum of three characters is measured rather than chosen, and it is the
+one bound the API may raise but never lower. Every match is served from an
+index, and three characters is the shortest term both supported engines answer
+correctly and from an index. Below it each fails silently and differently: on
+MySQL a term shorter than the index token size matches no rows at all, which is
+a wrong answer rather than a slow one, and on PostgreSQL a two-character term is
+answered correctly but by reading the whole table, which is the full scan this
+layer exists to remove. Neither failure is visible in the response, so a term
+that would hit one is refused instead.
+
+### Indexes behind a declaration
+
+This subsection is for the application serving the API rather than its clients.
+
+Every declared match shape is served from an index the application's own
+migrations create, and `php artisan api-toolkit:validate-schemas` reports a
+declaration with no index behind it. Run it in the build: schema validation is
+disabled in production by default, so a missing index otherwise first appears as
+a failed search request after a deploy.
+
+| Strategy    | MySQL                                                                   | PostgreSQL                                 |
+|-------------|-------------------------------------------------------------------------|--------------------------------------------|
+| `exact`     | An ordinary index leading with the column.                              | An ordinary index leading with the column. |
+| `prefix`    | An ordinary index leading with the column.                              | A trigram index over the column.           |
+| `substring` | A `FULLTEXT` index over that column alone, created `WITH PARSER ngram`. | A trigram index over the column.           |
+
+```sql
+-- MySQL: a substring match, per declared column
+ALTER TABLE users ADD FULLTEXT INDEX users_name_ngram (name) WITH PARSER ngram;
+
+-- PostgreSQL: a prefix or a substring match, per declared column
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+CREATE INDEX users_name_trgm ON users USING gin (name gin_trgm_ops);
+```
+
+A prefix match on PostgreSQL rides the same trigram index as a substring match
+because the comparison is case-insensitive, which an ordinary index cannot
+serve. SQLite carries neither index kind and is treated as a development
+connection: it serves every shape and proves none of them.
 
 ## Ordering
 
@@ -212,6 +271,8 @@ Both apply only when the response is a paginated list:
 ?limit=25&page=2
 ```
 
-The `limit` is clamped to a configured maximum, so an oversized request is
-capped rather than rejected. See the Pagination section for the shape of a
-paginated response.
+The `limit` is bounded by a configured ceiling. A request above it is rejected
+with a `422` naming the ceiling and the size asked for, rather than answered
+with a smaller page: a page quietly reduced cannot be told apart from the end of
+the result set. See the Pagination section for the shape of a paginated
+response.

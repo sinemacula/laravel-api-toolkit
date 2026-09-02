@@ -10,6 +10,7 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use SineMacula\ApiToolkit\ApiQueryParser;
 use SineMacula\ApiToolkit\Concerns\QueryParameterExtractor;
+use SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException;
 use SineMacula\Http\Enums\HttpMethod;
 use Tests\Concerns\InteractsWithNonPublicMembers;
 use Tests\TestCase;
@@ -404,71 +405,62 @@ final class ApiQueryParserTest extends TestCase
     }
 
     /**
-     * Test that getLimit clamps a request above the configured maximum to that
-     * ceiling, so an unbounded page size cannot exhaust memory.
+     * Test that a limit at the configured ceiling is parsed and returned as
+     * asked for.
      *
      * @return void
      *
      * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
-    public function testGetLimitClampsToConfiguredMaximum(): void
+    public function testGetLimitReturnsALimitAtTheConfiguredCeiling(): void
     {
         config()->set('api-toolkit.parser.max_limit', 100);
 
-        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['limit' => '100000']);
+        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['limit' => '100']);
         $this->parser->parse($request);
 
         self::assertSame(100, $this->parser->getLimit());
     }
 
     /**
-     * Test that a numeric-string maximum is coerced to an integer before
-     * clamping, so the returned limit is a true int rather than the raw
-     * configured string.
+     * Test that a limit one above the configured ceiling is rejected by the
+     * parse rather than reduced to the ceiling, so a client asking for more
+     * rows than it may have is told so.
      *
      * @return void
-     *
-     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
-    public function testGetLimitCoercesNumericStringMaximumToInteger(): void
+    public function testParseRejectsALimitAboveTheConfiguredCeiling(): void
     {
-        config()->set('api-toolkit.parser.max_limit', '100');
+        config()->set('api-toolkit.parser.max_limit', 100);
 
-        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['limit' => '100000']);
-        $this->parser->parse($request);
+        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['limit' => '101']);
 
-        self::assertSame(100, $this->parser->getLimit());
+        try {
+            $this->parser->parse($request);
+
+            self::fail('Expected a limit above the ceiling to be rejected.');
+        } catch (QueryTooExpensiveException $exception) {
+            self::assertSame([
+                'parameter' => 'limit',
+                'pointer'   => '',
+                'reason'    => 'max_limit',
+                'limit'     => 100,
+                'actual'    => 101,
+            ], $exception->getCustomMeta());
+        }
     }
 
     /**
-     * Test that getLimit leaves the requested value untouched when the maximum
-     * ceiling is disabled (zero).
+     * Test that getLimit returns the requested value untouched when the ceiling
+     * is disabled, so nothing is capped once it is parsed.
      *
      * @return void
      *
      * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
-    public function testGetLimitIsNotClampedWhenMaximumDisabled(): void
+    public function testGetLimitReturnsTheRequestedValueWhenTheCeilingIsDisabled(): void
     {
         config()->set('api-toolkit.parser.max_limit', 0);
-
-        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['limit' => '100000']);
-        $this->parser->parse($request);
-
-        self::assertSame(100000, $this->parser->getLimit());
-    }
-
-    /**
-     * Test that a non-numeric maximum configuration disables clamping rather
-     * than capping the limit to an unintended value.
-     *
-     * @return void
-     *
-     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
-     */
-    public function testGetLimitTreatsNonNumericMaximumAsDisabled(): void
-    {
-        config()->set('api-toolkit.parser.max_limit', 'not-a-number');
 
         $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['limit' => '100000']);
         $this->parser->parse($request);

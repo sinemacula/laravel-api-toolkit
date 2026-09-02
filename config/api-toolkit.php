@@ -282,9 +282,11 @@ return [
 
         'register_middleware' => env('API_PARSER_REGISTER_MIDDLEWARE', true),
 
-        // Hard ceiling for a client-supplied `limit`. Requests above it are
-        // clamped (not rejected) to prevent unbounded page sizes exhausting
-        // memory. Set to 0 (or null) to disable the ceiling.
+        // Hard ceiling for a client-supplied `limit`, preventing an unbounded
+        // page size from exhausting memory. A request above it is rejected with
+        // a 422 rather than reduced to the ceiling, so a page smaller than the
+        // one asked for cannot be read as the end of the result set. Set to 0
+        // (or null) to disable the ceiling.
         'max_limit' => env('API_PARSER_MAX_LIMIT', 100),
 
         'defaults' => [
@@ -356,8 +358,8 @@ return [
     | `max_order_keys` bounds the sort columns, and `max_aggregates` the
     | relation counts, sums, and averages combined, since each adds its own
     | correlated subquery. `max_offset` bounds the requested page number, beyond
-    | which a paginated read scans and discards more rows than it returns; it
-    | rejects rather than clamps, unlike the parser's `max_limit` ceiling.
+    | which a paginated read scans and discards more rows than it returns. It
+    | rejects rather than clamps, as the parser's `max_limit` ceiling does.
     |
     */
 

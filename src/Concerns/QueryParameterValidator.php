@@ -4,8 +4,10 @@ declare(strict_types = 1);
 
 namespace SineMacula\ApiToolkit\Concerns;
 
+use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\ValidationException;
+use SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException;
 use SineMacula\ApiToolkit\Query\QueryCostLimits;
 
 /**
@@ -14,7 +16,10 @@ use SineMacula\ApiToolkit\Query\QueryCostLimits;
  * Builds the validation rule set from the supplied parameters and rejects
  * requests whose query modifiers do not match the expected shapes. The filter
  * document is additionally bounded by size and by nesting, so a document that
- * is too large to be worth interpreting is refused before it is interpreted.
+ * is too large to be worth interpreting is refused before it is interpreted,
+ * and a page size above the configured ceiling is refused rather than reduced
+ * to it: a client handed a hundred rows having asked for five hundred cannot
+ * tell that from a result set that ran out.
  *
  * Shape is all this settles. A parameter whose value has to be interpreted
  * before it can be judged - the filter document, the search term - carries its
@@ -26,6 +31,9 @@ use SineMacula\ApiToolkit\Query\QueryCostLimits;
  */
 final class QueryParameterValidator
 {
+    /** @var string The configuration key holding the page-size ceiling, and the reason a request above it is rejected with */
+    private const string MAX_LIMIT = 'max_limit';
+
     /**
      * Validate the incoming request parameters.
      *
@@ -43,6 +51,7 @@ final class QueryParameterValidator
         $this->guardFilterSize($filters, $limits);
         $this->assertParameterShapes($parameters);
         $this->guardFilterNesting($filters, $limits);
+        $this->guardPageSize($parameters['limit'] ?? null);
     }
 
     /**
@@ -105,6 +114,29 @@ final class QueryParameterValidator
         }
 
         $limits->enforce(QueryCostLimits::MAX_PARSE_DEPTH, $this->measureNesting($decoded), 'filters');
+    }
+
+    /**
+     * Reject a page size above the configured ceiling.
+     *
+     * Runs once the parameter is known to be an integer, so a malformed value
+     * keeps its own validation failure rather than being reported as a cost. A
+     * ceiling of zero or less disables the bound, as a disabled cap does.
+     *
+     * @param  mixed  $limit
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    private function guardPageSize(mixed $limit): void
+    {
+        $ceiling   = Config::get('api-toolkit.parser.' . self::MAX_LIMIT);
+        $ceiling   = is_numeric($ceiling) ? (int) $ceiling : 0;
+        $requested = is_numeric($limit) ? (int) $limit : 0;
+
+        if ($ceiling > 0 && $requested > $ceiling) {
+            throw QueryTooExpensiveException::exceeded('limit', '', self::MAX_LIMIT, $ceiling, $requested);
+        }
     }
 
     /**

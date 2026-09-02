@@ -590,6 +590,32 @@ is reported by schema validation. Such a declaration used to compile cleanly and
 with a database error naming a column that does not exist. Run `php artisan api-toolkit:validate-schemas`
 after upgrading and either drop the marker or move it to the backing column.
 
+### Changed: `?limit` above the ceiling is rejected rather than clamped
+
+A client-supplied `?limit` above `api-toolkit.parser.max_limit` (default 100) used to be reduced to the
+ceiling and the request answered anyway. It is now rejected with the same `422` the query-cost caps are
+enforced with, carrying the parameter, the ceiling, and the size asked for:
+
+    "meta": {
+      "parameter": "limit",
+      "pointer": "",
+      "reason": "max_limit",
+      "limit": 100,
+      "actual": 500
+    }
+
+The clamp was the last fail-quiet path in the query layer. A client that asked for 500 rows and was handed
+100 cannot tell that from a page that ran out, so it stops paging and drops the tail it never learned was
+there. `max_offset` already rejected a page beyond its cap for the same reason, and the two now behave the
+same way.
+
+The ceiling is otherwise unchanged: the same config key, the same `API_PARSER_MAX_LIMIT` variable, the same
+default, and setting it to `0` (or `null`) still disables it and leaves the page size unbounded.
+
+**Action required.** Audit clients that ask for a page larger than the ceiling - they now receive a `422`
+where they previously received a shortened page. Either raise the ceiling to the largest page you intend to
+serve, or have the client ask within it.
+
 ### Removed: the `$like` operator, replaced by `?search=`
 
 The `$like` filter operator has been deleted from the shipped operator set, and
@@ -619,8 +645,12 @@ Declare which fields the term is matched against, and how, in the resource schem
         );
     }
 
-The search applies to the requested resource only and never traverses a relation. Terms are bounded by the
-new `api-toolkit.search` config block, and a term outside those bounds is rejected with a `422`.
+The search applies to the columns of the requested resource only and never traverses a relation. Terms are
+bounded by the new `api-toolkit.search` config block, and a term outside those bounds is rejected with a
+`422`. The shortest term accepted is three characters, and configuration may raise that floor but never
+lower it: below three, MySQL matches nothing once the term is shorter than the index token size and
+PostgreSQL answers correctly but by reading the whole table, and neither failure is visible in the
+response.
 
 **The indexes are yours to create.** A driver ships for MySQL, PostgreSQL, and SQLite, and each proves a
 declaration against the live schema rather than emitting a predicate that scans. The migration creating the

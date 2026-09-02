@@ -5,7 +5,6 @@ declare(strict_types = 1);
 namespace SineMacula\ApiToolkit;
 
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Config;
 use SineMacula\ApiToolkit\Concerns\QueryParameterExtractor;
 use SineMacula\ApiToolkit\Concerns\QueryParameterValidator;
 use SineMacula\ApiToolkit\Enums\TrashedState;
@@ -148,14 +147,7 @@ class ApiQueryParser
 
         $limit = is_numeric($limit) ? (int) $limit : 0;
 
-        if ($limit <= 0) {
-            return null;
-        }
-
-        $max = Config::get('api-toolkit.parser.max_limit');
-        $max = is_numeric($max) ? (int) $max : 0;
-
-        return $max > 0 ? min($limit, $max) : $limit;
+        return $limit > 0 ? $limit : null;
     }
 
     /**

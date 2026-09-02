@@ -85,11 +85,17 @@ Available built-in operator tokens: `$eq`, `$neq`, `$gt`, `$lt`, `$ge`, `$le`, `
 GET /users?search=smith
 ```
 
-The term is matched against the requested resource only; it never traverses a relation. Each searchable
-field declares the match shape it is served with - an exact match, a prefix match, or an anywhere-match -
-and the connection's registered search driver refuses a shape it cannot serve from an index rather than
+The term is matched against the columns of the requested resource only; it never traverses a relation,
+because a text predicate inside a relation subquery is paid once per candidate row. Each searchable field
+declares the match shape it is served with - an exact match, a prefix match, or an anywhere-match - and
+the connection's registered search driver refuses a shape it cannot serve from an index rather than
 scanning the table. Terms are bounded by `api-toolkit.search`; one outside the bounds is rejected with a
 422 rather than trimmed to fit.
+
+The shortest term accepted is three characters, and configuration may raise that floor but never lower it.
+It is measured rather than chosen: below three, MySQL matches nothing at all once the term is shorter than
+the index token size, and PostgreSQL answers correctly but by reading the whole table. Both failures are
+invisible in the response, which is the hazard the parameter exists to close.
 
 Drivers ship for MySQL, PostgreSQL, and SQLite. The index each declaration is served from belongs to your
 own migration - a `FULLTEXT` index created `WITH PARSER ngram` on MySQL, a `gin_trgm_ops` index on
@@ -103,11 +109,12 @@ appears as a failed search request after a deploy.
 GET /users?order=last_name,first_name:desc
 ```
 
-**Limit clamping** - client-supplied `?limit` values are silently clamped to the `api-toolkit.parser.max_limit`
-ceiling (default 100). Values exceeding the ceiling are reduced; the request is never rejected:
+**Page-size ceiling** - a client-supplied `?limit` above `api-toolkit.parser.max_limit` (default 100) is
+rejected with a `422` naming the ceiling and the size asked for, rather than reduced to the ceiling. A page
+quietly shortened cannot be told apart from the end of the result set. Set the ceiling to `0` to disable it:
 
 ```http
-GET /users?limit=200   // clamped to 100
+GET /users?limit=200   // 422, the ceiling is 100
 GET /users?limit=25    // honoured as-is
 ```
 
@@ -138,6 +145,7 @@ schema helpers. The compiled schema drives field resolution, guard evaluation, a
 ```php
 use App\Models\User;
 use SineMacula\ApiToolkit\Attributes\ForModel;
+use SineMacula\ApiToolkit\Enums\SearchStrategy;
 use SineMacula\ApiToolkit\Http\Resources\ApiResource;
 use SineMacula\ApiToolkit\Schema\Count;
 use SineMacula\ApiToolkit\Schema\Field;
@@ -154,8 +162,8 @@ class UserResource extends ApiResource
     public static function schema(): array
     {
         return Field::set(
-            Field::scalar('name')->filterable()->sortable(),
-            Field::scalar('email')->filterable(),
+            Field::scalar('name')->filterable()->sortable()->searchable(SearchStrategy::SUBSTRING),
+            Field::scalar('email')->filterable()->searchable(SearchStrategy::PREFIX),
             Field::timestamp('created_at')->sortable(),
             Field::compute('full_name', 'getFullName'),
             Relation::to('organization', OrganizationResource::class)->traversable(),
@@ -166,9 +174,11 @@ class UserResource extends ApiResource
 }
 ```
 
-Fields marked `filterable()` or `sortable()` are the only ones a client may query. Relations marked
-`traversable()` can be targeted by nested filters. The `$default` static property declares the fields returned
-when the client sends no `?fields` parameter.
+Fields marked `filterable()` or `sortable()` are the only ones a client may query, and a field marked
+`searchable()` is the only one the `?search=` term is matched against - the strategy it is given decides both
+how the value is matched and which index has to back the column. Relations marked `traversable()` can be
+targeted by nested filters. The `$default` static property declares the fields returned when the client sends
+no `?fields` parameter.
 
 **Model binding and discovery** - the `#[ForModel(...)]` attribute binds a resource to its model, and may be
 repeated to bind one resource to several models. By default (`api-toolkit.resources.paths` left null) resources

@@ -8,6 +8,8 @@ use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Route;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\ApiQueryParser;
+use SineMacula\ApiToolkit\Concerns\QueryParameterValidator;
+use SineMacula\ApiToolkit\Enums\ErrorCode;
 use SineMacula\ApiToolkit\Http\Middleware\ParseApiQuery;
 use SineMacula\ApiToolkit\Http\Resources\ApiResourceCollection;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterApplier;
@@ -18,12 +20,13 @@ use Tests\Fixtures\Resources\FilterableUserResource;
 use Tests\TestCase;
 
 /**
- * Feature tests for limit clamping and filter-operator grammar over HTTP.
+ * Feature tests for the page-size ceiling and filter-operator grammar over
+ * HTTP.
  *
- * A client-supplied page limit above the configured ceiling is clamped down to
- * the ceiling rather than honoured, and a small sample of declared filter
- * operators - greater-than and in - each narrow the result set through the
- * parsed query string.
+ * A client-supplied page limit above the configured ceiling is refused rather
+ * than quietly reduced to it, and a small sample of declared filter operators -
+ * greater-than and in - each narrow the result set through the parsed query
+ * string.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -32,6 +35,7 @@ use Tests\TestCase;
  */
 #[CoversClass(ApiQueryParser::class)]
 #[CoversClass(FilterApplier::class)]
+#[CoversClass(QueryParameterValidator::class)]
 final class LimitAndOperatorTest extends TestCase
 {
     use RegistersApiExceptionHandler;
@@ -63,25 +67,43 @@ final class LimitAndOperatorTest extends TestCase
     }
 
     /**
-     * Test that a per-page limit above the configured ceiling is clamped to the
-     * ceiling.
+     * Test that a per-page limit at the configured ceiling is honoured.
      *
      * @return void
      */
-    public function testLimitAboveTheCeilingIsClampedToTheCeiling(): void
+    public function testLimitAtTheCeilingIsHonoured(): void
     {
         Config::set('api-toolkit.parser.max_limit', 2);
 
-        $response = $this->getJson('/users?limit=50');
+        $response = $this->getJson('/users?limit=2');
 
         $response->assertOk();
 
-        // Clamped to the ceiling of two despite the requested fifty, while the
-        // meta still reports every seeded row as the total.
         $response->assertJsonCount(2, 'data');
         $response->assertJsonPath('meta.count', 2);
         $response->assertJsonPath('meta.total', 5);
         $response->assertJsonPath('meta.continue', true);
+    }
+
+    /**
+     * Test that a per-page limit one above the configured ceiling is refused
+     * with the typed rejection rather than answered with a smaller page the
+     * client cannot tell from an exhausted result set.
+     *
+     * @return void
+     */
+    public function testLimitAboveTheCeilingIsRejected(): void
+    {
+        Config::set('api-toolkit.parser.max_limit', 2);
+
+        $response = $this->getJson('/users?limit=3');
+
+        $response->assertStatus(422);
+        $response->assertJsonPath('error.code', ErrorCode::QUERY_TOO_EXPENSIVE->getCode());
+        $response->assertJsonPath('error.meta.parameter', 'limit');
+        $response->assertJsonPath('error.meta.reason', 'max_limit');
+        $response->assertJsonPath('error.meta.limit', 2);
+        $response->assertJsonPath('error.meta.actual', 3);
     }
 
     /**
