@@ -27,45 +27,9 @@ final class SearchStrategyTest extends TestCase
      */
     public static function backingValueProvider(): iterable
     {
-        yield 'exact'     => [SearchStrategy::EXACT, 'exact'];
-        yield 'prefix'    => [SearchStrategy::PREFIX, 'prefix'];
+        yield 'exact' => [SearchStrategy::EXACT, 'exact'];
+        yield 'prefix' => [SearchStrategy::PREFIX, 'prefix'];
         yield 'substring' => [SearchStrategy::SUBSTRING, 'substring'];
-    }
-
-    /**
-     * Provide every case with whether it needs a specialised index.
-     *
-     * @return iterable<string, array{\SineMacula\ApiToolkit\Enums\SearchStrategy, bool}>
-     */
-    public static function specialisedIndexProvider(): iterable
-    {
-        yield 'exact'     => [SearchStrategy::EXACT, false];
-        yield 'prefix'    => [SearchStrategy::PREFIX, false];
-        yield 'substring' => [SearchStrategy::SUBSTRING, true];
-    }
-
-    /**
-     * Provide every case with whether it matches by pattern.
-     *
-     * @return iterable<string, array{\SineMacula\ApiToolkit\Enums\SearchStrategy, bool}>
-     */
-    public static function patternMatchProvider(): iterable
-    {
-        yield 'exact'     => [SearchStrategy::EXACT, false];
-        yield 'prefix'    => [SearchStrategy::PREFIX, true];
-        yield 'substring' => [SearchStrategy::SUBSTRING, true];
-    }
-
-    /**
-     * Provide every case with the wildcards it wraps a term in.
-     *
-     * @return iterable<string, array{\SineMacula\ApiToolkit\Enums\SearchStrategy, string}>
-     */
-    public static function wildcardProvider(): iterable
-    {
-        yield 'exact'     => [SearchStrategy::EXACT, 'smith'];
-        yield 'prefix'    => [SearchStrategy::PREFIX, 'smith%'];
-        yield 'substring' => [SearchStrategy::SUBSTRING, '%smith%'];
     }
 
     /**
@@ -97,6 +61,18 @@ final class SearchStrategyTest extends TestCase
     }
 
     /**
+     * Provide every case with whether it needs a specialised index.
+     *
+     * @return iterable<string, array{\SineMacula\ApiToolkit\Enums\SearchStrategy, bool}>
+     */
+    public static function specialisedIndexProvider(): iterable
+    {
+        yield 'exact' => [SearchStrategy::EXACT, false];
+        yield 'prefix' => [SearchStrategy::PREFIX, false];
+        yield 'substring' => [SearchStrategy::SUBSTRING, true];
+    }
+
+    /**
      * Test that only the anywhere-match needs an index beyond a plain B-tree.
      *
      * @param  \SineMacula\ApiToolkit\Enums\SearchStrategy  $strategy
@@ -107,6 +83,18 @@ final class SearchStrategyTest extends TestCase
     public function testReportsWhetherASpecialisedIndexIsNeeded(SearchStrategy $strategy, bool $expected): void
     {
         self::assertSame($expected, $strategy->requiresSpecialisedIndex());
+    }
+
+    /**
+     * Provide every case with whether it matches by pattern.
+     *
+     * @return iterable<string, array{\SineMacula\ApiToolkit\Enums\SearchStrategy, bool}>
+     */
+    public static function patternMatchProvider(): iterable
+    {
+        yield 'exact' => [SearchStrategy::EXACT, false];
+        yield 'prefix' => [SearchStrategy::PREFIX, true];
+        yield 'substring' => [SearchStrategy::SUBSTRING, true];
     }
 
     /**
@@ -121,6 +109,18 @@ final class SearchStrategyTest extends TestCase
     public function testReportsWhetherTheStrategyMatchesByPattern(SearchStrategy $strategy, bool $expected): void
     {
         self::assertSame($expected, $strategy->matchesByPattern());
+    }
+
+    /**
+     * Provide every case with the wildcards it wraps a term in.
+     *
+     * @return iterable<string, array{\SineMacula\ApiToolkit\Enums\SearchStrategy, string}>
+     */
+    public static function wildcardProvider(): iterable
+    {
+        yield 'exact' => [SearchStrategy::EXACT, 'smith'];
+        yield 'prefix' => [SearchStrategy::PREFIX, 'smith%'];
+        yield 'substring' => [SearchStrategy::SUBSTRING, '%smith%'];
     }
 
     /**

@@ -622,6 +622,26 @@ Declare which fields the term is matched against, and how, in the resource schem
 The search applies to the requested resource only and never traverses a relation. Terms are bounded by the
 new `api-toolkit.search` config block, and a term outside those bounds is rejected with a `422`.
 
+**The indexes are yours to create.** A driver ships for MySQL, PostgreSQL, and SQLite, and each proves a
+declaration against the live schema rather than emitting a predicate that scans. The migration creating the
+index belongs to your application:
+
+    -- MySQL: an anywhere-match, per declared column
+    ALTER TABLE users ADD FULLTEXT INDEX users_name_ngram (name) WITH PARSER ngram;
+
+    -- PostgreSQL: a prefix match and an anywhere-match, per declared column
+    CREATE EXTENSION IF NOT EXISTS pg_trgm;
+    CREATE INDEX users_name_trgm ON users USING gin (name gin_trgm_ops);
+
+An exact match needs only an ordinary index leading with the column. SQLite carries neither index kind, so
+it is treated as a development connection: it serves every strategy, proves none of them, and is listed
+under `api-toolkit.search.unverified_connections` for exactly that reason. Listing a connection that serves
+traffic there reinstates the full-table scan the declaration exists to prevent.
+
+Run `php artisan api-toolkit:validate-schemas` in your build. Schema validation is disabled in production by
+default, so a declaration with no index behind it otherwise first appears as a failed search request after a
+deploy.
+
 **Action required.** Replace client calls using `$like` with `?search=`, having declared the fields it may
 match. Where the old behaviour is genuinely wanted -- an unindexed partial match on an arbitrary filterable
 column -- register the operator yourself, in a service provider's `boot()`:

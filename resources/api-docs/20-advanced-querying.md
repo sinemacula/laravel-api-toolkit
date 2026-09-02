@@ -176,7 +176,8 @@ Each searchable field is matched in one of three shapes, chosen per field by
 the resource: the whole value equals the term, the value begins with the term,
 or the value carries the term anywhere within it. A record matches when any
 searchable field matches, and the search always narrows a request further,
-whatever the filters alongside it ask for.
+whatever the filters alongside it ask for. A field matched on its beginning or
+anywhere within it ignores case.
 
 A term is rejected with a `422` rather than trimmed when it is too short, too
 long, or carries too many words. The minimum length exists because a shorter

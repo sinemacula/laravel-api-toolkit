@@ -91,6 +91,12 @@ and the connection's registered search driver refuses a shape it cannot serve fr
 scanning the table. Terms are bounded by `api-toolkit.search`; one outside the bounds is rejected with a
 422 rather than trimmed to fit.
 
+Drivers ship for MySQL, PostgreSQL, and SQLite. The index each declaration is served from belongs to your
+own migration - a `FULLTEXT` index created `WITH PARSER ngram` on MySQL, a `gin_trgm_ops` index on
+PostgreSQL - and `php artisan api-toolkit:validate-schemas` reports a declaration with no index behind it.
+Run it in CI: schema validation is disabled in production by default, so a missing index otherwise first
+appears as a failed search request after a deploy.
+
 **Sorting** - sort by one or more columns, with optional direction:
 
 ```http

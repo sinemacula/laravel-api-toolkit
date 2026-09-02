@@ -409,10 +409,23 @@ return [
     | reinstates the silent full-table scan this layer exists to remove; leaving
     | one off means an unprovable declaration fails loudly instead.
     |
-    | No driver is registered by default. Register one per connection against
-    | the SearchDriverRegistry to serve the parameter; until then a resource
-    | that declares a searchable column refuses the search rather than answering
-    | it with the whole table.
+    | A driver ships for MySQL, PostgreSQL, and SQLite, registered against the
+    | names those connections report. Any other connection is unregistered and
+    | refuses a search until a driver is registered for it against the
+    | SearchDriverRegistry, rather than being served by a grammar it does not
+    | speak.
+    |
+    | The indexes the shipped drivers prove a declaration against belong to the
+    | application's own migrations, and validation reports a declaration with
+    | none behind it. On MySQL an anywhere-match needs a FULLTEXT index over
+    | that column alone, created WITH PARSER ngram; on PostgreSQL a prefix match
+    | and an anywhere-match both need a trigram index over the column, which
+    | needs the pg_trgm extension installed first. An equality match needs an
+    | ordinary index leading with the column on either engine.
+    |
+    | Note that schema validation is disabled in production by default, so a
+    | missing index first shows up as a failed search request after a deploy
+    | unless `api-toolkit:validate-schemas` runs in the build.
     |
     */
 

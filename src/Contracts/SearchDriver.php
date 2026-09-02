@@ -14,17 +14,22 @@ use SineMacula\ApiToolkit\Search\SearchTerm;
  *
  * Binds a connection to the match shapes it can serve from an index. A driver
  * declares the strategies it implements, whether it can prove on a given
- * connection that a declared strategy is index-backed, and how to apply the
- * predicate for a set of columns. Nothing here names a grammar or an index
- * type, so a driver sitting in front of an external engine implements the same
- * contract as one that writes a clause against the connection it was resolved
- * for.
+ * connection that a declared strategy is index-backed, what a declaration is
+ * missing when it is not, and how to apply the predicate for a set of columns.
+ * Nothing here names a grammar or an index type, so a driver sitting in front
+ * of an external engine implements the same contract as one that writes a
+ * clause against the connection it was resolved for.
  *
  * A driver never degrades. Asked for a strategy it does not implement, or for
  * one it can prove no index serves on this connection, it throws rather than
  * emitting a predicate that scans. A scan that returns the right rows slowly
  * and an index that quietly returns different rows are the two outcomes this
  * contract exists to make impossible.
+ *
+ * The claim and the proof are asked separately because they are paid at
+ * different times. The claim is a constant read on every request; the proof
+ * reads the connection's catalogue and belongs to schema validation, which runs
+ * once at boot or in a build.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -52,6 +57,22 @@ interface SearchDriver
      * @return bool
      */
     public function canVerifyIndexBacking(SearchStrategy $strategy, Connection $connection): bool;
+
+    /**
+     * Return what the column is missing before the strategy can be served from
+     * an index on this connection, or an empty list when nothing is.
+     *
+     * Only a driver that claims the proof answers this. One that does not
+     * returns an empty list, which says nothing was found rather than that
+     * nothing is wrong.
+     *
+     * @param  \SineMacula\ApiToolkit\Enums\SearchStrategy  $strategy
+     * @param  string  $column
+     * @param  string  $table
+     * @param  \Illuminate\Database\Connection  $connection
+     * @return array<int, string>
+     */
+    public function indexDefects(SearchStrategy $strategy, string $column, string $table, Connection $connection): array;
 
     /**
      * Apply the search predicate for the given columns to the query.

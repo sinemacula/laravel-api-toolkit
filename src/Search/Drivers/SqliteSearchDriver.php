@@ -2,7 +2,7 @@
 
 declare(strict_types = 1);
 
-namespace Tests\Fixtures\Search;
+namespace SineMacula\ApiToolkit\Search\Drivers;
 
 use Illuminate\Database\Connection;
 use Illuminate\Database\Eloquent\Builder;
@@ -11,40 +11,25 @@ use SineMacula\ApiToolkit\Enums\SearchStrategy;
 use SineMacula\ApiToolkit\Search\SearchTerm;
 
 /**
- * Fixture search driver emitting a plain predicate per declared column.
+ * Search driver serving a SQLite connection as a development connection.
  *
- * Stands in for the development connection the suite runs against: it serves
- * every strategy with an equality or pattern comparison and, by default, admits
- * that it can prove nothing about the indexes behind them. The strategies it
- * implements, the verification claim it makes, and the defects that claim
- * reports are all constructor arguments, so a test can drive the applier's and
- * the schema validator's refusals as well as their happy paths.
+ * SQLite carries neither the trigram operator classes nor the n-gram parser the
+ * other engines answer a substring from, and it offers no way to prove that a
+ * pattern comparison rode an index rather than the table. The driver therefore
+ * serves every strategy - so a term behaves the same way locally as it does in
+ * front of an engine that indexes it - and claims no proof for any of them.
+ *
+ * Claiming nothing is what makes the limitation visible: a declaration on this
+ * connection is refused unless the connection is listed among the ones where
+ * the index proof is waived, which the shipped configuration does for SQLite
+ * alone. A connection serving traffic that is listed there has reinstated the
+ * full-table scan the declaration exists to prevent.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-final readonly class PatternSearchDriver implements SearchDriver
+final class SqliteSearchDriver implements SearchDriver
 {
-    /**
-     * Constructor.
-     *
-     * @param  array<int, \SineMacula\ApiToolkit\Enums\SearchStrategy>|null  $strategies
-     * @param  bool  $verifiesIndexBacking
-     * @param  array<int, string>  $indexDefects
-     * @return void
-     */
-    public function __construct(
-
-        /** The strategies this driver claims to implement, or null for every one */
-        private ?array $strategies = null,
-
-        /** Whether the driver claims it can prove a declared strategy is index backed */
-        private bool $verifiesIndexBacking = false,
-
-        /** The defects the driver reports for every column it is asked to prove */
-        private array $indexDefects = [],
-    ) {}
-
     /**
      * Return the match strategies this driver implements.
      *
@@ -53,7 +38,7 @@ final readonly class PatternSearchDriver implements SearchDriver
     #[\Override]
     public function supportedStrategies(): array
     {
-        return $this->strategies ?? SearchStrategy::cases();
+        return SearchStrategy::cases();
     }
 
     /**
@@ -66,7 +51,7 @@ final readonly class PatternSearchDriver implements SearchDriver
     #[\Override]
     public function canVerifyIndexBacking(SearchStrategy $strategy, Connection $connection): bool
     {
-        return $this->verifiesIndexBacking;
+        return false;
     }
 
     /**
@@ -82,7 +67,7 @@ final readonly class PatternSearchDriver implements SearchDriver
     #[\Override]
     public function indexDefects(SearchStrategy $strategy, string $column, string $table, Connection $connection): array
     {
-        return $this->indexDefects;
+        return [];
     }
 
     /**
@@ -97,10 +82,21 @@ final readonly class PatternSearchDriver implements SearchDriver
     #[\Override]
     public function apply(Builder $query, array $columns, SearchTerm $term, SearchStrategy $strategy): void
     {
-        $operator = $strategy->matchesByPattern() ? 'like' : '=';
-
         foreach ($columns as $column) {
-            $query->orWhere($column, $operator, $term->pattern($strategy));
+
+            $qualified = $query->qualifyColumn($column);
+
+            if (!$strategy->matchesByPattern()) {
+
+                $query->orWhere($qualified, '=', $term->pattern($strategy));
+
+                continue;
+            }
+
+            $query->orWhereRaw(
+                sprintf('%s like ? escape \'%s\'', $query->getQuery()->getGrammar()->wrap($qualified), SearchTerm::ESCAPE_CHARACTER),
+                [$term->pattern($strategy)],
+            );
         }
     }
 }

@@ -6,12 +6,12 @@ namespace SineMacula\ApiToolkit\Repositories\Criteria\Concerns;
 
 use Illuminate\Database\Connection;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Support\Facades\Config;
 use Illuminate\Validation\ValidationException;
 use SineMacula\ApiToolkit\Contracts\ApiResourceInterface;
 use SineMacula\ApiToolkit\Contracts\SearchDriver;
 use SineMacula\ApiToolkit\Enums\SearchStrategy;
 use SineMacula\ApiToolkit\Exceptions\UnservableSearchException;
+use SineMacula\ApiToolkit\Search\IndexProofWaiver;
 use SineMacula\ApiToolkit\Search\SearchDriverRegistry;
 use SineMacula\ApiToolkit\Search\SearchPlan;
 use SineMacula\ApiToolkit\Search\SearchTerm;
@@ -133,21 +133,8 @@ final readonly class SearchApplier
             throw UnservableSearchException::unsupportedStrategy($name, $strategy);
         }
 
-        if (!$driver->canVerifyIndexBacking($strategy, $connection) && !$this->waivesIndexProof($name)) {
+        if (!$driver->canVerifyIndexBacking($strategy, $connection) && !IndexProofWaiver::waives($name)) {
             throw UnservableSearchException::unprovenIndexBacking($name, $strategy);
         }
-    }
-
-    /**
-     * Determine whether the connection waives the index proof.
-     *
-     * @param  string  $connection
-     * @return bool
-     */
-    private function waivesIndexProof(string $connection): bool
-    {
-        $waived = Config::get('api-toolkit.search.unverified_connections', []);
-
-        return is_array($waived) && in_array($connection, $waived, true);
     }
 }

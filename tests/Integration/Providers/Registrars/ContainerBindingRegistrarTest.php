@@ -24,6 +24,9 @@ use SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry;
 use SineMacula\ApiToolkit\Runtime\RuntimeContext;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 use SineMacula\ApiToolkit\Schema\Validation\SchemaValidator;
+use SineMacula\ApiToolkit\Search\Drivers\MySqlNgramSearchDriver;
+use SineMacula\ApiToolkit\Search\Drivers\PostgresTrigramSearchDriver;
+use SineMacula\ApiToolkit\Search\Drivers\SqliteSearchDriver;
 use SineMacula\ApiToolkit\Search\SearchDriverRegistry;
 use SineMacula\ApiToolkit\Services\ServiceRunner;
 use Tests\Fixtures\Input\StorePayload;
@@ -161,13 +164,13 @@ final class ContainerBindingRegistrarTest extends TestCase
     }
 
     /**
-     * Test that the search driver registry binds as a shared singleton and
-     * ships with no driver, so a connection is served only once one is
-     * registered for it.
+     * Test that the search driver registry binds as a shared singleton carrying
+     * a driver for each engine the package writes a search for, and nothing for
+     * a connection it does not.
      *
      * @return void
      */
-    public function testRegisterBindsAnEmptySharedSearchDriverRegistry(): void
+    public function testRegisterBindsTheSharedSearchDriverRegistryWithTheShippedDrivers(): void
     {
         $app = $this->getApplication();
 
@@ -176,7 +179,10 @@ final class ContainerBindingRegistrarTest extends TestCase
         $registry = $app->make(SearchDriverRegistry::class);
 
         self::assertSame($registry, $app->make(SearchDriverRegistry::class));
-        self::assertSame([], $registry->connections());
+        self::assertSame(['mysql', 'pgsql', 'sqlite'], $registry->connections());
+        self::assertInstanceOf(MySqlNgramSearchDriver::class, $registry->resolve('mysql'));
+        self::assertInstanceOf(PostgresTrigramSearchDriver::class, $registry->resolve('pgsql'));
+        self::assertInstanceOf(SqliteSearchDriver::class, $registry->resolve('sqlite'));
     }
 
     /**

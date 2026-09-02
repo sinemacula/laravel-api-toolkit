@@ -24,7 +24,7 @@ use SineMacula\ApiToolkit\Search\SearchTerm;
 final class SearchDriverTest extends TestCase
 {
     /**
-     * Test that the contract declares the three capabilities a driver has to
+     * Test that the contract declares the four capabilities a driver has to
      * answer for, and nothing that would tie it to one engine.
      *
      * @return void
@@ -35,7 +35,7 @@ final class SearchDriverTest extends TestCase
 
         self::assertTrue($reflection->isInterface());
         self::assertSame(
-            ['supportedStrategies', 'canVerifyIndexBacking', 'apply'],
+            ['supportedStrategies', 'canVerifyIndexBacking', 'indexDefects', 'apply'],
             array_map(static fn (\ReflectionMethod $method): string => $method->getName(), $reflection->getMethods()),
         );
     }
@@ -72,6 +72,28 @@ final class SearchDriverTest extends TestCase
         self::assertSame('connection', $parameters[1]->getName());
         self::assertSame(Connection::class, $this->parameterTypeName($parameters[1]));
         self::assertSame('bool', $this->returnTypeName($method));
+    }
+
+    /**
+     * Test that the index proof is asked for one column of one table, so the
+     * defects it reports name the declaration that carries them rather than the
+     * resource as a whole.
+     *
+     * @return void
+     */
+    public function testIndexDefectsTakesAStrategyColumnTableAndConnection(): void
+    {
+        $method     = (new \ReflectionClass(SearchDriver::class))->getMethod('indexDefects');
+        $parameters = $method->getParameters();
+
+        self::assertCount(4, $parameters);
+        self::assertSame(SearchStrategy::class, $this->parameterTypeName($parameters[0]));
+        self::assertSame('column', $parameters[1]->getName());
+        self::assertSame('string', $this->parameterTypeName($parameters[1]));
+        self::assertSame('table', $parameters[2]->getName());
+        self::assertSame('string', $this->parameterTypeName($parameters[2]));
+        self::assertSame(Connection::class, $this->parameterTypeName($parameters[3]));
+        self::assertSame('array', $this->returnTypeName($method));
     }
 
     /**

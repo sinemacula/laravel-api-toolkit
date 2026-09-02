@@ -44,38 +44,11 @@ final class SearchTermTest extends TestCase
     public static function normalisationProvider(): iterable
     {
         yield 'surrounding whitespace' => ['   smith   ', 'smith'];
-        yield 'collapsed runs'         => ['john    smith', 'john smith'];
-        yield 'newline separates'      => ["john\nsmith", 'john smith'];
-        yield 'tab separates'          => ["john\tsmith", 'john smith'];
-        yield 'no-break space'         => ["john\u{00A0}smith", 'john smith'];
-        yield 'control stripped'       => ["jo\x00hn smith", 'john smith'];
-    }
-
-    /**
-     * Provide each strategy with the pattern a term of "50%" renders to.
-     *
-     * @return iterable<string, array{\SineMacula\ApiToolkit\Enums\SearchStrategy, string}>
-     */
-    public static function patternProvider(): iterable
-    {
-        yield 'exact'     => [SearchStrategy::EXACT, '50%'];
-        yield 'prefix'    => [SearchStrategy::PREFIX, '50\\%%'];
-        yield 'substring' => [SearchStrategy::SUBSTRING, '%50\\%%'];
-    }
-
-    /**
-     * Provide terms carrying a metacharacter with the substring pattern they
-     * render to.
-     *
-     * @return iterable<string, array{string, string}>
-     */
-    public static function escapingProvider(): iterable
-    {
-        yield 'percent'          => ['a%b', '%a\\%b%'];
-        yield 'underscore'       => ['a_b', '%a\\_b%'];
-        yield 'escape character' => ['a\\b', '%a\\\\b%'];
-        yield 'only wildcards'   => ['%%%', '%\\%\\%\\%%'];
-        yield 'nothing to escape' => ['smith', '%smith%'];
+        yield 'collapsed runs' => ['john    smith', 'john smith'];
+        yield 'newline separates' => ["john\nsmith", 'john smith'];
+        yield 'tab separates' => ["john\tsmith", 'john smith'];
+        yield 'no-break space' => ["john\u{00A0}smith", 'john smith'];
+        yield 'control stripped' => ["jo\x00hn smith", 'john smith'];
     }
 
     /**
@@ -294,6 +267,18 @@ final class SearchTermTest extends TestCase
     }
 
     /**
+     * Provide each strategy with the pattern a term of "50%" renders to.
+     *
+     * @return iterable<string, array{\SineMacula\ApiToolkit\Enums\SearchStrategy, string}>
+     */
+    public static function patternProvider(): iterable
+    {
+        yield 'exact' => [SearchStrategy::EXACT, '50%'];
+        yield 'prefix' => [SearchStrategy::PREFIX, '50\%%'];
+        yield 'substring' => [SearchStrategy::SUBSTRING, '%50\%%'];
+    }
+
+    /**
      * Test that each strategy renders the term for the match it performs, with
      * only the pattern-matching strategies escaping the wildcard.
      *
@@ -307,6 +292,21 @@ final class SearchTermTest extends TestCase
     public function testRendersThePatternForTheStrategy(SearchStrategy $strategy, string $expected): void
     {
         self::assertSame($expected, SearchTerm::from('50%')->pattern($strategy));
+    }
+
+    /**
+     * Provide terms carrying a metacharacter with the substring pattern they
+     * render to.
+     *
+     * @return iterable<string, array{string, string}>
+     */
+    public static function escapingProvider(): iterable
+    {
+        yield 'percent' => ['a%b', '%a\%b%'];
+        yield 'underscore' => ['a_b', '%a\_b%'];
+        yield 'escape character' => ['a\b', '%a\\\b%'];
+        yield 'only wildcards' => ['%%%', '%\%\%\%%'];
+        yield 'nothing to escape' => ['smith', '%smith%'];
     }
 
     /**
@@ -335,7 +335,7 @@ final class SearchTermTest extends TestCase
      */
     public function testEscapesTheEscapeCharacterBeforeTheWildcards(): void
     {
-        self::assertSame('%a\\\\\\%b%', SearchTerm::from('a\\%b')->pattern(SearchStrategy::SUBSTRING));
+        self::assertSame('%a\\\\\%b%', SearchTerm::from('a\%b')->pattern(SearchStrategy::SUBSTRING));
     }
 
     /**

@@ -183,6 +183,22 @@ final class SearchDriverRegistryTest extends TestCase
             }
 
             /**
+             * Return what the column is missing before the strategy can be
+             * served from an index on this connection.
+             *
+             * @param  \SineMacula\ApiToolkit\Enums\SearchStrategy  $strategy
+             * @param  string  $column
+             * @param  string  $table
+             * @param  \Illuminate\Database\Connection  $connection
+             * @return array<int, string>
+             */
+            #[\Override]
+            public function indexDefects(SearchStrategy $strategy, string $column, string $table, Connection $connection): array
+            {
+                return [];
+            }
+
+            /**
              * Apply the search predicate for the given columns to the query.
              *
              * @param  \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>  $query
