@@ -15,6 +15,7 @@ use SineMacula\ApiToolkit\Http\Resources\Concerns\EagerLoadPlanner;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\FieldResolver;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\ValueResolver;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
+use SineMacula\ApiToolkit\Search\SearchPlan;
 use Tests\Fixtures\Support\FunctionOverrides;
 
 /**
@@ -54,6 +55,7 @@ abstract class TestCase extends OrchestraTestCase
         ValueResolver::clearCache();
         EagerLoadPlanner::clearCache();
         SchemaCompiler::clearCache();
+        SearchPlan::clearCache();
 
         Relation::morphMap([], false);
         Relation::requireMorphMap(false);

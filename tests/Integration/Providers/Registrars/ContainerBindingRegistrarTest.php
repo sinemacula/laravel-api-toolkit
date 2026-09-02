@@ -24,9 +24,11 @@ use SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry;
 use SineMacula\ApiToolkit\Runtime\RuntimeContext;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 use SineMacula\ApiToolkit\Schema\Validation\SchemaValidator;
+use SineMacula\ApiToolkit\Search\SearchDriverRegistry;
 use SineMacula\ApiToolkit\Services\ServiceRunner;
 use Tests\Fixtures\Input\StorePayload;
 use Tests\Fixtures\Models\User;
+use Tests\Fixtures\Resources\SearchableComputedResource;
 use Tests\Fixtures\Resources\SensitiveQueryableResource;
 use Tests\Fixtures\Resources\UnbackedQueryableResource;
 use Tests\Fixtures\Services\Input\Enums\StubStatusEnum;
@@ -68,6 +70,7 @@ final class ContainerBindingRegistrarTest extends TestCase
         self::assertInstanceOf(ResourceMetadataProvider::class, $app->make(ResourceMetadataProvider::class));
         self::assertInstanceOf(SchemaIntrospectionProvider::class, $app->make(SchemaIntrospectionProvider::class));
         self::assertInstanceOf(OperatorRegistry::class, $app->make(OperatorRegistry::class));
+        self::assertInstanceOf(SearchDriverRegistry::class, $app->make(SearchDriverRegistry::class));
         self::assertInstanceOf(SchemaValidator::class, $app->make(SchemaValidator::class));
         self::assertInstanceOf(WritePool::class, $app->make(WritePool::class));
         self::assertInstanceOf(CacheManager::class, $app->make(CacheManager::class));
@@ -133,6 +136,47 @@ final class ContainerBindingRegistrarTest extends TestCase
         $this->expectException(InvalidSchemaException::class);
 
         $validator->validate([User::class => SensitiveQueryableResource::class]);
+    }
+
+    /**
+     * Test that the shipped rule set refuses a resource declaring a computed
+     * field searchable, so a search surface with no column behind it fails at
+     * boot rather than at request time.
+     *
+     * @return void
+     */
+    public function testRegisterBindsSchemaValidatorRefusingAnUnbackedSearchDeclaration(): void
+    {
+        $app = $this->getApplication();
+
+        (new ContainerBindingRegistrar($app))->register();
+
+        SchemaCompiler::clearCache();
+
+        $validator = $app->make(SchemaValidator::class);
+
+        $this->expectException(InvalidSchemaException::class);
+
+        $validator->validate([User::class => SearchableComputedResource::class]);
+    }
+
+    /**
+     * Test that the search driver registry binds as a shared singleton and
+     * ships with no driver, so a connection is served only once one is
+     * registered for it.
+     *
+     * @return void
+     */
+    public function testRegisterBindsAnEmptySharedSearchDriverRegistry(): void
+    {
+        $app = $this->getApplication();
+
+        (new ContainerBindingRegistrar($app))->register();
+
+        $registry = $app->make(SearchDriverRegistry::class);
+
+        self::assertSame($registry, $app->make(SearchDriverRegistry::class));
+        self::assertSame([], $registry->connections());
     }
 
     /**

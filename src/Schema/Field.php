@@ -6,6 +6,7 @@ namespace SineMacula\ApiToolkit\Schema;
 
 use Carbon\CarbonInterface;
 use Illuminate\Contracts\Support\Arrayable;
+use SineMacula\ApiToolkit\Enums\SearchStrategy;
 use SineMacula\ApiToolkit\Exceptions\DuplicateSchemaKeyException;
 
 /**
@@ -27,6 +28,9 @@ final class Field extends BaseDefinition
 
     /** @var bool Whether this field's column is declared sortable */
     private bool $sortable = false;
+
+    /** @var \SineMacula\ApiToolkit\Enums\SearchStrategy|null The strategy this field's column is declared searchable with */
+    private ?SearchStrategy $searchable = null;
 
     /**
      * Prevent direct instantiation.
@@ -168,6 +172,24 @@ final class Field extends BaseDefinition
     }
 
     /**
+     * Declare this field's column as searchable with the given match strategy.
+     *
+     * The strategy is explicit because it decides which index has to back the
+     * column: an omitted one would either pick the cheapest match, quietly
+     * narrowing what the client asked for, or the broadest, quietly asking the
+     * connection for an index nobody declared.
+     *
+     * @param  \SineMacula\ApiToolkit\Enums\SearchStrategy  $strategy
+     * @return self
+     */
+    public function searchable(SearchStrategy $strategy): self
+    {
+        $this->searchable = $strategy;
+
+        return $this;
+    }
+
+    /**
      * Convert this definition to a normalized array.
      *
      * @return array<string, array<string, mixed>>
@@ -183,6 +205,8 @@ final class Field extends BaseDefinition
                 'compute'    => $this->compute,
                 'filterable' => $this->filterable ? $this->name : null,
                 'sortable'   => $this->sortable ? $this->name : null,
+                'searchable' => $this->searchable !== null ? $this->name : null,
+                'strategy'   => $this->searchable,
                 'extras'     => $this->extras ?: null,
                 'needs'      => $this->needs ?: null,
                 ...$this->commonAttributes(),

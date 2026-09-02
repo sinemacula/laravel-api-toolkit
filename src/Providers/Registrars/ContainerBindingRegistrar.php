@@ -47,9 +47,11 @@ use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateQueryableFields;
 use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateRelationClasses;
 use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateRelationInterfaces;
 use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateRelationMethods;
+use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateSearchableFields;
 use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateSensitiveColumns;
 use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateTransformers;
 use SineMacula\ApiToolkit\Schema\Validation\SchemaValidator;
+use SineMacula\ApiToolkit\Search\SearchDriverRegistry;
 use SineMacula\ApiToolkit\Services\Input\Payload;
 use SineMacula\ApiToolkit\Services\ServiceRunner;
 
@@ -57,8 +59,9 @@ use SineMacula\ApiToolkit\Services\ServiceRunner;
  * Registers the toolkit container bindings.
  *
  * Binds the query parser, resource metadata provider, schema introspector,
- * operator registry, schema validator, write pool, cache manager, lifecycle
- * runtime, OpenAPI exporter, and service runner to the service container.
+ * operator registry, search driver registry, schema validator, write pool,
+ * cache manager, lifecycle runtime, OpenAPI exporter, and service runner to the
+ * service container.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -88,6 +91,7 @@ final readonly class ContainerBindingRegistrar
         $this->registerResourceMetadataProvider();
         $this->registerSchemaIntrospector();
         $this->registerOperatorRegistry();
+        $this->registerSearchDriverRegistry();
         $this->registerSchemaValidator();
         $this->registerWritePool();
         $this->registerCacheManager();
@@ -162,6 +166,20 @@ final readonly class ContainerBindingRegistrar
     }
 
     /**
+     * Bind the SearchDriverRegistry to the service container.
+     *
+     * The registry ships empty: a connection is served only once a driver is
+     * registered for it, and resolving an unregistered connection throws rather
+     * than disabling search behind the operator's back.
+     *
+     * @return void
+     */
+    private function registerSearchDriverRegistry(): void
+    {
+        $this->container->singleton(SearchDriverRegistry::class);
+    }
+
+    /**
      * Bind the SchemaValidator to the service container.
      *
      * @return void
@@ -177,6 +195,7 @@ final readonly class ContainerBindingRegistrar
             new ValidateComputedFields,
             new ValidateAccessors,
             new ValidateQueryableFields,
+            new ValidateSearchableFields,
             new ValidateSensitiveColumns,
         ));
     }

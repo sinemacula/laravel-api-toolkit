@@ -4,6 +4,8 @@ declare(strict_types = 1);
 
 namespace SineMacula\ApiToolkit\Schema;
 
+use SineMacula\ApiToolkit\Enums\SearchStrategy;
+
 /**
  * Typed representation of a single compiled field definition.
  *
@@ -31,6 +33,8 @@ final readonly class CompiledFieldDefinition
      * @param  \SineMacula\ApiToolkit\Schema\OpenApiFieldSchema|null  $openApi
      * @param  string|null  $filterable
      * @param  string|null  $sortable
+     * @param  string|null  $searchable
+     * @param  \SineMacula\ApiToolkit\Enums\SearchStrategy|null  $searchStrategy
      */
     public function __construct(
 
@@ -72,5 +76,11 @@ final readonly class CompiledFieldDefinition
 
         /** Column this field declares sortable, or null when undeclared */
         public ?string $sortable = null,
+
+        /** Column this field declares searchable, or null when undeclared */
+        public ?string $searchable = null,
+
+        /** Match strategy the searchable column was declared with */
+        public ?SearchStrategy $searchStrategy = null,
     ) {}
 }

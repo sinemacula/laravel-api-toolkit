@@ -9,13 +9,14 @@ use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
 use SineMacula\ApiToolkit\Schema\Validation\SchemaValidationError;
 
 /**
- * Validate that no field declares a sensitive column filterable or sortable.
+ * Validate that no field declares a sensitive column queryable.
  *
- * The declared surface is the only gate on what a client may filter or sort by,
- * so a credential or verification column reaching it becomes an oracle: the
- * caller never reads the value but narrows on it one comparison at a time. The
- * configured columns are refused where the resource declares them, so the
- * defect is a schema failure rather than a silently exploitable endpoint.
+ * The declared surface is the only gate on what a client may filter, sort, or
+ * search by, so a credential or verification column reaching it becomes an
+ * oracle: the caller never reads the value but narrows on it one comparison at
+ * a time. The configured columns are refused where the resource declares them,
+ * so the defect is a schema failure rather than a silently exploitable
+ * endpoint.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -47,7 +48,7 @@ final class ValidateSensitiveColumns extends ValidatesEachField
         $sensitive = $this->sensitiveColumns();
         $errors    = [];
 
-        foreach (['filterable' => $field->filterable, 'sortable' => $field->sortable] as $declaration => $column) {
+        foreach (['filterable' => $field->filterable, 'sortable' => $field->sortable, 'searchable' => $field->searchable] as $declaration => $column) {
 
             if ($column === null || !in_array($column, $sensitive, true)) {
                 continue;

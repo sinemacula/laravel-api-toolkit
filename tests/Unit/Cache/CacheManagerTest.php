@@ -17,6 +17,7 @@ use SineMacula\ApiToolkit\Http\Resources\Concerns\FieldResolver;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\ValueResolver;
 use SineMacula\ApiToolkit\Schema\FieldColumnMapper;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
+use SineMacula\ApiToolkit\Search\SearchPlan;
 use Tests\Concerns\InteractsWithNonPublicMembers;
 use Tests\TestCase;
 
@@ -171,6 +172,29 @@ final class CacheManagerTest extends TestCase
 
         // Assert
         self::assertSame([], $this->getStaticProperty(FieldColumnMapper::class, 'cache'));
+    }
+
+    /**
+     * Test that flush clears the SearchPlan static cache, so a compiled search
+     * surface cannot outlive the schema it was built from.
+     *
+     * @return void
+     */
+    public function testFlushClearsSearchPlanCache(): void
+    {
+        // Arrange
+        Event::fake();
+
+        $this->setStaticProperty(SearchPlan::class, 'cache', ['FakeResource' => 'plan']);
+
+        self::assertNotEmpty($this->getStaticProperty(SearchPlan::class, 'cache'));
+
+        // Act
+        $manager = $this->app->make(CacheManager::class); // @phpstan-ignore method.nonObject
+        $manager->flush();
+
+        // Assert
+        self::assertSame([], $this->getStaticProperty(SearchPlan::class, 'cache'));
     }
 
     /**

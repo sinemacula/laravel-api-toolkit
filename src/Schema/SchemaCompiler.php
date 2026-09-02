@@ -4,6 +4,7 @@ declare(strict_types = 1);
 
 namespace SineMacula\ApiToolkit\Schema;
 
+use SineMacula\ApiToolkit\Enums\SearchStrategy;
 use SineMacula\ApiToolkit\Exceptions\InvalidSchemaException;
 use SineMacula\ApiToolkit\Schema\Validation\SchemaValidationError;
 
@@ -111,6 +112,7 @@ final class SchemaCompiler
         $filterable  = [];
         $sortable    = [];
         $traversable = [];
+        $searchable  = [];
 
         foreach ($rawSchema as $schemaKey => $definition) {
 
@@ -127,7 +129,7 @@ final class SchemaCompiler
                 continue;
             }
 
-            self::collectQueryMarkers($definition, $filterable, $sortable, $traversable);
+            self::collectQueryMarkers($definition, $filterable, $sortable, $traversable, $searchable);
 
             $fields[$schemaKey] = self::buildFieldDefinition($definition);
         }
@@ -139,6 +141,7 @@ final class SchemaCompiler
             array_values(array_unique($filterable)),
             array_values(array_unique($sortable)),
             array_values(array_unique($traversable)),
+            $searchable,
         );
     }
 
@@ -237,16 +240,22 @@ final class SchemaCompiler
     }
 
     /**
-     * Collect filterable, sortable, and traversable markers from a field
-     * definition into the corresponding accumulator arrays.
+     * Collect filterable, sortable, traversable, and searchable markers from a
+     * field definition into the corresponding accumulator arrays.
+     *
+     * A searchable column is collected only alongside the strategy it was
+     * declared with. Keeping a column whose strategy is absent would leave the
+     * match shape to be guessed later, which is the one decision this layer
+     * never makes for a resource.
      *
      * @param  array<string, mixed>  $definition
      * @param  array<int, string>  $filterable
      * @param  array<int, string>  $sortable
      * @param  array<int, string>  $traversable
+     * @param  array<string, \SineMacula\ApiToolkit\Enums\SearchStrategy>  $searchable
      * @return void
      */
-    private static function collectQueryMarkers(array $definition, array &$filterable, array &$sortable, array &$traversable): void
+    private static function collectQueryMarkers(array $definition, array &$filterable, array &$sortable, array &$traversable, array &$searchable): void
     {
         $filterableMarker = $definition['filterable'] ?? null;
 
@@ -262,11 +271,31 @@ final class SchemaCompiler
 
         $traversableMarker = $definition['traversable'] ?? null;
 
-        if (!is_string($traversableMarker)) {
+        if (is_string($traversableMarker)) {
+            $traversable[] = $traversableMarker;
+        }
+
+        $searchableMarker = $definition['searchable'] ?? null;
+        $strategy         = self::resolveSearchStrategy($definition);
+
+        if (!is_string($searchableMarker) || $strategy === null) {
             return;
         }
 
-        $traversable[] = $traversableMarker;
+        $searchable[$searchableMarker] = $strategy;
+    }
+
+    /**
+     * Resolve the declared match strategy for a searchable field definition.
+     *
+     * @param  array<string, mixed>  $definition
+     * @return \SineMacula\ApiToolkit\Enums\SearchStrategy|null
+     */
+    private static function resolveSearchStrategy(array $definition): ?SearchStrategy
+    {
+        $strategy = $definition['strategy'] ?? null;
+
+        return $strategy instanceof SearchStrategy ? $strategy : null;
     }
 
     /**
@@ -290,30 +319,36 @@ final class SchemaCompiler
     private static function buildFieldDefinition(array $definition): CompiledFieldDefinition
     {
         return new CompiledFieldDefinition(
-            accessor    : $definition['accessor'] ?? null,
-            compute     : $definition['compute']  ?? null,
-            relation    : self::resolveFieldRelation($definition),
-            resource    : self::resolveFieldResource($definition),
-            fields      : $definition['fields'] ?? null,
-            constraint  : self::resolveFieldConstraint($definition),
-            extras      : (array) ($definition['extras'] ?? []),
-            needs       : (array) ($definition['needs'] ?? []),
-            guards      : $definition['guards']       ?? [],
-            transformers: $definition['transformers'] ?? [],
-            openApi     : self::resolveFieldOpenApi($definition),
-            filterable  : self::nullableString($definition['filterable'] ?? null),
-            sortable    : self::nullableString($definition['sortable'] ?? null),
+            accessor      : $definition['accessor'] ?? null,
+            compute       : $definition['compute']  ?? null,
+            relation      : self::resolveFieldRelation($definition),
+            resource      : self::resolveFieldResource($definition),
+            fields        : $definition['fields'] ?? null,
+            constraint    : self::resolveFieldConstraint($definition),
+            extras        : (array) ($definition['extras'] ?? []),
+            needs         : (array) ($definition['needs'] ?? []),
+            guards        : $definition['guards']       ?? [],
+            transformers  : $definition['transformers'] ?? [],
+            openApi       : self::resolveFieldOpenApi($definition),
+            filterable    : self::declaredColumn($definition, 'filterable'),
+            sortable      : self::declaredColumn($definition, 'sortable'),
+            searchable    : self::declaredColumn($definition, 'searchable'),
+            searchStrategy: self::resolveSearchStrategy($definition),
         );
     }
 
     /**
-     * Return $value as a string, or null when $value is not a string.
+     * Return the column declared at the given key, or null when the key is
+     * absent or holds something other than a string.
      *
-     * @param  mixed  $value
+     * @param  array<string, mixed>  $definition
+     * @param  string  $key
      * @return string|null
      */
-    private static function nullableString(mixed $value): ?string
+    private static function declaredColumn(array $definition, string $key): ?string
     {
+        $value = $definition[$key] ?? null;
+
         return is_string($value) ? $value : null;
     }
 
