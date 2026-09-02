@@ -13,6 +13,7 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Enums\SearchStrategy;
 use SineMacula\ApiToolkit\Search\Drivers\MySqlNgramSearchDriver;
 use SineMacula\ApiToolkit\Search\SearchTerm;
+use Tests\Concerns\AssertsBoundPlaceholders;
 use Tests\Fixtures\Models\User;
 use Tests\TestCase;
 
@@ -34,6 +35,8 @@ use Tests\TestCase;
 #[CoversClass(MySqlNgramSearchDriver::class)]
 final class MySqlNgramSearchDriverTest extends TestCase
 {
+    use AssertsBoundPlaceholders;
+
     /** @var string The connection name the predicates are compiled against */
     private const string CONNECTION = 'mysql_grammar';
 
@@ -165,7 +168,7 @@ final class MySqlNgramSearchDriverTest extends TestCase
     {
         $query = $this->apply(['name'], SearchStrategy::PREFIX);
 
-        self::assertSame('select * from `users` where `users`.`name` like ? escape \'\\\\\'', $query->toSql()); // @phpstan-ignore staticMethod.dynamicCall
+        self::assertSame('select * from `users` where `users`.`name` like ? escape \'!\'', $query->toSql()); // @phpstan-ignore staticMethod.dynamicCall
         self::assertSame([self::TERM . '%'], $query->getBindings()); // @phpstan-ignore staticMethod.dynamicCall
     }
 
@@ -180,10 +183,31 @@ final class MySqlNgramSearchDriverTest extends TestCase
         $query = $this->apply(['name', 'email'], SearchStrategy::PREFIX);
 
         self::assertSame(
-            'select * from `users` where `users`.`name` like ? escape \'\\\\\' or `users`.`email` like ? escape \'\\\\\'',
+            'select * from `users` where `users`.`name` like ? escape \'!\' or `users`.`email` like ? escape \'!\'',
             $query->toSql(), // @phpstan-ignore staticMethod.dynamicCall
         );
         self::assertSame([self::TERM . '%', self::TERM . '%'], $query->getBindings()); // @phpstan-ignore staticMethod.dynamicCall
+    }
+
+    /**
+     * Test that every value bound to the statement keeps a placeholder of its
+     * own once the quoted literals are read out of it, since a literal left
+     * open swallows the placeholder of the clause beside it and leaves the
+     * value it stood for with nothing to bind to.
+     *
+     * @return void
+     */
+    public function testEveryBindingKeepsAPlaceholderOfItsOwn(): void
+    {
+        foreach (SearchStrategy::cases() as $strategy) {
+
+            $query = $this->apply(['name', 'email'], $strategy);
+
+            $sql      = $query->toSql(); // @phpstan-ignore staticMethod.dynamicCall
+            $bindings = $query->getBindings(); // @phpstan-ignore staticMethod.dynamicCall
+
+            self::assertPlaceholderPerBinding($sql, $bindings);
+        }
     }
 
     /**

@@ -44,9 +44,6 @@ final class MySqlNgramSearchDriver extends EngineSearchDriver
     /** @var string The parser a full-text index has to be created with before it can answer a substring */
     public const string PARSER = 'ngram';
 
-    /** @var string The escape character the term is escaped with, doubled because the engine reads a string literal before the pattern */
-    private const string ESCAPE_LITERAL = SearchTerm::ESCAPE_CHARACTER . SearchTerm::ESCAPE_CHARACTER;
-
     /**
      * Return why the driver cannot resolve the given strategies from an index
      * when they are declared together, or null when it can.
@@ -83,7 +80,7 @@ final class MySqlNgramSearchDriver extends EngineSearchDriver
 
             // @phpstan-ignore staticMethod.dynamicCall
             $query->orWhereRaw(
-                sprintf('%s like ? escape \'%s\'', $this->wrap($query, $column), self::ESCAPE_LITERAL),
+                sprintf('%s like ? escape \'%s\'', $this->wrap($query, $column), SearchTerm::ESCAPE_CHARACTER),
                 [$term->pattern(SearchStrategy::PREFIX)],
             );
         }

@@ -20,6 +20,13 @@ use SineMacula\ApiToolkit\Enums\SearchStrategy;
  * dropped during normalisation, before any bound is measured, so every engine
  * is asked about the same term rather than one seeing it and another not.
  *
+ * The escape character carries no meaning of its own inside a string literal,
+ * so the ESCAPE clause naming it reads the same way on every engine and
+ * whatever the connection is configured to make of a backslash. A backslash
+ * there would escape the quote that closes the clause, running the literal on
+ * into the comparison beside it and hiding the placeholder that comparison
+ * binds.
+ *
  * The bounds are refusals, never silent truncations, and each is operator
  * tunable. The minimum is applied to every word rather than to the term as a
  * whole, because that is the unit the indexes answer: a full-text parser emits
@@ -44,8 +51,8 @@ final readonly class SearchTerm
     /** @var int The shipped ceiling on the whitespace-separated words one term may carry */
     public const int MAX_WORDS = 10;
 
-    /** @var string The character escaping a wildcard within a rendered pattern */
-    public const string ESCAPE_CHARACTER = '\\';
+    /** @var string The character escaping a wildcard within a rendered pattern, and one no string literal reads as anything but itself */
+    public const string ESCAPE_CHARACTER = '!';
 
     /**
      * Constructor.

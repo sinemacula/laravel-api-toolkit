@@ -129,9 +129,9 @@ abstract class EngineSearchTestCase extends TestCase
 
     /**
      * Test that a wildcard carried by the term matches itself rather than every
-     * row. The escape clause is written in a literal each engine reads its own
-     * way, so it is the one part of the emitted pattern a compiled-SQL
-     * assertion cannot settle.
+     * row. Whether the engine reads the emitted ESCAPE clause the way the
+     * escaping assumes is the one part of the pattern a compiled-SQL assertion
+     * cannot settle.
      *
      * @return void
      */

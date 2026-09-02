@@ -302,8 +302,8 @@ final class SearchTermTest extends TestCase
     public static function patternProvider(): iterable
     {
         yield 'exact' => [SearchStrategy::EXACT, '50%'];
-        yield 'prefix' => [SearchStrategy::PREFIX, '50\%%'];
-        yield 'substring' => [SearchStrategy::SUBSTRING, '%50\%%'];
+        yield 'prefix' => [SearchStrategy::PREFIX, '50!%%'];
+        yield 'substring' => [SearchStrategy::SUBSTRING, '%50!%%'];
     }
 
     /**
@@ -323,17 +323,18 @@ final class SearchTermTest extends TestCase
     }
 
     /**
-     * Provide terms carrying a metacharacter with the substring pattern they
-     * render to.
+     * Provide terms carrying a metacharacter, and one carrying the character
+     * that no longer is one, with the substring pattern each renders to.
      *
      * @return iterable<string, array{string, string}>
      */
     public static function escapingProvider(): iterable
     {
-        yield 'percent' => ['a%b', '%a\%b%'];
-        yield 'underscore' => ['a_b', '%a\_b%'];
-        yield 'escape character' => ['a\b', '%a\\\b%'];
-        yield 'only wildcards' => ['%%%', '%\%\%\%%'];
+        yield 'percent' => ['a%b', '%a!%b%'];
+        yield 'underscore' => ['a_b', '%a!_b%'];
+        yield 'escape character' => ['a!b', '%a!!b%'];
+        yield 'only wildcards' => ['%%%', '%!%!%!%%'];
+        yield 'backslash' => ['a\b', '%a\b%'];
         yield 'nothing to escape' => ['smith', '%smith%'];
     }
 
@@ -363,7 +364,7 @@ final class SearchTermTest extends TestCase
      */
     public function testEscapesTheEscapeCharacterBeforeTheWildcards(): void
     {
-        self::assertSame('%a\\\\\%b%', SearchTerm::from('a\%b')->pattern(SearchStrategy::SUBSTRING));
+        self::assertSame('%a!!!%b%', SearchTerm::from('a!%b')->pattern(SearchStrategy::SUBSTRING));
     }
 
     /**
@@ -408,14 +409,15 @@ final class SearchTermTest extends TestCase
     }
 
     /**
-     * Test that the escape character is the single backslash the pattern
-     * bindings and any ESCAPE clause have to agree on.
+     * Test that the escape character is the one the pattern bindings and every
+     * ESCAPE clause agree on, and one a quoted literal carries as itself rather
+     * than as an escape for the character after it.
      *
      * @return void
      */
-    public function testEscapeCharacterIsASingleBackslash(): void
+    public function testEscapeCharacterIsCarriedLiterallyByAQuotedLiteral(): void
     {
-        self::assertSame('\\', SearchTerm::ESCAPE_CHARACTER);
+        self::assertSame('!', SearchTerm::ESCAPE_CHARACTER);
     }
 
     /**
