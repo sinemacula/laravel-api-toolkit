@@ -95,8 +95,8 @@ final class SqliteSearchDriverTest extends TestCase
     {
         $query = $this->apply(['name'], SearchStrategy::EXACT);
 
-        self::assertSame('select * from "users" where "users"."name" = ?', $query->toSql());
-        self::assertSame([self::TERM], $query->getBindings());
+        self::assertSame('select * from "users" where "users"."name" = ?', $query->toSql()); // @phpstan-ignore staticMethod.dynamicCall
+        self::assertSame([self::TERM], $query->getBindings()); // @phpstan-ignore staticMethod.dynamicCall
     }
 
     /**
@@ -109,8 +109,8 @@ final class SqliteSearchDriverTest extends TestCase
     {
         $query = $this->apply(['name'], SearchStrategy::PREFIX);
 
-        self::assertSame('select * from "users" where "users"."name" like ? escape \'\\\'', $query->toSql());
-        self::assertSame([self::TERM . '%'], $query->getBindings());
+        self::assertSame('select * from "users" where "users"."name" like ? escape \'\\\'', $query->toSql()); // @phpstan-ignore staticMethod.dynamicCall
+        self::assertSame([self::TERM . '%'], $query->getBindings()); // @phpstan-ignore staticMethod.dynamicCall
     }
 
     /**
@@ -122,8 +122,8 @@ final class SqliteSearchDriverTest extends TestCase
     {
         $query = $this->apply(['name'], SearchStrategy::SUBSTRING);
 
-        self::assertSame('select * from "users" where "users"."name" like ? escape \'\\\'', $query->toSql());
-        self::assertSame(['%' . self::TERM . '%'], $query->getBindings());
+        self::assertSame('select * from "users" where "users"."name" like ? escape \'\\\'', $query->toSql()); // @phpstan-ignore staticMethod.dynamicCall
+        self::assertSame(['%' . self::TERM . '%'], $query->getBindings()); // @phpstan-ignore staticMethod.dynamicCall
     }
 
     /**
@@ -138,9 +138,9 @@ final class SqliteSearchDriverTest extends TestCase
 
         self::assertSame(
             'select * from "users" where "users"."name" like ? escape \'\\\' or "users"."email" like ? escape \'\\\'',
-            $query->toSql(),
+            $query->toSql(), // @phpstan-ignore staticMethod.dynamicCall
         );
-        self::assertSame(['%' . self::TERM . '%', '%' . self::TERM . '%'], $query->getBindings());
+        self::assertSame(['%' . self::TERM . '%', '%' . self::TERM . '%'], $query->getBindings()); // @phpstan-ignore staticMethod.dynamicCall
     }
 
     /**
@@ -154,8 +154,8 @@ final class SqliteSearchDriverTest extends TestCase
     {
         $query = $this->apply(['name', 'email'], SearchStrategy::EXACT);
 
-        self::assertSame('select * from "users" where "users"."name" = ? or "users"."email" = ?', $query->toSql());
-        self::assertSame([self::TERM, self::TERM], $query->getBindings());
+        self::assertSame('select * from "users" where "users"."name" = ? or "users"."email" = ?', $query->toSql()); // @phpstan-ignore staticMethod.dynamicCall
+        self::assertSame([self::TERM, self::TERM], $query->getBindings()); // @phpstan-ignore staticMethod.dynamicCall
     }
 
     /**

@@ -111,6 +111,7 @@ final class PostgresTrigramSearchDriver extends EngineSearchDriver
     {
         foreach ($columns as $column) {
 
+            // @phpstan-ignore staticMethod.dynamicCall
             $query->orWhereRaw(
                 sprintf('%s ilike ? escape \'%s\'', $this->wrap($query, $column), SearchTerm::ESCAPE_CHARACTER),
                 [$term->pattern($strategy)],

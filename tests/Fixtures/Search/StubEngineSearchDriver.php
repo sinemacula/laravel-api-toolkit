@@ -41,7 +41,7 @@ final class StubEngineSearchDriver extends EngineSearchDriver
     protected function applyPrefixMatch(Builder $query, array $columns, SearchTerm $term): void
     {
         foreach ($columns as $column) {
-            $query->orWhereRaw(sprintf('%s like ?', $this->wrap($query, $column)), [$term->pattern(SearchStrategy::PREFIX)]);
+            $query->orWhereRaw(sprintf('%s like ?', $this->wrap($query, $column)), [$term->pattern(SearchStrategy::PREFIX)]); // @phpstan-ignore staticMethod.dynamicCall
         }
     }
 
@@ -57,7 +57,7 @@ final class StubEngineSearchDriver extends EngineSearchDriver
     protected function applySubstringMatch(Builder $query, array $columns, SearchTerm $term): void
     {
         foreach ($columns as $column) {
-            $query->orWhereRaw(sprintf('instr(%s, ?) > 0', $this->wrap($query, $column)), [$term->value()]);
+            $query->orWhereRaw(sprintf('instr(%s, ?) > 0', $this->wrap($query, $column)), [$term->value()]); // @phpstan-ignore staticMethod.dynamicCall
         }
     }
 

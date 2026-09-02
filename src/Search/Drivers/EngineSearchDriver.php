@@ -224,7 +224,7 @@ abstract class EngineSearchDriver implements SearchDriver
 
         foreach ($connection->getSchemaBuilder()->getIndexes($table) as $index) {
 
-            $normalised = is_array($index) ? $this->normalise($index) : null;
+            $normalised = $this->normalise($index);
 
             if ($normalised === null) {
                 continue;
@@ -261,14 +261,23 @@ abstract class EngineSearchDriver implements SearchDriver
     }
 
     /**
-     * Normalise one catalogue entry, or return null when it carries no name, no
-     * kind, or a column that is not a name.
+     * Normalise one catalogue entry, or return null when the connection
+     * reported anything but an entry carrying a name, a kind, and columns that
+     * are names.
      *
-     * @param  array<mixed>  $index
+     * The entry is read as unknown rather than as the shape the schema builder
+     * promises, because what the connection actually returned is what decides
+     * whether it can be read at all.
+     *
+     * @param  mixed  $index
      * @return array{name: string, columns: array<int, string>, type: string}|null
      */
-    private function normalise(array $index): ?array
+    private function normalise(mixed $index): ?array
     {
+        if (!is_array($index)) {
+            return null;
+        }
+
         $name    = $index['name']    ?? null;
         $type    = $index['type']    ?? null;
         $columns = $index['columns'] ?? null;

@@ -151,8 +151,8 @@ final class MySqlNgramSearchDriverTest extends TestCase
     {
         $query = $this->apply(['name'], SearchStrategy::EXACT);
 
-        self::assertSame('select * from `users` where `users`.`name` = ?', $query->toSql());
-        self::assertSame([self::TERM], $query->getBindings());
+        self::assertSame('select * from `users` where `users`.`name` = ?', $query->toSql()); // @phpstan-ignore staticMethod.dynamicCall
+        self::assertSame([self::TERM], $query->getBindings()); // @phpstan-ignore staticMethod.dynamicCall
     }
 
     /**
@@ -165,8 +165,8 @@ final class MySqlNgramSearchDriverTest extends TestCase
     {
         $query = $this->apply(['name'], SearchStrategy::PREFIX);
 
-        self::assertSame('select * from `users` where `users`.`name` like ? escape \'\\\\\'', $query->toSql());
-        self::assertSame([self::TERM . '%'], $query->getBindings());
+        self::assertSame('select * from `users` where `users`.`name` like ? escape \'\\\\\'', $query->toSql()); // @phpstan-ignore staticMethod.dynamicCall
+        self::assertSame([self::TERM . '%'], $query->getBindings()); // @phpstan-ignore staticMethod.dynamicCall
     }
 
     /**
@@ -181,9 +181,9 @@ final class MySqlNgramSearchDriverTest extends TestCase
 
         self::assertSame(
             'select * from `users` where `users`.`name` like ? escape \'\\\\\' or `users`.`email` like ? escape \'\\\\\'',
-            $query->toSql(),
+            $query->toSql(), // @phpstan-ignore staticMethod.dynamicCall
         );
-        self::assertSame([self::TERM . '%', self::TERM . '%'], $query->getBindings());
+        self::assertSame([self::TERM . '%', self::TERM . '%'], $query->getBindings()); // @phpstan-ignore staticMethod.dynamicCall
     }
 
     /**
@@ -197,8 +197,8 @@ final class MySqlNgramSearchDriverTest extends TestCase
     {
         $query = $this->apply(['name'], SearchStrategy::SUBSTRING);
 
-        self::assertSame('select * from `users` where match (`users`.`name`) against (? in boolean mode)', $query->toSql());
-        self::assertSame(['"' . self::TERM . '"'], $query->getBindings());
+        self::assertSame('select * from `users` where match (`users`.`name`) against (? in boolean mode)', $query->toSql()); // @phpstan-ignore staticMethod.dynamicCall
+        self::assertSame(['"' . self::TERM . '"'], $query->getBindings()); // @phpstan-ignore staticMethod.dynamicCall
     }
 
     /**
@@ -214,9 +214,9 @@ final class MySqlNgramSearchDriverTest extends TestCase
 
         self::assertSame(
             'select * from `users` where match (`users`.`name`, `users`.`email`) against (? in boolean mode)',
-            $query->toSql(),
+            $query->toSql(), // @phpstan-ignore staticMethod.dynamicCall
         );
-        self::assertSame(['"' . self::TERM . '"'], $query->getBindings());
+        self::assertSame(['"' . self::TERM . '"'], $query->getBindings()); // @phpstan-ignore staticMethod.dynamicCall
     }
 
     /**

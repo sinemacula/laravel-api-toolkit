@@ -81,6 +81,7 @@ final class MySqlNgramSearchDriver extends EngineSearchDriver
     {
         foreach ($columns as $column) {
 
+            // @phpstan-ignore staticMethod.dynamicCall
             $query->orWhereRaw(
                 sprintf('%s like ? escape \'%s\'', $this->wrap($query, $column), self::ESCAPE_LITERAL),
                 [$term->pattern(SearchStrategy::PREFIX)],
@@ -101,6 +102,7 @@ final class MySqlNgramSearchDriver extends EngineSearchDriver
     {
         $matched = array_map(fn (string $column): string => $this->wrap($query, $column), $columns);
 
+        // @phpstan-ignore staticMethod.dynamicCall
         $query->orWhereRaw(
             sprintf('match (%s) against (? in boolean mode)', implode(', ', $matched)),
             [$term->phrase()],

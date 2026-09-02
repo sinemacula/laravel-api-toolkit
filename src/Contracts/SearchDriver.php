@@ -87,11 +87,18 @@ interface SearchDriver
      * returns an empty list, which says nothing was found rather than that
      * nothing is wrong.
      *
+     * A driver reads the live connection to answer, and a connection that
+     * cannot be read is left to surface as it failed rather than swallowed: an
+     * empty list here means no defect was found, so silence from an unreachable
+     * catalogue would read as a proof.
+     *
      * @param  \SineMacula\ApiToolkit\Enums\SearchStrategy  $strategy
      * @param  array<int, string>  $columns
      * @param  string  $table
      * @param  \Illuminate\Database\Connection  $connection
      * @return array<string, array<int, string>>
+     *
+     * @throws \Throwable
      */
     public function indexDefects(SearchStrategy $strategy, array $columns, string $table, Connection $connection): array;
 

@@ -153,7 +153,7 @@ abstract class EngineSearchTestCase extends TestCase
      */
     public function testTheAnywhereMatchIsAnsweredFromAnIndex(): void
     {
-        $this->assertIndexBacked($this->query('smith'));
+        $this->assertIndexBacked($this->searchQuery('smith'));
     }
 
     /**
@@ -164,7 +164,7 @@ abstract class EngineSearchTestCase extends TestCase
      */
     public function testTheAnywhereMatchKeepsItsIndexBesideAFilter(): void
     {
-        $this->assertIndexBacked($this->query('smith')->where('status', 'active'));
+        $this->assertIndexBacked($this->searchQuery('smith')->where('status', 'active'));
     }
 
     /**
@@ -253,7 +253,7 @@ abstract class EngineSearchTestCase extends TestCase
      */
     protected function plan(Builder $query, string $column): string
     {
-        $rows = DB::select('explain ' . $query->toSql(), $query->getBindings());
+        $rows = DB::select('explain ' . $query->toSql(), $query->getBindings()); // @phpstan-ignore staticMethod.dynamicCall, staticMethod.dynamicCall
 
         return implode("\n", array_map(
             static function (object $row) use ($column): string {
@@ -274,7 +274,7 @@ abstract class EngineSearchTestCase extends TestCase
      * @param  string|null  $resourceClass
      * @return \Illuminate\Database\Eloquent\Builder<\Tests\Fixtures\Models\User>
      */
-    private function query(string $term, ?string $resourceClass = null): Builder
+    private function searchQuery(string $term, ?string $resourceClass = null): Builder
     {
         assert($this->app !== null);
 
@@ -297,7 +297,7 @@ abstract class EngineSearchTestCase extends TestCase
     private function search(string $term, ?string $resourceClass = null): array
     {
         /** @var array<int, string> */
-        return $this->query($term, $resourceClass)->orderBy('id')->pluck('name')->all();
+        return $this->searchQuery($term, $resourceClass)->orderBy('id')->pluck('name')->all(); // @phpstan-ignore staticMethod.dynamicCall
     }
 
     /**

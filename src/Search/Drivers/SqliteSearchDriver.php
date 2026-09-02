@@ -106,6 +106,7 @@ final class SqliteSearchDriver implements SearchDriver
                 continue;
             }
 
+            // @phpstan-ignore staticMethod.dynamicCall
             $query->orWhereRaw(
                 sprintf('%s like ? escape \'%s\'', $query->getQuery()->getGrammar()->wrap($qualified), SearchTerm::ESCAPE_CHARACTER),
                 [$term->pattern($strategy)],
