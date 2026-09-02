@@ -99,7 +99,7 @@ final class SchemaIntrospectorTest extends TestCase
 
         $first = $introspector->getColumns($model);
 
-        Cache::memo()->flush(); // @phpstan-ignore method.notFound
+        Cache::memo()->flush(); // @phpstan-ignore method.notFound, staticMethod.dynamicCall
 
         self::assertSame($first, $introspector->getColumns($model));
     }
@@ -113,7 +113,7 @@ final class SchemaIntrospectorTest extends TestCase
      */
     public function testGetColumnsCachesEmptyColumnListAcrossInstances(): void
     {
-        Cache::memo()->flush(); // @phpstan-ignore method.notFound
+        Cache::memo()->flush(); // @phpstan-ignore method.notFound, staticMethod.dynamicCall
 
         $builder = self::createMock(SchemaBuilder::class);
 
@@ -257,7 +257,7 @@ final class SchemaIntrospectorTest extends TestCase
 
         $first = $introspector->getColumnDefinitions($model);
 
-        Cache::memo()->flush(); // @phpstan-ignore method.notFound
+        Cache::memo()->flush(); // @phpstan-ignore method.notFound, staticMethod.dynamicCall
 
         self::assertSame($first, $introspector->getColumnDefinitions($model));
     }
@@ -380,7 +380,7 @@ final class SchemaIntrospectorTest extends TestCase
      */
     public function testGetIndexesReportsAnUninspectableConnectionAsUnverifiableRatherThanEmpty(): void
     {
-        Cache::memo()->flush(); // @phpstan-ignore method.notFound
+        Cache::memo()->flush(); // @phpstan-ignore method.notFound, staticMethod.dynamicCall
 
         $builder = self::createMock(SchemaBuilder::class);
 
@@ -422,7 +422,7 @@ final class SchemaIntrospectorTest extends TestCase
      */
     public function testGetIndexesServesAMemoisedUnverifiableCatalogueWithoutReadingAgain(): void
     {
-        Cache::memo()->flush(); // @phpstan-ignore method.notFound
+        Cache::memo()->flush(); // @phpstan-ignore method.notFound, staticMethod.dynamicCall
 
         $builder = self::createMock(SchemaBuilder::class);
 
@@ -446,7 +446,7 @@ final class SchemaIntrospectorTest extends TestCase
      */
     public function testGetIndexesDoesNotCacheAnUnverifiableCatalogue(): void
     {
-        Cache::memo()->flush(); // @phpstan-ignore method.notFound
+        Cache::memo()->flush(); // @phpstan-ignore method.notFound, staticMethod.dynamicCall
 
         $builder = self::createMock(SchemaBuilder::class);
 
@@ -508,7 +508,7 @@ final class SchemaIntrospectorTest extends TestCase
 
         $first = $introspector->getIndexes($model);
 
-        Cache::memo()->flush(); // @phpstan-ignore method.notFound
+        Cache::memo()->flush(); // @phpstan-ignore method.notFound, staticMethod.dynamicCall
 
         self::assertSame($first, $introspector->getIndexes($model));
     }
@@ -522,7 +522,7 @@ final class SchemaIntrospectorTest extends TestCase
      */
     public function testGetIndexesCachesAnEmptyCatalogueAcrossInstances(): void
     {
-        Cache::memo()->flush(); // @phpstan-ignore method.notFound
+        Cache::memo()->flush(); // @phpstan-ignore method.notFound, staticMethod.dynamicCall
 
         $builder = self::createMock(SchemaBuilder::class);
 
@@ -546,7 +546,7 @@ final class SchemaIntrospectorTest extends TestCase
      */
     public function testGetIndexesPassesOverAnUnreadableCatalogueEntry(): void
     {
-        Cache::memo()->flush(); // @phpstan-ignore method.notFound
+        Cache::memo()->flush(); // @phpstan-ignore method.notFound, staticMethod.dynamicCall
 
         $builder = self::createMock(SchemaBuilder::class);
 
@@ -981,7 +981,7 @@ final class SchemaIntrospectorTest extends TestCase
 
         // Act
         $introspector->flush();
-        Cache::memo()->flush(); // @phpstan-ignore method.notFound
+        Cache::memo()->flush(); // @phpstan-ignore method.notFound, staticMethod.dynamicCall
 
         $refreshedColumns = $introspector->getColumns($model);
 
@@ -1332,7 +1332,7 @@ final class SchemaIntrospectorTest extends TestCase
      */
     public function testGetColumnDefinitionsLowerCasesDriverReportedTypeName(): void
     {
-        Cache::memo()->flush(); // @phpstan-ignore method.notFound
+        Cache::memo()->flush(); // @phpstan-ignore method.notFound, staticMethod.dynamicCall
 
         $builder = self::createMock(SchemaBuilder::class);
 
@@ -1408,7 +1408,7 @@ final class SchemaIntrospectorTest extends TestCase
      */
     public function testGetColumnsDegradesToEmptyWhenConnectionUnavailable(): void
     {
-        Cache::memo()->flush(); // @phpstan-ignore method.notFound
+        Cache::memo()->flush(); // @phpstan-ignore method.notFound, staticMethod.dynamicCall
 
         $builder = self::createMock(SchemaBuilder::class);
 
@@ -1428,7 +1428,7 @@ final class SchemaIntrospectorTest extends TestCase
      */
     public function testGetColumnsDoesNotCacheEmptyResultOnFailure(): void
     {
-        Cache::memo()->flush(); // @phpstan-ignore method.notFound
+        Cache::memo()->flush(); // @phpstan-ignore method.notFound, staticMethod.dynamicCall
 
         $builder = self::createMock(SchemaBuilder::class);
 
@@ -1454,7 +1454,7 @@ final class SchemaIntrospectorTest extends TestCase
      */
     public function testGetColumnDefinitionsDegradesToEmptyWhenConnectionUnavailable(): void
     {
-        Cache::memo()->flush(); // @phpstan-ignore method.notFound
+        Cache::memo()->flush(); // @phpstan-ignore method.notFound, staticMethod.dynamicCall
 
         $builder = self::createMock(SchemaBuilder::class);
 
@@ -1474,7 +1474,7 @@ final class SchemaIntrospectorTest extends TestCase
      */
     public function testGetColumnDefinitionsDoesNotCacheEmptyResultOnFailure(): void
     {
-        Cache::memo()->flush(); // @phpstan-ignore method.notFound
+        Cache::memo()->flush(); // @phpstan-ignore method.notFound, staticMethod.dynamicCall
 
         $builder = self::createMock(SchemaBuilder::class);
 
