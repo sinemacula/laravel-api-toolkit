@@ -5,6 +5,7 @@ declare(strict_types = 1);
 namespace SineMacula\ApiToolkit\OpenApi\Metadata;
 
 use Illuminate\Support\Facades\Config;
+use SineMacula\ApiToolkit\Concerns\QueryParameterValidator;
 use SineMacula\ApiToolkit\Http\Resources\ResourceDiscovery;
 use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
 use SineMacula\ApiToolkit\Query\QueryCostLimits;
@@ -27,6 +28,9 @@ use SineMacula\ApiToolkit\Search\SearchTerm;
  */
 final readonly class ConfigMetadataCatalogue implements MetadataCatalogue
 {
+    /** @var string The configuration key holding the page-size ceiling */
+    private const string MAX_LIMIT_KEY = 'api-toolkit.parser.max_limit';
+
     /** @var string The bound naming the shortest word a search term may carry */
     private const string MIN_WORD_LENGTH = 'min_word_length';
 
@@ -126,12 +130,17 @@ final readonly class ConfigMetadataCatalogue implements MetadataCatalogue
     #[\Override]
     public function getQuerySurfaces(): array
     {
-        return $this->surfaceReader->read($this->getResourceMap());
+        return $this->surfaceReader->read($this->getResourceMap(), $this->getOperatorTokens());
     }
 
     /**
-     * Return every structural cap the query cost limits resolve, keyed by cap
-     * name and in the order the caps are declared.
+     * Return every bound one request is held to, keyed by the name the refusal
+     * reports as its reason and in the order the caps are declared.
+     *
+     * The structural caps are followed by the page-size ceiling, which is
+     * enforced from the parser configuration rather than from the cost limits
+     * but is refused the same way and under the same reason, so a client reads
+     * one list of the bounds it can be turned away for.
      *
      * @return array<string, int>
      */
@@ -144,6 +153,8 @@ final readonly class ConfigMetadataCatalogue implements MetadataCatalogue
         foreach (array_keys(QueryCostLimits::DEFAULTS) as $cap) {
             $caps[$cap] = $limits->limit($cap);
         }
+
+        $caps[QueryParameterValidator::MAX_LIMIT] = $this->pageSizeCeiling();
 
         return $caps;
     }
@@ -162,5 +173,18 @@ final readonly class ConfigMetadataCatalogue implements MetadataCatalogue
             self::MAX_LENGTH      => SearchTerm::maximumLength(),
             self::MAX_WORDS       => SearchTerm::maximumWords(),
         ];
+    }
+
+    /**
+     * Resolve the page-size ceiling, reporting a non-numeric or absent setting
+     * as disabled exactly as the guard that enforces it reads one.
+     *
+     * @return int
+     */
+    private function pageSizeCeiling(): int
+    {
+        $ceiling = Config::get(self::MAX_LIMIT_KEY);
+
+        return is_numeric($ceiling) ? (int) $ceiling : 0;
     }
 }

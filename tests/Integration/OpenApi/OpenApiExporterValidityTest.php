@@ -27,17 +27,20 @@ use SineMacula\ApiToolkit\OpenApi\Resolution\AudienceConfiguration;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ReachableSchemaResolver;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 use Tests\Fixtures\Enums\AppErrorCode;
+use Tests\Fixtures\Models\Article;
 use Tests\Fixtures\Models\Organization;
 use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\Tag;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\OpenApi\ColumnlessIntrospectionProvider;
+use Tests\Fixtures\OpenApi\PathArticleController;
 use Tests\Fixtures\OpenApi\PathFixtureController;
 use Tests\Fixtures\OpenApi\PathInvokableController;
 use Tests\Fixtures\OpenApi\PathOrganizationController;
 use Tests\Fixtures\OpenApi\PathRequestBodyController;
 use Tests\Fixtures\OpenApi\PathResponseSchemaController;
 use Tests\Fixtures\OpenApi\PathTagInternalController;
+use Tests\Fixtures\Resources\ArticleResource;
 use Tests\Fixtures\Resources\OrganizationResource;
 use Tests\Fixtures\Resources\PostResource;
 use Tests\Fixtures\Resources\TagResource;
@@ -273,9 +276,30 @@ final class OpenApiExporterValidityTest extends TestCase
         $paths = $this->export()->document['paths'];
 
         self::assertSame(
-            ['Fields', 'Counts', 'Sums', 'Averages', 'Filters', 'Search', 'Order', 'Limit', 'Page', 'Cursor', 'Pagination', 'Trashed'],
+            ['Fields', 'Counts', 'Sums', 'Averages', 'Filters', 'Search', 'Order', 'Limit', 'Page', 'Cursor', 'Pagination'],
             $this->referencedParameterNames($paths['/users']['get']),
         );
+    }
+
+    /**
+     * Test that soft-delete visibility reaches the operations that can honour
+     * it and no others, so a generated client is offered the widening exactly
+     * where the model behind the read can be widened.
+     *
+     * @return void
+     */
+    public function testVisibilityReachesOnlyTheReadsOfASoftDeletingModel(): void
+    {
+        $this->registerUserRoutes();
+        $this->registerSoftDeletingRoutes();
+
+        /** @var array<string, array<string, array<string, mixed>>> $paths */
+        $paths = $this->export()->document['paths'];
+
+        self::assertContains('Trashed', $this->referencedParameterNames($paths['/articles']['get']));
+        self::assertContains('Trashed', $this->referencedParameterNames($paths['/articles/{article}']['get']));
+        self::assertNotContains('Trashed', $this->referencedParameterNames($paths['/users']['get']));
+        self::assertNotContains('Trashed', $this->referencedParameterNames($paths['/users/{user}']['get']));
     }
 
     /**
@@ -336,6 +360,35 @@ final class OpenApiExporterValidityTest extends TestCase
 
         $this->assertReferencesResolve($this->export('public')->document);
         $this->assertReferencesResolve($this->export('internal')->document);
+    }
+
+    /**
+     * Test that a relation naming a resource no registered model maps to leaves
+     * no dangling reference behind, the walk above having nothing to catch
+     * unless such a relation is actually present.
+     *
+     * @return void
+     */
+    public function testARelationToAnUnregisteredResourceLeavesNoDanglingReference(): void
+    {
+        $this->registerUserRoutes();
+
+        // The user resource relates to an organization and to posts; dropping
+        // both from the map leaves two relations naming components nothing
+        // builds.
+        $this->getConfig()->set('api-toolkit.resources.resource_map', [User::class => UserResource::class]);
+
+        SchemaCompiler::clearCache();
+
+        $document   = $this->export()->document;
+        $properties = $document['components']['schemas']['User']['properties'];
+
+        self::assertArrayNotHasKey('Organization', $document['components']['schemas']);
+        self::assertArrayNotHasKey('$ref', $properties['organization']);
+        self::assertTrue($properties['organization']['x-undocumented']);
+
+        $this->assertReferencesResolve($document);
+        self::assertTrue($this->validateAgainstMetaSchema($document)->isValid());
     }
 
     /**
@@ -1323,6 +1376,30 @@ final class OpenApiExporterValidityTest extends TestCase
         $router->get('users/{user}', [PathFixtureController::class, 'show']);
         $router->match(['PUT', 'PATCH'], 'users/{user}', [PathFixtureController::class, 'update']);
         $router->delete('users/{user}', [PathFixtureController::class, 'destroy']);
+    }
+
+    /**
+     * Register the read routes of a controller reading a model that soft
+     * deletes.
+     *
+     * @return void
+     */
+    private function registerSoftDeletingRoutes(): void
+    {
+        /** @var array<class-string, class-string> $map */
+        $map = $this->getConfig()->get('api-toolkit.resources.resource_map');
+
+        $this->getConfig()->set(
+            'api-toolkit.resources.resource_map',
+            [...$map, Article::class => ArticleResource::class],
+        );
+
+        SchemaCompiler::clearCache();
+
+        $router = $this->router();
+
+        $router->get('articles', [PathArticleController::class, 'index']);
+        $router->get('articles/{article}', [PathArticleController::class, 'show']);
     }
 
     /**

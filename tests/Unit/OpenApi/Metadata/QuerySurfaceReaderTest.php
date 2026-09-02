@@ -7,12 +7,15 @@ namespace Tests\Unit\OpenApi\Metadata;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Enums\Capability;
 use SineMacula\ApiToolkit\Enums\SearchStrategy;
+use SineMacula\ApiToolkit\OpenApi\Metadata\QueryColumnDescriptor;
 use SineMacula\ApiToolkit\OpenApi\Metadata\QuerySurfaceDescriptor;
 use SineMacula\ApiToolkit\OpenApi\Metadata\QuerySurfaceReader;
 use Tests\Fixtures\Models\Organization;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Resources\AliasedQueryableUserResource;
 use Tests\Fixtures\Resources\OrganizationResource;
+use Tests\Fixtures\Resources\SharedColumnMarkerResource;
+use Tests\Fixtures\Resources\SplitColumnMarkerResource;
 use Tests\Fixtures\Resources\UndeclaredQueryMarkerResource;
 use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
@@ -38,7 +41,7 @@ final class QuerySurfaceReaderTest extends TestCase
         $surfaces = (new QuerySurfaceReader)->read([
             User::class         => UserResource::class,
             Organization::class => OrganizationResource::class,
-        ]);
+        ], $this->vocabulary());
 
         self::assertCount(2, $surfaces);
         self::assertSame(UserResource::class, $surfaces[0]->resource);
@@ -52,7 +55,7 @@ final class QuerySurfaceReaderTest extends TestCase
      */
     public function testEmptyResourceMapReadsNoSurfaces(): void
     {
-        self::assertSame([], (new QuerySurfaceReader)->read([]));
+        self::assertSame([], (new QuerySurfaceReader)->read([], $this->vocabulary()));
     }
 
     /**
@@ -195,14 +198,159 @@ final class QuerySurfaceReaderTest extends TestCase
     }
 
     /**
+     * Test that a filterable column reports the operators its capability
+     * answers, in the capability's own order.
+     *
+     * @return void
+     */
+    public function testFilterableColumnReportsTheOperatorsItsCapabilityAnswers(): void
+    {
+        self::assertSame(
+            ['$eq', '$in', '$neq', '$null', '$notNull'],
+            $this->columns(UserResource::class)['status']->operators,
+        );
+    }
+
+    /**
+     * Test that an operator the live vocabulary no longer holds is dropped from
+     * the column's reported operators while the rest survive, so the surface
+     * cannot offer a predicate the filter engine no longer dispatches.
+     *
+     * @return void
+     */
+    public function testAnOperatorTheVocabularyNoLongerHoldsIsDroppedFromTheColumn(): void
+    {
+        $vocabulary = array_values(array_diff($this->vocabulary(), ['$in']));
+        $column     = $this->columns(UserResource::class, $vocabulary)['status'];
+
+        self::assertSame(['$eq', '$neq', '$null', '$notNull'], $column->operators);
+        self::assertSame(Capability::ENUM, $column->capability);
+    }
+
+    /**
+     * Test that a column whose every operator has left the vocabulary reports
+     * no capability at all, being no more filterable than an undeclared one.
+     *
+     * @return void
+     */
+    public function testAColumnLeftWithNoDispatchableOperatorReportsNoCapability(): void
+    {
+        $vocabulary = array_values(array_diff($this->vocabulary(), ['$eq', '$in', '$null', '$notNull']));
+        $columns    = $this->columns(AliasedQueryableUserResource::class, $vocabulary);
+
+        self::assertSame([], $columns['email']->operators);
+        self::assertNull($columns['email']->capability);
+        self::assertTrue($columns['email']->sortable);
+    }
+
+    /**
+     * Test that a field naming a different column in each declaration is
+     * reported once per column, each carrying only what that column answers, so
+     * no capability or strategy is attributed to a column never declared for
+     * it.
+     *
+     * @return void
+     */
+    public function testAFieldNamingSeveralColumnsIsReportedOncePerColumn(): void
+    {
+        $columns = $this->surface(SplitColumnMarkerResource::class)->columns;
+
+        self::assertCount(2, $columns);
+
+        self::assertSame('label', $columns[0]->property);
+        self::assertSame('label_filter', $columns[0]->column);
+        self::assertSame(Capability::EXACT, $columns[0]->capability);
+        self::assertFalse($columns[0]->sortable);
+
+        self::assertSame('label', $columns[1]->property);
+        self::assertSame('label_sort', $columns[1]->column);
+        self::assertNull($columns[1]->capability);
+        self::assertTrue($columns[1]->sortable);
+    }
+
+    /**
+     * Test that the recorded exemption reason travels with the column the field
+     * declared sortable rather than with a sibling column of the same field.
+     *
+     * @return void
+     */
+    public function testTheExemptionReasonTravelsWithTheOrderedColumnAlone(): void
+    {
+        $columns = $this->surface(SplitColumnMarkerResource::class)->columns;
+
+        self::assertNull($columns[0]->unindexedReason);
+        self::assertSame('the label table is a fixed lookup', $columns[1]->unindexedReason);
+    }
+
+    /**
+     * Test that a column another field made orderable is not reported orderable
+     * on a field that never declared an order for it, an order belonging to the
+     * field that declared it rather than to the resource's sortable set.
+     *
+     * @return void
+     */
+    public function testAColumnIsOrderableOnlyOnTheFieldThatDeclaredTheOrder(): void
+    {
+        $columns = $this->surface(SharedColumnMarkerResource::class)->columns;
+
+        $orderable = array_values(array_filter(
+            $columns,
+            static fn (QueryColumnDescriptor $column): bool => $column->sortable,
+        ));
+
+        self::assertSame(['owner', 'note'], array_column($orderable, 'property'));
+        self::assertSame(['shared', 'shared'], array_column($orderable, 'column'));
+
+        $filterable = array_values(array_filter(
+            $columns,
+            static fn (QueryColumnDescriptor $column): bool => $column->capability !== null,
+        ));
+
+        self::assertSame(['alias'], array_column($filterable, 'property'));
+        self::assertFalse($filterable[0]->sortable);
+    }
+
+    /**
+     * Test that a marker the compiled maps refuse is skipped without abandoning
+     * the columns the same field declares after it.
+     *
+     * @return void
+     */
+    public function testARefusedMarkerDoesNotAbandonTheRestOfTheField(): void
+    {
+        $note = array_values(array_filter(
+            $this->surface(SharedColumnMarkerResource::class)->columns,
+            static fn (QueryColumnDescriptor $column): bool => $column->property === 'note',
+        ));
+
+        self::assertCount(1, $note);
+        self::assertSame('shared', $note[0]->column);
+        self::assertTrue($note[0]->sortable);
+    }
+
+    /**
      * Read a single resource's surface.
      *
      * @param  class-string  $resourceClass
+     * @param  array<int, string>|null  $vocabulary
      * @return \SineMacula\ApiToolkit\OpenApi\Metadata\QuerySurfaceDescriptor
      */
-    private function surface(string $resourceClass): QuerySurfaceDescriptor
+    private function surface(string $resourceClass, ?array $vocabulary = null): QuerySurfaceDescriptor
     {
-        return (new QuerySurfaceReader)->read([User::class => $resourceClass])[0];
+        return (new QuerySurfaceReader)->read(
+            [User::class => $resourceClass],
+            $vocabulary ?? $this->vocabulary(),
+        )[0];
+    }
+
+    /**
+     * The operator tokens the package registers by default.
+     *
+     * @return array<int, string>
+     */
+    private function vocabulary(): array
+    {
+        return ['$eq', '$neq', '$gt', '$lt', '$ge', '$le', '$in', '$between', '$contains', '$null', '$notNull'];
     }
 
     /**
@@ -210,13 +358,14 @@ final class QuerySurfaceReaderTest extends TestCase
      * under.
      *
      * @param  class-string  $resourceClass
+     * @param  array<int, string>|null  $vocabulary
      * @return array<string, \SineMacula\ApiToolkit\OpenApi\Metadata\QueryColumnDescriptor>
      */
-    private function columns(string $resourceClass): array
+    private function columns(string $resourceClass, ?array $vocabulary = null): array
     {
         $columns = [];
 
-        foreach ($this->surface($resourceClass)->columns as $column) {
+        foreach ($this->surface($resourceClass, $vocabulary)->columns as $column) {
             $columns[$column->property] = $column;
         }
 

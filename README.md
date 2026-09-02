@@ -469,9 +469,10 @@ independently in `api-toolkit.middleware`:
 (appended to the `api` middleware group only). `maintenance_mode_swap` is always prepended to the global
 stack when enabled, and `throttle` is registered as the router's `throttle` alias, so neither takes a scope.
 
-Typed request capabilities (soft-delete visibility via `includeTrashed()` / `onlyTrashed()`) are available
-on demand through `SineMacula\ApiToolkit\Http\RequestCapabilities::fromRequest($request)`, which resolves
-and caches them lazily on first access - no middleware registration is required.
+Soft-delete visibility is resolved from the request by the query parser rather than by a request macro:
+`ApiQuery::getTrashed()` returns a `TrashedState`, and the criteria layer applies it only where the model uses
+`SoftDeletes` and the resource has opted in by overriding `allowsTrashed()`. A resource that has not opted in
+keeps its soft-deleted records hidden whatever the request asks.
 
 **Request throttling and rate-limit keying** - each request is keyed by method, host, path, and caller
 identity. Authenticated requests are keyed by the user identifier; guests are keyed by their client IP
@@ -517,11 +518,14 @@ index backs its sort and the reason recorded where none does, and the strategy a
 relations a filter may descend through are named on the schema itself. The surface and the relations alike
 are read from the compiled schema the request-time gates read, and the operator vocabulary from the bound
 operator registry, so the document cannot offer a column the request would reject or an operator the
-package no longer ships.
+package no longer ships. A column whose every operator has left the registry is documented as answering no
+filter at all.
 
 A second command writes the generated reference sections - the error catalogue, the enum reference, and the
-query surface reference, which tables every resource's queryable columns beside the bounds a request is held
-to - into the Markdown docs directory assembled into the document's description:
+query surface reference, which tables the queryable columns of the resources an audience documents beside
+the bounds a request is held to - into the Markdown docs directory assembled into the document's
+description. The surface reference is written once per audience, under `audiences/<audience>/`, so what a
+resource may be asked reaches only the documents that already carry its schema:
 
 ```bash
 php artisan api-toolkit:docs:generate

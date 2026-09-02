@@ -4,6 +4,8 @@ declare(strict_types = 1);
 
 namespace SineMacula\ApiToolkit\OpenApi\Builder;
 
+use Illuminate\Database\Eloquent\SoftDeletes;
+use SineMacula\ApiToolkit\Concerns\QueryParameterValidator;
 use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
 
 /**
@@ -24,7 +26,10 @@ use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
  * honoured wherever a resource is serialised, whatever the verb that produced
  * it. The other half selects, orders, and pages a collection, which only an
  * index answers. Soft-delete visibility widens the scope a read is served from,
- * so it joins the two read actions. A destroy answers none of it, having no
+ * so it joins the two read actions, but only where the model behind them soft
+ * deletes at all: a model with no deleted-at column can never answer it, and
+ * advertising a parameter the server is bound to discard would be the quiet
+ * no-op the package refuses elsewhere. A destroy answers none of it, having no
  * body to shape and no collection to select.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
@@ -43,6 +48,9 @@ final readonly class QueryParameterBuilder
 
     /** The component name widening the soft-delete scope a read is served from */
     private const string VISIBILITY_PARAMETER = 'Trashed';
+
+    /** The actions a soft-delete scope can widen */
+    private const array READ_ACTIONS = ['index', 'show'];
 
     /**
      * Constructor.
@@ -85,23 +93,46 @@ final readonly class QueryParameterBuilder
      * An index answers the whole grammar; a show answers what shapes and scopes
      * a single record; a store and an update answer what shapes the resource
      * they return; a destroy and any action outside the REST set answer none.
+     * The two read actions gain soft-delete visibility only where the model
+     * they read soft deletes.
      *
      * @param  string  $action
+     * @param  class-string|null  $modelClass
      * @return array<int, array<string, string>>
      */
-    public function referencesFor(string $action): array
+    public function referencesFor(string $action, ?string $modelClass = null): array
     {
         $names = match ($action) {
-            'index' => [...self::SHAPING_PARAMETERS, ...self::SELECTION_PARAMETERS, self::VISIBILITY_PARAMETER],
-            'show'  => [...self::SHAPING_PARAMETERS, self::VISIBILITY_PARAMETER],
+            'index' => [...self::SHAPING_PARAMETERS, ...self::SELECTION_PARAMETERS],
+            'show'  => self::SHAPING_PARAMETERS,
             'store', 'update' => self::SHAPING_PARAMETERS,
             default => [],
         };
+
+        if (in_array($action, self::READ_ACTIONS, true) && $this->isSoftDeleting($modelClass)) {
+            $names[] = self::VISIBILITY_PARAMETER;
+        }
 
         return array_map(
             static fn (string $name): array => ['$ref' => self::PARAMETER_REF_PREFIX . $name],
             $names,
         );
+    }
+
+    /**
+     * Determine whether the model behind an operation soft deletes, which is
+     * what decides whether soft-delete visibility can ever apply to it.
+     *
+     * @param  class-string|null  $modelClass
+     * @return bool
+     */
+    private function isSoftDeleting(?string $modelClass): bool
+    {
+        if ($modelClass === null || !class_exists($modelClass)) {
+            return false;
+        }
+
+        return in_array(SoftDeletes::class, class_uses_recursive($modelClass), true);
     }
 
     /**
@@ -162,7 +193,8 @@ final readonly class QueryParameterBuilder
         return $this->parameter(
             'search',
             'Free-text search across the fields a resource declares searchable, e.g. search=John Smith. '
-            . 'It matches the requested resource only and never traverses a relation; a term shorter than the configured minimum is rejected.',
+            . 'It matches the requested resource only and never traverses a relation; a term carrying a word shorter than the configured minimum is rejected, '
+            . 'as is one longer, or carrying more words, than the configured bounds allow.',
             ['type' => 'string'],
         );
     }
@@ -182,16 +214,25 @@ final readonly class QueryParameterBuilder
     }
 
     /**
-     * Build the page-size limit parameter.
+     * Build the page-size limit parameter, carrying the configured ceiling as
+     * the schema maximum so a client is told the bound rather than discovering
+     * it as a rejection. A ceiling configured off leaves the schema unbounded.
      *
      * @return array<string, mixed>
      */
     private function buildLimitParameter(): array
     {
+        $ceiling = $this->catalogue->getQueryLimits()[QueryParameterValidator::MAX_LIMIT] ?? 0;
+        $schema  = ['type' => 'integer', 'minimum' => 1];
+
+        if ($ceiling > 0) {
+            $schema['maximum'] = $ceiling;
+        }
+
         return $this->parameter(
             'limit',
-            'Page size: the maximum number of records to return per page.',
-            ['type' => 'integer', 'minimum' => 1],
+            'Page size: the maximum number of records to return per page. A request above the ceiling is rejected rather than reduced to it.',
+            $schema,
         );
     }
 

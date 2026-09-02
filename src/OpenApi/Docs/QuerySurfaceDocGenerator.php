@@ -4,6 +4,7 @@ declare(strict_types = 1);
 
 namespace SineMacula\ApiToolkit\OpenApi\Docs;
 
+use SineMacula\ApiToolkit\Concerns\QueryParameterValidator;
 use SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException;
 use SineMacula\ApiToolkit\OpenApi\Contracts\ModuleResolver;
 use SineMacula\ApiToolkit\OpenApi\Metadata\QueryColumnDescriptor;
@@ -15,10 +16,12 @@ use SineMacula\ApiToolkit\Query\QueryCostLimits;
  * Renders the query surface as an auto-generated Markdown section.
  *
  * Opens with the bounds every request is held to, whatever it asks of whatever
- * resource: the structural caps, the free-text term bounds, and the shape of
- * the rejection an over-budget request is answered with. The rest is one table
- * per resource naming the columns that answer a filter, an order, or a search,
- * so a client can read what a resource accepts without reading the resource.
+ * resource: the cost and page-size bounds, the free-text term bounds, and the
+ * shape of the rejection an over-budget request is answered with. The rest is
+ * one table per resource naming the columns that answer a filter, an order, or
+ * a search, so a client can read what a resource accepts without reading the
+ * resource. It is rendered per audience, since what a resource may be asked is
+ * the same disclosure its schema is and belongs only where that schema does.
  *
  * Resources are grouped by the module they belong to, so a modular application
  * reads one section per module beneath an optional shared "Common" section. A
@@ -28,9 +31,11 @@ use SineMacula\ApiToolkit\Query\QueryCostLimits;
  * declaration order, and the section opens with a machine-generated banner, so
  * the rendered output is stable and byte-identical between runs.
  *
- * The limits table is driven by the caps the request-time limits actually
- * resolve rather than by a fixed row list, so a cap gained later is reported
- * with its value even before it is described here.
+ * The limits table is driven by the bounds the request-time guards actually
+ * resolve rather than by a fixed row list, so a bound gained later is reported
+ * with its value even before it is described here, and the worked rejection
+ * beneath it reads its numbers from the same resolved bounds so the example
+ * cannot contradict the table above it.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -44,10 +49,15 @@ final readonly class QuerySurfaceDocGenerator
     private const string INTRO = 'What each resource may be filtered, ordered, and searched by, and the bounds a single request is held to.';
 
     /** The fixed note naming the two name columns of a resource table. */
-    private const string KEYS = 'In each resource table, Field is the property the response carries and Key is the name to send in `filters`, `order`, and `search`.';
+    private const string KEYS = 'In each resource table, Field is the property the response carries and Key is the name to send in `filters` and `order`, '
+        . 'and the column a `search` matches on.';
 
     /** The fixed note saying when those two names come apart. */
     private const string ALIASES = 'The two differ wherever a field is presented under an alias.';
+
+    /** The fixed note saying what an index-backed order does and does not claim. */
+    private const string ORDERS = 'An order reads as Index-backed where the resource recorded no exemption for it; the index itself is proven by '
+        . 'schema validation, which reads the catalogue behind the model where a connection can be inspected.';
 
     /** The heading for resources that belong to no module. */
     private const string COMMON = 'Common';
@@ -64,16 +74,17 @@ final readonly class QuerySurfaceDocGenerator
     /** The order cell prefix shown where the resource exempted the column. */
     private const string UNINDEXED = 'Unindexed: ';
 
-    /** @var array<string, string> What each structural cap bounds, keyed by cap name. */
+    /** @var array<string, string> What each request bound holds, keyed by its name. */
     private const array LIMITS = [
-        QueryCostLimits::MAX_BYTES       => 'The byte length of the filter document.',
-        QueryCostLimits::MAX_PARSE_DEPTH => 'The object levels the filter document nests.',
-        QueryCostLimits::MAX_DEPTH       => 'The levels a filter descends, counting a logical group or a relation as one.',
-        QueryCostLimits::MAX_NODES       => 'The keys a filter visits in total.',
-        QueryCostLimits::MAX_IN_ITEMS    => 'The items a single operator value list carries, such as the one `$in` reads.',
-        QueryCostLimits::MAX_ORDER_KEYS  => 'The columns one request may order by.',
-        QueryCostLimits::MAX_AGGREGATES  => 'The relation counts, sums, and averages one request may ask for, combined.',
-        QueryCostLimits::MAX_OFFSET      => 'The page number a paginated read may start at.',
+        QueryCostLimits::MAX_BYTES         => 'The byte length of the filter document.',
+        QueryCostLimits::MAX_PARSE_DEPTH   => 'The object levels the filter document nests.',
+        QueryCostLimits::MAX_DEPTH         => 'The levels a filter descends, counting a logical group or a relation as one.',
+        QueryCostLimits::MAX_NODES         => 'The keys a filter visits in total.',
+        QueryCostLimits::MAX_IN_ITEMS      => 'The items a single operator value list carries, such as the one `$in` reads.',
+        QueryCostLimits::MAX_ORDER_KEYS    => 'The columns one request may order by.',
+        QueryCostLimits::MAX_AGGREGATES    => 'The relation counts, sums, and averages one request may ask for, combined.',
+        QueryCostLimits::MAX_OFFSET        => 'The page number a paginated read may start at.',
+        QueryParameterValidator::MAX_LIMIT => 'The records one page may carry, asked for with `limit`.',
     ];
 
     /** @var array<string, string> How each search term bound reads, keyed by bound name. */
@@ -97,7 +108,7 @@ final readonly class QuerySurfaceDocGenerator
 
     /**
      * Render the query surface section as Markdown for the given resource
-     * surfaces, structural caps, and search term bounds.
+     * surfaces, request bounds, and search term bounds.
      *
      * @param  array<int, \SineMacula\ApiToolkit\OpenApi\Metadata\QuerySurfaceDescriptor>  $surfaces
      * @param  array<string, int>  $limits
@@ -106,13 +117,13 @@ final readonly class QuerySurfaceDocGenerator
      */
     public function generate(array $surfaces, array $limits, array $bounds): string
     {
-        $lines = [self::BANNER, '', '# Query Surface Reference', '', self::INTRO, '', self::KEYS, self::ALIASES];
+        $lines = [self::BANNER, '', '# Query Surface Reference', '', self::INTRO, '', self::KEYS, self::ALIASES, '', self::ORDERS];
 
         $lines = array_merge(
             $lines,
             $this->limitsSection($limits),
             $this->boundsSection($bounds),
-            $this->rejectionSection(),
+            $this->rejectionSection($limits),
             $this->resourceSections($surfaces),
         );
 
@@ -120,7 +131,7 @@ final readonly class QuerySurfaceDocGenerator
     }
 
     /**
-     * Render the structural caps a single request is held to.
+     * Render the bounds a single request is held to.
      *
      * @param  array<string, int>  $limits
      * @return list<string>
@@ -131,7 +142,7 @@ final readonly class QuerySurfaceDocGenerator
             '',
             '## Request Limits',
             '',
-            'These bound the structural cost of one request. A request exceeding any of them is rejected before any SQL is issued, and a limit shown as Disabled is not enforced.',
+            'These bound the cost of one request. A request exceeding any of them is rejected before any SQL is issued, and a limit shown as Disabled is not enforced.',
             '',
             '| Limit | Value | Bounds |',
             '| --- | --- | --- |',
@@ -176,12 +187,16 @@ final readonly class QuerySurfaceDocGenerator
 
     /**
      * Render the shape an over-budget request is answered with, reading the
-     * status and code from the exception that raises it.
+     * status and code from the exception that raises it and the worked numbers
+     * from the same resolved bounds the table above reports.
      *
+     * @param  array<string, int>  $limits
      * @return list<string>
      */
-    private function rejectionSection(): array
+    private function rejectionSection(array $limits): array
     {
+        $limit = $limits[QueryCostLimits::MAX_IN_ITEMS] ?? 0;
+
         return [
             '',
             '## Over-Budget Rejection',
@@ -197,9 +212,9 @@ final readonly class QuerySurfaceDocGenerator
             '    "meta": {',
             '      "parameter": "filters",',
             '      "pointer": "/posts/title/$in",',
-            '      "reason": "max_in_items",',
-            '      "limit": 500,',
-            '      "actual": 900',
+            sprintf('      "reason": "%s",', QueryCostLimits::MAX_IN_ITEMS),
+            sprintf('      "limit": %d,', $limit),
+            sprintf('      "actual": %d', $limit + 1),
             '    }',
             '  }',
             '}',
@@ -389,23 +404,24 @@ final readonly class QuerySurfaceDocGenerator
     }
 
     /**
-     * Render the operator tokens the column's capability answers.
+     * Render the operator tokens the column answers a filter with.
      *
      * @param  \SineMacula\ApiToolkit\OpenApi\Metadata\QueryColumnDescriptor  $column
      * @return string
      */
     private function operators(QueryColumnDescriptor $column): string
     {
-        if ($column->capability === null) {
+        if ($column->operators === []) {
             return self::NO_VALUE;
         }
 
-        return implode(', ', array_map($this->code(...), $column->capability->permittedOperators()));
+        return implode(', ', array_map($this->code(...), $column->operators));
     }
 
     /**
-     * Render whether the column may be ordered by and whether an index holds
-     * that order, carrying the recorded reason where none does.
+     * Render whether the column may be ordered by and whether the resource
+     * recorded an exemption from index backing, carrying the reason where it
+     * did.
      *
      * @param  \SineMacula\ApiToolkit\OpenApi\Metadata\QueryColumnDescriptor  $column
      * @return string

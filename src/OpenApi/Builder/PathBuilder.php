@@ -239,8 +239,10 @@ final readonly class PathBuilder
             return null;
         }
 
-        $schemaName = $this->resolveSchemaName($controllerClass);
-        $responses  = $schemaName === null
+        $modelClass    = $this->resolveModelClass($controllerClass);
+        $resourceClass = $modelClass    === null ? null : ($this->catalogue->getResourceMap()[$modelClass] ?? null);
+        $schemaName    = $resourceClass === null ? null : SchemaComponentName::fromResource($resourceClass);
+        $responses     = $schemaName    === null
             ? null
             : $this->responsesForAction($action, self::SCHEMA_REF_PREFIX . $schemaName);
 
@@ -259,7 +261,7 @@ final readonly class PathBuilder
             $responses,
             $route,
             $requestBody,
-            $this->queryParameters->referencesFor($action),
+            $this->queryParameters->referencesFor($action, $modelClass),
         );
     }
 
@@ -304,27 +306,19 @@ final readonly class PathBuilder
     }
 
     /**
-     * Resolve the resource schema name for the controller's model, or null when
-     * the model has no registered resource.
+     * Resolve the model class the controller authorizes, or null when it
+     * declares none.
      *
      * @param  class-string<\SineMacula\ApiToolkit\Http\Routing\AuthorizedController>  $controllerClass
-     * @return string|null
+     * @return class-string<\Illuminate\Database\Eloquent\Model>|null
      */
-    private function resolveSchemaName(string $controllerClass): ?string
+    private function resolveModelClass(string $controllerClass): ?string
     {
         try {
-            $modelClass = $controllerClass::getResourceModel();
+            return $controllerClass::getResourceModel();
         } catch (\LogicException) {
             return null;
         }
-
-        $resourceClass = $this->catalogue->getResourceMap()[$modelClass] ?? null;
-
-        if ($resourceClass === null) {
-            return null;
-        }
-
-        return SchemaComponentName::fromResource($resourceClass);
     }
 
     /**

@@ -12,6 +12,7 @@ use Illuminate\Database\Eloquent\Relations\Relation;
 use SineMacula\ApiToolkit\Contracts\ApiResourceInterface;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
+use SineMacula\ApiToolkit\OpenApi\Metadata\DispatchableOperators;
 use SineMacula\ApiToolkit\OpenApi\Naming\SchemaComponentName;
 use SineMacula\ApiToolkit\OpenApi\Naming\SchemaNameCollisionGuard;
 use SineMacula\ApiToolkit\OpenApi\Resolution\FieldTypeResolver;
@@ -37,10 +38,12 @@ use SineMacula\ApiToolkit\Schema\SchemaCompiler;
  * Each property also carries the query surface its field declares, read from
  * the same compiled schema the request-time gates read: the key a filter or an
  * order names the column by, the capability it was declared filterable with and
- * the operator tokens that capability answers, whether an index backs the sort
- * and the reason recorded where none does, and the strategy a free-text search
+ * the operator tokens that capability answers, whether the resource recorded an
+ * exemption from index-backed ordering, and the strategy a free-text search
  * matches it by. A declaration the gates do not hold is never documented, so
- * the document cannot claim a column the request would reject.
+ * the document cannot claim a column the request would reject, and the operator
+ * set is narrowed to the tokens the registry still binds a handler for, so it
+ * cannot offer a predicate the filter engine no longer dispatches.
  *
  * The surface is emitted per property rather than as a schema-level list or a
  * shared parameter component. A parameter component is global to the document,
@@ -64,6 +67,9 @@ final readonly class ResourceSchemaBuilder
 
     /** The schema extension naming the relations a filter may descend through */
     private const string TRAVERSABLE_RELATIONS_KEY = 'x-traversable-relations';
+
+    /** The property extension marking a shape the document does not describe */
+    private const string UNDOCUMENTED_KEY = 'x-undocumented';
 
     /**
      * Constructor.
@@ -95,12 +101,15 @@ final readonly class ResourceSchemaBuilder
         $claimed = [];
         $guard   = new SchemaNameCollisionGuard;
 
-        foreach ($this->catalogue->getResourceMap() as $modelClass => $resourceClass) {
+        $resourceMap = $this->catalogue->getResourceMap();
+        $built       = array_fill_keys(array_values($resourceMap), true);
+
+        foreach ($resourceMap as $modelClass => $resourceClass) {
             $name = $this->schemaName($resourceClass);
 
             $guard->claim($claimed, $name, $resourceClass);
 
-            $schemas[$name] = $this->buildResourceSchema($resourceClass, $modelClass);
+            $schemas[$name] = $this->buildResourceSchema($resourceClass, $modelClass, $built);
         }
 
         return $schemas;
@@ -130,9 +139,10 @@ final readonly class ResourceSchemaBuilder
      *
      * @param  class-string  $resourceClass
      * @param  class-string<\Illuminate\Database\Eloquent\Model>  $modelClass
+     * @param  array<string, true>  $built
      * @return array<string, mixed>
      */
-    private function buildResourceSchema(string $resourceClass, string $modelClass): array
+    private function buildResourceSchema(string $resourceClass, string $modelClass, array $built): array
     {
         $compiled   = SchemaCompiler::compile($resourceClass);
         $properties = [];
@@ -146,7 +156,7 @@ final readonly class ResourceSchemaBuilder
             }
 
             $properties[$fieldKey] = $this->withQuerySurface(
-                $this->buildFieldProperty($fieldKey, $field, $modelClass),
+                $this->buildFieldProperty($fieldKey, $field, $modelClass, $built),
                 $field,
                 $compiled,
             );
@@ -187,12 +197,13 @@ final readonly class ResourceSchemaBuilder
      * @param  string  $fieldKey
      * @param  \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition  $field
      * @param  class-string<\Illuminate\Database\Eloquent\Model>  $modelClass
+     * @param  array<string, true>  $built
      * @return array<string, mixed>
      */
-    private function buildFieldProperty(string $fieldKey, CompiledFieldDefinition $field, string $modelClass): array
+    private function buildFieldProperty(string $fieldKey, CompiledFieldDefinition $field, string $modelClass, array $built): array
     {
         if ($field->relation !== null && $field->resource !== null) {
-            return $this->buildRelationProperty($field->relation, $field->resource, $modelClass);
+            return $this->buildRelationProperty($field->relation, $field->resource, $modelClass, $built);
         }
 
         return $this->resolver->resolve($fieldKey, $field, $modelClass)->toArray();
@@ -207,23 +218,35 @@ final readonly class ResourceSchemaBuilder
      * falls back to a conservative object-or-array-or-null reference flagged
      * with an unknown cardinality.
      *
+     * A relation may name a resource no registered model maps to, which is how
+     * a summary presentation of an already-mapped model is written. No
+     * component is built for such a resource, so the property carries the
+     * resolved cardinality over a bare object rather than a reference that
+     * would resolve to nothing, and is marked undocumented to say the shape
+     * behind it is undescribed rather than empty. Which resources are built is
+     * passed down from the one walk of the resource map, the map being resolved
+     * afresh on every read.
+     *
      * @param  string  $relation
      * @param  class-string  $childResource
      * @param  class-string<\Illuminate\Database\Eloquent\Model>  $modelClass
+     * @param  array<string, true>  $built
      * @return array<string, mixed>
      */
-    private function buildRelationProperty(string $relation, string $childResource, string $modelClass): array
+    private function buildRelationProperty(string $relation, string $childResource, string $modelClass, array $built): array
     {
-        $ref      = self::SCHEMA_REF_PREFIX . $this->schemaName($childResource);
+        $target = isset($built[$childResource])
+            ? ['$ref' => self::SCHEMA_REF_PREFIX . $this->schemaName($childResource)]
+            : ['type' => 'object', self::UNDOCUMENTED_KEY => true];
         $instance = $this->resolveRelation($relation, $modelClass);
 
         if ($instance === null) {
-            return $this->conservativeRelationProperty($ref);
+            return $this->conservativeRelationProperty($target);
         }
 
         return $this->isToOne($instance)
-            ? ['$ref' => $ref]
-            : ['type' => 'array', 'items' => ['$ref' => $ref]];
+            ? $target
+            : ['type' => 'array', 'items' => $target];
     }
 
     /**
@@ -266,23 +289,22 @@ final readonly class ResourceSchemaBuilder
     }
 
     /**
-     * Build the conservative relation property: a reference to the related
-     * component valid for a single object, an array, or null, flagged as
-     * unknown cardinality.
+     * Build the conservative relation property: the related shape valid for a
+     * single object, an array, or null, flagged as unknown cardinality.
      *
      * Nullability is expressed with a JSON Schema 2020-12 `{"type": "null"}`
      * member rather than the OpenAPI 3.0 `nullable` keyword, which is an inert
      * unknown keyword under 3.1 / JSON Schema 2020-12.
      *
-     * @param  string  $ref
+     * @param  array<string, mixed>  $target
      * @return array<string, mixed>
      */
-    private function conservativeRelationProperty(string $ref): array
+    private function conservativeRelationProperty(array $target): array
     {
         return [
             'oneOf' => [
-                ['$ref' => $ref],
-                ['type' => 'array', 'items' => ['$ref' => $ref]],
+                $target,
+                ['type' => 'array', 'items' => $target],
                 ['type' => 'null'],
             ],
             'x-cardinality' => 'unknown',
@@ -394,6 +416,11 @@ final readonly class ResourceSchemaBuilder
      * the operators the gate accepts. A column the map does not carry is not
      * filterable however the field is declared, and is documented as such.
      *
+     * The operators are then narrowed to the tokens the registry still binds,
+     * since an unbound token is refused as an undeclared key rather than
+     * dispatched. A column left with none is not filterable in practice and is
+     * documented the same way an undeclared one is.
+     *
      * @param  \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition  $field
      * @param  \SineMacula\ApiToolkit\Schema\CompiledSchema  $compiled
      * @return array<string, mixed>|null
@@ -407,23 +434,32 @@ final readonly class ResourceSchemaBuilder
         }
 
         $capability = $columns[$field->filterable];
+        $operators  = DispatchableOperators::forCapability($capability, $this->catalogue->getOperatorTokens());
+
+        if ($operators === []) {
+            return null;
+        }
 
         return [
             'key'        => $field->filterable,
             'capability' => $capability->value,
-            'operators'  => $capability->permittedOperators(),
+            'operators'  => $operators,
         ];
     }
 
     /**
      * Describe what an order may ask of the field's column: the key it is named
-     * by and whether an index holds the order.
+     * by and whether the resource left the order index-backed.
      *
-     * A sortable declaration only survives validation where an ordered index
-     * leads with the column or the resource exempted it, so an exemption is the
-     * one thing that leaves the sort unindexed, and its recorded reason travels
-     * with it. The index behind a backed sort is not named: which index serves
-     * a column is a property of the database rather than of the API.
+     * The reported `indexed` is the resource's own claim, not a reading of the
+     * database: it says the resource recorded no exemption for the order.
+     * Whether an ordered index really leads with the column is settled by
+     * schema validation, which an application runs against a live connection
+     * outside production and which stays silent where no catalogue can be read.
+     * An exemption is the one thing that clears the claim, and its recorded
+     * reason travels with it. The index behind a backed order is not named:
+     * which index serves a column is a property of the database rather than of
+     * the API.
      *
      * @param  \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition  $field
      * @param  \SineMacula\ApiToolkit\Schema\CompiledSchema  $compiled

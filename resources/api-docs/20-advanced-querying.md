@@ -30,9 +30,14 @@ The first four shape the representation of a resource that is returned, so they
 are honoured wherever one is serialised, whatever the verb that produced it.
 The next five select, order, and page a collection, so only an endpoint
 returning a list answers them. `trashed` widens the scope a read is served from
-and so joins both read endpoints; a resource that has not opted in to exposing
-its soft-deleted records ignores it. Cursor paging adds two more, `pagination`
-and `cursor`, described in the Pagination section.
+and so joins both read endpoints, but only where the model behind them soft
+deletes at all; a resource that has not opted in to exposing its soft-deleted
+records ignores it. Cursor paging adds two more, `pagination` and `cursor`,
+described in the Pagination section.
+
+Which of these an endpoint answers is not left to prose: every operation in the
+OpenAPI document lists the parameters it accepts, by reference to the shared
+definitions in `components.parameters`.
 
 ## Fields
 
@@ -331,11 +336,11 @@ Both apply only when the response is a paginated list:
 ?limit=25&page=2
 ```
 
-The `limit` is bounded by a configured ceiling. A request above it is rejected
-with a `422` naming the ceiling and the size asked for, rather than answered
-with a smaller page: a page quietly reduced cannot be told apart from the end of
-the result set. See the Pagination section for the shape of a paginated
-response.
+The `limit` is bounded by a configured ceiling, which the document publishes as
+the parameter's schema maximum. A request above it is rejected with a `422`
+naming the ceiling and the size asked for, rather than answered with a smaller
+page: a page quietly reduced cannot be told apart from the end of the result
+set. See the Pagination section for the shape of a paginated response.
 
 ## Discovering what a resource accepts
 
@@ -374,8 +379,14 @@ any one property, so the schema names them itself:
 ```
 
 The same declarations are written out for a reader rather than a code generator
-in the Query Surface Reference section, which tables every resource's
-filterable, sortable, and searchable columns beside the bounds a single request
-is held to and the shape an over-budget request is rejected with. That section
-is generated from the compiled schema on every documentation run, so it cannot
-drift from what the API accepts.
+in the Query Surface Reference section, which tables the filterable, sortable,
+and searchable columns of every resource this document describes, beside the
+bounds a single request is held to and the shape an over-budget request is
+rejected with. That section is generated from the compiled schema on every
+documentation run, so it cannot drift from what the API accepts, and it is
+generated once per audience, so it names only the resources the document you
+are reading also carries a schema for.
+
+The operators a property lists are narrowed to what the API can still dispatch:
+a token removed from the operator registry leaves the surface along with the
+grammar, and a column left with no operator at all carries no `filter` member.

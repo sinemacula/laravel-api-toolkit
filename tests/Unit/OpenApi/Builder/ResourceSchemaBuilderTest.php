@@ -75,10 +75,7 @@ final class ResourceSchemaBuilderTest extends TestCase
 
         $this->setStaticProperty(SchemaCompiler::class, 'cache', ['GhostResource' => $schema]);
 
-        $catalogue = self::createStub(MetadataCatalogue::class);
-        $catalogue->method('getResourceMap')->willReturn(['GhostModel' => 'GhostResource']);
-
-        $schemas = (new ResourceSchemaBuilder($catalogue, $this->resolver(), $this->introspector()))->build();
+        $schemas = $this->makeGhostBuilder(['GhostModel' => 'GhostResource'])->build();
 
         self::assertSame(['type' => 'object', 'properties' => []], $schemas['Ghost']);
     }
@@ -95,7 +92,7 @@ final class ResourceSchemaBuilderTest extends TestCase
             accessor: null,
             compute: null,
             relation: 'posts',
-            resource: 'PostResource',
+            resource: PostResource::class,
             fields: null,
             constraint: null,
             extras: [],
@@ -110,10 +107,8 @@ final class ResourceSchemaBuilderTest extends TestCase
 
         $this->setStaticProperty(SchemaCompiler::class, 'cache', ['GhostResource' => $schema]);
 
-        $catalogue = self::createStub(MetadataCatalogue::class);
-        $catalogue->method('getResourceMap')->willReturn(['GhostModel' => 'GhostResource']);
-
-        $properties = (new ResourceSchemaBuilder($catalogue, $this->resolver(), $this->introspector()))->build()['Ghost']['properties'];
+        $properties = $this->makeGhostBuilder(['GhostModel' => 'GhostResource', Post::class => PostResource::class])
+            ->build()['Ghost']['properties'];
 
         self::assertArrayNotHasKey('ghost', $properties);
         self::assertArrayHasKey('posts', $properties);
@@ -274,7 +269,7 @@ final class ResourceSchemaBuilderTest extends TestCase
             accessor: null,
             compute: null,
             relation: 'posts',
-            resource: 'PostResource',
+            resource: PostResource::class,
             fields: null,
             constraint: null,
             extras: [],
@@ -287,10 +282,7 @@ final class ResourceSchemaBuilderTest extends TestCase
 
         $this->setStaticProperty(SchemaCompiler::class, 'cache', ['GhostResource' => $schema]);
 
-        $catalogue = self::createStub(MetadataCatalogue::class);
-        $catalogue->method('getResourceMap')->willReturn(['GhostModel' => 'GhostResource']);
-
-        $property = (new ResourceSchemaBuilder($catalogue, $this->resolver(), $this->introspector()))
+        $property = $this->makeGhostBuilder(['GhostModel' => 'GhostResource', Post::class => PostResource::class])
             ->build()['Ghost']['properties']['posts'];
 
         self::assertSame(['$ref' => '#/components/schemas/Post'], $property['oneOf'][0]);
@@ -692,6 +684,86 @@ final class ResourceSchemaBuilderTest extends TestCase
     }
 
     /**
+     * Test that an operator the live vocabulary no longer holds is dropped from
+     * the documented set while the rest survive, so the document cannot offer a
+     * predicate the filter engine refuses as an undeclared key.
+     *
+     * @return void
+     */
+    public function testAnOperatorTheVocabularyNoLongerHoldsIsNotDocumented(): void
+    {
+        $field  = $this->queryableField(filterable: 'id', capability: Capability::RANGE);
+        $schema = new CompiledSchema(['id' => $field], [], [], ['id' => Capability::RANGE]);
+
+        $vocabulary = array_values(array_diff($this->vocabulary(), ['$in', '$between']));
+        $properties = $this->buildGhost($schema, $vocabulary)['properties'];
+
+        self::assertSame([
+            'key'        => 'id',
+            'capability' => 'range',
+            'operators'  => ['$eq', '$gt', '$ge', '$lt', '$le', '$null', '$notNull'],
+        ], $properties['id']['x-query-surface']['filter']);
+    }
+
+    /**
+     * Test that a column whose every operator has left the vocabulary carries
+     * no filter surface at all, being no more filterable than an undeclared
+     * column.
+     *
+     * @return void
+     */
+    public function testAColumnLeftWithNoDispatchableOperatorCarriesNoFilterSurface(): void
+    {
+        $field  = $this->queryableField(filterable: 'payload', capability: Capability::DOCUMENT, sortable: 'payload');
+        $schema = new CompiledSchema(
+            ['payload' => $field],
+            [],
+            [],
+            ['payload' => Capability::DOCUMENT],
+            ['payload'],
+        );
+
+        $vocabulary = array_values(array_diff($this->vocabulary(), ['$contains']));
+        $surface    = $this->buildGhost($schema, $vocabulary)['properties']['payload']['x-query-surface'];
+
+        self::assertArrayNotHasKey('filter', $surface);
+        self::assertSame(['key' => 'payload', 'indexed' => true], $surface['sort']);
+    }
+
+    /**
+     * Test that a relation naming a resource no registered model maps to emits
+     * a self-contained shape rather than a reference to a component the
+     * document never defines.
+     *
+     * @return void
+     */
+    public function testRelationToAnUnregisteredResourceEmitsNoDanglingReference(): void
+    {
+        $properties = $this->makeBuilder([User::class => UserResource::class])->build()['User']['properties'];
+
+        self::assertSame(['type' => 'object', 'x-undocumented' => true], $properties['organization']);
+        self::assertSame(
+            ['type' => 'array', 'items' => ['type' => 'object', 'x-undocumented' => true]],
+            $properties['posts'],
+        );
+    }
+
+    /**
+     * Test that the same relation emits its reference once the target resource
+     * is registered, so the self-contained shape is the absence of a component
+     * rather than a blanket refusal to reference one.
+     *
+     * @return void
+     */
+    public function testRelationToARegisteredResourceKeepsItsReference(): void
+    {
+        $properties = $this->makeBuilder($this->fullResourceMap())->build()['User']['properties'];
+
+        self::assertSame(['$ref' => '#/components/schemas/Organization'], $properties['organization']);
+        self::assertSame(['type' => 'array', 'items' => ['$ref' => '#/components/schemas/Post']], $properties['posts']);
+    }
+
+    /**
      * Test that the relations a filter may descend through are named on the
      * schema itself, the grammar accepting the relation name rather than the
      * property key.
@@ -781,16 +853,14 @@ final class ResourceSchemaBuilderTest extends TestCase
      * resolves against a real table.
      *
      * @param  \SineMacula\ApiToolkit\Schema\CompiledSchema  $schema
+     * @param  array<int, string>|null  $vocabulary
      * @return array<string, mixed>
      */
-    private function buildGhost(CompiledSchema $schema): array
+    private function buildGhost(CompiledSchema $schema, ?array $vocabulary = null): array
     {
         $this->setStaticProperty(SchemaCompiler::class, 'cache', ['GhostResource' => $schema]);
 
-        $catalogue = self::createStub(MetadataCatalogue::class);
-        $catalogue->method('getResourceMap')->willReturn([User::class => 'GhostResource']);
-
-        return (new ResourceSchemaBuilder($catalogue, $this->resolver(), $this->introspector()))->build()['Ghost'];
+        return $this->makeGhostBuilder([User::class => 'GhostResource'], $vocabulary)->build()['Ghost'];
     }
 
     /**
@@ -839,14 +909,40 @@ final class ResourceSchemaBuilderTest extends TestCase
      * given resource map, and a real resolver against the live test schema.
      *
      * @param  array<class-string, class-string>  $resourceMap
+     * @param  array<int, string>|null  $vocabulary
      * @return \SineMacula\ApiToolkit\OpenApi\Builder\ResourceSchemaBuilder
      */
-    private function makeBuilder(array $resourceMap): ResourceSchemaBuilder
+    private function makeBuilder(array $resourceMap, ?array $vocabulary = null): ResourceSchemaBuilder
     {
         $catalogue = self::createStub(MetadataCatalogue::class);
         $catalogue->method('getResourceMap')->willReturn($resourceMap);
+        $catalogue->method('getOperatorTokens')->willReturn($vocabulary ?? $this->vocabulary());
 
         return new ResourceSchemaBuilder($catalogue, $this->resolver(), $this->introspector());
+    }
+
+    /**
+     * Build a builder over a stubbed compiled schema keyed by an unmapped name,
+     * so a resource with no compiled class of its own can still be built.
+     *
+     * @param  array<string, string>  $resourceMap
+     * @param  array<int, string>|null  $vocabulary
+     * @return \SineMacula\ApiToolkit\OpenApi\Builder\ResourceSchemaBuilder
+     */
+    private function makeGhostBuilder(array $resourceMap, ?array $vocabulary = null): ResourceSchemaBuilder
+    {
+        /** @var array<class-string, class-string> $resourceMap */
+        return $this->makeBuilder($resourceMap, $vocabulary);
+    }
+
+    /**
+     * The operator tokens the package registers by default.
+     *
+     * @return array<int, string>
+     */
+    private function vocabulary(): array
+    {
+        return ['$eq', '$neq', '$gt', '$lt', '$ge', '$le', '$in', '$between', '$contains', '$null', '$notNull'];
     }
 
     /**

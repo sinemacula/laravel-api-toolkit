@@ -73,9 +73,10 @@ interface MetadataCatalogue
     public function getQuerySurfaces(): array;
 
     /**
-     * Return the structural caps bounding a single query, keyed by cap name.
+     * Return the bounds a single query is held to, keyed by bound name.
      *
-     * The key is the name the rejection reports, and a cap resolving to zero is
+     * Covers the structural caps and the page-size ceiling. The key is the name
+     * the rejection reports as its reason, and a bound resolving to zero is
      * disabled rather than enforced.
      *
      * @return array<string, int>

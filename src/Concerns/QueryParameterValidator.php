@@ -32,7 +32,7 @@ use SineMacula\ApiToolkit\Query\QueryCostLimits;
 final class QueryParameterValidator
 {
     /** @var string The configuration key holding the page-size ceiling, and the reason a request above it is rejected with */
-    private const string MAX_LIMIT = 'max_limit';
+    public const string MAX_LIMIT = 'max_limit';
 
     /**
      * Validate the incoming request parameters.

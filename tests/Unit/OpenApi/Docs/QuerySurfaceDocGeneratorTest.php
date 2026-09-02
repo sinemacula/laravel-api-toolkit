@@ -44,6 +44,72 @@ final class QuerySurfaceDocGeneratorTest extends TestCase
     }
 
     /**
+     * Test that the note above the tables names only the parameters a column
+     * key is actually sent under, a free-text search naming no column of its
+     * own.
+     *
+     * @return void
+     */
+    public function testKeyNoteNamesOnlyTheParametersAKeyIsSentUnder(): void
+    {
+        $markdown = $this->combinedGenerator()->generate([], [], []);
+
+        self::assertStringContainsString(
+            'Key is the name to send in `filters` and `order`, and the column a `search` matches on.',
+            $markdown,
+        );
+        self::assertStringNotContainsString('send in `filters`, `order`, and `search`', $markdown);
+    }
+
+    /**
+     * Test that the note above the tables says an index-backed order is the
+     * resource's own claim rather than a reading of the database, so the
+     * reference never states more than the declaration supports.
+     *
+     * @return void
+     */
+    public function testOrderNoteSaysWhatIndexBackedClaims(): void
+    {
+        $markdown = $this->combinedGenerator()->generate([], [], []);
+
+        self::assertStringContainsString(
+            'An order reads as Index-backed where the resource recorded no exemption for it; the index itself is proven by schema validation,',
+            $markdown,
+        );
+    }
+
+    /**
+     * Test that the page-size ceiling is tabled alongside the structural caps,
+     * being refused the same way and reported under the same reason.
+     *
+     * @return void
+     */
+    public function testPageSizeCeilingIsTabledAlongsideTheStructuralCaps(): void
+    {
+        $markdown = $this->combinedGenerator()->generate([], ['max_limit' => 100], []);
+
+        self::assertStringContainsString(
+            '| `max_limit` | 100 | The records one page may carry, asked for with `limit`. |',
+            $markdown,
+        );
+    }
+
+    /**
+     * Test that a column left with no dispatchable operator is tabled as
+     * answering no filter, rather than as a capability with an empty set.
+     *
+     * @return void
+     */
+    public function testColumnWithNoOperatorsIsTabledAsAnsweringNoFilter(): void
+    {
+        $markdown = $this->combinedGenerator()->generate([$this->surface(UserResource::class, [
+            new QueryColumnDescriptor(property: 'notes', column: 'notes', sortable: true),
+        ])], [], []);
+
+        self::assertStringContainsString('| `notes` | `notes` | - | - | Index-backed | - |', $markdown);
+    }
+
+    /**
      * Test that each structural cap is tabled with its resolved value and what
      * it bounds.
      *
@@ -126,14 +192,45 @@ final class QuerySurfaceDocGeneratorTest extends TestCase
      */
     public function testRejectionSectionCarriesTheStatusCodeAndMetaKeys(): void
     {
-        $markdown = $this->combinedGenerator()->generate([], [], []);
+        $markdown = $this->combinedGenerator()->generate([], ['max_in_items' => 500], []);
 
         self::assertStringContainsString("\n\n## Over-Budget Rejection\n", $markdown);
         self::assertStringContainsString('"status": 422,', $markdown);
         self::assertStringContainsString('"code": 10201,', $markdown);
         self::assertStringContainsString('"reason": "max_in_items",', $markdown);
         self::assertStringContainsString('"limit": 500,', $markdown);
-        self::assertStringContainsString('"actual": 900', $markdown);
+        self::assertStringContainsString('"actual": 501', $markdown);
+    }
+
+    /**
+     * Test that a bound the caller reports nothing for reads as no bound in the
+     * worked rejection, rather than as a value the generator invented for it.
+     *
+     * @return void
+     */
+    public function testRejectionExampleReportsNothingForAnUnreportedBound(): void
+    {
+        $markdown = $this->combinedGenerator()->generate([], [], []);
+
+        self::assertStringContainsString('"limit": 0,', $markdown);
+        self::assertStringContainsString('"actual": 1', $markdown);
+    }
+
+    /**
+     * Test that the worked rejection reads the bound the limits table above it
+     * reports, so a tuned application never reads an example contradicting its
+     * own configured ceiling.
+     *
+     * @return void
+     */
+    public function testRejectionExampleTracksTheConfiguredBound(): void
+    {
+        $markdown = $this->combinedGenerator()->generate([], ['max_in_items' => 50], []);
+
+        self::assertStringContainsString('| `max_in_items` | 50 |', $markdown);
+        self::assertStringContainsString('"limit": 50,', $markdown);
+        self::assertStringContainsString('"actual": 51', $markdown);
+        self::assertStringNotContainsString('500', $markdown);
     }
 
     /**
@@ -169,7 +266,12 @@ final class QuerySurfaceDocGeneratorTest extends TestCase
     public function testFilterableColumnIsTabledWithItsCapabilityAndOperators(): void
     {
         $markdown = $this->combinedGenerator()->generate([$this->surface(UserResource::class, [
-            new QueryColumnDescriptor(property: 'status', column: 'status', capability: Capability::ENUM),
+            new QueryColumnDescriptor(
+                property  : 'status',
+                column    : 'status',
+                capability: Capability::ENUM,
+                operators : ['$eq', '$in', '$neq', '$null', '$notNull'],
+            ),
         ])], [], []);
 
         self::assertStringContainsString(
@@ -245,6 +347,7 @@ final class QuerySurfaceDocGeneratorTest extends TestCase
                 property       : 'notes',
                 column         : 'notes',
                 capability     : Capability::OPAQUE,
+                operators      : ['$eq'],
                 unindexedReason: 'recorded against no order',
             ),
         ])], [], []);

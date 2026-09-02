@@ -23,8 +23,10 @@ use SineMacula\ApiToolkit\OpenApi\Schema\RuleNormaliser;
 use SineMacula\ApiToolkit\OpenApi\Schema\RulesToSchemaTranslator;
 use SineMacula\ApiToolkit\OpenApi\Security\SecuritySchemeMapper;
 use SineMacula\ApiToolkit\OpenApi\Security\SecuritySchemeResolver;
+use Tests\Fixtures\Models\Article;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\OpenApi\ArticleRequestInput;
+use Tests\Fixtures\OpenApi\PathArticleController;
 use Tests\Fixtures\OpenApi\PathErrorController;
 use Tests\Fixtures\OpenApi\PathExcludedController;
 use Tests\Fixtures\OpenApi\PathFixtureController;
@@ -36,6 +38,7 @@ use Tests\Fixtures\OpenApi\PathTaggedController;
 use Tests\Fixtures\OpenApi\PathUnmappedController;
 use Tests\Fixtures\OpenApi\Vendor\PathVendorController;
 use Tests\Fixtures\OpenApi\WidgetShape;
+use Tests\Fixtures\Resources\ArticleResource;
 use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
 
@@ -407,10 +410,34 @@ final class PathBuilderTest extends TestCase
     public function testIndexReferencesTheWholeSharedQueryGrammar(): void
     {
         $this->registerRestRoutes();
+        $this->registerSoftDeletingRoutes();
 
         self::assertSame(
             ['Fields', 'Counts', 'Sums', 'Averages', 'Filters', 'Search', 'Order', 'Limit', 'Page', 'Cursor', 'Pagination', 'Trashed'],
-            $this->referencedParameterNames($this->build()['/users']['get']),
+            $this->referencedParameterNames($this->build()['/articles']['get']),
+        );
+    }
+
+    /**
+     * Test that a read of a model with no soft deletes is never offered the
+     * visibility parameter, so a generated client is never handed a widening
+     * the server is bound to discard.
+     *
+     * @return void
+     */
+    public function testReadsOfAModelWithoutSoftDeletesOmitVisibility(): void
+    {
+        $this->registerRestRoutes();
+
+        $paths = $this->build();
+
+        self::assertSame(
+            ['Fields', 'Counts', 'Sums', 'Averages', 'Filters', 'Search', 'Order', 'Limit', 'Page', 'Cursor', 'Pagination'],
+            $this->referencedParameterNames($paths['/users']['get']),
+        );
+        self::assertSame(
+            ['Fields', 'Counts', 'Sums', 'Averages'],
+            $this->referencedParameterNames($paths['/users/{user}']['get']),
         );
     }
 
@@ -422,11 +449,11 @@ final class PathBuilderTest extends TestCase
      */
     public function testShowReferencesOnlyTheSingleRecordGrammar(): void
     {
-        $this->registerRestRoutes();
+        $this->registerSoftDeletingRoutes();
 
         self::assertSame(
             ['Fields', 'Counts', 'Sums', 'Averages', 'Trashed'],
-            $this->referencedParameterNames($this->build()['/users/{user}']['get']),
+            $this->referencedParameterNames($this->build()['/articles/{article}']['get']),
         );
     }
 
@@ -1232,6 +1259,20 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
+     * Register the read routes of a controller reading a model that soft
+     * deletes.
+     *
+     * @return void
+     */
+    private function registerSoftDeletingRoutes(): void
+    {
+        $router = $this->router();
+
+        $router->get('articles', [PathArticleController::class, 'index']);
+        $router->get('articles/{article}', [PathArticleController::class, 'show']);
+    }
+
+    /**
      * Build the paths object for the given audience and posture.
      *
      * @param  string  $audience
@@ -1296,7 +1337,10 @@ final class PathBuilderTest extends TestCase
     private function builder(): PathBuilder
     {
         $catalogue = self::createStub(MetadataCatalogue::class);
-        $catalogue->method('getResourceMap')->willReturn([User::class => UserResource::class]);
+        $catalogue->method('getResourceMap')->willReturn([
+            User::class    => UserResource::class,
+            Article::class => ArticleResource::class,
+        ]);
 
         return new PathBuilder(
             $this->router(),

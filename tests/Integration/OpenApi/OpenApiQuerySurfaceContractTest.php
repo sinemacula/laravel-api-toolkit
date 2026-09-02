@@ -46,22 +46,28 @@ use Tests\TestCase;
  *
  * The exported document makes two promises a consumer cannot check for itself:
  * that every operator it names is one the package still ships, and that the
- * operators it advertises for a column are exactly the operators a request may
- * pair with that column. Both are asserted against the live objects rather than
- * against a restatement of them, so a vocabulary the package has changed and a
- * surface the gate disagrees with fail the exporter suite instead of shipping.
+ * operators it advertises for a column are the operators a request may pair
+ * with that column.
  *
  * The operator scan reads the whole document, including the Markdown manual
- * assembled into the description, so a token deleted from the registry is
+ * assembled into the description, so a token the registry no longer holds is
  * reported wherever it survives: in the shared parameter grammar, in a
- * property's own surface, or in the shipped prose describing either.
+ * property's own surface, or in the shipped prose describing either. The
+ * document side of it is narrowed against the live registry, so removing a
+ * token leaves only the hand-written prose to report, which is what the scan
+ * exists to catch.
  *
  * The agreement between the document and enforcement is asserted at the gate,
  * which decides every filter predicate the query layer emits, so the whole
  * matrix can be walked without an operator whose SQL a development connection
- * cannot answer standing between the assertion and the answer. One wire-level
- * case closes the loop: the operators a refusal names a client may send are the
- * operators the document told it to send.
+ * cannot answer standing between the assertion and the answer. The two
+ * directions read the capability matrix on both sides, so what they carry is
+ * narrower than a full independent check: that the advertised key is the key
+ * the gate accepts under an alias, that the matrix governs no operator outside
+ * the union of its permitted sets, and that a refusal names the advertised set
+ * back to the client. The matrix itself is pinned by its own unit tests. One
+ * wire-level case closes the loop: the operators a refusal names a client may
+ * send are the operators the document told it to send.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -109,8 +115,7 @@ final class OpenApiQuerySurfaceContractTest extends TestCase
     protected function tearDown(): void
     {
         if ($this->docsDir !== null) {
-            array_map('unlink', glob($this->docsDir . '/*') ?: []);
-            @rmdir($this->docsDir);
+            $this->removeDirectory($this->docsDir);
         }
 
         $this->docsDir = null;
@@ -149,10 +154,9 @@ final class OpenApiQuerySurfaceContractTest extends TestCase
      * assertion above is the thing that catches a vocabulary the package has
      * changed rather than passing whatever it is given.
      *
-     * A shipped token is bound into the capability matrix as well as into the
-     * registry, so dropping it from the registry alone leaves every column
-     * declared for it still advertising it. That is the drift the scan exists
-     * to refuse.
+     * The generated halves of the document are narrowed against the registry,
+     * so what survives a removal is the hand-written prose naming the operator
+     * table by hand. That prose is the drift the scan exists to refuse.
      *
      * @return void
      */
@@ -162,8 +166,64 @@ final class OpenApiQuerySurfaceContractTest extends TestCase
 
         $this->registry()->remove('$in');
 
+        $this->assembleManual();
+
         self::assertNotContains('$in', $this->vocabulary());
         self::assertContains('$in', $this->operatorTokensIn($this->export()));
+    }
+
+    /**
+     * Test that a token the registry no longer holds is gone from every column
+     * the document advertises and from the shared filter grammar, an unbound
+     * token being refused as an undeclared key rather than dispatched.
+     *
+     * @return void
+     */
+    public function testATokenTheRegistryNoLongerHoldsIsGoneFromEveryPerColumnSurface(): void
+    {
+        $this->registerRoutes();
+
+        $this->registry()->remove('$in');
+
+        $document = $this->export();
+        $surfaces = $this->advertisedSurfaces($document);
+
+        self::assertNotEmpty($surfaces);
+
+        foreach ($surfaces as $surface) {
+            self::assertNotContains(
+                '$in',
+                $surface['operators'],
+                sprintf('The document advertises "$in" on the "%s" key, which the registry no longer binds.', $surface['key']),
+            );
+        }
+
+        /** @var array<int, string> $vocabulary */
+        $vocabulary = $document['components']['parameters']['Filters']['schema']['x-operators'];
+
+        self::assertNotContains('$in', $vocabulary);
+    }
+
+    /**
+     * Test that a column whose only operator has left the registry is no longer
+     * advertised as filterable at all, rather than as a capability answering
+     * nothing the filter engine can dispatch.
+     *
+     * @return void
+     */
+    public function testAColumnLeftWithNoDispatchableOperatorIsNoLongerAdvertised(): void
+    {
+        $this->registerRoutes();
+
+        $documented = array_column($this->advertisedSurfaces($this->export()), 'capability');
+
+        self::assertContains(Capability::DOCUMENT->value, $documented);
+
+        $this->registry()->remove('$contains');
+
+        $narrowed = array_column($this->advertisedSurfaces($this->export()), 'capability');
+
+        self::assertNotContains(Capability::DOCUMENT->value, $narrowed);
     }
 
     /**
@@ -303,6 +363,261 @@ final class OpenApiQuerySurfaceContractTest extends TestCase
 
         $answered->assertOk();
         $answered->assertJsonPath('data.0.name', 'Alice');
+    }
+
+    /**
+     * Test that the shipped manual tables the parameters the document defines
+     * and names every one of them, so a parameter gained or lost by the builder
+     * cannot leave the hand-written table behind.
+     *
+     * @return void
+     */
+    public function testTheManualTablesEveryParameterTheDocumentDefines(): void
+    {
+        $this->registerRoutes();
+
+        $manual = $this->manual();
+        $names  = $this->parameterNames($this->export());
+        $tabled = $this->tabledParameterNames();
+
+        self::assertNotEmpty($tabled);
+        self::assertSame([], array_values(array_diff($tabled, array_values($names))));
+
+        foreach ($names as $name) {
+            self::assertStringContainsString(
+                '`' . $name . '`',
+                $manual,
+                sprintf('The manual names no "%s" parameter, which the document defines.', $name),
+            );
+        }
+    }
+
+    /**
+     * Test that the manual splits the grammar the way the operations do: the
+     * parameters it tables first are the ones a write carries, and the ones it
+     * tables next are the collection grammar an index carries beyond them.
+     *
+     * @return void
+     */
+    public function testTheManualSplitsTheGrammarTheWayTheOperationsDo(): void
+    {
+        $this->registerRoutes();
+
+        $names  = $this->parameterNames($this->export());
+        $tabled = $this->tabledParameterNames();
+
+        $shaping = $this->parametersFor('store', $names);
+
+        self::assertSame($shaping, array_slice($tabled, 0, count($shaping)));
+
+        // The manual tables the selection grammar next, holding back the two
+        // parameters it describes under cursor paging instead.
+        $selection = array_values(array_diff($this->parametersFor('index', $names), $shaping, ['cursor', 'pagination']));
+
+        self::assertSame($selection, array_slice($tabled, count($shaping), count($selection)));
+    }
+
+    /**
+     * Test that the operator table the manual carries by hand is the live
+     * vocabulary, so a token the package adds or drops cannot leave the shipped
+     * prose describing a grammar the API does not answer.
+     *
+     * @return void
+     */
+    public function testTheManualOperatorTableIsTheLiveVocabulary(): void
+    {
+        $tabled = array_map($this->unquote(...), $this->tabledRows('| Operator', 0));
+
+        sort($tabled);
+
+        /** @var \SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue $catalogue */
+        $catalogue = $this->makeApplication()->make(MetadataCatalogue::class);
+
+        $registered = $catalogue->getOperatorTokens();
+
+        sort($registered);
+
+        self::assertSame($registered, $tabled);
+    }
+
+    /**
+     * Test that the capability matrix the manual tables by hand is the matrix
+     * the enum holds, row for row and in the same order, so an operator moved
+     * between capabilities cannot leave the shipped prose behind.
+     *
+     * @return void
+     */
+    public function testTheManualCapabilityMatrixIsTheEnumMatrix(): void
+    {
+        $tabled = array_map(
+            $this->tokensIn(...),
+            $this->tabledRows('| The field is', 1),
+        );
+
+        $expected = array_map(
+            static fn (Capability $case): array => $case->permittedOperators(),
+            Capability::cases(),
+        );
+
+        self::assertSame($expected, $tabled);
+    }
+
+    /**
+     * Test that the worked surface example the manual carries names a
+     * capability and lists exactly the operators that capability answers.
+     *
+     * @return void
+     */
+    public function testTheManualSurfaceExampleListsTheOperatorsItsCapabilityAnswers(): void
+    {
+        $manual = $this->manual();
+
+        self::assertSame(1, preg_match('/"capability": "(?<capability>[a-z]+)"/', $manual, $capability));
+        self::assertSame(1, preg_match('/"operators": \[(?<operators>[^\]]+)\]/', $manual, $operators));
+
+        $case = Capability::from($capability['capability']);
+
+        self::assertSame($case->permittedOperators(), $this->tokensIn($operators['operators']));
+    }
+
+    /**
+     * Remove a directory and everything beneath it.
+     *
+     * @param  string  $directory
+     * @return void
+     */
+    private function removeDirectory(string $directory): void
+    {
+        foreach (glob($directory . '/*') ?: [] as $entry) {
+
+            if (is_dir($entry)) {
+                $this->removeDirectory($entry);
+                continue;
+            }
+
+            unlink($entry);
+        }
+
+        @rmdir($directory);
+    }
+
+    /**
+     * Read the shipped querying manual.
+     *
+     * @return string
+     */
+    private function manual(): string
+    {
+        return (string) file_get_contents(dirname(__DIR__, 3) . '/resources/api-docs/20-advanced-querying.md');
+    }
+
+    /**
+     * List the parameter names the manual tables, in the order it tables them.
+     *
+     * @return list<string>
+     */
+    private function tabledParameterNames(): array
+    {
+        return array_map($this->unquote(...), $this->tabledRows('| Parameter', 0));
+    }
+
+    /**
+     * Read one column of every row of the manual table whose header line starts
+     * with the given prefix.
+     *
+     * @param  string  $header
+     * @param  int  $column
+     * @return list<string>
+     */
+    private function tabledRows(string $header, int $column): array
+    {
+        $lines = explode("\n", $this->manual());
+        $rows  = [];
+        $found = false;
+
+        foreach ($lines as $line) {
+
+            if (!$found) {
+                $found = str_starts_with($line, $header);
+                continue;
+            }
+
+            if (!str_starts_with($line, '|')) {
+                break;
+            }
+
+            $cells = array_map('trim', array_slice(explode('|', $line), 1, -1));
+
+            if (str_starts_with($cells[0], '---')) {
+                continue;
+            }
+
+            $rows[] = $cells[$column];
+        }
+
+        self::assertNotEmpty($rows, sprintf('The manual carries no table headed "%s".', $header));
+
+        return $rows;
+    }
+
+    /**
+     * List the operator tokens a cell names, in the order it names them.
+     *
+     * @param  string  $cell
+     * @return list<string>
+     */
+    private function tokensIn(string $cell): array
+    {
+        preg_match_all(self::TOKEN_PATTERN, $cell, $matches);
+
+        self::assertNotEmpty($matches[0], sprintf('The cell "%s" names no operator token.', $cell));
+
+        return $matches[0];
+    }
+
+    /**
+     * Strip the code-span quoting from a table cell.
+     *
+     * @param  string  $cell
+     * @return string
+     */
+    private function unquote(string $cell): string
+    {
+        return trim($cell, '`');
+    }
+
+    /**
+     * Map each parameter component name the document defines to the query
+     * parameter name it carries.
+     *
+     * @param  array<string, mixed>  $document
+     * @return array<string, string>
+     */
+    private function parameterNames(array $document): array
+    {
+        /** @var array<string, array{name: string}> $parameters */
+        $parameters = $document['components']['parameters'];
+
+        return array_map(static fn (array $parameter): string => $parameter['name'], $parameters);
+    }
+
+    /**
+     * List the query parameter names an action carries, resolved through the
+     * component names the builder references.
+     *
+     * @param  string  $action
+     * @param  array<string, string>  $names
+     * @return list<string>
+     */
+    private function parametersFor(string $action, array $names): array
+    {
+        /** @var \SineMacula\ApiToolkit\OpenApi\Builder\QueryParameterBuilder $builder */
+        $builder = $this->makeApplication()->make(QueryParameterBuilder::class);
+
+        return array_values(array_map(
+            static fn (array $reference): string => $names[str_replace('#/components/parameters/', '', $reference['$ref'])],
+            $builder->referencesFor($action),
+        ));
     }
 
     /**

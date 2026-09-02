@@ -804,7 +804,8 @@ The exporter built the whole query-parameter grammar into `components.parameters
 of it, so a client generated from the document sent no query parameter on any endpoint. Every documented
 operation now references the parameters its action honours: the sparse fieldset and the relation aggregates
 wherever a resource is serialised, the selection and paging set on an index, and soft-delete visibility on
-both read actions.
+the read actions of a model that soft deletes. A model with no deleted-at column is never offered `trashed`,
+the server having nothing to widen.
 
 Two of the emitted components changed with it. The filter parameter was emitted as `filter`, a bracketed
 deep object the parser rejects outright, so a client built from it sent a filter the API answered with the
@@ -816,19 +817,33 @@ key to send it under, the capability it is filterable with together with the ope
 answers, whether an index backs its sort, and the strategy a free-text search matches it by. The relations a
 filter may descend through are named on the schema itself as `x-traversable-relations`. Both extensions are
 read from the compiled schema the request-time gates read, so the document cannot offer a column the request
-would reject.
+would reject. The operators are narrowed further against the bound operator registry: a token removed from
+the registry is refused as an undeclared key rather than dispatched, so it is documented nowhere, and a
+column whose every operator has been removed carries no `filter` member at all.
+
+A relation naming a resource that no registered model maps to no longer emits a reference to a component the
+document never defines. Such a property now carries its resolved cardinality over a bare object marked
+`x-undocumented`, so the reference walk of a generated client never dangles.
+
+`api-toolkit:docs:generate` writes the Query Surface Reference once per configured audience, into
+`<docs_path>/audiences/<audience>/60-query-surface-reference.md`, and the manual assembler reads a shared
+section file only when the audience being assembled has no file of the same name. What a resource may be
+filtered, ordered, and searched by is the same disclosure its schema is, so it now reaches only the
+documents that already carry that schema.
 
 **Action required.** Regenerate any client built from the exported document, and rename the `filter`
 parameter to `filters` in anything that read the old component names. A client that builds the query string
-itself is unaffected.
+itself is unaffected. Re-run `api-toolkit:docs:generate` and delete any `60-query-surface-reference.md` left
+at the root of the docs directory by an earlier run; a shared file of that name is shadowed by the
+per-audience one where both exist, but is read by any audience the generator has not written a file for.
 
-### Removed: Request macros in favour of RequestCapabilities
+### Removed: Request macros in favour of the parsed query
 
-The request macros the toolkit used to register - `includeTrashed()` and `onlyTrashed()` - have
-been removed. Resolve these capabilities through the typed
-`RequestCapabilities` value object instead. The export-detection macros (`expectsExport()`,
-`expectsCsv()`, and `expectsXml()`) have been removed outright: content-negotiated exports now live in the
-`sinemacula/laravel-resource-exporter` package, not in the toolkit.
+The request macros the toolkit used to register - `includeTrashed()` and `onlyTrashed()` - have been removed.
+Soft-delete visibility is now parsed from the request alongside every other query parameter and read as a
+typed `TrashedState`. The export-detection macros (`expectsExport()`, `expectsCsv()`, and `expectsXml()`)
+have been removed outright: content-negotiated exports now live in the `sinemacula/laravel-resource-exporter`
+package, not in the toolkit.
 
 **Before:**
 
@@ -838,16 +853,17 @@ been removed. Resolve these capabilities through the typed
 
 **After:**
 
-    use SineMacula\ApiToolkit\Http\RequestCapabilities;
+    use SineMacula\ApiToolkit\Enums\TrashedState;
+    use SineMacula\ApiToolkit\Facades\ApiQuery;
 
-    $capabilities = RequestCapabilities::fromRequest($request);
-
-    if ($capabilities->includeTrashed()) {
+    if (ApiQuery::getTrashed() === TrashedState::WITH) {
         // ...
     }
 
-`RequestCapabilities::fromRequest()` resolves the capabilities lazily on first access and caches them on
-the request, so no middleware or setup is required to read them.
+Reading the state directly is rarely necessary. A repository read through `withApiCriteria()` applies it for
+you, and only where the model uses `SoftDeletes` and the resource has opted in by overriding
+`allowsTrashed()`; a resource that has not opted in keeps its soft-deleted records hidden whatever the
+request asks.
 
 ### Exception handling changes
 

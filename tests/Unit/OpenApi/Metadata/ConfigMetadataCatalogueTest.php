@@ -6,6 +6,7 @@ namespace Tests\Unit\OpenApi\Metadata;
 
 use Illuminate\Support\Facades\Config;
 use PHPUnit\Framework\Attributes\CoversClass;
+use SineMacula\ApiToolkit\Concerns\QueryParameterValidator;
 use SineMacula\ApiToolkit\Enums\ErrorCode;
 use SineMacula\ApiToolkit\Http\Resources\ResourceDiscovery;
 use SineMacula\ApiToolkit\OpenApi\Metadata\ApiExceptionDiscoverer;
@@ -237,8 +238,53 @@ final class ConfigMetadataCatalogueTest extends TestCase
 
         $limits = $this->makeCatalogue()->getQueryLimits();
 
-        self::assertSame(array_keys(QueryCostLimits::DEFAULTS), array_keys($limits));
+        self::assertSame(
+            [...array_keys(QueryCostLimits::DEFAULTS), QueryParameterValidator::MAX_LIMIT],
+            array_keys($limits),
+        );
         self::assertSame(42, $limits[QueryCostLimits::MAX_NODES]);
+    }
+
+    /**
+     * Test that the page-size ceiling is reported alongside the structural
+     * caps, under the same name the refusal reports as its reason, so a client
+     * reads one list of the bounds it can be turned away for.
+     *
+     * @return void
+     */
+    public function testGetQueryLimitsReportsThePageSizeCeiling(): void
+    {
+        Config::set('api-toolkit.parser.max_limit', 250);
+
+        self::assertSame(250, $this->makeCatalogue()->getQueryLimits()[QueryParameterValidator::MAX_LIMIT]);
+    }
+
+    /**
+     * Test that a page-size ceiling configured as a numeric string is reported
+     * as the whole number it truncates to, the way the guard that enforces it
+     * reads one.
+     *
+     * @return void
+     */
+    public function testGetQueryLimitsTruncatesANumericPageSizeCeiling(): void
+    {
+        Config::set('api-toolkit.parser.max_limit', '75.9');
+
+        self::assertSame(75, $this->makeCatalogue()->getQueryLimits()[QueryParameterValidator::MAX_LIMIT]);
+    }
+
+    /**
+     * Test that a page-size ceiling configured off is reported as zero, the way
+     * the guard that enforces it reads one, rather than falling back to a
+     * default the guard would not apply.
+     *
+     * @return void
+     */
+    public function testGetQueryLimitsReportsAnUnsetPageSizeCeilingAsZero(): void
+    {
+        Config::set('api-toolkit.parser.max_limit', null);
+
+        self::assertSame(0, $this->makeCatalogue()->getQueryLimits()[QueryParameterValidator::MAX_LIMIT]);
     }
 
     /**

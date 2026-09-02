@@ -346,6 +346,46 @@ final class SearchTermTest extends TestCase
     }
 
     /**
+     * Test that the shortest word accepted is reported as the configured value,
+     * so a reader of the bound is told the one each word is measured against.
+     *
+     * @return void
+     */
+    public function testMinimumWordLengthReportsTheConfiguredValue(): void
+    {
+        Config::set('api-toolkit.search.min_word_length', 5);
+
+        self::assertSame(5, SearchTerm::minimumWordLength());
+    }
+
+    /**
+     * Test that the shortest word accepted is held at the shipped floor rather
+     * than lowered to a configured value beneath it, so a bound reported to a
+     * client is one the term is really held to.
+     *
+     * @return void
+     */
+    public function testMinimumWordLengthIsHeldAtTheShippedFloor(): void
+    {
+        Config::set('api-toolkit.search.min_word_length', 1);
+
+        self::assertSame(SearchTerm::MIN_WORD_LENGTH, SearchTerm::minimumWordLength());
+    }
+
+    /**
+     * Test that the shortest word accepted falls back to the shipped default
+     * when nothing valid is configured.
+     *
+     * @return void
+     */
+    public function testMinimumWordLengthFallsBackToTheShippedDefault(): void
+    {
+        Config::set('api-toolkit.search.min_word_length', 'unbounded');
+
+        self::assertSame(SearchTerm::MIN_WORD_LENGTH, SearchTerm::minimumWordLength());
+    }
+
+    /**
      * Provide each strategy with the pattern a term of "50%" renders to.
      *
      * @return iterable<string, array{\SineMacula\ApiToolkit\Enums\SearchStrategy, string}>
