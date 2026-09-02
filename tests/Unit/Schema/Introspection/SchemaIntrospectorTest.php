@@ -1579,6 +1579,8 @@ final class SchemaIntrospectorTest extends TestCase
              * Return the connection the model reads its schema from.
              *
              * @return \Illuminate\Database\Connection
+             *
+             * @phpstan-ignore sineMaculaLaravel.modelBehaviour
              */
             #[\Override]
             public function getConnection(): Connection

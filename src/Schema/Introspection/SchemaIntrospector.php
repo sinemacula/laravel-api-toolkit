@@ -356,7 +356,7 @@ final class SchemaIntrospector implements SchemaIntrospectionProvider
     {
         try {
             $indexes = $this->mapIndexDefinitions($model->getConnection()->getSchemaBuilder()->getIndexes($model->getTable()));
-        } catch (\Throwable) {
+        } catch (\Throwable) { // @phpstan-ignore catch.neverThrown
             return null;
         }
 
