@@ -177,16 +177,3 @@ jobs:
                     DB_PASSWORD: ${{ matrix.db_password }}
                 run: vendor/bin/phpunit --testsuite Integration,Feature
 
-            # Runs api-toolkit:validate-schemas against this engine as a step of
-            # its own. Schema validation is disabled in production by default,
-            # so without this gate a searchable column with no index behind it
-            # first shows up as a failed search request after a deploy.
-            -   name: Schema Validation
-                env:
-                    DB_DRIVER: ${{ matrix.db_driver }}
-                    DB_HOST: 127.0.0.1
-                    DB_PORT: ${{ matrix.db_port }}
-                    DB_DATABASE: api_toolkit_test
-                    DB_USERNAME: ${{ matrix.db_username }}
-                    DB_PASSWORD: ${{ matrix.db_password }}
-                run: vendor/bin/phpunit --testsuite Integration --filter '(MySqlNgram|PostgresTrigram)SearchTest'

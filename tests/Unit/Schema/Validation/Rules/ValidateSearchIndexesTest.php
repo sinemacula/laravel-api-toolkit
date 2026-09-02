@@ -105,6 +105,21 @@ final class ValidateSearchIndexesTest extends TestCase
     }
 
     /**
+     * Test that every declared field is reported against a connection no driver
+     * serves, rather than the first alone.
+     *
+     * @return void
+     */
+    public function testReportsEveryFieldAgainstAConnectionWithNoDriver(): void
+    {
+        $errors = $this->rule()->validate(SearchableUserResource::class, User::class, $this->surface());
+
+        self::assertCount(2, $errors);
+        self::assertSame('name', $errors[0]->fieldKey);
+        self::assertSame('email', $errors[1]->fieldKey);
+    }
+
+    /**
      * Test that a strategy the registered driver does not implement is
      * reported.
      *
@@ -212,13 +227,20 @@ final class ValidateSearchIndexesTest extends TestCase
 
         self::assertCount(1, $errors);
         self::assertSame(
-            sprintf('Field is declared searchable against "name", and the "%s" connection could not be read to prove an index serves it: Connection refused', $this->connection()),
+            sprintf(
+                'Field is declared searchable with the "substring" strategy, and the "%s" connection could not be read '
+                . 'to prove an index serves it: Connection refused',
+                $this->connection(),
+            ),
             $errors[0]->defect,
         );
     }
 
     /**
-     * Test that every declared field is reported, not just the first.
+     * Test that every declared field is reported, not just the first, and that
+     * a field declaring nothing searchable is passed over rather than ending
+     * the walk: the undeclared field leads, so skipping it and stopping at it
+     * give different answers.
      *
      * @return void
      */
@@ -226,21 +248,97 @@ final class ValidateSearchIndexesTest extends TestCase
     {
         $this->register(new PatternSearchDriver(null, true, ['No index serves this column']));
 
-        $schema = new CompiledSchema(
-            fields: [
-                'name'   => $this->makeField('name', SearchStrategy::SUBSTRING),
-                'email'  => $this->makeField('email', SearchStrategy::PREFIX),
-                'status' => $this->makeField(),
-            ],
-            counts: [],
-            searchableColumns: ['name' => SearchStrategy::SUBSTRING, 'email' => SearchStrategy::PREFIX],
-        );
-
-        $errors = $this->rule()->validate(SearchableUserResource::class, User::class, $schema);
+        $errors = $this->rule()->validate(SearchableUserResource::class, User::class, $this->surface());
 
         self::assertCount(2, $errors);
         self::assertSame('name', $errors[0]->fieldKey);
         self::assertSame('email', $errors[1]->fieldKey);
+    }
+
+    /**
+     * Test that a field carrying a searchable column with no strategy behind it
+     * is passed over, since there is no declared shape to prove and a null
+     * strategy cannot reach a driver.
+     *
+     * @return void
+     */
+    public function testPassesOverAFieldDeclaringAColumnWithNoStrategy(): void
+    {
+        $this->register(new PatternSearchDriver(null, true, ['No index serves this column']));
+
+        $schema = new CompiledSchema(
+            fields: ['name' => $this->makeField('name')],
+            counts: [],
+            searchableColumns: ['name' => SearchStrategy::SUBSTRING],
+        );
+
+        self::assertSame([], $this->rule()->validate(SearchableUserResource::class, User::class, $schema));
+    }
+
+    /**
+     * Test that strategies the driver cannot resolve from an index once they
+     * are declared together are reported against the first declaring field,
+     * alongside whatever each strategy is missing on its own.
+     *
+     * @return void
+     */
+    public function testReportsStrategiesTheDriverCannotServeTogether(): void
+    {
+        $this->register(new PatternSearchDriver(null, true, [], 'they cannot share a disjunction here'));
+
+        $errors = $this->rule()->validate(SearchableUserResource::class, User::class, $this->surface());
+
+        self::assertCount(1, $errors);
+        self::assertSame('name', $errors[0]->fieldKey);
+        self::assertSame(
+            sprintf(
+                'The search surface cannot be served from an index on the "%s" connection, because they cannot share a disjunction here',
+                $this->connection(),
+            ),
+            $errors[0]->defect,
+        );
+    }
+
+    /**
+     * Test that a field carrying both a combination defect and a defect of its
+     * own reports both, so the surface-wide reason does not displace what the
+     * column itself is missing.
+     *
+     * @return void
+     */
+    public function testReportsBothTheCombinationDefectAndTheColumnDefect(): void
+    {
+        $this->register(new PatternSearchDriver(null, true, ['No index serves this column'], 'they cannot share a disjunction here'));
+
+        $errors = $this->rule()->validate(SearchableUserResource::class, User::class, $this->surface());
+
+        self::assertCount(3, $errors);
+        self::assertSame(['name', 'name', 'email'], array_map(static fn ($error): string => $error->fieldKey, $errors));
+    }
+
+    /**
+     * Test that every column declared with one strategy reaches the proof, so
+     * an engine resolving them through a single index is asked about the whole
+     * set.
+     *
+     * @return void
+     */
+    public function testProvesEveryColumnDeclaredWithOneStrategy(): void
+    {
+        $this->register(new PatternSearchDriver(null, true, ['No index serves this column']));
+
+        $schema = new CompiledSchema(
+            fields: [
+                'name'  => $this->makeField('name', SearchStrategy::SUBSTRING),
+                'email' => $this->makeField('email', SearchStrategy::SUBSTRING),
+            ],
+            counts: [],
+            searchableColumns: ['name' => SearchStrategy::SUBSTRING, 'email' => SearchStrategy::SUBSTRING],
+        );
+
+        $errors = $this->rule()->validate(SearchableUserResource::class, User::class, $schema);
+
+        self::assertSame(['name', 'email'], array_map(static fn ($error): string => $error->fieldKey, $errors));
     }
 
     /**
@@ -275,6 +373,25 @@ final class ValidateSearchIndexesTest extends TestCase
             fields: ['name' => $this->makeField('name', SearchStrategy::SUBSTRING)],
             counts: [],
             searchableColumns: ['name' => SearchStrategy::SUBSTRING],
+        );
+    }
+
+    /**
+     * Build a compiled schema declaring two searchable columns under two
+     * strategies, led by a field declaring nothing searchable.
+     *
+     * @return \SineMacula\ApiToolkit\Schema\CompiledSchema
+     */
+    private function surface(): CompiledSchema
+    {
+        return new CompiledSchema(
+            fields: [
+                'status' => $this->makeField(),
+                'name'   => $this->makeField('name', SearchStrategy::SUBSTRING),
+                'email'  => $this->makeField('email', SearchStrategy::PREFIX),
+            ],
+            counts: [],
+            searchableColumns: ['name' => SearchStrategy::SUBSTRING, 'email' => SearchStrategy::PREFIX],
         );
     }
 

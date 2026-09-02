@@ -84,16 +84,6 @@ final class SearchPlan
     }
 
     /**
-     * Return every declared searchable column name.
-     *
-     * @return array<int, string>
-     */
-    public function columns(): array
-    {
-        return array_keys($this->columns);
-    }
-
-    /**
      * Return the distinct strategies the plan declares, in declaration order.
      *
      * @return array<int, \SineMacula\ApiToolkit\Enums\SearchStrategy>

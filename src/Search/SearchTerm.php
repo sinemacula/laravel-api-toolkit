@@ -14,24 +14,29 @@ use SineMacula\ApiToolkit\Enums\SearchStrategy;
  * Parses the raw client term once and renders it for whichever match shape a
  * driver applies, so no driver ever builds a pattern out of client input
  * itself. Every metacharacter the rendering could otherwise smuggle is escaped
- * here: a term of "%" matches a literal percent sign rather than every row, and
- * a term carrying a double quote cannot close the phrase it is wrapped in.
+ * here: a term of "%" matches a literal percent sign rather than every row. The
+ * one character no rendering can carry is the double quote, which delimits the
+ * phrase a full-text match is bound as and has no escape of its own; it is
+ * dropped during normalisation, before any bound is measured, so every engine
+ * is asked about the same term rather than one seeing it and another not.
  *
  * The bounds are refusals, never silent truncations, and each is operator
- * tunable. The minimum is the shortest term the supported indexes answer both
- * correctly and without scanning; below it one engine returns nothing at all
- * and another falls back to reading the whole table, and neither failure is
- * visible to the caller. Configuration may raise that minimum but never lower
- * it, so the floor cannot be configured back into the hazard it exists to
- * close.
+ * tunable. The minimum is applied to every word rather than to the term as a
+ * whole, because that is the unit the indexes answer: a full-text parser emits
+ * no token for a word shorter than its token size and drops it from the phrase,
+ * which widens the match, while a trigram index cannot serve a chunk shorter
+ * than a trigram and reads the whole table instead. A term whose words clear
+ * the minimum is answered the same way by both. Configuration may raise that
+ * minimum but never lower it, so the floor cannot be configured back into the
+ * hazard it exists to close.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
 final readonly class SearchTerm
 {
-    /** @var int The shortest term every supported index answers correctly and without scanning, and the floor no configured minimum may fall below */
-    public const int MIN_LENGTH = 3;
+    /** @var int The shortest word every supported index answers correctly and without scanning, and the floor no configured minimum may fall below */
+    public const int MIN_WORD_LENGTH = 3;
 
     /** @var int The shipped longest term accepted, bounding the work one search may ask for */
     public const int MAX_LENGTH = 128;
@@ -65,24 +70,39 @@ final readonly class SearchTerm
     public static function from(string $term): self
     {
         $value   = self::normalise($term);
-        $length  = mb_strlen($value);
-        $minimum = max(self::MIN_LENGTH, self::configured('min_length', self::MIN_LENGTH));
+        $words   = explode(' ', $value);
+        $minimum = self::minimumWordLength();
         $maximum = self::configured('max_length', self::MAX_LENGTH);
-        $words   = self::configured('max_words', self::MAX_WORDS);
 
-        if ($length < $minimum) {
-            self::reject(sprintf('The search term must be at least %d characters.', $minimum));
+        foreach ($words as $word) {
+
+            if (mb_strlen($word) >= $minimum) {
+                continue;
+            }
+
+            self::reject(sprintf('Every word in the search term must be at least %d characters.', $minimum));
         }
 
-        if ($length > $maximum) {
+        if (mb_strlen($value) > $maximum) {
             self::reject(sprintf('The search term may not be longer than %d characters.', $maximum));
         }
 
-        if (count(explode(' ', $value)) > $words) {
-            self::reject(sprintf('The search term may not carry more than %d words.', $words));
+        if (count($words) > ($ceiling = self::configured('max_words', self::MAX_WORDS))) {
+            self::reject(sprintf('The search term may not carry more than %d words.', $ceiling));
         }
 
         return new self($value);
+    }
+
+    /**
+     * Return the shortest word a search term may carry, held at the floor no
+     * configured value may fall below.
+     *
+     * @return int
+     */
+    public static function minimumWordLength(): int
+    {
+        return max(self::MIN_WORD_LENGTH, self::configured('min_word_length', self::MIN_WORD_LENGTH));
     }
 
     /**
@@ -115,16 +135,15 @@ final readonly class SearchTerm
     /**
      * Render the term as a quoted phrase for a boolean-mode match.
      *
-     * The phrase syntax has no escape for its own delimiter, so a double quote
-     * carried by the term is dropped rather than allowed to end the phrase
-     * early and let the remainder be read as operators. A term of nothing but
-     * delimiters therefore yields an empty phrase, which matches no rows.
+     * The delimiter the phrase is wrapped in is already gone from the term, so
+     * nothing here can close the phrase early and let the remainder be read as
+     * operators.
      *
      * @return string
      */
     public function phrase(): string
     {
-        return '"' . str_replace('"', '', $this->value) . '"';
+        return '"' . $this->value . '"';
     }
 
     /**
@@ -144,16 +163,17 @@ final readonly class SearchTerm
     /**
      * Collapse whitespace and strip the characters no engine can match on.
      *
-     * Whitespace is collapsed before the control characters are removed, so a
-     * newline separates two words rather than joining them. A term that is not
-     * valid UTF-8 leaves nothing behind and is rejected on length.
+     * Whitespace is collapsed before the control characters and the phrase
+     * delimiter are removed, so a newline separates two words rather than
+     * joining them. A term that is not valid UTF-8 leaves nothing behind and is
+     * rejected on length.
      *
      * @param  string  $term
      * @return string
      */
     private static function normalise(string $term): string
     {
-        $normalised = preg_replace(['/[\s\p{Z}]+/u', '/\p{C}/u'], [' ', ''], $term);
+        $normalised = preg_replace(['/[\s\p{Z}]+/u', '/[\p{C}"]/u'], [' ', ''], $term);
 
         return is_string($normalised) ? trim($normalised) : '';
     }

@@ -475,7 +475,7 @@ final class QueryParameterExtractorTest extends TestCase
             $this->extractor->extract($request);
             self::fail('Expected a ValidationException for the search parameter.');
         } catch (ValidationException $exception) {
-            self::assertSame(['search' => ['The search term must be at least 3 characters.']], $exception->errors());
+            self::assertSame(['search' => ['Every word in the search term must be at least 3 characters.']], $exception->errors());
         }
     }
 

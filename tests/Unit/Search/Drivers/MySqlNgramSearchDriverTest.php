@@ -21,10 +21,10 @@ use Tests\TestCase;
  *
  * The predicates are compiled against a MySQL grammar the suite never connects
  * to, so the emitted clause and its bindings are asserted here whatever engine
- * the suite is running against; that the engine answers them is proven by the
- * driver-gated integration suite. The index proof is driven from a stubbed
- * catalogue, so every arrangement it has to refuse is exercised without one
- * being created first.
+ * the suite is running against; that the engine answers them from an index is
+ * proven by the driver-gated integration suite. The index proof is driven from
+ * a stubbed catalogue, so every arrangement it has to refuse is exercised
+ * without one being created first.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -39,6 +39,16 @@ final class MySqlNgramSearchDriverTest extends TestCase
 
     /** @var string The term every test searches for */
     private const string TERM = 'smith';
+
+    /** @var string The statement the driver reads the parser out of */
+    private const string DEFINITION_STATEMENT = 'show create table `users`';
+
+    /** @var string The statement the driver reads the token size out of */
+    private const string TOKEN_SIZE_STATEMENT = 'select @@ngram_token_size as size';
+
+    /** @var string The whole defect reported when no index matches the declared column list */
+    private const string MISSING_INDEX = 'The columns declared with the "substring" strategy ("name") are matched together, '
+        . 'so table "users" needs one full-text index over exactly that column list, created with the ngram parser';
 
     /** @var array<int, string> The statements the driver read the catalogue with */
     private array $statements = [];
@@ -93,6 +103,45 @@ final class MySqlNgramSearchDriverTest extends TestCase
     }
 
     /**
+     * Test that an anywhere-match declared on its own is accepted, since one
+     * match over the declared columns keeps the full-text access path.
+     *
+     * @return void
+     */
+    public function testAcceptsAnAnywhereMatchDeclaredOnItsOwn(): void
+    {
+        self::assertNull((new MySqlNgramSearchDriver)->combinationDefect([SearchStrategy::SUBSTRING]));
+    }
+
+    /**
+     * Test that the strategies an ordinary index serves are accepted together,
+     * since the engine combines their bitmaps rather than losing the index to
+     * the disjunction.
+     *
+     * @return void
+     */
+    public function testAcceptsTheOrdinaryIndexStrategiesTogether(): void
+    {
+        self::assertNull((new MySqlNgramSearchDriver)->combinationDefect([SearchStrategy::PREFIX, SearchStrategy::EXACT]));
+    }
+
+    /**
+     * Test that an anywhere-match declared beside another strategy is refused
+     * with the whole reason, since a full-text match OR-ed with any other
+     * predicate reads the whole table.
+     *
+     * @return void
+     */
+    public function testRefusesAnAnywhereMatchDeclaredBesideAnotherStrategy(): void
+    {
+        self::assertSame(
+            'the "substring" strategy is declared alongside another strategy, and a full-text match OR-ed with any other '
+                . 'predicate loses the full-text access path and reads the whole table',
+            (new MySqlNgramSearchDriver)->combinationDefect([SearchStrategy::SUBSTRING, SearchStrategy::PREFIX]),
+        );
+    }
+
+    /**
      * Test that an equality match is emitted as a plain comparison against the
      * qualified column, which an ordinary index answers.
      *
@@ -121,6 +170,23 @@ final class MySqlNgramSearchDriverTest extends TestCase
     }
 
     /**
+     * Test that every prefix column contributes its own comparison, which the
+     * engine reads as a range on each index and combines.
+     *
+     * @return void
+     */
+    public function testEmitsOneComparisonPerPrefixColumn(): void
+    {
+        $query = $this->apply(['name', 'email'], SearchStrategy::PREFIX);
+
+        self::assertSame(
+            'select * from `users` where `users`.`name` like ? escape \'\\\\\' or `users`.`email` like ? escape \'\\\\\'',
+            $query->toSql(),
+        );
+        self::assertSame([self::TERM . '%', self::TERM . '%'], $query->getBindings());
+    }
+
+    /**
      * Test that an anywhere-match is emitted as a boolean-mode match binding
      * the term as a quoted phrase, which is the only form the n-gram parser
      * answers as a substring rather than as a bag of character pairs.
@@ -136,52 +202,74 @@ final class MySqlNgramSearchDriverTest extends TestCase
     }
 
     /**
-     * Test that each declared column is matched separately rather than through
-     * one match over the whole set, which would need a composite index per
-     * declared combination.
+     * Test that every declared column is matched through one match over the
+     * whole set rather than through a match each, since two matches OR-ed
+     * together lose the access path the index exists to provide.
      *
      * @return void
      */
-    public function testMatchesEachColumnSeparately(): void
+    public function testMatchesEveryColumnThroughOneMatch(): void
     {
         $query = $this->apply(['name', 'email'], SearchStrategy::SUBSTRING);
 
         self::assertSame(
-            'select * from `users` where match (`users`.`name`) against (? in boolean mode) or match (`users`.`email`) against (? in boolean mode)',
+            'select * from `users` where match (`users`.`name`, `users`.`email`) against (? in boolean mode)',
             $query->toSql(),
         );
-        self::assertSame(['"' . self::TERM . '"', '"' . self::TERM . '"'], $query->getBindings());
+        self::assertSame(['"' . self::TERM . '"'], $query->getBindings());
     }
 
     /**
-     * Test that a full-text index over the column alone, created with the
-     * n-gram parser, proves an anywhere-match.
+     * Test that a full-text index over the declared column list, created with
+     * the n-gram parser, proves an anywhere-match, and that it is found among
+     * the several indexes a real table carries.
      *
      * @return void
      */
-    public function testAcceptsAnNgramFullTextIndexOverTheColumn(): void
+    public function testAcceptsAnNgramFullTextIndexOverTheDeclaredColumns(): void
     {
         $connection = $this->catalogue(
-            [['name' => 'users_name_ngram', 'columns' => ['name'], 'type' => 'FULLTEXT']],
-            '  FULLTEXT KEY `users_name_ngram` (`name`) /*!50100 WITH PARSER `ngram` */',
+            [
+                ['name' => 'PRIMARY', 'columns' => ['id'], 'type' => 'BTREE'],
+                ['name' => 'users_email_unique', 'columns' => ['email'], 'type' => 'BTREE'],
+                ['name' => 'users_search_ngram', 'columns' => ['name', 'email'], 'type' => 'FULLTEXT'],
+            ],
+            '  FULLTEXT KEY `users_search_ngram` (`name`,`email`) /*!50100 WITH PARSER `ngram` */',
         );
 
-        self::assertSame([], (new MySqlNgramSearchDriver)->indexDefects(SearchStrategy::SUBSTRING, 'name', 'users', $connection));
+        self::assertSame([], (new MySqlNgramSearchDriver)->indexDefects(SearchStrategy::SUBSTRING, ['name', 'email'], 'users', $connection));
     }
 
     /**
-     * Test that the parser is read from the definition of the table carrying
-     * the column, since the information schema does not report it.
+     * Test that the index is matched by the set of columns it covers rather
+     * than by their sequence, since the engine resolves a match the same way
+     * whichever order the match names them in.
      *
      * @return void
      */
-    public function testReadsTheParserFromTheTableDefinition(): void
+    public function testAcceptsTheIndexWhateverOrderItsColumnsAreDeclaredIn(): void
+    {
+        $connection = $this->catalogue(
+            [['name' => 'users_search_ngram', 'columns' => ['email', 'name'], 'type' => 'FULLTEXT']],
+            '  FULLTEXT KEY `users_search_ngram` (`email`,`name`) /*!50100 WITH PARSER `ngram` */',
+        );
+
+        self::assertSame([], (new MySqlNgramSearchDriver)->indexDefects(SearchStrategy::SUBSTRING, ['name', 'email'], 'users', $connection));
+    }
+
+    /**
+     * Test that the parser and the token size are read from the connection,
+     * since neither is reported by the information schema.
+     *
+     * @return void
+     */
+    public function testReadsTheTokenSizeThenTheTableDefinition(): void
     {
         $connection = $this->catalogue([['name' => 'users_name_ngram', 'columns' => ['name'], 'type' => 'FULLTEXT']]);
 
-        (new MySqlNgramSearchDriver)->indexDefects(SearchStrategy::SUBSTRING, 'name', 'users', $connection);
+        (new MySqlNgramSearchDriver)->indexDefects(SearchStrategy::SUBSTRING, ['name'], 'users', $connection);
 
-        self::assertSame(['show create table `users`'], $this->statements);
+        self::assertSame([self::TOKEN_SIZE_STATEMENT, self::DEFINITION_STATEMENT], $this->statements);
     }
 
     /**
@@ -199,27 +287,52 @@ final class MySqlNgramSearchDriverTest extends TestCase
         );
 
         self::assertSame(
-            ['Column "name" is declared searchable with the "substring" strategy, which needs a full-text index over that column '
-                . 'alone on table "users", created with the ngram parser'],
-            (new MySqlNgramSearchDriver)->indexDefects(SearchStrategy::SUBSTRING, 'name', 'users', $connection),
+            ['name' => [self::MISSING_INDEX]],
+            (new MySqlNgramSearchDriver)->indexDefects(SearchStrategy::SUBSTRING, ['name'], 'users', $connection),
         );
     }
 
     /**
-     * Test that a full-text index covering more than the matched column is
+     * Test that a full-text index covering more than the declared columns is
      * refused, since MySQL resolves a match only against an index whose column
      * list is exactly the matched one.
      *
      * @return void
      */
-    public function testRefusesAFullTextIndexCoveringMoreThanTheColumn(): void
+    public function testRefusesAFullTextIndexCoveringMoreThanTheDeclaredColumns(): void
     {
         $connection = $this->catalogue(
             [['name' => 'users_search_ngram', 'columns' => ['name', 'email'], 'type' => 'FULLTEXT']],
             '  FULLTEXT KEY `users_search_ngram` (`name`,`email`) /*!50100 WITH PARSER `ngram` */',
         );
 
-        self::assertCount(1, (new MySqlNgramSearchDriver)->indexDefects(SearchStrategy::SUBSTRING, 'name', 'users', $connection));
+        self::assertSame(
+            ['name' => [self::MISSING_INDEX]],
+            (new MySqlNgramSearchDriver)->indexDefects(SearchStrategy::SUBSTRING, ['name'], 'users', $connection),
+        );
+    }
+
+    /**
+     * Test that a full-text index over one of the declared columns does not
+     * prove the set, and that the defect is reported against every column in
+     * it, since the whole set is matched as a unit.
+     *
+     * @return void
+     */
+    public function testRefusesAnIndexCoveringOnlyPartOfTheDeclaredColumns(): void
+    {
+        $connection = $this->catalogue(
+            [['name' => 'users_name_ngram', 'columns' => ['name'], 'type' => 'FULLTEXT']],
+            '  FULLTEXT KEY `users_name_ngram` (`name`) /*!50100 WITH PARSER `ngram` */',
+        );
+
+        $defect = 'The columns declared with the "substring" strategy ("name", "email") are matched together, '
+            . 'so table "users" needs one full-text index over exactly that column list, created with the ngram parser';
+
+        self::assertSame(
+            ['name' => [$defect], 'email' => [$defect]],
+            (new MySqlNgramSearchDriver)->indexDefects(SearchStrategy::SUBSTRING, ['name', 'email'], 'users', $connection),
+        );
     }
 
     /**
@@ -232,7 +345,71 @@ final class MySqlNgramSearchDriverTest extends TestCase
     {
         $connection = $this->catalogue([['name' => 'users_name_index', 'columns' => ['name'], 'type' => 'BTREE']]);
 
-        self::assertCount(1, (new MySqlNgramSearchDriver)->indexDefects(SearchStrategy::SUBSTRING, 'name', 'users', $connection));
+        self::assertSame(
+            ['name' => [self::MISSING_INDEX]],
+            (new MySqlNgramSearchDriver)->indexDefects(SearchStrategy::SUBSTRING, ['name'], 'users', $connection),
+        );
+    }
+
+    /**
+     * Test that a server tokenising n-grams longer than the shortest word a
+     * term may carry is reported, since an accepted term would produce no
+     * tokens and come back as an empty result indistinguishable from a genuine
+     * no-match.
+     *
+     * @return void
+     */
+    public function testReportsATokenSizeLongerThanTheShortestAcceptedWord(): void
+    {
+        $connection = $this->catalogue(
+            [['name' => 'users_name_ngram', 'columns' => ['name'], 'type' => 'FULLTEXT']],
+            '  FULLTEXT KEY `users_name_ngram` (`name`) /*!50100 WITH PARSER `ngram` */',
+            4,
+        );
+
+        self::assertSame(
+            ['name' => ['The connection parses n-grams 4 characters at a time, which is longer than the shortest word a search '
+                . 'term may carry (3), so an accepted term would produce no tokens and match nothing']],
+            (new MySqlNgramSearchDriver)->indexDefects(SearchStrategy::SUBSTRING, ['name'], 'users', $connection),
+        );
+    }
+
+    /**
+     * Test that a token size equal to the shortest accepted word is accepted,
+     * so the bound is exercised at exactly the limit as well as one beyond it.
+     *
+     * @return void
+     */
+    public function testAcceptsATokenSizeEqualToTheShortestAcceptedWord(): void
+    {
+        $connection = $this->catalogue(
+            [['name' => 'users_name_ngram', 'columns' => ['name'], 'type' => 'FULLTEXT']],
+            '  FULLTEXT KEY `users_name_ngram` (`name`) /*!50100 WITH PARSER `ngram` */',
+            3,
+        );
+
+        self::assertSame([], (new MySqlNgramSearchDriver)->indexDefects(SearchStrategy::SUBSTRING, ['name'], 'users', $connection));
+    }
+
+    /**
+     * Test that a connection reporting no token size is reported rather than
+     * read as a token size small enough, since the proof was not obtained.
+     *
+     * @return void
+     */
+    public function testReportsATokenSizeTheConnectionDoesNotReport(): void
+    {
+        $connection = $this->catalogue(
+            [['name' => 'users_name_ngram', 'columns' => ['name'], 'type' => 'FULLTEXT']],
+            '  FULLTEXT KEY `users_name_ngram` (`name`) /*!50100 WITH PARSER `ngram` */',
+            null,
+        );
+
+        self::assertSame(
+            ['name' => ['The connection did not report the number of characters its n-gram parser tokenises at a time, '
+                . 'so a term short enough to produce no tokens cannot be ruled out']],
+            (new MySqlNgramSearchDriver)->indexDefects(SearchStrategy::SUBSTRING, ['name'], 'users', $connection),
+        );
     }
 
     /**
@@ -245,7 +422,7 @@ final class MySqlNgramSearchDriverTest extends TestCase
     {
         $connection = $this->catalogue([['name' => 'users_name_status_index', 'columns' => ['name', 'status'], 'type' => 'BTREE']]);
 
-        self::assertSame([], (new MySqlNgramSearchDriver)->indexDefects(SearchStrategy::PREFIX, 'name', 'users', $connection));
+        self::assertSame([], (new MySqlNgramSearchDriver)->indexDefects(SearchStrategy::PREFIX, ['name'], 'users', $connection));
     }
 
     /**
@@ -259,8 +436,8 @@ final class MySqlNgramSearchDriverTest extends TestCase
         $connection = $this->catalogue([['name' => 'users_status_name_index', 'columns' => ['status', 'name'], 'type' => 'BTREE']]);
 
         self::assertSame(
-            ['Column "name" is declared searchable with the "prefix" strategy, which needs an index leading with that column on table "users"'],
-            (new MySqlNgramSearchDriver)->indexDefects(SearchStrategy::PREFIX, 'name', 'users', $connection),
+            ['name' => ['Column "name" is declared searchable with the "prefix" strategy, which needs an index leading with that column on table "users"']],
+            (new MySqlNgramSearchDriver)->indexDefects(SearchStrategy::PREFIX, ['name'], 'users', $connection),
         );
     }
 
@@ -281,13 +458,15 @@ final class MySqlNgramSearchDriverTest extends TestCase
     }
 
     /**
-     * Build a connection reporting the given indexes and table definition.
+     * Build a connection reporting the given indexes, table definition, and
+     * n-gram token size.
      *
      * @param  array<int, array<string, mixed>>  $indexes
      * @param  string  $definition
+     * @param  int|null  $tokenSize
      * @return \Illuminate\Database\Connection
      */
-    private function catalogue(array $indexes = [], string $definition = ''): Connection
+    private function catalogue(array $indexes = [], string $definition = '', ?int $tokenSize = 2): Connection
     {
         $schema = self::createStub(SchemaBuilder::class);
 
@@ -298,11 +477,13 @@ final class MySqlNgramSearchDriverTest extends TestCase
         $connection->method('getTablePrefix')->willReturn('');
         $connection->method('getSchemaBuilder')->willReturn($schema);
         $connection->method('getQueryGrammar')->willReturn(new MySqlGrammar($connection));
-        $connection->method('selectOne')->willReturnCallback(function (string $statement) use ($definition): object {
+        $connection->method('selectOne')->willReturnCallback(function (string $statement) use ($definition, $tokenSize): object {
 
             $this->statements[] = $statement;
 
-            return (object) ['Create Table' => $definition];
+            return $statement === self::TOKEN_SIZE_STATEMENT
+                ? (object) ['size' => $tokenSize]
+                : (object) ['Create Table' => $definition];
         });
 
         return $connection;

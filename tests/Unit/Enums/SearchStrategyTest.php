@@ -61,31 +61,6 @@ final class SearchStrategyTest extends TestCase
     }
 
     /**
-     * Provide every case with whether it needs a specialised index.
-     *
-     * @return iterable<string, array{\SineMacula\ApiToolkit\Enums\SearchStrategy, bool}>
-     */
-    public static function specialisedIndexProvider(): iterable
-    {
-        yield 'exact' => [SearchStrategy::EXACT, false];
-        yield 'prefix' => [SearchStrategy::PREFIX, false];
-        yield 'substring' => [SearchStrategy::SUBSTRING, true];
-    }
-
-    /**
-     * Test that only the anywhere-match needs an index beyond a plain B-tree.
-     *
-     * @param  \SineMacula\ApiToolkit\Enums\SearchStrategy  $strategy
-     * @param  bool  $expected
-     * @return void
-     */
-    #[DataProvider('specialisedIndexProvider')]
-    public function testReportsWhetherASpecialisedIndexIsNeeded(SearchStrategy $strategy, bool $expected): void
-    {
-        self::assertSame($expected, $strategy->requiresSpecialisedIndex());
-    }
-
-    /**
      * Provide every case with whether it matches by pattern.
      *
      * @return iterable<string, array{\SineMacula\ApiToolkit\Enums\SearchStrategy, bool}>

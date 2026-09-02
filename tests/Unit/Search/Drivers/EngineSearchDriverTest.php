@@ -117,8 +117,23 @@ final class EngineSearchDriverTest extends TestCase
     }
 
     /**
+     * Test that a strategy declaring no column emits nothing, so an empty set
+     * cannot reach a driver as a predicate with no operand.
+     *
+     * @return void
+     */
+    public function testAStrategyDeclaringNoColumnEmitsNoPredicate(): void
+    {
+        $query = $this->apply([], SearchStrategy::SUBSTRING);
+
+        self::assertSame('select * from "users"', $query->toSql());
+        self::assertSame([], $query->getBindings());
+    }
+
+    /**
      * Test that the index proof is dispatched to the half the strategy belongs
-     * to.
+     * to, and that the defect it reports comes back under the column it was
+     * asked about.
      *
      * @return void
      */
@@ -126,21 +141,79 @@ final class EngineSearchDriverTest extends TestCase
     {
         $driver = new StubEngineSearchDriver;
 
-        self::assertSame([StubEngineSearchDriver::PREFIX_DEFECT], $driver->indexDefects(SearchStrategy::PREFIX, 'name', 'users', $this->catalogue()));
-        self::assertSame([StubEngineSearchDriver::SUBSTRING_DEFECT], $driver->indexDefects(SearchStrategy::SUBSTRING, 'name', 'users', $this->catalogue()));
+        self::assertSame(
+            ['name' => [StubEngineSearchDriver::PREFIX_DEFECT]],
+            $driver->indexDefects(SearchStrategy::PREFIX, ['name'], 'users', $this->catalogue()),
+        );
+        self::assertSame(
+            ['name' => [StubEngineSearchDriver::SUBSTRING_DEFECT]],
+            $driver->indexDefects(SearchStrategy::SUBSTRING, ['name'], 'users', $this->catalogue()),
+        );
     }
 
     /**
      * Test that an ordinary index leading with the column proves an equality
-     * match.
+     * match, and that it is found among the several indexes a real table
+     * carries rather than only as the first one reported.
      *
      * @return void
      */
     public function testAcceptsAnEqualityMatchLedByAnOrdinaryIndex(): void
     {
-        $connection = $this->catalogue([['name' => 'users_name_index', 'columns' => ['name', 'status'], 'type' => 'BTREE']]);
+        $connection = $this->catalogue([
+            ['name' => 'users_pkey', 'columns' => ['id'], 'type' => 'btree'],
+            ['name' => 'users_email_unique', 'columns' => ['email'], 'type' => 'btree'],
+            ['name' => 'users_name_index', 'columns' => ['name', 'status'], 'type' => 'BTREE'],
+        ]);
 
-        self::assertSame([], (new StubEngineSearchDriver)->indexDefects(SearchStrategy::EXACT, 'name', 'users', $connection));
+        self::assertSame([], (new StubEngineSearchDriver)->indexDefects(SearchStrategy::EXACT, ['name'], 'users', $connection));
+    }
+
+    /**
+     * Test that each declared column is proved on its own, so one column left
+     * unindexed is reported without hiding the one beside it that is.
+     *
+     * @return void
+     */
+    public function testProvesEachDeclaredColumnSeparately(): void
+    {
+        $connection = $this->catalogue([['name' => 'users_name_index', 'columns' => ['name'], 'type' => 'btree']]);
+
+        self::assertSame(
+            ['email' => ['Column "email" is declared searchable with the "exact" strategy, which needs an index leading with that column on table "users"']],
+            (new StubEngineSearchDriver)->indexDefects(SearchStrategy::EXACT, ['name', 'email'], 'users', $connection),
+        );
+    }
+
+    /**
+     * Test that a column left unindexed is reported for each of them rather
+     * than for the first alone, so a resource declaring two of them learns
+     * about both in one pass.
+     *
+     * @return void
+     */
+    public function testReportsEveryUnindexedColumn(): void
+    {
+        $defects = (new StubEngineSearchDriver)->indexDefects(SearchStrategy::EXACT, ['name', 'email'], 'users', $this->catalogue());
+
+        self::assertSame(['name', 'email'], array_keys($defects));
+    }
+
+    /**
+     * Test that a catalogue entry the connection reports unreadably is stepped
+     * over rather than ending the read, so an index declared after it is still
+     * found.
+     *
+     * @return void
+     */
+    public function testReadsPastAnUnreadableCatalogueEntry(): void
+    {
+        $connection = $this->catalogue([
+            'users_name_index',
+            ['name' => 'users_name_index', 'columns' => ['name'], 'type' => 'btree'],
+        ]);
+
+        self::assertSame([], (new StubEngineSearchDriver)->indexDefects(SearchStrategy::EXACT, ['name'], 'users', $connection));
     }
 
     /**
@@ -154,8 +227,8 @@ final class EngineSearchDriverTest extends TestCase
         $connection = $this->catalogue([['name' => 'users_status_name_index', 'columns' => ['status', 'name'], 'type' => 'btree']]);
 
         self::assertSame(
-            ['Column "name" is declared searchable with the "exact" strategy, which needs an index leading with that column on table "users"'],
-            (new StubEngineSearchDriver)->indexDefects(SearchStrategy::EXACT, 'name', 'users', $connection),
+            ['name' => ['Column "name" is declared searchable with the "exact" strategy, which needs an index leading with that column on table "users"']],
+            (new StubEngineSearchDriver)->indexDefects(SearchStrategy::EXACT, ['name'], 'users', $connection),
         );
     }
 
@@ -169,7 +242,7 @@ final class EngineSearchDriverTest extends TestCase
     {
         $connection = $this->catalogue([['name' => 'users_name_ngram', 'columns' => ['name'], 'type' => 'fulltext']]);
 
-        self::assertCount(1, (new StubEngineSearchDriver)->indexDefects(SearchStrategy::EXACT, 'name', 'users', $connection));
+        self::assertCount(1, (new StubEngineSearchDriver)->indexDefects(SearchStrategy::EXACT, ['name'], 'users', $connection));
     }
 
     /**
@@ -187,21 +260,23 @@ final class EngineSearchDriverTest extends TestCase
             ['name' => 'users_name_index', 'columns' => ['name'], 'type' => null],
         ]);
 
-        self::assertCount(1, (new StubEngineSearchDriver)->indexDefects(SearchStrategy::EXACT, 'name', 'users', $connection));
+        self::assertCount(1, (new StubEngineSearchDriver)->indexDefects(SearchStrategy::EXACT, ['name'], 'users', $connection));
     }
 
     /**
      * Test that an index carrying a column the connection reports as something
      * other than a name is passed over whole, rather than being read as though
-     * the columns after it had moved up.
+     * the columns after it had moved up. The unreadable entry trails the one
+     * the proof would otherwise accept, so passing over the index and merely
+     * skipping the entry give different answers.
      *
      * @return void
      */
     public function testPassesOverAnIndexCarryingAColumnThatIsNotAName(): void
     {
-        $connection = $this->catalogue([['name' => 'users_name_index', 'columns' => [1, 'name'], 'type' => 'btree']]);
+        $connection = $this->catalogue([['name' => 'users_name_index', 'columns' => ['name', 1], 'type' => 'btree']]);
 
-        self::assertCount(1, (new StubEngineSearchDriver)->indexDefects(SearchStrategy::EXACT, 'name', 'users', $connection));
+        self::assertCount(1, (new StubEngineSearchDriver)->indexDefects(SearchStrategy::EXACT, ['name'], 'users', $connection));
     }
 
     /**

@@ -392,11 +392,14 @@ return [
     | may serve it. A search matches only the columns the root resource declares
     | searchable, and never follows a relation.
     |
-    | `min_length` is the shortest term accepted. The shipped value of 3 is
-    | measured rather than chosen: a shorter term is answered incorrectly by one
-    | supported engine and read out of a full table scan by another, and neither
-    | is visible to the client. It may be raised but not lowered - a smaller
-    | value is held at 3.
+    | `min_word_length` is the shortest word a term may carry. The shipped value
+    | of 3 is measured rather than chosen: a shorter word is answered
+    | incorrectly by one supported engine and read out of a full table scan by
+    | another, and neither is visible to the client. It is applied per word
+    | rather than to the whole term because that is the unit an index answers -
+    | a full-text parser drops a word below its token size from the phrase and
+    | matches more rows than a pattern comparison would. It may be raised but
+    | not lowered; a smaller value is held at 3.
     |
     | `max_length` and `max_words` bound the other end, capping the work a
     | single term may ask an index for. All three are refusals: a term outside
@@ -412,28 +415,34 @@ return [
     | one off means an unprovable declaration fails loudly instead.
     |
     | A driver ships for MySQL, PostgreSQL, and SQLite, registered against the
-    | names those connections report. Any other connection is unregistered and
-    | refuses a search until a driver is registered for it against the
-    | SearchDriverRegistry, rather than being served by a grammar it does not
-    | speak.
+    | names those connections report. MariaDB reports its own name and has no
+    | n-gram parser, so it is not one of them. Any other connection is
+    | unregistered and refuses a search until a driver is registered for it
+    | against the SearchDriverRegistry, rather than being served by a grammar it
+    | does not speak.
     |
     | The indexes the shipped drivers prove a declaration against belong to the
-    | application's own migrations, and validation reports a declaration with
-    | none behind it. On MySQL an anywhere-match needs a FULLTEXT index over
-    | that column alone, created WITH PARSER ngram; on PostgreSQL a prefix match
-    | and an anywhere-match both need a trigram index over the column, which
-    | needs the pg_trgm extension installed first. An equality match needs an
-    | ordinary index leading with the column on either engine.
+    | application's own migrations, and both validation and the first search of
+    | a worker process report a declaration with none behind it. On MySQL the
+    | columns declared for an anywhere-match are matched together and need one
+    | FULLTEXT index over exactly that column list, created WITH PARSER ngram,
+    | and an anywhere-match may not be declared beside another strategy, since
+    | a full-text match OR-ed with another predicate reads the whole table. On
+    | PostgreSQL a prefix match and an anywhere-match both need a trigram index
+    | over the column, which needs the pg_trgm extension installed first. An
+    | equality match needs an ordinary index leading with the column on either
+    | engine.
     |
-    | Note that schema validation is disabled in production by default, so a
-    | missing index first shows up as a failed search request after a deploy
-    | unless `api-toolkit:validate-schemas` runs in the build.
+    | Schema validation is disabled in production by default, so the index proof
+    | is repeated on the first search each worker process serves and memoised
+    | from there. Running `api-toolkit:validate-schemas` in the build turns the
+    | same defect into a failed build rather than a failed request.
     |
     */
 
     'search' => [
 
-        'min_length' => env('API_TOOLKIT_SEARCH_MIN_LENGTH', 3),
+        'min_word_length' => env('API_TOOLKIT_SEARCH_MIN_WORD_LENGTH', 3),
 
         'max_length' => env('API_TOOLKIT_SEARCH_MAX_LENGTH', 128),
 

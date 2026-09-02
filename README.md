@@ -92,16 +92,35 @@ the connection's registered search driver refuses a shape it cannot serve from a
 scanning the table. Terms are bounded by `api-toolkit.search`; one outside the bounds is rejected with a
 422 rather than trimmed to fit.
 
-The shortest term accepted is three characters, and configuration may raise that floor but never lower it.
-It is measured rather than chosen: below three, MySQL matches nothing at all once the term is shorter than
-the index token size, and PostgreSQL answers correctly but by reading the whole table. Both failures are
-invisible in the response, which is the hazard the parameter exists to close.
+The shortest word accepted is three characters, and configuration may raise that floor but never lower it.
+It is measured rather than chosen: below three, MySQL matches nothing at all once the word is shorter than
+the index token size, and PostgreSQL answers correctly but by reading the whole table. The floor is applied
+to every word rather than to the term as a whole, because a word beneath it is dropped from a full-text
+phrase - widening the match - while a pattern comparison keeps it, so the two engines would answer the same
+request with different rows. Both failures are invisible in the response, which is the hazard the parameter
+exists to close.
 
-Drivers ship for MySQL, PostgreSQL, and SQLite. The index each declaration is served from belongs to your
-own migration - a `FULLTEXT` index created `WITH PARSER ngram` on MySQL, a `gin_trgm_ops` index on
-PostgreSQL - and `php artisan api-toolkit:validate-schemas` reports a declaration with no index behind it.
-Run it in CI: schema validation is disabled in production by default, so a missing index otherwise first
-appears as a failed search request after a deploy.
+Drivers ship for MySQL, PostgreSQL, and SQLite, registered against the names those connections report.
+MariaDB reports its own name and has no n-gram parser, so it is not among them and a search on such a
+connection fails until you register a driver for it yourself. The index each declaration is served from
+belongs to your own migration:
+
+- On MySQL, the columns declared for an anywhere-match are matched together through a single `MATCH`, which
+  needs one `FULLTEXT` index over exactly that column list, created `WITH PARSER ngram`. A full-text match
+  OR-ed with any other predicate loses the full-text access path and reads the whole table, so an
+  anywhere-match may not be declared beside another strategy on this connection; the driver refuses that
+  combination rather than serving it as a scan.
+- On PostgreSQL, a prefix match and an anywhere-match each need a `gin_trgm_ops` index over their own
+  column, and the `pg_trgm` extension installed. Several columns may be declared under different
+  strategies, because the planner combines the index scans behind a disjunction.
+- An exact match needs an ordinary index leading with the column on either engine.
+
+The proof is read twice. `php artisan api-toolkit:validate-schemas` reports a declaration with no index
+behind it, which is the cheapest place to find one - run it in CI. Because schema validation is disabled in
+production by default, the same proof is also taken on the first search each worker process serves and
+memoised from there, so a missing index refuses the request instead of quietly reading the table: on
+PostgreSQL a missing trigram index is not an error at all, and the search would otherwise return the right
+rows out of a sequential scan for as long as the index stayed missing.
 
 **Sorting** - sort by one or more columns, with optional direction:
 
@@ -163,7 +182,7 @@ class UserResource extends ApiResource
     {
         return Field::set(
             Field::scalar('name')->filterable()->sortable()->searchable(SearchStrategy::SUBSTRING),
-            Field::scalar('email')->filterable()->searchable(SearchStrategy::PREFIX),
+            Field::scalar('email')->filterable()->searchable(SearchStrategy::SUBSTRING),
             Field::timestamp('created_at')->sortable(),
             Field::compute('full_name', 'getFullName'),
             Relation::to('organization', OrganizationResource::class)->traversable(),

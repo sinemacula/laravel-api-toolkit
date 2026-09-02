@@ -2,7 +2,7 @@
 
 declare(strict_types = 1);
 
-namespace SineMacula\ApiToolkit\Search\Drivers;
+namespace Tests\Fixtures\Search;
 
 use Illuminate\Database\Connection;
 use Illuminate\Database\Eloquent\Builder;
@@ -11,25 +11,20 @@ use SineMacula\ApiToolkit\Enums\SearchStrategy;
 use SineMacula\ApiToolkit\Search\SearchTerm;
 
 /**
- * Search driver serving a SQLite connection as a development connection.
+ * Fixture search driver counting how often its index proof was asked for.
  *
- * SQLite carries neither the trigram operator classes nor the n-gram parser the
- * other engines answer a substring from, and it offers no way to prove that a
- * pattern comparison rode an index rather than the table. The driver therefore
- * serves every strategy - so a term behaves the same way locally as it does in
- * front of an engine that indexes it - and claims no proof for any of them.
- *
- * Claiming nothing is what makes the limitation visible: a declaration on this
- * connection is refused unless the connection is listed among the ones where
- * the index proof is waived, which the shipped configuration does for SQLite
- * alone. A connection serving traffic that is listed there has reinstated the
- * full-table scan the declaration exists to prevent.
+ * Lets a memo over the proof be asserted by what reached the driver rather than
+ * by what came back from it, which is the only way to tell a cached answer from
+ * one taken again.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-final class SqliteSearchDriver implements SearchDriver
+final class CountingSearchDriver implements SearchDriver
 {
+    /** @var int The number of times the index proof was asked for */
+    public int $calls = 0;
+
     /**
      * Return the match strategies this driver implements.
      *
@@ -64,7 +59,7 @@ final class SqliteSearchDriver implements SearchDriver
     #[\Override]
     public function canVerifyIndexBacking(SearchStrategy $strategy, Connection $connection): bool
     {
-        return false;
+        return true;
     }
 
     /**
@@ -80,6 +75,8 @@ final class SqliteSearchDriver implements SearchDriver
     #[\Override]
     public function indexDefects(SearchStrategy $strategy, array $columns, string $table, Connection $connection): array
     {
+        $this->calls++;
+
         return [];
     }
 
@@ -93,23 +90,5 @@ final class SqliteSearchDriver implements SearchDriver
      * @return void
      */
     #[\Override]
-    public function apply(Builder $query, array $columns, SearchTerm $term, SearchStrategy $strategy): void
-    {
-        foreach ($columns as $column) {
-
-            $qualified = $query->qualifyColumn($column);
-
-            if (!$strategy->matchesByPattern()) {
-
-                $query->orWhere($qualified, '=', $term->pattern($strategy));
-
-                continue;
-            }
-
-            $query->orWhereRaw(
-                sprintf('%s like ? escape \'%s\'', $query->getQuery()->getGrammar()->wrap($qualified), SearchTerm::ESCAPE_CHARACTER),
-                [$term->pattern($strategy)],
-            );
-        }
-    }
+    public function apply(Builder $query, array $columns, SearchTerm $term, SearchStrategy $strategy): void {}
 }

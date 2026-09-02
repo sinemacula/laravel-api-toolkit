@@ -15,8 +15,8 @@ use SineMacula\ApiToolkit\Search\SearchTerm;
  *
  * The prefix and anywhere halves emit fragments that differ from one another
  * and from the equality match the base owns, and each reports a defect naming
- * itself, so the base's dispatch is provable without asserting through the
- * grammar of any one engine.
+ * itself against every column it was asked about, so the base's dispatch is
+ * provable without asserting through the grammar of any one engine.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -30,60 +30,64 @@ final class StubEngineSearchDriver extends EngineSearchDriver
     public const string SUBSTRING_DEFECT = 'anywhere half';
 
     /**
-     * Apply the prefix match for a single column.
+     * Apply the prefix match for the declared columns.
      *
      * @param  \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>  $query
-     * @param  string  $column
+     * @param  array<int, string>  $columns
      * @param  \SineMacula\ApiToolkit\Search\SearchTerm  $term
-     * @return \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>
+     * @return void
      */
     #[\Override]
-    protected function applyPrefixMatch(Builder $query, string $column, SearchTerm $term): Builder
+    protected function applyPrefixMatch(Builder $query, array $columns, SearchTerm $term): void
     {
-        return $query->orWhereRaw(sprintf('%s like ?', $this->wrap($query, $column)), [$term->pattern(SearchStrategy::PREFIX)]);
+        foreach ($columns as $column) {
+            $query->orWhereRaw(sprintf('%s like ?', $this->wrap($query, $column)), [$term->pattern(SearchStrategy::PREFIX)]);
+        }
     }
 
     /**
-     * Apply the anywhere-match for a single column.
+     * Apply the anywhere-match for the declared columns.
      *
      * @param  \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>  $query
-     * @param  string  $column
+     * @param  array<int, string>  $columns
      * @param  \SineMacula\ApiToolkit\Search\SearchTerm  $term
-     * @return \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>
+     * @return void
      */
     #[\Override]
-    protected function applySubstringMatch(Builder $query, string $column, SearchTerm $term): Builder
+    protected function applySubstringMatch(Builder $query, array $columns, SearchTerm $term): void
     {
-        return $query->orWhereRaw(sprintf('instr(%s, ?) > 0', $this->wrap($query, $column)), [$term->value()]);
+        foreach ($columns as $column) {
+            $query->orWhereRaw(sprintf('instr(%s, ?) > 0', $this->wrap($query, $column)), [$term->value()]);
+        }
     }
 
     /**
-     * Return what the column is missing before a prefix match can be served
-     * from an index.
+     * Return what the columns are missing before a prefix match can be served
+     * from an index, keyed by column.
      *
-     * @param  string  $column
+     * @param  array<int, string>  $columns
      * @param  string  $table
      * @param  \Illuminate\Database\Connection  $connection
-     * @return array<int, string>
+     * @return array<string, array<int, string>>
      */
     #[\Override]
-    protected function prefixIndexDefects(string $column, string $table, Connection $connection): array
+    protected function prefixIndexDefects(array $columns, string $table, Connection $connection): array
     {
-        return [self::PREFIX_DEFECT];
+        return array_fill_keys($columns, [self::PREFIX_DEFECT]);
     }
 
     /**
-     * Return what the column is missing before an anywhere-match can be served
-     * from an index.
+     * Return what the columns are missing before an anywhere-match can be
+     * served from an index, keyed by column.
      *
-     * @param  string  $column
+     * @param  array<int, string>  $columns
      * @param  string  $table
      * @param  \Illuminate\Database\Connection  $connection
-     * @return array<int, string>
+     * @return array<string, array<int, string>>
      */
     #[\Override]
-    protected function substringIndexDefects(string $column, string $table, Connection $connection): array
+    protected function substringIndexDefects(array $columns, string $table, Connection $connection): array
     {
-        return [self::SUBSTRING_DEFECT];
+        return array_fill_keys($columns, [self::SUBSTRING_DEFECT]);
     }
 }

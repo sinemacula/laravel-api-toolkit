@@ -27,8 +27,8 @@ use Tests\TestCase;
 #[CoversClass(SearchTerm::class)]
 final class SearchTermTest extends TestCase
 {
-    /** @var string The whole rejection message for a term below the minimum length */
-    private const string TOO_SHORT = 'The search term must be at least 3 characters.';
+    /** @var string The whole rejection message for a term carrying a word below the minimum length */
+    private const string TOO_SHORT = 'Every word in the search term must be at least 3 characters.';
 
     /** @var string The whole rejection message for a term above the maximum length */
     private const string TOO_LONG = 'The search term may not be longer than 128 characters.';
@@ -88,6 +88,34 @@ final class SearchTermTest extends TestCase
     public function testTermBelowTheMinimumLengthIsRejected(): void
     {
         $this->assertRejects('ab', self::TOO_SHORT);
+    }
+
+    /**
+     * Test that a multi-word term is measured word by word, at exactly the
+     * minimum and one character below it: the bound is what each engine
+     * answers, and a word beneath it is dropped from the phrase by one engine
+     * and read out of the whole table by the other.
+     *
+     * @return void
+     *
+     * @throws \Illuminate\Validation\ValidationException
+     */
+    public function testEveryWordOfAMultiWordTermIsMeasuredAgainstTheMinimum(): void
+    {
+        self::assertSame('abc def', SearchTerm::from('abc def')->value());
+
+        $this->assertRejects('abc de', self::TOO_SHORT);
+    }
+
+    /**
+     * Test that a term long enough overall is still rejected when one of its
+     * words is not, so the two engines cannot answer it with different rows.
+     *
+     * @return void
+     */
+    public function testShortWordIsRejectedEvenWhereTheWholeTermClearsTheMinimum(): void
+    {
+        $this->assertRejects('a bc', self::TOO_SHORT);
     }
 
     /**
@@ -187,10 +215,10 @@ final class SearchTermTest extends TestCase
      */
     public function testConfiguredMinimumLengthAboveTheFloorIsEnforced(): void
     {
-        Config::set('api-toolkit.search.min_length', 5);
+        Config::set('api-toolkit.search.min_word_length', 5);
 
         self::assertSame('abcde', SearchTerm::from('abcde')->value());
-        $this->assertRejects('abcd', 'The search term must be at least 5 characters.');
+        $this->assertRejects('abcd', 'Every word in the search term must be at least 5 characters.');
     }
 
     /**
@@ -201,7 +229,7 @@ final class SearchTermTest extends TestCase
      */
     public function testConfiguredMinimumLengthBelowTheFloorIsHeldAtTheFloor(): void
     {
-        Config::set('api-toolkit.search.min_length', 1);
+        Config::set('api-toolkit.search.min_word_length', 1);
 
         $this->assertRejects('ab', self::TOO_SHORT);
     }
@@ -248,7 +276,7 @@ final class SearchTermTest extends TestCase
      */
     public function testFractionalBoundIsTruncatedToAWholeNumber(): void
     {
-        Config::set('api-toolkit.search.min_length', '4.7');
+        Config::set('api-toolkit.search.min_word_length', '4.7');
 
         self::assertSame('abcd', SearchTerm::from('abcd')->value());
     }
@@ -351,29 +379,32 @@ final class SearchTermTest extends TestCase
     }
 
     /**
-     * Test that a double quote carried by the term is dropped rather than
-     * ending the phrase and leaving the remainder to be read as operators.
+     * Test that a double quote carried by the term is dropped once, during
+     * normalisation, so it can neither end the phrase it is wrapped in nor
+     * leave one rendering matching a character the other has thrown away.
      *
      * @return void
      *
      * @throws \Illuminate\Validation\ValidationException
      */
-    public function testPhraseDropsAnEmbeddedDoubleQuote(): void
+    public function testDropsThePhraseDelimiterFromEveryRendering(): void
     {
-        self::assertSame('"ab smith"', SearchTerm::from('a"b smith')->phrase());
+        $term = SearchTerm::from('ab"cd smith');
+
+        self::assertSame('abcd smith', $term->value());
+        self::assertSame('"abcd smith"', $term->phrase());
+        self::assertSame('%abcd smith%', $term->pattern(SearchStrategy::SUBSTRING));
     }
 
     /**
-     * Test that a term of nothing but delimiters yields an empty phrase, which
-     * matches no rows rather than every row.
+     * Test that a term of nothing but delimiters normalises to nothing and is
+     * rejected, rather than reaching an engine as a phrase matching no rows.
      *
      * @return void
-     *
-     * @throws \Illuminate\Validation\ValidationException
      */
-    public function testPhraseOfOnlyDelimitersIsEmpty(): void
+    public function testTermOfOnlyDelimitersIsRejected(): void
     {
-        self::assertSame('""', SearchTerm::from('"""')->phrase());
+        $this->assertRejects('"""', self::TOO_SHORT);
     }
 
     /**

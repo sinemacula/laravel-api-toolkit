@@ -24,7 +24,7 @@ use SineMacula\ApiToolkit\Search\SearchTerm;
 final class SearchDriverTest extends TestCase
 {
     /**
-     * Test that the contract declares the four capabilities a driver has to
+     * Test that the contract declares the five capabilities a driver has to
      * answer for, and nothing that would tie it to one engine.
      *
      * @return void
@@ -35,7 +35,7 @@ final class SearchDriverTest extends TestCase
 
         self::assertTrue($reflection->isInterface());
         self::assertSame(
-            ['supportedStrategies', 'canVerifyIndexBacking', 'indexDefects', 'apply'],
+            ['supportedStrategies', 'combinationDefect', 'canVerifyIndexBacking', 'indexDefects', 'apply'],
             array_map(static fn (\ReflectionMethod $method): string => $method->getName(), $reflection->getMethods()),
         );
     }
@@ -75,21 +75,40 @@ final class SearchDriverTest extends TestCase
     }
 
     /**
-     * Test that the index proof is asked for one column of one table, so the
-     * defects it reports name the declaration that carries them rather than the
-     * resource as a whole.
+     * Test that the combination is asked about the declared strategies alone,
+     * with no connection to read, so the answer is the constant a request path
+     * can afford to ask for on every search.
      *
      * @return void
      */
-    public function testIndexDefectsTakesAStrategyColumnTableAndConnection(): void
+    public function testCombinationDefectTakesTheStrategiesAndReturnsANullableString(): void
+    {
+        $method     = (new \ReflectionClass(SearchDriver::class))->getMethod('combinationDefect');
+        $parameters = $method->getParameters();
+
+        self::assertCount(1, $parameters);
+        self::assertSame('strategies', $parameters[0]->getName());
+        self::assertSame('array', $this->parameterTypeName($parameters[0]));
+        self::assertSame('string', $this->returnTypeName($method));
+        self::assertTrue($method->getReturnType()?->allowsNull());
+    }
+
+    /**
+     * Test that the index proof is asked for the columns of one table declared
+     * with one strategy, so an engine resolving that set through a single index
+     * is asked about the set rather than about each column apart.
+     *
+     * @return void
+     */
+    public function testIndexDefectsTakesAStrategyColumnsTableAndConnection(): void
     {
         $method     = (new \ReflectionClass(SearchDriver::class))->getMethod('indexDefects');
         $parameters = $method->getParameters();
 
         self::assertCount(4, $parameters);
         self::assertSame(SearchStrategy::class, $this->parameterTypeName($parameters[0]));
-        self::assertSame('column', $parameters[1]->getName());
-        self::assertSame('string', $this->parameterTypeName($parameters[1]));
+        self::assertSame('columns', $parameters[1]->getName());
+        self::assertSame('array', $this->parameterTypeName($parameters[1]));
         self::assertSame('table', $parameters[2]->getName());
         self::assertSame('string', $this->parameterTypeName($parameters[2]));
         self::assertSame(Connection::class, $this->parameterTypeName($parameters[3]));

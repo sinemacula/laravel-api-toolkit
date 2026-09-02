@@ -53,17 +53,13 @@ final class SearchPlanTest extends TestCase
     }
 
     /**
-     * Test that a plan carries every declared column keyed to the strategy it
-     * was declared with.
+     * Test that a plan built from a declaring schema is not reported empty.
      *
      * @return void
      */
     public function testCarriesEveryDeclaredColumn(): void
     {
-        $plan = SearchPlan::build($this->makeSchema());
-
-        self::assertSame(['id', 'name', 'email'], $plan->columns());
-        self::assertFalse($plan->isEmpty());
+        self::assertFalse(SearchPlan::build($this->makeSchema())->isEmpty());
     }
 
     /**
@@ -134,7 +130,6 @@ final class SearchPlanTest extends TestCase
         $plan = SearchPlan::build(new CompiledSchema([], []));
 
         self::assertTrue($plan->isEmpty());
-        self::assertSame([], $plan->columns());
         self::assertSame([], $plan->strategies());
     }
 
@@ -148,7 +143,7 @@ final class SearchPlanTest extends TestCase
     {
         $plan = SearchPlan::for(SearchableUserResource::class);
 
-        self::assertSame(['id', 'name', 'email'], $plan->columns());
+        self::assertSame(['id'], $plan->columnsFor(SearchStrategy::EXACT));
         self::assertSame(['name', 'email'], $plan->columnsFor(SearchStrategy::SUBSTRING));
     }
 

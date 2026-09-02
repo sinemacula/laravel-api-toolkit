@@ -17,6 +17,7 @@ use SineMacula\ApiToolkit\Search\SearchTerm;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Resources\FilterableUserResource;
 use Tests\Fixtures\Resources\SearchableFilterableUserResource;
+use Tests\Fixtures\Resources\SearchableUserResource;
 use Tests\Fixtures\Search\PatternSearchDriver;
 use Tests\TestCase;
 
@@ -100,7 +101,7 @@ final class SearchApplierTest extends TestCase
      */
     public function testCombinesEveryDeclaredStrategyWithDisjunction(): void
     {
-        $query = $this->applySearch();
+        $query = $this->applySearch(SearchableUserResource::class);
 
         /** @var \Illuminate\Database\Query\Builder $group */
         $group = $query->getQuery()->wheres[0]['query'];
@@ -118,9 +119,12 @@ final class SearchApplierTest extends TestCase
      */
     public function testBindsThePatternDeclaredForEachColumn(): void
     {
-        $query = $this->applySearch();
+        $query = $this->applySearch(SearchableUserResource::class);
 
-        self::assertSame(['%' . self::TERM . '%', self::TERM . '%'], $query->getQuery()->getBindings());
+        self::assertSame(
+            [self::TERM, '%' . self::TERM . '%', '%' . self::TERM . '%'],
+            $query->getQuery()->getBindings(),
+        );
     }
 
     /**
@@ -196,11 +200,11 @@ final class SearchApplierTest extends TestCase
 
         $this->expectException(UnservableSearchException::class);
         $this->expectExceptionMessage(sprintf(
-            'The search driver registered for the "%s" connection does not implement the "prefix" match strategy this resource declares.',
+            'The search driver registered for the "%s" connection does not implement the "exact" match strategy this resource declares.',
             $this->connection(),
         ));
 
-        $this->applier->apply(User::query(), $this->term(), SearchableFilterableUserResource::class);
+        $this->applier->apply(User::query(), $this->term(), SearchableUserResource::class);
     }
 
     /**
@@ -221,6 +225,83 @@ final class SearchApplierTest extends TestCase
             . 'List the connection under api-toolkit.search.unverified_connections to serve it regardless.',
             $this->connection(),
         ));
+
+        $this->applier->apply(User::query(), $this->term(), SearchableFilterableUserResource::class);
+    }
+
+    /**
+     * Test that a driver refusing the declared strategies together is refused
+     * with the whole reason, before any predicate is emitted.
+     *
+     * @return void
+     */
+    public function testStrategiesTheDriverCannotServeTogetherThrows(): void
+    {
+        $this->registerDriver(new PatternSearchDriver(null, false, [], 'they cannot share a disjunction here'));
+
+        $this->expectException(UnservableSearchException::class);
+        $this->expectExceptionMessage(sprintf(
+            'The search driver registered for the "%s" connection cannot serve the match strategies this resource declares together, '
+            . 'because they cannot share a disjunction here.',
+            $this->connection(),
+        ));
+
+        $this->applier->apply(User::query(), $this->term(), SearchableUserResource::class);
+    }
+
+    /**
+     * Test that a driver which proves index backing has its proof read on the
+     * request path, so a missing index refuses the request rather than quietly
+     * scanning where the build never ran the same check.
+     *
+     * @return void
+     */
+    public function testMissingIndexThrowsOnTheRequestPath(): void
+    {
+        Config::set('api-toolkit.search.unverified_connections', []);
+
+        $this->registerDriver(new PatternSearchDriver(null, true, ['no trigram index over "name"']));
+
+        $this->expectException(UnservableSearchException::class);
+        $this->expectExceptionMessage(sprintf(
+            'The "%s" connection carries no index serving the "substring" match strategy this resource declares, '
+            . 'so the search would scan the table: no trigram index over "name".',
+            $this->connection(),
+        ));
+
+        $this->applier->apply(User::query(), $this->term(), SearchableFilterableUserResource::class);
+    }
+
+    /**
+     * Test that a waived connection stops at the waiver rather than going on to
+     * read a proof the driver has already said it cannot give, which would turn
+     * an empty answer into a refusal.
+     *
+     * @return void
+     */
+    public function testWaivedConnectionDoesNotGoOnToReadTheProof(): void
+    {
+        $this->registerDriver(new PatternSearchDriver(null, false, ['no index over "name"']));
+
+        $query = User::query();
+
+        $this->applier->apply($query, $this->term(), SearchableFilterableUserResource::class);
+
+        self::assertCount(1, $query->getQuery()->wheres);
+    }
+
+    /**
+     * Test that the waiver excuses only a driver that cannot prove anything:
+     * one that can is held to its proof even where the connection is listed,
+     * since the waiver exists for an absent proof rather than a failed one.
+     *
+     * @return void
+     */
+    public function testWaiverDoesNotExcuseADriverThatCanProve(): void
+    {
+        $this->registerDriver(new PatternSearchDriver(null, true, ['no trigram index over "name"']));
+
+        $this->expectException(UnservableSearchException::class);
 
         $this->applier->apply(User::query(), $this->term(), SearchableFilterableUserResource::class);
     }
@@ -289,15 +370,16 @@ final class SearchApplierTest extends TestCase
     /**
      * Apply the term to a fresh user query through a registered driver.
      *
+     * @param  string|null  $resourceClass
      * @return \Illuminate\Database\Eloquent\Builder<\Tests\Fixtures\Models\User>
      */
-    private function applySearch(): Builder
+    private function applySearch(?string $resourceClass = null): Builder
     {
         $this->registerDriver();
 
         $query = User::query();
 
-        $this->applier->apply($query, $this->term(), SearchableFilterableUserResource::class);
+        $this->applier->apply($query, $this->term(), $resourceClass ?? SearchableFilterableUserResource::class);
 
         return $query;
     }

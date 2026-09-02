@@ -64,4 +64,38 @@ final class UnservableSearchExceptionTest extends TestCase
             $exception->getMessage(),
         );
     }
+
+    /**
+     * Test that an unservable combination names the connection and carries the
+     * driver's whole reason for refusing the declared strategies together.
+     *
+     * @return void
+     */
+    public function testUnservableCombinationCarriesTheDriverReason(): void
+    {
+        $exception = UnservableSearchException::unservableCombination('mysql', 'they cannot share a disjunction');
+
+        self::assertSame(
+            'The search driver registered for the "mysql" connection cannot serve the match strategies this resource declares together, '
+            . 'because they cannot share a disjunction.',
+            $exception->getMessage(),
+        );
+    }
+
+    /**
+     * Test that a missing index names the connection, the strategy, and every
+     * defect the proof reported, joined so none of them is dropped.
+     *
+     * @return void
+     */
+    public function testMissingIndexCarriesEveryDefectTheProofReported(): void
+    {
+        $exception = UnservableSearchException::missingIndex('pgsql', SearchStrategy::SUBSTRING, ['no extension', 'no index']);
+
+        self::assertSame(
+            'The "pgsql" connection carries no index serving the "substring" match strategy this resource declares, '
+            . 'so the search would scan the table: no extension; no index.',
+            $exception->getMessage(),
+        );
+    }
 }

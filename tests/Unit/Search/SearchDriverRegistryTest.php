@@ -170,6 +170,19 @@ final class SearchDriverRegistryTest extends TestCase
             }
 
             /**
+             * Return why the declared strategies cannot be resolved from an
+             * index together, or null when they can.
+             *
+             * @param  array<int, \SineMacula\ApiToolkit\Enums\SearchStrategy>  $strategies
+             * @return string|null
+             */
+            #[\Override]
+            public function combinationDefect(array $strategies): ?string
+            {
+                return null;
+            }
+
+            /**
              * Determine whether index backing can be proven on the connection.
              *
              * @param  \SineMacula\ApiToolkit\Enums\SearchStrategy  $strategy
@@ -183,17 +196,17 @@ final class SearchDriverRegistryTest extends TestCase
             }
 
             /**
-             * Return what the column is missing before the strategy can be
-             * served from an index on this connection.
+             * Return what the columns are missing before the strategy can be
+             * served from an index on this connection, keyed by column.
              *
              * @param  \SineMacula\ApiToolkit\Enums\SearchStrategy  $strategy
-             * @param  string  $column
+             * @param  array<int, string>  $columns
              * @param  string  $table
              * @param  \Illuminate\Database\Connection  $connection
-             * @return array<int, string>
+             * @return array<string, array<int, string>>
              */
             #[\Override]
-            public function indexDefects(SearchStrategy $strategy, string $column, string $table, Connection $connection): array
+            public function indexDefects(SearchStrategy $strategy, array $columns, string $table, Connection $connection): array
             {
                 return [];
             }

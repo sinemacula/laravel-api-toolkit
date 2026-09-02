@@ -12,9 +12,10 @@ use SineMacula\ApiToolkit\Schema\Field;
  * Fixture user resource declaring both a search surface and a query surface.
  *
  * The two surfaces overlap without matching: `name` and `email` are searchable
- * under different strategies, `status` is filterable but never searchable, so a
+ * under the anywhere-match, `status` is filterable but never searchable, so a
  * search and a filter can be proven to compose rather than to substitute for
- * one another.
+ * one another. Both searchable columns carry the one strategy, which is what
+ * every supported engine resolves from an index in a single predicate.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -38,7 +39,7 @@ final class SearchableFilterableUserResource extends ApiResource
         return Field::set(
             Field::scalar('id')->filterable()->sortable(),
             Field::scalar('name')->filterable()->searchable(SearchStrategy::SUBSTRING),
-            Field::scalar('email')->searchable(SearchStrategy::PREFIX),
+            Field::scalar('email')->searchable(SearchStrategy::SUBSTRING),
             Field::scalar('status')->filterable(),
         );
     }

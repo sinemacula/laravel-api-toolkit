@@ -31,6 +31,7 @@ final readonly class PatternSearchDriver implements SearchDriver
      * @param  array<int, \SineMacula\ApiToolkit\Enums\SearchStrategy>|null  $strategies
      * @param  bool  $verifiesIndexBacking
      * @param  array<int, string>  $indexDefects
+     * @param  string|null  $combinationDefect
      * @return void
      */
     public function __construct(
@@ -43,7 +44,23 @@ final readonly class PatternSearchDriver implements SearchDriver
 
         /** The defects the driver reports for every column it is asked to prove */
         private array $indexDefects = [],
+
+        /** The reason the driver gives for refusing the declared strategies together */
+        private ?string $combinationDefect = null,
     ) {}
+
+    /**
+     * Return why the driver cannot resolve the given strategies from an index
+     * when they are declared together, or null when it can.
+     *
+     * @param  array<int, \SineMacula\ApiToolkit\Enums\SearchStrategy>  $strategies
+     * @return string|null
+     */
+    #[\Override]
+    public function combinationDefect(array $strategies): ?string
+    {
+        return $this->combinationDefect;
+    }
 
     /**
      * Return the match strategies this driver implements.
@@ -70,19 +87,19 @@ final readonly class PatternSearchDriver implements SearchDriver
     }
 
     /**
-     * Return what the column is missing before the strategy can be served from
-     * an index on this connection.
+     * Return what the columns are missing before the strategy can be served
+     * from an index on this connection, keyed by column.
      *
      * @param  \SineMacula\ApiToolkit\Enums\SearchStrategy  $strategy
-     * @param  string  $column
+     * @param  array<int, string>  $columns
      * @param  string  $table
      * @param  \Illuminate\Database\Connection  $connection
-     * @return array<int, string>
+     * @return array<string, array<int, string>>
      */
     #[\Override]
-    public function indexDefects(SearchStrategy $strategy, string $column, string $table, Connection $connection): array
+    public function indexDefects(SearchStrategy $strategy, array $columns, string $table, Connection $connection): array
     {
-        return $this->indexDefects;
+        return $this->indexDefects === [] ? [] : array_fill_keys($columns, $this->indexDefects);
     }
 
     /**

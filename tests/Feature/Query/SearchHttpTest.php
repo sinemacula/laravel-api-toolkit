@@ -150,7 +150,7 @@ final class SearchHttpTest extends TestCase
 
         $response->assertStatus(422);
         $response->assertJsonPath('error.status', 422);
-        $response->assertJsonPath('error.meta.search.0', 'The search term must be at least 3 characters.');
+        $response->assertJsonPath('error.meta.search.0', 'Every word in the search term must be at least 3 characters.');
     }
 
     /**
@@ -165,11 +165,9 @@ final class SearchHttpTest extends TestCase
 
     /**
      * Test that an empty term is rejected rather than treated as no search at
-     * all, which would answer with the whole table.
-     *
-     * Which bound catches it depends on the application: a stack that converts
-     * empty input to null fails the shape, one that does not fails the length.
-     * Both refuse, and both name the parameter.
+     * all, which would answer with the whole table. The stack converts empty
+     * input to null before the parameter is read, so it is the shape that
+     * refuses it rather than the length.
      *
      * @return void
      */
@@ -178,12 +176,12 @@ final class SearchHttpTest extends TestCase
         $response = $this->getJson('/users?search=');
 
         $response->assertStatus(422);
-
-        self::assertArrayHasKey('search', (array) $response->json('error.meta'));
+        $response->assertJsonPath('error.meta.search.0', 'The search field must be a string.');
     }
 
     /**
-     * Test that a term supplied as an array is rejected on its shape.
+     * Test that a term supplied as an array is rejected on its shape, before
+     * anything tries to read it as a term.
      *
      * @return void
      */
@@ -192,8 +190,7 @@ final class SearchHttpTest extends TestCase
         $response = $this->getJson('/users?search[]=smith');
 
         $response->assertStatus(422);
-
-        self::assertArrayHasKey('search', (array) $response->json('error.meta'));
+        $response->assertJsonPath('error.meta.search.0', 'The search field must be a string.');
     }
 
     /**

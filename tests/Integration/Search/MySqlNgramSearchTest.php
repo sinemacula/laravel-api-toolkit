@@ -4,6 +4,7 @@ declare(strict_types = 1);
 
 namespace Tests\Integration\Search;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Search\Drivers\MySqlNgramSearchDriver;
@@ -31,25 +32,43 @@ final class MySqlNgramSearchTest extends EngineSearchTestCase
     }
 
     /**
-     * Drop the index serving the anywhere-match on the searched column.
+     * Assert that the engine answers the query through the full-text access
+     * path rather than by reading the table.
+     *
+     * The access path is the whole point: this engine resolves a full-text
+     * match against its index only where the match is not one branch of a
+     * disjunction, and a match it cannot resolve that way is read row by row
+     * while returning the same rows.
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder<\Tests\Fixtures\Models\User>  $query
+     * @return void
+     */
+    #[\Override]
+    protected function assertIndexBacked(Builder $query): void
+    {
+        self::assertSame('fulltext', $this->plan($query, 'type'));
+    }
+
+    /**
+     * Drop the index serving the anywhere-match on the searched columns.
      *
      * @return void
      */
     #[\Override]
     protected function dropAnywhereMatchIndex(): void
     {
-        DB::statement('alter table `users` drop index `users_name_ngram`');
+        DB::statement('alter table `users` drop index `users_search_ngram`');
     }
 
     /**
-     * Recreate the index serving the anywhere-match on the searched column.
+     * Recreate the index serving the anywhere-match on the searched columns.
      *
      * @return void
      */
     #[\Override]
     protected function createAnywhereMatchIndex(): void
     {
-        DB::statement('alter table `users` add fulltext index `users_name_ngram` (`name`) with parser ngram');
+        DB::statement('alter table `users` add fulltext index `users_search_ngram` (`name`, `email`) with parser ngram');
     }
 
     /**
@@ -60,7 +79,7 @@ final class MySqlNgramSearchTest extends EngineSearchTestCase
     #[\Override]
     protected function anywhereMatchDefect(): string
     {
-        return 'Column "name" is declared searchable with the "substring" strategy, which needs a full-text index over that column '
-            . 'alone on table "users", created with the ngram parser';
+        return 'The columns declared with the "substring" strategy ("name", "email") are matched together, '
+            . 'so table "users" needs one full-text index over exactly that column list, created with the ngram parser';
     }
 }

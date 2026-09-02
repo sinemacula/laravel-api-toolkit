@@ -41,6 +41,19 @@ abstract class EngineSearchDriver implements SearchDriver
     }
 
     /**
+     * Return why the driver cannot resolve the given strategies from an index
+     * when they are declared together, or null when it can.
+     *
+     * @param  array<int, \SineMacula\ApiToolkit\Enums\SearchStrategy>  $strategies
+     * @return string|null
+     */
+    #[\Override]
+    public function combinationDefect(array $strategies): ?string
+    {
+        return null;
+    }
+
+    /**
      * Determine whether the driver can prove the strategy is index backed.
      *
      * @param  \SineMacula\ApiToolkit\Enums\SearchStrategy  $strategy
@@ -54,22 +67,22 @@ abstract class EngineSearchDriver implements SearchDriver
     }
 
     /**
-     * Return what the column is missing before the strategy can be served from
-     * an index on this connection.
+     * Return what the columns are missing before the strategy can be served
+     * from an index on this connection, keyed by column.
      *
      * @param  \SineMacula\ApiToolkit\Enums\SearchStrategy  $strategy
-     * @param  string  $column
+     * @param  array<int, string>  $columns
      * @param  string  $table
      * @param  \Illuminate\Database\Connection  $connection
-     * @return array<int, string>
+     * @return array<string, array<int, string>>
      */
     #[\Override]
-    public function indexDefects(SearchStrategy $strategy, string $column, string $table, Connection $connection): array
+    public function indexDefects(SearchStrategy $strategy, array $columns, string $table, Connection $connection): array
     {
         return match ($strategy) {
-            SearchStrategy::EXACT     => $this->btreeIndexDefects(SearchStrategy::EXACT, $column, $table, $connection),
-            SearchStrategy::PREFIX    => $this->prefixIndexDefects($column, $table, $connection),
-            SearchStrategy::SUBSTRING => $this->substringIndexDefects($column, $table, $connection),
+            SearchStrategy::EXACT     => $this->btreeIndexDefects(SearchStrategy::EXACT, $columns, $table, $connection),
+            SearchStrategy::PREFIX    => $this->prefixIndexDefects($columns, $table, $connection),
+            SearchStrategy::SUBSTRING => $this->substringIndexDefects($columns, $table, $connection),
         };
     }
 
@@ -85,69 +98,72 @@ abstract class EngineSearchDriver implements SearchDriver
     #[\Override]
     public function apply(Builder $query, array $columns, SearchTerm $term, SearchStrategy $strategy): void
     {
-        foreach ($columns as $column) {
-
-            match ($strategy) {
-                SearchStrategy::EXACT     => $this->applyExactMatch($query, $column, $term),
-                SearchStrategy::PREFIX    => $this->applyPrefixMatch($query, $column, $term),
-                SearchStrategy::SUBSTRING => $this->applySubstringMatch($query, $column, $term),
-            };
+        if ($columns === []) {
+            return;
         }
+
+        match ($strategy) {
+            SearchStrategy::EXACT     => $this->applyExactMatch($query, $columns, $term),
+            SearchStrategy::PREFIX    => $this->applyPrefixMatch($query, $columns, $term),
+            SearchStrategy::SUBSTRING => $this->applySubstringMatch($query, $columns, $term),
+        };
     }
 
     /**
-     * Apply the prefix match for a single column.
+     * Apply the prefix match for the declared columns.
      *
      * @param  \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>  $query
-     * @param  string  $column
+     * @param  array<int, string>  $columns
      * @param  \SineMacula\ApiToolkit\Search\SearchTerm  $term
-     * @return \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>
+     * @return void
      */
-    abstract protected function applyPrefixMatch(Builder $query, string $column, SearchTerm $term): Builder;
+    abstract protected function applyPrefixMatch(Builder $query, array $columns, SearchTerm $term): void;
 
     /**
-     * Apply the anywhere-match for a single column.
+     * Apply the anywhere-match for the declared columns.
      *
      * @param  \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>  $query
-     * @param  string  $column
+     * @param  array<int, string>  $columns
      * @param  \SineMacula\ApiToolkit\Search\SearchTerm  $term
-     * @return \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>
+     * @return void
      */
-    abstract protected function applySubstringMatch(Builder $query, string $column, SearchTerm $term): Builder;
+    abstract protected function applySubstringMatch(Builder $query, array $columns, SearchTerm $term): void;
 
     /**
-     * Return what the column is missing before a prefix match can be served
-     * from an index.
+     * Return what the columns are missing before a prefix match can be served
+     * from an index, keyed by column.
      *
-     * @param  string  $column
+     * @param  array<int, string>  $columns
      * @param  string  $table
      * @param  \Illuminate\Database\Connection  $connection
-     * @return array<int, string>
+     * @return array<string, array<int, string>>
      */
-    abstract protected function prefixIndexDefects(string $column, string $table, Connection $connection): array;
+    abstract protected function prefixIndexDefects(array $columns, string $table, Connection $connection): array;
 
     /**
-     * Return what the column is missing before an anywhere-match can be served
-     * from an index.
+     * Return what the columns are missing before an anywhere-match can be
+     * served from an index, keyed by column.
      *
-     * @param  string  $column
+     * @param  array<int, string>  $columns
      * @param  string  $table
      * @param  \Illuminate\Database\Connection  $connection
-     * @return array<int, string>
+     * @return array<string, array<int, string>>
      */
-    abstract protected function substringIndexDefects(string $column, string $table, Connection $connection): array;
+    abstract protected function substringIndexDefects(array $columns, string $table, Connection $connection): array;
 
     /**
-     * Apply the equality match for a single column.
+     * Apply the equality match for the declared columns.
      *
      * @param  \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>  $query
-     * @param  string  $column
+     * @param  array<int, string>  $columns
      * @param  \SineMacula\ApiToolkit\Search\SearchTerm  $term
-     * @return \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>
+     * @return void
      */
-    protected function applyExactMatch(Builder $query, string $column, SearchTerm $term): Builder
+    protected function applyExactMatch(Builder $query, array $columns, SearchTerm $term): void
     {
-        return $query->orWhere($query->qualifyColumn($column), '=', $term->pattern(SearchStrategy::EXACT));
+        foreach ($columns as $column) {
+            $query->orWhere($query->qualifyColumn($column), '=', $term->pattern(SearchStrategy::EXACT));
+        }
     }
 
     /**
@@ -164,27 +180,34 @@ abstract class EngineSearchDriver implements SearchDriver
     }
 
     /**
-     * Return what the column is missing before a strategy an ordinary index
-     * serves can be read from one.
+     * Return what the columns are missing before a strategy an ordinary index
+     * serves can be read from one, keyed by column.
      *
      * @param  \SineMacula\ApiToolkit\Enums\SearchStrategy  $strategy
-     * @param  string  $column
+     * @param  array<int, string>  $columns
      * @param  string  $table
      * @param  \Illuminate\Database\Connection  $connection
-     * @return array<int, string>
+     * @return array<string, array<int, string>>
      */
-    protected function btreeIndexDefects(SearchStrategy $strategy, string $column, string $table, Connection $connection): array
+    protected function btreeIndexDefects(SearchStrategy $strategy, array $columns, string $table, Connection $connection): array
     {
-        if ($this->hasBtreeIndexLeadingWith($column, $table, $connection)) {
-            return [];
+        $defects = [];
+
+        foreach ($columns as $column) {
+
+            if ($this->hasBtreeIndexLeadingWith($column, $table, $connection)) {
+                continue;
+            }
+
+            $defects[$column] = [sprintf(
+                'Column "%s" is declared searchable with the "%s" strategy, which needs an index leading with that column on table "%s"',
+                $column,
+                $strategy->value,
+                $table,
+            )];
         }
 
-        return [sprintf(
-            'Column "%s" is declared searchable with the "%s" strategy, which needs an index leading with that column on table "%s"',
-            $column,
-            $strategy->value,
-            $table,
-        )];
+        return $defects;
     }
 
     /**

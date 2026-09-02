@@ -42,6 +42,9 @@ final class PostgresTrigramSearchDriverTest extends TestCase
     /** @var array<int, string> The statements the driver read the catalogue with */
     private array $statements = [];
 
+    /** @var array<int, array<int, mixed>> The bindings the driver read the catalogue with */
+    private array $bindings = [];
+
     /**
      * Register a PostgreSQL connection the driver compiles its predicates
      * against.
@@ -54,6 +57,7 @@ final class PostgresTrigramSearchDriverTest extends TestCase
         parent::setUp();
 
         $this->statements = [];
+        $this->bindings   = [];
 
         Config::set('database.connections.' . self::CONNECTION, [
             'driver'   => 'pgsql',
@@ -154,20 +158,24 @@ final class PostgresTrigramSearchDriverTest extends TestCase
 
     /**
      * Test that an index built over a trigram operator class proves a pattern
-     * match.
+     * match, and that it is found among the several a real table carries.
      *
      * @return void
      */
     public function testAcceptsATrigramIndexOverTheColumn(): void
     {
-        $connection = $this->catalogue(['CREATE INDEX users_name_trgm ON public.users USING gin (name gin_trgm_ops)'], true);
+        $connection = $this->catalogue([
+            'CREATE UNIQUE INDEX users_pkey ON public.users USING btree (id)',
+            'CREATE INDEX users_name_trgm ON public.users USING gin (name gin_trgm_ops)',
+        ], true);
 
-        self::assertSame([], (new PostgresTrigramSearchDriver)->indexDefects(SearchStrategy::SUBSTRING, 'name', 'users', $connection));
+        self::assertSame([], (new PostgresTrigramSearchDriver)->indexDefects(SearchStrategy::SUBSTRING, ['name'], 'users', $connection));
     }
 
     /**
      * Test that the extension is asked for before the indexes it would have to
-     * have created, and that both are read from the connection's own catalogue.
+     * have created, that both are read from the connection's own catalogue, and
+     * that each statement carries the value its placeholder stands for.
      *
      * @return void
      */
@@ -175,12 +183,16 @@ final class PostgresTrigramSearchDriverTest extends TestCase
     {
         $connection = $this->catalogue(['CREATE INDEX users_name_trgm ON public.users USING gin (name gin_trgm_ops)'], true);
 
-        (new PostgresTrigramSearchDriver)->indexDefects(SearchStrategy::SUBSTRING, 'name', 'users', $connection);
+        (new PostgresTrigramSearchDriver)->indexDefects(SearchStrategy::SUBSTRING, ['name'], 'users', $connection);
 
         self::assertSame([
             'select 1 from pg_extension where extname = ?',
-            'select indexdef from pg_indexes where schemaname = current_schema() and tablename = ?',
+            'select pg_get_indexdef(i.indexrelid) as indexdef from pg_index i '
+                . 'join pg_class c on c.oid = i.indrelid '
+                . 'join pg_namespace n on n.oid = c.relnamespace '
+                . 'where n.nspname = current_schema() and c.relname = ? and i.indisvalid and i.indpred is null',
         ], $this->statements);
+        self::assertSame([['pg_trgm'], ['users']], $this->bindings);
     }
 
     /**
@@ -193,7 +205,7 @@ final class PostgresTrigramSearchDriverTest extends TestCase
     {
         $connection = $this->catalogue(['CREATE INDEX users_name_trgm ON public.users USING gist ("name" gist_trgm_ops)'], true);
 
-        self::assertSame([], (new PostgresTrigramSearchDriver)->indexDefects(SearchStrategy::PREFIX, 'name', 'users', $connection));
+        self::assertSame([], (new PostgresTrigramSearchDriver)->indexDefects(SearchStrategy::PREFIX, ['name'], 'users', $connection));
     }
 
     /**
@@ -206,7 +218,23 @@ final class PostgresTrigramSearchDriverTest extends TestCase
     {
         $connection = $this->catalogue(['CREATE INDEX users_search_trgm ON public.users USING gin (name gin_trgm_ops, email gin_trgm_ops)'], true);
 
-        self::assertSame([], (new PostgresTrigramSearchDriver)->indexDefects(SearchStrategy::SUBSTRING, 'email', 'users', $connection));
+        self::assertSame([], (new PostgresTrigramSearchDriver)->indexDefects(SearchStrategy::SUBSTRING, ['name', 'email'], 'users', $connection));
+    }
+
+    /**
+     * Test that each declared column is proved on its own, so the one an index
+     * covers is accepted while the one beside it is reported.
+     *
+     * @return void
+     */
+    public function testProvesEachDeclaredColumnSeparately(): void
+    {
+        $connection = $this->catalogue(['CREATE INDEX users_name_trgm ON public.users USING gin (name gin_trgm_ops)'], true);
+
+        self::assertSame(
+            ['email' => ['Column "email" is declared searchable with the "substring" strategy, which needs a trigram index over that column on table "users"']],
+            (new PostgresTrigramSearchDriver)->indexDefects(SearchStrategy::SUBSTRING, ['name', 'email'], 'users', $connection),
+        );
     }
 
     /**
@@ -220,14 +248,30 @@ final class PostgresTrigramSearchDriverTest extends TestCase
         $connection = $this->catalogue(['CREATE INDEX users_name_index ON public.users USING btree (name)'], true);
 
         self::assertSame(
-            ['Column "name" is declared searchable with the "substring" strategy, which needs a trigram index over that column on table "users"'],
-            (new PostgresTrigramSearchDriver)->indexDefects(SearchStrategy::SUBSTRING, 'name', 'users', $connection),
+            ['name' => ['Column "name" is declared searchable with the "substring" strategy, which needs a trigram index over that column on table "users"']],
+            (new PostgresTrigramSearchDriver)->indexDefects(SearchStrategy::SUBSTRING, ['name'], 'users', $connection),
         );
     }
 
     /**
+     * Test that a column left without a trigram index is reported for each of
+     * them rather than for the first alone.
+     *
+     * @return void
+     */
+    public function testReportsEveryColumnWithoutATrigramIndex(): void
+    {
+        $connection = $this->catalogue(['CREATE INDEX users_name_index ON public.users USING btree (name)'], true);
+
+        $defects = (new PostgresTrigramSearchDriver)->indexDefects(SearchStrategy::SUBSTRING, ['name', 'email'], 'users', $connection);
+
+        self::assertSame(['name', 'email'], array_keys($defects));
+    }
+
+    /**
      * Test that a missing extension is reported as itself rather than as a
-     * missing index, since no index the operator creates can exist without it.
+     * missing index, since no index the operator creates can exist without it,
+     * and that it is reported against every declared column.
      *
      * @return void
      */
@@ -235,10 +279,11 @@ final class PostgresTrigramSearchDriverTest extends TestCase
     {
         $connection = $this->catalogue([], false);
 
+        $defect = 'The "substring" strategy is served by the pg_trgm extension, and that extension is not installed on this connection';
+
         self::assertSame(
-            ['Column "name" is declared searchable with the "substring" strategy, which is served by the pg_trgm extension, '
-                . 'and that extension is not installed on this connection'],
-            (new PostgresTrigramSearchDriver)->indexDefects(SearchStrategy::SUBSTRING, 'name', 'users', $connection),
+            ['name' => [$defect], 'email' => [$defect]],
+            (new PostgresTrigramSearchDriver)->indexDefects(SearchStrategy::SUBSTRING, ['name', 'email'], 'users', $connection),
         );
     }
 
@@ -252,7 +297,7 @@ final class PostgresTrigramSearchDriverTest extends TestCase
     {
         $connection = $this->catalogue([], true, [['name' => 'users_pkey', 'columns' => ['id'], 'type' => 'btree']]);
 
-        self::assertSame([], (new PostgresTrigramSearchDriver)->indexDefects(SearchStrategy::EXACT, 'id', 'users', $connection));
+        self::assertSame([], (new PostgresTrigramSearchDriver)->indexDefects(SearchStrategy::EXACT, ['id'], 'users', $connection));
     }
 
     /**
@@ -289,9 +334,10 @@ final class PostgresTrigramSearchDriverTest extends TestCase
         $connection = self::createStub(Connection::class);
 
         $connection->method('getSchemaBuilder')->willReturn($schema);
-        $connection->method('select')->willReturnCallback(function (string $query) use ($definitions, $extension): array {
+        $connection->method('select')->willReturnCallback(function (string $query, array $bindings = []) use ($definitions, $extension): array {
 
             $this->statements[] = $query;
+            $this->bindings[]   = $bindings;
 
             if (str_contains($query, 'pg_extension')) {
                 return $extension ? [(object) ['installed' => 1]] : [];

@@ -219,7 +219,7 @@ final class ApiCriteriaTest extends TestCase
         self::assertCount(2, $wheres);
         self::assertSame('Nested', $wheres[0]['type']);
         self::assertSame('Nested', $wheres[1]['type']);
-        self::assertSame(['%smith%', 'smith%', 'active'], $query->getQuery()->getBindings());
+        self::assertSame(['%smith%', '%smith%', 'active'], $query->getQuery()->getBindings());
     }
 
     /**

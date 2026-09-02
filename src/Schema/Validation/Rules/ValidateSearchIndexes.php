@@ -23,10 +23,10 @@ use SineMacula\ApiToolkit\Search\SearchDriverRegistry;
  * declared with a strategy no index answers fails the build rather than the
  * first request that searches it.
  *
- * The check reads the connection's catalogue, which is why it lives here rather
- * than in the request path: the proof is paid once, at boot or in a build, not
- * on every search. A resource declaring nothing searchable is left alone and
- * the connection is never touched.
+ * The columns declared with one strategy are proved together, because an engine
+ * may resolve them through a single index, and the strategies are proved
+ * against one another as well: two shapes an engine serves apart are not
+ * necessarily servable side by side.
  *
  * A driver that cannot inspect its connection has proved nothing. That is
  * reported unless the connection is one where the proof is waived, so the
@@ -61,7 +61,9 @@ final readonly class ValidateSearchIndexes implements SchemaValidationRule
     #[\Override]
     public function validate(string $resourceClass, ?string $modelClass, CompiledSchema $schema): array
     {
-        if ($schema->getSearchableColumns() === [] || $modelClass === null || !is_subclass_of($modelClass, Model::class)) {
+        $declared = $this->declaredFields($schema);
+
+        if ($declared === [] || $modelClass === null || !is_subclass_of($modelClass, Model::class)) {
             return [];
         }
 
@@ -69,11 +71,29 @@ final readonly class ValidateSearchIndexes implements SchemaValidationRule
         $model = new $modelClass;
 
         $connection = $model->getConnection();
-        $table      = $model->getTable();
         $name       = $connection->getDriverName();
         $driver     = $this->drivers->has($name) ? $this->drivers->resolve($name) : null;
 
-        $errors = [];
+        $defects = $driver === null
+            ? $this->missingDriverDefects($declared, $name)
+            : $this->merge(
+                $this->combinationDefects($driver, $declared, $name),
+                $this->strategyDefects($driver, $declared, $model->getTable(), $connection),
+            );
+
+        return $this->report($resourceClass, $declared, $defects);
+    }
+
+    /**
+     * Return the searchable fields the schema declares, keyed by field key and
+     * carrying the column and strategy each was declared with.
+     *
+     * @param  \SineMacula\ApiToolkit\Schema\CompiledSchema  $schema
+     * @return array<string, array{column: string, strategy: \SineMacula\ApiToolkit\Enums\SearchStrategy}>
+     */
+    private function declaredFields(CompiledSchema $schema): array
+    {
+        $declared = [];
 
         foreach ($schema->getFieldKeys() as $key) {
 
@@ -83,7 +103,28 @@ final readonly class ValidateSearchIndexes implements SchemaValidationRule
                 continue;
             }
 
-            foreach ($this->defects($driver, $field->searchStrategy, $field->searchable, $table, $connection) as $defect) {
+            $declared[$key] = ['column' => $field->searchable, 'strategy' => $field->searchStrategy];
+        }
+
+        return $declared;
+    }
+
+    /**
+     * Turn the defects found for each field key into validation errors, in the
+     * order the fields were declared.
+     *
+     * @param  string  $resourceClass
+     * @param  array<string, array{column: string, strategy: \SineMacula\ApiToolkit\Enums\SearchStrategy}>  $declared
+     * @param  array<string, array<int, string>>  $defects
+     * @return array<int, \SineMacula\ApiToolkit\Schema\Validation\SchemaValidationError>
+     */
+    private function report(string $resourceClass, array $declared, array $defects): array
+    {
+        $errors = [];
+
+        foreach (array_keys($declared) as $key) {
+
+            foreach ($defects[$key] ?? [] as $defect) {
                 $errors[] = new SchemaValidationError(
                     resourceClass: $resourceClass,
                     fieldKey: $key,
@@ -96,39 +137,134 @@ final readonly class ValidateSearchIndexes implements SchemaValidationRule
     }
 
     /**
-     * Return every reason the declared strategy is not served from an index on
-     * this connection.
+     * Report every declared field against a connection no driver serves.
      *
-     * @param  \SineMacula\ApiToolkit\Contracts\SearchDriver|null  $driver
-     * @param  \SineMacula\ApiToolkit\Enums\SearchStrategy  $strategy
-     * @param  string  $column
+     * @param  array<string, array{column: string, strategy: \SineMacula\ApiToolkit\Enums\SearchStrategy}>  $declared
+     * @param  string  $connection
+     * @return array<string, array<int, string>>
+     */
+    private function missingDriverDefects(array $declared, string $connection): array
+    {
+        $defects = [];
+
+        foreach ($declared as $key => $field) {
+            $defects[$key] = [sprintf(
+                'Field is declared searchable against "%s", and no search driver is registered for the "%s" connection to serve it',
+                $field['column'],
+                $connection,
+            )];
+        }
+
+        return $defects;
+    }
+
+    /**
+     * Report the strategies the driver cannot resolve from an index once they
+     * are declared together, against the first field declaring one.
+     *
+     * @param  \SineMacula\ApiToolkit\Contracts\SearchDriver  $driver
+     * @param  array<string, array{column: string, strategy: \SineMacula\ApiToolkit\Enums\SearchStrategy}>  $declared
+     * @param  string  $connection
+     * @return array<string, array<int, string>>
+     */
+    private function combinationDefects(SearchDriver $driver, array $declared, string $connection): array
+    {
+        $defect = $driver->combinationDefect($this->strategies($declared));
+        $first  = array_key_first($declared);
+
+        if ($defect === null || $first === null) {
+            return [];
+        }
+
+        return [$first => [sprintf(
+            'The search surface cannot be served from an index on the "%s" connection, because %s',
+            $connection,
+            $defect,
+        )]];
+    }
+
+    /**
+     * Report what each declared strategy is missing, proving the columns behind
+     * a strategy together.
+     *
+     * @param  \SineMacula\ApiToolkit\Contracts\SearchDriver  $driver
+     * @param  array<string, array{column: string, strategy: \SineMacula\ApiToolkit\Enums\SearchStrategy}>  $declared
      * @param  string  $table
      * @param  \Illuminate\Database\Connection  $connection
-     * @return array<int, string>
+     * @return array<string, array<int, string>>
      */
-    private function defects(?SearchDriver $driver, SearchStrategy $strategy, string $column, string $table, Connection $connection): array
+    private function strategyDefects(SearchDriver $driver, array $declared, string $table, Connection $connection): array
+    {
+        $defects = [];
+
+        foreach ($this->strategies($declared) as $strategy) {
+
+            $columns = $this->columnsFor($declared, $strategy);
+            $found   = $this->defects($driver, $strategy, $columns, $table, $connection);
+
+            foreach ($declared as $key => $field) {
+
+                if ($field['strategy'] !== $strategy) {
+                    continue;
+                }
+
+                foreach ($found[$field['column']] ?? [] as $defect) {
+                    $defects[$key][] = $defect;
+                }
+            }
+        }
+
+        return $defects;
+    }
+
+    /**
+     * Merge two field-keyed defect maps, keeping the defects both carry.
+     *
+     * @param  array<string, array<int, string>>  $first
+     * @param  array<string, array<int, string>>  $second
+     * @return array<string, array<int, string>>
+     */
+    private function merge(array $first, array $second): array
+    {
+        foreach ($second as $key => $defects) {
+            $first[$key] = array_merge($first[$key] ?? [], $defects);
+        }
+
+        return $first;
+    }
+
+    /**
+     * Return every reason the columns declared with the strategy are not served
+     * from an index on this connection, keyed by column.
+     *
+     * @param  \SineMacula\ApiToolkit\Contracts\SearchDriver  $driver
+     * @param  \SineMacula\ApiToolkit\Enums\SearchStrategy  $strategy
+     * @param  array<int, string>  $columns
+     * @param  string  $table
+     * @param  \Illuminate\Database\Connection  $connection
+     * @return array<string, array<int, string>>
+     */
+    private function defects(SearchDriver $driver, SearchStrategy $strategy, array $columns, string $table, Connection $connection): array
     {
         $name = $connection->getDriverName();
 
-        if ($driver === null) {
-            return [sprintf(
-                'Field is declared searchable against "%s", and no search driver is registered for the "%s" connection to serve it',
-                $column,
-                $name,
-            )];
-        }
-
         if (!in_array($strategy, $driver->supportedStrategies(), true)) {
-            return [sprintf(
+            return array_fill_keys($columns, [sprintf(
                 'Field is declared searchable with the "%s" strategy, which the driver registered for the "%s" connection does not implement',
                 $strategy->value,
                 $name,
-            )];
+            )]);
         }
 
-        return $driver->canVerifyIndexBacking($strategy, $connection)
-            ? $this->proof($driver, $strategy, $column, $table, $connection)
-            : $this->unproven($strategy, $name);
+        if ($driver->canVerifyIndexBacking($strategy, $connection)) {
+            return $this->proof($driver, $strategy, $columns, $table, $connection);
+        }
+
+        return IndexProofWaiver::waives($name) ? [] : array_fill_keys($columns, [sprintf(
+            'Field is declared searchable with the "%s" strategy, and the driver registered for the "%s" connection cannot prove an index serves it',
+            $strategy->value,
+            $name,
+        )]);
     }
 
     /**
@@ -137,43 +273,69 @@ final readonly class ValidateSearchIndexes implements SchemaValidationRule
      *
      * @param  \SineMacula\ApiToolkit\Contracts\SearchDriver  $driver
      * @param  \SineMacula\ApiToolkit\Enums\SearchStrategy  $strategy
-     * @param  string  $column
+     * @param  array<int, string>  $columns
      * @param  string  $table
      * @param  \Illuminate\Database\Connection  $connection
-     * @return array<int, string>
+     * @return array<string, array<int, string>>
      */
-    private function proof(SearchDriver $driver, SearchStrategy $strategy, string $column, string $table, Connection $connection): array
+    private function proof(SearchDriver $driver, SearchStrategy $strategy, array $columns, string $table, Connection $connection): array
     {
         try {
-            return $driver->indexDefects($strategy, $column, $table, $connection);
+            return $driver->indexDefects($strategy, $columns, $table, $connection);
         } catch (\Throwable $exception) {
-            return [sprintf(
-                'Field is declared searchable against "%s", and the "%s" connection could not be read to prove an index serves it: %s',
-                $column,
+            return array_fill_keys($columns, [sprintf(
+                'Field is declared searchable with the "%s" strategy, and the "%s" connection could not be read to prove an index serves it: %s',
+                $strategy->value,
                 $connection->getDriverName(),
                 $exception->getMessage(),
-            )];
+            )]);
         }
     }
 
     /**
-     * Report a declaration no index is known to serve, unless the connection
-     * waives the proof.
+     * Return the distinct strategies the declared fields carry, in declaration
+     * order.
      *
-     * @param  \SineMacula\ApiToolkit\Enums\SearchStrategy  $strategy
-     * @param  string  $connection
-     * @return array<int, string>
+     * @param  array<string, array{column: string, strategy: \SineMacula\ApiToolkit\Enums\SearchStrategy}>  $declared
+     * @return array<int, \SineMacula\ApiToolkit\Enums\SearchStrategy>
      */
-    private function unproven(SearchStrategy $strategy, string $connection): array
+    private function strategies(array $declared): array
     {
-        if (IndexProofWaiver::waives($connection)) {
-            return [];
+        $strategies = [];
+
+        foreach ($declared as $field) {
+
+            if (in_array($field['strategy'], $strategies, true)) {
+                continue;
+            }
+
+            $strategies[] = $field['strategy'];
         }
 
-        return [sprintf(
-            'Field is declared searchable with the "%s" strategy, and the driver registered for the "%s" connection cannot prove an index serves it',
-            $strategy->value,
-            $connection,
-        )];
+        return $strategies;
+    }
+
+    /**
+     * Return the distinct columns declared with the given strategy, in
+     * declaration order.
+     *
+     * @param  array<string, array{column: string, strategy: \SineMacula\ApiToolkit\Enums\SearchStrategy}>  $declared
+     * @param  \SineMacula\ApiToolkit\Enums\SearchStrategy  $strategy
+     * @return array<int, string>
+     */
+    private function columnsFor(array $declared, SearchStrategy $strategy): array
+    {
+        $columns = [];
+
+        foreach ($declared as $field) {
+
+            if ($field['strategy'] !== $strategy || in_array($field['column'], $columns, true)) {
+                continue;
+            }
+
+            $columns[] = $field['column'];
+        }
+
+        return $columns;
     }
 }

@@ -28,16 +28,6 @@ enum SearchStrategy: string
     case SUBSTRING = 'substring';
 
     /**
-     * Determine whether the strategy needs an index beyond a plain B-tree.
-     *
-     * @return bool
-     */
-    public function requiresSpecialisedIndex(): bool
-    {
-        return $this === self::SUBSTRING;
-    }
-
-    /**
      * Determine whether the strategy matches by pattern rather than by
      * equality, so wildcards carried by the term have to be escaped before it
      * is bound.

@@ -12,20 +12,26 @@ use SineMacula\ApiToolkit\Search\SearchTerm;
 /**
  * Search driver serving a MySQL connection.
  *
- * An anywhere-match is emitted as a boolean-mode full-text match against a
- * column indexed with the n-gram parser, which is the only arrangement MySQL
+ * An anywhere-match is emitted as a boolean-mode full-text match against
+ * columns indexed with the n-gram parser, which is the only arrangement MySQL
  * answers a substring with from an index. The term is bound as a quoted phrase:
  * unquoted, the n-grams it decomposes into are OR-ed together and a search for
  * one word returns every row sharing any two of its characters. The default
  * parser is not an alternative - it indexes whole words, so a term inside a
  * longer word matches nothing, which is a wrong answer rather than a slow one.
  *
- * Each column is matched separately rather than through one match over the
- * declared set. MySQL resolves a match against a full-text index whose column
- * list is exactly the matched one, so a single combined match would need a
- * composite index per declared combination, and the same column declared by two
- * resources would need one index for each. A per-column index serves every
- * combination, and is what the index proof asks for.
+ * Every declared column is matched through one match over the whole set rather
+ * than through a match each. A full-text index is an access path, not a filter
+ * the optimiser can combine: two matches OR-ed together read the table row by
+ * row, and so does a match OR-ed with any other predicate. One match over the
+ * declared set keeps the access path, and MySQL resolves it against the
+ * full-text index whose column list is that same set, which is the index the
+ * proof asks for. Column order is not part of that match, so the proof compares
+ * the sets rather than the sequences.
+ *
+ * The same rule is why a substring declaration may not sit beside another
+ * strategy on this connection: the two would be OR-ed and the access path would
+ * be lost, which the driver refuses rather than serves as a scan.
  *
  * An equality or a prefix match reads an ordinary B-tree, so both are emitted
  * as plain comparisons and both are proved against an ordinary index.
@@ -42,95 +48,149 @@ final class MySqlNgramSearchDriver extends EngineSearchDriver
     private const string ESCAPE_LITERAL = SearchTerm::ESCAPE_CHARACTER . SearchTerm::ESCAPE_CHARACTER;
 
     /**
-     * Apply the prefix match for a single column.
+     * Return why the driver cannot resolve the given strategies from an index
+     * when they are declared together, or null when it can.
      *
-     * @param  \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>  $query
-     * @param  string  $column
-     * @param  \SineMacula\ApiToolkit\Search\SearchTerm  $term
-     * @return \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>
+     * @param  array<int, \SineMacula\ApiToolkit\Enums\SearchStrategy>  $strategies
+     * @return string|null
      */
     #[\Override]
-    protected function applyPrefixMatch(Builder $query, string $column, SearchTerm $term): Builder
+    public function combinationDefect(array $strategies): ?string
     {
-        return $query->orWhereRaw(
-            sprintf('%s like ? escape \'%s\'', $this->wrap($query, $column), self::ESCAPE_LITERAL),
-            [$term->pattern(SearchStrategy::PREFIX)],
+        if (!in_array(SearchStrategy::SUBSTRING, $strategies, true) || count($strategies) < 2) {
+            return null;
+        }
+
+        return sprintf(
+            'the "%s" strategy is declared alongside another strategy, and a full-text match OR-ed with any other predicate '
+            . 'loses the full-text access path and reads the whole table',
+            SearchStrategy::SUBSTRING->value,
         );
     }
 
     /**
-     * Apply the anywhere-match for a single column.
+     * Apply the prefix match for the declared columns.
      *
      * @param  \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>  $query
-     * @param  string  $column
+     * @param  array<int, string>  $columns
      * @param  \SineMacula\ApiToolkit\Search\SearchTerm  $term
-     * @return \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>
+     * @return void
      */
     #[\Override]
-    protected function applySubstringMatch(Builder $query, string $column, SearchTerm $term): Builder
+    protected function applyPrefixMatch(Builder $query, array $columns, SearchTerm $term): void
     {
-        return $query->orWhereRaw(
-            sprintf('match (%s) against (? in boolean mode)', $this->wrap($query, $column)),
+        foreach ($columns as $column) {
+
+            $query->orWhereRaw(
+                sprintf('%s like ? escape \'%s\'', $this->wrap($query, $column), self::ESCAPE_LITERAL),
+                [$term->pattern(SearchStrategy::PREFIX)],
+            );
+        }
+    }
+
+    /**
+     * Apply the anywhere-match for the declared columns.
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>  $query
+     * @param  array<int, string>  $columns
+     * @param  \SineMacula\ApiToolkit\Search\SearchTerm  $term
+     * @return void
+     */
+    #[\Override]
+    protected function applySubstringMatch(Builder $query, array $columns, SearchTerm $term): void
+    {
+        $matched = array_map(fn (string $column): string => $this->wrap($query, $column), $columns);
+
+        $query->orWhereRaw(
+            sprintf('match (%s) against (? in boolean mode)', implode(', ', $matched)),
             [$term->phrase()],
         );
     }
 
     /**
-     * Return what the column is missing before a prefix match can be served
-     * from an index.
+     * Return what the columns are missing before a prefix match can be served
+     * from an index, keyed by column.
      *
-     * @param  string  $column
+     * @param  array<int, string>  $columns
      * @param  string  $table
      * @param  \Illuminate\Database\Connection  $connection
-     * @return array<int, string>
+     * @return array<string, array<int, string>>
      */
     #[\Override]
-    protected function prefixIndexDefects(string $column, string $table, Connection $connection): array
+    protected function prefixIndexDefects(array $columns, string $table, Connection $connection): array
     {
-        return $this->btreeIndexDefects(SearchStrategy::PREFIX, $column, $table, $connection);
+        return $this->btreeIndexDefects(SearchStrategy::PREFIX, $columns, $table, $connection);
     }
 
     /**
-     * Return what the column is missing before an anywhere-match can be served
-     * from an index.
+     * Return what the columns are missing before an anywhere-match can be
+     * served from an index, keyed by column.
      *
-     * @param  string  $column
+     * The declared set is matched as a unit, so a defect found here belongs to
+     * every column in it.
+     *
+     * @param  array<int, string>  $columns
      * @param  string  $table
      * @param  \Illuminate\Database\Connection  $connection
-     * @return array<int, string>
+     * @return array<string, array<int, string>>
      */
     #[\Override]
-    protected function substringIndexDefects(string $column, string $table, Connection $connection): array
+    protected function substringIndexDefects(array $columns, string $table, Connection $connection): array
     {
-        if ($this->hasNgramIndex($column, $table, $connection)) {
-            return [];
+        $defects = [];
+        $minimum = SearchTerm::minimumWordLength();
+        $size    = $this->tokenSize($connection);
+
+        if ($size === null) {
+            $defects[] = 'The connection did not report the number of characters its n-gram parser tokenises at a time, '
+                . 'so a term short enough to produce no tokens cannot be ruled out';
+        } elseif ($size > $minimum) {
+            $defects[] = sprintf(
+                'The connection parses n-grams %d characters at a time, which is longer than the shortest word a search term '
+                . 'may carry (%d), so an accepted term would produce no tokens and match nothing',
+                $size,
+                $minimum,
+            );
         }
 
-        return [sprintf(
-            'Column "%s" is declared searchable with the "%s" strategy, which needs a full-text index over that column alone on table "%s", created with the %s parser',
-            $column,
-            SearchStrategy::SUBSTRING->value,
-            $table,
-            self::PARSER,
-        )];
+        if (!$this->hasNgramIndex($columns, $table, $connection)) {
+            $defects[] = sprintf(
+                'The columns declared with the "%s" strategy ("%s") are matched together, so table "%s" needs one full-text '
+                . 'index over exactly that column list, created with the %s parser',
+                SearchStrategy::SUBSTRING->value,
+                implode('", "', $columns),
+                $table,
+                self::PARSER,
+            );
+        }
+
+        return $defects === [] ? [] : array_fill_keys($columns, $defects);
     }
 
     /**
-     * Determine whether the column carries a full-text index of its own that
-     * was created with the n-gram parser.
+     * Determine whether the declared columns carry a full-text index over
+     * exactly that set, created with the n-gram parser.
      *
-     * @param  string  $column
+     * @param  array<int, string>  $columns
      * @param  string  $table
      * @param  \Illuminate\Database\Connection  $connection
      * @return bool
      */
-    private function hasNgramIndex(string $column, string $table, Connection $connection): bool
+    private function hasNgramIndex(array $columns, string $table, Connection $connection): bool
     {
+        $declared = $columns;
+
+        sort($declared);
+
         $definition = $this->tableDefinition($table, $connection);
 
         foreach ($this->indexes($table, $connection) as $index) {
 
-            if ($index['type'] === 'fulltext' && $index['columns'] === [$column] && $this->usesNgramParser($index['name'], $definition)) {
+            $covered = $index['columns'];
+
+            sort($covered);
+
+            if ($index['type'] === 'fulltext' && $covered === $declared && $this->usesNgramParser($index['name'], $definition)) {
                 return true;
             }
         }
@@ -158,6 +218,21 @@ final class MySqlNgramSearchDriver extends EngineSearchDriver
         );
 
         return preg_match($pattern, $definition) === 1;
+    }
+
+    /**
+     * Return the number of characters the n-gram parser tokenises at a time, or
+     * null when the connection did not report it.
+     *
+     * @param  \Illuminate\Database\Connection  $connection
+     * @return int|null
+     */
+    private function tokenSize(Connection $connection): ?int
+    {
+        $row  = (array) $connection->selectOne('select @@ngram_token_size as size');
+        $size = $row['size'] ?? null;
+
+        return is_numeric($size) ? (int) $size : null;
     }
 
     /**

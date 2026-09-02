@@ -639,38 +639,52 @@ Declare which fields the term is matched against, and how, in the resource schem
     public static function schema(): array
     {
         return Field::set(
-            Field::scalar('reference')->searchable(SearchStrategy::EXACT),
-            Field::scalar('email')->searchable(SearchStrategy::PREFIX),
             Field::scalar('name')->searchable(SearchStrategy::SUBSTRING),
+            Field::scalar('email')->searchable(SearchStrategy::SUBSTRING),
         );
     }
 
 The search applies to the columns of the requested resource only and never traverses a relation. Terms are
 bounded by the new `api-toolkit.search` config block, and a term outside those bounds is rejected with a
-`422`. The shortest term accepted is three characters, and configuration may raise that floor but never
-lower it: below three, MySQL matches nothing once the term is shorter than the index token size and
+`422`. The shortest word accepted is three characters, and configuration may raise that floor but never
+lower it: below three, MySQL matches nothing once the word is shorter than the index token size and
 PostgreSQL answers correctly but by reading the whole table, and neither failure is visible in the
-response.
+response. The floor applies to each word, not to the term as a whole, because a word beneath it is dropped
+from a full-text phrase while a pattern comparison keeps it, and the two engines would then answer the same
+request with different rows.
 
-**The indexes are yours to create.** A driver ships for MySQL, PostgreSQL, and SQLite, and each proves a
-declaration against the live schema rather than emitting a predicate that scans. The migration creating the
+**One strategy per surface on MySQL.** A full-text match OR-ed with any other predicate loses the full-text
+access path and reads the whole table, so the MySQL driver refuses a surface declaring an anywhere-match
+beside another strategy rather than serving it as a scan. Declare every searchable column of a resource
+with the same strategy there, or keep the anywhere-match to its own resource. PostgreSQL has no such
+restriction: the planner combines the index scans behind a disjunction.
+
+**The indexes are yours to create.** A driver ships for MySQL, PostgreSQL, and SQLite, registered against
+the names those connections report, and each proves a declaration against the live schema rather than
+emitting a predicate that scans. MariaDB reports its own name and has no n-gram parser, so no driver is
+registered for it and a search there fails until you register one yourself. The migration creating the
 index belongs to your application:
 
-    -- MySQL: an anywhere-match, per declared column
-    ALTER TABLE users ADD FULLTEXT INDEX users_name_ngram (name) WITH PARSER ngram;
+    -- MySQL: an anywhere-match, over exactly the columns declared for it
+    ALTER TABLE users ADD FULLTEXT INDEX users_search_ngram (name, email) WITH PARSER ngram;
 
     -- PostgreSQL: a prefix match and an anywhere-match, per declared column
     CREATE EXTENSION IF NOT EXISTS pg_trgm;
     CREATE INDEX users_name_trgm ON users USING gin (name gin_trgm_ops);
+    CREATE INDEX users_email_trgm ON users USING gin (email gin_trgm_ops);
 
-An exact match needs only an ordinary index leading with the column. SQLite carries neither index kind, so
-it is treated as a development connection: it serves every strategy, proves none of them, and is listed
-under `api-toolkit.search.unverified_connections` for exactly that reason. Listing a connection that serves
+MySQL resolves a match only against a full-text index whose column list is exactly the matched one, which
+is why the index covers the declared set rather than one column each. An exact match needs only an ordinary
+index leading with the column. SQLite carries neither index kind, so it is treated as a development
+connection: it serves every strategy, proves none of them, and is listed under
+`api-toolkit.search.unverified_connections` for exactly that reason. Listing a connection that serves
 traffic there reinstates the full-table scan the declaration exists to prevent.
 
-Run `php artisan api-toolkit:validate-schemas` in your build. Schema validation is disabled in production by
-default, so a declaration with no index behind it otherwise first appears as a failed search request after a
-deploy.
+Run `php artisan api-toolkit:validate-schemas` in your build, which is the cheapest place to find a missing
+index. Because schema validation is disabled in production by default, the same proof is also taken on the
+first search each worker process serves and memoised from there, so a missing index refuses the request
+rather than reading the table behind it: on PostgreSQL a missing trigram index is not an error, and the
+search would otherwise return the right rows out of a sequential scan indefinitely.
 
 **Action required.** Replace client calls using `$like` with `?search=`, having declared the fields it may
 match. Where the old behaviour is genuinely wanted -- an unindexed partial match on an arbitrary filterable

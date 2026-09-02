@@ -16,6 +16,7 @@ use SineMacula\ApiToolkit\Http\Resources\Concerns\EagerLoadPlanner;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\FieldResolver;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\ValueResolver;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
+use SineMacula\ApiToolkit\Search\IndexProof;
 use SineMacula\ApiToolkit\Search\SearchPlan;
 use Tests\Fixtures\Support\FunctionOverrides;
 
@@ -57,6 +58,7 @@ abstract class TestCase extends OrchestraTestCase
         EagerLoadPlanner::clearCache();
         SchemaCompiler::clearCache();
         SearchPlan::clearCache();
+        IndexProof::clearCache();
 
         Relation::morphMap([], false);
         Relation::requireMorphMap(false);
@@ -385,8 +387,10 @@ abstract class TestCase extends OrchestraTestCase
      *
      * The declared columns live on the users table, and the index each match
      * strategy needs is written in a dialect only its own engine speaks, so the
-     * statements are issued per driver. SQLite carries neither index kind and
-     * is left alone, which is why it is a development connection here.
+     * statements are issued per driver. MySQL matches the anywhere-match
+     * columns together and so takes one index over both; PostgreSQL matches
+     * each on its own and so takes one each. SQLite carries neither index kind
+     * and is left alone, which is why it is a development connection here.
      *
      * @return void
      */
@@ -396,8 +400,7 @@ abstract class TestCase extends OrchestraTestCase
 
         if ($driver === 'mysql') {
 
-            DB::statement('alter table `users` add fulltext index `users_name_ngram` (`name`) with parser ngram');
-            DB::statement('alter table `users` add fulltext index `users_email_ngram` (`email`) with parser ngram');
+            DB::statement('alter table `users` add fulltext index `users_search_ngram` (`name`, `email`) with parser ngram');
 
             return;
         }

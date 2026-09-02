@@ -21,6 +21,10 @@ use SineMacula\ApiToolkit\Search\SearchTerm;
  * folds case. One index type per pattern strategy also leaves the operator with
  * one thing to create.
  *
+ * Each column carries its own index and each is matched on its own, because
+ * this engine combines the bitmaps of several index scans behind a disjunction
+ * rather than losing the index to it.
+ *
  * An equality match reads the column as it is stored, so it is emitted as a
  * plain comparison and proved against an ordinary index.
  *
@@ -37,111 +41,124 @@ final class PostgresTrigramSearchDriver extends EngineSearchDriver
     public const string EXTENSION = 'pg_trgm';
 
     /**
-     * Apply the prefix match for a single column.
+     * Apply the prefix match for the declared columns.
      *
      * @param  \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>  $query
-     * @param  string  $column
+     * @param  array<int, string>  $columns
      * @param  \SineMacula\ApiToolkit\Search\SearchTerm  $term
-     * @return \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>
+     * @return void
      */
     #[\Override]
-    protected function applyPrefixMatch(Builder $query, string $column, SearchTerm $term): Builder
+    protected function applyPrefixMatch(Builder $query, array $columns, SearchTerm $term): void
     {
-        return $this->applyPatternMatch($query, $column, $term, SearchStrategy::PREFIX);
+        $this->applyPatternMatch($query, $columns, $term, SearchStrategy::PREFIX);
     }
 
     /**
-     * Apply the anywhere-match for a single column.
+     * Apply the anywhere-match for the declared columns.
      *
      * @param  \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>  $query
-     * @param  string  $column
+     * @param  array<int, string>  $columns
      * @param  \SineMacula\ApiToolkit\Search\SearchTerm  $term
-     * @return \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>
+     * @return void
      */
     #[\Override]
-    protected function applySubstringMatch(Builder $query, string $column, SearchTerm $term): Builder
+    protected function applySubstringMatch(Builder $query, array $columns, SearchTerm $term): void
     {
-        return $this->applyPatternMatch($query, $column, $term, SearchStrategy::SUBSTRING);
+        $this->applyPatternMatch($query, $columns, $term, SearchStrategy::SUBSTRING);
     }
 
     /**
-     * Return what the column is missing before a prefix match can be served
-     * from an index.
+     * Return what the columns are missing before a prefix match can be served
+     * from an index, keyed by column.
      *
-     * @param  string  $column
+     * @param  array<int, string>  $columns
      * @param  string  $table
      * @param  \Illuminate\Database\Connection  $connection
-     * @return array<int, string>
+     * @return array<string, array<int, string>>
      */
     #[\Override]
-    protected function prefixIndexDefects(string $column, string $table, Connection $connection): array
+    protected function prefixIndexDefects(array $columns, string $table, Connection $connection): array
     {
-        return $this->trigramIndexDefects(SearchStrategy::PREFIX, $column, $table, $connection);
+        return $this->trigramIndexDefects(SearchStrategy::PREFIX, $columns, $table, $connection);
     }
 
     /**
-     * Return what the column is missing before an anywhere-match can be served
-     * from an index.
+     * Return what the columns are missing before an anywhere-match can be
+     * served from an index, keyed by column.
      *
-     * @param  string  $column
+     * @param  array<int, string>  $columns
      * @param  string  $table
      * @param  \Illuminate\Database\Connection  $connection
-     * @return array<int, string>
+     * @return array<string, array<int, string>>
      */
     #[\Override]
-    protected function substringIndexDefects(string $column, string $table, Connection $connection): array
+    protected function substringIndexDefects(array $columns, string $table, Connection $connection): array
     {
-        return $this->trigramIndexDefects(SearchStrategy::SUBSTRING, $column, $table, $connection);
+        return $this->trigramIndexDefects(SearchStrategy::SUBSTRING, $columns, $table, $connection);
     }
 
     /**
-     * Apply a case-insensitive pattern match for a single column.
+     * Apply a case-insensitive pattern match for the declared columns.
      *
      * @param  \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>  $query
-     * @param  string  $column
+     * @param  array<int, string>  $columns
      * @param  \SineMacula\ApiToolkit\Search\SearchTerm  $term
      * @param  \SineMacula\ApiToolkit\Enums\SearchStrategy  $strategy
-     * @return \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>
+     * @return void
      */
-    private function applyPatternMatch(Builder $query, string $column, SearchTerm $term, SearchStrategy $strategy): Builder
+    private function applyPatternMatch(Builder $query, array $columns, SearchTerm $term, SearchStrategy $strategy): void
     {
-        return $query->orWhereRaw(
-            sprintf('%s ilike ? escape \'%s\'', $this->wrap($query, $column), SearchTerm::ESCAPE_CHARACTER),
-            [$term->pattern($strategy)],
-        );
+        foreach ($columns as $column) {
+
+            $query->orWhereRaw(
+                sprintf('%s ilike ? escape \'%s\'', $this->wrap($query, $column), SearchTerm::ESCAPE_CHARACTER),
+                [$term->pattern($strategy)],
+            );
+        }
     }
 
     /**
-     * Return what the column is missing before a pattern match can be served
-     * from a trigram index.
+     * Return what the columns are missing before a pattern match can be served
+     * from a trigram index, keyed by column.
      *
      * @param  \SineMacula\ApiToolkit\Enums\SearchStrategy  $strategy
-     * @param  string  $column
+     * @param  array<int, string>  $columns
      * @param  string  $table
      * @param  \Illuminate\Database\Connection  $connection
-     * @return array<int, string>
+     * @return array<string, array<int, string>>
      */
-    private function trigramIndexDefects(SearchStrategy $strategy, string $column, string $table, Connection $connection): array
+    private function trigramIndexDefects(SearchStrategy $strategy, array $columns, string $table, Connection $connection): array
     {
         if (!$this->hasTrigramExtension($connection)) {
-            return [sprintf(
-                'Column "%s" is declared searchable with the "%s" strategy, which is served by the %s extension, and that extension is not installed on this connection',
-                $column,
+
+            $defect = sprintf(
+                'The "%s" strategy is served by the %s extension, and that extension is not installed on this connection',
                 $strategy->value,
                 self::EXTENSION,
+            );
+
+            return array_fill_keys($columns, [$defect]);
+        }
+
+        $definitions = $this->indexDefinitions($table, $connection);
+        $defects     = [];
+
+        foreach ($columns as $column) {
+
+            if ($this->hasTrigramIndex($column, $definitions)) {
+                continue;
+            }
+
+            $defects[$column] = [sprintf(
+                'Column "%s" is declared searchable with the "%s" strategy, which needs a trigram index over that column on table "%s"',
+                $column,
+                $strategy->value,
+                $table,
             )];
         }
 
-        if ($this->hasTrigramIndex($column, $table, $connection)) {
-            return [];
-        }
-
-        return [sprintf(
-            'Column "%s" is declared searchable with the "%s" strategy, which needs a trigram index over that column on table "%s"',
-            $column,
-            $strategy->value,
-            $table,
-        )];
+        return $defects;
     }
 
     /**
@@ -157,19 +174,18 @@ final class PostgresTrigramSearchDriver extends EngineSearchDriver
     }
 
     /**
-     * Determine whether the column carries an index built over one of the
-     * trigram operator classes.
+     * Determine whether one of the given index definitions is built over a
+     * trigram operator class on the column.
      *
      * @param  string  $column
-     * @param  string  $table
-     * @param  \Illuminate\Database\Connection  $connection
+     * @param  array<int, string>  $definitions
      * @return bool
      */
-    private function hasTrigramIndex(string $column, string $table, Connection $connection): bool
+    private function hasTrigramIndex(string $column, array $definitions): bool
     {
         $pattern = sprintf('/[(,]\s*"?%s"?\s+(?:gin|gist)_trgm_ops\s*[,)]/i', preg_quote($column, '/'));
 
-        foreach ($this->indexDefinitions($table, $connection) as $definition) {
+        foreach ($definitions as $definition) {
 
             if (preg_match($pattern, $definition) === 1) {
                 return true;
@@ -182,6 +198,11 @@ final class PostgresTrigramSearchDriver extends EngineSearchDriver
     /**
      * Return the statements that would recreate the table's indexes.
      *
+     * Only an index the planner may use for an unqualified predicate is read
+     * back: one left behind by a failed concurrent build serves no query, and a
+     * partial index serves only a query whose own predicate implies its own, so
+     * neither proves a search is index backed.
+     *
      * @param  string  $table
      * @param  \Illuminate\Database\Connection  $connection
      * @return array<int, string>
@@ -189,7 +210,10 @@ final class PostgresTrigramSearchDriver extends EngineSearchDriver
     private function indexDefinitions(string $table, Connection $connection): array
     {
         $rows = $connection->select(
-            'select indexdef from pg_indexes where schemaname = current_schema() and tablename = ?',
+            'select pg_get_indexdef(i.indexrelid) as indexdef from pg_index i '
+            . 'join pg_class c on c.oid = i.indrelid '
+            . 'join pg_namespace n on n.oid = c.relnamespace '
+            . 'where n.nspname = current_schema() and c.relname = ? and i.indisvalid and i.indpred is null',
             [$table],
         );
 

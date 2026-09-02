@@ -192,8 +192,11 @@ resource:
 | `prefix`    | The value begins with the term.             | `High`                    |
 | `substring` | The value carries the term at any position. | `smith`                   |
 
-A prefix or substring match ignores case. An exact match is a plain comparison,
-so whether it ignores case follows the column's own collation.
+Whether a match ignores case follows the engine behind the API. On PostgreSQL
+every prefix and substring match is case-insensitive, because the comparison
+is written that way. On MySQL all three shapes follow the column's own
+collation, which folds case under the shipped defaults and does not under a
+binary or case-sensitive one.
 
 ### Term bounds
 
@@ -202,44 +205,61 @@ never trimmed to fit:
 
 | Bound                           | Value          |
 |---------------------------------|----------------|
-| Shortest term accepted          | 3 characters   |
+| Shortest word accepted          | 3 characters   |
 | Longest term accepted           | 128 characters |
 | Most whitespace-separated words | 10             |
 
 The minimum of three characters is measured rather than chosen, and it is the
 one bound the API may raise but never lower. Every match is served from an
-index, and three characters is the shortest term both supported engines answer
+index, and three characters is the shortest word both supported engines answer
 correctly and from an index. Below it each fails silently and differently: on
-MySQL a term shorter than the index token size matches no rows at all, which is
+MySQL a word shorter than the index token size matches no rows at all, which is
 a wrong answer rather than a slow one, and on PostgreSQL a two-character term is
 answered correctly but by reading the whole table, which is the full scan this
 layer exists to remove. Neither failure is visible in the response, so a term
 that would hit one is refused instead.
+
+The minimum is measured against every word rather than against the whole term,
+so `John Smith` is accepted and `J Smith` is not. A word beneath it is dropped
+from a full-text phrase, which widens the match, while a pattern comparison
+keeps it and narrows on it, so a term carrying one would be answered with
+different rows depending on the engine behind the API.
 
 ### Indexes behind a declaration
 
 This subsection is for the application serving the API rather than its clients.
 
 Every declared match shape is served from an index the application's own
-migrations create, and `php artisan api-toolkit:validate-schemas` reports a
-declaration with no index behind it. Run it in the build: schema validation is
-disabled in production by default, so a missing index otherwise first appears as
-a failed search request after a deploy.
+migrations create. `php artisan api-toolkit:validate-schemas` reports a
+declaration with no index behind it, and the build is the cheapest place to
+find one. Because schema validation is disabled in production by default, the
+same proof is taken again on the first search each worker process serves and
+memoised from there, so a missing index refuses the request rather than being
+answered out of a scan.
 
-| Strategy    | MySQL                                                                   | PostgreSQL                                 |
-|-------------|-------------------------------------------------------------------------|--------------------------------------------|
-| `exact`     | An ordinary index leading with the column.                              | An ordinary index leading with the column. |
-| `prefix`    | An ordinary index leading with the column.                              | A trigram index over the column.           |
-| `substring` | A `FULLTEXT` index over that column alone, created `WITH PARSER ngram`. | A trigram index over the column.           |
+| Strategy    | MySQL                                                                        | PostgreSQL                                 |
+|-------------|------------------------------------------------------------------------------|--------------------------------------------|
+| `exact`     | An ordinary index leading with the column.                                   | An ordinary index leading with the column. |
+| `prefix`    | An ordinary index leading with the column.                                   | A trigram index over the column.           |
+| `substring` | One `FULLTEXT` index over exactly the declared columns, `WITH PARSER ngram`. | A trigram index over the column.           |
 
 ```sql
--- MySQL: a substring match, per declared column
-ALTER TABLE users ADD FULLTEXT INDEX users_name_ngram (name) WITH PARSER ngram;
+-- MySQL: a substring match, over exactly the columns declared for it
+ALTER TABLE users ADD FULLTEXT INDEX users_search_ngram (name, email) WITH PARSER ngram;
 
 -- PostgreSQL: a prefix or a substring match, per declared column
 CREATE EXTENSION IF NOT EXISTS pg_trgm;
 CREATE INDEX users_name_trgm ON users USING gin (name gin_trgm_ops);
+CREATE INDEX users_email_trgm ON users USING gin (email gin_trgm_ops);
 ```
+
+MySQL matches the columns declared for a substring together, through a single
+`MATCH`, and resolves that match only against a full-text index whose column
+list is exactly the matched one - which is why one index covers the declared
+set rather than one index per column. For the same reason a substring match may
+not be declared beside another strategy on MySQL: the two would be combined by
+`OR`, which loses the full-text access path and reads the whole table, so the
+declaration is refused instead. PostgreSQL carries no such restriction.
 
 A prefix match on PostgreSQL rides the same trigram index as a substring match
 because the comparison is case-insensitive, which an ordinary index cannot

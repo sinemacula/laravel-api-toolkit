@@ -13,23 +13,25 @@ use SineMacula\ApiToolkit\Search\SearchTerm;
  * Search driver contract.
  *
  * Binds a connection to the match shapes it can serve from an index. A driver
- * declares the strategies it implements, whether it can prove on a given
- * connection that a declared strategy is index-backed, what a declaration is
- * missing when it is not, and how to apply the predicate for a set of columns.
- * Nothing here names a grammar or an index type, so a driver sitting in front
- * of an external engine implements the same contract as one that writes a
- * clause against the connection it was resolved for.
+ * declares the strategies it implements, whether those strategies can be served
+ * together, whether it can prove on a given connection that a declared strategy
+ * is index-backed, what a declaration is missing when it is not, and how to
+ * apply the predicate for a set of columns. Nothing here names a grammar or an
+ * index type, so a driver sitting in front of an external engine implements the
+ * same contract as one that writes a clause against the connection it was
+ * resolved for.
  *
- * A driver never degrades. Asked for a strategy it does not implement, or for
- * one it can prove no index serves on this connection, it throws rather than
- * emitting a predicate that scans. A scan that returns the right rows slowly
- * and an index that quietly returns different rows are the two outcomes this
- * contract exists to make impossible.
+ * A driver never degrades. Asked for a strategy it does not implement, for a
+ * combination it cannot resolve from an index, or for one it can prove no index
+ * serves on this connection, it throws rather than emitting a predicate that
+ * scans. A scan that returns the right rows slowly and an index that quietly
+ * returns different rows are the two outcomes this contract exists to make
+ * impossible.
  *
- * The claim and the proof are asked separately because they are paid at
- * different times. The claim is a constant read on every request; the proof
- * reads the connection's catalogue and belongs to schema validation, which runs
- * once at boot or in a build.
+ * A declared surface is matched one strategy at a time and the results are
+ * OR-ed, so a driver is asked about the whole column set behind a strategy
+ * rather than about one column: an engine may resolve that set through a single
+ * index, and only the set says which index that is.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -42,6 +44,20 @@ interface SearchDriver
      * @return array<int, \SineMacula\ApiToolkit\Enums\SearchStrategy>
      */
     public function supportedStrategies(): array;
+
+    /**
+     * Return why the driver cannot resolve the given strategies from an index
+     * when they are declared together, or null when it can.
+     *
+     * The strategies of one surface are OR-ed into a single predicate, and an
+     * engine may serve a strategy from an index only where that predicate is
+     * not a disjunction. A driver saying so here is what turns an unservable
+     * combination into a refusal rather than into a scan.
+     *
+     * @param  array<int, \SineMacula\ApiToolkit\Enums\SearchStrategy>  $strategies
+     * @return string|null
+     */
+    public function combinationDefect(array $strategies): ?string;
 
     /**
      * Determine whether the driver can prove, on the given connection, that a
@@ -59,20 +75,25 @@ interface SearchDriver
     public function canVerifyIndexBacking(SearchStrategy $strategy, Connection $connection): bool;
 
     /**
-     * Return what the column is missing before the strategy can be served from
-     * an index on this connection, or an empty list when nothing is.
+     * Return what the given columns are missing before the strategy can be
+     * served from an index on this connection, keyed by the column carrying
+     * each defect, or an empty list when nothing is missing.
+     *
+     * A defect an engine reports against the set rather than against one column
+     * is returned under every column in the set, so a caller reporting per
+     * column sees it wherever it applies.
      *
      * Only a driver that claims the proof answers this. One that does not
      * returns an empty list, which says nothing was found rather than that
      * nothing is wrong.
      *
      * @param  \SineMacula\ApiToolkit\Enums\SearchStrategy  $strategy
-     * @param  string  $column
+     * @param  array<int, string>  $columns
      * @param  string  $table
      * @param  \Illuminate\Database\Connection  $connection
-     * @return array<int, string>
+     * @return array<string, array<int, string>>
      */
-    public function indexDefects(SearchStrategy $strategy, string $column, string $table, Connection $connection): array;
+    public function indexDefects(SearchStrategy $strategy, array $columns, string $table, Connection $connection): array;
 
     /**
      * Apply the search predicate for the given columns to the query.

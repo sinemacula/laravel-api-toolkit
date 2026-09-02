@@ -70,8 +70,19 @@ final class SqliteSearchDriverTest extends TestCase
         $driver = new SqliteSearchDriver;
 
         foreach (SearchStrategy::cases() as $strategy) {
-            self::assertSame([], $driver->indexDefects($strategy, 'name', 'users', DB::connection()));
+            self::assertSame([], $driver->indexDefects($strategy, ['name'], 'users', DB::connection()));
         }
+    }
+
+    /**
+     * Test that the driver refuses no combination of strategies, since it
+     * resolves none of them from an index in the first place.
+     *
+     * @return void
+     */
+    public function testRefusesNoCombinationOfStrategies(): void
+    {
+        self::assertNull((new SqliteSearchDriver)->combinationDefect(SearchStrategy::cases()));
     }
 
     /**
@@ -130,6 +141,21 @@ final class SqliteSearchDriverTest extends TestCase
             $query->toSql(),
         );
         self::assertSame(['%' . self::TERM . '%', '%' . self::TERM . '%'], $query->getBindings());
+    }
+
+    /**
+     * Test that every declared column contributes its own comparison under the
+     * equality match too, so a resource declaring two columns narrows on both
+     * rather than on the first alone.
+     *
+     * @return void
+     */
+    public function testMatchesEachColumnSeparatelyForAnEqualityMatch(): void
+    {
+        $query = $this->apply(['name', 'email'], SearchStrategy::EXACT);
+
+        self::assertSame('select * from "users" where "users"."name" = ? or "users"."email" = ?', $query->toSql());
+        self::assertSame([self::TERM, self::TERM], $query->getBindings());
     }
 
     /**
