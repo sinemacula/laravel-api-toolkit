@@ -323,9 +323,11 @@ booting with no database behind the application skips the check instead of faili
 during validation and never while a sort is served.
 
 Two narrow overrides exist for what reading the catalogue cannot show. `indexed('users_lower_name_index')`
-names the index behind the column - an expression or partial index, say - and is still checked against the
-connection by name, so it cannot wave the check through. `unindexed('the table is bounded at a few hundred
-rows')` records a deliberate exemption, and the reason is required so an exemption is never silent.
+names the index behind the column - an expression or partial index, say. The name is looked up on the
+connection, so naming an index the table does not carry is itself a defect; what that index covers is not read
+back, since the catalogue cannot describe the expression behind it, so the override vouches for the column
+rather than proving it. `unindexed('the table is bounded at a few hundred rows')` records a deliberate
+exemption, and the reason is required so an exemption is never silent.
 
 **Random ordering** - `?order=random` is disabled by default because it sorts the whole table to return one
 page. Enable it with `api-toolkit.repositories.allow_random_order` (`API_TOOLKIT_ALLOW_RANDOM_ORDER=true`);

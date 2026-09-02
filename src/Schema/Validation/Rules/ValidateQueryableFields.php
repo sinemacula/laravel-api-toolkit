@@ -37,15 +37,23 @@ use SineMacula\ApiToolkit\Schema\Validation\SchemaValidationError;
  * case-sensitive resolves nothing else, so a spelling the table does not carry
  * is a defect rather than a difference.
  *
- * The capability a filterable column is declared with is governed by the same
- * check, since the capability is what makes the column filterable in the first
- * place: there is no way to declare one on a field without declaring the other.
+ * A filterable declaration carrying no capability is reported for a different
+ * reason: the compiled surface drops the column, so the resource would present
+ * a filterable field every filter on which is refused as unpermitted. The field
+ * builder cannot produce that shape, since it takes the capability with the
+ * declaration, but a schema written as a raw array can. Two fields declaring
+ * one column with different capabilities are reported for the same kind of
+ * reason: that surface is keyed by column, so the declaration compiled last
+ * would quietly decide what the column answers.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
 final readonly class ValidateQueryableFields implements SchemaValidationRule
 {
+    /** @var string The declaration a capability belongs to, and so the one this rule weighs it against */
+    private const string FILTERABLE = 'filterable';
+
     /**
      * Create a new queryable field validation rule.
      *
@@ -91,7 +99,64 @@ final readonly class ValidateQueryableFields implements SchemaValidationRule
             }
         }
 
+        foreach ($this->capabilityConflicts($declared) as $key => $defect) {
+            $errors[] = new SchemaValidationError(
+                resourceClass: $resourceClass,
+                fieldKey: $key,
+                defect: $defect,
+            );
+        }
+
         return $errors;
+    }
+
+    /**
+     * Return the defect carried by each field declaring a capability another
+     * field already declared for the same column, keyed by field key.
+     *
+     * The filter surface is keyed by column, so two fields declaring one column
+     * with different capabilities leave a single entry decided by whichever was
+     * compiled last, silently widening or narrowing what the column answers. A
+     * field is only in conflict with one that declares something else: an alias
+     * repeating the same capability names the same surface.
+     *
+     * @param  array<string, \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition>  $declared
+     * @return array<string, string>
+     */
+    private function capabilityConflicts(array $declared): array
+    {
+        $governing = [];
+        $conflicts = [];
+
+        foreach ($declared as $key => $field) {
+
+            if ($field->filterable === null || $field->filterCapability === null) {
+                continue;
+            }
+
+            $seen = $governing[$field->filterable] ?? null;
+
+            if ($seen === null) {
+                $governing[$field->filterable] = [$key, $field->filterCapability];
+
+                continue;
+            }
+
+            if ($seen[1] === $field->filterCapability) {
+                continue;
+            }
+
+            $conflicts[$key] = sprintf(
+                'Field is declared filterable against "%s" with the "%s" capability, and field "%s" declares the same '
+                . 'column with "%s", so the operators the column answers are left to declaration order',
+                $field->filterable,
+                $field->filterCapability->value,
+                $seen[0],
+                $seen[1]->value,
+            );
+        }
+
+        return $conflicts;
     }
 
     /**
@@ -148,7 +213,7 @@ final readonly class ValidateQueryableFields implements SchemaValidationRule
     {
         $defects = [];
 
-        foreach (['filterable' => $field->filterable, 'sortable' => $field->sortable] as $declaration => $column) {
+        foreach ([self::FILTERABLE => $field->filterable, 'sortable' => $field->sortable] as $declaration => $column) {
 
             if ($column === null) {
                 continue;
@@ -179,18 +244,18 @@ final readonly class ValidateQueryableFields implements SchemaValidationRule
      */
     private function describeDefect(CompiledFieldDefinition $field, string $declaration, string $column, array $columns, string $table): ?string
     {
-        $source = $this->resourceSource($field, $column);
-
-        if ($source !== null) {
-            return sprintf('Field is declared %s but is %s, so there is no "%s" column to query', $declaration, $source, $column);
-        }
+        $dropped = $declaration === self::FILTERABLE && $field->filterCapability === null;
+        $source  = $this->resourceSource($field, $column);
 
         // An empty listing is the connection saying nothing, not saying bare.
-        if ($columns === [] || in_array($column, $columns, true)) {
-            return null;
-        }
+        $unbacked = $columns !== [] && !in_array($column, $columns, true);
 
-        return sprintf('Field is declared %s against "%s", and table "%s" carries no such column', $declaration, $column, $table);
+        return match (true) {
+            $dropped         => sprintf('Field is declared filterable against "%s" without a capability, so the declaration would be dropped', $column),
+            $source !== null => sprintf('Field is declared %s but is %s, so there is no "%s" column to query', $declaration, $source, $column),
+            $unbacked        => sprintf('Field is declared %s against "%s", and table "%s" carries no such column', $declaration, $column, $table),
+            default          => null,
+        };
     }
 
     /**

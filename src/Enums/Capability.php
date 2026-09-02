@@ -9,14 +9,21 @@ namespace SineMacula\ApiToolkit\Enums;
  * operators it answers.
  *
  * A bare filterable declaration says only that a column may be queried, never
- * how, so every operator reaches every column and the surface accepts
- * predicates no index can serve. Each case names the access path the column is
- * declared to have and, with it, the operators that path answers without
- * scanning: an equality seek, a small closed set, an ordered range, or a
- * document behind a containment index. The case that vouches for nothing is
- * held to the single narrowest predicate rather than refused outright, so a
- * column whose access path is unknown can be declared honestly instead of being
+ * how, so every operator reaches every column and the surface accepts every
+ * predicate shape the package can emit. Each case names the access path the
+ * resource declares the column to have and, with it, the operators that path
+ * answers: an equality lookup, a small closed set, an ordered range, or a
+ * document read by containment. The case that vouches for nothing is held to
+ * the single narrowest predicate rather than refused outright, so a column
+ * whose access path is unknown can be declared honestly instead of being
  * over-claimed to stay queryable.
+ *
+ * The access path is the resource author's claim and the package holds the
+ * operator set to it rather than proving it: no case is read back from the
+ * index catalogue, unlike a sortable declaration, which is refused unless an
+ * ordered index leads with the column. A capability only ever narrows what a
+ * column accepts, so a claim that is too generous widens nothing beyond the
+ * bare declaration this enum replaced.
  *
  * There is deliberately no text case. Matching part of a value belongs to the
  * search surface, where a driver emits the SQL its own engine indexes and

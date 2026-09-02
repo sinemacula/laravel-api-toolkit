@@ -195,9 +195,10 @@ final class Field extends BaseDefinition
      * The connection is the authority on which index leads with a column, so
      * this exists only for what reading the catalogue cannot show: an index
      * over an expression, or one whose predicate the catalogue reports apart
-     * from its columns. Validation still asks the connection for the index by
-     * name, so an override naming an index the table does not carry is a defect
-     * rather than a way past the check.
+     * from its columns. Validation looks the index up by name, so naming one
+     * the table does not carry is a defect; what it covers is not read back,
+     * since that is the part the catalogue cannot describe, so the override
+     * vouches for the column rather than proving it.
      *
      * @param  string  $index
      * @return self

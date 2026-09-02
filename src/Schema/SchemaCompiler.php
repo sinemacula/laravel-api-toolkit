@@ -335,24 +335,24 @@ final class SchemaCompiler
     private static function buildFieldDefinition(array $definition): CompiledFieldDefinition
     {
         return new CompiledFieldDefinition(
-            accessor      : $definition['accessor'] ?? null,
-            compute       : $definition['compute']  ?? null,
-            relation      : self::resolveFieldRelation($definition),
-            resource      : self::resolveFieldResource($definition),
-            fields        : $definition['fields'] ?? null,
-            constraint    : self::resolveFieldConstraint($definition),
-            extras        : (array) ($definition['extras'] ?? []),
-            needs         : (array) ($definition['needs'] ?? []),
-            guards        : $definition['guards']       ?? [],
-            transformers  : $definition['transformers'] ?? [],
-            openApi       : self::resolveFieldOpenApi($definition),
+            accessor        : $definition['accessor'] ?? null,
+            compute         : $definition['compute']  ?? null,
+            relation        : self::resolveFieldRelation($definition),
+            resource        : self::resolveFieldResource($definition),
+            fields          : $definition['fields'] ?? null,
+            constraint      : self::resolveFieldConstraint($definition),
+            extras          : (array) ($definition['extras'] ?? []),
+            needs           : (array) ($definition['needs'] ?? []),
+            guards          : $definition['guards']       ?? [],
+            transformers    : $definition['transformers'] ?? [],
+            openApi         : self::resolveFieldOpenApi($definition),
             filterable      : self::declaredColumn($definition, 'filterable'),
             filterCapability: self::resolveCapability($definition),
             sortable        : self::declaredColumn($definition, 'sortable'),
             indexedBy       : self::declaredColumn($definition, 'indexed'),
             unindexedReason : self::declaredColumn($definition, 'unindexed'),
-            searchable    : self::declaredColumn($definition, 'searchable'),
-            searchStrategy: self::resolveSearchStrategy($definition),
+            searchable      : self::declaredColumn($definition, 'searchable'),
+            searchStrategy  : self::resolveSearchStrategy($definition),
         );
     }
 

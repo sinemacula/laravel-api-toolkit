@@ -142,7 +142,7 @@ final class ContainerBindingRegistrarTest extends TestCase
 
         $this->expectException(InvalidSchemaException::class);
         $this->expectExceptionMessage(sprintf(
-            '[%s] Field "nickname": Field is declared filterable against "nickname", and table "users" carries no such column',
+            "Schema validation failed with 1 error(s):\n  - [%s] Field \"nickname\": Field is declared filterable against \"nickname\", and table \"users\" carries no such column",
             MissingColumnQueryableResource::class,
         ));
 
@@ -189,7 +189,8 @@ final class ContainerBindingRegistrarTest extends TestCase
 
         $this->expectException(InvalidSchemaException::class);
         $this->expectExceptionMessage(sprintf(
-            '[%s] Field "created_at": Field is declared sortable against "created_at", and no ordered index on table "logs" leads with that column',
+            "Schema validation failed with 1 error(s):\n  - [%s] Field \"created_at\": Field is declared sortable "
+            . 'against "created_at", and no ordered index on table "logs" leads with that column',
             TrailingIndexSortableResource::class,
         ));
 

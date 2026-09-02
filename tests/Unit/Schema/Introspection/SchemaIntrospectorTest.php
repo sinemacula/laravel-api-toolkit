@@ -5,17 +5,21 @@ declare(strict_types = 1);
 namespace Tests\Unit\Schema\Introspection;
 
 use Illuminate\Contracts\Cache\Repository;
+use Illuminate\Database\Connection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Database\Schema\Builder as SchemaBuilder;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\MockObject\MockObject;
 use SineMacula\ApiToolkit\Cache\MetadataKeyRegistry;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Enums\CacheKeys;
@@ -73,7 +77,7 @@ final class SchemaIntrospectorTest extends TestCase
 
         $instanceCache = $this->getProperty($introspector, 'columns');
 
-        self::assertArrayHasKey(User::class, $instanceCache);
+        self::assertArrayHasKey('testing|' . User::class, $instanceCache);
     }
 
     /**
@@ -84,15 +88,18 @@ final class SchemaIntrospectorTest extends TestCase
      */
     public function testGetColumnsServesInstanceCacheWithoutSchemaLookup(): void
     {
+        $builder = self::createMock(SchemaBuilder::class);
+
+        $builder->expects(self::once())
+            ->method('getColumnListing')
+            ->willReturn(['id', 'name']);
+
         $introspector = $this->makeIntrospector();
-        $model        = new User;
+        $model        = $this->modelReadingFrom($builder);
 
         $first = $introspector->getColumns($model);
 
         Cache::memo()->flush(); // @phpstan-ignore method.notFound
-
-        Schema::shouldReceive('getColumnListing')
-            ->never();
 
         self::assertSame($first, $introspector->getColumns($model));
     }
@@ -108,11 +115,13 @@ final class SchemaIntrospectorTest extends TestCase
     {
         Cache::memo()->flush(); // @phpstan-ignore method.notFound
 
-        Schema::shouldReceive('getColumnListing')
-            ->once()
-            ->andReturn([]);
+        $builder = self::createMock(SchemaBuilder::class);
 
-        $model = new User;
+        $builder->expects(self::once())
+            ->method('getColumnListing')
+            ->willReturn([]);
+
+        $model = $this->modelReadingFrom($builder);
 
         $first  = ($this->makeIntrospector())->getColumns($model);
         $second = ($this->makeIntrospector())->getColumns($model);
@@ -123,7 +132,7 @@ final class SchemaIntrospectorTest extends TestCase
 
     /**
      * Test that getColumns stores the result in the memo cache under a key
-     * scoped to the model class.
+     * scoped to the model class and the connection it was read from.
      *
      * @return void
      */
@@ -134,7 +143,7 @@ final class SchemaIntrospectorTest extends TestCase
 
         $columns = $introspector->getColumns($model);
 
-        $key = CacheKeys::MODEL_SCHEMA_COLUMNS->resolveKey([User::class]);
+        $key = CacheKeys::MODEL_SCHEMA_COLUMNS->resolveKey(['testing', User::class]);
 
         self::assertSame($columns, Cache::memo()->get($key));
     }
@@ -155,6 +164,26 @@ final class SchemaIntrospectorTest extends TestCase
         self::assertSame(Schema::getColumnListing('users'), $userColumns);
         self::assertSame(Schema::getColumnListing('posts'), $postColumns);
         self::assertNotSame($userColumns, $postColumns);
+    }
+
+    /**
+     * Test that the column listing is read from the connection the model itself
+     * resolves rather than the default one, and cached under a key naming that
+     * connection, so two models of the same class on different connections
+     * cannot serve each other's answer.
+     *
+     * @return void
+     */
+    public function testGetColumnsReadsTheConnectionTheModelResolves(): void
+    {
+        $model = $this->modelOnSecondaryConnection();
+
+        self::assertSame(['handle'], ($this->makeIntrospector())->getColumns($model));
+        self::assertNotSame(['handle'], Schema::getColumnListing('users'));
+        self::assertSame(
+            ['handle'],
+            Cache::memo()->get(CacheKeys::MODEL_SCHEMA_COLUMNS->resolveKey(['secondary', $model::class])),
+        );
     }
 
     /**
@@ -217,15 +246,18 @@ final class SchemaIntrospectorTest extends TestCase
      */
     public function testGetColumnDefinitionsServesInstanceCacheWithoutSchemaLookup(): void
     {
+        $builder = self::createMock(SchemaBuilder::class);
+
+        $builder->expects(self::once())
+            ->method('getColumns')
+            ->willReturn([['name' => 'id', 'type_name' => 'integer', 'nullable' => false]]);
+
         $introspector = $this->makeIntrospector();
-        $model        = new User;
+        $model        = $this->modelReadingFrom($builder);
 
         $first = $introspector->getColumnDefinitions($model);
 
         Cache::memo()->flush(); // @phpstan-ignore method.notFound
-
-        Schema::shouldReceive('getColumns')
-            ->never();
 
         self::assertSame($first, $introspector->getColumnDefinitions($model));
     }
@@ -238,14 +270,17 @@ final class SchemaIntrospectorTest extends TestCase
      */
     public function testGetColumnDefinitionsServesMemoCacheOnFreshInstance(): void
     {
-        $model = new User;
+        $builder = self::createMock(SchemaBuilder::class);
+
+        $builder->expects(self::once())
+            ->method('getColumns')
+            ->willReturn([['name' => 'id', 'type_name' => 'integer', 'nullable' => false]]);
+
+        $model = $this->modelReadingFrom($builder);
 
         $first = ($this->makeIntrospector())->getColumnDefinitions($model);
 
         self::assertNotEmpty($first);
-
-        Schema::shouldReceive('getColumns')
-            ->never();
 
         $second = ($this->makeIntrospector())->getColumnDefinitions($model);
 
@@ -254,7 +289,7 @@ final class SchemaIntrospectorTest extends TestCase
 
     /**
      * Test that getColumnDefinitions stores the result in the memo cache under
-     * a key scoped to the model class.
+     * a key scoped to the model class and the connection it was read from.
      *
      * @return void
      */
@@ -265,7 +300,7 @@ final class SchemaIntrospectorTest extends TestCase
 
         $definitions = $introspector->getColumnDefinitions($model);
 
-        $key = CacheKeys::MODEL_SCHEMA_COLUMN_DEFINITIONS->resolveKey([User::class]);
+        $key = CacheKeys::MODEL_SCHEMA_COLUMN_DEFINITIONS->resolveKey(['testing', User::class]);
 
         self::assertSame($definitions, Cache::memo()->get($key));
     }
@@ -318,6 +353,22 @@ final class SchemaIntrospectorTest extends TestCase
     }
 
     /**
+     * Test that the index catalogue is read from the connection the model
+     * itself resolves, so a sortable declaration is judged against the table
+     * actually behind the model rather than a same-named table on the default
+     * connection.
+     *
+     * @return void
+     */
+    public function testGetIndexesReadsTheConnectionTheModelResolves(): void
+    {
+        $indexes = ($this->makeIntrospector())->getIndexes($this->modelOnSecondaryConnection());
+
+        self::assertIsArray($indexes);
+        self::assertSame(['users_handle_index'], array_map(static fn ($index): string => $index->name, $indexes));
+    }
+
+    /**
      * Test that a connection that cannot be inspected reports null rather than
      * an empty catalogue, so a boot with no database behind it proves nothing
      * instead of proving every table indexless.
@@ -331,11 +382,59 @@ final class SchemaIntrospectorTest extends TestCase
     {
         Cache::memo()->flush(); // @phpstan-ignore method.notFound
 
-        Schema::shouldReceive('getIndexes')
-            ->once()
-            ->andThrow(new \RuntimeException('No database connection'));
+        $builder = self::createMock(SchemaBuilder::class);
 
-        self::assertNull(($this->makeIntrospector())->getIndexes($this->keylessModel()));
+        $builder->expects(self::once())
+            ->method('getIndexes')
+            ->willThrowException(new \RuntimeException('No database connection'));
+
+        self::assertNull(($this->makeIntrospector())->getIndexes($this->modelReadingFrom($builder)));
+    }
+
+    /**
+     * Test that a table the connection does not carry reports an unverifiable
+     * catalogue rather than an empty one, since an engine answers for a table
+     * that is not there with an empty catalogue rather than an error.
+     *
+     * Reading that silence as an answer would refuse every sortable declaration
+     * in an application whose migrations have not run yet.
+     *
+     * @return void
+     */
+    public function testGetIndexesReportsATableTheConnectionDoesNotCarryAsUnverifiable(): void
+    {
+        $model = new class extends Model {
+            /** @var string|null */
+            protected $table = 'never_migrated';
+        };
+
+        self::assertSame([], Schema::getColumnListing('never_migrated'));
+        self::assertNull(($this->makeIntrospector())->getIndexes($model));
+    }
+
+    /**
+     * Test that a memoised unverifiable catalogue is served back rather than
+     * resolved again, so a boot against a connection that cannot be reached
+     * pays one failed read for the model rather than one for every resource
+     * mapped to it.
+     *
+     * @return void
+     */
+    public function testGetIndexesServesAMemoisedUnverifiableCatalogueWithoutReadingAgain(): void
+    {
+        Cache::memo()->flush(); // @phpstan-ignore method.notFound
+
+        $builder = self::createMock(SchemaBuilder::class);
+
+        $builder->expects(self::once())
+            ->method('getIndexes')
+            ->willThrowException(new \RuntimeException('No database connection'));
+
+        $introspector = $this->makeIntrospector();
+        $model        = $this->modelReadingFrom($builder);
+
+        self::assertNull($introspector->getIndexes($model));
+        self::assertNull($introspector->getIndexes($model));
     }
 
     /**
@@ -349,20 +448,22 @@ final class SchemaIntrospectorTest extends TestCase
     {
         Cache::memo()->flush(); // @phpstan-ignore method.notFound
 
-        Schema::shouldReceive('getIndexes')
-            ->once()
-            ->andThrow(new \RuntimeException('No database connection'));
+        $builder = self::createMock(SchemaBuilder::class);
 
-        $model = $this->keylessModel();
+        $builder->expects(self::once())
+            ->method('getIndexes')
+            ->willThrowException(new \RuntimeException('No database connection'));
+
+        $model = $this->modelReadingFrom($builder);
 
         ($this->makeIntrospector())->getIndexes($model);
 
-        self::assertNull(Cache::memo()->get(CacheKeys::MODEL_SCHEMA_INDEXES->resolveKey([$model::class])));
+        self::assertNull(Cache::memo()->get(CacheKeys::MODEL_SCHEMA_INDEXES->resolveKey(['testing', $model::class])));
     }
 
     /**
      * Test that getIndexes stores the result in the memo cache under a key
-     * scoped to the model class.
+     * scoped to the model class and the connection it was read from.
      *
      * @return void
      */
@@ -370,7 +471,7 @@ final class SchemaIntrospectorTest extends TestCase
     {
         $indexes = ($this->makeIntrospector())->getIndexes(new User);
 
-        self::assertEquals($indexes, Cache::memo()->get(CacheKeys::MODEL_SCHEMA_INDEXES->resolveKey([User::class])));
+        self::assertEquals($indexes, Cache::memo()->get(CacheKeys::MODEL_SCHEMA_INDEXES->resolveKey(['testing', User::class])));
     }
 
     /**
@@ -385,7 +486,7 @@ final class SchemaIntrospectorTest extends TestCase
 
         ($this->makeIntrospector())->getIndexes(new User);
 
-        self::assertContains(CacheKeys::MODEL_SCHEMA_INDEXES->resolveKey([User::class]), $registry->keys());
+        self::assertContains(CacheKeys::MODEL_SCHEMA_INDEXES->resolveKey(['testing', User::class]), $registry->keys());
     }
 
     /**
@@ -396,15 +497,18 @@ final class SchemaIntrospectorTest extends TestCase
      */
     public function testGetIndexesServesInstanceCacheWithoutSchemaLookup(): void
     {
+        $builder = self::createMock(SchemaBuilder::class);
+
+        $builder->expects(self::once())
+            ->method('getIndexes')
+            ->willReturn([['name' => 'widgets_name_index', 'columns' => ['name'], 'type' => 'btree']]);
+
         $introspector = $this->makeIntrospector();
-        $model        = new User;
+        $model        = $this->modelReadingFrom($builder);
 
         $first = $introspector->getIndexes($model);
 
         Cache::memo()->flush(); // @phpstan-ignore method.notFound
-
-        Schema::shouldReceive('getIndexes')
-            ->never();
 
         self::assertSame($first, $introspector->getIndexes($model));
     }
@@ -420,11 +524,15 @@ final class SchemaIntrospectorTest extends TestCase
     {
         Cache::memo()->flush(); // @phpstan-ignore method.notFound
 
-        Schema::shouldReceive('getIndexes')
-            ->once()
-            ->andReturn([]);
+        $builder = self::createMock(SchemaBuilder::class);
 
-        $model = new User;
+        $builder->expects(self::once())
+            ->method('getIndexes')
+            ->willReturn([]);
+
+        $builder->method('getColumnListing')->willReturn(['id']);
+
+        $model = $this->modelReadingFrom($builder);
 
         self::assertSame([], ($this->makeIntrospector())->getIndexes($model));
         self::assertSame([], ($this->makeIntrospector())->getIndexes($model));
@@ -440,14 +548,16 @@ final class SchemaIntrospectorTest extends TestCase
     {
         Cache::memo()->flush(); // @phpstan-ignore method.notFound
 
-        Schema::shouldReceive('getIndexes')
-            ->once()
-            ->andReturn([
+        $builder = self::createMock(SchemaBuilder::class);
+
+        $builder->expects(self::once())
+            ->method('getIndexes')
+            ->willReturn([
                 ['name' => null, 'columns' => ['name'], 'type' => 'btree'],
                 ['name' => 'users_name_index', 'columns' => ['name'], 'type' => 'btree'],
             ]);
 
-        $indexes = ($this->makeIntrospector())->getIndexes(new User);
+        $indexes = ($this->makeIntrospector())->getIndexes($this->modelReadingFrom($builder));
 
         self::assertIsArray($indexes);
         self::assertCount(1, $indexes);
@@ -855,8 +965,15 @@ final class SchemaIntrospectorTest extends TestCase
     public function testFlushClearsColumns(): void
     {
         // Arrange
+        $builder = self::createMock(SchemaBuilder::class);
+
+        $builder->expects(self::exactly(2))
+            ->method('getColumnListing')
+            ->with('widgets')
+            ->willReturnOnConsecutiveCalls(['id', 'name'], ['id', 'name', 'extra_column']);
+
         $introspector = $this->makeIntrospector();
-        $model        = new User;
+        $model        = $this->modelReadingFrom($builder);
 
         $originalColumns = $introspector->getColumns($model);
 
@@ -865,11 +982,6 @@ final class SchemaIntrospectorTest extends TestCase
         // Act
         $introspector->flush();
         Cache::memo()->flush(); // @phpstan-ignore method.notFound
-
-        Schema::shouldReceive('getColumnListing')
-            ->once()
-            ->with('users')
-            ->andReturn(['id', 'name', 'extra_column']);
 
         $refreshedColumns = $introspector->getColumns($model);
 
@@ -1144,7 +1256,7 @@ final class SchemaIntrospectorTest extends TestCase
         $introspector->getColumns($model);
 
         // Assert
-        $expectedKey = CacheKeys::MODEL_SCHEMA_COLUMNS->resolveKey([User::class]);
+        $expectedKey = CacheKeys::MODEL_SCHEMA_COLUMNS->resolveKey(['testing', User::class]);
 
         self::assertContains($expectedKey, $registry->keys());
     }
@@ -1166,7 +1278,7 @@ final class SchemaIntrospectorTest extends TestCase
         $introspector->getColumnDefinitions($model);
 
         // Assert
-        $expectedKey = CacheKeys::MODEL_SCHEMA_COLUMN_DEFINITIONS->resolveKey([User::class]);
+        $expectedKey = CacheKeys::MODEL_SCHEMA_COLUMN_DEFINITIONS->resolveKey(['testing', User::class]);
 
         self::assertContains($expectedKey, $registry->keys());
     }
@@ -1222,18 +1334,15 @@ final class SchemaIntrospectorTest extends TestCase
     {
         Cache::memo()->flush(); // @phpstan-ignore method.notFound
 
-        Schema::shouldReceive('getColumns')
-            ->once()
-            ->andReturn([
+        $builder = self::createMock(SchemaBuilder::class);
+
+        $builder->expects(self::once())
+            ->method('getColumns')
+            ->willReturn([
                 ['name' => 'id', 'type_name' => 'INTEGER', 'nullable' => false],
             ]);
 
-        $model = new class extends Model {
-            /** @var string|null */
-            protected $table = 'widgets';
-        };
-
-        $definitions = ($this->makeIntrospector())->getColumnDefinitions($model);
+        $definitions = ($this->makeIntrospector())->getColumnDefinitions($this->modelReadingFrom($builder));
 
         self::assertSame('integer', $definitions['id']->typeName);
     }
@@ -1301,16 +1410,13 @@ final class SchemaIntrospectorTest extends TestCase
     {
         Cache::memo()->flush(); // @phpstan-ignore method.notFound
 
-        Schema::shouldReceive('getColumnListing')
-            ->once()
-            ->andThrow(new \RuntimeException('No database connection'));
+        $builder = self::createMock(SchemaBuilder::class);
 
-        $model = new class extends Model {
-            /** @var string|null */
-            protected $table = 'widgets';
-        };
+        $builder->expects(self::once())
+            ->method('getColumnListing')
+            ->willThrowException(new \RuntimeException('No database connection'));
 
-        self::assertSame([], ($this->makeIntrospector())->getColumns($model));
+        self::assertSame([], ($this->makeIntrospector())->getColumns($this->modelReadingFrom($builder)));
     }
 
     /**
@@ -1324,18 +1430,17 @@ final class SchemaIntrospectorTest extends TestCase
     {
         Cache::memo()->flush(); // @phpstan-ignore method.notFound
 
-        Schema::shouldReceive('getColumnListing')
-            ->once()
-            ->andThrow(new \RuntimeException('No database connection'));
+        $builder = self::createMock(SchemaBuilder::class);
 
-        $model = new class extends Model {
-            /** @var string|null */
-            protected $table = 'widgets';
-        };
+        $builder->expects(self::once())
+            ->method('getColumnListing')
+            ->willThrowException(new \RuntimeException('No database connection'));
+
+        $model = $this->modelReadingFrom($builder);
 
         ($this->makeIntrospector())->getColumns($model);
 
-        $key = CacheKeys::MODEL_SCHEMA_COLUMNS->resolveKey([$model::class]);
+        $key = CacheKeys::MODEL_SCHEMA_COLUMNS->resolveKey(['testing', $model::class]);
 
         self::assertNull(Cache::memo()->get($key));
     }
@@ -1351,16 +1456,13 @@ final class SchemaIntrospectorTest extends TestCase
     {
         Cache::memo()->flush(); // @phpstan-ignore method.notFound
 
-        Schema::shouldReceive('getColumns')
-            ->once()
-            ->andThrow(new \RuntimeException('No database connection'));
+        $builder = self::createMock(SchemaBuilder::class);
 
-        $model = new class extends Model {
-            /** @var string|null */
-            protected $table = 'widgets';
-        };
+        $builder->expects(self::once())
+            ->method('getColumns')
+            ->willThrowException(new \RuntimeException('No database connection'));
 
-        self::assertSame([], ($this->makeIntrospector())->getColumnDefinitions($model));
+        self::assertSame([], ($this->makeIntrospector())->getColumnDefinitions($this->modelReadingFrom($builder)));
     }
 
     /**
@@ -1374,18 +1476,17 @@ final class SchemaIntrospectorTest extends TestCase
     {
         Cache::memo()->flush(); // @phpstan-ignore method.notFound
 
-        Schema::shouldReceive('getColumns')
-            ->once()
-            ->andThrow(new \RuntimeException('No database connection'));
+        $builder = self::createMock(SchemaBuilder::class);
 
-        $model = new class extends Model {
-            /** @var string|null */
-            protected $table = 'widgets';
-        };
+        $builder->expects(self::once())
+            ->method('getColumns')
+            ->willThrowException(new \RuntimeException('No database connection'));
+
+        $model = $this->modelReadingFrom($builder);
 
         ($this->makeIntrospector())->getColumnDefinitions($model);
 
-        $key = CacheKeys::MODEL_SCHEMA_COLUMN_DEFINITIONS->resolveKey([$model::class]);
+        $key = CacheKeys::MODEL_SCHEMA_COLUMN_DEFINITIONS->resolveKey(['testing', $model::class]);
 
         self::assertNull(Cache::memo()->get($key));
     }
@@ -1422,6 +1523,75 @@ final class SchemaIntrospectorTest extends TestCase
         }
 
         return null;
+    }
+
+    /**
+     * Build a model bound to a second connection carrying a table of the same
+     * name as the default one, so a read that ignores the model's connection
+     * resolves the wrong catalogue rather than failing outright.
+     *
+     * @return \Illuminate\Database\Eloquent\Model
+     */
+    private function modelOnSecondaryConnection(): Model
+    {
+        Config::set('database.connections.secondary', [
+            'driver'   => 'sqlite',
+            'database' => ':memory:',
+            'prefix'   => '',
+        ]);
+
+        Schema::connection('secondary')->create('users', function (Blueprint $table): void {
+            $table->string('handle');
+            $table->index('handle', 'users_handle_index');
+        });
+
+        return new class extends Model {
+            /** @var string|\UnitEnum|null */
+            protected $connection = 'secondary';
+
+            /** @var string|null */
+            protected $table = 'users';
+        };
+    }
+
+    /**
+     * Build a model whose connection reads its catalogue from the given schema
+     * builder, so a test can pin what the connection reports and how often it
+     * is asked.
+     *
+     * @param  \Illuminate\Database\Schema\Builder&\PHPUnit\Framework\MockObject\MockObject  $builder
+     * @return \Illuminate\Database\Eloquent\Model
+     */
+    private function modelReadingFrom(MockObject&SchemaBuilder $builder): Model
+    {
+        $connection = self::createStub(Connection::class);
+
+        $connection->method('getSchemaBuilder')->willReturn($builder);
+
+        $model = new class extends Model {
+            /** @var string|null */
+            protected $table = 'widgets';
+
+            /** @var \Illuminate\Database\Connection|null The connection this model reads its schema from */
+            public ?Connection $reader = null;
+
+            /**
+             * Return the connection the model reads its schema from.
+             *
+             * @return \Illuminate\Database\Connection
+             */
+            #[\Override]
+            public function getConnection(): Connection
+            {
+                assert($this->reader instanceof Connection);
+
+                return $this->reader;
+            }
+        };
+
+        $model->reader = $connection;
+
+        return $model;
     }
 
     /**

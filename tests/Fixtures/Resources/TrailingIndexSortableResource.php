@@ -21,7 +21,7 @@ use SineMacula\ApiToolkit\Schema\Field;
 final class TrailingIndexSortableResource extends ApiResource
 {
     /** @var string */
-    public const string RESOURCE_TYPE = 'trailing-index-logs';
+    public const string RESOURCE_TYPE = 'trailing_index_logs';
 
     /** @var array<int, string> */
     protected static array $default = ['id', 'created_at'];

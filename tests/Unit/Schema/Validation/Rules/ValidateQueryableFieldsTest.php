@@ -6,6 +6,7 @@ namespace Tests\Unit\Schema\Validation\Rules;
 
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
+use SineMacula\ApiToolkit\Enums\Capability;
 use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledSchema;
 use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateQueryableFields;
@@ -241,6 +242,200 @@ final class ValidateQueryableFieldsTest extends TestCase
     }
 
     /**
+     * Test that a filterable declaration carrying no capability is reported,
+     * since the compiled surface drops the column and every filter on it is
+     * then refused as unpermitted.
+     *
+     * @return void
+     */
+    public function testReportsAFilterableColumnDeclaredWithoutACapability(): void
+    {
+        $schema = new CompiledSchema(
+            fields: ['name' => $this->makeField(filterable: 'name', capability: null)],
+            counts: [],
+        );
+
+        $errors = $this->rule(['id', 'name'])->validate(UserResource::class, User::class, $schema);
+
+        self::assertCount(1, $errors);
+        self::assertSame('name', $errors[0]->fieldKey);
+        self::assertSame(
+            'Field is declared filterable against "name" without a capability, so the declaration would be dropped',
+            $errors[0]->defect,
+        );
+    }
+
+    /**
+     * Test that a sortable declaration on the same field is judged on its own,
+     * so the missing capability is reported against the filterable declaration
+     * alone rather than standing in for both.
+     *
+     * @return void
+     */
+    public function testReportsOnlyTheFilterableDeclarationForAMissingCapability(): void
+    {
+        $schema = new CompiledSchema(
+            fields: ['name' => $this->makeField(filterable: 'name', sortable: 'name', capability: null)],
+            counts: [],
+        );
+
+        $errors = $this->rule(['id', 'name'])->validate(UserResource::class, User::class, $schema);
+
+        self::assertCount(1, $errors);
+        self::assertSame(
+            'Field is declared filterable against "name" without a capability, so the declaration would be dropped',
+            $errors[0]->defect,
+        );
+    }
+
+    /**
+     * Test that two fields declaring one column with different capabilities are
+     * reported, since the filter surface is keyed by column and the declaration
+     * compiled last would otherwise decide what it answers.
+     *
+     * @return void
+     */
+    public function testReportsTwoCapabilitiesDeclaredForTheSameColumn(): void
+    {
+        $schema = new CompiledSchema(
+            fields: [
+                'status' => $this->makeField(filterable: 'status', capability: Capability::EXACT),
+                'state'  => $this->makeField(filterable: 'status', capability: Capability::RANGE),
+            ],
+            counts: [],
+        );
+
+        $errors = $this->rule(['id', 'status'])->validate(UserResource::class, User::class, $schema);
+
+        self::assertCount(1, $errors);
+        self::assertSame('state', $errors[0]->fieldKey);
+        self::assertSame(
+            'Field is declared filterable against "status" with the "range" capability, and field "status" declares '
+            . 'the same column with "exact", so the operators the column answers are left to declaration order',
+            $errors[0]->defect,
+        );
+    }
+
+    /**
+     * Test that every column declared with two capabilities is reported, and
+     * that a field declaring nothing filterable is passed over rather than
+     * ending the walk.
+     *
+     * @return void
+     */
+    public function testReportsEveryColumnDeclaredWithTwoCapabilities(): void
+    {
+        $schema = new CompiledSchema(
+            fields: [
+                'created_at' => $this->makeField(sortable: 'created_at'),
+                'status'     => $this->makeField(filterable: 'status', capability: Capability::EXACT),
+                'state'      => $this->makeField(filterable: 'status', capability: Capability::RANGE),
+                'kind'       => $this->makeField(filterable: 'kind', capability: Capability::EXACT),
+                'sort'       => $this->makeField(filterable: 'kind', capability: Capability::ENUM),
+            ],
+            counts: [],
+        );
+
+        $errors = $this->rule(['id', 'status', 'kind', 'created_at'])->validate(UserResource::class, User::class, $schema);
+
+        self::assertCount(2, $errors);
+        self::assertSame('state', $errors[0]->fieldKey);
+        self::assertSame('sort', $errors[1]->fieldKey);
+    }
+
+    /**
+     * Test that a field repeating the capability another already declared does
+     * not end the walk, so a third field changing it is still reported.
+     *
+     * @return void
+     */
+    public function testReadsPastAFieldRepeatingACapabilityToOneThatChangesIt(): void
+    {
+        $schema = new CompiledSchema(
+            fields: [
+                'status'    => $this->makeField(filterable: 'status', capability: Capability::EXACT),
+                'state'     => $this->makeField(filterable: 'status', capability: Capability::EXACT),
+                'condition' => $this->makeField(filterable: 'status', capability: Capability::RANGE),
+            ],
+            counts: [],
+        );
+
+        $errors = $this->rule(['id', 'status'])->validate(UserResource::class, User::class, $schema);
+
+        self::assertCount(1, $errors);
+        self::assertSame('condition', $errors[0]->fieldKey);
+    }
+
+    /**
+     * Test that a declaration carrying no capability is not weighed against the
+     * field that does govern the column, since it declares no capability to
+     * conflict with and is already reported as dropped.
+     *
+     * @return void
+     */
+    public function testPassesOverACapabilitylessDeclarationWhenAnotherFieldGovernsTheColumn(): void
+    {
+        $schema = new CompiledSchema(
+            fields: [
+                'name'  => $this->makeField(filterable: 'name', capability: null),
+                'label' => $this->makeField(filterable: 'name', capability: Capability::EXACT),
+            ],
+            counts: [],
+        );
+
+        $errors = $this->rule(['id', 'name'])->validate(UserResource::class, User::class, $schema);
+
+        self::assertCount(1, $errors);
+        self::assertSame('name', $errors[0]->fieldKey);
+        self::assertSame(
+            'Field is declared filterable against "name" without a capability, so the declaration would be dropped',
+            $errors[0]->defect,
+        );
+    }
+
+    /**
+     * Test that a sound filterable declaration does not end the walk over the
+     * field's declarations, so the sortable one beside it is still judged.
+     *
+     * @return void
+     */
+    public function testReportsASortableDefectBesideASoundFilterableDeclaration(): void
+    {
+        $schema = new CompiledSchema(
+            fields: ['name' => $this->makeField(filterable: 'name', sortable: 'nickname')],
+            counts: [],
+        );
+
+        $errors = $this->rule(['id', 'name'])->validate(UserResource::class, User::class, $schema);
+
+        self::assertCount(1, $errors);
+        self::assertSame(
+            'Field is declared sortable against "nickname", and table "users" carries no such column',
+            $errors[0]->defect,
+        );
+    }
+
+    /**
+     * Test that a second field repeating the same capability for one column is
+     * accepted, since an alias naming the surface the first field declared
+     * leaves nothing to decide.
+     *
+     * @return void
+     */
+    public function testAcceptsTwoFieldsDeclaringOneColumnWithTheSameCapability(): void
+    {
+        $schema = new CompiledSchema(
+            fields: [
+                'status' => $this->makeField(filterable: 'status', capability: Capability::EXACT),
+                'state'  => $this->makeField(filterable: 'status', capability: Capability::EXACT),
+            ],
+            counts: [],
+        );
+
+        self::assertSame([], $this->rule(['id', 'status'])->validate(UserResource::class, User::class, $schema));
+    }
+
+    /**
      * Test that a listing that could not be read proves nothing, so a
      * declaration is left alone rather than refused.
      *
@@ -363,10 +558,16 @@ final class ValidateQueryableFieldsTest extends TestCase
      * @param  mixed  $compute
      * @param  string|null  $filterable
      * @param  string|null  $sortable
+     * @param  \SineMacula\ApiToolkit\Enums\Capability|null  $capability
      * @return \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition
      */
-    private function makeField(mixed $accessor = null, mixed $compute = null, ?string $filterable = null, ?string $sortable = null): CompiledFieldDefinition
-    {
+    private function makeField(
+        mixed $accessor = null,
+        mixed $compute = null,
+        ?string $filterable = null,
+        ?string $sortable = null,
+        ?Capability $capability = Capability::EXACT,
+    ): CompiledFieldDefinition {
         return new CompiledFieldDefinition(
             accessor: $accessor,
             compute: $compute,
@@ -379,6 +580,7 @@ final class ValidateQueryableFieldsTest extends TestCase
             guards: [],
             transformers: [],
             filterable: $filterable,
+            filterCapability: $filterable === null ? null : $capability,
             sortable: $sortable,
         );
     }

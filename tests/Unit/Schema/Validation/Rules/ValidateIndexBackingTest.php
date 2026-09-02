@@ -48,8 +48,8 @@ final class ValidateIndexBackingTest extends TestCase
     }
 
     /**
-     * Test that a resource with no model behind it is passed over, since there
-     * is no table whose indexes could be read.
+     * Test that a sortable declaration with no model behind the resource proves
+     * nothing, since there is no table whose catalogue could be read.
      *
      * @return void
      */
@@ -59,14 +59,34 @@ final class ValidateIndexBackingTest extends TestCase
     }
 
     /**
-     * Test that a mapped class that is not an Eloquent model is passed over
-     * rather than instantiated.
+     * Test that a mapped class that is not an Eloquent model proves nothing
+     * rather than being instantiated for a table it does not have.
      *
      * @return void
      */
     public function testPassesOverAMappedClassThatIsNotAModel(): void
     {
         self::assertSame([], $this->rule([])->validate(UserResource::class, UserResource::class, $this->schema('name')));
+    }
+
+    /**
+     * Test that a defect decided from the schema alone is reported even with no
+     * model behind the resource, since contradicting overrides need no table to
+     * be read as contradicting.
+     *
+     * @return void
+     */
+    public function testReportsASchemaDefectWithNoModelBehindTheResource(): void
+    {
+        $schema = $this->schema('name', indexedBy: 'users_lower_name_index', unindexedReason: 'Bounded table');
+
+        $errors = $this->rule([])->validate(UserResource::class, null, $schema);
+
+        self::assertCount(1, $errors);
+        self::assertSame(
+            'Field declares both a backing index and an index exemption, so neither governs the sort',
+            $errors[0]->defect,
+        );
     }
 
     /**
@@ -355,7 +375,8 @@ final class ValidateIndexBackingTest extends TestCase
 
     /**
      * Test that a field carrying an exemption without declaring anything
-     * sortable is reported for the same reason.
+     * sortable is reported in its own terms, so an author is not sent looking
+     * for an index declaration the field never made.
      *
      * @return void
      */
@@ -370,7 +391,7 @@ final class ValidateIndexBackingTest extends TestCase
 
         self::assertCount(1, $errors);
         self::assertSame(
-            'Field declares index backing but is not declared sortable, so the declaration governs nothing',
+            'Field declares an index exemption but is not declared sortable, so the exemption governs nothing',
             $errors[0]->defect,
         );
     }

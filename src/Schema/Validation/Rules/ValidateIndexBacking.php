@@ -33,8 +33,10 @@ use SineMacula\ApiToolkit\Schema\Validation\SchemaValidationError;
  * A connection that cannot be inspected at all is a different answer again, and
  * the rule stays silent for it: a developer booting without a database has
  * proved nothing, while a connection that was read and carries no index has
- * proved the declaration wrong. The catalogue is read here, during validation,
- * and never while a request is being served.
+ * proved the declaration wrong. A resource with no model behind it reads the
+ * same way, since there is no table to ask. What a declaration contradicts on
+ * its own is reported either way, needing no catalogue to decide. The catalogue
+ * is read here, during validation, and never while a request is being served.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -69,15 +71,15 @@ final readonly class ValidateIndexBacking implements SchemaValidationRule
     {
         $declared = $this->declaredFields($schema);
 
-        if ($declared === [] || $modelClass === null || !is_subclass_of($modelClass, Model::class)) {
+        if ($declared === []) {
             return [];
         }
 
-        /** @var \Illuminate\Database\Eloquent\Model $model */
-        $model = new $modelClass;
+        $model = $this->resolveModel($modelClass);
 
-        $indexes = $this->introspector->getIndexes($model);
-        $table   = $model->getTable();
+        // No model is no catalogue: the unverifiable answer, not an empty one.
+        $indexes = $model === null ? null : $this->introspector->getIndexes($model);
+        $table   = $model?->getTable() ?? '';
         $errors  = [];
 
         foreach ($declared as $key => $field) {
@@ -92,6 +94,23 @@ final readonly class ValidateIndexBacking implements SchemaValidationRule
         }
 
         return $errors;
+    }
+
+    /**
+     * Resolve the model behind the resource, or null where the mapped class is
+     * not an Eloquent model and has no table to read.
+     *
+     * @param  string|null  $modelClass
+     * @return \Illuminate\Database\Eloquent\Model|null
+     */
+    private function resolveModel(?string $modelClass): ?Model
+    {
+        if ($modelClass === null || !is_subclass_of($modelClass, Model::class)) {
+            return null;
+        }
+
+        /** @var \Illuminate\Database\Eloquent\Model */
+        return new $modelClass;
     }
 
     /**
@@ -147,7 +166,10 @@ final readonly class ValidateIndexBacking implements SchemaValidationRule
         }
 
         if ($field->sortable === null) {
-            return ['Field declares index backing but is not declared sortable, so the declaration governs nothing'];
+
+            return $field->indexedBy !== null
+                ? ['Field declares index backing but is not declared sortable, so the declaration governs nothing']
+                : ['Field declares an index exemption but is not declared sortable, so the exemption governs nothing'];
         }
 
         // A null catalogue is the connection saying nothing, not saying empty.
@@ -190,7 +212,9 @@ final readonly class ValidateIndexBacking implements SchemaValidationRule
      *
      * The comparison ignores case because an engine may report a name folded to
      * its own, so a declaration matching the migration that created it is not
-     * refused for the folding.
+     * refused for the folding. What the index covers is deliberately not
+     * compared: the override exists for an index the catalogue cannot describe
+     * by column, so its name is the whole of what there is to check.
      *
      * @param  string  $declared
      * @param  array<int, \SineMacula\ApiToolkit\Schema\Introspection\IndexDefinition>  $indexes

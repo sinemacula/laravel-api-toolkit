@@ -561,8 +561,8 @@ value left behind in a published config file is ignored.
 **Sensitive columns are refused at the declaration.** `searchable_exclusions` has been replaced by
 `api-toolkit.resources.sensitive_columns`, which names the columns that may never be declared
 `filterable()`, `sortable()`, or `searchable()`. Schema validation reports a resource that declares one, so
-the defect fails the build rather than being filtered out per request. The shipped list covers the stock Laravel
-and Fortify auth column family: `password`, `token`, `remember_token`, `two_factor_secret`,
+the defect fails the build rather than being filtered out per request. The shipped list covers the stock
+Laravel and Fortify auth column family: `password`, `token`, `remember_token`, `two_factor_secret`,
 `two_factor_recovery_codes`, `two_factor_confirmed_at`, and `email_verified_at`. Unlike the exclusion
 list it replaces, entries are whole column names -- the `users.password` table-scoped form is no longer
 recognised, and a bare `password` applies to every resource. A published config file that does not
@@ -572,8 +572,8 @@ still refuses a queryable credential column.
 ### Changed: `filterable()` names the capability the column has
 
 `Field::filterable()` is no longer a bare marker. It takes a `SineMacula\ApiToolkit\Enums\Capability`
-naming the access path the column is declared to have, and that capability decides which filter operators the
-column answers:
+naming the access path the column is declared to have, and that capability decides which filter operators
+the column answers:
 
     use SineMacula\ApiToolkit\Enums\Capability;
 
@@ -621,10 +621,11 @@ that column does accept, decided from the declaration before any handler runs an
 could hold that order. Schema validation now asks the connection, and a declaration no ordered index leads
 with fails validation.
 
-Leading is the whole test. Only the leading column of an index is a key prefix, so a column named second in a
-composite index is covered by that index and still cannot be ordered by on its own - checking mere membership
-would pass exactly the declaration the database cannot serve. Where the connection names index kinds, only a
-kind that holds an order counts, so a full-text or trigram index over a column does not make it sortable.
+Leading is the whole test. Only the leading column of an index is a key prefix, so a column named second in
+a composite index is covered by that index and still cannot be ordered by on its own - checking mere
+membership would pass exactly the declaration the database cannot serve. Where the connection names index
+kinds, only a kind that holds an order counts, so a full-text or trigram index over a column does not make
+it sortable.
 
 Two narrow overrides exist for what reading the catalogue cannot show:
 
@@ -632,9 +633,10 @@ Two narrow overrides exist for what reading the catalogue cannot show:
     Field::scalar('reference')->sortable()->unindexed('the table is bounded at a few hundred rows');
 
 `indexed()` names the index behind the column - an index over an expression, say, or one whose predicate the
-catalogue reports apart from its columns. It is still checked against the connection by name, so it cannot
-wave the check through. `unindexed()` records a deliberate exemption and requires a reason, so an exemption
-is never silent; it is the artefact a reviewer weighs a sort that reads the table against.
+catalogue reports apart from its columns. The name is looked up on the connection, so naming an index the
+table does not carry is itself a defect; what that index covers is not read back, so the override vouches
+for the column rather than proving it. `unindexed()` records a deliberate exemption and requires a reason,
+so an exemption is never silent; it is the artefact a reviewer weighs a sort that reads the table against.
 
 A connection that cannot be inspected at all reports nothing rather than reporting nothing found, so booting
 without a database, or before migrations have run, skips the check instead of failing it. The catalogue is

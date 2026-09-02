@@ -282,6 +282,30 @@ final class EngineSearchDriverTest extends TestCase
     }
 
     /**
+     * Test that the catalogue is read once for a declaration naming several
+     * columns rather than once per column, since every column is proved against
+     * the same answer and the read is a round trip to the connection.
+     *
+     * @return void
+     */
+    public function testReadsTheCatalogueOnceForTheWholeDeclaration(): void
+    {
+        $schema = self::createMock(SchemaBuilder::class);
+
+        $schema->expects(self::once())
+            ->method('getIndexes')
+            ->willReturn([['name' => 'users_name_index', 'columns' => ['name'], 'type' => 'btree']]);
+
+        $connection = self::createStub(Connection::class);
+
+        $connection->method('getSchemaBuilder')->willReturn($schema);
+
+        $defects = (new StubEngineSearchDriver)->indexDefects(SearchStrategy::EXACT, ['name', 'email', 'status'], 'users', $connection);
+
+        self::assertSame(['email', 'status'], array_keys($defects));
+    }
+
+    /**
      * Apply the term to a fresh query against the development connection.
      *
      * @param  array<int, string>  $columns

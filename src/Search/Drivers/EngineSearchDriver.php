@@ -184,6 +184,10 @@ abstract class EngineSearchDriver implements SearchDriver
      * Return what the columns are missing before a strategy an ordinary index
      * serves can be read from one, keyed by column.
      *
+     * The catalogue is read once for the whole declaration rather than once per
+     * column: every column is proved against the same answer, and a read apiece
+     * would multiply the one round trip this layer is allowed to make.
+     *
      * @param  \SineMacula\ApiToolkit\Enums\SearchStrategy  $strategy
      * @param  array<int, string>  $columns
      * @param  string  $table
@@ -192,11 +196,12 @@ abstract class EngineSearchDriver implements SearchDriver
      */
     protected function btreeIndexDefects(SearchStrategy $strategy, array $columns, string $table, Connection $connection): array
     {
+        $indexes = $this->indexes($table, $connection);
         $defects = [];
 
         foreach ($columns as $column) {
 
-            if ($this->hasBtreeIndexLeadingWith($column, $table, $connection)) {
+            if ($this->hasBtreeIndexLeadingWith($column, $indexes)) {
                 continue;
             }
 
@@ -248,13 +253,12 @@ abstract class EngineSearchDriver implements SearchDriver
      * index of any other kind does not, whatever it covers.
      *
      * @param  string  $column
-     * @param  string  $table
-     * @param  \Illuminate\Database\Connection  $connection
+     * @param  array<int, \SineMacula\ApiToolkit\Schema\Introspection\IndexDefinition>  $indexes
      * @return bool
      */
-    private function hasBtreeIndexLeadingWith(string $column, string $table, Connection $connection): bool
+    private function hasBtreeIndexLeadingWith(string $column, array $indexes): bool
     {
-        foreach ($this->indexes($table, $connection) as $index) {
+        foreach ($indexes as $index) {
 
             if ($index->type === 'btree' && $index->leadsWith($column)) {
                 return true;
