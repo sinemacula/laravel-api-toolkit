@@ -501,11 +501,30 @@ use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 public function __construct(private SchemaIntrospectionProvider $introspector) {}
 ```
 
-An OpenAPI 3.1 components document can be generated from the registered resource map and operator grammar:
+An OpenAPI 3.1 document is generated from the registered resource map, the routes the application exposes,
+and the live operator grammar:
 
 ```bash
 php artisan api-toolkit:export-openapi
 php artisan api-toolkit:export-openapi --output=openapi.json
+```
+
+Each resource becomes a component schema and each documented route an operation carrying the query
+parameters that action honours, so a generated client sends the grammar instead of discovering it from a
+422. Every property answering a query carries an `x-query-surface` extension naming the key to send it
+under, the capability it is filterable with together with the operators that capability answers, whether an
+index backs its sort and the reason recorded where none does, and the strategy a search matches it by; the
+relations a filter may descend through are named on the schema itself. The surface and the relations alike
+are read from the compiled schema the request-time gates read, and the operator vocabulary from the bound
+operator registry, so the document cannot offer a column the request would reject or an operator the
+package no longer ships.
+
+A second command writes the generated reference sections - the error catalogue, the enum reference, and the
+query surface reference, which tables every resource's queryable columns beside the bounds a request is held
+to - into the Markdown docs directory assembled into the document's description:
+
+```bash
+php artisan api-toolkit:docs:generate
 ```
 
 ---

@@ -52,11 +52,12 @@ use Tests\TestCase;
  * against the official OpenAPI 3.1 meta-schema (via opis/json-schema). It then
  * asserts the remaining oracles end to end -- 3.1.x version, populated
  * components, one schema per resource, full operator vocabulary in the filter
- * parameter, one response per error code, an empty paths object for an audience
- * with no route, created_at as a date-time string, an opaque compute field
- * flagged x-undocumented, and a regenerate-after-change diff -- plus the
- * per-audience paths, route scoping, reachable-only schema filtering, and the
- * command's --audience / --all behaviour.
+ * parameter, every reference resolving to a component that exists, one response
+ * per error code, an empty paths object for an audience with no route,
+ * created_at as a date-time string, an opaque compute field flagged
+ * x-undocumented, and a regenerate-after-change diff -- plus the per-audience
+ * paths, route scoping, reachable-only schema filtering, and the command's
+ * --audience / --all behaviour.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -313,6 +314,28 @@ final class OpenApiExporterValidityTest extends TestCase
         }
 
         self::assertGreaterThan(0, $seen);
+    }
+
+    /**
+     * Test that every reference the document carries anywhere resolves to a
+     * component that exists, so nothing a generated client follows dangles.
+     *
+     * @return void
+     */
+    public function testEveryReferenceResolvesToAComponentThatExists(): void
+    {
+        $this->registerUserRoutes();
+        $this->registerOrganizationRoute();
+        $this->registerTagInternalRoute();
+
+        $this->assertReferencesResolve($this->export()->document);
+
+        // The per-audience documents are the ones a reference can dangle in,
+        // the schemas being reduced to what that audience's paths reach.
+        $this->registerTwoAudiences();
+
+        $this->assertReferencesResolve($this->export('public')->document);
+        $this->assertReferencesResolve($this->export('internal')->document);
     }
 
     /**
@@ -1176,6 +1199,83 @@ final class OpenApiExporterValidityTest extends TestCase
         }
 
         return json_encode((new ErrorFormatter)->format($error), JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR);
+    }
+
+    /**
+     * Assert every reference the document carries is local and resolves to a
+     * component that exists.
+     *
+     * @param  array<string, mixed>  $document
+     * @return void
+     */
+    private function assertReferencesResolve(array $document): void
+    {
+        $references = $this->collectReferences($document);
+
+        self::assertNotEmpty($references);
+
+        foreach ($references as $reference) {
+
+            self::assertStringStartsWith('#/', $reference, 'Only a local reference can be resolved within the document.');
+            self::assertNotNull(
+                $this->resolveReference($document, $reference),
+                sprintf('The reference "%s" resolves to no component.', $reference),
+            );
+        }
+    }
+
+    /**
+     * Collect every distinct reference the node carries, at any depth.
+     *
+     * @param  mixed  $node
+     * @return array<int, string>
+     */
+    private function collectReferences(mixed $node): array
+    {
+        if (!is_array($node)) {
+            return [];
+        }
+
+        $references = [];
+
+        foreach ($node as $key => $value) {
+
+            if ($key === '$ref' && is_string($value)) {
+
+                $references[] = $value;
+                continue;
+            }
+
+            $references = [...$references, ...$this->collectReferences($value)];
+        }
+
+        return array_values(array_unique($references));
+    }
+
+    /**
+     * Resolve a local reference against the document, returning null when any
+     * segment of the pointer names something the document does not carry.
+     *
+     * @param  array<string, mixed>  $document
+     * @param  string  $reference
+     * @return mixed
+     */
+    private function resolveReference(array $document, string $reference): mixed
+    {
+        $node = $document;
+
+        foreach (explode('/', substr($reference, 2)) as $segment) {
+
+            $segment = str_replace(['~1', '~0'], ['/', '~'], $segment);
+
+            if (!is_array($node) || !array_key_exists($segment, $node)) {
+                return null;
+            }
+
+            $node = $node[$segment];
+        }
+
+        return $node;
     }
 
     /**

@@ -798,6 +798,30 @@ column -- register the operator yourself, in a service provider's `boot()`:
 Registering it restores the full-table scan the removal exists to prevent, including inside relation
 subqueries. Prefer `?search=` unless you have measured the alternative.
 
+### Changed: the exported OpenAPI document carries the query surface
+
+The exporter built the whole query-parameter grammar into `components.parameters` and then referenced none
+of it, so a client generated from the document sent no query parameter on any endpoint. Every documented
+operation now references the parameters its action honours: the sparse fieldset and the relation aggregates
+wherever a resource is serialised, the selection and paging set on an index, and soft-delete visibility on
+both read actions.
+
+Two of the emitted components changed with it. The filter parameter was emitted as `filter`, a bracketed
+deep object the parser rejects outright, so a client built from it sent a filter the API answered with the
+unfiltered table; it is now `filters`, the single URL-encoded JSON document the parser accepts. Soft-delete
+visibility was documented nowhere despite being a shipped capability, and is now emitted as `trashed`.
+
+Each resource schema property that answers a query also carries an `x-query-surface` extension naming the
+key to send it under, the capability it is filterable with together with the operators that capability
+answers, whether an index backs its sort, and the strategy a free-text search matches it by. The relations a
+filter may descend through are named on the schema itself as `x-traversable-relations`. Both extensions are
+read from the compiled schema the request-time gates read, so the document cannot offer a column the request
+would reject.
+
+**Action required.** Regenerate any client built from the exported document, and rename the `filter`
+parameter to `filters` in anything that read the old component names. A client that builds the query string
+itself is unaffected.
+
 ### Removed: Request macros in favour of RequestCapabilities
 
 The request macros the toolkit used to register - `includeTrashed()` and `onlyTrashed()` - have

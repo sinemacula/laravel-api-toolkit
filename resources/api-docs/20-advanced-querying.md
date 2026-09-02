@@ -13,14 +13,26 @@ request looks like this:
 ?fields[user]=first_name,last_name&filters={"last_name":{"$eq":"Smith"}}&order=created_at:desc&limit=25&page=1
 ```
 
-| Parameter | Example                          | Description                                                                 |
-|-----------|----------------------------------|-----------------------------------------------------------------------------|
-| `fields`  | `?fields[user]=first_name`       | Choose the fields returned per resource type. Available on all endpoints.   |
-| `filters` | `?filters={"age":{"$gt":18}}`    | Filter records with a structured JSON query. Available on index endpoints.  |
-| `search`  | `?search=John Smith`             | Free-text search across a resource's searchable fields. Index endpoints.    |
-| `order`   | `?order=created_at:desc`         | Order results by a column and direction. Available on index endpoints.      |
-| `limit`   | `?limit=25`                      | Set the page size of a paginated list. Available on index endpoints.        |
-| `page`    | `?page=2`                        | Request a specific page of a paginated list. Available on index endpoints.  |
+| Parameter  | Example                         | Description                                             |
+|------------|---------------------------------|---------------------------------------------------------|
+| `fields`   | `?fields[user]=first_name`      | Choose the fields returned per resource type.           |
+| `counts`   | `?counts[user]=posts`           | Ask for a count of a declared relationship.             |
+| `sums`     | `?sums[user][orders]=total`     | Ask for a sum over a declared relationship.             |
+| `averages` | `?averages[user][orders]=total` | Ask for an average over a declared relationship.        |
+| `filters`  | `?filters={"age":{"$gt":18}}`   | Filter records with a structured JSON query.            |
+| `search`   | `?search=John Smith`            | Free-text search across a resource's searchable fields. |
+| `order`    | `?order=created_at:desc`        | Order results by a column and direction.                |
+| `limit`    | `?limit=25`                     | Set the page size of a paginated list.                  |
+| `page`     | `?page=2`                       | Request a specific page of a paginated list.            |
+| `trashed`  | `?trashed=with`                 | Widen a read to include soft-deleted records.           |
+
+The first four shape the representation of a resource that is returned, so they
+are honoured wherever one is serialised, whatever the verb that produced it.
+The next five select, order, and page a collection, so only an endpoint
+returning a list answers them. `trashed` widens the scope a read is served from
+and so joins both read endpoints; a resource that has not opted in to exposing
+its soft-deleted records ignores it. Cursor paging adds two more, `pagination`
+and `cursor`, described in the Pagination section.
 
 ## Fields
 
