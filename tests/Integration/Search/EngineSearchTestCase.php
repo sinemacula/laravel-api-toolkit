@@ -144,6 +144,22 @@ abstract class EngineSearchTestCase extends TestCase
     }
 
     /**
+     * Test that the escape character itself matches literally when the term
+     * carries one. It is doubled before it reaches the pattern, so the engine
+     * has to read the pair as the character rather than as an escape of the
+     * character beside it.
+     *
+     * @return void
+     */
+    public function testTheEscapeCharacterInTheTermMatchesItself(): void
+    {
+        User::create(['name' => 'Banged', 'email' => 'c!d@example.com', 'status' => 'active']);
+        User::create(['name' => 'Plain', 'email' => 'cd@example.com', 'status' => 'active']);
+
+        static::assertSame(['Banged'], $this->search('c!d', PrefixSearchableUserResource::class));
+    }
+
+    /**
      * Test that the anywhere-match is answered from an index rather than by
      * reading the table, which the returned rows alone cannot show: a scan
      * answers them just as correctly, and far more slowly, which is the outcome

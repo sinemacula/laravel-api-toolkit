@@ -37,9 +37,13 @@ trait AssertsBoundPlaceholders
     {
         $unquoted = preg_replace(self::QUOTED_LITERAL, '', $sql);
 
+        // Counting the raw statement would count placeholders inside literals,
+        // which is the reading this assertion exists to refuse.
+        Assert::assertIsString($unquoted, 'The quoted literals must be stripped before the placeholders are counted.');
+
         Assert::assertSame(
             count($bindings),
-            substr_count(is_string($unquoted) ? $unquoted : $sql, '?'),
+            substr_count($unquoted, '?'),
             sprintf('The statement must carry one placeholder for each of its bindings: %s', $sql),
         );
     }
