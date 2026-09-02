@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Validation\ValidationException;
 use PHPUnit\Framework\Attributes\CoversClass;
+use SineMacula\ApiToolkit\Enums\Capability;
 use SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException;
 use SineMacula\ApiToolkit\Query\QueryCostLimits;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterApplier;
@@ -876,7 +877,7 @@ final class FilterApplierTest extends TestCase
      */
     public function testUndeclaredKeyIsRejected(): void
     {
-        $surface = $this->declaredSurface(filterable: ['name']);
+        $surface = $this->declaredSurface(filterable: ['name' => Capability::EXACT]);
 
         try {
             $this->applier->apply((new User)->newQuery(), ['unknown_key' => 'x'], $this->operatorRegistry, $surface);
@@ -898,7 +899,7 @@ final class FilterApplierTest extends TestCase
      */
     public function testDeclaredFilterableColumnIsApplied(): void
     {
-        $surface = $this->declaredSurface(filterable: ['name']);
+        $surface = $this->declaredSurface(filterable: ['name' => Capability::EXACT]);
 
         $result = $this->applier->apply((new User)->newQuery(), ['name' => 'Alice'], $this->operatorRegistry, $surface);
         $wheres = $result->getQuery()->wheres;
@@ -939,7 +940,7 @@ final class FilterApplierTest extends TestCase
      */
     public function testDeclaredColumnPreservesConditionAndLogicalOperators(): void
     {
-        $surface = $this->declaredSurface(filterable: ['name', 'email']);
+        $surface = $this->declaredSurface(filterable: ['name' => Capability::EXACT, 'email' => Capability::EXACT]);
 
         $eq = $this->applier->apply((new User)->newQuery(), ['name' => ['$eq' => 'Alice']], $this->operatorRegistry, $surface);
 
@@ -1311,7 +1312,7 @@ final class FilterApplierTest extends TestCase
     /**
      * Build a query surface for the User root model.
      *
-     * @param  array<int, string>  $filterable
+     * @param  array<string, \SineMacula\ApiToolkit\Enums\Capability>  $filterable
      * @param  array<int, string>  $sortable
      * @param  array<int, string>  $relations
      * @param  array<string, string>  $resourceMap
@@ -1347,7 +1348,7 @@ final class FilterApplierTest extends TestCase
     private function surface(): QuerySurface
     {
         return $this->declaredSurface(
-            filterable : ['name', 'email', 'id', 'organization_id'],
+            filterable : ['name' => Capability::EXACT, 'email' => Capability::EXACT, 'id' => Capability::RANGE, 'organization_id' => Capability::EXACT],
             relations  : ['posts'],
             resourceMap: [Post::class => DeepTraversalPostResource::class],
         );

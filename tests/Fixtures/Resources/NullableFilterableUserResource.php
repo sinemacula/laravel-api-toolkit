@@ -4,6 +4,7 @@ declare(strict_types = 1);
 
 namespace Tests\Fixtures\Resources;
 
+use SineMacula\ApiToolkit\Enums\Capability;
 use SineMacula\ApiToolkit\Http\Resources\ApiResource;
 use SineMacula\ApiToolkit\Schema\Field;
 
@@ -35,10 +36,10 @@ final class NullableFilterableUserResource extends ApiResource
     public static function schema(): array
     {
         return Field::set(
-            Field::scalar('id')->filterable()->sortable(),
-            Field::scalar('name')->filterable(),
-            Field::scalar('email')->filterable(),
-            Field::scalar('organization_id')->filterable(),
+            Field::scalar('id')->filterable(Capability::RANGE)->sortable(),
+            Field::scalar('name')->filterable(Capability::EXACT),
+            Field::scalar('email')->filterable(Capability::EXACT),
+            Field::scalar('organization_id')->filterable(Capability::EXACT),
             Field::scalar('status'),
         );
     }

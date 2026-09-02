@@ -164,6 +164,7 @@ schema helpers. The compiled schema drives field resolution, guard evaluation, a
 ```php
 use App\Models\User;
 use SineMacula\ApiToolkit\Attributes\ForModel;
+use SineMacula\ApiToolkit\Enums\Capability;
 use SineMacula\ApiToolkit\Enums\SearchStrategy;
 use SineMacula\ApiToolkit\Http\Resources\ApiResource;
 use SineMacula\ApiToolkit\Schema\Count;
@@ -181,8 +182,8 @@ class UserResource extends ApiResource
     public static function schema(): array
     {
         return Field::set(
-            Field::scalar('name')->filterable()->sortable()->searchable(SearchStrategy::SUBSTRING),
-            Field::scalar('email')->filterable()->searchable(SearchStrategy::SUBSTRING),
+            Field::scalar('name')->filterable(Capability::EXACT)->sortable()->searchable(SearchStrategy::SUBSTRING),
+            Field::scalar('email')->filterable(Capability::EXACT)->searchable(SearchStrategy::SUBSTRING),
             Field::timestamp('created_at')->sortable(),
             Field::compute('full_name', 'getFullName'),
             Relation::to('organization', OrganizationResource::class)->traversable(),
@@ -195,9 +196,13 @@ class UserResource extends ApiResource
 
 Fields marked `filterable()` or `sortable()` are the only ones a client may query, and a field marked
 `searchable()` is the only one the `?search=` term is matched against - the strategy it is given decides both
-how the value is matched and which index has to back the column. Relations marked `traversable()` can be
-targeted by nested filters. The `$default` static property declares the fields returned when the client sends
-no `?fields` parameter.
+how the value is matched and which index has to back the column. The capability given to `filterable()` decides
+which filter operators the column answers: `Capability::EXACT` an equality seek and a value list,
+`Capability::ENUM` those plus the negations a small closed set makes bounded, `Capability::RANGE` the
+comparison and between operators an ordered column serves, `Capability::DOCUMENT` the `$contains` containment
+operator alone, and `Capability::OPAQUE` a single equality for a column with no access path to vouch for.
+Relations marked `traversable()` can be targeted by nested filters. The `$default` static property declares the
+fields returned when the client sends no `?fields` parameter.
 
 **Model binding and discovery** - the `#[ForModel(...)]` attribute binds a resource to its model, and may be
 repeated to bind one resource to several models. By default (`api-toolkit.resources.paths` left null) resources
@@ -260,7 +265,8 @@ $users = $repository->withApiCriteria()->paginate();
 
 **Allowlist posture** - only schema fields declared `filterable()`, `sortable()`, or `traversable()` are
 accepted, and every undeclared key is rejected with a validation error. There is no opt-out: a resource that
-declares nothing is queryable by nothing.
+declares nothing is queryable by nothing. A filterable declaration also carries the capability the column is
+queried through, so the surface records not just which columns may be filtered but how.
 
 **Sensitive columns** - the columns listed in `api-toolkit.resources.sensitive_columns` may never be declared
 `filterable()` or `sortable()`. Schema validation refuses a resource that declares one, so a credential or

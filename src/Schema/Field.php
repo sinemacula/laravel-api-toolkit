@@ -6,6 +6,7 @@ namespace SineMacula\ApiToolkit\Schema;
 
 use Carbon\CarbonInterface;
 use Illuminate\Contracts\Support\Arrayable;
+use SineMacula\ApiToolkit\Enums\Capability;
 use SineMacula\ApiToolkit\Enums\SearchStrategy;
 use SineMacula\ApiToolkit\Exceptions\DuplicateSchemaKeyException;
 
@@ -23,8 +24,8 @@ final class Field extends BaseDefinition
     /** @var mixed Compute callable for dynamic field values */
     private mixed $compute = null;
 
-    /** @var bool Whether this field's column is declared filterable */
-    private bool $filterable = false;
+    /** @var \SineMacula\ApiToolkit\Enums\Capability|null The capability this field's column is declared filterable with */
+    private ?Capability $filterable = null;
 
     /** @var bool Whether this field's column is declared sortable */
     private bool $sortable = false;
@@ -148,13 +149,19 @@ final class Field extends BaseDefinition
     }
 
     /**
-     * Declare this field's column as filterable.
+     * Declare this field's column as filterable with the given capability.
      *
+     * The capability is explicit because it decides which operators the column
+     * answers. A bare declaration would open every operator on every column,
+     * including the containment and negation shapes that no index behind an
+     * ordinary column can serve.
+     *
+     * @param  \SineMacula\ApiToolkit\Enums\Capability  $capability
      * @return self
      */
-    public function filterable(): self
+    public function filterable(Capability $capability): self
     {
-        $this->filterable = true;
+        $this->filterable = $capability;
 
         return $this;
     }
@@ -203,7 +210,8 @@ final class Field extends BaseDefinition
             $key => array_filter([
                 'accessor'   => $this->accessor,
                 'compute'    => $this->compute,
-                'filterable' => $this->filterable ? $this->name : null,
+                'filterable' => $this->filterable !== null ? $this->name : null,
+                'capability' => $this->filterable,
                 'sortable'   => $this->sortable ? $this->name : null,
                 'searchable' => $this->searchable !== null ? $this->name : null,
                 'strategy'   => $this->searchable,

@@ -7,6 +7,7 @@ namespace Tests\Unit\Repositories\Criteria;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Validation\ValidationException;
 use PHPUnit\Framework\Attributes\CoversClass;
+use SineMacula\ApiToolkit\Enums\Capability;
 use SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface;
 use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\User;
@@ -33,7 +34,7 @@ final class QuerySurfaceTest extends TestCase
      */
     public function testPermitsDeclaredAndRejectsUndeclaredFilter(): void
     {
-        $surface = $this->make(filterable: ['email']);
+        $surface = $this->make(filterable: ['email' => Capability::EXACT]);
 
         $this->assertPermits(fn () => $surface->guardFilter('email', new User), 'email');
 
@@ -52,7 +53,7 @@ final class QuerySurfaceTest extends TestCase
      *
      * @return void
      */
-    public function testGovernsSortAndRelationCapabilities(): void
+    public function testGovernsSortAndRelationDeclarations(): void
     {
         $surface = $this->make(sortable: ['created_at'], relations: ['posts']);
 
@@ -101,7 +102,7 @@ final class QuerySurfaceTest extends TestCase
     public function testPermitsDeclaredFilterableColumnOnRelatedModel(): void
     {
         $surface = $this->make(
-            filterable: ['email'],
+            filterable: ['email' => Capability::EXACT],
             resourceMap: [Post::class => PostResource::class],
         );
 
@@ -117,7 +118,7 @@ final class QuerySurfaceTest extends TestCase
     public function testRejectsUndeclaredFilterableColumnOnRelatedModel(): void
     {
         $surface = $this->make(
-            filterable: ['email'],
+            filterable: ['email' => Capability::EXACT],
             resourceMap: [Post::class => PostResource::class],
         );
 
@@ -150,7 +151,7 @@ final class QuerySurfaceTest extends TestCase
     public function testFailsClosedWhenRelatedModelHasNoMappedResource(): void
     {
         // Empty resource map - Post is not mapped.
-        $surface = $this->make(filterable: ['email']);
+        $surface = $this->make(filterable: ['email' => Capability::EXACT]);
 
         $this->assertRejects(fn () => $surface->guardFilter('title', new Post), 'filters.title');
     }
@@ -224,7 +225,7 @@ final class QuerySurfaceTest extends TestCase
     /**
      * Build a query surface with sensible defaults for the test under focus.
      *
-     * @param  array<int, string>  $filterable
+     * @param  array<string, \SineMacula\ApiToolkit\Enums\Capability>  $filterable
      * @param  array<int, string>  $sortable
      * @param  array<int, string>  $relations
      * @param  array<string, string>  $resourceMap

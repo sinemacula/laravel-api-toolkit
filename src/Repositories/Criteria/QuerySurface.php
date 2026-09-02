@@ -38,7 +38,7 @@ final readonly class QuerySurface
     /**
      * Create a new query surface bound to the root query's model.
      *
-     * @param  array<int, string>  $filterableColumns
+     * @param  array<string, \SineMacula\ApiToolkit\Enums\Capability>  $filterableColumns
      * @param  array<int, string>  $sortableColumns
      * @param  array<int, string>  $traversableRelations
      * @param  \Illuminate\Database\Eloquent\Model  $rootModel
@@ -46,7 +46,7 @@ final readonly class QuerySurface
      */
     public function __construct(
 
-        /** Declared filterable columns for the root resource. */
+        /** Declared filterable columns for the root resource, mapped to their capability. */
         private array $filterableColumns,
 
         /** Declared sortable columns for the root resource. */
@@ -132,7 +132,7 @@ final readonly class QuerySurface
     private function permitsFilter(string $column, Model $model): bool
     {
         return $this->governsRoot($model)
-            ? in_array($column, $this->filterableColumns, true)
+            ? array_key_exists($column, $this->filterableColumns)
             : $this->permitsRelatedColumn($column, $model, true);
     }
 
@@ -202,9 +202,9 @@ final readonly class QuerySurface
             return false;
         }
 
-        $columns = $filterable ? $schema->getFilterableColumns() : $schema->getSortableColumns();
-
-        return in_array($column, $columns, true);
+        return $filterable
+            ? array_key_exists($column, $schema->getFilterableColumns())
+            : in_array($column, $schema->getSortableColumns(), true);
     }
 
     /**

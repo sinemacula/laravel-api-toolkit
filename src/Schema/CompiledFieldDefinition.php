@@ -4,6 +4,7 @@ declare(strict_types = 1);
 
 namespace SineMacula\ApiToolkit\Schema;
 
+use SineMacula\ApiToolkit\Enums\Capability;
 use SineMacula\ApiToolkit\Enums\SearchStrategy;
 
 /**
@@ -32,6 +33,7 @@ final readonly class CompiledFieldDefinition
      * @param  array<int, callable(mixed, mixed): mixed>  $transformers
      * @param  \SineMacula\ApiToolkit\Schema\OpenApiFieldSchema|null  $openApi
      * @param  string|null  $filterable
+     * @param  \SineMacula\ApiToolkit\Enums\Capability|null  $filterCapability
      * @param  string|null  $sortable
      * @param  string|null  $searchable
      * @param  \SineMacula\ApiToolkit\Enums\SearchStrategy|null  $searchStrategy
@@ -73,6 +75,9 @@ final readonly class CompiledFieldDefinition
 
         /** Column this field declares filterable, or null when undeclared */
         public ?string $filterable = null,
+
+        /** Capability the filterable column was declared with */
+        public ?Capability $filterCapability = null,
 
         /** Column this field declares sortable, or null when undeclared */
         public ?string $sortable = null,

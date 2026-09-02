@@ -4,6 +4,7 @@ declare(strict_types = 1);
 
 namespace Tests\Fixtures\Resources;
 
+use SineMacula\ApiToolkit\Enums\Capability;
 use SineMacula\ApiToolkit\Http\Resources\ApiResource;
 use SineMacula\ApiToolkit\Schema\Count;
 use SineMacula\ApiToolkit\Schema\Field;
@@ -33,7 +34,7 @@ final class PostResource extends ApiResource
     {
         return Field::set(
             Field::scalar('id'),
-            Field::scalar('title')->filterable(),
+            Field::scalar('title')->filterable(Capability::EXACT),
             Field::scalar('body'),
             Field::scalar('published'),
             Field::timestamp('created_at'),

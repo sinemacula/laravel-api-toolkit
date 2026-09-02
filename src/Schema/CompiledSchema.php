@@ -20,7 +20,7 @@ final readonly class CompiledSchema
      * @param  array<string, \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition>  $fields
      * @param  array<string, \SineMacula\ApiToolkit\Schema\CompiledCountDefinition>  $counts
      * @param  array<string, \SineMacula\ApiToolkit\Schema\CompiledAggregateDefinition>  $aggregates
-     * @param  array<int, string>  $filterableColumns
+     * @param  array<string, \SineMacula\ApiToolkit\Enums\Capability>  $filterableColumns
      * @param  array<int, string>  $sortableColumns
      * @param  array<int, string>  $traversableRelations
      * @param  array<string, \SineMacula\ApiToolkit\Enums\SearchStrategy>  $searchableColumns
@@ -36,7 +36,7 @@ final readonly class CompiledSchema
         /** The compiled aggregate definitions keyed by present key */
         private array $aggregates = [],
 
-        /** Declared filterable column names */
+        /** Declared filterable column names mapped to their capability */
         private array $filterableColumns = [],
 
         /** Declared sortable column names */
@@ -108,9 +108,9 @@ final readonly class CompiledSchema
     }
 
     /**
-     * Return the declared filterable column names.
+     * Return the declared filterable columns mapped to their capability.
      *
-     * @return array<int, string>
+     * @return array<string, \SineMacula\ApiToolkit\Enums\Capability>
      */
     public function getFilterableColumns(): array
     {

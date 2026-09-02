@@ -4,6 +4,7 @@ declare(strict_types = 1);
 
 namespace Tests\Fixtures\Resources;
 
+use SineMacula\ApiToolkit\Enums\Capability;
 use SineMacula\ApiToolkit\Http\Resources\ApiResource;
 use SineMacula\ApiToolkit\Schema\Field;
 use SineMacula\ApiToolkit\Schema\Relation;
@@ -35,8 +36,8 @@ final class DeepTraversalPostResource extends ApiResource
     public static function schema(): array
     {
         return Field::set(
-            Field::scalar('id')->filterable(),
-            Field::scalar('title')->filterable(),
+            Field::scalar('id')->filterable(Capability::RANGE),
+            Field::scalar('title')->filterable(Capability::EXACT),
             Relation::to('user', UserResource::class)->traversable(),
         );
     }
