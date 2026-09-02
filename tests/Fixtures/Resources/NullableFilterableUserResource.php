@@ -13,8 +13,11 @@ use SineMacula\ApiToolkit\Schema\Field;
  *
  * The `organization_id` column is nullable on the users table and is declared
  * filterable here so the `$null` / `$notNull` operators can be exercised under
- * the allowlist posture. The scalar fields alongside it give a stable set to
- * assert the narrowed rows against.
+ * the allowlist posture. The `status` column is declared with the enum
+ * capability, the only one whose value domain is closed enough to answer
+ * `$neq`, so the negation operator has a column to be driven against. The
+ * scalar fields alongside them give a stable set to assert the narrowed rows
+ * against.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -40,7 +43,7 @@ final class NullableFilterableUserResource extends ApiResource
             Field::scalar('name')->filterable(Capability::EXACT),
             Field::scalar('email')->filterable(Capability::EXACT),
             Field::scalar('organization_id')->filterable(Capability::EXACT),
-            Field::scalar('status'),
+            Field::scalar('status')->filterable(Capability::ENUM),
         );
     }
 }

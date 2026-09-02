@@ -48,6 +48,95 @@ final class QuerySurfaceTest extends TestCase
     }
 
     /**
+     * Test that an operator the declaring column's capability answers is
+     * permitted and one it does not is rejected, naming both the operator and
+     * the column and listing what the column does accept.
+     *
+     * @return void
+     */
+    public function testGatesEachOperatorAgainstTheDeclaringColumnsCapability(): void
+    {
+        $surface = $this->make(filterable: ['status' => Capability::ENUM, 'email' => Capability::EXACT]);
+
+        $this->assertPermits(fn () => $surface->guardFilterOperator('status', '$neq', new User), 'status');
+
+        try {
+            $surface->guardFilterOperator('email', '$neq', new User);
+            self::fail('Expected a ValidationException for an operator the capability does not answer.');
+        } catch (ValidationException $exception) {
+            self::assertSame(
+                ['The "$neq" operator is not permitted on the "email" key for this resource, which accepts $eq, $in, $null, $notNull.'],
+                $exception->errors()['filters.email.$neq'] ?? [],
+            );
+        }
+    }
+
+    /**
+     * Test that the operator gate rejects an undeclared column with the
+     * undeclared-key message rather than an operator message, so a client that
+     * named a column the resource never exposed is told so.
+     *
+     * @return void
+     */
+    public function testOperatorGateRejectsAnUndeclaredColumnAsAnUndeclaredKey(): void
+    {
+        $surface = $this->make(filterable: ['email' => Capability::EXACT]);
+
+        try {
+            $surface->guardFilterOperator('password', '$eq', new User);
+            self::fail('Expected a ValidationException for an undeclared filter key.');
+        } catch (ValidationException $exception) {
+            self::assertSame(
+                ['The "password" key is not a permitted query parameter for this resource.'],
+                $exception->errors()['filters.password'] ?? [],
+            );
+        }
+    }
+
+    /**
+     * Test that a token the capability matrix does not govern is permitted on a
+     * declared column, so an operator the application bound to a handler of its
+     * own stays usable.
+     *
+     * @return void
+     */
+    public function testOperatorGatePermitsATokenTheMatrixDoesNotGovern(): void
+    {
+        $surface = $this->make(filterable: ['email' => Capability::OPAQUE]);
+
+        $this->assertPermits(fn () => $surface->guardFilterOperator('email', '$starts', new User), 'email');
+    }
+
+    /**
+     * Test that a column on a related model is gated by the capability the
+     * related resource declared it with, not the root resource's.
+     *
+     * PostResource declares 'title' with the exact capability, which does not
+     * answer the containment operator.
+     *
+     * @return void
+     */
+    public function testOperatorGateReadsTheRelatedResourcesCapability(): void
+    {
+        $surface = $this->make(
+            filterable: ['context' => Capability::DOCUMENT],
+            resourceMap: [Post::class => PostResource::class],
+        );
+
+        $this->assertPermits(fn () => $surface->guardFilterOperator('title', '$eq', new Post), 'title');
+
+        try {
+            $surface->guardFilterOperator('title', '$contains', new Post);
+            self::fail('Expected a ValidationException for an operator the related capability does not answer.');
+        } catch (ValidationException $exception) {
+            self::assertSame(
+                ['The "$contains" operator is not permitted on the "title" key for this resource, which accepts $eq, $in, $null, $notNull.'],
+                $exception->errors()['filters.title.$contains'] ?? [],
+            );
+        }
+    }
+
+    /**
      * Test that declared sort columns and traversable relations are permitted
      * and undeclared ones rejected.
      *
@@ -123,6 +212,25 @@ final class QuerySurfaceTest extends TestCase
         );
 
         $this->assertRejects(fn () => $surface->guardFilter('secret', new Post), 'filters.secret');
+    }
+
+    /**
+     * Test that a column declared sortable in the related model's mapped
+     * resource is permitted for ordering at a non-root hop.
+     *
+     * FilterableUserResource declares 'created_at' sortable, so with User
+     * reached as a related model the ordering key must pass.
+     *
+     * @return void
+     */
+    public function testPermitsDeclaredSortableColumnOnRelatedModel(): void
+    {
+        $surface = $this->make(
+            resourceMap: [User::class => FilterableUserResource::class],
+            rootModel: new Post,
+        );
+
+        $this->assertPermits(fn () => $surface->guardSort('created_at', new User), 'created_at');
     }
 
     /**

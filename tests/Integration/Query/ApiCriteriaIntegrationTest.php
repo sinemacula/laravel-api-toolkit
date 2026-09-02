@@ -101,11 +101,11 @@ final class ApiCriteriaIntegrationTest extends TestCase
      */
     public function testFilteringWithNeqOperator(): void
     {
-        $this->parseQuery(['filters' => json_encode(['name' => ['$neq' => 'Alice']])]);
+        $this->parseQuery(['filters' => json_encode(['status' => ['$neq' => 'inactive']])]);
 
         $results = $this->makeCriteria()->apply(new User)->get();
 
-        self::assertTrue($results->pluck('name')->doesntContain('Alice'));
+        self::assertTrue($results->pluck('name')->doesntContain('Charlie'));
         self::assertGreaterThan(0, $results->count());
     }
 

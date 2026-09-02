@@ -77,7 +77,10 @@ The `filters` value must be a JSON string; requests carrying a non-JSON value ar
 error.
 
 Available built-in operator tokens: `$eq`, `$neq`, `$gt`, `$lt`, `$ge`, `$le`, `$in`, `$between`,
-`$contains`, `$null`, `$notNull`.
+`$contains`, `$null`, `$notNull`. Each is accepted only on a column whose declared capability answers it,
+so a request pairing an operator with a column that cannot serve it is rejected with a 422 naming both and
+listing the operators that column does accept. The bare shorthand `{"name":"Alice"}` is the `$eq` operator
+written without its token, and is held to the same declaration.
 
 **Free-text search** - match a term against the fields a resource declares searchable:
 
@@ -201,6 +204,7 @@ which filter operators the column answers: `Capability::EXACT` an equality seek 
 `Capability::ENUM` those plus the negations a small closed set makes bounded, `Capability::RANGE` the
 comparison and between operators an ordered column serves, `Capability::DOCUMENT` the `$contains` containment
 operator alone, and `Capability::OPAQUE` a single equality for a column with no access path to vouch for.
+Any other operator on that column is refused rather than served by a scan.
 Relations marked `traversable()` can be targeted by nested filters. The `$default` static property declares the
 fields returned when the client sends no `?fields` parameter.
 
@@ -266,7 +270,10 @@ $users = $repository->withApiCriteria()->paginate();
 **Allowlist posture** - only schema fields declared `filterable()`, `sortable()`, or `traversable()` are
 accepted, and every undeclared key is rejected with a validation error. There is no opt-out: a resource that
 declares nothing is queryable by nothing. A filterable declaration also carries the capability the column is
-queried through, so the surface records not just which columns may be filtered but how.
+queried through, so the surface records not just which columns may be filtered but how, and each filter is
+gated as a (column, operator) pair rather than as a column alone. The refusal is decided from the compiled
+declaration before the operator handler is resolved, so no statement is issued for a query that will be
+refused.
 
 **Sensitive columns** - the columns listed in `api-toolkit.resources.sensitive_columns` may never be declared
 `filterable()` or `sortable()`. Schema validation refuses a resource that declares one, so a credential or
@@ -363,6 +370,13 @@ An operator that fans a single value out into one predicate per item should also
 dispatcher measures the reported count against the `max_in_items` cap, so a list spelled as a delimited
 string is bounded the same way as one spelled as an array. An operator that does not implement the contract
 is measured as one item per non-list value.
+
+The capability matrix governs the operators the package ships and whose SQL it wrote, so a token registered
+under a name none of them uses is not held to it and applies on any declared column. The package cannot say
+which access path such a token needs, and refusing it would leave `register()` an extension point able to
+produce only tokens every column rejects. A token that no one registered is not an operator at all: it is
+read as a column name and rejected by the allowlist. Overriding a shipped token keeps that token's place in
+the matrix, so replacing the `$contains` handler leaves it served from document columns alone.
 
 ---
 

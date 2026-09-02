@@ -7,6 +7,7 @@ namespace SineMacula\ApiToolkit\Repositories\Criteria;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Validation\ValidationException;
 use SineMacula\ApiToolkit\Contracts\ApiResourceInterface;
+use SineMacula\ApiToolkit\Enums\Capability;
 use SineMacula\ApiToolkit\Schema\CompiledSchema;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 
@@ -19,6 +20,14 @@ use SineMacula\ApiToolkit\Schema\SchemaCompiler;
  * key is rejected with a named ValidationException. A resource with no declared
  * surface (e.g. a model with no mapped resource) yields empty sets, so every
  * root key is rejected - secure by default.
+ *
+ * A declared filterable column carries the capability it was declared with, so
+ * the gate answers not only whether a column may be filtered but which
+ * operators it answers. An operator the column's capability does not permit is
+ * refused with the permitted set named, so the client can correct the query
+ * without asking what the column is. The refusal is decided from the compiled
+ * declaration alone, before the operator handler is resolved and before any
+ * clause reaches the builder.
  *
  * Keys that target a nested/related model (within a declared-traversable
  * relation) are gated against that related model's resource schema. When no
@@ -35,6 +44,12 @@ use SineMacula\ApiToolkit\Schema\SchemaCompiler;
  */
 final readonly class QuerySurface
 {
+    /** @var string Rejection naming a key the governing resource never declared */
+    private const string UNDECLARED_KEY = 'The "%s" key is not a permitted query parameter for this resource.';
+
+    /** @var string Rejection naming an operator the declaring column's capability does not answer */
+    private const string UNPERMITTED_OPERATOR = 'The "%s" operator is not permitted on the "%s" key for this resource, which accepts %s.';
+
     /**
      * Create a new query surface bound to the root query's model.
      *
@@ -74,6 +89,40 @@ final readonly class QuerySurface
     public function guardFilter(string $column, Model $model): void
     {
         $this->guard($this->permitsFilter($column, $model), 'filters', $column);
+    }
+
+    /**
+     * Guard a filter operator against the declaring column's capability,
+     * rejecting an undeclared column and an operator that column does not
+     * answer.
+     *
+     * A token the capability matrix does not govern at all was bound to a
+     * handler by the application through the operator registry, so it is left
+     * to the application: the package gates the operators whose SQL it wrote,
+     * and refusing the rest would make the registry an extension point that can
+     * only produce tokens no column accepts.
+     *
+     * @param  string  $column
+     * @param  string  $operator
+     * @param  \Illuminate\Database\Eloquent\Model  $model
+     * @return void
+     *
+     * @throws \Illuminate\Validation\ValidationException
+     */
+    public function guardFilterOperator(string $column, string $operator, Model $model): void
+    {
+        $capability = $this->capabilityFor($column, $model);
+
+        if ($capability === null) {
+            throw $this->rejection('filters.' . $column, sprintf(self::UNDECLARED_KEY, $column));
+        }
+
+        if (Capability::governs($operator) && !$capability->permits($operator)) {
+
+            $accepts = implode(', ', $capability->permittedOperators());
+
+            throw $this->rejection('filters.' . $column . '.' . $operator, sprintf(self::UNPERMITTED_OPERATOR, $operator, $column, $accepts));
+        }
     }
 
     /**
@@ -131,13 +180,34 @@ final readonly class QuerySurface
      */
     private function permitsFilter(string $column, Model $model): bool
     {
-        return $this->governsRoot($model)
-            ? array_key_exists($column, $this->filterableColumns)
-            : $this->permitsRelatedColumn($column, $model, true);
+        return $this->capabilityFor($column, $model) !== null;
+    }
+
+    /**
+     * Resolve the capability the column was declared filterable with on the
+     * given model, or null when the governing resource never declared it.
+     *
+     * When no resource is mapped for a related model the lookup yields null,
+     * matching the root secure-by-default behaviour.
+     *
+     * @param  string  $column
+     * @param  \Illuminate\Database\Eloquent\Model  $model
+     * @return \SineMacula\ApiToolkit\Enums\Capability|null
+     */
+    private function capabilityFor(string $column, Model $model): ?Capability
+    {
+        if ($this->governsRoot($model)) {
+            return $this->filterableColumns[$column] ?? null;
+        }
+
+        return $this->resolveRelatedSchema($model)?->getFilterableColumns()[$column] ?? null;
     }
 
     /**
      * Determine whether the column is sortable on the given model.
+     *
+     * When no resource is mapped for a related model the gate fails closed,
+     * matching the root secure-by-default behaviour.
      *
      * @param  string  $column
      * @param  \Illuminate\Database\Eloquent\Model  $model
@@ -145,9 +215,13 @@ final readonly class QuerySurface
      */
     private function permitsSort(string $column, Model $model): bool
     {
-        return $this->governsRoot($model)
-            ? in_array($column, $this->sortableColumns, true)
-            : $this->permitsRelatedColumn($column, $model, false);
+        if ($this->governsRoot($model)) {
+            return in_array($column, $this->sortableColumns, true);
+        }
+
+        $schema = $this->resolveRelatedSchema($model);
+
+        return $schema !== null && in_array($column, $schema->getSortableColumns(), true);
     }
 
     /**
@@ -180,31 +254,6 @@ final readonly class QuerySurface
         $schema = $this->resolveRelatedSchema($model);
 
         return $schema !== null && in_array($relation, $schema->getTraversableRelations(), true);
-    }
-
-    /**
-     * Determine whether the column is permitted on a related (non-root) model
-     * by checking the related resource's declared filterable or sortable set.
-     *
-     * When no resource is mapped for the related model the gate fails closed,
-     * matching the root secure-by-default behaviour.
-     *
-     * @param  string  $column
-     * @param  \Illuminate\Database\Eloquent\Model  $model
-     * @param  bool  $filterable
-     * @return bool
-     */
-    private function permitsRelatedColumn(string $column, Model $model, bool $filterable): bool
-    {
-        $schema = $this->resolveRelatedSchema($model);
-
-        if ($schema === null) {
-            return false;
-        }
-
-        return $filterable
-            ? array_key_exists($column, $schema->getFilterableColumns())
-            : in_array($column, $schema->getSortableColumns(), true);
     }
 
     /**
@@ -251,7 +300,19 @@ final readonly class QuerySurface
     private function guard(bool $permitted, string $parameter, string $key): void
     {
         if (!$permitted) {
-            throw ValidationException::withMessages([$parameter . '.' . $key => sprintf('The "%s" key is not a permitted query parameter for this resource.', $key)]);
+            throw $this->rejection($parameter . '.' . $key, sprintf(self::UNDECLARED_KEY, $key));
         }
+    }
+
+    /**
+     * Build the validation error naming the rejected position and the reason.
+     *
+     * @param  string  $key
+     * @param  string  $message
+     * @return \Illuminate\Validation\ValidationException
+     */
+    private function rejection(string $key, string $message): ValidationException
+    {
+        return ValidationException::withMessages([$key => $message]);
     }
 }

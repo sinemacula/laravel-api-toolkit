@@ -27,9 +27,11 @@ use SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry;
 use SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface;
 use SineMacula\ApiToolkit\Search\SearchDriverRegistry;
 use SineMacula\Http\Enums\HttpMethod;
+use Tests\Fixtures\Models\Log;
 use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Resources\FilterableUserResource;
+use Tests\Fixtures\Resources\LogResource;
 use Tests\Fixtures\Resources\PostResource;
 use Tests\Fixtures\Resources\SearchableFilterableUserResource;
 use Tests\Fixtures\Resources\UserResource;
@@ -154,24 +156,26 @@ final class ApiCriteriaTest extends TestCase
     }
 
     /**
-     * Provide condition operator test cases.
+     * Provide condition operator test cases, each paired with a column the
+     * resource declared with a capability answering that operator.
      *
-     * @return iterable<string, array{string, string, mixed, string}>
+     * @return iterable<string, array{string, string, string, mixed, string}>
      */
     public static function conditionOperatorProvider(): iterable
     {
-        yield '$eq operator' => ['$eq', '=', 'Alice', 'Basic'];
-        yield '$neq operator' => ['$neq', '<>', 'Alice', 'Basic'];
-        yield '$gt operator' => ['$gt', '>', '10', 'Basic'];
-        yield '$lt operator' => ['$lt', '<', '10', 'Basic'];
-        yield '$ge operator' => ['$ge', '>=', '10', 'Basic'];
-        yield '$le operator' => ['$le', '<=', '10', 'Basic'];
+        yield '$eq operator' => ['$eq', 'name', '=', 'Alice', 'Basic'];
+        yield '$neq operator' => ['$neq', 'status', '<>', 'active', 'Basic'];
+        yield '$gt operator' => ['$gt', 'id', '>', '10', 'Basic'];
+        yield '$lt operator' => ['$lt', 'id', '<', '10', 'Basic'];
+        yield '$ge operator' => ['$ge', 'id', '>=', '10', 'Basic'];
+        yield '$le operator' => ['$le', 'id', '<=', '10', 'Basic'];
     }
 
     /**
      * Test that apply with the $eq operator applies an equals condition.
      *
      * @param  string  $operator
+     * @param  string  $column
      * @param  string  $expectedSqlOperator
      * @param  mixed  $value
      * @param  string  $expectedType
@@ -180,9 +184,9 @@ final class ApiCriteriaTest extends TestCase
      * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     #[DataProvider('conditionOperatorProvider')]
-    public function testApplyWithConditionOperator(string $operator, string $expectedSqlOperator, mixed $value, string $expectedType): void
+    public function testApplyWithConditionOperator(string $operator, string $column, string $expectedSqlOperator, mixed $value, string $expectedType): void
     {
-        $filter = ['name' => [$operator => $value]];
+        $filter = [$column => [$operator => $value]];
 
         $this->parseRequest(new Request([
             'filters' => json_encode($filter),
@@ -846,11 +850,10 @@ final class ApiCriteriaTest extends TestCase
     public function testContainsWithArrayValueUsesWhereJsonContains(): void
     {
         $this->parseRequest(new Request([
-            'filters' => json_encode(['name' => [self::OPERATOR_CONTAINS => ['Alice']]]),
+            'filters' => json_encode(['context' => [self::OPERATOR_CONTAINS => ['php']]]),
         ]));
 
-        $model = new User;
-        $query = $this->criteria->apply($model);
+        $query = $this->documentCriteria()->apply(new Log);
 
         self::assertNotEmpty($query->getQuery()->wheres);
     }
@@ -866,11 +869,10 @@ final class ApiCriteriaTest extends TestCase
     public function testContainsWithCommaSeparatedStringCreatesMultipleConditions(): void
     {
         $this->parseRequest(new Request([
-            'filters' => json_encode(['name' => [self::OPERATOR_CONTAINS => 'Alice,Bob']]),
+            'filters' => json_encode(['context' => [self::OPERATOR_CONTAINS => 'php,rust']]),
         ]));
 
-        $model = new User;
-        $query = $this->criteria->apply($model);
+        $query = $this->documentCriteria()->apply(new Log);
 
         self::assertNotEmpty($query->getQuery()->wheres);
     }
@@ -885,11 +887,10 @@ final class ApiCriteriaTest extends TestCase
     public function testContainsWithPlainStringUsesWhereJsonContains(): void
     {
         $this->parseRequest(new Request([
-            'filters' => json_encode(['name' => [self::OPERATOR_CONTAINS => 'Alice']]),
+            'filters' => json_encode(['context' => [self::OPERATOR_CONTAINS => 'php']]),
         ]));
 
-        $model = new User;
-        $query = $this->criteria->apply($model);
+        $query = $this->documentCriteria()->apply(new Log);
 
         self::assertNotEmpty($query->getQuery()->wheres);
     }
@@ -928,11 +929,10 @@ final class ApiCriteriaTest extends TestCase
     public function testContainsWithNullValueIsHandledGracefully(): void
     {
         $this->parseRequest(new Request([
-            'filters' => json_encode(['name' => [self::OPERATOR_CONTAINS => null]]),
+            'filters' => json_encode(['context' => [self::OPERATOR_CONTAINS => null]]),
         ]));
 
-        $model = new User;
-        $query = $this->criteria->apply($model);
+        $query = $this->documentCriteria()->apply(new Log);
 
         self::assertIsArray($query->getQuery()->wheres);
     }
@@ -1274,6 +1274,22 @@ final class ApiCriteriaTest extends TestCase
         $criteria = $this->app->make(ApiCriteria::class);
 
         return $criteria->usingResource(FilterableUserResource::class);
+    }
+
+    /**
+     * Build a criteria bound to a resource declaring a document column, the
+     * only capability the containment operator is served from.
+     *
+     * @return \SineMacula\ApiToolkit\Repositories\Criteria\ApiCriteria
+     */
+    private function documentCriteria(): ApiCriteria
+    {
+        assert($this->app !== null);
+
+        /** @var \SineMacula\ApiToolkit\Repositories\Criteria\ApiCriteria $criteria */
+        $criteria = $this->app->make(ApiCriteria::class);
+
+        return $criteria->usingResource(LogResource::class);
     }
 
     /**

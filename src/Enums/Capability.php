@@ -77,6 +77,32 @@ enum Capability: string
     }
 
     /**
+     * Determine whether the matrix governs the given operator token at all.
+     *
+     * The matrix names the operators the package ships and whose SQL it wrote,
+     * so a token no case mentions is one the application bound to a handler of
+     * its own through the operator registry. The package cannot say which
+     * access path such a token needs, and holding it to a matrix that never
+     * described it would leave the registry an extension point able to produce
+     * only tokens every column refuses, so the pairing is left to the
+     * application that made both halves of it.
+     *
+     * @param  string  $token
+     * @return bool
+     */
+    public static function governs(string $token): bool
+    {
+        foreach (self::cases() as $case) {
+
+            if ($case->permits($token)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
      * Determine whether this capability permits the given operator token.
      *
      * @param  string  $token

@@ -165,6 +165,58 @@ final class CapabilityTest extends TestCase
     }
 
     /**
+     * Provide every shipped operator token.
+     *
+     * @return iterable<string, array{string}>
+     */
+    public static function shippedTokenProvider(): iterable
+    {
+        foreach (array_keys(self::MATRIX) as $token) {
+            yield $token => [$token];
+        }
+    }
+
+    /**
+     * Test that the matrix reports itself as governing every token it ships, so
+     * the gate holds each of them to a declaring column's capability.
+     *
+     * @param  string  $token
+     * @return void
+     */
+    #[DataProvider('shippedTokenProvider')]
+    public function testGovernsEveryShippedToken(string $token): void
+    {
+        self::assertTrue(Capability::governs($token));
+    }
+
+    /**
+     * Provide tokens no capability mentions.
+     *
+     * @return iterable<string, array{string}>
+     */
+    public static function ungovernedTokenProvider(): iterable
+    {
+        yield 'application registered' => ['$starts'];
+        yield 'deleted from the package' => ['$like'];
+        yield 'bare' => ['eq'];
+        yield 'empty' => [''];
+    }
+
+    /**
+     * Test that a token no capability mentions is reported as ungoverned, so an
+     * operator the application bound to a handler of its own is left to the
+     * application rather than held to a matrix that never described it.
+     *
+     * @param  string  $token
+     * @return void
+     */
+    #[DataProvider('ungovernedTokenProvider')]
+    public function testDoesNotGovernATokenNoCapabilityMentions(string $token): void
+    {
+        self::assertFalse(Capability::governs($token));
+    }
+
+    /**
      * Test that every shipped token is permitted by at least one capability, so
      * an operator cannot ship as one no declaration can ever reach.
      *

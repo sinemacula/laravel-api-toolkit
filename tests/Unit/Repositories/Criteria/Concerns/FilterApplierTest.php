@@ -155,7 +155,7 @@ final class FilterApplierTest extends TestCase
      */
     public function testApplyWithNeqOperatorAppliesNotEqualsCondition(): void
     {
-        $result = $this->applyFilters(['name' => ['$neq' => 'Alice']]);
+        $result = $this->applyFilters(['status' => ['$neq' => 'active']]);
         $wheres = $result->getQuery()->wheres;
 
         self::assertNotEmpty($wheres);
@@ -315,7 +315,7 @@ final class FilterApplierTest extends TestCase
      */
     public function testApplyWithContainsArrayUsesWhereJsonContains(): void
     {
-        $result = $this->applyFilters(['name' => [self::OPERATOR_CONTAINS => ['Alice']]]);
+        $result = $this->applyFilters(['context' => [self::OPERATOR_CONTAINS => ['php']]]);
 
         self::assertNotEmpty($result->getQuery()->wheres);
     }
@@ -330,7 +330,7 @@ final class FilterApplierTest extends TestCase
      */
     public function testApplyWithContainsCommaSeparatedStringCreatesMultipleConditions(): void
     {
-        $result = $this->applyFilters(['name' => [self::OPERATOR_CONTAINS => 'Alice,Bob']]);
+        $result = $this->applyFilters(['context' => [self::OPERATOR_CONTAINS => 'php,rust']]);
 
         self::assertNotEmpty($result->getQuery()->wheres);
     }
@@ -344,7 +344,7 @@ final class FilterApplierTest extends TestCase
      */
     public function testApplyWithContainsPlainStringUsesWhereJsonContains(): void
     {
-        $result = $this->applyFilters(['name' => [self::OPERATOR_CONTAINS => 'Alice']]);
+        $result = $this->applyFilters(['context' => [self::OPERATOR_CONTAINS => 'php']]);
 
         self::assertNotEmpty($result->getQuery()->wheres);
     }
@@ -826,6 +826,82 @@ final class FilterApplierTest extends TestCase
     }
 
     /**
+     * Test that an operator the declaring column's capability does not answer
+     * is rejected before its handler runs, leaving the query untouched.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testRefusedOperatorIsRejectedBeforeItsHandlerRuns(): void
+    {
+        $this->assertRejectsOperator(['name' => ['$neq' => 'Alice']], 'name', '$neq', '$eq, $in, $null, $notNull');
+    }
+
+    /**
+     * Test that the bare shorthand is gated as the equality it compiles to, so
+     * a column declaring only containment cannot be compared by equality
+     * through the spelling that names no operator.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testBareShorthandIsGatedAsTheEqualityItCompilesTo(): void
+    {
+        $this->assertRejectsOperator(['context' => 'php'], 'context', '$eq', '$contains');
+    }
+
+    /**
+     * Test that a refused operator inside a logical group is rejected, so the
+     * group is not a way around the capability the column was declared with.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testRefusedOperatorInsideALogicalGroupIsRejected(): void
+    {
+        $this->assertRejectsOperator(['$or' => ['id' => ['$contains' => 'php']]], 'id', '$contains', '$eq, $in, $gt, $ge, $lt, $le, $between, $null, $notNull');
+    }
+
+    /**
+     * Test that a refused operator inside a traversed relation is rejected
+     * against the related resource's declaration rather than the root's.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testRefusedOperatorInsideARelationIsRejected(): void
+    {
+        $this->assertRejectsOperator(['posts' => ['title' => ['$gt' => 'a']]], 'title', '$gt', '$eq, $in, $null, $notNull');
+    }
+
+    /**
+     * Test that a token the capability matrix does not govern reaches its
+     * handler on a declared column, so an operator the application registered
+     * stays usable rather than being refused everywhere.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testTokenTheMatrixDoesNotGovernReachesItsHandler(): void
+    {
+        $this->operatorRegistry->register('$starts', static function (Builder $query, string $column, mixed $value): void {
+            $query->where($column, 'like', (is_scalar($value) ? (string) $value : '') . '%');
+        });
+
+        $result = $this->applyFilters(['name' => ['$starts' => 'Ali']]);
+        $wheres = $result->getQuery()->wheres;
+
+        self::assertNotEmpty($wheres);
+        self::assertSame('like', $wheres[0]['operator']);
+        self::assertSame('Ali%', $wheres[0]['value']);
+    }
+
+    /**
      * Test that a condition operator whose token is reported as registered but
      * resolves to no handler is skipped, leaving the query untouched.
      *
@@ -1216,7 +1292,7 @@ final class FilterApplierTest extends TestCase
     {
         Config::set('api-toolkit.query_cost.max_in_items', 3);
 
-        $result = $this->applyFilters(['name' => [self::OPERATOR_CONTAINS => 'Alice,Bob,Carol']]);
+        $result = $this->applyFilters(['context' => [self::OPERATOR_CONTAINS => 'php,rust,go']]);
         $wheres = $result->getQuery()->wheres;
 
         self::assertNotEmpty($wheres);
@@ -1234,9 +1310,9 @@ final class FilterApplierTest extends TestCase
         Config::set('api-toolkit.query_cost.max_in_items', 3);
 
         $this->assertRejectedForCost(
-            ['name' => [self::OPERATOR_CONTAINS => 'Alice,Bob,Carol,Dave']],
+            ['context' => [self::OPERATOR_CONTAINS => 'php,rust,go,zig']],
             QueryCostLimits::MAX_IN_ITEMS,
-            '/name/$contains',
+            '/context/$contains',
             3,
             4,
         );
@@ -1343,15 +1419,54 @@ final class FilterApplierTest extends TestCase
      * the root columns and relation they use plus the related post resource
      * that governs the nested hops.
      *
+     * One column is declared per capability, so every operator the dispatch
+     * tests drive has a column whose declaration answers it.
+     *
      * @return \SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface
      */
     private function surface(): QuerySurface
     {
         return $this->declaredSurface(
-            filterable : ['name' => Capability::EXACT, 'email' => Capability::EXACT, 'id' => Capability::RANGE, 'organization_id' => Capability::EXACT],
+            filterable : [
+                'name'            => Capability::EXACT,
+                'email'           => Capability::EXACT,
+                'id'              => Capability::RANGE,
+                'organization_id' => Capability::EXACT,
+                'status'          => Capability::ENUM,
+                'context'         => Capability::DOCUMENT,
+            ],
             relations  : ['posts'],
             resourceMap: [Post::class => DeepTraversalPostResource::class],
         );
+    }
+
+    /**
+     * Assert that applying the filters rejects the operator on the given
+     * column, naming both and listing what the column does accept, and that no
+     * clause reached the builder before the refusal.
+     *
+     * @param  array<string, mixed>  $filters
+     * @param  string  $column
+     * @param  string  $operator
+     * @param  string  $accepts
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    private function assertRejectsOperator(array $filters, string $column, string $operator, string $accepts): void
+    {
+        $query = (new User)->newQuery();
+
+        try {
+            $this->applier->apply($query, $filters, $this->operatorRegistry, $this->surface());
+            self::fail('Expected a ValidationException for the "' . $operator . '" operator on the "' . $column . '" filter key.');
+        } catch (ValidationException $exception) {
+            self::assertSame(
+                ['The "' . $operator . '" operator is not permitted on the "' . $column . '" key for this resource, which accepts ' . $accepts . '.'],
+                $exception->errors()['filters.' . $column . '.' . $operator] ?? [],
+            );
+            self::assertEmpty($query->getQuery()->wheres);
+        }
     }
 
     /**
