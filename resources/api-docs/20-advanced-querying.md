@@ -360,3 +360,10 @@ any one property, so the schema names them itself:
 ```json
 "x-traversable-relations": ["organization", "posts"]
 ```
+
+The same declarations are written out for a reader rather than a code generator
+in the Query Surface Reference section, which tables every resource's
+filterable, sortable, and searchable columns beside the bounds a single request
+is held to and the shape an over-budget request is rejected with. That section
+is generated from the compiled schema on every documentation run, so it cannot
+drift from what the API accepts.

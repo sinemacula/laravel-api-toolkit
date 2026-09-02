@@ -38,6 +38,9 @@ final class GenerateDocsCommandTest extends TestCase
     /** @var string The generated enum reference path. */
     private string $enumFile;
 
+    /** @var string The generated query surface reference path. */
+    private string $surfaceFile;
+
     /** @var string The temporary docs directory. */
     private string $docsDir;
 
@@ -53,9 +56,10 @@ final class GenerateDocsCommandTest extends TestCase
 
         SchemaCompiler::clearCache();
 
-        $this->docsDir   = sys_get_temp_dir() . '/api-toolkit-docs-' . uniqid('', true);
-        $this->errorFile = $this->docsDir . '/40-error-catalogue.md';
-        $this->enumFile  = $this->docsDir . '/50-enum-reference.md';
+        $this->docsDir     = sys_get_temp_dir() . '/api-toolkit-docs-' . uniqid('', true);
+        $this->errorFile   = $this->docsDir . '/40-error-catalogue.md';
+        $this->enumFile    = $this->docsDir . '/50-enum-reference.md';
+        $this->surfaceFile = $this->docsDir . '/60-query-surface-reference.md';
 
         $this->getConfig()->set('api-toolkit.openapi.docs_path', $this->docsDir);
         $this->registerResourceMap();
@@ -76,17 +80,18 @@ final class GenerateDocsCommandTest extends TestCase
     }
 
     /**
-     * Test that the command writes both section files into the configured docs
+     * Test that the command writes every section file into the configured docs
      * directory and exits successfully.
      *
      * @return void
      */
-    public function testCommandWritesBothSectionFilesWithExitZero(): void
+    public function testCommandWritesEverySectionFileWithExitZero(): void
     {
         $this->runCommand()->assertExitCode(0);
 
         self::assertFileExists($this->errorFile);
         self::assertFileExists($this->enumFile);
+        self::assertFileExists($this->surfaceFile);
     }
 
     /**
@@ -121,6 +126,28 @@ final class GenerateDocsCommandTest extends TestCase
     }
 
     /**
+     * Test that the generated query surface reference names the resources of
+     * the registered map, the bounds a request is held to, and the shape an
+     * over-budget request is answered with.
+     *
+     * @return void
+     */
+    public function testGeneratedQuerySurfaceReferenceIsWellFormed(): void
+    {
+        $this->runCommand()->assertExitCode(0);
+
+        $contents = (string) file_get_contents($this->surfaceFile);
+
+        self::assertStringStartsWith('<!-- This file is auto-generated.', $contents);
+        self::assertStringContainsString("\n# Query Surface Reference\n", $contents);
+        self::assertStringContainsString('| `max_nodes` | 100 |', $contents);
+        self::assertStringContainsString('| Shortest word, in characters | 3 |', $contents);
+        self::assertStringContainsString('"reason": "max_in_items",', $contents);
+        self::assertStringContainsString('| `email` | `email` | `exact` |', $contents);
+        self::assertStringContainsString('Traversable relations: `organization`, `posts`.', $contents);
+    }
+
+    /**
      * Test that a second run produces byte-identical files, proving the output
      * is idempotent and carries no timestamp.
      *
@@ -130,8 +157,9 @@ final class GenerateDocsCommandTest extends TestCase
     {
         $this->runCommand()->assertExitCode(0);
 
-        $errorFirst = (string) file_get_contents($this->errorFile);
-        $enumFirst  = (string) file_get_contents($this->enumFile);
+        $errorFirst   = (string) file_get_contents($this->errorFile);
+        $enumFirst    = (string) file_get_contents($this->enumFile);
+        $surfaceFirst = (string) file_get_contents($this->surfaceFile);
 
         SchemaCompiler::clearCache();
 
@@ -139,6 +167,7 @@ final class GenerateDocsCommandTest extends TestCase
 
         self::assertSame($errorFirst, (string) file_get_contents($this->errorFile));
         self::assertSame($enumFirst, (string) file_get_contents($this->enumFile));
+        self::assertSame($surfaceFirst, (string) file_get_contents($this->surfaceFile));
     }
 
     /**
@@ -151,6 +180,7 @@ final class GenerateDocsCommandTest extends TestCase
         $this->runCommand()
             ->expectsOutputToContain('40-error-catalogue.md')
             ->expectsOutputToContain('50-enum-reference.md')
+            ->expectsOutputToContain('60-query-surface-reference.md')
             ->assertExitCode(0);
     }
 

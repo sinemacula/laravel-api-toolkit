@@ -295,6 +295,57 @@ final class SearchTermTest extends TestCase
     }
 
     /**
+     * Test that the longest term accepted is reported as the configured value,
+     * so a reader of the bound is told the one the term is measured against.
+     *
+     * @return void
+     */
+    public function testMaximumLengthReportsTheConfiguredValue(): void
+    {
+        Config::set('api-toolkit.search.max_length', 64);
+
+        self::assertSame(64, SearchTerm::maximumLength());
+    }
+
+    /**
+     * Test that the longest term accepted falls back to the shipped default
+     * when nothing valid is configured.
+     *
+     * @return void
+     */
+    public function testMaximumLengthFallsBackToTheShippedDefault(): void
+    {
+        Config::set('api-toolkit.search.max_length', 'unbounded');
+
+        self::assertSame(SearchTerm::MAX_LENGTH, SearchTerm::maximumLength());
+    }
+
+    /**
+     * Test that the most words accepted is reported as the configured value.
+     *
+     * @return void
+     */
+    public function testMaximumWordsReportsTheConfiguredValue(): void
+    {
+        Config::set('api-toolkit.search.max_words', 4);
+
+        self::assertSame(4, SearchTerm::maximumWords());
+    }
+
+    /**
+     * Test that the most words accepted falls back to the shipped default when
+     * nothing valid is configured.
+     *
+     * @return void
+     */
+    public function testMaximumWordsFallsBackToTheShippedDefault(): void
+    {
+        Config::set('api-toolkit.search.max_words', 'unbounded');
+
+        self::assertSame(SearchTerm::MAX_WORDS, SearchTerm::maximumWords());
+    }
+
+    /**
      * Provide each strategy with the pattern a term of "50%" renders to.
      *
      * @return iterable<string, array{\SineMacula\ApiToolkit\Enums\SearchStrategy, string}>
