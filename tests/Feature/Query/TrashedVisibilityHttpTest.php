@@ -75,7 +75,7 @@ final class TrashedVisibilityHttpTest extends TestCase
 
         Route::middleware(ParseApiQuery::class)->get('/articles/{slug}', function (string $slug, ArticleRepository $repository): JsonResponse {
 
-            $article = $repository->withApiCriteria()->firstWhere('slug', $slug);
+            $article = $repository->withApiCriteria()->firstWhere('slug', $slug); // @phpstan-ignore staticMethod.dynamicCall
 
             return $article === null
                 ? new JsonResponse(null, 404)
