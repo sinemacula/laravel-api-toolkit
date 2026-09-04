@@ -27,17 +27,20 @@ use SineMacula\ApiToolkit\OpenApi\Resolution\AudienceConfiguration;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ReachableSchemaResolver;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 use Tests\Fixtures\Enums\AppErrorCode;
+use Tests\Fixtures\Models\Article;
 use Tests\Fixtures\Models\Organization;
 use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\Tag;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\OpenApi\ColumnlessIntrospectionProvider;
+use Tests\Fixtures\OpenApi\PathArticleController;
 use Tests\Fixtures\OpenApi\PathFixtureController;
 use Tests\Fixtures\OpenApi\PathInvokableController;
 use Tests\Fixtures\OpenApi\PathOrganizationController;
 use Tests\Fixtures\OpenApi\PathRequestBodyController;
 use Tests\Fixtures\OpenApi\PathResponseSchemaController;
 use Tests\Fixtures\OpenApi\PathTagInternalController;
+use Tests\Fixtures\Resources\ArticleResource;
 use Tests\Fixtures\Resources\OrganizationResource;
 use Tests\Fixtures\Resources\PostResource;
 use Tests\Fixtures\Resources\TagResource;
@@ -52,11 +55,12 @@ use Tests\TestCase;
  * against the official OpenAPI 3.1 meta-schema (via opis/json-schema). It then
  * asserts the remaining oracles end to end -- 3.1.x version, populated
  * components, one schema per resource, full operator vocabulary in the filter
- * parameter, one response per error code, an empty paths object for an audience
- * with no route, created_at as a date-time string, an opaque compute field
- * flagged x-undocumented, and a regenerate-after-change diff -- plus the
- * per-audience paths, route scoping, reachable-only schema filtering, and the
- * command's --audience / --all behaviour.
+ * parameter, every reference resolving to a component that exists, one response
+ * per error code, an empty paths object for an audience with no route,
+ * created_at as a date-time string, an opaque compute field flagged
+ * x-undocumented, and a regenerate-after-change diff -- plus the per-audience
+ * paths, route scoping, reachable-only schema filtering, and the command's
+ * --audience / --all behaviour.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -169,7 +173,7 @@ final class OpenApiExporterValidityTest extends TestCase
 
     /**
      * Test that the emitted document declares a 3.1.x version and a populated
-     * components block (AC-01/AC-09).
+     * components block.
      *
      * @return void
      */
@@ -214,7 +218,7 @@ final class OpenApiExporterValidityTest extends TestCase
 
     /**
      * Test that exactly one component schema is emitted per registered resource
-     * (FR-3) and the summary count matches the registry size.
+     * and the summary count matches the registry size.
      *
      * @return void
      */
@@ -235,14 +239,14 @@ final class OpenApiExporterValidityTest extends TestCase
 
     /**
      * Test that every registered operator and structural operator appears in
-     * the emitted filter parameter (FR-4).
+     * the emitted filter parameter.
      *
      * @return void
      */
     public function testEveryOperatorAppearsInTheFilterParameter(): void
     {
         $document  = $this->export()->document;
-        $operators = $document['components']['parameters']['Filter']['schema']['x-operators'];
+        $operators = $document['components']['parameters']['Filters']['schema']['x-operators'];
 
         $expected = [
             '$eq', '$neq', '$gt', '$lt', '$ge', '$le', '$in',
@@ -255,6 +259,136 @@ final class OpenApiExporterValidityTest extends TestCase
         }
 
         self::assertNotContains('$like', $operators);
+    }
+
+    /**
+     * Test that the index operation reaches the query grammar end to end, so a
+     * generated client sees the parameters the components block defines rather
+     * than an operation carrying none.
+     *
+     * @return void
+     */
+    public function testIndexOperationReferencesTheSharedQueryParameters(): void
+    {
+        $this->registerUserRoutes();
+
+        /** @var array<string, array<string, array<string, mixed>>> $paths */
+        $paths = $this->export()->document['paths'];
+
+        self::assertSame(
+            ['Fields', 'Counts', 'Sums', 'Averages', 'Filters', 'Search', 'Order', 'Limit', 'Page', 'Cursor', 'Pagination'],
+            $this->referencedParameterNames($paths['/users']['get']),
+        );
+    }
+
+    /**
+     * Test that soft-delete visibility reaches the operations that can honour
+     * it and no others, so a generated client is offered the widening exactly
+     * where the model behind the read can be widened.
+     *
+     * @return void
+     */
+    public function testVisibilityReachesOnlyTheReadsOfASoftDeletingModel(): void
+    {
+        $this->registerUserRoutes();
+        $this->registerSoftDeletingRoutes();
+
+        /** @var array<string, array<string, array<string, mixed>>> $paths */
+        $paths = $this->export()->document['paths'];
+
+        self::assertContains('Trashed', $this->referencedParameterNames($paths['/articles']['get']));
+        self::assertContains('Trashed', $this->referencedParameterNames($paths['/articles/{article}']['get']));
+        self::assertNotContains('Trashed', $this->referencedParameterNames($paths['/users']['get']));
+        self::assertNotContains('Trashed', $this->referencedParameterNames($paths['/users/{user}']['get']));
+    }
+
+    /**
+     * Test that every parameter reference across every operation resolves to a
+     * defined component, so no operation dangles.
+     *
+     * @return void
+     */
+    public function testEveryParameterReferenceResolvesToAComponent(): void
+    {
+        $this->registerUserRoutes();
+
+        $document = $this->export()->document;
+
+        /** @var array<string, mixed> $parameters */
+        $parameters = $document['components']['parameters'];
+
+        /** @var array<string, array<string, mixed>> $paths */
+        $paths = $document['paths'];
+
+        $defined = array_keys($parameters);
+        $seen    = 0;
+
+        foreach ($paths as $operations) {
+            foreach ($operations as $operation) {
+
+                if (!is_array($operation)) {
+                    continue;
+                }
+
+                foreach ($this->referencedParameterNames($operation) as $name) {
+                    self::assertContains($name, $defined);
+                    $seen++;
+                }
+            }
+        }
+
+        self::assertGreaterThan(0, $seen);
+    }
+
+    /**
+     * Test that every reference the document carries anywhere resolves to a
+     * component that exists, so nothing a generated client follows dangles.
+     *
+     * @return void
+     */
+    public function testEveryReferenceResolvesToAComponentThatExists(): void
+    {
+        $this->registerUserRoutes();
+        $this->registerOrganizationRoute();
+        $this->registerTagInternalRoute();
+
+        $this->assertReferencesResolve($this->export()->document);
+
+        // The per-audience documents are the ones a reference can dangle in,
+        // the schemas being reduced to what that audience's paths reach.
+        $this->registerTwoAudiences();
+
+        $this->assertReferencesResolve($this->export('public')->document);
+        $this->assertReferencesResolve($this->export('internal')->document);
+    }
+
+    /**
+     * Test that a relation naming a resource no registered model maps to leaves
+     * no dangling reference behind, the walk above having nothing to catch
+     * unless such a relation is actually present.
+     *
+     * @return void
+     */
+    public function testARelationToAnUnregisteredResourceLeavesNoDanglingReference(): void
+    {
+        $this->registerUserRoutes();
+
+        // The user resource relates to an organization and to posts; dropping
+        // both from the map leaves two relations naming components nothing
+        // builds.
+        $this->getConfig()->set('api-toolkit.resources.resource_map', [User::class => UserResource::class]);
+
+        SchemaCompiler::clearCache();
+
+        $document   = $this->export()->document;
+        $properties = $document['components']['schemas']['User']['properties'];
+
+        self::assertArrayNotHasKey('Organization', $document['components']['schemas']);
+        self::assertArrayNotHasKey('$ref', $properties['organization']);
+        self::assertTrue($properties['organization']['x-undocumented']);
+
+        $this->assertReferencesResolve($document);
+        self::assertTrue($this->validateAgainstMetaSchema($document)->isValid());
     }
 
     /**
@@ -283,7 +417,7 @@ final class OpenApiExporterValidityTest extends TestCase
 
     /**
      * Test that an un-annotated timestamp field is inferred as a date-time
-     * string end to end (AC-07).
+     * string end to end.
      *
      * @return void
      */
@@ -295,14 +429,14 @@ final class OpenApiExporterValidityTest extends TestCase
         $createdAt = $document['components']['schemas']['User']['properties']['created_at'];
 
         // The column is nullable, so the 2020-12 nullable type-array form is
-        // emitted; the date-time format is the AC-07 signal either way.
+        // emitted; the date-time format is the signal either way.
         self::assertContains('string', (array) $createdAt['type']);
         self::assertSame('date-time', $createdAt['format']);
     }
 
     /**
      * Test that an opaque compute field with no declaration carries the
-     * x-undocumented marker and remains permissive (FR-8).
+     * x-undocumented marker and remains permissive.
      *
      * @return void
      */
@@ -374,8 +508,7 @@ final class OpenApiExporterValidityTest extends TestCase
 
     /**
      * Test that regenerating the document after a documented surface changes
-     * produces a different component, and the new document stays 3.1-valid
-     * (FR-2/AC-02).
+     * produces a different component, and the new document stays 3.1-valid.
      *
      * @return void
      */
@@ -406,7 +539,7 @@ final class OpenApiExporterValidityTest extends TestCase
 
     /**
      * Test that the artisan command writes a non-empty 3.1-valid document and
-     * reports a non-zero resource count, exit 0 (AC-01).
+     * reports a non-zero resource count, exit 0.
      *
      * @return void
      */
@@ -924,14 +1057,25 @@ final class OpenApiExporterValidityTest extends TestCase
         self::assertSame(['type' => 'boolean'], $schemas['Post']['properties']['published']);
 
         // A declared timestamp field keeps its nullable date-time contract.
-        self::assertSame(
-            ['type' => ['string', 'null'], 'format' => 'date-time'],
-            $schemas['User']['properties']['created_at'],
-        );
+        self::assertSame([
+            'type'            => ['string', 'null'],
+            'format'          => 'date-time',
+            'x-query-surface' => ['sort' => ['key' => 'created_at', 'indexed' => true]],
+        ], $schemas['User']['properties']['created_at']);
 
         // A backed-enum cast documents as a reference to its named component
         // even without a backing column, and that component is emitted.
-        self::assertSame(['$ref' => '#/components/schemas/UserStatus'], $schemas['User']['properties']['status']);
+        self::assertSame([
+            '$ref'            => '#/components/schemas/UserStatus',
+            'x-query-surface' => [
+                'filter' => [
+                    'key'        => 'status',
+                    'capability' => 'enum',
+                    'operators'  => ['$eq', '$in', '$neq', '$null', '$notNull'],
+                ],
+                'sort' => ['key' => 'status', 'indexed' => true],
+            ],
+        ], $schemas['User']['properties']['status']);
         self::assertSame(['type' => 'string'], $schemas['UserStatus']);
 
         self::assertTrue(
@@ -1124,6 +1268,113 @@ final class OpenApiExporterValidityTest extends TestCase
     }
 
     /**
+     * Assert every reference the document carries is local and resolves to a
+     * component that exists.
+     *
+     * @param  array<string, mixed>  $document
+     * @return void
+     */
+    private function assertReferencesResolve(array $document): void
+    {
+        $references = $this->collectReferences($document);
+
+        self::assertNotEmpty($references);
+
+        foreach ($references as $reference) {
+
+            self::assertStringStartsWith('#/', $reference, 'Only a local reference can be resolved within the document.');
+            self::assertNotNull(
+                $this->resolveReference($document, $reference),
+                sprintf('The reference "%s" resolves to no component.', $reference),
+            );
+        }
+    }
+
+    /**
+     * Collect every distinct reference the node carries, at any depth.
+     *
+     * @param  mixed  $node
+     * @return array<int, string>
+     */
+    private function collectReferences(mixed $node): array
+    {
+        if (!is_array($node)) {
+            return [];
+        }
+
+        $references = [];
+
+        foreach ($node as $key => $value) {
+
+            if ($key === '$ref' && is_string($value)) {
+
+                $references[] = $value;
+                continue;
+            }
+
+            $references = [...$references, ...$this->collectReferences($value)];
+        }
+
+        return array_values(array_unique($references));
+    }
+
+    /**
+     * Resolve a local reference against the document, returning null when any
+     * segment of the pointer names something the document does not carry.
+     *
+     * @param  array<string, mixed>  $document
+     * @param  string  $reference
+     * @return mixed
+     */
+    private function resolveReference(array $document, string $reference): mixed
+    {
+        $node = $document;
+
+        foreach (explode('/', substr($reference, 2)) as $segment) {
+
+            $segment = str_replace(['~1', '~0'], ['/', '~'], $segment);
+
+            if (!is_array($node) || !array_key_exists($segment, $node)) {
+                return null;
+            }
+
+            $node = $node[$segment];
+        }
+
+        return $node;
+    }
+
+    /**
+     * List the shared query-parameter component names the operation references,
+     * in the order it carries them.
+     *
+     * @param  array<string, mixed>  $operation
+     * @return array<int, string>
+     */
+    private function referencedParameterNames(array $operation): array
+    {
+        $names      = [];
+        $parameters = $operation['parameters'] ?? [];
+
+        if (!is_array($parameters)) {
+            return [];
+        }
+
+        foreach ($parameters as $parameter) {
+
+            $reference = is_array($parameter) ? $parameter['$ref'] ?? null : null;
+
+            if (!is_string($reference)) {
+                continue;
+            }
+
+            $names[] = str_replace('#/components/parameters/', '', $reference);
+        }
+
+        return $names;
+    }
+
+    /**
      * Register a full REST route set for the user resource so the resource
      * schemas are reachable from the exported paths.
      *
@@ -1138,6 +1389,30 @@ final class OpenApiExporterValidityTest extends TestCase
         $router->get('users/{user}', [PathFixtureController::class, 'show']);
         $router->match(['PUT', 'PATCH'], 'users/{user}', [PathFixtureController::class, 'update']);
         $router->delete('users/{user}', [PathFixtureController::class, 'destroy']);
+    }
+
+    /**
+     * Register the read routes of a controller reading a model that soft
+     * deletes.
+     *
+     * @return void
+     */
+    private function registerSoftDeletingRoutes(): void
+    {
+        /** @var array<class-string, class-string> $map */
+        $map = $this->getConfig()->get('api-toolkit.resources.resource_map');
+
+        $this->getConfig()->set(
+            'api-toolkit.resources.resource_map',
+            [...$map, Article::class => ArticleResource::class],
+        );
+
+        SchemaCompiler::clearCache();
+
+        $router = $this->router();
+
+        $router->get('articles', [PathArticleController::class, 'index']);
+        $router->get('articles/{article}', [PathArticleController::class, 'show']);
     }
 
     /**

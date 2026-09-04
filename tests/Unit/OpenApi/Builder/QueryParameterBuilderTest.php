@@ -6,8 +6,11 @@ namespace Tests\Unit\OpenApi\Builder;
 
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
+use SineMacula\ApiToolkit\Concerns\QueryParameterValidator;
 use SineMacula\ApiToolkit\OpenApi\Builder\QueryParameterBuilder;
 use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
+use Tests\Fixtures\Models\Article;
+use Tests\Fixtures\Models\User;
 
 /**
  * Tests for the QueryParameterBuilder.
@@ -39,11 +42,11 @@ final class QueryParameterBuilderTest extends TestCase
     {
         $parameters = $this->makeBuilder()->build();
 
-        foreach (['Fields', 'Filter', 'Search', 'Order', 'Limit', 'Page', 'Cursor', 'Pagination', 'Counts', 'Sums', 'Averages'] as $name) {
+        foreach (['Fields', 'Filters', 'Search', 'Order', 'Limit', 'Page', 'Cursor', 'Pagination', 'Counts', 'Sums', 'Averages', 'Trashed'] as $name) {
             self::assertArrayHasKey($name, $parameters);
         }
 
-        self::assertCount(11, $parameters);
+        self::assertCount(12, $parameters);
     }
 
     /**
@@ -58,7 +61,7 @@ final class QueryParameterBuilderTest extends TestCase
 
         self::assertSame('query', $parameters['Fields']['in']);
         self::assertSame('fields', $parameters['Fields']['name']);
-        self::assertSame('filter', $parameters['Filter']['name']);
+        self::assertSame('filters', $parameters['Filters']['name']);
         self::assertSame('search', $parameters['Search']['name']);
         self::assertSame('order', $parameters['Order']['name']);
         self::assertSame('limit', $parameters['Limit']['name']);
@@ -68,6 +71,7 @@ final class QueryParameterBuilderTest extends TestCase
         self::assertSame('counts', $parameters['Counts']['name']);
         self::assertSame('sums', $parameters['Sums']['name']);
         self::assertSame('averages', $parameters['Averages']['name']);
+        self::assertSame('trashed', $parameters['Trashed']['name']);
     }
 
     /**
@@ -77,7 +81,7 @@ final class QueryParameterBuilderTest extends TestCase
      */
     public function testFilterParameterCoversEveryRegisteredOperator(): void
     {
-        $operators = $this->makeBuilder()->build()['Filter']['schema']['x-operators'];
+        $operators = $this->makeBuilder()->build()['Filters']['schema']['x-operators'];
 
         foreach (self::OPERATOR_TOKENS as $token) {
             self::assertContains($token, $operators);
@@ -91,7 +95,7 @@ final class QueryParameterBuilderTest extends TestCase
      */
     public function testFilterParameterCoversEveryStructuralOperator(): void
     {
-        $operators = $this->makeBuilder()->build()['Filter']['schema']['x-operators'];
+        $operators = $this->makeBuilder()->build()['Filters']['schema']['x-operators'];
 
         foreach (self::STRUCTURAL_OPERATORS as $token) {
             self::assertContains($token, $operators);
@@ -106,7 +110,7 @@ final class QueryParameterBuilderTest extends TestCase
      */
     public function testFilterParameterEnumeratesTheFullElevenPlusFourVocabulary(): void
     {
-        $operators = $this->makeBuilder()->build()['Filter']['schema']['x-operators'];
+        $operators = $this->makeBuilder()->build()['Filters']['schema']['x-operators'];
 
         self::assertCount(15, $operators);
     }
@@ -119,7 +123,7 @@ final class QueryParameterBuilderTest extends TestCase
      */
     public function testFilterDescriptionNamesTheOperatorGrammar(): void
     {
-        $filter = $this->makeBuilder()->build()['Filter'];
+        $filter = $this->makeBuilder()->build()['Filters'];
 
         self::assertStringContainsString('$eq', $filter['description']);
         self::assertStringContainsString('$and', $filter['description']);
@@ -133,12 +137,26 @@ final class QueryParameterBuilderTest extends TestCase
      */
     public function testFilterParameterDeclaresNoPerResourceAllowList(): void
     {
-        $schema = $this->makeBuilder()->build()['Filter']['schema'];
+        $schema = $this->makeBuilder()->build()['Filters']['schema'];
 
-        self::assertSame('object', $schema['type']);
-        self::assertTrue($schema['additionalProperties']);
         self::assertArrayNotHasKey('enum', $schema);
         self::assertArrayNotHasKey('properties', $schema);
+    }
+
+    /**
+     * Test that the filter parameter is the JSON-carrying string the parser
+     * accepts rather than a bracketed deep object, which the parser rejects.
+     *
+     * @return void
+     */
+    public function testFilterParameterIsAJsonCarryingStringRatherThanADeepObject(): void
+    {
+        $filters = $this->makeBuilder()->build()['Filters'];
+
+        self::assertSame('string', $filters['schema']['type']);
+        self::assertSame('application/json', $filters['schema']['contentMediaType']);
+        self::assertArrayNotHasKey('style', $filters);
+        self::assertArrayNotHasKey('explode', $filters);
     }
 
     /**
@@ -149,10 +167,10 @@ final class QueryParameterBuilderTest extends TestCase
      */
     public function testFilterDescriptionStatesTheGrammarAndDefersFieldsToTheResource(): void
     {
-        $description = $this->makeBuilder()->build()['Filter']['description'];
+        $description = $this->makeBuilder()->build()['Filters']['description'];
 
-        self::assertStringStartsWith('Generic filter grammar. Filters are keyed by field', $description);
-        self::assertStringContainsString('each resource accepts only the fields it declares filterable.', $description);
+        self::assertStringStartsWith('Generic filter grammar. Filters are a URL-encoded JSON object keyed by field', $description);
+        self::assertStringEndsWith('each resource accepts only the fields it declares filterable.', $description);
     }
 
     /**
@@ -167,7 +185,7 @@ final class QueryParameterBuilderTest extends TestCase
         $catalogue->method('getOperatorTokens')->willReturn(['$custom']);
         $catalogue->method('getStructuralOperators')->willReturn(['$and']);
 
-        $operators = (new QueryParameterBuilder($catalogue))->build()['Filter']['schema']['x-operators'];
+        $operators = (new QueryParameterBuilder($catalogue))->build()['Filters']['schema']['x-operators'];
 
         self::assertSame(['$custom', '$and'], $operators);
     }
@@ -183,9 +201,39 @@ final class QueryParameterBuilderTest extends TestCase
 
         self::assertSame('integer', $parameters['Limit']['schema']['type']);
         self::assertSame(1, $parameters['Limit']['schema']['minimum']);
+        self::assertSame(100, $parameters['Limit']['schema']['maximum']);
         self::assertSame('integer', $parameters['Page']['schema']['type']);
         self::assertSame(1, $parameters['Page']['schema']['minimum']);
         self::assertSame('string', $parameters['Cursor']['schema']['type']);
+    }
+
+    /**
+     * Test that a page-size ceiling configured off leaves the schema unbounded
+     * rather than publishing a maximum no request is held to.
+     *
+     * @return void
+     */
+    public function testDisabledPageSizeCeilingLeavesTheLimitUnbounded(): void
+    {
+        $schema = $this->makeBuilder(0)->build()['Limit']['schema'];
+
+        self::assertArrayNotHasKey('maximum', $schema);
+        self::assertSame(1, $schema['minimum']);
+    }
+
+    /**
+     * Test that a catalogue reporting no page-size bound at all is read as no
+     * ceiling rather than as one, so a bound the catalogue has yet to learn
+     * about is never invented for it.
+     *
+     * @return void
+     */
+    public function testAnUnreportedPageSizeCeilingLeavesTheLimitUnbounded(): void
+    {
+        $schema = $this->builderReporting([])->build()['Limit']['schema'];
+
+        self::assertArrayNotHasKey('maximum', $schema);
+        self::assertSame(1, $schema['minimum']);
     }
 
     /**
@@ -229,7 +277,7 @@ final class QueryParameterBuilderTest extends TestCase
     {
         $parameters = $this->makeBuilder()->build();
 
-        foreach (['Fields', 'Filter', 'Counts', 'Sums', 'Averages'] as $name) {
+        foreach (['Fields', 'Counts', 'Sums', 'Averages'] as $name) {
             self::assertSame('deepObject', $parameters[$name]['style'], $name);
             self::assertTrue($parameters[$name]['explode'], $name);
         }
@@ -251,6 +299,8 @@ final class QueryParameterBuilderTest extends TestCase
         self::assertStringContainsString('counts[users]=posts', $parameters['Counts']['description']);
         self::assertStringContainsString('sums[users][posts]=id', $parameters['Sums']['description']);
         self::assertStringContainsString('averages[users][posts]=id', $parameters['Averages']['description']);
+        self::assertStringContainsString('filters={"status":{"$eq":"active"}}', $parameters['Filters']['description']);
+        self::assertStringContainsString('trashed=with', $parameters['Trashed']['description']);
     }
 
     /**
@@ -304,9 +354,15 @@ final class QueryParameterBuilderTest extends TestCase
         $search = $this->makeBuilder()->build()['Search'];
 
         self::assertSame(['type' => 'string'], $search['schema']);
-        self::assertStringStartsWith('Free-text search across the fields a resource declares searchable', $search['description']);
-        self::assertStringContainsString('never traverses a relation', $search['description']);
-        self::assertStringContainsString('shorter than the configured minimum is rejected', $search['description']);
+
+        // The minimum bounds each word rather than the term, so a long term
+        // built from short words is refused; the description must say which.
+        self::assertSame(
+            'Free-text search across the fields a resource declares searchable, e.g. search=John Smith. '
+            . 'It matches the requested resource only and never traverses a relation; a term carrying a word shorter than the configured minimum is rejected, '
+            . 'as is one longer, or carrying more words, than the configured bounds allow.',
+            $search['description'],
+        );
     }
 
     /**
@@ -334,16 +390,211 @@ final class QueryParameterBuilderTest extends TestCase
     }
 
     /**
-     * Build a QueryParameterBuilder backed by a stub returning the default 11+4
-     * operator vocabulary.
+     * Test that the soft-delete visibility parameter offers only the two values
+     * that widen the default live-records-only scope.
      *
+     * @return void
+     */
+    public function testTrashedParameterEnumeratesOnlyTheWideningValues(): void
+    {
+        $trashed = $this->makeBuilder()->build()['Trashed'];
+
+        self::assertSame(['type' => 'string', 'enum' => ['with', 'only']], $trashed['schema']);
+        self::assertFalse($trashed['required']);
+    }
+
+    /**
+     * Test that the soft-delete visibility description states the default and
+     * that a resource has to opt in, neither of which a client can infer from
+     * an unchanged result set.
+     *
+     * @return void
+     */
+    public function testTrashedDescriptionStatesTheDefaultAndTheOptIn(): void
+    {
+        $description = $this->makeBuilder()->build()['Trashed']['description'];
+
+        self::assertStringStartsWith('Soft-delete visibility: with returns soft-deleted records alongside the live ones', $description);
+        self::assertStringContainsString('Omitting it returns live records only.', $description);
+        self::assertStringContainsString('has not opted in', $description);
+    }
+
+    /**
+     * Test that an index accepts the whole grammar, in the order an operation
+     * carries it.
+     *
+     * @return void
+     */
+    public function testIndexAcceptsTheWholeGrammar(): void
+    {
+        self::assertSame(
+            ['Fields', 'Counts', 'Sums', 'Averages', 'Filters', 'Search', 'Order', 'Limit', 'Page', 'Cursor', 'Pagination', 'Trashed'],
+            $this->referencedNames('index', Article::class),
+        );
+    }
+
+    /**
+     * Test that a show accepts what shapes and scopes a single record, and none
+     * of the collection selection grammar.
+     *
+     * @return void
+     */
+    public function testShowAcceptsShapingAndVisibilityOnly(): void
+    {
+        self::assertSame(
+            ['Fields', 'Counts', 'Sums', 'Averages', 'Trashed'],
+            $this->referencedNames('show', Article::class),
+        );
+    }
+
+    /**
+     * Test that a read of a model that does not soft delete is never offered
+     * the visibility parameter, the server having nothing to widen: a parameter
+     * it is bound to discard would be the quiet no-op the package refuses.
+     *
+     * @return void
+     */
+    public function testReadsOfAModelThatDoesNotSoftDeleteOmitVisibility(): void
+    {
+        self::assertSame(
+            ['Fields', 'Counts', 'Sums', 'Averages', 'Filters', 'Search', 'Order', 'Limit', 'Page', 'Cursor', 'Pagination'],
+            $this->referencedNames('index', User::class),
+        );
+
+        self::assertSame(
+            ['Fields', 'Counts', 'Sums', 'Averages'],
+            $this->referencedNames('show', User::class),
+        );
+    }
+
+    /**
+     * Test that an operation whose model cannot be resolved is treated the same
+     * way, so an unresolvable controller never advertises a widening the server
+     * may not honour.
+     *
+     * @return void
+     */
+    public function testReadsWithNoResolvedModelOmitVisibility(): void
+    {
+        self::assertNotContains('Trashed', $this->referencedNames('index'));
+        self::assertNotContains('Trashed', $this->referencedNames('show'));
+    }
+
+    /**
+     * Test that a write of a soft-deleting model is still offered nothing but
+     * the shaping grammar, the widening belonging to a read alone.
+     *
+     * @return void
+     */
+    public function testWritesOfASoftDeletingModelStillAcceptShapingOnly(): void
+    {
+        self::assertSame(['Fields', 'Counts', 'Sums', 'Averages'], $this->referencedNames('store', Article::class));
+        self::assertSame(['Fields', 'Counts', 'Sums', 'Averages'], $this->referencedNames('update', Article::class));
+    }
+
+    /**
+     * Test that a store and an update accept only what shapes the resource they
+     * return, so neither claims to page or filter a collection nor to widen the
+     * soft-delete scope.
+     *
+     * @return void
+     */
+    public function testWriteActionsAcceptShapingOnly(): void
+    {
+        $expected = ['Fields', 'Counts', 'Sums', 'Averages'];
+
+        self::assertSame($expected, $this->referencedNames('store'));
+        self::assertSame($expected, $this->referencedNames('update'));
+    }
+
+    /**
+     * Test that a destroy and an action outside the REST set accept nothing, so
+     * an empty response body is never documented as shapeable.
+     *
+     * @return void
+     */
+    public function testDestroyAndUnknownActionsAcceptNothing(): void
+    {
+        self::assertSame([], $this->makeBuilder()->referencesFor('destroy'));
+        self::assertSame([], $this->makeBuilder()->referencesFor('report'));
+    }
+
+    /**
+     * Test that every referenced name resolves to an emitted component, so no
+     * operation can point at a parameter the document does not define.
+     *
+     * @return void
+     */
+    public function testEveryReferencedParameterIsAnEmittedComponent(): void
+    {
+        $builder = $this->makeBuilder();
+        $defined = array_keys($builder->build());
+
+        foreach (['index', 'show', 'store', 'update', 'destroy'] as $action) {
+            foreach ($builder->referencesFor($action) as $reference) {
+                self::assertContains(
+                    str_replace('#/components/parameters/', '', $reference['$ref']),
+                    $defined,
+                    $action,
+                );
+            }
+        }
+    }
+
+    /**
+     * Test that a reference is emitted as a component pointer rather than an
+     * inlined copy of the definition.
+     *
+     * @return void
+     */
+    public function testReferencesArePointersRatherThanInlinedDefinitions(): void
+    {
+        $reference = $this->makeBuilder()->referencesFor('show')[0];
+
+        self::assertSame(['$ref' => '#/components/parameters/Fields'], $reference);
+    }
+
+    /**
+     * List the component names the given action references, stripped of the
+     * component path prefix.
+     *
+     * @param  string  $action
+     * @param  class-string|null  $modelClass
+     * @return array<int, string>
+     */
+    private function referencedNames(string $action, ?string $modelClass = null): array
+    {
+        return array_map(
+            static fn (array $reference): string => str_replace('#/components/parameters/', '', $reference['$ref']),
+            $this->makeBuilder()->referencesFor($action, $modelClass),
+        );
+    }
+
+    /**
+     * Build a QueryParameterBuilder backed by a stub returning the default 11+4
+     * operator vocabulary and the given page-size ceiling.
+     *
+     * @param  int  $ceiling
      * @return \SineMacula\ApiToolkit\OpenApi\Builder\QueryParameterBuilder
      */
-    private function makeBuilder(): QueryParameterBuilder
+    private function makeBuilder(int $ceiling = 100): QueryParameterBuilder
+    {
+        return $this->builderReporting([QueryParameterValidator::MAX_LIMIT => $ceiling]);
+    }
+
+    /**
+     * Build a QueryParameterBuilder over a catalogue reporting exactly the
+     * given request bounds.
+     *
+     * @param  array<string, int>  $limits
+     * @return \SineMacula\ApiToolkit\OpenApi\Builder\QueryParameterBuilder
+     */
+    private function builderReporting(array $limits): QueryParameterBuilder
     {
         $catalogue = self::createStub(MetadataCatalogue::class);
         $catalogue->method('getOperatorTokens')->willReturn(self::OPERATOR_TOKENS);
         $catalogue->method('getStructuralOperators')->willReturn(self::STRUCTURAL_OPERATORS);
+        $catalogue->method('getQueryLimits')->willReturn($limits);
 
         return new QueryParameterBuilder($catalogue);
     }

@@ -281,7 +281,13 @@ final class OpenApiAssemblerTest extends TestCase
 
         $schemas = $this->assemble()['components']['schemas'];
 
-        self::assertSame(['$ref' => '#/components/schemas/UserStatus'], $schemas['User']['properties']['status']);
+        self::assertSame([
+            '$ref'            => '#/components/schemas/UserStatus',
+            'x-query-surface' => [
+                'filter' => ['key' => 'status', 'capability' => 'enum', 'operators' => ['$eq', '$neq']],
+                'sort'   => ['key' => 'status', 'indexed' => true],
+            ],
+        ], $schemas['User']['properties']['status']);
         self::assertSame(['type' => 'string'], $schemas['UserStatus']);
     }
 
@@ -393,9 +399,10 @@ final class OpenApiAssemblerTest extends TestCase
     {
         $parameters = $this->assemble()['components']['parameters'];
 
-        self::assertArrayHasKey('Filter', $parameters);
+        self::assertArrayHasKey('Filters', $parameters);
         self::assertArrayHasKey('Fields', $parameters);
         self::assertArrayHasKey('Order', $parameters);
+        self::assertArrayHasKey('Trashed', $parameters);
     }
 
     /**
@@ -552,6 +559,7 @@ final class OpenApiAssemblerTest extends TestCase
                 new ResponseSchemaResolver($catalogue, new EnvelopeBuilder),
                 new RequestBodyResolver(new RulesToSchemaTranslator(new RuleNormaliser, new FieldSchemaBuilder($enums))),
                 new SecuritySchemeResolver(new SecuritySchemeMapper),
+                new QueryParameterBuilder($catalogue),
             ),
             new SecuritySchemeResolver(new SecuritySchemeMapper),
             new EnumSchemaBuilder,

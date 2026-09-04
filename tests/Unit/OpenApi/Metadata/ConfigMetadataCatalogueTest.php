@@ -6,12 +6,15 @@ namespace Tests\Unit\OpenApi\Metadata;
 
 use Illuminate\Support\Facades\Config;
 use PHPUnit\Framework\Attributes\CoversClass;
+use SineMacula\ApiToolkit\Concerns\QueryParameterValidator;
 use SineMacula\ApiToolkit\Enums\ErrorCode;
 use SineMacula\ApiToolkit\Http\Resources\ResourceDiscovery;
 use SineMacula\ApiToolkit\OpenApi\Metadata\ApiExceptionDiscoverer;
 use SineMacula\ApiToolkit\OpenApi\Metadata\ConfigMetadataCatalogue;
 use SineMacula\ApiToolkit\OpenApi\Metadata\ErrorCatalogueReader;
 use SineMacula\ApiToolkit\OpenApi\Metadata\ErrorDescriptor;
+use SineMacula\ApiToolkit\OpenApi\Metadata\QuerySurfaceReader;
+use SineMacula\ApiToolkit\Query\QueryCostLimits;
 use SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry;
 use SineMacula\ApiToolkit\Repositories\Criteria\Operators\EqualOperator;
 use SineMacula\ApiToolkit\Repositories\Criteria\Operators\NotEqualOperator;
@@ -206,6 +209,129 @@ final class ConfigMetadataCatalogueTest extends TestCase
     }
 
     /**
+     * Test that getQuerySurfaces returns one surface per registered resource,
+     * carrying the columns that resource declares queryable.
+     *
+     * @return void
+     */
+    public function testGetQuerySurfacesReturnsOneSurfacePerRegisteredResource(): void
+    {
+        Config::set('api-toolkit.resources.paths', []);
+        Config::set('api-toolkit.resources.resource_map', [User::class => UserResource::class]);
+
+        $surfaces = $this->makeCatalogue()->getQuerySurfaces();
+
+        self::assertCount(1, $surfaces);
+        self::assertSame(UserResource::class, $surfaces[0]->resource);
+        self::assertNotSame([], $surfaces[0]->columns);
+    }
+
+    /**
+     * Test that getQueryLimits returns every structural cap the query cost
+     * limits declare, resolved to its configured value.
+     *
+     * @return void
+     */
+    public function testGetQueryLimitsReturnsEveryCapResolvedFromConfig(): void
+    {
+        Config::set('api-toolkit.query_cost.max_nodes', 42);
+
+        $limits = $this->makeCatalogue()->getQueryLimits();
+
+        self::assertSame(
+            [...array_keys(QueryCostLimits::DEFAULTS), QueryParameterValidator::MAX_LIMIT],
+            array_keys($limits),
+        );
+        self::assertSame(42, $limits[QueryCostLimits::MAX_NODES]);
+    }
+
+    /**
+     * Test that the page-size ceiling is reported alongside the structural
+     * caps, under the same name the refusal reports as its reason, so a client
+     * reads one list of the bounds it can be turned away for.
+     *
+     * @return void
+     */
+    public function testGetQueryLimitsReportsThePageSizeCeiling(): void
+    {
+        Config::set('api-toolkit.parser.max_limit', 250);
+
+        self::assertSame(250, $this->makeCatalogue()->getQueryLimits()[QueryParameterValidator::MAX_LIMIT]);
+    }
+
+    /**
+     * Test that a page-size ceiling configured as a numeric string is reported
+     * as the whole number it truncates to, the way the guard that enforces it
+     * reads one.
+     *
+     * @return void
+     */
+    public function testGetQueryLimitsTruncatesANumericPageSizeCeiling(): void
+    {
+        Config::set('api-toolkit.parser.max_limit', '75.9');
+
+        self::assertSame(75, $this->makeCatalogue()->getQueryLimits()[QueryParameterValidator::MAX_LIMIT]);
+    }
+
+    /**
+     * Test that a page-size ceiling configured off is reported as zero, the way
+     * the guard that enforces it reads one, rather than falling back to a
+     * default the guard would not apply.
+     *
+     * @return void
+     */
+    public function testGetQueryLimitsReportsAnUnsetPageSizeCeilingAsZero(): void
+    {
+        Config::set('api-toolkit.parser.max_limit', null);
+
+        self::assertSame(0, $this->makeCatalogue()->getQueryLimits()[QueryParameterValidator::MAX_LIMIT]);
+    }
+
+    /**
+     * Test that a cap configured off is reported as zero, matching the way the
+     * limits themselves treat a disabled dimension.
+     *
+     * @return void
+     */
+    public function testGetQueryLimitsReportsADisabledCapAsZero(): void
+    {
+        Config::set('api-toolkit.query_cost.max_depth', null);
+
+        self::assertSame(0, $this->makeCatalogue()->getQueryLimits()[QueryCostLimits::MAX_DEPTH]);
+    }
+
+    /**
+     * Test that getSearchBounds returns the three bounds a search term is held
+     * to, read from the term itself.
+     *
+     * @return void
+     */
+    public function testGetSearchBoundsReturnsTheConfiguredBounds(): void
+    {
+        Config::set('api-toolkit.search.max_length', 64);
+        Config::set('api-toolkit.search.max_words', 4);
+
+        self::assertSame([
+            'min_word_length' => 3,
+            'max_length'      => 64,
+            'max_words'       => 4,
+        ], $this->makeCatalogue()->getSearchBounds());
+    }
+
+    /**
+     * Test that the shortest word is reported at the floor it is held to rather
+     * than at a configured value beneath it, which the term itself refuses.
+     *
+     * @return void
+     */
+    public function testGetSearchBoundsReportsTheShortestWordFloorRatherThanAValueBeneathIt(): void
+    {
+        Config::set('api-toolkit.search.min_word_length', 1);
+
+        self::assertSame(3, $this->makeCatalogue()->getSearchBounds()['min_word_length']);
+    }
+
+    /**
      * Build a catalogue using the container-resolved default registry.
      *
      * @return \SineMacula\ApiToolkit\OpenApi\Metadata\ConfigMetadataCatalogue
@@ -233,7 +359,12 @@ final class ConfigMetadataCatalogueTest extends TestCase
         /** @var \SineMacula\ApiToolkit\Http\Resources\ResourceDiscovery $discovery */
         $discovery = $this->app->make(ResourceDiscovery::class);
 
-        return new ConfigMetadataCatalogue($registry, new ErrorCatalogueReader(new ApiExceptionDiscoverer([])), $discovery);
+        return new ConfigMetadataCatalogue(
+            $registry,
+            new ErrorCatalogueReader(new ApiExceptionDiscoverer([])),
+            $discovery,
+            new QuerySurfaceReader,
+        );
     }
 
     /**

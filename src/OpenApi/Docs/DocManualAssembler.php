@@ -12,51 +12,112 @@ use Illuminate\Support\Facades\Config;
  * Reads the section files (`*.md`) from the configured docs directory and
  * concatenates them in filename (sorted) order, separated by a blank line, so
  * the rendered documentation opens with the manual and then lists the
- * endpoints. The assembly is dumb by design: no manifest, no per-audience
- * selection, no merge logic. The directory holds toolkit-fixed templates,
- * developer-authored sections, and later auto-generated sections side by side,
- * ordered purely by their numeric filename prefixes. A missing or empty
- * directory yields an empty string, so the manual is opt-in and stays absent
- * until the templates are published.
+ * endpoints. The directory holds toolkit-fixed templates, developer-authored
+ * sections, and auto-generated sections side by side, ordered purely by their
+ * numeric filename prefixes. A missing or empty directory yields an empty
+ * string, so the manual is opt-in and stays absent until the templates are
+ * published.
+ *
+ * A section describing one audience's resources belongs to that audience alone,
+ * so the directory carries an `audiences` subdirectory holding one directory
+ * per audience name. The files there join the shared ones for that audience
+ * only, and a file whose name matches a shared one replaces it, so a section
+ * can be either shared or written per audience without the assembly having to
+ * know which is which. There is no other selection: nothing else about a
+ * section file decides which document it lands in.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
 final readonly class DocManualAssembler
 {
+    /** The subdirectory holding one directory of section files per audience. */
+    public const string AUDIENCE_DIRECTORY = 'audiences';
+
     /** The default docs directory, relative to the application resources. */
     private const string DEFAULT_DIRECTORY = 'api-docs';
 
     /**
-     * Assemble the concatenated Markdown manual from the configured docs
-     * directory, or an empty string when the directory is absent or empty.
+     * Assemble the concatenated Markdown manual for the given audience, or an
+     * empty string when the docs directory is absent or empty.
      *
+     * @param  string|null  $audience
      * @return string
      */
-    public function assemble(): string
+    public function assemble(?string $audience = null): string
     {
-        $path = $this->docsPath();
+        return $this->concatenate($this->sectionFiles($this->docsPath(), $audience));
+    }
 
-        if (!is_dir($path)) {
-            return '';
+    /**
+     * List the section files the audience reads, shared files first overridden
+     * by the audience's own file of the same name, ordered by filename.
+     *
+     * @param  string  $path
+     * @param  string|null  $audience
+     * @return array<string, string>
+     */
+    private function sectionFiles(string $path, ?string $audience): array
+    {
+        $files = [];
+
+        foreach ($this->markdownIn($path) as $file) {
+            $files[basename($file)] = $file;
         }
 
-        $files = glob(rtrim($path, '/') . '/*.md');
+        foreach ($this->markdownIn($this->audiencePath($path, $audience)) as $file) {
+            $files[basename($file)] = $file;
+        }
+
+        ksort($files);
+
+        return $files;
+    }
+
+    /**
+     * Resolve the directory holding the given audience's own section files, or
+     * null when no audience is named.
+     *
+     * @param  string  $path
+     * @param  string|null  $audience
+     * @return string|null
+     */
+    private function audiencePath(string $path, ?string $audience): ?string
+    {
+        if ($audience === null || $audience === '') {
+            return null;
+        }
+
+        return rtrim($path, '/') . '/' . self::AUDIENCE_DIRECTORY . '/' . $audience;
+    }
+
+    /**
+     * List the Markdown files directly within the given directory, or none
+     * where the directory is absent or unreadable.
+     *
+     * @param  string|null  $directory
+     * @return list<string>
+     */
+    private function markdownIn(?string $directory): array
+    {
+        if ($directory === null || !is_dir($directory)) {
+            return [];
+        }
+
+        $files = glob(rtrim($directory, '/') . '/*.md');
 
         if ($files === false) {
-            return ''; // @codeCoverageIgnore
+            return []; // @codeCoverageIgnore
         }
 
-        sort($files);
-
-        return $this->concatenate($files);
+        return $files;
     }
 
     /**
      * Concatenate the given files' trimmed contents in order, separated by a
      * blank line, skipping any file that reads empty or unreadable.
      *
-     * @param  array<int, string>  $files
+     * @param  array<string, string>  $files
      * @return string
      */
     private function concatenate(array $files): string

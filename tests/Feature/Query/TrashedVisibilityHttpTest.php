@@ -4,6 +4,7 @@ declare(strict_types = 1);
 
 namespace Tests\Feature\Query;
 
+use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Route;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -24,11 +25,14 @@ use Tests\TestCase;
 /**
  * Feature tests proving trashed visibility over the real HTTP pipeline.
  *
- * Drives the query-parser middleware plus repository pagination so the
- * `?trashed` parameter is observed end to end: a resource that opts in widens
- * the soft-delete scope to include or isolate trashed rows, while a resource
- * that has not opted in keeps them hidden regardless of the request - the
- * safe-by-default guarantee proven through a real request.
+ * Drives the query-parser middleware plus repository reads so the `?trashed`
+ * parameter is observed end to end: a resource that opts in widens the
+ * soft-delete scope to include or isolate trashed rows, while a resource that
+ * has not opted in keeps them hidden regardless of the request - the
+ * safe-by-default guarantee proven through a real request. Both read actions
+ * the document advertises the parameter on are driven, the single-record read
+ * included, since a widening the document offers on a show has to be one a
+ * repository-backed show honours.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -67,6 +71,15 @@ final class TrashedVisibilityHttpTest extends TestCase
             $articles = $repository->withApiCriteria()->paginate();
 
             return new ApiResourceCollection($articles, ArticleResource::class);
+        });
+
+        Route::middleware(ParseApiQuery::class)->get('/articles/{slug}', function (string $slug, ArticleRepository $repository): JsonResponse {
+
+            $article = $repository->withApiCriteria()->firstWhere('slug', $slug); // @phpstan-ignore staticMethod.dynamicCall
+
+            return $article === null
+                ? new JsonResponse(null, 404)
+                : (new ArticleResource($article))->response();
         });
     }
 
@@ -143,6 +156,39 @@ final class TrashedVisibilityHttpTest extends TestCase
 
         $response->assertOk();
         $response->assertJsonCount(2, 'data');
+    }
+
+    /**
+     * Test that a single-record read widens the same way a collection read
+     * does, so the visibility the document offers on a show is one a
+     * repository-backed show honours rather than a claim about a collection.
+     *
+     * @return void
+     */
+    public function testSingleRecordReadWidensWhenResourceOptsIn(): void
+    {
+        $this->gateThrough(ArticleResource::class);
+
+        $this->getJson('/articles/removed-article')->assertNotFound();
+
+        $response = $this->getJson('/articles/removed-article?trashed=with');
+
+        $response->assertOk();
+        $response->assertJsonPath('data.title', 'Removed Article');
+    }
+
+    /**
+     * Test that a single-record read keeps a trashed row hidden while the
+     * resource keeps the gate closed, the widening being an opt-in on both read
+     * actions alike.
+     *
+     * @return void
+     */
+    public function testSingleRecordReadStaysNarrowWhenResourceGateClosed(): void
+    {
+        $this->gateThrough(RestrictedArticleResource::class);
+
+        $this->getJson('/articles/removed-article?trashed=with')->assertNotFound();
     }
 
     /**

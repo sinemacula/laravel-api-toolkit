@@ -235,6 +235,30 @@ final class QueryParameterValidatorTest extends TestCase
     }
 
     /**
+     * Test that a filter document decoding to a bare JSON scalar carries no
+     * nesting to measure and is passed over, while the same cap still rejects a
+     * document that does nest, so passing it over never disarms the bound.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testScalarFilterDocumentCarriesNoNestingToMeasure(): void
+    {
+        Config::set('api-toolkit.query_cost.max_parse_depth', 1);
+
+        $this->validator->validate(['filters' => '"active"']);
+
+        $this->assertRejectedForCost(
+            ['filters' => self::FILTER_DOCUMENT],
+            'filters',
+            QueryCostLimits::MAX_PARSE_DEPTH,
+            1,
+            2,
+        );
+    }
+
+    /**
      * Test that a page size of exactly the configured ceiling is accepted.
      *
      * @return void

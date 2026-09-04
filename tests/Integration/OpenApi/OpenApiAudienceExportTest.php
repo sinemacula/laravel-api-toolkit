@@ -7,6 +7,7 @@ namespace Tests\Integration\OpenApi;
 use Illuminate\Contracts\Config\Repository as ConfigRepository;
 use Illuminate\Foundation\Application;
 use Illuminate\Routing\Router;
+use Illuminate\Testing\PendingCommand;
 use Opis\JsonSchema\Errors\ErrorFormatter;
 use Opis\JsonSchema\Helper;
 use Opis\JsonSchema\Resolvers\SchemaResolver;
@@ -14,6 +15,7 @@ use Opis\JsonSchema\ValidationResult;
 use Opis\JsonSchema\Validator;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\OpenApi\Builder\PathBuilder;
+use SineMacula\ApiToolkit\OpenApi\Builder\ResourceSchemaBuilder;
 use SineMacula\ApiToolkit\OpenApi\ExportOpenApiComponents;
 use SineMacula\ApiToolkit\OpenApi\ExportResult;
 use SineMacula\ApiToolkit\OpenApi\OpenApiAssembler;
@@ -32,6 +34,7 @@ use Tests\Fixtures\OpenApi\PathTaggedController;
 use Tests\Fixtures\OpenApi\UndocumentedOrganizationController;
 use Tests\Fixtures\Resources\OrganizationResource;
 use Tests\Fixtures\Resources\PostResource;
+use Tests\Fixtures\Resources\QueryableTagResource;
 use Tests\Fixtures\Resources\TagResource;
 use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
@@ -44,10 +47,11 @@ use Tests\TestCase;
  * and which reachable resource schemas survive into each per-audience document,
  * against real routes and the container-resolved builder graph. Covers
  * allowlist opt-in, the blanket-Undocumented drop from every audience, the
- * canonical internal-only pattern, the route-macro exclusion, and the
+ * canonical internal-only pattern, the route-macro exclusion, the
  * reachable-schema isolation guaranteeing an internal-only resource never leaks
- * into the public document. Every produced document is asserted valid OpenAPI
- * 3.1.
+ * into the public document, and the same isolation for the per-property query
+ * surface that schema carries. Every produced document is asserted valid
+ * OpenAPI 3.1.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -59,6 +63,7 @@ use Tests\TestCase;
 #[CoversClass(AudienceResolver::class)]
 #[CoversClass(AudienceConfiguration::class)]
 #[CoversClass(ReachableSchemaResolver::class)]
+#[CoversClass(ResourceSchemaBuilder::class)]
 final class OpenApiAudienceExportTest extends TestCase
 {
     /** @var string The identifier under which the OpenAPI 3.1 meta-schema is registered. */
@@ -66,6 +71,9 @@ final class OpenApiAudienceExportTest extends TestCase
 
     /** @var string The identifier of the JSON Schema 2020-12 dialect document. */
     private const string DIALECT_ID = 'https://json-schema.org/draft/2020-12/schema';
+
+    /** @var string|null The temporary docs directory to clean up. */
+    private ?string $docsDir = null;
 
     /**
      * Set up each test.
@@ -80,6 +88,23 @@ final class OpenApiAudienceExportTest extends TestCase
         SchemaCompiler::clearCache();
 
         $this->registerResourceMap();
+    }
+
+    /**
+     * Tear down each test, removing any temporary docs directory.
+     *
+     * @return void
+     */
+    #[\Override]
+    protected function tearDown(): void
+    {
+        if ($this->docsDir !== null) {
+            $this->removeDirectory($this->docsDir);
+        }
+
+        $this->docsDir = null;
+
+        parent::tearDown();
     }
 
     /**
@@ -247,6 +272,142 @@ final class OpenApiAudienceExportTest extends TestCase
 
         $this->assertValid($public);
         $this->assertValid($internal);
+    }
+
+    /**
+     * Test that the query surface a resource declares travels with its schema:
+     * the audience reaching the resource learns which of its properties accept
+     * a filter, an order, and a search, while the audience that never reaches
+     * it carries no query surface anywhere in its document.
+     *
+     * The generated manual is assembled first, so the human-readable half of
+     * the surface is under test alongside the machine-readable one: an
+     * internal-only resource must appear nowhere in the public document, its
+     * info.description included.
+     *
+     * @return void
+     */
+    public function testInternalOnlyQuerySurfaceDoesNotLeakIntoPublicDocument(): void
+    {
+        $this->registerInternalOnlySurface();
+        $this->assembleManual();
+
+        $internal = $this->export('internal')->document;
+
+        self::assertSame(
+            [
+                'filter' => ['key' => 'name', 'capability' => 'exact', 'operators' => ['$eq', '$in', '$null', '$notNull']],
+                'sort'   => ['key' => 'name', 'indexed' => true],
+                'search' => ['key' => 'name', 'strategy' => 'prefix'],
+            ],
+            $internal['components']['schemas']['QueryableTag']['properties']['name']['x-query-surface'],
+        );
+
+        $public = $this->export('public')->document;
+
+        self::assertArrayNotHasKey('QueryableTag', $public['components']['schemas']);
+
+        // The surface rides the property rather than the parameter components,
+        // which are emitted globally, so an audience that never reaches the
+        // resource carries no trace of what that resource may be asked.
+        self::assertStringNotContainsString('x-query-surface', json_encode($public, JSON_THROW_ON_ERROR));
+
+        // The generated reference is the second channel the same surface can
+        // travel by, so the whole public document - description included - is
+        // scanned for the internal-only component name.
+        self::assertStringNotContainsString('QueryableTag', json_encode($public, JSON_THROW_ON_ERROR));
+
+        $this->assertValid($internal);
+        $this->assertValid($public);
+    }
+
+    /**
+     * Test that the same generated reference does reach the audience the
+     * resource is documented in, so its absence from the public document is
+     * selection rather than the reference never being assembled at all.
+     *
+     * @return void
+     */
+    public function testTheQuerySurfaceReferenceReachesTheAudienceThatDocumentsIt(): void
+    {
+        $this->registerInternalOnlySurface();
+        $this->assembleManual();
+
+        $description = $this->export('internal')->document['info']['description'] ?? null;
+
+        self::assertIsString($description);
+        self::assertStringContainsString('# Query Surface Reference', $description);
+        self::assertStringContainsString('### QueryableTag', $description);
+
+        $public = $this->export('public')->document['info']['description'] ?? null;
+
+        self::assertIsString($public);
+        self::assertStringContainsString('# Query Surface Reference', $public);
+        self::assertStringContainsString('### Organization', $public);
+    }
+
+    /**
+     * Declare a public and an internal audience with one resource reachable
+     * only from the internal one.
+     *
+     * @return void
+     */
+    private function registerInternalOnlySurface(): void
+    {
+        $this->getConfig()->set('api-toolkit.openapi.audiences', [
+            'public'   => [],
+            'internal' => [],
+        ]);
+
+        $this->getConfig()->set('api-toolkit.resources.resource_map', [
+            Organization::class => OrganizationResource::class,
+            Tag::class          => QueryableTagResource::class,
+        ]);
+
+        $this->router()->get('organizations', [PathOrganizationController::class, 'index']);
+        $this->router()->get('tags', [InternalOnlyTagController::class, 'index']);
+    }
+
+    /**
+     * Generate the reference sections into a temporary docs directory so the
+     * assembled manual is part of every document under test.
+     *
+     * @return void
+     */
+    private function assembleManual(): void
+    {
+        $this->docsDir = sys_get_temp_dir() . '/api-toolkit-docs-' . uniqid('', true);
+
+        mkdir($this->docsDir);
+
+        $this->getConfig()->set('api-toolkit.openapi.docs_path', $this->docsDir);
+
+        $command = $this->artisan('api-toolkit:docs:generate');
+
+        assert($command instanceof PendingCommand);
+
+        $command->assertSuccessful();
+    }
+
+    /**
+     * Remove a directory and everything beneath it.
+     *
+     * @param  string  $directory
+     * @return void
+     */
+    private function removeDirectory(string $directory): void
+    {
+        foreach (glob($directory . '/*') ?: [] as $entry) {
+
+            if (is_dir($entry)) {
+                $this->removeDirectory($entry);
+                continue;
+            }
+
+            unlink($entry);
+        }
+
+        @rmdir($directory);
     }
 
     /**

@@ -4,7 +4,6 @@ declare(strict_types = 1);
 
 namespace SineMacula\ApiToolkit\OpenApi\Docs;
 
-use SineMacula\ApiToolkit\OpenApi\Contracts\ModuleResolver;
 use SineMacula\ApiToolkit\OpenApi\Metadata\ErrorDescriptor;
 
 /**
@@ -30,19 +29,16 @@ final readonly class ErrorCatalogueDocGenerator
     /** The fixed introduction printed beneath the heading. */
     private const string INTRO = 'Every error the API can return, keyed by its stable numeric code.';
 
-    /** The heading for codes that belong to no module. */
-    private const string COMMON = 'Common';
-
     /**
      * Create a new error catalogue documentation generator.
      *
-     * @param  \SineMacula\ApiToolkit\OpenApi\Contracts\ModuleResolver  $resolver
+     * @param  \SineMacula\ApiToolkit\OpenApi\Docs\ModuleSectionGrouper  $grouper
      * @return void
      */
     public function __construct(
 
-        /** Resolves the module each descriptor's owning exception belongs to. */
-        private ModuleResolver $resolver,
+        /** Groups the codes into the sections the catalogue renders. */
+        private ModuleSectionGrouper $grouper,
     ) {}
 
     /**
@@ -53,10 +49,14 @@ final readonly class ErrorCatalogueDocGenerator
      */
     public function generate(array $descriptors): string
     {
-        $sections = $this->sections($descriptors);
-        $lines    = [self::BANNER, '', '# Error Catalogue', '', self::INTRO];
+        $sections = $this->grouper->group(
+            $descriptors,
+            static fn (ErrorDescriptor $descriptor): ?string => $descriptor->source,
+        );
 
-        if ($this->isCombined($sections)) {
+        $lines = [self::BANNER, '', '# Error Catalogue', '', self::INTRO];
+
+        if ($this->grouper->isCombined($sections)) {
             $lines = array_merge($lines, [''], $this->table($sections[0]['items'] ?? []));
 
             return implode("\n", $lines) . "\n";
@@ -70,71 +70,6 @@ final readonly class ErrorCatalogueDocGenerator
         }
 
         return implode("\n", $lines) . "\n";
-    }
-
-    /**
-     * Group the descriptors into an ordered list of sections, the shared
-     * section first followed by one section per module sorted by name.
-     *
-     * @param  array<int, \SineMacula\ApiToolkit\OpenApi\Metadata\ErrorDescriptor>  $descriptors
-     * @return list<array{heading: string, items: list<\SineMacula\ApiToolkit\OpenApi\Metadata\ErrorDescriptor>}>
-     */
-    private function sections(array $descriptors): array
-    {
-        $common  = [];
-        $modules = [];
-
-        foreach ($descriptors as $descriptor) {
-
-            $module = $descriptor->source === null ? null : $this->resolver->resolve($descriptor->source);
-
-            if ($module === null) {
-                $common[] = $descriptor;
-                continue;
-            }
-
-            $modules[$module->key] ??= ['name' => $module->name, 'items' => []];
-            $modules[$module->key]['items'][] = $descriptor;
-        }
-
-        uasort($modules, static fn (array $a, array $b): int => $a['name'] <=> $b['name']);
-
-        return $this->orderSections($common, $modules);
-    }
-
-    /**
-     * Assemble the ordered section list from the shared bucket and the modules.
-     *
-     * @param  list<\SineMacula\ApiToolkit\OpenApi\Metadata\ErrorDescriptor>  $common
-     * @param  array<string, array{name: string, items: list<\SineMacula\ApiToolkit\OpenApi\Metadata\ErrorDescriptor>}>  $modules
-     * @return list<array{heading: string, items: list<\SineMacula\ApiToolkit\OpenApi\Metadata\ErrorDescriptor>}>
-     */
-    private function orderSections(array $common, array $modules): array
-    {
-        $sections = [];
-
-        if ($common !== []) {
-            $sections[] = ['heading' => self::COMMON, 'items' => $common];
-        }
-
-        foreach ($modules as $module) {
-            $sections[] = ['heading' => $module['name'], 'items' => $module['items']];
-        }
-
-        return $sections;
-    }
-
-    /**
-     * Determine whether the sections collapse to the single combined table,
-     * which holds when nothing is grouped under a module.
-     *
-     * @param  list<array{heading: string, items: list<\SineMacula\ApiToolkit\OpenApi\Metadata\ErrorDescriptor>}>  $sections
-     * @return bool
-     */
-    private function isCombined(array $sections): bool
-    {
-        return $sections === []
-            || (count($sections) === 1 && $sections[0]['heading'] === self::COMMON);
     }
 
     /**

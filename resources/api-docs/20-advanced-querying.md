@@ -13,14 +13,31 @@ request looks like this:
 ?fields[user]=first_name,last_name&filters={"last_name":{"$eq":"Smith"}}&order=created_at:desc&limit=25&page=1
 ```
 
-| Parameter | Example                          | Description                                                                 |
-|-----------|----------------------------------|-----------------------------------------------------------------------------|
-| `fields`  | `?fields[user]=first_name`       | Choose the fields returned per resource type. Available on all endpoints.   |
-| `filters` | `?filters={"age":{"$gt":18}}`    | Filter records with a structured JSON query. Available on index endpoints.  |
-| `search`  | `?search=John Smith`             | Free-text search across a resource's searchable fields. Index endpoints.    |
-| `order`   | `?order=created_at:desc`         | Order results by a column and direction. Available on index endpoints.      |
-| `limit`   | `?limit=25`                      | Set the page size of a paginated list. Available on index endpoints.        |
-| `page`    | `?page=2`                        | Request a specific page of a paginated list. Available on index endpoints.  |
+| Parameter  | Example                         | Description                                             |
+|------------|---------------------------------|---------------------------------------------------------|
+| `fields`   | `?fields[user]=first_name`      | Choose the fields returned per resource type.           |
+| `counts`   | `?counts[user]=posts`           | Ask for a count of a declared relationship.             |
+| `sums`     | `?sums[user][orders]=total`     | Ask for a sum over a declared relationship.             |
+| `averages` | `?averages[user][orders]=total` | Ask for an average over a declared relationship.        |
+| `filters`  | `?filters={"age":{"$gt":18}}`   | Filter records with a structured JSON query.            |
+| `search`   | `?search=John Smith`            | Free-text search across a resource's searchable fields. |
+| `order`    | `?order=created_at:desc`        | Order results by a column and direction.                |
+| `limit`    | `?limit=25`                     | Set the page size of a paginated list.                  |
+| `page`     | `?page=2`                       | Request a specific page of a paginated list.            |
+| `trashed`  | `?trashed=with`                 | Widen a read to include soft-deleted records.           |
+
+The first four shape the representation of a resource that is returned, so they
+are honoured wherever one is serialised, whatever the verb that produced it.
+The next five select, order, and page a collection, so only an endpoint
+returning a list answers them. `trashed` widens the scope a read is served from
+and so joins both read endpoints, but only where the model behind them soft
+deletes at all; a resource that has not opted in to exposing its soft-deleted
+records ignores it. Cursor paging adds two more, `pagination` and `cursor`,
+described in the Pagination section.
+
+Which of these an endpoint answers is not left to prose: every operation in the
+OpenAPI document lists the parameters it accepts, by reference to the shared
+definitions in `components.parameters`.
 
 ## Fields
 
@@ -319,8 +336,57 @@ Both apply only when the response is a paginated list:
 ?limit=25&page=2
 ```
 
-The `limit` is bounded by a configured ceiling. A request above it is rejected
-with a `422` naming the ceiling and the size asked for, rather than answered
-with a smaller page: a page quietly reduced cannot be told apart from the end of
-the result set. See the Pagination section for the shape of a paginated
-response.
+The `limit` is bounded by a configured ceiling, which the document publishes as
+the parameter's schema maximum. A request above it is rejected with a `422`
+naming the ceiling and the size asked for, rather than answered with a smaller
+page: a page quietly reduced cannot be told apart from the end of the result
+set. See the Pagination section for the shape of a paginated response.
+
+## Discovering what a resource accepts
+
+The sections above describe the grammar; which fields a given resource answers
+it with is declared by the resource itself, and the OpenAPI document names them.
+Every property of a resource schema that answers a query carries an
+`x-query-surface` extension:
+
+```json
+"email": {
+  "type": "string",
+  "x-query-surface": {
+    "filter": {
+      "key": "email",
+      "capability": "exact",
+      "operators": ["$eq", "$in", "$null", "$notNull"]
+    },
+    "sort": {"key": "email", "indexed": true},
+    "search": {"key": "email", "strategy": "prefix"}
+  }
+}
+```
+
+Each part appears only where the resource declared it, so a property carrying no
+`x-query-surface` answers no filter, no order, and no search. The `key` is the
+name to send in `filters` and `order`, which differs from the property name
+wherever a field is presented under an alias. A `sort` reporting `"indexed":
+false` also carries the reason the resource recorded for ordering by a column no
+index holds.
+
+The relations a filter may descend through belong to the resource rather than to
+any one property, so the schema names them itself:
+
+```json
+"x-traversable-relations": ["organization", "posts"]
+```
+
+The same declarations are written out for a reader rather than a code generator
+in the Query Surface Reference section, which tables the filterable, sortable,
+and searchable columns of every resource this document describes, beside the
+bounds a single request is held to and the shape an over-budget request is
+rejected with. That section is generated from the compiled schema on every
+documentation run, so it cannot drift from what the API accepts, and it is
+generated once per audience, so it names only the resources the document you
+are reading also carries a schema for.
+
+The operators a property lists are narrowed to what the API can still dispatch:
+a token removed from the operator registry leaves the surface along with the
+grammar, and a column left with no operator at all carries no `filter` member.

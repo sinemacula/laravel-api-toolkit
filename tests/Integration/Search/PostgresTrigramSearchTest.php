@@ -92,4 +92,65 @@ final class PostgresTrigramSearchTest extends EngineSearchTestCase
     {
         return 'Column "name" is declared searchable with the "substring" strategy, which needs a trigram index over that column on table "users"';
     }
+
+    /**
+     * Drop the index serving the leading match on the searched column.
+     *
+     * This engine reads a leading match from the same trigram index as an
+     * anywhere-match, so what is dropped here is a trigram index rather than
+     * the ordinary one the column also carries.
+     *
+     * @return void
+     */
+    #[\Override]
+    protected function dropPrefixMatchIndex(): void
+    {
+        DB::statement('drop index users_email_trgm');
+    }
+
+    /**
+     * Recreate the index serving the leading match on the searched column.
+     *
+     * @return void
+     */
+    #[\Override]
+    protected function createPrefixMatchIndex(): void
+    {
+        DB::statement('create index users_email_trgm on users using gin (email gin_trgm_ops)');
+    }
+
+    /**
+     * Return the defect the leading match draws once that index is gone.
+     *
+     * @return string
+     */
+    #[\Override]
+    protected function prefixMatchDefect(): string
+    {
+        return 'Column "email" is declared searchable with the "prefix" strategy, which needs a trigram index over that column on table "users"';
+    }
+
+    /**
+     * Drop the ordinary index serving the equality match on the searched
+     * column.
+     *
+     * @return void
+     */
+    #[\Override]
+    protected function dropEqualityMatchIndex(): void
+    {
+        DB::statement('drop index users_name_index');
+    }
+
+    /**
+     * Recreate the ordinary index serving the equality match on the searched
+     * column.
+     *
+     * @return void
+     */
+    #[\Override]
+    protected function createEqualityMatchIndex(): void
+    {
+        DB::statement('create index users_name_index on users (name)');
+    }
 }
