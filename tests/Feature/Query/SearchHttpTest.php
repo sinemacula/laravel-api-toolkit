@@ -330,8 +330,10 @@ final class SearchHttpTest extends TestCase
         $response->assertOk();
         self::assertEqualsCanonicalizing(['Highsmith', 'Blacksmith', 'Goldsmith'], $this->names($response));
 
-        self::assertStringContainsString('name like ?', $sql);
-        self::assertStringContainsString('email like ?', $sql);
+        // One engine compares the column as text rather than in its own type,
+        // so the cast sits between the column and the operator.
+        self::assertMatchesRegularExpression('/["`]?name["`]?(::text)? like \?/', $sql);
+        self::assertMatchesRegularExpression('/["`]?email["`]?(::text)? like \?/', $sql);
         self::assertStringNotContainsString('exists', $sql);
         self::assertStringNotContainsString('organizations', $sql);
         self::assertStringNotContainsString('posts', $sql);
