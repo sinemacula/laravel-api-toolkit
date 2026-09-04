@@ -17,10 +17,15 @@ use SineMacula\ApiToolkit\Http\Resources\ApiResourceCollection;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\SearchApplier;
 use SineMacula\ApiToolkit\Search\SearchDriverRegistry;
 use Tests\Concerns\RegistersApiExceptionHandler;
+use Tests\Fixtures\Models\Organization;
+use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Repositories\UserRepository;
 use Tests\Fixtures\Resources\FilterableUserResource;
 use Tests\Fixtures\Resources\SearchableFilterableUserResource;
+use Tests\Fixtures\Resources\SearchScopedOrganizationResource;
+use Tests\Fixtures\Resources\SearchScopedPostResource;
+use Tests\Fixtures\Resources\SearchScopedUserResource;
 use Tests\Fixtures\Search\PatternSearchDriver;
 use Tests\TestCase;
 
@@ -32,6 +37,11 @@ use Tests\TestCase;
  * connection's registered driver, and rendered as narrowed rows. The rows are
  * chosen so the term appears in the same case on every supported engine, since
  * one of them matches patterns case-sensitively and another does not.
+ *
+ * One route is served by a resource whose relations are traversable and whose
+ * related resources declare searchable columns of their own, so the boundary
+ * between the two surfaces is observable on the wire: a filter reaches a
+ * related row, a search never does.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -47,9 +57,14 @@ final class SearchHttpTest extends TestCase
     use RegistersApiExceptionHandler;
 
     /**
-     * Set up two repository-backed routes, one resource declaring a search
-     * surface and one declaring none, with a driver registered for the
-     * connection under test.
+     * Set up three repository-backed routes: a resource declaring a search
+     * surface, one declaring none, and one declaring a search surface beside
+     * traversable relations, with a driver registered for the connection under
+     * test.
+     *
+     * The related models are mapped to resources declaring searchable columns
+     * of their own, so a search that followed a relation would find everything
+     * it needed on the far side of one.
      *
      * @return void
      */
@@ -66,6 +81,11 @@ final class SearchHttpTest extends TestCase
 
         Config::set('api-toolkit.search.unverified_connections', [$connection]);
 
+        Config::set('api-toolkit.resources.resource_map', [
+            Organization::class => SearchScopedOrganizationResource::class,
+            Post::class         => SearchScopedPostResource::class,
+        ]);
+
         Route::middleware(ParseApiQuery::class)->get('/users', function (UserRepository $repository): ApiResourceCollection {
 
             $users = $repository->usingResource(SearchableFilterableUserResource::class)->withApiCriteria()->paginate();
@@ -78,6 +98,13 @@ final class SearchHttpTest extends TestCase
             $users = $repository->usingResource(FilterableUserResource::class)->withApiCriteria()->paginate();
 
             return new ApiResourceCollection($users, FilterableUserResource::class);
+        });
+
+        Route::middleware(ParseApiQuery::class)->get('/scoped-users', function (UserRepository $repository): ApiResourceCollection {
+
+            $users = $repository->usingResource(SearchScopedUserResource::class)->withApiCriteria()->paginate();
+
+            return new ApiResourceCollection($users, SearchScopedUserResource::class);
         });
 
         User::create(['name' => 'Highsmith', 'email' => 'highsmith@example.com', 'status' => 'active']);
@@ -221,6 +248,96 @@ final class SearchHttpTest extends TestCase
     }
 
     /**
+     * Test that a term carried only by a belongs-to related record leaves the
+     * owning row unmatched, while the row carrying the term in a column of its
+     * own is returned.
+     *
+     * @return void
+     */
+    public function testTermCarriedOnlyByABelongsToRelationDoesNotMatchTheOwningRow(): void
+    {
+        $organization = Organization::create(['name' => 'Fairweather Works', 'slug' => 'fairweather-works']);
+
+        User::create(['name' => 'Renwick', 'email' => 'renwick@example.com', 'status' => 'active', 'organization_id' => $organization->id]);
+        User::create(['name' => 'Bellweather', 'email' => 'bell@example.com', 'status' => 'active']);
+
+        $response = $this->getJson('/scoped-users?' . http_build_query(['search' => 'weather']));
+
+        $response->assertOk();
+
+        // Renwick carries the term only through its organization; Bellweather
+        // carries it in the root column. Renwick appearing would mean the
+        // search had followed the relation.
+        self::assertSame(['Bellweather'], $this->names($response));
+        $response->assertJsonPath('meta.total', 1);
+
+        // The same relation is reachable by a filter, so the row is absent
+        // above because a search stops at the requested resource, not because
+        // the related record is missing or unjoinable.
+        $filters  = json_encode(['organization' => ['name' => ['$eq' => 'Fairweather Works']]]);
+        $filtered = $this->getJson('/scoped-users?' . http_build_query(['filters' => $filters]));
+
+        $filtered->assertOk();
+        self::assertSame(['Renwick'], $this->names($filtered));
+    }
+
+    /**
+     * Test that a term carried only by a has-many related record matches
+     * nothing at all, so no row is reached through the relation.
+     *
+     * @return void
+     */
+    public function testTermCarriedOnlyByAHasManyRelationMatchesNothing(): void
+    {
+        $user = User::create(['name' => 'Okonkwo', 'email' => 'okonkwo@example.com', 'status' => 'active']);
+
+        Post::create(['user_id' => $user->id, 'title' => 'notes from the marshland', 'body' => 'a survey of the marshland']);
+
+        $response = $this->getJson('/scoped-users?' . http_build_query(['search' => 'marshland']));
+
+        $response->assertOk();
+        self::assertSame([], $this->names($response));
+        $response->assertJsonPath('meta.total', 0);
+
+        // The post is attached and its title is reachable by a filter, so the
+        // empty result above is the search boundary rather than a row that was
+        // never written.
+        $filters  = json_encode(['posts' => ['title' => ['$eq' => 'notes from the marshland']]]);
+        $filtered = $this->getJson('/scoped-users?' . http_build_query(['filters' => $filters]));
+
+        $filtered->assertOk();
+        self::assertSame(['Okonkwo'], $this->names($filtered));
+    }
+
+    /**
+     * Test that the search predicate is compared against the root columns in
+     * place, with no correlated subquery over a relation.
+     *
+     * The rows answer what a search matches; this answers what it costs. A
+     * predicate that reached a relation would arrive as a subquery evaluated
+     * once per candidate row, which is the expense the boundary exists to
+     * refuse.
+     *
+     * @return void
+     */
+    public function testSearchEmitsNoCorrelatedSubqueryOverARelation(): void
+    {
+        DB::enableQueryLog();
+
+        $response = $this->getJson('/scoped-users?' . http_build_query(['search' => 'smith']));
+        $sql      = $this->loggedStatements();
+
+        $response->assertOk();
+        self::assertEqualsCanonicalizing(['Highsmith', 'Blacksmith', 'Goldsmith'], $this->names($response));
+
+        self::assertStringContainsString('name like ?', $sql);
+        self::assertStringContainsString('email like ?', $sql);
+        self::assertStringNotContainsString('exists', $sql);
+        self::assertStringNotContainsString('organizations', $sql);
+        self::assertStringNotContainsString('posts', $sql);
+    }
+
+    /**
      * Issue a search request against the searchable route.
      *
      * @param  string  $term
@@ -240,5 +357,23 @@ final class SearchHttpTest extends TestCase
     private function names(TestResponse $response): array
     {
         return array_column((array) $response->json('data'), 'name');
+    }
+
+    /**
+     * Drain the recorded query log into one identifier-unquoted string, so SQL
+     * assertions read the whole request and stay driver-agnostic.
+     *
+     * @return string
+     */
+    private function loggedStatements(): string
+    {
+        $log = DB::getQueryLog();
+
+        DB::disableQueryLog();
+        DB::flushQueryLog();
+
+        $statements = array_map(static fn (array $entry): string => $entry['query'], $log);
+
+        return str_replace(['`', '"'], '', implode(' ', $statements));
     }
 }
