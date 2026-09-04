@@ -6,6 +6,7 @@ namespace Tests\Unit\Http\Resources\Schema;
 
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
+use SineMacula\ApiToolkit\Enums\Capability;
 use SineMacula\ApiToolkit\Enums\SearchStrategy;
 use SineMacula\ApiToolkit\Schema\CompiledAggregateDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledCountDefinition;
@@ -271,15 +272,16 @@ final class CompiledSchemaTest extends TestCase
     }
 
     /**
-     * Test that getFilterableColumns returns the declared filterable columns.
+     * Test that getFilterableColumns returns the declared filterable columns
+     * mapped to the capability each was declared with.
      *
      * @return void
      */
     public function testGetFilterableColumnsReturnsDeclaredColumns(): void
     {
-        $schema = new CompiledSchema([], [], [], ['email', 'status']);
+        $schema = new CompiledSchema([], [], [], ['email' => Capability::EXACT, 'status' => Capability::ENUM]);
 
-        self::assertSame(['email', 'status'], $schema->getFilterableColumns());
+        self::assertSame(['email' => Capability::EXACT, 'status' => Capability::ENUM], $schema->getFilterableColumns());
     }
 
     /**

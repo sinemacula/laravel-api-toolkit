@@ -54,7 +54,8 @@ final class FilterOperatorMatrixTest extends TestCase
 
     /**
      * Set up two repository-backed routes and seed five rows with a mix of
-     * present and absent organization ids.
+     * present and absent organization ids, and one row held apart by status so
+     * the negation operator has a closed-domain column to exclude on.
      *
      * @return void
      */
@@ -79,7 +80,7 @@ final class FilterOperatorMatrixTest extends TestCase
             return new ApiResourceCollection($users, NullableFilterableUserResource::class);
         });
 
-        User::create(['name' => 'Alice', 'email' => 'alice@example.com', 'organization_id' => null]);
+        User::create(['name' => 'Alice', 'email' => 'alice@example.com', 'organization_id' => null, 'status' => 'banned']);
         User::create(['name' => 'Alan', 'email' => 'alan@example.com', 'organization_id' => 10]);
         User::create(['name' => 'Bob', 'email' => 'bob@example.com', 'organization_id' => null]);
         User::create(['name' => 'Carol', 'email' => 'carol@example.com', 'organization_id' => 20]);
@@ -91,9 +92,9 @@ final class FilterOperatorMatrixTest extends TestCase
      *
      * @return void
      */
-    public function testNotEqualOperatorExcludesTheMatchingName(): void
+    public function testNotEqualOperatorExcludesTheMatchingStatus(): void
     {
-        $names = $this->names($this->queryFilters(['name' => ['$neq' => 'Alice']]));
+        $names = $this->names($this->queryFilters(['status' => ['$neq' => 'banned']], '/nullable-users'));
 
         self::assertCount(4, $names);
         self::assertNotContains('Alice', $names);
@@ -221,9 +222,9 @@ final class FilterOperatorMatrixTest extends TestCase
     public function testTwoFiltersComposeWithAndSemantics(): void
     {
         $names = $this->names($this->queryFilters([
-            'name' => ['$neq' => 'Alice'],
-            'id'   => ['$lt' => 3],
-        ]));
+            'status' => ['$neq' => 'banned'],
+            'id'     => ['$lt' => 3],
+        ], '/nullable-users'));
 
         self::assertSame(['Alan'], $names);
     }
@@ -254,10 +255,10 @@ final class FilterOperatorMatrixTest extends TestCase
     {
         $names = $this->names($this->queryFilters([
             '$and' => [
-                'name' => ['$neq' => 'Alice'],
-                'id'   => ['$lt' => 3],
+                'status' => ['$neq' => 'banned'],
+                'id'     => ['$lt' => 3],
             ],
-        ]));
+        ], '/nullable-users'));
 
         self::assertSame(['Alan'], $names);
     }

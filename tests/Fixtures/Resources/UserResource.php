@@ -4,6 +4,7 @@ declare(strict_types = 1);
 
 namespace Tests\Fixtures\Resources;
 
+use SineMacula\ApiToolkit\Enums\Capability;
 use SineMacula\ApiToolkit\Http\Resources\ApiResource;
 use SineMacula\ApiToolkit\Schema\Average;
 use SineMacula\ApiToolkit\Schema\Count;
@@ -35,11 +36,11 @@ final class UserResource extends ApiResource
     public static function schema(): array
     {
         return Field::set(
-            Field::scalar('id')->filterable()->sortable(),
-            Field::scalar('name')->filterable()->sortable(),
-            Field::scalar('email')->filterable()->sortable(),
-            Field::scalar('status')->filterable()->sortable(),
-            Field::scalar('organization_id')->filterable(),
+            Field::scalar('id')->filterable(Capability::RANGE)->sortable(),
+            Field::scalar('name')->filterable(Capability::EXACT)->sortable(),
+            Field::scalar('email')->filterable(Capability::EXACT)->sortable(),
+            Field::scalar('status')->filterable(Capability::ENUM)->sortable(),
+            Field::scalar('organization_id')->filterable(Capability::EXACT),
             Field::timestamp('created_at')->sortable(),
             Field::timestamp('updated_at')->sortable(),
             Field::compute('full_label', static function ($resource): string {

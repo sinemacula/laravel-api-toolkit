@@ -14,7 +14,6 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Schema;
 use SineMacula\ApiToolkit\Cache\MetadataCacheWriter;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Enums\CacheKeys;
@@ -22,8 +21,14 @@ use SineMacula\ApiToolkit\Enums\CacheKeys;
 /**
  * Schema introspector.
  *
- * Provides column listing, column definition resolution, relation detection,
- * and relation type reporting for Eloquent models.
+ * Provides column listing, column definition resolution, index catalogue reads,
+ * relation detection, and relation type reporting for Eloquent models.
+ *
+ * Every catalogue read is taken from the connection the model itself resolves,
+ * not the default one, so a model on a secondary connection is described by the
+ * database actually behind it. The connection name is part of every cache key
+ * for the same reason: one model class read under two connections holds two
+ * answers rather than serving the first back for both.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -35,6 +40,9 @@ final class SchemaIntrospector implements SchemaIntrospectionProvider
 
     /** @var array<string, array<string, \SineMacula\ApiToolkit\Schema\Introspection\ColumnDefinition>> */
     private array $columnDefinitions = [];
+
+    /** @var array<string, array<int, \SineMacula\ApiToolkit\Schema\Introspection\IndexDefinition>|null> */
+    private array $indexes = [];
 
     /**
      * Create a new schema introspector.
@@ -59,24 +67,26 @@ final class SchemaIntrospector implements SchemaIntrospectionProvider
     #[\Override]
     public function getColumns(Model $model): array
     {
-        if (isset($this->columns[$model::class])) {
-            return $this->columns[$model::class];
+        $memoKey = $this->memoKey($model);
+
+        if (isset($this->columns[$memoKey])) {
+            return $this->columns[$memoKey];
         }
 
-        $cacheKey = CacheKeys::MODEL_SCHEMA_COLUMNS->resolveKey([$model::class]);
+        $cacheKey = CacheKeys::MODEL_SCHEMA_COLUMNS->resolveKey([$this->connectionName($model), $model::class]);
 
         if (Cache::memo()->has($cacheKey)) {
 
             /** @var array<int, string> $cached */
             $cached = Cache::memo()->get($cacheKey, []);
 
-            $this->columns[$model::class] = $cached;
+            $this->columns[$memoKey] = $cached;
 
             return $cached;
         }
 
         try {
-            $columns = Schema::getColumnListing($model->getTable());
+            $columns = $model->getConnection()->getSchemaBuilder()->getColumnListing($model->getTable());
 
             $this->metadataCacheWriter->rememberMetadataForever($cacheKey, fn () => $columns);
         } catch (\Throwable) {
@@ -85,7 +95,7 @@ final class SchemaIntrospector implements SchemaIntrospectionProvider
             $columns = [];
         }
 
-        return $this->columns[$model::class] = $columns;
+        return $this->columns[$memoKey] = $columns;
     }
 
     /**
@@ -100,23 +110,25 @@ final class SchemaIntrospector implements SchemaIntrospectionProvider
     #[\Override]
     public function getColumnDefinitions(Model $model): array
     {
-        if (isset($this->columnDefinitions[$model::class])) {
-            return $this->columnDefinitions[$model::class];
+        $memoKey = $this->memoKey($model);
+
+        if (isset($this->columnDefinitions[$memoKey])) {
+            return $this->columnDefinitions[$memoKey];
         }
 
-        $cacheKey = CacheKeys::MODEL_SCHEMA_COLUMN_DEFINITIONS->resolveKey([$model::class]);
+        $cacheKey = CacheKeys::MODEL_SCHEMA_COLUMN_DEFINITIONS->resolveKey([$this->connectionName($model), $model::class]);
 
         /** @var array<string, \SineMacula\ApiToolkit\Schema\Introspection\ColumnDefinition> $cached */
         $cached = Cache::memo()->get($cacheKey, []);
 
         if (!empty($cached)) {
-            $this->columnDefinitions[$model::class] = $cached;
+            $this->columnDefinitions[$memoKey] = $cached;
 
             return $cached;
         }
 
         try {
-            $definitions = $this->mapColumnDefinitions(Schema::getColumns($model->getTable()));
+            $definitions = $this->mapColumnDefinitions($model->getConnection()->getSchemaBuilder()->getColumns($model->getTable()));
 
             $this->metadataCacheWriter->rememberMetadataForever($cacheKey, fn () => $definitions);
         } catch (\Throwable) {
@@ -125,7 +137,38 @@ final class SchemaIntrospector implements SchemaIntrospectionProvider
             $definitions = [];
         }
 
-        return $this->columnDefinitions[$model::class] = $definitions;
+        return $this->columnDefinitions[$memoKey] = $definitions;
+    }
+
+    /**
+     * Get the indexes declared on the given model's table, or null when the
+     * catalogue could not be read.
+     *
+     * A connection that could not be reached reports null, so a boot with no
+     * database behind it proves nothing rather than proving the table has no
+     * index. A table the connection does not carry reports null for the same
+     * reason: an engine answers for a missing table with an empty catalogue
+     * rather than an error, so reading that silence as an answer would turn a
+     * boot before the migrations have run into a refusal. A table that was read
+     * and carries nothing reports an empty list, which is a real answer. Only
+     * that answer is cached, so a later run against a live, migrated connection
+     * resolves the catalogue.
+     *
+     * Results are cached forever per model and connection, mirroring
+     * getColumns().
+     *
+     * @param  \Illuminate\Database\Eloquent\Model  $model
+     * @return array<int, \SineMacula\ApiToolkit\Schema\Introspection\IndexDefinition>|null
+     */
+    #[\Override]
+    public function getIndexes(Model $model): ?array
+    {
+        $memoKey = $this->memoKey($model);
+
+        // Existence, not isset(): a memoised null is the answer, not a miss.
+        return array_key_exists($memoKey, $this->indexes)
+            ? $this->indexes[$memoKey]
+            : $this->resolveIndexes($model);
     }
 
     /**
@@ -228,6 +271,7 @@ final class SchemaIntrospector implements SchemaIntrospectionProvider
     {
         $this->columns           = [];
         $this->columnDefinitions = [];
+        $this->indexes           = [];
     }
 
     /**
@@ -254,6 +298,120 @@ final class SchemaIntrospector implements SchemaIntrospectionProvider
                 typeName: strtolower($typeName),
                 nullable: (bool) $column['nullable'],
             );
+        }
+
+        return $definitions;
+    }
+
+    /**
+     * Read the catalogue behind the model's table, serving the persistent cache
+     * where it is warm and reporting null where the catalogue could not be
+     * read.
+     *
+     * The answer is held on the instance whichever way it resolved. The
+     * unreadable one is not written to the persistent cache, so a later run
+     * against a live, migrated connection resolves the catalogue rather than
+     * serving the silence back.
+     *
+     * @param  \Illuminate\Database\Eloquent\Model  $model
+     * @return array<int, \SineMacula\ApiToolkit\Schema\Introspection\IndexDefinition>|null
+     */
+    private function resolveIndexes(Model $model): ?array
+    {
+        $memoKey  = $this->memoKey($model);
+        $cacheKey = CacheKeys::MODEL_SCHEMA_INDEXES->resolveKey([$this->connectionName($model), $model::class]);
+
+        if (Cache::memo()->has($cacheKey)) {
+
+            /** @var array<int, \SineMacula\ApiToolkit\Schema\Introspection\IndexDefinition> $cached */
+            $cached = Cache::memo()->get($cacheKey, []);
+
+            return $this->indexes[$memoKey] = $cached;
+        }
+
+        $indexes = $this->readIndexes($model);
+
+        if ($indexes === null) {
+            return $this->indexes[$memoKey] = null;
+        }
+
+        $this->metadataCacheWriter->rememberMetadataForever($cacheKey, fn (): array => $indexes);
+
+        return $this->indexes[$memoKey] = $indexes;
+    }
+
+    /**
+     * Ask the model's own connection for the catalogue behind its table, or
+     * report null where the catalogue could not be read.
+     *
+     * A connection that cannot be reached reports nothing, and so does a table
+     * the connection does not carry: an engine answers for a table that is not
+     * there with an empty catalogue rather than an error, and the column
+     * listing is what tells the two apart, since no table carries no columns.
+     *
+     * @param  \Illuminate\Database\Eloquent\Model  $model
+     * @return array<int, \SineMacula\ApiToolkit\Schema\Introspection\IndexDefinition>|null
+     */
+    private function readIndexes(Model $model): ?array
+    {
+        try {
+            $indexes = $this->mapIndexDefinitions($model->getConnection()->getSchemaBuilder()->getIndexes($model->getTable()));
+        } catch (\Throwable) { // @phpstan-ignore catch.neverThrown
+            return null;
+        }
+
+        return $indexes === [] && $this->getColumns($model) === [] ? null : $indexes;
+    }
+
+    /**
+     * Return the key the per-instance caches hold this model's schema under.
+     *
+     * @param  \Illuminate\Database\Eloquent\Model  $model
+     * @return string
+     */
+    private function memoKey(Model $model): string
+    {
+        return $this->connectionName($model) . '|' . $model::class;
+    }
+
+    /**
+     * Return the name of the connection the model resolves its schema from.
+     *
+     * The model names one only where it was given one, so the configured
+     * default stands in for the rest. Resolving it from configuration rather
+     * than from the connection itself keeps a cache key readable without a
+     * database behind it.
+     *
+     * @param  \Illuminate\Database\Eloquent\Model  $model
+     * @return string
+     */
+    private function connectionName(Model $model): string
+    {
+        $name = $model->getConnectionName() ?? Config::get('database.default');
+
+        return is_string($name) ? $name : '';
+    }
+
+    /**
+     * Map the raw index catalogue entries into index definitions, passing over
+     * any entry the connection reported in a shape that cannot be read.
+     *
+     * @param  array<int, mixed>  $indexes
+     * @return array<int, \SineMacula\ApiToolkit\Schema\Introspection\IndexDefinition>
+     */
+    private function mapIndexDefinitions(array $indexes): array
+    {
+        $definitions = [];
+
+        foreach ($indexes as $index) {
+
+            $definition = IndexDefinition::fromCatalogueEntry($index);
+
+            if ($definition === null) {
+                continue;
+            }
+
+            $definitions[] = $definition;
         }
 
         return $definitions;

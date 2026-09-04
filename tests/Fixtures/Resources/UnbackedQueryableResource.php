@@ -4,6 +4,7 @@ declare(strict_types = 1);
 
 namespace Tests\Fixtures\Resources;
 
+use SineMacula\ApiToolkit\Enums\Capability;
 use SineMacula\ApiToolkit\Http\Resources\ApiResource;
 use SineMacula\ApiToolkit\Schema\Field;
 use Tests\Fixtures\Models\User;
@@ -35,8 +36,8 @@ final class UnbackedQueryableResource extends ApiResource
     public static function schema(): array
     {
         return Field::set(
-            Field::scalar('id')->filterable(),
-            Field::compute('full_name', 'getFullName')->filterable(),
+            Field::scalar('id')->filterable(Capability::RANGE),
+            Field::compute('full_name', 'getFullName')->filterable(Capability::EXACT),
         );
     }
 

@@ -30,9 +30,12 @@ use SineMacula\ApiToolkit\Search\Drivers\SqliteSearchDriver;
 use SineMacula\ApiToolkit\Search\SearchDriverRegistry;
 use SineMacula\ApiToolkit\Services\ServiceRunner;
 use Tests\Fixtures\Input\StorePayload;
+use Tests\Fixtures\Models\Log;
 use Tests\Fixtures\Models\User;
+use Tests\Fixtures\Resources\MissingColumnQueryableResource;
 use Tests\Fixtures\Resources\SearchableComputedResource;
 use Tests\Fixtures\Resources\SensitiveQueryableResource;
+use Tests\Fixtures\Resources\TrailingIndexSortableResource;
 use Tests\Fixtures\Resources\UnbackedQueryableResource;
 use Tests\Fixtures\Services\Input\Enums\StubStatusEnum;
 use Tests\TestCase;
@@ -121,6 +124,32 @@ final class ContainerBindingRegistrarTest extends TestCase
     }
 
     /**
+     * Test that the shipped rule set refuses a filterable declaration naming a
+     * column the table does not carry, so the rule is wired to a live column
+     * listing rather than deciding from the schema alone.
+     *
+     * @return void
+     */
+    public function testRegisterBindsSchemaValidatorRefusingAColumnTheTableDoesNotCarry(): void
+    {
+        $app = $this->getApplication();
+
+        (new ContainerBindingRegistrar($app))->register();
+
+        SchemaCompiler::clearCache();
+
+        $validator = $app->make(SchemaValidator::class);
+
+        $this->expectException(InvalidSchemaException::class);
+        $this->expectExceptionMessage(sprintf(
+            "Schema validation failed with 1 error(s):\n  - [%s] Field \"nickname\": Field is declared filterable against \"nickname\", and table \"users\" carries no such column",
+            MissingColumnQueryableResource::class,
+        ));
+
+        $validator->validate([User::class => MissingColumnQueryableResource::class]);
+    }
+
+    /**
      * Test that the shipped rule set refuses a resource declaring a sensitive
      * column filterable, so the defence-in-depth denylist is enforced at boot.
      *
@@ -139,6 +168,33 @@ final class ContainerBindingRegistrarTest extends TestCase
         $this->expectException(InvalidSchemaException::class);
 
         $validator->validate([User::class => SensitiveQueryableResource::class]);
+    }
+
+    /**
+     * Test that the shipped rule set refuses a sortable declaration on a column
+     * an index covers without leading, so a sort the connection can only serve
+     * by reading the table fails at boot.
+     *
+     * @return void
+     */
+    public function testRegisterBindsSchemaValidatorRefusingASortNoIndexLeadsWith(): void
+    {
+        $app = $this->getApplication();
+
+        (new ContainerBindingRegistrar($app))->register();
+
+        SchemaCompiler::clearCache();
+
+        $validator = $app->make(SchemaValidator::class);
+
+        $this->expectException(InvalidSchemaException::class);
+        $this->expectExceptionMessage(sprintf(
+            "Schema validation failed with 1 error(s):\n  - [%s] Field \"created_at\": Field is declared sortable "
+            . 'against "created_at", and no ordered index on table "logs" leads with that column',
+            TrailingIndexSortableResource::class,
+        ));
+
+        $validator->validate([Log::class => TrailingIndexSortableResource::class]);
     }
 
     /**

@@ -4,6 +4,7 @@ declare(strict_types = 1);
 
 namespace Tests\Fixtures\Resources;
 
+use SineMacula\ApiToolkit\Enums\Capability;
 use SineMacula\ApiToolkit\Enums\SearchStrategy;
 use SineMacula\ApiToolkit\Http\Resources\ApiResource;
 use SineMacula\ApiToolkit\Schema\Field;
@@ -37,10 +38,10 @@ final class SearchableFilterableUserResource extends ApiResource
     public static function schema(): array
     {
         return Field::set(
-            Field::scalar('id')->filterable()->sortable(),
-            Field::scalar('name')->filterable()->searchable(SearchStrategy::SUBSTRING),
+            Field::scalar('id')->filterable(Capability::RANGE)->sortable(),
+            Field::scalar('name')->filterable(Capability::EXACT)->searchable(SearchStrategy::SUBSTRING),
             Field::scalar('email')->searchable(SearchStrategy::SUBSTRING),
-            Field::scalar('status')->filterable(),
+            Field::scalar('status')->filterable(Capability::ENUM),
         );
     }
 }

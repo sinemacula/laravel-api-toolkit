@@ -90,6 +90,51 @@ final class CompiledFieldDefinitionTest extends TestCase
     }
 
     /**
+     * Test that the index overrides behind a sortable column are stored and
+     * default to null when omitted.
+     *
+     * @return void
+     */
+    public function testIndexOverridesAreStoredAndDefaultToNull(): void
+    {
+        $declared = new CompiledFieldDefinition(
+            accessor: null,
+            compute: null,
+            relation: null,
+            resource: null,
+            fields: null,
+            constraint: null,
+            extras: [],
+            needs: [],
+            guards: [],
+            transformers: [],
+            sortable: 'name',
+            indexedBy: 'users_lower_name_index',
+            unindexedReason: 'Bounded table',
+        );
+
+        self::assertSame('users_lower_name_index', $declared->indexedBy);
+        self::assertSame('Bounded table', $declared->unindexedReason);
+
+        $undeclared = new CompiledFieldDefinition(
+            accessor: null,
+            compute: null,
+            relation: null,
+            resource: null,
+            fields: null,
+            constraint: null,
+            extras: [],
+            needs: [],
+            guards: [],
+            transformers: [],
+            sortable: 'name',
+        );
+
+        self::assertNull($undeclared->indexedBy);
+        self::assertNull($undeclared->unindexedReason);
+    }
+
+    /**
      * Test that the openApi property defaults to null when omitted.
      *
      * @return void

@@ -92,6 +92,38 @@ final class SchemaIntrospectionProviderTest extends TestCase
     }
 
     /**
+     * Test that getIndexes is declared with the correct signature, returning a
+     * nullable array so an unverifiable catalogue is a distinct answer from an
+     * empty one.
+     *
+     * @return void
+     */
+    public function testInterfaceDeclaresGetIndexesMethod(): void
+    {
+        $reflection = new \ReflectionClass(SchemaIntrospectionProvider::class);
+        $method     = $reflection->getMethod('getIndexes');
+
+        self::assertTrue($method->isPublic());
+        self::assertFalse($method->isStatic());
+
+        $parameters = $method->getParameters();
+
+        self::assertCount(1, $parameters);
+        self::assertSame('model', $parameters[0]->getName());
+
+        $paramType = $parameters[0]->getType();
+
+        self::assertInstanceOf(\ReflectionNamedType::class, $paramType);
+        self::assertSame(Model::class, $paramType->getName());
+
+        $returnType = $method->getReturnType();
+
+        self::assertInstanceOf(\ReflectionNamedType::class, $returnType);
+        self::assertSame('array', $returnType->getName());
+        self::assertTrue($returnType->allowsNull());
+    }
+
+    /**
      * Test that isRelation is declared with the correct signature.
      *
      * @return void

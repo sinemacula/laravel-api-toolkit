@@ -6,6 +6,7 @@ namespace SineMacula\ApiToolkit\Schema;
 
 use Carbon\CarbonInterface;
 use Illuminate\Contracts\Support\Arrayable;
+use SineMacula\ApiToolkit\Enums\Capability;
 use SineMacula\ApiToolkit\Enums\SearchStrategy;
 use SineMacula\ApiToolkit\Exceptions\DuplicateSchemaKeyException;
 
@@ -23,14 +24,20 @@ final class Field extends BaseDefinition
     /** @var mixed Compute callable for dynamic field values */
     private mixed $compute = null;
 
-    /** @var bool Whether this field's column is declared filterable */
-    private bool $filterable = false;
+    /** @var \SineMacula\ApiToolkit\Enums\Capability|null The capability this field's column is declared filterable with */
+    private ?Capability $filterable = null;
 
     /** @var bool Whether this field's column is declared sortable */
     private bool $sortable = false;
 
     /** @var \SineMacula\ApiToolkit\Enums\SearchStrategy|null The strategy this field's column is declared searchable with */
     private ?SearchStrategy $searchable = null;
+
+    /** @var string|null The index the author declares behind this field's sortable column */
+    private ?string $indexed = null;
+
+    /** @var string|null The reason this field's sortable column is deliberately left unindexed */
+    private ?string $unindexed = null;
 
     /**
      * Prevent direct instantiation.
@@ -148,13 +155,19 @@ final class Field extends BaseDefinition
     }
 
     /**
-     * Declare this field's column as filterable.
+     * Declare this field's column as filterable with the given capability.
      *
+     * The capability is explicit because it decides which operators the column
+     * answers. A bare declaration would open every operator on every column,
+     * including the containment and negation shapes that no index behind an
+     * ordinary column can serve.
+     *
+     * @param  \SineMacula\ApiToolkit\Enums\Capability  $capability
      * @return self
      */
-    public function filterable(): self
+    public function filterable(Capability $capability): self
     {
-        $this->filterable = true;
+        $this->filterable = $capability;
 
         return $this;
     }
@@ -162,11 +175,65 @@ final class Field extends BaseDefinition
     /**
      * Declare this field's column as sortable.
      *
+     * An offer to order the whole table by the column, so schema validation
+     * asks the connection whether an ordered index leads with it. Where none
+     * does, {@see indexed()} names the index the catalogue cannot show and
+     * {@see unindexed()} records why the sort is affordable without one.
+     *
      * @return self
      */
     public function sortable(): self
     {
         $this->sortable = true;
+
+        return $this;
+    }
+
+    /**
+     * Name the index that backs this field's sortable column.
+     *
+     * The connection is the authority on which index leads with a column, so
+     * this exists only for what reading the catalogue cannot show: an index
+     * over an expression, or one whose predicate the catalogue reports apart
+     * from its columns. Validation looks the index up by name, so naming one
+     * the table does not carry is a defect; what it covers is not read back,
+     * since that is the part the catalogue cannot describe, so the override
+     * vouches for the column rather than proving it.
+     *
+     * @param  string  $index
+     * @return self
+     *
+     * @throws \InvalidArgumentException
+     */
+    public function indexed(string $index): self
+    {
+        if (trim($index) === '') {
+            throw new \InvalidArgumentException('An index declaration must name an index');
+        }
+
+        $this->indexed = trim($index);
+
+        return $this;
+    }
+
+    /**
+     * Exempt this field's sortable column from needing an index, recording why.
+     *
+     * The reason is required so an exemption is never silent: it is the whole
+     * artefact a reviewer has to weigh a sort that reads the table against.
+     *
+     * @param  string  $reason
+     * @return self
+     *
+     * @throws \InvalidArgumentException
+     */
+    public function unindexed(string $reason): self
+    {
+        if (trim($reason) === '') {
+            throw new \InvalidArgumentException('An index exemption must carry a reason');
+        }
+
+        $this->unindexed = trim($reason);
 
         return $this;
     }
@@ -203,8 +270,11 @@ final class Field extends BaseDefinition
             $key => array_filter([
                 'accessor'   => $this->accessor,
                 'compute'    => $this->compute,
-                'filterable' => $this->filterable ? $this->name : null,
+                'filterable' => $this->filterable !== null ? $this->name : null,
+                'capability' => $this->filterable,
                 'sortable'   => $this->sortable ? $this->name : null,
+                'indexed'    => $this->indexed,
+                'unindexed'  => $this->unindexed,
                 'searchable' => $this->searchable !== null ? $this->name : null,
                 'strategy'   => $this->searchable,
                 'extras'     => $this->extras ?: null,

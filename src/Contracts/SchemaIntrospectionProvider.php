@@ -22,7 +22,8 @@ interface SchemaIntrospectionProvider
     /**
      * Get the database columns for the given model.
      *
-     * Results are cached for the duration of the request.
+     * The listing is read from the connection the model itself resolves, and
+     * results are cached for the duration of the request.
      *
      * @param  \Illuminate\Database\Eloquent\Model  $model
      * @return array<int, string>
@@ -39,6 +40,26 @@ interface SchemaIntrospectionProvider
      * @return array<string, \SineMacula\ApiToolkit\Schema\Introspection\ColumnDefinition>
      */
     public function getColumnDefinitions(Model $model): array;
+
+    /**
+     * Get the indexes declared on the given model's table, or null when the
+     * catalogue could not be read.
+     *
+     * The two answers are distinct and callers must keep them apart. Null says
+     * the catalogue is unverifiable - the connection could not be reached, or
+     * the table is not there to describe - so nothing has been proved either
+     * way; an empty array says the catalogue was read and the table genuinely
+     * carries no index, which is a real answer a declaration can fail against.
+     * Reading the first as the second turns every boot without a database, or
+     * before the migrations have run, into a hard failure.
+     *
+     * Results are cached forever per model, mirroring getColumns(). The read
+     * belongs to boot-time validation and never to the request path.
+     *
+     * @param  \Illuminate\Database\Eloquent\Model  $model
+     * @return array<int, \SineMacula\ApiToolkit\Schema\Introspection\IndexDefinition>|null
+     */
+    public function getIndexes(Model $model): ?array;
 
     /**
      * Determine whether the given key is an Eloquent relation on the model.

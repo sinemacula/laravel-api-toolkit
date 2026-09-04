@@ -518,22 +518,26 @@ the schema declares it intentionally.
 
 **Declare the query surface** with the fluent markers on the schema DSL:
 
+    use SineMacula\ApiToolkit\Enums\Capability;
     use SineMacula\ApiToolkit\Schema\Field;
     use SineMacula\ApiToolkit\Schema\Relation;
 
     public static function schema(): array
     {
         return Field::set(
-            Field::scalar('id')->filterable()->sortable(),
-            Field::scalar('name')->filterable()->sortable(),
-            Field::scalar('email')->filterable(),
+            Field::scalar('id')->filterable(Capability::EXACT)->sortable(),
+            Field::scalar('name')->filterable(Capability::EXACT)->sortable(),
+            Field::scalar('email')->filterable(Capability::EXACT),
             Relation::to('posts', PostResource::class)->traversable(),
         );
     }
 
+The capability `filterable()` takes decides which operators the column answers; the next section is the
+table to choose it from.
+
 A field's filter and sort key is its **column name**, not its presentation alias.
-`Field::scalar('email_address', 'email')->filterable()` declares `email_address` as the filterable
-column even though the field is presented to clients as `email`.
+`Field::scalar('email_address', 'email')->filterable(Capability::EXACT)` declares `email_address` as the
+filterable column even though the field is presented to clients as `email`.
 
 **Action required.** Audit every API resource and add `filterable()`, `sortable()`, and `traversable()`
 to the fields and relations clients are expected to query. Keys that clients currently rely on but the
@@ -556,14 +560,91 @@ value left behind in a published config file is ignored.
 
 **Sensitive columns are refused at the declaration.** `searchable_exclusions` has been replaced by
 `api-toolkit.resources.sensitive_columns`, which names the columns that may never be declared
-`filterable()` or `sortable()`. Schema validation reports a resource that declares one, so the defect
-fails the build rather than being filtered out per request. The shipped list covers the stock Laravel
-and Fortify auth column family: `password`, `token`, `remember_token`, `two_factor_secret`,
+`filterable()`, `sortable()`, or `searchable()`. Schema validation reports a resource that declares one, so
+the defect fails the build rather than being filtered out per request. The shipped list covers the stock
+Laravel and Fortify auth column family: `password`, `token`, `remember_token`, `two_factor_secret`,
 `two_factor_recovery_codes`, `two_factor_confirmed_at`, and `email_verified_at`. Unlike the exclusion
 list it replaces, entries are whole column names -- the `users.password` table-scoped form is no longer
 recognised, and a bare `password` applies to every resource. A published config file that does not
 declare the key at all falls back to that same list, so a `resources` block predating this release
 still refuses a queryable credential column.
+
+### Changed: `filterable()` names the capability the column has
+
+`Field::filterable()` is no longer a bare marker. It takes a `SineMacula\ApiToolkit\Enums\Capability`
+naming the access path the column is declared to have, and that capability decides which filter operators
+the column answers:
+
+    use SineMacula\ApiToolkit\Enums\Capability;
+
+    Field::scalar('status')->filterable(Capability::ENUM);
+
+A bare declaration said a column may be queried but never how, so every declared column answered every
+operator: JSON containment against a scalar, the not-equal and not-null anti-predicates against anything at
+all, and the comparison operators against a column no index orders. Each of those is a full table scan the
+client writes, on a surface the resource believed it had declared narrowly.
+
+**Choosing the capability.** Pick the row that describes the column. The choice is not cosmetic - it is the
+operator set that column answers from now on:
+
+| Column                                                 | Capability             | Answers                                                                   | Refuses                                                     |
+|--------------------------------------------------------|------------------------|---------------------------------------------------------------------------|-------------------------------------------------------------|
+| A key read by equality: an id, a foreign key, an email | `Capability::EXACT`    | `$eq`, `$in`, `$null`, `$notNull`                                         | `$neq`, `$gt`, `$ge`, `$lt`, `$le`, `$between`, `$contains` |
+| A small closed set: a status, a type, a backed enum    | `Capability::ENUM`     | `$eq`, `$in`, `$neq`, `$null`, `$notNull`                                 | `$gt`, `$ge`, `$lt`, `$le`, `$between`, `$contains`         |
+| An ordered column: a number, a date, a timestamp       | `Capability::RANGE`    | `$eq`, `$in`, `$gt`, `$ge`, `$lt`, `$le`, `$between`, `$null`, `$notNull` | `$neq`, `$contains`                                         |
+| A JSON column behind a containment index               | `Capability::DOCUMENT` | `$contains`                                                               | every other shipped operator                                |
+| A column whose access path you will not vouch for      | `Capability::OPAQUE`   | `$eq`                                                                     | every other shipped operator                                |
+
+`$neq` reaches the closed set alone, because the complement of a single value spans nearly the whole index
+anywhere else. `$contains` reaches the document alone, whose column is the only one an inverted index backs.
+The nullity pair travels with every case carrying a B-tree, since both halves read one contiguous partition
+of it. The list fan-out is withheld from `OPAQUE`, where each item would cost a scan of its own.
+
+There is deliberately no text capability. Matching part of a value is the search surface's job, and it is
+declared with `searchable()` instead.
+
+An operator no row names is one your own application registered against the `OperatorRegistry`. The package
+gates the operators whose SQL it wrote and leaves those to the application that bound them, so a custom
+operator keeps working on any declared column. Overriding a shipped token keeps that token's place in the
+table.
+
+**Action required.** Every `filterable()` call site needs a capability - an unargued call now raises an
+`ArgumentCountError` the first time the schema compiles. Choosing the narrowest honest row is the point of
+the change; `Capability::OPAQUE` is the honest answer where the access path is genuinely unknown, and it
+still leaves the column filterable by equality. Then audit clients: a request pairing an operator with a
+column that no longer answers it is rejected with a `422` naming the operator, the column, and the operators
+that column does accept, decided from the declaration before any handler runs and before any SQL is issued.
+
+### Changed: a sortable declaration must be backed by an index
+
+`sortable()` offers to order the whole table by a column on request, and nothing used to check that an index
+could hold that order. Schema validation now asks the connection, and a declaration no ordered index leads
+with fails validation.
+
+Leading is the whole test. Only the leading column of an index is a key prefix, so a column named second in
+a composite index is covered by that index and still cannot be ordered by on its own - checking mere
+membership would pass exactly the declaration the database cannot serve. Where the connection names index
+kinds, only a kind that holds an order counts, so a full-text or trigram index over a column does not make
+it sortable.
+
+Two narrow overrides exist for what reading the catalogue cannot show:
+
+    Field::scalar('name')->sortable()->indexed('users_lower_name_index');
+    Field::scalar('reference')->sortable()->unindexed('the table is bounded at a few hundred rows');
+
+`indexed()` names the index behind the column - an index over an expression, say, or one whose predicate the
+catalogue reports apart from its columns. The name is looked up on the connection, so naming an index the
+table does not carry is itself a defect; what that index covers is not read back, so the override vouches
+for the column rather than proving it. `unindexed()` records a deliberate exemption and requires a reason,
+so an exemption is never silent; it is the artefact a reviewer weighs a sort that reads the table against.
+
+A connection that cannot be inspected at all reports nothing rather than reporting nothing found, so booting
+without a database, or before migrations have run, skips the check instead of failing it. The catalogue is
+read during validation and never while a sort is served.
+
+**Action required.** Run `php artisan api-toolkit:validate-schemas` after upgrading. For each reported
+column, add the missing index in your own migration, drop the `sortable()` marker, or - where the sort is
+genuinely affordable without one - record why with `unindexed()`.
 
 ### Changed: The query layer no longer fails open
 
@@ -585,9 +666,12 @@ active database grammar cannot express now propagates the grammar's exception ra
 and dropped, which returned a wider result set than the client asked for.
 
 **Filterable and sortable declarations are validated at boot.** A `filterable()` or `sortable()` marker
-on a computed field, or on a field whose accessor reads a different path from the column it declares,
-is reported by schema validation. Such a declaration used to compile cleanly and fail at request time
-with a database error naming a column that does not exist. Run `php artisan api-toolkit:validate-schemas`
+on a computed field, or on a field whose accessor reads a different path from the column it declares, is
+reported by schema validation, as is one naming a column the table does not carry at all. Such a declaration
+used to compile cleanly and fail at request time with a database error naming a column that does not exist.
+The first two are read from the schema; the last is read from the table's own column listing, so it is
+reported only where the connection can be inspected - a boot with no database behind it, or one whose
+migrations have not run, proves nothing and is left alone. Run `php artisan api-toolkit:validate-schemas`
 after upgrading and either drop the marker or move it to the backing column.
 
 ### Changed: `?limit` above the ceiling is rejected rather than clamped

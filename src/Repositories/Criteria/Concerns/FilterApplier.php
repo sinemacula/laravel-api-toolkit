@@ -19,6 +19,13 @@ use SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface;
  * list is refused where it is reached rather than after the whole tree has been
  * built.
  *
+ * Every predicate the walk emits is put to the query surface as a (column,
+ * operator) pair rather than as a column alone, so the column's declared
+ * capability decides whether the operator reaches its handler. The bare
+ * shorthand carries no token of its own and is put as the equality it compiles
+ * to, so a column is held to the same declaration whichever spelling asks for
+ * it.
+ *
  * @SuppressWarnings("php:S1448")
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
@@ -31,6 +38,9 @@ final class FilterApplier
 
     /** @var string */
     private const string OPERATOR_HASNT = '$hasnt';
+
+    /** @var string The token the bare shorthand compiles to, and so the one its column is gated against */
+    private const string OPERATOR_EQUAL = '$eq';
 
     /** @var array<string, string> */
     private array $logicalOperatorMap = ['$or' => 'orWhere', '$and' => 'where'];
@@ -189,7 +199,7 @@ final class FilterApplier
     {
         if ($column) {
 
-            $this->querySurface->guardFilter($column, $query->getModel());
+            $this->querySurface->guardFilterOperator($column, self::OPERATOR_EQUAL, $query->getModel());
 
             if ($context->isOr()) {
                 $query->orWhere($column, $value);
@@ -226,7 +236,7 @@ final class FilterApplier
             return;
         }
 
-        $this->querySurface->guardFilter($field, $query->getModel());
+        $this->querySurface->guardFilterOperator($field, $operator, $query->getModel());
 
         $handler = $this->operatorRegistry->resolve($operator);
 

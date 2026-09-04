@@ -26,6 +26,7 @@ use SineMacula\ApiToolkit\ApiServiceProvider;
 use SineMacula\ApiToolkit\Cache\CacheManager;
 use SineMacula\ApiToolkit\Contracts\ResourceMetadataProvider;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
+use SineMacula\ApiToolkit\Enums\Capability;
 use SineMacula\ApiToolkit\Enums\FlushStrategy;
 use SineMacula\ApiToolkit\Exceptions\InvalidSchemaException;
 use SineMacula\ApiToolkit\Http\Middleware\JsonPrettyPrint;
@@ -409,6 +410,28 @@ final class ApiServiceProviderTest extends TestCase
 
         // The unindexable partial-match operator ships unregistered
         self::assertFalse($registry->has('$like'));
+    }
+
+    /**
+     * Test that every shipped operator token is permitted by at least one
+     * capability, so an operator cannot be registered without the declaration
+     * matrix deciding which columns may reach it.
+     *
+     * @return void
+     */
+    public function testEveryRegisteredOperatorTokenIsDecidedByACapability(): void
+    {
+        $registry = $this->getApplication()->make(OperatorRegistry::class);
+
+        foreach ($registry->tokens() as $token) {
+
+            $permitted = array_filter(
+                Capability::cases(),
+                static fn (Capability $capability): bool => $capability->permits($token),
+            );
+
+            self::assertNotSame([], $permitted, sprintf('The "%s" operator is permitted by no capability.', $token));
+        }
     }
 
     /**

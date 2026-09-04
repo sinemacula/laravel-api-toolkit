@@ -6,23 +6,26 @@ namespace Tests\Fixtures\Resources;
 
 use SineMacula\ApiToolkit\Enums\Capability;
 use SineMacula\ApiToolkit\Http\Resources\ApiResource;
-use SineMacula\ApiToolkit\Schema\Count;
 use SineMacula\ApiToolkit\Schema\Field;
-use SineMacula\ApiToolkit\Schema\Relation;
 
 /**
- * Fixture post resource.
+ * Fixture resource that declares a column the users table does not carry.
+ *
+ * Nothing in the resource contradicts the declaration: `nickname` is a scalar
+ * field read straight off the model, so the only authority on whether it exists
+ * is the table itself, and the defect is provable from the column listing
+ * alone.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-final class PostResource extends ApiResource
+final class MissingColumnQueryableResource extends ApiResource
 {
     /** @var string */
-    public const string RESOURCE_TYPE = 'posts';
+    public const string RESOURCE_TYPE = 'missing_column_queryable';
 
     /** @var array<int, string> */
-    protected static array $default = ['id', 'title'];
+    protected static array $default = ['id'];
 
     /**
      * Return the resource schema.
@@ -34,14 +37,7 @@ final class PostResource extends ApiResource
     {
         return Field::set(
             Field::scalar('id'),
-            Field::scalar('title')->filterable(Capability::EXACT),
-            Field::scalar('body'),
-            Field::scalar('published'),
-            Field::timestamp('created_at'),
-            Field::timestamp('updated_at'),
-            Relation::to('user', UserResource::class),
-            Relation::to('tags', TagResource::class),
-            Count::of('tags'),
+            Field::scalar('nickname')->filterable(Capability::EXACT),
         );
     }
 }

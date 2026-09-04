@@ -4,6 +4,7 @@ declare(strict_types = 1);
 
 namespace Tests\Fixtures\Resources;
 
+use SineMacula\ApiToolkit\Enums\Capability;
 use SineMacula\ApiToolkit\Http\Resources\ApiResource;
 use SineMacula\ApiToolkit\Schema\Field;
 use SineMacula\ApiToolkit\Schema\Relation;
@@ -12,10 +13,10 @@ use SineMacula\ApiToolkit\Schema\Relation;
  * Fixture user resource that declares an explicit query surface.
  *
  * The filterable, sortable, and traversable sets are deliberately distinct so
- * the allowlist enforcement can be exercised independently per capability:
- * `email` is filterable but not sortable, `created_at` is sortable but not
- * filterable, `status` is presented but neither, and `organization` is a real
- * relation that is not traversable.
+ * the allowlist enforcement can be exercised independently on each: `email` is
+ * filterable but not sortable, `created_at` is sortable but not filterable,
+ * `status` is presented but neither, and `organization` is a real relation that
+ * is not traversable.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -37,9 +38,9 @@ final class FilterableUserResource extends ApiResource
     public static function schema(): array
     {
         return Field::set(
-            Field::scalar('id')->filterable()->sortable(),
-            Field::scalar('name')->filterable()->sortable(),
-            Field::scalar('email')->filterable(),
+            Field::scalar('id')->filterable(Capability::RANGE)->sortable(),
+            Field::scalar('name')->filterable(Capability::EXACT)->sortable(),
+            Field::scalar('email')->filterable(Capability::EXACT),
             Field::scalar('status'),
             Field::timestamp('created_at')->sortable(),
             Relation::to('posts', PostResource::class)->traversable(),

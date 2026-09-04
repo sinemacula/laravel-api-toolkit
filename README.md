@@ -77,7 +77,10 @@ The `filters` value must be a JSON string; requests carrying a non-JSON value ar
 error.
 
 Available built-in operator tokens: `$eq`, `$neq`, `$gt`, `$lt`, `$ge`, `$le`, `$in`, `$between`,
-`$contains`, `$null`, `$notNull`.
+`$contains`, `$null`, `$notNull`. Each is accepted only on a column whose declared capability answers it,
+so a request pairing an operator with a column that cannot serve it is rejected with a 422 naming both and
+listing the operators that column does accept. The bare shorthand `{"name":"Alice"}` is the `$eq` operator
+written without its token, and is held to the same declaration.
 
 **Free-text search** - match a term against the fields a resource declares searchable:
 
@@ -164,6 +167,7 @@ schema helpers. The compiled schema drives field resolution, guard evaluation, a
 ```php
 use App\Models\User;
 use SineMacula\ApiToolkit\Attributes\ForModel;
+use SineMacula\ApiToolkit\Enums\Capability;
 use SineMacula\ApiToolkit\Enums\SearchStrategy;
 use SineMacula\ApiToolkit\Http\Resources\ApiResource;
 use SineMacula\ApiToolkit\Schema\Count;
@@ -181,8 +185,8 @@ class UserResource extends ApiResource
     public static function schema(): array
     {
         return Field::set(
-            Field::scalar('name')->filterable()->sortable()->searchable(SearchStrategy::SUBSTRING),
-            Field::scalar('email')->filterable()->searchable(SearchStrategy::SUBSTRING),
+            Field::scalar('name')->filterable(Capability::EXACT)->sortable()->searchable(SearchStrategy::SUBSTRING),
+            Field::scalar('email')->filterable(Capability::EXACT)->searchable(SearchStrategy::SUBSTRING),
             Field::timestamp('created_at')->sortable(),
             Field::compute('full_name', 'getFullName'),
             Relation::to('organization', OrganizationResource::class)->traversable(),
@@ -198,6 +202,24 @@ Fields marked `filterable()` or `sortable()` are the only ones a client may quer
 how the value is matched and which index has to back the column. Relations marked `traversable()` can be
 targeted by nested filters. The `$default` static property declares the fields returned when the client sends
 no `?fields` parameter.
+
+**Query capabilities** - `filterable()` takes the access path the column is declared to have, and that
+capability decides which filter operators the column answers. An operator outside its row is refused with a
+`422` rather than served by a scan:
+
+| Capability             | Declare it for                                                   | Operators the column answers                                              |
+|------------------------|------------------------------------------------------------------|---------------------------------------------------------------------------|
+| `Capability::EXACT`    | a keyed column read by equality - an id, a foreign key, an email | `$eq`, `$in`, `$null`, `$notNull`                                         |
+| `Capability::ENUM`     | a small closed set, so the complement of one value stays bounded | `$eq`, `$in`, `$neq`, `$null`, `$notNull`                                 |
+| `Capability::RANGE`    | an ordered column - a number, a date, a timestamp                | `$eq`, `$in`, `$gt`, `$ge`, `$lt`, `$le`, `$between`, `$null`, `$notNull` |
+| `Capability::DOCUMENT` | a JSON column behind a containment index                         | `$contains`                                                               |
+| `Capability::OPAQUE`   | a column with no access path the resource will vouch for         | `$eq`                                                                     |
+
+`$neq` reaches only the closed set, because the complement of one value spans nearly the whole index
+everywhere else; `$contains` reaches only the document, whose column is the only one an inverted index backs;
+and the nullity pair travels with every case carrying a B-tree, since both halves read one contiguous
+partition of it. A token no row names was registered by your own application against the operator registry,
+and the pairing is left to the application that made both halves of it.
 
 **Model binding and discovery** - the `#[ForModel(...)]` attribute binds a resource to its model, and may be
 repeated to bind one resource to several models. By default (`api-toolkit.resources.paths` left null) resources
@@ -232,6 +254,26 @@ during application boot. It defaults to enabled outside production (set `VALIDAT
 out) and off in production, where the boot cost is not worth paying. The `api-toolkit:validate-schemas`
 Artisan command runs the same validation on demand - independently of the flag - so it can also gate CI.
 
+What validation proves about the query surface:
+
+- every `filterable()` and `sortable()` declaration names a column that exists. A computed field and an
+  accessor reading a different path are answered from the schema alone; the rest is answered by the table's
+  own column listing.
+- an ordered index leads with every `sortable()` column, unless the field carries an `indexed()` or
+  `unindexed()` override.
+- an index the connection carries serves every `searchable()` declaration, in the shape the declared
+  strategy needs.
+- no declaration names a column configured as sensitive.
+
+The checks that read the connection stay silent where it cannot be read - a boot with no database behind it,
+or one whose migrations have not run, proves nothing either way rather than failing.
+
+Reading the index catalogue belongs to validation: no filter and no sort asks the connection about an index
+while a request is served. Two reads of schema metadata do sit on the request path, both memoised after the
+first: column narrowing intersects its projection with the table's column listing, and - where validation is
+disabled, as it is in production by default - the search surface takes its index proof on the first search a
+worker serves.
+
 ---
 
 ### Repositories
@@ -260,12 +302,32 @@ $users = $repository->withApiCriteria()->paginate();
 
 **Allowlist posture** - only schema fields declared `filterable()`, `sortable()`, or `traversable()` are
 accepted, and every undeclared key is rejected with a validation error. There is no opt-out: a resource that
-declares nothing is queryable by nothing.
+declares nothing is queryable by nothing. A filterable declaration also carries the capability the column is
+queried through, so the surface records not just which columns may be filtered but how, and each filter is
+gated as a (column, operator) pair rather than as a column alone. The refusal is decided from the compiled
+declaration before the operator handler is resolved, so no statement is issued for a query that will be
+refused.
 
 **Sensitive columns** - the columns listed in `api-toolkit.resources.sensitive_columns` may never be declared
-`filterable()` or `sortable()`. Schema validation refuses a resource that declares one, so a credential or
-verification column cannot become an oracle a client narrows on without ever reading the value. The default
-covers the stock Laravel and Fortify auth column family.
+`filterable()`, `sortable()`, or `searchable()`. Schema validation refuses a resource that declares one, so a
+credential or verification column cannot become an oracle a client narrows on without ever reading the value.
+The default covers the stock Laravel and Fortify auth column family.
+
+**Index backing** - a `sortable()` declaration offers to order the whole table by that column on request, so
+schema validation asks the connection whether an index leads with it. Leading is the whole test: a column named
+second in a composite index is covered by that index and still cannot be ordered by on its own, so checking
+mere membership would pass exactly the declaration the database cannot serve. Where the connection names index
+kinds, only a kind that holds an order counts, so a full-text or trigram index over a column does not make it
+sortable. A connection that cannot be inspected at all reports nothing rather than reporting nothing found, so
+booting with no database behind the application skips the check instead of failing it. The catalogue is read
+during validation and never while a sort is served.
+
+Two narrow overrides exist for what reading the catalogue cannot show. `indexed('users_lower_name_index')`
+names the index behind the column - an expression or partial index, say. The name is looked up on the
+connection, so naming an index the table does not carry is itself a defect; what that index covers is not read
+back, since the catalogue cannot describe the expression behind it, so the override vouches for the column
+rather than proving it. `unindexed('the table is bounded at a few hundred rows')` records a deliberate
+exemption, and the reason is required so an exemption is never silent.
 
 **Random ordering** - `?order=random` is disabled by default because it sorts the whole table to return one
 page. Enable it with `api-toolkit.repositories.allow_random_order` (`API_TOOLKIT_ALLOW_RANDOM_ORDER=true`);
@@ -357,6 +419,13 @@ An operator that fans a single value out into one predicate per item should also
 dispatcher measures the reported count against the `max_in_items` cap, so a list spelled as a delimited
 string is bounded the same way as one spelled as an array. An operator that does not implement the contract
 is measured as one item per non-list value.
+
+The capability matrix governs the operators the package ships and whose SQL it wrote, so a token registered
+under a name none of them uses is not held to it and applies on any declared column. The package cannot say
+which access path such a token needs, and refusing it would leave `register()` an extension point able to
+produce only tokens every column rejects. A token that no one registered is not an operator at all: it is
+read as a column name and rejected by the allowlist. Overriding a shipped token keeps that token's place in
+the matrix, so replacing the `$contains` handler leaves it served from document columns alone.
 
 ---
 

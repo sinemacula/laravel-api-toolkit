@@ -6,6 +6,7 @@ namespace Tests\Unit\Http\Resources\Concerns;
 
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
+use SineMacula\ApiToolkit\Enums\Capability;
 use SineMacula\ApiToolkit\Enums\SearchStrategy;
 use SineMacula\ApiToolkit\Exceptions\InvalidSchemaException;
 use SineMacula\ApiToolkit\Schema\CompiledAggregateDefinition;
@@ -83,24 +84,61 @@ final class SchemaCompilerTest extends TestCase
     /**
      * Test that compile aggregates the declared filterable, sortable, and
      * traversable markers into the CompiledSchema query-surface sets,
-     * de-duplicated and column-named.
+     * de-duplicated and column-named, with each filterable column keyed to the
+     * capability it was declared with.
      *
      * @return void
      */
     public function testCompileAggregatesQuerySurfaceSets(): void
     {
         $resourceClass = $this->createStubResourceClass([
-            'email'        => ['filterable' => 'email', 'sortable' => 'email'],
-            'name'         => ['filterable' => 'name'],
+            'email'        => ['filterable' => 'email', 'capability' => Capability::EXACT, 'sortable' => 'email'],
+            'name'         => ['filterable' => 'name', 'capability' => Capability::ENUM],
             'created_at'   => ['sortable' => 'created_at'],
             'organization' => ['relation' => 'organization', 'traversable' => 'organization'],
         ]);
 
         $schema = SchemaCompiler::compile($resourceClass);
 
-        self::assertSame(['email', 'name'], $schema->getFilterableColumns());
+        self::assertSame(['email' => Capability::EXACT, 'name' => Capability::ENUM], $schema->getFilterableColumns());
         self::assertSame(['email', 'created_at'], $schema->getSortableColumns());
         self::assertSame(['organization'], $schema->getTraversableRelations());
+
+        $name = $schema->getField('name');
+
+        self::assertInstanceOf(CompiledFieldDefinition::class, $name);
+        self::assertSame('name', $name->filterable);
+        self::assertSame(Capability::ENUM, $name->filterCapability);
+    }
+
+    /**
+     * Test that a filterable column declared without a real capability is left
+     * out of the filter surface, so the operators it answers are never guessed
+     * on the resource's behalf, while the declaration stays on the field for
+     * validation to report.
+     *
+     * @return void
+     */
+    public function testCompileDropsAFilterableColumnDeclaredWithoutACapability(): void
+    {
+        $schema = SchemaCompiler::compile($this->createStubResourceClass([
+            'email'  => ['filterable' => 'email'],
+            'status' => ['filterable' => 'status', 'capability' => 'enum'],
+            'name'   => ['filterable' => 'name', 'capability' => Capability::EXACT],
+        ]));
+
+        self::assertSame(['name' => Capability::EXACT], $schema->getFilterableColumns());
+
+        $email = $schema->getField('email');
+
+        self::assertInstanceOf(CompiledFieldDefinition::class, $email);
+        self::assertSame('email', $email->filterable);
+        self::assertNull($email->filterCapability);
+
+        $status = $schema->getField('status');
+
+        self::assertInstanceOf(CompiledFieldDefinition::class, $status);
+        self::assertNull($status->filterCapability);
     }
 
     /**
@@ -128,7 +166,7 @@ final class SchemaCompilerTest extends TestCase
     public function testCompileIgnoresNonStringQuerySurfaceMarkers(): void
     {
         $schema = SchemaCompiler::compile($this->createStubResourceClass([
-            'a' => ['filterable' => 123],
+            'a' => ['filterable' => 123, 'capability' => Capability::EXACT],
             'b' => ['sortable' => true],
             'c' => ['traversable' => ['organization']],
         ]));
@@ -140,7 +178,8 @@ final class SchemaCompilerTest extends TestCase
 
     /**
      * Test that duplicate markers are de-duplicated and the resulting sets are
-     * reindexed to clean zero-based lists.
+     * reindexed to clean zero-based lists, while a column declared filterable
+     * twice keeps the capability declared last.
      *
      * The same column is declared on two fields before a distinct one, so
      * array_unique removes a non-trailing duplicate (leaving a key gap) and
@@ -151,14 +190,64 @@ final class SchemaCompilerTest extends TestCase
     public function testCompileDeduplicatesAndReindexesQuerySurfaceSets(): void
     {
         $schema = SchemaCompiler::compile($this->createStubResourceClass([
-            'status_a' => ['filterable' => 'status', 'sortable' => 'status', 'traversable' => 'posts'],
-            'status_b' => ['filterable' => 'status', 'sortable' => 'status', 'traversable' => 'posts'],
-            'email'    => ['filterable' => 'email', 'sortable' => 'created_at', 'traversable' => 'tags'],
+            'status_a' => ['filterable' => 'status', 'capability' => Capability::EXACT, 'sortable' => 'status', 'traversable' => 'posts'],
+            'status_b' => ['filterable' => 'status', 'capability' => Capability::ENUM, 'sortable' => 'status', 'traversable' => 'posts'],
+            'email'    => ['filterable' => 'email', 'capability' => Capability::EXACT, 'sortable' => 'created_at', 'traversable' => 'tags'],
         ]));
 
-        self::assertSame(['status', 'email'], $schema->getFilterableColumns());
+        self::assertSame(['status' => Capability::ENUM, 'email' => Capability::EXACT], $schema->getFilterableColumns());
         self::assertSame(['status', 'created_at'], $schema->getSortableColumns());
         self::assertSame(['posts', 'tags'], $schema->getTraversableRelations());
+    }
+
+    /**
+     * Test that compile carries the index overrides declared behind a sortable
+     * column onto the compiled field.
+     *
+     * @return void
+     */
+    public function testCompileCarriesTheIndexOverridesOntoTheField(): void
+    {
+        $schema = SchemaCompiler::compile($this->createStubResourceClass([
+            'name'       => ['sortable' => 'name', 'indexed' => 'users_lower_name_index'],
+            'created_at' => ['sortable' => 'created_at', 'unindexed' => 'Bounded table'],
+            'email'      => ['sortable' => 'email'],
+        ]));
+
+        $name      = $schema->getField('name');
+        $createdAt = $schema->getField('created_at');
+        $email     = $schema->getField('email');
+
+        self::assertInstanceOf(CompiledFieldDefinition::class, $name);
+        self::assertInstanceOf(CompiledFieldDefinition::class, $createdAt);
+        self::assertInstanceOf(CompiledFieldDefinition::class, $email);
+
+        self::assertSame('users_lower_name_index', $name->indexedBy);
+        self::assertNull($name->unindexedReason);
+        self::assertSame('Bounded table', $createdAt->unindexedReason);
+        self::assertNull($createdAt->indexedBy);
+        self::assertNull($email->indexedBy);
+        self::assertNull($email->unindexedReason);
+    }
+
+    /**
+     * Test that an index override the schema carries as something other than a
+     * name is left off the compiled field, so a malformed marker never reads as
+     * a declaration.
+     *
+     * @return void
+     */
+    public function testCompileIgnoresMalformedIndexOverrides(): void
+    {
+        $schema = SchemaCompiler::compile($this->createStubResourceClass([
+            'name' => ['sortable' => 'name', 'indexed' => 123, 'unindexed' => true],
+        ]));
+
+        $name = $schema->getField('name');
+
+        self::assertInstanceOf(CompiledFieldDefinition::class, $name);
+        self::assertNull($name->indexedBy);
+        self::assertNull($name->unindexedReason);
     }
 
     /**

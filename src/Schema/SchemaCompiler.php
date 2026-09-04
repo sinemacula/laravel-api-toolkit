@@ -4,6 +4,7 @@ declare(strict_types = 1);
 
 namespace SineMacula\ApiToolkit\Schema;
 
+use SineMacula\ApiToolkit\Enums\Capability;
 use SineMacula\ApiToolkit\Enums\SearchStrategy;
 use SineMacula\ApiToolkit\Exceptions\InvalidSchemaException;
 use SineMacula\ApiToolkit\Schema\Validation\SchemaValidationError;
@@ -138,7 +139,7 @@ final class SchemaCompiler
             $fields,
             $counts,
             $aggregates,
-            array_values(array_unique($filterable)),
+            $filterable,
             array_values(array_unique($sortable)),
             array_values(array_unique($traversable)),
             $searchable,
@@ -243,13 +244,14 @@ final class SchemaCompiler
      * Collect filterable, sortable, traversable, and searchable markers from a
      * field definition into the corresponding accumulator arrays.
      *
-     * A searchable column is collected only alongside the strategy it was
-     * declared with. Keeping a column whose strategy is absent would leave the
-     * match shape to be guessed later, which is the one decision this layer
-     * never makes for a resource.
+     * A filterable column is collected only alongside the capability it was
+     * declared with, and a searchable one only alongside its strategy. Keeping
+     * either without its declaration would leave the operators it answers, or
+     * the match shape it carries, to be guessed later, which is the one
+     * decision this layer never makes for a resource.
      *
      * @param  array<string, mixed>  $definition
-     * @param  array<int, string>  $filterable
+     * @param  array<string, \SineMacula\ApiToolkit\Enums\Capability>  $filterable
      * @param  array<int, string>  $sortable
      * @param  array<int, string>  $traversable
      * @param  array<string, \SineMacula\ApiToolkit\Enums\SearchStrategy>  $searchable
@@ -258,9 +260,10 @@ final class SchemaCompiler
     private static function collectQueryMarkers(array $definition, array &$filterable, array &$sortable, array &$traversable, array &$searchable): void
     {
         $filterableMarker = $definition['filterable'] ?? null;
+        $capability       = self::resolveCapability($definition);
 
-        if (is_string($filterableMarker)) {
-            $filterable[] = $filterableMarker;
+        if (is_string($filterableMarker) && $capability !== null) {
+            $filterable[$filterableMarker] = $capability;
         }
 
         $sortableMarker = $definition['sortable'] ?? null;
@@ -283,6 +286,19 @@ final class SchemaCompiler
         }
 
         $searchable[$searchableMarker] = $strategy;
+    }
+
+    /**
+     * Resolve the declared capability for a filterable field definition.
+     *
+     * @param  array<string, mixed>  $definition
+     * @return \SineMacula\ApiToolkit\Enums\Capability|null
+     */
+    private static function resolveCapability(array $definition): ?Capability
+    {
+        $capability = $definition['capability'] ?? null;
+
+        return $capability instanceof Capability ? $capability : null;
     }
 
     /**
@@ -319,21 +335,24 @@ final class SchemaCompiler
     private static function buildFieldDefinition(array $definition): CompiledFieldDefinition
     {
         return new CompiledFieldDefinition(
-            accessor      : $definition['accessor'] ?? null,
-            compute       : $definition['compute']  ?? null,
-            relation      : self::resolveFieldRelation($definition),
-            resource      : self::resolveFieldResource($definition),
-            fields        : $definition['fields'] ?? null,
-            constraint    : self::resolveFieldConstraint($definition),
-            extras        : (array) ($definition['extras'] ?? []),
-            needs         : (array) ($definition['needs'] ?? []),
-            guards        : $definition['guards']       ?? [],
-            transformers  : $definition['transformers'] ?? [],
-            openApi       : self::resolveFieldOpenApi($definition),
-            filterable    : self::declaredColumn($definition, 'filterable'),
-            sortable      : self::declaredColumn($definition, 'sortable'),
-            searchable    : self::declaredColumn($definition, 'searchable'),
-            searchStrategy: self::resolveSearchStrategy($definition),
+            accessor        : $definition['accessor'] ?? null,
+            compute         : $definition['compute']  ?? null,
+            relation        : self::resolveFieldRelation($definition),
+            resource        : self::resolveFieldResource($definition),
+            fields          : $definition['fields'] ?? null,
+            constraint      : self::resolveFieldConstraint($definition),
+            extras          : (array) ($definition['extras'] ?? []),
+            needs           : (array) ($definition['needs'] ?? []),
+            guards          : $definition['guards']       ?? [],
+            transformers    : $definition['transformers'] ?? [],
+            openApi         : self::resolveFieldOpenApi($definition),
+            filterable      : self::declaredColumn($definition, 'filterable'),
+            filterCapability: self::resolveCapability($definition),
+            sortable        : self::declaredColumn($definition, 'sortable'),
+            indexedBy       : self::declaredColumn($definition, 'indexed'),
+            unindexedReason : self::declaredColumn($definition, 'unindexed'),
+            searchable      : self::declaredColumn($definition, 'searchable'),
+            searchStrategy  : self::resolveSearchStrategy($definition),
         );
     }
 

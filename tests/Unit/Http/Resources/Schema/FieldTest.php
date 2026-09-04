@@ -8,6 +8,7 @@ use Illuminate\Support\Carbon;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
+use SineMacula\ApiToolkit\Enums\Capability;
 use SineMacula\ApiToolkit\Enums\SearchStrategy;
 use SineMacula\ApiToolkit\Exceptions\DuplicateSchemaKeyException;
 use SineMacula\ApiToolkit\Schema\Field;
@@ -55,16 +56,111 @@ final class FieldTest extends TestCase
     }
 
     /**
-     * Test that filterable() and sortable() emit the field's column name.
+     * Test that filterable() emits the field's column name alongside the
+     * capability it was declared with, and that sortable() emits the column
+     * name.
      *
      * @return void
      */
     public function testFilterableAndSortableMarkersEmitTheColumnName(): void
     {
-        $array = Field::scalar('email')->filterable()->sortable()->toArray();
+        $array = Field::scalar('email')->filterable(Capability::EXACT)->sortable()->toArray();
 
         self::assertSame('email', $array['email']['filterable']);
+        self::assertSame(Capability::EXACT, $array['email']['capability']);
         self::assertSame('email', $array['email']['sortable']);
+    }
+
+    /**
+     * Test that indexed() records the index the author names behind the
+     * sortable column.
+     *
+     * @return void
+     */
+    public function testIndexedRecordsTheNamedIndex(): void
+    {
+        $array = Field::scalar('name')->sortable()->indexed('users_lower_name_index')->toArray();
+
+        self::assertSame('users_lower_name_index', $array['name']['indexed']);
+    }
+
+    /**
+     * Test that indexed() trims the name it records, so an index is matched on
+     * what the connection reports rather than on the surrounding whitespace.
+     *
+     * @return void
+     */
+    public function testIndexedTrimsTheNamedIndex(): void
+    {
+        $array = Field::scalar('name')->sortable()->indexed('  users_lower_name_index  ')->toArray();
+
+        self::assertSame('users_lower_name_index', $array['name']['indexed']);
+    }
+
+    /**
+     * Test that indexed() refuses a name that is nothing but whitespace, since
+     * a declaration naming no index governs nothing.
+     *
+     * @return void
+     */
+    public function testIndexedRefusesANameThatIsBlank(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('An index declaration must name an index');
+
+        Field::scalar('name')->sortable()->indexed('   ');
+    }
+
+    /**
+     * Test that unindexed() records the reason behind the exemption.
+     *
+     * @return void
+     */
+    public function testUnindexedRecordsTheReason(): void
+    {
+        $array = Field::scalar('name')->sortable()->unindexed('The table is bounded at a few hundred rows')->toArray();
+
+        self::assertSame('The table is bounded at a few hundred rows', $array['name']['unindexed']);
+    }
+
+    /**
+     * Test that unindexed() trims the reason it records.
+     *
+     * @return void
+     */
+    public function testUnindexedTrimsTheReason(): void
+    {
+        $array = Field::scalar('name')->sortable()->unindexed('  Bounded table  ')->toArray();
+
+        self::assertSame('Bounded table', $array['name']['unindexed']);
+    }
+
+    /**
+     * Test that unindexed() refuses a reason that is nothing but whitespace, so
+     * an exemption is never silent.
+     *
+     * @return void
+     */
+    public function testUnindexedRefusesAReasonThatIsBlank(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('An index exemption must carry a reason');
+
+        Field::scalar('name')->sortable()->unindexed('   ');
+    }
+
+    /**
+     * Test that a field declaring neither override emits neither key, so an
+     * undeclared field carries no override into the compiled schema.
+     *
+     * @return void
+     */
+    public function testAFieldDeclaringNoOverrideEmitsNeitherKey(): void
+    {
+        $array = Field::scalar('name')->sortable()->toArray();
+
+        self::assertArrayNotHasKey('indexed', $array['name']);
+        self::assertArrayNotHasKey('unindexed', $array['name']);
     }
 
     /**
@@ -75,9 +171,23 @@ final class FieldTest extends TestCase
      */
     public function testFilterableMarkerDeclaresColumnNotAlias(): void
     {
-        $array = Field::scalar('email_address', 'email')->filterable()->toArray();
+        $array = Field::scalar('email_address', 'email')->filterable(Capability::ENUM)->toArray();
 
         self::assertSame('email_address', $array['email']['filterable']);
+        self::assertSame(Capability::ENUM, $array['email']['capability']);
+    }
+
+    /**
+     * Test that the last capability declared on a field wins, so re-declaring a
+     * field does not leave two operator sets on one column.
+     *
+     * @return void
+     */
+    public function testLastDeclaredCapabilityWins(): void
+    {
+        $array = Field::scalar('status')->filterable(Capability::EXACT)->filterable(Capability::ENUM)->toArray();
+
+        self::assertSame(Capability::ENUM, $array['status']['capability']);
     }
 
     /**
@@ -90,6 +200,7 @@ final class FieldTest extends TestCase
         $array = Field::scalar('email')->toArray();
 
         self::assertArrayNotHasKey('filterable', $array['email']);
+        self::assertArrayNotHasKey('capability', $array['email']);
         self::assertArrayNotHasKey('sortable', $array['email']);
         self::assertArrayNotHasKey('searchable', $array['email']);
         self::assertArrayNotHasKey('strategy', $array['email']);
