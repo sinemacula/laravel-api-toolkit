@@ -10,7 +10,9 @@ use SineMacula\ApiToolkit\OpenApi\Schema\FieldSchemaBuilder;
 use SineMacula\ApiToolkit\OpenApi\Schema\RuleNormaliser;
 use SineMacula\ApiToolkit\OpenApi\Schema\RulesToSchemaTranslator;
 use Tests\Fixtures\OpenApi\ParityRequestBodyController;
+use Tests\Fixtures\OpenApi\PathBodylessRequestController;
 use Tests\Fixtures\OpenApi\PathRequestBodyController;
+use Tests\Fixtures\OpenApi\TopLevelListRequestInput;
 use Tests\TestCase;
 
 /**
@@ -241,6 +243,32 @@ final class RequestBodyResolverTest extends TestCase
         self::assertSame($expected, $resolver->resolve(ParityRequestBodyController::class, 'payload'));
         self::assertSame($expected, $resolver->resolve(ParityRequestBodyController::class, 'formRequest'));
         self::assertSame($expected, $resolver->resolve(ParityRequestBodyController::class, 'attribute'));
+    }
+
+    /**
+     * Test that a rules source describing a top-level list, whose translated
+     * schema carries no named property, documents no body.
+     *
+     * @return void
+     */
+    public function testPropertylessSchemaResolvesToNull(): void
+    {
+        $schema = (new RulesToSchemaTranslator(new RuleNormaliser, new FieldSchemaBuilder))
+            ->translate(TopLevelListRequestInput::rules());
+
+        self::assertSame(['type' => 'array', 'items' => ['type' => 'string']], $schema);
+        self::assertNull($this->resolver()->resolve(PathBodylessRequestController::class, 'listPayload'));
+    }
+
+    /**
+     * Test that a directive naming a class that is neither a self-describing
+     * input nor a FormRequest documents no body.
+     *
+     * @return void
+     */
+    public function testDirectiveNamingNonRulesSourceResolvesToNull(): void
+    {
+        self::assertNull($this->resolver()->resolve(PathBodylessRequestController::class, 'foreignSource'));
     }
 
     /**

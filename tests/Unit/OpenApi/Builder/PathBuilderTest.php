@@ -27,11 +27,13 @@ use Tests\Fixtures\Models\Article;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\OpenApi\ArticleRequestInput;
 use Tests\Fixtures\OpenApi\PathArticleController;
+use Tests\Fixtures\OpenApi\PathAttributelessController;
 use Tests\Fixtures\OpenApi\PathErrorController;
 use Tests\Fixtures\OpenApi\PathExcludedController;
 use Tests\Fixtures\OpenApi\PathFixtureController;
 use Tests\Fixtures\OpenApi\PathInvokableController;
 use Tests\Fixtures\OpenApi\PathPlainController;
+use Tests\Fixtures\OpenApi\PathReflectionGapController;
 use Tests\Fixtures\OpenApi\PathRequestBodyController;
 use Tests\Fixtures\OpenApi\PathResponseSchemaController;
 use Tests\Fixtures\OpenApi\PathTaggedController;
@@ -1226,6 +1228,63 @@ final class PathBuilderTest extends TestCase
         $this->router()->get('vendor', ['\\' . PathVendorController::class, 'index']);
 
         self::assertArrayNotHasKey('/vendor', $this->build());
+    }
+
+    /**
+     * Test that an authorized controller declaring no resource attribute, whose
+     * model resolution fails, still emits an operation carrying the
+     * undocumented success envelope and no error responses.
+     *
+     * @return void
+     */
+    public function testControllerWithoutResourceAttributeFallsBackToUndocumentedOperation(): void
+    {
+        $this->router()->get('drafts', [PathAttributelessController::class, 'index']);
+
+        $operation = $this->build()['/drafts']['get'];
+
+        self::assertSame([200], array_keys($operation['responses']));
+        self::assertSame('The request succeeded.', $operation['responses'][200]['description']);
+        self::assertSame(
+            $this->undocumentedEnvelope(),
+            $operation['responses'][200]['content']['application/json']['schema'],
+        );
+        self::assertArrayNotHasKey('parameters', $operation);
+    }
+
+    /**
+     * Test that a route naming an action the controller never declares still
+     * emits its resource operation, carrying the baseline error statuses alone.
+     *
+     * @return void
+     */
+    public function testRoutedActionAbsentFromControllerCarriesBaselineErrorsOnly(): void
+    {
+        $this->router()->delete('gaps/{gap}', [PathReflectionGapController::class, 'destroy']);
+
+        $responses = $this->build()['/gaps/{gap}']['delete']['responses'];
+
+        self::assertSame([204, 401, 403, 404, 500], array_keys($responses));
+        self::assertSame('The resource was deleted.', $responses[204]['description']);
+    }
+
+    /**
+     * Test that an action carrying no doc comment, and so no documented throws,
+     * emits the baseline error statuses alone.
+     *
+     * @return void
+     */
+    public function testActionWithoutDocCommentCarriesBaselineErrorsOnly(): void
+    {
+        $this->router()->get('gaps', [PathReflectionGapController::class, 'index']);
+
+        $responses = $this->build()['/gaps']['get']['responses'];
+
+        self::assertSame([200, 401, 403, 500], array_keys($responses));
+        self::assertSame(
+            (new EnvelopeBuilder)->collectionEnvelope('#/components/schemas/User'),
+            $responses[200]['content']['application/json']['schema']['oneOf'][0],
+        );
     }
 
     /**
