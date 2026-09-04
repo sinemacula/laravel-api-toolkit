@@ -4,6 +4,7 @@ declare(strict_types = 1);
 
 namespace Tests\Unit\OpenApi\Metadata;
 
+use Composer\Autoload\ClassLoader;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\OpenApi\Metadata\Psr4RootMap;
 use Tests\TestCase;
@@ -91,5 +92,40 @@ final class Psr4RootMapTest extends TestCase
         ]);
 
         self::assertSame(['App\Module', 'App'], $map->prefixes());
+    }
+
+    /**
+     * Test that an application whose autoloaders include no Composer
+     * ClassLoader reads an empty prefix map, so the scan finds no roots rather
+     * than raising.
+     *
+     * @return void
+     */
+    public function testFromComposerYieldsAnEmptyMapWithoutAClassLoader(): void
+    {
+        // Warm every class the call touches before the loader is taken away, so
+        // nothing needs autoloading while it is gone.
+        Psr4RootMap::fromComposer()->roots();
+
+        $loaders = array_filter(
+            spl_autoload_functions(),
+            static fn (mixed $autoloader): bool => is_array($autoloader) && $autoloader[0] instanceof ClassLoader,
+        );
+
+        foreach ($loaders as $loader) {
+            spl_autoload_unregister($loader);
+        }
+
+        try {
+            $map = Psr4RootMap::fromComposer();
+        } finally {
+            foreach (array_reverse($loaders) as $loader) {
+                spl_autoload_register($loader, true, true);
+            }
+        }
+
+        self::assertSame([], $map->all());
+        self::assertSame([], $map->roots());
+        self::assertSame([], $map->prefixes());
     }
 }

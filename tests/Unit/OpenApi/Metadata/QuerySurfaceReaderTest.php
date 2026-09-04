@@ -10,6 +10,10 @@ use SineMacula\ApiToolkit\Enums\SearchStrategy;
 use SineMacula\ApiToolkit\OpenApi\Metadata\QueryColumnDescriptor;
 use SineMacula\ApiToolkit\OpenApi\Metadata\QuerySurfaceDescriptor;
 use SineMacula\ApiToolkit\OpenApi\Metadata\QuerySurfaceReader;
+use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
+use SineMacula\ApiToolkit\Schema\CompiledSchema;
+use SineMacula\ApiToolkit\Schema\SchemaCompiler;
+use Tests\Concerns\InteractsWithNonPublicMembers;
 use Tests\Fixtures\Models\Organization;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Resources\AliasedQueryableUserResource;
@@ -31,6 +35,8 @@ use Tests\TestCase;
 #[CoversClass(QuerySurfaceReader::class)]
 final class QuerySurfaceReaderTest extends TestCase
 {
+    use InteractsWithNonPublicMembers;
+
     /**
      * Test that one surface is read per registered resource, in registry order.
      *
@@ -329,6 +335,44 @@ final class QuerySurfaceReaderTest extends TestCase
     }
 
     /**
+     * Test that a compiled field key holding no definition is stepped over
+     * without abandoning the keys that follow it, so the surface still reports
+     * the columns the rest of the schema declares.
+     *
+     * @return void
+     */
+    public function testFieldKeyWithoutADefinitionIsSteppedOver(): void
+    {
+        $field = new CompiledFieldDefinition(
+            accessor: null,
+            compute: null,
+            relation: null,
+            resource: null,
+            fields: null,
+            constraint: null,
+            extras: [],
+            needs: [],
+            guards: [],
+            transformers: [],
+            filterable: 'name',
+            filterCapability: Capability::EXACT,
+        );
+
+        // The null 'ghost' key precedes a declared field, so stepping over it
+        // must not abandon the rest of the loop.
+        $schema = new CompiledSchema(['ghost' => null, 'name' => $field], [], [], ['name' => Capability::EXACT]); // @phpstan-ignore argument.type
+
+        $this->setStaticProperty(SchemaCompiler::class, 'cache', ['GhostResource' => $schema]);
+
+        $columns = $this->ghostSurface('GhostResource')->columns;
+
+        self::assertCount(1, $columns);
+        self::assertSame('name', $columns[0]->property);
+        self::assertSame('name', $columns[0]->column);
+        self::assertSame(Capability::EXACT, $columns[0]->capability);
+    }
+
+    /**
      * Read a single resource's surface.
      *
      * @param  class-string  $resourceClass
@@ -341,6 +385,19 @@ final class QuerySurfaceReaderTest extends TestCase
             [User::class => $resourceClass],
             $vocabulary ?? $this->vocabulary(),
         )[0];
+    }
+
+    /**
+     * Read the surface of a resource name the compiler has been primed for, so
+     * a schema with no compiled class of its own can still be read.
+     *
+     * @param  string  $resourceClass
+     * @return \SineMacula\ApiToolkit\OpenApi\Metadata\QuerySurfaceDescriptor
+     */
+    private function ghostSurface(string $resourceClass): QuerySurfaceDescriptor
+    {
+        /** @var class-string $resourceClass */
+        return $this->surface($resourceClass);
     }
 
     /**

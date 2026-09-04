@@ -200,6 +200,44 @@ final class DocManualAssemblerTest extends TestCase
     }
 
     /**
+     * Test that a section file holding nothing but whitespace is dropped rather
+     * than joined as a blank section, so the sections either side of it stay
+     * exactly one blank line apart.
+     *
+     * @return void
+     */
+    public function testDropsASectionFileThatReadsEmpty(): void
+    {
+        $dir = $this->makeDir([
+            '10-a.md'     => 'First.',
+            '20-blank.md' => "  \n\n\t",
+            '30-c.md'     => 'Third.',
+        ]);
+
+        $this->config()->set('api-toolkit.openapi.docs_path', $dir);
+
+        self::assertSame("First.\n\nThird.", (new DocManualAssembler)->assemble());
+    }
+
+    /**
+     * Test that an entry the read cannot open - a directory named as a section
+     * file - is dropped rather than aborting the assembly, so the readable
+     * sections are still returned.
+     *
+     * @return void
+     */
+    public function testDropsAnEntryThatCannotBeRead(): void
+    {
+        $dir = $this->makeDir(['10-a.md' => 'First.', '30-c.md' => 'Third.']);
+
+        mkdir($dir . '/20-unreadable.md');
+
+        $this->config()->set('api-toolkit.openapi.docs_path', $dir);
+
+        self::assertSame("First.\n\nThird.", (new DocManualAssembler)->assemble());
+    }
+
+    /**
      * Create a temporary docs directory seeded with the given files, registered
      * for teardown, and return its path.
      *

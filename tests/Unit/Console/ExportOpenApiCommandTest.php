@@ -314,6 +314,39 @@ final class ExportOpenApiCommandTest extends TestCase
     }
 
     /**
+     * Test that an output path carrying no extension takes the audience name as
+     * a trailing suffix, so --all still writes one distinct file per audience.
+     *
+     * @return void
+     */
+    public function testCommandAllFlagSuffixesAnExtensionlessOutputPath(): void
+    {
+        $this->registerResourceMap();
+        $this->getConfig()->set('api-toolkit.openapi.audiences', [
+            'public'   => [],
+            'internal' => [],
+        ]);
+
+        $base     = sys_get_temp_dir() . '/' . uniqid('api-toolkit-noext-');
+        $public   = $base . '.public';
+        $internal = $base . '.internal';
+
+        try {
+
+            $this->runCommand(['--output' => $base, '--all' => true])
+                ->assertExitCode(0);
+
+            self::assertFileExists($public);
+            self::assertFileExists($internal);
+            self::assertFileDoesNotExist($base);
+
+        } finally {
+            @unlink($public);
+            @unlink($internal);
+        }
+    }
+
+    /**
      * Run the export command, returning the pending command for assertions.
      *
      * @param  array<string, mixed>  $arguments
