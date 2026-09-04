@@ -294,7 +294,7 @@ final readonly class ResourceDiscovery
                 new \RecursiveDirectoryIterator($path, \FilesystemIterator::SKIP_DOTS),
             );
         } catch (\UnexpectedValueException) {
-            return []; // @codeCoverageIgnore
+            return [];
         }
 
         $files = [];
