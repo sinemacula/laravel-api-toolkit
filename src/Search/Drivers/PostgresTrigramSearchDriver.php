@@ -197,6 +197,30 @@ final class PostgresTrigramSearchDriver extends EngineSearchDriver
     }
 
     /**
+     * Resolve the namespace and relation name the catalogue holds the table
+     * under.
+     *
+     * A model names its table logically, without the connection's prefix and
+     * with any schema written into the same string, while the catalogue holds
+     * the two apart and stores the prefixed name. Reading it the model's way
+     * finds nothing and refuses a deployment whose index is present.
+     *
+     * @param  string  $table
+     * @param  \Illuminate\Database\Connection  $connection
+     * @return array{0: string|null, 1: string}
+     */
+    private function qualify(string $table, Connection $connection): array
+    {
+        $segments = explode('.', $table);
+        $name     = array_pop($segments);
+
+        return [
+            $segments === [] ? null : implode('.', $segments),
+            $connection->getTablePrefix() . $name,
+        ];
+    }
+
+    /**
      * Return the statements that would recreate the table's indexes.
      *
      * Only an index the planner may use for an unqualified predicate is read
@@ -210,12 +234,15 @@ final class PostgresTrigramSearchDriver extends EngineSearchDriver
      */
     private function indexDefinitions(string $table, Connection $connection): array
     {
+        [$schema, $name] = $this->qualify($table, $connection);
+
         $rows = $connection->select(
             'select pg_get_indexdef(i.indexrelid) as indexdef from pg_index i '
             . 'join pg_class c on c.oid = i.indrelid '
             . 'join pg_namespace n on n.oid = c.relnamespace '
-            . 'where n.nspname = current_schema() and c.relname = ? and i.indisvalid and i.indpred is null',
-            [$table],
+            . 'where n.nspname = coalesce(?::text, current_schema()) and c.relname = ? '
+            . 'and i.indisvalid and i.indpred is null',
+            [$schema, $name],
         );
 
         $definitions = [];

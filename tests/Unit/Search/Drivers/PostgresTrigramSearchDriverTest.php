@@ -214,9 +214,10 @@ final class PostgresTrigramSearchDriverTest extends TestCase
             'select pg_get_indexdef(i.indexrelid) as indexdef from pg_index i '
                 . 'join pg_class c on c.oid = i.indrelid '
                 . 'join pg_namespace n on n.oid = c.relnamespace '
-                . 'where n.nspname = current_schema() and c.relname = ? and i.indisvalid and i.indpred is null',
+                . 'where n.nspname = coalesce(?::text, current_schema()) and c.relname = ? '
+                . 'and i.indisvalid and i.indpred is null',
         ], $this->statements);
-        self::assertSame([['pg_trgm'], ['users']], $this->bindings);
+        self::assertSame([['pg_trgm'], [null, 'users']], $this->bindings);
     }
 
     /**
@@ -339,6 +340,7 @@ final class PostgresTrigramSearchDriverTest extends TestCase
         $connection = self::createStub(Connection::class);
 
         $connection->method('getSchemaBuilder')->willReturn($schema);
+        $connection->method('getTablePrefix')->willReturn('');
         $connection->method('select')->willReturnCallback(static function (string $query): array {
 
             if (str_contains($query, 'pg_extension')) {
@@ -352,6 +354,36 @@ final class PostgresTrigramSearchDriverTest extends TestCase
         });
 
         self::assertSame([], (new PostgresTrigramSearchDriver)->indexDefects(SearchStrategy::SUBSTRING, ['name'], 'users', $connection));
+    }
+
+    /**
+     * Test that the catalogue is read under the name it actually holds, which
+     * carries the connection's table prefix the model's own name does not.
+     *
+     * @return void
+     */
+    public function testReadsTheCatalogueUnderThePrefixedRelationName(): void
+    {
+        $connection = $this->catalogue([], true, [], 'app_');
+
+        (new PostgresTrigramSearchDriver)->indexDefects(SearchStrategy::SUBSTRING, ['name'], 'users', $connection);
+
+        self::assertSame([null, 'app_users'], $this->bindings[1]);
+    }
+
+    /**
+     * Test that a schema-qualified table is read under its own namespace rather
+     * than the connection's current one, where the relation does not exist.
+     *
+     * @return void
+     */
+    public function testReadsASchemaQualifiedTableUnderItsOwnNamespace(): void
+    {
+        $connection = $this->catalogue([], true);
+
+        (new PostgresTrigramSearchDriver)->indexDefects(SearchStrategy::SUBSTRING, ['name'], 'audit.users', $connection);
+
+        self::assertSame(['audit', 'users'], $this->bindings[1]);
     }
 
     /**
@@ -377,9 +409,10 @@ final class PostgresTrigramSearchDriverTest extends TestCase
      * @param  array<int, string>  $definitions
      * @param  bool  $extension
      * @param  array<int, array<string, mixed>>  $indexes
+     * @param  string  $prefix
      * @return \Illuminate\Database\Connection
      */
-    private function catalogue(array $definitions = [], bool $extension = true, array $indexes = []): Connection
+    private function catalogue(array $definitions = [], bool $extension = true, array $indexes = [], string $prefix = ''): Connection
     {
         $schema = self::createStub(SchemaBuilder::class);
 
@@ -388,6 +421,7 @@ final class PostgresTrigramSearchDriverTest extends TestCase
         $connection = self::createStub(Connection::class);
 
         $connection->method('getSchemaBuilder')->willReturn($schema);
+        $connection->method('getTablePrefix')->willReturn($prefix);
         $connection->method('select')->willReturnCallback(function (string $query, array $bindings = []) use ($definitions, $extension): array {
 
             $this->statements[] = $query;
