@@ -5,6 +5,7 @@ declare(strict_types = 1);
 namespace Tests\Unit\Repositories\Criteria\Concerns;
 
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Validation\ValidationException;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -406,7 +407,7 @@ final class FilterApplierTest extends TestCase
         /** @var \Illuminate\Database\Query\Builder $subQuery */
         $subQuery = $wheres[0]['query'];
 
-        $subWheres = collect($subQuery->wheres);
+        $subWheres = $this->relationGroupWheres($subQuery);
 
         self::assertTrue(
             $subWheres->contains(fn (array $where): bool => ($where['column'] ?? null) === 'title' && ($where['value'] ?? null) === 'test'),
@@ -535,7 +536,7 @@ final class FilterApplierTest extends TestCase
         /** @var \Illuminate\Database\Query\Builder $subQuery */
         $subQuery = $wheres[0]['query'];
 
-        $subWheres = collect($subQuery->wheres);
+        $subWheres = $this->relationGroupWheres($subQuery);
 
         self::assertTrue(
             $subWheres->contains(fn (array $where): bool => ($where['column'] ?? null) === 'title' && ($where['value'] ?? null) === 'test'),
@@ -595,9 +596,9 @@ final class FilterApplierTest extends TestCase
         self::assertSame('Exists', $nested[0]['type']);
         self::assertSame('or', $nested[0]['boolean']);
 
-        $booleans = array_column($nested[0]['query']->wheres, 'boolean');
+        $booleans = $this->relationGroupWheres($nested[0]['query'])->pluck('boolean')->all();
 
-        self::assertSame(['and', 'and', 'and'], $booleans);
+        self::assertSame(['and', 'and'], $booleans);
     }
 
     /**
@@ -626,7 +627,7 @@ final class FilterApplierTest extends TestCase
         /** @var \Illuminate\Database\Query\Builder $subQuery */
         $subQuery = $wheres[0]['query'];
 
-        $subWheres = collect($subQuery->wheres);
+        $subWheres = $this->relationGroupWheres($subQuery);
 
         /** @var array{type: string, boolean: string, query: \Illuminate\Database\Query\Builder}|null $group */
         $group = $subWheres->first(fn (array $where): bool => $where['type'] === 'Nested');
@@ -1357,6 +1358,58 @@ final class FilterApplierTest extends TestCase
     }
 
     /**
+     * Test that an $or nested below the top level of a relation filter is
+     * grouped rather than emitted as the scope's first clause.
+     *
+     * The relation scope booleans its whole slice with the first clause added
+     * to it. An `or` there disjoins the correlation predicate the scope wrote
+     * before the callback ran, so the existence check passes for every parent
+     * row as soon as any child in the table matches, widening the result set
+     * instead of narrowing it.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testAnOrBelowTheTopLevelOfARelationKeepsTheCorrelationPredicate(): void
+    {
+        $sql = $this->applyFilters([
+            'posts' => [
+                'wrapper' => [
+                    '$or' => [
+                        'title' => ['$eq' => 'test'],
+                        'id'    => ['$eq' => 1],
+                    ],
+                ],
+            ],
+        ])->toSql();
+
+        self::assertStringContainsString('"users"."id" = "posts"."user_id" and (', $sql);
+        self::assertStringNotContainsString('"users"."id" = "posts"."user_id" or', $sql);
+    }
+
+    /**
+     * Test that a key sitting beside $or in a relation filter is applied rather
+     * than discarded, so the existence check is the one the client asked for.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testAKeyBesideAnOrInARelationFilterIsStillApplied(): void
+    {
+        $bindings = $this->applyFilters([
+            'posts' => [
+                '$or' => ['title' => ['$eq' => 'test']],
+                'id'  => ['$eq' => 7],
+            ],
+        ])->getBindings();
+
+        self::assertContains('test', $bindings);
+        self::assertContains(7, $bindings, 'The key beside the $or must reach the query.');
+    }
+
+    /**
      * Assert that the given filters are rejected on cost, carrying the cap that
      * rejected them, the position within the document, and both sides of the
      * comparison.
@@ -1490,5 +1543,24 @@ final class FilterApplierTest extends TestCase
                 $exception->errors()['filters.' . $key] ?? [],
             );
         }
+    }
+
+    /**
+     * Return the filter clauses a relation scope carries, having asserted the
+     * scope groups them rather than emitting them beside its correlation
+     * predicate.
+     *
+     * @param  \Illuminate\Database\Query\Builder  $subQuery
+     * @return \Illuminate\Support\Collection<int, array<string, mixed>>
+     */
+    private function relationGroupWheres(mixed $subQuery): Collection
+    {
+        /** @var array{boolean: string, query: \Illuminate\Database\Query\Builder}|null $group */
+        $group = collect($subQuery->wheres)->first(static fn (array $where): bool => $where['type'] === 'Nested');
+
+        self::assertNotNull($group, 'The relation scope must group its filters.');
+        self::assertSame('and', $group['boolean'], 'The filter group must be ANDed with the correlation predicate.');
+
+        return collect($group['query']->wheres);
     }
 }

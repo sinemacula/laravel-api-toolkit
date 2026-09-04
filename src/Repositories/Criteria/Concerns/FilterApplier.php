@@ -344,28 +344,56 @@ final class FilterApplier
      *
      * @throws \Illuminate\Validation\ValidationException
      * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     *
+     * @phpstan-ignore throws.unusedType, throws.unusedType
      */
     private function processRelationFilters(Builder $query, array $filters, FilterContext $context): void
     {
-        if (isset($filters['$or'])) {
-
-            /** @var array<string, mixed> $orFilters */
-            $orFilters = is_array($filters['$or']) ? $filters['$or'] : [];
-
-            $nested = $context->descend('$or', '$or');
-
-            $query->where(function (Builder $group) use ($orFilters, $nested): void {
-                foreach ($orFilters as $key => $value) {
-                    $nested->admit($key);
-                    $this->applyFilters($group, $value, $key, $nested);
-                }
-            });
-        } else {
+        // The relation scope booleans its whole slice with the first clause
+        // added to it, so an `or` emitted here would disjoin away the
+        // correlation predicate written before this callback runs and match
+        // every parent row. The group keeps that clause an `and`.
+        $query->where(function (Builder $group) use ($filters, $context): void {
             foreach ($filters as $key => $value) {
+
+                if ($key === '$or') {
+                    $this->applyRelationOrGroup($group, $value, $context);
+                    continue;
+                }
+
                 $context->admit($key);
-                $this->applyFilters($query, $value, $key, $context);
+
+                $this->applyFilters($group, $value, $key, $context);
             }
-        }
+        });
+    }
+
+    /**
+     * Apply an $or carried by a relation filter as its own grouped disjunction.
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>  $query
+     * @param  mixed  $value
+     * @param  \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext  $context
+     * @return void
+     *
+     * @throws \Illuminate\Validation\ValidationException
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     *
+     * @phpstan-ignore throws.unusedType, throws.unusedType
+     */
+    private function applyRelationOrGroup(Builder $query, mixed $value, FilterContext $context): void
+    {
+        /** @var array<string, mixed> $filters */
+        $filters = is_array($value) ? $value : [];
+
+        $nested = $context->descend('$or', '$or');
+
+        $query->where(function (Builder $group) use ($filters, $nested): void {
+            foreach ($filters as $key => $subValue) {
+                $nested->admit($key);
+                $this->applyFilters($group, $subValue, $key, $nested);
+            }
+        });
     }
 
     /**
