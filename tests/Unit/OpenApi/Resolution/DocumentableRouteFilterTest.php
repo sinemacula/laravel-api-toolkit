@@ -158,6 +158,39 @@ final class DocumentableRouteFilterTest extends TestCase
     }
 
     /**
+     * Test that a blocklist entry of nothing but the namespace separator
+     * matches no class at all, rather than excluding every root-qualified one.
+     *
+     * @return void
+     */
+    public function testSeparatorOnlyPrefixExcludesNothing(): void
+    {
+        $this->setBlocklist(['\\']);
+
+        self::assertFalse($this->filter->isExcluded('\Acme\Internal\Reports\Controller', $this->route()));
+        self::assertFalse($this->filter->isExcluded('Acme\Internal\Reports\Controller', $this->route()));
+    }
+
+    /**
+     * Test that a blocklist configured as something other than an array is
+     * discarded whole, falling back to the built-in default.
+     *
+     * @return void
+     */
+    public function testNonArrayBlocklistFallsBackToDefault(): void
+    {
+        assert($this->app !== null);
+
+        /** @var \Illuminate\Contracts\Config\Repository $config */
+        $config = $this->app->make('config');
+
+        $config->set('api-toolkit.openapi.exclude.namespaces', 'Acme\Internal');
+
+        self::assertTrue($this->filter->isExcluded(RedirectController::class, $this->route()));
+        self::assertFalse($this->filter->isExcluded('Acme\Internal\Reports\Controller', $this->route()));
+    }
+
+    /**
      * Test that a stringable prefix in the configured blocklist excludes a
      * matching class, proving each entry is cast to a string before use.
      *

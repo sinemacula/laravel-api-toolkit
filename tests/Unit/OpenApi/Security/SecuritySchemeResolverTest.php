@@ -9,6 +9,7 @@ use Illuminate\Routing\Route;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\OpenApi\Security\SecuritySchemeMapper;
 use SineMacula\ApiToolkit\OpenApi\Security\SecuritySchemeResolver;
+use Tests\Fixtures\OpenApi\UnresolvableMiddlewareController;
 use Tests\TestCase;
 
 /**
@@ -228,6 +229,22 @@ final class SecuritySchemeResolverTest extends TestCase
         $this->config()->set('auth.defaults.guard', 123);
 
         self::assertSame([['cookieAuth' => []]], $this->resolver()->securityFor($this->route('auth')));
+    }
+
+    /**
+     * Test that a controller which throws while declaring its middleware leaves
+     * the route documented as public rather than aborting the build, even
+     * though the route itself carries an auth guard.
+     *
+     * @return void
+     */
+    public function testUnresolvableControllerMiddlewareYieldsPublicRoute(): void
+    {
+        $route = new Route(['GET'], 'test', UnresolvableMiddlewareController::class . '@show');
+
+        $route->middleware(['auth:api']);
+
+        self::assertSame([], $this->resolver()->securityFor($route));
     }
 
     /**
