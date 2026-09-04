@@ -26,14 +26,18 @@ use SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry;
 use SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 use Tests\Concerns\RegistersApiExceptionHandler;
+use Tests\Fixtures\Models\Article;
 use Tests\Fixtures\Models\Log;
 use Tests\Fixtures\Models\Organization;
 use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\Tag;
 use Tests\Fixtures\Models\User;
+use Tests\Fixtures\OpenApi\PathArticleController;
 use Tests\Fixtures\OpenApi\PathFixtureController;
 use Tests\Fixtures\OpenApi\PathLogController;
+use Tests\Fixtures\Repositories\ArticleRepository;
 use Tests\Fixtures\Repositories\UserRepository;
+use Tests\Fixtures\Resources\AliasedSurfaceArticleResource;
 use Tests\Fixtures\Resources\CapabilitySpectrumLogResource;
 use Tests\Fixtures\Resources\OrganizationResource;
 use Tests\Fixtures\Resources\PostResource;
@@ -66,8 +70,14 @@ use Tests\TestCase;
  * the gate accepts under an alias, that the matrix governs no operator outside
  * the union of its permitted sets, and that a refusal names the advertised set
  * back to the client. The matrix itself is pinned by its own unit tests. One
- * wire-level case closes the loop: the operators a refusal names a client may
- * send are the operators the document told it to send.
+ * resource in the map presents the columns it is filtered and ordered by under
+ * an alias, so the walk reaches a key that is not the property it hangs on
+ * rather than only the cases where the two names coincide.
+ *
+ * Two wire-level cases close the loop: the operators a refusal names a client
+ * may send are the operators the document told it to send, and the key
+ * advertised for an aliased field is the key a filter and an order send it
+ * under, the property carrying its value back being refused as undeclared.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -366,6 +376,127 @@ final class OpenApiQuerySurfaceContractTest extends TestCase
     }
 
     /**
+     * Test that the walk over the documented surfaces reaches a key that is not
+     * the property it hangs on, so the agreement it asserts is asserted under
+     * an alias rather than only where the two names happen to coincide.
+     *
+     * @return void
+     */
+    public function testTheDocumentedSurfacesReachAKeyThatIsNotThePropertyItHangsOn(): void
+    {
+        $this->registerRoutes();
+
+        $aliased = [];
+
+        foreach ($this->advertisedSurfaces($this->export()) as $surface) {
+
+            if ($surface['key'] === $surface['property']) {
+                continue;
+            }
+
+            $aliased[$surface['property']] = $surface['key'];
+        }
+
+        self::assertSame(['permalink' => 'slug', 'state' => 'status'], $aliased);
+    }
+
+    /**
+     * Test that the key the document advertises for an aliased field is the
+     * column the field is queried by rather than the property the response
+     * carries its value under, for an order as well as for a filter.
+     *
+     * @return void
+     */
+    public function testTheAdvertisedKeysOfAnAliasedFieldAreItsColumnRatherThanItsProperty(): void
+    {
+        $this->registerRoutes();
+
+        $document = $this->export();
+
+        self::assertSame('slug', $this->advertisedKeyOn($document, AliasedSurfaceArticleResource::class, 'permalink', 'filter'));
+        self::assertSame('slug', $this->advertisedKeyOn($document, AliasedSurfaceArticleResource::class, 'permalink', 'sort'));
+        self::assertArrayNotHasKey('slug', $this->propertiesOf($document, AliasedSurfaceArticleResource::class));
+    }
+
+    /**
+     * Test that the key the document advertises for an aliased field is the key
+     * a request sends it under: sending the advertised key narrows the
+     * collection and the rows come back under the aliased property, while
+     * sending the property name is refused as an undeclared key.
+     *
+     * @return void
+     */
+    public function testTheAdvertisedKeyOfAnAliasedFieldIsTheKeyAFilterSendsItUnder(): void
+    {
+        $this->registerApiExceptionHandler();
+        $this->registerRoutes();
+        $this->registerAliasedArticleRoute();
+
+        $this->seedArticles();
+
+        $key = $this->advertisedKeyOn($this->export(), AliasedSurfaceArticleResource::class, 'permalink', 'filter');
+
+        $answered = $this->filteredArticles([$key => ['$eq' => 'second-article']]);
+
+        $answered->assertOk();
+        $answered->assertJsonCount(1, 'data');
+        $answered->assertJsonPath('data.0.permalink', 'second-article');
+
+        self::assertArrayNotHasKey('slug', (array) $answered->json('data.0'));
+
+        $refused = $this->filteredArticles(['permalink' => ['$eq' => 'second-article']]);
+
+        $refused->assertStatus(422);
+        $refused->assertJsonPath('error.code', ErrorCode::INVALID_INPUT->getCode());
+
+        $meta = (array) $refused->json('error.meta');
+
+        self::assertSame(
+            ['The "permalink" key is not a permitted query parameter for this resource.'],
+            $meta['filters.permalink'] ?? [],
+        );
+    }
+
+    /**
+     * Test that the key the document advertises for an aliased field is the key
+     * an order names it by, the rows coming back under the aliased property in
+     * the order the column holds, while the property name is refused.
+     *
+     * @return void
+     */
+    public function testTheAdvertisedKeyOfAnAliasedFieldIsTheKeyAnOrderNamesItBy(): void
+    {
+        $this->registerApiExceptionHandler();
+        $this->registerRoutes();
+        $this->registerAliasedArticleRoute();
+
+        $this->seedArticles();
+
+        $key = $this->advertisedKeyOn($this->export(), AliasedSurfaceArticleResource::class, 'permalink', 'sort');
+
+        $ordered = $this->getJson('/aliased-articles?order=' . $key . ':desc');
+
+        $ordered->assertOk();
+
+        self::assertSame(
+            ['wide-article', 'second-article', 'first-article'],
+            array_column((array) $ordered->json('data'), 'permalink'),
+        );
+
+        $refused = $this->getJson('/aliased-articles?order=permalink:desc');
+
+        $refused->assertStatus(422);
+        $refused->assertJsonPath('error.code', ErrorCode::INVALID_INPUT->getCode());
+
+        $meta = (array) $refused->json('error.meta');
+
+        self::assertSame(
+            ['The "permalink" key is not a permitted query parameter for this resource.'],
+            $meta['order.permalink'] ?? [],
+        );
+    }
+
+    /**
      * Test that the shipped manual tables the parameters the document defines
      * and names every one of them, so a parameter gained or lost by the builder
      * cannot leave the hand-written table behind.
@@ -632,6 +763,38 @@ final class OpenApiQuerySurfaceContractTest extends TestCase
     }
 
     /**
+     * Dispatch a filtered request against the aliased article route.
+     *
+     * @param  array<string, mixed>  $filters
+     * @return \Illuminate\Testing\TestResponse<\Illuminate\Http\JsonResponse>
+     */
+    private function filteredArticles(array $filters): TestResponse
+    {
+        return $this->getJson('/aliased-articles?filters=' . urlencode((string) json_encode($filters)));
+    }
+
+    /**
+     * Seed the articles the aliased surface is queried over, whose slugs order
+     * differently from the order they are written in.
+     *
+     * @return void
+     */
+    private function seedArticles(): void
+    {
+        foreach (['first-article', 'wide-article', 'second-article'] as $slug) {
+            Article::create([
+                'user_id' => 1,
+                'title'   => ucfirst(str_replace('-', ' ', $slug)),
+                'slug'    => $slug,
+                'body'    => str_repeat('lorem ipsum dolor ', 10),
+                'summary' => 'A concise summary of the ' . $slug . ' body content.',
+                'status'  => 'published',
+                'views'   => 10,
+            ]);
+        }
+    }
+
+    /**
      * Collect every distinct operator-shaped token the document carries in a
      * value, in sorted order.
      *
@@ -686,10 +849,11 @@ final class OpenApiQuerySurfaceContractTest extends TestCase
 
     /**
      * List the filter surfaces the document advertises, one per property
-     * carrying one, each naming the model whose column it stands for.
+     * carrying one, each naming the model whose column it stands for and the
+     * property it hangs on.
      *
      * @param  array<string, mixed>  $document
-     * @return array<int, array{model: class-string<\Illuminate\Database\Eloquent\Model>, key: string, capability: string, operators: array<int, string>}>
+     * @return array<int, array{model: class-string<\Illuminate\Database\Eloquent\Model>, property: string, key: string, capability: string, operators: array<int, string>}>
      */
     private function advertisedSurfaces(array $document): array
     {
@@ -697,14 +861,10 @@ final class OpenApiQuerySurfaceContractTest extends TestCase
 
         foreach ($this->resourceMap() as $modelClass => $resourceClass) {
 
-            $schema = $document['components']['schemas'][SchemaComponentName::fromResource($resourceClass)] ?? null;
-
-            self::assertIsArray($schema, sprintf('The document carries no schema for "%s".', $resourceClass));
-
             /** @var array<string, array<string, mixed>> $properties */
-            $properties = $schema['properties'] ?? [];
+            $properties = $this->propertiesOf($document, $resourceClass);
 
-            foreach ($properties as $property) {
+            foreach ($properties as $propertyKey => $property) {
 
                 if (!is_array($property[self::SURFACE_KEY]['filter'] ?? null)) {
                     continue;
@@ -715,6 +875,7 @@ final class OpenApiQuerySurfaceContractTest extends TestCase
 
                 $surfaces[] = [
                     'model'      => $modelClass,
+                    'property'   => $propertyKey,
                     'key'        => $filter['key'],
                     'capability' => $filter['capability'],
                     'operators'  => $filter['operators'],
@@ -723,6 +884,62 @@ final class OpenApiQuerySurfaceContractTest extends TestCase
         }
 
         return $surfaces;
+    }
+
+    /**
+     * Read the properties the document carries for a resource's schema.
+     *
+     * @param  array<string, mixed>  $document
+     * @param  class-string  $resourceClass
+     * @return array<string, mixed>
+     */
+    private function propertiesOf(array $document, string $resourceClass): array
+    {
+        $schema = $document['components']['schemas'][SchemaComponentName::fromResource($resourceClass)] ?? null;
+
+        self::assertIsArray($schema, sprintf('The document carries no schema for "%s".', $resourceClass));
+
+        /** @var array<string, mixed> */
+        return $schema['properties'] ?? [];
+    }
+
+    /**
+     * Read the query surface the document advertises on a single property of a
+     * single resource.
+     *
+     * @param  array<string, mixed>  $document
+     * @param  class-string  $resourceClass
+     * @param  string  $property
+     * @return array<string, array<string, mixed>>
+     */
+    private function advertisedSurfaceOn(array $document, string $resourceClass, string $property): array
+    {
+        $properties = $this->propertiesOf($document, $resourceClass);
+        $surface    = $properties[$property][self::SURFACE_KEY] ?? null;
+
+        self::assertIsArray($surface, sprintf('The document advertises no query surface on the "%s" property.', $property));
+
+        /** @var array<string, array<string, mixed>> */
+        return $surface;
+    }
+
+    /**
+     * Read the key the document advertises for one part of the query surface on
+     * a single property.
+     *
+     * @param  array<string, mixed>  $document
+     * @param  class-string  $resourceClass
+     * @param  string  $property
+     * @param  string  $part
+     * @return string
+     */
+    private function advertisedKeyOn(array $document, string $resourceClass, string $property, string $part): string
+    {
+        $key = $this->advertisedSurfaceOn($document, $resourceClass, $property)[$part]['key'] ?? null;
+
+        self::assertIsString($key, sprintf('The document advertises no "%s" key on the "%s" property.', $part, $property));
+
+        return $key;
     }
 
     /**
@@ -871,6 +1088,7 @@ final class OpenApiQuerySurfaceContractTest extends TestCase
 
         $router->get('users', [PathFixtureController::class, 'index']);
         $router->get('logs', [PathLogController::class, 'index']);
+        $router->get('articles', [PathArticleController::class, 'index']);
     }
 
     /**
@@ -890,6 +1108,23 @@ final class OpenApiQuerySurfaceContractTest extends TestCase
     }
 
     /**
+     * Register the repository-backed route the aliased surface is driven
+     * through, so a request names the keys the document advertises for a
+     * resource whose queried columns are carried under other names.
+     *
+     * @return void
+     */
+    private function registerAliasedArticleRoute(): void
+    {
+        Route::middleware(ParseApiQuery::class)->get('/aliased-articles', function (ArticleRepository $repository): ApiResourceCollection {
+
+            $articles = $repository->usingResource(AliasedSurfaceArticleResource::class)->withApiCriteria()->paginate();
+
+            return new ApiResourceCollection($articles, AliasedSurfaceArticleResource::class);
+        });
+    }
+
+    /**
      * The fixture resource map the document and the gates are both read from.
      *
      * @return array<class-string<\Illuminate\Database\Eloquent\Model>, class-string>
@@ -902,6 +1137,7 @@ final class OpenApiQuerySurfaceContractTest extends TestCase
             Post::class         => PostResource::class,
             Tag::class          => TagResource::class,
             Log::class          => CapabilitySpectrumLogResource::class,
+            Article::class      => AliasedSurfaceArticleResource::class,
         ];
     }
 
