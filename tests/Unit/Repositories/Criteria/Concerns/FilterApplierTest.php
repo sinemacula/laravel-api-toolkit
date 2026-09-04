@@ -1373,6 +1373,7 @@ final class FilterApplierTest extends TestCase
      */
     public function testAnOrBelowTheTopLevelOfARelationKeepsTheCorrelationPredicate(): void
     {
+        // @phpstan-ignore staticMethod.dynamicCall
         $sql = $this->applyFilters([
             'posts' => [
                 'wrapper' => [
@@ -1398,6 +1399,7 @@ final class FilterApplierTest extends TestCase
      */
     public function testAKeyBesideAnOrInARelationFilterIsStillApplied(): void
     {
+        // @phpstan-ignore staticMethod.dynamicCall
         $bindings = $this->applyFilters([
             'posts' => [
                 '$or' => ['title' => ['$eq' => 'test']],
