@@ -38,6 +38,11 @@ final class RequestSchemaTest extends TestCase
     public function testIsReadBackFromAMethodDeclaration(): void
     {
         $subject = new class {
+            /**
+             * Carry the directive under test on a method declaration.
+             *
+             * @return void
+             */
             #[RequestSchema('App\Http\Requests\StoreUser')]
             public function store(): void {}
         };

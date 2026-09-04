@@ -281,7 +281,13 @@ final class OpenApiAssemblerTest extends TestCase
 
         $schemas = $this->assemble()['components']['schemas'];
 
-        self::assertSame('#/components/schemas/UserStatus', $schemas['User']['properties']['status']['$ref']);
+        self::assertSame([
+            '$ref'            => '#/components/schemas/UserStatus',
+            'x-query-surface' => [
+                'filter' => ['key' => 'status', 'capability' => 'enum', 'operators' => ['$eq', '$neq']],
+                'sort'   => ['key' => 'status', 'indexed' => true],
+            ],
+        ], $schemas['User']['properties']['status']);
         self::assertSame(['type' => 'string'], $schemas['UserStatus']);
     }
 

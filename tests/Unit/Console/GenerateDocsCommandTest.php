@@ -237,6 +237,27 @@ final class GenerateDocsCommandTest extends TestCase
     }
 
     /**
+     * Test that an application declaring no audiences at all still gets one
+     * surface reference, written under the default audience, so emptying the
+     * registry silences the manual rather than the reference.
+     *
+     * @return void
+     */
+    public function testAnEmptyAudienceRegistryStillWritesTheDefaultAudienceReference(): void
+    {
+        $this->getConfig()->set('api-toolkit.openapi.audiences', []);
+
+        $this->runCommand()->assertExitCode(0);
+
+        self::assertFileExists($this->surfacePath('public'));
+
+        $contents = (string) file_get_contents($this->surfacePath('public'));
+
+        self::assertStringContainsString("\n### User\n", $contents);
+        self::assertStringContainsString('| `email` | `email` | `exact` |', $contents);
+    }
+
+    /**
      * Register two audiences with a resource reachable from only one of them.
      *
      * @return void

@@ -20,8 +20,8 @@ use SineMacula\ApiToolkit\OpenApi\Attributes\ResponseSchema;
 final class ResponseSchemaTest extends TestCase
 {
     /**
-     * Test that a directive naming only its schema describes a single item,
-     * so a collection is never documented by omission.
+     * Test that a directive naming only its schema describes a single item, so
+     * a collection is never documented by omission.
      *
      * @return void
      */
@@ -52,6 +52,11 @@ final class ResponseSchemaTest extends TestCase
     public function testIsReadBackFromAMethodDeclaration(): void
     {
         $subject = new class {
+            /**
+             * Carry the directive under test on a method declaration.
+             *
+             * @return void
+             */
             #[ResponseSchema('App\Http\Resources\UserResource', true)]
             public function index(): void {}
         };

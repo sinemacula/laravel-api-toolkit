@@ -1057,12 +1057,25 @@ final class OpenApiExporterValidityTest extends TestCase
         self::assertSame(['type' => 'boolean'], $schemas['Post']['properties']['published']);
 
         // A declared timestamp field keeps its nullable date-time contract.
-        self::assertSame(['string', 'null'], $schemas['User']['properties']['created_at']['type']);
-        self::assertSame('date-time', $schemas['User']['properties']['created_at']['format']);
+        self::assertSame([
+            'type'            => ['string', 'null'],
+            'format'          => 'date-time',
+            'x-query-surface' => ['sort' => ['key' => 'created_at', 'indexed' => true]],
+        ], $schemas['User']['properties']['created_at']);
 
         // A backed-enum cast documents as a reference to its named component
         // even without a backing column, and that component is emitted.
-        self::assertSame('#/components/schemas/UserStatus', $schemas['User']['properties']['status']['$ref']);
+        self::assertSame([
+            '$ref'            => '#/components/schemas/UserStatus',
+            'x-query-surface' => [
+                'filter' => [
+                    'key'        => 'status',
+                    'capability' => 'enum',
+                    'operators'  => ['$eq', '$in', '$neq', '$null', '$notNull'],
+                ],
+                'sort' => ['key' => 'status', 'indexed' => true],
+            ],
+        ], $schemas['User']['properties']['status']);
         self::assertSame(['type' => 'string'], $schemas['UserStatus']);
 
         self::assertTrue(

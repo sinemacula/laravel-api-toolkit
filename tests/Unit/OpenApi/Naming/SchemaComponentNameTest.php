@@ -120,7 +120,6 @@ final class SchemaComponentNameTest extends TestCase
      */
     public function testAClassThatCannotBeLoadedCarriesNoOverride(): void
     {
-        self::assertSame('Missing', SchemaComponentName::fromResource('Tests\\Fixtures\\Resources\\MissingResource'));
+        self::assertSame('Missing', SchemaComponentName::fromResource('Tests\Fixtures\Resources\MissingResource'));
     }
-
 }

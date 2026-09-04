@@ -42,18 +42,6 @@ final class DispatchableOperatorsTest extends TestCase
     }
 
     /**
-     * Provide every case, so each is checked against an emptied registry.
-     *
-     * @return iterable<string, array{\SineMacula\ApiToolkit\Enums\Capability}>
-     */
-    public static function everyCaseProvider(): iterable
-    {
-        foreach (Capability::cases() as $capability) {
-            yield $capability->value => [$capability];
-        }
-    }
-
-    /**
      * Test that a registry holding every shipped token documents the whole of
      * the capability's declaration.
      *
@@ -95,12 +83,24 @@ final class DispatchableOperatorsTest extends TestCase
      */
     public function testTheSurvivingTokensAreReturnedAsAList(): void
     {
-        // The dropped token sits between two survivors, so the gap it leaves
-        // is in the middle rather than at the end.
+        // The dropped token sits between two survivors, so the gap it leaves is
+        // in the middle rather than at the end.
         $operators = DispatchableOperators::forCapability(Capability::EXACT, ['$eq', '$null', '$notNull']);
 
         self::assertSame([0, 1, 2], array_keys($operators));
         self::assertTrue(array_is_list($operators));
+    }
+
+    /**
+     * Provide every case, so each is checked against an emptied registry.
+     *
+     * @return iterable<string, array{\SineMacula\ApiToolkit\Enums\Capability}>
+     */
+    public static function everyCaseProvider(): iterable
+    {
+        foreach (Capability::cases() as $capability) {
+            yield $capability->value => [$capability];
+        }
     }
 
     /**
@@ -117,8 +117,8 @@ final class DispatchableOperatorsTest extends TestCase
     }
 
     /**
-     * Test that a token the vocabulary holds but the capability does not
-     * permit is not documented, so the narrowing never widens the surface.
+     * Test that a token the vocabulary holds but the capability does not permit
+     * is not documented, so the narrowing never widens the surface.
      *
      * @return void
      */

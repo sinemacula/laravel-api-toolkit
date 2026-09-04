@@ -137,9 +137,8 @@ final class FieldSchemaBuilderTest extends TestCase
      */
     public function testATokenNamingSomethingThatIsNotAnEnumContributesNoReference(): void
     {
-        $schema = (new FieldSchemaBuilder)->build(['enum-class:Tests\\Fixtures\\Models\\User'])['schema'];
+        $schema = (new FieldSchemaBuilder)->build(['enum-class:Tests\Fixtures\Models\User'])['schema'];
 
-        self::assertArrayNotHasKey('$ref', $schema);
+        self::assertSame([], $schema);
     }
-
 }

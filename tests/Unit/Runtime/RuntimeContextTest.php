@@ -159,23 +159,31 @@ final class RuntimeContextTest extends TestCase
 
     /**
      * Test that a process whose argument list is not readable is not taken for
-     * a queue worker, since the detector cannot see what it was invoked as.
+     * a queue worker, since the detector cannot see what it was invoked as, and
+     * that a readable list naming the command still is.
      *
      * @return void
      */
     public function testAnUnreadableArgumentListIsNotTakenForAQueueWorker(): void
     {
-        $argv = $_SERVER['argv'] ?? null;
-
-        $_SERVER['argv'] = 'queue:work';
+        $context = new RuntimeContext;
+        $argv    = $_SERVER['argv'] ?? null;
 
         try {
-            Config::set('queue.connections.sync.driver', 'sync');
+            $_SERVER['argv'] = 'queue:work';
+            self::assertFalse($context->isServingAsQueueWorker());
 
-            self::assertFalse((new RuntimeContext)->isServingAsQueueWorker('sync'));
+            unset($_SERVER['argv']);
+            self::assertFalse($context->isServingAsQueueWorker());
+
+            $_SERVER['argv'] = ['artisan', 'queue:work'];
+            self::assertTrue($context->isServingAsQueueWorker());
         } finally {
-            $_SERVER['argv'] = $argv;
+            if ($argv === null) {
+                unset($_SERVER['argv']);
+            } else {
+                $_SERVER['argv'] = $argv;
+            }
         }
     }
-
 }
