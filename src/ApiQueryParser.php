@@ -5,10 +5,10 @@ declare(strict_types = 1);
 namespace SineMacula\ApiToolkit;
 
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Config;
 use SineMacula\ApiToolkit\Concerns\QueryParameterExtractor;
 use SineMacula\ApiToolkit\Concerns\QueryParameterValidator;
 use SineMacula\ApiToolkit\Enums\TrashedState;
+use SineMacula\ApiToolkit\Search\SearchTerm;
 
 /**
  * API query parser.
@@ -108,6 +108,19 @@ class ApiQueryParser
     }
 
     /**
+     * Returns the parsed free-text search term set with the URL modifiers.
+     *  - e.g. ?search=John Smith.
+     *
+     * @return \SineMacula\ApiToolkit\Search\SearchTerm|null
+     */
+    public function getSearch(): ?SearchTerm
+    {
+        $search = $this->getParameters('search');
+
+        return $search instanceof SearchTerm ? $search : null;
+    }
+
+    /**
      * Returns the desired order set with the URL modifiers.
      *  - e.g. ?order=first_name,last_name:desc
      *  - e.g. ?order=random.
@@ -134,14 +147,7 @@ class ApiQueryParser
 
         $limit = is_numeric($limit) ? (int) $limit : 0;
 
-        if ($limit <= 0) {
-            return null;
-        }
-
-        $max = Config::get('api-toolkit.parser.max_limit');
-        $max = is_numeric($max) ? (int) $max : 0;
-
-        return $max > 0 ? min($limit, $max) : $limit;
+        return $limit > 0 ? $limit : null;
     }
 
     /**

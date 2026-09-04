@@ -590,6 +590,130 @@ is reported by schema validation. Such a declaration used to compile cleanly and
 with a database error naming a column that does not exist. Run `php artisan api-toolkit:validate-schemas`
 after upgrading and either drop the marker or move it to the backing column.
 
+### Changed: `?limit` above the ceiling is rejected rather than clamped
+
+A client-supplied `?limit` above `api-toolkit.parser.max_limit` (default 100) used to be reduced to the
+ceiling and the request answered anyway. It is now rejected with the same `422` the query-cost caps are
+enforced with, carrying the parameter, the ceiling, and the size asked for:
+
+    "meta": {
+      "parameter": "limit",
+      "pointer": "",
+      "reason": "max_limit",
+      "limit": 100,
+      "actual": 500
+    }
+
+The clamp was the last fail-quiet path in the query layer. A client that asked for 500 rows and was handed
+100 cannot tell that from a page that ran out, so it stops paging and drops the tail it never learned was
+there. `max_offset` already rejected a page beyond its cap for the same reason, and the two now behave the
+same way.
+
+The ceiling is otherwise unchanged: the same config key, the same `API_PARSER_MAX_LIMIT` variable, the same
+default, and setting it to `0` (or `null`) still disables it and leaves the page size unbounded.
+
+**Action required.** Audit clients that ask for a page larger than the ceiling - they now receive a `422`
+where they previously received a shortened page. Either raise the ceiling to the largest page you intend to
+serve, or have the client ask within it.
+
+### Removed: the `$like` operator, replaced by `?search=`
+
+The `$like` filter operator has been deleted from the shipped operator set, and
+`SineMacula\ApiToolkit\Repositories\Criteria\Operators\LikeOperator` no longer exists. A request using the
+token is now rejected as an unknown operator, and the token no longer appears in the exported OpenAPI
+document.
+
+`$like` was the only shipped operator that could not be served from an index. It compiled to
+`column LIKE '%term%'`, which reads every row of the table on every supported engine, and it could be
+applied to any filterable column and carried into a relation subquery, where the cost is paid once per
+candidate row. Free-text matching now has a parameter of its own that is declared per field and served by
+a driver that refuses a shape it cannot answer from an index:
+
+    GET /users?search=smith
+
+Declare which fields the term is matched against, and how, in the resource schema:
+
+    use SineMacula\ApiToolkit\Enums\SearchStrategy;
+    use SineMacula\ApiToolkit\Schema\Field;
+
+    public static function schema(): array
+    {
+        return Field::set(
+            Field::scalar('name')->searchable(SearchStrategy::SUBSTRING),
+            Field::scalar('email')->searchable(SearchStrategy::SUBSTRING),
+        );
+    }
+
+The search applies to the columns of the requested resource only and never traverses a relation. Terms are
+bounded by the new `api-toolkit.search` config block, and a term outside those bounds is rejected with a
+`422`. The shortest word accepted is three characters, and configuration may raise that floor but never
+lower it: below three, MySQL matches nothing once the word is shorter than the index token size and
+PostgreSQL answers correctly but by reading the whole table, and neither failure is visible in the
+response. The floor applies to each word, not to the term as a whole, because a word beneath it is dropped
+from a full-text phrase while a pattern comparison keeps it, and the two engines would then answer the same
+request with different rows.
+
+**One strategy per surface on MySQL.** A full-text match OR-ed with any other predicate loses the full-text
+access path and reads the whole table, so the MySQL driver refuses a surface declaring an anywhere-match
+beside another strategy rather than serving it as a scan. Declare every searchable column of a resource
+with the same strategy there, or keep the anywhere-match to its own resource. PostgreSQL has no such
+restriction: the planner combines the index scans behind a disjunction.
+
+**The indexes are yours to create.** A driver ships for MySQL, PostgreSQL, and SQLite, registered against
+the names those connections report, and each proves a declaration against the live schema rather than
+emitting a predicate that scans. MariaDB reports its own name and has no n-gram parser, so no driver is
+registered for it and a search there fails until you register one yourself. The migration creating the
+index belongs to your application:
+
+    -- MySQL: an anywhere-match, over exactly the columns declared for it
+    ALTER TABLE users ADD FULLTEXT INDEX users_search_ngram (name, email) WITH PARSER ngram;
+
+    -- PostgreSQL: a prefix match and an anywhere-match, per declared column
+    CREATE EXTENSION IF NOT EXISTS pg_trgm;
+    CREATE INDEX users_name_trgm ON users USING gin (name gin_trgm_ops);
+    CREATE INDEX users_email_trgm ON users USING gin (email gin_trgm_ops);
+
+MySQL resolves a match only against a full-text index whose column list is exactly the matched one, which
+is why the index covers the declared set rather than one column each. An exact match needs only an ordinary
+index leading with the column. SQLite carries neither index kind, so it is treated as a development
+connection: it serves every strategy, proves none of them, and is listed under
+`api-toolkit.search.unverified_connections` for exactly that reason. Listing a connection that serves
+traffic there reinstates the full-table scan the declaration exists to prevent.
+
+Run `php artisan api-toolkit:validate-schemas` in your build, which is the cheapest place to find a missing
+index. Because schema validation is disabled in production by default, the same proof is also taken on the
+first search each worker process serves and memoised from there, so a missing index refuses the request
+rather than reading the table behind it: on PostgreSQL a missing trigram index is not an error, and the
+search would otherwise return the right rows out of a sequential scan indefinitely.
+
+**Action required.** Replace client calls using `$like` with `?search=`, having declared the fields it may
+match. Where the old behaviour is genuinely wanted -- an unindexed partial match on an arbitrary filterable
+column -- register the operator yourself, in a service provider's `boot()`:
+
+    use Illuminate\Database\Eloquent\Builder;
+    use SineMacula\ApiToolkit\Contracts\FilterOperator;
+    use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext;
+    use SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry;
+
+    final class LikeOperator implements FilterOperator
+    {
+        public function apply(Builder $query, string $column, mixed $value, FilterContext $context): void
+        {
+            $term = is_scalar($value) || $value instanceof \Stringable ? (string) $value : '';
+
+            if ($context->isOr()) {
+                $query->orWhere($column, 'like', "%{$term}%");
+            } else {
+                $query->where($column, 'like', "%{$term}%");
+            }
+        }
+    }
+
+    app(OperatorRegistry::class)->register('$like', new LikeOperator);
+
+Registering it restores the full-table scan the removal exists to prevent, including inside relation
+subqueries. Prefer `?search=` unless you have measured the alternative.
+
 ### Removed: Request macros in favour of RequestCapabilities
 
 The request macros the toolkit used to register - `includeTrashed()` and `onlyTrashed()` - have

@@ -176,3 +176,4 @@ jobs:
                     DB_USERNAME: ${{ matrix.db_username }}
                     DB_PASSWORD: ${{ matrix.db_password }}
                 run: vendor/bin/phpunit --testsuite Integration,Feature
+

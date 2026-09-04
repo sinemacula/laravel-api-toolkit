@@ -81,7 +81,7 @@ final class NestedRelationFilterHttpTest extends TestCase
      */
     public function testRelationColumnFilterNarrowsTheEnvelope(): void
     {
-        $filters = json_encode(['posts' => ['title' => ['$like' => 'Alice']]]);
+        $filters = json_encode(['posts' => ['title' => ['$eq' => 'Alice Post']]]);
 
         $response = $this->getJson('/users?filters=' . urlencode((string) $filters));
 

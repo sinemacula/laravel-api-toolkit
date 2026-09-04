@@ -401,12 +401,14 @@ final class ApiServiceProviderTest extends TestCase
         self::assertTrue($registry->has('$lt'));
         self::assertTrue($registry->has('$ge'));
         self::assertTrue($registry->has('$le'));
-        self::assertTrue($registry->has('$like'));
         self::assertTrue($registry->has('$in'));
         self::assertTrue($registry->has('$between'));
         self::assertTrue($registry->has('$contains'));
         self::assertTrue($registry->has('$null'));
         self::assertTrue($registry->has('$notNull'));
+
+        // The unindexable partial-match operator ships unregistered
+        self::assertFalse($registry->has('$like'));
     }
 
     /**

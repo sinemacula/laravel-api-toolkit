@@ -6,6 +6,7 @@ namespace Tests\Unit\Http\Resources\Concerns;
 
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
+use SineMacula\ApiToolkit\Enums\SearchStrategy;
 use SineMacula\ApiToolkit\Exceptions\InvalidSchemaException;
 use SineMacula\ApiToolkit\Schema\CompiledAggregateDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledCountDefinition;
@@ -158,6 +159,90 @@ final class SchemaCompilerTest extends TestCase
         self::assertSame(['status', 'email'], $schema->getFilterableColumns());
         self::assertSame(['status', 'created_at'], $schema->getSortableColumns());
         self::assertSame(['posts', 'tags'], $schema->getTraversableRelations());
+    }
+
+    /**
+     * Test that compile aggregates the declared searchable columns with the
+     * match strategy each was declared with.
+     *
+     * @return void
+     */
+    public function testCompileAggregatesSearchableColumnsWithTheirStrategy(): void
+    {
+        $schema = SchemaCompiler::compile($this->createStubResourceClass([
+            'id'    => ['searchable' => 'id', 'strategy' => SearchStrategy::EXACT],
+            'name'  => ['searchable' => 'name', 'strategy' => SearchStrategy::SUBSTRING],
+            'email' => [],
+        ]));
+
+        self::assertSame(['id' => SearchStrategy::EXACT, 'name' => SearchStrategy::SUBSTRING], $schema->getSearchableColumns());
+
+        $name = $schema->getField('name');
+
+        self::assertInstanceOf(CompiledFieldDefinition::class, $name);
+        self::assertSame('name', $name->searchable);
+        self::assertSame(SearchStrategy::SUBSTRING, $name->searchStrategy);
+    }
+
+    /**
+     * Test that a searchable column declared without a strategy is left out of
+     * the search surface, so no match shape is guessed on the resource's
+     * behalf, while the declaration stays on the field for validation to
+     * report.
+     *
+     * @return void
+     */
+    public function testCompileDropsASearchableColumnDeclaredWithoutAStrategy(): void
+    {
+        $schema = SchemaCompiler::compile($this->createStubResourceClass([
+            'name' => ['searchable' => 'name'],
+        ]));
+
+        self::assertSame([], $schema->getSearchableColumns());
+
+        $name = $schema->getField('name');
+
+        self::assertInstanceOf(CompiledFieldDefinition::class, $name);
+        self::assertSame('name', $name->searchable);
+        self::assertNull($name->searchStrategy);
+    }
+
+    /**
+     * Test that a search marker that is present but malformed is ignored: only
+     * a string column paired with a real strategy contributes.
+     *
+     * @return void
+     */
+    public function testCompileIgnoresMalformedSearchMarkers(): void
+    {
+        $schema = SchemaCompiler::compile($this->createStubResourceClass([
+            'a' => ['searchable' => 123, 'strategy' => SearchStrategy::EXACT],
+            'b' => ['searchable' => 'b', 'strategy' => 'substring'],
+            'c' => ['strategy' => SearchStrategy::PREFIX],
+        ]));
+
+        self::assertSame([], $schema->getSearchableColumns());
+
+        $b = $schema->getField('b');
+
+        self::assertInstanceOf(CompiledFieldDefinition::class, $b);
+        self::assertNull($b->searchStrategy);
+    }
+
+    /**
+     * Test that a column declared searchable on two fields resolves to the last
+     * strategy declared for it, so one column carries one match shape.
+     *
+     * @return void
+     */
+    public function testCompileResolvesARepeatedSearchableColumnToOneStrategy(): void
+    {
+        $schema = SchemaCompiler::compile($this->createStubResourceClass([
+            'name'         => ['searchable' => 'name', 'strategy' => SearchStrategy::PREFIX],
+            'display_name' => ['searchable' => 'name', 'strategy' => SearchStrategy::SUBSTRING],
+        ]));
+
+        self::assertSame(['name' => SearchStrategy::SUBSTRING], $schema->getSearchableColumns());
     }
 
     /**

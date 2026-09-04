@@ -92,7 +92,7 @@ final class QuerySurfaceIntegrationTest extends TestCase
      */
     public function testDeclaredFilterableColumnIsApplied(): void
     {
-        $this->parseQuery(['filters' => json_encode(['email' => ['$like' => 'bob@']])]);
+        $this->parseQuery(['filters' => json_encode(['email' => ['$eq' => 'bob@example.com']])]);
 
         $results = $this->declaredCriteria()->apply(new User)->get();
 
@@ -205,7 +205,7 @@ final class QuerySurfaceIntegrationTest extends TestCase
     {
         $this->parseQuery(['filters' => json_encode([
             'posts' => [
-                'title' => ['$like' => 'Alice'],
+                'title' => ['$eq' => 'Alice Post'],
             ],
         ])]);
 

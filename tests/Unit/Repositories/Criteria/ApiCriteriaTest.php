@@ -25,12 +25,15 @@ use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\LimitApplier;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\OrderApplier;
 use SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry;
 use SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface;
+use SineMacula\ApiToolkit\Search\SearchDriverRegistry;
 use SineMacula\Http\Enums\HttpMethod;
 use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Resources\FilterableUserResource;
 use Tests\Fixtures\Resources\PostResource;
+use Tests\Fixtures\Resources\SearchableFilterableUserResource;
 use Tests\Fixtures\Resources\UserResource;
+use Tests\Fixtures\Search\PatternSearchDriver;
 use Tests\TestCase;
 
 /**
@@ -55,7 +58,7 @@ final class ApiCriteriaTest extends TestCase
     private const string STUB_USER_FIELDS = 'id,name';
 
     /** @var string */
-    private const string OPERATOR_LIKE = '$like';
+    private const string OPERATOR_EQUAL = '$eq';
 
     /** @var string */
     private const string OPERATOR_CONTAINS = '$contains';
@@ -195,25 +198,47 @@ final class ApiCriteriaTest extends TestCase
     }
 
     /**
-     * Test that apply with $like operator wraps value with percent signs.
+     * Test that a search term is applied as its own group ahead of the filter
+     * group, so both narrow the query rather than one replacing the other.
      *
      * @return void
      *
      * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
-    public function testApplyWithLikeOperatorWrapsValueWithPercent(): void
+    public function testApplyAppliesTheSearchTermAlongsideTheFilters(): void
     {
         $this->parseRequest(new Request([
-            'filters' => json_encode(['name' => [self::OPERATOR_LIKE => 'Ali']]),
+            'search'  => 'smith',
+            'filters' => json_encode(['status' => [self::OPERATOR_EQUAL => 'active']]),
         ]));
 
-        $model = new User;
-        $query = $this->criteria->apply($model);
+        $query = $this->searchableCriteria()->apply(new User);
 
-        $wheres = $this->filterGroupWheres($query);
+        $wheres = $query->getQuery()->wheres;
 
-        self::assertNotEmpty($wheres);
-        self::assertSame('%Ali%', $wheres[0]['value']);
+        self::assertCount(2, $wheres);
+        self::assertSame('Nested', $wheres[0]['type']);
+        self::assertSame('Nested', $wheres[1]['type']);
+        self::assertSame(['%smith%', '%smith%', 'active'], $query->getQuery()->getBindings());
+    }
+
+    /**
+     * Test that a request carrying no search term adds no search group.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testApplyWithoutASearchTermAddsNoSearchGroup(): void
+    {
+        $this->parseRequest(new Request([
+            'filters' => json_encode(['status' => [self::OPERATOR_EQUAL => 'active']]),
+        ]));
+
+        $query = $this->searchableCriteria()->apply(new User);
+
+        self::assertCount(1, $query->getQuery()->wheres);
+        self::assertSame(['active'], $query->getQuery()->getBindings());
     }
 
     /**
@@ -444,7 +469,7 @@ final class ApiCriteriaTest extends TestCase
         $this->parseRequest(new Request([
             'filters' => json_encode([
                 'posts' => [
-                    'title' => [self::OPERATOR_LIKE => 'test'],
+                    'title' => [self::OPERATOR_EQUAL => 'test'],
                 ],
             ]),
         ]));
@@ -703,7 +728,7 @@ final class ApiCriteriaTest extends TestCase
             'filters' => json_encode([
                 'posts' => [
                     '$or' => [
-                        'title' => [self::OPERATOR_LIKE => 'test'],
+                        'title' => [self::OPERATOR_EQUAL => 'test'],
                     ],
                 ],
             ]),
@@ -728,7 +753,7 @@ final class ApiCriteriaTest extends TestCase
         $this->parseRequest(new Request([
             'filters' => json_encode([
                 '$has' => [
-                    'posts' => ['title' => [self::OPERATOR_LIKE => 'test']],
+                    'posts' => ['title' => [self::OPERATOR_EQUAL => 'test']],
                 ],
             ]),
         ]));
@@ -755,7 +780,7 @@ final class ApiCriteriaTest extends TestCase
         $this->parseRequest(new Request([
             'filters' => json_encode([
                 '$hasnt' => [
-                    'posts' => ['title' => [self::OPERATOR_LIKE => 'test']],
+                    'posts' => ['title' => [self::OPERATOR_EQUAL => 'test']],
                 ],
             ]),
         ]));
@@ -1138,6 +1163,7 @@ final class ApiCriteriaTest extends TestCase
             $metadataProvider,
             self::createStub(SchemaIntrospectionProvider::class),
             new OperatorRegistry,
+            new SearchDriverRegistry,
             $this->app->make(MetadataCacheWriter::class),
         );
 
@@ -1210,6 +1236,28 @@ final class ApiCriteriaTest extends TestCase
         self::assertSame('Nested', $wheres[0]['type']);
 
         return $wheres[0]['query']->wheres;
+    }
+
+    /**
+     * Build a criteria bound to a resource declaring a search surface, with a
+     * driver registered for the connection under test.
+     *
+     * @return \SineMacula\ApiToolkit\Repositories\Criteria\ApiCriteria
+     */
+    private function searchableCriteria(): ApiCriteria
+    {
+        assert($this->app !== null);
+
+        $connection = (new User)->getConnection()->getDriverName();
+
+        $this->app->make(SearchDriverRegistry::class)->override($connection, new PatternSearchDriver);
+
+        Config::set('api-toolkit.search.unverified_connections', [$connection]);
+
+        /** @var \SineMacula\ApiToolkit\Repositories\Criteria\ApiCriteria $criteria */
+        $criteria = $this->app->make(ApiCriteria::class);
+
+        return $criteria->usingResource(SearchableFilterableUserResource::class);
     }
 
     /**

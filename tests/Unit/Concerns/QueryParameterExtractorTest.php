@@ -9,6 +9,7 @@ use Illuminate\Validation\ValidationException;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use SineMacula\ApiToolkit\Concerns\QueryParameterExtractor;
+use SineMacula\ApiToolkit\Search\SearchTerm;
 use SineMacula\Http\Enums\HttpMethod;
 use Tests\TestCase;
 
@@ -442,6 +443,55 @@ final class QueryParameterExtractorTest extends TestCase
 
         self::assertSame(['name' => 'asc'], $parameters['order']);
         self::assertArrayNotHasKey('', $parameters['order']);
+    }
+
+    /**
+     * Test that a search term is normalised into a parsed term rather than left
+     * as the raw string the client sent.
+     *
+     * @return void
+     */
+    public function testExtractParsesTheSearchTerm(): void
+    {
+        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['search' => '  john   smith  ']);
+
+        $parameters = $this->extractor->extract($request);
+
+        self::assertInstanceOf(SearchTerm::class, $parameters['search']);
+        self::assertSame('john smith', $parameters['search']->value());
+    }
+
+    /**
+     * Test that a search term outside its bounds is rejected while it is
+     * parsed, rather than being trimmed into a term the client never sent.
+     *
+     * @return void
+     */
+    public function testExtractRejectsASearchTermBelowTheMinimumLength(): void
+    {
+        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['search' => 'sm']);
+
+        try {
+            $this->extractor->extract($request);
+            self::fail('Expected a ValidationException for the search parameter.');
+        } catch (ValidationException $exception) {
+            self::assertSame(['search' => ['Every word in the search term must be at least 3 characters.']], $exception->errors());
+        }
+    }
+
+    /**
+     * Test that a search parameter of the wrong shape is rejected rather than
+     * coerced into a term.
+     *
+     * @return void
+     */
+    public function testExtractRejectsANonStringSearchParameter(): void
+    {
+        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['search' => ['smith']]);
+
+        $this->expectException(ValidationException::class);
+
+        $this->extractor->extract($request);
     }
 
     /**

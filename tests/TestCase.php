@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Filesystem\Filesystem;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Orchestra\Testbench\TestCase as OrchestraTestCase;
 use SineMacula\ApiToolkit\ApiServiceProvider;
@@ -15,6 +16,8 @@ use SineMacula\ApiToolkit\Http\Resources\Concerns\EagerLoadPlanner;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\FieldResolver;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\ValueResolver;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
+use SineMacula\ApiToolkit\Search\IndexProof;
+use SineMacula\ApiToolkit\Search\SearchPlan;
 use Tests\Fixtures\Support\FunctionOverrides;
 
 /**
@@ -54,6 +57,8 @@ abstract class TestCase extends OrchestraTestCase
         ValueResolver::clearCache();
         EagerLoadPlanner::clearCache();
         SchemaCompiler::clearCache();
+        SearchPlan::clearCache();
+        IndexProof::clearCache();
 
         Relation::morphMap([], false);
         Relation::requireMorphMap(false);
@@ -127,6 +132,7 @@ abstract class TestCase extends OrchestraTestCase
         $this->createLogsTable();
         $this->createArticlesTable();
         $this->createCommentsTable();
+        $this->createSearchIndexes();
     }
 
     /**
@@ -186,6 +192,9 @@ abstract class TestCase extends OrchestraTestCase
             $table->string('password')->nullable();
             $table->string('status')->default('active');
             $table->timestamps();
+
+            $table->index('organization_id');
+            $table->index(['status', 'name']);
         });
     }
 
@@ -220,6 +229,9 @@ abstract class TestCase extends OrchestraTestCase
             $table->text('body');
             $table->boolean('published')->default(false);
             $table->timestamps();
+
+            $table->index('user_id');
+            $table->index(['user_id', 'published']);
         });
     }
 
@@ -313,6 +325,8 @@ abstract class TestCase extends OrchestraTestCase
             $table->text('message');
             $table->json('context')->nullable();
             $table->timestamp('created_at', 6)->nullable();
+
+            $table->index(['level', 'created_at']);
         });
     }
 
@@ -338,6 +352,9 @@ abstract class TestCase extends OrchestraTestCase
             $table->unsignedInteger('views')->default(0);
             $table->timestamps();
             $table->softDeletes();
+
+            $table->index('user_id');
+            $table->index(['status', 'views']);
         });
     }
 
@@ -359,6 +376,41 @@ abstract class TestCase extends OrchestraTestCase
             $table->string('body');
             $table->timestamps();
             $table->softDeletes();
+
+            $table->index('user_id');
         });
+    }
+
+    /**
+     * Create the indexes the shipped search drivers prove a declaration
+     * against.
+     *
+     * The declared columns live on the users table, and the index each match
+     * strategy needs is written in a dialect only its own engine speaks, so the
+     * statements are issued per driver. MySQL matches the anywhere-match
+     * columns together and so takes one index over both; PostgreSQL matches
+     * each on its own and so takes one each. SQLite carries neither index kind
+     * and is left alone, which is why it is a development connection here.
+     *
+     * @return void
+     */
+    private function createSearchIndexes(): void
+    {
+        $driver = Schema::getConnection()->getDriverName();
+
+        if ($driver === 'mysql') {
+
+            DB::statement('alter table `users` add fulltext index `users_search_ngram` (`name`, `email`) with parser ngram');
+
+            return;
+        }
+
+        if ($driver !== 'pgsql') {
+            return;
+        }
+
+        DB::statement('create extension if not exists pg_trgm');
+        DB::statement('create index users_name_trgm on users using gin (name gin_trgm_ops)');
+        DB::statement('create index users_email_trgm on users using gin (email gin_trgm_ops)');
     }
 }

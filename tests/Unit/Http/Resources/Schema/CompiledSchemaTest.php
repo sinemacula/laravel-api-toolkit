@@ -6,6 +6,7 @@ namespace Tests\Unit\Http\Resources\Schema;
 
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
+use SineMacula\ApiToolkit\Enums\SearchStrategy;
 use SineMacula\ApiToolkit\Schema\CompiledAggregateDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledCountDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
@@ -328,6 +329,31 @@ final class CompiledSchemaTest extends TestCase
         $schema = new CompiledSchema([], [], [], [], [], ['posts', 'organization']);
 
         self::assertSame(['posts', 'organization'], $schema->getTraversableRelations());
+    }
+
+    /**
+     * Test that getSearchableColumns returns the declared columns mapped to
+     * their match strategy.
+     *
+     * @return void
+     */
+    public function testGetSearchableColumnsReturnsDeclaredColumns(): void
+    {
+        $schema = new CompiledSchema([], [], [], [], [], [], ['name' => SearchStrategy::SUBSTRING]);
+
+        self::assertSame(['name' => SearchStrategy::SUBSTRING], $schema->getSearchableColumns());
+    }
+
+    /**
+     * Test that getSearchableColumns defaults to an empty array.
+     *
+     * @return void
+     */
+    public function testGetSearchableColumnsDefaultsToEmpty(): void
+    {
+        $schema = new CompiledSchema([], []);
+
+        self::assertSame([], $schema->getSearchableColumns());
     }
 
     /**

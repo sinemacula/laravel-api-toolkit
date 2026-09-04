@@ -12,9 +12,9 @@ use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
  * Emits the toolkit's query-parameter grammar as reusable components: sparse
  * fieldsets, the generic filter grammar (documenting the full operator
  * vocabulary at the pattern level, leaving the accepted fields to each
- * resource's own declarations), ordering, the pagination set (limit, page,
- * cursor, and the pagination-mode switch), and relation counts. Resource
- * components and the assembled document reference these by name; the
+ * resource's own declarations), free-text search, ordering, the pagination set
+ * (limit, page, cursor, and the pagination-mode switch), and relation counts.
+ * Resource components and the assembled document reference these by name; the
  * definitions are never duplicated per resource.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
@@ -43,6 +43,7 @@ final readonly class QueryParameterBuilder
         return [
             'Fields'     => $this->buildFieldsParameter(),
             'Filter'     => $this->buildFilterParameter(),
+            'Search'     => $this->buildSearchParameter(),
             'Order'      => $this->buildOrderParameter(),
             'Limit'      => $this->buildLimitParameter(),
             'Page'       => $this->buildPageParameter(),
@@ -96,6 +97,21 @@ final readonly class QueryParameterBuilder
                 'x-operators'          => $operators,
             ],
             'deepObject',
+        );
+    }
+
+    /**
+     * Build the free-text search parameter.
+     *
+     * @return array<string, mixed>
+     */
+    private function buildSearchParameter(): array
+    {
+        return $this->parameter(
+            'search',
+            'Free-text search across the fields a resource declares searchable, e.g. search=John Smith. '
+            . 'It matches the requested resource only and never traverses a relation; a term shorter than the configured minimum is rejected.',
+            ['type' => 'string'],
         );
     }
 

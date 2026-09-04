@@ -110,27 +110,6 @@ final class ApiCriteriaIntegrationTest extends TestCase
     }
 
     /**
-     * Test filtering with $like operator.
-     *
-     * @return void
-     *
-     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
-     */
-    public function testFilteringWithLikeOperator(): void
-    {
-        $this->parseQuery(['filters' => json_encode(['name' => ['$like' => 'Ali']])]);
-
-        $results = $this->makeCriteria()->apply(new User)->get();
-
-        self::assertCount(1, $results);
-
-        /** @var \Tests\Fixtures\Models\User $first */
-        $first = $results->first();
-
-        self::assertSame('Alice', $first->name);
-    }
-
-    /**
      * Test filtering with $in operator.
      *
      * @return void

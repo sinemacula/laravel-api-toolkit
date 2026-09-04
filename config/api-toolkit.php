@@ -282,9 +282,11 @@ return [
 
         'register_middleware' => env('API_PARSER_REGISTER_MIDDLEWARE', true),
 
-        // Hard ceiling for a client-supplied `limit`. Requests above it are
-        // clamped (not rejected) to prevent unbounded page sizes exhausting
-        // memory. Set to 0 (or null) to disable the ceiling.
+        // Hard ceiling for a client-supplied `limit`, preventing an unbounded
+        // page size from exhausting memory. A request above it is rejected with
+        // a 422 rather than reduced to the ceiling, so a page smaller than the
+        // one asked for cannot be read as the end of the result set. Set to 0
+        // (or null) to disable the ceiling.
         'max_limit' => env('API_PARSER_MAX_LIMIT', 100),
 
         'defaults' => [
@@ -356,8 +358,8 @@ return [
     | `max_order_keys` bounds the sort columns, and `max_aggregates` the
     | relation counts, sums, and averages combined, since each adds its own
     | correlated subquery. `max_offset` bounds the requested page number, beyond
-    | which a paginated read scans and discards more rows than it returns; it
-    | rejects rather than clamps, unlike the parser's `max_limit` ceiling.
+    | which a paginated read scans and discards more rows than it returns. It
+    | rejects rather than clamps, as the parser's `max_limit` ceiling does.
     |
     */
 
@@ -378,6 +380,75 @@ return [
         'max_aggregates' => env('API_TOOLKIT_QUERY_MAX_AGGREGATES', 5),
 
         'max_offset' => env('API_TOOLKIT_QUERY_MAX_OFFSET', 10000),
+
+    ],
+
+    /*
+    |---------------------------------------------------------------------------
+    | Free-Text Search Configuration
+    |---------------------------------------------------------------------------
+    |
+    | These settings bound the `search` parameter and decide which connections
+    | may serve it. A search matches only the columns the root resource declares
+    | searchable, and never follows a relation.
+    |
+    | `min_word_length` is the shortest word a term may carry. The shipped value
+    | of 3 is measured rather than chosen: a shorter word is answered
+    | incorrectly by one supported engine and read out of a full table scan by
+    | another, and neither is visible to the client. It is applied per word
+    | rather than to the whole term because that is the unit an index answers -
+    | a full-text parser drops a word below its token size from the phrase and
+    | matches more rows than a pattern comparison would. It may be raised but
+    | not lowered; a smaller value is held at 3.
+    |
+    | `max_length` and `max_words` bound the other end, capping the work a
+    | single term may ask an index for. All three are refusals: a term outside
+    | them is rejected with a 422 naming the bound it missed, never quietly
+    | trimmed to fit.
+    |
+    | `unverified_connections` lists the database connections on which a search
+    | driver that cannot prove an index backs a declared match strategy may
+    | serve it anyway. The shipped list covers SQLite, which has neither the
+    | trigram nor the n-gram index the substring strategy needs and is therefore
+    | a development connection here. Listing a connection that serves traffic
+    | reinstates the silent full-table scan this layer exists to remove; leaving
+    | one off means an unprovable declaration fails loudly instead.
+    |
+    | A driver ships for MySQL, PostgreSQL, and SQLite, registered against the
+    | names those connections report. MariaDB reports its own name and has no
+    | n-gram parser, so it is not one of them. Any other connection is
+    | unregistered and refuses a search until a driver is registered for it
+    | against the SearchDriverRegistry, rather than being served by a grammar it
+    | does not speak.
+    |
+    | The indexes the shipped drivers prove a declaration against belong to the
+    | application's own migrations, and both validation and the first search of
+    | a worker process report a declaration with none behind it. On MySQL the
+    | columns declared for an anywhere-match are matched together and need one
+    | FULLTEXT index over exactly that column list, created WITH PARSER ngram,
+    | and an anywhere-match may not be declared beside another strategy, since
+    | a full-text match OR-ed with another predicate reads the whole table. On
+    | PostgreSQL a prefix match and an anywhere-match both need a trigram index
+    | over the column, which needs the pg_trgm extension installed first. An
+    | equality match needs an ordinary index leading with the column on either
+    | engine.
+    |
+    | Schema validation is disabled in production by default, so the index proof
+    | is repeated on the first search each worker process serves and memoised
+    | from there. Running `api-toolkit:validate-schemas` in the build turns the
+    | same defect into a failed build rather than a failed request.
+    |
+    */
+
+    'search' => [
+
+        'min_word_length' => env('API_TOOLKIT_SEARCH_MIN_WORD_LENGTH', 3),
+
+        'max_length' => env('API_TOOLKIT_SEARCH_MAX_LENGTH', 128),
+
+        'max_words' => env('API_TOOLKIT_SEARCH_MAX_WORDS', 10),
+
+        'unverified_connections' => ['sqlite'],
 
     ],
 

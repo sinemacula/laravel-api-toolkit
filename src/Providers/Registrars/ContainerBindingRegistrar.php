@@ -34,7 +34,6 @@ use SineMacula\ApiToolkit\Repositories\Criteria\Operators\GreaterThanOrEqualOper
 use SineMacula\ApiToolkit\Repositories\Criteria\Operators\InOperator;
 use SineMacula\ApiToolkit\Repositories\Criteria\Operators\LessThanOperator;
 use SineMacula\ApiToolkit\Repositories\Criteria\Operators\LessThanOrEqualOperator;
-use SineMacula\ApiToolkit\Repositories\Criteria\Operators\LikeOperator;
 use SineMacula\ApiToolkit\Repositories\Criteria\Operators\NotEqualOperator;
 use SineMacula\ApiToolkit\Repositories\Criteria\Operators\NotNullOperator;
 use SineMacula\ApiToolkit\Repositories\Criteria\Operators\NullOperator;
@@ -47,9 +46,15 @@ use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateQueryableFields;
 use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateRelationClasses;
 use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateRelationInterfaces;
 use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateRelationMethods;
+use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateSearchableFields;
+use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateSearchIndexes;
 use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateSensitiveColumns;
 use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateTransformers;
 use SineMacula\ApiToolkit\Schema\Validation\SchemaValidator;
+use SineMacula\ApiToolkit\Search\Drivers\MySqlNgramSearchDriver;
+use SineMacula\ApiToolkit\Search\Drivers\PostgresTrigramSearchDriver;
+use SineMacula\ApiToolkit\Search\Drivers\SqliteSearchDriver;
+use SineMacula\ApiToolkit\Search\SearchDriverRegistry;
 use SineMacula\ApiToolkit\Services\Input\Payload;
 use SineMacula\ApiToolkit\Services\ServiceRunner;
 
@@ -57,8 +62,9 @@ use SineMacula\ApiToolkit\Services\ServiceRunner;
  * Registers the toolkit container bindings.
  *
  * Binds the query parser, resource metadata provider, schema introspector,
- * operator registry, schema validator, write pool, cache manager, lifecycle
- * runtime, OpenAPI exporter, and service runner to the service container.
+ * operator registry, search driver registry, schema validator, write pool,
+ * cache manager, lifecycle runtime, OpenAPI exporter, and service runner to the
+ * service container.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -88,6 +94,7 @@ final readonly class ContainerBindingRegistrar
         $this->registerResourceMetadataProvider();
         $this->registerSchemaIntrospector();
         $this->registerOperatorRegistry();
+        $this->registerSearchDriverRegistry();
         $this->registerSchemaValidator();
         $this->registerWritePool();
         $this->registerCacheManager();
@@ -150,12 +157,35 @@ final readonly class ContainerBindingRegistrar
             $registry->register('$lt', new LessThanOperator);
             $registry->register('$ge', new GreaterThanOrEqualOperator);
             $registry->register('$le', new LessThanOrEqualOperator);
-            $registry->register('$like', new LikeOperator);
             $registry->register('$in', new InOperator);
             $registry->register('$between', new BetweenOperator);
             $registry->register('$contains', new ContainsOperator);
             $registry->register('$null', new NullOperator);
             $registry->register('$notNull', new NotNullOperator);
+
+            return $registry;
+        });
+    }
+
+    /**
+     * Bind the SearchDriverRegistry to the service container.
+     *
+     * A driver ships for each engine the package writes a search for, keyed by
+     * the name that engine's connection reports. Any other connection is left
+     * unregistered and throws when a search reaches it, rather than being
+     * served by a driver written for a grammar it does not speak.
+     *
+     * @return void
+     */
+    private function registerSearchDriverRegistry(): void
+    {
+        $this->container->singleton(SearchDriverRegistry::class, function (): SearchDriverRegistry {
+
+            $registry = new SearchDriverRegistry;
+
+            $registry->register('mysql', new MySqlNgramSearchDriver);
+            $registry->register('pgsql', new PostgresTrigramSearchDriver);
+            $registry->register('sqlite', new SqliteSearchDriver);
 
             return $registry;
         });
@@ -168,7 +198,7 @@ final readonly class ContainerBindingRegistrar
      */
     private function registerSchemaValidator(): void
     {
-        $this->container->singleton(SchemaValidator::class, fn (): SchemaValidator => new SchemaValidator(
+        $this->container->singleton(SchemaValidator::class, fn (Container $app): SchemaValidator => new SchemaValidator(
             new ValidateGuards,
             new ValidateTransformers,
             new ValidateRelationClasses,
@@ -177,6 +207,8 @@ final readonly class ContainerBindingRegistrar
             new ValidateComputedFields,
             new ValidateAccessors,
             new ValidateQueryableFields,
+            new ValidateSearchableFields,
+            new ValidateSearchIndexes($app->make(SearchDriverRegistry::class)),
             new ValidateSensitiveColumns,
         ));
     }

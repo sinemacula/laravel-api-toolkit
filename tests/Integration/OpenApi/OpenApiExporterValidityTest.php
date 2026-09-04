@@ -245,7 +245,7 @@ final class OpenApiExporterValidityTest extends TestCase
         $operators = $document['components']['parameters']['Filter']['schema']['x-operators'];
 
         $expected = [
-            '$eq', '$neq', '$gt', '$lt', '$ge', '$le', '$like', '$in',
+            '$eq', '$neq', '$gt', '$lt', '$ge', '$le', '$in',
             '$between', '$contains', '$null', '$notNull',
             '$and', '$or', '$has', '$hasnt',
         ];
@@ -253,6 +253,8 @@ final class OpenApiExporterValidityTest extends TestCase
         foreach ($expected as $operator) {
             self::assertContains($operator, $operators);
         }
+
+        self::assertNotContains('$like', $operators);
     }
 
     /**

@@ -23,6 +23,7 @@ final readonly class CompiledSchema
      * @param  array<int, string>  $filterableColumns
      * @param  array<int, string>  $sortableColumns
      * @param  array<int, string>  $traversableRelations
+     * @param  array<string, \SineMacula\ApiToolkit\Enums\SearchStrategy>  $searchableColumns
      */
     public function __construct(
 
@@ -43,6 +44,9 @@ final readonly class CompiledSchema
 
         /** Declared externally-traversable relation names */
         private array $traversableRelations = [],
+
+        /** Declared searchable column names mapped to their match strategy */
+        private array $searchableColumns = [],
     ) {}
 
     /**
@@ -131,5 +135,15 @@ final readonly class CompiledSchema
     public function getTraversableRelations(): array
     {
         return $this->traversableRelations;
+    }
+
+    /**
+     * Return the declared searchable columns mapped to their match strategy.
+     *
+     * @return array<string, \SineMacula\ApiToolkit\Enums\SearchStrategy>
+     */
+    public function getSearchableColumns(): array
+    {
+        return $this->searchableColumns;
     }
 }

@@ -8,6 +8,7 @@ use Illuminate\Support\Carbon;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
+use SineMacula\ApiToolkit\Enums\SearchStrategy;
 use SineMacula\ApiToolkit\Exceptions\DuplicateSchemaKeyException;
 use SineMacula\ApiToolkit\Schema\Field;
 use SineMacula\ApiToolkit\Schema\OpenApiFieldSchema;
@@ -90,6 +91,49 @@ final class FieldTest extends TestCase
 
         self::assertArrayNotHasKey('filterable', $array['email']);
         self::assertArrayNotHasKey('sortable', $array['email']);
+        self::assertArrayNotHasKey('searchable', $array['email']);
+        self::assertArrayNotHasKey('strategy', $array['email']);
+    }
+
+    /**
+     * Test that searchable() emits the field's column name alongside the match
+     * strategy it was declared with.
+     *
+     * @return void
+     */
+    public function testSearchableMarkerEmitsTheColumnNameAndStrategy(): void
+    {
+        $array = Field::scalar('name')->searchable(SearchStrategy::SUBSTRING)->toArray();
+
+        self::assertSame('name', $array['name']['searchable']);
+        self::assertSame(SearchStrategy::SUBSTRING, $array['name']['strategy']);
+    }
+
+    /**
+     * Test that the searchable marker declares the underlying column, not the
+     * presentation alias.
+     *
+     * @return void
+     */
+    public function testSearchableMarkerDeclaresColumnNotAlias(): void
+    {
+        $array = Field::scalar('email_address', 'email')->searchable(SearchStrategy::PREFIX)->toArray();
+
+        self::assertSame('email_address', $array['email']['searchable']);
+        self::assertSame(SearchStrategy::PREFIX, $array['email']['strategy']);
+    }
+
+    /**
+     * Test that the last strategy declared on a field wins, so re-declaring a
+     * field does not leave two match shapes on one column.
+     *
+     * @return void
+     */
+    public function testSearchableMarkerKeepsTheLastDeclaredStrategy(): void
+    {
+        $array = Field::scalar('name')->searchable(SearchStrategy::PREFIX)->searchable(SearchStrategy::EXACT)->toArray();
+
+        self::assertSame(SearchStrategy::EXACT, $array['name']['strategy']);
     }
 
     /**

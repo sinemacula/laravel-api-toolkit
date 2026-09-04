@@ -20,10 +20,10 @@ use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
 #[CoversClass(QueryParameterBuilder::class)]
 final class QueryParameterBuilderTest extends TestCase
 {
-    /** @var array<int, string> The twelve registered operator tokens */
+    /** @var array<int, string> The eleven registered operator tokens */
     private const array OPERATOR_TOKENS = [
         '$eq', '$neq', '$gt', '$lt', '$ge', '$le',
-        '$like', '$in', '$between', '$contains', '$null', '$notNull',
+        '$in', '$between', '$contains', '$null', '$notNull',
     ];
 
     /** @var array<int, string> The four structural operators */
@@ -39,11 +39,11 @@ final class QueryParameterBuilderTest extends TestCase
     {
         $parameters = $this->makeBuilder()->build();
 
-        foreach (['Fields', 'Filter', 'Order', 'Limit', 'Page', 'Cursor', 'Pagination', 'Counts', 'Sums', 'Averages'] as $name) {
+        foreach (['Fields', 'Filter', 'Search', 'Order', 'Limit', 'Page', 'Cursor', 'Pagination', 'Counts', 'Sums', 'Averages'] as $name) {
             self::assertArrayHasKey($name, $parameters);
         }
 
-        self::assertCount(10, $parameters);
+        self::assertCount(11, $parameters);
     }
 
     /**
@@ -59,6 +59,7 @@ final class QueryParameterBuilderTest extends TestCase
         self::assertSame('query', $parameters['Fields']['in']);
         self::assertSame('fields', $parameters['Fields']['name']);
         self::assertSame('filter', $parameters['Filter']['name']);
+        self::assertSame('search', $parameters['Search']['name']);
         self::assertSame('order', $parameters['Order']['name']);
         self::assertSame('limit', $parameters['Limit']['name']);
         self::assertSame('page', $parameters['Page']['name']);
@@ -98,16 +99,16 @@ final class QueryParameterBuilderTest extends TestCase
     }
 
     /**
-     * Test that the filter parameter enumerates exactly the 12 registered plus
-     * 4 structural operators -- the full 12+4 vocabulary.
+     * Test that the filter parameter enumerates exactly the 11 registered plus
+     * 4 structural operators -- the full 11+4 vocabulary.
      *
      * @return void
      */
-    public function testFilterParameterEnumeratesTheFullTwelvePlusFourVocabulary(): void
+    public function testFilterParameterEnumeratesTheFullElevenPlusFourVocabulary(): void
     {
         $operators = $this->makeBuilder()->build()['Filter']['schema']['x-operators'];
 
-        self::assertCount(16, $operators);
+        self::assertCount(15, $operators);
     }
 
     /**
@@ -245,6 +246,7 @@ final class QueryParameterBuilderTest extends TestCase
         $parameters = $this->makeBuilder()->build();
 
         self::assertStringContainsString('fields[users]=id,name', $parameters['Fields']['description']);
+        self::assertStringContainsString('search=John Smith', $parameters['Search']['description']);
         self::assertStringContainsString('order=name,created_at:desc', $parameters['Order']['description']);
         self::assertStringContainsString('counts[users]=posts', $parameters['Counts']['description']);
         self::assertStringContainsString('sums[users][posts]=id', $parameters['Sums']['description']);
@@ -291,6 +293,23 @@ final class QueryParameterBuilderTest extends TestCase
     }
 
     /**
+     * Test that the search parameter is a plain string schema whose description
+     * states the two limits a consumer cannot infer: that it reaches the
+     * requested resource only, and that a term has a floor.
+     *
+     * @return void
+     */
+    public function testSearchParameterIsAStringSchemaStatingItsLimits(): void
+    {
+        $search = $this->makeBuilder()->build()['Search'];
+
+        self::assertSame(['type' => 'string'], $search['schema']);
+        self::assertStringStartsWith('Free-text search across the fields a resource declares searchable', $search['description']);
+        self::assertStringContainsString('never traverses a relation', $search['description']);
+        self::assertStringContainsString('shorter than the configured minimum is rejected', $search['description']);
+    }
+
+    /**
      * Test that the relation-aggregate parameters describe their nested
      * string-keyed object maps.
      *
@@ -315,7 +334,7 @@ final class QueryParameterBuilderTest extends TestCase
     }
 
     /**
-     * Build a QueryParameterBuilder backed by a stub returning the default 12+4
+     * Build a QueryParameterBuilder backed by a stub returning the default 11+4
      * operator vocabulary.
      *
      * @return \SineMacula\ApiToolkit\OpenApi\Builder\QueryParameterBuilder

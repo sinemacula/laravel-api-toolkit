@@ -121,6 +121,29 @@ final class ValidateSensitiveColumnsTest extends TestCase
     }
 
     /**
+     * Test that a sensitive column declared searchable is reported, so a free
+     * text match cannot become the oracle the filter surface refuses to be.
+     *
+     * @return void
+     */
+    public function testReportsSearchableSensitiveColumn(): void
+    {
+        $schema = new CompiledSchema(
+            fields: ['password' => $this->makeField(searchable: 'password')],
+            counts: [],
+        );
+
+        $errors = (new ValidateSensitiveColumns)->validate(UserResource::class, null, $schema);
+
+        self::assertCount(1, $errors);
+        self::assertSame('password', $errors[0]->fieldKey);
+        self::assertSame(
+            'Field is declared searchable against "password", which is configured as a sensitive column and may never be queried',
+            $errors[0]->defect,
+        );
+    }
+
+    /**
      * Test that every offending field is reported, not just the first.
      *
      * @return void
@@ -270,9 +293,10 @@ final class ValidateSensitiveColumnsTest extends TestCase
      *
      * @param  string|null  $filterable
      * @param  string|null  $sortable
+     * @param  string|null  $searchable
      * @return \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition
      */
-    private function makeField(?string $filterable = null, ?string $sortable = null): CompiledFieldDefinition
+    private function makeField(?string $filterable = null, ?string $sortable = null, ?string $searchable = null): CompiledFieldDefinition
     {
         return new CompiledFieldDefinition(
             accessor: null,
@@ -287,6 +311,7 @@ final class ValidateSensitiveColumnsTest extends TestCase
             transformers: [],
             filterable: $filterable,
             sortable: $sortable,
+            searchable: $searchable,
         );
     }
 }

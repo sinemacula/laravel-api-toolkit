@@ -122,6 +122,22 @@ final class QueryCostRejectionTest extends TestCase
     }
 
     /**
+     * Test that a page size beyond the parser ceiling is refused before any
+     * statement reaches the database, rather than being reduced to the ceiling
+     * and answered with a page the client cannot tell from the last one.
+     *
+     * @return void
+     */
+    public function testPageSizeBeyondTheParserCeilingIssuesNoSql(): void
+    {
+        Config::set('api-toolkit.parser.max_limit', 25);
+
+        $response = $this->recordQueries('/users?limit=26');
+
+        $this->assertRejectionEnvelope($response, 'limit', 'max_limit', 25, 26);
+    }
+
+    /**
      * Test that a request within every cap is answered from the database, so
      * the empty query log asserted above reflects the rejection rather than an
      * inert query log.

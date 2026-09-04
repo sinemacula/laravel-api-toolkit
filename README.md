@@ -76,8 +76,51 @@ GET /users?filters={"status":{"$eq":"active"},"created_at":{"$ge":"2024-01-01"}}
 The `filters` value must be a JSON string; requests carrying a non-JSON value are rejected with a validation
 error.
 
-Available built-in operator tokens: `$eq`, `$neq`, `$gt`, `$lt`, `$ge`, `$le`, `$like`, `$in`, `$between`,
+Available built-in operator tokens: `$eq`, `$neq`, `$gt`, `$lt`, `$ge`, `$le`, `$in`, `$between`,
 `$contains`, `$null`, `$notNull`.
+
+**Free-text search** - match a term against the fields a resource declares searchable:
+
+```http
+GET /users?search=smith
+```
+
+The term is matched against the columns of the requested resource only; it never traverses a relation,
+because a text predicate inside a relation subquery is paid once per candidate row. Each searchable field
+declares the match shape it is served with - an exact match, a prefix match, or an anywhere-match - and
+the connection's registered search driver refuses a shape it cannot serve from an index rather than
+scanning the table. Terms are bounded by `api-toolkit.search`; one outside the bounds is rejected with a
+422 rather than trimmed to fit.
+
+The shortest word accepted is three characters, and configuration may raise that floor but never lower it.
+It is measured rather than chosen: below three, MySQL matches nothing at all once the word is shorter than
+the index token size, and PostgreSQL answers correctly but by reading the whole table. The floor is applied
+to every word rather than to the term as a whole, because a word beneath it is dropped from a full-text
+phrase - widening the match - while a pattern comparison keeps it, so the two engines would answer the same
+request with different rows. Both failures are invisible in the response, which is the hazard the parameter
+exists to close.
+
+Drivers ship for MySQL, PostgreSQL, and SQLite, registered against the names those connections report.
+MariaDB reports its own name and has no n-gram parser, so it is not among them and a search on such a
+connection fails until you register a driver for it yourself. The index each declaration is served from
+belongs to your own migration:
+
+- On MySQL, the columns declared for an anywhere-match are matched together through a single `MATCH`, which
+  needs one `FULLTEXT` index over exactly that column list, created `WITH PARSER ngram`. A full-text match
+  OR-ed with any other predicate loses the full-text access path and reads the whole table, so an
+  anywhere-match may not be declared beside another strategy on this connection; the driver refuses that
+  combination rather than serving it as a scan.
+- On PostgreSQL, a prefix match and an anywhere-match each need a `gin_trgm_ops` index over their own
+  column, and the `pg_trgm` extension installed. Several columns may be declared under different
+  strategies, because the planner combines the index scans behind a disjunction.
+- An exact match needs an ordinary index leading with the column on either engine.
+
+The proof is read twice. `php artisan api-toolkit:validate-schemas` reports a declaration with no index
+behind it, which is the cheapest place to find one - run it in CI. Because schema validation is disabled in
+production by default, the same proof is also taken on the first search each worker process serves and
+memoised from there, so a missing index refuses the request instead of quietly reading the table: on
+PostgreSQL a missing trigram index is not an error at all, and the search would otherwise return the right
+rows out of a sequential scan for as long as the index stayed missing.
 
 **Sorting** - sort by one or more columns, with optional direction:
 
@@ -85,11 +128,12 @@ Available built-in operator tokens: `$eq`, `$neq`, `$gt`, `$lt`, `$ge`, `$le`, `
 GET /users?order=last_name,first_name:desc
 ```
 
-**Limit clamping** - client-supplied `?limit` values are silently clamped to the `api-toolkit.parser.max_limit`
-ceiling (default 100). Values exceeding the ceiling are reduced; the request is never rejected:
+**Page-size ceiling** - a client-supplied `?limit` above `api-toolkit.parser.max_limit` (default 100) is
+rejected with a `422` naming the ceiling and the size asked for, rather than reduced to the ceiling. A page
+quietly shortened cannot be told apart from the end of the result set. Set the ceiling to `0` to disable it:
 
 ```http
-GET /users?limit=200   // clamped to 100
+GET /users?limit=200   // 422, the ceiling is 100
 GET /users?limit=25    // honoured as-is
 ```
 
@@ -120,6 +164,7 @@ schema helpers. The compiled schema drives field resolution, guard evaluation, a
 ```php
 use App\Models\User;
 use SineMacula\ApiToolkit\Attributes\ForModel;
+use SineMacula\ApiToolkit\Enums\SearchStrategy;
 use SineMacula\ApiToolkit\Http\Resources\ApiResource;
 use SineMacula\ApiToolkit\Schema\Count;
 use SineMacula\ApiToolkit\Schema\Field;
@@ -136,8 +181,8 @@ class UserResource extends ApiResource
     public static function schema(): array
     {
         return Field::set(
-            Field::scalar('name')->filterable()->sortable(),
-            Field::scalar('email')->filterable(),
+            Field::scalar('name')->filterable()->sortable()->searchable(SearchStrategy::SUBSTRING),
+            Field::scalar('email')->filterable()->searchable(SearchStrategy::SUBSTRING),
             Field::timestamp('created_at')->sortable(),
             Field::compute('full_name', 'getFullName'),
             Relation::to('organization', OrganizationResource::class)->traversable(),
@@ -148,9 +193,11 @@ class UserResource extends ApiResource
 }
 ```
 
-Fields marked `filterable()` or `sortable()` are the only ones a client may query. Relations marked
-`traversable()` can be targeted by nested filters. The `$default` static property declares the fields returned
-when the client sends no `?fields` parameter.
+Fields marked `filterable()` or `sortable()` are the only ones a client may query, and a field marked
+`searchable()` is the only one the `?search=` term is matched against - the strategy it is given decides both
+how the value is matched and which index has to back the column. Relations marked `traversable()` can be
+targeted by nested filters. The `$default` static property declares the fields returned when the client sends
+no `?fields` parameter.
 
 **Model binding and discovery** - the `#[ForModel(...)]` attribute binds a resource to its model, and may be
 repeated to bind one resource to several models. By default (`api-toolkit.resources.paths` left null) resources
@@ -296,7 +343,7 @@ class AppServiceProvider extends ServiceProvider
         $registry->register('$regex', new RegexOperator);
 
         // Override an existing operator
-        $registry->override('$like', new CaseInsensitiveLikeOperator);
+        $registry->override('$contains', new StrictContainsOperator);
     }
 }
 ```

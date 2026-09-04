@@ -10,7 +10,7 @@ The parameters combine freely on any endpoint that returns resources. A typical
 request looks like this:
 
 ```text
-?fields[user]=first_name,last_name&filters={"last_name":{"$like":"Smith"}}&order=created_at:desc&limit=25&page=1
+?fields[user]=first_name,last_name&filters={"last_name":{"$eq":"Smith"}}&order=created_at:desc&limit=25&page=1
 ```
 
 | Parameter | Example                          | Description                                                                 |
@@ -60,7 +60,6 @@ Unrecognised fields are ignored rather than rejected.
 | `$lt`       | Less than the given value.                             |
 | `$ge`       | Greater than or equal to the given value.              |
 | `$le`       | Less than or equal to the given value.                 |
-| `$like`     | Partial match containing the given value.              |
 | `$in`       | Matches any value in the given array.                  |
 | `$between`  | Falls within the given `[min, max]` range.             |
 | `$contains` | JSON containment: the column contains the given value. |
@@ -82,7 +81,7 @@ nested filter:
 {
   "posts": {
     "title": {
-      "$like": "Announcement"
+      "$eq": "Announcement"
     }
   }
 }
@@ -136,9 +135,6 @@ takes a two-element range, and `$in` takes an array:
 
 ```json
 {
-  "last_name": {
-    "$like": "Smith"
-  },
   "created_at": {
     "$between": ["2024-01-01 00:00:00", "2024-12-31 23:59:59"]
   },
@@ -158,7 +154,7 @@ instead, wrap the conditions:
       "$in": ["Ben", "John"]
     },
     "last_name": {
-      "$like": "Smith"
+      "$eq": "Smith"
     }
   }
 }
@@ -171,6 +167,104 @@ Use `search` for free-text matching across a resource's searchable fields:
 ```text
 ?search=John Smith
 ```
+
+### What the term is matched against
+
+The term is matched against the columns of the requested resource only. It does
+not follow a relationship, so searching a list of users never reaches the titles
+of their posts; nest a filter under the relationship name for that. The limit is
+deliberate: a text predicate inside a relationship subquery is paid once per
+candidate row, which is the cost this parameter exists to avoid.
+
+A record matches when any one of its searchable fields matches, and the search
+always narrows a request further, whatever the filters alongside it ask for. A
+resource that declares no searchable field rejects the parameter rather than
+answering it with an unnarrowed list.
+
+### Match strategies
+
+Each searchable field is matched in one of three shapes, chosen per field by the
+resource:
+
+| Strategy    | Matches                                     | Term matching `Highsmith` |
+|-------------|---------------------------------------------|---------------------------|
+| `exact`     | The whole value equals the term.            | `Highsmith`               |
+| `prefix`    | The value begins with the term.             | `High`                    |
+| `substring` | The value carries the term at any position. | `smith`                   |
+
+Whether a match ignores case follows the engine behind the API. On PostgreSQL
+every prefix and substring match is case-insensitive, because the comparison
+is written that way. On MySQL all three shapes follow the column's own
+collation, which folds case under the shipped defaults and does not under a
+binary or case-sensitive one.
+
+### Term bounds
+
+A term outside these bounds is rejected with a `422` naming the bound it missed,
+never trimmed to fit:
+
+| Bound                           | Value          |
+|---------------------------------|----------------|
+| Shortest word accepted          | 3 characters   |
+| Longest term accepted           | 128 characters |
+| Most whitespace-separated words | 10             |
+
+The minimum of three characters is measured rather than chosen, and it is the
+one bound the API may raise but never lower. Every match is served from an
+index, and three characters is the shortest word both supported engines answer
+correctly and from an index. Below it each fails silently and differently: on
+MySQL a word shorter than the index token size matches no rows at all, which is
+a wrong answer rather than a slow one, and on PostgreSQL a two-character term is
+answered correctly but by reading the whole table, which is the full scan this
+layer exists to remove. Neither failure is visible in the response, so a term
+that would hit one is refused instead.
+
+The minimum is measured against every word rather than against the whole term,
+so `John Smith` is accepted and `J Smith` is not. A word beneath it is dropped
+from a full-text phrase, which widens the match, while a pattern comparison
+keeps it and narrows on it, so a term carrying one would be answered with
+different rows depending on the engine behind the API.
+
+### Indexes behind a declaration
+
+This subsection is for the application serving the API rather than its clients.
+
+Every declared match shape is served from an index the application's own
+migrations create. `php artisan api-toolkit:validate-schemas` reports a
+declaration with no index behind it, and the build is the cheapest place to
+find one. Because schema validation is disabled in production by default, the
+same proof is taken again on the first search each worker process serves and
+memoised from there, so a missing index refuses the request rather than being
+answered out of a scan.
+
+| Strategy    | MySQL                                                                        | PostgreSQL                                 |
+|-------------|------------------------------------------------------------------------------|--------------------------------------------|
+| `exact`     | An ordinary index leading with the column.                                   | An ordinary index leading with the column. |
+| `prefix`    | An ordinary index leading with the column.                                   | A trigram index over the column.           |
+| `substring` | One `FULLTEXT` index over exactly the declared columns, `WITH PARSER ngram`. | A trigram index over the column.           |
+
+```sql
+-- MySQL: a substring match, over exactly the columns declared for it
+ALTER TABLE users ADD FULLTEXT INDEX users_search_ngram (name, email) WITH PARSER ngram;
+
+-- PostgreSQL: a prefix or a substring match, per declared column
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+CREATE INDEX users_name_trgm ON users USING gin (name gin_trgm_ops);
+CREATE INDEX users_email_trgm ON users USING gin (email gin_trgm_ops);
+```
+
+MySQL matches the columns declared for a substring together, through a single
+`MATCH`, and resolves that match only against a full-text index whose column
+list is exactly the matched one - which is why one index covers the declared
+set rather than one index per column. For the same reason a substring match may
+not be declared beside another strategy on MySQL: the two would be combined by
+`OR`, which loses the full-text access path and reads the whole table, so the
+declaration is refused instead. PostgreSQL carries no such restriction.
+
+A prefix match on PostgreSQL rides the same trigram index as a substring match
+because the comparison is case-insensitive, which an ordinary index cannot
+serve. SQLite carries neither index kind and is treated as a development
+connection: it serves every shape and proves none of them.
 
 ## Ordering
 
@@ -197,6 +291,8 @@ Both apply only when the response is a paginated list:
 ?limit=25&page=2
 ```
 
-The `limit` is clamped to a configured maximum, so an oversized request is
-capped rather than rejected. See the Pagination section for the shape of a
-paginated response.
+The `limit` is bounded by a configured ceiling. A request above it is rejected
+with a `422` naming the ceiling and the size asked for, rather than answered
+with a smaller page: a page quietly reduced cannot be told apart from the end of
+the result set. See the Pagination section for the shape of a paginated
+response.

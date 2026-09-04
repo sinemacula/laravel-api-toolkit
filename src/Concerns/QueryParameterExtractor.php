@@ -6,13 +6,14 @@ namespace SineMacula\ApiToolkit\Concerns;
 
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
+use SineMacula\ApiToolkit\Search\SearchTerm;
 
 /**
  * Extracts and parses API query parameters from a request.
  *
  * Walks the supported query keys (page, limit, cursor, fields, counts, sums,
- * averages, filters, order, trashed) and normalises each raw value into its
- * parsed representation.
+ * averages, filters, search, order, trashed) and normalises each raw value into
+ * its parsed representation.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -40,6 +41,7 @@ final class QueryParameterExtractor
             'sums'     => fn ($value) => $this->parseSums($value),
             'averages' => fn ($value) => $this->parseAverages($value),
             'filters'  => fn ($value) => $this->parseFilters($value),
+            'search'   => fn ($value) => SearchTerm::from(is_string($value) ? $value : ''),
             'order'    => fn ($value) => $this->parseOrder($value),
             'trashed'  => fn ($value) => is_string($value) ? strtolower(trim($value)) : '',
         ];
