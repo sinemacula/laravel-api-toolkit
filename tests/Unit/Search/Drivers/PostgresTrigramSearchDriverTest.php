@@ -372,4 +372,35 @@ final class PostgresTrigramSearchDriverTest extends TestCase
 
         return $connection;
     }
+
+    /**
+     * Test that a catalogue row whose definition is not readable is stepped
+     * past, so one unreadable entry does not hide the index beside it.
+     *
+     * @return void
+     */
+    public function testReadsPastACatalogueRowWithNoReadableDefinition(): void
+    {
+        $schema = self::createStub(SchemaBuilder::class);
+
+        $schema->method('getIndexes')->willReturn([]);
+
+        $connection = self::createStub(Connection::class);
+
+        $connection->method('getSchemaBuilder')->willReturn($schema);
+        $connection->method('select')->willReturnCallback(static function (string $query): array {
+
+            if (str_contains($query, 'pg_extension')) {
+                return [(object) ['installed' => 1]];
+            }
+
+            return [
+                (object) ['indexdef' => null],
+                (object) ['indexdef' => 'CREATE INDEX users_name_trgm ON public.users USING gin (name gin_trgm_ops)'],
+            ];
+        });
+
+        self::assertSame([], (new PostgresTrigramSearchDriver)->indexDefects(SearchStrategy::SUBSTRING, ['name'], 'users', $connection));
+    }
+
 }

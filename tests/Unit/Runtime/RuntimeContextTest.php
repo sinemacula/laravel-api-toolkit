@@ -156,4 +156,26 @@ final class RuntimeContextTest extends TestCase
 
         self::assertFalse($context->isServingAsQueueWorker('nonexistent-connection'));
     }
+
+    /**
+     * Test that a process whose argument list is not readable is not taken for
+     * a queue worker, since the detector cannot see what it was invoked as.
+     *
+     * @return void
+     */
+    public function testAnUnreadableArgumentListIsNotTakenForAQueueWorker(): void
+    {
+        $argv = $_SERVER['argv'] ?? null;
+
+        $_SERVER['argv'] = 'queue:work';
+
+        try {
+            Config::set('queue.connections.sync.driver', 'sync');
+
+            self::assertFalse((new RuntimeContext)->isServingAsQueueWorker('sync'));
+        } finally {
+            $_SERVER['argv'] = $argv;
+        }
+    }
+
 }

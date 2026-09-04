@@ -128,4 +128,18 @@ final class FieldSchemaBuilderTest extends TestCase
     {
         self::assertFalse((new FieldSchemaBuilder)->build(['string'])['required']);
     }
+
+    /**
+     * Test that a token naming a class that is not an enum contributes no
+     * reference, so a stale rule documents nothing rather than a broken $ref.
+     *
+     * @return void
+     */
+    public function testATokenNamingSomethingThatIsNotAnEnumContributesNoReference(): void
+    {
+        $schema = (new FieldSchemaBuilder)->build(['enum-class:Tests\\Fixtures\\Models\\User'])['schema'];
+
+        self::assertArrayNotHasKey('$ref', $schema);
+    }
+
 }

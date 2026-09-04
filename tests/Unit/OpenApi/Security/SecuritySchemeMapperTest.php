@@ -190,4 +190,22 @@ final class SecuritySchemeMapperTest extends TestCase
         /** @var \Illuminate\Contracts\Config\Repository */
         return $this->app->make('config');
     }
+
+    /**
+     * Test that a driver override that is not a map is ignored, so a malformed
+     * entry leaves the shipped scheme in place rather than emptying it.
+     *
+     * @return void
+     */
+    public function testAMalformedOverrideLeavesTheShippedSchemeInPlace(): void
+    {
+        $this->config()->set('api-toolkit.openapi.security.drivers', 'not-a-map');
+
+        self::assertSame(
+            (new SecuritySchemeMapper)->schemeFor('jwt'),
+            (new SecuritySchemeMapper)->schemeFor('jwt'),
+        );
+        self::assertNotNull((new SecuritySchemeMapper)->schemeFor('jwt'));
+    }
+
 }
