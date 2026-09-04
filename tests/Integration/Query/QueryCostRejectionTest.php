@@ -345,7 +345,7 @@ final class QueryCostRejectionTest extends TestCase
         $response->assertJsonCount(1, 'data');
         $response->assertJsonPath('data.0.averages.posts_id', $expected);
 
-        self::assertNotEmpty($this->aggregateStatements());
+        self::assertCount(1, $this->aggregateStatements());
     }
 
     /**
@@ -374,7 +374,7 @@ final class QueryCostRejectionTest extends TestCase
         $response->assertOk();
         $response->assertJsonCount(1, 'data');
 
-        self::assertSame([], (array) $response->json('data.0.averages'));
+        self::assertSame(['_type', 'id', 'name'], array_keys((array) $response->json('data.0')));
         self::assertSame([], $this->aggregateStatements());
     }
 
@@ -395,6 +395,46 @@ final class QueryCostRejectionTest extends TestCase
         $response->assertJsonCount(1, 'data');
 
         self::assertNotEmpty($this->queries);
+    }
+
+    /**
+     * Seed an author carrying two posts, and return the average of their
+     * primary keys, the value the requested aggregate should report.
+     *
+     * @return float
+     */
+    private function seedAuthorWithPosts(): float
+    {
+        $author = User::create(['name' => 'Carol', 'email' => 'carol@example.com', 'status' => 'active']);
+
+        $first  = Post::create(['user_id' => $author->id, 'title' => 'First', 'body' => 'A post']);
+        $second = Post::create(['user_id' => $author->id, 'title' => 'Second', 'body' => 'Another post']);
+
+        return ($first->id + $second->id) / 2;
+    }
+
+    /**
+     * Return the recorded statements that carry the correlated subquery for the
+     * requested posts average, the aggregate no default declares.
+     *
+     * @return array<int, string>
+     */
+    private function aggregateStatements(): array
+    {
+        $statements = [];
+
+        foreach ($this->queries as $query) {
+
+            $sql = $query['query'] ?? null;
+
+            if (!is_string($sql) || !str_contains($sql, 'posts_id_avg_id')) {
+                continue;
+            }
+
+            $statements[] = $sql;
+        }
+
+        return $statements;
     }
 
     /**
