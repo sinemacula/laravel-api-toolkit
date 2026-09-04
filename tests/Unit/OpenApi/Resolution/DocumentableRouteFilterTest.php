@@ -6,6 +6,7 @@ namespace Tests\Unit\OpenApi\Resolution;
 
 use Illuminate\Routing\RedirectController;
 use Illuminate\Routing\Route;
+use Illuminate\Support\Facades\Config;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\OpenApi\Resolution\DocumentableRouteFilter;
 use Tests\TestCase;
@@ -179,12 +180,7 @@ final class DocumentableRouteFilterTest extends TestCase
      */
     public function testNonArrayBlocklistFallsBackToDefault(): void
     {
-        assert($this->app !== null);
-
-        /** @var \Illuminate\Contracts\Config\Repository $config */
-        $config = $this->app->make('config');
-
-        $config->set('api-toolkit.openapi.exclude.namespaces', 'Acme\Internal');
+        Config::set('api-toolkit.openapi.exclude.namespaces', 'Acme\Internal');
 
         self::assertTrue($this->filter->isExcluded(RedirectController::class, $this->route()));
         self::assertFalse($this->filter->isExcluded('Acme\Internal\Reports\Controller', $this->route()));
@@ -211,12 +207,7 @@ final class DocumentableRouteFilterTest extends TestCase
             }
         };
 
-        assert($this->app !== null);
-
-        /** @var \Illuminate\Contracts\Config\Repository $config */
-        $config = $this->app->make('config');
-
-        $config->set('api-toolkit.openapi.exclude.namespaces', [$prefix]);
+        Config::set('api-toolkit.openapi.exclude.namespaces', [$prefix]);
 
         self::assertTrue($this->filter->isExcluded('Acme\Internal\Reports\Controller', $this->route()));
     }
@@ -240,11 +231,6 @@ final class DocumentableRouteFilterTest extends TestCase
      */
     private function setBlocklist(array $prefixes): void
     {
-        assert($this->app !== null);
-
-        /** @var \Illuminate\Contracts\Config\Repository $config */
-        $config = $this->app->make('config');
-
-        $config->set('api-toolkit.openapi.exclude.namespaces', $prefixes);
+        Config::set('api-toolkit.openapi.exclude.namespaces', $prefixes);
     }
 }
