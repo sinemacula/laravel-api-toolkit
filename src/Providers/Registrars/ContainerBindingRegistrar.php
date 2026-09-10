@@ -210,7 +210,7 @@ final readonly class ContainerBindingRegistrar
             new ValidateQueryableFields($app->make(SchemaIntrospectionProvider::class)),
             new ValidateIndexBacking($app->make(SchemaIntrospectionProvider::class)),
             new ValidateSearchableFields,
-            new ValidateSearchIndexes($app->make(SearchDriverRegistry::class)),
+            new ValidateSearchIndexes($app->make(SearchDriverRegistry::class), $app->make(SchemaIntrospectionProvider::class)),
             new ValidateSensitiveColumns,
         ));
     }

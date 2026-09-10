@@ -6,6 +6,7 @@ namespace SineMacula\ApiToolkit\Schema\Validation\Rules;
 
 use Illuminate\Database\Connection;
 use Illuminate\Database\Eloquent\Model;
+use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Contracts\SchemaValidationRule;
 use SineMacula\ApiToolkit\Contracts\SearchDriver;
 use SineMacula\ApiToolkit\Enums\SearchStrategy;
@@ -33,6 +34,19 @@ use SineMacula\ApiToolkit\Search\SearchDriverRegistry;
  * development connection a suite runs against stays quiet while a connection
  * serving traffic does not.
  *
+ * A connection that cannot be read at all is a different answer again, and the
+ * rule stays silent for it: a catalogue the connection never described leaves
+ * the declaration unproved, while a catalogue that was read and carries no
+ * index proves it wrong. Conflating the two either boots a deployment whose
+ * index is genuinely missing or refuses to boot a machine with no database
+ * behind it. What a declaration contradicts on its own is reported either way,
+ * needing no catalogue to decide: a connection no driver serves, and a strategy
+ * the registered driver does not implement.
+ *
+ * Staying silent is safe because the same proof is taken again on the first
+ * search each worker serves, so a deployment whose index really is missing is
+ * refused at request time even where boot-time validation could prove nothing.
+ *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
@@ -42,12 +56,16 @@ final readonly class ValidateSearchIndexes implements SchemaValidationRule
      * Create a new search index validation rule.
      *
      * @param  \SineMacula\ApiToolkit\Search\SearchDriverRegistry  $drivers
+     * @param  \SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider  $introspector
      * @return void
      */
     public function __construct(
 
         /** Resolves the search driver serving the model's connection */
         private SearchDriverRegistry $drivers,
+
+        /** Says whether the catalogue behind the model's table can be read */
+        private SchemaIntrospectionProvider $introspector,
     ) {}
 
     /**
@@ -78,7 +96,7 @@ final readonly class ValidateSearchIndexes implements SchemaValidationRule
             ? $this->missingDriverDefects($declared, $name)
             : $this->merge(
                 $this->combinationDefects($driver, $declared, $name),
-                $this->strategyDefects($driver, $declared, $model->getTable(), $connection),
+                $this->strategyDefects($driver, $declared, $model, $connection),
             );
 
         return $this->report($resourceClass, $declared, $defects);
@@ -189,18 +207,18 @@ final readonly class ValidateSearchIndexes implements SchemaValidationRule
      *
      * @param  \SineMacula\ApiToolkit\Contracts\SearchDriver  $driver
      * @param  array<string, array{column: string, strategy: \SineMacula\ApiToolkit\Enums\SearchStrategy}>  $declared
-     * @param  string  $table
+     * @param  \Illuminate\Database\Eloquent\Model  $model
      * @param  \Illuminate\Database\Connection  $connection
      * @return array<string, array<int, string>>
      */
-    private function strategyDefects(SearchDriver $driver, array $declared, string $table, Connection $connection): array
+    private function strategyDefects(SearchDriver $driver, array $declared, Model $model, Connection $connection): array
     {
         $defects = [];
 
         foreach ($this->strategies($declared) as $strategy) {
 
             $columns = $this->columnsFor($declared, $strategy);
-            $found   = $this->defects($driver, $strategy, $columns, $table, $connection);
+            $found   = $this->defects($driver, $strategy, $columns, $model, $connection);
 
             foreach ($declared as $key => $field) {
 
@@ -240,11 +258,11 @@ final readonly class ValidateSearchIndexes implements SchemaValidationRule
      * @param  \SineMacula\ApiToolkit\Contracts\SearchDriver  $driver
      * @param  \SineMacula\ApiToolkit\Enums\SearchStrategy  $strategy
      * @param  array<int, string>  $columns
-     * @param  string  $table
+     * @param  \Illuminate\Database\Eloquent\Model  $model
      * @param  \Illuminate\Database\Connection  $connection
      * @return array<string, array<int, string>>
      */
-    private function defects(SearchDriver $driver, SearchStrategy $strategy, array $columns, string $table, Connection $connection): array
+    private function defects(SearchDriver $driver, SearchStrategy $strategy, array $columns, Model $model, Connection $connection): array
     {
         $name = $connection->getDriverName();
 
@@ -257,7 +275,7 @@ final readonly class ValidateSearchIndexes implements SchemaValidationRule
         }
 
         if ($driver->canVerifyIndexBacking($strategy, $connection)) {
-            return $this->proof($driver, $strategy, $columns, $table, $connection);
+            return $this->proof($driver, $strategy, $columns, $model, $connection);
         }
 
         return IndexProofWaiver::waives($name) ? [] : array_fill_keys($columns, [sprintf(
@@ -268,27 +286,34 @@ final readonly class ValidateSearchIndexes implements SchemaValidationRule
     }
 
     /**
-     * Ask the driver for the proof, reporting a connection that could not be
-     * read rather than reading silence as a proof.
+     * Ask the driver for the proof, or return nothing where the catalogue
+     * behind it could not be read.
+     *
+     * A catalogue that cannot be read reaches here in two ways. It describes
+     * nothing at all, which the introspector reports as null, covering both a
+     * connection that cannot be reached and a table the migrations have not
+     * created; or the driver's own read of it fails, which arrives as a throw.
+     * Neither proves the declaration wrong, so neither is reported, and a read
+     * that succeeds is left to speak for itself.
      *
      * @param  \SineMacula\ApiToolkit\Contracts\SearchDriver  $driver
      * @param  \SineMacula\ApiToolkit\Enums\SearchStrategy  $strategy
      * @param  array<int, string>  $columns
-     * @param  string  $table
+     * @param  \Illuminate\Database\Eloquent\Model  $model
      * @param  \Illuminate\Database\Connection  $connection
      * @return array<string, array<int, string>>
      */
-    private function proof(SearchDriver $driver, SearchStrategy $strategy, array $columns, string $table, Connection $connection): array
+    private function proof(SearchDriver $driver, SearchStrategy $strategy, array $columns, Model $model, Connection $connection): array
     {
+        // A null catalogue is the connection saying nothing, not saying empty.
+        if ($this->introspector->getIndexes($model) === null) {
+            return [];
+        }
+
         try {
-            return $driver->indexDefects($strategy, $columns, $table, $connection);
-        } catch (\Throwable $exception) {
-            return array_fill_keys($columns, [sprintf(
-                'Field is declared searchable with the "%s" strategy, and the "%s" connection could not be read to prove an index serves it: %s',
-                $strategy->value,
-                $connection->getDriverName(),
-                $exception->getMessage(),
-            )]);
+            return $driver->indexDefects($strategy, $columns, $model->getTable(), $connection);
+        } catch (\Throwable) {
+            return [];
         }
     }
 
