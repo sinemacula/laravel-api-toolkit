@@ -52,15 +52,18 @@ final class UnservableSearchExceptionTest extends TestCase
      * Test that unproven index backing names the connection, the strategy, and
      * the configuration key that waives the proof.
      *
+     * The name carried through is the connection's own rather than the engine
+     * behind it, so the reader can copy it straight into the waiver.
+     *
      * @return void
      */
     public function testUnprovenIndexBackingNamesTheWaiverItNeeds(): void
     {
-        $exception = UnservableSearchException::unprovenIndexBacking('sqlite', SearchStrategy::PREFIX);
+        $exception = UnservableSearchException::unprovenIndexBacking('reporting', SearchStrategy::PREFIX);
 
         self::assertSame(
-            'The search driver registered for the "sqlite" connection cannot prove an index serves the "prefix" match strategy, so the search would scan the table. '
-            . 'List the connection under api-toolkit.search.unverified_connections to serve it regardless.',
+            'The search driver serving the "reporting" connection cannot prove an index serves the "prefix" match strategy, so the search would scan the table. '
+            . 'List that connection under api-toolkit.search.unverified_connections to serve it regardless.',
             $exception->getMessage(),
         );
     }

@@ -160,7 +160,8 @@ final readonly class SearchApplier
      */
     private function assertStrategyServable(SearchDriver $driver, SearchStrategy $strategy, array $columns, string $table, Connection $connection): void
     {
-        $name = $connection->getDriverName();
+        $name           = $connection->getDriverName();
+        $connectionName = $connection->getName();
 
         if (!in_array($strategy, $driver->supportedStrategies(), true)) {
             throw UnservableSearchException::unsupportedStrategy($name, $strategy);
@@ -168,8 +169,8 @@ final readonly class SearchApplier
 
         if (!$driver->canVerifyIndexBacking($strategy, $connection)) {
 
-            if (!IndexProofWaiver::waives($name)) {
-                throw UnservableSearchException::unprovenIndexBacking($name, $strategy);
+            if (!IndexProofWaiver::waives($connectionName)) {
+                throw UnservableSearchException::unprovenIndexBacking($connectionName ?? $name, $strategy);
             }
 
             return;

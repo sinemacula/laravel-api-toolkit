@@ -76,7 +76,7 @@ final class SearchDeploymentFailureHttpTest extends TestCase
 
         Config::set('app.debug', false);
         Config::set('api-toolkit.exceptions.include_debug_info', true);
-        Config::set('api-toolkit.search.unverified_connections', [$this->connection()]);
+        Config::set('api-toolkit.search.unverified_connections', [$this->connectionName()]);
 
         $this->useDriver(new PatternSearchDriver);
 
@@ -136,7 +136,7 @@ final class SearchDeploymentFailureHttpTest extends TestCase
             MissingSearchDriverException::class,
             sprintf(
                 'No search driver is registered for the "%s" connection. Register one to serve a search on that connection.',
-                $this->connection(),
+                $this->driver(),
             ),
         );
     }
@@ -156,7 +156,7 @@ final class SearchDeploymentFailureHttpTest extends TestCase
             UnservableSearchException::class,
             sprintf(
                 'The search driver registered for the "%s" connection does not implement the "exact" match strategy this resource declares.',
-                $this->connection(),
+                $this->driver(),
             ),
         );
     }
@@ -176,9 +176,9 @@ final class SearchDeploymentFailureHttpTest extends TestCase
             $this->search('/users'),
             UnservableSearchException::class,
             sprintf(
-                'The search driver registered for the "%s" connection cannot prove an index serves the "substring" match strategy, so the search would scan the table. '
-                . 'List the connection under api-toolkit.search.unverified_connections to serve it regardless.',
-                $this->connection(),
+                'The search driver serving the "%s" connection cannot prove an index serves the "substring" match strategy, so the search would scan the table. '
+                . 'List that connection under api-toolkit.search.unverified_connections to serve it regardless.',
+                $this->connectionName(),
             ),
         );
     }
@@ -202,7 +202,7 @@ final class SearchDeploymentFailureHttpTest extends TestCase
             sprintf(
                 'The "%s" connection carries no index serving the "substring" match strategy this resource declares, '
                 . 'so the search would scan the table: no trigram index over "name".',
-                $this->connection(),
+                $this->driver(),
             ),
         );
     }
@@ -223,7 +223,7 @@ final class SearchDeploymentFailureHttpTest extends TestCase
             sprintf(
                 'The search driver registered for the "%s" connection cannot serve the match strategies this resource declares together, '
                 . 'because they cannot share a disjunction here.',
-                $this->connection(),
+                $this->driver(),
             ),
         );
     }
@@ -305,7 +305,7 @@ final class SearchDeploymentFailureHttpTest extends TestCase
      */
     private function useDriver(PatternSearchDriver $driver): void
     {
-        $this->app?->make(SearchDriverRegistry::class)->override($this->connection(), $driver);
+        $this->app?->make(SearchDriverRegistry::class)->override($this->driver(), $driver);
     }
 
     /**
@@ -320,12 +320,24 @@ final class SearchDeploymentFailureHttpTest extends TestCase
     }
 
     /**
-     * Return the driver name of the connection the suite runs against.
+     * Return the engine the connection under test speaks, which is the name a
+     * driver is registered against.
      *
      * @return string
      */
-    private function connection(): string
+    private function driver(): string
     {
         return DB::connection()->getDriverName();
+    }
+
+    /**
+     * Return the name of the connection under test, which is the name the
+     * waiver is keyed by.
+     *
+     * @return string
+     */
+    private function connectionName(): string
+    {
+        return DB::connection()->getName() ?? '';
     }
 }

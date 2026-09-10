@@ -1248,11 +1248,11 @@ final class ApiCriteriaTest extends TestCase
     {
         assert($this->app !== null);
 
-        $connection = (new User)->getConnection()->getDriverName();
+        $connection = (new User)->getConnection();
 
-        $this->app->make(SearchDriverRegistry::class)->override($connection, new PatternSearchDriver);
+        $this->app->make(SearchDriverRegistry::class)->override($connection->getDriverName(), new PatternSearchDriver);
 
-        Config::set('api-toolkit.search.unverified_connections', [$connection]);
+        Config::set('api-toolkit.search.unverified_connections', [$connection->getName()]);
 
         /** @var \SineMacula\ApiToolkit\Repositories\Criteria\ApiCriteria $criteria */
         $criteria = $this->app->make(ApiCriteria::class);

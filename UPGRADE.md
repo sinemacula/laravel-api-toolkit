@@ -840,9 +840,15 @@ index belongs to your application:
 MySQL resolves a match only against a full-text index whose column list is exactly the matched one, which
 is why the index covers the declared set rather than one column each. An exact match needs only an ordinary
 index leading with the column. SQLite carries neither index kind, so it is treated as a development
-connection: it serves every strategy, proves none of them, and is listed under
-`api-toolkit.search.unverified_connections` for exactly that reason. Listing a connection that serves
-traffic there reinstates the full-table scan the declaration exists to prevent.
+connection: it serves every strategy, proves none of them, and the connection a stock application names
+`sqlite` is listed under `api-toolkit.search.unverified_connections` for exactly that reason.
+
+That list is read by connection name, as `config/database.php` keys it, and not by the engine behind the
+connection, so an application naming its connections for itself waives one of them without waiving every
+connection on the same engine. It does not make the setting a safe one: a stock application names each
+connection after its engine, so writing `mysql` there still waives the connection named `mysql`, which is
+usually the one serving production. Listing a connection that serves traffic reinstates the full-table scan
+the declaration exists to prevent, and this is the one control with nothing behind it to catch that.
 
 Run `php artisan api-toolkit:validate-schemas` in your build, which is the cheapest place to find a missing
 index. Because schema validation is disabled in production by default, the same proof is also taken on the

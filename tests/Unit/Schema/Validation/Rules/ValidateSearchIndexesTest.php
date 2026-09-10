@@ -51,7 +51,7 @@ final class ValidateSearchIndexesTest extends TestCase
 
         $this->drivers = new SearchDriverRegistry;
 
-        Config::set('api-toolkit.search.unverified_connections', [$this->connection()]);
+        Config::set('api-toolkit.search.unverified_connections', [$this->connectionName()]);
     }
 
     /**
@@ -102,7 +102,7 @@ final class ValidateSearchIndexesTest extends TestCase
         self::assertCount(1, $errors);
         self::assertSame('name', $errors[0]->fieldKey);
         self::assertSame(
-            sprintf('Field is declared searchable against "name", and no search driver is registered for the "%s" connection to serve it', $this->connection()),
+            sprintf('Field is declared searchable against "name", and no search driver is registered for the "%s" connection to serve it', $this->driver()),
             $errors[0]->defect,
         );
     }
@@ -136,7 +136,7 @@ final class ValidateSearchIndexesTest extends TestCase
 
         self::assertCount(1, $errors);
         self::assertSame(
-            sprintf('Field is declared searchable with the "substring" strategy, which the driver registered for the "%s" connection does not implement', $this->connection()),
+            sprintf('Field is declared searchable with the "substring" strategy, which the driver registered for the "%s" connection does not implement', $this->driver()),
             $errors[0]->defect,
         );
     }
@@ -174,7 +174,7 @@ final class ValidateSearchIndexesTest extends TestCase
             sprintf(
                 'Field is declared searchable with the "substring" strategy, and the driver registered for the "%s" connection '
                 . 'cannot prove an index serves it',
-                $this->connection(),
+                $this->driver(),
             ),
             $errors[0]->defect,
         );
@@ -266,7 +266,7 @@ final class ValidateSearchIndexesTest extends TestCase
 
         self::assertCount(1, $errors);
         self::assertSame(
-            sprintf('Field is declared searchable with the "substring" strategy, which the driver registered for the "%s" connection does not implement', $this->connection()),
+            sprintf('Field is declared searchable with the "substring" strategy, which the driver registered for the "%s" connection does not implement', $this->driver()),
             $errors[0]->defect,
         );
     }
@@ -328,7 +328,7 @@ final class ValidateSearchIndexesTest extends TestCase
         self::assertSame(
             sprintf(
                 'The search surface cannot be served from an index on the "%s" connection, because they cannot share a disjunction here',
-                $this->connection(),
+                $this->driver(),
             ),
             $errors[0]->defect,
         );
@@ -401,7 +401,7 @@ final class ValidateSearchIndexesTest extends TestCase
      */
     private function register(SearchDriver $driver): void
     {
-        $this->drivers->register($this->connection(), $driver);
+        $this->drivers->register($this->driver(), $driver);
     }
 
     /**
@@ -463,12 +463,24 @@ final class ValidateSearchIndexesTest extends TestCase
     }
 
     /**
-     * Return the driver name of the connection the suite runs against.
+     * Return the engine the connection under test speaks, which is the name a
+     * driver is registered against.
      *
      * @return string
      */
-    private function connection(): string
+    private function driver(): string
     {
         return (new User)->getConnection()->getDriverName();
+    }
+
+    /**
+     * Return the name of the connection under test, which is the name the
+     * waiver is keyed by.
+     *
+     * @return string
+     */
+    private function connectionName(): string
+    {
+        return (new User)->getConnection()->getName() ?? '';
     }
 }

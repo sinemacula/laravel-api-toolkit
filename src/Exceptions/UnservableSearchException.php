@@ -77,6 +77,10 @@ final class UnservableSearchException extends \RuntimeException
     /**
      * Create the exception for a strategy no index is known to serve.
      *
+     * This one names the connection rather than the engine its driver is
+     * registered against, because the waiver it points the reader at is keyed
+     * by connection name and the two are only the same string by convention.
+     *
      * @param  string  $connection
      * @param  \SineMacula\ApiToolkit\Enums\SearchStrategy  $strategy
      * @return self
@@ -84,8 +88,8 @@ final class UnservableSearchException extends \RuntimeException
     public static function unprovenIndexBacking(string $connection, SearchStrategy $strategy): self
     {
         return new self(sprintf(
-            'The search driver registered for the "%s" connection cannot prove an index serves the "%s" match strategy, so the search would scan the table. '
-            . 'List the connection under api-toolkit.search.unverified_connections to serve it regardless.',
+            'The search driver serving the "%s" connection cannot prove an index serves the "%s" match strategy, so the search would scan the table. '
+            . 'List that connection under api-toolkit.search.unverified_connections to serve it regardless.',
             $connection,
             $strategy->value,
         ));
