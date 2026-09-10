@@ -6,6 +6,7 @@ namespace Tests\Unit\Schema\Validation\Rules;
 
 use Illuminate\Support\Facades\Config;
 use PHPUnit\Framework\Attributes\CoversClass;
+use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Contracts\SearchDriver;
 use SineMacula\ApiToolkit\Enums\SearchStrategy;
 use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
@@ -23,6 +24,8 @@ use Tests\TestCase;
  * The rule is driven against the connection the suite runs on, with the driver
  * serving it replaced per test, so every way a declaration can fail to be
  * served from an index is exercised without an engine carrying that index kind.
+ * The catalogue behind the table is answered by a stubbed introspector, so a
+ * catalogue that was read and one that could not be are driven apart directly.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -208,12 +211,13 @@ final class ValidateSearchIndexesTest extends TestCase
     }
 
     /**
-     * Test that a connection that cannot be read is reported rather than
-     * passed, so an unreachable catalogue never reads as a proof.
+     * Test that a connection the driver could not read is passed over rather
+     * than reported, since a read that failed proves nothing about the index
+     * behind the declaration and the request path proves it again anyway.
      *
      * @return void
      */
-    public function testReportsAConnectionThatCannotBeRead(): void
+    public function testSkipsAConnectionTheDriverCouldNotRead(): void
     {
         $driver = self::createStub(SearchDriver::class);
 
@@ -223,15 +227,46 @@ final class ValidateSearchIndexesTest extends TestCase
 
         $this->register($driver);
 
+        self::assertSame([], $this->rule()->validate(SearchableUserResource::class, User::class, $this->schema()));
+    }
+
+    /**
+     * Test that a catalogue the connection never described is told apart from
+     * one that was read and carries no index: the first proves nothing and is
+     * passed over, the second proves the declaration wrong and is reported.
+     * Conflating them either boots a deployment whose index is genuinely
+     * missing or refuses to boot a machine with no database behind it.
+     *
+     * @return void
+     */
+    public function testTellsAnUnreadableCatalogueApartFromOneCarryingNoIndex(): void
+    {
+        $this->register(new PatternSearchDriver(null, true, ['No index serves this column']));
+
+        self::assertSame([], $this->rule(null)->validate(SearchableUserResource::class, User::class, $this->schema()));
+
         $errors = $this->rule()->validate(SearchableUserResource::class, User::class, $this->schema());
 
         self::assertCount(1, $errors);
+        self::assertSame('No index serves this column', $errors[0]->defect);
+    }
+
+    /**
+     * Test that a strategy no registered driver implements is reported even
+     * where the catalogue could not be read, since nothing the catalogue
+     * carries decides it.
+     *
+     * @return void
+     */
+    public function testReportsAnUnservableDeclarationWhereTheCatalogueCouldNotBeRead(): void
+    {
+        $this->register(new PatternSearchDriver([SearchStrategy::EXACT], true));
+
+        $errors = $this->rule(null)->validate(SearchableUserResource::class, User::class, $this->schema());
+
+        self::assertCount(1, $errors);
         self::assertSame(
-            sprintf(
-                'Field is declared searchable with the "substring" strategy, and the "%s" connection could not be read '
-                . 'to prove an index serves it: Connection refused',
-                $this->connection(),
-            ),
+            sprintf('Field is declared searchable with the "substring" strategy, which the driver registered for the "%s" connection does not implement', $this->connection()),
             $errors[0]->defect,
         );
     }
@@ -342,13 +377,20 @@ final class ValidateSearchIndexesTest extends TestCase
     }
 
     /**
-     * Build the rule under test over the registry the tests populate.
+     * Build the rule under test over the registry the tests populate, with the
+     * catalogue behind the table answered as given: an array for a catalogue
+     * that was read, and null for one the connection could not describe.
      *
+     * @param  array<int, \SineMacula\ApiToolkit\Schema\Introspection\IndexDefinition>|null  $indexes
      * @return \SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateSearchIndexes
      */
-    private function rule(): ValidateSearchIndexes
+    private function rule(?array $indexes = []): ValidateSearchIndexes
     {
-        return new ValidateSearchIndexes($this->drivers);
+        $introspector = self::createStub(SchemaIntrospectionProvider::class);
+
+        $introspector->method('getIndexes')->willReturn($indexes);
+
+        return new ValidateSearchIndexes($this->drivers, $introspector);
     }
 
     /**

@@ -674,6 +674,86 @@ reported only where the connection can be inspected - a boot with no database be
 migrations have not run, proves nothing and is left alone. Run `php artisan api-toolkit:validate-schemas`
 after upgrading and either drop the marker or move it to the backing column.
 
+### Added: structural caps bound the cost of a single query
+
+A family of caps now bounds the structural cost of one request. Every part of an amplified query is
+individually cheap and individually declared - a filter nested a few levels, a value list a few hundred long,
+a handful of sort keys, a page a long way into a result set - and it is the multiplication that is expensive.
+Each of those dimensions carries a cap, and a request that exceeds one is rejected rather than served.
+
+None of these bounds existed in 1.x, which makes this the change most likely to refuse traffic that used to
+be answered: a deeply nested filter, a large `$in` list, a six-key sort, or a deep page all worked before and
+return a `422` now. The caps live under `api-toolkit.query_cost`, and these are the shipped defaults:
+
+    max_bytes         8192   the byte length of the `filters` document as received
+    max_parse_depth   16     the object levels that document nests
+    max_depth         3      the levels a filter descends, counting a logical group or a relation as one
+    max_nodes         100    the keys a filter visits in total
+    max_in_items      500    the items a single operator value list carries, such as the one `$in` reads
+    max_order_keys    3      the columns one request may order by
+    max_aggregates    5      the relation counts, sums, and averages one request asks for, combined
+    max_offset        10000  the page number a paginated read may start at
+
+Each is settable from the environment as `API_TOOLKIT_QUERY_` followed by the cap name, so
+`API_TOOLKIT_QUERY_MAX_IN_ITEMS` sets `max_in_items`. Setting a cap to `0` (or `null`) disables that
+dimension and leaves it unbounded. A config file published before this release declares none of these keys,
+and every cap still applies at its shipped default there, so republishing the config is not what turns them
+on.
+
+**The parse tier rejects before the filter tree is walked.** `max_bytes` and `max_parse_depth` are enforced
+while the query string is validated: the first against the byte length of the `filters` value as it arrives,
+the second against the object levels it nests, measured once the value is known to decode as JSON so that a
+malformed document keeps its own validation failure rather than being reported as a cost. A document too
+large or too deeply nested to be worth interpreting is refused before it is interpreted at all.
+
+The remaining caps are enforced as the criteria are applied. `max_depth` and `max_nodes` are measured during
+the walk itself, so an oversized filter aborts part way through rather than after the whole tree has been
+built. `max_in_items` is measured against the items an operator will read rather than the shape of the value,
+so a list spelled as a delimited string is bounded exactly as one spelled as an array. `max_order_keys`
+counts the sort columns, `max_aggregates` the relation counts, sums, and averages together, since each adds
+its own correlated subquery, and `max_offset` bounds the requested page number, but only where a page number
+was asked for. All of it happens while the query is being composed: a rejected request issues no SQL.
+
+A request over a cap is answered with the standard error envelope, whose `meta` names what was exceeded:
+
+    {
+      "error": {
+        "status": 422,
+        "code": 10201,
+        "meta": {
+          "parameter": "filters",
+          "pointer": "/posts/title/$in",
+          "reason": "max_in_items",
+          "limit": 500,
+          "actual": 501
+        }
+      }
+    }
+
+`parameter` names the query parameter at fault - `filters`, `order`, `page`, or `aggregates`, which stands
+for `counts`, `sums`, and `averages` together. `pointer` is a JSON pointer into the filter document, and is
+empty where a cap bounds a parameter as a whole rather than a position within it. `reason` names the cap
+exactly as the config key spells it, and `limit` against `actual` is the bound in force against the value
+supplied, so the client can correct the query without server-side diagnosis. The title and detail carried
+alongside are the ones the error catalogue lists for the code.
+
+**The defaults are a starting point, not a measurement.** They are calibrated against the package's own
+fixture schemas rather than measured against production traffic, which is exactly why every one of them is
+configuration. A `max_depth` of 3 and a `max_nodes` of 100 hold a filter that reads as a filter rather than
+as a program; whether they hold yours is a question about your own API, and the answer belongs in your config
+file rather than in a patch to this package.
+
+**Action required.** Audit what your clients actually send before upgrading, because each cap refuses a
+request that used to be answered. An access log carrying query strings is enough to find the shapes at risk:
+filter documents over 8192 bytes or nested past sixteen object levels, filters descending more than three
+levels or carrying more than a hundred keys, `$in` lists over five hundred items, requests ordering by more
+than three columns, requests asking for more than five relation aggregates across `counts`, `sums`, and
+`averages`, and anything paging beyond page 10000, which is usually a job walking a whole table by page
+number. Where the shape is legitimate, raise that cap to the largest query you intend to serve rather than
+disabling the dimension; where it is not, the `422` names the cap and the client can be corrected against it.
+The generated Query Surface Reference carries the resolved value of every cap and the shape of the
+rejection, so clients can be told the bounds without being handed the config file.
+
 ### Changed: `?limit` above the ceiling is rejected rather than clamped
 
 A client-supplied `?limit` above `api-toolkit.parser.max_limit` (default 100) used to be reduced to the
@@ -690,8 +770,8 @@ enforced with, carrying the parameter, the ceiling, and the size asked for:
 
 The clamp was the last fail-quiet path in the query layer. A client that asked for 500 rows and was handed
 100 cannot tell that from a page that ran out, so it stops paging and drops the tail it never learned was
-there. `max_offset` already rejected a page beyond its cap for the same reason, and the two now behave the
-same way.
+there. The `max_offset` cap that arrives with this release rejects a page beyond its bound for the same
+reason, and the two behave the same way.
 
 The ceiling is otherwise unchanged: the same config key, the same `API_PARSER_MAX_LIMIT` variable, the same
 default, and setting it to `0` (or `null`) still disables it and leaves the page size unbounded.
