@@ -79,7 +79,7 @@ final readonly class SearchTerm
         $value   = self::normalise($term);
         $words   = explode(' ', $value);
         $minimum = self::minimumWordLength();
-        $maximum = self::configured('max_length', self::MAX_LENGTH);
+        $maximum = self::maximumLength();
 
         foreach ($words as $word) {
 
@@ -94,7 +94,7 @@ final readonly class SearchTerm
             self::reject(sprintf('The search term may not be longer than %d characters.', $maximum));
         }
 
-        if (count($words) > ($ceiling = self::configured('max_words', self::MAX_WORDS))) {
+        if (count($words) > ($ceiling = self::maximumWords())) {
             self::reject(sprintf('The search term may not carry more than %d words.', $ceiling));
         }
 
@@ -110,6 +110,26 @@ final readonly class SearchTerm
     public static function minimumWordLength(): int
     {
         return max(self::MIN_WORD_LENGTH, self::configured('min_word_length', self::MIN_WORD_LENGTH));
+    }
+
+    /**
+     * Return the longest term a search may carry.
+     *
+     * @return int
+     */
+    public static function maximumLength(): int
+    {
+        return self::configured('max_length', self::MAX_LENGTH);
+    }
+
+    /**
+     * Return the most whitespace-separated words a search term may carry.
+     *
+     * @return int
+     */
+    public static function maximumWords(): int
+    {
+        return self::configured('max_words', self::MAX_WORDS);
     }
 
     /**

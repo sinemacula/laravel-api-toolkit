@@ -155,11 +155,13 @@ return [
     | OpenAPI Exporter Configuration
     |---------------------------------------------------------------------------
     |
-    | This section controls the opt-in OpenAPI 3.1 components exporter. The
-    | exporter walks the registered resource map, the operator grammar, and the
-    | error catalogue to emit a schema-valid components document. It is invoked
-    | explicitly via the `api-toolkit:export-openapi` Artisan command and never
-    | runs as part of normal request handling.
+    | This section controls the opt-in OpenAPI 3.1 exporter. The exporter walks
+    | the registered resource map, the application's routes, the operator
+    | grammar, and the error catalogue to emit a schema-valid document whose
+    | operations carry the query parameters each action honours and whose
+    | resource properties carry the query surface each field declares. It is
+    | invoked explicitly via the `api-toolkit:export-openapi` Artisan command
+    | and never runs as part of normal request handling.
     |
     | `output`: The default filesystem path the exported document is written to
     | when the command is run without an explicit `--output` option.
@@ -171,6 +173,8 @@ return [
     | `api-toolkit-docs` publish tag writes to - so publishing then editing the
     | shipped templates is picked up automatically. The manual is opt-in: until
     | the directory exists it resolves to empty and no description is injected.
+    | The `api-toolkit:docs:generate` command writes the generated reference
+    | sections into the same directory, to be assembled alongside the templates.
     |
     */
 

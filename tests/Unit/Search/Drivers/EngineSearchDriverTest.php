@@ -60,6 +60,22 @@ final class EngineSearchDriverTest extends TestCase
     }
 
     /**
+     * Test that a driver over an engine refuses no combination of strategies
+     * until it says otherwise, so a base that leaves the two engine-specific
+     * halves to a concrete driver does not invent a conflict between them.
+     *
+     * @return void
+     */
+    public function testRefusesNoCombinationOfStrategies(): void
+    {
+        $driver = new StubEngineSearchDriver;
+
+        self::assertNull($driver->combinationDefect(SearchStrategy::cases()));
+        self::assertNull($driver->combinationDefect([SearchStrategy::SUBSTRING, SearchStrategy::PREFIX]));
+        self::assertNull($driver->combinationDefect([]));
+    }
+
+    /**
      * Test that the equality match the base owns is emitted as a comparison
      * against the column qualified with its table, so the clause stays
      * unambiguous under a join.

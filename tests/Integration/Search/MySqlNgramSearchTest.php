@@ -82,4 +82,65 @@ final class MySqlNgramSearchTest extends EngineSearchTestCase
         return 'The columns declared with the "substring" strategy ("name", "email") are matched together, '
             . 'so table "users" needs one full-text index over exactly that column list, created with the ngram parser';
     }
+
+    /**
+     * Drop the index serving the leading match on the searched column.
+     *
+     * This engine reads a leading match from an ordinary index, and the only
+     * one leading with the searched column is the unique index behind it.
+     *
+     * @return void
+     */
+    #[\Override]
+    protected function dropPrefixMatchIndex(): void
+    {
+        DB::statement('alter table `users` drop index `users_email_unique`');
+    }
+
+    /**
+     * Recreate the index serving the leading match on the searched column.
+     *
+     * @return void
+     */
+    #[\Override]
+    protected function createPrefixMatchIndex(): void
+    {
+        DB::statement('alter table `users` add unique index `users_email_unique` (`email`)');
+    }
+
+    /**
+     * Return the defect the leading match draws once that index is gone.
+     *
+     * @return string
+     */
+    #[\Override]
+    protected function prefixMatchDefect(): string
+    {
+        return 'Column "email" is declared searchable with the "prefix" strategy, '
+            . 'which needs an index leading with that column on table "users"';
+    }
+
+    /**
+     * Drop the ordinary index serving the equality match on the searched
+     * column.
+     *
+     * @return void
+     */
+    #[\Override]
+    protected function dropEqualityMatchIndex(): void
+    {
+        DB::statement('alter table `users` drop index `users_name_index`');
+    }
+
+    /**
+     * Recreate the ordinary index serving the equality match on the searched
+     * column.
+     *
+     * @return void
+     */
+    #[\Override]
+    protected function createEqualityMatchIndex(): void
+    {
+        DB::statement('alter table `users` add index `users_name_index` (`name`)');
+    }
 }

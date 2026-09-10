@@ -7,6 +7,7 @@ namespace Tests\Unit\OpenApi\Docs;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\OpenApi\Docs\ErrorCatalogueDocGenerator;
 use SineMacula\ApiToolkit\OpenApi\Docs\Module;
+use SineMacula\ApiToolkit\OpenApi\Docs\ModuleSectionGrouper;
 use SineMacula\ApiToolkit\OpenApi\Metadata\ErrorDescriptor;
 use Tests\Fixtures\OpenApi\MappedModuleResolver;
 use Tests\TestCase;
@@ -166,26 +167,26 @@ final class ErrorCatalogueDocGeneratorTest extends TestCase
     }
 
     /**
-     * Build a generator whose resolver groups nothing, yielding combined
+     * Build a generator whose grouper resolves no module, yielding combined
      * output.
      *
      * @return \SineMacula\ApiToolkit\OpenApi\Docs\ErrorCatalogueDocGenerator
      */
     private function combinedGenerator(): ErrorCatalogueDocGenerator
     {
-        return new ErrorCatalogueDocGenerator(new MappedModuleResolver);
+        return new ErrorCatalogueDocGenerator(new ModuleSectionGrouper(new MappedModuleResolver));
     }
 
     /**
-     * Build a generator whose resolver maps the fixture sources to modules.
+     * Build a generator whose grouper maps the fixture sources to modules.
      *
      * @return \SineMacula\ApiToolkit\OpenApi\Docs\ErrorCatalogueDocGenerator
      */
     private function groupedGenerator(): ErrorCatalogueDocGenerator
     {
-        return new ErrorCatalogueDocGenerator(new MappedModuleResolver([
+        return new ErrorCatalogueDocGenerator(new ModuleSectionGrouper(new MappedModuleResolver([
             'App\Billing\Exceptions\PaymentFailed' => new Module('App\Billing', 'Billing'),
             'App\Account\Exceptions\Missing'       => new Module('App\Account', 'Account'),
-        ]));
+        ])));
     }
 }

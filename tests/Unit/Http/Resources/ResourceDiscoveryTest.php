@@ -164,6 +164,46 @@ final class ResourceDiscoveryTest extends TestCase
     }
 
     /**
+     * Test that a scan root the iterator cannot open yields no bindings rather
+     * than propagating its failure, so a directory whose permissions change
+     * under a running scan cannot break resolution. The root holds a resource
+     * that would otherwise be discovered, so the empty result can only come
+     * from the failure being absorbed.
+     *
+     * @return void
+     */
+    public function testUnreadableScanRootYieldsNoBindings(): void
+    {
+        $directory = sys_get_temp_dir() . '/resource-discovery-' . uniqid((string) getmypid(), true);
+
+        mkdir($directory, 0o755, true);
+
+        $contents = file_get_contents($this->fixturePath('Primary') . '/DiscoveredUserResource.php');
+
+        assert($contents !== false);
+
+        $file = $directory . '/DiscoveredUserResource.php';
+
+        file_put_contents($file, $contents);
+        chmod($directory, 0o000);
+        clearstatcache();
+
+        try {
+            if (is_readable($directory)) {
+                self::markTestSkipped('The scan root stayed readable, so the iterator failure cannot be provoked.');
+            }
+
+            Config::set('api-toolkit.resources.paths', [$directory]);
+
+            self::assertSame([], $this->discovery()->discover());
+        } finally {
+            chmod($directory, 0o755);
+            unlink($file);
+            rmdir($directory);
+        }
+    }
+
+    /**
      * Test that a malformed paths value - not an array, or containing
      * non-string entries - yields no discovery.
      *

@@ -9,9 +9,10 @@ namespace SineMacula\ApiToolkit\OpenApi\Contracts;
  * emission context.
  *
  * Provides the registered resource map, the full filter operator vocabulary
- * (registered tokens plus structural operators), and the error catalogue (one
+ * (registered tokens plus structural operators), the error catalogue (one
  * descriptor per defined error code with its HTTP status and title/detail
- * strings).
+ * strings), the query surface each resource declares, and the request-level
+ * bounds a query is held to.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -59,4 +60,37 @@ interface MetadataCatalogue
      * @return array<int, \SineMacula\ApiToolkit\OpenApi\Metadata\ErrorDescriptor>
      */
     public function getErrorCatalogue(): array;
+
+    /**
+     * Return one query surface descriptor per registered resource.
+     *
+     * Each descriptor names the columns the resource answers a filter, an
+     * order, or a search on, read from the compiled schema's own column maps so
+     * the surface agrees with what the request-time gates accept.
+     *
+     * @return array<int, \SineMacula\ApiToolkit\OpenApi\Metadata\QuerySurfaceDescriptor>
+     */
+    public function getQuerySurfaces(): array;
+
+    /**
+     * Return the bounds a single query is held to, keyed by bound name.
+     *
+     * Covers the structural caps and the page-size ceiling. The key is the name
+     * the rejection reports as its reason, and a bound resolving to zero is
+     * disabled rather than enforced.
+     *
+     * @return array<string, int>
+     */
+    public function getQueryLimits(): array;
+
+    /**
+     * Return the bounds a free-text search term is held to, keyed by bound
+     * name.
+     *
+     * Read from the search term itself rather than from configuration, so the
+     * floor the shortest word is held at travels with the reported value.
+     *
+     * @return array<string, int>
+     */
+    public function getSearchBounds(): array;
 }

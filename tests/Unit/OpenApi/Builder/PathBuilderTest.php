@@ -11,6 +11,7 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Http\Resources\ApiResourceCollection;
 use SineMacula\ApiToolkit\OpenApi\Builder\EnvelopeBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\PathBuilder;
+use SineMacula\ApiToolkit\OpenApi\Builder\QueryParameterBuilder;
 use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
 use SineMacula\ApiToolkit\OpenApi\Resolution\AudienceResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\DocumentableRouteFilter;
@@ -22,19 +23,24 @@ use SineMacula\ApiToolkit\OpenApi\Schema\RuleNormaliser;
 use SineMacula\ApiToolkit\OpenApi\Schema\RulesToSchemaTranslator;
 use SineMacula\ApiToolkit\OpenApi\Security\SecuritySchemeMapper;
 use SineMacula\ApiToolkit\OpenApi\Security\SecuritySchemeResolver;
+use Tests\Fixtures\Models\Article;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\OpenApi\ArticleRequestInput;
+use Tests\Fixtures\OpenApi\PathArticleController;
+use Tests\Fixtures\OpenApi\PathAttributelessController;
 use Tests\Fixtures\OpenApi\PathErrorController;
 use Tests\Fixtures\OpenApi\PathExcludedController;
 use Tests\Fixtures\OpenApi\PathFixtureController;
 use Tests\Fixtures\OpenApi\PathInvokableController;
 use Tests\Fixtures\OpenApi\PathPlainController;
+use Tests\Fixtures\OpenApi\PathReflectionGapController;
 use Tests\Fixtures\OpenApi\PathRequestBodyController;
 use Tests\Fixtures\OpenApi\PathResponseSchemaController;
 use Tests\Fixtures\OpenApi\PathTaggedController;
 use Tests\Fixtures\OpenApi\PathUnmappedController;
 use Tests\Fixtures\OpenApi\Vendor\PathVendorController;
 use Tests\Fixtures\OpenApi\WidgetShape;
+use Tests\Fixtures\Resources\ArticleResource;
 use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
 
@@ -365,7 +371,8 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
-     * Test that path parameters are derived from the route segments.
+     * Test that path parameters are derived from the route segments and lead
+     * the parameter list, ahead of the shared query references.
      *
      * @return void
      */
@@ -376,13 +383,12 @@ final class PathBuilderTest extends TestCase
         $parameters = $this->build()['/users/{user}']['get']['parameters'];
 
         self::assertSame([
-            [
-                'name'     => 'user',
-                'in'       => 'path',
-                'required' => true,
-                'schema'   => ['type' => 'string'],
-            ],
-        ], $parameters);
+            'name'     => 'user',
+            'in'       => 'path',
+            'required' => true,
+            'schema'   => ['type' => 'string'],
+        ], $parameters[0]);
+        self::assertSame([], $this->pathParametersIn(array_slice($parameters, 1)));
     }
 
     /**
@@ -394,7 +400,106 @@ final class PathBuilderTest extends TestCase
     {
         $this->registerRestRoutes();
 
-        self::assertArrayNotHasKey('parameters', $this->build()['/users']['get']);
+        self::assertSame([], $this->pathParametersIn($this->build()['/users']['get']['parameters']));
+    }
+
+    /**
+     * Test that an index references the whole shared query grammar so a
+     * generated client sees the parameters the document defines.
+     *
+     * @return void
+     */
+    public function testIndexReferencesTheWholeSharedQueryGrammar(): void
+    {
+        $this->registerRestRoutes();
+        $this->registerSoftDeletingRoutes();
+
+        self::assertSame(
+            ['Fields', 'Counts', 'Sums', 'Averages', 'Filters', 'Search', 'Order', 'Limit', 'Page', 'Cursor', 'Pagination', 'Trashed'],
+            $this->referencedParameterNames($this->build()['/articles']['get']),
+        );
+    }
+
+    /**
+     * Test that a read of a model with no soft deletes is never offered the
+     * visibility parameter, so a generated client is never handed a widening
+     * the server is bound to discard.
+     *
+     * @return void
+     */
+    public function testReadsOfAModelWithoutSoftDeletesOmitVisibility(): void
+    {
+        $this->registerRestRoutes();
+
+        $paths = $this->build();
+
+        self::assertSame(
+            ['Fields', 'Counts', 'Sums', 'Averages', 'Filters', 'Search', 'Order', 'Limit', 'Page', 'Cursor', 'Pagination'],
+            $this->referencedParameterNames($paths['/users']['get']),
+        );
+        self::assertSame(
+            ['Fields', 'Counts', 'Sums', 'Averages'],
+            $this->referencedParameterNames($paths['/users/{user}']['get']),
+        );
+    }
+
+    /**
+     * Test that a show references only what shapes and scopes a single record,
+     * so the document never claims a single resource can be paged or filtered.
+     *
+     * @return void
+     */
+    public function testShowReferencesOnlyTheSingleRecordGrammar(): void
+    {
+        $this->registerSoftDeletingRoutes();
+
+        self::assertSame(
+            ['Fields', 'Counts', 'Sums', 'Averages', 'Trashed'],
+            $this->referencedParameterNames($this->build()['/articles/{article}']['get']),
+        );
+    }
+
+    /**
+     * Test that a store and an update reference only what shapes the resource
+     * they return.
+     *
+     * @return void
+     */
+    public function testWriteActionsReferenceOnlyTheShapingGrammar(): void
+    {
+        $this->registerRestRoutes();
+
+        $paths    = $this->build();
+        $expected = ['Fields', 'Counts', 'Sums', 'Averages'];
+
+        self::assertSame($expected, $this->referencedParameterNames($paths['/users']['post']));
+        self::assertSame($expected, $this->referencedParameterNames($paths['/users/{user}']['patch']));
+    }
+
+    /**
+     * Test that a destroy references no query parameter, its empty body having
+     * nothing to shape.
+     *
+     * @return void
+     */
+    public function testDestroyReferencesNoQueryParameter(): void
+    {
+        $this->registerRestRoutes();
+
+        self::assertSame([], $this->referencedParameterNames($this->build()['/users/{user}']['delete']));
+    }
+
+    /**
+     * Test that a non-resource operation references no query parameter, the
+     * builder having no way to know whether the action reads the query at all.
+     *
+     * @return void
+     */
+    public function testNonResourceOperationReferencesNoQueryParameter(): void
+    {
+        $this->router()->get('plain', [PathPlainController::class, 'report']);
+
+        self::assertSame([], $this->referencedParameterNames($this->build()['/plain']['get']));
     }
 
     /**
@@ -1126,6 +1231,63 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
+     * Test that an authorized controller declaring no resource attribute, whose
+     * model resolution fails, still emits an operation carrying the
+     * undocumented success envelope and no error responses.
+     *
+     * @return void
+     */
+    public function testControllerWithoutResourceAttributeFallsBackToUndocumentedOperation(): void
+    {
+        $this->router()->get('drafts', [PathAttributelessController::class, 'index']);
+
+        $operation = $this->build()['/drafts']['get'];
+
+        self::assertSame([200], array_keys($operation['responses']));
+        self::assertSame('The request succeeded.', $operation['responses'][200]['description']);
+        self::assertSame(
+            $this->undocumentedEnvelope(),
+            $operation['responses'][200]['content']['application/json']['schema'],
+        );
+        self::assertArrayNotHasKey('parameters', $operation);
+    }
+
+    /**
+     * Test that a route naming an action the controller never declares still
+     * emits its resource operation, carrying the baseline error statuses alone.
+     *
+     * @return void
+     */
+    public function testRoutedActionAbsentFromControllerCarriesBaselineErrorsOnly(): void
+    {
+        $this->router()->delete('gaps/{gap}', [PathReflectionGapController::class, 'destroy']);
+
+        $responses = $this->build()['/gaps/{gap}']['delete']['responses'];
+
+        self::assertSame([204, 401, 403, 404, 500], array_keys($responses));
+        self::assertSame('The resource was deleted.', $responses[204]['description']);
+    }
+
+    /**
+     * Test that an action carrying no doc comment, and so no documented throws,
+     * emits the baseline error statuses alone.
+     *
+     * @return void
+     */
+    public function testActionWithoutDocCommentCarriesBaselineErrorsOnly(): void
+    {
+        $this->router()->get('gaps', [PathReflectionGapController::class, 'index']);
+
+        $responses = $this->build()['/gaps']['get']['responses'];
+
+        self::assertSame([200, 401, 403, 500], array_keys($responses));
+        self::assertSame(
+            (new EnvelopeBuilder)->collectionEnvelope('#/components/schemas/User'),
+            $responses[200]['content']['application/json']['schema']['oneOf'][0],
+        );
+    }
+
+    /**
      * The expected shared data envelope wrapping the x-undocumented marker.
      *
      * @return array<string, mixed>
@@ -1156,6 +1318,20 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
+     * Register the read routes of a controller reading a model that soft
+     * deletes.
+     *
+     * @return void
+     */
+    private function registerSoftDeletingRoutes(): void
+    {
+        $router = $this->router();
+
+        $router->get('articles', [PathArticleController::class, 'index']);
+        $router->get('articles/{article}', [PathArticleController::class, 'show']);
+    }
+
+    /**
      * Build the paths object for the given audience and posture.
      *
      * @param  string  $audience
@@ -1168,6 +1344,50 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
+     * List the shared query-parameter component names the operation references,
+     * in the order it carries them.
+     *
+     * @param  array<string, mixed>  $operation
+     * @return array<int, string>
+     */
+    private function referencedParameterNames(array $operation): array
+    {
+        $names      = [];
+        $parameters = $operation['parameters'] ?? [];
+
+        if (!is_array($parameters)) {
+            return [];
+        }
+
+        foreach ($parameters as $parameter) {
+
+            $reference = is_array($parameter) ? $parameter['$ref'] ?? null : null;
+
+            if (!is_string($reference)) {
+                continue;
+            }
+
+            $names[] = str_replace('#/components/parameters/', '', $reference);
+        }
+
+        return $names;
+    }
+
+    /**
+     * Reduce a parameter list to its path parameters.
+     *
+     * @param  array<int, array<string, mixed>>  $parameters
+     * @return array<int, array<string, mixed>>
+     */
+    private function pathParametersIn(array $parameters): array
+    {
+        return array_values(array_filter(
+            $parameters,
+            static fn (array $parameter): bool => ($parameter['in'] ?? null) === 'path',
+        ));
+    }
+
+    /**
      * Build a path builder backed by a catalogue mapping the user model to its
      * resource.
      *
@@ -1176,7 +1396,10 @@ final class PathBuilderTest extends TestCase
     private function builder(): PathBuilder
     {
         $catalogue = self::createStub(MetadataCatalogue::class);
-        $catalogue->method('getResourceMap')->willReturn([User::class => UserResource::class]);
+        $catalogue->method('getResourceMap')->willReturn([
+            User::class    => UserResource::class,
+            Article::class => ArticleResource::class,
+        ]);
 
         return new PathBuilder(
             $this->router(),
@@ -1188,6 +1411,7 @@ final class PathBuilderTest extends TestCase
             new ResponseSchemaResolver($catalogue, new EnvelopeBuilder),
             new RequestBodyResolver(new RulesToSchemaTranslator(new RuleNormaliser, new FieldSchemaBuilder)),
             new SecuritySchemeResolver(new SecuritySchemeMapper),
+            new QueryParameterBuilder($catalogue),
         );
     }
 

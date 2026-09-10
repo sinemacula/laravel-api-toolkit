@@ -4,6 +4,7 @@ declare(strict_types = 1);
 
 namespace Tests\Feature\Resources;
 
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Route;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -28,8 +29,9 @@ use Tests\TestCase;
  *
  * Drives the full request lifecycle so the serialization and embedding step is
  * proven on the wire: a nested sparse fieldset restricts an embedded relation
- * to its requested keys, and the count/sum/average aggregates surface under an
- * item.
+ * to its requested keys, the count/sum/average aggregates surface under an
+ * item, and the same fieldset shapes the resource a write returns, not only the
+ * one a read does.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -65,6 +67,17 @@ final class ResourceResponseShapeTest extends TestCase
             return new ApiResourceCollection($users, UserResource::class);
         });
 
+        Route::middleware(ParseApiQuery::class)->post('/users', static function (Request $request): UserResource {
+
+            $user = User::create([
+                'name'   => $request->string('name')->toString(),
+                'email'  => $request->string('email')->toString(),
+                'status' => 'active',
+            ]);
+
+            return new UserResource($user);
+        });
+
         $organization = Organization::create(['name' => 'Acme Corp', 'slug' => 'acme-corp']);
         $alice        = User::create(['name' => 'Alice', 'email' => 'alice@example.com', 'status' => 'active', 'organization_id' => $organization->id]);
 
@@ -94,6 +107,28 @@ final class ResourceResponseShapeTest extends TestCase
         self::assertArrayHasKey('_type', $posts[0]);
         self::assertArrayNotHasKey('body', $posts[0]);
         self::assertArrayNotHasKey('published', $posts[0]);
+    }
+
+    /**
+     * Test that a sparse fieldset shapes the resource a write returns, so the
+     * parameter belongs on a write operation as much as on a read.
+     *
+     * @return void
+     */
+    public function testSparseFieldsetShapesTheResourceAWriteReturns(): void
+    {
+        $response = $this->postJson(
+            '/users?' . http_build_query(['fields' => ['users' => 'name']]),
+            ['name' => 'Bob', 'email' => 'bob@example.com'],
+        );
+
+        $response->assertCreated();
+
+        /** @var array<string, mixed> $user */
+        $user = $response->json('data');
+
+        self::assertSame('Bob', $user['name']);
+        self::assertArrayNotHasKey('email', $user);
     }
 
     /**

@@ -15,6 +15,7 @@ use SineMacula\ApiToolkit\Schema\Validation\SchemaValidator;
 use SineMacula\ApiToolkit\Search\SearchDriverRegistry;
 use SineMacula\ApiToolkit\Search\SearchTerm;
 use Tests\Fixtures\Models\User;
+use Tests\Fixtures\Resources\EqualitySearchableUserResource;
 use Tests\Fixtures\Resources\PrefixSearchableUserResource;
 use Tests\Fixtures\Resources\SearchableFilterableUserResource;
 use Tests\TestCase;
@@ -27,7 +28,10 @@ use Tests\TestCase;
  * emitted predicate with the rows the declaration promises - a term inside a
  * longer word among them - that it answers it from an index rather than by
  * reading the table, and that the index proof reads the live catalogue,
- * accepting the index the fixture creates and refusing its absence.
+ * accepting the index the fixture creates and refusing its absence. Every match
+ * shape a resource may declare is carried through the rows and the catalogue
+ * alike, so an equality or a leading match is answered by an engine rather than
+ * by a hand-written index definition.
  *
  * The rows are committed rather than rolled back at the end of the test. One of
  * the supported engines updates its full-text index when a transaction commits,
@@ -41,6 +45,10 @@ abstract class EngineSearchTestCase extends TestCase
 {
     /** @var string The command validating the declared search surface */
     private const string COMMAND = 'api-toolkit:validate-schemas';
+
+    /** @var string The defect an equality declaration draws once the ordinary index leading with its column is gone, which reads the same on either engine */
+    private const string EQUALITY_DEFECT = 'Column "name" is declared searchable with the "exact" strategy, '
+        . 'which needs an index leading with that column on table "users"';
 
     /**
      * Seed the rows every test searches, having skipped the suite on any engine
@@ -114,6 +122,57 @@ abstract class EngineSearchTestCase extends TestCase
     public function testPrefixMatchFindsTheTermAtTheStartOfItsOwnColumn(): void
     {
         static::assertSame(['Jones'], $this->search('jonat', PrefixSearchableUserResource::class));
+    }
+
+    /**
+     * Test that a prefix match does not find the term inside a value, which is
+     * the whole difference between the two pattern strategies. Every seeded
+     * address carries the term, so an anywhere-match here would return all of
+     * them.
+     *
+     * @return void
+     */
+    public function testPrefixMatchDoesNotFindTheTermInsideAValue(): void
+    {
+        static::assertSame([], $this->search('example', PrefixSearchableUserResource::class));
+    }
+
+    /**
+     * Test that a prefix match finds a value whose case differs from the term.
+     *
+     * The two engines fold that case in different places - one in the operator
+     * the driver emits, the other in the column's collation - and the same
+     * declaration is meant to answer the same rows on both. Every other term in
+     * this suite matches a value in its own case, so nothing else would move if
+     * one engine narrowed to the case-sensitive set.
+     *
+     * @return void
+     */
+    public function testPrefixMatchFindsAValueWhoseCaseDiffersFromTheTerm(): void
+    {
+        User::create(['name' => 'Ivory', 'email' => 'Ivory@example.com', 'status' => 'active']);
+
+        static::assertSame(['Ivory'], $this->search('ivory', PrefixSearchableUserResource::class));
+    }
+
+    /**
+     * Test that a column declared under the equality strategy matches its whole
+     * value only.
+     *
+     * The row beside it carries the whole term at the start of a longer value
+     * and in the same case, so a comparison that widened into a pattern of
+     * either shape would return it too. Matching at all also proves the
+     * connection's catalogue reports the ordinary index the declaration needs,
+     * since a search no index can be shown to serve is refused before it
+     * reaches the engine.
+     *
+     * @return void
+     */
+    public function testEqualityMatchFindsTheWholeValueAndNoLongerOne(): void
+    {
+        User::create(['name' => 'Smithson', 'email' => 'smithson@example.com', 'status' => 'active']);
+
+        static::assertSame(['Smith'], $this->search('Smith', EqualitySearchableUserResource::class));
     }
 
     /**
@@ -191,9 +250,7 @@ abstract class EngineSearchTestCase extends TestCase
      */
     public function testValidationAcceptsTheDeclaredSearchSurface(): void
     {
-        $this->runValidation()
-            ->expectsOutputToContain('All 1 resource schema(s) validated successfully.')
-            ->assertExitCode(0);
+        $this->assertValidationAccepts(SearchableFilterableUserResource::class);
     }
 
     /**
@@ -207,19 +264,69 @@ abstract class EngineSearchTestCase extends TestCase
         $this->dropAnywhereMatchIndex();
 
         try {
-            $this->validator()->validate([User::class => SearchableFilterableUserResource::class]);
-
-            static::fail('Validation accepted a declaration with no index behind it.');
-        } catch (InvalidSchemaException $exception) {
-
-            $defects = array_map(
-                static fn (SchemaValidationError $error): string => $error->defect,
-                $exception->getErrors(),
-            );
-
-            static::assertContains($this->anywhereMatchDefect(), $defects);
+            $this->assertValidationRefuses(SearchableFilterableUserResource::class, $this->anywhereMatchDefect());
         } finally {
             $this->createAnywhereMatchIndex();
+        }
+    }
+
+    /**
+     * Test that a leading-match declaration passes validation against the live
+     * catalogue, which is the read the two engines answer from different index
+     * kinds: an ordinary one here, a trigram one there.
+     *
+     * @return void
+     */
+    public function testValidationAcceptsThePrefixSearchSurface(): void
+    {
+        $this->assertValidationAccepts(PrefixSearchableUserResource::class);
+    }
+
+    /**
+     * Test that validation refuses the leading-match declaration once the index
+     * behind it is gone, so the acceptance above is the catalogue answering
+     * rather than the rule admitting whatever it is shown.
+     *
+     * @return void
+     */
+    public function testValidationRefusesThePrefixDeclarationWithoutItsIndex(): void
+    {
+        $this->dropPrefixMatchIndex();
+
+        try {
+            $this->assertValidationRefuses(PrefixSearchableUserResource::class, $this->prefixMatchDefect());
+        } finally {
+            $this->createPrefixMatchIndex();
+        }
+    }
+
+    /**
+     * Test that an equality declaration passes validation against the live
+     * catalogue, which admits it only where that catalogue names an ordinary
+     * index leading with the column.
+     *
+     * @return void
+     */
+    public function testValidationAcceptsTheEqualitySearchSurface(): void
+    {
+        $this->assertValidationAccepts(EqualitySearchableUserResource::class);
+    }
+
+    /**
+     * Test that validation refuses the equality declaration once that ordinary
+     * index is gone, and refuses it in the same words on either engine, which
+     * is the arrangement the strategy documents.
+     *
+     * @return void
+     */
+    public function testValidationRefusesTheEqualityDeclarationWithoutItsIndex(): void
+    {
+        $this->dropEqualityMatchIndex();
+
+        try {
+            $this->assertValidationRefuses(EqualitySearchableUserResource::class, self::EQUALITY_DEFECT);
+        } finally {
+            $this->createEqualityMatchIndex();
         }
     }
 
@@ -259,6 +366,43 @@ abstract class EngineSearchTestCase extends TestCase
      * @return string
      */
     abstract protected function anywhereMatchDefect(): string;
+
+    /**
+     * Drop the index serving the leading match on the searched column.
+     *
+     * @return void
+     */
+    abstract protected function dropPrefixMatchIndex(): void;
+
+    /**
+     * Recreate the index serving the leading match on the searched column.
+     *
+     * @return void
+     */
+    abstract protected function createPrefixMatchIndex(): void;
+
+    /**
+     * Return the defect the leading match draws once that index is gone.
+     *
+     * @return string
+     */
+    abstract protected function prefixMatchDefect(): string;
+
+    /**
+     * Drop the ordinary index serving the equality match on the searched
+     * column.
+     *
+     * @return void
+     */
+    abstract protected function dropEqualityMatchIndex(): void;
+
+    /**
+     * Recreate the ordinary index serving the equality match on the searched
+     * column.
+     *
+     * @return void
+     */
+    abstract protected function createEqualityMatchIndex(): void;
 
     /**
      * Return the plan the engine reports for the query, as one string.
@@ -314,6 +458,46 @@ abstract class EngineSearchTestCase extends TestCase
     {
         /** @var array<int, string> */
         return $this->searchQuery($term, $resourceClass)->orderBy('id')->pluck('name')->all(); // @phpstan-ignore staticMethod.dynamicCall
+    }
+
+    /**
+     * Assert that the resource's declared search surface passes validation
+     * against the live catalogue.
+     *
+     * @param  string  $resourceClass
+     * @return void
+     */
+    private function assertValidationAccepts(string $resourceClass): void
+    {
+        Config::set('api-toolkit.resources.resource_map', [User::class => $resourceClass]);
+
+        $this->runValidation()
+            ->expectsOutputToContain('All 1 resource schema(s) validated successfully.')
+            ->assertExitCode(0);
+    }
+
+    /**
+     * Assert that validating the resource reports the given defect.
+     *
+     * @param  string  $resourceClass
+     * @param  string  $defect
+     * @return void
+     */
+    private function assertValidationRefuses(string $resourceClass, string $defect): void
+    {
+        try {
+            $this->validator()->validate([User::class => $resourceClass]);
+
+            static::fail('Validation accepted a declaration with no index behind it.');
+        } catch (InvalidSchemaException $exception) {
+
+            $defects = array_map(
+                static fn (SchemaValidationError $error): string => $error->defect,
+                $exception->getErrors(),
+            );
+
+            static::assertContains($defect, $defects);
+        }
     }
 
     /**

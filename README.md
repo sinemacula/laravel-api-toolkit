@@ -1,4 +1,6 @@
-# Laravel API Toolkit
+<h1 align="center">Laravel API Toolkit</h1>
+
+<div align="center">
 
 [![Latest Stable Version](https://img.shields.io/packagist/v/sinemacula/laravel-api-toolkit.svg)](https://packagist.org/packages/sinemacula/laravel-api-toolkit)
 [![Build Status](https://github.com/sinemacula/laravel-api-toolkit/actions/workflows/tests.yml/badge.svg?branch=master)](https://github.com/sinemacula/laravel-api-toolkit/actions/workflows/tests.yml)
@@ -6,6 +8,8 @@
 [![Maintainability](https://qlty.sh/gh/sinemacula/projects/laravel-api-toolkit/maintainability.svg)](https://qlty.sh/gh/sinemacula/projects/laravel-api-toolkit)
 [![Code Coverage](https://qlty.sh/gh/sinemacula/projects/laravel-api-toolkit/coverage.svg)](https://qlty.sh/gh/sinemacula/projects/laravel-api-toolkit)
 [![Total Downloads](https://img.shields.io/packagist/dt/sinemacula/laravel-api-toolkit.svg)](https://packagist.org/packages/sinemacula/laravel-api-toolkit)
+
+</div>
 
 The Laravel API Toolkit is a comprehensive package designed to simplify the development of RESTful APIs in Laravel. It
 provides tools to enhance API functionality, improve error handling, and ensure consistent data output, making API
@@ -469,9 +473,10 @@ independently in `api-toolkit.middleware`:
 (appended to the `api` middleware group only). `maintenance_mode_swap` is always prepended to the global
 stack when enabled, and `throttle` is registered as the router's `throttle` alias, so neither takes a scope.
 
-Typed request capabilities (soft-delete visibility via `includeTrashed()` / `onlyTrashed()`) are available
-on demand through `SineMacula\ApiToolkit\Http\RequestCapabilities::fromRequest($request)`, which resolves
-and caches them lazily on first access - no middleware registration is required.
+Soft-delete visibility is resolved from the request by the query parser rather than by a request macro:
+`ApiQuery::getTrashed()` returns a `TrashedState`, and the criteria layer applies it only where the model uses
+`SoftDeletes` and the resource has opted in by overriding `allowsTrashed()`. A resource that has not opted in
+keeps its soft-deleted records hidden whatever the request asks.
 
 **Request throttling and rate-limit keying** - each request is keyed by method, host, path, and caller
 identity. Authenticated requests are keyed by the user identifier; guests are keyed by their client IP
@@ -501,11 +506,33 @@ use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 public function __construct(private SchemaIntrospectionProvider $introspector) {}
 ```
 
-An OpenAPI 3.1 components document can be generated from the registered resource map and operator grammar:
+An OpenAPI 3.1 document is generated from the registered resource map, the routes the application exposes,
+and the live operator grammar:
 
 ```bash
 php artisan api-toolkit:export-openapi
 php artisan api-toolkit:export-openapi --output=openapi.json
+```
+
+Each resource becomes a component schema and each documented route an operation carrying the query
+parameters that action honours, so a generated client sends the grammar instead of discovering it from a
+422. Every property answering a query carries an `x-query-surface` extension naming the key to send it
+under, the capability it is filterable with together with the operators that capability answers, whether an
+index backs its sort and the reason recorded where none does, and the strategy a search matches it by; the
+relations a filter may descend through are named on the schema itself. The surface and the relations alike
+are read from the compiled schema the request-time gates read, and the operator vocabulary from the bound
+operator registry, so the document cannot offer a column the request would reject or an operator the
+package no longer ships. A column whose every operator has left the registry is documented as answering no
+filter at all.
+
+A second command writes the generated reference sections - the error catalogue, the enum reference, and the
+query surface reference, which tables the queryable columns of the resources an audience documents beside
+the bounds a request is held to - into the Markdown docs directory assembled into the document's
+description. The surface reference is written once per audience, under `audiences/<audience>/`, so what a
+resource may be asked reaches only the documents that already carry its schema:
+
+```bash
+php artisan api-toolkit:docs:generate
 ```
 
 ---

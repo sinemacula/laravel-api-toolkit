@@ -114,8 +114,8 @@ final readonly class OpenApiAssembler
     }
 
     /**
-     * Build the info block for the audience, injecting the committed Markdown
-     * manual into its description.
+     * Build the info block for the audience, injecting the Markdown manual
+     * assembled for that same audience into its description.
      *
      * @param  string  $audience
      * @return array<string, mixed>
@@ -126,7 +126,7 @@ final readonly class OpenApiAssembler
 
         $description = $this->composeDescription(
             is_string($info['description'] ?? null) ? $info['description'] : null,
-            $this->manual->assemble(),
+            $this->manual->assemble($audience),
         );
 
         if ($description === '') {

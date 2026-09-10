@@ -111,4 +111,15 @@ final class SchemaComponentNameTest extends TestCase
     {
         self::assertSame('AlternateTier', SchemaComponentName::fromEnum(AlternateTier::class));
     }
+
+    /**
+     * Test that a name is not read off a class the autoloader cannot produce,
+     * so a stale mapping entry names nothing rather than raising.
+     *
+     * @return void
+     */
+    public function testAClassThatCannotBeLoadedCarriesNoOverride(): void
+    {
+        self::assertSame('Missing', SchemaComponentName::fromResource('Tests\Fixtures\Resources\MissingResource'));
+    }
 }

@@ -123,6 +123,44 @@ final class RouteMacroRegistrarTest extends TestCase
     }
 
     /**
+     * Test that registering against a router carrying none of the macros
+     * installs all three, each declaring the directive it is named for.
+     *
+     * The service provider registers them at boot, so the router is stripped of
+     * every macro first and handed back its own afterwards, leaving the process
+     * as it was found.
+     *
+     * @return void
+     */
+    public function testRegisterInstallsEachMacroOnARouterWithoutThem(): void
+    {
+        $property = new \ReflectionProperty(Route::class, 'macros');
+        $macros   = $property->getValue();
+
+        Route::flushMacros();
+
+        try {
+            self::assertFalse(Route::hasMacro('undocumented'));
+
+            (new RouteMacroRegistrar)->register();
+
+            $undocumented = $this->makeRoute();
+            $documented   = $this->makeRoute();
+            $excluded     = $this->makeRoute();
+
+            $undocumented->undocumented(); // @phpstan-ignore method.notFound
+            $documented->documentedIn('public', 'partner'); // @phpstan-ignore method.notFound
+            $excluded->notDocumentedIn('internal'); // @phpstan-ignore method.notFound
+
+            self::assertTrue($undocumented->getAction(AudienceResolver::ROUTE_ACTION_KEY)['undocumented']);
+            self::assertSame(['public', 'partner'], $documented->getAction(AudienceResolver::ROUTE_ACTION_KEY)['documentedIn']);
+            self::assertSame(['internal'], $excluded->getAction(AudienceResolver::ROUTE_ACTION_KEY)['notDocumentedIn']);
+        } finally {
+            $property->setValue(null, $macros);
+        }
+    }
+
+    /**
      * Test that re-registering the macros is a safe no-op.
      *
      * @return void

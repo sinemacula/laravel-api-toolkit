@@ -6,6 +6,7 @@ namespace Tests\Unit\Repositories\Criteria\Concerns;
 
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Enums\TrashedState;
@@ -82,6 +83,34 @@ final class RelationTrashedGateTest extends TestCase
         $result = $this->gate()->decorate(['comments'], new User, TrashedState::WITH);
 
         self::assertSame(['comments'], $result);
+    }
+
+    /**
+     * Test that a soft-deleting relation whose leaf model is bound to no
+     * resource is left with its default scope, since the gate has nowhere to
+     * read an opt-in from.
+     *
+     * @return void
+     */
+    public function testUnmappedLeafModelLeftUntouched(): void
+    {
+        $result = $this->gateFor([User::class => UserResource::class])->decorate(['articles'], new User, TrashedState::WITH);
+
+        self::assertSame(['articles'], $result);
+    }
+
+    /**
+     * Test that a soft-deleting relation whose leaf model is bound to a class
+     * that is not an API resource is left with its default scope, rather than
+     * having an opt-in read off a class that cannot answer for one.
+     *
+     * @return void
+     */
+    public function testLeafModelBoundToANonResourceLeftUntouched(): void
+    {
+        $result = $this->gateFor([Article::class => \stdClass::class])->decorate(['articles'], new User, TrashedState::WITH);
+
+        self::assertSame(['articles'], $result);
     }
 
     /**
@@ -187,6 +216,28 @@ final class RelationTrashedGateTest extends TestCase
     }
 
     /**
+     * Test that a gated constraint handed a query that is not an Eloquent
+     * builder leaves it exactly as it found it, rather than reaching for a
+     * soft-delete scope that only an Eloquent builder answers to.
+     *
+     * @return void
+     */
+    public function testGatedConstraintLeavesANonEloquentQueryUntouched(): void
+    {
+        $result     = $this->gate()->decorate(['articles'], new User, TrashedState::WITH);
+        $constraint = $result['articles'];
+
+        assert($constraint instanceof \Closure);
+
+        $query = DB::table('articles');
+
+        $constraint($query);
+
+        self::assertSame('select * from "articles"', $query->toSql());
+        self::assertSame([], $query->getBindings());
+    }
+
+    /**
      * Test that a single trashed request widens both a soft-deleting root that
      * opts in and its opted-in eager-loaded relation together.
      *
@@ -214,16 +265,27 @@ final class RelationTrashedGateTest extends TestCase
      */
     private function gate(): RelationTrashedGate
     {
+        return $this->gateFor([
+            Article::class => ArticleResource::class,
+            Comment::class => CommentResource::class,
+            User::class    => UserResource::class,
+        ]);
+    }
+
+    /**
+     * Build a relation trashed gate wired to the given resource map.
+     *
+     * @param  array<string, mixed>  $resourceMap
+     * @return \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\RelationTrashedGate
+     */
+    private function gateFor(array $resourceMap): RelationTrashedGate
+    {
         assert($this->app !== null);
 
         return new RelationTrashedGate(
             $this->app->make(SchemaIntrospectionProvider::class),
             new Request,
-            [
-                Article::class => ArticleResource::class,
-                Comment::class => CommentResource::class,
-                User::class    => UserResource::class,
-            ],
+            $resourceMap,
         );
     }
 

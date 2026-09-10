@@ -242,6 +242,27 @@ final class ApiExceptionDiscovererTest extends TestCase
     }
 
     /**
+     * Test that an extra namespace whose registered directory does not exist is
+     * stepped over, leaving the remaining roots scanned rather than aborting
+     * the discovery.
+     *
+     * @return void
+     */
+    public function testExtraNamespaceSkipsADirectoryThatDoesNotExist(): void
+    {
+        $missing = sys_get_temp_dir() . '/api-toolkit-extra-missing-' . uniqid('', true);
+
+        $prefixes = [
+            'Absent\Package\\'            => [$missing],
+            'Tests\Fixtures\Exceptions\\' => [$this->fixtureExceptionsDirectory()],
+        ];
+
+        $discovered = (new ApiExceptionDiscoverer($prefixes, ['Absent\Package\\']))->discover();
+
+        self::assertSame([WidgetFailureException::class], $discovered);
+    }
+
+    /**
      * Resolve the directory holding the fixture exceptions.
      *
      * @return string
