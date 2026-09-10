@@ -269,7 +269,7 @@ final readonly class ValidateSearchIndexes implements SchemaValidationRule
 
         if (!in_array($strategy, $driver->supportedStrategies(), true)) {
             return array_fill_keys($columns, [sprintf(
-                'Field is declared searchable with the "%s" strategy, which the driver registered for the "%s" connection does not implement',
+                'Field is declared searchable with the "%s" strategy, which the driver serving the "%s" engine does not implement',
                 $strategy->value,
                 $name,
             )]);
@@ -280,9 +280,10 @@ final readonly class ValidateSearchIndexes implements SchemaValidationRule
         }
 
         return IndexProofWaiver::waives($connectionName) ? [] : array_fill_keys($columns, [sprintf(
-            'Field is declared searchable with the "%s" strategy, and the driver registered for the "%s" connection cannot prove an index serves it',
+            'Field is declared searchable with the "%s" strategy, and the driver serving the "%s" connection cannot prove an index serves it. '
+            . 'List that connection under api-toolkit.search.unverified_connections to serve it regardless',
             $strategy->value,
-            $name,
+            $connectionName ?? $name,
         )]);
     }
 

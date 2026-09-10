@@ -43,7 +43,7 @@ final class UnservableSearchExceptionTest extends TestCase
         $exception = UnservableSearchException::unsupportedStrategy('pgsql', SearchStrategy::SUBSTRING);
 
         self::assertSame(
-            'The search driver registered for the "pgsql" connection does not implement the "substring" match strategy this resource declares.',
+            'The search driver serving the "pgsql" engine does not implement the "substring" match strategy this resource declares.',
             $exception->getMessage(),
         );
     }
@@ -79,7 +79,7 @@ final class UnservableSearchExceptionTest extends TestCase
         $exception = UnservableSearchException::unservableCombination('mysql', 'they cannot share a disjunction');
 
         self::assertSame(
-            'The search driver registered for the "mysql" connection cannot serve the match strategies this resource declares together, '
+            'The search driver serving the "mysql" engine cannot serve the match strategies this resource declares together, '
             . 'because they cannot share a disjunction.',
             $exception->getMessage(),
         );

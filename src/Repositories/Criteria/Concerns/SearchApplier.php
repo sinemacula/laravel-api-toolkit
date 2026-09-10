@@ -169,8 +169,12 @@ final readonly class SearchApplier
 
         if (!$driver->canVerifyIndexBacking($strategy, $connection)) {
 
+            if ($connectionName === null) {
+                throw UnservableSearchException::unnamedConnection($strategy);
+            }
+
             if (!IndexProofWaiver::waives($connectionName)) {
-                throw UnservableSearchException::unprovenIndexBacking($connectionName ?? $name, $strategy);
+                throw UnservableSearchException::unprovenIndexBacking($connectionName, $strategy);
             }
 
             return;
@@ -179,7 +183,7 @@ final readonly class SearchApplier
         $defects = IndexProof::defects($driver, $strategy, $columns, $table, $connection);
 
         if ($defects !== []) {
-            throw UnservableSearchException::missingIndex($name, $strategy, $defects);
+            throw UnservableSearchException::missingIndex($connectionName ?? $name, $strategy, $defects);
         }
     }
 }

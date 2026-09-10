@@ -155,7 +155,7 @@ final class SearchDeploymentFailureHttpTest extends TestCase
             $this->search('/multi-strategy-users'),
             UnservableSearchException::class,
             sprintf(
-                'The search driver registered for the "%s" connection does not implement the "exact" match strategy this resource declares.',
+                'The search driver serving the "%s" engine does not implement the "exact" match strategy this resource declares.',
                 $this->driver(),
             ),
         );
@@ -202,7 +202,7 @@ final class SearchDeploymentFailureHttpTest extends TestCase
             sprintf(
                 'The "%s" connection carries no index serving the "substring" match strategy this resource declares, '
                 . 'so the search would scan the table: no trigram index over "name".',
-                $this->driver(),
+                $this->connectionName(),
             ),
         );
     }
@@ -221,7 +221,7 @@ final class SearchDeploymentFailureHttpTest extends TestCase
             $this->search('/multi-strategy-users'),
             UnservableSearchException::class,
             sprintf(
-                'The search driver registered for the "%s" connection cannot serve the match strategies this resource declares together, '
+                'The search driver serving the "%s" engine cannot serve the match strategies this resource declares together, '
                 . 'because they cannot share a disjunction here.',
                 $this->driver(),
             ),

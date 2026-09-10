@@ -212,7 +212,7 @@ final class SearchApplierTest extends TestCase
 
         $this->expectException(UnservableSearchException::class);
         $this->expectExceptionMessage(sprintf(
-            'The search driver registered for the "%s" connection does not implement the "exact" match strategy this resource declares.',
+            'The search driver serving the "%s" engine does not implement the "exact" match strategy this resource declares.',
             $this->driver(),
         ));
 
@@ -253,7 +253,7 @@ final class SearchApplierTest extends TestCase
 
         $this->expectException(UnservableSearchException::class);
         $this->expectExceptionMessage(sprintf(
-            'The search driver registered for the "%s" connection cannot serve the match strategies this resource declares together, '
+            'The search driver serving the "%s" engine cannot serve the match strategies this resource declares together, '
             . 'because they cannot share a disjunction here.',
             $this->driver(),
         ));
@@ -278,7 +278,7 @@ final class SearchApplierTest extends TestCase
         $this->expectExceptionMessage(sprintf(
             'The "%s" connection carries no index serving the "substring" match strategy this resource declares, '
             . 'so the search would scan the table: no trigram index over "name".',
-            $this->driver(),
+            $this->connectionName(),
         ));
 
         $this->applier->apply(User::query(), $this->term(), SearchableFilterableUserResource::class);
@@ -403,7 +403,11 @@ final class SearchApplierTest extends TestCase
         $this->drivers->register('sqlite', new PatternSearchDriver);
 
         $this->expectException(UnservableSearchException::class);
-        $this->expectExceptionMessage('The search driver serving the "sqlite" connection cannot prove an index serves the "substring" match strategy');
+        $this->expectExceptionMessage(
+            'The connection serving this resource reports no name, so the search driver cannot prove an index '
+            . 'serves the "substring" match strategy and the proof cannot be waived either, since the waiver '
+            . 'is a list of connection names.',
+        );
 
         $this->applier->apply(User::on(self::NAMELESS_CONNECTION), $this->term(), SearchableFilterableUserResource::class);
     }

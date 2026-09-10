@@ -136,7 +136,7 @@ final class ValidateSearchIndexesTest extends TestCase
 
         self::assertCount(1, $errors);
         self::assertSame(
-            sprintf('Field is declared searchable with the "substring" strategy, which the driver registered for the "%s" connection does not implement', $this->driver()),
+            sprintf('Field is declared searchable with the "substring" strategy, which the driver serving the "%s" engine does not implement', $this->driver()),
             $errors[0]->defect,
         );
     }
@@ -172,9 +172,10 @@ final class ValidateSearchIndexesTest extends TestCase
         self::assertCount(1, $errors);
         self::assertSame(
             sprintf(
-                'Field is declared searchable with the "substring" strategy, and the driver registered for the "%s" connection '
-                . 'cannot prove an index serves it',
-                $this->driver(),
+                'Field is declared searchable with the "substring" strategy, and the driver serving the "%s" connection '
+                . 'cannot prove an index serves it. '
+                . 'List that connection under api-toolkit.search.unverified_connections to serve it regardless',
+                $this->connectionName(),
             ),
             $errors[0]->defect,
         );
@@ -266,7 +267,7 @@ final class ValidateSearchIndexesTest extends TestCase
 
         self::assertCount(1, $errors);
         self::assertSame(
-            sprintf('Field is declared searchable with the "substring" strategy, which the driver registered for the "%s" connection does not implement', $this->driver()),
+            sprintf('Field is declared searchable with the "substring" strategy, which the driver serving the "%s" engine does not implement', $this->driver()),
             $errors[0]->defect,
         );
     }
