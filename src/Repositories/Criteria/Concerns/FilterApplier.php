@@ -5,6 +5,7 @@ declare(strict_types = 1);
 namespace SineMacula\ApiToolkit\Repositories\Criteria\Concerns;
 
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Validation\ValidationException;
 use SineMacula\ApiToolkit\Contracts\ExpandsValueList;
 use SineMacula\ApiToolkit\Contracts\FilterOperator;
 use SineMacula\ApiToolkit\Query\QueryCostLimits;
@@ -105,10 +106,38 @@ final class FilterApplier
         }
 
         foreach ($filters as $key => $value) {
-            $this->applyFilterEntry($query, $key, $value, $field, $context);
+            $this->applyFilterEntry($query, $this->assertNamedKey($key, $field ?? 'filters'), $value, $field, $context);
         }
 
         return $query;
+    }
+
+    /**
+     * Assert that a filter position carries a named key rather than a list
+     * index.
+     *
+     * A value spelled as a list, such as a field given two alternatives
+     * directly, reaches this walk with integer keys where a field or condition
+     * name is expected. Left alone the index meets a string parameter and
+     * raises a type error, so the request fails as an unhandled error rather
+     * than as a rejection the caller can read and correct.
+     *
+     * @param  mixed  $key
+     * @param  string  $position
+     * @return string
+     *
+     * @throws \Illuminate\Validation\ValidationException
+     */
+    private function assertNamedKey(mixed $key, string $position): string
+    {
+        if (is_string($key)) {
+            return $key;
+        }
+
+        $message = 'The %s filter must name a field or a condition. To match '
+            . 'any of several values, give the field a condition such as $in.';
+
+        throw ValidationException::withMessages([$position => sprintf($message, $position)]);
     }
 
     /**
@@ -286,8 +315,10 @@ final class FilterApplier
             ? 'where' : $this->logicalOperatorMap[$operator];
         $nested = $context->descend($operator, $operator);
 
-        $callback = function (Builder $query) use ($value, $nested): void {
+        $callback = function (Builder $query) use ($value, $nested, $operator): void {
             foreach ($value as $subKey => $subValue) {
+
+                $subKey = $this->assertNamedKey($subKey, $operator);
 
                 $nested->admit($subKey);
 
