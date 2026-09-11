@@ -26,15 +26,15 @@ final class UnservableSearchException extends \RuntimeException
     /**
      * Create the exception for a strategy the driver does not implement.
      *
-     * @param  string  $connection
+     * @param  string  $engine
      * @param  \SineMacula\ApiToolkit\Enums\SearchStrategy  $strategy
      * @return self
      */
-    public static function unsupportedStrategy(string $connection, SearchStrategy $strategy): self
+    public static function unsupportedStrategy(string $engine, SearchStrategy $strategy): self
     {
         return new self(sprintf(
-            'The search driver registered for the "%s" connection does not implement the "%s" match strategy this resource declares.',
-            $connection,
+            'The search driver serving the "%s" engine does not implement the "%s" match strategy this resource declares.',
+            $engine,
             $strategy->value,
         ));
     }
@@ -43,15 +43,15 @@ final class UnservableSearchException extends \RuntimeException
      * Create the exception for strategies the driver cannot resolve from an
      * index once they are declared together.
      *
-     * @param  string  $connection
+     * @param  string  $engine
      * @param  string  $defect
      * @return self
      */
-    public static function unservableCombination(string $connection, string $defect): self
+    public static function unservableCombination(string $engine, string $defect): self
     {
         return new self(sprintf(
-            'The search driver registered for the "%s" connection cannot serve the match strategies this resource declares together, because %s.',
-            $connection,
+            'The search driver serving the "%s" engine cannot serve the match strategies this resource declares together, because %s.',
+            $engine,
             $defect,
         ));
     }
@@ -75,7 +75,30 @@ final class UnservableSearchException extends \RuntimeException
     }
 
     /**
+     * Create the exception for a connection that reports no name of its own.
+     *
+     * The waiver is a list of connection names, so a connection without one
+     * cannot appear on it. Saying "list that connection" here would send the
+     * reader after a remedy that cannot be written down.
+     *
+     * @param  \SineMacula\ApiToolkit\Enums\SearchStrategy  $strategy
+     * @return self
+     */
+    public static function unnamedConnection(SearchStrategy $strategy): self
+    {
+        return new self(sprintf(
+            'The connection serving this resource reports no name, so the search driver cannot prove an index serves the "%s" match '
+            . 'strategy and the proof cannot be waived either, since the waiver is a list of connection names.',
+            $strategy->value,
+        ));
+    }
+
+    /**
      * Create the exception for a strategy no index is known to serve.
+     *
+     * This one names the connection rather than the engine its driver is
+     * registered against, because the waiver it points the reader at is keyed
+     * by connection name and the two are only the same string by convention.
      *
      * @param  string  $connection
      * @param  \SineMacula\ApiToolkit\Enums\SearchStrategy  $strategy
@@ -84,8 +107,8 @@ final class UnservableSearchException extends \RuntimeException
     public static function unprovenIndexBacking(string $connection, SearchStrategy $strategy): self
     {
         return new self(sprintf(
-            'The search driver registered for the "%s" connection cannot prove an index serves the "%s" match strategy, so the search would scan the table. '
-            . 'List the connection under api-toolkit.search.unverified_connections to serve it regardless.',
+            'The search driver serving the "%s" connection cannot prove an index serves the "%s" match strategy, so the search would scan the table. '
+            . 'List that connection under api-toolkit.search.unverified_connections to serve it regardless.',
             $connection,
             $strategy->value,
         ));

@@ -129,6 +129,16 @@ memoised from there, so a missing index refuses the request instead of quietly r
 PostgreSQL a missing trigram index is not an error at all, and the search would otherwise return the right
 rows out of a sequential scan for as long as the index stayed missing.
 
+The only way to switch that request-time proof off is `api-toolkit.search.unverified_connections`, which
+lists the connections a driver may serve a search on without proving an index behind it. The shipped entry
+names the connection a stock application calls `sqlite`, which carries neither index kind. The list is read
+by connection name, as `config/database.php` keys it, and not by the engine behind the connection, so an
+application naming its connections for itself waives one of them and leaves its siblings on the same engine
+refusing an unprovable declaration. That is worth being plain about rather than reading as a safety feature:
+a stock application names each connection after its engine, so writing `mysql` there still waives the
+connection named `mysql`, which is usually the one serving production. Nothing stands behind this list - a
+connection on it serves a search that may read the whole table on every request.
+
 **Sorting** - sort by one or more columns, with optional direction:
 
 ```http

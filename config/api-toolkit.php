@@ -416,11 +416,13 @@ return [
     |
     | `unverified_connections` lists the database connections on which a search
     | driver that cannot prove an index backs a declared match strategy may
-    | serve it anyway. The shipped list covers SQLite, which has neither the
-    | trigram nor the n-gram index the substring strategy needs and is therefore
-    | a development connection here. Listing a connection that serves traffic
-    | reinstates the silent full-table scan this layer exists to remove; leaving
-    | one off means an unprovable declaration fails loudly instead.
+    | serve it anyway, by connection name rather than by engine. The shipped
+    | entry is the connection a stock application names for SQLite, which has
+    | neither the trigram nor the n-gram index the substring strategy needs and
+    | is therefore a development connection here. Listing a connection that
+    | serves traffic reinstates the silent full-table scan this layer exists to
+    | remove; leaving one off means an unprovable declaration fails loudly
+    | instead.
     |
     | A driver ships for MySQL, PostgreSQL, and SQLite, registered against the
     | names those connections report. MariaDB reports its own name and has no
@@ -456,6 +458,17 @@ return [
 
         'max_words' => env('API_TOOLKIT_SEARCH_MAX_WORDS', 10),
 
+        // The connections on which a driver that cannot prove an index backs a
+        // declared match strategy may serve it anyway. Entries are connection
+        // names, as `config/database.php` keys them, not the engines behind
+        // them: a stock application names each connection after its engine,
+        // which is why the shipped entry reads as one, but an application
+        // naming its connections for itself waives a single connection and
+        // leaves its siblings on the same engine refusing an unprovable
+        // declaration. Name a development connection here rather than an
+        // engine. This is the only switch that turns the request-time proof
+        // off, so a connection listed here serves a search that may read the
+        // whole table on every request, with nothing behind it to refuse.
         'unverified_connections' => ['sqlite'],
 
     ],

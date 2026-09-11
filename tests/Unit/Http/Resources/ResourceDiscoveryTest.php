@@ -407,12 +407,16 @@ final class ResourceDiscoveryTest extends TestCase
      *
      * The scan is observed through its cache write rather than a binding, so
      * the transient file cannot leak a discovery into concurrently booting
-     * tests: the class it declares is not autoloadable.
+     * tests: the class it declares is not autoloadable. The app path is
+     * redirected to an isolated temporary tree, so a worker enumerating the
+     * shared skeleton cannot stat the probe after this test removes it.
      *
      * @return void
      */
     public function testMissingPathsKeyFallsBackToTheDefaultDirectory(): void
     {
+        assert($this->app !== null);
+
         $resources = Config::get('api-toolkit.resources');
 
         assert(is_array($resources));
@@ -421,14 +425,14 @@ final class ResourceDiscoveryTest extends TestCase
 
         Config::set('api-toolkit.resources', $resources);
 
-        $directory = app_path('Http/Resources');
-        $created   = !is_dir($directory);
+        $base = sys_get_temp_dir() . '/resource-discovery-fallback-' . uniqid((string) getmypid(), true);
 
-        if ($created) {
-            mkdir($directory, 0o755, true);
-        }
+        mkdir($base . '/Http/Resources', 0o755, true);
 
-        $file = $directory . '/FallbackProbe.php';
+        $this->app->useAppPath($base);
+
+        $directory = $base . '/Http/Resources';
+        $file      = $directory . '/FallbackProbe.php';
 
         file_put_contents($file, "<?php\n\nnamespace Ghost\\Discovery;\n\nclass FallbackProbe {}\n");
 
@@ -439,10 +443,9 @@ final class ResourceDiscoveryTest extends TestCase
             self::assertTrue(Cache::has($this->discoveryCacheKey([$directory])));
         } finally {
             unlink($file);
-
-            if ($created) {
-                rmdir($directory);
-            }
+            rmdir($directory);
+            rmdir($base . '/Http');
+            rmdir($base);
         }
     }
 

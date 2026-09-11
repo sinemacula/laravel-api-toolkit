@@ -4,8 +4,11 @@ declare(strict_types = 1);
 
 namespace Tests\Unit\Repositories\Criteria\Concerns;
 
+use Illuminate\Database\Connection;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\SQLiteConnection;
 use Illuminate\Support\Facades\Config;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Enums\SearchStrategy;
@@ -40,6 +43,15 @@ final class SearchApplierTest extends TestCase
     /** @var string The term every test searches for */
     private const string TERM = 'smith';
 
+    /** @var string The connection the waiver names, of a pair sharing an engine */
+    private const string WAIVED_CONNECTION = 'waived_sibling';
+
+    /** @var string The connection the waiver leaves off, sharing that engine */
+    private const string UNWAIVED_CONNECTION = 'unwaived_sibling';
+
+    /** @var string The connection resolved to report no name of its own */
+    private const string NAMELESS_CONNECTION = 'nameless';
+
     /** @var \SineMacula\ApiToolkit\Search\SearchDriverRegistry */
     private SearchDriverRegistry $drivers;
 
@@ -59,7 +71,7 @@ final class SearchApplierTest extends TestCase
         $this->drivers = new SearchDriverRegistry;
         $this->applier = new SearchApplier($this->drivers);
 
-        Config::set('api-toolkit.search.unverified_connections', [$this->connection()]);
+        Config::set('api-toolkit.search.unverified_connections', [$this->connectionName()]);
     }
 
     /**
@@ -183,7 +195,7 @@ final class SearchApplierTest extends TestCase
     public function testConnectionWithNoRegisteredDriverThrows(): void
     {
         $this->expectException(MissingSearchDriverException::class);
-        $this->expectExceptionMessage(sprintf('No search driver is registered for the "%s" connection. Register one to serve a search on that connection.', $this->connection()));
+        $this->expectExceptionMessage(sprintf('No search driver is registered for the "%s" connection. Register one to serve a search on that connection.', $this->driver()));
 
         $this->applier->apply(User::query(), $this->term(), SearchableFilterableUserResource::class);
     }
@@ -200,8 +212,8 @@ final class SearchApplierTest extends TestCase
 
         $this->expectException(UnservableSearchException::class);
         $this->expectExceptionMessage(sprintf(
-            'The search driver registered for the "%s" connection does not implement the "exact" match strategy this resource declares.',
-            $this->connection(),
+            'The search driver serving the "%s" engine does not implement the "exact" match strategy this resource declares.',
+            $this->driver(),
         ));
 
         $this->applier->apply(User::query(), $this->term(), SearchableUserResource::class);
@@ -221,9 +233,9 @@ final class SearchApplierTest extends TestCase
 
         $this->expectException(UnservableSearchException::class);
         $this->expectExceptionMessage(sprintf(
-            'The search driver registered for the "%s" connection cannot prove an index serves the "substring" match strategy, so the search would scan the table. '
-            . 'List the connection under api-toolkit.search.unverified_connections to serve it regardless.',
-            $this->connection(),
+            'The search driver serving the "%s" connection cannot prove an index serves the "substring" match strategy, so the search would scan the table. '
+            . 'List that connection under api-toolkit.search.unverified_connections to serve it regardless.',
+            $this->connectionName(),
         ));
 
         $this->applier->apply(User::query(), $this->term(), SearchableFilterableUserResource::class);
@@ -241,9 +253,9 @@ final class SearchApplierTest extends TestCase
 
         $this->expectException(UnservableSearchException::class);
         $this->expectExceptionMessage(sprintf(
-            'The search driver registered for the "%s" connection cannot serve the match strategies this resource declares together, '
+            'The search driver serving the "%s" engine cannot serve the match strategies this resource declares together, '
             . 'because they cannot share a disjunction here.',
-            $this->connection(),
+            $this->driver(),
         ));
 
         $this->applier->apply(User::query(), $this->term(), SearchableUserResource::class);
@@ -266,7 +278,7 @@ final class SearchApplierTest extends TestCase
         $this->expectExceptionMessage(sprintf(
             'The "%s" connection carries no index serving the "substring" match strategy this resource declares, '
             . 'so the search would scan the table: no trigram index over "name".',
-            $this->connection(),
+            $this->connectionName(),
         ));
 
         $this->applier->apply(User::query(), $this->term(), SearchableFilterableUserResource::class);
@@ -341,13 +353,73 @@ final class SearchApplierTest extends TestCase
     }
 
     /**
+     * Test that the waiver names a connection rather than the engine behind it.
+     *
+     * Two connections speaking the same engine are waived apart: the one the
+     * list names serves the search, and its sibling is still refused. Nothing
+     * separates the pair but the name, so a waiver read as an engine cannot
+     * tell them apart and would serve both.
+     *
+     * @return void
+     */
+    public function testWaiverNamesTheConnectionRatherThanTheEngineBehindIt(): void
+    {
+        $this->defineSiblingConnections();
+
+        Config::set('api-toolkit.search.unverified_connections', [self::WAIVED_CONNECTION]);
+
+        $this->registerDriver();
+
+        $waived  = User::on(self::WAIVED_CONNECTION);
+        $refused = User::on(self::UNWAIVED_CONNECTION);
+
+        self::assertSame(
+            $waived->getModel()->getConnection()->getDriverName(),
+            $refused->getModel()->getConnection()->getDriverName(),
+        );
+
+        $this->applier->apply($waived, $this->term(), SearchableFilterableUserResource::class);
+
+        self::assertCount(1, $waived->getQuery()->wheres);
+
+        $this->expectException(UnservableSearchException::class);
+
+        $this->applier->apply($refused, $this->term(), SearchableFilterableUserResource::class);
+    }
+
+    /**
+     * Test that a connection reporting no name of its own is waived by nothing,
+     * even where the list names the key it is configured under, and is refused
+     * with the engine named because nothing else names it.
+     *
+     * @return void
+     */
+    public function testConnectionReportingNoNameOfItsOwnIsWaivedByNothing(): void
+    {
+        $this->defineNamelessConnection();
+
+        Config::set('api-toolkit.search.unverified_connections', [self::NAMELESS_CONNECTION]);
+
+        $this->drivers->register('sqlite', new PatternSearchDriver);
+
+        $this->expectException(UnservableSearchException::class);
+        $this->expectExceptionMessage(
+            'The connection serving this resource reports no name, so the search driver cannot prove an index '
+            . 'serves the "substring" match strategy and the proof cannot be waived either, since the waiver '
+            . 'is a list of connection names.',
+        );
+
+        $this->applier->apply(User::on(self::NAMELESS_CONNECTION), $this->term(), SearchableFilterableUserResource::class);
+    }
+
+    /**
      * Test that a waiver of the wrong shape is read as no waiver at all.
      *
      * @return void
      */
     public function testMalformedWaiverIsReadAsNoWaiver(): void
     {
-        Config::set('api-toolkit.search.unverified_connections', $this->connection());
+        Config::set('api-toolkit.search.unverified_connections', $this->connectionName());
 
         $this->registerDriver();
 
@@ -364,7 +436,39 @@ final class SearchApplierTest extends TestCase
      */
     private function registerDriver(?PatternSearchDriver $driver = null): void
     {
-        $this->drivers->register($this->connection(), $driver ?? new PatternSearchDriver);
+        $this->drivers->register($this->driver(), $driver ?? new PatternSearchDriver);
+    }
+
+    /**
+     * Define two connections speaking the same engine as the one the suite runs
+     * against, so the waiver has a pair to tell apart.
+     *
+     * @return void
+     */
+    private function defineSiblingConnections(): void
+    {
+        $config = Config::get('database.connections.' . $this->connectionName());
+
+        Config::set('database.connections.' . self::WAIVED_CONNECTION, $config);
+        Config::set('database.connections.' . self::UNWAIVED_CONNECTION, $config);
+    }
+
+    /**
+     * Define a connection resolved by an extension that reports no name of its
+     * own, which the framework's own factory never produces.
+     *
+     * @return void
+     */
+    private function defineNamelessConnection(): void
+    {
+        Config::set('database.connections.' . self::NAMELESS_CONNECTION, ['driver' => 'sqlite', 'database' => ':memory:']);
+
+        DB::extend(self::NAMELESS_CONNECTION, fn (): Connection => new SQLiteConnection(
+            fn (): \PDO => new \PDO('sqlite::memory:'),
+            'main',
+            '',
+            ['driver' => 'sqlite'],
+        ));
     }
 
     /**
@@ -395,12 +499,24 @@ final class SearchApplierTest extends TestCase
     }
 
     /**
-     * Return the driver name of the connection the suite runs against.
+     * Return the engine the connection under test speaks, which is the name a
+     * driver is registered against.
      *
      * @return string
      */
-    private function connection(): string
+    private function driver(): string
     {
         return (new User)->getConnection()->getDriverName();
+    }
+
+    /**
+     * Return the name of the connection under test, which is the name the
+     * waiver is keyed by.
+     *
+     * @return string
+     */
+    private function connectionName(): string
+    {
+        return (new User)->getConnection()->getName() ?? '';
     }
 }

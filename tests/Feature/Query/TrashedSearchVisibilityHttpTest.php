@@ -81,11 +81,11 @@ final class TrashedSearchVisibilityHttpTest extends TestCase
 
         $this->registerApiExceptionHandler();
 
-        $connection = DB::connection()->getDriverName();
+        $connection = DB::connection();
 
-        $this->app?->make(SearchDriverRegistry::class)->override($connection, new PatternSearchDriver);
+        $this->app?->make(SearchDriverRegistry::class)->override($connection->getDriverName(), new PatternSearchDriver);
 
-        Config::set('api-toolkit.search.unverified_connections', [$connection]);
+        Config::set('api-toolkit.search.unverified_connections', [$connection->getName()]);
         Config::set('api-toolkit.resources.resource_map', [Comment::class => TrashedSearchCommentResource::class]);
 
         $this->seedArticles();

@@ -70,4 +70,17 @@ final class IndexProofWaiverTest extends TestCase
 
         self::assertFalse(IndexProofWaiver::waives('sqlite'));
     }
+
+    /**
+     * Test that a connection reporting no name of its own is waived by nothing,
+     * even by a list carrying an entry with no name either.
+     *
+     * @return void
+     */
+    public function testWaivesNothingForAConnectionWithNoName(): void
+    {
+        Config::set('api-toolkit.search.unverified_connections', ['sqlite', null]);
+
+        self::assertFalse(IndexProofWaiver::waives(null));
+    }
 }

@@ -15,6 +15,13 @@ use Illuminate\Support\Facades\Config;
  * which are meant to be the development connection a suite runs against rather
  * than anything serving traffic.
  *
+ * The names read here are connection names, as the application's own database
+ * configuration keys them, and not the engines behind them. A stock application
+ * names each connection after the engine it speaks, which is why the shipped
+ * entry reads as an engine, but an application naming its connections for
+ * itself waives one of them without waiving every connection on the same
+ * engine.
+ *
  * The list is read in two places - where a request is refused and where the
  * schema is validated - and both have to agree, so it is read in one.
  *
@@ -24,13 +31,21 @@ use Illuminate\Support\Facades\Config;
 final class IndexProofWaiver
 {
     /**
-     * Determine whether the connection waives the index proof.
+     * Determine whether the named connection waives the index proof.
      *
-     * @param  string  $connection
+     * A connection reporting no name of its own is waived by nothing: the one
+     * control that switches the proof off is a list of names, and a connection
+     * there is no way to name cannot appear on it.
+     *
+     * @param  string|null  $connection
      * @return bool
      */
-    public static function waives(string $connection): bool
+    public static function waives(?string $connection): bool
     {
+        if ($connection === null) {
+            return false;
+        }
+
         $waived = Config::get('api-toolkit.search.unverified_connections', []);
 
         return is_array($waived) && in_array($connection, $waived, true);

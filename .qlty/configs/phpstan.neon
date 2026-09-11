@@ -10,3 +10,12 @@ parameters:
         - tests
 
     checkUninitializedProperties: false
+
+    # The env-outside-config rule resolves the application config directory; a
+    # package's own config directory is not that, so its env() reads are
+    # reported as though they were application code.
+    ignoreErrors:
+        -
+            identifier: larastan.noEnvCallsOutsideOfConfig
+            paths:
+                - '*/config/*'
