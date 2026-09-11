@@ -395,6 +395,56 @@ final class QueryParameterValidatorTest extends TestCase
     }
 
     /**
+     * Provide each configured ceiling state and the value it must resolve to.
+     *
+     * @return iterable<string, array{mixed, int}>
+     */
+    public static function ceilingResolutionProvider(): iterable
+    {
+        yield 'configured value is honoured' => [250, 250];
+        yield 'numeric string is read' => ['250', 250];
+        yield 'explicit null disables' => [null, 0];
+        yield 'explicit zero disables' => [0, 0];
+        yield 'unreadable falls back' => ['not-a-number', QueryParameterValidator::DEFAULT_MAX_LIMIT];
+    }
+
+    /**
+     * Test that the ceiling resolves to the documented value for each
+     * configured state.
+     *
+     * The emitted document reports this ceiling and the guard enforces it, so
+     * both read it through this one resolver and cannot drift apart.
+     *
+     * @param  mixed  $configured
+     * @param  int  $expected
+     * @return void
+     */
+    #[DataProvider('ceilingResolutionProvider')]
+    public function testCeilingResolvesToTheDocumentedValue(mixed $configured, int $expected): void
+    {
+        Config::set(self::MAX_LIMIT_KEY, $configured);
+
+        self::assertSame($expected, QueryParameterValidator::pageSizeCeiling());
+    }
+
+    /**
+     * Test that the ceiling reported to a rejected caller is the shipped
+     * default when the configuration is absent.
+     *
+     * @return void
+     */
+    public function testAbsentCeilingReportsTheShippedDefaultToTheCaller(): void
+    {
+        Config::set('api-toolkit.parser', Arr::except(
+            (array) Config::get('api-toolkit.parser'),
+            ['max_limit'],
+        ));
+
+        self::assertSame(100, QueryParameterValidator::DEFAULT_MAX_LIMIT);
+        self::assertSame(100, QueryParameterValidator::pageSizeCeiling());
+    }
+
+    /**
      * Test that a malformed page size keeps its own validation failure rather
      * than being reported as a cost.
      *
