@@ -34,6 +34,9 @@ final class QueryParameterValidator
     /** @var string The configuration key holding the page-size ceiling, and the reason a request above it is rejected with */
     public const string MAX_LIMIT = 'max_limit';
 
+    /** @var int The ceiling applied when the configured value is absent or unreadable */
+    public const int DEFAULT_MAX_LIMIT = 100;
+
     /**
      * Validate the incoming request parameters.
      *
@@ -52,6 +55,34 @@ final class QueryParameterValidator
         $this->assertParameterShapes($parameters);
         $this->guardFilterNesting($filters, $limits);
         $this->guardPageSize($parameters['limit'] ?? null);
+    }
+
+    /**
+     * Resolve the hard ceiling on a client-supplied page size.
+     *
+     * A key that is absent, or present but unreadable, resolves to the shipped
+     * default rather than to no ceiling at all. A published config predating
+     * the key, or an environment variable set to an empty value, would
+     * otherwise leave the page size unbounded. Only an explicit null or zero
+     * disables the ceiling, which is the documented way to turn it off.
+     *
+     * @return int
+     */
+    public static function pageSizeCeiling(): int
+    {
+        $key = 'api-toolkit.parser.' . self::MAX_LIMIT;
+
+        if (!Config::has($key)) {
+            return self::DEFAULT_MAX_LIMIT;
+        }
+
+        $ceiling = Config::get($key);
+
+        return match (true) {
+            $ceiling === null    => 0,
+            is_numeric($ceiling) => (int) $ceiling,
+            default              => self::DEFAULT_MAX_LIMIT,
+        };
     }
 
     /**
@@ -130,8 +161,7 @@ final class QueryParameterValidator
      */
     private function guardPageSize(mixed $limit): void
     {
-        $ceiling   = Config::get('api-toolkit.parser.' . self::MAX_LIMIT);
-        $ceiling   = is_numeric($ceiling) ? (int) $ceiling : 0;
+        $ceiling   = self::pageSizeCeiling();
         $requested = is_numeric($limit) ? (int) $limit : 0;
 
         if ($ceiling > 0 && $requested > $ceiling) {

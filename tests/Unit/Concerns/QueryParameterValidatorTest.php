@@ -4,6 +4,7 @@ declare(strict_types = 1);
 
 namespace Tests\Unit\Concerns;
 
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Validation\ValidationException;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -311,7 +312,6 @@ final class QueryParameterValidatorTest extends TestCase
         yield 'zero' => [0];
         yield 'negative' => [-1];
         yield 'null' => [null];
-        yield 'non-numeric' => ['not-a-number'];
     }
 
     /**
@@ -329,6 +329,67 @@ final class QueryParameterValidatorTest extends TestCase
         Config::set(self::MAX_LIMIT_KEY, $ceiling);
 
         $this->expectNotToPerformAssertions();
+
+        $this->validator->validate(['limit' => '100000']);
+    }
+
+    /**
+     * Provide the ceiling values that must fall back to the shipped default
+     * rather than removing the bound.
+     *
+     * @return iterable<string, array{mixed}>
+     */
+    public static function unreadableCeilingProvider(): iterable
+    {
+        yield 'non-numeric' => ['not-a-number'];
+        yield 'empty environment value' => [''];
+        yield 'array' => [[100]];
+    }
+
+    /**
+     * Test that an unreadable ceiling falls back to the shipped default rather
+     * than leaving the page size unbounded.
+     *
+     * An empty environment variable reads as an empty string, which is not
+     * numeric. Reading that as "no ceiling" would hand an unbounded page size
+     * to anyone who set the variable without a value.
+     *
+     * @param  mixed  $ceiling
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    #[DataProvider('unreadableCeilingProvider')]
+    public function testUnreadableCeilingFallsBackToTheShippedDefault(mixed $ceiling): void
+    {
+        Config::set(self::MAX_LIMIT_KEY, $ceiling);
+
+        $this->expectException(QueryTooExpensiveException::class);
+
+        $this->validator->validate(['limit' => '100000']);
+    }
+
+    /**
+     * Test that a config predating the page-size key keeps the shipped ceiling
+     * rather than silently removing it.
+     *
+     * A consumer whose published config was written before the key existed
+     * would otherwise serve an unbounded page to any caller who asked.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testAbsentCeilingKeyKeepsTheShippedDefault(): void
+    {
+        Config::set('api-toolkit.parser', Arr::except(
+            (array) Config::get('api-toolkit.parser'),
+            ['max_limit'],
+        ));
+
+        self::assertFalse(Config::has(self::MAX_LIMIT_KEY));
+
+        $this->expectException(QueryTooExpensiveException::class);
 
         $this->validator->validate(['limit' => '100000']);
     }

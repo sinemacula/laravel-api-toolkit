@@ -29,7 +29,6 @@ use SineMacula\ApiToolkit\Search\SearchTerm;
 final readonly class ConfigMetadataCatalogue implements MetadataCatalogue
 {
     /** @var string The configuration key holding the page-size ceiling */
-    private const string MAX_LIMIT_KEY = 'api-toolkit.parser.max_limit';
 
     /** @var string The bound naming the shortest word a search term may carry */
     private const string MIN_WORD_LENGTH = 'min_word_length';
@@ -183,8 +182,6 @@ final readonly class ConfigMetadataCatalogue implements MetadataCatalogue
      */
     private function pageSizeCeiling(): int
     {
-        $ceiling = Config::get(self::MAX_LIMIT_KEY);
-
-        return is_numeric($ceiling) ? (int) $ceiling : 0;
+        return QueryParameterValidator::pageSizeCeiling();
     }
 }
