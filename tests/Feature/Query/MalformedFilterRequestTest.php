@@ -108,4 +108,42 @@ final class MalformedFilterRequestTest extends TestCase
 
         self::assertArrayHasKey('filters', (array) $response->json('error.meta'));
     }
+
+    /**
+     * Test that a field given a bare list of values is rejected rather than
+     * raising a type error.
+     *
+     * The list reaches the filter walk with integer keys where a field or
+     * condition name is expected, which met a string parameter and failed the
+     * request as an unhandled error. An advanced search UI composing an "any
+     * of" group by hand emits exactly this shape, so it must read as a
+     * rejection the caller can correct.
+     *
+     * @return void
+     */
+    public function testFieldGivenABareListOfValuesIsRejected(): void
+    {
+        $response = $this->getJson('/users?filters=' . urlencode('{"name":["Alice","Bob"]}'));
+
+        $response->assertStatus(422);
+        $response->assertJsonPath('error.status', 422);
+
+        self::assertArrayHasKey('name', (array) $response->json('error.meta'));
+    }
+
+    /**
+     * Test that a logical group given a bare list is rejected rather than
+     * raising a type error.
+     *
+     * @return void
+     */
+    public function testLogicalGroupGivenABareListIsRejected(): void
+    {
+        $filters = '{"$or":[{"name":"Alice"},{"name":"Bob"}]}';
+
+        $response = $this->getJson('/users?filters=' . urlencode($filters));
+
+        $response->assertStatus(422);
+        $response->assertJsonPath('error.status', 422);
+    }
 }
