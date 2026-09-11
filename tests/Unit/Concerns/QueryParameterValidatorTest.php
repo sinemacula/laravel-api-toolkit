@@ -4,6 +4,7 @@ declare(strict_types = 1);
 
 namespace Tests\Unit\Concerns;
 
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Validation\ValidationException;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -311,7 +312,6 @@ final class QueryParameterValidatorTest extends TestCase
         yield 'zero' => [0];
         yield 'negative' => [-1];
         yield 'null' => [null];
-        yield 'non-numeric' => ['not-a-number'];
     }
 
     /**
@@ -331,6 +331,117 @@ final class QueryParameterValidatorTest extends TestCase
         $this->expectNotToPerformAssertions();
 
         $this->validator->validate(['limit' => '100000']);
+    }
+
+    /**
+     * Provide the ceiling values that must fall back to the shipped default
+     * rather than removing the bound.
+     *
+     * @return iterable<string, array{mixed}>
+     */
+    public static function unreadableCeilingProvider(): iterable
+    {
+        yield 'non-numeric' => ['not-a-number'];
+        yield 'empty environment value' => [''];
+        yield 'array' => [[100]];
+    }
+
+    /**
+     * Test that an unreadable ceiling falls back to the shipped default rather
+     * than leaving the page size unbounded.
+     *
+     * An empty environment variable reads as an empty string, which is not
+     * numeric. Reading that as "no ceiling" would hand an unbounded page size
+     * to anyone who set the variable without a value.
+     *
+     * @param  mixed  $ceiling
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    #[DataProvider('unreadableCeilingProvider')]
+    public function testUnreadableCeilingFallsBackToTheShippedDefault(mixed $ceiling): void
+    {
+        Config::set(self::MAX_LIMIT_KEY, $ceiling);
+
+        $this->expectException(QueryTooExpensiveException::class);
+
+        $this->validator->validate(['limit' => '100000']);
+    }
+
+    /**
+     * Test that a config predating the page-size key keeps the shipped ceiling
+     * rather than silently removing it.
+     *
+     * A consumer whose published config was written before the key existed
+     * would otherwise serve an unbounded page to any caller who asked.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testAbsentCeilingKeyKeepsTheShippedDefault(): void
+    {
+        Config::set('api-toolkit.parser', Arr::except(
+            (array) Config::get('api-toolkit.parser'),
+            ['max_limit'],
+        ));
+
+        self::assertFalse(Config::has(self::MAX_LIMIT_KEY));
+
+        $this->expectException(QueryTooExpensiveException::class);
+
+        $this->validator->validate(['limit' => '100000']);
+    }
+
+    /**
+     * Provide each configured ceiling state and the value it must resolve to.
+     *
+     * @return iterable<string, array{mixed, int}>
+     */
+    public static function ceilingResolutionProvider(): iterable
+    {
+        yield 'configured value is honoured' => [250, 250];
+        yield 'numeric string is read' => ['250', 250];
+        yield 'explicit null disables' => [null, 0];
+        yield 'explicit zero disables' => [0, 0];
+        yield 'unreadable falls back' => ['not-a-number', QueryParameterValidator::DEFAULT_MAX_LIMIT];
+    }
+
+    /**
+     * Test that the ceiling resolves to the documented value for each
+     * configured state.
+     *
+     * The emitted document reports this ceiling and the guard enforces it, so
+     * both read it through this one resolver and cannot drift apart.
+     *
+     * @param  mixed  $configured
+     * @param  int  $expected
+     * @return void
+     */
+    #[DataProvider('ceilingResolutionProvider')]
+    public function testCeilingResolvesToTheDocumentedValue(mixed $configured, int $expected): void
+    {
+        Config::set(self::MAX_LIMIT_KEY, $configured);
+
+        self::assertSame($expected, QueryParameterValidator::pageSizeCeiling());
+    }
+
+    /**
+     * Test that the ceiling reported to a rejected caller is the shipped
+     * default when the configuration is absent.
+     *
+     * @return void
+     */
+    public function testAbsentCeilingReportsTheShippedDefaultToTheCaller(): void
+    {
+        Config::set('api-toolkit.parser', Arr::except(
+            (array) Config::get('api-toolkit.parser'),
+            ['max_limit'],
+        ));
+
+        self::assertSame(100, QueryParameterValidator::DEFAULT_MAX_LIMIT);
+        self::assertSame(100, QueryParameterValidator::pageSizeCeiling());
     }
 
     /**
