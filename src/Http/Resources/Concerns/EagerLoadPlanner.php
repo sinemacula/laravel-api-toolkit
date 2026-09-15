@@ -250,10 +250,20 @@ final class EagerLoadPlanner
      * @param  array<int, string>  $plain
      * @param  array<string, mixed>  $scoped
      * @param  array<string, bool>  $visited
+     * @param  array<int, class-string>  $ancestors
      * @return void
      */
-    private static function walkRelations(string $resourceClass, array $fields, string $prefix, array &$plain, array &$scoped, array &$visited): void
+    private static function walkRelations(string $resourceClass, array $fields, string $prefix, array &$plain, array &$scoped, array &$visited, array $ancestors = []): void
     {
+        // The visited set is keyed by the accumulated path, which lengthens at
+        // every hop, so a pair of resources that name each other never repeats
+        // a key and would descend without bound. The ancestry is held by value
+        // so it bounds the branch it belongs to and no sibling.
+        if (in_array($resourceClass, $ancestors, true)) {
+            return;
+        }
+
+        $ancestors[] = $resourceClass;
 
         $schema = SchemaCompiler::compile($resourceClass);
 
@@ -281,7 +291,7 @@ final class EagerLoadPlanner
 
             self::markVisited($visited, $resourceClass, $fullPath);
             self::addEagerLoadPath($definition, $fullPath, $plain, $scoped);
-            self::recurseIntoChild($definition, $fullPath, $plain, $scoped, $visited);
+            self::recurseIntoChild($definition, $fullPath, $plain, $scoped, $visited, $ancestors);
         }
     }
 
@@ -361,9 +371,10 @@ final class EagerLoadPlanner
      * @param  array<int, string>  $plain
      * @param  array<string, mixed>  $scoped
      * @param  array<string, bool>  $visited
+     * @param  array<int, class-string>  $ancestors
      * @return void
      */
-    private static function recurseIntoChild(CompiledFieldDefinition $definition, string $fullPath, array &$plain, array &$scoped, array &$visited): void
+    private static function recurseIntoChild(CompiledFieldDefinition $definition, string $fullPath, array &$plain, array &$scoped, array &$visited, array $ancestors = []): void
     {
         if (!self::shouldRecurseIntoChild($definition)) {
             return;
@@ -377,7 +388,7 @@ final class EagerLoadPlanner
             return;
         }
 
-        self::walkRelations($childResource, $childFields, $fullPath, $plain, $scoped, $visited);
+        self::walkRelations($childResource, $childFields, $fullPath, $plain, $scoped, $visited, $ancestors);
     }
 
     /**
