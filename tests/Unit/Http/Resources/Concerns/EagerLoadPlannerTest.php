@@ -1182,4 +1182,45 @@ final class EagerLoadPlannerTest extends TestCase
 
         self::assertSame(['name'], $result);
     }
+
+    /**
+     * Test that a pair of resources naming each other stops rather than
+     * descending without bound.
+     *
+     * The visited set is keyed by the accumulated path, which lengthens at
+     * every hop, so a cycle never repeats a key and the walk would exhaust
+     * memory before any query was issued. Two field names the client already
+     * knows are enough to reach it, so the bound is a denial-of-service guard
+     * rather than a tidiness measure.
+     *
+     * @return void
+     */
+    public function testBuildEagerLoadMapStopsWhenAResourcePairNamesEachOther(): void
+    {
+        ApiQuery::shouldReceive('getFields')
+            ->andReturnUsing(fn (string $type) => match ($type) {
+                'users' => ['posts'],
+                'posts' => ['user'],
+                default => null,
+            });
+
+        $result = EagerLoadPlanner::buildEagerLoadMap(UserResource::class, ['posts']);
+
+        self::assertContains('posts', $result);
+        self::assertContains('posts.user', $result);
+
+        // The cycle closes here: descending again would yield
+        // 'posts.user.posts' and never terminate.
+        foreach (array_merge(array_values($result), array_keys($result)) as $path) {
+            if (!is_string($path)) {
+                continue;
+            }
+
+            self::assertLessThanOrEqual(
+                2,
+                substr_count($path, '.'),
+                sprintf('The walk must not descend past the cycle: %s', $path),
+            );
+        }
+    }
 }
