@@ -1412,6 +1412,66 @@ final class FilterApplierTest extends TestCase
     }
 
     /**
+     * Test that a list reaching the root of the filter walk is named against
+     * the parameter rather than an empty position.
+     *
+     * The extractor refuses a top-level list before the walk sees one, so this
+     * guard is the second line rather than the first. It is asserted directly
+     * because a rejection naming an empty position would tell the caller
+     * nothing about where to look, and the extractor's guard is not this
+     * class's to rely on.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testListAtTheRootOfTheWalkIsNamedAgainstTheParameter(): void
+    {
+        $surface = $this->declaredSurface(filterable: ['name' => Capability::EXACT]);
+
+        try {
+            $this->applier->apply((new User)->newQuery(), ['Alice', 'Bob'], $this->operatorRegistry, $surface);
+
+            self::fail('A list at the root of the walk must be refused.');
+        } catch (ValidationException $exception) {
+            self::assertArrayHasKey('filters', $exception->errors());
+        }
+    }
+
+    /**
+     * Test that a list given to a named field names that field rather than the
+     * enclosing parameter.
+     *
+     * A rejection that always named the parameter would point an advanced
+     * search UI at the whole document instead of the one field it spelled
+     * wrongly, which is the difference between a correctable error and a
+     * puzzle.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testListGivenToANamedFieldNamesThatField(): void
+    {
+        $surface = $this->declaredSurface(filterable: ['name' => Capability::EXACT]);
+
+        try {
+            $this->applier->apply((new User)->newQuery(), ['name' => ['Alice', 'Bob']], $this->operatorRegistry, $surface);
+
+            self::fail('A list given to a named field must be refused.');
+        } catch (ValidationException $exception) {
+            self::assertArrayHasKey('name', $exception->errors());
+            self::assertArrayNotHasKey('filters', $exception->errors());
+
+            // Asserted whole: a substring match lets the halves reorder.
+            self::assertSame(
+                ['The name filter must name a field or a condition. To match any of several values, give the field a condition such as $in.'],
+                $exception->errors()['name'],
+            );
+        }
+    }
+
+    /**
      * Assert that the given filters are rejected on cost, carrying the cap that
      * rejected them, the position within the document, and both sides of the
      * comparison.
