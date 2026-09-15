@@ -33,8 +33,10 @@ test_patterns = [
     "**/spec_*.*",
 ]
 
+# The lint tooling only, not the library's supported range, which composer.json
+# keeps at 8.3. php-cs-fixer's symfony/console cannot be parsed by an 8.3 runner.
 [runtimes.enabled]
-php = "8.3"
+php = "8.4"
 
 [smells]
 mode = "comment"
@@ -76,15 +78,14 @@ package_filters = ["slevomat", "dealerdirect", "sinemacula"]
 [plugins.definitions.php-codesniffer.drivers.lint]
 success_codes = [0, 1, 2, 3]
 
-# Pinned to the last php-cs-fixer release whose symfony/console stays on the 7.x
-# line. 3.90+ pulls symfony/console 8 (requires PHP 8.4.1 and uses 8.4-only
-# syntax), which qlty's PHP 8.3 runner cannot parse. Bump once the runner ships
-# PHP 8.4.
+# Held at the version the shared standard requires. Its symfony/console is on
+# the 8.x line, which needs PHP 8.4.1 and uses 8.4-only syntax, which is why the
+# lint runtime above is 8.4 while the library itself still targets 8.3.
 [[plugin]]
 name = "php-cs-fixer"
 package_file = "composer.json"
 package_filters = ["sinemacula"]
-version = "3.89.0"
+version = "3.95.25"
 
 [[plugin]]
 name = "phpstan"
