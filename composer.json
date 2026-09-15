@@ -36,7 +36,7 @@
     },
     "require-dev": {
         "brianium/paratest": "^7.20",
-        "friendsofphp/php-cs-fixer": "3.89.0",
+        "friendsofphp/php-cs-fixer": "3.95.25",
         "infection/infection": "0.33.2",
         "laravel/octane": "^2.0",
         "mockery/mockery": "^1.6",
