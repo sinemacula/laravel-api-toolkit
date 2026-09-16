@@ -5,6 +5,7 @@ declare(strict_types = 1);
 namespace Tests\Unit;
 
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Config;
 use Illuminate\Validation\ValidationException;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -996,5 +997,106 @@ final class ApiQueryParserTest extends TestCase
         $this->parser->reset();
 
         self::assertNull($this->parser->getFields());
+    }
+
+    /**
+     * Provide each request shape and whether it reads by cursor.
+     *
+     * @return iterable<string, array{array<string, string>, bool}>
+     */
+    public static function cursorPaginationProvider(): iterable
+    {
+        yield 'pagination names cursor' => [['pagination' => 'cursor'], true];
+        yield 'a cursor token is carried' => [['cursor' => 'eyJpZCI6MX0'], true];
+        yield 'an empty cursor is still a cursor read' => [['cursor' => ''], true];
+        yield 'pagination names something else' => [['pagination' => 'page'], false];
+        yield 'neither is present' => [[], false];
+        yield 'a page number alone is not one' => [['page' => '500'], false];
+    }
+
+    /**
+     * Test that a request is recognised as reading by cursor from either the
+     * pagination mode or a carried cursor token.
+     *
+     * The offset cap reads this to decide whether a page number costs rows to
+     * honour, so a read wrongly classed as paging would be charged for an
+     * offset a cursor never pays, closing the escape hatch offered to a caller
+     * who has to read deeply.
+     *
+     * @param  array<string, string>  $parameters
+     * @param  bool  $expected
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    #[DataProvider('cursorPaginationProvider')]
+    public function testCursorPaginationIsRecognised(array $parameters, bool $expected): void
+    {
+        $this->parser->parse(Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), $parameters));
+
+        self::assertSame($expected, $this->parser->isCursorPaginated());
+    }
+
+    /**
+     * Test that the page size resolves to the configured default when the
+     * client leaves it out.
+     *
+     * The guard bounding what a page costs and the query paying that cost both
+     * read this, so a disagreement between them would bound something other
+     * than the work actually done.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testResolvedLimitFallsBackToTheConfiguredDefault(): void
+    {
+        Config::set('api-toolkit.parser.defaults.limit', 25);
+
+        $this->parser->parse(Request::create(self::TEST_URL, HttpMethod::GET->getVerb()));
+
+        self::assertSame(25, $this->parser->getResolvedLimit());
+
+        $this->parser->parse(Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['limit' => '10']));
+
+        self::assertSame(10, $this->parser->getResolvedLimit());
+    }
+
+    /**
+     * Provide the unusable configured defaults a page size may carry.
+     *
+     * @return iterable<string, array{mixed}>
+     */
+    public static function unusablePageSizeProvider(): iterable
+    {
+        yield 'not numeric' => ['not-a-number'];
+        yield 'empty environment value' => [''];
+        yield 'zero' => [0];
+        yield 'negative' => [-10];
+        yield 'absent' => [null];
+    }
+
+    /**
+     * Test that an unusable configured page size resolves to a single row
+     * rather than to nothing.
+     *
+     * A page size of zero would divide the offset arithmetic by zero, and a
+     * negative one would read the cap backwards, so the smallest page that can
+     * exist stands in. It is deliberately not the shipped default, because a
+     * misconfigured page size should be visible rather than papered over.
+     *
+     * @param  mixed  $configured
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    #[DataProvider('unusablePageSizeProvider')]
+    public function testUnusableConfiguredPageSizeResolvesToASingleRow(mixed $configured): void
+    {
+        Config::set('api-toolkit.parser.defaults.limit', $configured);
+
+        $this->parser->parse(Request::create(self::TEST_URL, HttpMethod::GET->getVerb()));
+
+        self::assertSame(1, $this->parser->getResolvedLimit());
     }
 }

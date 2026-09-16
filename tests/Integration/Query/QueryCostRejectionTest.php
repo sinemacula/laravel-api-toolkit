@@ -242,11 +242,13 @@ final class QueryCostRejectionTest extends TestCase
      */
     public function testPageBeyondTheOffsetCapIssuesNoSql(): void
     {
-        Config::set('api-toolkit.query_cost.max_offset', 25);
+        Config::set('api-toolkit.query_cost.max_offset', 250);
 
-        $response = $this->recordQueries('/users?page=26');
+        $response = $this->recordQueries('/users?page=27&limit=10');
 
-        $this->assertRejectionEnvelope($response, 'page', '', 'max_offset', 25, 26);
+        // The cap counts rows skipped; the refusal names pages, because that is
+        // the unit the caller asked in.
+        $this->assertRejectionEnvelope($response, 'page', '', 'max_offset', 26, 27);
     }
 
     /**

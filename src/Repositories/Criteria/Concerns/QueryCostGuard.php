@@ -4,6 +4,7 @@ declare(strict_types = 1);
 
 namespace SineMacula\ApiToolkit\Repositories\Criteria\Concerns;
 
+use SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
 use SineMacula\ApiToolkit\Query\QueryCostLimits;
 
@@ -40,13 +41,43 @@ final class QueryCostGuard
         $limits->enforce(QueryCostLimits::MAX_ORDER_KEYS, count(ApiQuery::getOrder()), 'order');
         $limits->enforce(QueryCostLimits::MAX_AGGREGATES, $this->countAggregates($resourceType), 'aggregates');
 
-        $page = ApiQuery::getPage();
+        $this->guardOffset($limits);
+    }
 
-        if ($page === null) {
+    /**
+     * Reject a page whose offset the read would have to scan past.
+     *
+     * The cost of a page is the rows skipped to reach it, which is the page
+     * number multiplied by the page size, so bounding the page number alone
+     * leaves the real ceiling moving with a page size the cap never reads. A
+     * cursor seeks to its position instead of counting rows to it, so a page
+     * number carried alongside one is not an offset the query pays.
+     *
+     * The refusal is reported in pages. The caller asked for a page, so a row
+     * count names a number they never supplied and cannot act on.
+     *
+     * @param  \SineMacula\ApiToolkit\Query\QueryCostLimits  $limits
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    private function guardOffset(QueryCostLimits $limits): void
+    {
+        $ceiling = $limits->limit(QueryCostLimits::MAX_OFFSET);
+        $page    = ApiQuery::getPage();
+
+        if ($ceiling <= 0 || $page === null || ApiQuery::isCursorPaginated()) {
             return;
         }
 
-        $limits->enforce(QueryCostLimits::MAX_OFFSET, $page, 'page');
+        $size   = ApiQuery::getResolvedLimit();
+        $offset = ($page - 1) * $size;
+
+        if ($offset <= $ceiling) {
+            return;
+        }
+
+        throw QueryTooExpensiveException::exceeded('page', '', QueryCostLimits::MAX_OFFSET, intdiv($ceiling, $size) + 1, $page);
     }
 
     /**
