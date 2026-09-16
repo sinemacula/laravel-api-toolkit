@@ -365,9 +365,15 @@ return [
     | value, so a list spelled as a delimited string is bounded the same way.
     | `max_order_keys` bounds the sort columns, and `max_aggregates` the
     | relation counts, sums, and averages combined, since each adds its own
-    | correlated subquery. `max_offset` bounds the requested page number, beyond
-    | which a paginated read scans and discards more rows than it returns. It
-    | rejects rather than clamps, as the parser's `max_limit` ceiling does.
+    | correlated subquery. `max_offset` bounds the rows a paginated read scans
+    | and discards to reach the page it returns, which is the page number
+    | multiplied by the page size rather than the page number alone: bounding
+    | the number by itself left the real ceiling moving whenever an operator
+    | tuned the page size. A cursor seeks to its position instead of counting
+    | rows to it, so a cursor-paginated read is not bounded by this cap. It
+    | rejects rather than clamps, as the parser's `max_limit` ceiling does, and
+    | the refusal names the furthest page available rather than a row count the
+    | caller never asked in.
     |
     */
 
@@ -387,7 +393,7 @@ return [
 
         'max_aggregates' => env('API_TOOLKIT_QUERY_MAX_AGGREGATES', 5),
 
-        'max_offset' => env('API_TOOLKIT_QUERY_MAX_OFFSET', 10000),
+        'max_offset' => env('API_TOOLKIT_QUERY_MAX_OFFSET', 500000),
 
     ],
 
