@@ -579,11 +579,11 @@ final class ValidateRelationMethodsTest extends TestCase
     {
         $model = new class extends Model {
             /**
-             * @return \Countable&\ArrayAccess<int, mixed>
+             * @return \ArrayAccess<int, mixed>&\Countable
              *
              * @phpstan-ignore sineMaculaLaravel.modelBehaviour
              */
-            public function items(): \Countable&\ArrayAccess
+            public function items(): \ArrayAccess&\Countable
             {
                 return new \ArrayObject;
             }

@@ -146,10 +146,7 @@ final class LockStageTest extends TestCase
             {
                 $this->callOrder[] = 'lock';
 
-                /** @var \Illuminate\Contracts\Cache\Lock&\Mockery\MockInterface $lock */
-                $lock = \Mockery::mock(Lock::class);
-
-                return $lock;
+                return \Mockery::mock(Lock::class);
             }
 
             /**
