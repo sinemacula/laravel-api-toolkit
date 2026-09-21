@@ -34,7 +34,7 @@ test_patterns = [
 ]
 
 # The lint tooling only, not the library's supported range, which composer.json
-# keeps at 8.3. php-cs-fixer's symfony/console cannot be parsed by an 8.3 runner.
+# keeps at 8.3.
 [runtimes.enabled]
 php = "8.4"
 
@@ -48,7 +48,7 @@ default = true
 [[source]]
 name = "sinemacula"
 repository = "https://github.com/sinemacula/coding-standards"
-tag = "v1.23.0"
+tag = "v1.23.2"
 
 [[plugin]]
 name = "actionlint"
@@ -78,14 +78,26 @@ package_filters = ["slevomat", "dealerdirect", "sinemacula"]
 [plugins.definitions.php-codesniffer.drivers.lint]
 success_codes = [0, 1, 2, 3]
 
-# Held at the version the shared standard requires. Its symfony/console is on
-# the 8.x line, which needs PHP 8.4.1 and uses 8.4-only syntax, which is why the
-# lint runtime above is 8.4 while the library itself still targets 8.3.
+# Held at the version the shared standard requires, with the Symfony packages
+# held on the 7.4 line: from 3.90 the fixer also accepts Symfony 8, which needs
+# PHP 8.4.1 and carries syntax an older runner cannot parse, and the sandbox
+# install ignores platform requirements. Those pins are only honoured through
+# extra_packages, which is silently ignored whenever package_file is set, so
+# this plugin declares its packages here rather than reading composer.json.
 [[plugin]]
 name = "php-cs-fixer"
-package_file = "composer.json"
-package_filters = ["sinemacula"]
 version = "3.95.25"
+extra_packages = [
+    "sinemacula/coding-standards@1.23.2",
+    "symfony/console@^7.4",
+    "symfony/event-dispatcher@^7.4",
+    "symfony/filesystem@^7.4",
+    "symfony/finder@^7.4",
+    "symfony/options-resolver@^7.4",
+    "symfony/process@^7.4",
+    "symfony/stopwatch@^7.4",
+    "symfony/string@^7.4",
+]
 
 [[plugin]]
 name = "phpstan"
