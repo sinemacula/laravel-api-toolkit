@@ -131,7 +131,7 @@ final readonly class ServiceResult
      *
      * @throws \Throwable
      */
-    public function throw(): static
+    public function throw(): self
     {
         if ($this->failed() && $this->exception !== null) {
             throw $this->exception;

@@ -103,10 +103,10 @@ final readonly class QueryParameterBuilder
     public function referencesFor(string $action, ?string $modelClass = null): array
     {
         $names = match ($action) {
-            'index' => [...self::SHAPING_PARAMETERS, ...self::SELECTION_PARAMETERS],
-            'show'  => self::SHAPING_PARAMETERS,
+            'index'           => [...self::SHAPING_PARAMETERS, ...self::SELECTION_PARAMETERS],
+            'show'            => self::SHAPING_PARAMETERS,
             'store', 'update' => self::SHAPING_PARAMETERS,
-            default => [],
+            default           => [],
         };
 
         if (in_array($action, self::READ_ACTIONS, true) && $this->isSoftDeleting($modelClass)) {

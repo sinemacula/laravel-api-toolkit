@@ -207,10 +207,7 @@ final class EloquentActorTest extends TestCase
      */
     public function testCapturesStringPrimaryKeyAsIdentifier(): void
     {
-        $model = $this->makeStringKeyedModel();
-
-        $model->setAttribute('code', 'GB');
-        $model->setAttribute('name', 'Great Britain');
+        $model = $this->makeStringKeyedModel(['code' => 'GB', 'name' => 'Great Britain']);
 
         $actor = new EloquentActor($model);
 
@@ -225,9 +222,7 @@ final class EloquentActorTest extends TestCase
      */
     public function testFallsBackToEmptyIdentifierForNullKey(): void
     {
-        $model = $this->makeStringKeyedModel();
-
-        $model->setAttribute('name', 'Keyless');
+        $model = $this->makeStringKeyedModel(['name' => 'Keyless']);
 
         $actor = new EloquentActor($model);
 
@@ -258,13 +253,14 @@ final class EloquentActorTest extends TestCase
 
     /**
      * Build an Authenticatable model whose primary key is a non-incrementing
-     * string column.
+     * string column, carrying the given attributes.
      *
+     * @param  array<string, mixed>  $attributes
      * @return \Illuminate\Contracts\Auth\Authenticatable&\Illuminate\Database\Eloquent\Model
      */
-    private function makeStringKeyedModel(): AuthenticatableContract&Model
+    private function makeStringKeyedModel(array $attributes): AuthenticatableContract&Model
     {
-        return new class extends Model implements AuthenticatableContract {
+        $model = new class extends Model implements AuthenticatableContract {
             use Authenticatable;
 
             /** @var string|null */
@@ -279,5 +275,11 @@ final class EloquentActorTest extends TestCase
             /** @var bool */
             public $incrementing = false;
         };
+
+        foreach ($attributes as $key => $value) {
+            $model->setAttribute($key, $value);
+        }
+
+        return $model;
     }
 }

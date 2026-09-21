@@ -2090,8 +2090,8 @@ final class ApiResourceTest extends TestCase
              */
             public function label(): Attribute
             {
-                return Attribute::make(
-                    get: fn () => 'attr_value',
+                return Attribute::get(
+                    static fn (): string => 'attr_value',
                 );
             }
         };
@@ -2806,9 +2806,9 @@ final class ApiResourceTest extends TestCase
              * @SuppressWarnings("php:S1172")
              *
              * @param  mixed  $with
-             * @return static
+             * @return self
              */
-            public function loadMissing(mixed $with): static
+            public function loadMissing(mixed $with): self
             {
                 return $this;
             }
@@ -2819,9 +2819,9 @@ final class ApiResourceTest extends TestCase
              * @SuppressWarnings("php:S1172")
              *
              * @param  mixed  $relations
-             * @return static
+             * @return self
              */
-            public function loadCount(mixed $relations): static
+            public function loadCount(mixed $relations): self
             {
                 return $this;
             }
@@ -2831,9 +2831,9 @@ final class ApiResourceTest extends TestCase
              *
              * @param  mixed  $relations
              * @param  string  $column
-             * @return static
+             * @return self
              */
-            public function loadSum(mixed $relations, string $column): static
+            public function loadSum(mixed $relations, string $column): self
             {
                 $this->sumCalls[] = [$relations, $column];
 
@@ -2845,9 +2845,9 @@ final class ApiResourceTest extends TestCase
              *
              * @param  mixed  $relations
              * @param  string  $column
-             * @return static
+             * @return self
              */
-            public function loadAvg(mixed $relations, string $column): static
+            public function loadAvg(mixed $relations, string $column): self
             {
                 $this->avgCalls[] = [$relations, $column];
 
@@ -2857,8 +2857,8 @@ final class ApiResourceTest extends TestCase
 
         new $resourceClass($spy, true);
 
-        static::assertSame([], $spy->sumCalls);
-        static::assertSame([], $spy->avgCalls);
+        self::assertSame([], $spy->sumCalls);
+        self::assertSame([], $spy->avgCalls);
 
         $this->clearSchemaCache();
     }
@@ -2907,8 +2907,8 @@ final class ApiResourceTest extends TestCase
 
         $result = $resource->resolve();
 
-        static::assertArrayHasKey('email', $result, 'resource-level fixed fields must be included');
-        static::assertArrayHasKey('id', $result, 'config-level fixed fields must be included');
+        self::assertArrayHasKey('email', $result, 'resource-level fixed fields must be included');
+        self::assertArrayHasKey('id', $result, 'config-level fixed fields must be included');
     }
 
     /**
@@ -2931,17 +2931,17 @@ final class ApiResourceTest extends TestCase
             'posts as posts_count',
             'comments as comments_count',
             'tags as tags_count' => static fn (): null => null,
-            ['relation'          => 'posts as posts_sum_id', 'column' => 'id'],
-            ['relation'          => 'authors as authors_sum_id', 'column' => 'id'],
+            ['relation' => 'posts as posts_sum_id', 'column' => 'id'],
+            ['relation' => 'authors as authors_sum_id', 'column' => 'id'],
         ]);
 
         $values = array_values($result);
 
-        static::assertContains('comments as comments_count', $values);
-        static::assertArrayHasKey('tags as tags_count', $result);
-        static::assertContains(['relation' => 'authors as authors_sum_id', 'column' => 'id'], $values);
-        static::assertNotContains('posts as posts_count', $values);
-        static::assertNotContains(['relation' => 'posts as posts_sum_id', 'column' => 'id'], $values);
+        self::assertContains('comments as comments_count', $values);
+        self::assertArrayHasKey('tags as tags_count', $result);
+        self::assertContains(['relation' => 'authors as authors_sum_id', 'column' => 'id'], $values);
+        self::assertNotContains('posts as posts_count', $values);
+        self::assertNotContains(['relation' => 'posts as posts_sum_id', 'column' => 'id'], $values);
     }
 
     /**

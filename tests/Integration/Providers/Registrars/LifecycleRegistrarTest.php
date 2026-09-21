@@ -76,7 +76,7 @@ final class LifecycleRegistrarTest extends TestCase
     {
         $app = $this->getApplication();
 
-        /** @var \Illuminate\Contracts\Config\Repository $config */
+        /** @var \Illuminate\Config\Repository $config */
         $config = $app->make('config');
 
         $config->set('api-toolkit.lifecycle.queue', true);
@@ -97,7 +97,7 @@ final class LifecycleRegistrarTest extends TestCase
     {
         unset($_SERVER['LARAVEL_OCTANE']);
 
-        /** @var \Illuminate\Contracts\Config\Repository $config */
+        /** @var \Illuminate\Config\Repository $config */
         $config = $this->getApplication()->make('config');
         $config->set('api-toolkit.lifecycle.octane', true);
         $config->set('api-toolkit.lifecycle.queue', false);
@@ -124,7 +124,7 @@ final class LifecycleRegistrarTest extends TestCase
     {
         unset($_SERVER['LARAVEL_OCTANE']);
 
-        /** @var \Illuminate\Contracts\Config\Repository $config */
+        /** @var \Illuminate\Config\Repository $config */
         $config = $this->getApplication()->make('config');
         $config->set('api-toolkit.lifecycle.octane', true);
         $config->set('api-toolkit.lifecycle.queue', false);
@@ -155,7 +155,7 @@ final class LifecycleRegistrarTest extends TestCase
     {
         $_SERVER['LARAVEL_OCTANE'] = 1;
 
-        /** @var \Illuminate\Contracts\Config\Repository $config */
+        /** @var \Illuminate\Config\Repository $config */
         $config = $this->getApplication()->make('config');
         $config->set('api-toolkit.lifecycle.octane', false);
 
@@ -183,7 +183,7 @@ final class LifecycleRegistrarTest extends TestCase
         $argv            = $_SERVER['argv'] ?? null;
         $_SERVER['argv'] = ['artisan', 'queue:work'];
 
-        /** @var \Illuminate\Contracts\Config\Repository $config */
+        /** @var \Illuminate\Config\Repository $config */
         $config = $this->getApplication()->make('config');
         $config->set('api-toolkit.lifecycle.queue', false);
 
@@ -216,7 +216,7 @@ final class LifecycleRegistrarTest extends TestCase
         $argv            = $_SERVER['argv'] ?? null;
         $_SERVER['argv'] = ['artisan', 'route:list'];
 
-        /** @var \Illuminate\Contracts\Config\Repository $config */
+        /** @var \Illuminate\Config\Repository $config */
         $config = $this->getApplication()->make('config');
         $config->set('queue.default', 'database');
         $config->set('queue.connections.database.driver', 'database');

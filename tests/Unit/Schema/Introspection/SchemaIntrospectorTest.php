@@ -700,6 +700,8 @@ final class SchemaIntrospectorTest extends TestCase
              * A method that returns a string, not a relation.
              *
              * @return string
+             *
+             * @phpstan-ignore sineMaculaLaravel.modelBehaviour
              */
             public function tags(): string
             {
@@ -727,6 +729,8 @@ final class SchemaIntrospectorTest extends TestCase
             // phpcs:disable Squiz.Commenting.FunctionComment.MissingReturn,SineMaculaLaravel.TypeHints.ReturnTypeHint.MissingNativeTypeHint
             /**
              * A method with no return type declaration.
+             *
+             * @phpstan-ignore sineMaculaLaravel.modelBehaviour
              */
             public function tags() // @phpstan-ignore missingType.return
             {
@@ -786,8 +790,10 @@ final class SchemaIntrospectorTest extends TestCase
              * A method with a union return type containing no relation types.
              *
              * @return int|string
+             *
+             * @phpstan-ignore sineMaculaLaravel.modelBehaviour
              */
-            public function tags(): int|string // @phpstan-ignore return.unusedType (the non-relation union return type is the reflection subject under test)
+            public function tags(): int|string // @phpstan-ignore return.unusedType
             {
                 return '';
             }
@@ -1025,6 +1031,8 @@ final class SchemaIntrospectorTest extends TestCase
              * @return \Illuminate\Database\Eloquent\Relations\HasMany<\Tests\Fixtures\Models\Post, $this>
              *
              * @throws \LogicException
+             *
+             * @phpstan-ignore sineMaculaLaravel.modelBehaviour
              */
             public function broken(): HasMany
             {
@@ -1063,6 +1071,8 @@ final class SchemaIntrospectorTest extends TestCase
              * @return \Illuminate\Database\Eloquent\Relations\HasMany<\Tests\Fixtures\Models\Post, $this>
              *
              * @throws \ReflectionException
+             *
+             * @phpstan-ignore sineMaculaLaravel.modelBehaviour
              */
             public function broken(): HasMany
             {
@@ -1099,6 +1109,8 @@ final class SchemaIntrospectorTest extends TestCase
              * @return \Illuminate\Database\Eloquent\Relations\HasMany<\Tests\Fixtures\Models\Post, $this>
              *
              * @throws \RuntimeException
+             *
+             * @phpstan-ignore sineMaculaLaravel.modelBehaviour
              */
             public function broken(): HasMany
             {

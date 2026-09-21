@@ -163,11 +163,19 @@ final class ValidateRelationMethods implements SchemaValidationRule
             );
         }
 
+        if ($returnType instanceof \ReflectionNamedType) {
+            return sprintf(
+                'Relation method "%s" on model "%s" has return type "%s" which is not a Relation subclass',
+                $relationMethod,
+                $modelClass,
+                $returnType->getName(),
+            );
+        }
+
         return sprintf(
-            'Relation method "%s" on model "%s" has return type "%s" which is not a Relation subclass',
+            'Relation method "%s" on model "%s" has an intersection return type with no Relation subclass member',
             $relationMethod,
             $modelClass,
-            (string) $returnType,
         );
     }
 }

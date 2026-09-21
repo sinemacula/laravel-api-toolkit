@@ -69,7 +69,7 @@ final class MiddlewareConfigCustomThrottleTest extends TestCase
 
         assert($app instanceof Application);
 
-        /** @var \Illuminate\Contracts\Config\Repository $config */
+        /** @var \Illuminate\Config\Repository $config */
         $config = $app->make('config');
 
         $config->set('api-toolkit.middleware.throttle.enabled', true);

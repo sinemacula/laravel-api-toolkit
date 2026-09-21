@@ -89,7 +89,7 @@ final class SchemaIntrospector implements SchemaIntrospectionProvider
             $columns = $model->getConnection()->getSchemaBuilder()->getColumnListing($model->getTable());
 
             $this->metadataCacheWriter->rememberMetadataForever($cacheKey, fn () => $columns);
-        } catch (\Throwable) {
+        } catch (\Throwable) { // @phpstan-ignore catch.neverThrown
 
             // No live connection: degrade to an empty listing, uncached.
             $columns = [];
@@ -131,7 +131,7 @@ final class SchemaIntrospector implements SchemaIntrospectionProvider
             $definitions = $this->mapColumnDefinitions($model->getConnection()->getSchemaBuilder()->getColumns($model->getTable()));
 
             $this->metadataCacheWriter->rememberMetadataForever($cacheKey, fn () => $definitions);
-        } catch (\Throwable) {
+        } catch (\Throwable) { // @phpstan-ignore catch.neverThrown
 
             // No live connection: degrade to an empty set, uncached.
             $definitions = [];

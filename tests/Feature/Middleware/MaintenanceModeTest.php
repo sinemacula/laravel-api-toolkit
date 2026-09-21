@@ -99,7 +99,9 @@ final class MaintenanceModeTest extends TestCase
     {
         assert($this->app !== null);
 
-        $this->app->maintenanceMode()->activate([
+        $app = $this->app;
+
+        $app->maintenanceMode()->activate([
             'redirect' => null,
             'retry'    => 60,
             'refresh'  => null,
@@ -111,7 +113,7 @@ final class MaintenanceModeTest extends TestCase
         try {
             return $callback();
         } finally {
-            $this->app->maintenanceMode()->deactivate();
+            $app->maintenanceMode()->deactivate();
         }
     }
 }

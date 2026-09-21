@@ -59,7 +59,7 @@ final class Article extends Model
      *
      * @return \Illuminate\Database\Eloquent\Casts\Attribute
      */
-    public function headline(): Attribute
+    protected function headline(): Attribute
     {
         return Attribute::make(
             get: fn (): string => mb_strtoupper($this->title),

@@ -220,7 +220,7 @@ final class ValidateSchemasCommandTest extends TestCase
      */
     private function getConfig(): ConfigRepository
     {
-        /** @var \Illuminate\Contracts\Config\Repository */
+        /** @var \Illuminate\Config\Repository */
         return $this->getApplication()->make('config');
     }
 }

@@ -73,7 +73,7 @@ final class ApiExceptionHandlerTest extends TestCase
             /**
              * @return $this
              */
-            public function stop(): static
+            public function stop(): self
             {
                 return $this;
             }
@@ -237,14 +237,14 @@ final class ApiExceptionHandlerTest extends TestCase
         $reflection = new \ReflectionMethod(ApiExceptionHandler::class, 'render');
         $response   = $reflection->invoke(null, $inputException, $request);
 
-        static::assertInstanceOf(JsonResponse::class, $response);
-        static::assertSame($expectedHttpCode, $response->getStatusCode());
+        self::assertInstanceOf(JsonResponse::class, $response);
+        self::assertSame($expectedHttpCode, $response->getStatusCode());
 
         $data = $response->getData(true);
 
-        static::assertIsArray($data);
-        static::assertSame($expectedHttpCode, $data['error']['status']);
-        static::assertSame($expectedErrorCode, $data['error']['code']);
+        self::assertIsArray($data);
+        self::assertSame($expectedHttpCode, $data['error']['status']);
+        self::assertSame($expectedErrorCode, $data['error']['code']);
     }
 
     /**
@@ -263,15 +263,15 @@ final class ApiExceptionHandlerTest extends TestCase
         $reflection = new \ReflectionMethod(ApiExceptionHandler::class, 'render');
         $response   = $reflection->invoke(null, new SymfonyHttpException(409), $request);
 
-        static::assertInstanceOf(JsonResponse::class, $response);
-        static::assertSame(409, $response->getStatusCode());
+        self::assertInstanceOf(JsonResponse::class, $response);
+        self::assertSame(409, $response->getStatusCode());
 
         $data = $response->getData(true);
 
-        static::assertIsArray($data);
-        static::assertSame(409, $data['error']['status']);
-        static::assertSame(10113, $data['error']['code']);
-        static::assertSame('Conflict', $data['error']['title']);
+        self::assertIsArray($data);
+        self::assertSame(409, $data['error']['status']);
+        self::assertSame(10113, $data['error']['code']);
+        self::assertSame('Conflict', $data['error']['title']);
     }
 
     /**
@@ -292,8 +292,8 @@ final class ApiExceptionHandlerTest extends TestCase
         $reflection = new \ReflectionMethod(ApiExceptionHandler::class, 'render');
         $response   = $reflection->invoke(null, $exception, $request);
 
-        static::assertInstanceOf(JsonResponse::class, $response);
-        static::assertSame('120', $response->headers->get('Retry-After'));
+        self::assertInstanceOf(JsonResponse::class, $response);
+        self::assertSame('120', $response->headers->get('Retry-After'));
     }
 
     /**
@@ -319,8 +319,8 @@ final class ApiExceptionHandlerTest extends TestCase
         $reflection = new \ReflectionMethod(ApiExceptionHandler::class, 'render');
         $response   = $reflection->invoke(null, $exception, $request);
 
-        static::assertInstanceOf(JsonResponse::class, $response);
-        static::assertSame(500, $response->getStatusCode());
+        self::assertInstanceOf(JsonResponse::class, $response);
+        self::assertSame(500, $response->getStatusCode());
     }
 
     /**
@@ -338,14 +338,14 @@ final class ApiExceptionHandlerTest extends TestCase
         $reflection = new \ReflectionMethod(ApiExceptionHandler::class, 'render');
         $response   = $reflection->invoke(null, new LockUnavailableException, $request);
 
-        static::assertInstanceOf(JsonResponse::class, $response);
-        static::assertSame(429, $response->getStatusCode());
+        self::assertInstanceOf(JsonResponse::class, $response);
+        self::assertSame(429, $response->getStatusCode());
 
         $data = $response->getData(true);
 
-        static::assertIsArray($data);
-        static::assertSame(429, $data['error']['status']);
-        static::assertSame(10107, $data['error']['code']);
+        self::assertIsArray($data);
+        self::assertSame(429, $data['error']['status']);
+        self::assertSame(10107, $data['error']['code']);
     }
 
     /**
@@ -363,15 +363,15 @@ final class ApiExceptionHandlerTest extends TestCase
         $reflection = new \ReflectionMethod(ApiExceptionHandler::class, 'render');
         $response   = $reflection->invoke(null, new NotFoundHttpException, $request);
 
-        static::assertInstanceOf(JsonResponse::class, $response);
+        self::assertInstanceOf(JsonResponse::class, $response);
 
         $data = $response->getData(true);
 
-        static::assertArrayHasKey('error', $data);
-        static::assertArrayHasKey('status', $data['error']);
-        static::assertArrayHasKey('code', $data['error']);
-        static::assertArrayHasKey('title', $data['error']);
-        static::assertArrayHasKey('detail', $data['error']);
+        self::assertArrayHasKey('error', $data);
+        self::assertArrayHasKey('status', $data['error']);
+        self::assertArrayHasKey('code', $data['error']);
+        self::assertArrayHasKey('title', $data['error']);
+        self::assertArrayHasKey('detail', $data['error']);
     }
 
     /**
@@ -391,14 +391,14 @@ final class ApiExceptionHandlerTest extends TestCase
         $reflection = new \ReflectionMethod(ApiExceptionHandler::class, 'render');
         $response   = $reflection->invoke(null, $original, $request);
 
-        static::assertInstanceOf(JsonResponse::class, $response);
+        self::assertInstanceOf(JsonResponse::class, $response);
 
         $data = $response->getData(true);
 
-        static::assertArrayHasKey('meta', $data['error']);
-        static::assertArrayHasKey('exception', $data['error']['meta']);
-        static::assertArrayHasKey('trace', $data['error']['meta']);
-        static::assertSame(self::GENERIC_ERROR_MESSAGE, $data['error']['meta']['message']);
+        self::assertArrayHasKey('meta', $data['error']);
+        self::assertArrayHasKey('exception', $data['error']['meta']);
+        self::assertArrayHasKey('trace', $data['error']['meta']);
+        self::assertSame(self::GENERIC_ERROR_MESSAGE, $data['error']['meta']['message']);
     }
 
     /**
@@ -416,7 +416,7 @@ final class ApiExceptionHandlerTest extends TestCase
         $reflection = new \ReflectionMethod(ApiExceptionHandler::class, 'render');
         $response   = $reflection->invoke(null, new \RuntimeException('error'), $request);
 
-        static::assertNull($response);
+        self::assertNull($response);
     }
 
     /**
@@ -436,12 +436,12 @@ final class ApiExceptionHandlerTest extends TestCase
         $reflection = new \ReflectionMethod(ApiExceptionHandler::class, 'render');
         $response   = $reflection->invoke(null, $exception, $request);
 
-        static::assertInstanceOf(JsonResponse::class, $response);
-        static::assertSame(400, $response->getStatusCode());
+        self::assertInstanceOf(JsonResponse::class, $response);
+        self::assertSame(400, $response->getStatusCode());
 
         $data = $response->getData(true);
 
-        static::assertSame(10100, $data['error']['code']);
+        self::assertSame(10100, $data['error']['code']);
     }
 
     /**
@@ -465,13 +465,13 @@ final class ApiExceptionHandlerTest extends TestCase
         $reflection = new \ReflectionMethod(ApiExceptionHandler::class, 'render');
         $response   = $reflection->invoke(null, $exception, $request);
 
-        static::assertInstanceOf(JsonResponse::class, $response);
-        static::assertSame(422, $response->getStatusCode());
+        self::assertInstanceOf(JsonResponse::class, $response);
+        self::assertSame(422, $response->getStatusCode());
 
         $data = $response->getData(true);
 
-        static::assertIsArray($data);
-        static::assertSame(10106, $data['error']['code']);
+        self::assertIsArray($data);
+        self::assertSame(10106, $data['error']['code']);
     }
 
     /**
@@ -489,9 +489,9 @@ final class ApiExceptionHandlerTest extends TestCase
         $reflection = new \ReflectionMethod(ApiExceptionHandler::class, 'mapApiException');
         $mapped     = $reflection->invoke(null, new LaravelTokenMismatchException('CSRF token mismatch.'));
 
-        static::assertInstanceOf(TokenMismatchException::class, $mapped);
-        static::assertSame(419, $mapped->getStatusCode());
-        static::assertSame(10105, $mapped::getInternalErrorCode());
+        self::assertInstanceOf(TokenMismatchException::class, $mapped);
+        self::assertSame(419, $mapped->getStatusCode());
+        self::assertSame(10105, $mapped::getInternalErrorCode());
     }
 
     /**
@@ -511,7 +511,7 @@ final class ApiExceptionHandlerTest extends TestCase
         $reflection = new \ReflectionMethod(ApiExceptionHandler::class, 'render');
         $response   = $reflection->invoke(null, new \RuntimeException('error'), $request);
 
-        static::assertNull($response);
+        self::assertNull($response);
     }
 
     /**
@@ -531,8 +531,8 @@ final class ApiExceptionHandlerTest extends TestCase
         $reflection = new \ReflectionMethod(ApiExceptionHandler::class, 'render');
         $response   = $reflection->invoke(null, new \RuntimeException('error'), $request);
 
-        static::assertInstanceOf(JsonResponse::class, $response);
-        static::assertSame(500, $response->getStatusCode());
+        self::assertInstanceOf(JsonResponse::class, $response);
+        self::assertSame(500, $response->getStatusCode());
     }
 
     /**
@@ -552,8 +552,8 @@ final class ApiExceptionHandlerTest extends TestCase
         $reflection = new \ReflectionMethod(ApiExceptionHandler::class, 'render');
         $response   = $reflection->invoke(null, new \RuntimeException('error'), $request);
 
-        static::assertInstanceOf(JsonResponse::class, $response);
-        static::assertSame(500, $response->getStatusCode());
+        self::assertInstanceOf(JsonResponse::class, $response);
+        self::assertSame(500, $response->getStatusCode());
     }
 
     /**
@@ -571,12 +571,12 @@ final class ApiExceptionHandlerTest extends TestCase
         $reflection = new \ReflectionMethod(ApiExceptionHandler::class, 'render');
         $response   = $reflection->invoke(null, new NotFoundHttpException, $request);
 
-        static::assertInstanceOf(JsonResponse::class, $response);
+        self::assertInstanceOf(JsonResponse::class, $response);
 
         $content = $response->getContent();
 
-        static::assertIsString($content);
-        static::assertStringContainsString("\n    ", $content);
+        self::assertIsString($content);
+        self::assertStringContainsString("\n    ", $content);
     }
 
     /**
@@ -595,12 +595,12 @@ final class ApiExceptionHandlerTest extends TestCase
         $reflection = new \ReflectionMethod(ApiExceptionHandler::class, 'render');
         $response   = $reflection->invoke(null, new NotFoundHttpException, $request);
 
-        static::assertInstanceOf(JsonResponse::class, $response);
+        self::assertInstanceOf(JsonResponse::class, $response);
 
         $content = $response->getContent();
 
-        static::assertIsString($content);
-        static::assertStringNotContainsString("\n", $content);
+        self::assertIsString($content);
+        self::assertStringNotContainsString("\n", $content);
     }
 
     /**
@@ -618,12 +618,12 @@ final class ApiExceptionHandlerTest extends TestCase
         $reflection = new \ReflectionMethod(ApiExceptionHandler::class, 'render');
         $response   = $reflection->invoke(null, new NotFoundHttpException, $request);
 
-        static::assertInstanceOf(JsonResponse::class, $response);
+        self::assertInstanceOf(JsonResponse::class, $response);
 
         $data = $response->getData(true);
 
-        static::assertIsArray($data);
-        static::assertArrayNotHasKey('meta', $data['error']);
+        self::assertIsArray($data);
+        self::assertArrayNotHasKey('meta', $data['error']);
     }
 
     /**
@@ -643,14 +643,14 @@ final class ApiExceptionHandlerTest extends TestCase
         $reflection = new \ReflectionMethod(ApiExceptionHandler::class, 'render');
         $response   = $reflection->invoke(null, new \RuntimeException(self::GENERIC_ERROR_MESSAGE), $request);
 
-        static::assertInstanceOf(JsonResponse::class, $response);
+        self::assertInstanceOf(JsonResponse::class, $response);
 
         $data = $response->getData(true);
 
-        static::assertIsArray($data);
-        static::assertArrayHasKey('meta', $data['error']);
-        static::assertSame(self::GENERIC_ERROR_MESSAGE, $data['error']['meta']['message']);
-        static::assertArrayHasKey('trace', $data['error']['meta']);
+        self::assertIsArray($data);
+        self::assertArrayHasKey('meta', $data['error']);
+        self::assertSame(self::GENERIC_ERROR_MESSAGE, $data['error']['meta']['message']);
+        self::assertArrayHasKey('trace', $data['error']['meta']);
     }
 
     /**
@@ -670,12 +670,12 @@ final class ApiExceptionHandlerTest extends TestCase
         $reflection = new \ReflectionMethod(ApiExceptionHandler::class, 'render');
         $response   = $reflection->invoke(null, new \RuntimeException(self::GENERIC_ERROR_MESSAGE), $request);
 
-        static::assertInstanceOf(JsonResponse::class, $response);
+        self::assertInstanceOf(JsonResponse::class, $response);
 
         $data = $response->getData(true);
 
-        static::assertIsArray($data);
-        static::assertArrayNotHasKey('meta', $data['error']);
+        self::assertIsArray($data);
+        self::assertArrayNotHasKey('meta', $data['error']);
     }
 
     /**
@@ -696,12 +696,12 @@ final class ApiExceptionHandlerTest extends TestCase
         $reflection = new \ReflectionMethod(ApiExceptionHandler::class, 'render');
         $response   = $reflection->invoke(null, $exception, $request);
 
-        static::assertInstanceOf(JsonResponse::class, $response);
+        self::assertInstanceOf(JsonResponse::class, $response);
 
         $data = $response->getData(true);
 
-        static::assertIsArray($data);
-        static::assertSame(['custom' => 'value'], $data['error']['meta']);
+        self::assertIsArray($data);
+        self::assertSame(['custom' => 'value'], $data['error']['meta']);
     }
 
     /**
@@ -723,20 +723,20 @@ final class ApiExceptionHandlerTest extends TestCase
         $reflection = new \ReflectionMethod(ApiExceptionHandler::class, 'render');
         $response   = $reflection->invoke(null, $exception, $request);
 
-        static::assertInstanceOf(JsonResponse::class, $response);
+        self::assertInstanceOf(JsonResponse::class, $response);
 
         $data = $response->getData(true);
 
-        static::assertIsArray($data);
+        self::assertIsArray($data);
 
         $meta = $data['error']['meta'];
 
-        static::assertSame('value', $meta['custom']);
-        static::assertSame(self::GENERIC_ERROR_MESSAGE, $meta['message']);
-        static::assertSame(\RuntimeException::class, $meta['exception']);
-        static::assertSame($previous->getFile(), $meta['file']);
-        static::assertSame($previous->getLine(), $meta['line']);
-        static::assertArrayHasKey('trace', $meta);
+        self::assertSame('value', $meta['custom']);
+        self::assertSame(self::GENERIC_ERROR_MESSAGE, $meta['message']);
+        self::assertSame(\RuntimeException::class, $meta['exception']);
+        self::assertSame($previous->getFile(), $meta['file']);
+        self::assertSame($previous->getLine(), $meta['line']);
+        self::assertArrayHasKey('trace', $meta);
     }
 
     /**
@@ -764,21 +764,21 @@ final class ApiExceptionHandlerTest extends TestCase
                 static fn (array $frame): bool => array_key_exists('args', $frame),
             );
 
-            static::assertNotEmpty($framesWithArgs);
+            self::assertNotEmpty($framesWithArgs);
 
             $reflection = new \ReflectionMethod(ApiExceptionHandler::class, 'render');
             $response   = $reflection->invoke(null, $previous, $request);
 
-            static::assertInstanceOf(JsonResponse::class, $response);
+            self::assertInstanceOf(JsonResponse::class, $response);
 
             $data = $response->getData(true);
 
-            static::assertIsArray($data);
-            static::assertArrayHasKey('error', $data);
-            static::assertArrayHasKey('meta', $data['error']);
-            static::assertArrayHasKey('trace', $data['error']['meta']);
-            static::assertIsArray($data['error']['meta']['trace']);
-            static::assertNotEmpty($data['error']['meta']['trace']);
+            self::assertIsArray($data);
+            self::assertArrayHasKey('error', $data);
+            self::assertArrayHasKey('meta', $data['error']);
+            self::assertArrayHasKey('trace', $data['error']['meta']);
+            self::assertIsArray($data['error']['meta']['trace']);
+            self::assertNotEmpty($data['error']['meta']['trace']);
 
             // Assert on the whole frame set at once rather than per frame: the
             // number of trace frames is the ambient call-stack depth, which
@@ -791,7 +791,7 @@ final class ApiExceptionHandlerTest extends TestCase
                 static fn (array $frame): bool => array_key_exists('args', $frame),
             );
 
-            static::assertSame([], $renderedFramesWithArgs);
+            self::assertSame([], $renderedFramesWithArgs);
         } finally {
             if ($original !== false) {
                 ini_set('zend.exception_ignore_args', $original);
@@ -819,7 +819,7 @@ final class ApiExceptionHandlerTest extends TestCase
             /**
              * @return $this
              */
-            public function stop(): static
+            public function stop(): self
             {
                 return $this;
             }
@@ -827,7 +827,7 @@ final class ApiExceptionHandlerTest extends TestCase
 
         $capturedCallback = null;
 
-        $exceptions = static::createStub(Exceptions::class);
+        $exceptions = self::createStub(Exceptions::class);
         $exceptions->method('report')
             ->willReturnCallback(function ($callback) use (&$capturedCallback, $reportable): object {
                 $capturedCallback = $callback;
@@ -838,7 +838,7 @@ final class ApiExceptionHandlerTest extends TestCase
 
         ApiExceptionHandler::handles($exceptions);
 
-        static::assertNotNull($capturedCallback);
+        self::assertNotNull($capturedCallback);
 
         $capturedCallback(new BadRequestException);
     }
@@ -876,10 +876,10 @@ final class ApiExceptionHandlerTest extends TestCase
 
         $result = $reflection->invoke(null, $exception);
 
-        static::assertStringContainsString('[42]', $result);
-        static::assertStringContainsString(self::GENERIC_ERROR_MESSAGE, $result);
-        static::assertStringContainsString('on line', $result);
-        static::assertStringContainsString('of file', $result);
+        self::assertStringContainsString('[42]', $result);
+        self::assertStringContainsString(self::GENERIC_ERROR_MESSAGE, $result);
+        self::assertStringContainsString('on line', $result);
+        self::assertStringContainsString('of file', $result);
     }
 
     /**
@@ -893,9 +893,9 @@ final class ApiExceptionHandlerTest extends TestCase
 
         $result = $reflection->invoke(null);
 
-        static::assertIsArray($result);
-        static::assertArrayHasKey('method', $result);
-        static::assertArrayHasKey('path', $result);
+        self::assertIsArray($result);
+        self::assertArrayHasKey('method', $result);
+        self::assertArrayHasKey('path', $result);
     }
 
     /**
@@ -912,9 +912,9 @@ final class ApiExceptionHandlerTest extends TestCase
 
         $result = $reflection->invoke(null);
 
-        static::assertIsArray($result);
-        static::assertSame(42, $result['user_id']);
-        static::assertArrayNotHasKey('data', $result);
+        self::assertIsArray($result);
+        self::assertSame(42, $result['user_id']);
+        self::assertArrayNotHasKey('data', $result);
     }
 
     /**
@@ -930,9 +930,9 @@ final class ApiExceptionHandlerTest extends TestCase
 
         $result = $reflection->invoke(null);
 
-        static::assertIsArray($result);
-        static::assertArrayHasKey('method', $result);
-        static::assertSame(['method', 'path', 'data'], array_keys($result));
+        self::assertIsArray($result);
+        self::assertArrayHasKey('method', $result);
+        self::assertSame(['method', 'path', 'data'], array_keys($result));
     }
 
     /**
@@ -960,20 +960,20 @@ final class ApiExceptionHandlerTest extends TestCase
 
         $result = $reflection->invoke(null);
 
-        static::assertIsArray($result);
+        self::assertIsArray($result);
 
         $data = $result['data'];
 
-        static::assertIsArray($data);
-        static::assertSame('alice@example.com', $data['email']);
-        static::assertSame('[redacted]', $data['password']);
-        static::assertSame('[redacted]', $data['API_TOKEN']);
+        self::assertIsArray($data);
+        self::assertSame('alice@example.com', $data['email']);
+        self::assertSame('[redacted]', $data['password']);
+        self::assertSame('[redacted]', $data['API_TOKEN']);
 
         $nested = $data['nested'];
 
-        static::assertIsArray($nested);
-        static::assertSame('[redacted]', $nested['client_secret']);
-        static::assertSame('visible', $nested['keep']);
+        self::assertIsArray($nested);
+        self::assertSame('[redacted]', $nested['client_secret']);
+        self::assertSame('visible', $nested['keep']);
     }
 
     /**
@@ -988,8 +988,8 @@ final class ApiExceptionHandlerTest extends TestCase
 
         $data = $this->contextDataForRequest(['my_secret' => 'shh', 'email' => 'a@b.com']);
 
-        static::assertSame('[redacted]', $data['my_secret']);
-        static::assertSame('a@b.com', $data['email']);
+        self::assertSame('[redacted]', $data['my_secret']);
+        self::assertSame('a@b.com', $data['email']);
     }
 
     /**
@@ -1004,8 +1004,8 @@ final class ApiExceptionHandlerTest extends TestCase
 
         $data = $this->contextDataForRequest(['password' => 'super-secret', 'email' => 'a@b.com']);
 
-        static::assertSame('[redacted]', $data['password']);
-        static::assertSame('a@b.com', $data['email']);
+        self::assertSame('[redacted]', $data['password']);
+        self::assertSame('a@b.com', $data['email']);
     }
 
     /**
@@ -1020,8 +1020,8 @@ final class ApiExceptionHandlerTest extends TestCase
 
         $data = $this->contextDataForRequest(['password' => 'super-secret', 'email' => 'a@b.com']);
 
-        static::assertSame('[redacted]', $data['password']);
-        static::assertSame('a@b.com', $data['email']);
+        self::assertSame('[redacted]', $data['password']);
+        self::assertSame('a@b.com', $data['email']);
     }
 
     /**
@@ -1060,11 +1060,11 @@ final class ApiExceptionHandlerTest extends TestCase
 
         $result = (new \ReflectionMethod(ApiExceptionHandler::class, 'getContext'))->invoke(null);
 
-        static::assertIsArray($result);
+        self::assertIsArray($result);
 
         $data = $result['data'];
 
-        static::assertIsArray($data);
+        self::assertIsArray($data);
 
         return $data;
     }
