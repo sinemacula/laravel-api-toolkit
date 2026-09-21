@@ -331,6 +331,27 @@ abstract class EngineSearchTestCase extends TestCase
     }
 
     /**
+     * Test that validation refuses the equality declaration when the index
+     * behind it is one the engine reports but will not plan against.
+     *
+     * The catalogue names such an index exactly as it names a usable one, so a
+     * proof that read the catalogue alone would admit the declaration and the
+     * search would still read the table.
+     *
+     * @return void
+     */
+    public function testValidationRefusesTheEqualityDeclarationWhenItsIndexIsUnusable(): void
+    {
+        $this->makeEqualityMatchIndexUnusable();
+
+        try {
+            $this->assertValidationRefuses(EqualitySearchableUserResource::class, self::EQUALITY_DEFECT);
+        } finally {
+            $this->makeEqualityMatchIndexUsable();
+        }
+    }
+
+    /**
      * Return the connection driver name this suite runs against.
      *
      * @return string
@@ -403,6 +424,22 @@ abstract class EngineSearchTestCase extends TestCase
      * @return void
      */
     abstract protected function createEqualityMatchIndex(): void;
+
+    /**
+     * Replace the index serving the equality match with one the engine reports
+     * but will not plan against.
+     *
+     * @return void
+     */
+    abstract protected function makeEqualityMatchIndexUnusable(): void;
+
+    /**
+     * Restore the index serving the equality match to one the engine will plan
+     * against.
+     *
+     * @return void
+     */
+    abstract protected function makeEqualityMatchIndexUsable(): void;
 
     /**
      * Return the plan the engine reports for the query, as one string.

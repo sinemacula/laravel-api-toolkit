@@ -153,4 +153,29 @@ final class PostgresTrigramSearchTest extends EngineSearchTestCase
     {
         DB::statement('create index users_name_index on users (name)');
     }
+
+    /**
+     * Replace the ordinary index with a partial one, which serves only a query
+     * carrying the same predicate.
+     *
+     * @return void
+     */
+    #[\Override]
+    protected function makeEqualityMatchIndexUnusable(): void
+    {
+        DB::statement('drop index users_name_index');
+        DB::statement('create index users_name_index on users (name) where name is not null');
+    }
+
+    /**
+     * Restore the unqualified index.
+     *
+     * @return void
+     */
+    #[\Override]
+    protected function makeEqualityMatchIndexUsable(): void
+    {
+        DB::statement('drop index users_name_index');
+        DB::statement('create index users_name_index on users (name)');
+    }
 }

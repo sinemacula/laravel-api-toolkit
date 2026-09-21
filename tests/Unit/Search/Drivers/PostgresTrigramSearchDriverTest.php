@@ -6,6 +6,7 @@ namespace Tests\Unit\Search\Drivers;
 
 use Illuminate\Database\Connection;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\QueryException;
 use Illuminate\Database\Schema\Builder as SchemaBuilder;
 use Illuminate\Support\Facades\Config;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -387,6 +388,69 @@ final class PostgresTrigramSearchDriverTest extends TestCase
     }
 
     /**
+     * Test that the read naming the indexes the planner will not use asks for
+     * exactly the states that disqualify one, scoped to the table.
+     *
+     * @return void
+     */
+    public function testReadsTheIndexesThePlannerWillNotUse(): void
+    {
+        $connection = $this->catalogue(indexes: [['name' => 'users_email_index', 'columns' => ['email'], 'type' => 'btree']]);
+
+        (new PostgresTrigramSearchDriver)->indexDefects(SearchStrategy::EXACT, ['email'], 'users', $connection);
+
+        self::assertSame([
+            'select lower(ic.relname) as name from pg_index i '
+                . 'join pg_class c on c.oid = i.indrelid '
+                . 'join pg_namespace n on n.oid = c.relnamespace '
+                . 'join pg_class ic on ic.oid = i.indexrelid '
+                . 'where n.nspname = coalesce(?::text, current_schema()) and c.relname = ? '
+                . 'and (not i.indisvalid or i.indpred is not null or i.indkey[0] = 0)',
+        ], $this->statements);
+        self::assertSame([[null, 'users']], $this->bindings);
+    }
+
+    /**
+     * Test that an index the planner will not use proves no exact match.
+     *
+     * The exact strategy reads the shared catalogue, which reports an index
+     * left behind by a failed concurrent build, a partial index and one whose
+     * leading key is an expression exactly as it reports a usable one. None of
+     * them serves an unqualified predicate on the column.
+     *
+     * @return void
+     */
+    public function testRefusesAnExactMatchBackedOnlyByAnIndexThePlannerWillNotUse(): void
+    {
+        $indexes = [['name' => 'users_email_index', 'columns' => ['email'], 'type' => 'btree']];
+
+        $usable = $this->catalogue(indexes: $indexes);
+
+        self::assertSame([], (new PostgresTrigramSearchDriver)->indexDefects(SearchStrategy::EXACT, ['email'], 'users', $usable));
+
+        $refused = $this->catalogue(indexes: $indexes, unusable: ['users_email_index']);
+
+        self::assertNotSame([], (new PostgresTrigramSearchDriver)->indexDefects(SearchStrategy::EXACT, ['email'], 'users', $refused));
+    }
+
+    /**
+     * Test that an engine which cannot answer leaves the proof as strict as it
+     * was rather than refusing every search.
+     *
+     * The column naming an index the planner would refuse is not offered by
+     * every server the driver is reachable on, and a read that fails there must
+     * not take the whole search surface down with it.
+     *
+     * @return void
+     */
+    public function testAnEngineThatCannotAnswerLeavesTheProofUnchanged(): void
+    {
+        $connection = $this->refusingCatalogue([['name' => 'users_name_index', 'columns' => ['name'], 'type' => 'btree']]);
+
+        self::assertSame([], (new PostgresTrigramSearchDriver)->indexDefects(SearchStrategy::EXACT, ['name'], 'users', $connection));
+    }
+
+    /**
      * Apply the term to a fresh query compiled against the PostgreSQL grammar.
      *
      * @param  array<int, string>  $columns
@@ -410,9 +474,10 @@ final class PostgresTrigramSearchDriverTest extends TestCase
      * @param  bool  $extension
      * @param  array<int, array<string, mixed>>  $indexes
      * @param  string  $prefix
+     * @param  array<int, string>  $unusable
      * @return \Illuminate\Database\Connection
      */
-    private function catalogue(array $definitions = [], bool $extension = true, array $indexes = [], string $prefix = ''): Connection
+    private function catalogue(array $definitions = [], bool $extension = true, array $indexes = [], string $prefix = '', array $unusable = []): Connection
     {
         $schema = self::createStub(SchemaBuilder::class);
 
@@ -433,6 +498,37 @@ final class PostgresTrigramSearchDriverTest extends TestCase
 
             return array_map(static fn (string $definition): object => (object) ['indexdef' => $definition], $definitions);
         });
+        $connection->method('selectFromWriteConnection')->willReturnCallback(function (string $query, array $bindings = []) use ($unusable): array {
+
+            $this->statements[] = $query;
+            $this->bindings[]   = $bindings;
+
+            return array_map(static fn (string $name): object => (object) ['name' => $name], $unusable);
+        });
+
+        return $connection;
+    }
+
+    /**
+     * Build a connection whose read of the index states fails, as a server
+     * refusing the catalogue does.
+     *
+     * @param  array<int, array<string, mixed>>  $indexes
+     * @return \Illuminate\Database\Connection
+     */
+    private function refusingCatalogue(array $indexes = []): Connection
+    {
+        $schema = self::createStub(SchemaBuilder::class);
+
+        $schema->method('getIndexes')->willReturn($indexes);
+
+        $connection = self::createStub(Connection::class);
+
+        $connection->method('getTablePrefix')->willReturn('');
+        $connection->method('getSchemaBuilder')->willReturn($schema);
+        $connection->method('selectFromWriteConnection')->willThrowException(
+            new QueryException('pgsql', 'select', [], new \RuntimeException('permission denied')),
+        );
 
         return $connection;
     }

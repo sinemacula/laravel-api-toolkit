@@ -143,4 +143,27 @@ final class MySqlNgramSearchTest extends EngineSearchTestCase
     {
         DB::statement('alter table `users` add index `users_name_index` (`name`)');
     }
+
+    /**
+     * Hide the ordinary index from the planner while leaving it in the
+     * catalogue.
+     *
+     * @return void
+     */
+    #[\Override]
+    protected function makeEqualityMatchIndexUnusable(): void
+    {
+        DB::statement('alter table `users` alter index `users_name_index` invisible');
+    }
+
+    /**
+     * Return the ordinary index to the planner.
+     *
+     * @return void
+     */
+    #[\Override]
+    protected function makeEqualityMatchIndexUsable(): void
+    {
+        DB::statement('alter table `users` alter index `users_name_index` visible');
+    }
 }
