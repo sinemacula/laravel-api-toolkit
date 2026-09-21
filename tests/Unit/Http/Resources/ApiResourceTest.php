@@ -4,6 +4,7 @@ declare(strict_types = 1);
 
 namespace Tests\Unit\Http\Resources;
 
+use Illuminate\Database\Eloquent\Attributes\Table;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
@@ -2079,10 +2080,7 @@ final class ApiResourceTest extends TestCase
     {
         $this->clearSchemaCache();
 
-        $model = new class extends Model {
-            /** @var string|null The database table backing the model. */
-            protected $table = 'users';
-
+        $model = new #[Table('users')] class extends Model {
             /**
              * Get the label attribute.
              *

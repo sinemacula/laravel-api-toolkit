@@ -4,6 +4,8 @@ declare(strict_types = 1);
 
 namespace Tests\Fixtures\Models;
 
+use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Attributes\Table;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -22,14 +24,10 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
+#[Fillable(['user_id', 'title', 'body', 'published'])]
+#[Table('posts')]
 final class Post extends Model
 {
-    /** @var string|null */
-    protected $table = 'posts';
-
-    /** @var array<int, string> */
-    protected $fillable = ['user_id', 'title', 'body', 'published'];
-
     /**
      * Get the post's author.
      *

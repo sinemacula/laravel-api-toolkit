@@ -6,6 +6,7 @@ namespace Tests\Unit\Services\Actors;
 
 use Illuminate\Auth\Authenticatable;
 use Illuminate\Contracts\Auth\Authenticatable as AuthenticatableContract;
+use Illuminate\Database\Eloquent\Attributes\Table;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -237,11 +238,8 @@ final class EloquentActorTest extends TestCase
      */
     public function testLabelFallsBackToClassBasename(): void
     {
-        $model = new class extends Model implements AuthenticatableContract {
+        $model = new #[Table('users')] class extends Model implements AuthenticatableContract {
             use Authenticatable;
-
-            /** @var string|null */
-            protected $table = 'users';
         };
 
         $model->setAttribute('id', 5);
@@ -260,11 +258,8 @@ final class EloquentActorTest extends TestCase
      */
     private function makeStringKeyedModel(array $attributes): AuthenticatableContract&Model
     {
-        $model = new class extends Model implements AuthenticatableContract {
+        $model = new #[Table('countries')] class extends Model implements AuthenticatableContract {
             use Authenticatable;
-
-            /** @var string|null */
-            protected $table = 'countries';
 
             /** @var string */
             protected $primaryKey = 'code';
