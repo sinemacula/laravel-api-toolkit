@@ -21,7 +21,8 @@ use Illuminate\Database\QueryException;
  * An engine this cannot question reports nothing, which leaves every proof as
  * strict as it was. A question that fails is read the same way: an index proof
  * is not the place to turn a broken auxiliary read into a refusal, and the
- * catalogue itself is still worth reading.
+ * catalogue itself is still worth reading. Each engine answers only the facts
+ * it holds, and a fact an engine has no notion of is simply never reported.
  *
  * Nothing read here is cached. Every answer describes engine state that changes
  * without a migration, so a remembered one would outlive its truth.
@@ -46,9 +47,10 @@ class IndexEligibilityInspector
     public function inspect(string $table, Connection $connection): IndexEligibility
     {
         return match ($connection->getDriverName()) {
-            'mysql' => $this->fromStatistics($table, $connection),
-            'pgsql' => $this->fromCatalogue($table, $connection),
-            default => new IndexEligibility,
+            'mysql'  => $this->fromStatistics($table, $connection),
+            'pgsql'  => $this->fromCatalogue($table, $connection),
+            'sqlite' => $this->fromPragmas($table, $connection),
+            default  => new IndexEligibility,
         };
     }
 
@@ -101,6 +103,35 @@ class IndexEligibilityInspector
             . 'join pg_class ic on ic.oid = i.indexrelid '
             . 'where n.nspname = coalesce(?::text, current_schema()) and c.relname = ?',
             $this->qualify($table, $connection),
+        ));
+    }
+
+    /**
+     * Report what an engine answering through pragmas says about the table.
+     *
+     * The engine holds an index back from no query, so none is ever
+     * disregarded. It does answer the other two: an index carrying a predicate
+     * holds only the rows that predicate admits, and one whose first key entry
+     * names no column is keyed on an expression, which the aggregated column
+     * list drops exactly as the other engines do.
+     *
+     * @param  string  $table
+     * @param  \Illuminate\Database\Connection  $connection
+     * @return \SineMacula\ApiToolkit\Schema\Introspection\IndexEligibility
+     */
+    private function fromPragmas(string $table, Connection $connection): IndexEligibility
+    {
+        $segments = explode('.', $table);
+        $name     = $connection->getTablePrefix() . array_pop($segments);
+
+        return $this->report(fn (): array => $connection->selectFromWriteConnection(
+            'select lower(il.name) as name, '
+            . '0 as disregarded, '
+            . 'il.partial as restricted, '
+            . '(select case when ii.name is null then 1 else 0 end '
+            . 'from pragma_index_info(il.name) ii where ii.seqno = 0) as expressed '
+            . 'from pragma_index_list(?) il',
+            [$name],
         ));
     }
 

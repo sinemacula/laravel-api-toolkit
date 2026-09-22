@@ -507,6 +507,29 @@ final class PostgresTrigramSearchDriverTest extends TestCase
     }
 
     /**
+     * Test that an index keyed on an expression still proves an anywhere match.
+     *
+     * This proof matches the statement that would recreate the index, which
+     * names the expression outright, so the fact that defeats a proof reading
+     * the reported column list must not defeat this one. Folding the three
+     * facts together here would refuse every trigram index over an expression,
+     * which is the ordinary way one is written.
+     *
+     * @return void
+     */
+    public function testAcceptsAnAnywhereMatchBackedByAnExpressionKeyedTrigramIndex(): void
+    {
+        $definition = 'CREATE INDEX users_index_0 ON public.users USING gin (name gin_trgm_ops)';
+
+        $catalogue = $this->catalogue([$definition], expressed: ['users_index_0']);
+
+        self::assertSame(
+            [],
+            (new PostgresTrigramSearchDriver)->indexDefects(SearchStrategy::SUBSTRING, ['name'], 'users', $catalogue),
+        );
+    }
+
+    /**
      * Apply the term to a fresh query compiled against the PostgreSQL grammar.
      *
      * @param  array<int, string>  $columns
@@ -532,10 +555,18 @@ final class PostgresTrigramSearchDriverTest extends TestCase
      * @param  string  $prefix
      * @param  array<int, string>  $unusable
      * @param  array<int, string>  $restricted
+     * @param  array<int, string>  $expressed
      * @return \Illuminate\Database\Connection
      */
-    private function catalogue(array $definitions = [], bool $extension = true, array $indexes = [], string $prefix = '', array $unusable = [], array $restricted = []): Connection
-    {
+    private function catalogue(
+        array $definitions = [],
+        bool $extension = true,
+        array $indexes = [],
+        string $prefix = '',
+        array $unusable = [],
+        array $restricted = [],
+        array $expressed = [],
+    ): Connection {
         $schema = self::createStub(SchemaBuilder::class);
 
         $schema->method('getIndexes')->willReturn($indexes);
@@ -563,7 +594,7 @@ final class PostgresTrigramSearchDriverTest extends TestCase
                 array_keys($definitions),
             );
         });
-        $connection->method('selectFromWriteConnection')->willReturnCallback(function (string $query, array $bindings = []) use ($unusable, $restricted): array {
+        $connection->method('selectFromWriteConnection')->willReturnCallback(function (string $query, array $bindings = []) use ($unusable, $restricted, $expressed): array {
 
             $this->statements[] = $query;
             $this->bindings[]   = $bindings;
@@ -586,6 +617,15 @@ final class PostgresTrigramSearchDriverTest extends TestCase
                         'expressed'   => 0,
                     ],
                     $restricted,
+                ),
+                array_map(
+                    static fn (string $name): object => (object) [
+                        'name'        => $name,
+                        'disregarded' => 0,
+                        'restricted'  => 0,
+                        'expressed'   => 1,
+                    ],
+                    $expressed,
                 ),
             );
         });

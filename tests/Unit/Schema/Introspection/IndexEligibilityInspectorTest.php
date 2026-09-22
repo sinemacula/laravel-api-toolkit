@@ -38,7 +38,7 @@ final class IndexEligibilityInspectorTest extends TestCase
      */
     public function testAnEngineItCannotQuestionIsAskedNothing(): void
     {
-        $eligibility = (new IndexEligibilityInspector)->inspect('users', $this->connection('sqlite'));
+        $eligibility = (new IndexEligibilityInspector)->inspect('users', $this->connection('mariadb'));
 
         self::assertSame([], $this->statements);
         self::assertTrue($eligibility->describes('users_name_index'));
@@ -55,6 +55,43 @@ final class IndexEligibilityInspectorTest extends TestCase
 
         self::assertSame([], $this->statements);
         self::assertTrue($eligibility->describes('users_name_index'));
+    }
+
+    /**
+     * Test that an engine answering through pragmas is read for the two facts
+     * it holds.
+     *
+     * It holds no index back from a query, so nothing it reports is ever
+     * disregarded, and the read says so rather than leaving the fact unasked.
+     * The table is asked for under the name it was created with, which carries
+     * the connection's prefix.
+     *
+     * @return void
+     */
+    public function testReadsTheFactsAnEngineAnsweringThroughPragmasHolds(): void
+    {
+        $connection = $this->connection('sqlite', [
+            (object) ['name' => 'users_live_index', 'disregarded' => 0, 'restricted' => 1, 'expressed' => 0],
+            (object) ['name' => 'users_lower_index', 'disregarded' => 0, 'restricted' => 0, 'expressed' => 1],
+        ], 'api_');
+
+        $eligibility = (new IndexEligibilityInspector)->inspect('users', $connection);
+
+        self::assertTrue($eligibility->restricts('users_live_index'));
+        self::assertTrue($eligibility->keysAnExpression('users_lower_index'));
+        self::assertFalse($eligibility->disregards('users_live_index'));
+
+        self::assertSame([
+            'select lower(il.name) as name, '
+            . '0 as disregarded, '
+            . 'il.partial as restricted, '
+            . '(select case when ii.name is null then 1 else 0 end '
+            . 'from pragma_index_info(il.name) ii where ii.seqno = 0) as expressed '
+            . 'from pragma_index_list(?) il',
+        ], $this->statements);
+
+        // The prefix belongs to the table as created, not to the model's name.
+        self::assertSame([['api_users']], $this->bindings);
     }
 
     /**
