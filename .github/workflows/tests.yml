@@ -114,44 +114,44 @@ jobs:
             matrix:
                 include:
                     -   database: mysql
+                        image: mysql:8.4
                         db_driver: mysql
                         db_port: 3306
                         db_username: root
                         db_password: password
+                        health_cmd: mysqladmin ping -h 127.0.0.1
                     -   database: pgsql
+                        image: postgres:17
                         db_driver: pgsql
                         db_port: 5432
                         db_username: postgres
                         db_password: password
+                        health_cmd: pg_isready -h 127.0.0.1 -U postgres -d api_toolkit_test
 
+        # One service per leg. Declaring both starts both on every leg, so each
+        # was pulling and booting an engine it never connects to. Each image
+        # ignores the other's variables, so one block configures either. Both
+        # probes go over the loopback address rather than a socket, since an
+        # engine that initialises behind a temporary local server answers a
+        # socket probe before the server the tests will actually reach is up.
         services:
-            mysql:
-                image: mysql:8.4
+            database:
+                image: ${{ matrix.image }}
                 env:
                     MYSQL_ROOT_PASSWORD: password
                     MYSQL_DATABASE: api_toolkit_test
+                    POSTGRES_USER: postgres
+                    POSTGRES_PASSWORD: password
+                    POSTGRES_DB: api_toolkit_test
                 ports:
-                    - 3306:3306
+                    - ${{ matrix.db_port }}:${{ matrix.db_port }}
                 options: >-
-                    --health-cmd="mysqladmin ping -h 127.0.0.1"
+                    --health-cmd="${{ matrix.health_cmd }}"
                     --health-interval=10s
                     --health-timeout=5s
                     --health-retries=5
                     --health-start-period=30s
                     --health-start-interval=5s
-            postgres:
-                image: postgres:17
-                env:
-                    POSTGRES_USER: postgres
-                    POSTGRES_PASSWORD: password
-                    POSTGRES_DB: api_toolkit_test
-                ports:
-                    - 5432:5432
-                options: >-
-                    --health-cmd="pg_isready -U postgres"
-                    --health-interval=10s
-                    --health-timeout=5s
-                    --health-retries=5
 
         steps:
             -   name: Checkout
@@ -165,6 +165,10 @@ jobs:
                     php-version: 8.3
                     extensions: pdo_mysql, pdo_pgsql
 
+            # Serial on purpose. The unit jobs above run under paratest, but the
+            # suites here create and drop real tables against one shared
+            # database and waive the transaction wrapper to do it, so parallel
+            # workers drop each other's tables out from under them.
             -   name: Database Tests
                 env:
                     DB_DRIVER: ${{ matrix.db_driver }}
