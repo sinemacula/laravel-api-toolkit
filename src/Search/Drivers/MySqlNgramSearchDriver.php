@@ -6,6 +6,7 @@ namespace SineMacula\ApiToolkit\Search\Drivers;
 
 use Illuminate\Database\Connection;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\QueryException;
 use SineMacula\ApiToolkit\Enums\SearchStrategy;
 use SineMacula\ApiToolkit\Search\SearchTerm;
 
@@ -164,6 +165,59 @@ final class MySqlNgramSearchDriver extends EngineSearchDriver
         }
 
         return $defects === [] ? [] : array_fill_keys($columns, $defects);
+    }
+
+    /**
+     * Return the names of indexes this engine reports but will not plan
+     * against.
+     *
+     * An index marked invisible is kept current by the engine and reported by
+     * the catalogue, but the planner ignores it under the default optimiser
+     * settings, so a search it appears to back would still read the table. An
+     * index whose first key part is an expression names no column the catalogue
+     * reports, so it cannot back a match on one either.
+     *
+     * The column naming visibility arrived in MySQL 8.0. An engine that cannot
+     * answer names nothing, which leaves the proof as strict as it was rather
+     * than refusing every search.
+     *
+     * @param  string  $table
+     * @param  \Illuminate\Database\Connection  $connection
+     * @return array<int, string>
+     */
+    #[\Override]
+    protected function unusableIndexNames(string $table, Connection $connection): array
+    {
+        $segments = explode('.', $table);
+        $name     = array_pop($segments);
+
+        $bindings = [$segments === [] ? null : implode('.', $segments), $connection->getTablePrefix() . $name];
+
+        try {
+            $rows = $connection->selectFromWriteConnection(
+                'select distinct lower(index_name) as name from information_schema.statistics '
+                . 'where table_schema = coalesce(?, schema()) and table_name = ? '
+                . 'and (is_visible = \'NO\' or (seq_in_index = 1 and column_name is null))',
+                $bindings,
+            );
+        } catch (QueryException) { // @phpstan-ignore catch.neverThrown
+            return [];
+        }
+
+        $names = [];
+
+        foreach ($rows as $row) {
+
+            $index = ((array) $row)['name'] ?? null;
+
+            if (!is_string($index)) {
+                continue;
+            }
+
+            $names[] = $index;
+        }
+
+        return $names;
     }
 
     /**

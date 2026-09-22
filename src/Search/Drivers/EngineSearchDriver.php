@@ -221,7 +221,9 @@ abstract class EngineSearchDriver implements SearchDriver
      *
      * An index the connection reports without a kind is left out: a driver here
      * proves a match against an index of a particular kind, and an unnamed kind
-     * proves nothing about the shape the strategy needs.
+     * proves nothing about the shape the strategy needs. An index the engine
+     * reports but will not plan against is left out for the same reason, since
+     * an index the planner refuses backs no search.
      *
      * @param  string  $table
      * @param  \Illuminate\Database\Connection  $connection
@@ -229,7 +231,8 @@ abstract class EngineSearchDriver implements SearchDriver
      */
     protected function indexes(string $table, Connection $connection): array
     {
-        $indexes = [];
+        $unusable = array_map(strtolower(...), $this->unusableIndexNames($table, $connection));
+        $indexes  = [];
 
         foreach ($connection->getSchemaBuilder()->getIndexes($table) as $entry) {
 
@@ -239,10 +242,36 @@ abstract class EngineSearchDriver implements SearchDriver
                 continue;
             }
 
+            if (in_array($index->name, $unusable, true)) {
+                continue;
+            }
+
             $indexes[] = $index;
         }
 
         return $indexes;
+    }
+
+    /**
+     * Return the names of indexes the engine reports but will not plan against.
+     *
+     * The shared catalogue read reports every index the table declares, without
+     * saying whether the planner would use one. An engine that can distinguish
+     * them names the ones it would refuse here, and they are dropped before any
+     * strategy is proved against them. An engine that cannot distinguish them
+     * names none, which leaves the proof exactly as strict as it was.
+     *
+     * The catalogue reports a name lowered, so a name returned here is lowered
+     * before the two are compared and an engine may report one in whatever case
+     * it was declared with.
+     *
+     * @param  string  $table
+     * @param  \Illuminate\Database\Connection  $connection
+     * @return array<int, string>
+     */
+    protected function unusableIndexNames(string $table, Connection $connection): array
+    {
+        return [];
     }
 
     /**

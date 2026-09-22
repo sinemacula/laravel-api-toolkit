@@ -13,6 +13,7 @@ use SineMacula\ApiToolkit\Search\Drivers\EngineSearchDriver;
 use SineMacula\ApiToolkit\Search\SearchTerm;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Search\StubEngineSearchDriver;
+use Tests\Fixtures\Search\StubFilteringSearchDriver;
 use Tests\TestCase;
 
 /**
@@ -33,6 +34,71 @@ final class EngineSearchDriverTest extends TestCase
 {
     /** @var string The term every test searches for */
     private const string TERM = 'smith';
+
+    /**
+     * Test that an index the engine would refuse to plan against is dropped
+     * before any strategy is proved against it.
+     *
+     * The catalogue reports such an index exactly as it reports a usable one,
+     * so a proof reading the catalogue alone would accept it.
+     *
+     * @return void
+     */
+    public function testDropsAnIndexTheEngineWouldRefuseToPlanAgainst(): void
+    {
+        $connection = $this->catalogue([['name' => 'users_name_index', 'columns' => ['name'], 'type' => 'btree']]);
+
+        self::assertSame([], (new StubFilteringSearchDriver)->indexDefects(SearchStrategy::EXACT, ['name'], 'users', $connection));
+
+        $driver = new StubFilteringSearchDriver(['users_name_index']);
+
+        self::assertNotSame([], $driver->indexDefects(SearchStrategy::EXACT, ['name'], 'users', $connection));
+    }
+
+    /**
+     * Test that an index is refused whatever case the engine names it in.
+     *
+     * The catalogue reports a name lowered while an engine may report it as it
+     * was declared, so comparing the two literally would let a name carrying a
+     * capital slip past the refusal and prove a match it cannot serve.
+     *
+     * @return void
+     */
+    public function testRefusesAnIndexWhateverCaseTheEngineNamesItIn(): void
+    {
+        $connection = $this->catalogue([['name' => 'users_name_index', 'columns' => ['name'], 'type' => 'btree']]);
+
+        $driver = new StubFilteringSearchDriver(['USERS_Name_Index']);
+
+        self::assertNotSame([], $driver->indexDefects(SearchStrategy::EXACT, ['name'], 'users', $connection));
+    }
+
+    /**
+     * Test that a refused index does not stop a later one proving the match.
+     *
+     * The walk has to keep reading past the index it drops, or an unusable
+     * index declared first would hide every usable one behind it.
+     *
+     * @return void
+     */
+    public function testKeepsReadingPastAnIndexItRefuses(): void
+    {
+        $connection = $this->catalogue([
+            ['name' => 'users_name_hidden', 'columns' => ['name'], 'type' => 'btree'],
+            ['name' => 'users_name_index', 'columns' => ['name'], 'type' => 'btree'],
+        ]);
+
+        $driver = new StubFilteringSearchDriver(['users_name_hidden']);
+
+        self::assertSame([], $driver->indexDefects(SearchStrategy::EXACT, ['name'], 'users', $connection));
+
+        // With only the refused index declared, the same read must report the
+        // column as unproved, so the pass above is the loop continuing rather
+        // than the filter doing nothing.
+        $only = $this->catalogue([['name' => 'users_name_hidden', 'columns' => ['name'], 'type' => 'btree']]);
+
+        self::assertNotSame([], $driver->indexDefects(SearchStrategy::EXACT, ['name'], 'users', $only));
+    }
 
     /**
      * Test that a driver over an engine implements every match strategy.

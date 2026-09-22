@@ -6,6 +6,7 @@ namespace SineMacula\ApiToolkit\Search\Drivers;
 
 use Illuminate\Database\Connection;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\QueryException;
 use SineMacula\ApiToolkit\Enums\SearchStrategy;
 use SineMacula\ApiToolkit\Search\SearchTerm;
 
@@ -96,6 +97,55 @@ final class PostgresTrigramSearchDriver extends EngineSearchDriver
     protected function substringIndexDefects(array $columns, string $table, Connection $connection): array
     {
         return $this->trigramIndexDefects(SearchStrategy::SUBSTRING, $columns, $table, $connection);
+    }
+
+    /**
+     * Return the names of indexes this engine reports but will not plan
+     * against.
+     *
+     * An index left behind by a failed concurrent build is never used. A
+     * partial index serves only a query whose own predicate implies its own,
+     * which a search does not carry. An index whose leading key is an
+     * expression cannot serve a predicate on the column the expression reads,
+     * so it proves nothing about the column a strategy names.
+     *
+     * @param  string  $table
+     * @param  \Illuminate\Database\Connection  $connection
+     * @return array<int, string>
+     */
+    #[\Override]
+    protected function unusableIndexNames(string $table, Connection $connection): array
+    {
+        [$schema, $name] = $this->qualify($table, $connection);
+
+        try {
+            $rows = $connection->selectFromWriteConnection(
+                'select lower(ic.relname) as name from pg_index i '
+                . 'join pg_class c on c.oid = i.indrelid '
+                . 'join pg_namespace n on n.oid = c.relnamespace '
+                . 'join pg_class ic on ic.oid = i.indexrelid '
+                . 'where n.nspname = coalesce(?::text, current_schema()) and c.relname = ? '
+                . 'and (not i.indisvalid or i.indpred is not null or i.indkey[0] = 0)',
+                [$schema, $name],
+            );
+        } catch (QueryException) { // @phpstan-ignore catch.neverThrown
+            return [];
+        }
+
+        $names = [];
+
+        foreach ($rows as $row) {
+
+            $index = ((array) $row)['name'] ?? null;
+
+            if (!is_string($index)) {
+                continue;
+            }
+
+            $names[] = $index;
+        }
+
+        return $names;
     }
 
     /**

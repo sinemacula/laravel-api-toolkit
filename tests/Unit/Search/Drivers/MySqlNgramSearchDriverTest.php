@@ -7,6 +7,7 @@ namespace Tests\Unit\Search\Drivers;
 use Illuminate\Database\Connection;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Query\Grammars\MySqlGrammar;
+use Illuminate\Database\QueryException;
 use Illuminate\Database\Schema\Builder as SchemaBuilder;
 use Illuminate\Support\Facades\Config;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -56,6 +57,12 @@ final class MySqlNgramSearchDriverTest extends TestCase
     /** @var array<int, string> The statements the driver read the catalogue with */
     private array $statements = [];
 
+    /** @var array<int, string> The reads the driver made of the information schema */
+    private array $reads = [];
+
+    /** @var array<int, array<int, mixed>> The bindings each of those reads carried */
+    private array $bindings = [];
+
     /**
      * Register a MySQL connection the driver compiles its predicates against.
      *
@@ -67,6 +74,8 @@ final class MySqlNgramSearchDriverTest extends TestCase
         parent::setUp();
 
         $this->statements = [];
+        $this->reads      = [];
+        $this->bindings   = [];
 
         Config::set('database.connections.' . self::CONNECTION, [
             'driver'   => 'mysql',
@@ -450,6 +459,89 @@ final class MySqlNgramSearchDriverTest extends TestCase
     }
 
     /**
+     * Test that the read naming the indexes the planner ignores asks for the
+     * hidden ones alone, scoped to the table.
+     *
+     * @return void
+     */
+    public function testReadsTheIndexesThePlannerIgnores(): void
+    {
+        $connection = $this->catalogue([['name' => 'users_name_index', 'columns' => ['name'], 'type' => 'BTREE']]);
+
+        (new MySqlNgramSearchDriver)->indexDefects(SearchStrategy::PREFIX, ['name'], 'users', $connection);
+
+        self::assertSame([
+            'select distinct lower(index_name) as name from information_schema.statistics '
+                . 'where table_schema = coalesce(?, schema()) and table_name = ? '
+                . 'and (is_visible = \'NO\' or (seq_in_index = 1 and column_name is null))',
+        ], $this->reads);
+        self::assertSame([[null, 'users']], $this->bindings);
+    }
+
+    /**
+     * Test that the read is scoped to the prefixed table and its schema, so a
+     * connection carrying a prefix does not ask about another table's indexes.
+     *
+     * @return void
+     */
+    public function testScopesTheReadToThePrefixedTableAndItsSchema(): void
+    {
+        $connection = $this->catalogue(
+            [['name' => 'shop_users_name_index', 'columns' => ['name'], 'type' => 'BTREE']],
+            prefix: 'shop_',
+        );
+
+        (new MySqlNgramSearchDriver)->indexDefects(SearchStrategy::PREFIX, ['name'], 'reporting.users', $connection);
+
+        self::assertSame([['reporting', 'shop_users']], $this->bindings);
+    }
+
+    /**
+     * Test that an index the engine keeps but the planner ignores proves
+     * nothing.
+     *
+     * An invisible index is maintained on every write and reported by the
+     * catalogue exactly as a usable one is, so a proof that reads the catalogue
+     * alone would accept it and the search would still read the table.
+     *
+     * @return void
+     */
+    public function testRefusesAPrefixMatchBackedOnlyByAnInvisibleIndex(): void
+    {
+        $indexes = [['name' => 'users_name_index', 'columns' => ['name'], 'type' => 'BTREE']];
+
+        $visible = $this->catalogue($indexes);
+
+        self::assertSame([], (new MySqlNgramSearchDriver)->indexDefects(SearchStrategy::PREFIX, ['name'], 'users', $visible));
+
+        // Two names, so the list the read collects is proved to carry more than
+        // the first row it saw.
+        $invisible = $this->catalogue($indexes, invisible: ['users_email_index', 'users_name_index']);
+
+        self::assertNotSame([], (new MySqlNgramSearchDriver)->indexDefects(SearchStrategy::PREFIX, ['name'], 'users', $invisible));
+    }
+
+    /**
+     * Test that an anywhere match is refused when the only full-text index over
+     * the declared columns is invisible.
+     *
+     * @return void
+     */
+    public function testRefusesAnAnywhereMatchBackedOnlyByAnInvisibleIndex(): void
+    {
+        $indexes    = [['name' => 'users_search_ngram', 'columns' => ['name'], 'type' => 'FULLTEXT']];
+        $definition = '  FULLTEXT KEY `users_search_ngram` (`name`) /*!50100 WITH PARSER `ngram` */';
+
+        $visible = $this->catalogue($indexes, $definition);
+
+        self::assertSame([], (new MySqlNgramSearchDriver)->indexDefects(SearchStrategy::SUBSTRING, ['name'], 'users', $visible));
+
+        $invisible = $this->catalogue($indexes, $definition, invisible: ['users_search_ngram']);
+
+        self::assertNotSame([], (new MySqlNgramSearchDriver)->indexDefects(SearchStrategy::SUBSTRING, ['name'], 'users', $invisible));
+    }
+
+    /**
      * Test that an index carrying the column anywhere but first does not prove
      * a prefix match.
      *
@@ -463,6 +555,23 @@ final class MySqlNgramSearchDriverTest extends TestCase
             ['name' => ['Column "name" is declared searchable with the "prefix" strategy, which needs an index leading with that column on table "users"']],
             (new MySqlNgramSearchDriver)->indexDefects(SearchStrategy::PREFIX, ['name'], 'users', $connection),
         );
+    }
+
+    /**
+     * Test that an engine which cannot answer leaves the proof as strict as it
+     * was rather than refusing every search.
+     *
+     * The column naming an index the planner would refuse is not offered by
+     * every server the driver is reachable on, and a read that fails there must
+     * not take the whole search surface down with it.
+     *
+     * @return void
+     */
+    public function testAnEngineThatCannotAnswerLeavesTheProofUnchanged(): void
+    {
+        $connection = $this->refusingCatalogue([['name' => 'users_name_index', 'columns' => ['name'], 'type' => 'btree']]);
+
+        self::assertSame([], (new MySqlNgramSearchDriver)->indexDefects(SearchStrategy::PREFIX, ['name'], 'users', $connection));
     }
 
     /**
@@ -488,9 +597,48 @@ final class MySqlNgramSearchDriverTest extends TestCase
      * @param  array<int, array<string, mixed>>  $indexes
      * @param  string  $definition
      * @param  int|null  $tokenSize
+     * @param  array<int, string>  $invisible
+     * @param  string  $prefix
      * @return \Illuminate\Database\Connection
      */
-    private function catalogue(array $indexes = [], string $definition = '', ?int $tokenSize = 2): Connection
+    private function catalogue(array $indexes = [], string $definition = '', ?int $tokenSize = 2, array $invisible = [], string $prefix = ''): Connection
+    {
+        $schema = self::createStub(SchemaBuilder::class);
+
+        $schema->method('getIndexes')->willReturn($indexes);
+
+        $connection = self::createStub(Connection::class);
+
+        $connection->method('getTablePrefix')->willReturn($prefix);
+        $connection->method('getSchemaBuilder')->willReturn($schema);
+        $connection->method('getQueryGrammar')->willReturn(new MySqlGrammar($connection));
+        $connection->method('selectFromWriteConnection')->willReturnCallback(function (string $query, array $bindings = []) use ($invisible): array {
+
+            $this->reads[]    = $query;
+            $this->bindings[] = $bindings;
+
+            return array_map(static fn (string $name): object => (object) ['name' => $name], $invisible);
+        });
+        $connection->method('selectOne')->willReturnCallback(function (string $statement) use ($definition, $tokenSize): object {
+
+            $this->statements[] = $statement;
+
+            return $statement === self::TOKEN_SIZE_STATEMENT
+                ? (object) ['size' => $tokenSize]
+                : (object) ['Create Table' => $definition];
+        });
+
+        return $connection;
+    }
+
+    /**
+     * Build a connection whose read of the index states fails, as a server
+     * without the column naming them does.
+     *
+     * @param  array<int, array<string, mixed>>  $indexes
+     * @return \Illuminate\Database\Connection
+     */
+    private function refusingCatalogue(array $indexes = []): Connection
     {
         $schema = self::createStub(SchemaBuilder::class);
 
@@ -501,14 +649,9 @@ final class MySqlNgramSearchDriverTest extends TestCase
         $connection->method('getTablePrefix')->willReturn('');
         $connection->method('getSchemaBuilder')->willReturn($schema);
         $connection->method('getQueryGrammar')->willReturn(new MySqlGrammar($connection));
-        $connection->method('selectOne')->willReturnCallback(function (string $statement) use ($definition, $tokenSize): object {
-
-            $this->statements[] = $statement;
-
-            return $statement === self::TOKEN_SIZE_STATEMENT
-                ? (object) ['size' => $tokenSize]
-                : (object) ['Create Table' => $definition];
-        });
+        $connection->method('selectFromWriteConnection')->willThrowException(
+            new QueryException('mysql', 'select', [], new \RuntimeException('Unknown column')),
+        );
 
         return $connection;
     }

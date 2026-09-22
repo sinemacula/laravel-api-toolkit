@@ -107,7 +107,9 @@ phrase - widening the match - while a pattern comparison keeps it, so the two en
 request with different rows. Both failures are invisible in the response, which is the hazard the parameter
 exists to close.
 
-Drivers ship for MySQL, PostgreSQL, and SQLite, registered against the names those connections report.
+Drivers ship for MySQL, PostgreSQL, and SQLite, registered against the names those connections report. On
+MySQL the proof asks whether the planner would actually use the index it found, which the catalogue reports
+only from 8.0; below that the question cannot be asked and the proof stays as lenient as it was.
 MariaDB reports its own name and has no n-gram parser, so it is not among them and a search on such a
 connection fails until you register a driver for it yourself. The index each declaration is served from
 belongs to your own migration:
@@ -571,6 +573,7 @@ the steps required to move from 1.x to 2.x.
 
 - PHP ^8.3
 - Laravel 13.2+
+- MySQL 8.0+, where the search layer is used
 
 ## Testing
 
