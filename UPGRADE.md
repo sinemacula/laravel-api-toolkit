@@ -2,6 +2,44 @@
 
 ## From 1.x to 2.x
 
+### Raised: laravel-repositories 3.1 is now the floor
+
+`sinemacula/laravel-repositories` moves from `^2.2 || ^3.0` to `^3.1`. The floor is raised rather than widened
+because 3.1 changed what composing a query does, and the two behaviours cannot both be documented as one API.
+
+Composing no longer mutates the repository. `withApiCriteria()`, `scopeById()` and `scopeByIds()` return a copy
+carrying the composition, and the handle they were called on is left untouched. A composition abandoned by a
+caller that never queries through the copy is now garbage rather than state the next unrelated query inherits.
+
+Any caller that composed in one statement and read in another has to keep the handle:
+
+    // Before
+    $repository->withApiCriteria();
+
+    return $repository->paginate();
+
+    // After
+    return $repository->withApiCriteria()->paginate();
+
+Or, where the composition is conditional:
+
+    $scoped = $repository->withApiCriteria();
+
+    if ($caller->isExternal()) {
+        $scoped = $scoped->scopeById($id);
+    }
+
+    return $scoped->paginate();
+
+`usingResource()` is configuration rather than composition, so it still mutates the handle it is called on and
+reaches only the criteria that handle already carries. Name the resource before composing:
+
+    $repository->usingResource(ArticleResource::class)->withApiCriteria()->paginate();
+
+The three composition methods are marked `@phpstan-pure`, so a discarded result is reported as
+`method.resultUnused` from PHPStan level 4 upward. Mark your own repository scope methods the same way to
+extend that check to their call sites.
+
 ### Raised: Laravel 13.2 is now the floor
 
 `illuminate/*` moves from `^12.0 || ^13.0` to `^13.2`, and `orchestra/testbench` to `^11.0`. Laravel 12 is no

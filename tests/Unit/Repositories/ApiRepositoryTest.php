@@ -24,6 +24,7 @@ use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Repositories\CacheableTagRepository;
 use Tests\Fixtures\Repositories\DummyRepository;
 use Tests\Fixtures\Repositories\UserRepository;
+use Tests\Fixtures\Resources\FilterableUserResource;
 use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
 
@@ -67,20 +68,26 @@ final class ApiRepositoryTest extends TestCase
     }
 
     /**
-     * Test that withApiCriteria adds an ApiCriteria instance to the repository.
+     * Test that withApiCriteria composes the API criteria into a copy and
+     * leaves the handle it was called on untouched.
+     *
+     * A composition abandoned by a caller that never queries through the copy
+     * has to be garbage rather than state the next unrelated query inherits.
      *
      * @return void
      */
-    public function testWithApiCriteriaAddsApiCriteriaInstance(): void
+    public function testWithApiCriteriaComposesIntoACopy(): void
     {
         $result = $this->repository->withApiCriteria();
 
-        self::assertSame($this->repository, $result);
-
-        $criteria = $this->repository->getCriteria();
+        self::assertNotSame($this->repository, $result);
 
         self::assertTrue(
-            $criteria->contains(fn ($c) => $c instanceof ApiCriteria),
+            $result->getCriteria()->contains(fn ($c) => $c instanceof ApiCriteria),
+        );
+
+        self::assertFalse(
+            $this->repository->getCriteria()->contains(fn ($c) => $c instanceof ApiCriteria),
         );
     }
 
@@ -94,15 +101,12 @@ final class ApiRepositoryTest extends TestCase
     {
         Config::set('api-toolkit.resources.resource_map.' . User::class, UserResource::class);
 
-        $this->repository->withApiCriteria();
-        $this->repository->usingResource(UserResource::class);
+        $scoped = $this->repository->withApiCriteria()->usingResource(UserResource::class);
 
-        self::assertSame(UserResource::class, $this->repository->getResourceClass());
-
-        $criteria = $this->repository->getCriteria();
+        self::assertSame(UserResource::class, $scoped->getResourceClass());
 
         self::assertTrue(
-            $criteria->contains(fn ($c) => $c instanceof ApiCriteria),
+            $scoped->getCriteria()->contains(fn ($c) => $c instanceof ApiCriteria),
         );
     }
 
@@ -114,14 +118,17 @@ final class ApiRepositoryTest extends TestCase
      */
     public function testUsingResourceSkipsNonApiCriteria(): void
     {
-        $this->repository->withApiCriteria();
-        $this->repository->pushCriteria(self::createStub(CriteriaInterface::class));
+        $scoped = $this->repository->withApiCriteria();
 
-        $result = $this->repository->usingResource(UserResource::class);
+        $scoped->pushCriteria(self::createStub(CriteriaInterface::class));
 
-        self::assertSame($this->repository, $result);
+        $result = $scoped->usingResource(UserResource::class);
 
-        $criteria = $this->repository->getCriteria()->first(fn ($c) => $c instanceof ApiCriteria);
+        // Naming the resource is configuration, so it mutates the handle it is
+        // called on rather than composing another copy.
+        self::assertSame($scoped, $result);
+
+        $criteria = $scoped->getCriteria()->first(fn ($c) => $c instanceof ApiCriteria);
 
         self::assertInstanceOf(ApiCriteria::class, $criteria);
         self::assertSame(UserResource::class, $this->getProperty($criteria, 'customResourceClass'));
@@ -406,10 +413,9 @@ final class ApiRepositoryTest extends TestCase
      */
     public function testUsingResourceUpdatesExistingApiCriteriaInstances(): void
     {
-        $this->repository->withApiCriteria();
-        $this->repository->usingResource(UserResource::class);
+        $scoped = $this->repository->withApiCriteria()->usingResource(UserResource::class);
 
-        $criteria = $this->repository->getCriteria()->first(fn ($c) => $c instanceof ApiCriteria);
+        $criteria = $scoped->getCriteria()->first(fn ($c) => $c instanceof ApiCriteria);
 
         self::assertInstanceOf(ApiCriteria::class, $criteria);
         self::assertSame(UserResource::class, $this->getProperty($criteria, 'customResourceClass'));
@@ -423,10 +429,11 @@ final class ApiRepositoryTest extends TestCase
      */
     public function testWithApiCriteriaSetsResourceOnNewCriteriaInstance(): void
     {
-        $this->repository->usingResource(UserResource::class);
-        $this->repository->withApiCriteria();
+        // Naming the resource first is the ordering that carries: the copy the
+        // composition returns is built from a handle that already knows it.
+        $scoped = $this->repository->usingResource(UserResource::class)->withApiCriteria();
 
-        $criteria = $this->repository->getCriteria()->first(fn ($c) => $c instanceof ApiCriteria);
+        $criteria = $scoped->getCriteria()->first(fn ($c) => $c instanceof ApiCriteria);
 
         self::assertInstanceOf(ApiCriteria::class, $criteria);
         self::assertSame(UserResource::class, $this->getProperty($criteria, 'customResourceClass'));
@@ -472,10 +479,10 @@ final class ApiRepositoryTest extends TestCase
 
         $this->parseRequest(new Request(['limit' => '10']));
 
-        $this->repository->withApiCriteria();
-        $this->repository->scopeById($alice->id);
-
-        $result = $this->repository->paginate();
+        $result = $this->repository
+            ->withApiCriteria()
+            ->scopeById($alice->id)
+            ->paginate();
 
         self::assertCount(1, $result);
         self::assertInstanceOf(User::class, $result[0]);
@@ -624,33 +631,44 @@ final class ApiRepositoryTest extends TestCase
     }
 
     /**
-     * Test that usingResource with an existing ApiCriteria propagates the
-     * custom resource class to the criteria.
+     * Test that naming a resource reaches the criteria the same handle already
+     * carries.
+     *
+     * The composition lives on the copy, so the propagation has to run over
+     * that copy's criteria rather than over the ones the original never took.
      *
      * @return void
      */
-    public function testUsingResourcePropagatesResourceToCriteria(): void
+    public function testUsingResourceReachesTheCriteriaTheHandleCarries(): void
     {
-        $this->repository->withApiCriteria();
-        $this->repository->usingResource(UserResource::class);
+        $scoped = $this->repository->withApiCriteria()->usingResource(UserResource::class);
 
-        self::assertSame(UserResource::class, $this->repository->getResourceClass());
+        $criteria = $scoped->getCriteria()->first(fn ($c) => $c instanceof ApiCriteria);
+
+        self::assertInstanceOf(ApiCriteria::class, $criteria);
+        self::assertSame(UserResource::class, $this->getProperty($criteria, 'customResourceClass'));
     }
 
     /**
-     * Test that withApiCriteria propagates an already-set custom resource class
-     * to the new criteria instance.
+     * Test that a named resource outranks the one the model maps to.
+     *
+     * The map is the default rather than the authority, so a caller naming a
+     * resource for one read has to be answered with the one it named.
      *
      * @return void
      */
-    public function testWithApiCriteriaPropagatesAlreadySetCustomResource(): void
+    public function testANamedResourceOutranksTheMappedOne(): void
     {
-        Config::set('api-toolkit.resources.resource_map.' . User::class, UserResource::class);
+        Config::set('api-toolkit.resources.resource_map.' . User::class, FilterableUserResource::class);
 
-        $this->repository->usingResource(UserResource::class);
-        $this->repository->withApiCriteria();
+        $named = $this->repository->usingResource(UserResource::class);
 
-        self::assertSame(UserResource::class, $this->repository->getResourceClass());
+        self::assertSame(UserResource::class, $named->getResourceClass());
+
+        $criteria = $named->withApiCriteria()->getCriteria()->first(fn ($c) => $c instanceof ApiCriteria);
+
+        self::assertInstanceOf(ApiCriteria::class, $criteria);
+        self::assertSame(UserResource::class, $this->getProperty($criteria, 'customResourceClass'));
     }
 
     /**
