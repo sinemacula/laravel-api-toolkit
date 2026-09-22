@@ -121,17 +121,19 @@ class IndexEligibilityInspector
      */
     private function fromPragmas(string $table, Connection $connection): IndexEligibility
     {
-        $segments = explode('.', $table);
-        $name     = $connection->getTablePrefix() . array_pop($segments);
+        [$schema, $name] = $this->qualify($table, $connection);
 
+        // Both pragmas take the schema, and neither defaults to the one the
+        // reference names, so a table on an attached database would otherwise
+        // be answered for by whatever carries its name on the main one.
         return $this->report(fn (): array => $connection->selectFromWriteConnection(
             'select lower(il.name) as name, '
             . '0 as disregarded, '
             . 'il.partial as restricted, '
             . '(select case when ii.name is null then 1 else 0 end '
-            . 'from pragma_index_info(il.name) ii where ii.seqno = 0) as expressed '
-            . 'from pragma_index_list(?) il',
-            [$name],
+            . 'from pragma_index_info(il.name, ?) ii where ii.seqno = 0) as expressed '
+            . 'from pragma_index_list(?, ?) il',
+            [$schema, $name, $schema],
         ));
     }
 

@@ -86,12 +86,12 @@ final class IndexEligibilityInspectorTest extends TestCase
             . '0 as disregarded, '
             . 'il.partial as restricted, '
             . '(select case when ii.name is null then 1 else 0 end '
-            . 'from pragma_index_info(il.name) ii where ii.seqno = 0) as expressed '
-            . 'from pragma_index_list(?) il',
+            . 'from pragma_index_info(il.name, ?) ii where ii.seqno = 0) as expressed '
+            . 'from pragma_index_list(?, ?) il',
         ], $this->statements);
 
         // The prefix belongs to the table as created, not to the model's name.
-        self::assertSame([['api_users']], $this->bindings);
+        self::assertSame([[null, 'api_users', null]], $this->bindings);
     }
 
     /**
@@ -157,6 +157,24 @@ final class IndexEligibilityInspectorTest extends TestCase
             . 'join pg_class ic on ic.oid = i.indexrelid '
             . 'where n.nspname = coalesce(?::text, current_schema()) and c.relname = ?',
         ], $this->statements);
+    }
+
+    /**
+     * Test that an engine answering through pragmas is asked about the schema
+     * the reference names.
+     *
+     * Neither pragma defaults to the schema a qualified reference names, so a
+     * table on an attached database would otherwise be answered for by whatever
+     * carries its name on the main one, and the facts would belong to a
+     * different table entirely.
+     *
+     * @return void
+     */
+    public function testAsksThePragmasAboutTheSchemaTheReferenceNames(): void
+    {
+        (new IndexEligibilityInspector)->inspect('reporting.users', $this->connection('sqlite'));
+
+        self::assertSame([['reporting', 'users', 'reporting']], $this->bindings);
     }
 
     /**
