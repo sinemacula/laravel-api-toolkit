@@ -42,7 +42,7 @@ use Tests\Fixtures\Resources\AliasedSurfaceArticleResource;
 use Tests\Fixtures\Resources\CapabilitySpectrumLogResource;
 use Tests\Fixtures\Resources\OrganizationResource;
 use Tests\Fixtures\Resources\PostResource;
-use Tests\Fixtures\Resources\SearchableUserResource;
+use Tests\Fixtures\Resources\SearchableFilterableUserResource;
 use Tests\Fixtures\Resources\TagResource;
 use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
@@ -1145,9 +1145,9 @@ final class OpenApiQuerySurfaceContractTest extends TestCase
     {
         Route::middleware(ParseApiQuery::class)->get('/searched-users', function (UserRepository $repository): ApiResourceCollection {
 
-            $users = $repository->usingResource(SearchableUserResource::class)->withApiCriteria()->paginate();
+            $users = $repository->usingResource(SearchableFilterableUserResource::class)->withApiCriteria()->paginate();
 
-            return new ApiResourceCollection($users, SearchableUserResource::class);
+            return new ApiResourceCollection($users, SearchableFilterableUserResource::class);
         });
     }
 
