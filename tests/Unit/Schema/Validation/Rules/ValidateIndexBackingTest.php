@@ -10,6 +10,7 @@ use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledSchema;
 use SineMacula\ApiToolkit\Schema\Introspection\IndexDefinition;
 use SineMacula\ApiToolkit\Schema\Introspection\IndexEligibility;
+use SineMacula\ApiToolkit\Schema\Introspection\IndexEligibilityInspector;
 use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateIndexBacking;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Resources\UserResource;
@@ -482,6 +483,59 @@ final class ValidateIndexBackingTest extends TestCase
 
         self::assertNotSame([], $rule->validate(UserResource::class, User::class, $this->schema('name')));
         self::assertSame([], $this->rule($indexes)->validate(UserResource::class, User::class, $this->schema('name')));
+    }
+
+    /**
+     * Test that a refused index does not hide a later one that proves the
+     * column.
+     *
+     * The walk has to keep reading past the index it passes over, or an index
+     * the engine disregards declared first would refuse a column a perfectly
+     * good index behind it leads with.
+     *
+     * @return void
+     */
+    public function testKeepsReadingPastAnIndexItPassesOver(): void
+    {
+        $eligibility = new IndexEligibility(['users_name_hidden']);
+
+        $rule = $this->rule([
+            new IndexDefinition('users_name_hidden', ['name'], 'btree'),
+            new IndexDefinition('users_name_index', ['name'], 'btree'),
+        ], $eligibility);
+
+        self::assertSame([], $rule->validate(UserResource::class, User::class, $this->schema('name')));
+
+        // With only the passed-over index declared, the same read must refuse
+        // the column, so the acceptance above is the walk continuing rather
+        // than the report being ignored.
+        $only = $this->rule([new IndexDefinition('users_name_hidden', ['name'], 'btree')], $eligibility);
+
+        self::assertNotSame([], $only->validate(UserResource::class, User::class, $this->schema('name')));
+    }
+
+    /**
+     * Test that a connection whose catalogue could not be read is not asked
+     * what it thinks of the indexes in it.
+     *
+     * There is nothing to report against, and asking would spend a read on a
+     * table the rule has already decided it cannot judge.
+     *
+     * @return void
+     */
+    public function testAnUnreadableCatalogueIsNotAskedAboutItsIndexes(): void
+    {
+        $introspector = self::createStub(SchemaIntrospectionProvider::class);
+
+        $introspector->method('getIndexes')->willReturn(null);
+
+        $inspector = self::createMock(IndexEligibilityInspector::class);
+
+        $inspector->expects(self::never())->method('inspect');
+
+        $rule = new ValidateIndexBacking($introspector, $inspector);
+
+        self::assertSame([], $rule->validate(UserResource::class, User::class, $this->schema('name')));
     }
 
     /**

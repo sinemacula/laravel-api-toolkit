@@ -466,6 +466,47 @@ final class PostgresTrigramSearchDriverTest extends TestCase
     }
 
     /**
+     * Test that a trigram index the engine disregards proves no anywhere match.
+     *
+     * The statement read back describes the index the strategy needs, so only
+     * what the engine says about the index itself can refuse it.
+     *
+     * @return void
+     */
+    public function testRefusesAnAnywhereMatchBackedOnlyByADisregardedTrigramIndex(): void
+    {
+        $definition = 'CREATE INDEX users_index_0 ON public.users USING gin (name gin_trgm_ops)';
+
+        self::assertSame(
+            [],
+            (new PostgresTrigramSearchDriver)->indexDefects(SearchStrategy::SUBSTRING, ['name'], 'users', $this->catalogue([$definition])),
+        );
+
+        $refused = $this->catalogue([$definition], unusable: ['users_index_0']);
+
+        self::assertNotSame([], (new PostgresTrigramSearchDriver)->indexDefects(SearchStrategy::SUBSTRING, ['name'], 'users', $refused));
+    }
+
+    /**
+     * Test that a trigram index holding only part of the table proves no
+     * anywhere match.
+     *
+     * A search carries no predicate of its own, so an index restricted to the
+     * rows its own admits cannot serve one over the whole table. This is the
+     * other half of the refusal, and it has to stand on its own.
+     *
+     * @return void
+     */
+    public function testRefusesAnAnywhereMatchBackedOnlyByARestrictedTrigramIndex(): void
+    {
+        $definition = 'CREATE INDEX users_index_0 ON public.users USING gin (name gin_trgm_ops)';
+
+        $refused = $this->catalogue([$definition], restricted: ['users_index_0']);
+
+        self::assertNotSame([], (new PostgresTrigramSearchDriver)->indexDefects(SearchStrategy::SUBSTRING, ['name'], 'users', $refused));
+    }
+
+    /**
      * Apply the term to a fresh query compiled against the PostgreSQL grammar.
      *
      * @param  array<int, string>  $columns
@@ -490,9 +531,10 @@ final class PostgresTrigramSearchDriverTest extends TestCase
      * @param  array<int, array<string, mixed>>  $indexes
      * @param  string  $prefix
      * @param  array<int, string>  $unusable
+     * @param  array<int, string>  $restricted
      * @return \Illuminate\Database\Connection
      */
-    private function catalogue(array $definitions = [], bool $extension = true, array $indexes = [], string $prefix = '', array $unusable = []): Connection
+    private function catalogue(array $definitions = [], bool $extension = true, array $indexes = [], string $prefix = '', array $unusable = [], array $restricted = []): Connection
     {
         $schema = self::createStub(SchemaBuilder::class);
 
@@ -521,19 +563,30 @@ final class PostgresTrigramSearchDriverTest extends TestCase
                 array_keys($definitions),
             );
         });
-        $connection->method('selectFromWriteConnection')->willReturnCallback(function (string $query, array $bindings = []) use ($unusable): array {
+        $connection->method('selectFromWriteConnection')->willReturnCallback(function (string $query, array $bindings = []) use ($unusable, $restricted): array {
 
             $this->statements[] = $query;
             $this->bindings[]   = $bindings;
 
-            return array_map(
-                static fn (string $name): object => (object) [
-                    'name'        => $name,
-                    'disregarded' => 1,
-                    'restricted'  => 0,
-                    'expressed'   => 0,
-                ],
-                $unusable,
+            return array_merge(
+                array_map(
+                    static fn (string $name): object => (object) [
+                        'name'        => $name,
+                        'disregarded' => 1,
+                        'restricted'  => 0,
+                        'expressed'   => 0,
+                    ],
+                    $unusable,
+                ),
+                array_map(
+                    static fn (string $name): object => (object) [
+                        'name'        => $name,
+                        'disregarded' => 0,
+                        'restricted'  => 1,
+                        'expressed'   => 0,
+                    ],
+                    $restricted,
+                ),
             );
         });
 

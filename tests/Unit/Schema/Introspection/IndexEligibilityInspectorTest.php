@@ -78,7 +78,14 @@ final class IndexEligibilityInspectorTest extends TestCase
         self::assertTrue($eligibility->describes('users_name_index'));
         self::assertFalse($eligibility->restricts('users_hidden_index'));
 
-        self::assertStringContainsString('information_schema.statistics', $this->statements[0]);
+        self::assertSame([
+            'select lower(index_name) as name, '
+            . 'max(case when is_visible = \'NO\' then 1 else 0 end) as disregarded, '
+            . 'max(case when seq_in_index = 1 and column_name is null then 1 else 0 end) as expressed '
+            . 'from information_schema.statistics '
+            . 'where table_schema = coalesce(?, schema()) and table_name = ? '
+            . 'group by lower(index_name)',
+        ], $this->statements);
         self::assertSame([[null, 'users']], $this->bindings);
     }
 
@@ -102,7 +109,17 @@ final class IndexEligibilityInspectorTest extends TestCase
         self::assertTrue($eligibility->restricts('users_live_index'));
         self::assertTrue($eligibility->keysAnExpression('users_lower_index'));
 
-        self::assertStringContainsString('pg_index', $this->statements[0]);
+        self::assertSame([
+            'select lower(ic.relname) as name, '
+            . '(not i.indisvalid)::int as disregarded, '
+            . '(i.indpred is not null)::int as restricted, '
+            . '(i.indkey[0] = 0)::int as expressed '
+            . 'from pg_index i '
+            . 'join pg_class c on c.oid = i.indrelid '
+            . 'join pg_namespace n on n.oid = c.relnamespace '
+            . 'join pg_class ic on ic.oid = i.indexrelid '
+            . 'where n.nspname = coalesce(?::text, current_schema()) and c.relname = ?',
+        ], $this->statements);
     }
 
     /**
