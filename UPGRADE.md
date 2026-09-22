@@ -692,7 +692,7 @@ return a `422` now. The caps live under `api-toolkit.query_cost`, and these are 
     max_in_items      500    the items a single operator value list carries, such as the one `$in` reads
     max_order_keys    3      the columns one request may order by
     max_aggregates    5      the relation counts, sums, and averages one request asks for, combined
-    max_offset        10000  the page number a paginated read may start at
+    max_offset        500000 the rows a paginated read may scan past to reach its page
 
 Each is settable from the environment as `API_TOOLKIT_QUERY_` followed by the cap name, so
 `API_TOOLKIT_QUERY_MAX_IN_ITEMS` sets `max_in_items`. Setting a cap to `0` (or `null`) disables that
@@ -711,8 +711,20 @@ the walk itself, so an oversized filter aborts part way through rather than afte
 built. `max_in_items` is measured against the items an operator will read rather than the shape of the value,
 so a list spelled as a delimited string is bounded exactly as one spelled as an array. `max_order_keys`
 counts the sort columns, `max_aggregates` the relation counts, sums, and averages together, since each adds
-its own correlated subquery, and `max_offset` bounds the requested page number, but only where a page number
-was asked for. All of it happens while the query is being composed: a rejected request issues no SQL.
+its own correlated subquery, and `max_offset` bounds the rows scanned past to reach the requested page, but
+only where a page number was asked for. All of it happens while the query is being composed: a rejected
+request issues no SQL.
+
+`max_offset` counts rows, not pages. The cost of a page is the rows skipped to reach it, which is the page
+number multiplied by the page size, so a cap on the page number alone moved whenever an operator tuned the
+page size: at a page size of 100 the old bound of 10,000 pages allowed a read to skip almost a million rows.
+The shipped bound of 500,000 rows leaves the furthest page at 10,000 for the default page size of 50, which
+is the reach the old cap allowed there, and 5,000 at the `max_limit` ceiling of 100.
+
+Two things follow. A cursor-paginated read is no longer bounded by this cap at all, because a cursor seeks
+to its position rather than counting rows to it, so a `page` carried alongside a cursor costs nothing to
+honour. And the refusal still names pages: a caller who asked for `page=6000` is told the furthest page
+available, not a row count they never supplied.
 
 A request over a cap is answered with the standard error envelope, whose `meta` names what was exceeded:
 

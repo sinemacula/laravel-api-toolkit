@@ -21,6 +21,8 @@ use Illuminate\Support\Facades\Facade;
  * @method static \SineMacula\ApiToolkit\Search\SearchTerm|null getSearch()
  * @method static array<string, string> getOrder()
  * @method static int|null getLimit()
+ * @method static int getResolvedLimit()
+ * @method static bool isCursorPaginated()
  * @method static int|null getPage()
  * @method static string|null getCursor()
  * @method static \SineMacula\ApiToolkit\Enums\TrashedState getTrashed()
