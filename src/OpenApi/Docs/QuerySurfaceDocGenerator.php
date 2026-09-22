@@ -10,6 +10,7 @@ use SineMacula\ApiToolkit\OpenApi\Metadata\QueryColumnDescriptor;
 use SineMacula\ApiToolkit\OpenApi\Metadata\QuerySurfaceDescriptor;
 use SineMacula\ApiToolkit\OpenApi\Naming\SchemaComponentName;
 use SineMacula\ApiToolkit\Query\QueryCostLimits;
+use SineMacula\ApiToolkit\Search\SearchTerm;
 
 /**
  * Renders the query surface as an auto-generated Markdown section.
@@ -85,9 +86,9 @@ final readonly class QuerySurfaceDocGenerator
 
     /** @var array<string, string> How each search term bound reads, keyed by bound name. */
     private const array BOUNDS = [
-        'min_word_length' => 'Shortest word, in characters',
-        'max_length'      => 'Longest term, in characters',
-        'max_words'       => 'Most whitespace-separated words',
+        SearchTerm::MIN_WORD_LENGTH_KEY => 'Shortest word, in characters',
+        SearchTerm::MAX_LENGTH_KEY      => 'Longest term, in characters',
+        SearchTerm::MAX_WORDS_KEY       => 'Most whitespace-separated words',
     ];
 
     /**

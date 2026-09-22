@@ -25,6 +25,7 @@ use SineMacula\ApiToolkit\Cache\MetadataKeyRegistry;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Enums\CacheKeys;
 use SineMacula\ApiToolkit\Schema\Introspection\ColumnDefinition;
+use SineMacula\ApiToolkit\Schema\Introspection\IndexDefinition;
 use SineMacula\ApiToolkit\Schema\Introspection\SchemaIntrospector;
 use Tests\Concerns\InteractsWithNonPublicMembers;
 use Tests\Fixtures\Models\Post;
@@ -1267,6 +1268,68 @@ final class SchemaIntrospectorTest extends TestCase
         $expectedKey = CacheKeys::MODEL_SCHEMA_COLUMN_DEFINITIONS->resolveKey(['testing', User::class]);
 
         self::assertContains($expectedKey, $registry->keys());
+    }
+
+    /**
+     * Test that a column listing served warm still registers its key.
+     *
+     * The store outlives the process while the registry does not, so a value an
+     * earlier process wrote is served here without this one having written
+     * anything. Registering only on the write would leave the key unflushable
+     * for the whole life of every process that merely read it.
+     *
+     * @return void
+     */
+    public function testGetColumnsRegistersSchemaColumnsKeyWhenServedWarm(): void
+    {
+        $key = CacheKeys::MODEL_SCHEMA_COLUMNS->resolveKey(['testing', User::class]);
+
+        Cache::memo()->rememberForever($key, fn (): array => ['id', 'name']);
+
+        $registry = app(MetadataKeyRegistry::class);
+
+        $registry->clear();
+
+        self::assertSame(['id', 'name'], $this->makeIntrospector()->getColumns(new User));
+        self::assertContains($key, $registry->keys());
+    }
+
+    /**
+     * Test that column definitions served warm still register their key.
+     *
+     * @return void
+     */
+    public function testGetColumnDefinitionsRegistersItsKeyWhenServedWarm(): void
+    {
+        $key = CacheKeys::MODEL_SCHEMA_COLUMN_DEFINITIONS->resolveKey(['testing', User::class]);
+
+        Cache::memo()->rememberForever($key, fn (): array => ['name' => new ColumnDefinition('name', 'varchar', true)]);
+
+        $registry = app(MetadataKeyRegistry::class);
+
+        $registry->clear();
+
+        self::assertArrayHasKey('name', $this->makeIntrospector()->getColumnDefinitions(new User));
+        self::assertContains($key, $registry->keys());
+    }
+
+    /**
+     * Test that an index catalogue served warm still registers its key.
+     *
+     * @return void
+     */
+    public function testGetIndexesRegistersItsKeyWhenServedWarm(): void
+    {
+        $key = CacheKeys::MODEL_SCHEMA_INDEXES->resolveKey(['testing', User::class]);
+
+        Cache::memo()->rememberForever($key, fn (): array => [new IndexDefinition('users_name_index', ['name'], 'btree')]);
+
+        $registry = app(MetadataKeyRegistry::class);
+
+        $registry->clear();
+
+        self::assertCount(1, (array) $this->makeIntrospector()->getIndexes(new User));
+        self::assertContains($key, $registry->keys());
     }
 
     /**

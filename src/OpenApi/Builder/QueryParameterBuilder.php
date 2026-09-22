@@ -7,6 +7,7 @@ namespace SineMacula\ApiToolkit\OpenApi\Builder;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use SineMacula\ApiToolkit\Concerns\QueryParameterValidator;
 use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
+use SineMacula\ApiToolkit\Search\SearchTerm;
 
 /**
  * Builds the shared components.parameters set once and names which of them each
@@ -184,18 +185,33 @@ final readonly class QueryParameterBuilder
     }
 
     /**
-     * Build the free-text search parameter.
+     * Build the free-text search parameter, carrying the configured longest
+     * term as the schema maximum so a client is told the bound rather than
+     * discovering it as a rejection.
+     *
+     * Unlike the page size, a bound of zero does not lift the limit here: it
+     * refuses every term, so it is published as the refusal it is rather than
+     * as no bound at all. Only a catalogue naming no bound leaves the schema
+     * unbounded, and a negative figure is not a length to publish.
      *
      * @return array<string, mixed>
      */
     private function buildSearchParameter(): array
     {
+        $longest = $this->catalogue->getSearchBounds()[SearchTerm::MAX_LENGTH_KEY] ?? null;
+        $schema  = ['type' => 'string'];
+
+        if ($longest !== null && $longest >= 0) {
+            $schema['maxLength'] = $longest;
+        }
+
         return $this->parameter(
             'search',
             'Free-text search across the fields a resource declares searchable, e.g. search=John Smith. '
             . 'It matches the requested resource only and never traverses a relation; a term carrying a word shorter than the configured minimum is rejected, '
-            . 'as is one longer, or carrying more words, than the configured bounds allow.',
-            ['type' => 'string'],
+            . 'as is one longer, or carrying more words, than the configured bounds allow. '
+            . 'The length is counted once surrounding and repeated whitespace has been collapsed, so a term written with more characters than the maximum may still be accepted.',
+            $schema,
         );
     }
 

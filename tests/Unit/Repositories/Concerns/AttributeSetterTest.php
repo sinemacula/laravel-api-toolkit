@@ -689,4 +689,31 @@ final class AttributeSetterTest extends TestCase
 
         self::assertContains($expectedKey, $registry->keys());
     }
+
+    /**
+     * Test that a cast map served warm still registers its key.
+     *
+     * The warm read returns before anything writes, so registering only on the
+     * write would leave the key unflushable in every process that resolved its
+     * casts from a value an earlier one stored.
+     *
+     * @return void
+     */
+    public function testResolveAttributeCastsRegistersModelCastsKeyWhenServedWarm(): void
+    {
+        $cacheKey = CacheKeys::REPOSITORY_MODEL_CASTS->resolveKey([User::class]);
+
+        Cache::memo()->rememberForever($cacheKey, fn (): array => ['name' => 'string']);
+
+        $registry = app(MetadataKeyRegistry::class);
+
+        $registry->clear();
+
+        $model = $this->createMock(Model::class);
+        $model->expects(self::never())->method('getCasts');
+
+        $this->attributeSetter->resolveAttributeCasts($model, User::class);
+
+        self::assertContains($cacheKey, $registry->keys());
+    }
 }
