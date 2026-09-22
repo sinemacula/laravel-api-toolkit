@@ -28,8 +28,6 @@ use SineMacula\ApiToolkit\Search\SearchTerm;
  */
 final readonly class ConfigMetadataCatalogue implements MetadataCatalogue
 {
-    /** @var string The configuration key holding the page-size ceiling */
-
     /**
      * Create a new config metadata catalogue.
      *
