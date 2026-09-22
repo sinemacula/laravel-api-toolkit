@@ -36,7 +36,7 @@ final class MiddlewareConfigApiScopeTest extends TestCase
      */
     public function testJsonPrettyPrintIsNotInGlobalMiddleware(): void
     {
-        /** @var \Illuminate\Foundation\Http\Kernel $kernel */
+        /** @var \Orchestra\Testbench\Http\Kernel $kernel */
         $kernel     = $this->getApplication()->make(HttpKernel::class);
         $middleware = $kernel->getGlobalMiddleware();
 
@@ -81,7 +81,7 @@ final class MiddlewareConfigApiScopeTest extends TestCase
 
         assert($app instanceof Application);
 
-        /** @var \Illuminate\Contracts\Config\Repository $config */
+        /** @var \Illuminate\Config\Repository $config */
         $config = $app->make('config');
 
         $config->set('api-toolkit.middleware.json_pretty_print.enabled', true);

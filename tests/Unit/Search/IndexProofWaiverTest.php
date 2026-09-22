@@ -21,14 +21,21 @@ use Tests\TestCase;
 final class IndexProofWaiverTest extends TestCase
 {
     /**
-     * Test that the shipped configuration waives the proof on the development
-     * connection and on nothing else.
+     * Test that the shipped configuration waives the proof on nothing at all.
+     *
+     * The waiver is the only switch that turns the request-time proof off, so a
+     * shipped entry would waive it for every application that had not
+     * considered the question. The connection names checked here are the ones a
+     * stock application uses, which is what made a shipped entry reach a
+     * production deployment by default rather than by choice.
      *
      * @return void
      */
-    public function testWaivesTheProofOnTheShippedDevelopmentConnectionOnly(): void
+    public function testShippedConfigurationWaivesNothing(): void
     {
-        self::assertTrue(IndexProofWaiver::waives('sqlite'));
+        self::assertSame([], Config::get('api-toolkit.search.unverified_connections'));
+
+        self::assertFalse(IndexProofWaiver::waives('sqlite'));
         self::assertFalse(IndexProofWaiver::waives('mysql'));
         self::assertFalse(IndexProofWaiver::waives('pgsql'));
     }

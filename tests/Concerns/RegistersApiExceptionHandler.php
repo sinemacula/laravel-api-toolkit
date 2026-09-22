@@ -6,8 +6,6 @@ namespace Tests\Concerns;
 
 use Illuminate\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Illuminate\Foundation\Configuration\Exceptions;
-use Illuminate\Foundation\Exceptions\Handler;
-use PHPUnit\Framework\Assert;
 use SineMacula\ApiToolkit\Exceptions\ApiExceptionHandler;
 
 /**
@@ -31,10 +29,6 @@ trait RegistersApiExceptionHandler
     protected function registerApiExceptionHandler(): void
     {
         $handler = app(ExceptionHandlerContract::class);
-
-        if (!$handler instanceof Handler) {
-            Assert::fail('The application exception handler must extend the foundation handler.');
-        }
 
         ApiExceptionHandler::handles(new Exceptions($handler));
     }

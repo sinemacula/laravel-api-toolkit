@@ -5,6 +5,7 @@ declare(strict_types = 1);
 namespace SineMacula\ApiToolkit;
 
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Config;
 use SineMacula\ApiToolkit\Concerns\QueryParameterExtractor;
 use SineMacula\ApiToolkit\Concerns\QueryParameterValidator;
 use SineMacula\ApiToolkit\Enums\TrashedState;
@@ -26,6 +27,9 @@ class ApiQueryParser
 {
     /** @var array<string, mixed> */
     protected array $parameters = [];
+
+    /** @var bool Whether the parsed request reads by cursor rather than by page */
+    protected bool $cursorPaginated = false;
 
     /** @var \SineMacula\ApiToolkit\Concerns\QueryParameterValidator */
     private readonly QueryParameterValidator $validator;
@@ -171,6 +175,37 @@ class ApiQueryParser
      *
      * @return string|null
      */
+    /**
+     * Return the page size the read will actually use.
+     *
+     * The client may leave the page size out, in which case the configured
+     * default stands in, so anything measuring what a page costs has to resolve
+     * it the same way the read itself does. Resolved in one place so the guard
+     * bounding the cost and the query paying it cannot disagree.
+     *
+     * @return int
+     */
+    public function getResolvedLimit(): int
+    {
+        $limit = $this->getLimit() ?? Config::get('api-toolkit.parser.defaults.limit');
+
+        return is_numeric($limit) && (int) $limit > 0 ? (int) $limit : 1;
+    }
+
+    /**
+     * Determine whether the read is paginated by cursor rather than by page.
+     *
+     * A cursor seeks to its position rather than counting rows to it, so a page
+     * number carried alongside one is not an offset the query pays and must not
+     * be charged as though it were.
+     *
+     * @return bool
+     */
+    public function isCursorPaginated(): bool
+    {
+        return $this->cursorPaginated;
+    }
+
     public function getCursor(): ?string
     {
         $cursor = $this->getParameters('cursor');
@@ -215,6 +250,11 @@ class ApiQueryParser
         $this->validator->validate($request->all());
 
         $this->parameters = $this->extractor->extract($request);
+
+        // Read from the request being parsed rather than the current one, so
+        // the answer belongs to the same request as every other parameter.
+        $this->cursorPaginated = $request->query('pagination') === 'cursor'
+            || $request->has('cursor');
     }
 
     /**

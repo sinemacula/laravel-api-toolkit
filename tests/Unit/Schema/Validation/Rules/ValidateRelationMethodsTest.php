@@ -401,7 +401,7 @@ final class ValidateRelationMethodsTest extends TestCase
             /**
              * A relation method with no return type declaration.
              */
-            public function items() // @phpstan-ignore missingType.return
+            public function items() // @phpstan-ignore missingType.return, sineMaculaLaravel.modelBehaviour
             {
                 return $this;
             }
@@ -445,6 +445,8 @@ final class ValidateRelationMethodsTest extends TestCase
         $model = new class extends Model {
             /**
              * @return string
+             *
+             * @phpstan-ignore sineMaculaLaravel.modelBehaviour
              */
             public function wrongType(): string
             {
@@ -535,7 +537,7 @@ final class ValidateRelationMethodsTest extends TestCase
             /**
              * @return int|string
              */
-            public function items(): int|string // @phpstan-ignore return.unusedType (the non-relation union return type is the validation subject under test)
+            public function items(): int|string // @phpstan-ignore return.unusedType, sineMaculaLaravel.modelBehaviour
             {
                 return '';
             }
@@ -568,6 +570,52 @@ final class ValidateRelationMethodsTest extends TestCase
     }
 
     /**
+     * Test reports field relation method with an intersection type containing
+     * no Relation.
+     *
+     * @return void
+     */
+    public function testReportsFieldRelationMethodWithIntersectionTypeContainingNoRelation(): void
+    {
+        $model = new class extends Model {
+            /**
+             * @return \ArrayAccess<int, mixed>&\Countable
+             *
+             * @phpstan-ignore sineMaculaLaravel.modelBehaviour
+             */
+            public function items(): \ArrayAccess&\Countable
+            {
+                return new \ArrayObject;
+            }
+        };
+        $modelClass = $model::class;
+
+        $schema = new CompiledSchema(
+            fields: [
+                'items' => new CompiledFieldDefinition(
+                    accessor: 'items',
+                    compute: null,
+                    relation: 'items',
+                    resource: UserResource::class,
+                    fields: null,
+                    constraint: null,
+                    extras: [],
+                    needs: [],
+                    guards: [],
+                    transformers: [],
+                ),
+            ],
+            counts: [],
+        );
+
+        $rule   = new ValidateRelationMethods;
+        $errors = $rule->validate(UserResource::class, $modelClass, $schema);
+
+        self::assertCount(1, $errors);
+        self::assertStringContainsString('intersection return type with no Relation subclass member', $errors[0]->defect);
+    }
+
+    /**
      * Test reports count definition relation method without return type hint.
      *
      * @return void
@@ -579,7 +627,7 @@ final class ValidateRelationMethodsTest extends TestCase
             /**
              * A relation method with no return type declaration.
              */
-            public function items() // @phpstan-ignore missingType.return
+            public function items() // @phpstan-ignore missingType.return, sineMaculaLaravel.modelBehaviour
             {
                 return $this;
             }
@@ -620,6 +668,8 @@ final class ValidateRelationMethodsTest extends TestCase
         $model = new class extends Model {
             /**
              * @return string
+             *
+             * @phpstan-ignore sineMaculaLaravel.modelBehaviour
              */
             public function wrongType(): string
             {

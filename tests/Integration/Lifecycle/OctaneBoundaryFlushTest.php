@@ -152,7 +152,7 @@ final class OctaneBoundaryFlushTest extends TestCase
     {
         assert($this->app !== null);
 
-        /** @var \Illuminate\Contracts\Events\Dispatcher */
+        /** @var \Illuminate\Events\Dispatcher */
         return $this->app->make('events');
     }
 }

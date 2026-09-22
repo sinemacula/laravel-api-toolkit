@@ -130,7 +130,7 @@ final class ApiServiceProviderTest extends TestCase
      */
     public function testJsonPrettyPrintMiddlewareIsRegisteredGlobally(): void
     {
-        /** @var \Illuminate\Foundation\Http\Kernel $kernel */
+        /** @var \Orchestra\Testbench\Http\Kernel $kernel */
         $kernel     = $this->getApplication()->make(HttpKernel::class);
         $middleware = $kernel->getGlobalMiddleware();
 
@@ -145,7 +145,7 @@ final class ApiServiceProviderTest extends TestCase
      */
     public function testMaintenanceModeMiddlewareIsPrependedWhenEnabled(): void
     {
-        /** @var \Illuminate\Foundation\Http\Kernel $kernel */
+        /** @var \Orchestra\Testbench\Http\Kernel $kernel */
         $kernel     = $this->getApplication()->make(HttpKernel::class);
         $middleware = $kernel->getGlobalMiddleware();
 
@@ -196,7 +196,7 @@ final class ApiServiceProviderTest extends TestCase
     {
         $app = $this->getApplication();
 
-        /** @var \Illuminate\Foundation\Http\Kernel $kernel */
+        /** @var \Orchestra\Testbench\Http\Kernel $kernel */
         $kernel = $app->make(HttpKernel::class);
         $global = $kernel->getGlobalMiddleware();
 
@@ -221,7 +221,7 @@ final class ApiServiceProviderTest extends TestCase
      */
     public function testNotificationListenersAreRegisteredWhenEnabled(): void
     {
-        /** @var \Illuminate\Contracts\Events\Dispatcher $events */
+        /** @var \Illuminate\Events\Dispatcher $events */
         $events = $this->getApplication()->make('events');
 
         self::assertTrue($events->hasListeners(NotificationSending::class));
@@ -573,7 +573,7 @@ final class ApiServiceProviderTest extends TestCase
         $provider = new ApiServiceProvider($app);
         $provider->boot();
 
-        /** @var \Illuminate\Contracts\Events\Dispatcher $events */
+        /** @var \Illuminate\Events\Dispatcher $events */
         $events = $app->make('events');
 
         self::assertTrue($events->hasListeners(OperationTerminated::class));
@@ -598,7 +598,7 @@ final class ApiServiceProviderTest extends TestCase
         $provider = new ApiServiceProvider($app);
         $provider->boot();
 
-        /** @var \Illuminate\Contracts\Events\Dispatcher $events */
+        /** @var \Illuminate\Events\Dispatcher $events */
         $events = $app->make('events');
 
         self::assertFalse($events->hasListeners(OperationTerminated::class));
@@ -619,7 +619,7 @@ final class ApiServiceProviderTest extends TestCase
         $provider = new ApiServiceProvider($app);
         $provider->boot();
 
-        /** @var \Illuminate\Contracts\Events\Dispatcher $events */
+        /** @var \Illuminate\Events\Dispatcher $events */
         $events = $app->make('events');
 
         self::assertTrue($events->hasListeners(JobProcessed::class));
@@ -744,7 +744,7 @@ final class ApiServiceProviderTest extends TestCase
      */
     public function testParseApiQueryMiddlewareIsRegisteredGlobally(): void
     {
-        /** @var \Illuminate\Foundation\Http\Kernel $kernel */
+        /** @var \Orchestra\Testbench\Http\Kernel $kernel */
         $kernel     = $this->getApplication()->make(HttpKernel::class);
         $middleware = $kernel->getGlobalMiddleware();
 
@@ -775,7 +775,7 @@ final class ApiServiceProviderTest extends TestCase
         $provider = new ApiServiceProvider($app);
         $provider->boot();
 
-        /** @var \Illuminate\Foundation\Http\Kernel $kernel */
+        /** @var \Orchestra\Testbench\Http\Kernel $kernel */
         $kernel     = $app->make(HttpKernel::class);
         $middleware = $kernel->getGlobalMiddleware();
 
@@ -1107,7 +1107,7 @@ final class ApiServiceProviderTest extends TestCase
         assert($app instanceof Application);
 
         // Enable middleware registration for these tests
-        /** @var \Illuminate\Contracts\Config\Repository $config */
+        /** @var \Illuminate\Config\Repository $config */
         $config = $app->make('config');
 
         $config->set('api-toolkit.parser.register_middleware', true);
@@ -1133,7 +1133,7 @@ final class ApiServiceProviderTest extends TestCase
      */
     private function getConfig(): ConfigRepository
     {
-        /** @var \Illuminate\Contracts\Config\Repository */
+        /** @var \Illuminate\Config\Repository */
         return $this->getApplication()->make('config');
     }
 

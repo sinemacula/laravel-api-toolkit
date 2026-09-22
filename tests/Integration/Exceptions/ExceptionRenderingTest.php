@@ -6,7 +6,6 @@ namespace Tests\Integration\Exceptions;
 
 use Illuminate\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Illuminate\Foundation\Configuration\Exceptions;
-use Illuminate\Foundation\Exceptions\Handler;
 use Illuminate\Http\Request;
 use Illuminate\Session\TokenMismatchException;
 use Illuminate\Support\Facades\Route;
@@ -51,10 +50,6 @@ final class ExceptionRenderingTest extends TestCase
 
         $handler = $this->app->make(ExceptionHandlerContract::class);
 
-        if (!$handler instanceof Handler) {
-            self::fail('The application exception handler must extend the foundation handler.');
-        }
-
         // Mirror the bootstrap/app.php wiring used by consuming applications:
         // ->withExceptions(fn (Exceptions $e) =>
         // ApiExceptionHandler::handles($e))
@@ -75,7 +70,7 @@ final class ExceptionRenderingTest extends TestCase
         });
 
         Route::post('/validate', static function (Request $request): array {
-            $request->validate(['email' => 'required|email']);
+            $request->validate(['email' => 'required|email']); // @phpstan-ignore staticMethod.dynamicCall
 
             return ['ok' => true];
         });

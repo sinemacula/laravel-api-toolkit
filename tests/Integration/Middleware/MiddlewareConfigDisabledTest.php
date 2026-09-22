@@ -39,7 +39,7 @@ final class MiddlewareConfigDisabledTest extends TestCase
      */
     public function testMaintenanceModeMiddlewareIsNotRegisteredWhenDisabled(): void
     {
-        /** @var \Illuminate\Foundation\Http\Kernel $kernel */
+        /** @var \Orchestra\Testbench\Http\Kernel $kernel */
         $kernel     = $this->getApplication()->make(HttpKernel::class);
         $middleware = $kernel->getGlobalMiddleware();
 
@@ -53,7 +53,7 @@ final class MiddlewareConfigDisabledTest extends TestCase
      */
     public function testJsonPrettyPrintMiddlewareIsNotRegisteredWhenDisabled(): void
     {
-        /** @var \Illuminate\Foundation\Http\Kernel $kernel */
+        /** @var \Orchestra\Testbench\Http\Kernel $kernel */
         $kernel     = $this->getApplication()->make(HttpKernel::class);
         $middleware = $kernel->getGlobalMiddleware();
 
@@ -105,7 +105,7 @@ final class MiddlewareConfigDisabledTest extends TestCase
 
         assert($app instanceof Application);
 
-        /** @var \Illuminate\Contracts\Config\Repository $config */
+        /** @var \Illuminate\Config\Repository $config */
         $config = $app->make('config');
 
         $config->set('api-toolkit.middleware.maintenance_mode_swap.enabled', false);

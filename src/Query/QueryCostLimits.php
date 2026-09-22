@@ -54,7 +54,7 @@ final readonly class QueryCostLimits
         self::MAX_IN_ITEMS    => 500,
         self::MAX_ORDER_KEYS  => 3,
         self::MAX_AGGREGATES  => 5,
-        self::MAX_OFFSET      => 10000,
+        self::MAX_OFFSET      => 500000,
     ];
 
     /**

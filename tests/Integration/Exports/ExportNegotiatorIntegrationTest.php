@@ -229,7 +229,7 @@ final class ExportNegotiatorIntegrationTest extends TestCase
      */
     public function testItemReturnsJsonEnvelopeByDefault(): void
     {
-        $user     = User::first();
+        $user     = User::query()->firstOrFail();
         $response = $this->get('/export/users/' . $user->id);
 
         $response->assertOk();
@@ -250,7 +250,7 @@ final class ExportNegotiatorIntegrationTest extends TestCase
      */
     public function testItemStreamsCsvForCsvAcceptHeader(): void
     {
-        $user     = User::first();
+        $user     = User::query()->firstOrFail();
         $response = $this->get('/export/users/' . $user->id, ['Accept' => 'text/csv']);
 
         $response->assertOk();
@@ -275,7 +275,7 @@ final class ExportNegotiatorIntegrationTest extends TestCase
      */
     public function testItemReturnsSixForTabularFormatWithoutTabularSchema(): void
     {
-        $user     = User::first();
+        $user     = User::query()->firstOrFail();
         $response = $this->get('/export/basic-users/' . $user->id, ['Accept' => 'text/csv']);
 
         $response->assertStatus(406);

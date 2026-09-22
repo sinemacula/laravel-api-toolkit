@@ -368,7 +368,7 @@ final class GenerateDocsCommandTest extends TestCase
     {
         assert($this->app instanceof Application);
 
-        /** @var \Illuminate\Contracts\Config\Repository */
+        /** @var \Illuminate\Config\Repository */
         return $this->app->make('config');
     }
 }

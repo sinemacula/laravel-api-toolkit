@@ -61,9 +61,9 @@ final class ApiResourceCollection extends ToolkitCollection
      * set.
      *
      * @param  array<int, string>|null  $fields
-     * @return static
+     * @return self
      */
-    public function withFields(?array $fields = null): static
+    public function withFields(?array $fields = null): self
     {
         $this->fields = $fields;
 
@@ -74,9 +74,9 @@ final class ApiResourceCollection extends ToolkitCollection
      * Removes certain fields from the response.
      *
      * @param  array<int, string>|null  $fields
-     * @return static
+     * @return self
      */
-    public function withoutFields(?array $fields = null): static
+    public function withoutFields(?array $fields = null): self
     {
         $this->excludedFields = $fields;
 

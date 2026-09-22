@@ -178,15 +178,59 @@ final class QueryCostGuardTest extends TestCase
     /**
      * Test that exactly the offset cap is accepted.
      *
+     * The cap counts the rows skipped to reach the page, so the page that lands
+     * on it is the cap divided by the page size, plus the first page which
+     * skips nothing.
+     *
      * @return void
      *
      * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testExactlyTheOffsetCapIsAccepted(): void
     {
+        Config::set('api-toolkit.query_cost.max_offset', 100);
+
+        $this->parseQuery(['page' => '11', 'limit' => '10']);
+
+        $this->expectNotToPerformAssertions();
+
+        $this->guard->guard(self::RESOURCE_TYPE);
+    }
+
+    /**
+     * Test that the same page number is bounded differently at a larger page
+     * size, because the rows skipped to reach it are what the cap counts.
+     *
+     * Bounding the page number alone let the real ceiling move whenever an
+     * operator tuned the page size, which is the defect this cap carried.
+     *
+     * @return void
+     */
+    public function testTheSamePageIsRejectedAtALargerPageSize(): void
+    {
+        Config::set('api-toolkit.query_cost.max_offset', 100);
+
+        $this->parseQuery(['page' => '11', 'limit' => '20']);
+
+        $this->assertRejectedForCost('page', QueryCostLimits::MAX_OFFSET, 6, 11);
+    }
+
+    /**
+     * Test that a cursor-paginated read is not charged an offset it never pays.
+     *
+     * A cursor seeks to its position rather than counting rows to it, so a page
+     * number carried alongside one costs nothing to honour. Charging it would
+     * close the very escape hatch offered to a caller who has to read deeply.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testCursorPaginatedReadIsNotChargedAnOffset(): void
+    {
         Config::set('api-toolkit.query_cost.max_offset', 10);
 
-        $this->parseQuery(['page' => '10']);
+        $this->parseQuery(['page' => '5000', 'limit' => '50', 'pagination' => 'cursor']);
 
         $this->expectNotToPerformAssertions();
 
@@ -201,13 +245,38 @@ final class QueryCostGuardTest extends TestCase
      */
     public function testPageBeyondTheOffsetCapIsRejected(): void
     {
-        Config::set('api-toolkit.query_cost.max_offset', 10);
+        Config::set('api-toolkit.query_cost.max_offset', 100);
 
-        $this->parseQuery(['page' => '11']);
+        $this->parseQuery(['page' => '12', 'limit' => '10']);
 
-        $this->assertRejectedForCost('page', QueryCostLimits::MAX_OFFSET, 10, 11);
+        // Reported in pages: the caller asked for a page, so a row count names
+        // a number they never supplied.
+        $this->assertRejectedForCost('page', QueryCostLimits::MAX_OFFSET, 11, 12);
 
-        self::assertSame(11, ApiQuery::getPage());
+        self::assertSame(12, ApiQuery::getPage());
+    }
+
+    /**
+     * Test that a cap of zero leaves the offset unbounded rather than refusing
+     * every page past the first.
+     *
+     * Zero is the documented way to turn a cap off, and the deepest page a
+     * caller can reach is what this one governs, so reading zero as a bound of
+     * zero rows would refuse every page but the first.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testACapOfZeroLeavesTheOffsetUnbounded(): void
+    {
+        Config::set('api-toolkit.query_cost.max_offset', 0);
+
+        $this->parseQuery(['page' => '100000', 'limit' => '100']);
+
+        $this->expectNotToPerformAssertions();
+
+        $this->guard->guard(self::RESOURCE_TYPE);
     }
 
     /**

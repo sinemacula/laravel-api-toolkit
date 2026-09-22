@@ -308,7 +308,7 @@ final class SecuritySchemeResolverTest extends TestCase
     {
         assert($this->app !== null);
 
-        /** @var \Illuminate\Contracts\Config\Repository */
+        /** @var \Illuminate\Config\Repository */
         return $this->app->make('config');
     }
 }

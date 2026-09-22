@@ -1204,9 +1204,9 @@ final class ApiCriteriaTest extends TestCase
      */
     public function testApplyEnforcesTheFlatCostCapsBeforeBuildingTheQuery(): void
     {
-        Config::set('api-toolkit.query_cost.max_offset', 10);
+        Config::set('api-toolkit.query_cost.max_offset', 100);
 
-        $this->parseRequest(Request::create('/test', HttpMethod::GET->getVerb(), ['page' => '11']));
+        $this->parseRequest(Request::create('/test', HttpMethod::GET->getVerb(), ['page' => '12', 'limit' => '10']));
 
         try {
             $this->criteria->apply(new User);
@@ -1217,8 +1217,8 @@ final class ApiCriteriaTest extends TestCase
                 'parameter' => 'page',
                 'pointer'   => '',
                 'reason'    => QueryCostLimits::MAX_OFFSET,
-                'limit'     => 10,
-                'actual'    => 11,
+                'limit'     => 11,
+                'actual'    => 12,
             ], $exception->getCustomMeta());
         }
     }

@@ -120,13 +120,13 @@ final class ColumnTypeMapper
         return match ($typeName) {
             'char', 'varchar', 'text', 'tinytext', 'mediumtext',
             'longtext', 'string', 'enum', 'set' => ['type' => 'string'],
-            'uuid' => ['type' => 'string', 'format' => 'uuid'],
+            'uuid'                              => ['type' => 'string', 'format' => 'uuid'],
             'bigint', 'int', 'integer', 'mediumint', 'smallint',
             'tinyint', 'serial', 'bigserial' => ['type' => 'integer'],
             'decimal', 'numeric', 'float', 'double',
-            'real', 'money' => ['type' => 'number'],
+            'real', 'money'   => ['type' => 'number'],
             'boolean', 'bool' => ['type' => 'boolean'],
-            default => null,
+            default           => null,
         };
     }
 
@@ -142,9 +142,9 @@ final class ColumnTypeMapper
         return match ($typeName) {
             'date' => ['type' => 'string', 'format' => 'date'],
             'datetime', 'timestamp', 'datetimetz',
-            'timestamptz' => ['type' => 'string', 'format' => 'date-time'],
+            'timestamptz'    => ['type' => 'string', 'format' => 'date-time'],
             'time', 'timetz' => ['type' => 'string', 'format' => 'time'],
-            default => null,
+            default          => null,
         };
     }
 
@@ -163,7 +163,7 @@ final class ColumnTypeMapper
     {
         return match ($typeName) {
             'binary', 'blob', 'bytea' => ['type' => 'string', 'format' => 'byte'],
-            default => null,
+            default                   => null,
         };
     }
 }

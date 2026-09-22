@@ -123,7 +123,7 @@ final class QuerySurfaceDocGeneratorTest extends TestCase
         self::assertStringContainsString("\n\n## Request Limits\n", $markdown);
         self::assertStringContainsString("| Limit | Value | Bounds |\n| --- | --- | --- |\n", $markdown);
         self::assertStringContainsString('| `max_nodes` | 100 | The keys a filter visits in total. |', $markdown);
-        self::assertStringContainsString('| `max_offset` | 10000 | The page number a paginated read may start at. |', $markdown);
+        self::assertStringContainsString('| `max_offset` | 10000 | The rows a paginated read may scan past to reach its page. |', $markdown);
     }
 
     /**

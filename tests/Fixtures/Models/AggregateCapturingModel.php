@@ -48,9 +48,9 @@ final class AggregateCapturingModel
      * No-op for the eager-load relations path.
      *
      * @param  mixed  $with
-     * @return static
+     * @return self
      */
-    public function loadMissing(mixed $with): static
+    public function loadMissing(mixed $with): self
     {
         return $this;
     }
@@ -59,9 +59,9 @@ final class AggregateCapturingModel
      * No-op; the counts field is not requested in aggregate tests.
      *
      * @param  mixed  $relations
-     * @return static
+     * @return self
      */
-    public function loadCount(mixed $relations): static
+    public function loadCount(mixed $relations): self
     {
         return $this;
     }
@@ -76,9 +76,9 @@ final class AggregateCapturingModel
      *
      * @param  mixed  $relations
      * @param  string  $column
-     * @return static
+     * @return self
      */
-    public function loadSum(mixed $relations, string $column): static
+    public function loadSum(mixed $relations, string $column): self
     {
         $this->attributes[$this->resolveAlias($relations)] = 42.0;
 
@@ -95,9 +95,9 @@ final class AggregateCapturingModel
      *
      * @param  mixed  $relations
      * @param  string  $column
-     * @return static
+     * @return self
      */
-    public function loadAvg(mixed $relations, string $column): static
+    public function loadAvg(mixed $relations, string $column): self
     {
         $this->attributes[$this->resolveAlias($relations)] = 3.5;
 

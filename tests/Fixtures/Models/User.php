@@ -6,6 +6,8 @@ namespace Tests\Fixtures\Models;
 
 use Illuminate\Auth\Authenticatable;
 use Illuminate\Contracts\Auth\Authenticatable as AuthenticatableContract;
+use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Attributes\Table;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -43,15 +45,11 @@ use Tests\Fixtures\Enums\UserStatus;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
+#[Fillable(['name', 'email', 'password', 'status', 'organization_id'])]
+#[Table('users')]
 final class User extends Model implements AuthenticatableContract
 {
     use Authenticatable;
-
-    /** @var string|null */
-    protected $table = 'users';
-
-    /** @var array<int, string> */
-    protected $fillable = ['name', 'email', 'password', 'status', 'organization_id'];
 
     /**
      * Get the organization that the user belongs to.

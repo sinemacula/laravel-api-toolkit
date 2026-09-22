@@ -4,6 +4,8 @@ declare(strict_types = 1);
 
 namespace Tests\Fixtures\Models;
 
+use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Attributes\Table;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 
@@ -25,6 +27,8 @@ use Illuminate\Database\Eloquent\Model;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
+#[Fillable(['level', 'message', 'context', 'created_at'])]
+#[Table('logs')]
 final class Log extends Model
 {
     use HasUuids;
@@ -35,14 +39,8 @@ final class Log extends Model
     /** @var bool */
     public $timestamps = false;
 
-    /** @var string|null */
-    protected $table = 'logs';
-
     /** @var string */
     protected $keyType = 'string';
-
-    /** @var array<int, string> */
-    protected $fillable = ['level', 'message', 'context', 'created_at'];
 
     /**
      * Get the attributes that should be cast.

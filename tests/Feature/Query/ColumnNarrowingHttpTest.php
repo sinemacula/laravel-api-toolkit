@@ -162,7 +162,7 @@ final class ColumnNarrowingHttpTest extends TestCase
         DB::flushQueryLog();
 
         foreach ($log as $entry) {
-            $sql      = (string) $entry['query'];
+            $sql      = $entry['query'];
             $unquoted = $this->unquote($sql);
 
             if (!str_starts_with($sql, 'select') || !str_contains($unquoted, 'from users')) {

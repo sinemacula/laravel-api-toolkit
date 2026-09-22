@@ -132,14 +132,29 @@ PostgreSQL a missing trigram index is not an error at all, and the search would 
 rows out of a sequential scan for as long as the index stayed missing.
 
 The only way to switch that request-time proof off is `api-toolkit.search.unverified_connections`, which
-lists the connections a driver may serve a search on without proving an index behind it. The shipped entry
-names the connection a stock application calls `sqlite`, which carries neither index kind. The list is read
-by connection name, as `config/database.php` keys it, and not by the engine behind the connection, so an
-application naming its connections for itself waives one of them and leaves its siblings on the same engine
-refusing an unprovable declaration. That is worth being plain about rather than reading as a safety feature:
-a stock application names each connection after its engine, so writing `mysql` there still waives the
-connection named `mysql`, which is usually the one serving production. Nothing stands behind this list - a
-connection on it serves a search that may read the whole table on every request.
+lists the connections a driver may serve a search on without proving an index behind it. It ships empty, so
+nothing is waived until an application names a connection. SQLite carries neither index kind and can never
+prove a search is index-backed, so a development connection on it has to be named here before a searchable
+field will be served:
+
+```php
+'search' => [
+    'unverified_connections' => ['sqlite'],
+],
+```
+
+Because `validate_schemas` is enabled by default outside production, an unnamed connection fails the
+application boot rather than the search request alone: every route and every Artisan command, including
+`php artisan migrate` on a fresh checkout with no database file yet. Name the connection, or set
+`VALIDATE_SCHEMAS=false` while you do.
+
+The list is read by connection name, as `config/database.php` keys it, and not by the engine behind the
+connection, so an application naming its connections for itself waives one of them and leaves its siblings
+on the same engine refusing an unprovable declaration. That is worth being plain about rather than reading
+as a safety feature: a stock application names each connection after its engine, so writing `mysql` there
+still waives the connection named `mysql`, which is usually the one serving production. Nothing stands
+behind this list - a connection on it serves a search that may read the whole table on every request. Name
+a development connection, never one that serves traffic.
 
 **Sorting** - sort by one or more columns, with optional direction:
 
@@ -557,7 +572,7 @@ the steps required to move from 1.x to 2.x.
 ## Requirements
 
 - PHP ^8.3
-- Laravel 12+
+- Laravel 13.2+
 - MySQL 8.0+, where the search layer is used
 
 ## Testing

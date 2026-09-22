@@ -4,6 +4,8 @@ declare(strict_types = 1);
 
 namespace Tests\Fixtures\Models;
 
+use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Attributes\Table;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
@@ -19,14 +21,10 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
+#[Fillable(['name', 'slug'])]
+#[Table('organizations')]
 final class Organization extends Model
 {
-    /** @var string|null */
-    protected $table = 'organizations';
-
-    /** @var array<int, string> */
-    protected $fillable = ['name', 'slug'];
-
     /**
      * Get the organization's users.
      *

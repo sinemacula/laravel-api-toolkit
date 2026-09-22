@@ -574,7 +574,7 @@ final class ColumnNarrowingIntegrationTest extends TestCase
         DB::flushQueryLog();
 
         foreach (array_reverse($log) as $entry) {
-            $query = (string) $entry['query'];
+            $query = $entry['query'];
 
             if (str_starts_with($query, 'select') && ($table === '' || str_contains($this->unquote($query), 'from ' . $table))) {
                 return $query;

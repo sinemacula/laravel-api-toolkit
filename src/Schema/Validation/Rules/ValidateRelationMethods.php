@@ -151,23 +151,21 @@ final class ValidateRelationMethods implements SchemaValidationRule
      */
     private function describeReturnTypeDefect(?\ReflectionType $returnType, string $relationMethod, string $modelClass): string
     {
-        if ($returnType === null) {
-            return sprintf('Relation method "%s" on model "%s" has no return type hint', $relationMethod, $modelClass);
-        }
-
-        if ($returnType instanceof \ReflectionUnionType) {
+        if ($returnType instanceof \ReflectionNamedType) {
             return sprintf(
-                'Relation method "%s" on model "%s" has a union return type with no Relation subclass member',
+                'Relation method "%s" on model "%s" has return type "%s" which is not a Relation subclass',
                 $relationMethod,
                 $modelClass,
+                $returnType->getName(),
             );
         }
 
-        return sprintf(
-            'Relation method "%s" on model "%s" has return type "%s" which is not a Relation subclass',
-            $relationMethod,
-            $modelClass,
-            (string) $returnType,
-        );
+        $shape = match (true) {
+            $returnType === null                        => 'no return type hint',
+            $returnType instanceof \ReflectionUnionType => 'a union return type with no Relation subclass member',
+            default                                     => 'an intersection return type with no Relation subclass member',
+        };
+
+        return sprintf('Relation method "%s" on model "%s" has %s', $relationMethod, $modelClass, $shape);
     }
 }

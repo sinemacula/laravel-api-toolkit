@@ -6,6 +6,7 @@ namespace Tests\Unit\Services\Actors;
 
 use Illuminate\Auth\Authenticatable;
 use Illuminate\Contracts\Auth\Authenticatable as AuthenticatableContract;
+use Illuminate\Database\Eloquent\Attributes\Table;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -207,10 +208,7 @@ final class EloquentActorTest extends TestCase
      */
     public function testCapturesStringPrimaryKeyAsIdentifier(): void
     {
-        $model = $this->makeStringKeyedModel();
-
-        $model->setAttribute('code', 'GB');
-        $model->setAttribute('name', 'Great Britain');
+        $model = $this->makeStringKeyedModel(['code' => 'GB', 'name' => 'Great Britain']);
 
         $actor = new EloquentActor($model);
 
@@ -225,9 +223,7 @@ final class EloquentActorTest extends TestCase
      */
     public function testFallsBackToEmptyIdentifierForNullKey(): void
     {
-        $model = $this->makeStringKeyedModel();
-
-        $model->setAttribute('name', 'Keyless');
+        $model = $this->makeStringKeyedModel(['name' => 'Keyless']);
 
         $actor = new EloquentActor($model);
 
@@ -242,11 +238,8 @@ final class EloquentActorTest extends TestCase
      */
     public function testLabelFallsBackToClassBasename(): void
     {
-        $model = new class extends Model implements AuthenticatableContract {
+        $model = new #[Table('users')] class extends Model implements AuthenticatableContract {
             use Authenticatable;
-
-            /** @var string|null */
-            protected $table = 'users';
         };
 
         $model->setAttribute('id', 5);
@@ -258,17 +251,15 @@ final class EloquentActorTest extends TestCase
 
     /**
      * Build an Authenticatable model whose primary key is a non-incrementing
-     * string column.
+     * string column, carrying the given attributes.
      *
+     * @param  array<string, mixed>  $attributes
      * @return \Illuminate\Contracts\Auth\Authenticatable&\Illuminate\Database\Eloquent\Model
      */
-    private function makeStringKeyedModel(): AuthenticatableContract&Model
+    private function makeStringKeyedModel(array $attributes): AuthenticatableContract&Model
     {
-        return new class extends Model implements AuthenticatableContract {
+        $model = new #[Table('countries')] class extends Model implements AuthenticatableContract {
             use Authenticatable;
-
-            /** @var string|null */
-            protected $table = 'countries';
 
             /** @var string */
             protected $primaryKey = 'code';
@@ -279,5 +270,11 @@ final class EloquentActorTest extends TestCase
             /** @var bool */
             public $incrementing = false;
         };
+
+        foreach ($attributes as $key => $value) {
+            $model->setAttribute($key, $value);
+        }
+
+        return $model;
     }
 }
