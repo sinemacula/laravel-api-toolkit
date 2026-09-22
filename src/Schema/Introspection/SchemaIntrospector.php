@@ -75,11 +75,10 @@ final class SchemaIntrospector implements SchemaIntrospectionProvider
 
         $cacheKey = CacheKeys::MODEL_SCHEMA_COLUMNS->resolveKey([$this->connectionName($model), $model::class]);
 
-        if (Cache::memo()->has($cacheKey)) {
+        /** @var array<int, string>|null $cached */
+        $cached = $this->metadataCacheWriter->readMetadata($cacheKey);
 
-            /** @var array<int, string> $cached */
-            $cached = Cache::memo()->get($cacheKey, []);
-
+        if ($cached !== null) {
             $this->columns[$memoKey] = $cached;
 
             return $cached;
@@ -119,7 +118,7 @@ final class SchemaIntrospector implements SchemaIntrospectionProvider
         $cacheKey = CacheKeys::MODEL_SCHEMA_COLUMN_DEFINITIONS->resolveKey([$this->connectionName($model), $model::class]);
 
         /** @var array<string, \SineMacula\ApiToolkit\Schema\Introspection\ColumnDefinition> $cached */
-        $cached = Cache::memo()->get($cacheKey, []);
+        $cached = $this->metadataCacheWriter->readMetadata($cacheKey, []);
 
         if (!empty($cached)) {
             $this->columnDefinitions[$memoKey] = $cached;
@@ -321,11 +320,10 @@ final class SchemaIntrospector implements SchemaIntrospectionProvider
         $memoKey  = $this->memoKey($model);
         $cacheKey = CacheKeys::MODEL_SCHEMA_INDEXES->resolveKey([$this->connectionName($model), $model::class]);
 
-        if (Cache::memo()->has($cacheKey)) {
+        /** @var array<int, \SineMacula\ApiToolkit\Schema\Introspection\IndexDefinition>|null $cached */
+        $cached = $this->metadataCacheWriter->readMetadata($cacheKey);
 
-            /** @var array<int, \SineMacula\ApiToolkit\Schema\Introspection\IndexDefinition> $cached */
-            $cached = Cache::memo()->get($cacheKey, []);
-
+        if ($cached !== null) {
             return $this->indexes[$memoKey] = $cached;
         }
 

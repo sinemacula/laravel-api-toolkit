@@ -11,6 +11,7 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Cache\CacheManager;
 use SineMacula\ApiToolkit\Cache\MetadataKeyRegistry;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
+use SineMacula\ApiToolkit\Enums\CacheKeys;
 use SineMacula\ApiToolkit\Events\CacheFlushed;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\EagerLoadPlanner;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\FieldResolver;
@@ -20,6 +21,7 @@ use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 use SineMacula\ApiToolkit\Search\IndexProof;
 use SineMacula\ApiToolkit\Search\SearchPlan;
 use Tests\Concerns\InteractsWithNonPublicMembers;
+use Tests\Fixtures\Models\User;
 use Tests\TestCase;
 
 /**
@@ -386,5 +388,43 @@ final class CacheManagerTest extends TestCase
         self::assertNull(Cache::memo()->get('toolkit-key-one')); // @phpstan-ignore method.notFound
         self::assertNull(Cache::memo()->get('toolkit-key-two')); // @phpstan-ignore method.notFound
         self::assertSame([], $registry->keys());
+    }
+
+    /**
+     * Test that flush forgets a key this process only ever read.
+     *
+     * The store outlives the process while the registry does not, so a value an
+     * earlier process wrote is served warm here without anything in this one
+     * having registered it. Reading it has to register it, or the schema a
+     * deployment just changed survives the flush meant to clear it.
+     *
+     * @return void
+     */
+    public function testFlushForgetsAKeyThisProcessOnlyRead(): void
+    {
+        Event::fake();
+
+        $key = CacheKeys::MODEL_SCHEMA_COLUMNS->resolveKey(['testing', User::class]);
+
+        // Written by a process that has since gone, leaving the registry this
+        // one starts with empty.
+        Cache::memo()->rememberForever($key, fn (): array => ['id', 'name']); // @phpstan-ignore method.notFound
+
+        /** @var \SineMacula\ApiToolkit\Cache\MetadataKeyRegistry $registry */
+        $registry = $this->app->make(MetadataKeyRegistry::class); // @phpstan-ignore method.nonObject
+
+        $registry->clear();
+
+        /** @var \SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider $introspector */
+        $introspector = $this->app->make(SchemaIntrospectionProvider::class); // @phpstan-ignore method.nonObject
+
+        self::assertSame(['id', 'name'], $introspector->getColumns(new User));
+        self::assertContains($key, $registry->keys());
+
+        /** @var \SineMacula\ApiToolkit\Cache\CacheManager $manager */
+        $manager = $this->app->make(CacheManager::class); // @phpstan-ignore method.nonObject
+        $manager->flush();
+
+        self::assertNull(Cache::memo()->get($key)); // @phpstan-ignore method.notFound
     }
 }

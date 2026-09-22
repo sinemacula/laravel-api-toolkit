@@ -288,6 +288,6 @@ final class AttributeSetter
     private function resolveCastsFromCache(string $modelClass): array
     {
         /** @var array<string, string|null> */
-        return Cache::memo()->get(CacheKeys::REPOSITORY_MODEL_CASTS->resolveKey([$modelClass]), []);
+        return $this->metadataCacheWriter()->readMetadata(CacheKeys::REPOSITORY_MODEL_CASTS->resolveKey([$modelClass]), []);
     }
 }
