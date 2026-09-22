@@ -173,6 +173,67 @@ final class SortIndexBackingCatalogueTest extends TestCase
     }
 
     /**
+     * Test that a sortable column led only by an index the engine will not plan
+     * against is refused, which the catalogue alone cannot decide.
+     *
+     * The catalogue reports such an index exactly as it reports a usable one,
+     * so the same declaration accepted above has to be refused once the index
+     * behind it stops being one the planner would reach.
+     *
+     * @return void
+     */
+    public function testValidationRefusesASortableColumnLedOnlyByAnIndexThePlannerWillNotUse(): void
+    {
+        Config::set('api-toolkit.resources.resource_map', [
+            SortCatalogueRow::class => SortCatalogueBackedResource::class,
+        ]);
+
+        $this->makeLabelIndexUnusable();
+
+        assert($this->app !== null);
+
+        try {
+            $this->app->make(SchemaValidator::class)->validate([
+                SortCatalogueRow::class => SortCatalogueBackedResource::class,
+            ]);
+        } catch (InvalidSchemaException $exception) {
+
+            self::assertContains(
+                'Field is declared sortable against "label", and no ordered index on table "sort_catalogue_rows" leads with that column',
+                array_map(static fn (SchemaValidationError $error): string => $error->defect, $exception->getErrors()),
+            );
+
+            return;
+        }
+
+        self::fail('Validation accepted a sortable column led only by an index the planner will not use.');
+    }
+
+    /**
+     * Replace the ordered index over the label column with one the engine
+     * carries but will not plan against.
+     *
+     * Each engine is made to refuse the index in the way it offers: one is told
+     * to hold the index back from the planner outright, the other is given an
+     * index restricted to part of the table, which no unqualified ordered read
+     * can use.
+     *
+     * @return void
+     */
+    private function makeLabelIndexUnusable(): void
+    {
+        if (DB::connection()->getDriverName() === 'mysql') {
+
+            DB::statement('alter table `sort_catalogue_rows` alter index `sort_catalogue_rows_label_index` invisible');
+
+            return;
+        }
+
+        DB::statement('drop index sort_catalogue_rows_label_index');
+        DB::statement('create index sort_catalogue_rows_label_index on sort_catalogue_rows (label) where ranking > 0');
+    }
+
+    /**
      * Determine whether the connection under test names an index kind.
      *
      * @return bool

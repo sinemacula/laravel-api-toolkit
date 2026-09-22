@@ -6,16 +6,17 @@ namespace Tests\Fixtures\Search;
 
 use Illuminate\Database\Connection;
 use Illuminate\Database\Eloquent\Builder;
+use SineMacula\ApiToolkit\Schema\Introspection\IndexEligibility;
 use SineMacula\ApiToolkit\Search\Drivers\EngineSearchDriver;
 use SineMacula\ApiToolkit\Search\SearchTerm;
 
 /**
- * Fixture driver naming indexes the engine would refuse to plan against.
+ * Fixture driver carrying a prepared report of what its indexes are.
  *
- * The base drops such an index before any strategy is proved against it, and
- * the names are supplied rather than read so the dropping is provable without
- * an engine behind it. Only the equality match matters here, so the two
- * engine-specific halves report nothing.
+ * The base drops an index no proof may rest on before any strategy is proved
+ * against it, and the report is supplied rather than read so the dropping is
+ * provable without an engine behind it. Only the equality match matters here,
+ * so the two engine-specific halves report nothing.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -25,14 +26,13 @@ final class StubFilteringSearchDriver extends EngineSearchDriver
     /**
      * Constructor.
      *
-     * @param  array<int, string>  $unusable
+     * @param  \SineMacula\ApiToolkit\Schema\Introspection\IndexEligibility  $eligibility
      * @return void
      */
-    public function __construct(
-
-        /** @var array<int, string> The indexes the engine would refuse to plan against */
-        private readonly array $unusable = [],
-    ) {}
+    public function __construct(IndexEligibility $eligibility = new IndexEligibility)
+    {
+        parent::__construct(new StubIndexEligibilityInspector($eligibility));
+    }
 
     /**
      * Apply the prefix match for the declared columns.
@@ -82,18 +82,5 @@ final class StubFilteringSearchDriver extends EngineSearchDriver
     protected function substringIndexDefects(array $columns, string $table, Connection $connection): array
     {
         return [];
-    }
-
-    /**
-     * Return the names of indexes the engine would refuse to plan against.
-     *
-     * @param  string  $table
-     * @param  \Illuminate\Database\Connection  $connection
-     * @return array<int, string>
-     */
-    #[\Override]
-    protected function unusableIndexNames(string $table, Connection $connection): array
-    {
-        return $this->unusable;
     }
 }

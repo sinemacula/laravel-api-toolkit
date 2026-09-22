@@ -471,9 +471,12 @@ final class MySqlNgramSearchDriverTest extends TestCase
         (new MySqlNgramSearchDriver)->indexDefects(SearchStrategy::PREFIX, ['name'], 'users', $connection);
 
         self::assertSame([
-            'select distinct lower(index_name) as name from information_schema.statistics '
+            'select lower(index_name) as name, '
+            . 'max(case when is_visible = \'NO\' then 1 else 0 end) as disregarded, '
+            . 'max(case when seq_in_index = 1 and column_name is null then 1 else 0 end) as expressed '
+            . 'from information_schema.statistics '
                 . 'where table_schema = coalesce(?, schema()) and table_name = ? '
-                . 'and (is_visible = \'NO\' or (seq_in_index = 1 and column_name is null))',
+                . 'group by lower(index_name)',
         ], $this->reads);
         self::assertSame([[null, 'users']], $this->bindings);
     }
@@ -611,13 +614,17 @@ final class MySqlNgramSearchDriverTest extends TestCase
 
         $connection->method('getTablePrefix')->willReturn($prefix);
         $connection->method('getSchemaBuilder')->willReturn($schema);
+        $connection->method('getDriverName')->willReturn('mysql');
         $connection->method('getQueryGrammar')->willReturn(new MySqlGrammar($connection));
         $connection->method('selectFromWriteConnection')->willReturnCallback(function (string $query, array $bindings = []) use ($invisible): array {
 
             $this->reads[]    = $query;
             $this->bindings[] = $bindings;
 
-            return array_map(static fn (string $name): object => (object) ['name' => $name], $invisible);
+            return array_map(
+                static fn (string $name): object => (object) ['name' => $name, 'disregarded' => 1, 'expressed' => 0],
+                $invisible,
+            );
         });
         $connection->method('selectOne')->willReturnCallback(function (string $statement) use ($definition, $tokenSize): object {
 

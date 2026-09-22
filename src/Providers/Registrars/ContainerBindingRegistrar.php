@@ -38,6 +38,7 @@ use SineMacula\ApiToolkit\Repositories\Criteria\Operators\NotEqualOperator;
 use SineMacula\ApiToolkit\Repositories\Criteria\Operators\NotNullOperator;
 use SineMacula\ApiToolkit\Repositories\Criteria\Operators\NullOperator;
 use SineMacula\ApiToolkit\Runtime\RuntimeContext;
+use SineMacula\ApiToolkit\Schema\Introspection\IndexEligibilityInspector;
 use SineMacula\ApiToolkit\Schema\Introspection\SchemaIntrospector;
 use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateAccessors;
 use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateComputedFields;
@@ -182,10 +183,11 @@ final readonly class ContainerBindingRegistrar
     {
         $this->container->singleton(SearchDriverRegistry::class, function (): SearchDriverRegistry {
 
-            $registry = new SearchDriverRegistry;
+            $registry    = new SearchDriverRegistry;
+            $eligibility = $this->container->make(IndexEligibilityInspector::class);
 
-            $registry->register('mysql', new MySqlNgramSearchDriver);
-            $registry->register('pgsql', new PostgresTrigramSearchDriver);
+            $registry->register('mysql', new MySqlNgramSearchDriver($eligibility));
+            $registry->register('pgsql', new PostgresTrigramSearchDriver($eligibility));
             $registry->register('sqlite', new SqliteSearchDriver);
 
             return $registry;
@@ -208,7 +210,7 @@ final readonly class ContainerBindingRegistrar
             new ValidateComputedFields,
             new ValidateAccessors,
             new ValidateQueryableFields($app->make(SchemaIntrospectionProvider::class)),
-            new ValidateIndexBacking($app->make(SchemaIntrospectionProvider::class)),
+            new ValidateIndexBacking($app->make(SchemaIntrospectionProvider::class), $app->make(IndexEligibilityInspector::class)),
             new ValidateSearchableFields,
             new ValidateSearchIndexes($app->make(SearchDriverRegistry::class), $app->make(SchemaIntrospectionProvider::class)),
             new ValidateSensitiveColumns,

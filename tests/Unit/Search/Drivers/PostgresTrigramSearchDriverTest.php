@@ -204,7 +204,7 @@ final class PostgresTrigramSearchDriverTest extends TestCase
      *
      * @return void
      */
-    public function testReadsTheExtensionThenTheIndexDefinitions(): void
+    public function testReadsTheExtensionThenTheIndexStatesThenTheDefinitions(): void
     {
         $connection = $this->catalogue(['CREATE INDEX users_name_trgm ON public.users USING gin (name gin_trgm_ops)'], true);
 
@@ -212,13 +212,22 @@ final class PostgresTrigramSearchDriverTest extends TestCase
 
         self::assertSame([
             'select 1 from pg_extension where extname = ?',
-            'select pg_get_indexdef(i.indexrelid) as indexdef from pg_index i '
+            'select lower(ic.relname) as name, '
+                . '(not i.indisvalid)::int as disregarded, '
+                . '(i.indpred is not null)::int as restricted, '
+                . '(i.indkey[0] = 0)::int as expressed '
+                . 'from pg_index i '
                 . 'join pg_class c on c.oid = i.indrelid '
                 . 'join pg_namespace n on n.oid = c.relnamespace '
-                . 'where n.nspname = coalesce(?::text, current_schema()) and c.relname = ? '
-                . 'and i.indisvalid and i.indpred is null',
+                . 'join pg_class ic on ic.oid = i.indexrelid '
+                . 'where n.nspname = coalesce(?::text, current_schema()) and c.relname = ?',
+            'select lower(ic.relname) as name, pg_get_indexdef(i.indexrelid) as indexdef from pg_index i '
+                . 'join pg_class c on c.oid = i.indrelid '
+                . 'join pg_namespace n on n.oid = c.relnamespace '
+                . 'join pg_class ic on ic.oid = i.indexrelid '
+                . 'where n.nspname = coalesce(?::text, current_schema()) and c.relname = ?',
         ], $this->statements);
-        self::assertSame([['pg_trgm'], [null, 'users']], $this->bindings);
+        self::assertSame([['pg_trgm'], [null, 'users'], [null, 'users']], $this->bindings);
     }
 
     /**
@@ -349,8 +358,11 @@ final class PostgresTrigramSearchDriverTest extends TestCase
             }
 
             return [
-                (object) ['indexdef' => null],
-                (object) ['indexdef' => 'CREATE INDEX users_name_trgm ON public.users USING gin (name gin_trgm_ops)'],
+                (object) ['name' => 'users_name_broken', 'indexdef' => null],
+                (object) [
+                    'name'     => 'users_name_trgm',
+                    'indexdef' => 'CREATE INDEX users_name_trgm ON public.users USING gin (name gin_trgm_ops)',
+                ],
             ];
         });
 
@@ -400,12 +412,15 @@ final class PostgresTrigramSearchDriverTest extends TestCase
         (new PostgresTrigramSearchDriver)->indexDefects(SearchStrategy::EXACT, ['email'], 'users', $connection);
 
         self::assertSame([
-            'select lower(ic.relname) as name from pg_index i '
+            'select lower(ic.relname) as name, '
+                . '(not i.indisvalid)::int as disregarded, '
+                . '(i.indpred is not null)::int as restricted, '
+                . '(i.indkey[0] = 0)::int as expressed '
+                . 'from pg_index i '
                 . 'join pg_class c on c.oid = i.indrelid '
                 . 'join pg_namespace n on n.oid = c.relnamespace '
                 . 'join pg_class ic on ic.oid = i.indexrelid '
-                . 'where n.nspname = coalesce(?::text, current_schema()) and c.relname = ? '
-                . 'and (not i.indisvalid or i.indpred is not null or i.indkey[0] = 0)',
+                . 'where n.nspname = coalesce(?::text, current_schema()) and c.relname = ?',
         ], $this->statements);
         self::assertSame([[null, 'users']], $this->bindings);
     }
@@ -451,6 +466,70 @@ final class PostgresTrigramSearchDriverTest extends TestCase
     }
 
     /**
+     * Test that a trigram index the engine disregards proves no anywhere match.
+     *
+     * The statement read back describes the index the strategy needs, so only
+     * what the engine says about the index itself can refuse it.
+     *
+     * @return void
+     */
+    public function testRefusesAnAnywhereMatchBackedOnlyByADisregardedTrigramIndex(): void
+    {
+        $definition = 'CREATE INDEX users_index_0 ON public.users USING gin (name gin_trgm_ops)';
+
+        self::assertSame(
+            [],
+            (new PostgresTrigramSearchDriver)->indexDefects(SearchStrategy::SUBSTRING, ['name'], 'users', $this->catalogue([$definition])),
+        );
+
+        $refused = $this->catalogue([$definition], unusable: ['users_index_0']);
+
+        self::assertNotSame([], (new PostgresTrigramSearchDriver)->indexDefects(SearchStrategy::SUBSTRING, ['name'], 'users', $refused));
+    }
+
+    /**
+     * Test that a trigram index holding only part of the table proves no
+     * anywhere match.
+     *
+     * A search carries no predicate of its own, so an index restricted to the
+     * rows its own admits cannot serve one over the whole table. This is the
+     * other half of the refusal, and it has to stand on its own.
+     *
+     * @return void
+     */
+    public function testRefusesAnAnywhereMatchBackedOnlyByARestrictedTrigramIndex(): void
+    {
+        $definition = 'CREATE INDEX users_index_0 ON public.users USING gin (name gin_trgm_ops)';
+
+        $refused = $this->catalogue([$definition], restricted: ['users_index_0']);
+
+        self::assertNotSame([], (new PostgresTrigramSearchDriver)->indexDefects(SearchStrategy::SUBSTRING, ['name'], 'users', $refused));
+    }
+
+    /**
+     * Test that an index keyed on an expression still proves an anywhere match.
+     *
+     * This proof matches the statement that would recreate the index, which
+     * names the expression outright, so the fact that defeats a proof reading
+     * the reported column list must not defeat this one. Folding the three
+     * facts together here would refuse every trigram index over an expression,
+     * which is the ordinary way one is written.
+     *
+     * @return void
+     */
+    public function testAcceptsAnAnywhereMatchBackedByAnExpressionKeyedTrigramIndex(): void
+    {
+        $definition = 'CREATE INDEX users_index_0 ON public.users USING gin (name gin_trgm_ops)';
+
+        $catalogue = $this->catalogue([$definition], expressed: ['users_index_0']);
+
+        self::assertSame(
+            [],
+            (new PostgresTrigramSearchDriver)->indexDefects(SearchStrategy::SUBSTRING, ['name'], 'users', $catalogue),
+        );
+    }
+
+    /**
      * Apply the term to a fresh query compiled against the PostgreSQL grammar.
      *
      * @param  array<int, string>  $columns
@@ -475,10 +554,19 @@ final class PostgresTrigramSearchDriverTest extends TestCase
      * @param  array<int, array<string, mixed>>  $indexes
      * @param  string  $prefix
      * @param  array<int, string>  $unusable
+     * @param  array<int, string>  $restricted
+     * @param  array<int, string>  $expressed
      * @return \Illuminate\Database\Connection
      */
-    private function catalogue(array $definitions = [], bool $extension = true, array $indexes = [], string $prefix = '', array $unusable = []): Connection
-    {
+    private function catalogue(
+        array $definitions = [],
+        bool $extension = true,
+        array $indexes = [],
+        string $prefix = '',
+        array $unusable = [],
+        array $restricted = [],
+        array $expressed = [],
+    ): Connection {
         $schema = self::createStub(SchemaBuilder::class);
 
         $schema->method('getIndexes')->willReturn($indexes);
@@ -487,6 +575,7 @@ final class PostgresTrigramSearchDriverTest extends TestCase
 
         $connection->method('getSchemaBuilder')->willReturn($schema);
         $connection->method('getTablePrefix')->willReturn($prefix);
+        $connection->method('getDriverName')->willReturn('pgsql');
         $connection->method('select')->willReturnCallback(function (string $query, array $bindings = []) use ($definitions, $extension): array {
 
             $this->statements[] = $query;
@@ -496,14 +585,49 @@ final class PostgresTrigramSearchDriverTest extends TestCase
                 return $extension ? [(object) ['installed' => 1]] : [];
             }
 
-            return array_map(static fn (string $definition): object => (object) ['indexdef' => $definition], $definitions);
+            return array_map(
+                static fn (string $definition, int $position): object => (object) [
+                    'name'     => 'users_index_' . $position,
+                    'indexdef' => $definition,
+                ],
+                $definitions,
+                array_keys($definitions),
+            );
         });
-        $connection->method('selectFromWriteConnection')->willReturnCallback(function (string $query, array $bindings = []) use ($unusable): array {
+        $connection->method('selectFromWriteConnection')->willReturnCallback(function (string $query, array $bindings = []) use ($unusable, $restricted, $expressed): array {
 
             $this->statements[] = $query;
             $this->bindings[]   = $bindings;
 
-            return array_map(static fn (string $name): object => (object) ['name' => $name], $unusable);
+            return array_merge(
+                array_map(
+                    static fn (string $name): object => (object) [
+                        'name'        => $name,
+                        'disregarded' => 1,
+                        'restricted'  => 0,
+                        'expressed'   => 0,
+                    ],
+                    $unusable,
+                ),
+                array_map(
+                    static fn (string $name): object => (object) [
+                        'name'        => $name,
+                        'disregarded' => 0,
+                        'restricted'  => 1,
+                        'expressed'   => 0,
+                    ],
+                    $restricted,
+                ),
+                array_map(
+                    static fn (string $name): object => (object) [
+                        'name'        => $name,
+                        'disregarded' => 0,
+                        'restricted'  => 0,
+                        'expressed'   => 1,
+                    ],
+                    $expressed,
+                ),
+            );
         });
 
         return $connection;
