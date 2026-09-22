@@ -839,9 +839,25 @@ index belongs to your application:
 
 MySQL resolves a match only against a full-text index whose column list is exactly the matched one, which
 is why the index covers the declared set rather than one column each. An exact match needs only an ordinary
-index leading with the column. SQLite carries neither index kind, so it is treated as a development
-connection: it serves every strategy, proves none of them, and the connection a stock application names
-`sqlite` is listed under `api-toolkit.search.unverified_connections` for exactly that reason.
+index leading with the column. SQLite carries neither index kind, so it serves every strategy and proves
+none of them.
+
+`api-toolkit.search.unverified_connections` ships empty, so nothing is waived until you name a connection.
+**If you develop against SQLite and declare a searchable field, you must name that connection yourself**,
+or the application will not boot. Schema validation is enabled by default outside production, and it throws
+rather than warns, so an unnamed connection stops every route and every Artisan command, `php artisan
+migrate` on a fresh checkout included. It does not wait for a search request, and it fires before anything
+touches the database, so a missing SQLite file will not spare you:
+
+    // config/api-toolkit.php
+    'search' => [
+        'unverified_connections' => ['sqlite'],
+    ],
+
+The list was previously shipped with `sqlite` already in it. It matches on connection name, and a stock
+application names its connections after their engines, so the shipped entry waived the proof for anyone
+running SQLite in production without their ever choosing to. Naming the connection yourself is the same
+one-line change, made deliberately.
 
 That list is read by connection name, as `config/database.php` keys it, and not by the engine behind the
 connection, so an application naming its connections for itself waives one of them without waiving every

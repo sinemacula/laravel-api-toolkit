@@ -13,14 +13,15 @@ use Illuminate\Support\Facades\Config;
  * indexes behind a declared strategy, and a search it serves may be reading the
  * whole table. That is refused everywhere except the connections named here,
  * which are meant to be the development connection a suite runs against rather
- * than anything serving traffic.
+ * than anything serving traffic. The shipped list is empty, so nothing is
+ * waived until an application names a connection of its own.
  *
  * The names read here are connection names, as the application's own database
  * configuration keys them, and not the engines behind them. A stock application
- * names each connection after the engine it speaks, which is why the shipped
- * entry reads as an engine, but an application naming its connections for
- * itself waives one of them without waiving every connection on the same
- * engine.
+ * names each connection after the engine it speaks, so an engine name written
+ * here waives whichever connection carries it, while an application naming its
+ * connections for itself waives one of them without waiving every connection on
+ * the same engine.
  *
  * The list is read in two places - where a request is refused and where the
  * schema is validated - and both have to agree, so it is read in one.

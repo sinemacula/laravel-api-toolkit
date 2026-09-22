@@ -21,9 +21,10 @@ use SineMacula\ApiToolkit\Search\SearchTerm;
  *
  * Claiming nothing is what makes the limitation visible: a declaration on this
  * connection is refused unless the connection is listed among the ones where
- * the index proof is waived, which the shipped configuration does for SQLite
- * alone. A connection serving traffic that is listed there has reinstated the
- * full-table scan the declaration exists to prevent.
+ * the index proof is waived, and the shipped configuration lists none, so an
+ * application developing against SQLite names the connection there itself. A
+ * connection serving traffic that is listed there has reinstated the full-table
+ * scan the declaration exists to prevent.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
