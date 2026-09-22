@@ -31,8 +31,7 @@ use SineMacula\ApiToolkit\Schema\SchemaCompiler;
  */
 abstract class ApiResource extends ToolkitResource implements ApiResourceInterface
 {
-    use GatesTrashedVisibility;
-    use OrdersFields;
+    use GatesTrashedVisibility, OrdersFields;
 
     /** @var array<int, string> Default fields to include if no specific fields are requested */
     protected static array $default = [];

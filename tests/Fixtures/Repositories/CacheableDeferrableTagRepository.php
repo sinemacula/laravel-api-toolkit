@@ -22,8 +22,7 @@ use Tests\Fixtures\Models\Tag;
  */
 final class CacheableDeferrableTagRepository extends ApiRepository
 {
-    use Cacheable;
-    use Deferrable;
+    use Cacheable, Deferrable;
 
     /**
      * Return the model class.
