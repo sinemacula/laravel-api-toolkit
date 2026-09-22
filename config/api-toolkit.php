@@ -365,9 +365,15 @@ return [
     | value, so a list spelled as a delimited string is bounded the same way.
     | `max_order_keys` bounds the sort columns, and `max_aggregates` the
     | relation counts, sums, and averages combined, since each adds its own
-    | correlated subquery. `max_offset` bounds the requested page number, beyond
-    | which a paginated read scans and discards more rows than it returns. It
-    | rejects rather than clamps, as the parser's `max_limit` ceiling does.
+    | correlated subquery. `max_offset` bounds the rows a paginated read scans
+    | and discards to reach the page it returns, which is the page number
+    | multiplied by the page size rather than the page number alone: bounding
+    | the number by itself left the real ceiling moving whenever an operator
+    | tuned the page size. A cursor seeks to its position instead of counting
+    | rows to it, so a cursor-paginated read is not bounded by this cap. It
+    | rejects rather than clamps, as the parser's `max_limit` ceiling does, and
+    | the refusal names the furthest page available rather than a row count the
+    | caller never asked in.
     |
     */
 
@@ -387,7 +393,7 @@ return [
 
         'max_aggregates' => env('API_TOOLKIT_QUERY_MAX_AGGREGATES', 5),
 
-        'max_offset' => env('API_TOOLKIT_QUERY_MAX_OFFSET', 10000),
+        'max_offset' => env('API_TOOLKIT_QUERY_MAX_OFFSET', 500000),
 
     ],
 
@@ -416,10 +422,11 @@ return [
     |
     | `unverified_connections` lists the database connections on which a search
     | driver that cannot prove an index backs a declared match strategy may
-    | serve it anyway, by connection name rather than by engine. The shipped
-    | entry is the connection a stock application names for SQLite, which has
-    | neither the trigram nor the n-gram index the substring strategy needs and
-    | is therefore a development connection here. Listing a connection that
+    | serve it anyway, by connection name rather than by engine. It ships
+    | empty, so nothing is waived until an application names a connection.
+    | SQLite has neither the trigram nor the n-gram index the substring
+    | strategy needs, so a development connection on it must be named here
+    | before a searchable field will be served. Listing a connection that
     | serves traffic reinstates the silent full-table scan this layer exists to
     | remove; leaving one off means an unprovable declaration fails loudly
     | instead.
@@ -461,15 +468,18 @@ return [
         // The connections on which a driver that cannot prove an index backs a
         // declared match strategy may serve it anyway. Entries are connection
         // names, as `config/database.php` keys them, not the engines behind
-        // them: a stock application names each connection after its engine,
-        // which is why the shipped entry reads as one, but an application
-        // naming its connections for itself waives a single connection and
-        // leaves its siblings on the same engine refusing an unprovable
-        // declaration. Name a development connection here rather than an
-        // engine. This is the only switch that turns the request-time proof
-        // off, so a connection listed here serves a search that may read the
-        // whole table on every request, with nothing behind it to refuse.
-        'unverified_connections' => ['sqlite'],
+        // them, so an application naming its connections for itself waives a
+        // single connection and leaves its siblings on the same engine refusing
+        // an unprovable declaration.
+        //
+        // Shipped empty, so nothing is waived until an application says so. A
+        // connection named here serves a search that may read the whole table
+        // on every request, with nothing behind it to refuse, and this is the
+        // only switch that turns the request-time proof off. SQLite can never
+        // prove an index backs a search, so a development connection on it must
+        // be named here before a searchable field will be served. Name that
+        // development connection, never a production one.
+        'unverified_connections' => [],
 
     ],
 

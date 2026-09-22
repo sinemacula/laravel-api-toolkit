@@ -7,7 +7,6 @@ namespace SineMacula\ApiToolkit\Repositories;
 use Illuminate\Contracts\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Request;
 use SineMacula\ApiToolkit\Cache\MetadataCacheWriter;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
@@ -95,7 +94,7 @@ abstract class ApiRepository extends Repository
         $this->applyScopes();
 
         $method = $this->resolvePaginationMethod();
-        $limit  = ApiQuery::getLimit() ?? Config::get('api-toolkit.parser.defaults.limit');
+        $limit  = ApiQuery::getResolvedLimit();
         $query  = $this->model instanceof Builder ? $this->model : $this->getModel()->newQuery();
 
         if ($method === 'cursorPaginate') {
@@ -189,7 +188,7 @@ abstract class ApiRepository extends Repository
      */
     private function resolvePaginationMethod(): string
     {
-        if (Request::query('pagination') === 'cursor' || Request::has('cursor')) {
+        if (ApiQuery::isCursorPaginated()) {
             return 'cursorPaginate';
         }
 
