@@ -9,6 +9,7 @@ use PHPUnit\Framework\TestCase;
 use SineMacula\ApiToolkit\Concerns\QueryParameterValidator;
 use SineMacula\ApiToolkit\OpenApi\Builder\QueryParameterBuilder;
 use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
+use SineMacula\ApiToolkit\Search\SearchTerm;
 use Tests\Fixtures\Models\Article;
 use Tests\Fixtures\Models\User;
 
@@ -353,14 +354,15 @@ final class QueryParameterBuilderTest extends TestCase
     {
         $search = $this->makeBuilder()->build()['Search'];
 
-        self::assertSame(['type' => 'string'], $search['schema']);
+        self::assertSame(['type' => 'string', 'maxLength' => 128], $search['schema']);
 
         // The minimum bounds each word rather than the term, so a long term
         // built from short words is refused; the description must say which.
         self::assertSame(
             'Free-text search across the fields a resource declares searchable, e.g. search=John Smith. '
             . 'It matches the requested resource only and never traverses a relation; a term carrying a word shorter than the configured minimum is rejected, '
-            . 'as is one longer, or carrying more words, than the configured bounds allow.',
+            . 'as is one longer, or carrying more words, than the configured bounds allow. '
+            . 'The length is counted once surrounding and repeated whitespace has been collapsed, so a term written with more characters than the maximum may still be accepted.',
             $search['description'],
         );
     }
@@ -555,6 +557,73 @@ final class QueryParameterBuilderTest extends TestCase
     }
 
     /**
+     * Test that the documented longest term is the one the server enforces, so
+     * the published contract and the rejection cannot drift apart.
+     *
+     * @return void
+     */
+    public function testSearchParameterCarriesTheConfiguredLongestTerm(): void
+    {
+        $search = $this->makeBuilder(longest: 64)->build()['Search'];
+
+        self::assertSame(['type' => 'string', 'maxLength' => 64], $search['schema']);
+    }
+
+    /**
+     * Test that a catalogue naming no longest term at all leaves the search
+     * schema unbounded.
+     *
+     * A catalogue that reports the bound as absent is saying it does not know
+     * it, which is not the same as knowing it to be small, so nothing may be
+     * invented in its place.
+     *
+     * @return void
+     */
+    public function testACatalogueNamingNoLongestTermLeavesTheSearchUnbounded(): void
+    {
+        $catalogue = self::createStub(MetadataCatalogue::class);
+        $catalogue->method('getOperatorTokens')->willReturn(self::OPERATOR_TOKENS);
+        $catalogue->method('getStructuralOperators')->willReturn(self::STRUCTURAL_OPERATORS);
+        $catalogue->method('getQueryLimits')->willReturn([QueryParameterValidator::MAX_LIMIT => 100]);
+        $catalogue->method('getSearchBounds')->willReturn([]);
+
+        $search = (new QueryParameterBuilder($catalogue))->build()['Search'];
+
+        self::assertSame(['type' => 'string'], $search['schema']);
+    }
+
+    /**
+     * Test that a longest term of zero is published as the refusal it is.
+     *
+     * Zero does not lift the bound the way it does for the page size: the
+     * server refuses every term under it, so publishing no bound at all would
+     * tell a client the opposite of what it will meet.
+     *
+     * @return void
+     */
+    public function testALongestTermOfZeroIsPublishedRatherThanTreatedAsUnbounded(): void
+    {
+        $search = $this->makeBuilder(longest: 0)->build()['Search'];
+
+        self::assertSame(['type' => 'string', 'maxLength' => 0], $search['schema']);
+    }
+
+    /**
+     * Test that a negative longest term is left off the schema.
+     *
+     * A negative figure is not a length, and the document has to stay valid
+     * whatever a misconfiguration puts in front of it.
+     *
+     * @return void
+     */
+    public function testANegativeLongestTermIsLeftOffTheSchema(): void
+    {
+        $search = $this->makeBuilder(longest: -1)->build()['Search'];
+
+        self::assertSame(['type' => 'string'], $search['schema']);
+    }
+
+    /**
      * List the component names the given action references, stripped of the
      * component path prefix.
      *
@@ -575,11 +644,12 @@ final class QueryParameterBuilderTest extends TestCase
      * operator vocabulary and the given page-size ceiling.
      *
      * @param  int  $ceiling
+     * @param  int  $longest
      * @return \SineMacula\ApiToolkit\OpenApi\Builder\QueryParameterBuilder
      */
-    private function makeBuilder(int $ceiling = 100): QueryParameterBuilder
+    private function makeBuilder(int $ceiling = 100, int $longest = 128): QueryParameterBuilder
     {
-        return $this->builderReporting([QueryParameterValidator::MAX_LIMIT => $ceiling]);
+        return $this->builderReporting([QueryParameterValidator::MAX_LIMIT => $ceiling], $longest);
     }
 
     /**
@@ -587,14 +657,20 @@ final class QueryParameterBuilderTest extends TestCase
      * given request bounds.
      *
      * @param  array<string, int>  $limits
+     * @param  int  $longest
      * @return \SineMacula\ApiToolkit\OpenApi\Builder\QueryParameterBuilder
      */
-    private function builderReporting(array $limits): QueryParameterBuilder
+    private function builderReporting(array $limits, int $longest = 128): QueryParameterBuilder
     {
         $catalogue = self::createStub(MetadataCatalogue::class);
         $catalogue->method('getOperatorTokens')->willReturn(self::OPERATOR_TOKENS);
         $catalogue->method('getStructuralOperators')->willReturn(self::STRUCTURAL_OPERATORS);
         $catalogue->method('getQueryLimits')->willReturn($limits);
+        $catalogue->method('getSearchBounds')->willReturn([
+            SearchTerm::MIN_WORD_LENGTH_KEY => 3,
+            SearchTerm::MAX_LENGTH_KEY      => $longest,
+            SearchTerm::MAX_WORDS_KEY       => 10,
+        ]);
 
         return new QueryParameterBuilder($catalogue);
     }

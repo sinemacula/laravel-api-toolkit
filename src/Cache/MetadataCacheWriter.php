@@ -13,6 +13,11 @@ use Illuminate\Support\Facades\Cache;
  * can forget exactly the toolkit's own keys. A metadata write that bypasses
  * this writer would not be registered and would survive the flush.
  *
+ * Reads go through it for the same reason. A value written by an earlier
+ * process is served warm without its callback ever running, so a reader that
+ * went straight to the store would hold a live key this process never
+ * registered, and the flush would leave it behind.
+ *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
@@ -47,6 +52,26 @@ final readonly class MetadataCacheWriter
         $this->registry->register($key);
 
         return Cache::memo()->rememberForever($key, static fn () => $callback()); // @phpstan-ignore method.notFound
+    }
+
+    /**
+     * Read a metadata value and register its key.
+     *
+     * The key is registered whether or not anything is stored under it, since a
+     * reader that found nothing is about to write, and one that found a value
+     * written elsewhere holds a key this process must still be able to forget.
+     *
+     * @template TMissing
+     *
+     * @param  string  $key
+     * @param  TMissing  $missing
+     * @return mixed
+     */
+    public function readMetadata(string $key, mixed $missing = null): mixed
+    {
+        $this->registry->register($key);
+
+        return Cache::memo()->get($key, $missing); // @phpstan-ignore method.notFound
     }
 
     /**

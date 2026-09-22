@@ -10,7 +10,6 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Illuminate\Database\Eloquent\Relations\MorphToMany;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;
 use SineMacula\ApiToolkit\Cache\MetadataCacheWriter;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
@@ -288,6 +287,6 @@ final class AttributeSetter
     private function resolveCastsFromCache(string $modelClass): array
     {
         /** @var array<string, string|null> */
-        return Cache::memo()->get(CacheKeys::REPOSITORY_MODEL_CASTS->resolveKey([$modelClass]), []);
+        return $this->metadataCacheWriter()->readMetadata(CacheKeys::REPOSITORY_MODEL_CASTS->resolveKey([$modelClass]), []);
     }
 }
