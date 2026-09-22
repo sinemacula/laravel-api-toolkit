@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Schema\Builder as SchemaBuilder;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Enums\SearchStrategy;
+use SineMacula\ApiToolkit\Schema\Introspection\IndexEligibility;
 use SineMacula\ApiToolkit\Search\Drivers\EngineSearchDriver;
 use SineMacula\ApiToolkit\Search\SearchTerm;
 use Tests\Fixtures\Models\User;
@@ -50,7 +51,7 @@ final class EngineSearchDriverTest extends TestCase
 
         self::assertSame([], (new StubFilteringSearchDriver)->indexDefects(SearchStrategy::EXACT, ['name'], 'users', $connection));
 
-        $driver = new StubFilteringSearchDriver(['users_name_index']);
+        $driver = new StubFilteringSearchDriver(new IndexEligibility(['users_name_index']));
 
         self::assertNotSame([], $driver->indexDefects(SearchStrategy::EXACT, ['name'], 'users', $connection));
     }
@@ -68,9 +69,34 @@ final class EngineSearchDriverTest extends TestCase
     {
         $connection = $this->catalogue([['name' => 'users_name_index', 'columns' => ['name'], 'type' => 'btree']]);
 
-        $driver = new StubFilteringSearchDriver(['USERS_Name_Index']);
+        $driver = new StubFilteringSearchDriver(new IndexEligibility(['USERS_Name_Index']));
 
         self::assertNotSame([], $driver->indexDefects(SearchStrategy::EXACT, ['name'], 'users', $connection));
+    }
+
+    /**
+     * Test that an index whose reported columns overstate it proves no match.
+     *
+     * Every proof here reads the column list the catalogue reports, so an index
+     * restricted to part of the table, or leading with an expression the list
+     * cannot name, would otherwise prove a match over columns it does not
+     * serve.
+     *
+     * @return void
+     */
+    public function testDropsAnIndexWhoseReportedColumnsOverstateIt(): void
+    {
+        $connection = $this->catalogue([['name' => 'users_name_index', 'columns' => ['name'], 'type' => 'btree']]);
+
+        $restricted = new StubFilteringSearchDriver(new IndexEligibility([], ['users_name_index']));
+        $expressed  = new StubFilteringSearchDriver(new IndexEligibility([], [], ['users_name_index']));
+
+        self::assertNotSame([], $restricted->indexDefects(SearchStrategy::EXACT, ['name'], 'users', $connection));
+        self::assertNotSame([], $expressed->indexDefects(SearchStrategy::EXACT, ['name'], 'users', $connection));
+
+        // The same catalogue under a report naming the index for neither fact
+        // proves the column, so each refusal above is the fact doing the work.
+        self::assertSame([], (new StubFilteringSearchDriver)->indexDefects(SearchStrategy::EXACT, ['name'], 'users', $connection));
     }
 
     /**
@@ -88,7 +114,7 @@ final class EngineSearchDriverTest extends TestCase
             ['name' => 'users_name_index', 'columns' => ['name'], 'type' => 'btree'],
         ]);
 
-        $driver = new StubFilteringSearchDriver(['users_name_hidden']);
+        $driver = new StubFilteringSearchDriver(new IndexEligibility(['users_name_hidden']));
 
         self::assertSame([], $driver->indexDefects(SearchStrategy::EXACT, ['name'], 'users', $connection));
 

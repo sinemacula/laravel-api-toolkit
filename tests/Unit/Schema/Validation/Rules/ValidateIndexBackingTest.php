@@ -9,9 +9,11 @@ use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledSchema;
 use SineMacula\ApiToolkit\Schema\Introspection\IndexDefinition;
+use SineMacula\ApiToolkit\Schema\Introspection\IndexEligibility;
 use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateIndexBacking;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Resources\UserResource;
+use Tests\Fixtures\Search\StubIndexEligibilityInspector;
 use Tests\TestCase;
 
 /**
@@ -416,19 +418,133 @@ final class ValidateIndexBackingTest extends TestCase
     }
 
     /**
+     * Test that a sortable column is refused where the only index leading with
+     * it is one the connection will not plan against.
+     *
+     * The catalogue reports such an index exactly as it reports a usable one,
+     * so the sort proof would otherwise accept an order the table cannot serve
+     * while the search proof over the same index refuses it.
+     *
+     * @return void
+     */
+    public function testRefusesASortableColumnLedOnlyByADisregardedIndex(): void
+    {
+        $indexes = [new IndexDefinition('users_name_index', ['name'], 'btree')];
+
+        $rule = $this->rule($indexes, new IndexEligibility(['users_name_index']));
+
+        self::assertSame(
+            ['Field is declared sortable against "name", and no ordered index on table "users" leads with that column'],
+            array_map(static fn ($error): string => $error->defect, $rule->validate(UserResource::class, User::class, $this->schema('name'))),
+        );
+
+        // Without the report the same catalogue proves the column, so the
+        // refusal above is the report doing the work rather than the
+        // declaration failing for some other reason.
+        self::assertSame([], $this->rule($indexes)->validate(UserResource::class, User::class, $this->schema('name')));
+    }
+
+    /**
+     * Test that a sortable column is refused where the index leading with it is
+     * keyed on an expression.
+     *
+     * A key part naming no column is dropped from the column list the catalogue
+     * aggregates, so the column that follows it reads as the one the index
+     * leads with, and an ordered read of that column alone cannot be served by
+     * an index led by the expression in front of it.
+     *
+     * @return void
+     */
+    public function testRefusesASortableColumnLedOnlyByAnExpressionKeyedIndex(): void
+    {
+        $indexes = [new IndexDefinition('users_lower_name_index', ['created_at'], 'btree')];
+
+        $rule = $this->rule($indexes, new IndexEligibility([], [], ['users_lower_name_index']));
+
+        self::assertNotSame([], $rule->validate(UserResource::class, User::class, $this->schema('created_at')));
+        self::assertSame([], $this->rule($indexes)->validate(UserResource::class, User::class, $this->schema('created_at')));
+    }
+
+    /**
+     * Test that a sortable column is refused where the index leading with it
+     * holds only the rows its own predicate admits.
+     *
+     * An ordered read carries no predicate of its own, so an index restricted
+     * to part of the table cannot answer one over the whole of it.
+     *
+     * @return void
+     */
+    public function testRefusesASortableColumnLedOnlyByARestrictedIndex(): void
+    {
+        $indexes = [new IndexDefinition('users_live_name_index', ['name'], 'btree')];
+
+        $rule = $this->rule($indexes, new IndexEligibility([], ['users_live_name_index']));
+
+        self::assertNotSame([], $rule->validate(UserResource::class, User::class, $this->schema('name')));
+        self::assertSame([], $this->rule($indexes)->validate(UserResource::class, User::class, $this->schema('name')));
+    }
+
+    /**
+     * Test that a named index the connection will not plan against is refused,
+     * and said to be carried rather than missing.
+     *
+     * Telling an author the table carries no index of a name it demonstrably
+     * carries sends them looking for the wrong thing entirely.
+     *
+     * @return void
+     */
+    public function testRefusesANamedIndexTheConnectionWillNotPlanAgainst(): void
+    {
+        $rule = $this->rule(
+            [new IndexDefinition('users_name_index', ['name'], 'btree')],
+            new IndexEligibility(['users_name_index']),
+        );
+
+        $errors = $rule->validate(UserResource::class, User::class, $this->schema('name', indexedBy: 'users_name_index'));
+
+        self::assertSame(
+            ['Field declares the "users_name_index" index behind sortable column "name", and table "users" carries it, but the connection will not plan against it'],
+            array_map(static fn ($error): string => $error->defect, $errors),
+        );
+    }
+
+    /**
+     * Test that naming an index outright still accepts one the column list was
+     * never going to describe.
+     *
+     * The override exists for exactly that index, so a report describing it as
+     * expression keyed or restricted is the author's to vouch for rather than
+     * the rule's to refuse.
+     *
+     * @return void
+     */
+    public function testAcceptsANamedIndexTheColumnListCannotDescribe(): void
+    {
+        $rule = $this->rule(
+            [new IndexDefinition('users_lower_name_index', [], 'btree')],
+            new IndexEligibility([], ['users_lower_name_index'], ['users_lower_name_index']),
+        );
+
+        $schema = $this->schema('name', indexedBy: 'users_lower_name_index');
+
+        self::assertSame([], $rule->validate(UserResource::class, User::class, $schema));
+    }
+
+    /**
      * Build the rule over an introspection provider reporting the given
      * catalogue, where null stands for a connection that could not be read.
      *
      * @param  array<int, \SineMacula\ApiToolkit\Schema\Introspection\IndexDefinition>|null  $indexes
+     * @param  \SineMacula\ApiToolkit\Schema\Introspection\IndexEligibility  $eligibility
      * @return \SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateIndexBacking
      */
-    private function rule(?array $indexes): ValidateIndexBacking
+    private function rule(?array $indexes, IndexEligibility $eligibility = new IndexEligibility): ValidateIndexBacking
     {
         $introspector = self::createStub(SchemaIntrospectionProvider::class);
 
         $introspector->method('getIndexes')->willReturn($indexes);
 
-        return new ValidateIndexBacking($introspector);
+        return new ValidateIndexBacking($introspector, new StubIndexEligibilityInspector($eligibility));
     }
 
     /**

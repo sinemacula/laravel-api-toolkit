@@ -10,6 +10,8 @@ use SineMacula\ApiToolkit\Contracts\SchemaValidationRule;
 use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledSchema;
 use SineMacula\ApiToolkit\Schema\Introspection\IndexDefinition;
+use SineMacula\ApiToolkit\Schema\Introspection\IndexEligibility;
+use SineMacula\ApiToolkit\Schema\Introspection\IndexEligibilityInspector;
 use SineMacula\ApiToolkit\Schema\Validation\SchemaValidationError;
 
 /**
@@ -29,6 +31,16 @@ use SineMacula\ApiToolkit\Schema\Validation\SchemaValidationError;
  * does not make that column sortable. Where it names no kind, every index it
  * reports holds an order, so the absence is read as such rather than as a
  * disqualification.
+ *
+ * Carrying an index is not the same as the engine being willing to plan against
+ * one, and an index it disregards backs no ordered read however it is declared.
+ * Where a column is proved by the columns an index reports, the index has to
+ * describe itself truthfully too: one restricted to part of the table, or
+ * leading with an expression the catalogue cannot report, is passed over, since
+ * the reported column list would otherwise be read as naming a leading column
+ * the index does not lead with. A declaration naming an index outright asserts
+ * what that column list was never going to show, so only the engine's refusal
+ * defeats it.
  *
  * A connection that cannot be inspected at all is a different answer again, and
  * the rule stays silent for it: a developer booting without a database has
@@ -50,12 +62,16 @@ final readonly class ValidateIndexBacking implements SchemaValidationRule
      * Create a new index backing validation rule.
      *
      * @param  \SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider  $introspector
+     * @param  \SineMacula\ApiToolkit\Schema\Introspection\IndexEligibilityInspector  $eligibility
      * @return void
      */
     public function __construct(
 
         /** Reads the index catalogue behind the model's table */
         private SchemaIntrospectionProvider $introspector,
+
+        /** Reads which of those indexes a proof may rest on */
+        private IndexEligibilityInspector $eligibility = new IndexEligibilityInspector,
     ) {}
 
     /**
@@ -82,9 +98,13 @@ final readonly class ValidateIndexBacking implements SchemaValidationRule
         $table   = $model?->getTable() ?? '';
         $errors  = [];
 
+        $eligibility = $model !== null && $indexes !== null
+            ? $this->eligibility->inspect($table, $model->getConnection())
+            : new IndexEligibility;
+
         foreach ($declared as $key => $field) {
 
-            foreach ($this->defects($field, $indexes, $table) as $defect) {
+            foreach ($this->defects($field, $indexes, $table, $eligibility) as $defect) {
                 $errors[] = new SchemaValidationError(
                     resourceClass: $resourceClass,
                     fieldKey: $key,
@@ -157,9 +177,10 @@ final readonly class ValidateIndexBacking implements SchemaValidationRule
      * @param  \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition  $field
      * @param  array<int, \SineMacula\ApiToolkit\Schema\Introspection\IndexDefinition>|null  $indexes
      * @param  string  $table
+     * @param  \SineMacula\ApiToolkit\Schema\Introspection\IndexEligibility  $eligibility
      * @return array<int, string>
      */
-    private function defects(CompiledFieldDefinition $field, ?array $indexes, string $table): array
+    private function defects(CompiledFieldDefinition $field, ?array $indexes, string $table, IndexEligibility $eligibility): array
     {
         if ($field->indexedBy !== null && $field->unindexedReason !== null) {
             return ['Field declares both a backing index and an index exemption, so neither governs the sort'];
@@ -175,7 +196,7 @@ final readonly class ValidateIndexBacking implements SchemaValidationRule
         // A null catalogue is the connection saying nothing, not saying empty.
         return $field->unindexedReason !== null || $indexes === null
             ? []
-            : $this->backingDefects($field->sortable, $field->indexedBy, $indexes, $table);
+            : $this->backingDefects($field->sortable, $field->indexedBy, $indexes, $table, $eligibility);
     }
 
     /**
@@ -186,13 +207,43 @@ final readonly class ValidateIndexBacking implements SchemaValidationRule
      * @param  string|null  $declared
      * @param  array<int, \SineMacula\ApiToolkit\Schema\Introspection\IndexDefinition>  $indexes
      * @param  string  $table
+     * @param  \SineMacula\ApiToolkit\Schema\Introspection\IndexEligibility  $eligibility
      * @return array<int, string>
      */
-    private function backingDefects(string $column, ?string $declared, array $indexes, string $table): array
+    private function backingDefects(string $column, ?string $declared, array $indexes, string $table, IndexEligibility $eligibility): array
     {
         if ($declared !== null) {
+            return $this->namedDefects($declared, $column, $indexes, $table, $eligibility);
+        }
 
-            return $this->carries($declared, $indexes) ? [] : [sprintf(
+        return $this->ledByAnOrderedIndex($column, $indexes, $eligibility) ? [] : [sprintf(
+            'Field is declared sortable against "%s", and no ordered index on table "%s" leads with that column',
+            $column,
+            $table,
+        )];
+    }
+
+    /**
+     * Describe what the index the field names is missing on the table, or
+     * return nothing when it is carried and the connection will plan against
+     * it.
+     *
+     * Not carrying the index at all and carrying one the engine disregards are
+     * reported apart, because telling an author the table carries no index of a
+     * name it demonstrably carries sends them looking for the wrong thing.
+     *
+     * @param  string  $declared
+     * @param  string  $column
+     * @param  array<int, \SineMacula\ApiToolkit\Schema\Introspection\IndexDefinition>  $indexes
+     * @param  string  $table
+     * @param  \SineMacula\ApiToolkit\Schema\Introspection\IndexEligibility  $eligibility
+     * @return array<int, string>
+     */
+    private function namedDefects(string $declared, string $column, array $indexes, string $table, IndexEligibility $eligibility): array
+    {
+        if (!$this->carries($declared, $indexes)) {
+
+            return [sprintf(
                 'Field declares the "%s" index behind sortable column "%s", and table "%s" carries no index of that name',
                 $declared,
                 $column,
@@ -200,11 +251,12 @@ final readonly class ValidateIndexBacking implements SchemaValidationRule
             )];
         }
 
-        return $this->ledByAnOrderedIndex($column, $indexes) ? [] : [sprintf(
-            'Field is declared sortable against "%s", and no ordered index on table "%s" leads with that column',
+        return $eligibility->disregards($declared) ? [sprintf(
+            'Field declares the "%s" index behind sortable column "%s", and table "%s" carries it, but the connection will not plan against it',
+            $declared,
             $column,
             $table,
-        )];
+        )] : [];
     }
 
     /**
@@ -237,11 +289,16 @@ final readonly class ValidateIndexBacking implements SchemaValidationRule
      *
      * @param  string  $column
      * @param  array<int, \SineMacula\ApiToolkit\Schema\Introspection\IndexDefinition>  $indexes
+     * @param  \SineMacula\ApiToolkit\Schema\Introspection\IndexEligibility  $eligibility
      * @return bool
      */
-    private function ledByAnOrderedIndex(string $column, array $indexes): bool
+    private function ledByAnOrderedIndex(string $column, array $indexes, IndexEligibility $eligibility): bool
     {
         foreach ($indexes as $index) {
+
+            if (!$eligibility->describes($index->name)) {
+                continue;
+            }
 
             if ($index->leadsWith($column) && $this->holdsAnOrder($index)) {
                 return true;

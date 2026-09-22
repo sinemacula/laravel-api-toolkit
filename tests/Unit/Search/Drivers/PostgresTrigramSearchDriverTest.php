@@ -204,7 +204,7 @@ final class PostgresTrigramSearchDriverTest extends TestCase
      *
      * @return void
      */
-    public function testReadsTheExtensionThenTheIndexDefinitions(): void
+    public function testReadsTheExtensionThenTheIndexStatesThenTheDefinitions(): void
     {
         $connection = $this->catalogue(['CREATE INDEX users_name_trgm ON public.users USING gin (name gin_trgm_ops)'], true);
 
@@ -212,13 +212,22 @@ final class PostgresTrigramSearchDriverTest extends TestCase
 
         self::assertSame([
             'select 1 from pg_extension where extname = ?',
-            'select pg_get_indexdef(i.indexrelid) as indexdef from pg_index i '
+            'select lower(ic.relname) as name, '
+                . '(not i.indisvalid)::int as disregarded, '
+                . '(i.indpred is not null)::int as restricted, '
+                . '(i.indkey[0] = 0)::int as expressed '
+                . 'from pg_index i '
                 . 'join pg_class c on c.oid = i.indrelid '
                 . 'join pg_namespace n on n.oid = c.relnamespace '
-                . 'where n.nspname = coalesce(?::text, current_schema()) and c.relname = ? '
-                . 'and i.indisvalid and i.indpred is null',
+                . 'join pg_class ic on ic.oid = i.indexrelid '
+                . 'where n.nspname = coalesce(?::text, current_schema()) and c.relname = ?',
+            'select lower(ic.relname) as name, pg_get_indexdef(i.indexrelid) as indexdef from pg_index i '
+                . 'join pg_class c on c.oid = i.indrelid '
+                . 'join pg_namespace n on n.oid = c.relnamespace '
+                . 'join pg_class ic on ic.oid = i.indexrelid '
+                . 'where n.nspname = coalesce(?::text, current_schema()) and c.relname = ?',
         ], $this->statements);
-        self::assertSame([['pg_trgm'], [null, 'users']], $this->bindings);
+        self::assertSame([['pg_trgm'], [null, 'users'], [null, 'users']], $this->bindings);
     }
 
     /**
@@ -349,8 +358,11 @@ final class PostgresTrigramSearchDriverTest extends TestCase
             }
 
             return [
-                (object) ['indexdef' => null],
-                (object) ['indexdef' => 'CREATE INDEX users_name_trgm ON public.users USING gin (name gin_trgm_ops)'],
+                (object) ['name' => 'users_name_broken', 'indexdef' => null],
+                (object) [
+                    'name'     => 'users_name_trgm',
+                    'indexdef' => 'CREATE INDEX users_name_trgm ON public.users USING gin (name gin_trgm_ops)',
+                ],
             ];
         });
 
@@ -400,12 +412,15 @@ final class PostgresTrigramSearchDriverTest extends TestCase
         (new PostgresTrigramSearchDriver)->indexDefects(SearchStrategy::EXACT, ['email'], 'users', $connection);
 
         self::assertSame([
-            'select lower(ic.relname) as name from pg_index i '
+            'select lower(ic.relname) as name, '
+                . '(not i.indisvalid)::int as disregarded, '
+                . '(i.indpred is not null)::int as restricted, '
+                . '(i.indkey[0] = 0)::int as expressed '
+                . 'from pg_index i '
                 . 'join pg_class c on c.oid = i.indrelid '
                 . 'join pg_namespace n on n.oid = c.relnamespace '
                 . 'join pg_class ic on ic.oid = i.indexrelid '
-                . 'where n.nspname = coalesce(?::text, current_schema()) and c.relname = ? '
-                . 'and (not i.indisvalid or i.indpred is not null or i.indkey[0] = 0)',
+                . 'where n.nspname = coalesce(?::text, current_schema()) and c.relname = ?',
         ], $this->statements);
         self::assertSame([[null, 'users']], $this->bindings);
     }
@@ -487,6 +502,7 @@ final class PostgresTrigramSearchDriverTest extends TestCase
 
         $connection->method('getSchemaBuilder')->willReturn($schema);
         $connection->method('getTablePrefix')->willReturn($prefix);
+        $connection->method('getDriverName')->willReturn('pgsql');
         $connection->method('select')->willReturnCallback(function (string $query, array $bindings = []) use ($definitions, $extension): array {
 
             $this->statements[] = $query;
@@ -496,14 +512,29 @@ final class PostgresTrigramSearchDriverTest extends TestCase
                 return $extension ? [(object) ['installed' => 1]] : [];
             }
 
-            return array_map(static fn (string $definition): object => (object) ['indexdef' => $definition], $definitions);
+            return array_map(
+                static fn (string $definition, int $position): object => (object) [
+                    'name'     => 'users_index_' . $position,
+                    'indexdef' => $definition,
+                ],
+                $definitions,
+                array_keys($definitions),
+            );
         });
         $connection->method('selectFromWriteConnection')->willReturnCallback(function (string $query, array $bindings = []) use ($unusable): array {
 
             $this->statements[] = $query;
             $this->bindings[]   = $bindings;
 
-            return array_map(static fn (string $name): object => (object) ['name' => $name], $unusable);
+            return array_map(
+                static fn (string $name): object => (object) [
+                    'name'        => $name,
+                    'disregarded' => 1,
+                    'restricted'  => 0,
+                    'expressed'   => 0,
+                ],
+                $unusable,
+            );
         });
 
         return $connection;

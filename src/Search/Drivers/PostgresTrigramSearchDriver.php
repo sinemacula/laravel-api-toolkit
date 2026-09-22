@@ -6,7 +6,6 @@ namespace SineMacula\ApiToolkit\Search\Drivers;
 
 use Illuminate\Database\Connection;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\QueryException;
 use SineMacula\ApiToolkit\Enums\SearchStrategy;
 use SineMacula\ApiToolkit\Search\SearchTerm;
 
@@ -97,55 +96,6 @@ final class PostgresTrigramSearchDriver extends EngineSearchDriver
     protected function substringIndexDefects(array $columns, string $table, Connection $connection): array
     {
         return $this->trigramIndexDefects(SearchStrategy::SUBSTRING, $columns, $table, $connection);
-    }
-
-    /**
-     * Return the names of indexes this engine reports but will not plan
-     * against.
-     *
-     * An index left behind by a failed concurrent build is never used. A
-     * partial index serves only a query whose own predicate implies its own,
-     * which a search does not carry. An index whose leading key is an
-     * expression cannot serve a predicate on the column the expression reads,
-     * so it proves nothing about the column a strategy names.
-     *
-     * @param  string  $table
-     * @param  \Illuminate\Database\Connection  $connection
-     * @return array<int, string>
-     */
-    #[\Override]
-    protected function unusableIndexNames(string $table, Connection $connection): array
-    {
-        [$schema, $name] = $this->qualify($table, $connection);
-
-        try {
-            $rows = $connection->selectFromWriteConnection(
-                'select lower(ic.relname) as name from pg_index i '
-                . 'join pg_class c on c.oid = i.indrelid '
-                . 'join pg_namespace n on n.oid = c.relnamespace '
-                . 'join pg_class ic on ic.oid = i.indexrelid '
-                . 'where n.nspname = coalesce(?::text, current_schema()) and c.relname = ? '
-                . 'and (not i.indisvalid or i.indpred is not null or i.indkey[0] = 0)',
-                [$schema, $name],
-            );
-        } catch (QueryException) { // @phpstan-ignore catch.neverThrown
-            return [];
-        }
-
-        $names = [];
-
-        foreach ($rows as $row) {
-
-            $index = ((array) $row)['name'] ?? null;
-
-            if (!is_string($index)) {
-                continue;
-            }
-
-            $names[] = $index;
-        }
-
-        return $names;
     }
 
     /**
@@ -274,9 +224,11 @@ final class PostgresTrigramSearchDriver extends EngineSearchDriver
      * Return the statements that would recreate the table's indexes.
      *
      * Only an index the planner may use for an unqualified predicate is read
-     * back: one left behind by a failed concurrent build serves no query, and a
-     * partial index serves only a query whose own predicate implies its own, so
-     * neither proves a search is index backed.
+     * back: one the engine disregards serves no query, and one restricted to
+     * the rows its own predicate admits serves only a query carrying that
+     * predicate, so neither proves a search is index backed. An index keyed on
+     * an expression is kept, because the statement read back here names the
+     * expression and matching it is the whole point of the read.
      *
      * @param  string  $table
      * @param  \Illuminate\Database\Connection  $connection
@@ -286,12 +238,14 @@ final class PostgresTrigramSearchDriver extends EngineSearchDriver
     {
         [$schema, $name] = $this->qualify($table, $connection);
 
+        $eligibility = $this->eligibility->inspect($table, $connection);
+
         $rows = $connection->select(
-            'select pg_get_indexdef(i.indexrelid) as indexdef from pg_index i '
+            'select lower(ic.relname) as name, pg_get_indexdef(i.indexrelid) as indexdef from pg_index i '
             . 'join pg_class c on c.oid = i.indrelid '
             . 'join pg_namespace n on n.oid = c.relnamespace '
-            . 'where n.nspname = coalesce(?::text, current_schema()) and c.relname = ? '
-            . 'and i.indisvalid and i.indpred is null',
+            . 'join pg_class ic on ic.oid = i.indexrelid '
+            . 'where n.nspname = coalesce(?::text, current_schema()) and c.relname = ?',
             [$schema, $name],
         );
 
@@ -299,9 +253,15 @@ final class PostgresTrigramSearchDriver extends EngineSearchDriver
 
         foreach ($rows as $row) {
 
-            $definition = ((array) $row)['indexdef'] ?? null;
+            $entry      = (array) $row;
+            $index      = $entry['name']     ?? null;
+            $definition = $entry['indexdef'] ?? null;
 
-            if (!is_string($definition)) {
+            if (!is_string($index) || !is_string($definition)) {
+                continue;
+            }
+
+            if ($eligibility->disregards($index) || $eligibility->restricts($index)) {
                 continue;
             }
 
