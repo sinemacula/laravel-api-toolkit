@@ -126,11 +126,14 @@ jobs:
                         db_port: 5432
                         db_username: postgres
                         db_password: password
-                        health_cmd: pg_isready -U postgres
+                        health_cmd: pg_isready -h 127.0.0.1 -U postgres -d api_toolkit_test
 
         # One service per leg. Declaring both starts both on every leg, so each
         # was pulling and booting an engine it never connects to. Each image
-        # ignores the other's variables, so one block configures either.
+        # ignores the other's variables, so one block configures either. Both
+        # probes go over the loopback address rather than a socket, since an
+        # engine that initialises behind a temporary local server answers a
+        # socket probe before the server the tests will actually reach is up.
         services:
             database:
                 image: ${{ matrix.image }}
