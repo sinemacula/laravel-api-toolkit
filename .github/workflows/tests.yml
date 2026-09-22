@@ -162,6 +162,10 @@ jobs:
                     php-version: 8.3
                     extensions: pdo_mysql, pdo_pgsql
 
+            # Serial on purpose. The unit jobs above run under paratest, but the
+            # suites here create and drop real tables against one shared
+            # database and waive the transaction wrapper to do it, so parallel
+            # workers drop each other's tables out from under them.
             -   name: Database Tests
                 env:
                     DB_DRIVER: ${{ matrix.db_driver }}
