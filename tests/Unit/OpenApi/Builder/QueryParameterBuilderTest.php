@@ -361,7 +361,8 @@ final class QueryParameterBuilderTest extends TestCase
         self::assertSame(
             'Free-text search across the fields a resource declares searchable, e.g. search=John Smith. '
             . 'It matches the requested resource only and never traverses a relation; a term carrying a word shorter than the configured minimum is rejected, '
-            . 'as is one longer, or carrying more words, than the configured bounds allow.',
+            . 'as is one longer, or carrying more words, than the configured bounds allow. '
+            . 'The length is counted once surrounding and repeated whitespace has been collapsed, so a term written with more characters than the maximum may still be accepted.',
             $search['description'],
         );
     }
@@ -592,15 +593,32 @@ final class QueryParameterBuilderTest extends TestCase
     }
 
     /**
-     * Test that a longest term configured away leaves the search schema
-     * unbounded rather than stating a bound of nothing, which would refuse
-     * every term a client could send.
+     * Test that a longest term of zero is published as the refusal it is.
+     *
+     * Zero does not lift the bound the way it does for the page size: the
+     * server refuses every term under it, so publishing no bound at all would
+     * tell a client the opposite of what it will meet.
      *
      * @return void
      */
-    public function testALongestTermConfiguredAwayLeavesTheSearchUnbounded(): void
+    public function testALongestTermOfZeroIsPublishedRatherThanTreatedAsUnbounded(): void
     {
         $search = $this->makeBuilder(longest: 0)->build()['Search'];
+
+        self::assertSame(['type' => 'string', 'maxLength' => 0], $search['schema']);
+    }
+
+    /**
+     * Test that a negative longest term is left off the schema.
+     *
+     * A negative figure is not a length, and the document has to stay valid
+     * whatever a misconfiguration puts in front of it.
+     *
+     * @return void
+     */
+    public function testANegativeLongestTermIsLeftOffTheSchema(): void
+    {
+        $search = $this->makeBuilder(longest: -1)->build()['Search'];
 
         self::assertSame(['type' => 'string'], $search['schema']);
     }
