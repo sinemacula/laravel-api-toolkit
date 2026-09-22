@@ -206,6 +206,12 @@ class ApiQueryParser
         return $this->cursorPaginated;
     }
 
+    /**
+     * Returns the current page cursor.
+     *  - e.g. ?cursor=eyJpZCI6MTAwfQ==.
+     *
+     * @return string|null
+     */
     public function getCursor(): ?string
     {
         $cursor = $this->getParameters('cursor');
