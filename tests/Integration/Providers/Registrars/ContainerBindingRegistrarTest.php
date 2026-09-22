@@ -66,7 +66,7 @@ final class ContainerBindingRegistrarTest extends TestCase
 
         (new ContainerBindingRegistrar($app))->register();
 
-        /** @var \Illuminate\Contracts\Config\Repository $config */
+        /** @var \Illuminate\Config\Repository $config */
         $config = $app->make('config');
 
         /** @var string $alias */
@@ -251,7 +251,7 @@ final class ContainerBindingRegistrarTest extends TestCase
     {
         $app = $this->getApplication();
 
-        /** @var \Illuminate\Contracts\Config\Repository $config */
+        /** @var \Illuminate\Config\Repository $config */
         $config = $app->make('config');
 
         $config->set('api-toolkit.deferred_writes', [

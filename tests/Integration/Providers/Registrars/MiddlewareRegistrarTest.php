@@ -40,7 +40,7 @@ final class MiddlewareRegistrarTest extends TestCase
     {
         $app = $this->getApplication();
 
-        /** @var \Illuminate\Contracts\Config\Repository $config */
+        /** @var \Illuminate\Config\Repository $config */
         $config = $app->make('config');
 
         $config->set('api-toolkit.parser.register_middleware', true);
@@ -51,7 +51,7 @@ final class MiddlewareRegistrarTest extends TestCase
 
         (new MiddlewareRegistrar($app))->register();
 
-        /** @var \Illuminate\Foundation\Http\Kernel $kernel */
+        /** @var \Orchestra\Testbench\Http\Kernel $kernel */
         $kernel     = $app->make(HttpKernel::class);
         $middleware = $kernel->getGlobalMiddleware();
 

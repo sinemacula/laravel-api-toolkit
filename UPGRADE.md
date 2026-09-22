@@ -2,6 +2,23 @@
 
 ## From 1.x to 2.x
 
+### Raised: Laravel 13.2 is now the floor
+
+`illuminate/*` moves from `^12.0 || ^13.0` to `^13.2`, and `orchestra/testbench` to `^11.0`. Laravel 12 is no
+longer supported, and the matrix that tested it has gone with it.
+
+The floor buys the attribute forms of the model declarations. `#[Table]` and `#[Fillable]` arrived in 13.2, so
+a model may now carry them in place of the properties:
+
+    #[Table('articles')]
+    #[Fillable(['user_id', 'title'])]
+    final class Article extends Model
+    {
+    }
+
+The properties still work, so nothing in your own models has to change. Stay on 2.x's previous release if you
+need Laravel 12.
+
 ### Moved: schema introspection and validation into the Schema namespace
 
 Schema introspection and validation no longer live under the `Services\` namespace (which now owns only the

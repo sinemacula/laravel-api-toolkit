@@ -4,6 +4,8 @@ declare(strict_types = 1);
 
 namespace Tests\Fixtures\Models;
 
+use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Attributes\Table;
 use Illuminate\Database\Eloquent\Model;
 
 /**
@@ -17,20 +19,16 @@ use Illuminate\Database\Eloquent\Model;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
+#[Fillable(['code', 'name'])]
+#[Table('countries')]
 final class Country extends Model
 {
     /** @var bool */
     public $incrementing = false;
-
-    /** @var string|null */
-    protected $table = 'countries';
 
     /** @var string */
     protected $primaryKey = 'code';
 
     /** @var string */
     protected $keyType = 'string';
-
-    /** @var array<int, string> */
-    protected $fillable = ['code', 'name'];
 }

@@ -570,7 +570,7 @@ the steps required to move from 1.x to 2.x.
 ## Requirements
 
 - PHP ^8.3
-- Laravel 12+
+- Laravel 13.2+
 
 ## Testing
 

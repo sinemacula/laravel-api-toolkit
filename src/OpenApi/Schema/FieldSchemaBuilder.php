@@ -310,10 +310,10 @@ final readonly class FieldSchemaBuilder
     private function sizeKeys(string $type): ?array
     {
         return match ($type) {
-            'string' => ['minLength', 'maxLength'],
+            'string'            => ['minLength', 'maxLength'],
             'integer', 'number' => ['minimum', 'maximum'],
-            'array' => ['minItems', 'maxItems'],
-            default => null,
+            'array'             => ['minItems', 'maxItems'],
+            default             => null,
         };
     }
 

@@ -35,9 +35,9 @@ final class PolymorphicResource extends JsonResource
     /**
      * Force the response to include all available fields.
      *
-     * @return static
+     * @return self
      */
-    public function withAll(): static
+    public function withAll(): self
     {
         $this->all = true;
 
@@ -48,9 +48,9 @@ final class PolymorphicResource extends JsonResource
      * Override the default fields and any requested fields.
      *
      * @param  array<int, string>|null  $fields
-     * @return static
+     * @return self
      */
-    public function withFields(?array $fields = null): static
+    public function withFields(?array $fields = null): self
     {
         $this->fields = $fields;
 
@@ -61,9 +61,9 @@ final class PolymorphicResource extends JsonResource
      * Exclude specific fields from the response.
      *
      * @param  array<int, string>|null  $fields
-     * @return static
+     * @return self
      */
-    public function withoutFields(?array $fields = null): static
+    public function withoutFields(?array $fields = null): self
     {
         $this->excludedFields = $fields;
 

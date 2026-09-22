@@ -141,6 +141,8 @@ final class ExportEagerLoadRegressionTest extends TestCase
     {
         $user = User::first();
 
+        self::assertNotNull($user);
+
         $response = $this->get('/eager-export/users/' . $user->id, ['Accept' => 'text/csv']);
 
         $response->assertOk();

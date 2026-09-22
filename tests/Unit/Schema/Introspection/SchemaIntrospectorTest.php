@@ -6,6 +6,7 @@ namespace Tests\Unit\Schema\Introspection;
 
 use Illuminate\Contracts\Cache\Repository;
 use Illuminate\Database\Connection;
+use Illuminate\Database\Eloquent\Attributes\Table;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
@@ -403,10 +404,7 @@ final class SchemaIntrospectorTest extends TestCase
      */
     public function testGetIndexesReportsATableTheConnectionDoesNotCarryAsUnverifiable(): void
     {
-        $model = new class extends Model {
-            /** @var string|null */
-            protected $table = 'never_migrated';
-        };
+        $model = new #[Table('never_migrated')] class extends Model {};
 
         self::assertSame([], Schema::getColumnListing('never_migrated'));
         self::assertNull(($this->makeIntrospector())->getIndexes($model));
@@ -692,14 +690,13 @@ final class SchemaIntrospectorTest extends TestCase
      */
     public function testIsRelationReturnsFalseForNonRelationReturnType(): void
     {
-        $model = new class extends Model {
-            /** @var string|null */
-            protected $table = 'users';
-
+        $model = new #[Table('users')] class extends Model {
             /**
              * A method that returns a string, not a relation.
              *
              * @return string
+             *
+             * @phpstan-ignore sineMaculaLaravel.modelBehaviour
              */
             public function tags(): string
             {
@@ -720,13 +717,12 @@ final class SchemaIntrospectorTest extends TestCase
      */
     public function testIsRelationReturnsFalseForMethodWithoutReturnType(): void
     {
-        $model = new class extends Model {
-            /** @var string|null */
-            protected $table = 'users';
-
+        $model = new #[Table('users')] class extends Model {
             // phpcs:disable Squiz.Commenting.FunctionComment.MissingReturn,SineMaculaLaravel.TypeHints.ReturnTypeHint.MissingNativeTypeHint
             /**
              * A method with no return type declaration.
+             *
+             * @phpstan-ignore sineMaculaLaravel.modelBehaviour
              */
             public function tags() // @phpstan-ignore missingType.return
             {
@@ -748,10 +744,7 @@ final class SchemaIntrospectorTest extends TestCase
      */
     public function testIsRelationReturnsTrueForUnionReturnTypeContainingRelation(): void
     {
-        $model = new class extends Model {
-            /** @var string|null */
-            protected $table = 'users';
-
+        $model = new #[Table('users')] class extends Model {
             // phpcs:disable Generic.Files.LineLength.TooLong
             /**
              * A method with a union return type containing relation types.
@@ -778,16 +771,15 @@ final class SchemaIntrospectorTest extends TestCase
      */
     public function testIsRelationReturnsFalseForUnionReturnTypeWithNoRelation(): void
     {
-        $model = new class extends Model {
-            /** @var string|null */
-            protected $table = 'users';
-
+        $model = new #[Table('users')] class extends Model {
             /**
              * A method with a union return type containing no relation types.
              *
              * @return int|string
+             *
+             * @phpstan-ignore sineMaculaLaravel.modelBehaviour
              */
-            public function tags(): int|string // @phpstan-ignore return.unusedType (the non-relation union return type is the reflection subject under test)
+            public function tags(): int|string // @phpstan-ignore return.unusedType
             {
                 return '';
             }
@@ -1014,10 +1006,7 @@ final class SchemaIntrospectorTest extends TestCase
      */
     public function testResolveRelationReturnsNullAndLogsWarningOnLogicException(): void
     {
-        $model = new class extends Model {
-            /** @var string|null */
-            protected $table = 'users';
-
+        $model = new #[Table('users')] class extends Model {
             // phpcs:disable Squiz.Commenting.FunctionComment.InvalidNoReturn
             /**
              * A relation method that throws a LogicException.
@@ -1025,6 +1014,8 @@ final class SchemaIntrospectorTest extends TestCase
              * @return \Illuminate\Database\Eloquent\Relations\HasMany<\Tests\Fixtures\Models\Post, $this>
              *
              * @throws \LogicException
+             *
+             * @phpstan-ignore sineMaculaLaravel.modelBehaviour
              */
             public function broken(): HasMany
             {
@@ -1052,10 +1043,7 @@ final class SchemaIntrospectorTest extends TestCase
      */
     public function testResolveRelationReturnsNullAndLogsWarningOnReflectionException(): void
     {
-        $model = new class extends Model {
-            /** @var string|null */
-            protected $table = 'users';
-
+        $model = new #[Table('users')] class extends Model {
             // phpcs:disable Squiz.Commenting.FunctionComment.InvalidNoReturn
             /**
              * A relation method that throws a ReflectionException.
@@ -1063,6 +1051,8 @@ final class SchemaIntrospectorTest extends TestCase
              * @return \Illuminate\Database\Eloquent\Relations\HasMany<\Tests\Fixtures\Models\Post, $this>
              *
              * @throws \ReflectionException
+             *
+             * @phpstan-ignore sineMaculaLaravel.modelBehaviour
              */
             public function broken(): HasMany
             {
@@ -1088,10 +1078,7 @@ final class SchemaIntrospectorTest extends TestCase
      */
     public function testResolveRelationDoesNotCatchGenericExceptions(): void
     {
-        $model = new class extends Model {
-            /** @var string|null */
-            protected $table = 'users';
-
+        $model = new #[Table('users')] class extends Model {
             // phpcs:disable Squiz.Commenting.FunctionComment.InvalidNoReturn
             /**
              * A relation method that throws a RuntimeException.
@@ -1099,6 +1086,8 @@ final class SchemaIntrospectorTest extends TestCase
              * @return \Illuminate\Database\Eloquent\Relations\HasMany<\Tests\Fixtures\Models\Post, $this>
              *
              * @throws \RuntimeException
+             *
+             * @phpstan-ignore sineMaculaLaravel.modelBehaviour
              */
             public function broken(): HasMany
             {
@@ -1160,11 +1149,8 @@ final class SchemaIntrospectorTest extends TestCase
      */
     public function testGetDeletedAtColumnReturnsColumnWithSoftDeletes(): void
     {
-        $model = new class extends Model {
+        $model = new #[Table('users')] class extends Model {
             use SoftDeletes;
-
-            /** @var string|null */
-            protected $table = 'users';
         };
 
         $introspector = $this->makeIntrospector();
@@ -1499,10 +1485,7 @@ final class SchemaIntrospectorTest extends TestCase
      */
     private function keylessModel(): Model
     {
-        return new class extends Model {
-            /** @var string|null */
-            protected $table = 'import_rows';
-        };
+        return new #[Table('import_rows')] class extends Model {};
     }
 
     /**
@@ -1545,12 +1528,9 @@ final class SchemaIntrospectorTest extends TestCase
             $table->index('handle', 'users_handle_index');
         });
 
-        return new class extends Model {
+        return new #[Table('users')] class extends Model {
             /** @var string|\UnitEnum|null */
             protected $connection = 'secondary';
-
-            /** @var string|null */
-            protected $table = 'users';
         };
     }
 
@@ -1568,10 +1548,7 @@ final class SchemaIntrospectorTest extends TestCase
 
         $connection->method('getSchemaBuilder')->willReturn($builder);
 
-        $model = new class extends Model {
-            /** @var string|null */
-            protected $table = 'widgets';
-
+        $model = new #[Table('widgets')] class extends Model {
             /** @var \Illuminate\Database\Connection|null The connection this model reads its schema from */
             public ?Connection $reader = null;
 

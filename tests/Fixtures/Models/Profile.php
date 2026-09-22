@@ -4,6 +4,8 @@ declare(strict_types = 1);
 
 namespace Tests\Fixtures\Models;
 
+use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Attributes\Table;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -15,14 +17,10 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
+#[Fillable(['user_id', 'bio'])]
+#[Table('profiles')]
 final class Profile extends Model
 {
-    /** @var string|null */
-    protected $table = 'profiles';
-
-    /** @var array<int, string> */
-    protected $fillable = ['user_id', 'bio'];
-
     /**
      * Get the user that owns the profile.
      *

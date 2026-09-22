@@ -63,7 +63,7 @@ final class Field extends BaseDefinition
      *
      * @param  string  $field
      * @param  string|null  $alias
-     * @return static
+     * @return self
      */
     public static function scalar(string $field, ?string $alias = null): self
     {
@@ -298,6 +298,7 @@ final class Field extends BaseDefinition
 
         foreach ($definitions as $definition) {
 
+            /** @var array<string, array<string, mixed>> $definition */
             $definition = $definition instanceof Arrayable ? $definition->toArray() : $definition;
 
             foreach ($definition as $key => $value) {

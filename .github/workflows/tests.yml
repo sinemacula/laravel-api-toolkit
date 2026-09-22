@@ -80,9 +80,7 @@ jobs:
             fail-fast: false
             matrix:
                 laravel:
-                    -   constraint: ^12.0
-                        label: 12
-                    -   constraint: ^13.0
+                    -   constraint: ^13.2
                         label: 13
 
         steps:

@@ -301,6 +301,8 @@ final class WritePool
      * @return void
      *
      * @throws \SineMacula\ApiToolkit\Exceptions\WritePoolFlushException
+     *
+     * @phpstan-ignore throws.unusedType
      */
     private function flushChunks(WritePoolFlushContext $context, WritePoolFlushAccumulator $accumulator): void
     {
@@ -309,7 +311,7 @@ final class WritePool
             try {
                 DB::table($context->table())->insert($chunk);
                 $accumulator->recordSuccess($chunk);
-            } catch (\Throwable $exception) {
+            } catch (\Throwable $exception) { // @phpstan-ignore catch.neverThrown
                 $this->handleChunkFailure($context->withChunkIndex($chunkIndex), $accumulator, $chunk, $exception);
             }
         }
@@ -328,6 +330,8 @@ final class WritePool
      * @return void
      *
      * @throws \SineMacula\ApiToolkit\Exceptions\WritePoolFlushException
+     *
+     * @phpstan-ignore method.unused
      */
     private function handleChunkFailure(WritePoolFlushContext $context, WritePoolFlushAccumulator $accumulator, array $chunk, \Throwable $exception): void
     {

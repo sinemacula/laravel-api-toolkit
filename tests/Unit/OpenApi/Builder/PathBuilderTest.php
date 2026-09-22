@@ -653,7 +653,7 @@ final class PathBuilderTest extends TestCase
     {
         assert($this->app !== null);
 
-        /** @var \Illuminate\Contracts\Config\Repository $config */
+        /** @var \Illuminate\Config\Repository $config */
         $config = $this->app->make('config');
 
         $config->set(
@@ -1217,7 +1217,7 @@ final class PathBuilderTest extends TestCase
     {
         assert($this->app !== null);
 
-        /** @var \Illuminate\Contracts\Config\Repository $config */
+        /** @var \Illuminate\Config\Repository $config */
         $config = $this->app->make('config');
 
         $config->set(
@@ -1436,7 +1436,7 @@ final class PathBuilderTest extends TestCase
     {
         assert($this->app !== null);
 
-        /** @var \Illuminate\Contracts\Config\Repository $config */
+        /** @var \Illuminate\Config\Repository $config */
         $config = $this->app->make('config');
 
         $config->set('auth.defaults.guard', 'web');

@@ -51,9 +51,9 @@ final class EloquentActor implements Actor
      */
     public function __construct(Authenticatable&Model $model)
     {
-        $key = $model->getKey();
+        $key = $model->getKey(); // @phpstan-ignore staticMethod.dynamicCall
 
-        $this->morphType  = $model->getMorphClass();
+        $this->morphType  = $model->getMorphClass(); // @phpstan-ignore staticMethod.dynamicCall
         $this->identifier = is_int($key) || is_string($key) ? $key : '';
         $this->label      = $this->resolveLabel($model);
         $this->model      = $model;
@@ -183,13 +183,13 @@ final class EloquentActor implements Actor
      */
     private function resolveLabel(Authenticatable&Model $model): string
     {
-        $name = $model->getAttribute('name');
+        $name = $model->getAttribute('name'); // @phpstan-ignore staticMethod.dynamicCall
 
         if (is_string($name) && $name !== '') {
             return $name;
         }
 
-        $email = $model->getAttribute('email');
+        $email = $model->getAttribute('email'); // @phpstan-ignore staticMethod.dynamicCall
 
         if (is_string($email) && $email !== '') {
             return $email;

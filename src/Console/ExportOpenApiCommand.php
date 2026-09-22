@@ -173,7 +173,7 @@ final class ExportOpenApiCommand extends Command
             DB::connection()->getPdo();
 
             return true;
-        } catch (\Throwable) {
+        } catch (\Throwable) { // @phpstan-ignore catch.neverThrown
             return false;
         }
     }

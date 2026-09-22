@@ -4,6 +4,8 @@ declare(strict_types = 1);
 
 namespace Tests\Fixtures\Models;
 
+use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Attributes\Table;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\MorphToMany;
@@ -19,14 +21,10 @@ use Illuminate\Database\Eloquent\Relations\MorphToMany;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
+#[Fillable(['name'])]
+#[Table('tags')]
 final class Tag extends Model
 {
-    /** @var string|null */
-    protected $table = 'tags';
-
-    /** @var array<int, string> */
-    protected $fillable = ['name'];
-
     /**
      * Get the posts associated with the tag.
      *
