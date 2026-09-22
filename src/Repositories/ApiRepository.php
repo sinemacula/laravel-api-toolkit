@@ -36,6 +36,11 @@ abstract class ApiRepository extends Repository
     /**
      * Set a custom resource class to be used.
      *
+     * This is configuration rather than composition, so it mutates the handle
+     * it is called on. It reaches the criteria that handle already carries,
+     * which is why it belongs before the call that composes them rather than
+     * after one that has already returned a copy.
+     *
      * @param  string|null  $resourceClass
      * @return $this
      */
@@ -65,16 +70,24 @@ abstract class ApiRepository extends Repository
     }
 
     /**
-     * Apply the API criteria to the next request.
+     * Compose the API criteria into the next query.
+     *
+     * The composition is carried by the returned copy, and the handle this was
+     * called on is left untouched, so the result has to be kept and queried
+     * through rather than discarded. The criterion is built and named here
+     * before anything else can reach it, which is why constructing it does not
+     * make the composition observable on the handle it was called on.
      *
      * @return static
+     *
+     * @phpstan-pure
      */
     public function withApiCriteria(): static
     {
-        $criteria = $this->app->make(ApiCriteria::class);
+        $criteria = $this->app->make(ApiCriteria::class); // @phpstan-ignore possiblyImpure.methodCall
 
         if ($this->customResourceClass) {
-            $criteria->usingResource($this->customResourceClass);
+            $criteria->usingResource($this->customResourceClass); // @phpstan-ignore possiblyImpure.methodCall
         }
 
         return $this->withCriteria($criteria);
@@ -90,12 +103,9 @@ abstract class ApiRepository extends Repository
      */
     public function paginate(): mixed
     {
-        $this->applyCriteria();
-        $this->applyScopes();
-
+        $query  = $this->prepareQueryBuilder();
         $method = $this->resolvePaginationMethod();
         $limit  = ApiQuery::getResolvedLimit();
-        $query  = $this->model instanceof Builder ? $this->model : $this->getModel()->newQuery();
 
         if ($method === 'cursorPaginate') {
             $results = $query->cursorPaginate($limit, '*', 'cursor', ApiQuery::getCursor());
@@ -133,6 +143,8 @@ abstract class ApiRepository extends Repository
      * @param  int|string|null  $id
      * @param  string  $column
      * @return static
+     *
+     * @phpstan-pure
      */
     public function scopeById(int|string|null $id, string $column = 'id'): static
     {
@@ -145,6 +157,8 @@ abstract class ApiRepository extends Repository
      * @param  array<int, int|string|null>  $ids
      * @param  string  $column
      * @return static
+     *
+     * @phpstan-pure
      */
     public function scopeByIds(array $ids, string $column = 'id'): static
     {

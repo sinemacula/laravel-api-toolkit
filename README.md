@@ -324,11 +324,24 @@ class UserRepository extends ApiRepository
 }
 ```
 
-Call `withApiCriteria()` before any read to apply the parsed filters, sorts, eager loads, and limit from the
-current request automatically:
+Compose `withApiCriteria()` into a read to apply the parsed filters, sorts, eager loads, and limit from the
+current request automatically. It returns a copy carrying the composition and leaves the repository it was
+called on untouched, so the read has to run through the value it returns:
 
 ```php
 $users = $repository->withApiCriteria()->paginate();
+```
+
+Where the composition is conditional, keep the handle rather than calling and discarding:
+
+```php
+$scoped = $repository->withApiCriteria();
+
+if ($caller->isExternal()) {
+    $scoped = $scoped->scopeById($id);
+}
+
+$users = $scoped->paginate();
 ```
 
 **Allowlist posture** - only schema fields declared `filterable()`, `sortable()`, or `traversable()` are

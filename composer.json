@@ -24,7 +24,7 @@
         "illuminate/support": "^13.2",
         "illuminate/validation": "^13.2",
         "sinemacula/http-primitives-php": "^2.0",
-        "sinemacula/laravel-repositories": "^2.2 || ^3.0"
+        "sinemacula/laravel-repositories": "^3.1"
     },
     "suggest": {
         "illuminate/notifications": "Required only for notification-event logging",
