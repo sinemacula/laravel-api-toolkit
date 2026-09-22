@@ -30,15 +30,6 @@ final readonly class ConfigMetadataCatalogue implements MetadataCatalogue
 {
     /** @var string The configuration key holding the page-size ceiling */
 
-    /** @var string The bound naming the shortest word a search term may carry */
-    private const string MIN_WORD_LENGTH = 'min_word_length';
-
-    /** @var string The bound naming the longest term a search may carry */
-    private const string MAX_LENGTH = 'max_length';
-
-    /** @var string The bound naming the most words a search term may carry */
-    private const string MAX_WORDS = 'max_words';
-
     /**
      * Create a new config metadata catalogue.
      *
@@ -168,9 +159,9 @@ final readonly class ConfigMetadataCatalogue implements MetadataCatalogue
     public function getSearchBounds(): array
     {
         return [
-            self::MIN_WORD_LENGTH => SearchTerm::minimumWordLength(),
-            self::MAX_LENGTH      => SearchTerm::maximumLength(),
-            self::MAX_WORDS       => SearchTerm::maximumWords(),
+            SearchTerm::MIN_WORD_LENGTH_KEY => SearchTerm::minimumWordLength(),
+            SearchTerm::MAX_LENGTH_KEY      => SearchTerm::maximumLength(),
+            SearchTerm::MAX_WORDS_KEY       => SearchTerm::maximumWords(),
         ];
     }
 

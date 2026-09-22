@@ -54,6 +54,15 @@ final readonly class SearchTerm
     /** @var string The character escaping a wildcard within a rendered pattern, and one no string literal reads as anything but itself */
     public const string ESCAPE_CHARACTER = '!';
 
+    /** @var string The setting naming the shortest word a term may carry */
+    public const string MIN_WORD_LENGTH_KEY = 'min_word_length';
+
+    /** @var string The setting naming the longest term a search may carry */
+    public const string MAX_LENGTH_KEY = 'max_length';
+
+    /** @var string The setting naming the most words a term may carry */
+    public const string MAX_WORDS_KEY = 'max_words';
+
     /**
      * Constructor.
      *
@@ -109,7 +118,7 @@ final readonly class SearchTerm
      */
     public static function minimumWordLength(): int
     {
-        return max(self::MIN_WORD_LENGTH, self::configured('min_word_length', self::MIN_WORD_LENGTH));
+        return max(self::MIN_WORD_LENGTH, self::configured(self::MIN_WORD_LENGTH_KEY, self::MIN_WORD_LENGTH));
     }
 
     /**
@@ -119,7 +128,7 @@ final readonly class SearchTerm
      */
     public static function maximumLength(): int
     {
-        return self::configured('max_length', self::MAX_LENGTH);
+        return self::configured(self::MAX_LENGTH_KEY, self::MAX_LENGTH);
     }
 
     /**
@@ -129,7 +138,7 @@ final readonly class SearchTerm
      */
     public static function maximumWords(): int
     {
-        return self::configured('max_words', self::MAX_WORDS);
+        return self::configured(self::MAX_WORDS_KEY, self::MAX_WORDS);
     }
 
     /**

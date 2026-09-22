@@ -25,6 +25,7 @@ use SineMacula\ApiToolkit\OpenApi\Naming\SchemaComponentName;
 use SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry;
 use SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
+use SineMacula\ApiToolkit\Search\SearchTerm;
 use Tests\Concerns\RegistersApiExceptionHandler;
 use Tests\Fixtures\Models\Article;
 use Tests\Fixtures\Models\Log;
@@ -41,6 +42,7 @@ use Tests\Fixtures\Resources\AliasedSurfaceArticleResource;
 use Tests\Fixtures\Resources\CapabilitySpectrumLogResource;
 use Tests\Fixtures\Resources\OrganizationResource;
 use Tests\Fixtures\Resources\PostResource;
+use Tests\Fixtures\Resources\SearchableUserResource;
 use Tests\Fixtures\Resources\TagResource;
 use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
@@ -373,6 +375,48 @@ final class OpenApiQuerySurfaceContractTest extends TestCase
 
         $answered->assertOk();
         $answered->assertJsonPath('data.0.name', 'Alice');
+    }
+
+    /**
+     * Test that the longest term the document publishes is the one the wire
+     * actually enforces.
+     *
+     * The bound was enforced and described in prose long before the schema
+     * carried it, so a generated client read no bound at all and a gateway
+     * validating against the schema passed a term the server then refused.
+     * Asserting the published figure against a live refusal is what keeps the
+     * two from drifting again.
+     *
+     * @return void
+     */
+    public function testTheDocumentedLongestTermIsTheOneTheWireEnforces(): void
+    {
+        // The development engine cannot prove an index backs a search, and the
+        // bound under test is enforced well before any index is consulted.
+        Config::set('api-toolkit.search.unverified_connections', ['testing']);
+
+        $this->registerApiExceptionHandler();
+        $this->registerRoutes();
+        $this->registerSearchRoute();
+
+        $published = $this->export()['components']['parameters']['Search']['schema']['maxLength'] ?? null;
+
+        self::assertSame(SearchTerm::maximumLength(), $published);
+        self::assertIsInt($published);
+
+        $accepted = $this->getJson('/searched-users?search=' . str_repeat('a', $published));
+
+        $accepted->assertOk();
+
+        $refused = $this->getJson('/searched-users?search=' . str_repeat('a', $published + 1));
+
+        $refused->assertStatus(422);
+        $refused->assertJsonPath('error.code', ErrorCode::INVALID_INPUT->getCode());
+
+        self::assertSame(
+            ['The search term may not be longer than ' . $published . ' characters.'],
+            (array) (((array) $refused->json('error.meta'))['search'] ?? []),
+        );
     }
 
     /**
@@ -1094,6 +1138,21 @@ final class OpenApiQuerySurfaceContractTest extends TestCase
     /**
      * Register the repository-backed route the wire-level refusal is driven
      * through, under a path of its own so it is not the documented one.
+     *
+     * @return void
+     */
+    private function registerSearchRoute(): void
+    {
+        Route::middleware(ParseApiQuery::class)->get('/searched-users', function (UserRepository $repository): ApiResourceCollection {
+
+            $users = $repository->usingResource(SearchableUserResource::class)->withApiCriteria()->paginate();
+
+            return new ApiResourceCollection($users, SearchableUserResource::class);
+        });
+    }
+
+    /**
+     * Register the route the filtered requests are dispatched against.
      *
      * @return void
      */
