@@ -7,21 +7,19 @@ namespace SineMacula\ApiToolkit\Cache;
 use Illuminate\Support\Facades\Cache;
 
 /**
- * The single sanctioned path for writing forever-memoised toolkit metadata.
- *
- * Every write registers its key with the MetadataKeyRegistry so a scoped flush
- * can forget exactly the toolkit's own keys. A metadata write that bypasses
- * this writer would not be registered and would survive the flush.
- *
- * Reads go through it for the same reason. A value written by an earlier
- * process is served warm without its callback ever running, so a reader that
- * went straight to the store would hold a live key this process never
- * registered, and the flush would leave it behind.
+ * The single sanctioned path for reading and writing toolkit metadata.
  *
  * Every key is stored under the current metadata generation, so replacing the
- * generation retires every entry at once in every process sharing the store.
- * The registry holds the stored keys, so a flush forgets exactly what this
- * process touched under whichever generation it was on at the time.
+ * generation retires every entry at once in every process sharing the store. A
+ * read or write that bypassed this writer would miss the generation and serve
+ * an entry that an invalidation was meant to retire.
+ *
+ * Entries live in the shared store and outlast any one request, job, or worker,
+ * so every process reading the same schema shares them. Nothing here forgets an
+ * entry: a lifecycle boundary resets in-process state only, and only replacing
+ * the generation retires what the store holds. A caller must therefore not
+ * store an answer that can go stale without a schema change, such as the empty
+ * column listing of a table that has not been created yet.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -31,14 +29,10 @@ final readonly class MetadataCacheWriter
     /**
      * Create a new metadata cache writer instance.
      *
-     * @param  \SineMacula\ApiToolkit\Cache\MetadataKeyRegistry  $registry
      * @param  \SineMacula\ApiToolkit\Cache\MetadataGeneration  $generation
      * @return void
      */
     public function __construct(
-
-        /** The registry tracking live toolkit metadata keys for flushing. */
-        private MetadataKeyRegistry $registry,
 
         /** The generation every metadata key is namespaced by. */
         private MetadataGeneration $generation,
@@ -56,10 +50,7 @@ final readonly class MetadataCacheWriter
     }
 
     /**
-     * Store a forever-memoised metadata value and register its key.
-     *
-     * The key is registered before the memo write so it is tracked even when
-     * the value is already warm and the callback is never invoked.
+     * Store a forever-memoised metadata value under the current generation.
      *
      * @template TValue
      *
@@ -69,19 +60,11 @@ final readonly class MetadataCacheWriter
      */
     public function rememberMetadataForever(string $key, callable $callback): mixed
     {
-        $key = $this->storageKey($key);
-
-        $this->registry->register($key);
-
-        return Cache::memo()->rememberForever($key, static fn () => $callback()); // @phpstan-ignore method.notFound
+        return Cache::memo()->rememberForever($this->storageKey($key), static fn () => $callback()); // @phpstan-ignore method.notFound
     }
 
     /**
-     * Read a metadata value and register its key.
-     *
-     * The key is registered whether or not anything is stored under it, since a
-     * reader that found nothing is about to write, and one that found a value
-     * written elsewhere holds a key this process must still be able to forget.
+     * Read a metadata value stored under the current generation.
      *
      * @template TMissing
      *
@@ -91,20 +74,15 @@ final readonly class MetadataCacheWriter
      */
     public function readMetadata(string $key, mixed $missing = null): mixed
     {
-        $key = $this->storageKey($key);
-
-        $this->registry->register($key);
-
-        return Cache::memo()->get($key, $missing); // @phpstan-ignore method.notFound
+        return Cache::memo()->get($this->storageKey($key), $missing); // @phpstan-ignore method.notFound
     }
 
     /**
-     * Store a metadata value under a time-to-live and register its key.
+     * Store a metadata value under the current generation with a time-to-live.
      *
      * Mirrors {@see rememberMetadataForever()} but bounds the entry with an
      * expiry, so a value keyed by unbounded client input cannot accumulate
-     * permanently. The key is registered before the memo write so it is tracked
-     * for a scoped flush even when the value is already warm.
+     * permanently.
      *
      * @template TValue
      *
@@ -115,10 +93,6 @@ final readonly class MetadataCacheWriter
      */
     public function rememberMetadata(string $key, callable $callback, int $ttl): mixed
     {
-        $key = $this->storageKey($key);
-
-        $this->registry->register($key);
-
-        return Cache::memo()->remember($key, $ttl, static fn () => $callback()); // @phpstan-ignore method.notFound
+        return Cache::memo()->remember($this->storageKey($key), $ttl, static fn () => $callback()); // @phpstan-ignore method.notFound
     }
 }

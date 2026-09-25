@@ -1122,10 +1122,10 @@ none of the deferred tables are cached) with:
 
 ### Changed: Lifecycle metadata flush is now on by default on serving runtimes
 
-Under 2.x, the cross-request metadata flush ships **enabled by default** on runtimes that are actively
-serving requests under Octane or running as a queue worker. php-fpm is unaffected because each request
-already starts with a clean process; the runtime detector gates engagement and does not fire under
-php-fpm even when Octane is installed.
+Under 2.x, the lifecycle flush, which resets the toolkit's in-process state between requests and jobs, ships
+**enabled by default** on runtimes that are actively serving requests under Octane or running as a queue
+worker. php-fpm is unaffected because each request already starts with a clean process; the runtime
+detector gates engagement and does not fire under php-fpm even when Octane is installed.
 
 **Runtime detection.** Serving is discriminated from mere installation:
 
@@ -1135,36 +1135,41 @@ php-fpm even when Octane is installed.
   the `sync` driver fires the same events within the originating HTTP request; the toolkit checks the
   connection driver and treats `sync` as a non-worker boundary, leaving php-fpm unaffected.
 
-**What survives across requests (the cache-site inventory).** Three in-process metadata caches
-accumulate state across requests under a long-lived runtime:
+**What the boundary resets (the cache-site inventory).** The toolkit keeps in-process state that
+accumulates across requests under a long-lived runtime:
 
-- The process-static schema compile cache (`SchemaCompiler::$cache`), cleared by
-  `SchemaCompiler::clearCache()`.
-- The `SchemaIntrospector` singleton's in-memory arrays (column definitions, relations, resources),
-  cleared by its `flush()` method.
-- The `Cache::memo()` `rememberForever` metadata store -- the toolkit metadata keys: model schema
-  columns, column definitions, relations, resources, and repository model casts.
+- The process-static memos: the schema compile cache (`SchemaCompiler`), the serialization, eager-load,
+  field, and field-to-column memos, the compiled search plans, and the per-process index proofs.
+- The `SchemaIntrospector` singleton's in-memory arrays (column listings, column definitions, and index
+  catalogues).
+- The memoised metadata generation, so the worker re-reads it and picks up an invalidation made elsewhere.
+- The bound query parser's state.
 
-The single surface that clears all three is `CacheManager::flush()`, invoked automatically by the
-Octane and queue lifecycle listeners at every request/job boundary.
+The single surface that resets all of it is `CacheManager::flush()`, invoked automatically by the Octane and
+queue lifecycle listeners at every request/job boundary. Octane fires it after every operation it serves:
+requests, tasks, and ticks.
 
-**Scoped flush -- what is NOT cleared.** The flush is scoped to the toolkit's own metadata keys via
-a key registry and per-key `Cache::memo()->forget()` calls. It does **not** issue a whole-store
-clear. Non-toolkit application keys and repository result caches on a shared cache store survive the
-flush. Any new toolkit metadata key must be written through the `MetadataCacheWriter` chokepoint so
-it is registered and cleared at the next boundary.
+**What the boundary leaves alone.** Toolkit metadata - schema columns, column definitions, index catalogues,
+relation lookups, resources, and repository model casts - is read and written through `Cache::memo()`, which
+memoises reads for the current request or job on top of the application's cache store. The entries live in
+that store, which is usually shared by every worker (Redis, Memcached, the database), so they are not
+in-process state and a boundary does not touch them. The framework already discards the memoised repository
+at each boundary (Octane forgets scoped instances after every operation, and the queue worker does so before
+each job), so the next request reads the store afresh. Nothing on the store, toolkit or not, is cleared at a
+boundary; stored metadata is retired only by replacing the generation (see the metadata invalidation section
+below). Any new toolkit metadata key must be read and written through the `MetadataCacheWriter` chokepoint so
+it is namespaced by that generation.
 
-**Re-warm trade-off.** Clearing metadata at the serving boundary means the next request re-warms
-that metadata from the database (a small, bounded re-introspection cost). This is the price of each
-worker dropping the metadata it holds at every boundary. It does not retire entries other processes wrote
-to a shared store; see the metadata invalidation section below for that. Operators who accept potential
-staleness in exchange for zero re-warm cost should use the opt-out below.
+**No re-warm cost.** Because the stored metadata survives the boundary, every worker serves what any worker
+has already read, and a request after a boundary does not re-query the schema. A column listing or set of
+column definitions that reads empty, as one does before its table exists, is never stored, so a worker reads
+the table's columns afresh after its next boundary once the table exists.
 
 **Action required.** No action is needed for most applications. The flush is additive on Octane and
 queue-worker runtimes; php-fpm behaviour is unchanged.
 
-**Restore the previous behaviour** (metadata is not flushed at boundaries -- staleness risk on
-long-lived runtimes after a deploy):
+**Opt out** (in-process memos then grow for the life of the worker, and the worker never re-reads the
+metadata generation, so an invalidation made elsewhere is not picked up until it restarts):
 
     API_TOOLKIT_LIFECYCLE_OCTANE=false
     API_TOOLKIT_LIFECYCLE_QUEUE=false
@@ -1181,9 +1186,9 @@ When a serving runtime is detected but the flush is opted out, the toolkit logs 
 
 ### Added: metadata is invalidated across processes after migrations
 
-Cached schema metadata lives in the shared cache store, mostly forever, but the lifecycle flush only forgets
-the keys the flushing process touched. Metadata written by an earlier process therefore survived a deploy that
-changed the schema, and was served warm to every new process, none of which could forget it.
+Cached schema metadata lives in the shared cache store, mostly forever, and the lifecycle flush leaves the
+store alone. Metadata written before a deploy that changed the schema would therefore be served warm to every
+process after it.
 
 Under 2.x every metadata key is stored under a generation held in the same cache store. Replacing the
 generation retires every metadata entry in every process sharing the store at once:
@@ -1196,9 +1201,19 @@ generation retires every metadata entry in every process sharing the store at on
   rejects the new generation.
 - `CacheManager::invalidateMetadata()` is the programmatic entry point behind both.
 
-The Octane and queue boundary flushes are unchanged: they still forget the keys the worker registered, and they
-re-read the generation rather than replacing it, so a long-lived worker picks up an invalidation made
-elsewhere at its next boundary.
+The Octane and queue boundary flushes reset in-process state only. They re-read the generation rather than
+replacing it, so a long-lived worker picks up an invalidation made elsewhere at its next boundary.
+
+**Multi-tenant applications.** Column listings, column definitions, and index catalogues are keyed by the
+schema the connection actually reads: its name, its effective database, its table prefix, and its Postgres
+`search_path` (or `schema`). A tenancy switcher that repoints one connection name at another tenant's
+database, prefix, or search path - by configuration, or on the resolved connection - therefore reads and
+caches each tenant's schema apart, even within a single job. The identity is resolved from configuration and
+the connection's own state, never by a query, and it does not include the host, so tenants whose databases
+share a name on different servers must also differ in table prefix, search path, or cache prefix. Casts, relation
+lookups, and the model-to-resource map are derived from code and read the same for every tenant, so they stay
+keyed by class and are shared. Where each tenant has its own cache prefix, each tenant also has its own
+generation, so run the invalidation once per tenant.
 
 The migration hook alone does not keep metadata correct across a deploy. Migrations run before the new
 release takes traffic, so workers still on the old code can refill the new generation with their casts,

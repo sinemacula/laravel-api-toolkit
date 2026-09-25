@@ -10,7 +10,6 @@ use Illuminate\Testing\PendingCommand;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Cache\MetadataCacheWriter;
 use SineMacula\ApiToolkit\Cache\MetadataGeneration;
-use SineMacula\ApiToolkit\Cache\MetadataKeyRegistry;
 use SineMacula\ApiToolkit\Console\InvalidateMetadataCommand;
 use SineMacula\ApiToolkit\Enums\CacheKeys;
 use SineMacula\ApiToolkit\Events\CacheFlushed;
@@ -58,12 +57,12 @@ final class InvalidateMetadataCommandTest extends TestCase
      */
     public function testCommandRetiresMetadataAnEarlierProcessWrote(): void
     {
-        $earlier = new MetadataCacheWriter(new MetadataKeyRegistry, new MetadataGeneration);
+        $earlier = new MetadataCacheWriter(new MetadataGeneration);
         $earlier->rememberMetadataForever('deployed-metadata', fn (): string => 'stale');
 
         $this->runCommand()->assertExitCode(0)->run();
 
-        $later = new MetadataCacheWriter(new MetadataKeyRegistry, new MetadataGeneration);
+        $later = new MetadataCacheWriter(new MetadataGeneration);
 
         self::assertNull($later->readMetadata('deployed-metadata'));
     }

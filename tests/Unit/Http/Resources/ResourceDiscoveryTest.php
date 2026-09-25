@@ -9,7 +9,6 @@ use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Log;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Attributes\ForModel;
-use SineMacula\ApiToolkit\Cache\MetadataKeyRegistry;
 use SineMacula\ApiToolkit\Enums\CacheKeys;
 use SineMacula\ApiToolkit\Http\Resources\ResourceDiscovery;
 use Tests\Fixtures\Discovery\Conflict\FirstUserResource;
@@ -238,31 +237,6 @@ final class ResourceDiscoveryTest extends TestCase
         Cache::forever($this->discoveryCacheKey([$path]), $sentinel);
 
         self::assertSame($sentinel, $this->discovery()->discover());
-    }
-
-    /**
-     * Test that the discovery cache key is registered with the metadata key
-     * registry, so the scoped lifecycle flush can forget it.
-     *
-     * @return void
-     */
-    public function testDiscoveryKeyIsRegisteredForTheScopedFlush(): void
-    {
-        assert($this->app !== null);
-
-        Config::set('api-toolkit.resources.paths', [$this->fixturePath('Primary')]);
-
-        $this->discovery()->discover();
-
-        /** @var \SineMacula\ApiToolkit\Cache\MetadataKeyRegistry $registry */
-        $registry = $this->app->make(MetadataKeyRegistry::class);
-
-        $registered = array_filter(
-            $registry->keys(),
-            static fn (string $key): bool => str_contains($key, 'discovered-resources:'),
-        );
-
-        self::assertNotEmpty($registered);
     }
 
     /**

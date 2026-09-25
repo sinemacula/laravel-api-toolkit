@@ -12,9 +12,12 @@ use Illuminate\Support\Facades\Event;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Cache\CacheManager;
 use SineMacula\ApiToolkit\Cache\MetadataCacheWriter;
+use SineMacula\ApiToolkit\Events\CacheFlushed;
 use SineMacula\ApiToolkit\Listeners\OctaneFlushListener;
 use SineMacula\ApiToolkit\Listeners\QueueFlushSubscriber;
 use SineMacula\ApiToolkit\Runtime\RuntimeContext;
+use SineMacula\ApiToolkit\Schema\SchemaCompiler;
+use Tests\Concerns\InteractsWithNonPublicMembers;
 use Tests\TestCase;
 
 /**
@@ -36,6 +39,8 @@ use Tests\TestCase;
 #[CoversClass(QueueFlushSubscriber::class)]
 final class LifecycleDefaultEngagementTest extends TestCase
 {
+    use InteractsWithNonPublicMembers;
+
     /** @var bool Whether LARAVEL_OCTANE was set before each test. */
     private bool $octaneWasSet;
 
@@ -73,9 +78,9 @@ final class LifecycleDefaultEngagementTest extends TestCase
      * Test that the shipped default for lifecycle.octane and lifecycle.queue is
      * true and that the Octane flush engages on a detected serving runtime.
      *
-     * Validates TAC-09-01 and TAC-09-02: with no config override the merged
-     * default is true, and invoking the Octane boundary on a serving runtime
-     * clears the registered toolkit key.
+     * With no config override the merged default is true, and invoking the
+     * Octane boundary on a serving runtime resets in-process state while the
+     * shared metadata stays warm.
      *
      * @return void
      */
@@ -93,23 +98,24 @@ final class LifecycleDefaultEngagementTest extends TestCase
 
         $key = 'integration:default-engagement-octane';
 
-        // Write through the writer so the key is registered in the registry.
         $this->writer()->rememberMetadataForever($key, static fn () => 'value');
-        self::assertSame('value', Cache::memo()->get($this->metadataStorageKey($key))); // @phpstan-ignore method.notFound
+        $this->setStaticProperty(SchemaCompiler::class, 'cache', ['FakeResource' => 'compiled']);
 
         // Act: invoke the Octane boundary with the shipped default config.
         $this->octaneListener()->handle(new \stdClass);
 
-        // Assert: the toolkit key was cleared (flush engaged on the default).
-        self::assertNull(Cache::memo()->get($this->metadataStorageKey($key))); // @phpstan-ignore method.notFound
+        // Assert: in-process state was reset and the shared metadata kept.
+        self::assertSame([], $this->getStaticProperty(SchemaCompiler::class, 'cache'));
+        self::assertSame('value', Cache::memo()->get($this->metadataStorageKey($key))); // @phpstan-ignore method.notFound
+        Event::assertDispatched(CacheFlushed::class);
     }
 
     /**
      * Test that the shipped queue default engages the flush on a non-sync
      * worker boundary.
      *
-     * Validates TAC-09-01: the shipped queue default is true, and the flush
-     * engages when a real (non-sync) queue connection processes a job.
+     * The shipped queue default is true, and the flush engages when a real
+     * (non-sync) queue connection processes a job.
      *
      * @return void
      */
@@ -125,16 +131,17 @@ final class LifecycleDefaultEngagementTest extends TestCase
 
         $key = 'integration:default-engagement-queue';
 
-        // Write through the writer so the key is registered in the registry.
         $this->writer()->rememberMetadataForever($key, static fn () => 'value');
-        self::assertSame('value', Cache::memo()->get($this->metadataStorageKey($key))); // @phpstan-ignore method.notFound
+        $this->setStaticProperty(SchemaCompiler::class, 'cache', ['FakeResource' => 'compiled']);
 
         // Act: invoke the queue boundary with the shipped default config.
         $event = new JobProcessed('database', self::createStub(Job::class));
         $this->queueSubscriber()->handleFlush($event);
 
-        // Assert: the toolkit key was cleared (flush engaged on the default).
-        self::assertNull(Cache::memo()->get($this->metadataStorageKey($key))); // @phpstan-ignore method.notFound
+        // Assert: in-process state was reset and the shared metadata kept.
+        self::assertSame([], $this->getStaticProperty(SchemaCompiler::class, 'cache'));
+        self::assertSame('value', Cache::memo()->get($this->metadataStorageKey($key))); // @phpstan-ignore method.notFound
+        Event::assertDispatched(CacheFlushed::class);
     }
 
     /**

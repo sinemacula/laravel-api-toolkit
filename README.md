@@ -126,8 +126,8 @@ belongs to your own migration:
 
 The proof is read twice. `php artisan api-toolkit:validate-schemas` reports a declaration with no index
 behind it, which is the cheapest place to find one - run it in CI. Because schema validation is disabled in
-production by default, the same proof is also taken on the first search each worker process serves and
-memoised from there, so a missing index refuses the request instead of quietly reading the table: on
+production by default, the same proof is also taken on the first search a worker serves and memoised until
+its next lifecycle boundary, so a missing index refuses the request instead of quietly reading the table: on
 PostgreSQL a missing trigram index is not an error at all, and the search would otherwise return the right
 rows out of a sequential scan for as long as the index stayed missing.
 
@@ -581,9 +581,17 @@ php artisan api-toolkit:docs:generate
 
 Schema metadata - column listings and definitions, index catalogues, cast maps, relation lookups, and the
 model-to-resource map - is cached in the application's cache store and shared by every process that uses it.
-The Octane and queue boundary flushes only clear what the flushing worker touched, so a schema or mapping
-change needs the shared entries retired as well. Every metadata key is stored under a generation held in the
-same store, and replacing that generation makes every earlier entry unreachable in every process at once.
+The Octane and queue boundary flushes reset each worker's in-process state only, so every worker keeps serving
+what any worker has already read, and a schema or mapping change needs the shared entries retired explicitly.
+Every metadata key is stored under a generation held in the same store, and replacing that generation makes
+every earlier entry unreachable in every process at once. A column listing or set of column definitions that
+reads empty, as one does before its table exists, is never stored, so the table's columns are read as soon as
+it exists, with no migration event or invalidation needed.
+
+Schema entries are keyed by the schema the connection actually reads - its name, database, table prefix, and
+Postgres search path - so a tenancy switcher that repoints one connection name reads each tenant's schema
+apart. Casts, relation lookups, and the resource map come from code and are shared across tenants. Where each
+tenant has its own cache prefix, each also has its own generation, so invalidate per tenant.
 
 The generation is replaced automatically when a migration run finishes, which covers schema changes at
 migrate time. A run with nothing to migrate, or a `--pretend` run, leaves the metadata warm. If the cache store

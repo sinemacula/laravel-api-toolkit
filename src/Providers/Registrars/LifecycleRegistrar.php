@@ -146,8 +146,9 @@ final class LifecycleRegistrar
         if ($runtime->isServingUnderOctane() && !(bool) Config::get('api-toolkit.lifecycle.octane')) {
             Log::info(
                 'API Toolkit: serving under Octane but the lifecycle cache flush is disabled'
-                . ' (API_TOOLKIT_LIFECYCLE_OCTANE=false); cross-request metadata may go stale'
-                . ' and field-keyed metadata memos can grow unbounded per worker (memory tradeoff).',
+                . ' (API_TOOLKIT_LIFECYCLE_OCTANE=false); in-process metadata memos grow unbounded'
+                . ' per worker and the worker never re-reads the metadata generation, so an'
+                . ' invalidation made elsewhere is not picked up.',
             );
         }
 
@@ -155,6 +156,11 @@ final class LifecycleRegistrar
             return;
         }
 
-        Log::info('API Toolkit: serving as a queue worker but the lifecycle cache flush is disabled (API_TOOLKIT_LIFECYCLE_QUEUE=false); cross-request metadata may go stale.');
+        Log::info(
+            'API Toolkit: serving as a queue worker but the lifecycle cache flush is disabled'
+            . ' (API_TOOLKIT_LIFECYCLE_QUEUE=false); in-process metadata memos grow unbounded'
+            . ' per worker and the worker never re-reads the metadata generation, so an'
+            . ' invalidation made elsewhere is not picked up.',
+        );
     }
 }

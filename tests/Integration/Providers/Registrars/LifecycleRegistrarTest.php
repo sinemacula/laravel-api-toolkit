@@ -362,8 +362,9 @@ final class LifecycleRegistrarTest extends TestCase
         $config->set('api-toolkit.lifecycle.octane', false);
 
         $expected = 'API Toolkit: serving under Octane but the lifecycle cache flush is disabled'
-            . ' (API_TOOLKIT_LIFECYCLE_OCTANE=false); cross-request metadata may go stale'
-            . ' and field-keyed metadata memos can grow unbounded per worker (memory tradeoff).';
+            . ' (API_TOOLKIT_LIFECYCLE_OCTANE=false); in-process metadata memos grow unbounded'
+            . ' per worker and the worker never re-reads the metadata generation, so an'
+            . ' invalidation made elsewhere is not picked up.';
 
         Log::shouldReceive('info')->once()->with(\Mockery::on(
             fn (string $message): bool => $message === $expected,
@@ -389,8 +390,13 @@ final class LifecycleRegistrarTest extends TestCase
         $config = $this->getApplication()->make('config');
         $config->set('api-toolkit.lifecycle.queue', false);
 
+        $expected = 'API Toolkit: serving as a queue worker but the lifecycle cache flush is disabled'
+            . ' (API_TOOLKIT_LIFECYCLE_QUEUE=false); in-process metadata memos grow unbounded'
+            . ' per worker and the worker never re-reads the metadata generation, so an'
+            . ' invalidation made elsewhere is not picked up.';
+
         Log::shouldReceive('info')->once()->with(\Mockery::on(
-            fn (string $message): bool => str_contains($message, 'queue worker') && str_contains($message, 'API_TOOLKIT_LIFECYCLE_QUEUE'),
+            fn (string $message): bool => $message === $expected,
         ));
 
         try {

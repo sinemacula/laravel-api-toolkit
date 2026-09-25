@@ -5,7 +5,6 @@ declare(strict_types = 1);
 namespace SineMacula\ApiToolkit\Cache;
 
 use Illuminate\Contracts\Container\Container;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Config;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Events\CacheFlushed;
@@ -18,10 +17,11 @@ use SineMacula\ApiToolkit\Search\IndexProof;
 use SineMacula\ApiToolkit\Search\SearchPlan;
 
 /**
- * Centralized orchestrator for flushing all toolkit caches.
+ * Centralized orchestrator for resetting and invalidating toolkit caches.
  *
- * Registered as a singleton in the container. Delegates to all known cache site
- * flush methods and dispatches the CacheFlushed event upon completion.
+ * Registered as a singleton in the container. A flush resets every in-process
+ * cache site and dispatches the CacheFlushed event; an invalidation retires the
+ * shared metadata as well.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -32,25 +32,21 @@ final readonly class CacheManager
      * Create a new cache manager instance.
      *
      * @param  \Illuminate\Contracts\Container\Container  $container
-     * @param  \SineMacula\ApiToolkit\Cache\MetadataKeyRegistry  $registry
      * @return void
      */
     public function __construct(
 
         /** The service container for resolving cache site instances. */
         private Container $container,
-
-        /** The registry of toolkit metadata keys to forget on flush. */
-        private MetadataKeyRegistry $registry,
     ) {}
 
     /**
      * Retire every toolkit metadata entry in every process sharing the store,
      * then flush this process's caches.
      *
-     * A flush only forgets the keys this process registered, so metadata an
-     * earlier process wrote survives it. Replacing the generation leaves those
-     * entries unreachable instead, which is what a schema change needs.
+     * A flush leaves the shared store untouched, so metadata written before a
+     * schema change survives it. Replacing the generation leaves those entries
+     * unreachable instead, which is what a schema change needs.
      *
      * @return void
      *
@@ -64,21 +60,19 @@ final readonly class CacheManager
     }
 
     /**
-     * Flush all toolkit caches and dispatch the flushed event.
+     * Reset this process's toolkit state and dispatch the flushed event.
      *
-     * The generation is re-read after a flush rather than replaced, so a
-     * long-lived worker picks up an invalidation made elsewhere without
-     * invalidating anything itself.
+     * Only in-process state is reset. The metadata in the shared store is left
+     * alone, so every worker keeps serving what any worker has already read,
+     * and the framework already discards the memoised store repository at each
+     * request and job boundary. The generation is re-read after a flush rather
+     * than replaced, so a long-lived worker picks up an invalidation made
+     * elsewhere without invalidating anything itself.
      *
      * @return void
      */
     public function flush(): void
     {
-        foreach ($this->registry->keys() as $key) {
-            Cache::memo()->forget($key); // @phpstan-ignore method.notFound
-        }
-
-        $this->registry->clear();
         $this->generation()->forget();
 
         SchemaCompiler::clearCache();

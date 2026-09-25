@@ -14,7 +14,6 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Cache\CacheManager;
 use SineMacula\ApiToolkit\Cache\MetadataCacheWriter;
 use SineMacula\ApiToolkit\Cache\MetadataGeneration;
-use SineMacula\ApiToolkit\Cache\MetadataKeyRegistry;
 use SineMacula\ApiToolkit\Enums\CacheKeys;
 use SineMacula\ApiToolkit\Listeners\MigrationInvalidationListener;
 use SineMacula\ApiToolkit\Providers\Registrars\LifecycleRegistrar;
@@ -284,7 +283,7 @@ final class MigrationInvalidationTest extends TestCase
      */
     private function freshProcess(): MetadataCacheWriter
     {
-        return new MetadataCacheWriter(new MetadataKeyRegistry, new MetadataGeneration);
+        return new MetadataCacheWriter(new MetadataGeneration);
     }
 
     /**

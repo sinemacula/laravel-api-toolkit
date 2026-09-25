@@ -14,8 +14,8 @@ use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Log;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Cache\CacheManager;
-use SineMacula\ApiToolkit\Cache\MetadataKeyRegistry;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
+use SineMacula\ApiToolkit\Events\CacheFlushed;
 use SineMacula\ApiToolkit\Listeners\QueueFlushSubscriber;
 use SineMacula\ApiToolkit\Runtime\RuntimeContext;
 use Tests\TestCase;
@@ -56,8 +56,8 @@ final class QueueFlushSubscriberTest extends TestCase
     }
 
     /**
-     * Test that handleFlush flushes toolkit caches for a real worker
-     * connection.
+     * Test that handleFlush resets in-process state for a real worker
+     * connection while the shared metadata stays warm.
      *
      * @return void
      */
@@ -72,11 +72,7 @@ final class QueueFlushSubscriberTest extends TestCase
             ->shouldReceive('flush')
             ->once();
 
-        /** @var \SineMacula\ApiToolkit\Cache\MetadataKeyRegistry $registry */
-        $registry = $this->app->make(MetadataKeyRegistry::class); // @phpstan-ignore method.nonObject
-
         $key = 'queue-engage-test';
-        $registry->register($key);
         Cache::memo()->rememberForever($key, fn () => 'cached'); // @phpstan-ignore method.notFound
 
         self::assertSame('cached', Cache::memo()->get($key)); // @phpstan-ignore method.notFound
@@ -89,15 +85,16 @@ final class QueueFlushSubscriberTest extends TestCase
         $subscriber->handleFlush($event);
 
         // Assert
-        self::assertNull(Cache::memo()->get($key)); // @phpstan-ignore method.notFound
+        self::assertSame('cached', Cache::memo()->get($key)); // @phpstan-ignore method.notFound
+        Event::assertDispatched(CacheFlushed::class);
     }
 
     /**
      * Test that handleFlush does not flush for a sync connection (in-request
      * job).
      *
-     * Pins AC-06: sync jobs run within the HTTP request and must not trigger a
-     * metadata flush at the job boundary.
+     * Sync jobs run within the HTTP request and must not trigger a flush at the
+     * job boundary.
      *
      * @return void
      */
@@ -108,11 +105,7 @@ final class QueueFlushSubscriberTest extends TestCase
 
         Event::fake();
 
-        /** @var \SineMacula\ApiToolkit\Cache\MetadataKeyRegistry $registry */
-        $registry = $this->app->make(MetadataKeyRegistry::class); // @phpstan-ignore method.nonObject
-
         $key = 'queue-no-flush-test';
-        $registry->register($key);
         Cache::memo()->rememberForever($key, fn () => 'cached'); // @phpstan-ignore method.notFound
 
         self::assertSame('cached', Cache::memo()->get($key)); // @phpstan-ignore method.notFound
@@ -126,6 +119,7 @@ final class QueueFlushSubscriberTest extends TestCase
 
         // Assert
         self::assertSame('cached', Cache::memo()->get($key)); // @phpstan-ignore method.notFound
+        Event::assertNotDispatched(CacheFlushed::class);
     }
 
     /**
@@ -145,11 +139,7 @@ final class QueueFlushSubscriberTest extends TestCase
             ->shouldReceive('flush')
             ->once();
 
-        /** @var \SineMacula\ApiToolkit\Cache\MetadataKeyRegistry $registry */
-        $registry = $this->app->make(MetadataKeyRegistry::class); // @phpstan-ignore method.nonObject
-
         $key = 'queue-flush-test';
-        $registry->register($key);
         Cache::memo()->rememberForever($key, fn () => 'cached'); // @phpstan-ignore method.notFound
 
         self::assertSame('cached', Cache::memo()->get($key)); // @phpstan-ignore method.notFound
@@ -162,7 +152,8 @@ final class QueueFlushSubscriberTest extends TestCase
         $subscriber->handleFlush($event);
 
         // Assert
-        self::assertNull(Cache::memo()->get($key)); // @phpstan-ignore method.notFound
+        self::assertSame('cached', Cache::memo()->get($key)); // @phpstan-ignore method.notFound
+        Event::assertDispatched(CacheFlushed::class);
     }
 
     /**

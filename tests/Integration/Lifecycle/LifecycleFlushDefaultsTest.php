@@ -20,14 +20,14 @@ use SineMacula\ApiToolkit\Runtime\RuntimeContext;
 use Tests\TestCase;
 
 /**
- * Integration harness: cross-request metadata staleness under Octane and queue.
+ * Integration harness: metadata across Octane and queue lifecycle boundaries.
  *
- * Proves that stale metadata is cleared at the correct lifecycle boundary, that
- * php-fpm does not engage, that opt-out is honoured, and that non-toolkit keys
- * on the shared store survive the scoped flush.
+ * Proves that shared metadata survives a lifecycle boundary and is rebuilt only
+ * once it is invalidated, that php-fpm does not engage, that opt-out is
+ * honoured, and that nothing on the shared store is cleared by a boundary.
  *
- * Every test sets the relevant config and $_SERVER state EXPLICITLY so the
- * mechanism is validated before the shipped default is flipped in Tier 4.
+ * Every test sets the relevant config and $_SERVER state explicitly, so the
+ * mechanism is validated independently of the shipped defaults.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -71,15 +71,13 @@ final class LifecycleFlushDefaultsTest extends TestCase
     }
 
     /**
-     * Test that an Octane boundary flushes stale metadata so request 2 reads
-     * the new shape rather than the memoised old shape.
-     *
-     * Under a long-lived Octane worker, metadata written before the request
-     * boundary must not survive into the next request.
+     * Test that shared metadata survives an Octane boundary, so request 2 is
+     * served what request 1 stored, and that only an explicit invalidation
+     * makes it rebuild.
      *
      * @return void
      */
-    public function testOctaneServingFlushesStaleMetadataAcrossRequests(): void
+    public function testOctaneBoundaryKeepsSharedMetadataUntilInvalidated(): void
     {
         // Arrange
         $_SERVER['LARAVEL_OCTANE'] = 1;
@@ -87,35 +85,32 @@ final class LifecycleFlushDefaultsTest extends TestCase
 
         Event::fake();
 
-        $key    = 'integration:octane-staleness-test';
-        $writer = $this->writer();
+        $key = 'integration:octane-staleness-test';
 
-        // Request 1: write and confirm the old shape is memoised.
-        $writer->rememberMetadataForever($key, static fn () => 'old-shape');
-        self::assertSame('old-shape', Cache::memo()->get($this->metadataStorageKey($key))); // @phpstan-ignore method.notFound
+        // Request 1: the old shape is stored.
+        $this->remember($key, 'old-shape');
 
         // Boundary: simulate end-of-request Octane flush.
         $this->octaneListener()->handle(new \stdClass);
 
-        // Deploy + Request 2: the memo is clear; writing the new shape must
-        // return 'new-shape', not the previously memoised 'old-shape'.
-        $result = $writer->rememberMetadataForever($key, static fn () => 'new-shape');
+        // Request 2: the stored shape is served rather than rebuilt.
+        self::assertSame('old-shape', $this->remember($key, 'new-shape'));
 
-        // Assert
-        self::assertSame('new-shape', $result);
-        self::assertSame('new-shape', Cache::memo()->get($this->metadataStorageKey($key))); // @phpstan-ignore method.notFound
+        // Deploy: an explicit invalidation retires it, and the next read
+        // rebuilds.
+        $this->cacheManager()->invalidateMetadata();
+
+        self::assertSame('new-shape', $this->remember($key, 'new-shape'));
     }
 
     /**
-     * Test that a queue worker boundary flushes stale metadata so job 2 reads
-     * the new shape rather than the memoised old shape.
-     *
-     * Under a long-lived queue worker, metadata must not leak across job
-     * boundaries.
+     * Test that shared metadata survives a queue job boundary, so job 2 is
+     * served what job 1 stored, and that only an explicit invalidation makes it
+     * rebuild.
      *
      * @return void
      */
-    public function testQueueWorkerFlushesStaleMetadataBetweenJobs(): void
+    public function testQueueBoundaryKeepsSharedMetadataUntilInvalidated(): void
     {
         // Arrange
         Config::set('queue.connections.database.driver', 'database');
@@ -123,24 +118,23 @@ final class LifecycleFlushDefaultsTest extends TestCase
 
         Event::fake();
 
-        $key    = 'integration:queue-staleness-test';
-        $writer = $this->writer();
+        $key = 'integration:queue-staleness-test';
 
-        // Job 1: write old shape and confirm memoised.
-        $writer->rememberMetadataForever($key, static fn () => 'old-shape');
-        self::assertSame('old-shape', Cache::memo()->get($this->metadataStorageKey($key))); // @phpstan-ignore method.notFound
+        // Job 1: the old shape is stored.
+        $this->remember($key, 'old-shape');
 
         // Boundary: simulate end-of-job queue flush.
         $event = new JobProcessed('database', self::createStub(Job::class));
         $this->queueSubscriber()->handleFlush($event);
 
-        // Job 2: the memo is clear; writing the new shape must return
-        // 'new-shape'.
-        $result = $writer->rememberMetadataForever($key, static fn () => 'new-shape');
+        // Job 2: the stored shape is served rather than rebuilt.
+        self::assertSame('old-shape', $this->remember($key, 'new-shape'));
 
-        // Assert
-        self::assertSame('new-shape', $result);
-        self::assertSame('new-shape', Cache::memo()->get($this->metadataStorageKey($key))); // @phpstan-ignore method.notFound
+        // Deploy: an explicit invalidation retires it, and the next read
+        // rebuilds.
+        $this->cacheManager()->invalidateMetadata();
+
+        self::assertSame('new-shape', $this->remember($key, 'new-shape'));
     }
 
     /**
@@ -216,14 +210,12 @@ final class LifecycleFlushDefaultsTest extends TestCase
     }
 
     /**
-     * Test that a non-toolkit key written directly to the shared memo store
-     * survives the scoped metadata flush while the toolkit key is cleared.
-     *
-     * The flush must not blast non-toolkit keys off the shared memo store.
+     * Test that a boundary leaves the shared store untouched: the toolkit's own
+     * metadata and a non-toolkit key written beside it both survive.
      *
      * @return void
      */
-    public function testSharedStoreNonToolkitKeySurvivesFlush(): void
+    public function testSharedStoreKeysSurviveBoundary(): void
     {
         // Arrange
         $_SERVER['LARAVEL_OCTANE'] = 1;
@@ -233,25 +225,17 @@ final class LifecycleFlushDefaultsTest extends TestCase
 
         $toolkitKey    = 'integration:toolkit-key';
         $nonToolkitKey = 'app:user-prefs';
-        $writer        = $this->writer();
 
-        // Write the toolkit key through the writer (registered for scoped
-        // flush).
-        $writer->rememberMetadataForever($toolkitKey, static fn () => 'toolkit-value');
+        $this->writer()->rememberMetadataForever($toolkitKey, static fn () => 'toolkit-value');
 
-        // Write the non-toolkit key directly (NOT registered; must survive
-        // flush).
         Cache::memo()->rememberForever($nonToolkitKey, static fn () => 'keep-me'); // @phpstan-ignore method.notFound
-
-        self::assertSame('toolkit-value', Cache::memo()->get($this->metadataStorageKey($toolkitKey))); // @phpstan-ignore method.notFound
-        self::assertSame('keep-me', Cache::memo()->get($nonToolkitKey)); // @phpstan-ignore method.notFound
 
         // Act: invoke the Octane boundary.
         $this->octaneListener()->handle(new \stdClass);
 
-        // Assert: the toolkit key is gone; the non-toolkit key survives.
-        self::assertNull(Cache::memo()->get($this->metadataStorageKey($toolkitKey))); // @phpstan-ignore method.notFound
-        self::assertSame('keep-me', Cache::memo()->get($nonToolkitKey)); // @phpstan-ignore method.notFound
+        // Assert: both keys survive in the underlying store.
+        self::assertSame('toolkit-value', Cache::store()->get($this->metadataStorageKey($toolkitKey)));
+        self::assertSame('keep-me', Cache::store()->get($nonToolkitKey));
     }
 
     /**
@@ -295,6 +279,32 @@ final class LifecycleFlushDefaultsTest extends TestCase
 
         /** @var \SineMacula\ApiToolkit\Cache\MetadataCacheWriter */
         return $this->app->make(MetadataCacheWriter::class);
+    }
+
+    /**
+     * Remember the given value under the key through the wired writer,
+     * returning whatever the store serves.
+     *
+     * @param  string  $key
+     * @param  string  $value
+     * @return mixed
+     */
+    private function remember(string $key, string $value): mixed
+    {
+        return $this->writer()->rememberMetadataForever($key, static fn (): string => $value);
+    }
+
+    /**
+     * Resolve the wired CacheManager singleton.
+     *
+     * @return \SineMacula\ApiToolkit\Cache\CacheManager
+     */
+    private function cacheManager(): CacheManager
+    {
+        assert($this->app !== null);
+
+        /** @var \SineMacula\ApiToolkit\Cache\CacheManager */
+        return $this->app->make(CacheManager::class);
     }
 
     /**

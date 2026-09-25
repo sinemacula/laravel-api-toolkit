@@ -6,12 +6,12 @@ namespace Tests\Unit\Cache;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Cache\CacheManager;
 use SineMacula\ApiToolkit\Cache\MetadataCacheWriter;
 use SineMacula\ApiToolkit\Cache\MetadataGeneration;
-use SineMacula\ApiToolkit\Cache\MetadataKeyRegistry;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Enums\CacheKeys;
 use SineMacula\ApiToolkit\Events\CacheFlushed;
@@ -20,6 +20,7 @@ use SineMacula\ApiToolkit\Http\Resources\Concerns\EagerLoadPlanner;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\FieldResolver;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\ValueResolver;
 use SineMacula\ApiToolkit\Schema\FieldColumnMapper;
+use SineMacula\ApiToolkit\Schema\Introspection\SchemaIdentity;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 use SineMacula\ApiToolkit\Search\IndexProof;
 use SineMacula\ApiToolkit\Search\SearchPlan;
@@ -41,33 +42,23 @@ final class CacheManagerTest extends TestCase
     use InteractsWithNonPublicMembers;
 
     /**
-     * Test that flush forgets a registered toolkit memo key.
+     * Test that flush leaves toolkit metadata in the shared store, so every
+     * worker keeps serving what any worker has already read.
      *
      * @return void
      */
-    public function testFlushClearsMemoCache(): void
+    public function testFlushLeavesSharedMetadataInTheStore(): void
     {
-        // Arrange
         Event::fake();
 
-        $key = 'test-memo-key';
+        $key = $this->metadataStorageKey('shared-metadata-key');
 
-        /** @var \SineMacula\ApiToolkit\Cache\MetadataKeyRegistry $registry */
-        $registry = $this->app->make(MetadataKeyRegistry::class); // @phpstan-ignore method.nonObject
+        Cache::memo()->rememberForever($key, fn (): string => 'cached-value'); // @phpstan-ignore method.notFound
 
-        $registry->register($key);
-
-        Cache::memo()->rememberForever($key, fn () => 'cached-value'); // @phpstan-ignore method.notFound
+        $this->manager()->flush();
 
         self::assertSame('cached-value', Cache::memo()->get($key)); // @phpstan-ignore method.notFound
-
-        // Act
-        /** @var \SineMacula\ApiToolkit\Cache\CacheManager $manager */
-        $manager = $this->app->make(CacheManager::class); // @phpstan-ignore method.nonObject
-        $manager->flush();
-
-        // Assert
-        self::assertNull(Cache::memo()->get($key)); // @phpstan-ignore method.notFound
+        self::assertSame('cached-value', Cache::store()->get($key));
     }
 
     /**
@@ -339,14 +330,12 @@ final class CacheManagerTest extends TestCase
     }
 
     /**
-     * Test that flush leaves an unregistered non-toolkit key intact.
-     *
-     * Keys written directly to the memo store without going through the
-     * MetadataKeyRegistry must survive the scoped flush.
+     * Test that flush leaves a non-toolkit key on the same store intact, so a
+     * boundary never clears the store it shares with the application.
      *
      * @return void
      */
-    public function testFlushLeavesUnregisteredNonToolkitKeyIntact(): void
+    public function testFlushLeavesNonToolkitKeyIntact(): void
     {
         // Arrange
         Event::fake();
@@ -363,72 +352,25 @@ final class CacheManagerTest extends TestCase
     }
 
     /**
-     * Test that flush forgets all registered toolkit keys and empties the
-     * registry.
+     * Test that schema metadata an earlier process wrote is still served after
+     * a boundary, without the connection being asked again.
      *
      * @return void
      */
-    public function testFlushForgetsRegisteredToolkitKeysAndClearsRegistry(): void
-    {
-        // Arrange
-        Event::fake();
-
-        /** @var \SineMacula\ApiToolkit\Cache\MetadataKeyRegistry $registry */
-        $registry = $this->app->make(MetadataKeyRegistry::class); // @phpstan-ignore method.nonObject
-
-        $registry->register('toolkit-key-one');
-        $registry->register('toolkit-key-two');
-
-        Cache::memo()->rememberForever('toolkit-key-one', fn () => 'value-one'); // @phpstan-ignore method.notFound
-        Cache::memo()->rememberForever('toolkit-key-two', fn () => 'value-two'); // @phpstan-ignore method.notFound
-
-        // Act
-        /** @var \SineMacula\ApiToolkit\Cache\CacheManager $manager */
-        $manager = $this->app->make(CacheManager::class); // @phpstan-ignore method.nonObject
-        $manager->flush();
-
-        // Assert
-        self::assertNull(Cache::memo()->get('toolkit-key-one')); // @phpstan-ignore method.notFound
-        self::assertNull(Cache::memo()->get('toolkit-key-two')); // @phpstan-ignore method.notFound
-        self::assertSame([], $registry->keys());
-    }
-
-    /**
-     * Test that flush forgets a key this process only ever read.
-     *
-     * The store outlives the process while the registry does not, so a value an
-     * earlier process wrote is served warm here without anything in this one
-     * having registered it. Reading it has to register it, or the schema a
-     * deployment just changed survives the flush meant to clear it.
-     *
-     * @return void
-     */
-    public function testFlushForgetsAKeyThisProcessOnlyRead(): void
+    public function testFlushKeepsServingSchemaMetadataAnEarlierProcessWrote(): void
     {
         Event::fake();
 
-        $key = $this->metadataStorageKey(CacheKeys::MODEL_SCHEMA_COLUMNS->resolveKey(['testing', User::class]));
+        $key = $this->metadataStorageKey(CacheKeys::MODEL_SCHEMA_COLUMNS->resolveKey([SchemaIdentity::of(DB::connection('testing')), User::class]));
 
-        // Written by a process that has since gone, leaving the registry this
-        // one starts with empty.
         Cache::memo()->rememberForever($key, fn (): array => ['id', 'name']); // @phpstan-ignore method.notFound
 
-        /** @var \SineMacula\ApiToolkit\Cache\MetadataKeyRegistry $registry */
-        $registry = $this->app->make(MetadataKeyRegistry::class); // @phpstan-ignore method.nonObject
-
-        $registry->clear();
+        $this->manager()->flush();
 
         /** @var \SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider $introspector */
         $introspector = $this->app->make(SchemaIntrospectionProvider::class); // @phpstan-ignore method.nonObject
 
         self::assertSame(['id', 'name'], $introspector->getColumns(new User));
-        self::assertContains($key, $registry->keys());
-
-        /** @var \SineMacula\ApiToolkit\Cache\CacheManager $manager */
-        $manager = $this->app->make(CacheManager::class); // @phpstan-ignore method.nonObject
-        $manager->flush();
-
-        self::assertNull(Cache::memo()->get($key)); // @phpstan-ignore method.notFound
     }
 
     /**
@@ -518,8 +460,9 @@ final class CacheManagerTest extends TestCase
     }
 
     /**
-     * Test that invalidating also flushes this process: registered keys are
-     * forgotten, memos cleared, and the flushed event dispatched.
+     * Test that invalidating also flushes this process: metadata written under
+     * the previous generation is no longer read, memos are cleared, and the
+     * flushed event is dispatched.
      *
      * @return void
      */
@@ -527,19 +470,15 @@ final class CacheManagerTest extends TestCase
     {
         Event::fake();
 
-        /** @var \SineMacula\ApiToolkit\Cache\MetadataKeyRegistry $registry */
-        $registry = $this->app->make(MetadataKeyRegistry::class); // @phpstan-ignore method.nonObject
+        /** @var \SineMacula\ApiToolkit\Cache\MetadataCacheWriter $writer */
+        $writer = $this->app->make(MetadataCacheWriter::class); // @phpstan-ignore method.nonObject
 
-        $key = $this->metadataStorageKey('invalidated-key');
-
-        $registry->register($key);
-        Cache::memo()->rememberForever($key, fn (): string => 'stale'); // @phpstan-ignore method.notFound
+        $writer->rememberMetadataForever('invalidated-key', fn (): string => 'stale');
         $this->setStaticProperty(SchemaCompiler::class, 'cache', ['FakeResource' => 'compiled']);
 
         $this->manager()->invalidateMetadata();
 
-        self::assertNull(Cache::memo()->get($key)); // @phpstan-ignore method.notFound
-        self::assertSame([], $registry->keys());
+        self::assertNull($writer->readMetadata('invalidated-key'));
         self::assertSame([], $this->getStaticProperty(SchemaCompiler::class, 'cache'));
         Event::assertDispatched(CacheFlushed::class);
     }
@@ -548,9 +487,8 @@ final class CacheManagerTest extends TestCase
      * Test that metadata an earlier process wrote is retired by a process that
      * never touched it, and the next read recomputes it.
      *
-     * The writing process registered its key and went away; the invalidating
-     * process starts with an empty registry, so a flush could never reach the
-     * entry. Replacing the generation does.
+     * A flush leaves the shared store alone, so only replacing the generation
+     * reaches an entry the writing process left behind.
      *
      * @return void
      */
@@ -558,20 +496,16 @@ final class CacheManagerTest extends TestCase
     {
         Event::fake();
 
-        $key = CacheKeys::MODEL_SCHEMA_COLUMNS->resolveKey(['testing', User::class]);
+        $key = CacheKeys::MODEL_SCHEMA_COLUMNS->resolveKey([SchemaIdentity::of(DB::connection('testing')), User::class]);
 
-        $earlier = new MetadataCacheWriter(new MetadataKeyRegistry, new MetadataGeneration);
+        $earlier = new MetadataCacheWriter(new MetadataGeneration);
         $earlier->rememberMetadataForever($key, fn (): array => ['stale-column']);
 
-        /** @var \SineMacula\ApiToolkit\Cache\MetadataKeyRegistry $registry */
-        $registry = $this->app->make(MetadataKeyRegistry::class); // @phpstan-ignore method.nonObject
-
-        $registry->clear();
         $this->generation()->forget();
 
         $this->manager()->invalidateMetadata();
 
-        $later = new MetadataCacheWriter(new MetadataKeyRegistry, new MetadataGeneration);
+        $later = new MetadataCacheWriter(new MetadataGeneration);
 
         self::assertNull($later->readMetadata($key));
 

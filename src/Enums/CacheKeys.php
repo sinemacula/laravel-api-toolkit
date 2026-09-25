@@ -17,13 +17,13 @@ enum CacheKeys: string
     // Store the casts for each model used in the repositories
     case REPOSITORY_MODEL_CASTS = 'repository-model-casts:%s';
 
-    // Store the columns associated with each model, per connection
+    // Store the columns associated with each model, per schema identity
     case MODEL_SCHEMA_COLUMNS = 'model-schema-columns:%s:%s';
 
-    // Store the per-column type/nullability definitions, per connection
+    // Store the per-column type/nullability definitions, per schema identity
     case MODEL_SCHEMA_COLUMN_DEFINITIONS = 'model-schema-column-definitions:%s:%s';
 
-    // Store the indexes declared on each model's table, per connection
+    // Store the indexes declared on each model's table, per schema identity
     case MODEL_SCHEMA_INDEXES = 'model-schema-indexes:%s:%s';
 
     // Store the relations associated with each model

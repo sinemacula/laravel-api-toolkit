@@ -5,10 +5,10 @@ declare(strict_types = 1);
 namespace Tests\Unit\Repositories\Traits;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Config;
 use PHPUnit\Framework\Attributes\CoversTrait;
 use SineMacula\ApiToolkit\Cache\MetadataCacheWriter;
-use SineMacula\ApiToolkit\Cache\MetadataKeyRegistry;
 use SineMacula\ApiToolkit\Enums\CacheKeys;
 use SineMacula\ApiToolkit\Repositories\Concerns\ResolvesResource;
 use Tests\Concerns\InteractsWithNonPublicMembers;
@@ -178,12 +178,12 @@ final class ResolvesResourceTest extends TestCase
     }
 
     /**
-     * Test that resolving a model resource registers the MODEL_RESOURCES key in
-     * the MetadataKeyRegistry.
+     * Test that resolving a model resource stores it in the shared store under
+     * the MODEL_RESOURCES key.
      *
      * @return void
      */
-    public function testResolveResourceRegistersResourcesKey(): void
+    public function testResolveResourceStoresUnderTheResourcesKey(): void
     {
         Config::set('api-toolkit.resources.resource_map.' . User::class, UserResource::class);
 
@@ -193,10 +193,9 @@ final class ResolvesResourceTest extends TestCase
 
         $this->invokeMethod($consumer, 'resolveResource', new User);
 
-        $registry    = $this->app->make(MetadataKeyRegistry::class);
         $expectedKey = $this->metadataStorageKey(CacheKeys::MODEL_RESOURCES->resolveKey([User::class]));
 
-        self::assertContains($expectedKey, $registry->keys());
+        self::assertSame(UserResource::class, Cache::memo()->get($expectedKey));
     }
 
     /**

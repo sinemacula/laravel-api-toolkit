@@ -5,8 +5,11 @@ declare(strict_types = 1);
 namespace Tests\Unit\Search;
 
 use Illuminate\Database\Connection;
+use Illuminate\Database\SQLiteConnection;
+use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\DB;
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 use SineMacula\ApiToolkit\Enums\SearchStrategy;
 use SineMacula\ApiToolkit\Search\IndexProof;
 use Tests\Fixtures\Search\CountingSearchDriver;
@@ -58,8 +61,8 @@ final class IndexProofTest extends TestCase
     }
 
     /**
-     * Test that the answer is memoised, so the catalogue is read once per
-     * worker process rather than once per search.
+     * Test that the answer is memoised, so the catalogue is read once between
+     * lifecycle boundaries rather than once per search.
      *
      * @return void
      */
@@ -91,6 +94,65 @@ final class IndexProofTest extends TestCase
         IndexProof::defects($driver, SearchStrategy::SUBSTRING, ['name', 'email'], 'users', $connection);
 
         self::assertSame(4, $driver->calls);
+    }
+
+    /**
+     * Provide the ways a tenancy switcher repoints one connection name.
+     *
+     * @return iterable<string, array{0: array<string, string>}>
+     */
+    public static function tenantRepointings(): iterable
+    {
+        yield 'database' => [['database' => 'tenant_b']];
+        yield 'table prefix' => [['prefix' => 'tenant_b_']];
+        yield 'search path' => [['search_path' => 'tenant_b']];
+    }
+
+    /**
+     * Test that one connection name repointed at another tenant's schema is
+     * proved again, so one tenant's index proof never answers for another's.
+     *
+     * @param  array<string, string>  $change
+     * @return void
+     */
+    #[DataProvider('tenantRepointings')]
+    public function testProvesARepointedConnectionAgain(array $change): void
+    {
+        $driver = new CountingSearchDriver;
+
+        Config::set('database.connections.tenant', ['driver' => 'sqlite', 'database' => ':memory:', 'prefix' => '']);
+
+        IndexProof::defects($driver, SearchStrategy::SUBSTRING, ['name'], 'users', DB::connection('tenant'));
+
+        Config::set('database.connections.tenant', ['driver' => 'sqlite', 'database' => ':memory:', 'prefix' => '', ...$change]);
+        DB::purge('tenant');
+
+        IndexProof::defects($driver, SearchStrategy::SUBSTRING, ['name'], 'users', DB::connection('tenant'));
+
+        self::assertSame(2, $driver->calls);
+    }
+
+    /**
+     * Test that the proof follows the connection it is handed rather than the
+     * one registered under its name, so a resolver handing out another tenant's
+     * connection under the same name is proved again.
+     *
+     * @return void
+     */
+    public function testProvesTheConnectionItIsHandedRatherThanItsName(): void
+    {
+        $driver     = new CountingSearchDriver;
+        $registered = $this->connection();
+        $name       = (string) $registered->getName();
+
+        IndexProof::defects($driver, SearchStrategy::SUBSTRING, ['name'], 'users', $registered);
+
+        $handed = new SQLiteConnection(static fn (): \PDO => new \PDO('sqlite::memory:'), 'tenant_b', '', ['name' => $name]);
+
+        IndexProof::defects($driver, SearchStrategy::SUBSTRING, ['name'], 'users', $handed);
+
+        self::assertSame($name, $handed->getName());
+        self::assertSame(2, $driver->calls);
     }
 
     /**
