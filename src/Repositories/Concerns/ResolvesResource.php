@@ -5,7 +5,6 @@ declare(strict_types = 1);
 namespace SineMacula\ApiToolkit\Repositories\Concerns;
 
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Config;
 use SineMacula\ApiToolkit\Cache\MetadataCacheWriter;
 use SineMacula\ApiToolkit\Contracts\ApiResourceInterface;
@@ -21,16 +20,6 @@ trait ResolvesResource
 {
     /** @var string|null */
     private ?string $customResourceClass = null;
-
-    /**
-     * Flush all memo-cached resource mappings.
-     *
-     * @return void
-     */
-    public static function flushResourceCache(): void
-    {
-        Cache::memo()->flush(); // @phpstan-ignore method.notFound
-    }
 
     /**
      * Set a custom resource class to be used.
