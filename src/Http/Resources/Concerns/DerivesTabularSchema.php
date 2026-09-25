@@ -151,7 +151,7 @@ trait DerivesTabularSchema
      * @param  string  $key
      * @param  \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition  $definition
      * @param  class-string<\SineMacula\ApiToolkit\Http\Resources\ApiResource>  $resourceClass
-     * @return \Closure
+     * @return \Closure(array<array-key, mixed>|object, \Illuminate\Http\Request): mixed
      */
     private function resourceValueResolver(string $key, CompiledFieldDefinition $definition, string $resourceClass): \Closure
     {
@@ -252,7 +252,7 @@ trait DerivesTabularSchema
      * Returns a two-element tuple: whether the guard touched the probe or
      * threw, and the value it returned (false when it threw).
      *
-     * @param  callable  $guard
+     * @param  callable(mixed, \Illuminate\Http\Request): mixed  $guard
      * @param  \Illuminate\Http\Request  $request
      * @return array{0: bool, 1: mixed}
      */

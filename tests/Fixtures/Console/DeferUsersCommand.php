@@ -30,6 +30,8 @@ final class DeferUsersCommand extends Command
      *
      * @param  \Tests\Fixtures\Repositories\DeferrableUserRepository  $repository
      * @return int
+     *
+     * @throws \SineMacula\Repositories\Exceptions\RepositoryException
      */
     public function handle(DeferrableUserRepository $repository): int
     {
