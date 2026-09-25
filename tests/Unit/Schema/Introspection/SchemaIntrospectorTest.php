@@ -145,7 +145,7 @@ final class SchemaIntrospectorTest extends TestCase
 
         $columns = $introspector->getColumns($model);
 
-        $key = CacheKeys::MODEL_SCHEMA_COLUMNS->resolveKey(['testing', User::class]);
+        $key = $this->metadataStorageKey(CacheKeys::MODEL_SCHEMA_COLUMNS->resolveKey(['testing', User::class]));
 
         self::assertSame($columns, Cache::memo()->get($key));
     }
@@ -184,7 +184,7 @@ final class SchemaIntrospectorTest extends TestCase
         self::assertNotSame(['handle'], Schema::getColumnListing('users'));
         self::assertSame(
             ['handle'],
-            Cache::memo()->get(CacheKeys::MODEL_SCHEMA_COLUMNS->resolveKey(['secondary', $model::class])),
+            Cache::memo()->get($this->metadataStorageKey(CacheKeys::MODEL_SCHEMA_COLUMNS->resolveKey(['secondary', $model::class]))),
         );
     }
 
@@ -302,7 +302,7 @@ final class SchemaIntrospectorTest extends TestCase
 
         $definitions = $introspector->getColumnDefinitions($model);
 
-        $key = CacheKeys::MODEL_SCHEMA_COLUMN_DEFINITIONS->resolveKey(['testing', User::class]);
+        $key = $this->metadataStorageKey(CacheKeys::MODEL_SCHEMA_COLUMN_DEFINITIONS->resolveKey(['testing', User::class]));
 
         self::assertSame($definitions, Cache::memo()->get($key));
     }
@@ -457,7 +457,7 @@ final class SchemaIntrospectorTest extends TestCase
 
         ($this->makeIntrospector())->getIndexes($model);
 
-        self::assertNull(Cache::memo()->get(CacheKeys::MODEL_SCHEMA_INDEXES->resolveKey(['testing', $model::class])));
+        self::assertNull(Cache::memo()->get($this->metadataStorageKey(CacheKeys::MODEL_SCHEMA_INDEXES->resolveKey(['testing', $model::class]))));
     }
 
     /**
@@ -470,7 +470,7 @@ final class SchemaIntrospectorTest extends TestCase
     {
         $indexes = ($this->makeIntrospector())->getIndexes(new User);
 
-        self::assertEquals($indexes, Cache::memo()->get(CacheKeys::MODEL_SCHEMA_INDEXES->resolveKey(['testing', User::class])));
+        self::assertEquals($indexes, Cache::memo()->get($this->metadataStorageKey(CacheKeys::MODEL_SCHEMA_INDEXES->resolveKey(['testing', User::class]))));
     }
 
     /**
@@ -485,7 +485,7 @@ final class SchemaIntrospectorTest extends TestCase
 
         ($this->makeIntrospector())->getIndexes(new User);
 
-        self::assertContains(CacheKeys::MODEL_SCHEMA_INDEXES->resolveKey(['testing', User::class]), $registry->keys());
+        self::assertContains($this->metadataStorageKey(CacheKeys::MODEL_SCHEMA_INDEXES->resolveKey(['testing', User::class])), $registry->keys());
     }
 
     /**
@@ -852,7 +852,7 @@ final class SchemaIntrospectorTest extends TestCase
     {
         Config::set('api-toolkit.repositories.relation_cache_ttl', 4321);
 
-        $expectedKey = CacheKeys::MODEL_RELATIONS->resolveKey([User::class, 'posts']);
+        $expectedKey = $this->metadataStorageKey(CacheKeys::MODEL_RELATIONS->resolveKey([User::class, 'posts']));
 
         $repository = \Mockery::mock(Repository::class);
         $repository->shouldReceive('remember')
@@ -877,7 +877,7 @@ final class SchemaIntrospectorTest extends TestCase
     {
         Config::set('api-toolkit.repositories.relation_cache_ttl', 'not-a-number');
 
-        $expectedKey = CacheKeys::MODEL_RELATIONS->resolveKey([User::class, 'posts']);
+        $expectedKey = $this->metadataStorageKey(CacheKeys::MODEL_RELATIONS->resolveKey([User::class, 'posts']));
 
         $repository = \Mockery::mock(Repository::class);
         $repository->shouldReceive('remember')
@@ -1243,7 +1243,7 @@ final class SchemaIntrospectorTest extends TestCase
         $introspector->getColumns($model);
 
         // Assert
-        $expectedKey = CacheKeys::MODEL_SCHEMA_COLUMNS->resolveKey(['testing', User::class]);
+        $expectedKey = $this->metadataStorageKey(CacheKeys::MODEL_SCHEMA_COLUMNS->resolveKey(['testing', User::class]));
 
         self::assertContains($expectedKey, $registry->keys());
     }
@@ -1265,7 +1265,7 @@ final class SchemaIntrospectorTest extends TestCase
         $introspector->getColumnDefinitions($model);
 
         // Assert
-        $expectedKey = CacheKeys::MODEL_SCHEMA_COLUMN_DEFINITIONS->resolveKey(['testing', User::class]);
+        $expectedKey = $this->metadataStorageKey(CacheKeys::MODEL_SCHEMA_COLUMN_DEFINITIONS->resolveKey(['testing', User::class]));
 
         self::assertContains($expectedKey, $registry->keys());
     }
@@ -1282,7 +1282,7 @@ final class SchemaIntrospectorTest extends TestCase
      */
     public function testGetColumnsRegistersSchemaColumnsKeyWhenServedWarm(): void
     {
-        $key = CacheKeys::MODEL_SCHEMA_COLUMNS->resolveKey(['testing', User::class]);
+        $key = $this->metadataStorageKey(CacheKeys::MODEL_SCHEMA_COLUMNS->resolveKey(['testing', User::class]));
 
         Cache::memo()->rememberForever($key, fn (): array => ['id', 'name']);
 
@@ -1301,7 +1301,7 @@ final class SchemaIntrospectorTest extends TestCase
      */
     public function testGetColumnDefinitionsRegistersItsKeyWhenServedWarm(): void
     {
-        $key = CacheKeys::MODEL_SCHEMA_COLUMN_DEFINITIONS->resolveKey(['testing', User::class]);
+        $key = $this->metadataStorageKey(CacheKeys::MODEL_SCHEMA_COLUMN_DEFINITIONS->resolveKey(['testing', User::class]));
 
         Cache::memo()->rememberForever($key, fn (): array => ['name' => new ColumnDefinition('name', 'varchar', true)]);
 
@@ -1320,7 +1320,7 @@ final class SchemaIntrospectorTest extends TestCase
      */
     public function testGetIndexesRegistersItsKeyWhenServedWarm(): void
     {
-        $key = CacheKeys::MODEL_SCHEMA_INDEXES->resolveKey(['testing', User::class]);
+        $key = $this->metadataStorageKey(CacheKeys::MODEL_SCHEMA_INDEXES->resolveKey(['testing', User::class]));
 
         Cache::memo()->rememberForever($key, fn (): array => [new IndexDefinition('users_name_index', ['name'], 'btree')]);
 
@@ -1349,7 +1349,7 @@ final class SchemaIntrospectorTest extends TestCase
         $introspector->isRelation('posts', $model);
 
         // Assert
-        $expectedKey = CacheKeys::MODEL_RELATIONS->resolveKey([User::class, 'posts']);
+        $expectedKey = $this->metadataStorageKey(CacheKeys::MODEL_RELATIONS->resolveKey([User::class, 'posts']));
 
         self::assertContains($expectedKey, $registry->keys());
     }
@@ -1489,7 +1489,7 @@ final class SchemaIntrospectorTest extends TestCase
 
         ($this->makeIntrospector())->getColumns($model);
 
-        $key = CacheKeys::MODEL_SCHEMA_COLUMNS->resolveKey(['testing', $model::class]);
+        $key = $this->metadataStorageKey(CacheKeys::MODEL_SCHEMA_COLUMNS->resolveKey(['testing', $model::class]));
 
         self::assertNull(Cache::memo()->get($key));
     }
@@ -1535,7 +1535,7 @@ final class SchemaIntrospectorTest extends TestCase
 
         ($this->makeIntrospector())->getColumnDefinitions($model);
 
-        $key = CacheKeys::MODEL_SCHEMA_COLUMN_DEFINITIONS->resolveKey(['testing', $model::class]);
+        $key = $this->metadataStorageKey(CacheKeys::MODEL_SCHEMA_COLUMN_DEFINITIONS->resolveKey(['testing', $model::class]));
 
         self::assertNull(Cache::memo()->get($key));
     }

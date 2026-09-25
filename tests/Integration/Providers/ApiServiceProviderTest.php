@@ -529,6 +529,27 @@ final class ApiServiceProviderTest extends TestCase
     }
 
     /**
+     * Test that the invalidate metadata command is registered.
+     *
+     * @return void
+     */
+    public function testInvalidateMetadataCommandIsRegistered(): void
+    {
+        self::assertArrayHasKey('api-toolkit:invalidate-metadata', Artisan::all());
+    }
+
+    /**
+     * Test that the shipped configuration invalidates metadata after migrations
+     * by default.
+     *
+     * @return void
+     */
+    public function testConfigurationInvalidatesMetadataAfterMigrationsByDefault(): void
+    {
+        self::assertTrue($this->getConfig()->get('api-toolkit.lifecycle.migrations'));
+    }
+
+    /**
      * Test that configuration contains the validate schemas key.
      *
      * @return void

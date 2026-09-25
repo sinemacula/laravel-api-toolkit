@@ -11,6 +11,7 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\ApiQueryParser;
 use SineMacula\ApiToolkit\Cache\CacheManager;
 use SineMacula\ApiToolkit\Cache\MetadataCacheWriter;
+use SineMacula\ApiToolkit\Cache\MetadataGeneration;
 use SineMacula\ApiToolkit\Contracts\ResourceMetadataProvider;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Exceptions\InvalidSchemaException;
@@ -98,6 +99,7 @@ final class ContainerBindingRegistrarTest extends TestCase
         self::assertInstanceOf(FilesystemDocumentWriter::class, $app->make(DocumentWriter::class));
 
         self::assertSame($app->make(RuntimeContext::class), $app->make(RuntimeContext::class));
+        self::assertSame($app->make(MetadataGeneration::class), $app->make(MetadataGeneration::class));
         self::assertSame($app->make(MetadataCacheWriter::class), $app->make(MetadataCacheWriter::class));
         self::assertSame($app->make(ServiceRunner::class), $app->make(ServiceRunner::class));
     }

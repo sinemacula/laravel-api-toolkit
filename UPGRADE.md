@@ -1155,8 +1155,9 @@ flush. Any new toolkit metadata key must be written through the `MetadataCacheWr
 it is registered and cleared at the next boundary.
 
 **Re-warm trade-off.** Clearing metadata at the serving boundary means the next request re-warms
-that metadata from the database (a small, bounded re-introspection cost). This is the price of
-correct schema and cast data after a deploy without a worker restart. Operators who accept potential
+that metadata from the database (a small, bounded re-introspection cost). This is the price of each
+worker dropping the metadata it holds at every boundary. It does not retire entries other processes wrote
+to a shared store; see the metadata invalidation section below for that. Operators who accept potential
 staleness in exchange for zero re-warm cost should use the opt-out below.
 
 **Action required.** No action is needed for most applications. The flush is additive on Octane and
@@ -1177,6 +1178,49 @@ Or set the equivalent config keys to `false` in a published `config/api-toolkit.
 
 When a serving runtime is detected but the flush is opted out, the toolkit logs a one-line
 `Log::info` diagnostic so the disabled state is not silent.
+
+### Added: metadata is invalidated across processes after migrations
+
+Cached schema metadata lives in the shared cache store, mostly forever, but the lifecycle flush only forgets
+the keys the flushing process touched. Metadata written by an earlier process therefore survived a deploy that
+changed the schema, and was served warm to every new process, none of which could forget it.
+
+Under 2.x every metadata key is stored under a generation held in the same cache store. Replacing the
+generation retires every metadata entry in every process sharing the store at once:
+
+- The generation is replaced automatically when a migration run (`migrate`, `migrate:rollback`,
+  `migrate:fresh`, and the like) finishes, which covers schema changes at migrate time. A run with nothing to
+  migrate, or a `--pretend` run, keeps the metadata warm. If the cache store cannot be written, the hook logs
+  a warning rather than failing the migration.
+- `php artisan api-toolkit:invalidate-metadata` replaces it on demand, and exits with a failure if the store
+  rejects the new generation.
+- `CacheManager::invalidateMetadata()` is the programmatic entry point behind both.
+
+The Octane and queue boundary flushes are unchanged: they still forget the keys the worker registered, and they
+re-read the generation rather than replacing it, so a long-lived worker picks up an invalidation made
+elsewhere at its next boundary.
+
+The migration hook alone does not keep metadata correct across a deploy. Migrations run before the new
+release takes traffic, so workers still on the old code can refill the new generation with their casts,
+resource mappings, and relation lookups, cached forever.
+
+**Action required.** Add `php artisan api-toolkit:invalidate-metadata` to every deploy, after the new release
+is live. Code that read toolkit metadata keys straight from the
+store must go through `MetadataCacheWriter`, since the stored key now carries the generation. Metadata cached by
+1.x is not read after the upgrade and is rebuilt on first use.
+
+**Opt out of the migration hook:**
+
+    API_TOOLKIT_LIFECYCLE_MIGRATIONS=false
+
+Or in a published `config/api-toolkit.php`:
+
+    'lifecycle' => [
+        'migrations' => false,
+    ],
+
+Entries written under a retired generation are no longer read but stay in the store until it evicts or clears
+them, so each invalidation leaves at most one copy of the metadata behind.
 
 ### Removed: ProvidesExclusiveLock listener trait
 

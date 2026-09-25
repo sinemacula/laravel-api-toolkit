@@ -35,6 +35,9 @@ enum CacheKeys: string
     // Store the attribute-discovered model to resource bindings for a path set
     case DISCOVERED_RESOURCES = 'discovered-resources:%s';
 
+    // Store the generation every metadata key is namespaced by
+    case METADATA_GENERATION = 'metadata-generation';
+
     /**
      * Resolves the cache key with the necessary prefix and replaces any
      * placeholders.

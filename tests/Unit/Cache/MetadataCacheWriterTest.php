@@ -8,6 +8,7 @@ use Illuminate\Contracts\Cache\Repository;
 use Illuminate\Support\Facades\Cache;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Cache\MetadataCacheWriter;
+use SineMacula\ApiToolkit\Cache\MetadataGeneration;
 use SineMacula\ApiToolkit\Cache\MetadataKeyRegistry;
 use Tests\TestCase;
 
@@ -32,7 +33,7 @@ final class MetadataCacheWriterTest extends TestCase
     {
         // Arrange
         $registry = new MetadataKeyRegistry;
-        $writer   = new MetadataCacheWriter($registry);
+        $writer   = new MetadataCacheWriter($registry, new MetadataGeneration);
 
         // Act
         $value = $writer->rememberMetadataForever('test-key', fn () => 'expected-value');
@@ -51,13 +52,13 @@ final class MetadataCacheWriterTest extends TestCase
     {
         // Arrange
         $registry = new MetadataKeyRegistry;
-        $writer   = new MetadataCacheWriter($registry);
+        $writer   = new MetadataCacheWriter($registry, new MetadataGeneration);
 
         // Act
         $writer->rememberMetadataForever('my-metadata-key', fn () => 'value');
 
         // Assert
-        self::assertContains('my-metadata-key', $registry->keys());
+        self::assertContains($writer->storageKey('my-metadata-key'), $registry->keys());
     }
 
     /**
@@ -69,14 +70,14 @@ final class MetadataCacheWriterTest extends TestCase
     {
         // Arrange
         $registry = new MetadataKeyRegistry;
-        $writer   = new MetadataCacheWriter($registry);
+        $writer   = new MetadataCacheWriter($registry, new MetadataGeneration);
         $key      = 'memo-store-key';
 
         // Act
         $writer->rememberMetadataForever($key, fn () => 'stored-value');
 
         // Assert
-        self::assertSame('stored-value', Cache::memo()->get($key));
+        self::assertSame('stored-value', Cache::memo()->get($writer->storageKey($key)));
     }
 
     /**
@@ -88,20 +89,19 @@ final class MetadataCacheWriterTest extends TestCase
     public function testRememberMetadataForeverRegistersKeyEvenOnWarmCache(): void
     {
         // Arrange
-        $key = 'warm-cache-key';
-
-        Cache::memo()->rememberForever($key, fn () => 'pre-warmed-value');
-
+        $key      = 'warm-cache-key';
         $registry = new MetadataKeyRegistry;
-        $writer   = new MetadataCacheWriter($registry);
+        $writer   = new MetadataCacheWriter($registry, new MetadataGeneration);
+
+        Cache::memo()->rememberForever($writer->storageKey($key), fn () => 'pre-warmed-value');
 
         // Act — callback would not be called because the key is already
         // memoised
         $writer->rememberMetadataForever($key, fn () => 'should-not-be-called');
 
         // Assert
-        self::assertContains($key, $registry->keys());
-        self::assertSame('pre-warmed-value', Cache::memo()->get($key));
+        self::assertContains($writer->storageKey($key), $registry->keys());
+        self::assertSame('pre-warmed-value', Cache::memo()->get($writer->storageKey($key)));
     }
 
     /**
@@ -116,15 +116,14 @@ final class MetadataCacheWriterTest extends TestCase
      */
     public function testReadMetadataRegistersTheKeyOfAValueWrittenElsewhere(): void
     {
-        $key = 'written-elsewhere-key';
-
-        Cache::memo()->rememberForever($key, fn () => 'value-from-another-process');
-
+        $key      = 'written-elsewhere-key';
         $registry = new MetadataKeyRegistry;
-        $writer   = new MetadataCacheWriter($registry);
+        $writer   = new MetadataCacheWriter($registry, new MetadataGeneration);
+
+        Cache::memo()->rememberForever($writer->storageKey($key), fn () => 'value-from-another-process');
 
         self::assertSame('value-from-another-process', $writer->readMetadata($key));
-        self::assertContains($key, $registry->keys());
+        self::assertContains($writer->storageKey($key), $registry->keys());
     }
 
     /**
@@ -140,11 +139,11 @@ final class MetadataCacheWriterTest extends TestCase
     public function testReadMetadataRegistersTheKeyAndReportsAbsence(): void
     {
         $registry = new MetadataKeyRegistry;
-        $writer   = new MetadataCacheWriter($registry);
+        $writer   = new MetadataCacheWriter($registry, new MetadataGeneration);
 
         self::assertNull($writer->readMetadata('never-written-key'));
         self::assertSame([], $writer->readMetadata('never-written-key', []));
-        self::assertContains('never-written-key', $registry->keys());
+        self::assertContains($writer->storageKey('never-written-key'), $registry->keys());
     }
 
     /**
@@ -159,11 +158,10 @@ final class MetadataCacheWriterTest extends TestCase
      */
     public function testReadMetadataReportsAnEmptyValueRatherThanAbsence(): void
     {
-        $key = 'empty-value-key';
+        $key    = 'empty-value-key';
+        $writer = new MetadataCacheWriter(new MetadataKeyRegistry, new MetadataGeneration);
 
-        Cache::memo()->rememberForever($key, fn (): array => []);
-
-        $writer = new MetadataCacheWriter(new MetadataKeyRegistry);
+        Cache::memo()->rememberForever($writer->storageKey($key), fn (): array => []);
 
         self::assertSame([], $writer->readMetadata($key));
     }
@@ -177,7 +175,7 @@ final class MetadataCacheWriterTest extends TestCase
     {
         // Arrange
         $registry = new MetadataKeyRegistry;
-        $writer   = new MetadataCacheWriter($registry);
+        $writer   = new MetadataCacheWriter($registry, new MetadataGeneration);
 
         // Act
         $value = $writer->rememberMetadata('ttl-key', fn () => 'expected-value', 3600);
@@ -196,13 +194,13 @@ final class MetadataCacheWriterTest extends TestCase
     {
         // Arrange
         $registry = new MetadataKeyRegistry;
-        $writer   = new MetadataCacheWriter($registry);
+        $writer   = new MetadataCacheWriter($registry, new MetadataGeneration);
 
         // Act
         $writer->rememberMetadata('ttl-metadata-key', fn () => 'value', 3600);
 
         // Assert
-        self::assertContains('ttl-metadata-key', $registry->keys());
+        self::assertContains($writer->storageKey('ttl-metadata-key'), $registry->keys());
     }
 
     /**
@@ -214,14 +212,14 @@ final class MetadataCacheWriterTest extends TestCase
     {
         // Arrange
         $registry = new MetadataKeyRegistry;
-        $writer   = new MetadataCacheWriter($registry);
+        $writer   = new MetadataCacheWriter($registry, new MetadataGeneration);
         $key      = 'ttl-memo-store-key';
 
         // Act
         $writer->rememberMetadata($key, fn () => 'stored-value', 3600);
 
         // Assert
-        self::assertSame('stored-value', Cache::memo()->get($key));
+        self::assertSame('stored-value', Cache::memo()->get($writer->storageKey($key)));
     }
 
     /**
@@ -233,13 +231,15 @@ final class MetadataCacheWriterTest extends TestCase
     public function testRememberMetadataPassesTheTtlToTheStore(): void
     {
         // Arrange
-        $registry = new MetadataKeyRegistry;
-        $writer   = new MetadataCacheWriter($registry);
+        $registry   = new MetadataKeyRegistry;
+        $generation = new MetadataGeneration;
+        $writer     = new MetadataCacheWriter($registry, $generation);
+        $storageKey = $writer->storageKey('ttl-passthrough-key');
 
         $repository = \Mockery::mock(Repository::class);
         $repository->shouldReceive('remember')
             ->once()
-            ->with('ttl-passthrough-key', 1234, \Mockery::type(\Closure::class))
+            ->with($storageKey, 1234, \Mockery::type(\Closure::class))
             ->andReturn('value');
 
         Cache::shouldReceive('memo')
@@ -251,6 +251,42 @@ final class MetadataCacheWriterTest extends TestCase
 
         // Assert
         self::assertSame('value', $value);
-        self::assertContains('ttl-passthrough-key', $registry->keys());
+        self::assertContains($storageKey, $registry->keys());
+    }
+
+    /**
+     * Test that the stored key carries the current generation, so the same
+     * metadata key lands somewhere else once the generation moves on.
+     *
+     * @return void
+     */
+    public function testStorageKeyIsNamespacedByTheCurrentGeneration(): void
+    {
+        $generation = new MetadataGeneration;
+        $writer     = new MetadataCacheWriter(new MetadataKeyRegistry, $generation);
+
+        self::assertSame('metadata-key:' . $generation->current(), $writer->storageKey('metadata-key'));
+
+        $advanced = $generation->advance();
+
+        self::assertSame('metadata-key:' . $advanced, $writer->storageKey('metadata-key'));
+    }
+
+    /**
+     * Test that a value remembered under one generation is not served once the
+     * generation has moved on, and the callback runs again.
+     *
+     * @return void
+     */
+    public function testAdvancingTheGenerationRetiresRememberedValues(): void
+    {
+        $generation = new MetadataGeneration;
+        $writer     = new MetadataCacheWriter(new MetadataKeyRegistry, $generation);
+
+        $writer->rememberMetadataForever('retired-key', fn (): string => 'before');
+        $generation->advance();
+
+        self::assertNull($writer->readMetadata('retired-key'));
+        self::assertSame('after', $writer->rememberMetadataForever('retired-key', fn (): string => 'after'));
     }
 }

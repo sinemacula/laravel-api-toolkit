@@ -194,7 +194,7 @@ final class ResolvesResourceTest extends TestCase
         $this->invokeMethod($consumer, 'resolveResource', new User);
 
         $registry    = $this->app->make(MetadataKeyRegistry::class);
-        $expectedKey = CacheKeys::MODEL_RESOURCES->resolveKey([User::class]);
+        $expectedKey = $this->metadataStorageKey(CacheKeys::MODEL_RESOURCES->resolveKey([User::class]));
 
         self::assertContains($expectedKey, $registry->keys());
     }

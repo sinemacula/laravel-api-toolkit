@@ -102,14 +102,14 @@ final class OctaneBoundaryFlushTest extends TestCase
         $this->writer()->rememberMetadataForever($toolkitKey, static fn () => 'toolkit-value');
         Cache::memo()->rememberForever($nonToolkitKey, static fn () => 'keep-me'); // @phpstan-ignore method.notFound
 
-        self::assertSame('toolkit-value', Cache::memo()->get($toolkitKey)); // @phpstan-ignore method.notFound
+        self::assertSame('toolkit-value', Cache::memo()->get($this->metadataStorageKey($toolkitKey))); // @phpstan-ignore method.notFound
         self::assertSame('keep-me', Cache::memo()->get($nonToolkitKey)); // @phpstan-ignore method.notFound
 
         // Act: dispatch the real event through the wired dispatcher.
         $this->events()->dispatch($this->operationTerminated());
 
         // Assert: the toolkit key is flushed; the non-toolkit key survives.
-        self::assertNull(Cache::memo()->get($toolkitKey)); // @phpstan-ignore method.notFound
+        self::assertNull(Cache::memo()->get($this->metadataStorageKey($toolkitKey))); // @phpstan-ignore method.notFound
         self::assertSame('keep-me', Cache::memo()->get($nonToolkitKey)); // @phpstan-ignore method.notFound
     }
 

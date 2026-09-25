@@ -227,12 +227,12 @@ final class OctaneRequestIsolationTest extends TestCase
         $key = 'integration:octane-schema-survival';
         $this->writer()->rememberMetadataForever($key, static fn () => 'value');
 
-        self::assertSame('value', Cache::memo()->get($key)); // @phpstan-ignore method.notFound
+        self::assertSame('value', Cache::memo()->get($this->metadataStorageKey($key))); // @phpstan-ignore method.notFound
 
         // Boundary: the Octane flush clears per-request metadata only.
         $this->octaneListener()->handle(new \stdClass);
 
-        self::assertNull(Cache::memo()->get($key)); // @phpstan-ignore method.notFound
+        self::assertNull(Cache::memo()->get($this->metadataStorageKey($key))); // @phpstan-ignore method.notFound
 
         // Schema-level singletons survive: the custom operator and the morph
         // map still resolve on the same singleton instances.

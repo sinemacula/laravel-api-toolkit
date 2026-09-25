@@ -4,13 +4,19 @@ declare(strict_types = 1);
 
 namespace Tests\Integration\Providers\Registrars;
 
+use Illuminate\Cache\DatabaseStore;
+use Illuminate\Database\Connection;
+use Illuminate\Database\Events\MigrationsEnded;
 use Illuminate\Events\Dispatcher;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Http\Events\RequestHandled;
 use Illuminate\Queue\Events\JobProcessed;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Log;
 use Laravel\Octane\Contracts\OperationTerminated;
+use Orchestra\Testbench\Attributes\DefineEnvironment;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Listeners\QueueFlushSubscriber;
 use SineMacula\ApiToolkit\Listeners\WritePoolFlushSubscriber;
@@ -146,6 +152,202 @@ final class LifecycleRegistrarTest extends TestCase
     }
 
     /**
+     * Test that the migration invalidation listener is wired when the
+     * migrations lifecycle gate is on.
+     *
+     * @return void
+     */
+    public function testMigrationInvalidationListenerRegisteredWhenEnabled(): void
+    {
+        /** @var \Illuminate\Config\Repository $config */
+        $config = $this->getApplication()->make('config');
+        $config->set('api-toolkit.lifecycle.migrations', true);
+
+        Event::swap(new Dispatcher($this->getApplication()));
+
+        (new LifecycleRegistrar)->register();
+
+        /** @var \Illuminate\Events\Dispatcher $events */
+        $events = $this->getApplication()->make('events');
+
+        self::assertTrue($events->hasListeners(MigrationsEnded::class));
+    }
+
+    /**
+     * Test that the migration invalidation listener is wired for a config
+     * published before the migrations gate existed, whose lifecycle array lacks
+     * the key.
+     *
+     * @return void
+     */
+    public function testMigrationInvalidationListenerRegisteredWhenTheGateIsUnpublished(): void
+    {
+        /** @var \Illuminate\Config\Repository $config */
+        $config = $this->getApplication()->make('config');
+        $config->set('api-toolkit.lifecycle', ['octane' => true, 'queue' => true]);
+
+        Event::swap(new Dispatcher($this->getApplication()));
+
+        (new LifecycleRegistrar)->register();
+
+        /** @var \Illuminate\Events\Dispatcher $events */
+        $events = $this->getApplication()->make('events');
+
+        self::assertTrue($events->hasListeners(MigrationsEnded::class));
+    }
+
+    /**
+     * Test that the migration invalidation listener is not wired when the
+     * migrations lifecycle gate is off.
+     *
+     * @return void
+     */
+    public function testMigrationInvalidationListenerNotRegisteredWhenDisabled(): void
+    {
+        /** @var \Illuminate\Config\Repository $config */
+        $config = $this->getApplication()->make('config');
+        $config->set('api-toolkit.lifecycle.migrations', false);
+
+        Event::swap(new Dispatcher($this->getApplication()));
+
+        (new LifecycleRegistrar)->register();
+
+        /** @var \Illuminate\Events\Dispatcher $events */
+        $events = $this->getApplication()->make('events');
+
+        self::assertFalse($events->hasListeners(MigrationsEnded::class));
+    }
+
+    /**
+     * Test that resolving the migrator binds a cache store that follows the
+     * default connection before the migrator can swap that connection.
+     *
+     * @return void
+     */
+    public function testResolvingTheMigratorBindsTheDefaultCacheStore(): void
+    {
+        (new LifecycleRegistrar)->register();
+
+        $this->useDatabaseCacheStoreOnTheDefaultConnection();
+
+        $this->getApplication()->forgetInstance('migrator');
+        $this->getApplication()->make('migrator');
+
+        DB::setDefaultConnection('secondary');
+
+        self::assertSame('testing', $this->defaultCacheStoreConnection());
+    }
+
+    /**
+     * Test that a migrator resolved before the registrar ran has the default
+     * cache store bound straight away.
+     *
+     * @return void
+     */
+    public function testAlreadyResolvedMigratorBindsTheDefaultCacheStore(): void
+    {
+        $this->getApplication()->make('migrator');
+
+        $this->useDatabaseCacheStoreOnTheDefaultConnection();
+
+        (new LifecycleRegistrar)->register();
+
+        DB::setDefaultConnection('secondary');
+
+        self::assertSame('testing', $this->defaultCacheStoreConnection());
+    }
+
+    /**
+     * Test that the cache store is left to resolve lazily until the migrator is
+     * resolved.
+     *
+     * @return void
+     */
+    public function testUnresolvedMigratorLeavesTheCacheStoreUnbound(): void
+    {
+        $this->getApplication()->offsetUnset('migrator');
+
+        $this->useDatabaseCacheStoreOnTheDefaultConnection();
+
+        (new LifecycleRegistrar)->register();
+
+        DB::setDefaultConnection('secondary');
+
+        self::assertSame('secondary', $this->defaultCacheStoreConnection());
+    }
+
+    /**
+     * Test that the cache store is left to resolve lazily when the migrations
+     * lifecycle gate is off.
+     *
+     * @return void
+     */
+    #[DefineEnvironment('disableMigrationInvalidation')]
+    public function testMigratorDoesNotBindTheCacheStoreWhenDisabled(): void
+    {
+        $this->getApplication()->make('migrator');
+
+        $this->useDatabaseCacheStoreOnTheDefaultConnection();
+
+        (new LifecycleRegistrar)->register();
+
+        $this->getApplication()->forgetInstance('migrator');
+        $this->getApplication()->make('migrator');
+
+        DB::setDefaultConnection('secondary');
+
+        self::assertSame('secondary', $this->defaultCacheStoreConnection());
+    }
+
+    /**
+     * Test that an unusable cache store does not stop the migrator resolving,
+     * leaving the listener to report it once the migrations end.
+     *
+     * @return void
+     */
+    public function testUnusableCacheStoreDoesNotStopTheMigratorResolving(): void
+    {
+        /** @var \Illuminate\Config\Repository $config */
+        $config = $this->getApplication()->make('config');
+        $config->set('cache.stores.unusable', ['driver' => 'unsupported']);
+        $config->set('cache.default', 'unusable');
+
+        (new LifecycleRegistrar)->register();
+
+        $this->getApplication()->forgetInstance('migrator');
+
+        self::assertIsObject($this->getApplication()->make('migrator'));
+    }
+
+    /**
+     * Test that a cache store failing with an engine error while it is built
+     * does not stop the migrator resolving.
+     *
+     * A driver whose dependency is not installed fails as an error rather than
+     * an exception, and binding the store must not turn that into every
+     * migration command, and the command list itself, failing to build.
+     *
+     * @return void
+     */
+    public function testCacheStoreFailingWithAnErrorDoesNotStopTheMigratorResolving(): void
+    {
+        Cache::extend('broken', static function (): never {
+            throw new \Error('The cache driver dependency is not installed.');
+        });
+
+        /** @var \Illuminate\Config\Repository $config */
+        $config = $this->getApplication()->make('config');
+        $config->set('cache.stores.broken', ['driver' => 'broken']);
+        $config->set('cache.default', 'broken');
+
+        (new LifecycleRegistrar)->register();
+
+        $this->getApplication()->forgetInstance('migrator');
+
+        self::assertIsObject($this->getApplication()->make('migrator'));
+    }
+
+    /**
      * Test that an off-state diagnostic is logged when serving under Octane but
      * the lifecycle flush is opted-out.
      *
@@ -237,6 +439,20 @@ final class LifecycleRegistrarTest extends TestCase
     }
 
     /**
+     * Switch the migrations lifecycle gate off before the application boots.
+     *
+     * @param  \Illuminate\Foundation\Application  $app
+     * @return void
+     */
+    protected function disableMigrationInvalidation(mixed $app): void
+    {
+        /** @var \Illuminate\Config\Repository $config */
+        $config = $app['config'];
+
+        $config->set('api-toolkit.lifecycle.migrations', false);
+    }
+
+    /**
      * Get the application instance.
      *
      * @return \Illuminate\Foundation\Application
@@ -274,5 +490,38 @@ final class LifecycleRegistrarTest extends TestCase
         }
 
         return false;
+    }
+
+    /**
+     * Point the default cache store at a database store that names no
+     * connection, beside a second connection the default can be swapped to.
+     *
+     * @return void
+     */
+    private function useDatabaseCacheStoreOnTheDefaultConnection(): void
+    {
+        /** @var \Illuminate\Config\Repository $config */
+        $config = $this->getApplication()->make('config');
+        $config->set('database.connections.secondary', ['driver' => 'sqlite', 'database' => ':memory:', 'prefix' => '']);
+        $config->set('cache.stores.default_connection', ['driver' => 'database', 'table' => 'cache', 'connection' => null]);
+        $config->set('cache.default', 'default_connection');
+    }
+
+    /**
+     * Return the name of the connection the default cache store is bound to.
+     *
+     * @return string|null
+     */
+    private function defaultCacheStoreConnection(): ?string
+    {
+        $store = Cache::store()->getStore();
+
+        self::assertInstanceOf(DatabaseStore::class, $store);
+
+        $connection = $store->getConnection();
+
+        self::assertInstanceOf(Connection::class, $connection);
+
+        return $connection->getName();
     }
 }

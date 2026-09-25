@@ -428,7 +428,7 @@ final class AttributeSetterTest extends TestCase
     public function testResolveAttributeCastsFromCache(): void
     {
         $cachedCasts = ['name' => 'string', 'active' => 'boolean'];
-        $cacheKey    = CacheKeys::REPOSITORY_MODEL_CASTS->resolveKey([User::class]);
+        $cacheKey    = $this->metadataStorageKey(CacheKeys::REPOSITORY_MODEL_CASTS->resolveKey([User::class]));
 
         Cache::memo()->rememberForever($cacheKey, fn () => $cachedCasts);
 
@@ -459,7 +459,7 @@ final class AttributeSetterTest extends TestCase
         self::assertIsArray($casts);
         self::assertArrayHasKey('status', $casts);
 
-        $cached = Cache::memo()->get(CacheKeys::REPOSITORY_MODEL_CASTS->resolveKey([User::class]));
+        $cached = Cache::memo()->get($this->metadataStorageKey(CacheKeys::REPOSITORY_MODEL_CASTS->resolveKey([User::class])));
 
         self::assertSame($casts, $cached);
     }
@@ -478,7 +478,7 @@ final class AttributeSetterTest extends TestCase
 
         $this->attributeSetter->persist($user, ['name' => 'Bob'], User::class);
 
-        $cached = Cache::memo()->get(CacheKeys::REPOSITORY_MODEL_CASTS->resolveKey([User::class]));
+        $cached = Cache::memo()->get($this->metadataStorageKey(CacheKeys::REPOSITORY_MODEL_CASTS->resolveKey([User::class])));
 
         self::assertSame(['name' => 'string'], $cached);
     }
@@ -685,7 +685,7 @@ final class AttributeSetterTest extends TestCase
         $this->attributeSetter->persist($user, ['name' => 'Bob'], User::class);
 
         // Assert
-        $expectedKey = CacheKeys::REPOSITORY_MODEL_CASTS->resolveKey([User::class]);
+        $expectedKey = $this->metadataStorageKey(CacheKeys::REPOSITORY_MODEL_CASTS->resolveKey([User::class]));
 
         self::assertContains($expectedKey, $registry->keys());
     }
@@ -701,7 +701,7 @@ final class AttributeSetterTest extends TestCase
      */
     public function testResolveAttributeCastsRegistersModelCastsKeyWhenServedWarm(): void
     {
-        $cacheKey = CacheKeys::REPOSITORY_MODEL_CASTS->resolveKey([User::class]);
+        $cacheKey = $this->metadataStorageKey(CacheKeys::REPOSITORY_MODEL_CASTS->resolveKey([User::class]));
 
         Cache::memo()->rememberForever($cacheKey, fn (): array => ['name' => 'string']);
 
