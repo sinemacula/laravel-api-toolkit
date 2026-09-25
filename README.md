@@ -577,6 +577,34 @@ php artisan api-toolkit:docs:generate
 
 ---
 
+### Metadata Invalidation
+
+Schema metadata - column listings and definitions, index catalogues, cast maps, relation lookups, and the
+model-to-resource map - is cached in the application's cache store and shared by every process that uses it.
+The Octane and queue boundary flushes only clear what the flushing worker touched, so a schema or mapping
+change needs the shared entries retired as well. Every metadata key is stored under a generation held in the
+same store, and replacing that generation makes every earlier entry unreachable in every process at once.
+
+The generation is replaced automatically when a migration run finishes, which covers schema changes at
+migrate time. A run with nothing to migrate, or a `--pretend` run, leaves the metadata warm. If the cache store
+cannot be written, the hook logs a warning rather than failing the migration. Set
+`API_TOOLKIT_LIFECYCLE_MIGRATIONS=false` to switch the hook off.
+
+The hook does not cover a deploy on its own. Migrations run before the new release takes traffic, so workers
+still on the old code can refill the new generation with their casts, resource mappings, and relation lookups,
+cached forever. Run the command on every deploy, after the new release is live:
+
+```bash
+php artisan api-toolkit:invalidate-metadata
+```
+
+It exits with a failure if the cache store rejects the new generation.
+
+Entries written under a retired generation are no longer read but stay in the store until it evicts or
+clears them. Each invalidation leaves at most one copy of the metadata behind.
+
+---
+
 ### Upgrading
 
 See [UPGRADE.md](UPGRADE.md) for version-by-version migration guides, including breaking changes and

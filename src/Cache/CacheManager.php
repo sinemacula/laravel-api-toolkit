@@ -45,7 +45,30 @@ final readonly class CacheManager
     ) {}
 
     /**
+     * Retire every toolkit metadata entry in every process sharing the store,
+     * then flush this process's caches.
+     *
+     * A flush only forgets the keys this process registered, so metadata an
+     * earlier process wrote survives it. Replacing the generation leaves those
+     * entries unreachable instead, which is what a schema change needs.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\MetadataInvalidationException
+     */
+    public function invalidateMetadata(): void
+    {
+        $this->generation()->advance();
+
+        $this->flush();
+    }
+
+    /**
      * Flush all toolkit caches and dispatch the flushed event.
+     *
+     * The generation is re-read after a flush rather than replaced, so a
+     * long-lived worker picks up an invalidation made elsewhere without
+     * invalidating anything itself.
      *
      * @return void
      */
@@ -56,6 +79,7 @@ final readonly class CacheManager
         }
 
         $this->registry->clear();
+        $this->generation()->forget();
 
         SchemaCompiler::clearCache();
         ValueResolver::clearCache();
@@ -70,6 +94,16 @@ final readonly class CacheManager
         $this->resetQueryParser();
 
         event(new CacheFlushed);
+    }
+
+    /**
+     * Resolve the generation every toolkit metadata key is namespaced by.
+     *
+     * @return \SineMacula\ApiToolkit\Cache\MetadataGeneration
+     */
+    private function generation(): MetadataGeneration
+    {
+        return $this->container->make(MetadataGeneration::class);
     }
 
     /**

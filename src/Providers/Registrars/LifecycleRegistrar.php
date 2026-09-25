@@ -4,10 +4,13 @@ declare(strict_types = 1);
 
 namespace SineMacula\ApiToolkit\Providers\Registrars;
 
+use Illuminate\Database\Events\MigrationsEnded;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Log;
 use Laravel\Octane\Contracts\OperationTerminated;
+use SineMacula\ApiToolkit\Listeners\MigrationInvalidationListener;
 use SineMacula\ApiToolkit\Listeners\OctaneFlushListener;
 use SineMacula\ApiToolkit\Listeners\QueueFlushSubscriber;
 use SineMacula\ApiToolkit\Listeners\WritePoolFlushSubscriber;
@@ -16,9 +19,9 @@ use SineMacula\ApiToolkit\Runtime\RuntimeContext;
 /**
  * Registers the toolkit lifecycle listeners.
  *
- * Subscribes the write pool flush subscriber, the Octane flush listener, and
- * the queue flush subscriber to their lifecycle events, honouring the
- * configured gates.
+ * Subscribes the write pool flush subscriber, the Octane flush listener, the
+ * queue flush subscriber, and the migration invalidation listener to their
+ * lifecycle events, honouring the configured gates.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -35,6 +38,7 @@ final class LifecycleRegistrar
         $this->registerWritePoolFlushSubscriber();
         $this->registerOctaneFlushListener();
         $this->registerQueueFlushSubscriber();
+        $this->registerMigrationInvalidationListener();
         $this->reportOffStateDiagnostic();
     }
 
@@ -78,6 +82,51 @@ final class LifecycleRegistrar
         }
 
         Event::subscribe(QueueFlushSubscriber::class);
+    }
+
+    /**
+     * Register the migration invalidation listener if configured.
+     *
+     * The migrator makes the connection being migrated the default for as long
+     * as it runs, and the listener fires inside that window. A cache store that
+     * follows the default connection is therefore bound as soon as the migrator
+     * is resolved, before it can swap connections, so the invalidation lands in
+     * the store every serving process reads.
+     *
+     * @return void
+     */
+    private function registerMigrationInvalidationListener(): void
+    {
+        if (!(bool) Config::get('api-toolkit.lifecycle.migrations', true)) {
+            return;
+        }
+
+        Event::listen(MigrationsEnded::class, MigrationInvalidationListener::class);
+
+        $app = app();
+
+        $app->afterResolving('migrator', $this->bindDefaultCacheStore(...));
+
+        if (!$app->resolved('migrator')) {
+            return;
+        }
+
+        $this->bindDefaultCacheStore();
+    }
+
+    /**
+     * Resolve the default cache store so it is memoised against the default
+     * database connection.
+     *
+     * @return void
+     */
+    private function bindDefaultCacheStore(): void
+    {
+        try {
+            Cache::store();
+        } catch (\Throwable) {
+            // The listener reports an unusable store once the migrations end.
+        }
     }
 
     /**

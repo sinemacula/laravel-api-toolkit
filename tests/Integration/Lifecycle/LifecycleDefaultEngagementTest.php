@@ -95,13 +95,13 @@ final class LifecycleDefaultEngagementTest extends TestCase
 
         // Write through the writer so the key is registered in the registry.
         $this->writer()->rememberMetadataForever($key, static fn () => 'value');
-        self::assertSame('value', Cache::memo()->get($key)); // @phpstan-ignore method.notFound
+        self::assertSame('value', Cache::memo()->get($this->metadataStorageKey($key))); // @phpstan-ignore method.notFound
 
         // Act: invoke the Octane boundary with the shipped default config.
         $this->octaneListener()->handle(new \stdClass);
 
         // Assert: the toolkit key was cleared (flush engaged on the default).
-        self::assertNull(Cache::memo()->get($key)); // @phpstan-ignore method.notFound
+        self::assertNull(Cache::memo()->get($this->metadataStorageKey($key))); // @phpstan-ignore method.notFound
     }
 
     /**
@@ -127,14 +127,14 @@ final class LifecycleDefaultEngagementTest extends TestCase
 
         // Write through the writer so the key is registered in the registry.
         $this->writer()->rememberMetadataForever($key, static fn () => 'value');
-        self::assertSame('value', Cache::memo()->get($key)); // @phpstan-ignore method.notFound
+        self::assertSame('value', Cache::memo()->get($this->metadataStorageKey($key))); // @phpstan-ignore method.notFound
 
         // Act: invoke the queue boundary with the shipped default config.
         $event = new JobProcessed('database', self::createStub(Job::class));
         $this->queueSubscriber()->handleFlush($event);
 
         // Assert: the toolkit key was cleared (flush engaged on the default).
-        self::assertNull(Cache::memo()->get($key)); // @phpstan-ignore method.notFound
+        self::assertNull(Cache::memo()->get($this->metadataStorageKey($key))); // @phpstan-ignore method.notFound
     }
 
     /**

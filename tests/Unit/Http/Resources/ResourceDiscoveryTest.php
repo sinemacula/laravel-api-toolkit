@@ -160,7 +160,7 @@ final class ResourceDiscoveryTest extends TestCase
         self::assertSame([], $this->discovery()->discover());
 
         // An empty path set must not touch the metadata cache at all.
-        self::assertFalse(Cache::has(CacheKeys::DISCOVERED_RESOURCES->resolveKey([md5('')])));
+        self::assertFalse(Cache::has($this->metadataStorageKey(CacheKeys::DISCOVERED_RESOURCES->resolveKey([md5('')]))));
     }
 
     /**
@@ -737,7 +737,7 @@ final class ResourceDiscoveryTest extends TestCase
     }
 
     /**
-     * Compute the discovery cache key for the given paths, mirroring the
+     * Compute the stored discovery cache key for the given paths, mirroring the
      * file-and-mtime fingerprint the service derives.
      *
      * @param  array<int, string>  $paths
@@ -768,6 +768,6 @@ final class ResourceDiscoveryTest extends TestCase
 
         $fingerprint = array_map(static fn (string $file): string => $file . ':' . (int) filemtime($file), $files);
 
-        return CacheKeys::DISCOVERED_RESOURCES->resolveKey([md5(implode('|', $fingerprint))]);
+        return $this->metadataStorageKey(CacheKeys::DISCOVERED_RESOURCES->resolveKey([md5(implode('|', $fingerprint))]));
     }
 }

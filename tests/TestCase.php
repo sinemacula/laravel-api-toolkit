@@ -8,10 +8,12 @@ use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Filesystem\Filesystem;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Orchestra\Testbench\TestCase as OrchestraTestCase;
 use SineMacula\ApiToolkit\ApiServiceProvider;
+use SineMacula\ApiToolkit\Cache\MetadataCacheWriter;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\EagerLoadPlanner;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\FieldResolver;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\ValueResolver;
@@ -68,6 +70,33 @@ abstract class TestCase extends OrchestraTestCase
         }
 
         parent::tearDown();
+    }
+
+    /**
+     * Return the key the store holds the given metadata key under in the
+     * current generation.
+     *
+     * @param  string  $key
+     * @return string
+     */
+    protected function metadataStorageKey(string $key): string
+    {
+        /** @var \SineMacula\ApiToolkit\Cache\MetadataCacheWriter $writer */
+        $writer = $this->app->make(MetadataCacheWriter::class); // @phpstan-ignore method.nonObject
+
+        return $writer->storageKey($key);
+    }
+
+    /**
+     * Point the default cache store at one that keeps nothing and rejects every
+     * write.
+     *
+     * @return void
+     */
+    protected function useRejectingCacheStore(): void
+    {
+        Config::set('cache.stores.rejecting', ['driver' => 'null']);
+        Config::set('cache.default', 'rejecting');
     }
 
     /**

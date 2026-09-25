@@ -9,10 +9,13 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Event;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Cache\CacheManager;
+use SineMacula\ApiToolkit\Cache\MetadataCacheWriter;
+use SineMacula\ApiToolkit\Cache\MetadataGeneration;
 use SineMacula\ApiToolkit\Cache\MetadataKeyRegistry;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Enums\CacheKeys;
 use SineMacula\ApiToolkit\Events\CacheFlushed;
+use SineMacula\ApiToolkit\Exceptions\MetadataInvalidationException;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\EagerLoadPlanner;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\FieldResolver;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\ValueResolver;
@@ -404,7 +407,7 @@ final class CacheManagerTest extends TestCase
     {
         Event::fake();
 
-        $key = CacheKeys::MODEL_SCHEMA_COLUMNS->resolveKey(['testing', User::class]);
+        $key = $this->metadataStorageKey(CacheKeys::MODEL_SCHEMA_COLUMNS->resolveKey(['testing', User::class]));
 
         // Written by a process that has since gone, leaving the registry this
         // one starts with empty.
@@ -426,5 +429,178 @@ final class CacheManagerTest extends TestCase
         $manager->flush();
 
         self::assertNull(Cache::memo()->get($key)); // @phpstan-ignore method.notFound
+    }
+
+    /**
+     * Test that a flush keeps the generation, so a boundary in one worker never
+     * retires the metadata every other worker is serving.
+     *
+     * @return void
+     */
+    public function testFlushDoesNotAdvanceTheGeneration(): void
+    {
+        Event::fake();
+
+        $generation = $this->generation();
+        $before     = $generation->current();
+
+        $this->manager()->flush();
+
+        self::assertSame($before, $generation->current());
+        self::assertSame($before, Cache::get(CacheKeys::METADATA_GENERATION->resolveKey()));
+    }
+
+    /**
+     * Test that a flush drops the memoised generation, so a long-lived worker
+     * picks up an invalidation another process made at its next boundary.
+     *
+     * @return void
+     */
+    public function testFlushRereadsAGenerationReplacedElsewhere(): void
+    {
+        Event::fake();
+
+        $generation = $this->generation();
+        $before     = $generation->current();
+
+        $elsewhere = (new MetadataGeneration)->advance();
+
+        self::assertSame($before, $generation->current());
+
+        $this->manager()->flush();
+
+        self::assertSame($elsewhere, $generation->current());
+    }
+
+    /**
+     * Test that invalidating replaces the generation in the store and in this
+     * process.
+     *
+     * @return void
+     */
+    public function testInvalidateMetadataReplacesTheGeneration(): void
+    {
+        Event::fake();
+
+        $generation = $this->generation();
+        $before     = $generation->current();
+
+        $this->manager()->invalidateMetadata();
+
+        $after = Cache::get(CacheKeys::METADATA_GENERATION->resolveKey());
+
+        self::assertIsString($after);
+        self::assertNotSame($before, $after);
+        self::assertSame($after, $generation->current());
+    }
+
+    /**
+     * Test that a store rejecting the new generation is surfaced before this
+     * process is flushed, so nothing reports an invalidation that did not
+     * happen.
+     *
+     * @return void
+     */
+    public function testInvalidateMetadataSurfacesARejectedGeneration(): void
+    {
+        Event::fake();
+
+        $this->useRejectingCacheStore();
+
+        try {
+            $this->manager()->invalidateMetadata();
+            self::fail('A rejected generation was reported as invalidated.');
+        } catch (MetadataInvalidationException $exception) {
+            self::assertSame('The cache store rejected the new metadata generation, so the cached metadata was not invalidated.', $exception->getMessage());
+        }
+
+        Event::assertNotDispatched(CacheFlushed::class);
+    }
+
+    /**
+     * Test that invalidating also flushes this process: registered keys are
+     * forgotten, memos cleared, and the flushed event dispatched.
+     *
+     * @return void
+     */
+    public function testInvalidateMetadataFlushesThisProcess(): void
+    {
+        Event::fake();
+
+        /** @var \SineMacula\ApiToolkit\Cache\MetadataKeyRegistry $registry */
+        $registry = $this->app->make(MetadataKeyRegistry::class); // @phpstan-ignore method.nonObject
+
+        $key = $this->metadataStorageKey('invalidated-key');
+
+        $registry->register($key);
+        Cache::memo()->rememberForever($key, fn (): string => 'stale'); // @phpstan-ignore method.notFound
+        $this->setStaticProperty(SchemaCompiler::class, 'cache', ['FakeResource' => 'compiled']);
+
+        $this->manager()->invalidateMetadata();
+
+        self::assertNull(Cache::memo()->get($key)); // @phpstan-ignore method.notFound
+        self::assertSame([], $registry->keys());
+        self::assertSame([], $this->getStaticProperty(SchemaCompiler::class, 'cache'));
+        Event::assertDispatched(CacheFlushed::class);
+    }
+
+    /**
+     * Test that metadata an earlier process wrote is retired by a process that
+     * never touched it, and the next read recomputes it.
+     *
+     * The writing process registered its key and went away; the invalidating
+     * process starts with an empty registry, so a flush could never reach the
+     * entry. Replacing the generation does.
+     *
+     * @return void
+     */
+    public function testInvalidateMetadataRetiresMetadataAnotherProcessWrote(): void
+    {
+        Event::fake();
+
+        $key = CacheKeys::MODEL_SCHEMA_COLUMNS->resolveKey(['testing', User::class]);
+
+        $earlier = new MetadataCacheWriter(new MetadataKeyRegistry, new MetadataGeneration);
+        $earlier->rememberMetadataForever($key, fn (): array => ['stale-column']);
+
+        /** @var \SineMacula\ApiToolkit\Cache\MetadataKeyRegistry $registry */
+        $registry = $this->app->make(MetadataKeyRegistry::class); // @phpstan-ignore method.nonObject
+
+        $registry->clear();
+        $this->generation()->forget();
+
+        $this->manager()->invalidateMetadata();
+
+        $later = new MetadataCacheWriter(new MetadataKeyRegistry, new MetadataGeneration);
+
+        self::assertNull($later->readMetadata($key));
+
+        /** @var \SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider $introspector */
+        $introspector = $this->app->make(SchemaIntrospectionProvider::class); // @phpstan-ignore method.nonObject
+
+        self::assertContains('email', $introspector->getColumns(new User));
+        self::assertNotContains('stale-column', $introspector->getColumns(new User));
+    }
+
+    /**
+     * Resolve the container's cache manager.
+     *
+     * @return \SineMacula\ApiToolkit\Cache\CacheManager
+     */
+    private function manager(): CacheManager
+    {
+        /** @var \SineMacula\ApiToolkit\Cache\CacheManager */
+        return $this->app->make(CacheManager::class); // @phpstan-ignore method.nonObject
+    }
+
+    /**
+     * Resolve the container's metadata generation.
+     *
+     * @return \SineMacula\ApiToolkit\Cache\MetadataGeneration
+     */
+    private function generation(): MetadataGeneration
+    {
+        /** @var \SineMacula\ApiToolkit\Cache\MetadataGeneration */
+        return $this->app->make(MetadataGeneration::class); // @phpstan-ignore method.nonObject
     }
 }

@@ -566,6 +566,15 @@ return [
     | workers who wish to opt out may set API_TOOLKIT_LIFECYCLE_OCTANE=false
     | or API_TOOLKIT_LIFECYCLE_QUEUE=false in their environment.
     |
+    | A boundary flush only forgets the metadata the flushing process touched,
+    | so metadata written by earlier processes survives it. `migrations`
+    | invalidates the cached metadata in every process sharing the cache store
+    | once a migration run finishes, since that is when schema metadata goes
+    | stale. A run with nothing to migrate, or a pretended one, leaves it warm.
+    | Enabled by default. Old-code workers can refill metadata between migrate
+    | and release, so a deploy should also run api-toolkit:invalidate-metadata
+    | once the new release is live.
+    |
     */
 
     'lifecycle' => [
@@ -573,6 +582,8 @@ return [
         'octane' => env('API_TOOLKIT_LIFECYCLE_OCTANE', true),
 
         'queue' => env('API_TOOLKIT_LIFECYCLE_QUEUE', true),
+
+        'migrations' => env('API_TOOLKIT_LIFECYCLE_MIGRATIONS', true),
 
     ],
 

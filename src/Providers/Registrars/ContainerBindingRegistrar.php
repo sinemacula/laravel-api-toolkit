@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Config;
 use SineMacula\ApiToolkit\ApiQueryParser;
 use SineMacula\ApiToolkit\Cache\CacheManager;
 use SineMacula\ApiToolkit\Cache\MetadataCacheWriter;
+use SineMacula\ApiToolkit\Cache\MetadataGeneration;
 use SineMacula\ApiToolkit\Cache\MetadataKeyRegistry;
 use SineMacula\ApiToolkit\Contracts\ResourceMetadataProvider;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
@@ -253,9 +254,9 @@ final readonly class ContainerBindingRegistrar
     /**
      * Bind the lifecycle runtime collaborators to the service container.
      *
-     * RuntimeContext, MetadataKeyRegistry, and MetadataCacheWriter are each
-     * bound as singletons so write-time and flush-time share one live instance
-     * within a worker process.
+     * RuntimeContext, MetadataKeyRegistry, MetadataGeneration, and
+     * MetadataCacheWriter are each bound as singletons so write-time and
+     * flush-time share one live instance within a worker process.
      *
      * @return void
      */
@@ -263,6 +264,7 @@ final readonly class ContainerBindingRegistrar
     {
         $this->container->singleton(RuntimeContext::class);
         $this->container->singleton(MetadataKeyRegistry::class);
+        $this->container->singleton(MetadataGeneration::class);
         $this->container->singleton(MetadataCacheWriter::class);
     }
 

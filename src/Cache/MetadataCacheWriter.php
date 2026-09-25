@@ -18,6 +18,11 @@ use Illuminate\Support\Facades\Cache;
  * went straight to the store would hold a live key this process never
  * registered, and the flush would leave it behind.
  *
+ * Every key is stored under the current metadata generation, so replacing the
+ * generation retires every entry at once in every process sharing the store.
+ * The registry holds the stored keys, so a flush forgets exactly what this
+ * process touched under whichever generation it was on at the time.
+ *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
@@ -27,13 +32,28 @@ final readonly class MetadataCacheWriter
      * Create a new metadata cache writer instance.
      *
      * @param  \SineMacula\ApiToolkit\Cache\MetadataKeyRegistry  $registry
+     * @param  \SineMacula\ApiToolkit\Cache\MetadataGeneration  $generation
      * @return void
      */
     public function __construct(
 
         /** The registry tracking live toolkit metadata keys for flushing. */
         private MetadataKeyRegistry $registry,
+
+        /** The generation every metadata key is namespaced by. */
+        private MetadataGeneration $generation,
     ) {}
+
+    /**
+     * Return the key the store holds the given metadata key under.
+     *
+     * @param  string  $key
+     * @return string
+     */
+    public function storageKey(string $key): string
+    {
+        return $key . ':' . $this->generation->current();
+    }
 
     /**
      * Store a forever-memoised metadata value and register its key.
@@ -49,6 +69,8 @@ final readonly class MetadataCacheWriter
      */
     public function rememberMetadataForever(string $key, callable $callback): mixed
     {
+        $key = $this->storageKey($key);
+
         $this->registry->register($key);
 
         return Cache::memo()->rememberForever($key, static fn () => $callback()); // @phpstan-ignore method.notFound
@@ -69,6 +91,8 @@ final readonly class MetadataCacheWriter
      */
     public function readMetadata(string $key, mixed $missing = null): mixed
     {
+        $key = $this->storageKey($key);
+
         $this->registry->register($key);
 
         return Cache::memo()->get($key, $missing); // @phpstan-ignore method.notFound
@@ -91,6 +115,8 @@ final readonly class MetadataCacheWriter
      */
     public function rememberMetadata(string $key, callable $callback, int $ttl): mixed
     {
+        $key = $this->storageKey($key);
+
         $this->registry->register($key);
 
         return Cache::memo()->remember($key, $ttl, static fn () => $callback()); // @phpstan-ignore method.notFound
