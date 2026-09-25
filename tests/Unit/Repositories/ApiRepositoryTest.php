@@ -96,6 +96,8 @@ final class ApiRepositoryTest extends TestCase
      * existing ApiCriteria.
      *
      * @return void
+     *
+     * @throws \SineMacula\Repositories\Exceptions\RepositoryException
      */
     public function testUsingResourceSetsCustomResourceAndPropagatesToCriteria(): void
     {
@@ -139,6 +141,8 @@ final class ApiRepositoryTest extends TestCase
      * resource map configuration.
      *
      * @return void
+     *
+     * @throws \SineMacula\Repositories\Exceptions\RepositoryException
      */
     public function testGetResourceClassResolvesResourceFromModel(): void
     {
@@ -153,6 +157,8 @@ final class ApiRepositoryTest extends TestCase
      * Test that getResourceClass returns null when no mapping exists.
      *
      * @return void
+     *
+     * @throws \SineMacula\Repositories\Exceptions\RepositoryException
      */
     public function testGetResourceClassReturnsNullWhenNoMappingExists(): void
     {
@@ -254,6 +260,8 @@ final class ApiRepositoryTest extends TestCase
      * Test that persist sets string attributes on the model.
      *
      * @return void
+     *
+     * @throws \SineMacula\Repositories\Exceptions\RepositoryException
      */
     public function testPersistSetsStringAttributes(): void
     {
@@ -272,6 +280,8 @@ final class ApiRepositoryTest extends TestCase
      * Test that persist sets integer attributes on the model.
      *
      * @return void
+     *
+     * @throws \SineMacula\Repositories\Exceptions\RepositoryException
      */
     public function testPersistSetsIntegerAttributes(): void
     {
@@ -294,6 +304,8 @@ final class ApiRepositoryTest extends TestCase
      * Test that persist sets boolean attributes on the model.
      *
      * @return void
+     *
+     * @throws \SineMacula\Repositories\Exceptions\RepositoryException
      */
     public function testPersistSetsBooleanAttributes(): void
     {
@@ -320,6 +332,8 @@ final class ApiRepositoryTest extends TestCase
      * Test that persist handles array attributes on the model.
      *
      * @return void
+     *
+     * @throws \SineMacula\Repositories\Exceptions\RepositoryException
      */
     public function testPersistHandlesArrayAttributes(): void
     {
@@ -338,6 +352,8 @@ final class ApiRepositoryTest extends TestCase
      * Test that persist handles enum casting.
      *
      * @return void
+     *
+     * @throws \SineMacula\Repositories\Exceptions\RepositoryException
      */
     public function testPersistHandlesEnumCasting(): void
     {
@@ -551,6 +567,8 @@ final class ApiRepositoryTest extends TestCase
      * Test that persist handles array cast attributes.
      *
      * @return void
+     *
+     * @throws \SineMacula\Repositories\Exceptions\RepositoryException
      */
     public function testPersistSetsArrayAttributes(): void
     {
@@ -568,6 +586,8 @@ final class ApiRepositoryTest extends TestCase
      * Test that persist handles associate cast (BelongsTo relation).
      *
      * @return void
+     *
+     * @throws \SineMacula\Repositories\Exceptions\RepositoryException
      */
     public function testPersistSetsAssociateAttribute(): void
     {
@@ -587,6 +607,8 @@ final class ApiRepositoryTest extends TestCase
      * Test that persist handles sync cast (BelongsToMany relation).
      *
      * @return void
+     *
+     * @throws \SineMacula\Repositories\Exceptions\RepositoryException
      */
     public function testPersistSyncAttribute(): void
     {
@@ -611,6 +633,8 @@ final class ApiRepositoryTest extends TestCase
      * Test that persist with a sync cast using an array of IDs.
      *
      * @return void
+     *
+     * @throws \SineMacula\Repositories\Exceptions\RepositoryException
      */
     public function testPersistSyncAttributeWithArrayOfIds(): void
     {
@@ -656,6 +680,8 @@ final class ApiRepositoryTest extends TestCase
      * resource for one read has to be answered with the one it named.
      *
      * @return void
+     *
+     * @throws \SineMacula\Repositories\Exceptions\RepositoryException
      */
     public function testANamedResourceOutranksTheMappedOne(): void
     {
@@ -676,6 +702,8 @@ final class ApiRepositoryTest extends TestCase
      * attribute is not pre-cached.
      *
      * @return void
+     *
+     * @throws \SineMacula\Repositories\Exceptions\RepositoryException
      */
     public function testPersistAutoDiscoversBelongsToRelationCast(): void
     {
@@ -694,6 +722,8 @@ final class ApiRepositoryTest extends TestCase
      * resolveCastForRelation on Post.tags().
      *
      * @return void
+     *
+     * @throws \SineMacula\Repositories\Exceptions\RepositoryException
      */
     public function testPersistAutoDiscoversBelongsToManyCast(): void
     {
@@ -715,6 +745,8 @@ final class ApiRepositoryTest extends TestCase
      * resolved from the model rather than a pre-populated cache.
      *
      * @return void
+     *
+     * @throws \SineMacula\Repositories\Exceptions\RepositoryException
      */
     public function testPersistSetsEnumCastAttributes(): void
     {
