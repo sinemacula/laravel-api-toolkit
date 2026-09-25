@@ -73,6 +73,8 @@ final class ApiRepositoryIntegrationTest extends TestCase
      * @SuppressWarnings("php:S3011")
      *
      * @return void
+     *
+     * @throws \SineMacula\Repositories\Exceptions\RepositoryException
      */
     public function testPersistSavesModelChanges(): void
     {

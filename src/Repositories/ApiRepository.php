@@ -63,6 +63,8 @@ abstract class ApiRepository extends Repository
      * Get the resource class for this repository's model.
      *
      * @return string|null
+     *
+     * @throws \SineMacula\Repositories\Exceptions\RepositoryException
      */
     public function getResourceClass(): ?string
     {
@@ -129,6 +131,8 @@ abstract class ApiRepository extends Repository
      * @param  \Illuminate\Database\Eloquent\Model  $model
      * @param  array<string, mixed>|\Illuminate\Support\Collection<string, mixed>  $attributes
      * @return bool
+     *
+     * @throws \SineMacula\Repositories\Exceptions\RepositoryException
      */
     public function persist(Model $model, array|Collection $attributes): bool
     {
@@ -174,6 +178,8 @@ abstract class ApiRepository extends Repository
      * the base repository class.
      *
      * @return void
+     *
+     * @throws \SineMacula\Repositories\Exceptions\RepositoryException
      */
     #[\Override]
     protected function boot(): void
