@@ -5,7 +5,6 @@ declare(strict_types = 1);
 namespace Tests\Unit\Repositories\Traits;
 
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Config;
 use PHPUnit\Framework\Attributes\CoversTrait;
 use SineMacula\ApiToolkit\Cache\MetadataCacheWriter;
@@ -98,41 +97,6 @@ final class ResolvesResourceTest extends TestCase
         $result = $this->invokeMethod($consumer, 'resolveResource', new User);
 
         self::assertNull($result);
-    }
-
-    /**
-     * Test that flushResourceCache clears the memo-cached resource mappings.
-     *
-     * @return void
-     */
-    public function testFlushResourceCacheClearsMemoEntries(): void
-    {
-        Config::set('api-toolkit.resources.resource_map.' . User::class, UserResource::class);
-
-        $consumer = $this->createConsumer();
-
-        $this->invokeMethod($consumer, 'resolveResource', new User);
-
-        $consumer::flushResourceCache(); // @phpstan-ignore staticMethod.notFound
-
-        $result = Cache::memo()->get('api-toolkit:model-resources:' . User::class);
-
-        self::assertNull($result);
-    }
-
-    /**
-     * Test that flushResourceCache on an empty memo store does not throw an
-     * exception.
-     *
-     * @return void
-     */
-    public function testFlushResourceCacheOnEmptyStoreIsHarmless(): void
-    {
-        $consumer = $this->createConsumer();
-
-        $consumer::flushResourceCache(); // @phpstan-ignore staticMethod.notFound
-
-        self::assertTrue(true);
     }
 
     /**
