@@ -545,6 +545,30 @@ final class ValidateIndexBackingTest extends TestCase
     }
 
     /**
+     * Test that a sortable column is refused where the only index leading with
+     * it is collated apart from the column, while naming that index outright is
+     * still vouched for.
+     *
+     * @return void
+     */
+    public function testRefusesAnIndexCollatedApartUnlessItIsNamed(): void
+    {
+        $rule = $this->rule(
+            [new IndexDefinition('users_name_c_index', ['name'], 'btree')],
+            new IndexEligibility([], [], [], [], ['users_name_c_index']),
+        );
+
+        self::assertSame(
+            ['Field is declared sortable against "name", and no ordered index on table "users" leads with that column'],
+            array_map(static fn ($error): string => $error->defect, $rule->validate(UserResource::class, User::class, $this->schema('name'))),
+        );
+
+        $schema = $this->schema('name', indexedBy: 'users_name_c_index');
+
+        self::assertSame([], $rule->validate(UserResource::class, User::class, $schema));
+    }
+
+    /**
      * Test that an exemption still stands over an index lacking the column's
      * order.
      *

@@ -178,6 +178,10 @@ final class PostgresTrigramSearchDriver extends EngineSearchDriver
      * Determine whether one of the given index definitions is built over a
      * trigram operator class on the column.
      *
+     * The statement read back prints a collation between the column and its
+     * operator class only when the two collations differ, so the adjacency the
+     * pattern requires already refuses a key collated apart from its column.
+     *
      * @param  string  $column
      * @param  array<int, string>  $definitions
      * @return bool

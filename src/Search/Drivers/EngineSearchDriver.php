@@ -237,7 +237,9 @@ abstract class EngineSearchDriver implements SearchDriver
      * proves nothing about the shape the strategy needs. An index the engine
      * will not plan against is left out for the same reason, since an index the
      * planner refuses backs no search, and so is one whose reported columns
-     * overstate it, since every proof here reads that column list.
+     * overstate it, since every proof here reads that column list. An index
+     * whose leading key is collated apart from its column is left out too,
+     * because a comparison written against the column cannot use it.
      *
      * @param  string  $table
      * @param  \Illuminate\Database\Connection  $connection

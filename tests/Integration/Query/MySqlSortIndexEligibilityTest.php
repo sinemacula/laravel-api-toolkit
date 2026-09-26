@@ -78,6 +78,7 @@ final class MySqlSortIndexEligibilityTest extends EngineSortIndexEligibilityTest
 
         self::assertSame([], $driver->indexDefects(SearchStrategy::EXACT, ['label'], self::TABLE, DB::connection()));
         self::assertSame([], $driver->indexDefects(SearchStrategy::PREFIX, ['label'], self::TABLE, DB::connection()));
+        self::assertFalse($this->eligibility()->collatesApart(self::INDEX));
     }
 
     /**

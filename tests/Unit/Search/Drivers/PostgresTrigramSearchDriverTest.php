@@ -216,10 +216,10 @@ final class PostgresTrigramSearchDriverTest extends TestCase
                 . '(not i.indisvalid)::int as disregarded, '
                 . '(i.indpred is not null)::int as restricted, '
                 . '(i.indkey[0] = 0)::int as expressed, '
-                . '(am.amname = \'btree\' and i.indkey[0] <> 0 and ('
+                . '(am.amname = \'btree\' and i.indkey[0] <> 0 and '
                 . 'not exists (select 1 from pg_opclass d where d.opcdefault and d.opcmethod = oc.opcmethod '
-                . 'and d.opcintype = oc.opcintype and d.opcfamily = oc.opcfamily) '
-                . 'or i.indcollation[0] <> a.attcollation))::int as unordered '
+                . 'and d.opcintype = oc.opcintype and d.opcfamily = oc.opcfamily))::int as unordered, '
+                . '(i.indkey[0] <> 0 and i.indcollation[0] <> 0 and i.indcollation[0] <> a.attcollation)::int as recollated '
                 . 'from pg_index i '
                 . 'join pg_class c on c.oid = i.indrelid '
                 . 'join pg_namespace n on n.oid = c.relnamespace '
@@ -261,6 +261,47 @@ final class PostgresTrigramSearchDriverTest extends TestCase
         $connection = $this->catalogue(['CREATE INDEX users_search_trgm ON public.users USING gin (name gin_trgm_ops, email gin_trgm_ops)'], true);
 
         self::assertSame([], (new PostgresTrigramSearchDriver)->indexDefects(SearchStrategy::SUBSTRING, ['name', 'email'], 'users', $connection));
+    }
+
+    /**
+     * Test that a trigram key collated apart from its column does not prove a
+     * pattern match.
+     *
+     * @return void
+     */
+    public function testRefusesATrigramKeyCollatedApartFromItsColumn(): void
+    {
+        $connection = $this->catalogue(['CREATE INDEX users_name_trgm ON public.users USING gin (name COLLATE "C" gin_trgm_ops)'], true);
+
+        $driver = new PostgresTrigramSearchDriver;
+
+        self::assertSame(
+            ['name' => ['Column "name" is declared searchable with the "prefix" strategy, which needs a trigram index over that column on table "users"']],
+            $driver->indexDefects(SearchStrategy::PREFIX, ['name'], 'users', $connection),
+        );
+        self::assertSame(
+            ['name' => ['Column "name" is declared searchable with the "substring" strategy, which needs a trigram index over that column on table "users"']],
+            $driver->indexDefects(SearchStrategy::SUBSTRING, ['name'], 'users', $connection),
+        );
+    }
+
+    /**
+     * Test that a later trigram key carrying its column's collation proves a
+     * pattern match when the key before it is collated apart.
+     *
+     * The collation fact describes only the leading key, so it must not be let
+     * refuse the whole of a multi-column index.
+     *
+     * @return void
+     */
+    public function testAcceptsALaterTrigramKeyBehindOneCollatedApart(): void
+    {
+        $connection = $this->catalogue(
+            ['CREATE INDEX users_index_0 ON public.users USING gin (other COLLATE "C" gin_trgm_ops, name gin_trgm_ops)'],
+            recollated: ['users_index_0'],
+        );
+
+        self::assertSame([], (new PostgresTrigramSearchDriver)->indexDefects(SearchStrategy::PREFIX, ['name'], 'users', $connection));
     }
 
     /**
@@ -423,10 +464,10 @@ final class PostgresTrigramSearchDriverTest extends TestCase
                 . '(not i.indisvalid)::int as disregarded, '
                 . '(i.indpred is not null)::int as restricted, '
                 . '(i.indkey[0] = 0)::int as expressed, '
-                . '(am.amname = \'btree\' and i.indkey[0] <> 0 and ('
+                . '(am.amname = \'btree\' and i.indkey[0] <> 0 and '
                 . 'not exists (select 1 from pg_opclass d where d.opcdefault and d.opcmethod = oc.opcmethod '
-                . 'and d.opcintype = oc.opcintype and d.opcfamily = oc.opcfamily) '
-                . 'or i.indcollation[0] <> a.attcollation))::int as unordered '
+                . 'and d.opcintype = oc.opcintype and d.opcfamily = oc.opcfamily))::int as unordered, '
+                . '(i.indkey[0] <> 0 and i.indcollation[0] <> 0 and i.indcollation[0] <> a.attcollation)::int as recollated '
                 . 'from pg_index i '
                 . 'join pg_class c on c.oid = i.indrelid '
                 . 'join pg_namespace n on n.oid = c.relnamespace '
@@ -570,6 +611,7 @@ final class PostgresTrigramSearchDriverTest extends TestCase
      * @param  array<int, string>  $unusable
      * @param  array<int, string>  $restricted
      * @param  array<int, string>  $expressed
+     * @param  array<int, string>  $recollated
      * @return \Illuminate\Database\Connection
      */
     private function catalogue(
@@ -580,6 +622,7 @@ final class PostgresTrigramSearchDriverTest extends TestCase
         array $unusable = [],
         array $restricted = [],
         array $expressed = [],
+        array $recollated = [],
     ): Connection {
         $schema = self::createStub(SchemaBuilder::class);
 
@@ -608,40 +651,20 @@ final class PostgresTrigramSearchDriverTest extends TestCase
                 array_keys($definitions),
             );
         });
-        $connection->method('selectFromWriteConnection')->willReturnCallback(function (string $query, array $bindings = []) use ($unusable, $restricted, $expressed): array {
+        $states = [];
+
+        foreach (['disregarded' => $unusable, 'restricted' => $restricted, 'expressed' => $expressed, 'recollated' => $recollated] as $fact => $names) {
+            foreach ($names as $name) {
+                $states[] = (object) ['name' => $name, $fact => 1];
+            }
+        }
+
+        $connection->method('selectFromWriteConnection')->willReturnCallback(function (string $query, array $bindings = []) use ($states): array {
 
             $this->statements[] = $query;
             $this->bindings[]   = $bindings;
 
-            return array_merge(
-                array_map(
-                    static fn (string $name): object => (object) [
-                        'name'        => $name,
-                        'disregarded' => 1,
-                        'restricted'  => 0,
-                        'expressed'   => 0,
-                    ],
-                    $unusable,
-                ),
-                array_map(
-                    static fn (string $name): object => (object) [
-                        'name'        => $name,
-                        'disregarded' => 0,
-                        'restricted'  => 1,
-                        'expressed'   => 0,
-                    ],
-                    $restricted,
-                ),
-                array_map(
-                    static fn (string $name): object => (object) [
-                        'name'        => $name,
-                        'disregarded' => 0,
-                        'restricted'  => 0,
-                        'expressed'   => 1,
-                    ],
-                    $expressed,
-                ),
-            );
+            return $states;
         });
 
         return $connection;

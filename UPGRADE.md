@@ -682,8 +682,9 @@ membership would pass exactly the declaration the database cannot serve. Where t
 kinds, only a kind that holds an order counts, so a full-text or trigram index over a column does not make
 it sortable. The leading key must also hold the column's own order, so a MySQL prefix index (`name(20)`), or a
 PostgreSQL index keyed with a pattern operator class (`text_pattern_ops`) or a collation other than the
-column's, does not make it sortable either. A prefix or pattern-class key still backs a search, and
-`indexed()` still vouches for any of them.
+column's, does not make it sortable either. A MySQL prefix key still backs an exact or prefix search, and a
+PostgreSQL pattern-class key still backs an exact search, but a PostgreSQL key collated apart from its column
+backs neither a sort nor a search. `indexed()` still vouches for any of them.
 
 Two narrow overrides exist for what reading the catalogue cannot show:
 
