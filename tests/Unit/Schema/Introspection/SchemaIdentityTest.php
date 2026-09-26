@@ -72,6 +72,7 @@ final class SchemaIdentityTest extends TestCase
         yield 'table prefix' => [['prefix' => 'tenant_b_']];
         yield 'search path' => [['search_path' => 'tenant_b']];
         yield 'schema' => [['schema' => 'tenant_b']];
+        yield 'database user' => [['username' => 'tenant_b']];
     }
 
     /**
@@ -127,7 +128,7 @@ final class SchemaIdentityTest extends TestCase
      */
     public function testAUrlConfiguredConnectionIsIdentifiedByItsDatabase(): void
     {
-        $explicit = SchemaIdentity::of($this->connection('tenant', ['driver' => 'pgsql', 'database' => 'tenant_a', 'prefix' => '']));
+        $explicit = SchemaIdentity::of($this->connection('tenant', ['driver' => 'pgsql', 'database' => 'tenant_a', 'username' => 'user', 'prefix' => '']));
         $urlA     = SchemaIdentity::of($this->connection('tenant', ['url' => 'pgsql://user:secret@db.internal:5432/tenant_a']));
         $urlB     = SchemaIdentity::of($this->connection('tenant', ['url' => 'pgsql://user:secret@db.internal:5432/tenant_b']));
 
@@ -158,6 +159,34 @@ final class SchemaIdentityTest extends TestCase
             SchemaIdentity::of($tenantA),
         );
         self::assertNotSame(SchemaIdentity::of($tenantA), SchemaIdentity::of($this->connection('tenant', $split('tenant_b'))));
+    }
+
+    /**
+     * Test that a read alias of a connection is identified apart from the
+     * connection itself.
+     *
+     * The alias reports the name, database, and options of its write side while
+     * reading the catalogue of the server behind its read side, so sharing the
+     * write side's identity would serve one server's schema for the other.
+     *
+     * @return void
+     */
+    public function testAReadAliasIsIdentifiedApartFromItsConnection(): void
+    {
+        Config::set('database.connections.tenant', [
+            ...self::BASE,
+            'read'  => ['database' => ':memory:'],
+            'write' => ['database' => ':memory:'],
+        ]);
+
+        DB::purge('tenant');
+
+        $write = DB::connection('tenant');
+        $read  = DB::connection('tenant::read');
+
+        self::assertInstanceOf(Connection::class, $read);
+        self::assertStringStartsWith('tenant::read@', SchemaIdentity::of($read));
+        self::assertNotSame(SchemaIdentity::of($write), SchemaIdentity::of($read));
     }
 
     /**

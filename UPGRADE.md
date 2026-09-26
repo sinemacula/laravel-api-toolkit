@@ -1205,12 +1205,15 @@ The Octane and queue boundary flushes reset in-process state only. They re-read 
 replacing it, so a long-lived worker picks up an invalidation made elsewhere at its next boundary.
 
 **Multi-tenant applications.** Column listings, column definitions, and index catalogues are keyed by the
-schema the connection actually reads: its name, its effective database, its table prefix, and its Postgres
-`search_path` (or `schema`). A tenancy switcher that repoints one connection name at another tenant's
+schema the connection actually reads: its name, with any read or write suffix, its effective database, its
+table prefix, its Postgres `search_path` (or `schema`), and its database user, since a search path can name
+the schema after whoever connects. A tenancy switcher that repoints one connection name at another tenant's
 database, prefix, or search path - by configuration, or on the resolved connection - therefore reads and
 caches each tenant's schema apart, even within a single job. The identity is resolved from configuration and
 the connection's own state, never by a query, and it does not include the host, so tenants whose databases
-share a name on different servers must also differ in table prefix, search path, or cache prefix. Casts, relation
+share a name on different servers must also differ in table prefix, search path, or cache prefix. A read
+alias such as `tenant::read` is described by its write-side settings, as the framework builds it, so a
+switcher must repoint the write side along with the read side. Casts, relation
 lookups, and the model-to-resource map are derived from code and read the same for every tenant, so they stay
 keyed by class and are shared. Where each tenant has its own cache prefix, each tenant also has its own
 generation, so run the invalidation once per tenant.
