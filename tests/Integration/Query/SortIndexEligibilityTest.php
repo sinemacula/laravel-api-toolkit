@@ -148,6 +148,27 @@ final class SortIndexEligibilityTest extends TestCase
 
         self::assertTrue($eligibility->describes('sort_eligibility_rows_body_index'));
         self::assertFalse($eligibility->disregards('sort_eligibility_rows_body_index'));
+        self::assertFalse($eligibility->lacksColumnOrder('sort_eligibility_rows_body_index'));
+    }
+
+    /**
+     * Test that a key collated apart from its column is not reported as lacking
+     * the column's order.
+     *
+     * The engine reports the collation an index key carries but never the one a
+     * column was declared with, so the two cannot be compared and the fact is
+     * deliberately left unasked.
+     *
+     * @return void
+     */
+    public function testTheEngineLeavesAKeyCollatedApartFromItsColumnUnreported(): void
+    {
+        DB::statement('create index sort_eligibility_rows_label_index on sort_eligibility_rows (label collate nocase)');
+
+        $eligibility = (new IndexEligibilityInspector)->inspect(self::TABLE, DB::connection());
+
+        self::assertFalse($eligibility->lacksColumnOrder('sort_eligibility_rows_label_index'));
+        self::assertTrue($eligibility->describes('sort_eligibility_rows_label_index'));
     }
 
     /**

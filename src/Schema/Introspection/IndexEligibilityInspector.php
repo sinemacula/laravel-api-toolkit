@@ -15,8 +15,8 @@ use Illuminate\Database\QueryException;
  * stops there. Whether the engine would actually plan against it, and whether
  * the columns it reports are the whole story, are answered by the engine's own
  * tables, and every reader that proves something from an index needs the same
- * two answers. They are read here so no reader carries engine knowledge of its
- * own and none of them can drift from another.
+ * answers. They are read here so no reader carries engine knowledge of its own
+ * and none of them can drift from another.
  *
  * An engine this cannot question reports nothing, which leaves every proof as
  * strict as it was. A question that fails is read the same way: an index proof
@@ -58,9 +58,11 @@ class IndexEligibilityInspector
      * Report what an engine keeping index statistics says about the table.
      *
      * An index held back from the planner is disregarded, and one whose first
-     * key part is an expression rather than a column is reported as such. The
-     * engine has no notion of an index over part of a table, so none is ever
-     * restricted here.
+     * key part is an expression rather than a column is reported as such. One
+     * whose first key part holds only a prefix of its column is reported as not
+     * holding that column's order. The engine has no notion of an index over
+     * part of a table, so none is ever restricted here, and no per-index
+     * collation, so there is nothing more to ask of it.
      *
      * @param  string  $table
      * @param  \Illuminate\Database\Connection  $connection
@@ -71,7 +73,8 @@ class IndexEligibilityInspector
         return $this->report(fn (): array => $connection->selectFromWriteConnection(
             'select lower(index_name) as name, '
             . 'max(case when is_visible = \'NO\' then 1 else 0 end) as disregarded, '
-            . 'max(case when seq_in_index = 1 and column_name is null then 1 else 0 end) as expressed '
+            . 'max(case when seq_in_index = 1 and column_name is null then 1 else 0 end) as expressed, '
+            . 'max(case when seq_in_index = 1 and sub_part is not null then 1 else 0 end) as unordered '
             . 'from information_schema.statistics '
             . 'where table_schema = coalesce(?, schema()) and table_name = ? '
             . 'group by lower(index_name)',
@@ -86,6 +89,13 @@ class IndexEligibilityInspector
      * carrying a predicate holds only the rows that predicate admits, and one
      * whose first key entry names no column is keyed on an expression.
      *
+     * A B-tree whose leading column is keyed through an operator family with no
+     * default member, or under a collation other than the column's own, is
+     * reported as not holding that column's order. The family rather than the
+     * class is compared so an alias sharing the default's family still passes.
+     * An expression-led key is left to the fact that already covers it, and the
+     * direction a key is stored in is not read, since a backward scan orders.
+     *
      * @param  string  $table
      * @param  \Illuminate\Database\Connection  $connection
      * @return \SineMacula\ApiToolkit\Schema\Introspection\IndexEligibility
@@ -96,11 +106,18 @@ class IndexEligibilityInspector
             'select lower(ic.relname) as name, '
             . '(not i.indisvalid)::int as disregarded, '
             . '(i.indpred is not null)::int as restricted, '
-            . '(i.indkey[0] = 0)::int as expressed '
+            . '(i.indkey[0] = 0)::int as expressed, '
+            . '(am.amname = \'btree\' and i.indkey[0] <> 0 and ('
+            . 'not exists (select 1 from pg_opclass d where d.opcdefault and d.opcmethod = oc.opcmethod '
+            . 'and d.opcintype = oc.opcintype and d.opcfamily = oc.opcfamily) '
+            . 'or i.indcollation[0] <> a.attcollation))::int as unordered '
             . 'from pg_index i '
             . 'join pg_class c on c.oid = i.indrelid '
             . 'join pg_namespace n on n.oid = c.relnamespace '
             . 'join pg_class ic on ic.oid = i.indexrelid '
+            . 'join pg_am am on am.oid = ic.relam '
+            . 'left join pg_opclass oc on oc.oid = i.indclass[0] '
+            . 'left join pg_attribute a on a.attrelid = i.indrelid and a.attnum = i.indkey[0] '
             . 'where n.nspname = coalesce(?::text, current_schema()) and c.relname = ?',
             $this->qualify($table, $connection),
         ));
@@ -114,6 +131,12 @@ class IndexEligibilityInspector
      * holds only the rows that predicate admits, and one whose first key entry
      * names no column is keyed on an expression, which the aggregated column
      * list drops exactly as the other engines do.
+     *
+     * Whether a leading key holds its column's order is never reported. The
+     * engine has no prefix keys or operator classes, and while it reports the
+     * collation an index key carries, nothing it answers reports the collation
+     * a column was declared with, so a key collated apart from its column
+     * cannot be told without parsing the table's definition.
      *
      * @param  string  $table
      * @param  \Illuminate\Database\Connection  $connection
@@ -152,7 +175,7 @@ class IndexEligibilityInspector
             return new IndexEligibility;
         }
 
-        $facts = ['disregarded' => [], 'restricted' => [], 'expressed' => []];
+        $facts = ['disregarded' => [], 'restricted' => [], 'expressed' => [], 'unordered' => []];
 
         foreach ($rows as $row) {
 
@@ -173,7 +196,12 @@ class IndexEligibilityInspector
             }
         }
 
-        return new IndexEligibility($facts['disregarded'], $facts['restricted'], $facts['expressed']);
+        return new IndexEligibility(
+            $facts['disregarded'],
+            $facts['restricted'],
+            $facts['expressed'],
+            $facts['unordered'],
+        );
     }
 
     /**

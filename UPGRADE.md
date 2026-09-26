@@ -680,7 +680,10 @@ Leading is the whole test. Only the leading column of an index is a key prefix, 
 a composite index is covered by that index and still cannot be ordered by on its own - checking mere
 membership would pass exactly the declaration the database cannot serve. Where the connection names index
 kinds, only a kind that holds an order counts, so a full-text or trigram index over a column does not make
-it sortable.
+it sortable. The leading key must also hold the column's own order, so a MySQL prefix index (`name(20)`), or a
+PostgreSQL index keyed with a pattern operator class (`text_pattern_ops`) or a collation other than the
+column's, does not make it sortable either. A prefix or pattern-class key still backs a search, and
+`indexed()` still vouches for any of them.
 
 Two narrow overrides exist for what reading the catalogue cannot show:
 

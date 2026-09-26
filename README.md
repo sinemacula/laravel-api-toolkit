@@ -362,7 +362,10 @@ schema validation asks the connection whether an index leads with it. Leading is
 second in a composite index is covered by that index and still cannot be ordered by on its own, so checking
 mere membership would pass exactly the declaration the database cannot serve. Where the connection names index
 kinds, only a kind that holds an order counts, so a full-text or trigram index over a column does not make it
-sortable. A connection that cannot be inspected at all reports nothing rather than reporting nothing found, so
+sortable. The leading key must also hold the column's own order: a MySQL prefix index (`name(20)`), or a
+PostgreSQL index keyed with a pattern operator class (`text_pattern_ops`) or a collation other than the column's,
+is passed over for sorting. A prefix or pattern-class key still backs a search, and `indexed()` still vouches for
+any of them. A connection that cannot be inspected at all reports nothing rather than reporting nothing found, so
 booting with no database behind the application skips the check instead of failing it. The catalogue is read
 during validation and never while a sort is served.
 
