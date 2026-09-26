@@ -80,6 +80,8 @@ final class IndexEligibilityInspectorTest extends TestCase
         self::assertTrue($eligibility->restricts('users_live_index'));
         self::assertTrue($eligibility->keysAnExpression('users_lower_index'));
         self::assertFalse($eligibility->disregards('users_live_index'));
+        self::assertFalse($eligibility->lacksColumnOrder('users_live_index'));
+        self::assertFalse($eligibility->lacksColumnOrder('users_lower_index'));
 
         self::assertSame([
             'select lower(il.name) as name, '
@@ -95,17 +97,18 @@ final class IndexEligibilityInspectorTest extends TestCase
     }
 
     /**
-     * Test that an engine keeping index statistics is read for the two facts it
-     * can answer.
+     * Test that an engine keeping index statistics is read for the three facts
+     * it can answer.
      *
      * @return void
      */
     public function testReadsTheFactsAnEngineKeepingStatisticsCanAnswer(): void
     {
         $connection = $this->connection('mysql', [
-            (object) ['name' => 'users_hidden_index', 'disregarded' => 1, 'expressed' => 0],
-            (object) ['name' => 'users_lower_index', 'disregarded' => 0, 'expressed' => 1],
-            (object) ['name' => 'users_name_index', 'disregarded' => 0, 'expressed' => 0],
+            (object) ['name' => 'users_hidden_index', 'disregarded' => 1, 'expressed' => 0, 'unordered' => 0],
+            (object) ['name' => 'users_lower_index', 'disregarded' => 0, 'expressed' => 1, 'unordered' => 0],
+            (object) ['name' => 'users_name_index', 'disregarded' => 0, 'expressed' => 0, 'unordered' => 0],
+            (object) ['name' => 'users_name_prefix_index', 'disregarded' => 0, 'expressed' => 0, 'unordered' => 1],
         ]);
 
         $eligibility = (new IndexEligibilityInspector)->inspect('users', $connection);
@@ -113,12 +116,16 @@ final class IndexEligibilityInspectorTest extends TestCase
         self::assertTrue($eligibility->disregards('users_hidden_index'));
         self::assertTrue($eligibility->keysAnExpression('users_lower_index'));
         self::assertTrue($eligibility->describes('users_name_index'));
+        self::assertFalse($eligibility->lacksColumnOrder('users_name_index'));
+        self::assertTrue($eligibility->lacksColumnOrder('users_name_prefix_index'));
+        self::assertTrue($eligibility->describes('users_name_prefix_index'));
         self::assertFalse($eligibility->restricts('users_hidden_index'));
 
         self::assertSame([
             'select lower(index_name) as name, '
             . 'max(case when is_visible = \'NO\' then 1 else 0 end) as disregarded, '
-            . 'max(case when seq_in_index = 1 and column_name is null then 1 else 0 end) as expressed '
+            . 'max(case when seq_in_index = 1 and column_name is null then 1 else 0 end) as expressed, '
+            . 'max(case when seq_in_index = 1 and sub_part is not null then 1 else 0 end) as unordered '
             . 'from information_schema.statistics '
             . 'where table_schema = coalesce(?, schema()) and table_name = ? '
             . 'group by lower(index_name)',
@@ -127,7 +134,7 @@ final class IndexEligibilityInspectorTest extends TestCase
     }
 
     /**
-     * Test that an engine keeping an index catalogue is read for all three
+     * Test that an engine keeping an index catalogue is read for all four
      * facts.
      *
      * @return void
@@ -138,6 +145,7 @@ final class IndexEligibilityInspectorTest extends TestCase
             (object) ['name' => 'users_invalid_index', 'disregarded' => 1, 'restricted' => 0, 'expressed' => 0],
             (object) ['name' => 'users_live_index', 'disregarded' => 0, 'restricted' => 1, 'expressed' => 0],
             (object) ['name' => 'users_lower_index', 'disregarded' => 0, 'restricted' => 0, 'expressed' => 1],
+            (object) ['name' => 'users_pattern_index', 'disregarded' => 0, 'restricted' => 0, 'expressed' => 0, 'unordered' => 1],
         ]);
 
         $eligibility = (new IndexEligibilityInspector)->inspect('users', $connection);
@@ -145,18 +153,29 @@ final class IndexEligibilityInspectorTest extends TestCase
         self::assertTrue($eligibility->disregards('users_invalid_index'));
         self::assertTrue($eligibility->restricts('users_live_index'));
         self::assertTrue($eligibility->keysAnExpression('users_lower_index'));
+        self::assertFalse($eligibility->lacksColumnOrder('users_lower_index'));
+        self::assertTrue($eligibility->lacksColumnOrder('users_pattern_index'));
+        self::assertTrue($eligibility->describes('users_pattern_index'));
 
         self::assertSame([
             'select lower(ic.relname) as name, '
             . '(not i.indisvalid)::int as disregarded, '
             . '(i.indpred is not null)::int as restricted, '
-            . '(i.indkey[0] = 0)::int as expressed '
+            . '(i.indkey[0] = 0)::int as expressed, '
+            . '(am.amname = \'btree\' and i.indkey[0] <> 0 and ('
+            . 'not exists (select 1 from pg_opclass d where d.opcdefault and d.opcmethod = oc.opcmethod '
+            . 'and d.opcintype = oc.opcintype and d.opcfamily = oc.opcfamily) '
+            . 'or i.indcollation[0] <> a.attcollation))::int as unordered '
             . 'from pg_index i '
             . 'join pg_class c on c.oid = i.indrelid '
             . 'join pg_namespace n on n.oid = c.relnamespace '
             . 'join pg_class ic on ic.oid = i.indexrelid '
+            . 'join pg_am am on am.oid = ic.relam '
+            . 'left join pg_opclass oc on oc.oid = i.indclass[0] '
+            . 'left join pg_attribute a on a.attrelid = i.indrelid and a.attnum = i.indkey[0] '
             . 'where n.nspname = coalesce(?::text, current_schema()) and c.relname = ?',
         ], $this->statements);
+        self::assertSame([[null, 'users']], $this->bindings);
     }
 
     /**
@@ -216,6 +235,7 @@ final class IndexEligibilityInspectorTest extends TestCase
         $eligibility = (new IndexEligibilityInspector)->inspect('users', $connection);
 
         self::assertTrue($eligibility->describes('users_name_index'));
+        self::assertFalse($eligibility->lacksColumnOrder('users_name_index'));
     }
 
     /**
@@ -248,14 +268,17 @@ final class IndexEligibilityInspectorTest extends TestCase
     public function testReadsAFlagAsTheNumberItSpells(): void
     {
         $connection = $this->connection('mysql', [
-            (object) ['name' => 'users_name_index', 'disregarded' => '0', 'expressed' => '0'],
-            (object) ['name' => 'users_hidden_index', 'disregarded' => '1', 'expressed' => '0'],
+            (object) ['name' => 'users_name_index', 'disregarded' => '0', 'expressed' => '0', 'unordered' => '0'],
+            (object) ['name' => 'users_hidden_index', 'disregarded' => '1', 'expressed' => '0', 'unordered' => '0'],
+            (object) ['name' => 'users_name_prefix_index', 'disregarded' => '0', 'expressed' => '0', 'unordered' => '1'],
         ]);
 
         $eligibility = (new IndexEligibilityInspector)->inspect('users', $connection);
 
         self::assertTrue($eligibility->describes('users_name_index'));
+        self::assertFalse($eligibility->lacksColumnOrder('users_name_index'));
         self::assertTrue($eligibility->disregards('users_hidden_index'));
+        self::assertTrue($eligibility->lacksColumnOrder('users_name_prefix_index'));
     }
 
     /**

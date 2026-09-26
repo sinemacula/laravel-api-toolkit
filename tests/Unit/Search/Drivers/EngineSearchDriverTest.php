@@ -100,6 +100,24 @@ final class EngineSearchDriverTest extends TestCase
     }
 
     /**
+     * Test that an index whose leading key lacks the column's order still
+     * proves an equality match.
+     *
+     * A truncated or pattern-class key still finds rows by the column, so only
+     * an ordered read has reason to pass it over.
+     *
+     * @return void
+     */
+    public function testKeepsAnIndexWhoseLeadingKeyLacksTheColumnsOrder(): void
+    {
+        $connection = $this->catalogue([['name' => 'users_name_index', 'columns' => ['name'], 'type' => 'btree']]);
+
+        $driver = new StubFilteringSearchDriver(new IndexEligibility([], [], [], ['users_name_index']));
+
+        self::assertSame([], $driver->indexDefects(SearchStrategy::EXACT, ['name'], 'users', $connection));
+    }
+
+    /**
      * Test that a refused index does not stop a later one proving the match.
      *
      * The walk has to keep reading past the index it drops, or an unusable

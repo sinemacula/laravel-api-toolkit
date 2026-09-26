@@ -486,6 +486,83 @@ final class ValidateIndexBackingTest extends TestCase
     }
 
     /**
+     * Test that a sortable column is refused where the only index leading with
+     * it cannot deliver the column's own order.
+     *
+     * A key truncated to a prefix of the column, or ordered under another
+     * collation or operator family, still names the column first, and the
+     * catalogue reports it exactly as it reports one holding that order.
+     *
+     * @return void
+     */
+    public function testRefusesASortableColumnLedOnlyByAnIndexLackingItsOrder(): void
+    {
+        $indexes = [new IndexDefinition('users_name_prefix_index', ['name'], 'btree')];
+
+        $rule = $this->rule($indexes, new IndexEligibility([], [], [], ['users_name_prefix_index']));
+
+        self::assertSame(
+            ['Field is declared sortable against "name", and no ordered index on table "users" leads with that column'],
+            array_map(static fn ($error): string => $error->defect, $rule->validate(UserResource::class, User::class, $this->schema('name'))),
+        );
+    }
+
+    /**
+     * Test that an ordinary index alongside one lacking the column's order
+     * still proves the column.
+     *
+     * @return void
+     */
+    public function testAcceptsAnOrderedIndexBesideOneLackingTheColumnsOrder(): void
+    {
+        $rule = $this->rule([
+            new IndexDefinition('users_name_prefix_index', ['name'], 'btree'),
+            new IndexDefinition('users_name_index', ['name'], 'btree'),
+        ], new IndexEligibility([], [], [], ['users_name_prefix_index']));
+
+        self::assertSame([], $rule->validate(UserResource::class, User::class, $this->schema('name')));
+    }
+
+    /**
+     * Test that naming an index lacking the column's order outright is left to
+     * the author to vouch for.
+     *
+     * The named override is the escape hatch for any index the inferred proof
+     * conservatively passes over, so only the engine's refusal defeats it.
+     *
+     * @return void
+     */
+    public function testAcceptsANamedIndexLackingTheColumnsOrder(): void
+    {
+        $rule = $this->rule(
+            [new IndexDefinition('users_name_prefix_index', ['name'], 'btree')],
+            new IndexEligibility([], [], [], ['users_name_prefix_index']),
+        );
+
+        $schema = $this->schema('name', indexedBy: 'users_name_prefix_index');
+
+        self::assertSame([], $rule->validate(UserResource::class, User::class, $schema));
+    }
+
+    /**
+     * Test that an exemption still stands over an index lacking the column's
+     * order.
+     *
+     * @return void
+     */
+    public function testAcceptsAnExemptionOverAnIndexLackingTheColumnsOrder(): void
+    {
+        $rule = $this->rule(
+            [new IndexDefinition('users_name_prefix_index', ['name'], 'btree')],
+            new IndexEligibility([], [], [], ['users_name_prefix_index']),
+        );
+
+        $schema = $this->schema('name', unindexedReason: 'The table is bounded at a few hundred rows');
+
+        self::assertSame([], $rule->validate(UserResource::class, User::class, $schema));
+    }
+
+    /**
      * Test that a refused index does not hide a later one that proves the
      * column.
      *
