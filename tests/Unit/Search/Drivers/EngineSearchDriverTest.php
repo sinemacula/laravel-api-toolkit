@@ -118,6 +118,43 @@ final class EngineSearchDriverTest extends TestCase
     }
 
     /**
+     * Test that an index whose leading key is collated apart from the column is
+     * refused for an equality match.
+     *
+     * A comparison written against the column cannot use a key ordered by
+     * another collation, so the index proves nothing about the match.
+     *
+     * @return void
+     */
+    public function testRefusesAnIndexWhoseLeadingKeyIsCollatedApart(): void
+    {
+        $connection = $this->catalogue([['name' => 'users_name_index', 'columns' => ['name'], 'type' => 'btree']]);
+
+        $driver = new StubFilteringSearchDriver(new IndexEligibility([], [], [], [], ['users_name_index']));
+
+        self::assertSame([
+            'name' => ['Column "name" is declared searchable with the "exact" strategy, which needs an index leading with that column on table "users"'],
+        ], $driver->indexDefects(SearchStrategy::EXACT, ['name'], 'users', $connection));
+    }
+
+    /**
+     * Test that a plain index proves the match beside one collated apart.
+     *
+     * @return void
+     */
+    public function testAPlainIndexProvesTheMatchBesideOneCollatedApart(): void
+    {
+        $connection = $this->catalogue([
+            ['name' => 'users_name_c_index', 'columns' => ['name'], 'type' => 'btree'],
+            ['name' => 'users_name_index', 'columns' => ['name'], 'type' => 'btree'],
+        ]);
+
+        $driver = new StubFilteringSearchDriver(new IndexEligibility([], [], [], [], ['users_name_c_index']));
+
+        self::assertSame([], $driver->indexDefects(SearchStrategy::EXACT, ['name'], 'users', $connection));
+    }
+
+    /**
      * Test that a refused index does not stop a later one proving the match.
      *
      * The walk has to keep reading past the index it drops, or an unusable

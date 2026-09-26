@@ -35,6 +35,7 @@ final class IndexEligibilityTest extends TestCase
         self::assertFalse($eligibility->restricts('users_name_index'));
         self::assertFalse($eligibility->keysAnExpression('users_name_index'));
         self::assertFalse($eligibility->lacksColumnOrder('users_name_index'));
+        self::assertFalse($eligibility->collatesApart('users_name_index'));
         self::assertTrue($eligibility->describes('users_name_index'));
     }
 
@@ -48,7 +49,7 @@ final class IndexEligibilityTest extends TestCase
      */
     public function testEachFactIsReportedApartFromTheOthers(): void
     {
-        $eligibility = new IndexEligibility(['hidden'], ['partial'], ['expression'], ['prefix']);
+        $eligibility = new IndexEligibility(['hidden'], ['partial'], ['expression'], ['prefix'], ['collated']);
 
         self::assertTrue($eligibility->disregards('hidden'));
         self::assertFalse($eligibility->restricts('hidden'));
@@ -67,6 +68,16 @@ final class IndexEligibilityTest extends TestCase
         self::assertFalse($eligibility->disregards('prefix'));
         self::assertFalse($eligibility->restricts('prefix'));
         self::assertFalse($eligibility->keysAnExpression('prefix'));
+        self::assertFalse($eligibility->collatesApart('prefix'));
+
+        self::assertTrue($eligibility->collatesApart('collated'));
+        self::assertFalse($eligibility->disregards('collated'));
+        self::assertFalse($eligibility->restricts('collated'));
+        self::assertFalse($eligibility->keysAnExpression('collated'));
+        self::assertFalse($eligibility->describes('collated'));
+
+        self::assertFalse($eligibility->collatesApart('hidden'));
+        self::assertFalse($eligibility->collatesApart('expression'));
     }
 
     /**
@@ -87,7 +98,27 @@ final class IndexEligibilityTest extends TestCase
     }
 
     /**
-     * Test that any one of the three facts defeats a proof reading the reported
+     * Test that a key collated apart from its column is not described.
+     *
+     * Such a key cannot answer a comparison written against the column, so a
+     * proof reading the reported columns may not rest on it, and it is ordered
+     * by the other collation, so it does not hold the column's order either.
+     *
+     * @return void
+     */
+    public function testAKeyCollatedApartIsNotDescribed(): void
+    {
+        $eligibility = new IndexEligibility([], [], [], [], ['x']);
+
+        self::assertTrue($eligibility->collatesApart('x'));
+        self::assertFalse($eligibility->describes('x'));
+        self::assertTrue($eligibility->lacksColumnOrder('x'));
+        self::assertTrue($eligibility->describes('y'));
+        self::assertFalse($eligibility->lacksColumnOrder('y'));
+    }
+
+    /**
+     * Test that any one of the four facts defeats a proof reading the reported
      * columns.
      *
      * @return void
@@ -97,7 +128,8 @@ final class IndexEligibilityTest extends TestCase
         self::assertFalse((new IndexEligibility(['one']))->describes('one'));
         self::assertFalse((new IndexEligibility([], ['two']))->describes('two'));
         self::assertFalse((new IndexEligibility([], [], ['three']))->describes('three'));
-        self::assertTrue((new IndexEligibility(['one'], ['two'], ['three']))->describes('four'));
+        self::assertFalse((new IndexEligibility([], [], [], [], ['four']))->describes('four'));
+        self::assertTrue((new IndexEligibility(['one'], ['two'], ['three'], [], ['four']))->describes('five'));
     }
 
     /**
@@ -111,12 +143,13 @@ final class IndexEligibilityTest extends TestCase
      */
     public function testMatchesANameWhateverCaseEitherSideNamesItIn(): void
     {
-        $eligibility = new IndexEligibility(['USERS_Name_Index'], ['Users_Live_Index'], ['USERS_LOWER_INDEX'], ['Users_Prefix_INDEX']);
+        $eligibility = new IndexEligibility(['USERS_Name_Index'], ['Users_Live_Index'], ['USERS_LOWER_INDEX'], ['Users_Prefix_INDEX'], ['Users_Collated_INDEX']);
 
         self::assertTrue($eligibility->disregards('users_name_index'));
         self::assertTrue($eligibility->restricts('users_live_index'));
         self::assertTrue($eligibility->keysAnExpression('users_lower_index'));
         self::assertFalse($eligibility->describes('Users_Name_INDEX'));
         self::assertTrue($eligibility->lacksColumnOrder('USERS_prefix_index'));
+        self::assertTrue($eligibility->collatesApart('users_COLLATED_index'));
     }
 }

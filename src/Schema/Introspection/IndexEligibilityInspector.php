@@ -61,8 +61,8 @@ class IndexEligibilityInspector
      * key part is an expression rather than a column is reported as such. One
      * whose first key part holds only a prefix of its column is reported as not
      * holding that column's order. The engine has no notion of an index over
-     * part of a table, so none is ever restricted here, and no per-index
-     * collation, so there is nothing more to ask of it.
+     * part of a table, so none is ever restricted here, and an index key part
+     * always carries its column's collation, so none is ever collated apart.
      *
      * @param  string  $table
      * @param  \Illuminate\Database\Connection  $connection
@@ -90,11 +90,16 @@ class IndexEligibilityInspector
      * whose first key entry names no column is keyed on an expression.
      *
      * A B-tree whose leading column is keyed through an operator family with no
-     * default member, or under a collation other than the column's own, is
-     * reported as not holding that column's order. The family rather than the
-     * class is compared so an alias sharing the default's family still passes.
-     * An expression-led key is left to the fact that already covers it, and the
-     * direction a key is stored in is not read, since a backward scan orders.
+     * default member is reported as not holding that column's order. The family
+     * rather than the class is compared so an alias sharing the default's
+     * family still passes. An expression-led key is left to the fact that
+     * already covers it, and the direction a key is stored in is not read,
+     * since a backward scan orders.
+     *
+     * A leading column keyed under a collation other than the column's own is
+     * reported apart, whatever the index's kind, because the planner matches an
+     * index column to a comparison only when their collations are identical,
+     * and that holds for deterministic collations too.
      *
      * @param  string  $table
      * @param  \Illuminate\Database\Connection  $connection
@@ -107,10 +112,10 @@ class IndexEligibilityInspector
             . '(not i.indisvalid)::int as disregarded, '
             . '(i.indpred is not null)::int as restricted, '
             . '(i.indkey[0] = 0)::int as expressed, '
-            . '(am.amname = \'btree\' and i.indkey[0] <> 0 and ('
+            . '(am.amname = \'btree\' and i.indkey[0] <> 0 and '
             . 'not exists (select 1 from pg_opclass d where d.opcdefault and d.opcmethod = oc.opcmethod '
-            . 'and d.opcintype = oc.opcintype and d.opcfamily = oc.opcfamily) '
-            . 'or i.indcollation[0] <> a.attcollation))::int as unordered '
+            . 'and d.opcintype = oc.opcintype and d.opcfamily = oc.opcfamily))::int as unordered, '
+            . '(i.indkey[0] <> 0 and i.indcollation[0] <> 0 and i.indcollation[0] <> a.attcollation)::int as recollated '
             . 'from pg_index i '
             . 'join pg_class c on c.oid = i.indrelid '
             . 'join pg_namespace n on n.oid = c.relnamespace '
@@ -132,11 +137,12 @@ class IndexEligibilityInspector
      * names no column is keyed on an expression, which the aggregated column
      * list drops exactly as the other engines do.
      *
-     * Whether a leading key holds its column's order is never reported. The
-     * engine has no prefix keys or operator classes, and while it reports the
-     * collation an index key carries, nothing it answers reports the collation
-     * a column was declared with, so a key collated apart from its column
-     * cannot be told without parsing the table's definition.
+     * Whether a leading key holds its column's order, or is collated apart from
+     * its column, is never reported. The engine has no prefix keys or operator
+     * classes, and while it reports the collation an index key carries, nothing
+     * it answers reports the collation a column was declared with, so a key
+     * collated apart from its column cannot be told without parsing the table's
+     * definition.
      *
      * @param  string  $table
      * @param  \Illuminate\Database\Connection  $connection
@@ -175,7 +181,7 @@ class IndexEligibilityInspector
             return new IndexEligibility;
         }
 
-        $facts = ['disregarded' => [], 'restricted' => [], 'expressed' => [], 'unordered' => []];
+        $facts = ['disregarded' => [], 'restricted' => [], 'expressed' => [], 'unordered' => [], 'recollated' => []];
 
         foreach ($rows as $row) {
 
@@ -201,6 +207,7 @@ class IndexEligibilityInspector
             $facts['restricted'],
             $facts['expressed'],
             $facts['unordered'],
+            $facts['recollated'],
         );
     }
 

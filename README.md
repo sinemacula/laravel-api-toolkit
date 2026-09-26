@@ -122,7 +122,9 @@ belongs to your own migration:
 - On PostgreSQL, a prefix match and an anywhere-match each need a `gin_trgm_ops` index over their own
   column, and the `pg_trgm` extension installed. Several columns may be declared under different
   strategies, because the planner combines the index scans behind a disjunction.
-- An exact match needs an ordinary index leading with the column on either engine.
+- An exact match needs an ordinary index leading with the column on either engine. On PostgreSQL that B-tree
+  must carry the column's own collation, because the planner never answers a comparison from a key collated
+  otherwise.
 
 The proof is read twice. `php artisan api-toolkit:validate-schemas` reports a declaration with no index
 behind it, which is the cheapest place to find one - run it in CI. Because schema validation is disabled in
@@ -364,10 +366,11 @@ mere membership would pass exactly the declaration the database cannot serve. Wh
 kinds, only a kind that holds an order counts, so a full-text or trigram index over a column does not make it
 sortable. The leading key must also hold the column's own order: a MySQL prefix index (`name(20)`), or a
 PostgreSQL index keyed with a pattern operator class (`text_pattern_ops`) or a collation other than the column's,
-is passed over for sorting. A prefix or pattern-class key still backs a search, and `indexed()` still vouches for
-any of them. A connection that cannot be inspected at all reports nothing rather than reporting nothing found, so
-booting with no database behind the application skips the check instead of failing it. The catalogue is read
-during validation and never while a sort is served.
+is passed over for sorting. A MySQL prefix key still backs an exact or prefix search, and a PostgreSQL
+pattern-class key still backs an exact search, but a PostgreSQL key collated apart from its column backs neither
+a sort nor a search. `indexed()` still vouches for any of them. A connection that cannot be inspected at all
+reports nothing rather than reporting nothing found, so booting with no database behind the application skips
+the check instead of failing it. The catalogue is read during validation and never while a sort is served.
 
 Two narrow overrides exist for what reading the catalogue cannot show. `indexed('users_lower_name_index')`
 names the index behind the column - an expression or partial index, say. The name is looked up on the

@@ -8,7 +8,7 @@ namespace SineMacula\ApiToolkit\Schema\Introspection;
  * What a connection reports about the indexes a proof may reason from.
  *
  * The shared catalogue read names every index a table declares without saying
- * whether a proof may rest on one, and four separate facts decide that. An
+ * whether a proof may rest on one, and five separate facts decide that. An
  * index the engine disregards is one no plan will reach. An index that is
  * restricted holds only the rows its own predicate admits, so it serves only a
  * query carrying that predicate. An index keyed on an expression leads with
@@ -16,17 +16,19 @@ namespace SineMacula\ApiToolkit\Schema\Introspection;
  * list is aggregated over the parts that do name columns, the part naming none
  * is dropped and whatever follows it reads as the column the index leads with.
  *
- * The fourth is read only by a proof that needs the leading key to deliver the
- * column's own order. A key truncated to a prefix of its column, or ordered by
- * an operator family or a collation other than the column's, cannot hand rows
- * back in the column's order. A truncated or pattern-class key still finds rows
- * by that column, while one collated apart from it does not.
+ * The last two concern whether the leading key answers for its column. A key
+ * truncated to a prefix of its column, or ordered by an operator family other
+ * than the column's, cannot hand rows back in the column's order, yet still
+ * finds rows by that column, so it defeats only a proof needing order. A key
+ * collated apart from its column cannot answer a comparison written against the
+ * column at all, so it defeats every proof reading the reported columns, and it
+ * lacks the column's order too.
  *
  * The facts are kept apart rather than flattened into one refusal because they
  * do not disqualify an index for the same readers. A proof reading the reported
- * columns is defeated by the first three; a developer naming an index outright
- * is asserting what the column list was never going to show, and is defeated
- * only by the engine refusing the index altogether.
+ * columns is defeated by every fact but the one about order alone; a developer
+ * naming an index outright is asserting what the column list was never going to
+ * show, and is defeated only by the engine refusing the index altogether.
  *
  * Every list is held lowered, and a name is lowered before it is compared,
  * because the catalogue reports names folded while a declaration may name one
@@ -49,6 +51,9 @@ final readonly class IndexEligibility
     /** @var array<int, string> The names whose leading key does not hold its column's own order, lowered */
     private array $unordered;
 
+    /** @var array<int, string> The names whose leading key is collated apart from its column, lowered */
+    private array $recollated;
+
     /**
      * Create a new index eligibility report.
      *
@@ -59,14 +64,16 @@ final readonly class IndexEligibility
      * @param  array<int, string>  $restricted
      * @param  array<int, string>  $expressed
      * @param  array<int, string>  $unordered
+     * @param  array<int, string>  $recollated
      * @return void
      */
-    public function __construct(array $disregarded = [], array $restricted = [], array $expressed = [], array $unordered = [])
+    public function __construct(array $disregarded = [], array $restricted = [], array $expressed = [], array $unordered = [], array $recollated = [])
     {
         $this->disregarded = array_map(strtolower(...), $disregarded);
         $this->restricted  = array_map(strtolower(...), $restricted);
         $this->expressed   = array_map(strtolower(...), $expressed);
         $this->unordered   = array_map(strtolower(...), $unordered);
+        $this->recollated  = array_map(strtolower(...), $recollated);
     }
 
     /**
@@ -106,17 +113,31 @@ final readonly class IndexEligibility
     /**
      * Determine whether the leading key cannot deliver its column's own order.
      *
+     * A key collated apart from its column is ordered by that other collation,
+     * so it is counted here as well as on its own.
+     *
      * @param  string  $name
      * @return bool
      */
     public function lacksColumnOrder(string $name): bool
     {
-        return $this->names($name, $this->unordered);
+        return $this->names($name, $this->unordered) || $this->collatesApart($name);
+    }
+
+    /**
+     * Determine whether the leading key is collated apart from its column.
+     *
+     * @param  string  $name
+     * @return bool
+     */
+    public function collatesApart(string $name): bool
+    {
+        return $this->names($name, $this->recollated);
     }
 
     /**
      * Determine whether a proof reading the reported columns may rest on the
-     * index, which needs the first three facts to be absent.
+     * index, which needs every fact but the one about order alone to be absent.
      *
      * @param  string  $name
      * @return bool
@@ -125,7 +146,8 @@ final readonly class IndexEligibility
     {
         return !$this->disregards($name)
             && !$this->restricts($name)
-            && !$this->keysAnExpression($name);
+            && !$this->keysAnExpression($name)
+            && !$this->collatesApart($name);
     }
 
     /**

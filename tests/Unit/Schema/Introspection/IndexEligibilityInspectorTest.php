@@ -119,6 +119,7 @@ final class IndexEligibilityInspectorTest extends TestCase
         self::assertFalse($eligibility->lacksColumnOrder('users_name_index'));
         self::assertTrue($eligibility->lacksColumnOrder('users_name_prefix_index'));
         self::assertTrue($eligibility->describes('users_name_prefix_index'));
+        self::assertFalse($eligibility->collatesApart('users_name_prefix_index'));
         self::assertFalse($eligibility->restricts('users_hidden_index'));
 
         self::assertSame([
@@ -134,7 +135,7 @@ final class IndexEligibilityInspectorTest extends TestCase
     }
 
     /**
-     * Test that an engine keeping an index catalogue is read for all four
+     * Test that an engine keeping an index catalogue is read for all five
      * facts.
      *
      * @return void
@@ -145,7 +146,8 @@ final class IndexEligibilityInspectorTest extends TestCase
             (object) ['name' => 'users_invalid_index', 'disregarded' => 1, 'restricted' => 0, 'expressed' => 0],
             (object) ['name' => 'users_live_index', 'disregarded' => 0, 'restricted' => 1, 'expressed' => 0],
             (object) ['name' => 'users_lower_index', 'disregarded' => 0, 'restricted' => 0, 'expressed' => 1],
-            (object) ['name' => 'users_pattern_index', 'disregarded' => 0, 'restricted' => 0, 'expressed' => 0, 'unordered' => 1],
+            (object) ['name' => 'users_pattern_index', 'disregarded' => 0, 'restricted' => 0, 'expressed' => 0, 'unordered' => 1, 'recollated' => 0],
+            (object) ['name' => 'users_collated_index', 'disregarded' => 0, 'restricted' => 0, 'expressed' => 0, 'unordered' => 0, 'recollated' => 1],
         ]);
 
         $eligibility = (new IndexEligibilityInspector)->inspect('users', $connection);
@@ -156,16 +158,20 @@ final class IndexEligibilityInspectorTest extends TestCase
         self::assertFalse($eligibility->lacksColumnOrder('users_lower_index'));
         self::assertTrue($eligibility->lacksColumnOrder('users_pattern_index'));
         self::assertTrue($eligibility->describes('users_pattern_index'));
+        self::assertFalse($eligibility->collatesApart('users_pattern_index'));
+        self::assertTrue($eligibility->collatesApart('users_collated_index'));
+        self::assertTrue($eligibility->lacksColumnOrder('users_collated_index'));
+        self::assertFalse($eligibility->describes('users_collated_index'));
 
         self::assertSame([
             'select lower(ic.relname) as name, '
             . '(not i.indisvalid)::int as disregarded, '
             . '(i.indpred is not null)::int as restricted, '
             . '(i.indkey[0] = 0)::int as expressed, '
-            . '(am.amname = \'btree\' and i.indkey[0] <> 0 and ('
+            . '(am.amname = \'btree\' and i.indkey[0] <> 0 and '
             . 'not exists (select 1 from pg_opclass d where d.opcdefault and d.opcmethod = oc.opcmethod '
-            . 'and d.opcintype = oc.opcintype and d.opcfamily = oc.opcfamily) '
-            . 'or i.indcollation[0] <> a.attcollation))::int as unordered '
+            . 'and d.opcintype = oc.opcintype and d.opcfamily = oc.opcfamily))::int as unordered, '
+            . '(i.indkey[0] <> 0 and i.indcollation[0] <> 0 and i.indcollation[0] <> a.attcollation)::int as recollated '
             . 'from pg_index i '
             . 'join pg_class c on c.oid = i.indrelid '
             . 'join pg_namespace n on n.oid = c.relnamespace '
@@ -279,6 +285,29 @@ final class IndexEligibilityInspectorTest extends TestCase
         self::assertFalse($eligibility->lacksColumnOrder('users_name_index'));
         self::assertTrue($eligibility->disregards('users_hidden_index'));
         self::assertTrue($eligibility->lacksColumnOrder('users_name_prefix_index'));
+    }
+
+    /**
+     * Test that a key collated apart is read from a flag spelled as text as
+     * well as from a number.
+     *
+     * @return void
+     */
+    public function testReadsAKeyCollatedApartFromAFlagInEitherSpelling(): void
+    {
+        $connection = $this->connection('pgsql', [
+            (object) ['name' => 'users_name_index', 'recollated' => '0'],
+            (object) ['name' => 'users_name_c_index', 'recollated' => '1'],
+            (object) ['name' => 'users_label_c_index', 'recollated' => 1],
+        ]);
+
+        $eligibility = (new IndexEligibilityInspector)->inspect('users', $connection);
+
+        self::assertFalse($eligibility->collatesApart('users_name_index'));
+        self::assertTrue($eligibility->describes('users_name_index'));
+        self::assertTrue($eligibility->collatesApart('users_name_c_index'));
+        self::assertTrue($eligibility->collatesApart('users_label_c_index'));
+        self::assertFalse($eligibility->describes('users_label_c_index'));
     }
 
     /**
