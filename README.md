@@ -588,10 +588,11 @@ every earlier entry unreachable in every process at once. A column listing or se
 reads empty, as one does before its table exists, is never stored, so the table's columns are read as soon as
 it exists, with no migration event or invalidation needed.
 
-Schema entries are keyed by the schema the connection actually reads - its name, database, table prefix, and
-Postgres search path - so a tenancy switcher that repoints one connection name reads each tenant's schema
-apart. Casts, relation lookups, and the resource map come from code and are shared across tenants. Where each
-tenant has its own cache prefix, each also has its own generation, so invalidate per tenant.
+Schema entries are keyed by the schema the connection actually reads - its name, database, table prefix,
+Postgres search path, and database user - so a tenancy switcher that repoints one connection name reads each
+tenant's schema apart. Casts, relation lookups, and the resource map come from code and are shared across
+tenants. Where each tenant has its own cache prefix, each also has its own generation, so invalidate per
+tenant.
 
 The generation is replaced automatically when a migration run finishes, which covers schema changes at
 migrate time. A run with nothing to migrate, or a `--pretend` run, leaves the metadata warm. If the cache store

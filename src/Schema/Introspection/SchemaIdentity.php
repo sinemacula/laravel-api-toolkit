@@ -13,8 +13,11 @@ use Illuminate\Database\Connection;
  * one name and points it at another database, prefix, or search path between
  * requests or jobs, so schema metadata keyed by the name alone would serve one
  * tenant's catalogue to another. The identity carries the name alongside the
- * effective database, table prefix, and search path, so each distinct schema is
- * cached apart while every process reading the same one shares its entries.
+ * effective database, table prefix, search path, and user, so each distinct
+ * schema is cached apart while every process reading the same one shares its
+ * entries. The user is there because a search path may name the schema after
+ * whoever connects, and the name keeps its read or write suffix because a read
+ * alias describes its write connection while reading from another server.
  *
  * The identity describes the connection object the read actually runs on, as
  * the framework built it, so a resolver that hands out a different connection
@@ -35,7 +38,7 @@ final class SchemaIdentity
      */
     public static function of(Connection $connection): string
     {
-        $name = $connection->getName() ?? '';
+        $name = $connection->getNameWithReadWriteType() ?? '';
 
         return $name . '@' . hash('xxh128', serialize([
             $name,
@@ -43,6 +46,7 @@ final class SchemaIdentity
             $connection->getTablePrefix(),
             $connection->getConfig('search_path'),
             $connection->getConfig('schema'),
+            $connection->getConfig('username'),
         ]));
     }
 }
