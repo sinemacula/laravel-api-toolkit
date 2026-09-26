@@ -25,14 +25,14 @@ use SineMacula\ApiToolkit\Schema\Introspection\SchemaIdentity;
  * request naming the missing index.
  *
  * The answer is keyed by everything that could change it - the schema identity
- * of the connection, its driver, the table, the strategy, the columns declared
- * with it, and the shortest word a term may carry - and shared through the
- * metadata store under a short fixed expiry, so every process serving the same
- * schema pays the catalogue reads once per expiry rather than once per request.
- * The expiry is what bounds an index changed outside a migration: one created,
- * dropped, or made unusable by hand is reflected once it lapses, while a
- * migration or an explicit invalidation retires every stored answer at once. An
- * expiry of zero keeps the answer for one operation only.
+ * of the connection, the search driver, the table, the strategy, the columns
+ * declared with it, and the shortest word a term may carry - and shared through
+ * the metadata store under a short fixed expiry, so every process serving the
+ * same schema pays the catalogue reads once per expiry rather than once per
+ * request. The expiry is what bounds an index changed outside a migration: one
+ * created, dropped, or made unusable by hand is reflected once it lapses, while
+ * a migration or an explicit invalidation retires every stored answer at once.
+ * An expiry of zero keeps the answer for one operation only.
  *
  * Within one operation the answer is also held in process, and that copy is
  * cleared at every lifecycle boundary, so one long operation may keep an answer
@@ -131,7 +131,6 @@ final class IndexProof
         return CacheKeys::SEARCH_INDEX_PROOF->resolveKey([
             SchemaIdentity::of($connection),
             hash('xxh128', serialize([
-                $connection->getDriverName(),
                 $driver::class,
                 $table,
                 $strategy->value,
