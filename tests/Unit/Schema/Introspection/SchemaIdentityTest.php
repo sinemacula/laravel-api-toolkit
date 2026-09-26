@@ -25,9 +25,14 @@ final class SchemaIdentityTest extends TestCase
 {
     /** @var array<string, mixed> The configuration every variation departs from. */
     private const array BASE = [
-        'driver'   => 'sqlite',
-        'database' => ':memory:',
-        'prefix'   => '',
+        'driver'               => 'sqlite',
+        'database'             => ':memory:',
+        'prefix'               => '',
+        'host'                 => 'db-a.internal',
+        'port'                 => 5432,
+        'connect_via_database' => 'tenant_a',
+        'connect_via_port'     => 6432,
+        'odbc_datasource_name' => 'tenant_a',
     ];
 
     /**
@@ -73,6 +78,15 @@ final class SchemaIdentityTest extends TestCase
         yield 'search path' => [['search_path' => 'tenant_b']];
         yield 'schema' => [['schema' => 'tenant_b']];
         yield 'database user' => [['username' => 'tenant_b']];
+        yield 'driver' => [['driver' => 'pgsql']];
+        yield 'host' => [['host' => 'db-b.internal']];
+        yield 'additional host' => [['host' => ['db-a.internal', 'db-b.internal']]];
+        yield 'port' => [['port' => 5433]];
+        yield 'unix socket' => [['unix_socket' => '/var/run/tenant_b.sock']];
+        yield 'connect via database' => [['connect_via_database' => 'tenant_b']];
+        yield 'connect via port' => [['connect_via_port' => 6433]];
+        yield 'odbc' => [['odbc' => true]];
+        yield 'odbc data source name' => [['odbc_datasource_name' => 'tenant_b']];
     }
 
     /**
@@ -121,6 +135,86 @@ final class SchemaIdentityTest extends TestCase
     }
 
     /**
+     * Provide pairs of server settings that name the same configured server.
+     *
+     * @return iterable<string, array{0: array<string, mixed>, 1: array<string, mixed>}>
+     */
+    public static function equivalentServers(): iterable
+    {
+        yield 'host order' => [['host' => ['a', 'b']], ['host' => ['b', 'a']]];
+        yield 'scalar and single host' => [['host' => 'a'], ['host' => ['a']]];
+        yield 'duplicate hosts' => [['host' => ['a', 'a']], ['host' => ['a']]];
+        yield 'empty host entries' => [['host' => ['', 'a']], ['host' => ['a']]];
+        yield 'non-name host entries' => [['host' => [null, 'a']], ['host' => ['a']]];
+        yield 'numeric host' => [['host' => [1]], ['host' => ['1']]];
+        yield 'port type' => [['port' => 5432], ['port' => '5432']];
+        yield 'connect via port type' => [['connect_via_port' => 6432], ['connect_via_port' => '6432']];
+        yield 'empty unix socket' => [['unix_socket' => ''], []];
+        yield 'odbc disabled' => [['odbc' => false], []];
+        yield 'odbc integer flag' => [['odbc' => 1], []];
+        yield 'odbc string flag' => [['odbc' => '1'], []];
+    }
+
+    /**
+     * Test that settings naming the same server in different forms give the
+     * same identity, so every worker shares one set of keys.
+     *
+     * @param  array<string, mixed>  $left
+     * @param  array<string, mixed>  $right
+     * @return void
+     */
+    #[DataProvider('equivalentServers')]
+    public function testEquivalentServerSettingsShareAnIdentity(array $left, array $right): void
+    {
+        $base = ['driver' => 'pgsql', 'database' => 'tenant', 'prefix' => ''];
+
+        self::assertSame(
+            SchemaIdentity::of($this->connection('tenant', [...$base, ...$left])),
+            SchemaIdentity::of($this->connection('tenant', [...$base, ...$right])),
+        );
+    }
+
+    /**
+     * Test that a read and write connection with several write hosts keeps one
+     * identity however the framework orders the hosts it connects through.
+     *
+     * @return void
+     */
+    public function testAWriteHostGroupIsIdentifiedStablyAcrossRebuilds(): void
+    {
+        $split = static fn (array $hosts): array => [
+            'driver'   => 'pgsql',
+            'database' => 'tenant',
+            'prefix'   => '',
+            'read'     => ['host' => ['replica.internal']],
+            'write'    => ['host' => $hosts],
+        ];
+
+        $identity = SchemaIdentity::of($this->connection('tenant', $split(['p1', 'p2'])));
+
+        for ($attempt = 0; $attempt < 5; $attempt++) {
+            self::assertSame($identity, SchemaIdentity::of($this->connection('tenant', $split(['p1', 'p2']))));
+        }
+
+        self::assertSame($identity, SchemaIdentity::of($this->connection('tenant', $split(['p2', 'p1']))));
+        self::assertNotSame($identity, SchemaIdentity::of($this->connection('tenant', $split(['other']))));
+    }
+
+    /**
+     * Test that the order of a search path is kept, since it decides which
+     * schema an unqualified table resolves to.
+     *
+     * @return void
+     */
+    public function testSearchPathOrderIsPartOfTheIdentity(): void
+    {
+        self::assertNotSame(
+            SchemaIdentity::of($this->connection('tenant', [...self::BASE, 'search_path' => 'a,b'])),
+            SchemaIdentity::of($this->connection('tenant', [...self::BASE, 'search_path' => 'b,a'])),
+        );
+    }
+
+    /**
      * Test that a connection configured by URL is identified by the database
      * the URL names, as the framework built it.
      *
@@ -128,12 +222,21 @@ final class SchemaIdentityTest extends TestCase
      */
     public function testAUrlConfiguredConnectionIsIdentifiedByItsDatabase(): void
     {
-        $explicit = SchemaIdentity::of($this->connection('tenant', ['driver' => 'pgsql', 'database' => 'tenant_a', 'username' => 'user', 'prefix' => '']));
+        $explicit = SchemaIdentity::of($this->connection('tenant', [
+            'driver'   => 'pgsql',
+            'host'     => 'db.internal',
+            'port'     => '5432',
+            'database' => 'tenant_a',
+            'username' => 'user',
+            'prefix'   => '',
+        ]));
         $urlA     = SchemaIdentity::of($this->connection('tenant', ['url' => 'pgsql://user:secret@db.internal:5432/tenant_a']));
         $urlB     = SchemaIdentity::of($this->connection('tenant', ['url' => 'pgsql://user:secret@db.internal:5432/tenant_b']));
+        $otherUrl = SchemaIdentity::of($this->connection('tenant', ['url' => 'pgsql://user:secret@db-b.internal:5432/tenant_a']));
 
         self::assertSame($explicit, $urlA);
         self::assertNotSame($urlA, $urlB);
+        self::assertNotSame($urlA, $otherUrl);
     }
 
     /**
@@ -144,21 +247,22 @@ final class SchemaIdentityTest extends TestCase
      */
     public function testAReadWriteConnectionIsIdentifiedByItsWriteDatabase(): void
     {
-        $split = static fn (string $database): array => [
+        $split = static fn (string $database, string $host = 'primary.internal'): array => [
             'driver' => 'pgsql',
             'prefix' => '',
             'read'   => ['host' => ['replica.internal']],
-            'write'  => ['host' => ['primary.internal'], 'database' => $database],
+            'write'  => ['host' => [$host], 'database' => $database],
         ];
 
         $tenantA = $this->connection('tenant', $split('tenant_a'));
 
         self::assertSame('tenant_a', $tenantA->getDatabaseName());
         self::assertSame(
-            SchemaIdentity::of($this->connection('tenant', ['driver' => 'pgsql', 'database' => 'tenant_a', 'prefix' => ''])),
+            SchemaIdentity::of($this->connection('tenant', ['driver' => 'pgsql', 'host' => 'primary.internal', 'database' => 'tenant_a', 'prefix' => ''])),
             SchemaIdentity::of($tenantA),
         );
         self::assertNotSame(SchemaIdentity::of($tenantA), SchemaIdentity::of($this->connection('tenant', $split('tenant_b'))));
+        self::assertNotSame(SchemaIdentity::of($tenantA), SchemaIdentity::of($this->connection('tenant', $split('tenant_a', 'other.internal'))));
     }
 
     /**

@@ -1209,14 +1209,22 @@ schema the connection actually reads: its name, with any read or write suffix, i
 table prefix, its Postgres `search_path` (or `schema`), and its database user, since a search path can name
 the schema after whoever connects. A tenancy switcher that repoints one connection name at another tenant's
 database, prefix, or search path - by configuration, or on the resolved connection - therefore reads and
-caches each tenant's schema apart, even within a single job. The identity is resolved from configuration and
-the connection's own state, never by a query, and it does not include the host, so tenants whose databases
-share a name on different servers must also differ in table prefix, search path, or cache prefix. A read
-alias such as `tenant::read` is described by its write-side settings, as the framework builds it, so a
-switcher must repoint the write side along with the read side. Casts, relation
-lookups, and the model-to-resource map are derived from code and read the same for every tenant, so they stay
-keyed by class and are shared. Where each tenant has its own cache prefix, each tenant also has its own
-generation, so run the invalidation once per tenant.
+caches each tenant's schema apart, even within a single job. The identity also includes the server the
+connection is configured for: its driver, its configured host list (in any order), port, Unix socket, and the
+Postgres `connect_via_database` and `connect_via_port` or SQL Server ODBC data source name. Every host in one
+configured list must serve the same schema. The identity is resolved from configuration and the connection's
+own state, never by a query, so a change is seen only once it is on the connection object: a switcher must
+purge the connection (`DB::purge()`) or configure a fresh one after changing its configuration, since
+`DB::reconnect()` reuses the old configuration. A search path changed at runtime by a statement such as
+`SET search_path`, rather than through the connection's `search_path` or `schema` configuration, is not seen,
+so a switcher that works that way needs a per-tenant cache prefix, which separates the shared cache but not
+the in-process memos of one job. A read alias such as `tenant::read` is described by its write-side settings,
+including the write host, as the framework builds it, so a switcher must repoint the write side along with the
+read side. With the list form of read and write settings (`'write' => [[...], [...]]`), the framework picks
+one entry per connection, so workers may cache under a few keys that are each correct but fill separately;
+prefer one entry with a host list. Casts, relation lookups, and the model-to-resource map are derived from
+code and read the same for every tenant, so they stay keyed by class and are shared. Where each tenant has its
+own cache prefix, each tenant also has its own generation, so run the invalidation once per tenant.
 
 The migration hook alone does not keep metadata correct across a deploy. Migrations run before the new
 release takes traffic, so workers still on the old code can refill the new generation with their casts,
