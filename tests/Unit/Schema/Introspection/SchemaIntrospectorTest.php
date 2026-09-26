@@ -15,20 +15,24 @@ use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Database\Schema\Builder as SchemaBuilder;
+use Illuminate\Database\SQLiteConnection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Config;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\MockObject\MockObject;
-use SineMacula\ApiToolkit\Cache\MetadataKeyRegistry;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Enums\CacheKeys;
 use SineMacula\ApiToolkit\Schema\Introspection\ColumnDefinition;
 use SineMacula\ApiToolkit\Schema\Introspection\IndexDefinition;
+use SineMacula\ApiToolkit\Schema\Introspection\SchemaIdentity;
 use SineMacula\ApiToolkit\Schema\Introspection\SchemaIntrospector;
 use Tests\Concerns\InteractsWithNonPublicMembers;
 use Tests\Fixtures\Models\Post;
+use Tests\Fixtures\Models\TenantWidget;
 use Tests\Fixtures\Models\User;
 use Tests\TestCase;
 
@@ -79,7 +83,7 @@ final class SchemaIntrospectorTest extends TestCase
 
         $instanceCache = $this->getProperty($introspector, 'columns');
 
-        self::assertArrayHasKey('testing|' . User::class, $instanceCache);
+        self::assertArrayHasKey(SchemaIdentity::of(DB::connection('testing')) . '|' . User::class, $instanceCache);
     }
 
     /**
@@ -107,29 +111,91 @@ final class SchemaIntrospectorTest extends TestCase
     }
 
     /**
-     * Test that an empty column listing is served from the memo cache on a
-     * later instance rather than being re-queried every time, since an empty
-     * array is a valid cached result.
+     * Test that an empty column listing is not stored, so a later instance asks
+     * the connection again rather than serving a table that did not exist yet
+     * as columnless for good.
      *
      * @return void
      */
-    public function testGetColumnsCachesEmptyColumnListAcrossInstances(): void
+    public function testGetColumnsDoesNotStoreAnEmptyListing(): void
     {
         Cache::memo()->flush(); // @phpstan-ignore method.notFound, staticMethod.dynamicCall
 
         $builder = self::createMock(SchemaBuilder::class);
 
-        $builder->expects(self::once())
+        $builder->expects(self::exactly(2))
             ->method('getColumnListing')
-            ->willReturn([]);
+            ->willReturnOnConsecutiveCalls([], ['id']);
 
         $model = $this->modelReadingFrom($builder);
 
-        $first  = ($this->makeIntrospector())->getColumns($model);
-        $second = ($this->makeIntrospector())->getColumns($model);
+        self::assertSame([], ($this->makeIntrospector())->getColumns($model));
+        self::assertNull(Cache::memo()->get($this->metadataStorageKey(CacheKeys::MODEL_SCHEMA_COLUMNS->resolveKey([SchemaIdentity::of($model->getConnection()), $model::class]))));
+        self::assertSame(['id'], ($this->makeIntrospector())->getColumns($model));
+    }
 
-        self::assertSame([], $first);
-        self::assertSame([], $second);
+    /**
+     * Test that an empty listing already in the store is read as a miss, so a
+     * listing stored before its table existed is not served back.
+     *
+     * @return void
+     */
+    public function testGetColumnsReadsAStoredEmptyListingAsAMiss(): void
+    {
+        $key = $this->metadataStorageKey(CacheKeys::MODEL_SCHEMA_COLUMNS->resolveKey([SchemaIdentity::of(DB::connection('testing')), User::class]));
+
+        Cache::memo()->rememberForever($key, fn (): array => []);
+
+        self::assertSame(Schema::getColumnListing('users'), $this->makeIntrospector()->getColumns(new User));
+    }
+
+    /**
+     * Test that a model naming a connection the application cannot build
+     * degrades to nothing rather than failing, as a model on an unreachable
+     * connection does.
+     *
+     * @return void
+     */
+    public function testAModelOnAnUnbuildableConnectionDegradesToNothing(): void
+    {
+        $model = new #[Table('widgets')] class extends Model {
+            /** @var string|\UnitEnum|null */
+            protected $connection = 'never_configured';
+        };
+
+        $introspector = $this->makeIntrospector();
+
+        self::assertSame([], $introspector->getColumns($model));
+        self::assertSame([], $introspector->getColumnDefinitions($model));
+        self::assertNull($introspector->getIndexes($model));
+    }
+
+    /**
+     * Test that the schema is keyed by the connection object the model reads
+     * through rather than by its name, so a resolver handing out another
+     * tenant's connection under the same name reads that tenant's schema.
+     *
+     * @return void
+     */
+    public function testTheSchemaIsKeyedByTheConnectionTheModelReadsThrough(): void
+    {
+        $databaseA = $this->tenantDatabase(static function (Blueprint $table): void {
+            $table->string('alpha');
+        });
+
+        $databaseB = $this->tenantDatabase(static function (Blueprint $table): void {
+            $table->string('beta');
+        });
+
+        $introspector = $this->makeIntrospector();
+
+        $modelA = $this->modelOn($this->standaloneTenantConnection($databaseA));
+        $modelB = $this->modelOn($this->standaloneTenantConnection($databaseB));
+
+        self::assertSame(['alpha'], $introspector->getColumns($modelA));
+        self::assertSame(['beta'], $introspector->getColumns($modelB));
+        self::assertSame(['beta'], array_keys($introspector->getColumnDefinitions($modelB)));
+        self::assertSame(['alpha'], array_keys($introspector->getColumnDefinitions($modelA)));
     }
 
     /**
@@ -145,7 +211,7 @@ final class SchemaIntrospectorTest extends TestCase
 
         $columns = $introspector->getColumns($model);
 
-        $key = $this->metadataStorageKey(CacheKeys::MODEL_SCHEMA_COLUMNS->resolveKey(['testing', User::class]));
+        $key = $this->metadataStorageKey(CacheKeys::MODEL_SCHEMA_COLUMNS->resolveKey([SchemaIdentity::of(DB::connection('testing')), User::class]));
 
         self::assertSame($columns, Cache::memo()->get($key));
     }
@@ -184,8 +250,92 @@ final class SchemaIntrospectorTest extends TestCase
         self::assertNotSame(['handle'], Schema::getColumnListing('users'));
         self::assertSame(
             ['handle'],
-            Cache::memo()->get($this->metadataStorageKey(CacheKeys::MODEL_SCHEMA_COLUMNS->resolveKey(['secondary', $model::class]))),
+            Cache::memo()->get($this->metadataStorageKey(CacheKeys::MODEL_SCHEMA_COLUMNS->resolveKey([SchemaIdentity::of(DB::connection('secondary')), $model::class]))),
         );
+    }
+
+    /**
+     * Test that one connection name repointed at another tenant's database
+     * inside a single job reads that tenant's schema rather than reusing the
+     * previous tenant's, from the store or from the instance.
+     *
+     * @return void
+     */
+    public function testATenantSwitchInsideOneJobReadsTheNewTenantsSchema(): void
+    {
+        $tenantA = $this->tenantDatabase(static function (Blueprint $table): void {
+            $table->string('alpha');
+        });
+
+        $tenantB = $this->tenantDatabase(static function (Blueprint $table): void {
+            $table->string('beta');
+        });
+
+        $introspector = $this->makeIntrospector();
+
+        $this->switchTenant(['database' => $tenantA]);
+        $identityA = SchemaIdentity::of(DB::connection('tenant'));
+
+        self::assertSame(['alpha'], $introspector->getColumns($this->tenantModel()));
+        self::assertSame(['alpha'], array_keys($introspector->getColumnDefinitions($this->tenantModel())));
+
+        $this->switchTenant(['database' => $tenantB]);
+        $identityB = SchemaIdentity::of(DB::connection('tenant'));
+
+        self::assertSame(['beta'], $introspector->getColumns($this->tenantModel()));
+        self::assertSame(['beta'], array_keys($introspector->getColumnDefinitions($this->tenantModel())));
+
+        self::assertNotSame($identityA, $identityB);
+        self::assertSame(['alpha'], Cache::memo()->get($this->metadataStorageKey(CacheKeys::MODEL_SCHEMA_COLUMNS->resolveKey([$identityA, $this->tenantModel()::class]))));
+        self::assertSame(['beta'], Cache::memo()->get($this->metadataStorageKey(CacheKeys::MODEL_SCHEMA_COLUMNS->resolveKey([$identityB, $this->tenantModel()::class]))));
+    }
+
+    /**
+     * Provide the ways a connection can be repointed while keeping its name and
+     * its database.
+     *
+     * @return iterable<string, array{0: array<string, string>}>
+     */
+    public static function schemaRepointings(): iterable
+    {
+        yield 'table prefix' => [['prefix' => 'other_']];
+        yield 'search path' => [['search_path' => 'other']];
+    }
+
+    /**
+     * Test that the same connection name under another table prefix or search
+     * path keeps its own stored entries and its own instance memo.
+     *
+     * @param  array<string, string>  $change
+     * @return void
+     */
+    #[DataProvider('schemaRepointings')]
+    public function testTheSameConnectionUnderAnotherSchemaKeepsSeparateEntries(array $change): void
+    {
+        $database = $this->tenantDatabase(static function (Blueprint $table): void {
+            $table->string('alpha');
+        });
+
+        $introspector = $this->makeIntrospector();
+
+        $this->switchTenant(['database' => $database]);
+        $introspector->getColumns($this->tenantModel());
+        $introspector->getIndexes($this->tenantModel());
+        $before = SchemaIdentity::of(DB::connection('tenant'));
+
+        $this->switchTenant(['database' => $database, ...$change]);
+        $introspector->getColumns($this->tenantModel());
+        $introspector->getIndexes($this->tenantModel());
+        $after = SchemaIdentity::of(DB::connection('tenant'));
+
+        self::assertNotSame($before, $after);
+        self::assertCount(2, $this->getProperty($introspector, 'columns'));
+        self::assertCount(2, $this->getProperty($introspector, 'indexes'));
+
+        foreach ([$before, $after] as $identity) {
+            self::assertArrayHasKey($identity . '|' . $this->tenantModel()::class, $this->getProperty($introspector, 'columns'));
+            self::assertIsArray(Cache::memo()->get($this->metadataStorageKey(CacheKeys::MODEL_SCHEMA_COLUMNS->resolveKey([$identity, $this->tenantModel()::class]))));
+        }
     }
 
     /**
@@ -290,6 +440,32 @@ final class SchemaIntrospectorTest extends TestCase
     }
 
     /**
+     * Test that an empty set of column definitions is not stored, so a later
+     * instance asks the connection again once the table exists.
+     *
+     * @return void
+     */
+    public function testGetColumnDefinitionsDoesNotStoreAnEmptySet(): void
+    {
+        Cache::memo()->flush(); // @phpstan-ignore method.notFound, staticMethod.dynamicCall
+
+        $builder = self::createMock(SchemaBuilder::class);
+
+        $builder->expects(self::exactly(2))
+            ->method('getColumns')
+            ->willReturnOnConsecutiveCalls([], [['name' => 'id', 'type_name' => 'integer', 'nullable' => false]]);
+
+        $model = $this->modelReadingFrom($builder);
+
+        self::assertSame([], ($this->makeIntrospector())->getColumnDefinitions($model));
+
+        $key = $this->metadataStorageKey(CacheKeys::MODEL_SCHEMA_COLUMN_DEFINITIONS->resolveKey([SchemaIdentity::of($model->getConnection()), $model::class]));
+
+        self::assertNull(Cache::memo()->get($key));
+        self::assertSame(['id'], array_keys(($this->makeIntrospector())->getColumnDefinitions($model)));
+    }
+
+    /**
      * Test that getColumnDefinitions stores the result in the memo cache under
      * a key scoped to the model class and the connection it was read from.
      *
@@ -302,7 +478,7 @@ final class SchemaIntrospectorTest extends TestCase
 
         $definitions = $introspector->getColumnDefinitions($model);
 
-        $key = $this->metadataStorageKey(CacheKeys::MODEL_SCHEMA_COLUMN_DEFINITIONS->resolveKey(['testing', User::class]));
+        $key = $this->metadataStorageKey(CacheKeys::MODEL_SCHEMA_COLUMN_DEFINITIONS->resolveKey([SchemaIdentity::of(DB::connection('testing')), User::class]));
 
         self::assertSame($definitions, Cache::memo()->get($key));
     }
@@ -457,7 +633,7 @@ final class SchemaIntrospectorTest extends TestCase
 
         ($this->makeIntrospector())->getIndexes($model);
 
-        self::assertNull(Cache::memo()->get($this->metadataStorageKey(CacheKeys::MODEL_SCHEMA_INDEXES->resolveKey(['testing', $model::class]))));
+        self::assertNull(Cache::memo()->get($this->metadataStorageKey(CacheKeys::MODEL_SCHEMA_INDEXES->resolveKey([SchemaIdentity::of($model->getConnection()), $model::class]))));
     }
 
     /**
@@ -470,22 +646,9 @@ final class SchemaIntrospectorTest extends TestCase
     {
         $indexes = ($this->makeIntrospector())->getIndexes(new User);
 
-        self::assertEquals($indexes, Cache::memo()->get($this->metadataStorageKey(CacheKeys::MODEL_SCHEMA_INDEXES->resolveKey(['testing', User::class]))));
-    }
+        $key = $this->metadataStorageKey(CacheKeys::MODEL_SCHEMA_INDEXES->resolveKey([SchemaIdentity::of(DB::connection('testing')), User::class]));
 
-    /**
-     * Test that getIndexes registers the MODEL_SCHEMA_INDEXES key in the
-     * metadata key registry, so a scoped flush forgets it.
-     *
-     * @return void
-     */
-    public function testGetIndexesRegistersSchemaIndexesKey(): void
-    {
-        $registry = app(MetadataKeyRegistry::class);
-
-        ($this->makeIntrospector())->getIndexes(new User);
-
-        self::assertContains($this->metadataStorageKey(CacheKeys::MODEL_SCHEMA_INDEXES->resolveKey(['testing', User::class])), $registry->keys());
+        self::assertEquals($indexes, Cache::memo()->get($key));
     }
 
     /**
@@ -1227,131 +1390,60 @@ final class SchemaIntrospectorTest extends TestCase
     }
 
     /**
-     * Test that getColumns registers the MODEL_SCHEMA_COLUMNS key in the
-     * metadata key registry.
+     * Test that a column listing another process wrote is served warm.
      *
      * @return void
      */
-    public function testGetColumnsRegistersSchemaColumnsKey(): void
+    public function testGetColumnsServesAListingAnotherProcessWrote(): void
     {
-        // Arrange
-        $registry     = app(MetadataKeyRegistry::class);
-        $introspector = $this->makeIntrospector();
-        $model        = new User;
-
-        // Act
-        $introspector->getColumns($model);
-
-        // Assert
-        $expectedKey = $this->metadataStorageKey(CacheKeys::MODEL_SCHEMA_COLUMNS->resolveKey(['testing', User::class]));
-
-        self::assertContains($expectedKey, $registry->keys());
-    }
-
-    /**
-     * Test that getColumnDefinitions registers the
-     * MODEL_SCHEMA_COLUMN_DEFINITIONS key in the metadata key registry.
-     *
-     * @return void
-     */
-    public function testGetColumnDefinitionsRegistersColumnDefinitionsKey(): void
-    {
-        // Arrange
-        $registry     = app(MetadataKeyRegistry::class);
-        $introspector = $this->makeIntrospector();
-        $model        = new User;
-
-        // Act
-        $introspector->getColumnDefinitions($model);
-
-        // Assert
-        $expectedKey = $this->metadataStorageKey(CacheKeys::MODEL_SCHEMA_COLUMN_DEFINITIONS->resolveKey(['testing', User::class]));
-
-        self::assertContains($expectedKey, $registry->keys());
-    }
-
-    /**
-     * Test that a column listing served warm still registers its key.
-     *
-     * The store outlives the process while the registry does not, so a value an
-     * earlier process wrote is served here without this one having written
-     * anything. Registering only on the write would leave the key unflushable
-     * for the whole life of every process that merely read it.
-     *
-     * @return void
-     */
-    public function testGetColumnsRegistersSchemaColumnsKeyWhenServedWarm(): void
-    {
-        $key = $this->metadataStorageKey(CacheKeys::MODEL_SCHEMA_COLUMNS->resolveKey(['testing', User::class]));
+        $key = $this->metadataStorageKey(CacheKeys::MODEL_SCHEMA_COLUMNS->resolveKey([SchemaIdentity::of(DB::connection('testing')), User::class]));
 
         Cache::memo()->rememberForever($key, fn (): array => ['id', 'name']);
 
-        $registry = app(MetadataKeyRegistry::class);
-
-        $registry->clear();
-
         self::assertSame(['id', 'name'], $this->makeIntrospector()->getColumns(new User));
-        self::assertContains($key, $registry->keys());
     }
 
     /**
-     * Test that column definitions served warm still register their key.
+     * Test that column definitions another process wrote are served warm.
      *
      * @return void
      */
-    public function testGetColumnDefinitionsRegistersItsKeyWhenServedWarm(): void
+    public function testGetColumnDefinitionsServesDefinitionsAnotherProcessWrote(): void
     {
-        $key = $this->metadataStorageKey(CacheKeys::MODEL_SCHEMA_COLUMN_DEFINITIONS->resolveKey(['testing', User::class]));
+        $key = $this->metadataStorageKey(CacheKeys::MODEL_SCHEMA_COLUMN_DEFINITIONS->resolveKey([SchemaIdentity::of(DB::connection('testing')), User::class]));
 
         Cache::memo()->rememberForever($key, fn (): array => ['name' => new ColumnDefinition('name', 'varchar', true)]);
 
-        $registry = app(MetadataKeyRegistry::class);
-
-        $registry->clear();
-
         self::assertArrayHasKey('name', $this->makeIntrospector()->getColumnDefinitions(new User));
-        self::assertContains($key, $registry->keys());
     }
 
     /**
-     * Test that an index catalogue served warm still registers its key.
+     * Test that an index catalogue another process wrote is served warm.
      *
      * @return void
      */
-    public function testGetIndexesRegistersItsKeyWhenServedWarm(): void
+    public function testGetIndexesServesACatalogueAnotherProcessWrote(): void
     {
-        $key = $this->metadataStorageKey(CacheKeys::MODEL_SCHEMA_INDEXES->resolveKey(['testing', User::class]));
+        $key = $this->metadataStorageKey(CacheKeys::MODEL_SCHEMA_INDEXES->resolveKey([SchemaIdentity::of(DB::connection('testing')), User::class]));
 
         Cache::memo()->rememberForever($key, fn (): array => [new IndexDefinition('users_name_index', ['name'], 'btree')]);
 
-        $registry = app(MetadataKeyRegistry::class);
-
-        $registry->clear();
-
         self::assertCount(1, (array) $this->makeIntrospector()->getIndexes(new User));
-        self::assertContains($key, $registry->keys());
     }
 
     /**
-     * Test that isRelation registers the MODEL_RELATIONS key in the metadata
-     * key registry.
+     * Test that isRelation stores its answer keyed by the model class alone,
+     * since a relation is declared in code and reads the same for every tenant.
      *
      * @return void
      */
-    public function testIsRelationRegistersRelationsKey(): void
+    public function testIsRelationStoresUnderAKeyFreeOfTheSchemaIdentity(): void
     {
-        // Arrange
-        $registry     = app(MetadataKeyRegistry::class);
-        $introspector = $this->makeIntrospector();
-        $model        = new User;
+        $this->makeIntrospector()->isRelation('posts', new User);
 
-        // Act
-        $introspector->isRelation('posts', $model);
-
-        // Assert
         $expectedKey = $this->metadataStorageKey(CacheKeys::MODEL_RELATIONS->resolveKey([User::class, 'posts']));
 
-        self::assertContains($expectedKey, $registry->keys());
+        self::assertTrue(Cache::memo()->get($expectedKey));
     }
 
     /**
@@ -1489,7 +1581,7 @@ final class SchemaIntrospectorTest extends TestCase
 
         ($this->makeIntrospector())->getColumns($model);
 
-        $key = $this->metadataStorageKey(CacheKeys::MODEL_SCHEMA_COLUMNS->resolveKey(['testing', $model::class]));
+        $key = $this->metadataStorageKey(CacheKeys::MODEL_SCHEMA_COLUMNS->resolveKey([SchemaIdentity::of($model->getConnection()), $model::class]));
 
         self::assertNull(Cache::memo()->get($key));
     }
@@ -1535,7 +1627,7 @@ final class SchemaIntrospectorTest extends TestCase
 
         ($this->makeIntrospector())->getColumnDefinitions($model);
 
-        $key = $this->metadataStorageKey(CacheKeys::MODEL_SCHEMA_COLUMN_DEFINITIONS->resolveKey(['testing', $model::class]));
+        $key = $this->metadataStorageKey(CacheKeys::MODEL_SCHEMA_COLUMN_DEFINITIONS->resolveKey([SchemaIdentity::of($model->getConnection()), $model::class]));
 
         self::assertNull(Cache::memo()->get($key));
     }
@@ -1598,6 +1690,56 @@ final class SchemaIntrospectorTest extends TestCase
     }
 
     /**
+     * Create a tenant database file holding a widgets table, and an
+     * other_widgets table for a prefixed read, built by the given definition.
+     *
+     * @param  \Closure(\Illuminate\Database\Schema\Blueprint): void  $definition
+     * @return string
+     */
+    private function tenantDatabase(\Closure $definition): string
+    {
+        $path = sys_get_temp_dir() . '/api-toolkit-tenant-' . getmypid() . '-' . uniqid('', true) . '.sqlite';
+
+        touch($path);
+
+        $this->beforeApplicationDestroyed(static function () use ($path): void {
+            DB::purge('tenant');
+            @unlink($path);
+        });
+
+        $this->switchTenant(['database' => $path]);
+
+        Schema::connection('tenant')->create('widgets', $definition);
+        Schema::connection('tenant')->create('other_widgets', $definition);
+
+        return $path;
+    }
+
+    /**
+     * Point the tenant connection at the given configuration, the way a tenancy
+     * switcher does between jobs.
+     *
+     * @param  array<string, string>  $config
+     * @return void
+     */
+    private function switchTenant(array $config): void
+    {
+        Config::set('database.connections.tenant', ['driver' => 'sqlite', 'prefix' => '', ...$config]);
+
+        DB::purge('tenant');
+    }
+
+    /**
+     * Build a model reading the widgets table through the tenant connection.
+     *
+     * @return \Illuminate\Database\Eloquent\Model
+     */
+    private function tenantModel(): Model
+    {
+        return new TenantWidget;
+    }
+
+    /**
      * Build a model whose connection reads its catalogue from the given schema
      * builder, so a test can pin what the connection reports and how often it
      * is asked.
@@ -1611,6 +1753,18 @@ final class SchemaIntrospectorTest extends TestCase
 
         $connection->method('getSchemaBuilder')->willReturn($builder);
 
+        return $this->modelOn($connection);
+    }
+
+    /**
+     * Build a model reading the widgets table through the given connection
+     * object, however it was built.
+     *
+     * @param  \Illuminate\Database\Connection  $connection
+     * @return \Illuminate\Database\Eloquent\Model
+     */
+    private function modelOn(Connection $connection): Model
+    {
         $model = new #[Table('widgets')] class extends Model {
             /** @var \Illuminate\Database\Connection|null The connection this model reads its schema from */
             public ?Connection $reader = null;
@@ -1634,6 +1788,18 @@ final class SchemaIntrospectorTest extends TestCase
         $model->reader = $connection;
 
         return $model;
+    }
+
+    /**
+     * Build a connection named tenant over the given database file without
+     * registering it, the way a custom tenancy resolver hands one out.
+     *
+     * @param  string  $database
+     * @return \Illuminate\Database\Connection
+     */
+    private function standaloneTenantConnection(string $database): Connection
+    {
+        return new SQLiteConnection(static fn (): \PDO => new \PDO('sqlite:' . $database), $database, '', ['name' => 'tenant', 'database' => $database]);
     }
 
     /**

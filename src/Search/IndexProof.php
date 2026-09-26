@@ -7,6 +7,7 @@ namespace SineMacula\ApiToolkit\Search;
 use Illuminate\Database\Connection;
 use SineMacula\ApiToolkit\Contracts\SearchDriver;
 use SineMacula\ApiToolkit\Enums\SearchStrategy;
+use SineMacula\ApiToolkit\Schema\Introspection\SchemaIdentity;
 
 /**
  * Per-process memo of the index proof behind a declared search surface.
@@ -19,10 +20,11 @@ use SineMacula\ApiToolkit\Enums\SearchStrategy;
  * search surface exists to remove. Asking once per worker process turns that
  * into a refused request naming the missing index.
  *
- * The answer is keyed by everything that could change it - the connection, its
- * driver, the table, the strategy, and the columns declared with it - and held
- * for the life of the process alongside the other schema-derived caches, so a
- * catalogue read is paid once rather than per search.
+ * The answer is keyed by everything that could change it - the schema identity
+ * of the connection, its driver, the table, the strategy, and the columns
+ * declared with it - and held until the next lifecycle boundary alongside the
+ * other schema-derived caches, so a catalogue read is paid once rather than per
+ * search.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -48,7 +50,7 @@ final class IndexProof
     public static function defects(SearchDriver $driver, SearchStrategy $strategy, array $columns, string $table, Connection $connection): array
     {
         $key = implode('|', [
-            $connection->getName() ?? '',
+            SchemaIdentity::of($connection),
             $connection->getDriverName(),
             $table,
             $strategy->value,

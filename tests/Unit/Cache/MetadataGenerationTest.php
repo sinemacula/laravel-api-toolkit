@@ -12,7 +12,6 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use SineMacula\ApiToolkit\Cache\MetadataCacheWriter;
 use SineMacula\ApiToolkit\Cache\MetadataGeneration;
-use SineMacula\ApiToolkit\Cache\MetadataKeyRegistry;
 use SineMacula\ApiToolkit\Enums\CacheKeys;
 use SineMacula\ApiToolkit\Exceptions\MetadataInvalidationException;
 use Tests\TestCase;
@@ -262,7 +261,7 @@ final class MetadataGenerationTest extends TestCase
      */
     private function process(): MetadataCacheWriter
     {
-        return new MetadataCacheWriter(new MetadataKeyRegistry, new MetadataGeneration);
+        return new MetadataCacheWriter(new MetadataGeneration);
     }
 
     /**

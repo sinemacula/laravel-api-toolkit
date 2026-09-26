@@ -14,8 +14,8 @@ use SineMacula\ApiToolkit\Exceptions\MetadataInvalidationException;
  *
  * The generation lives in the shared cache store, so replacing it makes every
  * metadata entry written under the old one unreachable in every process at
- * once, including processes that never registered those entries and so could
- * never forget them.
+ * once. It is the only way a shared entry is retired, since a lifecycle
+ * boundary resets in-process state and leaves the store alone.
  *
  * A generation is a random token rather than a counter. A counter that is lost
  * from the store restarts at a value it has held before and serves the entries

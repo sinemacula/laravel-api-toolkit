@@ -554,10 +554,12 @@ return [
     | Cache Lifecycle Configuration
     |---------------------------------------------------------------------------
     |
-    | This section configures automatic cache invalidation for long-running
+    | This section configures the toolkit's lifecycle boundaries in long-running
     | PHP environments such as Laravel Octane and queue workers. When enabled,
-    | the toolkit automatically flushes all cached metadata at the appropriate
-    | lifecycle boundaries to prevent stale data.
+    | the toolkit resets its in-process state after every Octane operation and
+    | queue job: the static memos grow no further and the worker re-reads the
+    | metadata generation. The metadata held in the shared cache store is left
+    | warm, so every worker serves what any worker has already read.
     |
     | Both options are enabled by default. Engagement is gated on runtime
     | detection (LARAVEL_OCTANE server variable / non-sync queue connection),
@@ -566,14 +568,13 @@ return [
     | workers who wish to opt out may set API_TOOLKIT_LIFECYCLE_OCTANE=false
     | or API_TOOLKIT_LIFECYCLE_QUEUE=false in their environment.
     |
-    | A boundary flush only forgets the metadata the flushing process touched,
-    | so metadata written by earlier processes survives it. `migrations`
-    | invalidates the cached metadata in every process sharing the cache store
-    | once a migration run finishes, since that is when schema metadata goes
-    | stale. A run with nothing to migrate, or a pretended one, leaves it warm.
-    | Enabled by default. Old-code workers can refill metadata between migrate
-    | and release, so a deploy should also run api-toolkit:invalidate-metadata
-    | once the new release is live.
+    | Shared metadata is only retired by replacing the generation. `migrations`
+    | does that in every process sharing the cache store once a migration run
+    | finishes, since that is when schema metadata goes stale. A run with
+    | nothing to migrate, or a pretended one, leaves it warm. Enabled by
+    | default. Old-code workers can refill metadata between migrate and release,
+    | so a deploy should also run api-toolkit:invalidate-metadata once the new
+    | release is live.
     |
     */
 

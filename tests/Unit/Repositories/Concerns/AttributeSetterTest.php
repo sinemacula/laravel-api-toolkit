@@ -10,7 +10,6 @@ use Illuminate\Support\Facades\Cache;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\MockObject\Stub;
 use SineMacula\ApiToolkit\Cache\MetadataCacheWriter;
-use SineMacula\ApiToolkit\Cache\MetadataKeyRegistry;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Enums\CacheKeys;
 use SineMacula\ApiToolkit\Repositories\Concerns\AttributeSetter;
@@ -668,16 +667,15 @@ final class AttributeSetterTest extends TestCase
     }
 
     /**
-     * Test that persist registers the REPOSITORY_MODEL_CASTS key in the
-     * metadata key registry.
+     * Test that persist stores the cast map in the shared store under the
+     * REPOSITORY_MODEL_CASTS key.
      *
      * @return void
      */
-    public function testStoreCastsRegistersModelCastsKey(): void
+    public function testStoreCastsStoresUnderTheModelCastsKey(): void
     {
         // Arrange
-        $registry = app(MetadataKeyRegistry::class);
-        $user     = User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL]);
+        $user = User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL]);
 
         $this->setProperty($this->attributeSetter, 'casts', ['name' => 'string']);
 
@@ -687,33 +685,24 @@ final class AttributeSetterTest extends TestCase
         // Assert
         $expectedKey = $this->metadataStorageKey(CacheKeys::REPOSITORY_MODEL_CASTS->resolveKey([User::class]));
 
-        self::assertContains($expectedKey, $registry->keys());
+        self::assertIsArray(Cache::memo()->get($expectedKey));
     }
 
     /**
-     * Test that a cast map served warm still registers its key.
-     *
-     * The warm read returns before anything writes, so registering only on the
-     * write would leave the key unflushable in every process that resolved its
-     * casts from a value an earlier one stored.
+     * Test that a cast map an earlier process stored is served warm without
+     * asking the model for its casts again.
      *
      * @return void
      */
-    public function testResolveAttributeCastsRegistersModelCastsKeyWhenServedWarm(): void
+    public function testResolveAttributeCastsServesACastMapAnEarlierProcessStored(): void
     {
         $cacheKey = $this->metadataStorageKey(CacheKeys::REPOSITORY_MODEL_CASTS->resolveKey([User::class]));
 
         Cache::memo()->rememberForever($cacheKey, fn (): array => ['name' => 'string']);
 
-        $registry = app(MetadataKeyRegistry::class);
-
-        $registry->clear();
-
         $model = $this->createMock(Model::class);
         $model->expects(self::never())->method('getCasts');
 
         $this->attributeSetter->resolveAttributeCasts($model, User::class);
-
-        self::assertContains($cacheKey, $registry->keys());
     }
 }

@@ -16,17 +16,20 @@ use SineMacula\ApiToolkit\Cache\MetadataCacheWriter;
 use SineMacula\ApiToolkit\Listeners\OctaneFlushListener;
 use SineMacula\ApiToolkit\Providers\Registrars\LifecycleRegistrar;
 use SineMacula\ApiToolkit\Runtime\RuntimeContext;
+use SineMacula\ApiToolkit\Schema\SchemaCompiler;
+use Tests\Concerns\InteractsWithNonPublicMembers;
 use Tests\TestCase;
 
 /**
- * End-to-end proof that the wired OperationTerminated event flushes toolkit
- * metadata.
+ * End-to-end proof that the wired OperationTerminated event resets the
+ * toolkit's in-process state and leaves the shared store alone.
  *
  * Every other Octane-flush test invokes the listener via a hand-built handle()
  * call. This file dispatches the real OperationTerminated event through the
  * container's dispatcher under the shipped default config, proving that the
- * boot-time listener wiring - not just the listener in isolation - clears the
- * toolkit metadata memo while a non-toolkit key on the shared store survives.
+ * boot-time listener wiring - not just the listener in isolation - resets the
+ * in-process memos while the toolkit metadata and a non-toolkit key on the
+ * shared store both survive.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -40,6 +43,8 @@ use Tests\TestCase;
 #[CoversClass(RuntimeContext::class)]
 final class OctaneBoundaryFlushTest extends TestCase
 {
+    use InteractsWithNonPublicMembers;
+
     /** @var bool Whether LARAVEL_OCTANE was set before each test. */
     private bool $octaneWasSet;
 
@@ -75,18 +80,17 @@ final class OctaneBoundaryFlushTest extends TestCase
 
     /**
      * Test that dispatching the real OperationTerminated event through the
-     * wired dispatcher flushes toolkit metadata while a non-toolkit key
-     * survives.
+     * wired dispatcher resets in-process state while the shared store keeps
+     * both the toolkit metadata and a non-toolkit key.
      *
      * The boot-time wiring subscribes the OctaneFlushListener under the shipped
      * default config. Dispatching the genuine event - rather than calling
      * handle() directly - proves the registration binds the correct event to
-     * the correct listener, clearing the toolkit key while leaving a
-     * non-toolkit key on the shared memo store untouched.
+     * the correct listener.
      *
      * @return void
      */
-    public function testDispatchingOperationTerminatedFlushesToolkitMetadata(): void
+    public function testDispatchingOperationTerminatedResetsInProcessStateOnly(): void
     {
         // The shipped default engages the Octane lifecycle flush, so the
         // listener must already be wired at boot.
@@ -102,15 +106,33 @@ final class OctaneBoundaryFlushTest extends TestCase
         $this->writer()->rememberMetadataForever($toolkitKey, static fn () => 'toolkit-value');
         Cache::memo()->rememberForever($nonToolkitKey, static fn () => 'keep-me'); // @phpstan-ignore method.notFound
 
-        self::assertSame('toolkit-value', Cache::memo()->get($this->metadataStorageKey($toolkitKey))); // @phpstan-ignore method.notFound
-        self::assertSame('keep-me', Cache::memo()->get($nonToolkitKey)); // @phpstan-ignore method.notFound
+        $this->setStaticProperty(SchemaCompiler::class, 'cache', ['FakeResource' => 'compiled']);
 
         // Act: dispatch the real event through the wired dispatcher.
         $this->events()->dispatch($this->operationTerminated());
 
-        // Assert: the toolkit key is flushed; the non-toolkit key survives.
-        self::assertNull(Cache::memo()->get($this->metadataStorageKey($toolkitKey))); // @phpstan-ignore method.notFound
-        self::assertSame('keep-me', Cache::memo()->get($nonToolkitKey)); // @phpstan-ignore method.notFound
+        // Assert: in-process state is reset; both stored keys survive.
+        self::assertSame([], $this->getStaticProperty(SchemaCompiler::class, 'cache'));
+        self::assertSame('toolkit-value', Cache::store()->get($this->metadataStorageKey($toolkitKey)));
+        self::assertSame('keep-me', Cache::store()->get($nonToolkitKey));
+    }
+
+    /**
+     * Test that the framework itself discards the memoised store repository
+     * when scoped instances are forgotten, as Octane and the queue worker do at
+     * every boundary, so the toolkit has no memo of its own to clear.
+     *
+     * @return void
+     */
+    public function testForgettingScopedInstancesDiscardsTheMemoisedStore(): void
+    {
+        assert($this->app !== null);
+
+        $before = Cache::memo();
+
+        $this->app->forgetScopedInstances();
+
+        self::assertNotSame($before, Cache::memo());
     }
 
     /**

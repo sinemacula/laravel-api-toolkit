@@ -9,11 +9,13 @@ use SineMacula\ApiToolkit\Cache\CacheManager;
 use SineMacula\ApiToolkit\Runtime\RuntimeContext;
 
 /**
- * Flushes all toolkit caches after each Octane request.
+ * Resets the toolkit's in-process state after each Octane operation.
  *
- * Prevents stale metadata from persisting across requests in long-running
- * Octane processes by delegating to the centralized CacheManager. When not
- * serving under Octane (e.g. php-fpm), the flush is skipped entirely.
+ * Fires after every request, task, and tick a long-running Octane worker
+ * serves, delegating to the centralized CacheManager so in-process memos do not
+ * grow without bound and the worker re-reads the metadata generation. The
+ * metadata in the shared store is left warm for every worker. When not serving
+ * under Octane (e.g. php-fpm), the flush is skipped entirely.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.

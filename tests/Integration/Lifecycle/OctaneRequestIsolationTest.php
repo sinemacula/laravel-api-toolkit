@@ -6,7 +6,6 @@ namespace Tests\Integration\Lifecycle;
 
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -197,18 +196,17 @@ final class OctaneRequestIsolationTest extends TestCase
     }
 
     /**
-     * Test that schema-level singletons survive the Octane request boundary
-     * while per-request metadata is flushed.
+     * Test that schema-level singletons and shared metadata both survive the
+     * Octane request boundary, and that only an explicit invalidation retires
+     * the metadata.
      *
      * A custom operator registered on the singleton registry and a morph-map
-     * binding are both schema-level state that must outlive the per-request
-     * flush; a memoised toolkit metadata key must not. Firing the boundary
-     * clears the metadata but leaves the operator and the morph map intact,
-     * proving the flush is scoped to per-request caches.
+     * binding are schema-level state that must outlive the boundary, and so is
+     * metadata in the shared store: the boundary resets in-process state only.
      *
      * @return void
      */
-    public function testSchemaLevelSingletonsSurviveBoundaryWhileMetadataIsFlushed(): void
+    public function testSchemaLevelSingletonsAndSharedMetadataSurviveBoundary(): void
     {
         $_SERVER['LARAVEL_OCTANE'] = 1;
 
@@ -225,22 +223,26 @@ final class OctaneRequestIsolationTest extends TestCase
 
         Relation::morphMap(['users' => User::class]);
 
-        // Per-request metadata memoised through the writer.
+        // Shared metadata stored through the writer.
         $key = 'integration:octane-schema-survival';
         $this->writer()->rememberMetadataForever($key, static fn () => 'value');
 
-        self::assertSame('value', Cache::memo()->get($this->metadataStorageKey($key))); // @phpstan-ignore method.notFound
-
-        // Boundary: the Octane flush clears per-request metadata only.
+        // Boundary: the Octane flush resets in-process state only.
         $this->octaneListener()->handle(new \stdClass);
 
-        self::assertNull(Cache::memo()->get($this->metadataStorageKey($key))); // @phpstan-ignore method.notFound
+        self::assertSame('value', $this->writer()->readMetadata($key));
 
         // Schema-level singletons survive: the custom operator and the morph
         // map still resolve on the same singleton instances.
         self::assertSame($registry, $app->make(OperatorRegistry::class));
         self::assertTrue($registry->has('$starts'));
         self::assertSame(User::class, Relation::getMorphedModel('users'));
+
+        // An explicit invalidation retires the metadata and forces a rebuild.
+        $app->make(CacheManager::class)->invalidateMetadata();
+
+        self::assertNull($this->writer()->readMetadata($key));
+        self::assertSame('rebuilt', $this->writer()->rememberMetadataForever($key, static fn () => 'rebuilt'));
     }
 
     /**

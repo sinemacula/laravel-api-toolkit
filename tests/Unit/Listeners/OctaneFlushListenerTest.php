@@ -9,8 +9,8 @@ use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Log;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Cache\CacheManager;
-use SineMacula\ApiToolkit\Cache\MetadataKeyRegistry;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
+use SineMacula\ApiToolkit\Events\CacheFlushed;
 use SineMacula\ApiToolkit\Listeners\OctaneFlushListener;
 use SineMacula\ApiToolkit\Runtime\RuntimeContext;
 use Tests\TestCase;
@@ -60,7 +60,8 @@ final class OctaneFlushListenerTest extends TestCase
     }
 
     /**
-     * Test that handle flushes toolkit caches when serving under Octane.
+     * Test that handle resets in-process state when serving under Octane while
+     * the shared metadata stays warm.
      *
      * @return void
      */
@@ -75,11 +76,7 @@ final class OctaneFlushListenerTest extends TestCase
             ->shouldReceive('flush')
             ->once();
 
-        /** @var \SineMacula\ApiToolkit\Cache\MetadataKeyRegistry $registry */
-        $registry = $this->app->make(MetadataKeyRegistry::class); // @phpstan-ignore method.nonObject
-
         $key = 'octane-engage-test';
-        $registry->register($key);
         Cache::memo()->rememberForever($key, fn () => 'cached'); // @phpstan-ignore method.notFound
 
         self::assertSame('cached', Cache::memo()->get($key)); // @phpstan-ignore method.notFound
@@ -91,14 +88,14 @@ final class OctaneFlushListenerTest extends TestCase
         $listener->handle(new \stdClass);
 
         // Assert
-        self::assertNull(Cache::memo()->get($key)); // @phpstan-ignore method.notFound
+        self::assertSame('cached', Cache::memo()->get($key)); // @phpstan-ignore method.notFound
+        Event::assertDispatched(CacheFlushed::class);
     }
 
     /**
      * Test that handle does not flush when not serving under Octane (php-fpm).
      *
-     * Pins AC-09: a php-fpm process with Octane installed must not flush on
-     * every request.
+     * A php-fpm process with Octane installed must not flush on every request.
      *
      * @return void
      */
@@ -109,11 +106,7 @@ final class OctaneFlushListenerTest extends TestCase
 
         Event::fake();
 
-        /** @var \SineMacula\ApiToolkit\Cache\MetadataKeyRegistry $registry */
-        $registry = $this->app->make(MetadataKeyRegistry::class); // @phpstan-ignore method.nonObject
-
         $key = 'octane-no-flush-test';
-        $registry->register($key);
         Cache::memo()->rememberForever($key, fn () => 'cached'); // @phpstan-ignore method.notFound
 
         self::assertSame('cached', Cache::memo()->get($key)); // @phpstan-ignore method.notFound
@@ -126,6 +119,7 @@ final class OctaneFlushListenerTest extends TestCase
 
         // Assert
         self::assertSame('cached', Cache::memo()->get($key)); // @phpstan-ignore method.notFound
+        Event::assertNotDispatched(CacheFlushed::class);
     }
 
     /**
@@ -145,11 +139,7 @@ final class OctaneFlushListenerTest extends TestCase
             ->shouldReceive('flush')
             ->once();
 
-        /** @var \SineMacula\ApiToolkit\Cache\MetadataKeyRegistry $registry */
-        $registry = $this->app->make(MetadataKeyRegistry::class); // @phpstan-ignore method.nonObject
-
         $key = 'octane-flush-test';
-        $registry->register($key);
         Cache::memo()->rememberForever($key, fn () => 'cached'); // @phpstan-ignore method.notFound
 
         self::assertSame('cached', Cache::memo()->get($key)); // @phpstan-ignore method.notFound
@@ -161,7 +151,8 @@ final class OctaneFlushListenerTest extends TestCase
         $listener->handle(new \stdClass);
 
         // Assert
-        self::assertNull(Cache::memo()->get($key)); // @phpstan-ignore method.notFound
+        self::assertSame('cached', Cache::memo()->get($key)); // @phpstan-ignore method.notFound
+        Event::assertDispatched(CacheFlushed::class);
     }
 
     /**
