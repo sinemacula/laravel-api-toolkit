@@ -38,9 +38,9 @@ use SineMacula\ApiToolkit\Schema\Validation\SchemaValidationError;
  * describe itself truthfully too: one restricted to part of the table, or
  * leading with an expression the catalogue cannot report, is passed over, since
  * the reported column list would otherwise be read as naming a leading column
- * the index does not lead with. A declaration naming an index outright asserts
- * what that column list was never going to show, so only the engine's refusal
- * defeats it.
+ * the index does not lead with. So is one whose leading key cannot deliver the
+ * column's own order. A declaration naming an index outright asserts what that
+ * column list was never going to show, so only the engine's refusal defeats it.
  *
  * A connection that cannot be inspected at all is a different answer again, and
  * the rule stays silent for it: a developer booting without a database has
@@ -296,7 +296,7 @@ final readonly class ValidateIndexBacking implements SchemaValidationRule
     {
         foreach ($indexes as $index) {
 
-            if (!$eligibility->describes($index->name)) {
+            if (!$eligibility->describes($index->name) || $eligibility->lacksColumnOrder($index->name)) {
                 continue;
             }
 

@@ -8,7 +8,7 @@ namespace SineMacula\ApiToolkit\Schema\Introspection;
  * What a connection reports about the indexes a proof may reason from.
  *
  * The shared catalogue read names every index a table declares without saying
- * whether a proof may rest on one, and three separate facts decide that. An
+ * whether a proof may rest on one, and four separate facts decide that. An
  * index the engine disregards is one no plan will reach. An index that is
  * restricted holds only the rows its own predicate admits, so it serves only a
  * query carrying that predicate. An index keyed on an expression leads with
@@ -16,11 +16,17 @@ namespace SineMacula\ApiToolkit\Schema\Introspection;
  * list is aggregated over the parts that do name columns, the part naming none
  * is dropped and whatever follows it reads as the column the index leads with.
  *
- * The three are kept apart rather than flattened into one refusal because they
+ * The fourth is read only by a proof that needs the leading key to deliver the
+ * column's own order. A key truncated to a prefix of its column, or ordered by
+ * an operator family or a collation other than the column's, cannot hand rows
+ * back in the column's order. A truncated or pattern-class key still finds rows
+ * by that column, while one collated apart from it does not.
+ *
+ * The facts are kept apart rather than flattened into one refusal because they
  * do not disqualify an index for the same readers. A proof reading the reported
- * columns is defeated by all three; a developer naming an index outright is
- * asserting what the column list was never going to show, and is defeated only
- * by the engine refusing the index altogether.
+ * columns is defeated by the first three; a developer naming an index outright
+ * is asserting what the column list was never going to show, and is defeated
+ * only by the engine refusing the index altogether.
  *
  * Every list is held lowered, and a name is lowered before it is compared,
  * because the catalogue reports names folded while a declaration may name one
@@ -40,6 +46,9 @@ final readonly class IndexEligibility
     /** @var array<int, string> The names whose leading key is an expression, lowered */
     private array $expressed;
 
+    /** @var array<int, string> The names whose leading key does not hold its column's own order, lowered */
+    private array $unordered;
+
     /**
      * Create a new index eligibility report.
      *
@@ -49,13 +58,15 @@ final readonly class IndexEligibility
      * @param  array<int, string>  $disregarded
      * @param  array<int, string>  $restricted
      * @param  array<int, string>  $expressed
+     * @param  array<int, string>  $unordered
      * @return void
      */
-    public function __construct(array $disregarded = [], array $restricted = [], array $expressed = [])
+    public function __construct(array $disregarded = [], array $restricted = [], array $expressed = [], array $unordered = [])
     {
         $this->disregarded = array_map(strtolower(...), $disregarded);
         $this->restricted  = array_map(strtolower(...), $restricted);
         $this->expressed   = array_map(strtolower(...), $expressed);
+        $this->unordered   = array_map(strtolower(...), $unordered);
     }
 
     /**
@@ -93,8 +104,19 @@ final readonly class IndexEligibility
     }
 
     /**
+     * Determine whether the leading key cannot deliver its column's own order.
+     *
+     * @param  string  $name
+     * @return bool
+     */
+    public function lacksColumnOrder(string $name): bool
+    {
+        return $this->names($name, $this->unordered);
+    }
+
+    /**
      * Determine whether a proof reading the reported columns may rest on the
-     * index, which needs all three facts to be absent.
+     * index, which needs the first three facts to be absent.
      *
      * @param  string  $name
      * @return bool

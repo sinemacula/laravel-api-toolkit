@@ -34,20 +34,21 @@ final class IndexEligibilityTest extends TestCase
         self::assertFalse($eligibility->disregards('users_name_index'));
         self::assertFalse($eligibility->restricts('users_name_index'));
         self::assertFalse($eligibility->keysAnExpression('users_name_index'));
+        self::assertFalse($eligibility->lacksColumnOrder('users_name_index'));
         self::assertTrue($eligibility->describes('users_name_index'));
     }
 
     /**
      * Test that each fact is reported apart from the others.
      *
-     * The three defeat different readers, so one of them holding must not make
-     * the other two answer for an index they were never told about.
+     * The facts defeat different readers, so one of them holding must not make
+     * the others answer for an index they were never told about.
      *
      * @return void
      */
     public function testEachFactIsReportedApartFromTheOthers(): void
     {
-        $eligibility = new IndexEligibility(['hidden'], ['partial'], ['expression']);
+        $eligibility = new IndexEligibility(['hidden'], ['partial'], ['expression'], ['prefix']);
 
         self::assertTrue($eligibility->disregards('hidden'));
         self::assertFalse($eligibility->restricts('hidden'));
@@ -60,6 +61,29 @@ final class IndexEligibilityTest extends TestCase
         self::assertTrue($eligibility->keysAnExpression('expression'));
         self::assertFalse($eligibility->disregards('expression'));
         self::assertFalse($eligibility->restricts('expression'));
+        self::assertFalse($eligibility->lacksColumnOrder('expression'));
+
+        self::assertTrue($eligibility->lacksColumnOrder('prefix'));
+        self::assertFalse($eligibility->disregards('prefix'));
+        self::assertFalse($eligibility->restricts('prefix'));
+        self::assertFalse($eligibility->keysAnExpression('prefix'));
+    }
+
+    /**
+     * Test that a leading key lacking its column's order is still described.
+     *
+     * A truncated or pattern-class key still finds rows by its column, so a
+     * proof reading the reported columns for anything other than order must
+     * keep resting on it.
+     *
+     * @return void
+     */
+    public function testALeadingKeyLackingItsColumnsOrderIsStillDescribed(): void
+    {
+        $eligibility = new IndexEligibility([], [], [], ['users_name_prefix_index']);
+
+        self::assertTrue($eligibility->lacksColumnOrder('users_name_prefix_index'));
+        self::assertTrue($eligibility->describes('users_name_prefix_index'));
     }
 
     /**
@@ -87,11 +111,12 @@ final class IndexEligibilityTest extends TestCase
      */
     public function testMatchesANameWhateverCaseEitherSideNamesItIn(): void
     {
-        $eligibility = new IndexEligibility(['USERS_Name_Index'], ['Users_Live_Index'], ['USERS_LOWER_INDEX']);
+        $eligibility = new IndexEligibility(['USERS_Name_Index'], ['Users_Live_Index'], ['USERS_LOWER_INDEX'], ['Users_Prefix_INDEX']);
 
         self::assertTrue($eligibility->disregards('users_name_index'));
         self::assertTrue($eligibility->restricts('users_live_index'));
         self::assertTrue($eligibility->keysAnExpression('users_lower_index'));
         self::assertFalse($eligibility->describes('Users_Name_INDEX'));
+        self::assertTrue($eligibility->lacksColumnOrder('USERS_prefix_index'));
     }
 }

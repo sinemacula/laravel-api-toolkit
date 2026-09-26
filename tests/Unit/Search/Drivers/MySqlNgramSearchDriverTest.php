@@ -459,6 +459,26 @@ final class MySqlNgramSearchDriverTest extends TestCase
     }
 
     /**
+     * Test that an index keyed on only a prefix of the column still proves an
+     * equality or prefix match.
+     *
+     * Such a key cannot hand rows back in the column's order, but it still
+     * finds them by the column, which is all a search asks of it.
+     *
+     * @return void
+     */
+    public function testAcceptsAPrefixKeyedIndexForAnEqualityOrPrefixMatch(): void
+    {
+        $connection = $this->catalogue(
+            [['name' => 'users_name_index', 'columns' => ['name'], 'type' => 'BTREE']],
+            unordered: ['users_name_index'],
+        );
+
+        self::assertSame([], (new MySqlNgramSearchDriver)->indexDefects(SearchStrategy::PREFIX, ['name'], 'users', $connection));
+        self::assertSame([], (new MySqlNgramSearchDriver)->indexDefects(SearchStrategy::EXACT, ['name'], 'users', $connection));
+    }
+
+    /**
      * Test that the read naming the indexes the planner ignores asks for the
      * hidden ones alone, scoped to the table.
      *
@@ -473,7 +493,8 @@ final class MySqlNgramSearchDriverTest extends TestCase
         self::assertSame([
             'select lower(index_name) as name, '
             . 'max(case when is_visible = \'NO\' then 1 else 0 end) as disregarded, '
-            . 'max(case when seq_in_index = 1 and column_name is null then 1 else 0 end) as expressed '
+            . 'max(case when seq_in_index = 1 and column_name is null then 1 else 0 end) as expressed, '
+            . 'max(case when seq_in_index = 1 and sub_part is not null then 1 else 0 end) as unordered '
             . 'from information_schema.statistics '
                 . 'where table_schema = coalesce(?, schema()) and table_name = ? '
                 . 'group by lower(index_name)',
@@ -602,9 +623,10 @@ final class MySqlNgramSearchDriverTest extends TestCase
      * @param  int|null  $tokenSize
      * @param  array<int, string>  $invisible
      * @param  string  $prefix
+     * @param  array<int, string>  $unordered
      * @return \Illuminate\Database\Connection
      */
-    private function catalogue(array $indexes = [], string $definition = '', ?int $tokenSize = 2, array $invisible = [], string $prefix = ''): Connection
+    private function catalogue(array $indexes = [], string $definition = '', ?int $tokenSize = 2, array $invisible = [], string $prefix = '', array $unordered = []): Connection
     {
         $schema = self::createStub(SchemaBuilder::class);
 
@@ -616,15 +638,21 @@ final class MySqlNgramSearchDriverTest extends TestCase
         $connection->method('getSchemaBuilder')->willReturn($schema);
         $connection->method('getDriverName')->willReturn('mysql');
         $connection->method('getQueryGrammar')->willReturn(new MySqlGrammar($connection));
-        $connection->method('selectFromWriteConnection')->willReturnCallback(function (string $query, array $bindings = []) use ($invisible): array {
+        $connection->method('selectFromWriteConnection')->willReturnCallback(function (string $query, array $bindings = []) use ($invisible, $unordered): array {
 
             $this->reads[]    = $query;
             $this->bindings[] = $bindings;
 
-            return array_map(
-                static fn (string $name): object => (object) ['name' => $name, 'disregarded' => 1, 'expressed' => 0],
-                $invisible,
-            );
+            return [
+                ...array_map(
+                    static fn (string $name): object => (object) ['name' => $name, 'disregarded' => 1, 'expressed' => 0, 'unordered' => 0],
+                    $invisible,
+                ),
+                ...array_map(
+                    static fn (string $name): object => (object) ['name' => $name, 'disregarded' => 0, 'expressed' => 0, 'unordered' => 1],
+                    $unordered,
+                ),
+            ];
         });
         $connection->method('selectOne')->willReturnCallback(function (string $statement) use ($definition, $tokenSize): object {
 
