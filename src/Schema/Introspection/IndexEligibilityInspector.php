@@ -25,7 +25,8 @@ use Illuminate\Database\QueryException;
  * it holds, and a fact an engine has no notion of is simply never reported.
  *
  * Nothing read here is cached. Every answer describes engine state that changes
- * without a migration, so a remembered one would outlive its truth.
+ * without a migration, so a remembered one would outlive its truth. The search
+ * proof built over it on the request path is held only under a short expiry.
  *
  * An application serving an engine this does not question can extend it to
  * answer for that engine, which is the whole of what a new engine needs.

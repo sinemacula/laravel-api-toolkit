@@ -228,7 +228,7 @@ final class MySqlNgramSearchDriver extends EngineSearchDriver
      */
     private function tokenSize(Connection $connection): ?int
     {
-        $row  = (array) $connection->selectOne('select @@ngram_token_size as size');
+        $row  = (array) $connection->selectOne('select @@ngram_token_size as size', [], false);
         $size = $row['size'] ?? null;
 
         return is_numeric($size) ? (int) $size : null;
@@ -244,7 +244,7 @@ final class MySqlNgramSearchDriver extends EngineSearchDriver
     private function tableDefinition(string $table, Connection $connection): string
     {
         $statement  = 'show create table ' . $connection->getQueryGrammar()->wrapTable($table);
-        $definition = (array) $connection->selectOne($statement);
+        $definition = (array) $connection->selectOne($statement, [], false);
 
         return is_string($definition['Create Table'] ?? null) ? $definition['Create Table'] : '';
     }

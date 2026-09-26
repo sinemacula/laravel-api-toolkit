@@ -5,13 +5,17 @@ declare(strict_types = 1);
 namespace Tests\Integration\Search;
 
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Testing\PendingCommand;
+use SineMacula\ApiToolkit\Cache\CacheManager;
 use SineMacula\ApiToolkit\Exceptions\InvalidSchemaException;
+use SineMacula\ApiToolkit\Exceptions\UnservableSearchException;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\SearchApplier;
 use SineMacula\ApiToolkit\Schema\Validation\SchemaValidationError;
 use SineMacula\ApiToolkit\Schema\Validation\SchemaValidator;
+use SineMacula\ApiToolkit\Search\IndexProof;
 use SineMacula\ApiToolkit\Search\SearchDriverRegistry;
 use SineMacula\ApiToolkit\Search\SearchTerm;
 use Tests\Fixtures\Models\User;
@@ -352,6 +356,81 @@ abstract class EngineSearchTestCase extends TestCase
     }
 
     /**
+     * Test that a request-time refusal is retired by invalidating the metadata,
+     * so an index a migration creates is proved by the very next search rather
+     * than once the shared answer expires.
+     *
+     * @return void
+     */
+    public function testARefusalIsRetiredByInvalidatingTheMetadata(): void
+    {
+        $this->dropAnywhereMatchIndex();
+
+        try {
+            static::assertFalse($this->serves());
+        } finally {
+            $this->createAnywhereMatchIndex();
+        }
+
+        $this->crossBoundary();
+
+        static::assertFalse($this->serves());
+
+        $this->cacheManager()->invalidateMetadata();
+
+        static::assertTrue($this->serves());
+    }
+
+    /**
+     * Test that a search in a later operation is proved without reading the
+     * catalogue, since the first operation's answer is shared across the
+     * boundary between them.
+     *
+     * @return void
+     */
+    public function testALaterOperationReadsNoCatalogue(): void
+    {
+        static::assertTrue($this->serves());
+
+        $statements = [];
+
+        DB::listen(static function (QueryExecuted $query) use (&$statements): void {
+            $statements[] = $query->sql;
+        });
+
+        $this->crossBoundary();
+
+        static::assertTrue($this->serves());
+        static::assertSame([], $statements);
+    }
+
+    /**
+     * Test that an index dropped outside a migration is still accepted until
+     * the shared answer expires, and refused once it has.
+     *
+     * @return void
+     */
+    public function testAnIndexDroppedOutsideAMigrationIsRefusedOnceTheAnswerExpires(): void
+    {
+        static::assertTrue($this->serves());
+
+        $this->dropAnywhereMatchIndex();
+
+        try {
+            $this->crossBoundary();
+
+            static::assertTrue($this->serves());
+
+            $this->travel(IndexProof::DEFAULT_TTL + 1)->seconds();
+            $this->crossBoundary();
+
+            static::assertFalse($this->serves());
+        } finally {
+            $this->createAnywhereMatchIndex();
+        }
+    }
+
+    /**
      * Return the connection driver name this suite runs against.
      *
      * @return string
@@ -470,17 +549,61 @@ abstract class EngineSearchTestCase extends TestCase
      * @param  string  $term
      * @param  string|null  $resourceClass
      * @return \Illuminate\Database\Eloquent\Builder<\Tests\Fixtures\Models\User>
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\UnservableSearchException
      */
     private function searchQuery(string $term, ?string $resourceClass = null): Builder
     {
         assert($this->app !== null);
 
-        $applier = new SearchApplier($this->app->make(SearchDriverRegistry::class));
+        $applier = new SearchApplier($this->app->make(SearchDriverRegistry::class), $this->app->make(IndexProof::class));
         $query   = User::query();
 
         $applier->apply($query, SearchTerm::from($term), $resourceClass ?? SearchableFilterableUserResource::class);
 
         return $query;
+    }
+
+    /**
+     * Determine whether the applier serves the anywhere-match declaration
+     * rather than refusing it for the index behind it.
+     *
+     * @return bool
+     */
+    private function serves(): bool
+    {
+        try {
+            $this->searchQuery('smith');
+        } catch (UnservableSearchException) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * Cross a lifecycle boundary the way a worker does.
+     *
+     * @return void
+     */
+    private function crossBoundary(): void
+    {
+        assert($this->app !== null);
+
+        $this->cacheManager()->flush();
+        $this->app->forgetScopedInstances();
+    }
+
+    /**
+     * Resolve the cache manager a lifecycle boundary runs through.
+     *
+     * @return \SineMacula\ApiToolkit\Cache\CacheManager
+     */
+    private function cacheManager(): CacheManager
+    {
+        assert($this->app !== null);
+
+        return $this->app->make(CacheManager::class);
     }
 
     /**

@@ -44,12 +44,16 @@ final readonly class SearchApplier
      * Constructor.
      *
      * @param  \SineMacula\ApiToolkit\Search\SearchDriverRegistry  $drivers
+     * @param  \SineMacula\ApiToolkit\Search\IndexProof  $indexProof
      * @return void
      */
     public function __construct(
 
         /** Resolves the search driver serving the query's connection */
         private SearchDriverRegistry $drivers,
+
+        /** Proves each declared strategy against the connection's catalogue */
+        private IndexProof $indexProof,
     ) {}
 
     /**
@@ -116,11 +120,11 @@ final readonly class SearchApplier
      *
      * The strategies are checked together first, since an engine may serve each
      * of them alone and none of them beside the others. Each is then proved
-     * against the live catalogue, which is memoised for the life of the worker
-     * process. A driver that cannot inspect the connection has proved nothing,
-     * so it is refused unless the connection is one where the proof has been
-     * waived - the development connection a suite runs against rather than
-     * anything serving traffic.
+     * against the live catalogue, and the answer is shared across operations
+     * for a short expiry. A driver that cannot inspect the connection has
+     * proved nothing, so it is refused unless the connection is one where the
+     * proof has been waived - the development connection a suite runs against
+     * rather than anything serving traffic.
      *
      * @param  \SineMacula\ApiToolkit\Contracts\SearchDriver  $driver
      * @param  \SineMacula\ApiToolkit\Search\SearchPlan  $plan
@@ -180,7 +184,7 @@ final readonly class SearchApplier
             return;
         }
 
-        $defects = IndexProof::defects($driver, $strategy, $columns, $table, $connection);
+        $defects = $this->indexProof->defects($driver, $strategy, $columns, $table, $connection);
 
         if ($defects !== []) {
             throw UnservableSearchException::missingIndex($connectionName ?? $name, $strategy, $defects);

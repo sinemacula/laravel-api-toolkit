@@ -25,6 +25,12 @@ final class CountingSearchDriver implements SearchDriver
     /** @var int The number of times the index proof was asked for */
     public int $calls = 0;
 
+    /** @var array<string, array<int, string>> The defects the next proof reports, keyed by column */
+    public array $defects = [];
+
+    /** @var \Throwable|null The failure the next proof raises instead of answering */
+    public ?\Throwable $failure = null;
+
     /**
      * Return the match strategies this driver implements.
      *
@@ -71,13 +77,19 @@ final class CountingSearchDriver implements SearchDriver
      * @param  string  $table
      * @param  \Illuminate\Database\Connection  $connection
      * @return array<string, array<int, string>>
+     *
+     * @throws \Throwable
      */
     #[\Override]
     public function indexDefects(SearchStrategy $strategy, array $columns, string $table, Connection $connection): array
     {
         $this->calls++;
 
-        return [];
+        if ($this->failure !== null) {
+            throw $this->failure;
+        }
+
+        return $this->defects;
     }
 
     /**

@@ -939,9 +939,12 @@ the declaration exists to prevent, and this is the one control with nothing behi
 
 Run `php artisan api-toolkit:validate-schemas` in your build, which is the cheapest place to find a missing
 index. Because schema validation is disabled in production by default, the same proof is also taken on the
-first search each worker process serves and memoised from there, so a missing index refuses the request
-rather than reading the table behind it: on PostgreSQL a missing trigram index is not an error, and the
-search would otherwise return the right rows out of a sequential scan indefinitely.
+request path, so a missing index refuses the request rather than reading the table behind it: on PostgreSQL a
+missing trigram index is not an error, and the search would otherwise return the right rows out of a
+sequential scan indefinitely. The request-time answer is shared through the cache store for
+`api-toolkit.search.index_proof_ttl` seconds (60 by default, `0` to keep it for one request or job only), so
+an index changed outside a migration is reflected once that expiry lapses; a migration or
+`php artisan api-toolkit:invalidate-metadata` retires it at once.
 
 **Action required.** Replace client calls using `$like` with `?search=`, having declared the fields it may
 match. Where the old behaviour is genuinely wanted -- an unindexed partial match on an arbitrary filterable
@@ -1143,7 +1146,7 @@ detector gates engagement and does not fire under php-fpm even when Octane is in
 accumulates across requests under a long-lived runtime:
 
 - The process-static memos: the schema compile cache (`SchemaCompiler`), the serialization, eager-load,
-  field, and field-to-column memos, the compiled search plans, and the per-process index proofs.
+  field, and field-to-column memos, the compiled search plans, and the per-operation index proofs.
 - The `SchemaIntrospector` singleton's in-memory arrays (column listings, column definitions, and index
   catalogues).
 - The memoised metadata generation, so the worker re-reads it and picks up an invalidation made elsewhere.
@@ -1154,15 +1157,16 @@ queue lifecycle listeners at every request/job boundary. Octane fires it after e
 requests, tasks, and ticks.
 
 **What the boundary leaves alone.** Toolkit metadata - schema columns, column definitions, index catalogues,
-relation lookups, resources, and repository model casts - is read and written through `Cache::memo()`, which
-memoises reads for the current request or job on top of the application's cache store. The entries live in
-that store, which is usually shared by every worker (Redis, Memcached, the database), so they are not
-in-process state and a boundary does not touch them. The framework already discards the memoised repository
-at each boundary (Octane forgets scoped instances after every operation, and the queue worker does so before
-each job), so the next request reads the store afresh. Nothing on the store, toolkit or not, is cleared at a
-boundary; stored metadata is retired only by replacing the generation (see the metadata invalidation section
-below). Any new toolkit metadata key must be read and written through the `MetadataCacheWriter` chokepoint so
-it is namespaced by that generation.
+relation lookups, search index proofs, resources, and repository model casts - is read and written through
+`Cache::memo()`, which memoises reads for the current request or job on top of the application's cache store.
+The entries live in that store, which is usually shared by every worker (Redis, Memcached, the database), so
+they are not in-process state and a boundary does not touch them. The framework already discards the memoised
+repository at each boundary (Octane forgets scoped instances after every operation, and the queue worker does
+so before each job), so the next request reads the store afresh. Nothing on the store, toolkit or not, is
+cleared at a boundary; stored metadata is retired only by replacing the generation (see the metadata
+invalidation section below), or by the expiry an entry was written with. Any new toolkit metadata
+key must be read and written through the `MetadataCacheWriter` chokepoint so it is namespaced by that
+generation.
 
 **No re-warm cost.** Because the stored metadata survives the boundary, every worker serves what any worker
 has already read, and a request after a boundary does not re-query the schema. A column listing or set of

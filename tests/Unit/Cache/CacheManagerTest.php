@@ -14,6 +14,7 @@ use SineMacula\ApiToolkit\Cache\MetadataCacheWriter;
 use SineMacula\ApiToolkit\Cache\MetadataGeneration;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Enums\CacheKeys;
+use SineMacula\ApiToolkit\Enums\SearchStrategy;
 use SineMacula\ApiToolkit\Events\CacheFlushed;
 use SineMacula\ApiToolkit\Exceptions\MetadataInvalidationException;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\EagerLoadPlanner;
@@ -26,6 +27,7 @@ use SineMacula\ApiToolkit\Search\IndexProof;
 use SineMacula\ApiToolkit\Search\SearchPlan;
 use Tests\Concerns\InteractsWithNonPublicMembers;
 use Tests\Fixtures\Models\User;
+use Tests\Fixtures\Search\CountingSearchDriver;
 use Tests\TestCase;
 
 /**
@@ -215,6 +217,31 @@ final class CacheManagerTest extends TestCase
 
         // Assert
         self::assertSame([], $this->getStaticProperty(IndexProof::class, 'cache'));
+    }
+
+    /**
+     * Test that flush leaves the shared index proof in the store, so the next
+     * operation is answered without the catalogue being read again.
+     *
+     * @return void
+     */
+    public function testFlushLeavesTheSharedIndexProofInTheStore(): void
+    {
+        Event::fake();
+
+        $driver = new CountingSearchDriver;
+
+        /** @var \SineMacula\ApiToolkit\Search\IndexProof $proof */
+        $proof = $this->app->make(IndexProof::class); // @phpstan-ignore method.nonObject
+
+        $proof->defects($driver, SearchStrategy::SUBSTRING, ['name'], 'users', DB::connection());
+
+        $this->manager()->flush();
+        $this->app->forgetScopedInstances(); // @phpstan-ignore method.nonObject
+
+        $proof->defects($driver, SearchStrategy::SUBSTRING, ['name'], 'users', DB::connection());
+
+        self::assertSame(1, $driver->calls);
     }
 
     /**

@@ -171,7 +171,7 @@ final class PostgresTrigramSearchDriver extends EngineSearchDriver
      */
     private function hasTrigramExtension(Connection $connection): bool
     {
-        return $connection->select('select 1 from pg_extension where extname = ?', [self::EXTENSION]) !== [];
+        return $connection->selectFromWriteConnection('select 1 from pg_extension where extname = ?', [self::EXTENSION]) !== [];
     }
 
     /**
@@ -244,7 +244,7 @@ final class PostgresTrigramSearchDriver extends EngineSearchDriver
 
         $eligibility = $this->eligibility->inspect($table, $connection);
 
-        $rows = $connection->select(
+        $rows = $connection->selectFromWriteConnection(
             'select lower(ic.relname) as name, pg_get_indexdef(i.indexrelid) as indexdef from pg_index i '
             . 'join pg_class c on c.oid = i.indrelid '
             . 'join pg_namespace n on n.oid = c.relnamespace '
