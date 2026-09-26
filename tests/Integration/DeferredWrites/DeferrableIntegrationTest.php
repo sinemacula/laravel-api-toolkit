@@ -76,6 +76,8 @@ final class DeferrableIntegrationTest extends TestCase
      * Test that deferred inserts are not persisted until flush.
      *
      * @return void
+     *
+     * @throws \SineMacula\Repositories\Exceptions\RepositoryException
      */
     public function testDeferredInsertsAreNotPersistedUntilFlush(): void
     {
@@ -92,6 +94,8 @@ final class DeferrableIntegrationTest extends TestCase
      * Test that deferred inserts are flushed as bulk inserts.
      *
      * @return void
+     *
+     * @throws \SineMacula\Repositories\Exceptions\RepositoryException
      */
     public function testDeferredInsertsAreFlushedAsBulkInserts(): void
     {
@@ -121,6 +125,8 @@ final class DeferrableIntegrationTest extends TestCase
      * Test that timestamps are captured at deferral time.
      *
      * @return void
+     *
+     * @throws \SineMacula\Repositories\Exceptions\RepositoryException
      */
     public function testTimestampsAreCapturedAtDeferralTime(): void
     {
@@ -143,6 +149,8 @@ final class DeferrableIntegrationTest extends TestCase
      * Test that manual flush clears the pool and allows fresh accumulation.
      *
      * @return void
+     *
+     * @throws \SineMacula\Repositories\Exceptions\RepositoryException
      */
     public function testManualFlushClearsPoolAndAllowsFreshAccumulation(): void
     {
@@ -164,6 +172,8 @@ final class DeferrableIntegrationTest extends TestCase
      * Test that pool limit triggers auto-flush.
      *
      * @return void
+     *
+     * @throws \SineMacula\Repositories\Exceptions\RepositoryException
      */
     public function testPoolLimitTriggersAutoFlush(): void
     {
@@ -178,6 +188,8 @@ final class DeferrableIntegrationTest extends TestCase
      * Test that RequestHandled event triggers flush.
      *
      * @return void
+     *
+     * @throws \SineMacula\Repositories\Exceptions\RepositoryException
      */
     public function testRequestHandledEventTriggersFlush(): void
     {
@@ -193,6 +205,8 @@ final class DeferrableIntegrationTest extends TestCase
      * Test that CommandFinished event triggers flush.
      *
      * @return void
+     *
+     * @throws \SineMacula\Repositories\Exceptions\RepositoryException
      */
     public function testCommandFinishedEventTriggersFlush(): void
     {
@@ -208,6 +222,8 @@ final class DeferrableIntegrationTest extends TestCase
      * Test that JobProcessed event triggers flush.
      *
      * @return void
+     *
+     * @throws \SineMacula\Repositories\Exceptions\RepositoryException
      */
     public function testJobProcessedEventTriggersFlush(): void
     {
@@ -225,6 +241,8 @@ final class DeferrableIntegrationTest extends TestCase
      * Test that JobFailed event triggers flush.
      *
      * @return void
+     *
+     * @throws \SineMacula\Repositories\Exceptions\RepositoryException
      */
     public function testJobFailedEventTriggersFlush(): void
     {
@@ -282,6 +300,8 @@ final class DeferrableIntegrationTest extends TestCase
      * Test that flushWrites returns a result with success details.
      *
      * @return void
+     *
+     * @throws \SineMacula\Repositories\Exceptions\RepositoryException
      */
     public function testFlushWritesReturnsResultWithSuccessDetails(): void
     {
@@ -372,6 +392,8 @@ final class DeferrableIntegrationTest extends TestCase
      * Test that WritePoolFlushResult is propagated through Deferrable.
      *
      * @return void
+     *
+     * @throws \SineMacula\Repositories\Exceptions\RepositoryException
      */
     public function testWritePoolFlushResultPropagatedThroughDeferrable(): void
     {

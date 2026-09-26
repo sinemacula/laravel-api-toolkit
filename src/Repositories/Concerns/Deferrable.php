@@ -52,6 +52,7 @@ trait Deferrable
      * @return void
      *
      * @throws \SineMacula\ApiToolkit\Exceptions\WritePoolFlushException
+     * @throws \SineMacula\Repositories\Exceptions\RepositoryException
      */
     public function defer(array $attributes): void
     {

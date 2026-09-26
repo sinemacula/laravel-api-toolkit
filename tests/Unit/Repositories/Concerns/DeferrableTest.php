@@ -84,6 +84,8 @@ final class DeferrableTest extends TestCase
      * Test that defer buffers attributes without executing a database query.
      *
      * @return void
+     *
+     * @throws \SineMacula\Repositories\Exceptions\RepositoryException
      */
     public function testDeferBuffersAttributesWithoutExecutingDatabaseQuery(): void
     {
@@ -96,6 +98,8 @@ final class DeferrableTest extends TestCase
      * Test that defer captures timestamps at deferral time.
      *
      * @return void
+     *
+     * @throws \SineMacula\Repositories\Exceptions\RepositoryException
      */
     public function testDeferCapturesTimestampsAtDeferralTime(): void
     {
@@ -118,6 +122,8 @@ final class DeferrableTest extends TestCase
      * Test that defer preserves explicit timestamps.
      *
      * @return void
+     *
+     * @throws \SineMacula\Repositories\Exceptions\RepositoryException
      */
     public function testDeferPreservesExplicitTimestamps(): void
     {
@@ -142,6 +148,8 @@ final class DeferrableTest extends TestCase
      * Test that defer adds created_at and updated_at when missing.
      *
      * @return void
+     *
+     * @throws \SineMacula\Repositories\Exceptions\RepositoryException
      */
     public function testDeferAddsCreatedAtAndUpdatedAtWhenMissing(): void
     {
@@ -162,6 +170,8 @@ final class DeferrableTest extends TestCase
      * Test that flushWrites persists all deferred records.
      *
      * @return void
+     *
+     * @throws \SineMacula\Repositories\Exceptions\RepositoryException
      */
     public function testFlushWritesPersistsAllDeferredRecords(): void
     {
@@ -179,6 +189,8 @@ final class DeferrableTest extends TestCase
      * Test that flushWrites clears the pool.
      *
      * @return void
+     *
+     * @throws \SineMacula\Repositories\Exceptions\RepositoryException
      */
     public function testFlushWritesClearsThePool(): void
     {
@@ -195,6 +207,8 @@ final class DeferrableTest extends TestCase
      * Test that defer uses the model table name.
      *
      * @return void
+     *
+     * @throws \SineMacula\Repositories\Exceptions\RepositoryException
      */
     public function testDeferUsesModelTableName(): void
     {
@@ -209,6 +223,8 @@ final class DeferrableTest extends TestCase
      * Test that multiple defer calls accumulate in the pool.
      *
      * @return void
+     *
+     * @throws \SineMacula\Repositories\Exceptions\RepositoryException
      */
     public function testMultipleDeferCallsAccumulateInPool(): void
     {
@@ -227,6 +243,8 @@ final class DeferrableTest extends TestCase
      * Test that flushWrites returns a WritePoolFlushResult.
      *
      * @return void
+     *
+     * @throws \SineMacula\Repositories\Exceptions\RepositoryException
      */
     public function testFlushWritesReturnsWritePoolFlushResult(): void
     {
@@ -243,6 +261,8 @@ final class DeferrableTest extends TestCase
      * memory-pressure auto-flush fails under the throw strategy.
      *
      * @return void
+     *
+     * @throws \SineMacula\Repositories\Exceptions\RepositoryException
      */
     public function testDeferPropagatesThrowExceptionOnAutoFlushFailure(): void
     {

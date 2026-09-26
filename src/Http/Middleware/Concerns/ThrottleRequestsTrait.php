@@ -4,6 +4,7 @@ declare(strict_types = 1);
 
 namespace SineMacula\ApiToolkit\Http\Middleware\Concerns;
 
+use Illuminate\Contracts\Auth\Authenticatable;
 use SineMacula\ApiToolkit\Exceptions\RequestSignatureException;
 
 /**
@@ -36,6 +37,8 @@ trait ThrottleRequestsTrait
         }
 
         $serverName = $request->server('SERVER_NAME');
+        $user       = $request->user();
+        $identifier = $user instanceof Authenticatable ? $user->getAuthIdentifier() : null;
 
         // Key by the authenticated user when present, otherwise by the client
         // IP, so anonymous callers do not all share a single throttle bucket
@@ -44,7 +47,7 @@ trait ThrottleRequestsTrait
             $request->method()
             . '|' . (is_string($serverName) ? $serverName : '')
             . '|' . $request->path()
-            . '|' . ($request->user()?->getAuthIdentifier() ?? $request->ip()),
+            . '|' . (is_int($identifier) || is_string($identifier) || $identifier instanceof \Stringable ? $identifier : $request->ip()),
         );
     }
 }

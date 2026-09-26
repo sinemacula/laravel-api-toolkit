@@ -145,6 +145,8 @@ final class OctaneRequestIsolationTest extends TestCase
      * row.
      *
      * @return void
+     *
+     * @throws \SineMacula\Repositories\Exceptions\RepositoryException
      */
     public function testWritePoolBufferedWritesDoNotLeakAcrossRequests(): void
     {

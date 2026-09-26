@@ -46,6 +46,8 @@ final class CacheableDeferrableTest extends TestCase
      * populated on read and a deferred write is persisted on flush.
      *
      * @return void
+     *
+     * @throws \SineMacula\Repositories\Exceptions\RepositoryException
      */
     public function testCacheableAndDeferrableConcernsCoexist(): void
     {

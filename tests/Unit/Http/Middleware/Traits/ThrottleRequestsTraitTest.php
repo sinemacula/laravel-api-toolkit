@@ -84,6 +84,96 @@ final class ThrottleRequestsTraitTest extends TestCase
     }
 
     /**
+     * Test that the signature uses a string user identifier when authenticated.
+     *
+     * @return void
+     */
+    public function testSignatureUsesStringUserIdWhenAuthenticated(): void
+    {
+        $trait = $this->createTraitInstance();
+
+        $user = self::createStub(Authenticatable::class);
+        $user->method('getAuthIdentifier')->willReturn('user-uuid');
+
+        $request = $this->createRequestWithRoute(self::API_DATA_URI, HttpMethod::GET->getVerb(), '10.0.0.1');
+        $request->setUserResolver(fn () => $user);
+
+        $result = $trait->resolveRequestSignature($request); // @phpstan-ignore method.notFound
+
+        self::assertSame(sha1('GET|localhost|data|user-uuid'), $result);
+    }
+
+    /**
+     * Test that the signature uses a string-convertible user identifier, such
+     * as a key cast to a value object, when authenticated.
+     *
+     * @return void
+     */
+    public function testSignatureUsesStringableUserIdWhenAuthenticated(): void
+    {
+        $trait = $this->createTraitInstance();
+
+        $user = self::createStub(Authenticatable::class);
+        $user->method('getAuthIdentifier')->willReturn(new class implements \Stringable {
+            /**
+             * Return the identifier as a string.
+             *
+             * @return string
+             */
+            #[\Override]
+            public function __toString(): string
+            {
+                return 'user-uuid';
+            }
+        });
+
+        $request = $this->createRequestWithRoute(self::API_DATA_URI, HttpMethod::GET->getVerb(), '10.0.0.1');
+        $request->setUserResolver(fn () => $user);
+
+        $result = $trait->resolveRequestSignature($request); // @phpstan-ignore method.notFound
+
+        self::assertSame(sha1('GET|localhost|data|user-uuid'), $result);
+    }
+
+    /**
+     * Test that an authenticated user without an identifier is keyed by the
+     * client IP.
+     *
+     * @return void
+     */
+    public function testSignatureFallsBackToClientIpWhenUserHasNoIdentifier(): void
+    {
+        $trait = $this->createTraitInstance();
+
+        $user = self::createStub(Authenticatable::class);
+        $user->method('getAuthIdentifier')->willReturn(null);
+
+        $request = $this->createRequestWithRoute(self::API_DATA_URI, HttpMethod::GET->getVerb(), '10.0.0.1');
+        $request->setUserResolver(fn () => $user);
+
+        $result = $trait->resolveRequestSignature($request); // @phpstan-ignore method.notFound
+
+        self::assertSame(sha1('GET|localhost|data|10.0.0.1'), $result);
+    }
+
+    /**
+     * Test that a resolved user that is not authenticatable is keyed by the
+     * client IP.
+     *
+     * @return void
+     */
+    public function testSignatureFallsBackToClientIpWhenUserIsNotAuthenticatable(): void
+    {
+        $trait   = $this->createTraitInstance();
+        $request = $this->createRequestWithRoute(self::API_DATA_URI, HttpMethod::GET->getVerb(), '10.0.0.1');
+        $request->setUserResolver(fn () => new \stdClass);
+
+        $result = $trait->resolveRequestSignature($request); // @phpstan-ignore method.notFound
+
+        self::assertSame(sha1('GET|localhost|data|10.0.0.1'), $result);
+    }
+
+    /**
      * Test that the signature handles unauthenticated users.
      *
      * An unauthenticated request is keyed by its client IP, so anonymous
