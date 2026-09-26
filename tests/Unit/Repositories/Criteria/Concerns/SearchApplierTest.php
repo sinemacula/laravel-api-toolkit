@@ -6,22 +6,27 @@ namespace Tests\Unit\Repositories\Criteria\Concerns;
 
 use Illuminate\Database\Connection;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Database\SQLiteConnection;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use PHPUnit\Framework\Attributes\CoversClass;
+use SineMacula\ApiToolkit\Cache\CacheManager;
 use SineMacula\ApiToolkit\Enums\SearchStrategy;
 use SineMacula\ApiToolkit\Exceptions\MissingSearchDriverException;
 use SineMacula\ApiToolkit\Exceptions\UnservableSearchException;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\SearchApplier;
+use SineMacula\ApiToolkit\Search\IndexProof;
 use SineMacula\ApiToolkit\Search\SearchDriverRegistry;
 use SineMacula\ApiToolkit\Search\SearchTerm;
 use Tests\Fixtures\Models\User;
+use Tests\Fixtures\Resources\EqualitySearchableUserResource;
 use Tests\Fixtures\Resources\FilterableUserResource;
 use Tests\Fixtures\Resources\SearchableFilterableUserResource;
 use Tests\Fixtures\Resources\SearchableUserResource;
 use Tests\Fixtures\Search\PatternSearchDriver;
+use Tests\Fixtures\Search\StubEngineSearchDriver;
 use Tests\TestCase;
 
 /**
@@ -69,7 +74,7 @@ final class SearchApplierTest extends TestCase
         parent::setUp();
 
         $this->drivers = new SearchDriverRegistry;
-        $this->applier = new SearchApplier($this->drivers);
+        $this->applier = new SearchApplier($this->drivers, $this->app->make(IndexProof::class)); // @phpstan-ignore method.nonObject
 
         Config::set('api-toolkit.search.unverified_connections', [$this->connectionName()]);
     }
@@ -285,6 +290,38 @@ final class SearchApplierTest extends TestCase
     }
 
     /**
+     * Test that a search in a later operation is proved without the catalogue
+     * being read again, because the first operation's proof is shared across
+     * the lifecycle boundary between them.
+     *
+     * @return void
+     */
+    public function testALaterOperationReadsNoCatalogue(): void
+    {
+        Config::set('api-toolkit.search.unverified_connections', []);
+
+        $this->drivers->register($this->driver(), new StubEngineSearchDriver);
+
+        $statements = [];
+
+        DB::listen(static function (QueryExecuted $query) use (&$statements): void {
+            $statements[] = $query->sql;
+        });
+
+        $served = $this->serves(EqualitySearchableUserResource::class);
+
+        self::assertNotSame([], $statements);
+
+        $statements = [];
+
+        $this->app->make(CacheManager::class)->flush(); // @phpstan-ignore method.nonObject
+        $this->app->forgetScopedInstances(); // @phpstan-ignore method.nonObject
+
+        self::assertSame($served, $this->serves(EqualitySearchableUserResource::class));
+        self::assertSame([], $statements);
+    }
+
+    /**
      * Test that a waived connection stops at the waiver rather than going on to
      * read a proof the driver has already said it cannot give, which would turn
      * an empty answer into a refusal.
@@ -486,6 +523,24 @@ final class SearchApplierTest extends TestCase
         $this->applier->apply($query, $this->term(), $resourceClass ?? SearchableFilterableUserResource::class);
 
         return $query;
+    }
+
+    /**
+     * Determine whether the applier serves a search against the resource rather
+     * than refusing it for the index behind it.
+     *
+     * @param  string  $resourceClass
+     * @return bool
+     */
+    private function serves(string $resourceClass): bool
+    {
+        try {
+            $this->applier->apply(User::query(), $this->term(), $resourceClass);
+        } catch (UnservableSearchException) {
+            return false;
+        }
+
+        return true;
     }
 
     /**

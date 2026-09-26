@@ -26,6 +26,7 @@ use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\SearchApplier;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\SoftDeleteVisibilityApplier;
 use SineMacula\ApiToolkit\Schema\SafetySetDeriver;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
+use SineMacula\ApiToolkit\Search\IndexProof;
 use SineMacula\ApiToolkit\Search\SearchDriverRegistry;
 use SineMacula\ApiToolkit\Search\SearchTerm;
 use SineMacula\Repositories\Contracts\CriteriaInterface;
@@ -109,7 +110,7 @@ final class ApiCriteria implements CriteriaInterface
         $this->limitApplier                = new LimitApplier;
         $this->columnProjectionApplier     = new ColumnProjectionApplier(new SafetySetDeriver($this->schemaIntrospector));
         $this->softDeleteVisibilityApplier = new SoftDeleteVisibilityApplier;
-        $this->searchApplier               = new SearchApplier($this->searchDriverRegistry);
+        $this->searchApplier               = new SearchApplier($this->searchDriverRegistry, new IndexProof($this->metadataCacheWriter));
         $this->queryCostGuard              = new QueryCostGuard;
 
         $resourceMap = Config::get('api-toolkit.resources.resource_map', []);

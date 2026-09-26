@@ -49,6 +49,9 @@ final class PostgresTrigramSearchDriverTest extends TestCase
     /** @var array<int, array<int, mixed>> The bindings the driver read the catalogue with */
     private array $bindings = [];
 
+    /** @var array<int, string> The statements the driver sent to a read replica */
+    private array $replicaReads = [];
+
     /**
      * Register a PostgreSQL connection the driver compiles its predicates
      * against.
@@ -60,8 +63,9 @@ final class PostgresTrigramSearchDriverTest extends TestCase
     {
         parent::setUp();
 
-        $this->statements = [];
-        $this->bindings   = [];
+        $this->statements   = [];
+        $this->bindings     = [];
+        $this->replicaReads = [];
 
         Config::set('database.connections.' . self::CONNECTION, [
             'driver'   => 'pgsql',
@@ -238,6 +242,22 @@ final class PostgresTrigramSearchDriverTest extends TestCase
     }
 
     /**
+     * Test that every catalogue read goes to the primary rather than a read
+     * replica, so the extension, the index states, and the definitions all
+     * describe the same server and a shared answer describes one endpoint.
+     *
+     * @return void
+     */
+    public function testReadsTheCatalogueFromThePrimary(): void
+    {
+        $connection = $this->catalogue(['CREATE INDEX users_name_trgm ON public.users USING gin (name gin_trgm_ops)'], true);
+
+        self::assertSame([], (new PostgresTrigramSearchDriver)->indexDefects(SearchStrategy::SUBSTRING, ['name'], 'users', $connection));
+        self::assertCount(3, $this->statements);
+        self::assertSame([], $this->replicaReads);
+    }
+
+    /**
      * Test that the other trigram operator class proves a pattern match too,
      * and that a quoted column name in the definition is read.
      *
@@ -399,10 +419,14 @@ final class PostgresTrigramSearchDriverTest extends TestCase
 
         $connection->method('getSchemaBuilder')->willReturn($schema);
         $connection->method('getTablePrefix')->willReturn('');
-        $connection->method('select')->willReturnCallback(static function (string $query): array {
+        $connection->method('selectFromWriteConnection')->willReturnCallback(static function (string $query): array {
 
             if (str_contains($query, 'pg_extension')) {
                 return [(object) ['installed' => 1]];
+            }
+
+            if (!str_contains($query, 'pg_get_indexdef')) {
+                return [];
             }
 
             return [
@@ -633,13 +657,31 @@ final class PostgresTrigramSearchDriverTest extends TestCase
         $connection->method('getSchemaBuilder')->willReturn($schema);
         $connection->method('getTablePrefix')->willReturn($prefix);
         $connection->method('getDriverName')->willReturn('pgsql');
-        $connection->method('select')->willReturnCallback(function (string $query, array $bindings = []) use ($definitions, $extension): array {
+        $connection->method('select')->willReturnCallback(function (string $query): array {
+
+            $this->replicaReads[] = $query;
+
+            return [];
+        });
+        $states = [];
+
+        foreach (['disregarded' => $unusable, 'restricted' => $restricted, 'expressed' => $expressed, 'recollated' => $recollated] as $fact => $names) {
+            foreach ($names as $name) {
+                $states[] = (object) ['name' => $name, $fact => 1];
+            }
+        }
+
+        $connection->method('selectFromWriteConnection')->willReturnCallback(function (string $query, array $bindings = []) use ($definitions, $extension, $states): array {
 
             $this->statements[] = $query;
             $this->bindings[]   = $bindings;
 
             if (str_contains($query, 'pg_extension')) {
                 return $extension ? [(object) ['installed' => 1]] : [];
+            }
+
+            if (!str_contains($query, 'pg_get_indexdef')) {
+                return $states;
             }
 
             return array_map(
@@ -650,21 +692,6 @@ final class PostgresTrigramSearchDriverTest extends TestCase
                 $definitions,
                 array_keys($definitions),
             );
-        });
-        $states = [];
-
-        foreach (['disregarded' => $unusable, 'restricted' => $restricted, 'expressed' => $expressed, 'recollated' => $recollated] as $fact => $names) {
-            foreach ($names as $name) {
-                $states[] = (object) ['name' => $name, $fact => 1];
-            }
-        }
-
-        $connection->method('selectFromWriteConnection')->willReturnCallback(function (string $query, array $bindings = []) use ($states): array {
-
-            $this->statements[] = $query;
-            $this->bindings[]   = $bindings;
-
-            return $states;
         });
 
         return $connection;

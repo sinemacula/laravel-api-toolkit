@@ -15,11 +15,12 @@ use Illuminate\Support\Facades\Cache;
  * an entry that an invalidation was meant to retire.
  *
  * Entries live in the shared store and outlast any one request, job, or worker,
- * so every process reading the same schema shares them. Nothing here forgets an
- * entry: a lifecycle boundary resets in-process state only, and only replacing
- * the generation retires what the store holds. A caller must therefore not
- * store an answer that can go stale without a schema change, such as the empty
- * column listing of a table that has not been created yet.
+ * so every process reading the same schema shares them. A lifecycle boundary
+ * resets in-process state only, so a stored entry is retired by replacing the
+ * generation or by the expiry it was written with, and by nothing else. A
+ * caller must therefore not store an answer that can go stale without a schema
+ * change unless it bounds that answer with an expiry, and never one such as the
+ * empty column listing of a table that has not been created yet.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.

@@ -439,21 +439,26 @@ return [
     | does not speak.
     |
     | The indexes the shipped drivers prove a declaration against belong to the
-    | application's own migrations, and both validation and the first search of
-    | a worker process report a declaration with none behind it. On MySQL the
-    | columns declared for an anywhere-match are matched together and need one
-    | FULLTEXT index over exactly that column list, created WITH PARSER ngram,
-    | and an anywhere-match may not be declared beside another strategy, since
-    | a full-text match OR-ed with another predicate reads the whole table. On
+    | application's own migrations, and both validation and the search itself
+    | report a declaration with none behind it. On MySQL the columns declared
+    | for an anywhere-match are matched together and need one FULLTEXT index
+    | over exactly that column list, created WITH PARSER ngram, and an
+    | anywhere-match may not be declared beside another strategy, since a
+    | full-text match OR-ed with another predicate reads the whole table. On
     | PostgreSQL a prefix match and an anywhere-match both need a trigram index
     | over the column, which needs the pg_trgm extension installed first. An
     | equality match needs an ordinary index leading with the column on either
     | engine.
     |
     | Schema validation is disabled in production by default, so the index proof
-    | is repeated on the first search each worker process serves and memoised
-    | from there. Running `api-toolkit:validate-schemas` in the build turns the
-    | same defect into a failed build rather than a failed request.
+    | is repeated on the request path, and its answer is shared through the
+    | cache store for `index_proof_ttl` seconds. A migration or
+    | `api-toolkit:invalidate-metadata` retires every shared answer at once, so
+    | an index a migration creates is proved by the next search; one created,
+    | dropped, or made unusable outside a migration, or by a migration while the
+    | migration hook is switched off or fails, is reflected once the expiry
+    | lapses. Running `api-toolkit:validate-schemas` in the build turns the same
+    | defect into a failed build rather than a failed request.
     |
     */
 
@@ -464,6 +469,13 @@ return [
         'max_length' => env('API_TOOLKIT_SEARCH_MAX_LENGTH', 128),
 
         'max_words' => env('API_TOOLKIT_SEARCH_MAX_WORDS', 10),
+
+        // The seconds the request-time index proof is shared across requests,
+        // jobs, and workers before the catalogue is read again. The expiry is
+        // fixed from the first read rather than extended by later ones. Zero
+        // keeps each answer for one operation only; a negative or non-numeric
+        // value falls back to 60.
+        'index_proof_ttl' => env('API_TOOLKIT_SEARCH_INDEX_PROOF_TTL', 60),
 
         // The connections on which a driver that cannot prove an index backs a
         // declared match strategy may serve it anyway. Entries are connection

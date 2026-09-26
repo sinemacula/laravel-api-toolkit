@@ -63,6 +63,9 @@ final class MySqlNgramSearchDriverTest extends TestCase
     /** @var array<int, array<int, mixed>> The bindings each of those reads carried */
     private array $bindings = [];
 
+    /** @var array<int, bool> Whether each statement read the catalogue from a read replica */
+    private array $readPdo = [];
+
     /**
      * Register a MySQL connection the driver compiles its predicates against.
      *
@@ -76,6 +79,7 @@ final class MySqlNgramSearchDriverTest extends TestCase
         $this->statements = [];
         $this->reads      = [];
         $this->bindings   = [];
+        $this->readPdo    = [];
 
         Config::set('database.connections.' . self::CONNECTION, [
             'driver'   => 'mysql',
@@ -303,6 +307,22 @@ final class MySqlNgramSearchDriverTest extends TestCase
         (new MySqlNgramSearchDriver)->indexDefects(SearchStrategy::SUBSTRING, ['name'], 'users', $connection);
 
         self::assertSame([self::TOKEN_SIZE_STATEMENT, self::DEFINITION_STATEMENT], $this->statements);
+    }
+
+    /**
+     * Test that the token size and the table definition are read from the
+     * primary rather than a read replica, so they describe the same server as
+     * the index states and a shared answer describes one endpoint.
+     *
+     * @return void
+     */
+    public function testReadsTheTokenSizeAndTableDefinitionFromThePrimary(): void
+    {
+        $connection = $this->catalogue([['name' => 'users_name_ngram', 'columns' => ['name'], 'type' => 'FULLTEXT']]);
+
+        (new MySqlNgramSearchDriver)->indexDefects(SearchStrategy::SUBSTRING, ['name'], 'users', $connection);
+
+        self::assertSame([false, false], $this->readPdo);
     }
 
     /**
@@ -654,9 +674,10 @@ final class MySqlNgramSearchDriverTest extends TestCase
                 ),
             ];
         });
-        $connection->method('selectOne')->willReturnCallback(function (string $statement) use ($definition, $tokenSize): object {
+        $connection->method('selectOne')->willReturnCallback(function (string $statement, array $bindings = [], bool $useReadPdo = true) use ($definition, $tokenSize): object {
 
             $this->statements[] = $statement;
+            $this->readPdo[]    = $useReadPdo;
 
             return $statement === self::TOKEN_SIZE_STATEMENT
                 ? (object) ['size' => $tokenSize]

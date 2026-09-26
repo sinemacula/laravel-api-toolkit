@@ -126,12 +126,22 @@ belongs to your own migration:
   must carry the column's own collation, because the planner never answers a comparison from a key collated
   otherwise.
 
-The proof is read twice. `php artisan api-toolkit:validate-schemas` reports a declaration with no index
-behind it, which is the cheapest place to find one - run it in CI. Because schema validation is disabled in
-production by default, the same proof is also taken on the first search a worker serves and memoised until
-its next lifecycle boundary, so a missing index refuses the request instead of quietly reading the table: on
-PostgreSQL a missing trigram index is not an error at all, and the search would otherwise return the right
-rows out of a sequential scan for as long as the index stayed missing.
+The proof is read twice. `php artisan api-toolkit:validate-schemas` reports a declaration with no index behind
+it, which is the cheapest place to find one - run it in CI. Because schema validation is disabled in
+production by default, the same proof is also taken on the request path, so a missing index refuses the
+request instead of quietly reading the table: on PostgreSQL a missing trigram index is not an error at all,
+and the search would otherwise return the right rows out of a sequential scan for as long as the index stayed
+missing.
+
+That request-time answer is shared through the cache store for `api-toolkit.search.index_proof_ttl` seconds
+(`API_TOOLKIT_SEARCH_INDEX_PROOF_TTL`, 60 by default), keyed by the connection's schema and the declaration,
+so every request, job, and worker reading the same schema pays the catalogue reads once per expiry. The expiry
+is fixed from the first read. An index a migration creates or drops is proved by the next search, because the
+migration hook retires every shared answer; one created, dropped, or made unusable outside a migration, or by
+a migration while that hook is switched off or failed to write the cache, is reflected once the expiry lapses,
+or at once after `php artisan api-toolkit:invalidate-metadata`. Setting the
+expiry to `0` keeps each answer for one request or job only. Within one operation the answer is also held in
+process, so a single long-running job may keep it past the expiry.
 
 The only way to switch that request-time proof off is `api-toolkit.search.unverified_connections`, which
 lists the connections a driver may serve a search on without proving an index behind it. It ships empty, so
@@ -302,10 +312,10 @@ The checks that read the connection stay silent where it cannot be read - a boot
 or one whose migrations have not run, proves nothing either way rather than failing.
 
 Reading the index catalogue belongs to validation: no filter and no sort asks the connection about an index
-while a request is served. Two reads of schema metadata do sit on the request path, both memoised after the
-first: column narrowing intersects its projection with the table's column listing, and - where validation is
-disabled, as it is in production by default - the search surface takes its index proof on the first search a
-worker serves.
+while a request is served. Two reads of schema metadata do sit on the request path, both held in the shared
+cache store after the first: column narrowing intersects its projection with the table's column listing, and
+the search surface takes its index proof, which is shared for a short expiry rather than kept until the schema
+changes (see the search section above).
 
 ---
 
