@@ -58,7 +58,7 @@ jobs:
                 run: git fetch --no-tags origin master
 
             -   name: Setup PHP
-                uses: sinemacula/.github/.github/actions/setup-php@v1.1.1
+                uses: sinemacula/.github/.github/actions/setup-php@v1.10.0
                 with:
                     php-version: 8.3
                     coverage: pcov
@@ -82,7 +82,7 @@ jobs:
                     persist-credentials: false
 
             -   name: Setup PHP
-                uses: sinemacula/.github/.github/actions/setup-php@v1.1.1
+                uses: sinemacula/.github/.github/actions/setup-php@v1.10.0
                 with:
                     php-version: 8.3
                     coverage: pcov
