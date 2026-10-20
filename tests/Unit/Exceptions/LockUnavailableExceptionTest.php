@@ -4,8 +4,10 @@ declare(strict_types = 1);
 
 namespace Tests\Unit\Exceptions;
 
+use Illuminate\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
+use Illuminate\Contracts\Debug\ShouldntReport;
+use Orchestra\Testbench\TestCase;
 use PHPUnit\Framework\Attributes\CoversClass;
-use PHPUnit\Framework\TestCase;
 use SineMacula\ApiToolkit\Exceptions\LockUnavailableException;
 
 /**
@@ -31,5 +33,21 @@ final class LockUnavailableExceptionTest extends TestCase
 
         self::assertInstanceOf(\RuntimeException::class, $exception);
         self::assertSame($message, $exception->getMessage());
+    }
+
+    /**
+     * Test that lock contention is never reported, even when the toolkit
+     * exception handler has not been registered.
+     *
+     * @return void
+     */
+    public function testIsNotReportedWithoutTheToolkitHandler(): void
+    {
+        assert($this->app !== null);
+
+        $handler = $this->app->make(ExceptionHandlerContract::class);
+
+        self::assertInstanceOf(ShouldntReport::class, new LockUnavailableException);
+        self::assertFalse($handler->shouldReport(new LockUnavailableException));
     }
 }

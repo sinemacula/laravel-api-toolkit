@@ -6,35 +6,39 @@ namespace Tests\Unit\Exceptions;
 
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Auth\AuthenticationException;
+use Illuminate\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Database\RecordsNotFoundException;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Foundation\Configuration\Exceptions;
+use Illuminate\Foundation\Exceptions\Handler;
 use Illuminate\Http\Exceptions\PostTooLargeException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Exceptions\BackedEnumCaseNotFoundException;
 use Illuminate\Session\TokenMismatchException as LaravelTokenMismatchException;
-use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Request as RequestFacade;
 use Illuminate\Validation\UnauthorizedException as LaravelUnauthorizedException;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Validation\Validator;
 use Orchestra\Testbench\TestCase;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
-use Psr\Log\LoggerInterface;
+use SineMacula\ApiToolkit\Exceptions\ApiException;
 use SineMacula\ApiToolkit\Exceptions\ApiExceptionHandler;
 use SineMacula\ApiToolkit\Exceptions\BadRequestException;
+use SineMacula\ApiToolkit\Exceptions\ConflictException;
 use SineMacula\ApiToolkit\Exceptions\LockUnavailableException;
+use SineMacula\ApiToolkit\Exceptions\MaintenanceModeException;
 use SineMacula\ApiToolkit\Exceptions\TokenMismatchException;
+use SineMacula\ApiToolkit\Exceptions\UnhandledException;
 use SineMacula\Http\Enums\HttpMethod;
 use Symfony\Component\HttpFoundation\Exception\BadRequestException as SymfonyBadRequestException;
+use Symfony\Component\HttpFoundation\Exception\RequestExceptionInterface;
 use Symfony\Component\HttpFoundation\Exception\SuspiciousOperationException;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 use Symfony\Component\HttpKernel\Exception\HttpException as SymfonyHttpException;
+use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface as SymfonyHttpExceptionInterface;
 use Symfony\Component\HttpKernel\Exception\MethodNotAllowedHttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\HttpKernel\Exception\ServiceUnavailableHttpException;
@@ -59,35 +63,6 @@ final class ApiExceptionHandlerTest extends TestCase
 
     /** @var string Generic error message used in test fixtures. */
     private const string GENERIC_ERROR_MESSAGE = 'Something went wrong';
-
-    /**
-     * Test that handles registers report and render callbacks.
-     *
-     * @return void
-     */
-    public function testHandlesRegistersReportAndRenderCallbacks(): void
-    {
-        $exceptions = $this->createMock(Exceptions::class);
-
-        $reportable = new class {
-            /**
-             * @return $this
-             */
-            public function stop(): self
-            {
-                return $this;
-            }
-        };
-
-        $exceptions->expects(self::once())
-            ->method('report')
-            ->willReturn($reportable);
-
-        $exceptions->expects(self::once())
-            ->method('render');
-
-        ApiExceptionHandler::handles($exceptions);
-    }
 
     /**
      * Provide exception mapping test cases.
@@ -800,228 +775,323 @@ final class ApiExceptionHandlerTest extends TestCase
     }
 
     /**
-     * Test that the report callback registered via handles() invokes
-     * logApiException when an ApiException is reported.
+     * Provide the position of an extra reportable relative to handles().
      *
+     * @return iterable<string, array{bool}>
+     */
+    public static function registrationOrderProvider(): iterable
+    {
+        yield 'reportable registered before handles()' => [true];
+
+        yield 'reportable registered after handles()' => [false];
+    }
+
+    /**
+     * Test that a handled API exception is not reported whatever the order in
+     * which another reportable was registered, while any other exception is
+     * still reported as itself.
+     *
+     * @param  bool  $reportableFirst
      * @return void
      */
-    public function testHandlesReportCallbackInvokesLogApiException(): void
+    #[DataProvider('registrationOrderProvider')]
+    public function testHandledExceptionIsNotReportedWhateverTheRegistrationOrder(bool $reportableFirst): void
     {
-        $mockChannel = \Mockery::mock(LoggerInterface::class);
-        $mockChannel->shouldReceive('error')->once()->withAnyArgs();
+        [$handler, $exceptions] = $this->exceptionHandler();
 
-        Log::shouldReceive('channel')
-            ->with('api-exceptions')
-            ->once()
-            ->andReturn($mockChannel);
+        $captured = [];
+        $capture  = static function (\Throwable $exception) use (&$captured): bool {
+            $captured[] = $exception;
 
-        $reportable = new class {
-            /**
-             * @return $this
-             */
-            public function stop(): self
-            {
-                return $this;
-            }
+            return false;
         };
 
-        $capturedCallback = null;
-
-        $exceptions = self::createStub(Exceptions::class);
-        $exceptions->method('report')
-            ->willReturnCallback(function ($callback) use (&$capturedCallback, $reportable): object {
-                $capturedCallback = $callback;
-
-                return $reportable;
-            });
-        $exceptions->method('render');
+        if ($reportableFirst) {
+            $exceptions->report($capture);
+        }
 
         ApiExceptionHandler::handles($exceptions);
 
-        self::assertNotNull($capturedCallback);
+        if (!$reportableFirst) {
+            $exceptions->report($capture);
+        }
 
-        $capturedCallback(new BadRequestException);
+        $runtime = new \RuntimeException(self::GENERIC_ERROR_MESSAGE);
+
+        $handler->report(new ConflictException);
+        $handler->report($runtime);
+
+        self::assertSame([$runtime], $captured);
     }
 
     /**
-     * Test that logApiException logs to the api-exceptions channel.
+     * Test that a deliberately thrown 5xx API exception is handled and so not
+     * reported.
      *
      * @return void
      */
-    public function testLogApiExceptionLogsToApiExceptionsChannel(): void
+    public function testMaintenanceModeExceptionIsNotReported(): void
     {
-        $mockChannel = \Mockery::mock(LoggerInterface::class);
-        $mockChannel->shouldReceive('error')->once()->withAnyArgs();
+        [$handler, $exceptions] = $this->exceptionHandler();
 
-        Log::shouldReceive('channel')
-            ->with('api-exceptions')
-            ->once()
-            ->andReturn($mockChannel);
+        self::assertTrue($handler->shouldReport(new MaintenanceModeException));
 
-        $exception  = new BadRequestException;
-        $reflection = new \ReflectionMethod(ApiExceptionHandler::class, 'logApiException');
+        ApiExceptionHandler::handles($exceptions);
 
-        $reflection->invoke(null, $exception);
+        self::assertFalse($handler->shouldReport(new MaintenanceModeException));
     }
 
     /**
-     * Test that convertExceptionToString returns a formatted string.
+     * Test that a hand-thrown unhandled exception is still reported as the same
+     * instance.
      *
      * @return void
      */
-    public function testConvertExceptionToStringReturnsFormattedString(): void
+    public function testHandThrownUnhandledExceptionIsReported(): void
     {
-        $exception  = new \RuntimeException(self::GENERIC_ERROR_MESSAGE, 42);
-        $reflection = new \ReflectionMethod(ApiExceptionHandler::class, 'convertExceptionToString');
+        [$handler, $exceptions] = $this->exceptionHandler();
 
-        $result = $reflection->invoke(null, $exception);
+        $captured = [];
 
-        self::assertStringContainsString('[42]', $result);
-        self::assertStringContainsString(self::GENERIC_ERROR_MESSAGE, $result);
-        self::assertStringContainsString('on line', $result);
-        self::assertStringContainsString('of file', $result);
+        ApiExceptionHandler::handles($exceptions);
+
+        $exceptions->report(static function (\Throwable $exception) use (&$captured): bool {
+            $captured[] = $exception;
+
+            return false;
+        });
+
+        $unhandled = new UnhandledException;
+
+        $handler->report($unhandled);
+
+        self::assertSame([$unhandled], $captured);
     }
 
     /**
-     * Test that getContext returns request method, path, and data.
+     * Test that Laravel's validation unauthorized exception is not reported
+     * once the toolkit handler is registered.
      *
      * @return void
      */
-    public function testGetContextReturnsRequestContext(): void
+    public function testLaravelUnauthorizedExceptionIsNotReported(): void
     {
-        $reflection = new \ReflectionMethod(ApiExceptionHandler::class, 'getContext');
+        [$handler, $exceptions] = $this->exceptionHandler();
 
-        $result = $reflection->invoke(null);
+        self::assertTrue($handler->shouldReport(new LaravelUnauthorizedException));
 
-        self::assertIsArray($result);
-        self::assertArrayHasKey('method', $result);
-        self::assertArrayHasKey('path', $result);
+        ApiExceptionHandler::handles($exceptions);
+
+        self::assertFalse($handler->shouldReport(new LaravelUnauthorizedException));
     }
 
     /**
-     * Test that getContext includes the authenticated user id and filters out
-     * empty values.
+     * Test that a non-API exception is rendered through the registered handler
+     * as the generic 500 envelope without leaking its internal message.
      *
      * @return void
      */
-    public function testGetContextIncludesUserIdAndFiltersEmptyValues(): void
+    public function testNonApiExceptionRendersAsGenericServerError(): void
     {
-        Auth::shouldReceive('id')->andReturn(42);
+        config()->set('app.debug', false);
+        config()->set('api-toolkit.exceptions.include_debug_info', false);
 
-        $reflection = new \ReflectionMethod(ApiExceptionHandler::class, 'getContext');
+        [$handler, $exceptions] = $this->exceptionHandler();
 
-        $result = $reflection->invoke(null);
+        ApiExceptionHandler::handles($exceptions);
 
-        self::assertIsArray($result);
-        self::assertSame(42, $result['user_id']);
-        self::assertArrayNotHasKey('data', $result);
+        $request = Request::create(self::API_PATH, HttpMethod::GET->getVerb());
+        $request->headers->set('Accept', self::ACCEPT_JSON);
+
+        $response = $handler->render($request, new \RuntimeException('internal detail'));
+
+        self::assertInstanceOf(JsonResponse::class, $response);
+        self::assertSame(500, $response->getStatusCode());
+        self::assertSame([
+            'error' => [
+                'status' => 500,
+                'code'   => UnhandledException::getInternalErrorCode(),
+                'title'  => 'Unknown Error',
+                'detail' => 'Oh no! Something has gone wrong!',
+            ],
+        ], $response->getData(true));
+        self::assertStringNotContainsString('internal detail', (string) $response->getContent());
     }
 
     /**
-     * Test that getContext falls back gracefully when Auth::id() throws.
+     * Test that the reporting samples cover every entry of the handler's
+     * exception map, so a new mapping cannot skip the reporting check.
      *
      * @return void
      */
-    public function testGetContextFallsBackWhenAuthThrows(): void
+    public function testReportingSamplesCoverEveryExceptionMapEntry(): void
     {
-        Auth::shouldReceive('id')->andThrow(new \RuntimeException('No auth guard'));
+        $map = (new \ReflectionMethod(ApiExceptionHandler::class, 'exceptionMap'))->invoke(null);
 
-        $reflection = new \ReflectionMethod(ApiExceptionHandler::class, 'getContext');
+        self::assertIsArray($map);
 
-        $result = $reflection->invoke(null);
+        $mapped  = array_keys($map);
+        $sampled = array_column(iterator_to_array(self::reportingSampleProvider()), 0);
 
-        self::assertIsArray($result);
-        self::assertArrayHasKey('method', $result);
-        self::assertSame(['method', 'path', 'data'], array_keys($result));
+        sort($mapped);
+        sort($sampled);
+
+        self::assertSame($mapped, $sampled);
     }
 
     /**
-     * Test that getContext redacts sensitive request keys - matched as
-     * case-insensitive substrings, recursively through nested arrays - so
-     * credentials never reach the exception log.
+     * Provide a sample of every source type in the handler's exception map,
+     * with the status the map resolves it to.
      *
-     * @return void
+     * @return iterable<string, array{class-string, \Closure(): \Throwable, int}>
      */
-    public function testGetContextRedactsSensitiveRequestKeys(): void
+    public static function reportingSampleProvider(): iterable
     {
-        $request = Request::create(self::API_PATH, 'POST', [
-            'email'     => 'alice@example.com',
-            'password'  => 'super-secret',
-            'API_TOKEN' => 'tok_live_123',
-            'nested'    => ['client_secret' => 'shh', 'keep' => 'visible'],
-        ]);
+        yield 'not found http' => [
+            NotFoundHttpException::class,
+            static fn (): \Throwable => new NotFoundHttpException,
+            404,
+        ];
 
-        assert($this->app !== null);
+        yield 'backed enum case not found' => [
+            BackedEnumCaseNotFoundException::class,
+            static fn (): \Throwable => new BackedEnumCaseNotFoundException('App\Enums\Status', 'unknown'),
+            404,
+        ];
 
-        $this->app->instance('request', $request);
-        RequestFacade::clearResolvedInstance('request');
+        yield 'model not found' => [
+            ModelNotFoundException::class,
+            static fn (): \Throwable => new ModelNotFoundException,
+            404,
+        ];
 
-        $reflection = new \ReflectionMethod(ApiExceptionHandler::class, 'getContext');
+        yield 'suspicious operation' => [
+            SuspiciousOperationException::class,
+            static fn (): \Throwable => new SuspiciousOperationException,
+            404,
+        ];
 
-        $result = $reflection->invoke(null);
+        yield 'records not found' => [
+            RecordsNotFoundException::class,
+            static fn (): \Throwable => new RecordsNotFoundException,
+            404,
+        ];
 
-        self::assertIsArray($result);
+        yield 'method not allowed' => [
+            MethodNotAllowedHttpException::class,
+            static fn (): \Throwable => new MethodNotAllowedHttpException(['GET']),
+            405,
+        ];
 
-        $data = $result['data'];
+        yield 'bad request http' => [
+            BadRequestHttpException::class,
+            static fn (): \Throwable => new BadRequestHttpException,
+            400,
+        ];
 
-        self::assertIsArray($data);
-        self::assertSame('alice@example.com', $data['email']);
-        self::assertSame('[redacted]', $data['password']);
-        self::assertSame('[redacted]', $data['API_TOKEN']);
+        yield 'symfony request exception' => [
+            RequestExceptionInterface::class,
+            static fn (): \Throwable => new SymfonyBadRequestException,
+            400,
+        ];
 
-        $nested = $data['nested'];
+        yield 'laravel unauthorized' => [
+            LaravelUnauthorizedException::class,
+            static fn (): \Throwable => new LaravelUnauthorizedException,
+            403,
+        ];
 
-        self::assertIsArray($nested);
-        self::assertSame('[redacted]', $nested['client_secret']);
-        self::assertSame('visible', $nested['keep']);
+        yield 'authorization' => [
+            AuthorizationException::class,
+            static fn (): \Throwable => new AuthorizationException,
+            403,
+        ];
+
+        yield 'access denied http' => [
+            AccessDeniedHttpException::class,
+            static fn (): \Throwable => new AccessDeniedHttpException,
+            403,
+        ];
+
+        yield 'authentication' => [
+            AuthenticationException::class,
+            static fn (): \Throwable => new AuthenticationException,
+            401,
+        ];
+
+        yield 'token mismatch' => [
+            LaravelTokenMismatchException::class,
+            static fn (): \Throwable => new LaravelTokenMismatchException,
+            419,
+        ];
+
+        yield 'validation' => [
+            ValidationException::class,
+            static fn (): \Throwable => ValidationException::withMessages(['email' => 'invalid']),
+            422,
+        ];
+
+        yield 'too many requests http' => [
+            TooManyRequestsHttpException::class,
+            static fn (): \Throwable => new TooManyRequestsHttpException,
+            429,
+        ];
+
+        yield 'lock unavailable' => [
+            LockUnavailableException::class,
+            static fn (): \Throwable => new LockUnavailableException,
+            429,
+        ];
+
+        yield 'service unavailable http' => [
+            ServiceUnavailableHttpException::class,
+            static fn (): \Throwable => new ServiceUnavailableHttpException,
+            503,
+        ];
+
+        yield 'post too large' => [
+            PostTooLargeException::class,
+            static fn (): \Throwable => new PostTooLargeException,
+            413,
+        ];
+
+        yield 'symfony http exception' => [
+            SymfonyHttpExceptionInterface::class,
+            static fn (): \Throwable => new SymfonyHttpException(409),
+            409,
+        ];
     }
 
     /**
-     * Test that configured sensitive keys are matched case-insensitively, so an
-     * upper-case denylist entry still redacts a lower-case request key.
+     * Test that every exception the handler maps to a client error is not
+     * reported once the toolkit handler is registered.
      *
+     * @param  class-string  $source
+     * @param  \Closure(): \Throwable  $factory
+     * @param  int  $expectedStatus
      * @return void
      */
-    public function testGetContextRedactsCaseInsensitiveConfiguredKeys(): void
+    #[DataProvider('reportingSampleProvider')]
+    public function testMappedClientErrorsAreNotReported(string $source, \Closure $factory, int $expectedStatus): void
     {
-        config()->set('api-toolkit.exceptions.sensitive_keys', ['SECRET']);
+        $sample = $factory();
 
-        $data = $this->contextDataForRequest(['my_secret' => 'shh', 'email' => 'a@b.com']);
+        self::assertInstanceOf($source, $sample);
 
-        self::assertSame('[redacted]', $data['my_secret']);
-        self::assertSame('a@b.com', $data['email']);
-    }
+        $mapped = (new \ReflectionMethod(ApiExceptionHandler::class, 'mapApiException'))->invoke(null, $sample);
 
-    /**
-     * Test that a non-array sensitive-keys config falls back to the default
-     * denylist rather than disabling redaction.
-     *
-     * @return void
-     */
-    public function testGetContextFallsBackToDefaultSensitiveKeysForNonArrayConfig(): void
-    {
-        config()->set('api-toolkit.exceptions.sensitive_keys', 'password');
+        self::assertInstanceOf(ApiException::class, $mapped);
+        self::assertSame($expectedStatus, $mapped->getStatusCode());
 
-        $data = $this->contextDataForRequest(['password' => 'super-secret', 'email' => 'a@b.com']);
+        if ($expectedStatus >= 500) {
+            return;
+        }
 
-        self::assertSame('[redacted]', $data['password']);
-        self::assertSame('a@b.com', $data['email']);
-    }
+        [$handler, $exceptions] = $this->exceptionHandler();
 
-    /**
-     * Test that an empty configured key is ignored rather than matching - and
-     * therefore redacting - every request key.
-     *
-     * @return void
-     */
-    public function testGetContextIgnoresEmptyConfiguredSensitiveKeys(): void
-    {
-        config()->set('api-toolkit.exceptions.sensitive_keys', ['', 'password']);
+        ApiExceptionHandler::handles($exceptions);
 
-        $data = $this->contextDataForRequest(['password' => 'super-secret', 'email' => 'a@b.com']);
-
-        self::assertSame('[redacted]', $data['password']);
-        self::assertSame('a@b.com', $data['email']);
+        self::assertFalse($handler->shouldReport($sample));
     }
 
     /**
@@ -1044,28 +1114,19 @@ final class ApiExceptionHandlerTest extends TestCase
     }
 
     /**
-     * Resolve getContext()'s redacted request data for a POST body.
+     * Resolve the application's real exception handler and its configuration
+     * wrapper.
      *
-     * @param  array<string, mixed>  $body
-     * @return array<array-key, mixed>
+     * @return array{\Illuminate\Foundation\Exceptions\Handler, \Illuminate\Foundation\Configuration\Exceptions}
      */
-    private function contextDataForRequest(array $body): array
+    private function exceptionHandler(): array
     {
-        $request = Request::create(self::API_PATH, 'POST', $body);
-
         assert($this->app !== null);
 
-        $this->app->instance('request', $request);
-        RequestFacade::clearResolvedInstance('request');
+        $handler = $this->app->make(ExceptionHandlerContract::class);
 
-        $result = (new \ReflectionMethod(ApiExceptionHandler::class, 'getContext'))->invoke(null);
+        assert($handler instanceof Handler);
 
-        self::assertIsArray($result);
-
-        $data = $result['data'];
-
-        self::assertIsArray($data);
-
-        return $data;
+        return [$handler, new Exceptions($handler)];
     }
 }
