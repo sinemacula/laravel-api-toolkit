@@ -311,7 +311,6 @@ final class ApiServiceProviderTest extends TestCase
     {
         yield 'config:cache' => [['artisan', 'config:cache']];
         yield 'optimize' => [['artisan', 'optimize']];
-        yield 'resource cache' => [['artisan', 'api-toolkit:resources:cache']];
         yield 'leading inline option' => [['artisan', '--env=production', 'config:cache']];
         yield 'leading flags' => [['artisan', '-q', '--no-interaction', 'optimize']];
         yield 'leading separate env value' => [['artisan', '--env', 'production', 'config:cache']];
@@ -320,8 +319,7 @@ final class ApiServiceProviderTest extends TestCase
     /**
      * Test that the discovery merge is skipped while the config cache is being
      * built, directly or by optimize, so discovered bindings are never baked
-     * into the cached config as pseudo-explicit entries, and while the resource
-     * map is rebuilt.
+     * into the cached config as pseudo-explicit entries.
      *
      * @param  array<int, string>  $argv
      * @return void
@@ -354,6 +352,7 @@ final class ApiServiceProviderTest extends TestCase
         yield 'another command' => [['artisan', 'route:cache']];
         yield 'argument value' => [['artisan', 'queue:work', '--queue', 'optimize']];
         yield 'env value' => [['artisan', '--env', 'optimize', 'route:cache']];
+        yield 'resource cache' => [['artisan', 'api-toolkit:resources:cache']];
     }
 
     /**
@@ -378,8 +377,39 @@ final class ApiServiceProviderTest extends TestCase
     }
 
     /**
-     * Test that rebuilding the resource map reports a conflict even when a
-     * stale compiled map already binds the contested model.
+     * Test that a request outside the console keeps the discovery merge even
+     * when its arguments, filled from the query string, read a cache build
+     * command.
+     *
+     * @return void
+     */
+    public function testRequestOutsideTheConsoleKeepsTheDiscoveryMerge(): void
+    {
+        $app = $this->getApplication();
+
+        $this->getConfig()->set('api-toolkit.resources.paths', [dirname(__DIR__, 2) . '/Fixtures/Discovery/Primary']);
+        $this->getConfig()->set('api-toolkit.resources.resource_map', []);
+
+        $console  = new \ReflectionProperty(Application::class, 'isRunningInConsole');
+        $original = $console->getValue($app);
+
+        $console->setValue($app, false);
+
+        try {
+            $this->bootWithArgv(['search=foo', 'optimize']);
+        } finally {
+            $console->setValue($app, $original);
+        }
+
+        self::assertSame([
+            User::class => DiscoveredUserResource::class,
+            Post::class => DiscoveredPostResource::class,
+        ], $this->getConfig()->get('api-toolkit.resources.resource_map'));
+    }
+
+    /**
+     * Test that rebuilding the resource map in the process that merged a stale
+     * compiled map still reports a conflict on the contested model.
      *
      * @return void
      */
@@ -391,7 +421,7 @@ final class ApiServiceProviderTest extends TestCase
         $this->useIsolatedBootstrapPath();
         $this->writeCompiledMap([User::class => FirstUserResource::class]);
 
-        $this->bootWithArgv(['artisan', 'api-toolkit:resources:cache']);
+        $this->bootWithArgv(['artisan', 'deploy']);
 
         Log::shouldReceive('warning')
             ->once()

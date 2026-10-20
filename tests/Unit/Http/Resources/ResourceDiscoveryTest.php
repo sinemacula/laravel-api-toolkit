@@ -10,11 +10,13 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Attributes\ForModel;
 use SineMacula\ApiToolkit\Http\Resources\ResourceDiscovery;
 use Tests\Fixtures\Discovery\Conflict\FirstUserResource;
+use Tests\Fixtures\Discovery\Conflict\SecondUserResource;
 use Tests\Fixtures\Discovery\Multi\MultiModelResource;
 use Tests\Fixtures\Discovery\Primary\DiscoveredUserResource;
 use Tests\Fixtures\Discovery\Primary\Nested\DiscoveredPostResource;
 use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\User;
+use Tests\Fixtures\Resources\PostResource;
 use Tests\Fixtures\Resources\UserResource;
 use Tests\Fixtures\Support\FunctionOverrides;
 use Tests\TestCase;
@@ -748,6 +750,132 @@ final class ResourceDiscoveryTest extends TestCase
         // index 2; the guard must short-circuit before the loop reads the
         // trailing identifier at index 5.
         self::assertNull($method->invoke($this->discovery(), $tokens, 3, $tokens[2]));
+    }
+
+    /**
+     * Test that the merge places the discovered bindings beneath the explicit
+     * map and records the bindings it contributed.
+     *
+     * @return void
+     */
+    public function testMergePlacesDiscoveredBindingsBeneathTheExplicitMap(): void
+    {
+        Config::set('api-toolkit.resources.paths', [$this->fixturePath('Primary')]);
+        Config::set('api-toolkit.resources.resource_map', [User::class => UserResource::class]);
+
+        $this->discovery()->merge();
+
+        self::assertSame([
+            User::class => UserResource::class,
+            Post::class => DiscoveredPostResource::class,
+        ], Config::get('api-toolkit.resources.resource_map'));
+
+        self::assertSame([
+            Post::class => DiscoveredPostResource::class,
+        ], Config::get('api-toolkit.resources.discovered_bindings'));
+    }
+
+    /**
+     * Test that the merge replaces the bindings an earlier merge contributed,
+     * as a config cached after a merge holds, while explicit entries stay.
+     *
+     * @return void
+     */
+    public function testMergeReplacesBindingsAnEarlierMergeContributed(): void
+    {
+        Config::set('api-toolkit.resources.paths', [$this->fixturePath('Primary')]);
+        Config::set('api-toolkit.resources.resource_map', [
+            User::class => FirstUserResource::class,
+            Post::class => PostResource::class,
+        ]);
+        Config::set('api-toolkit.resources.discovered_bindings', [User::class => FirstUserResource::class]);
+
+        $this->discovery()->merge();
+
+        self::assertSame([
+            Post::class => PostResource::class,
+            User::class => DiscoveredUserResource::class,
+        ], Config::get('api-toolkit.resources.resource_map'));
+
+        self::assertSame([
+            User::class => DiscoveredUserResource::class,
+        ], Config::get('api-toolkit.resources.discovered_bindings'));
+    }
+
+    /**
+     * Test that the merge drops the bindings an earlier merge contributed when
+     * nothing is discovered any more.
+     *
+     * @return void
+     */
+    public function testMergeDropsEarlierContributionsWhenNothingIsDiscovered(): void
+    {
+        Config::set('api-toolkit.resources.paths', []);
+        Config::set('api-toolkit.resources.resource_map', [
+            User::class => FirstUserResource::class,
+            Post::class => PostResource::class,
+        ]);
+        Config::set('api-toolkit.resources.discovered_bindings', [User::class => FirstUserResource::class]);
+
+        $this->discovery()->merge();
+
+        self::assertSame([Post::class => PostResource::class], Config::get('api-toolkit.resources.resource_map'));
+        self::assertSame([], Config::get('api-toolkit.resources.discovered_bindings'));
+    }
+
+    /**
+     * Test that the merge leaves the configuration untouched when nothing is
+     * discovered and no earlier merge contributed, even for a malformed map.
+     *
+     * @return void
+     */
+    public function testMergeWithNothingToMergeLeavesTheConfigurationUntouched(): void
+    {
+        Config::set('api-toolkit.resources.paths', []);
+        Config::set('api-toolkit.resources.resource_map', 'not-an-array');
+
+        $this->discovery()->merge();
+
+        self::assertSame('not-an-array', Config::get('api-toolkit.resources.resource_map'));
+        self::assertNull(Config::get('api-toolkit.resources.discovered_bindings'));
+    }
+
+    /**
+     * Test that malformed recorded bindings are treated as no contribution.
+     *
+     * @return void
+     */
+    public function testMalformedRecordedBindingsAreIgnored(): void
+    {
+        Config::set('api-toolkit.resources.paths', []);
+        Config::set('api-toolkit.resources.resource_map', [User::class => UserResource::class]);
+        Config::set('api-toolkit.resources.discovered_bindings', 'not-an-array');
+
+        $this->discovery()->merge();
+
+        self::assertSame([User::class => UserResource::class], Config::get('api-toolkit.resources.resource_map'));
+        self::assertSame('not-an-array', Config::get('api-toolkit.resources.discovered_bindings'));
+    }
+
+    /**
+     * Test that a model bound only by an earlier merge is not treated as
+     * explicitly declared, so a rebuild still reports a conflict on it.
+     *
+     * @return void
+     */
+    public function testConflictIsReportedForAModelBoundOnlyByAnEarlierMerge(): void
+    {
+        Log::shouldReceive('warning')
+            ->once()
+            ->withArgs(static fn (string $message): bool => str_contains($message, 'ignoring [' . SecondUserResource::class . ']'));
+
+        Config::set('api-toolkit.resources.paths', [$this->fixturePath('Conflict')]);
+        Config::set('api-toolkit.resources.resource_map', [User::class => FirstUserResource::class]);
+        Config::set('api-toolkit.resources.discovered_bindings', [User::class => FirstUserResource::class]);
+
+        self::assertSame([
+            User::class => FirstUserResource::class,
+        ], $this->discovery()->scan());
     }
 
     /**

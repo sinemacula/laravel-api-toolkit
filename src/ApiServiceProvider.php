@@ -138,39 +138,23 @@ final class ApiServiceProvider extends ServiceProvider
      * discovered binding, so the static map remains the canonical-resource
      * tiebreak and the seam for resources outside the scanned paths.
      *
-     * The merge is skipped while the config cache is being built: baking
-     * discovered bindings into the cached config would make them
-     * indistinguishable from explicit entries and mask later discovery changes.
-     * The optimize command builds the config cache in a fresh application
-     * within the same process, whose arguments still read optimize, so the
-     * whole optimize process is skipped, including the fresh applications that
-     * build the route, event and view caches. The resource cache command is
-     * skipped so a stale compiled map never counts as explicit and silences a
-     * conflict warning in the rebuild. Runtime boots always merge fresh
-     * discoveries on top.
+     * The merge is skipped while the config cache is being built, directly or
+     * by optimize, so discovered bindings are never baked into it.
      *
      * @return void
      */
     private function mergeDiscoveredResources(): void
     {
-        if (in_array($this->consoleCommand(), ['config:cache', 'optimize', 'api-toolkit:resources:cache'], true)) {
+        if (in_array($this->consoleCommand(), ['config:cache', 'optimize'], true)) {
             return;
         }
 
-        $discovered = $this->app->make(ResourceDiscovery::class)->discover();
-
-        if ($discovered === []) {
-            return;
-        }
-
-        $map = Config::get('api-toolkit.resources.resource_map', []);
-        $map = is_array($map) ? $map : [];
-
-        Config::set('api-toolkit.resources.resource_map', $map + $discovered);
+        $this->app->make(ResourceDiscovery::class)->merge();
     }
 
     /**
-     * The name of the console command being run, or null when there is none.
+     * The name of the console command being run, or null when there is none or
+     * the application is not running in the console.
      *
      * The name is the first argument that is not an option, so global options
      * placed before it are skipped, along with the value of a space-separated
@@ -180,6 +164,10 @@ final class ApiServiceProvider extends ServiceProvider
      */
     private function consoleCommand(): ?string
     {
+        if (!$this->app->runningInConsole()) {
+            return null;
+        }
+
         /** @var array<int, string> $argv */
         $argv      = $_SERVER['argv'] ?? [];
         $arguments = array_slice($argv, 1);

@@ -34,6 +34,9 @@ use SineMacula\ApiToolkit\Contracts\ApiResourceInterface;
  */
 final readonly class ResourceDiscovery
 {
+    /** @var string The config key recording the bindings the merge added */
+    private const string CONTRIBUTED_KEY = 'api-toolkit.resources.discovered_bindings';
+
     /**
      * Create a new resource discovery instance.
      *
@@ -59,6 +62,31 @@ final readonly class ResourceDiscovery
         }
 
         return $this->cached() ?? $this->scan();
+    }
+
+    /**
+     * Merge the discovered bindings beneath the explicitly configured resource
+     * map.
+     *
+     * The bindings the merge contributes are recorded beside the map, so a
+     * later merge or scan, including one reading a cached config the merge was
+     * baked into, still tells them apart from explicit entries.
+     *
+     * @return void
+     */
+    public function merge(): void
+    {
+        $discovered = $this->discover();
+
+        if ($discovered === [] && $this->contributedMap() === []) {
+            return;
+        }
+
+        $explicit    = $this->explicitMap();
+        $contributed = array_diff_key($discovered, $explicit);
+
+        Config::set('api-toolkit.resources.resource_map', $explicit + $contributed);
+        Config::set(self::CONTRIBUTED_KEY, $contributed);
     }
 
     /**
@@ -213,7 +241,7 @@ final readonly class ResourceDiscovery
      */
     private function reportConflict(array $map, string $class, string $model): void
     {
-        if ($map[$model] === $class || $this->declaredExplicitly($model)) {
+        if ($map[$model] === $class || array_key_exists($model, $this->explicitMap())) {
             return;
         }
 
@@ -277,17 +305,39 @@ final readonly class ResourceDiscovery
     }
 
     /**
-     * Determine whether the model is explicitly declared in the configured
-     * resource map.
+     * The configured resource map without the bindings the merge contributed.
      *
-     * @param  string  $model
-     * @return bool
+     * @return array<class-string, class-string>
      */
-    private function declaredExplicitly(string $model): bool
+    private function explicitMap(): array
     {
         $map = Config::get('api-toolkit.resources.resource_map');
 
-        return is_array($map) && array_key_exists($model, $map);
+        if (!is_array($map)) {
+            return [];
+        }
+
+        $contributed = $this->contributedMap();
+
+        /** @var array<class-string, class-string> */
+        return array_filter(
+            $map,
+            static fn (mixed $resource, mixed $model): bool => ($contributed[$model] ?? null) !== $resource,
+            ARRAY_FILTER_USE_BOTH,
+        );
+    }
+
+    /**
+     * The bindings the merge contributed to the configured resource map.
+     *
+     * @return array<class-string, class-string>
+     */
+    private function contributedMap(): array
+    {
+        $contributed = Config::get(self::CONTRIBUTED_KEY);
+
+        /** @var array<class-string, class-string> */
+        return is_array($contributed) ? $contributed : [];
     }
 
     /**
