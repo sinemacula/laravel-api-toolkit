@@ -1134,6 +1134,19 @@ and without the key the setting falls back to the default channel:
         'log_channel' => env('NOTIFICATION_LOG_CHANNEL'),
     ],
 
+The log lines themselves have also changed:
+
+- `Notification Sending` is logged at `debug` (1.x logged it at `info`); `Notification Sent` stays at `info`. A
+  channel whose level is `info` or higher, as a production default channel usually is, drops the Sending lines.
+  To keep them, write the log to a dedicated channel whose `level` is `debug`.
+- The `notifiable` context key is renamed to `notifiable_type`, and a new `notifiable_id` key carries the
+  notifiable's key when it is an Eloquent model with one. Update any log queries, filters or dashboards that
+  match on `notifiable`.
+- The lines are no longer mirrored to the `cloudwatch-notifications` channel when
+  `api-toolkit.logging.cloudwatch.enabled` is `true`. That channel and the setting are gone. To send the audit
+  log to CloudWatch, define a CloudWatch channel in your application (the driver now ships separately, see
+  "Composer dependency changes" above) and point `NOTIFICATION_LOG_CHANNEL` at it.
+
 ### Changed: Deferred writes are safe-by-default
 
 The deferred-write pool (the `Deferrable` trait, backed by `WritePool`) no longer drops records
