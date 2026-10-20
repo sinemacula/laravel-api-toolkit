@@ -879,6 +879,49 @@ final class ResourceDiscoveryTest extends TestCase
     }
 
     /**
+     * Test that the merge keeps an explicit entry naming a different resource
+     * from the one an earlier merge recorded for its model.
+     *
+     * @return void
+     */
+    public function testMergeKeepsAnExplicitEntryThatDiffersFromTheRecordedBinding(): void
+    {
+        Config::set('api-toolkit.resources.paths', [$this->fixturePath('Primary')]);
+        Config::set('api-toolkit.resources.resource_map', [User::class => UserResource::class]);
+        Config::set('api-toolkit.resources.discovered_bindings', [User::class => FirstUserResource::class]);
+
+        $this->discovery()->merge();
+
+        self::assertSame([
+            User::class => UserResource::class,
+            Post::class => DiscoveredPostResource::class,
+        ], Config::get('api-toolkit.resources.resource_map'));
+
+        self::assertSame([
+            Post::class => DiscoveredPostResource::class,
+        ], Config::get('api-toolkit.resources.discovered_bindings'));
+    }
+
+    /**
+     * Test that an explicit entry naming a different resource from the one an
+     * earlier merge recorded still resolves a conflict on its model.
+     *
+     * @return void
+     */
+    public function testConflictIsSuppressedByAnExplicitEntryThatDiffersFromTheRecordedBinding(): void
+    {
+        Log::shouldReceive('warning')->never();
+
+        Config::set('api-toolkit.resources.paths', [$this->fixturePath('Conflict')]);
+        Config::set('api-toolkit.resources.resource_map', [User::class => UserResource::class]);
+        Config::set('api-toolkit.resources.discovered_bindings', [User::class => FirstUserResource::class]);
+
+        self::assertSame([
+            User::class => FirstUserResource::class,
+        ], $this->discovery()->scan());
+    }
+
+    /**
      * Resolve the discovery service from the container.
      *
      * @return \SineMacula\ApiToolkit\Http\Resources\ResourceDiscovery

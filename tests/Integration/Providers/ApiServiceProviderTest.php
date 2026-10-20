@@ -49,6 +49,7 @@ use SineMacula\ApiToolkit\Schema\Introspection\SchemaIntrospector;
 use SineMacula\ApiToolkit\Schema\Validation\SchemaValidator;
 use Tests\Fixtures\Discovery\Conflict\FirstUserResource;
 use Tests\Fixtures\Discovery\Conflict\SecondUserResource;
+use Tests\Fixtures\Discovery\Invalid\AbstractAttributedResource;
 use Tests\Fixtures\Discovery\Primary\DiscoveredUserResource;
 use Tests\Fixtures\Discovery\Primary\Nested\DiscoveredPostResource;
 use Tests\Fixtures\Models\Post;
@@ -303,7 +304,7 @@ final class ApiServiceProviderTest extends TestCase
     }
 
     /**
-     * Provide the arguments of the commands that build a cache.
+     * Provide the arguments of the commands that skip the discovery merge.
      *
      * @return iterable<string, array{0: array<int, string>}>
      */
@@ -311,6 +312,9 @@ final class ApiServiceProviderTest extends TestCase
     {
         yield 'config:cache' => [['artisan', 'config:cache']];
         yield 'optimize' => [['artisan', 'optimize']];
+        yield 'optimize:clear' => [['artisan', 'optimize:clear']];
+        yield 'resource cache' => [['artisan', 'api-toolkit:resources:cache']];
+        yield 'resource clear' => [['artisan', 'api-toolkit:resources:clear']];
         yield 'leading inline option' => [['artisan', '--env=production', 'config:cache']];
         yield 'leading flags' => [['artisan', '-q', '--no-interaction', 'optimize']];
         yield 'leading separate env value' => [['artisan', '--env', 'production', 'config:cache']];
@@ -318,8 +322,8 @@ final class ApiServiceProviderTest extends TestCase
 
     /**
      * Test that the discovery merge is skipped while the config cache is being
-     * built, directly or by optimize, so discovered bindings are never baked
-     * into the cached config as pseudo-explicit entries.
+     * built, directly or by optimize, and while the compiled resource map is
+     * rebuilt or cleared, directly or by optimize:clear.
      *
      * @param  array<int, string>  $argv
      * @return void
@@ -352,7 +356,6 @@ final class ApiServiceProviderTest extends TestCase
         yield 'another command' => [['artisan', 'route:cache']];
         yield 'argument value' => [['artisan', 'queue:work', '--queue', 'optimize']];
         yield 'env value' => [['artisan', '--env', 'optimize', 'route:cache']];
-        yield 'resource cache' => [['artisan', 'api-toolkit:resources:cache']];
     }
 
     /**
@@ -428,6 +431,32 @@ final class ApiServiceProviderTest extends TestCase
             ->withArgs(static fn (string $message): bool => str_contains($message, 'ignoring [' . SecondUserResource::class . ']'));
 
         $this->pendingArtisan('api-toolkit:resources:cache')->assertExitCode(0)->run();
+    }
+
+    /**
+     * Test that a compiled map binding a resource that can no longer resolve
+     * its type does not block its own rebuild.
+     *
+     * @return void
+     */
+    public function testResourceCacheRebuildsAStaleCompiledMap(): void
+    {
+        $this->getConfig()->set('api-toolkit.resources.enable_dynamic_morph_mapping', true);
+        $this->getConfig()->set('api-toolkit.resources.paths', [dirname(__DIR__, 2) . '/Fixtures/Discovery/Primary']);
+        $this->getConfig()->set('api-toolkit.resources.resource_map', []);
+
+        $this->useIsolatedBootstrapPath();
+
+        $path = $this->writeCompiledMap([User::class => AbstractAttributedResource::class]);
+
+        $this->bootWithArgv(['artisan', 'api-toolkit:resources:cache']);
+
+        $this->pendingArtisan('api-toolkit:resources:cache')->assertExitCode(0)->run();
+
+        self::assertSame([
+            User::class => DiscoveredUserResource::class,
+            Post::class => DiscoveredPostResource::class,
+        ], require $path);
     }
 
     /**

@@ -70,7 +70,11 @@ final readonly class ResourceDiscovery
      *
      * The bindings the merge contributes are recorded beside the map, so a
      * later merge or scan, including one reading a cached config the merge was
-     * baked into, still tells them apart from explicit entries.
+     * baked into, still tells them apart from explicit entries. An explicit
+     * entry naming the very resource recorded for its model cannot be told
+     * apart from the recorded binding, so it is treated as discovered and
+     * follows later discovery; an explicit entry naming any other resource
+     * always wins.
      *
      * @return void
      */

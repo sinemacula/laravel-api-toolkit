@@ -34,6 +34,15 @@ use SineMacula\ApiToolkit\Schema\Validation\SchemaValidator;
  */
 final class ApiServiceProvider extends ServiceProvider
 {
+    /** @var array<int, string> The console commands that boot without the discovery merge */
+    private const array MERGE_SKIPPING_COMMANDS = [
+        'config:cache',
+        'optimize',
+        'optimize:clear',
+        'api-toolkit:resources:cache',
+        'api-toolkit:resources:clear',
+    ];
+
     /**
      * Bootstrap any application services.
      *
@@ -134,18 +143,22 @@ final class ApiServiceProvider extends ServiceProvider
      * Merge the attribute-discovered resources beneath the configured map.
      *
      * Discovery scans the configured resource paths for classes carrying the
-     * ForModel attribute; an explicit resource_map entry always wins over a
-     * discovered binding, so the static map remains the canonical-resource
-     * tiebreak and the seam for resources outside the scanned paths.
+     * ForModel attribute; an explicit resource_map entry wins over a discovered
+     * binding, so the static map remains the canonical-resource tiebreak and
+     * the seam for resources outside the scanned paths.
      *
-     * The merge is skipped while the config cache is being built, directly or
-     * by optimize, so discovered bindings are never baked into it.
+     * The merge is skipped by a direct config:cache or optimize, so the config
+     * cache they build holds no discovered bindings; a merge baked in by
+     * another route is recomputed by the next merge. It is also skipped while
+     * the compiled map is rebuilt or cleared, directly or by optimize:clear, so
+     * a stale compiled map naming a resource that no longer resolves cannot
+     * block them.
      *
      * @return void
      */
     private function mergeDiscoveredResources(): void
     {
-        if (in_array($this->consoleCommand(), ['config:cache', 'optimize'], true)) {
+        if (in_array($this->consoleCommand(), self::MERGE_SKIPPING_COMMANDS, true)) {
             return;
         }
 

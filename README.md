@@ -280,9 +280,11 @@ Without a compiled map the scan runs on every runtime boot, which is meant for d
 `bootstrap/cache/api-toolkit-resources.php`, and `php artisan optimize:clear` (or
 `php artisan api-toolkit:resources:clear`) removes it. While the file exists it is served as-is, so rebuild or
 clear it after adding, moving, or re-binding a resource, or after changing `paths` (including to an empty
-array). With `validate_schemas` enabled the file is ignored and the scan runs on every boot, so every
-diagnostic fires. Discovery never uses the cache store, so with `validate_schemas` disabled boot and
-`route:cache` work without a reachable store; schema validation reads its metadata through the store.
+array). These four commands boot without merging discovered resources, so a stale map naming a resource that
+no longer exists never blocks its own rebuild or removal. With `validate_schemas` enabled the file is ignored
+and the scan runs on every boot, so every diagnostic fires. Discovery never uses the cache store, so with
+`validate_schemas` disabled boot and `route:cache` work without a reachable store; schema validation reads its
+metadata through the store.
 
 **Eager-load planning** - the resource builds `with()`/`withCount()`/`withSum()`/`withAvg()` maps from the
 resolved field set, so relations are loaded precisely and automatically:
