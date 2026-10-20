@@ -7,6 +7,7 @@ namespace Tests\Unit\Listeners;
 use Illuminate\Console\Events\CommandFinished;
 use Illuminate\Contracts\Container\Container;
 use Illuminate\Contracts\Queue\Job;
+use Illuminate\Database\QueryException;
 use Illuminate\Events\Dispatcher;
 use Illuminate\Foundation\Http\Events\RequestHandled;
 use Illuminate\Http\Request;
@@ -15,6 +16,7 @@ use Illuminate\Queue\Events\JobFailed;
 use Illuminate\Queue\Events\JobProcessed;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Exceptions;
 use Illuminate\Support\Facades\Log;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Enums\FlushStrategy;
@@ -24,6 +26,7 @@ use SineMacula\ApiToolkit\Listeners\WritePoolFlushSubscriber;
 use SineMacula\ApiToolkit\Repositories\Concerns\WritePool;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\NullOutput;
+use Tests\Concerns\SwapsExceptionHandler;
 use Tests\TestCase;
 
 /**
@@ -37,6 +40,8 @@ use Tests\TestCase;
 #[CoversClass(WritePoolFlushSubscriber::class)]
 final class WritePoolFlushSubscriberTest extends TestCase
 {
+    use SwapsExceptionHandler;
+
     /**
      * Set up the test environment.
      *
@@ -199,35 +204,24 @@ final class WritePoolFlushSubscriberTest extends TestCase
     }
 
     /**
-     * Test that handleFlush logs a warning when flush has failures.
+     * Test that a collected flush failure is reported exactly once as a
+     * WritePoolFlushException chained to the underlying database exception and
+     * carrying the failing table in its context.
      *
      * @return void
      */
-    public function testHandleFlushLogsWarningWhenFlushHasFailures(): void
+    public function testHandleFlushReportsCollectedFailureOnce(): void
     {
-        $pool = new WritePool(500, 10000);
-        $pool->add('nonexistent_table', ['col' => 'val']);
-
-        $container = \Mockery::mock(Container::class);
-        $container->shouldReceive('make')
-            ->with(WritePool::class)
-            ->andReturn($pool);
-
-        Log::shouldReceive('error')->never();
-        Log::shouldReceive('warning')
-            ->once()
-            ->with(
-                \Mockery::on(fn (string $message): bool => $message === 'WritePool flush completed with failures: 1 chunk(s) failed out of 1 total.'),
-                \Mockery::on(fn (array $context): bool => $context['failure_count'] === 1
-                    && $context['total_count']                                      === 1
-                    && $context['tables']                                           === ['nonexistent_table']),
-            );
-
+        Exceptions::fake();
         Event::fake([WritePoolFlushFailed::class]);
 
-        $subscriber = new WritePoolFlushSubscriber($container);
+        $this->subscriberFlushing($this->failingPool())->handleFlush();
 
-        $subscriber->handleFlush();
+        Exceptions::assertReportedCount(1);
+        Exceptions::assertReported(fn (WritePoolFlushException $e): bool => $e->getMessage() === 'WritePool flush failed: 1 chunk(s) failed out of 1 total.'
+            && $e->getPrevious() instanceof QueryException
+            && $e->getPrevious()       === $e->flushResult()->firstException()
+            && $e->context()['tables'] === ['nonexistent_table']);
     }
 
     /**
@@ -237,30 +231,19 @@ final class WritePoolFlushSubscriberTest extends TestCase
      */
     public function testHandleFlushDispatchesWritePoolFlushFailedEventOnFailure(): void
     {
-        $pool = new WritePool(500, 10000);
-        $pool->add('nonexistent_table', ['col' => 'val']);
-
-        $container = \Mockery::mock(Container::class);
-        $container->shouldReceive('make')
-            ->with(WritePool::class)
-            ->andReturn($pool);
-
-        Log::shouldReceive('error')->never();
-        Log::shouldReceive('warning')->once();
-
+        Exceptions::fake();
         Event::fake([WritePoolFlushFailed::class]);
 
-        $subscriber = new WritePoolFlushSubscriber($container);
-
-        $subscriber->handleFlush();
+        $this->subscriberFlushing($this->failingPool())->handleFlush();
 
         Event::assertDispatched(WritePoolFlushFailed::class, fn (WritePoolFlushFailed $event): bool => $event->flushResult->failureCount() === 1);
     }
 
     /**
-     * Test that a systemic COLLECT failure, where every table fails, dispatches
-     * a WritePoolFlushFailed event whose result carries every failing table so
-     * downstream escalation can act on the full set.
+     * Test that a systemic COLLECT failure, where every table fails, is
+     * reported once and dispatches a WritePoolFlushFailed event whose result
+     * carries every failing table so downstream escalation can act on the full
+     * set.
      *
      * @return void
      */
@@ -270,155 +253,187 @@ final class WritePoolFlushSubscriberTest extends TestCase
         $pool->add('nonexistent_table', ['col' => 'a']);
         $pool->add('another_missing_table', ['col' => 'b']);
 
-        $container = \Mockery::mock(Container::class);
-        $container->shouldReceive('make')
-            ->with(WritePool::class)
-            ->andReturn($pool);
-
-        Log::shouldReceive('error')->never();
-        Log::shouldReceive('warning')->once();
-
+        Exceptions::fake();
         Event::fake([WritePoolFlushFailed::class]);
 
-        $subscriber = new WritePoolFlushSubscriber($container);
+        $this->subscriberFlushing($pool)->handleFlush();
 
-        $subscriber->handleFlush();
-
+        Exceptions::assertReportedCount(1);
         Event::assertDispatched(WritePoolFlushFailed::class, fn (WritePoolFlushFailed $event): bool => $event->flushResult->failureCount() === 2
             && array_key_exists('nonexistent_table', $event->flushResult->failures())
             && array_key_exists('another_missing_table', $event->flushResult->failures()));
     }
 
     /**
-     * Test that handleFlush does not log a warning on success.
+     * Test that a collected failure is still reported, and not thrown, when the
+     * rethrow_at_boundary flag is enabled, since nothing was raised to rethrow.
      *
      * @return void
      */
-    public function testHandleFlushDoesNotLogWarningOnSuccess(): void
+    public function testHandleFlushReportsCollectedFailureWhenRethrowEnabled(): void
     {
-        $pool = new WritePool(500, 10000);
-        $pool->add('users', ['name' => 'Bob', 'email' => 'bob@example.com', 'password' => 'secret']);
+        Config::set('api-toolkit.deferred_writes.rethrow_at_boundary', true);
 
-        $container = \Mockery::mock(Container::class);
-        $container->shouldReceive('make')
-            ->with(WritePool::class)
-            ->andReturn($pool);
+        Exceptions::fake();
+        Event::fake([WritePoolFlushFailed::class]);
 
-        Log::shouldReceive('warning')->never();
+        $this->subscriberFlushing($this->failingPool())->handleFlush();
 
-        $subscriber = new WritePoolFlushSubscriber($container);
-
-        $subscriber->handleFlush();
+        Exceptions::assertReportedCount(1);
+        Exceptions::assertReported(WritePoolFlushException::class);
+        Event::assertDispatched(WritePoolFlushFailed::class);
     }
 
     /**
-     * Test that handleFlush does not dispatch event on success.
+     * Test that a log strategy failure dispatches the event without reporting,
+     * since its writes are disposable and each chunk is already logged.
      *
      * @return void
      */
-    public function testHandleFlushDoesNotDispatchEventOnSuccess(): void
+    public function testHandleFlushDoesNotReportLogStrategyFailure(): void
+    {
+        Log::shouldReceive('warning')->once();
+
+        Exceptions::fake();
+        Event::fake([WritePoolFlushFailed::class]);
+
+        $this->subscriberFlushing($this->failingPool(FlushStrategy::LOG))->handleFlush();
+
+        Exceptions::assertNothingReported();
+        Event::assertDispatched(WritePoolFlushFailed::class, fn (WritePoolFlushFailed $event): bool => $event->flushResult->droppedRecordCount() === 1);
+    }
+
+    /**
+     * Test that handleFlush neither reports nor dispatches on success.
+     *
+     * @return void
+     */
+    public function testHandleFlushDoesNotReportOrDispatchOnSuccess(): void
     {
         $pool = new WritePool(500, 10000);
         $pool->add('users', ['name' => 'Carol', 'email' => 'carol@example.com', 'password' => 'secret']);
 
-        $container = \Mockery::mock(Container::class);
-        $container->shouldReceive('make')
-            ->with(WritePool::class)
-            ->andReturn($pool);
-
+        Exceptions::fake();
         Event::fake([WritePoolFlushFailed::class]);
 
-        $subscriber = new WritePoolFlushSubscriber($container);
+        $this->subscriberFlushing($pool)->handleFlush();
 
-        $subscriber->handleFlush();
-
+        Exceptions::assertNothingReported();
         Event::assertNotDispatched(WritePoolFlushFailed::class);
     }
 
     /**
-     * Test that handleFlush does not throw when event dispatch fails.
+     * Test that a failed event dispatch after a collected failure does not
+     * escape and is itself reported alongside the flush failure.
      *
      * @return void
      */
-    public function testHandleFlushDoesNotThrowWhenEventDispatchFails(): void
+    public function testHandleFlushReportsEventDispatchFailureUnderCollect(): void
     {
-        $pool = new WritePool(500, 10000);
-        $pool->add('nonexistent_table', ['col' => 'val']);
-
-        $container = \Mockery::mock(Container::class);
-        $container->shouldReceive('make')
-            ->with(WritePool::class)
-            ->andReturn($pool);
-
-        Log::shouldReceive('error')->once();
-        Log::shouldReceive('warning')->once();
+        Exceptions::fake();
 
         Event::shouldReceive('dispatch')
+            ->once()
             ->andThrow(new \RuntimeException('Event dispatch failed'));
 
-        $subscriber = new WritePoolFlushSubscriber($container);
+        $this->subscriberFlushing($this->failingPool())->handleFlush();
 
-        $subscriber->handleFlush();
+        Exceptions::assertReportedCount(2);
+        Exceptions::assertReported(WritePoolFlushException::class);
+        Exceptions::assertReported(fn (\RuntimeException $e): bool => $e->getMessage() === 'Event dispatch failed');
+    }
+
+    /**
+     * Test that a failed event dispatch after a raised throw strategy failure
+     * does not escape and is itself reported alongside the flush failure.
+     *
+     * @return void
+     */
+    public function testHandleFlushReportsEventDispatchFailureUnderThrow(): void
+    {
+        Exceptions::fake();
+
+        Event::shouldReceive('dispatch')
+            ->once()
+            ->andThrow(new \RuntimeException('Event dispatch failed'));
+
+        $this->subscriberFlushing($this->failingPool(FlushStrategy::THROW))->handleFlush();
+
+        Exceptions::assertReportedCount(2);
+        Exceptions::assertReported(WritePoolFlushException::class);
+        Exceptions::assertReported(fn (\RuntimeException $e): bool => $e->getMessage() === 'Event dispatch failed');
+    }
+
+    /**
+     * Test that when reporting the flush failure itself fails, the failure
+     * falls back to the error log and the event is still dispatched.
+     *
+     * @return void
+     */
+    public function testHandleFlushStillDispatchesWhenReportingFails(): void
+    {
+        $handler = $this->useThrowingExceptionHandler();
+
+        Log::shouldReceive('error')
+            ->once()
+            ->with('WritePool boundary flush failed', \Mockery::on(
+                static fn (array $context): bool => $context['exception'] instanceof WritePoolFlushException,
+            ));
+
+        Event::fake([WritePoolFlushFailed::class]);
+
+        $this->subscriberFlushing($this->failingPool())->handleFlush();
+
+        self::assertCount(1, $handler->reported);
+        Event::assertDispatched(WritePoolFlushFailed::class);
     }
 
     /**
      * Test that an unexpected throwable during pool resolution is caught and
-     * logged at error level without crashing the boundary.
+     * reported without crashing the boundary.
      *
      * @return void
      */
-    public function testHandleFlushLogsErrorWhenPoolResolutionThrows(): void
+    public function testHandleFlushReportsWhenPoolResolutionThrows(): void
     {
         $container = \Mockery::mock(Container::class);
         $container->shouldReceive('make')
             ->with(WritePool::class)
             ->andThrow(new \RuntimeException('Database connection lost'));
 
-        Log::shouldReceive('error')
-            ->once()
-            ->with('WritePool flush subscriber failed', \Mockery::on(
-                static fn (array $context): bool => $context['error'] === 'Database connection lost'
-                    && $context['exception'] instanceof \RuntimeException
-                    && $context['exception']->getMessage() === 'Database connection lost',
-            ));
+        Exceptions::fake();
+        Event::fake([WritePoolFlushFailed::class]);
 
-        $subscriber = new WritePoolFlushSubscriber($container);
+        (new WritePoolFlushSubscriber($container))->handleFlush();
 
-        $subscriber->handleFlush();
+        Exceptions::assertReportedCount(1);
+        Exceptions::assertReported(fn (\RuntimeException $e): bool => $e->getMessage() === 'Database connection lost');
+        Event::assertNotDispatched(WritePoolFlushFailed::class);
     }
 
     /**
      * Test that a WritePoolFlushException raised by the throw strategy is
-     * escalated loudly with a warning and a dispatched event rather than being
-     * swallowed into a generic error log.
+     * reported once as the raised instance and the event is dispatched.
      *
      * @return void
      */
-    public function testHandleFlushEscalatesThrowStrategyFailureLoudly(): void
+    public function testHandleFlushReportsThrowStrategyFailureOnce(): void
     {
-        $pool = new WritePool(500, 10000, FlushStrategy::THROW);
-        $pool->add('nonexistent_table', ['col' => 'val']);
-
-        $container = \Mockery::mock(Container::class);
-        $container->shouldReceive('make')
-            ->with(WritePool::class)
-            ->andReturn($pool);
-
-        Log::shouldReceive('error')->never();
-        Log::shouldReceive('warning')->once();
-
+        Exceptions::fake();
         Event::fake([WritePoolFlushFailed::class]);
 
-        $subscriber = new WritePoolFlushSubscriber($container);
+        $this->subscriberFlushing($this->failingPool(FlushStrategy::THROW))->handleFlush();
 
-        $subscriber->handleFlush();
-
+        Exceptions::assertReportedCount(1);
+        Exceptions::assertReported(fn (WritePoolFlushException $e): bool => $e->getPrevious() instanceof QueryException
+            && $e->getPrevious()       === $e->flushResult()->firstException()
+            && basename($e->getFile()) === 'WritePool.php');
         Event::assertDispatched(WritePoolFlushFailed::class, fn (WritePoolFlushFailed $event): bool => $event->flushResult->failureCount() === 1);
     }
 
     /**
-     * Test that the subscriber does not re-throw a flush exception when the
-     * rethrow_at_boundary flag is disabled.
+     * Test that the subscriber reports rather than re-throws a flush exception
+     * when the rethrow_at_boundary flag is disabled.
      *
      * @return void
      */
@@ -426,29 +441,20 @@ final class WritePoolFlushSubscriberTest extends TestCase
     {
         Config::set('api-toolkit.deferred_writes.rethrow_at_boundary', false);
 
-        $pool = new WritePool(500, 10000, FlushStrategy::THROW);
-        $pool->add('nonexistent_table', ['col' => 'val']);
-
-        $container = \Mockery::mock(Container::class);
-        $container->shouldReceive('make')
-            ->with(WritePool::class)
-            ->andReturn($pool);
-
-        Log::shouldReceive('warning')->once();
-
+        Exceptions::fake();
         Event::fake([WritePoolFlushFailed::class]);
 
-        $subscriber = new WritePoolFlushSubscriber($container);
+        $this->subscriberFlushing($this->failingPool(FlushStrategy::THROW))->handleFlush();
 
-        $subscriber->handleFlush();
-
+        Exceptions::assertReportedCount(1);
+        Exceptions::assertReported(WritePoolFlushException::class);
         Event::assertDispatched(WritePoolFlushFailed::class);
     }
 
     /**
-     * Test that the subscriber does not re-throw a flush exception when the
-     * rethrow_at_boundary key is absent, so the safe default keeps the boundary
-     * from hard-crashing.
+     * Test that the subscriber reports rather than re-throws a flush exception
+     * when the rethrow_at_boundary key is absent, so the safe default keeps the
+     * boundary from hard-crashing.
      *
      * @return void
      */
@@ -458,52 +464,72 @@ final class WritePoolFlushSubscriberTest extends TestCase
         unset($deferred['rethrow_at_boundary']);
         Config::set('api-toolkit.deferred_writes', $deferred);
 
-        $pool = new WritePool(500, 10000, FlushStrategy::THROW);
-        $pool->add('nonexistent_table', ['col' => 'val']);
-
-        $container = \Mockery::mock(Container::class);
-        $container->shouldReceive('make')
-            ->with(WritePool::class)
-            ->andReturn($pool);
-
-        Log::shouldReceive('warning')->once();
-
+        Exceptions::fake();
         Event::fake([WritePoolFlushFailed::class]);
 
-        $subscriber = new WritePoolFlushSubscriber($container);
+        $this->subscriberFlushing($this->failingPool(FlushStrategy::THROW))->handleFlush();
 
-        $subscriber->handleFlush();
-
+        Exceptions::assertReportedCount(1);
+        Exceptions::assertReported(WritePoolFlushException::class);
         Event::assertDispatched(WritePoolFlushFailed::class);
     }
 
     /**
-     * Test that the subscriber re-throws a flush exception after escalating it
-     * when the rethrow_at_boundary flag is enabled.
+     * Test that the subscriber re-throws the raised flush exception after
+     * dispatching the event, leaving its reporting to the boundary, when the
+     * rethrow_at_boundary flag is enabled.
      *
      * @return void
      */
-    public function testHandleFlushRethrowsWhenRethrowEnabled(): void
+    public function testHandleFlushRethrowsWithoutReportingWhenRethrowEnabled(): void
     {
         Config::set('api-toolkit.deferred_writes.rethrow_at_boundary', true);
 
-        $pool = new WritePool(500, 10000, FlushStrategy::THROW);
+        Exceptions::fake();
+        Event::fake([WritePoolFlushFailed::class]);
+
+        $thrown = null;
+
+        try {
+            $this->subscriberFlushing($this->failingPool(FlushStrategy::THROW))->handleFlush();
+        } catch (WritePoolFlushException $exception) {
+            $thrown = $exception;
+        }
+
+        self::assertInstanceOf(WritePoolFlushException::class, $thrown);
+        self::assertInstanceOf(QueryException::class, $thrown->getPrevious());
+        Exceptions::assertNothingReported();
+        Event::assertDispatched(WritePoolFlushFailed::class, fn (WritePoolFlushFailed $event): bool => $event->flushResult === $thrown->flushResult());
+    }
+
+    /**
+     * Build a pool holding one row bound for a table that does not exist.
+     *
+     * @param  \SineMacula\ApiToolkit\Enums\FlushStrategy  $strategy
+     * @return \SineMacula\ApiToolkit\Repositories\Concerns\WritePool
+     */
+    private function failingPool(FlushStrategy $strategy = FlushStrategy::COLLECT): WritePool
+    {
+        $pool = new WritePool(500, 10000, $strategy);
         $pool->add('nonexistent_table', ['col' => 'val']);
 
+        return $pool;
+    }
+
+    /**
+     * Build a subscriber whose container resolves the given pool.
+     *
+     * @param  \SineMacula\ApiToolkit\Repositories\Concerns\WritePool  $pool
+     * @return \SineMacula\ApiToolkit\Listeners\WritePoolFlushSubscriber
+     */
+    private function subscriberFlushing(WritePool $pool): WritePoolFlushSubscriber
+    {
         $container = \Mockery::mock(Container::class);
         $container->shouldReceive('make')
             ->with(WritePool::class)
             ->andReturn($pool);
 
-        Log::shouldReceive('warning')->once();
-
-        Event::fake([WritePoolFlushFailed::class]);
-
-        $subscriber = new WritePoolFlushSubscriber($container);
-
-        $this->expectException(WritePoolFlushException::class);
-
-        $subscriber->handleFlush();
+        return new WritePoolFlushSubscriber($container);
     }
 
     /**

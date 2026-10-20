@@ -199,15 +199,15 @@ final class WritePoolTest extends TestCase
 
     /**
      * Test that the default strategy continues past a chunk failure without
-     * logging an error and persists the healthy chunk.
+     * logging and persists the healthy chunk.
      *
      * @return void
      */
-    public function testDefaultStrategyContinuesOnChunkFailureWithoutErrorLog(): void
+    public function testDefaultStrategyContinuesOnChunkFailureWithoutLogging(): void
     {
         $pool = new WritePool(chunkSize: 2, poolLimit: 10000);
 
-        Log::shouldReceive('error')->never();
+        Log::shouldReceive('warning')->never();
 
         $pool->add('nonexistent_table', ['col' => 'val']);
         $pool->add('test_records', ['name' => 'foo', 'value' => 'bar']);
@@ -227,7 +227,7 @@ final class WritePoolTest extends TestCase
      */
     public function testDefaultStrategyRetainsBufferAfterPartialFailure(): void
     {
-        Log::shouldReceive('error')->never();
+        Log::shouldReceive('warning')->never();
 
         $this->pool->add('nonexistent_table', ['col' => 'val']);
 
@@ -245,7 +245,7 @@ final class WritePoolTest extends TestCase
      */
     public function testDefaultStrategyIsCollectAndDropsNoRecords(): void
     {
-        Log::shouldReceive('error')->never();
+        Log::shouldReceive('warning')->never();
 
         $this->pool->add('nonexistent_table', ['col' => 'val']);
         $this->pool->add('test_records', ['name' => 'foo', 'value' => 'bar']);
@@ -256,6 +256,8 @@ final class WritePoolTest extends TestCase
         self::assertSame(0, $flushResult->droppedRecordCount());
         self::assertSame(1, $flushResult->retainedRecordCount());
         self::assertSame(1, $this->pool->count());
+        self::assertInstanceOf(QueryException::class, $flushResult->firstException());
+        self::assertSame($flushResult->failures()['nonexistent_table'][0]['exception'], $flushResult->firstException()->getMessage());
     }
 
     /**
@@ -321,7 +323,8 @@ final class WritePoolTest extends TestCase
     {
         $pool = new WritePool(chunkSize: 500, poolLimit: 10000, strategy: FlushStrategy::LOG);
 
-        Log::shouldReceive('error')->once()->withAnyArgs();
+        Log::shouldReceive('error')->never();
+        Log::shouldReceive('warning')->once()->withAnyArgs();
 
         $pool->add('nonexistent_table', ['col' => 'val']);
         $pool->add('test_records', ['name' => 'foo', 'value' => 'bar']);
@@ -338,8 +341,9 @@ final class WritePoolTest extends TestCase
     }
 
     /**
-     * Test that a LOG strategy chunk failure logs the failing table name and
-     * the underlying error message in the log context.
+     * Test that a LOG strategy chunk failure writes a warning naming the
+     * failing table, with the chunk size, error message and exception in the
+     * log context.
      *
      * @return void
      */
@@ -347,13 +351,16 @@ final class WritePoolTest extends TestCase
     {
         $pool = new WritePool(chunkSize: 500, poolLimit: 10000, strategy: FlushStrategy::LOG);
 
-        Log::shouldReceive('error')
+        Log::shouldReceive('error')->never();
+        Log::shouldReceive('warning')
             ->once()
             ->with(
-                \Mockery::type('string'),
-                \Mockery::on(fn (array $context): bool => ($context['table'] ?? null) === 'nonexistent_table'
-                    && is_string($context['error'] ?? null)
-                    && $context['error'] !== ''),
+                'WritePool flush failed for table [nonexistent_table]',
+                \Mockery::on(fn (array $context): bool => array_keys($context) === ['table', 'chunk_size', 'error', 'exception']
+                    && $context['table']                                       === 'nonexistent_table'
+                    && $context['chunk_size']                                  === 1
+                    && $context['exception'] instanceof QueryException
+                    && $context['error'] === $context['exception']->getMessage()),
             );
 
         $pool->add('nonexistent_table', ['col' => 'val']);
@@ -539,7 +546,7 @@ final class WritePoolTest extends TestCase
     {
         $pool = new WritePool(chunkSize: 500, poolLimit: 10000, strategy: FlushStrategy::LOG);
 
-        Log::shouldReceive('error')->never();
+        Log::shouldReceive('warning')->never();
 
         $pool->add('nonexistent_table', ['col' => 'val']);
         $pool->add('test_records', ['name' => 'foo', 'value' => 'bar']);
@@ -560,7 +567,8 @@ final class WritePoolTest extends TestCase
     {
         $pool = new WritePool(chunkSize: 500, poolLimit: 2, strategy: FlushStrategy::LOG);
 
-        Log::shouldReceive('error')->once()->withAnyArgs();
+        Log::shouldReceive('error')->never();
+        Log::shouldReceive('warning')->once()->withAnyArgs();
 
         $pool->add('nonexistent_table', ['col' => 'val']);
         $pool->add('test_records', ['name' => 'foo', 'value' => 'bar']);
@@ -663,7 +671,8 @@ final class WritePoolTest extends TestCase
     {
         $pool = new WritePool(chunkSize: 500, poolLimit: 10000, strategy: FlushStrategy::LOG);
 
-        Log::shouldReceive('error')->once()->withAnyArgs();
+        Log::shouldReceive('error')->never();
+        Log::shouldReceive('warning')->once()->withAnyArgs();
 
         $pool->add('nonexistent_table', ['col' => 'val']);
         $pool->add('test_records', ['name' => 'foo', 'value' => 'bar']);
@@ -892,7 +901,8 @@ final class WritePoolTest extends TestCase
     {
         $pool = new WritePool(chunkSize: 500, poolLimit: 10000, strategy: FlushStrategy::LOG);
 
-        Log::shouldReceive('error')->once()->withAnyArgs();
+        Log::shouldReceive('error')->never();
+        Log::shouldReceive('warning')->once()->withAnyArgs();
 
         $pool->add('nonexistent_table', ['col' => 'a']);
         $pool->add('test_records', ['name' => 'foo', 'value' => 'bar']);
@@ -987,7 +997,8 @@ final class WritePoolTest extends TestCase
     {
         $pool = new WritePool(chunkSize: 1, poolLimit: 10000, strategy: FlushStrategy::LOG, transactional: true);
 
-        Log::shouldReceive('error')->once()->withAnyArgs();
+        Log::shouldReceive('error')->never();
+        Log::shouldReceive('warning')->once()->withAnyArgs();
 
         $pool->add('test_unique', ['name' => 'alpha']);
         $pool->add('test_unique', ['name' => 'alpha']);

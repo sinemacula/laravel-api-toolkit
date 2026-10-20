@@ -11,6 +11,7 @@ use Illuminate\Queue\Events\JobProcessed;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Exceptions;
 use Illuminate\Support\Facades\Log;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Cache\CacheManager;
@@ -18,6 +19,7 @@ use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Events\CacheFlushed;
 use SineMacula\ApiToolkit\Listeners\QueueFlushSubscriber;
 use SineMacula\ApiToolkit\Runtime\RuntimeContext;
+use Tests\Concerns\SwapsExceptionHandler;
 use Tests\TestCase;
 
 /**
@@ -31,6 +33,8 @@ use Tests\TestCase;
 #[CoversClass(QueueFlushSubscriber::class)]
 final class QueueFlushSubscriberTest extends TestCase
 {
+    use SwapsExceptionHandler;
+
     /**
      * Test that subscribe registers JobProcessed and JobFailed listeners.
      *
@@ -157,18 +161,47 @@ final class QueueFlushSubscriberTest extends TestCase
     }
 
     /**
-     * Test that a CacheManager flush failure inside a queue worker is caught
-     * and logged with the full throwable rather than propagating and failing
-     * the job boundary.
+     * Test that a CacheManager flush failure is caught and reported through the
+     * exception handler rather than propagating and crashing the worker.
      *
      * @return void
      */
-    public function testHandleFlushSwallowsAndLogsCacheFlushFailure(): void
+    public function testHandleFlushReportsCacheFlushFailure(): void
     {
-        // Arrange
         Config::set('queue.connections.database.driver', 'database');
 
         Event::fake();
+        Exceptions::fake();
+
+        $this->mock(SchemaIntrospectionProvider::class)
+            ->shouldReceive('flush')
+            ->once()
+            ->andThrow(new \RuntimeException('flush boom'));
+
+        Log::shouldReceive('error')->never();
+
+        $cacheManager = $this->app->make(CacheManager::class); // @phpstan-ignore method.nonObject
+        $subscriber   = new QueueFlushSubscriber($cacheManager, new RuntimeContext);
+        $event        = new JobProcessed('database', self::createStub(Job::class));
+
+        $subscriber->handleFlush($event);
+
+        Exceptions::assertReportedCount(1);
+        Exceptions::assertReported(static fn (\RuntimeException $e): bool => $e->getMessage() === 'flush boom');
+    }
+
+    /**
+     * Test that when reporting the flush failure itself fails, the original
+     * failure falls back to the error log and the worker is not crashed.
+     *
+     * @return void
+     */
+    public function testHandleFlushFallsBackToLogWhenReportingFails(): void
+    {
+        Config::set('queue.connections.database.driver', 'database');
+
+        Event::fake();
+        $handler = $this->useThrowingExceptionHandler();
 
         $this->mock(SchemaIntrospectionProvider::class)
             ->shouldReceive('flush')
@@ -186,7 +219,8 @@ final class QueueFlushSubscriberTest extends TestCase
         $subscriber   = new QueueFlushSubscriber($cacheManager, new RuntimeContext);
         $event        = new JobProcessed('database', self::createStub(Job::class));
 
-        // Act
         $subscriber->handleFlush($event);
+
+        self::assertCount(1, $handler->reported);
     }
 }
