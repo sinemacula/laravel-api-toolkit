@@ -523,7 +523,8 @@ independently in `api-toolkit.middleware`:
 
 - **`maintenance_mode_swap`** - JSON `503` maintenance responses with an `except` URI allowlist. `Retry-After` and
   `Refresh` from `php artisan down --retry` / `--refresh` are forwarded; the JSON response is always `503`, so
-  `--status` is not honoured. Non-JSON requests under `--redirect` or `--render` keep Laravel's behaviour.
+  `--status` is not honoured. Non-JSON requests that Laravel redirects (`--redirect`) or renders a template for
+  (`--render`) are left untouched.
 - **`json_pretty_print`** - opt-in pretty-printed JSON responses via a query parameter.
 - **`throttle`** - API-friendly rate-limit responses; auto-selects the Redis variant when Redis is the cache driver.
 

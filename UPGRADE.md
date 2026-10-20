@@ -1052,6 +1052,8 @@ These changes are largely additive but include behavioral fixes worth noting:
   code via the generic `HttpException` instead of rendering as a `500` unhandled error.
 - Session token mismatches converted by Laravel to a generic `419` HTTP exception are now mapped back to
   `TokenMismatchException` and render as `419`; in 1.x they rendered as a `500` unhandled error.
+- Maintenance-mode responses now carry the `Retry-After` and `Refresh` headers set by `php artisan down --retry`
+  / `--refresh`; in 1.x they were dropped. The response is still always `503`, so `--status` is not honoured.
 - `PolymorphicResource` now throws `ResourceMappingException` (a `\LogicException` subclass) instead of a
   bare `\LogicException`; existing catch blocks for `\LogicException` continue to work.
 - The new `api-toolkit.exceptions` config section controls rendering (`render_strategy`) and debug metadata
