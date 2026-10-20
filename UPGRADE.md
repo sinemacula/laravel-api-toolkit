@@ -1105,8 +1105,9 @@ request input. In 2.x a handled exception is neither logged nor reported.
 - Every other exception that is not an `ApiException` is still reported as itself, subject to Laravel's own
   don't-report list and the exclusions below.
 - `Illuminate\Validation\UnauthorizedException`, and any exception implementing Symfony's
-  `HttpExceptionInterface` with a `4xx` status that does not extend Symfony's `HttpException`, are no longer
-  reported.
+  `HttpExceptionInterface` that does not extend Symfony's `HttpException` and whose status is a recognised
+  client error (one the handler renders as a `4xx`) or `419`, are no longer reported. An unrecognised status
+  such as `499` still renders as a generic `500` and is reported.
 - `LockUnavailableException` is new in 2.x and is never reported. Lock contention is visible as the rate of
   `429` responses.
 - Exception reports no longer carry request input. To add fields to them, register your own
