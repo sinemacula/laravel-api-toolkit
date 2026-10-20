@@ -15,10 +15,7 @@ use Illuminate\Http\Request;
 use Illuminate\Routing\Exceptions\BackedEnumCaseNotFoundException;
 use Illuminate\Session\TokenMismatchException as LaravelTokenMismatchException;
 use Illuminate\Support\Arr;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Config;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Request as RequestFacade;
 use Illuminate\Support\Facades\Response;
 use Illuminate\Validation\UnauthorizedException as LaravelUnauthorizedException;
 use Illuminate\Validation\ValidationException;
@@ -44,25 +41,50 @@ use Symfony\Component\HttpKernel\Exception\TooManyRequestsHttpException;
  */
 final class ApiExceptionHandler
 {
-    /** @var array<int, string> Lower-case substrings that mark a request key as sensitive in logged context. */
-    public const array DEFAULT_SENSITIVE_KEYS = ['password', 'token', 'secret', 'authorization'];
-
-    /** @var string Placeholder substituted for a redacted sensitive value. */
-    private const string REDACTION_PLACEHOLDER = '[redacted]';
-
     /**
-     * Convenience method to register the various exception handler controls.
+     * Register the JSON rendering and the filter that keeps handled exceptions
+     * out of every reporter.
      *
      * @param  \Illuminate\Foundation\Configuration\Exceptions  $exceptions
      * @return void
      */
     public static function handles(Exceptions $exceptions): void
     {
-        $exceptions->report(function (ApiException $exception): void {
-            self::logApiException($exception);
-        })->stop();
+        $exceptions->dontReportWhen(fn (\Throwable $exception): bool => self::isHandled($exception));
 
         $exceptions->render(fn (\Throwable $exception, Request $request) => self::render($exception, $request));
+    }
+
+    /**
+     * Determine whether the given exception is a handled response that must not
+     * be reported.
+     *
+     * @param  \Throwable  $exception
+     * @return bool
+     */
+    private static function isHandled(\Throwable $exception): bool
+    {
+        return ($exception instanceof ApiException && !$exception instanceof UnhandledException)
+            || $exception instanceof LaravelUnauthorizedException
+            || self::isClientHttpException($exception);
+    }
+
+    /**
+     * Determine whether the given exception is an HTTP-layer exception that is
+     * rendered as a client error.
+     *
+     * @param  \Throwable  $exception
+     * @return bool
+     */
+    private static function isClientHttpException(\Throwable $exception): bool
+    {
+        if (!$exception instanceof SymfonyHttpExceptionInterface) {
+            return false;
+        }
+
+        $status = $exception->getStatusCode();
+
+        return $status === 419 || HttpStatus::tryFrom($status)?->isClientError() === true;
     }
 
     /**
@@ -255,128 +277,5 @@ final class ApiExceptionHandler
             'line'      => $previous->getLine(),
             'trace'     => collect($previous->getTrace())->map(fn ($trace) => Arr::except($trace, ['args']))->all(),
         ]) : $exception->getCustomMeta();
-    }
-
-    /**
-     * Log the given API exception.
-     *
-     * @param  \SineMacula\ApiToolkit\Exceptions\ApiException  $exception
-     * @return void
-     */
-    private static function logApiException(ApiException $exception): void
-    {
-        Log::channel('api-exceptions')->error(self::convertExceptionToString($exception), self::getContext());
-    }
-
-    /**
-     * Formats an exception into a string representation.
-     *
-     * @param  \Throwable  $exception
-     * @return string
-     */
-    private static function convertExceptionToString(\Throwable $exception): string
-    {
-        return sprintf(
-            '[%s] "%s" on line %s of file %s',
-            $exception->getCode(),
-            $exception->getMessage(),
-            $exception->getLine(),
-            $exception->getFile(),
-        );
-    }
-
-    /**
-     * Retrieves context for logging an exception.
-     *
-     * @return array<string, mixed>
-     */
-    private static function getContext(): array
-    {
-        $context = [
-            'method' => RequestFacade::method(),
-            'path'   => RequestFacade::path(),
-            'data'   => self::redactSensitive(RequestFacade::all()),
-        ];
-
-        try {
-            return array_filter(
-                array_merge($context, [
-                    'user_id' => Auth::id(),
-                ]),
-                static fn ($value): bool => (bool) $value,
-            );
-        } catch (\Throwable $exception) {
-            return $context;
-        }
-    }
-
-    /**
-     * Redact configured sensitive keys from request data before it is logged.
-     *
-     * Keys are matched case-insensitively against a substring denylist so that
-     * variants such as access_token, remember_token, and client_secret are all
-     * covered. Nested arrays are redacted recursively.
-     *
-     * @param  array<array-key, mixed>  $data
-     * @return array<array-key, mixed>
-     */
-    private static function redactSensitive(array $data): array
-    {
-        $configured = Config::get('api-toolkit.exceptions.sensitive_keys', self::DEFAULT_SENSITIVE_KEYS);
-        $configured = is_array($configured) ? $configured : self::DEFAULT_SENSITIVE_KEYS;
-
-        $needles = array_values(array_filter(
-            array_map(static fn ($needle): string => is_string($needle) ? strtolower($needle) : '', $configured),
-            static fn (string $needle): bool => $needle !== '',
-        ));
-
-        return self::redactArray($data, $needles);
-    }
-
-    /**
-     * Recursively replace the value of any sensitive key with the placeholder.
-     *
-     * @param  array<array-key, mixed>  $data
-     * @param  array<int, string>  $needles
-     * @return array<array-key, mixed>
-     */
-    private static function redactArray(array $data, array $needles): array
-    {
-        foreach ($data as $key => $value) {
-
-            if (is_string($key) && self::isSensitiveKey($key, $needles)) {
-                $data[$key] = self::REDACTION_PLACEHOLDER;
-
-                continue;
-            }
-
-            if (!is_array($value)) {
-                continue;
-            }
-
-            $data[$key] = self::redactArray($value, $needles);
-        }
-
-        return $data;
-    }
-
-    /**
-     * Determine whether a request key matches the sensitive-key denylist.
-     *
-     * @param  string  $key
-     * @param  array<int, string>  $needles
-     * @return bool
-     */
-    private static function isSensitiveKey(string $key, array $needles): bool
-    {
-        $key = strtolower($key);
-
-        foreach ($needles as $needle) {
-            if (str_contains($key, $needle)) {
-                return true;
-            }
-        }
-
-        return false;
     }
 }

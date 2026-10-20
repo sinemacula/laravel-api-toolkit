@@ -1088,6 +1088,31 @@ If reporting itself fails, the original exception falls back to an error log lin
 never escapes. The `log` deferred-write strategy now writes its failure log lines at warning level instead
 of error, since those records are disposable by design.
 
+### Changed: handled exceptions are no longer reported or logged
+
+In 1.x every `ApiException` was written at `error` level to the `api-exceptions` channel (and to
+`cloudwatch-api-exceptions` when CloudWatch logging was enabled), with the request method, path, user id and full
+request input. In 2.x a handled exception is neither logged nor reported.
+
+- The toolkit no longer defines the `api-exceptions` log channel. If a log stack or a `Log::channel()` call
+  in your application references it, define the channel yourself.
+- In 1.x the suppression came from `->stop()` in the report chain and depended on registration order, so a
+  reportable (an error tracker, for example) registered before `ApiExceptionHandler::handles()` still received
+  every handled exception. 2.x registers a don't-report filter instead, which applies whatever the order.
+- An `UnhandledException` thrown by hand is now reported. In 1.x it extended `ApiException` too, so the report
+  callback wrote it to `api-exceptions` and stopped it reaching the default logger and any reporter registered
+  after `handles()`. In 2.x Laravel's default reporting and every error tracker receive it as that same instance.
+- Every other exception that is not an `ApiException` is still reported as itself, subject to Laravel's own
+  don't-report list and the exclusions below.
+- `Illuminate\Validation\UnauthorizedException`, and any exception implementing Symfony's
+  `HttpExceptionInterface` that does not extend Symfony's `HttpException` and whose status is a recognised
+  client error (one the handler renders as a `4xx`) or `419`, are no longer reported. An unrecognised status
+  such as `499` still renders as a generic `500` and is reported.
+- `LockUnavailableException` is new in 2.x and is never reported. Lock contention is visible as the rate of
+  `429` responses.
+- Exception reports no longer carry request input. To add fields to them, register your own
+  `$exceptions->context()` callback.
+
 ### Changed: Deferred writes are safe-by-default
 
 The deferred-write pool (the `Deferrable` trait, backed by `WritePool`) no longer drops records

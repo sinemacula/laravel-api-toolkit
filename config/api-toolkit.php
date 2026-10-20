@@ -2,7 +2,6 @@
 
 declare(strict_types = 1);
 
-use SineMacula\ApiToolkit\Exceptions\ApiExceptionHandler;
 use SineMacula\ApiToolkit\OpenApi\Resolution\DocumentableRouteFilter;
 
 return [
@@ -52,14 +51,6 @@ return [
         'render_strategy' => env('API_EXCEPTION_RENDER_STRATEGY', 'auto'),
 
         'include_debug_info' => null,
-
-        // Lower-case substrings used to redact matching request keys (e.g.
-        // password, *_token, *secret*) from the request data written to the
-        // exception log context, preventing credentials from leaking to logs.
-        // The handler's DEFAULT_SENSITIVE_KEYS is the single source of truth,
-        // reused here so the shipped default and the hard fallback cannot
-        // drift.
-        'sensitive_keys' => ApiExceptionHandler::DEFAULT_SENSITIVE_KEYS,
 
     ],
 

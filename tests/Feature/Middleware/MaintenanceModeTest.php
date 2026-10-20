@@ -4,11 +4,14 @@ declare(strict_types = 1);
 
 namespace Tests\Feature\Middleware;
 
+use Illuminate\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Illuminate\Contracts\Foundation\MaintenanceMode;
+use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Route;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Exceptions\ApiExceptionHandler;
+use SineMacula\ApiToolkit\Exceptions\MaintenanceModeException;
 use SineMacula\ApiToolkit\Http\Middleware\PreventRequestsDuringMaintenance;
 use Tests\Concerns\RegistersApiExceptionHandler;
 use Tests\Fixtures\Support\ArrayMaintenanceMode;
@@ -56,6 +59,9 @@ final class MaintenanceModeTest extends TestCase
 
         Route::middleware(PreventRequestsDuringMaintenance::class)->get('/data', static fn (): array => ['ok' => true]);
         Route::middleware(PreventRequestsDuringMaintenance::class)->get('/health', static fn (): array => ['ok' => true]);
+        Route::get('/broken', static function (): never {
+            throw new \RuntimeException('Broken');
+        });
     }
 
     /**
@@ -104,6 +110,36 @@ final class MaintenanceModeTest extends TestCase
         $response->assertJsonPath('error.code', 10200);
         $response->assertHeaderMissing('Retry-After');
         $response->assertHeaderMissing('Refresh');
+    }
+
+    /**
+     * Test that the maintenance response is not reported, while an unhandled
+     * exception raised afterwards still is.
+     *
+     * @return void
+     */
+    public function testMaintenanceResponseIsNotReported(): void
+    {
+        $handler = app(ExceptionHandlerContract::class);
+
+        /** @var \ArrayObject<int, \Throwable> $reported */
+        $reported = new \ArrayObject;
+
+        self::assertFalse($handler->shouldReport(new MaintenanceModeException(null, ['Retry-After' => '60'])));
+
+        (new Exceptions($handler))->report(static function (\Throwable $exception) use ($reported): void {
+            $reported->append($exception);
+        });
+
+        $this->duringMaintenance(fn () => $this->getJson('/data'), ['retry' => 60, 'refresh' => '15'])->assertStatus(503);
+
+        self::assertCount(0, $reported);
+
+        $this->getJson('/broken')->assertStatus(500);
+
+        self::assertCount(1, $reported);
+        self::assertInstanceOf(\RuntimeException::class, $reported[0]);
+        self::assertSame('Broken', $reported[0]->getMessage());
     }
 
     /**
