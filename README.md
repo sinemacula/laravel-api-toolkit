@@ -49,8 +49,8 @@ php artisan vendor:publish --provider="SineMacula\ApiToolkit\ApiServiceProvider"
 
 This publishes `config/api-toolkit.php` to your application's config directory. The file is documented inline
 and covers exception rendering strategy, sensitive columns, query parser limits, deferred write behaviour,
-middleware toggles, and more. Per-query repository caching is configured in the
-`sinemacula/laravel-repositories` package under `repositories.cache`.
+middleware toggles, the notification audit log destination, and more. Per-query repository caching is configured
+in the `sinemacula/laravel-repositories` package under `repositories.cache`.
 
 ## Usage
 
@@ -659,6 +659,36 @@ It exits with a failure if the cache store rejects the new generation.
 
 Entries written under a retired generation are no longer read but stay in the store until it evicts or
 clears them. Each invalidation leaves at most one copy of the metadata behind.
+
+---
+
+### Notification Audit Log
+
+When `illuminate/notifications` is installed and `api-toolkit.notifications.enable_logging` is `true` (the
+default), the toolkit logs every `NotificationSending` event at `debug` and every `NotificationSent` event at
+`info`. Each line records the notification class, the notifiable type, the notifiable id (only when the notifiable
+is an Eloquent model with a key) and the delivery channel. List notification classes in
+`api-toolkit.notifications.excluded_classes` to leave them out.
+
+The lines are written to the application's default log channel, so they go wherever the rest of the application's
+logs go and keep any trace correlation applied to them. Whether the `debug` lines are kept depends on that
+channel's level. For a dedicated destination, define the channel in the application's `config/logging.php`:
+
+```php
+'channels' => [
+    'notifications' => [
+        'driver' => 'daily',
+        'path'   => storage_path('logs/notifications.log'),
+        'level'  => 'debug',
+    ],
+],
+```
+
+Then point `api-toolkit.notifications.log_channel` at it:
+
+```dotenv
+NOTIFICATION_LOG_CHANNEL=notifications
+```
 
 ---
 

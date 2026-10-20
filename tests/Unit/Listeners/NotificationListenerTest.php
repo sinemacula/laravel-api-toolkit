@@ -4,12 +4,17 @@ declare(strict_types = 1);
 
 namespace Tests\Unit\Listeners;
 
+use Illuminate\Log\Logger;
 use Illuminate\Notifications\Events\NotificationSending;
 use Illuminate\Notifications\Events\NotificationSent;
 use Illuminate\Notifications\Notification;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Log;
+use Monolog\Handler\TestHandler;
+use Monolog\Level;
+use Monolog\Logger as MonologLogger;
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 use SineMacula\ApiToolkit\Listeners\NotificationListener;
 use Tests\TestCase;
 
@@ -24,6 +29,12 @@ use Tests\TestCase;
 #[CoversClass(NotificationListener::class)]
 final class NotificationListenerTest extends TestCase
 {
+    /** @var string The capturing channel made the application's default. */
+    private const string DEFAULT_CHANNEL = 'notification-default';
+
+    /** @var string The capturing channel configured as the audit destination. */
+    private const string AUDIT_CHANNEL = 'notification-audit';
+
     /**
      * Test that sending logs notification sending event at debug level.
      *
@@ -32,9 +43,10 @@ final class NotificationListenerTest extends TestCase
     public function testSendingLogsAtDebugLevel(): void
     {
         Config::set('api-toolkit.notifications.excluded_classes', []);
+        Config::set('api-toolkit.notifications.log_channel', null);
 
         Log::shouldReceive('channel')
-            ->with('notifications')
+            ->with(null)
             ->once()
             ->andReturnSelf();
 
@@ -60,9 +72,10 @@ final class NotificationListenerTest extends TestCase
     public function testSentLogsAtInfoLevel(): void
     {
         Config::set('api-toolkit.notifications.excluded_classes', []);
+        Config::set('api-toolkit.notifications.log_channel', null);
 
         Log::shouldReceive('channel')
-            ->with('notifications')
+            ->with(null)
             ->once()
             ->andReturnSelf();
 
@@ -89,13 +102,14 @@ final class NotificationListenerTest extends TestCase
     public function testLogIncludesCorrectContext(): void
     {
         Config::set('api-toolkit.notifications.excluded_classes', []);
+        Config::set('api-toolkit.notifications.log_channel', null);
 
         $notification = new class extends Notification {};
         $notifiable   = new \stdClass;
         $channel      = 'mail';
 
         Log::shouldReceive('channel')
-            ->with('notifications')
+            ->with(null)
             ->once()
             ->andReturnSelf();
 
@@ -161,9 +175,10 @@ final class NotificationListenerTest extends TestCase
     public function testNonExcludedClassIsLoggedWhenExclusionListIsNonEmpty(): void
     {
         Config::set('api-toolkit.notifications.excluded_classes', ['App\Notifications\SomeOtherNotification']);
+        Config::set('api-toolkit.notifications.log_channel', null);
 
         Log::shouldReceive('channel')
-            ->with('notifications')
+            ->with(null)
             ->once()
             ->andReturnSelf();
 
@@ -184,9 +199,10 @@ final class NotificationListenerTest extends TestCase
     public function testEmptyExclusionListLogsAllNotifications(): void
     {
         Config::set('api-toolkit.notifications.excluded_classes', []);
+        Config::set('api-toolkit.notifications.log_channel', null);
 
         Log::shouldReceive('channel')
-            ->with('notifications')
+            ->with(null)
             ->once()
             ->andReturnSelf();
 
@@ -208,9 +224,10 @@ final class NotificationListenerTest extends TestCase
     public function testPayloadOmitsNotifiableIdForNonModelNotifiable(): void
     {
         Config::set('api-toolkit.notifications.excluded_classes', []);
+        Config::set('api-toolkit.notifications.log_channel', null);
 
         Log::shouldReceive('channel')
-            ->with('notifications')
+            ->with(null)
             ->once()
             ->andReturnSelf();
 
@@ -225,6 +242,82 @@ final class NotificationListenerTest extends TestCase
         $event    = $this->createSendingEvent();
 
         $listener->sending($event);
+    }
+
+    /**
+     * Test that the audit log is written to the application's default channel
+     * when no channel is configured.
+     *
+     * @return void
+     */
+    public function testAuditLogIsWrittenToTheDefaultChannelWhenNoChannelIsConfigured(): void
+    {
+        $this->useCapturingChannels(null);
+
+        $event = $this->createSendingEvent();
+
+        (new NotificationListener)->sending($event);
+
+        $records = $this->capturedRecords(self::DEFAULT_CHANNEL);
+
+        self::assertCount(1, $records);
+        self::assertSame(Level::Debug, $records[0]->level);
+        self::assertSame('Notification Sending', $records[0]->message);
+        self::assertSame([
+            'notification'    => $event->notification::class,
+            'notifiable_type' => \stdClass::class,
+            'channel'         => 'mail',
+        ], $records[0]->context);
+    }
+
+    /**
+     * Test that the audit log is written only to the configured channel.
+     *
+     * @return void
+     */
+    public function testAuditLogIsWrittenToTheConfiguredChannel(): void
+    {
+        $this->useCapturingChannels(self::AUDIT_CHANNEL);
+
+        (new NotificationListener)->sent($this->createSentEvent());
+
+        $records = $this->capturedRecords(self::AUDIT_CHANNEL);
+
+        self::assertCount(1, $records);
+        self::assertSame(Level::Info, $records[0]->level);
+        self::assertSame('Notification Sent', $records[0]->message);
+        self::assertSame([], $this->capturedRecords(self::DEFAULT_CHANNEL));
+    }
+
+    /**
+     * Provide configured channel values that do not name a channel.
+     *
+     * @return iterable<string, array{mixed}>
+     */
+    public static function unusableChannelProvider(): iterable
+    {
+        yield 'empty string' => [''];
+        yield 'false' => [false];
+    }
+
+    /**
+     * Test that a blank or non-string configured channel falls back to the
+     * application's default channel.
+     *
+     * @param  mixed  $channel
+     * @return void
+     */
+    #[DataProvider('unusableChannelProvider')]
+    public function testBlankOrNonStringChannelFallsBackToTheDefaultChannel(mixed $channel): void
+    {
+        $this->useCapturingChannels($channel);
+
+        (new NotificationListener)->sending($this->createSendingEvent());
+
+        $records = $this->capturedRecords(self::DEFAULT_CHANNEL);
+
+        self::assertCount(1, $records);
+        self::assertSame('Notification Sending', $records[0]->message);
     }
 
     /**
@@ -251,5 +344,51 @@ final class NotificationListenerTest extends TestCase
         $notifiable   = new \stdClass;
 
         return new NotificationSent($notifiable, $notification, 'mail');
+    }
+
+    /**
+     * Register the capturing channels, make one the application's default and
+     * configure the audit log channel.
+     *
+     * @param  mixed  $auditChannel
+     * @return void
+     */
+    private function useCapturingChannels(mixed $auditChannel): void
+    {
+        foreach ([self::DEFAULT_CHANNEL, self::AUDIT_CHANNEL] as $name) {
+            Config::set("logging.channels.{$name}", [
+                'driver'  => 'monolog',
+                'handler' => TestHandler::class,
+            ]);
+        }
+
+        Config::set('logging.default', self::DEFAULT_CHANNEL);
+        Config::set('api-toolkit.notifications.excluded_classes', []);
+        Config::set('api-toolkit.notifications.log_channel', $auditChannel);
+    }
+
+    /**
+     * Read the records captured on the given channel.
+     *
+     * @param  string  $name
+     * @return array<int, \Monolog\LogRecord>
+     */
+    private function capturedRecords(string $name): array
+    {
+        $channel = Log::channel($name);
+
+        assert($channel instanceof Logger);
+
+        $monolog = $channel->getLogger();
+
+        assert($monolog instanceof MonologLogger);
+
+        foreach ($monolog->getHandlers() as $handler) {
+            if ($handler instanceof TestHandler) {
+                return $handler->getRecords();
+            }
+        }
+
+        self::fail("No capturing handler is registered on the {$name} channel.");
     }
 }

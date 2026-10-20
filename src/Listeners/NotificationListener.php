@@ -65,6 +65,19 @@ final class NotificationListener
             'channel'         => $channel,
         ], static fn (mixed $value): bool => $value !== null);
 
-        Log::channel('notifications')->log($level, $message, $payload);
+        Log::channel($this->resolveLogChannel())->log($level, $message, $payload);
+    }
+
+    /**
+     * Resolve the configured audit log channel, or null for the application's
+     * default channel.
+     *
+     * @return string|null
+     */
+    private function resolveLogChannel(): ?string
+    {
+        $channel = config('api-toolkit.notifications.log_channel');
+
+        return is_string($channel) && $channel !== '' ? $channel : null;
     }
 }
