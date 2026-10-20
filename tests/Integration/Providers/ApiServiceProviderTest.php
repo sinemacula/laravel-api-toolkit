@@ -81,15 +81,30 @@ final class ApiServiceProviderTest extends TestCase
     }
 
     /**
-     * Test that logging config is merged.
+     * Test that the package neither adds log channels nor merges anything into
+     * a channel the application already defines.
      *
      * @return void
      */
-    public function testLoggingConfigIsMerged(): void
+    public function testPackageDoesNotAlterLoggingConfig(): void
     {
-        $channels = $this->getConfig()->get('logging.channels');
+        $config   = $this->getConfig();
+        $channels = $config->get('logging.channels');
 
-        self::assertArrayHasKey('notifications', $channels);
+        self::assertIsArray($channels);
+        self::assertArrayNotHasKey('notifications', $channels);
+        self::assertArrayNotHasKey('api-exceptions', $channels);
+
+        $config->set('logging.channels.notifications', [
+            'driver' => 'single',
+            'path'   => storage_path('logs/app-notifications.log'),
+        ]);
+
+        $expected = $config->get('logging');
+
+        (new ApiServiceProvider($this->getApplication()))->register();
+
+        self::assertSame($expected, $config->get('logging'));
     }
 
     /**

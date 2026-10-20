@@ -1113,6 +1113,40 @@ request input. In 2.x a handled exception is neither logged nor reported.
 - Exception reports no longer carry request input. To add fields to them, register your own
   `$exceptions->context()` callback.
 
+### Changed: the notification audit log writes to the default log channel
+
+The toolkit no longer adds or merges anything into the application's `logging` config. The `notifications`
+daily-file channel it defined is gone, and a channel the application already names `notifications` no longer has
+the toolkit's keys merged into it. The `Notification Sending` and `Notification Sent` lines now go to the
+application's default log channel.
+
+To keep a dedicated destination:
+
+1. Define the channel in your application's `config/logging.php`.
+2. Set `NOTIFICATION_LOG_CHANNEL=<channel name>`.
+3. If you have published `config/api-toolkit.php`, add the new key inside its `notifications` block.
+
+The package config is merged shallowly, so a published `notifications` array replaces the package's whole block,
+and without the key the setting falls back to the default channel:
+
+    'notifications' => [
+        // ...
+        'log_channel' => env('NOTIFICATION_LOG_CHANNEL'),
+    ],
+
+The log lines themselves have also changed:
+
+- `Notification Sending` is logged at `debug` (1.x logged it at `info`); `Notification Sent` stays at `info`. A
+  channel whose level is `info` or higher, as a production default channel usually is, drops the Sending lines.
+  To keep them, write the log to a dedicated channel whose `level` is `debug`.
+- The `notifiable` context key is renamed to `notifiable_type`, and a new `notifiable_id` key carries the
+  notifiable's key when it is an Eloquent model with one. Update any log queries, filters or dashboards that
+  match on `notifiable`.
+- The lines are no longer mirrored to the `cloudwatch-notifications` channel when
+  `api-toolkit.logging.cloudwatch.enabled` is `true`. That channel and the setting are gone. To send the audit
+  log to CloudWatch, define a CloudWatch channel in your application (the driver now ships separately, see
+  "Composer dependency changes" above) and point `NOTIFICATION_LOG_CHANNEL` at it.
+
 ### Changed: Deferred writes are safe-by-default
 
 The deferred-write pool (the `Deferrable` trait, backed by `WritePool`) no longer drops records

@@ -607,6 +607,10 @@ return [
     | 'excluded_classes' is an array of fully-qualified notification class
     | names that should be excluded from the notification audit log.
     |
+    | 'log_channel' is the log channel the notification audit log is written to.
+    | Leave it null to use the application's default log channel, or name a
+    | channel defined in the application's logging configuration.
+    |
     */
 
     'notifications' => [
@@ -616,6 +620,8 @@ return [
         'excluded_classes' => [
             // Add notification class-strings to exclude from logging.
         ],
+
+        'log_channel' => env('NOTIFICATION_LOG_CHANNEL'),
 
     ],
 

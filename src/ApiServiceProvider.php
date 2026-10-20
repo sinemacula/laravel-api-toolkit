@@ -64,11 +64,6 @@ final class ApiServiceProvider extends ServiceProvider
             'api-toolkit',
         );
 
-        $this->replaceConfigRecursivelyFrom(
-            __DIR__ . '/../config/logging.php',
-            'logging',
-        );
-
         (new ContainerBindingRegistrar($this->app))->register();
 
         $this->commands([
