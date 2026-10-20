@@ -7,6 +7,8 @@ namespace SineMacula\ApiToolkit;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\ServiceProvider;
+use SineMacula\ApiToolkit\Console\CacheResourcesCommand;
+use SineMacula\ApiToolkit\Console\ClearResourcesCommand;
 use SineMacula\ApiToolkit\Console\ExportOpenApiCommand;
 use SineMacula\ApiToolkit\Console\GenerateDocsCommand;
 use SineMacula\ApiToolkit\Console\InvalidateMetadataCommand;
@@ -32,6 +34,15 @@ use SineMacula\ApiToolkit\Schema\Validation\SchemaValidator;
  */
 final class ApiServiceProvider extends ServiceProvider
 {
+    /** @var array<int, string> The console commands that boot without the discovery merge */
+    private const array MERGE_SKIPPING_COMMANDS = [
+        'config:cache',
+        'optimize',
+        'optimize:clear',
+        'api-toolkit:resources:cache',
+        'api-toolkit:resources:clear',
+    ];
+
     /**
      * Bootstrap any application services.
      *
@@ -71,7 +82,15 @@ final class ApiServiceProvider extends ServiceProvider
             ExportOpenApiCommand::class,
             GenerateDocsCommand::class,
             InvalidateMetadataCommand::class,
+            CacheResourcesCommand::class,
+            ClearResourcesCommand::class,
         ]);
+
+        $this->optimizes(
+            optimize: 'api-toolkit:resources:cache',
+            clear: 'api-toolkit:resources:clear',
+            key: 'api-toolkit',
+        );
     }
 
     /**
@@ -119,33 +138,60 @@ final class ApiServiceProvider extends ServiceProvider
      * Merge the attribute-discovered resources beneath the configured map.
      *
      * Discovery scans the configured resource paths for classes carrying the
-     * ForModel attribute; an explicit resource_map entry always wins over a
-     * discovered binding, so the static map remains the canonical-resource
-     * tiebreak and the seam for resources outside the scanned paths.
+     * ForModel attribute; an explicit resource_map entry wins over a discovered
+     * binding, so the static map remains the canonical-resource tiebreak and
+     * the seam for resources outside the scanned paths.
      *
-     * The merge is skipped while the config cache is being built: baking
-     * discovered bindings into the cached config would make them
-     * indistinguishable from explicit entries and mask later discovery changes.
-     * Runtime boots always merge fresh discoveries on top.
+     * The merge is skipped by a direct config:cache or optimize, so the config
+     * cache they build holds no discovered bindings; a merge baked in by
+     * another route is recomputed by the next merge. It is also skipped while
+     * the compiled map is rebuilt or cleared, directly or by optimize:clear, so
+     * a stale compiled map naming a resource that no longer resolves cannot
+     * block them.
      *
      * @return void
      */
     private function mergeDiscoveredResources(): void
     {
-        if (in_array('config:cache', (array) ($_SERVER['argv'] ?? []), true)) {
+        if (in_array($this->consoleCommand(), self::MERGE_SKIPPING_COMMANDS, true)) {
             return;
         }
 
-        $discovered = $this->app->make(ResourceDiscovery::class)->discover();
+        $this->app->make(ResourceDiscovery::class)->merge();
+    }
 
-        if ($discovered === []) {
-            return;
+    /**
+     * The name of the console command being run, or null when there is none or
+     * the application is not running in the console.
+     *
+     * The name is the first argument that is not an option, so global options
+     * placed before it are skipped, along with the value of a space-separated
+     * --env option. An argument value after the name is never matched.
+     *
+     * @return string|null
+     */
+    private function consoleCommand(): ?string
+    {
+        if (!$this->app->runningInConsole()) {
+            return null;
         }
 
-        $map = Config::get('api-toolkit.resources.resource_map', []);
-        $map = is_array($map) ? $map : [];
+        /** @var array<int, string> $argv */
+        $argv      = $_SERVER['argv'] ?? [];
+        $arguments = array_slice($argv, 1);
 
-        Config::set('api-toolkit.resources.resource_map', $map + $discovered);
+        while ($arguments !== []) {
+
+            $argument = array_shift($arguments);
+
+            if ($argument === '--env') {
+                array_shift($arguments);
+            } elseif (!str_starts_with($argument, '-')) {
+                return $argument;
+            }
+        }
+
+        return null;
     }
 
     /**

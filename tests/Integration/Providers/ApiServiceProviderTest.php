@@ -18,9 +18,11 @@ use Illuminate\Queue\Events\JobProcessed;
 use Illuminate\Routing\Router;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\ServiceProvider;
 use Laravel\Octane\Contracts\OperationTerminated;
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 use SineMacula\ApiToolkit\ApiQueryParser;
 use SineMacula\ApiToolkit\ApiServiceProvider;
 use SineMacula\ApiToolkit\Cache\CacheManager;
@@ -45,6 +47,10 @@ use SineMacula\ApiToolkit\Repositories\Concerns\WritePool;
 use SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry;
 use SineMacula\ApiToolkit\Schema\Introspection\SchemaIntrospector;
 use SineMacula\ApiToolkit\Schema\Validation\SchemaValidator;
+use Tests\Fixtures\Discovery\Conflict\FirstUserResource;
+use Tests\Fixtures\Discovery\Conflict\SecondUserResource;
+use Tests\Fixtures\Discovery\Invalid\AbstractAttributedResource;
+use Tests\Fixtures\Discovery\Primary\DiscoveredUserResource;
 use Tests\Fixtures\Discovery\Primary\Nested\DiscoveredPostResource;
 use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\User;
@@ -312,35 +318,159 @@ final class ApiServiceProviderTest extends TestCase
     }
 
     /**
-     * Test that the discovery merge is skipped while the config cache is being
-     * built, so discovered bindings are never baked into the cached config as
-     * pseudo-explicit entries.
+     * Provide the arguments of the commands that skip the discovery merge.
      *
+     * @return iterable<string, array{0: array<int, string>}>
+     */
+    public static function cacheBuildArgvProvider(): iterable
+    {
+        yield 'config:cache' => [['artisan', 'config:cache']];
+        yield 'optimize' => [['artisan', 'optimize']];
+        yield 'optimize:clear' => [['artisan', 'optimize:clear']];
+        yield 'resource cache' => [['artisan', 'api-toolkit:resources:cache']];
+        yield 'resource clear' => [['artisan', 'api-toolkit:resources:clear']];
+        yield 'leading inline option' => [['artisan', '--env=production', 'config:cache']];
+        yield 'leading flags' => [['artisan', '-q', '--no-interaction', 'optimize']];
+        yield 'leading separate env value' => [['artisan', '--env', 'production', 'config:cache']];
+    }
+
+    /**
+     * Test that the discovery merge is skipped while the config cache is being
+     * built, directly or by optimize, and while the compiled resource map is
+     * rebuilt or cleared, directly or by optimize:clear.
+     *
+     * @param  array<int, string>  $argv
      * @return void
      */
-    public function testConfigCacheBuildSkipsTheDiscoveryMerge(): void
+    #[DataProvider('cacheBuildArgvProvider')]
+    public function testCacheBuildSkipsTheDiscoveryMerge(array $argv): void
     {
-        $app = $this->getApplication();
-
         $this->getConfig()->set('api-toolkit.resources.paths', [dirname(__DIR__, 2) . '/Fixtures/Discovery/Primary']);
         $this->getConfig()->set('api-toolkit.resources.resource_map', [
             User::class => UserResource::class,
         ]);
 
-        $argv = $_SERVER['argv'] ?? null;
-
-        $_SERVER['argv'] = ['artisan', 'config:cache'];
-
-        try {
-            $provider = new ApiServiceProvider($app);
-            $provider->boot();
-        } finally {
-            $_SERVER['argv'] = $argv;
-        }
+        $this->bootWithArgv($argv);
 
         self::assertSame([
             User::class => UserResource::class,
         ], $this->getConfig()->get('api-toolkit.resources.resource_map'));
+    }
+
+    /**
+     * Provide the arguments of invocations that keep the discovery merge.
+     *
+     * @return iterable<string, array{0: array<int, string>|null}>
+     */
+    public static function mergingArgvProvider(): iterable
+    {
+        yield 'no arguments' => [null];
+        yield 'no command' => [['artisan']];
+        yield 'options only' => [['artisan', '-q', '--env', 'production']];
+        yield 'another command' => [['artisan', 'route:cache']];
+        yield 'argument value' => [['artisan', 'queue:work', '--queue', 'optimize']];
+        yield 'env value' => [['artisan', '--env', 'optimize', 'route:cache']];
+    }
+
+    /**
+     * Test that every other invocation keeps the discovery merge, including one
+     * whose argument value merely reads a cache build command.
+     *
+     * @param  array<int, string>|null  $argv
+     * @return void
+     */
+    #[DataProvider('mergingArgvProvider')]
+    public function testOtherInvocationsKeepTheDiscoveryMerge(?array $argv): void
+    {
+        $this->getConfig()->set('api-toolkit.resources.paths', [dirname(__DIR__, 2) . '/Fixtures/Discovery/Primary']);
+        $this->getConfig()->set('api-toolkit.resources.resource_map', []);
+
+        $this->bootWithArgv($argv);
+
+        self::assertSame([
+            User::class => DiscoveredUserResource::class,
+            Post::class => DiscoveredPostResource::class,
+        ], $this->getConfig()->get('api-toolkit.resources.resource_map'));
+    }
+
+    /**
+     * Test that a request outside the console keeps the discovery merge even
+     * when its arguments, filled from the query string, read a cache build
+     * command.
+     *
+     * @return void
+     */
+    public function testRequestOutsideTheConsoleKeepsTheDiscoveryMerge(): void
+    {
+        $app = $this->getApplication();
+
+        $this->getConfig()->set('api-toolkit.resources.paths', [dirname(__DIR__, 2) . '/Fixtures/Discovery/Primary']);
+        $this->getConfig()->set('api-toolkit.resources.resource_map', []);
+
+        $console  = new \ReflectionProperty(Application::class, 'isRunningInConsole');
+        $original = $console->getValue($app);
+
+        $console->setValue($app, false);
+
+        try {
+            $this->bootWithArgv(['search=foo', 'optimize']);
+        } finally {
+            $console->setValue($app, $original);
+        }
+
+        self::assertSame([
+            User::class => DiscoveredUserResource::class,
+            Post::class => DiscoveredPostResource::class,
+        ], $this->getConfig()->get('api-toolkit.resources.resource_map'));
+    }
+
+    /**
+     * Test that rebuilding the resource map in the process that merged a stale
+     * compiled map still reports a conflict on the contested model.
+     *
+     * @return void
+     */
+    public function testResourceCacheRebuildReportsConflictsDespiteAStaleCompiledMap(): void
+    {
+        $this->getConfig()->set('api-toolkit.resources.paths', [dirname(__DIR__, 2) . '/Fixtures/Discovery/Conflict']);
+        $this->getConfig()->set('api-toolkit.resources.resource_map', []);
+
+        $this->useIsolatedBootstrapPath();
+        $this->writeCompiledMap([User::class => FirstUserResource::class]);
+
+        $this->bootWithArgv(['artisan', 'deploy']);
+
+        Log::shouldReceive('warning')
+            ->once()
+            ->withArgs(static fn (string $message): bool => str_contains($message, 'ignoring [' . SecondUserResource::class . ']'));
+
+        $this->pendingArtisan('api-toolkit:resources:cache')->assertExitCode(0)->run();
+    }
+
+    /**
+     * Test that a compiled map binding a resource that can no longer resolve
+     * its type does not block its own rebuild.
+     *
+     * @return void
+     */
+    public function testResourceCacheRebuildsAStaleCompiledMap(): void
+    {
+        $this->getConfig()->set('api-toolkit.resources.enable_dynamic_morph_mapping', true);
+        $this->getConfig()->set('api-toolkit.resources.paths', [dirname(__DIR__, 2) . '/Fixtures/Discovery/Primary']);
+        $this->getConfig()->set('api-toolkit.resources.resource_map', []);
+
+        $this->useIsolatedBootstrapPath();
+
+        $path = $this->writeCompiledMap([User::class => AbstractAttributedResource::class]);
+
+        $this->bootWithArgv(['artisan', 'api-toolkit:resources:cache']);
+
+        $this->pendingArtisan('api-toolkit:resources:cache')->assertExitCode(0)->run();
+
+        self::assertSame([
+            User::class => DiscoveredUserResource::class,
+            Post::class => DiscoveredPostResource::class,
+        ], require $path);
     }
 
     /**
@@ -550,6 +680,78 @@ final class ApiServiceProviderTest extends TestCase
     public function testInvalidateMetadataCommandIsRegistered(): void
     {
         self::assertArrayHasKey('api-toolkit:invalidate-metadata', Artisan::all());
+    }
+
+    /**
+     * Test that the cache resources command is registered.
+     *
+     * @return void
+     */
+    public function testCacheResourcesCommandIsRegistered(): void
+    {
+        self::assertArrayHasKey('api-toolkit:resources:cache', Artisan::all());
+    }
+
+    /**
+     * Test that the clear resources command is registered.
+     *
+     * @return void
+     */
+    public function testClearResourcesCommandIsRegistered(): void
+    {
+        self::assertArrayHasKey('api-toolkit:resources:clear', Artisan::all());
+    }
+
+    /**
+     * Test that registering the provider hooks the resource commands into
+     * optimize and optimize:clear under the package key.
+     *
+     * @return void
+     */
+    public function testOptimizeRunsTheResourceCommands(): void
+    {
+        $optimize = ServiceProvider::$optimizeCommands;
+        $clear    = ServiceProvider::$optimizeClearCommands;
+
+        // The registry is static and outlives each test application, so an
+        // earlier registration must not satisfy this one.
+        unset(ServiceProvider::$optimizeCommands['api-toolkit'], ServiceProvider::$optimizeClearCommands['api-toolkit']);
+
+        try {
+            (new ApiServiceProvider($this->getApplication()))->register();
+
+            self::assertSame('api-toolkit:resources:cache', ServiceProvider::$optimizeCommands['api-toolkit'] ?? null);
+            self::assertSame('api-toolkit:resources:clear', ServiceProvider::$optimizeClearCommands['api-toolkit'] ?? null);
+        } finally {
+            ServiceProvider::$optimizeCommands      = $optimize;
+            ServiceProvider::$optimizeClearCommands = $clear;
+        }
+    }
+
+    /**
+     * Test that optimize compiles the resource map and optimize:clear removes
+     * it.
+     *
+     * @return void
+     */
+    public function testOptimizeAndOptimizeClearCompileAndRemoveTheResourceMap(): void
+    {
+        $this->getConfig()->set('api-toolkit.resources.paths', [dirname(__DIR__, 2) . '/Fixtures/Discovery/Primary']);
+
+        $this->useIsolatedBootstrapPath();
+
+        $path = $this->getApplication()->bootstrapPath('cache/api-toolkit-resources.php');
+
+        $this->pendingArtisan('optimize', ['--except' => 'config,events,routes,views'])->assertExitCode(0)->run();
+
+        self::assertSame([
+            User::class => DiscoveredUserResource::class,
+            Post::class => DiscoveredPostResource::class,
+        ], require $path);
+
+        $this->pendingArtisan('optimize:clear', ['--except' => 'config,cache,compiled,events,routes,views'])->assertExitCode(0)->run();
+
+        self::assertFileDoesNotExist($path);
     }
 
     /**
@@ -1147,6 +1349,30 @@ final class ApiServiceProviderTest extends TestCase
 
         $config->set('api-toolkit.parser.register_middleware', true);
         $config->set('api-toolkit.notifications.enable_logging', true);
+    }
+
+    /**
+     * Boot a fresh provider with the given console arguments, restoring the
+     * original arguments afterwards.
+     *
+     * @param  array<int, string>|null  $argv
+     * @return void
+     */
+    private function bootWithArgv(?array $argv): void
+    {
+        $original = $_SERVER['argv'] ?? null;
+
+        $_SERVER['argv'] = $argv;
+
+        if ($argv === null) {
+            unset($_SERVER['argv']);
+        }
+
+        try {
+            (new ApiServiceProvider($this->getApplication()))->boot();
+        } finally {
+            $_SERVER['argv'] = $original;
+        }
     }
 
     /**

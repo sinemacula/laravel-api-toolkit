@@ -545,6 +545,25 @@ Parameter names have also been normalized to camelCase (`$load_missing` is now `
 constructor, `$requested_aliases` is now `$requestedAliases` on `eagerLoadCountsFor()`); update any
 named-argument call sites.
 
+### Added: resources are discovered from `#[ForModel]` and compiled by `optimize`
+
+A resource carrying the `#[ForModel(...)]` attribute is bound to its model at boot, so the
+`api-toolkit.resources.resource_map` no longer needs an entry per resource. With
+`api-toolkit.resources.paths` left null, the application's own `Http/Resources` directory and each module's
+(resolved from `app_path()`) are scanned; set it to an explicit array to choose the roots, or to an empty array
+to switch discovery off. An explicit `resource_map` entry always wins over a discovered binding.
+
+Without a compiled map the scan runs on every runtime boot, which is meant for development. The compiled map
+is a PHP file at `bootstrap/cache/api-toolkit-resources.php`, written by
+`php artisan api-toolkit:resources:cache` and removed by `php artisan api-toolkit:resources:clear`. Both are
+hooked into `php artisan optimize` and `php artisan optimize:clear`. While the file exists it is served as-is,
+and with `validate_schemas` enabled it is ignored so every diagnostic fires. Discovery never uses the cache
+store, so with `validate_schemas` disabled boot and `route:cache` work without a reachable store; schema
+validation reads its metadata through the store.
+
+**Action required.** Run `php artisan optimize` (or `php artisan api-toolkit:resources:cache`) on every deploy.
+Rebuild or clear the compiled map after adding, moving, or re-binding a resource, or after changing `paths`.
+
 ### Changed: ApiCriteria decomposed; filter operators are extensible
 
 The protected `applyFilters()`, `applyEagerLoading()`, `applyLimit()`, and `applyOrder()` hooks have been

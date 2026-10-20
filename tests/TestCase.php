@@ -11,6 +11,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Testing\PendingCommand;
 use Orchestra\Testbench\TestCase as OrchestraTestCase;
 use SineMacula\ApiToolkit\ApiServiceProvider;
 use SineMacula\ApiToolkit\Cache\MetadataCacheWriter;
@@ -21,6 +22,7 @@ use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 use SineMacula\ApiToolkit\Search\IndexProof;
 use SineMacula\ApiToolkit\Search\SearchPlan;
 use Tests\Fixtures\Support\FunctionOverrides;
+use Tests\Fixtures\Support\UnreachableCacheStore;
 
 /**
  * Base test case for the API toolkit package.
@@ -37,6 +39,9 @@ abstract class TestCase extends OrchestraTestCase
 
     /** @var string|null The per-test isolated file-cache directory, if one was provisioned. */
     private ?string $fileCachePath = null;
+
+    /** @var string|null The per-test isolated bootstrap directory, if one was provisioned. */
+    private ?string $bootstrapPath = null;
 
     /**
      * Clean up the testing environment before the next test.
@@ -69,6 +74,11 @@ abstract class TestCase extends OrchestraTestCase
             (new Filesystem)->deleteDirectory($this->fileCachePath);
         }
 
+        if ($this->bootstrapPath !== null) {
+            (new Filesystem)->deleteDirectory($this->bootstrapPath);
+            $this->bootstrapPath = null;
+        }
+
         parent::tearDown();
     }
 
@@ -85,6 +95,82 @@ abstract class TestCase extends OrchestraTestCase
         $writer = $this->app->make(MetadataCacheWriter::class); // @phpstan-ignore method.nonObject
 
         return $writer->storageKey($key);
+    }
+
+    /**
+     * Point the application at an empty bootstrap directory of its own, so a
+     * compiled file one test writes is never read by a parallel process.
+     *
+     * @return string
+     */
+    protected function useIsolatedBootstrapPath(): string
+    {
+        assert($this->app !== null);
+
+        $this->bootstrapPath = sys_get_temp_dir() . '/api-toolkit-bootstrap-' . getmypid() . '-' . uniqid('', true);
+
+        mkdir($this->bootstrapPath . '/cache', 0o755, true);
+
+        $this->app->useBootstrapPath($this->bootstrapPath);
+
+        return $this->bootstrapPath;
+    }
+
+    /**
+     * Write the given PHP source as the compiled resource map.
+     *
+     * @param  string  $php
+     * @return string
+     */
+    protected function writeCompiledResources(string $php): string
+    {
+        assert($this->app !== null);
+
+        $path = $this->app->bootstrapPath('cache/api-toolkit-resources.php');
+
+        file_put_contents($path, $php);
+
+        return $path;
+    }
+
+    /**
+     * Write the given map as the compiled resource map.
+     *
+     * @param  array<class-string, class-string>  $map
+     * @return string
+     */
+    protected function writeCompiledMap(array $map): string
+    {
+        return $this->writeCompiledResources('<?php return ' . var_export($map, true) . ';');
+    }
+
+    /**
+     * Make the default cache store one whose every operation throws, as a store
+     * behind an unreachable network would.
+     *
+     * @return void
+     */
+    protected function useUnreachableCacheStore(): void
+    {
+        assert($this->app !== null);
+
+        UnreachableCacheStore::install($this->app);
+    }
+
+    /**
+     * Run the given Artisan command as a pending command.
+     *
+     * @param  string  $command
+     * @param  array<string, mixed>  $parameters
+     * @return \Illuminate\Testing\PendingCommand
+     */
+    protected function pendingArtisan(string $command, array $parameters = []): PendingCommand
+    {
+        $pending = $this->artisan($command, $parameters);
+
+        assert($pending instanceof PendingCommand);
+
+        return $pending;
     }
 
     /**

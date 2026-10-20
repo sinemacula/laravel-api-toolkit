@@ -6,15 +6,19 @@ namespace Tests\Integration\Resources;
 
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\ApiServiceProvider;
 use SineMacula\ApiToolkit\Http\Resources\PolymorphicResource;
 use SineMacula\ApiToolkit\Http\Resources\ResourceDiscovery;
+use Tests\Fixtures\Discovery\Conflict\FirstUserResource;
 use Tests\Fixtures\Discovery\Primary\DiscoveredUserResource;
 use Tests\Fixtures\Discovery\Primary\Nested\DiscoveredPostResource;
 use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Resources\UserResource;
+use Tests\Fixtures\Support\FreshApplication;
+use Tests\Fixtures\Support\UnreachableCacheStore;
 use Tests\TestCase;
 
 /**
@@ -127,6 +131,82 @@ final class ResourceDiscoveryIntegrationTest extends TestCase
     }
 
     /**
+     * Test that boot discovers and merges the resource map when the cache store
+     * is unreachable.
+     *
+     * @return void
+     */
+    public function testBootSucceedsWithAnUnreachableCacheStore(): void
+    {
+        $this->useUnreachableCacheStore();
+        $this->assertCacheStoreIsUnreachable();
+
+        $this->configureDiscovery();
+        config()->set('api-toolkit.resources.validate_schemas', false);
+
+        $this->bootProvider();
+
+        self::assertSame([
+            User::class => DiscoveredUserResource::class,
+            Post::class => DiscoveredPostResource::class,
+        ], config('api-toolkit.resources.resource_map'));
+    }
+
+    /**
+     * Test that boot serves the compiled map when the cache store is
+     * unreachable.
+     *
+     * @return void
+     */
+    public function testBootServesTheCompiledMapWithAnUnreachableCacheStore(): void
+    {
+        $this->useUnreachableCacheStore();
+        $this->assertCacheStoreIsUnreachable();
+
+        $this->configureDiscovery();
+        config()->set('api-toolkit.resources.validate_schemas', false);
+        $this->useIsolatedBootstrapPath();
+        $this->writeCompiledMap([User::class => FirstUserResource::class]);
+
+        $this->bootProvider();
+
+        self::assertSame([
+            User::class => FirstUserResource::class,
+        ], config('api-toolkit.resources.resource_map'));
+    }
+
+    /**
+     * Test that route:cache, which boots a fresh application, succeeds with an
+     * unreachable cache store and caches routes built against the discovered
+     * resource map.
+     *
+     * @return void
+     */
+    public function testRouteCacheSucceedsWithAnUnreachableCacheStore(): void
+    {
+        assert($this->app !== null);
+
+        $bootstrapPath = $this->useIsolatedBootstrapPath();
+
+        file_put_contents($bootstrapPath . '/app.php', sprintf(
+            '<?php return %s::create(%s, %s);',
+            FreshApplication::class,
+            var_export($bootstrapPath, true),
+            var_export([dirname(__DIR__, 2) . '/Fixtures/Discovery/Primary'], true),
+        ));
+
+        $this->pendingArtisan('route:cache')
+            ->expectsOutputToContain('Routes cached successfully.')
+            ->assertExitCode(0)
+            ->run();
+
+        $routes = (string) file_get_contents($this->app->getCachedRoutesPath());
+
+        self::assertStringContainsString(var_export(DiscoveredUserResource::class, true), $routes);
+        self::assertStringContainsString(var_export(DiscoveredPostResource::class, true), $routes);
+    }
+
+    /**
      * Configure the discovery paths and resource map for the test.
      *
      * @param  array<int, string>|null  $paths
@@ -138,6 +218,25 @@ final class ResourceDiscoveryIntegrationTest extends TestCase
         config()->set('api-toolkit.resources.paths', $paths ?? [dirname(__DIR__, 2) . '/Fixtures/Discovery/Primary']);
         config()->set('api-toolkit.resources.resource_map', $map);
         config()->set('api-toolkit.resources.enable_dynamic_morph_mapping', true);
+    }
+
+    /**
+     * Assert the default cache store fails, so a boot that succeeds against it
+     * cannot have used it.
+     *
+     * @return void
+     */
+    private function assertCacheStoreIsUnreachable(): void
+    {
+        try {
+            Cache::get('probe');
+        } catch (\RuntimeException $exception) {
+            self::assertSame(UnreachableCacheStore::MESSAGE, $exception->getMessage());
+
+            return;
+        }
+
+        self::fail('The cache store was reachable.');
     }
 
     /**

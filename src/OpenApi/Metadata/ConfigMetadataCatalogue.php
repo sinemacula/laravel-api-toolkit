@@ -59,8 +59,9 @@ final readonly class ConfigMetadataCatalogue implements MetadataCatalogue
      * existing order and always win on a model collision, so the static map
      * stays the canonical tiebreak; discovered bindings for models absent from
      * the config are appended. Discovery is resolved directly rather than read
-     * from the merged config because the boot-time merge is skipped under a
-     * cached config, so the full set is returned regardless of cache state.
+     * from the merged config because the boot-time merge is skipped while the
+     * config cache is being built, so the full set is returned regardless of
+     * cache state.
      *
      * @return array<class-string, class-string>
      */

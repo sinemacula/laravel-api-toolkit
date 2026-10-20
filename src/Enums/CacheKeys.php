@@ -32,9 +32,6 @@ enum CacheKeys: string
     // Store the resource associated with each model
     case MODEL_RESOURCES = 'model-resources:%s';
 
-    // Store the attribute-discovered model to resource bindings for a path set
-    case DISCOVERED_RESOURCES = 'discovered-resources:%s';
-
     // Store the index proof behind a search surface, per schema identity
     case SEARCH_INDEX_PROOF = 'search-index-proof:%s:%s';
 
