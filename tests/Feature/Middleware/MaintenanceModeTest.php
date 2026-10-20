@@ -74,6 +74,39 @@ final class MaintenanceModeTest extends TestCase
     }
 
     /**
+     * Test that a guarded route forwards the Retry-After and Refresh headers
+     * when maintenance mode was activated with a retry and refresh interval.
+     *
+     * @return void
+     */
+    public function testGuardedRouteForwardsRetryAfterAndRefreshHeaders(): void
+    {
+        $response = $this->duringMaintenance(fn () => $this->getJson('/data'), ['retry' => 60, 'refresh' => '15']);
+
+        $response->assertStatus(503);
+        $response->assertJsonPath('error.status', 503);
+        $response->assertJsonPath('error.code', 10200);
+        $response->assertHeader('Retry-After', '60');
+        $response->assertHeader('Refresh', '15');
+    }
+
+    /**
+     * Test that a guarded route sends no Retry-After or Refresh headers when
+     * maintenance mode was activated without them.
+     *
+     * @return void
+     */
+    public function testGuardedRouteSendsNoRetryOrRefreshHeadersWithoutThem(): void
+    {
+        $response = $this->duringMaintenance(fn () => $this->getJson('/data'));
+
+        $response->assertStatus(503);
+        $response->assertJsonPath('error.code', 10200);
+        $response->assertHeaderMissing('Retry-After');
+        $response->assertHeaderMissing('Refresh');
+    }
+
+    /**
      * Test that a bypass-list route is served as normal during maintenance
      * mode.
      *
@@ -88,27 +121,30 @@ final class MaintenanceModeTest extends TestCase
     }
 
     /**
-     * Activate maintenance mode, run the callback, and deactivate afterwards.
+     * Activate maintenance mode with the given payload overrides, run the
+     * callback, and deactivate afterwards.
      *
      * @template TReturn
      *
      * @param  \Closure(): TReturn  $callback
+     * @param  array<string, mixed>  $overrides
      * @return TReturn
      */
-    private function duringMaintenance(\Closure $callback): mixed
+    private function duringMaintenance(\Closure $callback, array $overrides = []): mixed
     {
         assert($this->app !== null);
 
         $app = $this->app;
 
-        $app->maintenanceMode()->activate([
+        $app->maintenanceMode()->activate(array_merge([
+            'except'   => [],
             'redirect' => null,
-            'retry'    => 60,
+            'retry'    => null,
             'refresh'  => null,
             'secret'   => null,
             'status'   => 503,
             'template' => null,
-        ]);
+        ], $overrides));
 
         try {
             return $callback();

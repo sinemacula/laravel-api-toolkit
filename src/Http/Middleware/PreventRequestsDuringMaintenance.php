@@ -54,7 +54,7 @@ final class PreventRequestsDuringMaintenance extends Middleware
         try {
             return parent::handle($request, $next);
         } catch (HttpException $exception) {
-            throw new MaintenanceModeException;
+            throw new MaintenanceModeException(null, $exception->getHeaders());
         }
     }
 }
