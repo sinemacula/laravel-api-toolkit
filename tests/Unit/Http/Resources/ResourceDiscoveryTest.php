@@ -4,12 +4,10 @@ declare(strict_types = 1);
 
 namespace Tests\Unit\Http\Resources;
 
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Log;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Attributes\ForModel;
-use SineMacula\ApiToolkit\Enums\CacheKeys;
 use SineMacula\ApiToolkit\Http\Resources\ResourceDiscovery;
 use Tests\Fixtures\Discovery\Conflict\FirstUserResource;
 use Tests\Fixtures\Discovery\Multi\MultiModelResource;
@@ -18,6 +16,7 @@ use Tests\Fixtures\Discovery\Primary\Nested\DiscoveredPostResource;
 use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Resources\UserResource;
+use Tests\Fixtures\Support\FunctionOverrides;
 use Tests\TestCase;
 
 /**
@@ -157,9 +156,6 @@ final class ResourceDiscoveryTest extends TestCase
         Config::set('api-toolkit.resources.paths', [$this->fixturePath('DoesNotExist')]);
 
         self::assertSame([], $this->discovery()->discover());
-
-        // An empty path set must not touch the metadata cache at all.
-        self::assertFalse(Cache::has($this->metadataStorageKey(CacheKeys::DISCOVERED_RESOURCES->resolveKey([md5('')]))));
     }
 
     /**
@@ -220,23 +216,138 @@ final class ResourceDiscoveryTest extends TestCase
     }
 
     /**
-     * Test that the compiled map is memoised through the metadata cache: a warm
-     * cache entry for the scanned file fingerprint is returned without
-     * rescanning the filesystem.
+     * Test that a compiled map is served as-is without scanning: the configured
+     * paths hold only invalid bindings, each of which a scan would report with
+     * a warning.
      *
      * @return void
      */
-    public function testCompiledMapIsMemoisedThroughTheMetadataCache(): void
+    public function testCompiledMapIsServedWithoutScanning(): void
     {
-        $path = $this->fixturePath('Primary');
+        Log::shouldReceive('warning')->never();
 
-        Config::set('api-toolkit.resources.paths', [$path]);
+        Config::set('api-toolkit.resources.paths', [$this->fixturePath('Invalid')]);
 
-        $sentinel = [User::class => FirstUserResource::class];
+        $this->useIsolatedBootstrapPath();
+        $this->writeCompiledMap([User::class => FirstUserResource::class]);
 
-        Cache::forever($this->discoveryCacheKey([$path]), $sentinel);
+        self::assertSame([User::class => FirstUserResource::class], $this->discovery()->discover());
+    }
 
-        self::assertSame($sentinel, $this->discovery()->discover());
+    /**
+     * Test that an empty compiled map is honoured rather than treated as
+     * absent, so a build that discovered nothing never scans on boot.
+     *
+     * @return void
+     */
+    public function testEmptyCompiledMapIsHonoured(): void
+    {
+        Config::set('api-toolkit.resources.paths', [$this->fixturePath('Primary')]);
+
+        $this->useIsolatedBootstrapPath();
+        $this->writeCompiledMap([]);
+
+        self::assertSame([], $this->discovery()->discover());
+    }
+
+    /**
+     * Test that discovery scans the configured paths when no compiled map
+     * exists, detecting the absence without raising a warning.
+     *
+     * @return void
+     */
+    public function testMissingCompiledMapFallsBackToScanning(): void
+    {
+        Config::set('api-toolkit.resources.paths', [$this->fixturePath('Primary')]);
+
+        $this->useIsolatedBootstrapPath();
+
+        set_error_handler(static function (int $level, string $message): never {
+            throw new \LogicException($message);
+        });
+
+        try {
+            self::assertSame([
+                User::class => DiscoveredUserResource::class,
+                Post::class => DiscoveredPostResource::class,
+            ], $this->discovery()->discover());
+        } finally {
+            restore_error_handler();
+        }
+    }
+
+    /**
+     * Test that a compiled file that does not return an array is ignored in
+     * favour of a scan.
+     *
+     * @return void
+     */
+    public function testCompiledFileWithoutAnArrayFallsBackToScanning(): void
+    {
+        Config::set('api-toolkit.resources.paths', [$this->fixturePath('Primary')]);
+
+        $this->useIsolatedBootstrapPath();
+        $this->writeCompiledResources("<?php return 'stale';\n");
+
+        self::assertSame([
+            User::class => DiscoveredUserResource::class,
+            Post::class => DiscoveredPostResource::class,
+        ], $this->discovery()->discover());
+    }
+
+    /**
+     * Test that a compiled map removed after its existence check, as an
+     * optimize:clear racing a boot does, falls back to a scan rather than
+     * failing the boot.
+     *
+     * @return void
+     */
+    public function testCompiledMapClearedMidBootFallsBackToScanning(): void
+    {
+        Config::set('api-toolkit.resources.paths', [$this->fixturePath('Primary')]);
+
+        $this->useIsolatedBootstrapPath();
+
+        FunctionOverrides::set('is_file', static fn (): bool => true);
+
+        self::assertSame([
+            User::class => DiscoveredUserResource::class,
+            Post::class => DiscoveredPostResource::class,
+        ], $this->discovery()->discover());
+    }
+
+    /**
+     * Test that the compiled map lives in the application's bootstrap cache
+     * directory.
+     *
+     * @return void
+     */
+    public function testCachePathIsUnderTheBootstrapCacheDirectory(): void
+    {
+        assert($this->app !== null);
+
+        $this->useIsolatedBootstrapPath();
+
+        self::assertSame($this->app->bootstrapPath('cache/api-toolkit-resources.php'), $this->discovery()->cachePath());
+    }
+
+    /**
+     * Test that an explicit scan ignores the compiled map, so rebuilding it
+     * never re-writes a stale map.
+     *
+     * @return void
+     */
+    public function testScanIgnoresTheCompiledMap(): void
+    {
+        Config::set('api-toolkit.resources.paths', [$this->fixturePath('Primary')]);
+
+        $this->useIsolatedBootstrapPath();
+        $this->writeCompiledMap([User::class => FirstUserResource::class]);
+
+        self::assertSame([
+            User::class => DiscoveredUserResource::class,
+            Post::class => DiscoveredPostResource::class,
+        ], $this->discovery()->scan());
     }
 
     /**
@@ -311,19 +422,18 @@ final class ResourceDiscoveryTest extends TestCase
     }
 
     /**
-     * Test that enabling schema validation bypasses the metadata cache, so
-     * every diagnostic runs on every boot.
+     * Test that enabling schema validation ignores the compiled map, so every
+     * diagnostic runs on every boot.
      *
      * @return void
      */
-    public function testSchemaValidationBypassesTheCache(): void
+    public function testSchemaValidationIgnoresTheCompiledMap(): void
     {
-        $path = $this->fixturePath('Primary');
-
         Config::set('api-toolkit.resources.validate_schemas', true);
-        Config::set('api-toolkit.resources.paths', [$path]);
+        Config::set('api-toolkit.resources.paths', [$this->fixturePath('Primary')]);
 
-        Cache::forever($this->discoveryCacheKey([$path]), [User::class => FirstUserResource::class]);
+        $this->useIsolatedBootstrapPath();
+        $this->writeCompiledMap([User::class => FirstUserResource::class]);
 
         self::assertSame([
             User::class => DiscoveredUserResource::class,
@@ -332,58 +442,10 @@ final class ResourceDiscoveryTest extends TestCase
     }
 
     /**
-     * Test that changing a scanned file rotates the cache key, so the next boot
-     * rescans instead of serving the stale map.
-     *
-     * @return void
-     */
-    public function testFileChangeRotatesTheCacheKey(): void
-    {
-        $directory = sys_get_temp_dir() . '/resource-discovery-' . uniqid((string) getmypid(), true);
-
-        mkdir($directory, 0o755, true);
-
-        $contents = file_get_contents($this->fixturePath('Primary') . '/DiscoveredUserResource.php');
-
-        assert($contents !== false);
-
-        $file = $directory . '/DiscoveredUserResource.php';
-
-        file_put_contents($file, $contents);
-
-        try {
-            Config::set('api-toolkit.resources.paths', [$directory]);
-
-            $sentinel = [User::class => FirstUserResource::class];
-
-            Cache::forever($this->discoveryCacheKey([$directory]), $sentinel);
-
-            // The warm entry for the current fingerprint is served as-is.
-            self::assertSame($sentinel, $this->discovery()->discover());
-
-            touch($file, time() + 10);
-            clearstatcache();
-
-            // The touched file rotates the key, forcing a fresh scan.
-            self::assertSame([
-                User::class => DiscoveredUserResource::class,
-            ], $this->discovery()->discover());
-        } finally {
-            unlink($file);
-            rmdir($directory);
-        }
-    }
-
-    /**
      * Test that a published config predating the paths key falls back to the
      * default application resource directory rather than silently disabling
-     * discovery.
-     *
-     * The scan is observed through its cache write rather than a binding, so
-     * the transient file cannot leak a discovery into concurrently booting
-     * tests: the class it declares is not autoloadable. The app path is
-     * redirected to an isolated temporary tree, so a worker enumerating the
-     * shared skeleton cannot stat the probe after this test removes it.
+     * discovery. The app path is redirected to an isolated temporary tree so
+     * the assertion is deterministic under parallel runs.
      *
      * @return void
      */
@@ -405,19 +467,21 @@ final class ResourceDiscoveryTest extends TestCase
 
         $this->app->useAppPath($base);
 
-        $directory = $base . '/Http/Resources';
-        $file      = $directory . '/FallbackProbe.php';
+        $contents = file_get_contents($this->fixturePath('Primary') . '/DiscoveredUserResource.php');
 
-        file_put_contents($file, "<?php\n\nnamespace Ghost\\Discovery;\n\nclass FallbackProbe {}\n");
+        assert($contents !== false);
+
+        $file = $base . '/Http/Resources/DiscoveredUserResource.php';
+
+        file_put_contents($file, $contents);
 
         try {
-            self::assertSame([], $this->discovery()->discover());
-
-            // The default path was scanned: the fingerprint key was written.
-            self::assertTrue(Cache::has($this->discoveryCacheKey([$directory])));
+            self::assertSame([
+                User::class => DiscoveredUserResource::class,
+            ], $this->discovery()->discover());
         } finally {
             unlink($file);
-            rmdir($directory);
+            rmdir($base . '/Http/Resources');
             rmdir($base . '/Http');
             rmdir($base);
         }
@@ -708,40 +772,5 @@ final class ResourceDiscoveryTest extends TestCase
     private function fixturePath(string $directory): string
     {
         return dirname(__DIR__, 3) . '/Fixtures/Discovery/' . $directory;
-    }
-
-    /**
-     * Compute the stored discovery cache key for the given paths, mirroring the
-     * file-and-mtime fingerprint the service derives.
-     *
-     * @param  array<int, string>  $paths
-     * @return string
-     */
-    private function discoveryCacheKey(array $paths): string
-    {
-        $files = [];
-
-        foreach ($paths as $path) {
-
-            $iterator = new \RecursiveIteratorIterator(
-                new \RecursiveDirectoryIterator($path, \FilesystemIterator::SKIP_DOTS),
-            );
-
-            /** @var \SplFileInfo $file */
-            foreach ($iterator as $file) {
-
-                if ($file->getExtension() !== 'php' || $file->getRealPath() === false) {
-                    continue;
-                }
-
-                $files[] = $file->getRealPath();
-            }
-        }
-
-        sort($files);
-
-        $fingerprint = array_map(static fn (string $file): string => $file . ':' . (int) filemtime($file), $files);
-
-        return $this->metadataStorageKey(CacheKeys::DISCOVERED_RESOURCES->resolveKey([md5(implode('|', $fingerprint))]));
     }
 }

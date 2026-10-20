@@ -4,24 +4,23 @@ declare(strict_types = 1);
 
 namespace SineMacula\ApiToolkit\Http\Resources;
 
+use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Log;
 use SineMacula\ApiToolkit\Attributes\ForModel;
-use SineMacula\ApiToolkit\Cache\MetadataCacheWriter;
 use SineMacula\ApiToolkit\Contracts\ApiResourceInterface;
-use SineMacula\ApiToolkit\Enums\CacheKeys;
 
 /**
  * Boot-time discovery of attribute-bound API resources.
  *
  * Scans the configured resource paths for classes carrying the ForModel
- * attribute and compiles them into a model to resource map. The compiled map is
- * memoised through the metadata cache under a key fingerprinted by the scanned
- * file list and modification times, so the expensive tokenise and reflect pass
- * runs only when a scanned file actually changes, while adding, editing, or
- * removing a resource rotates the key and triggers a rescan on the next boot.
- * When schema validation is enabled the cache is bypassed entirely so every
- * diagnostic fires on every boot.
+ * attribute and compiles them into a model to resource map. When a compiled map
+ * exists under bootstrap/cache, written by the api-toolkit:resources:cache
+ * command (which php artisan optimize runs), it is served as-is and no
+ * directory is walked; otherwise the paths are scanned on every boot, which is
+ * the development path. When schema validation is enabled the compiled map is
+ * ignored so every diagnostic fires on every boot. The cache store is never
+ * used, so discovery works without a reachable store.
  *
  * Files are visited in a deterministic (sorted) order; when two resources claim
  * the same model the first discovered binding wins and a warning is logged, or
@@ -38,21 +37,37 @@ final readonly class ResourceDiscovery
     /**
      * Create a new resource discovery instance.
      *
-     * @param  \SineMacula\ApiToolkit\Cache\MetadataCacheWriter  $cacheWriter
+     * @param  \Illuminate\Contracts\Foundation\Application  $app
      * @return void
      */
     public function __construct(
 
-        /** The writer used to memoise the compiled discovery map. */
-        private MetadataCacheWriter $cacheWriter,
+        /** The application whose bootstrap cache holds the compiled map. */
+        private Application $app,
     ) {}
 
     /**
-     * Discover the model to resource bindings from the configured paths.
+     * Discover the model to resource bindings, serving the compiled map when
+     * one exists.
      *
      * @return array<class-string, class-string>
      */
     public function discover(): array
+    {
+        if (Config::get('api-toolkit.resources.validate_schemas') === true) {
+            return $this->scan();
+        }
+
+        return $this->cached() ?? $this->scan();
+    }
+
+    /**
+     * Scan the configured paths and compile the model to resource bindings,
+     * ignoring any compiled map.
+     *
+     * @return array<class-string, class-string>
+     */
+    public function scan(): array
     {
         $configured = Config::get('api-toolkit.resources.paths');
 
@@ -68,28 +83,59 @@ final readonly class ResourceDiscovery
 
         $paths = array_filter($paths, static fn (mixed $path): bool => is_string($path) && is_dir($path));
 
-        $files = $this->files($paths);
+        return $this->scanFiles($this->files($paths));
+    }
 
-        if ($files === []) {
-            return [];
+    /**
+     * The path of the compiled discovery map.
+     *
+     * @return string
+     */
+    public function cachePath(): string
+    {
+        return $this->app->bootstrapPath('cache/api-toolkit-resources.php');
+    }
+
+    /**
+     * Load the compiled discovery map, or null when there is none.
+     *
+     * The map is required rather than required once so every boot in a
+     * long-lived process reads it afresh.
+     *
+     * @return array<class-string, class-string>|null
+     *
+     * @SuppressWarnings("php:S2003")
+     * @SuppressWarnings("php:S4833")
+     */
+    private function cached(): ?array
+    {
+        $path = $this->cachePath();
+
+        if (!is_file($path)) {
+            return null;
         }
 
-        if (Config::get('api-toolkit.resources.validate_schemas') === true) {
-            return $this->scan($files);
+        try {
+            $map = require $path;
+        } catch (\ErrorException) { // @phpstan-ignore catch.neverThrown
+            // The error handler throws for a map cleared after is_file().
+            return null;
         }
 
-        return $this->cacheWriter->rememberMetadataForever($this->cacheKey($files), fn (): array => $this->scan($files));
+        /** @var array<class-string, class-string>|null */
+        return is_array($map) ? $map : null;
     }
 
     /**
      * The default scan roots when no paths are configured.
      *
-     * Resolved from app_path() at runtime rather than baked into the cached
-     * config, so a newly added module is discovered without re-caching and a
-     * modular application - which repoints app_path() at its module root - is
-     * covered with no coupling to any modules package. The application's own
-     * resource directory is scanned alongside each module's, the latter sitting
-     * one level below the flat directory.
+     * Resolved from app_path() at scan time rather than baked into the cached
+     * config, so a newly added module is found on the next uncached boot or
+     * rebuild of the compiled map, and a modular application - which repoints
+     * app_path() at its module root - is covered with no coupling to any
+     * modules package. The application's own resource directory is scanned
+     * alongside each module's, the latter sitting one level below the flat
+     * directory.
      *
      * @return array<int, string>
      */
@@ -102,26 +148,12 @@ final readonly class ResourceDiscovery
     }
 
     /**
-     * Build the cache key for the given file list, fingerprinted by path and
-     * modification time so any file change rotates the key.
-     *
-     * @param  array<int, string>  $files
-     * @return string
-     */
-    private function cacheKey(array $files): string
-    {
-        $fingerprint = array_map(static fn (string $file): string => $file . ':' . (int) filemtime($file), $files);
-
-        return CacheKeys::DISCOVERED_RESOURCES->resolveKey([md5(implode('|', $fingerprint))]);
-    }
-
-    /**
      * Scan the given files and compile the discovered bindings.
      *
      * @param  array<int, string>  $files
      * @return array<class-string, class-string>
      */
-    private function scan(array $files): array
+    private function scanFiles(array $files): array
     {
         $map = [];
 

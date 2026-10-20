@@ -45,6 +45,7 @@ use SineMacula\ApiToolkit\Repositories\Concerns\WritePool;
 use SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry;
 use SineMacula\ApiToolkit\Schema\Introspection\SchemaIntrospector;
 use SineMacula\ApiToolkit\Schema\Validation\SchemaValidator;
+use Tests\Fixtures\Discovery\Primary\DiscoveredUserResource;
 use Tests\Fixtures\Discovery\Primary\Nested\DiscoveredPostResource;
 use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\User;
@@ -330,6 +331,68 @@ final class ApiServiceProviderTest extends TestCase
     }
 
     /**
+     * Test that the discovery merge is skipped while optimize builds the config
+     * cache, which it does in a fresh application whose arguments still read
+     * optimize.
+     *
+     * @return void
+     */
+    public function testOptimizeBuildSkipsTheDiscoveryMerge(): void
+    {
+        $app = $this->getApplication();
+
+        $this->getConfig()->set('api-toolkit.resources.paths', [dirname(__DIR__, 2) . '/Fixtures/Discovery/Primary']);
+        $this->getConfig()->set('api-toolkit.resources.resource_map', [
+            User::class => UserResource::class,
+        ]);
+
+        $argv = $_SERVER['argv'] ?? null;
+
+        $_SERVER['argv'] = ['artisan', 'optimize'];
+
+        try {
+            $provider = new ApiServiceProvider($app);
+            $provider->boot();
+        } finally {
+            $_SERVER['argv'] = $argv;
+        }
+
+        self::assertSame([
+            User::class => UserResource::class,
+        ], $this->getConfig()->get('api-toolkit.resources.resource_map'));
+    }
+
+    /**
+     * Test that a command argument that merely reads optimize does not skip the
+     * discovery merge.
+     *
+     * @return void
+     */
+    public function testOptimizeAsAnArgumentValueKeepsTheDiscoveryMerge(): void
+    {
+        $app = $this->getApplication();
+
+        $this->getConfig()->set('api-toolkit.resources.paths', [dirname(__DIR__, 2) . '/Fixtures/Discovery/Primary']);
+        $this->getConfig()->set('api-toolkit.resources.resource_map', []);
+
+        $argv = $_SERVER['argv'] ?? null;
+
+        $_SERVER['argv'] = ['artisan', 'queue:work', '--queue', 'optimize'];
+
+        try {
+            $provider = new ApiServiceProvider($app);
+            $provider->boot();
+        } finally {
+            $_SERVER['argv'] = $argv;
+        }
+
+        self::assertSame([
+            User::class => DiscoveredUserResource::class,
+            Post::class => DiscoveredPostResource::class,
+        ], $this->getConfig()->get('api-toolkit.resources.resource_map'));
+    }
+
+    /**
      * Test that registerMorphMap builds the map when dynamic mapping is enabled
      * and a valid resource map is configured.
      *
@@ -536,6 +599,78 @@ final class ApiServiceProviderTest extends TestCase
     public function testInvalidateMetadataCommandIsRegistered(): void
     {
         self::assertArrayHasKey('api-toolkit:invalidate-metadata', Artisan::all());
+    }
+
+    /**
+     * Test that the cache resources command is registered.
+     *
+     * @return void
+     */
+    public function testCacheResourcesCommandIsRegistered(): void
+    {
+        self::assertArrayHasKey('api-toolkit:resources:cache', Artisan::all());
+    }
+
+    /**
+     * Test that the clear resources command is registered.
+     *
+     * @return void
+     */
+    public function testClearResourcesCommandIsRegistered(): void
+    {
+        self::assertArrayHasKey('api-toolkit:resources:clear', Artisan::all());
+    }
+
+    /**
+     * Test that registering the provider hooks the resource commands into
+     * optimize and optimize:clear under the package key.
+     *
+     * @return void
+     */
+    public function testOptimizeRunsTheResourceCommands(): void
+    {
+        $optimize = ServiceProvider::$optimizeCommands;
+        $clear    = ServiceProvider::$optimizeClearCommands;
+
+        // The registry is static and outlives each test application, so an
+        // earlier registration must not satisfy this one.
+        unset(ServiceProvider::$optimizeCommands['api-toolkit'], ServiceProvider::$optimizeClearCommands['api-toolkit']);
+
+        try {
+            (new ApiServiceProvider($this->getApplication()))->register();
+
+            self::assertSame('api-toolkit:resources:cache', ServiceProvider::$optimizeCommands['api-toolkit'] ?? null);
+            self::assertSame('api-toolkit:resources:clear', ServiceProvider::$optimizeClearCommands['api-toolkit'] ?? null);
+        } finally {
+            ServiceProvider::$optimizeCommands      = $optimize;
+            ServiceProvider::$optimizeClearCommands = $clear;
+        }
+    }
+
+    /**
+     * Test that optimize compiles the resource map and optimize:clear removes
+     * it.
+     *
+     * @return void
+     */
+    public function testOptimizeAndOptimizeClearCompileAndRemoveTheResourceMap(): void
+    {
+        $this->getConfig()->set('api-toolkit.resources.paths', [dirname(__DIR__, 2) . '/Fixtures/Discovery/Primary']);
+
+        $this->useIsolatedBootstrapPath();
+
+        $path = $this->getApplication()->bootstrapPath('cache/api-toolkit-resources.php');
+
+        $this->pendingArtisan('optimize', ['--except' => 'config,events,routes,views'])->assertExitCode(0)->run();
+
+        self::assertSame([
+            User::class => DiscoveredUserResource::class,
+            Post::class => DiscoveredPostResource::class,
+        ], require $path);
+
+        $this->pendingArtisan('optimize:clear', ['--except' => 'config,cache,compiled,events,routes,views'])->assertExitCode(0)->run();
+
+        self::assertFileDoesNotExist($path);
     }
 
     /**

@@ -87,7 +87,9 @@ return [
     | Give an explicit array to override the roots, or an empty array to
     | disable discovery. Discovered bindings merge beneath the resource_map (an
     | explicit entry always wins), so annotating a resource is the primary way
-    | to bind it to its model. Missing paths are skipped.
+    | to bind it to its model. Missing paths are skipped. The scan result is
+    | compiled by php artisan optimize, so changing the paths needs a rebuild
+    | or a clear of the compiled map.
     |
     | `resource_map`: Explicit model to resource overrides. An entry here wins
     | over a discovered binding, acting as the canonical-resource tiebreak when

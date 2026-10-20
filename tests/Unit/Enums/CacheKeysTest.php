@@ -34,7 +34,6 @@ final class CacheKeysTest extends TestCase
         yield 'MODEL_SCHEMA_INDEXES' => [CacheKeys::MODEL_SCHEMA_INDEXES, 'model-schema-indexes:%s:%s'];
         yield 'MODEL_RELATIONS' => [CacheKeys::MODEL_RELATIONS, 'model-relations:%s:%s'];
         yield 'MODEL_RESOURCES' => [CacheKeys::MODEL_RESOURCES, 'model-resources:%s'];
-        yield 'DISCOVERED_RESOURCES' => [CacheKeys::DISCOVERED_RESOURCES, 'discovered-resources:%s'];
         yield 'SEARCH_INDEX_PROOF' => [CacheKeys::SEARCH_INDEX_PROOF, 'search-index-proof:%s:%s'];
         yield 'METADATA_GENERATION' => [CacheKeys::METADATA_GENERATION, 'metadata-generation'];
     }
@@ -118,6 +117,6 @@ final class CacheKeysTest extends TestCase
      */
     public function testExpectedCaseCount(): void
     {
-        self::assertCount(9, CacheKeys::cases());
+        self::assertCount(8, CacheKeys::cases());
     }
 }

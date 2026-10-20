@@ -7,6 +7,8 @@ namespace SineMacula\ApiToolkit;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\ServiceProvider;
+use SineMacula\ApiToolkit\Console\CacheResourcesCommand;
+use SineMacula\ApiToolkit\Console\ClearResourcesCommand;
 use SineMacula\ApiToolkit\Console\ExportOpenApiCommand;
 use SineMacula\ApiToolkit\Console\GenerateDocsCommand;
 use SineMacula\ApiToolkit\Console\InvalidateMetadataCommand;
@@ -76,7 +78,15 @@ final class ApiServiceProvider extends ServiceProvider
             ExportOpenApiCommand::class,
             GenerateDocsCommand::class,
             InvalidateMetadataCommand::class,
+            CacheResourcesCommand::class,
+            ClearResourcesCommand::class,
         ]);
+
+        $this->optimizes(
+            optimize: 'api-toolkit:resources:cache',
+            clear: 'api-toolkit:resources:clear',
+            key: 'api-toolkit',
+        );
     }
 
     /**
@@ -131,13 +141,16 @@ final class ApiServiceProvider extends ServiceProvider
      * The merge is skipped while the config cache is being built: baking
      * discovered bindings into the cached config would make them
      * indistinguishable from explicit entries and mask later discovery changes.
+     * The optimize command builds the config cache in a fresh application
+     * within the same process, whose arguments still read optimize, so it is
+     * skipped too. Only the command itself is matched, never an argument value.
      * Runtime boots always merge fresh discoveries on top.
      *
      * @return void
      */
     private function mergeDiscoveredResources(): void
     {
-        if (in_array('config:cache', (array) ($_SERVER['argv'] ?? []), true)) {
+        if (in_array($_SERVER['argv'][1] ?? null, ['config:cache', 'optimize'], true)) {
             return;
         }
 

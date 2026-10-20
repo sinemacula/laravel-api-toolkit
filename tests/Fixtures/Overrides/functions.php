@@ -177,3 +177,30 @@ function interface_exists(string $interface, bool $autoload = true): bool
 
     return \interface_exists($interface, $autoload);
 }
+
+namespace SineMacula\ApiToolkit\Http\Resources;
+
+use Tests\Fixtures\Support\FunctionOverrides;
+
+/**
+ * Override is_file() within the Http\Resources namespace.
+ *
+ * Lets tests simulate a compiled resource map that is removed between the
+ * existence check and the require that loads it.
+ *
+ * @SuppressWarnings("php:S100")
+ * @SuppressWarnings("php:S4144")
+ *
+ * @param  string  $filename
+ * @return bool
+ */
+function is_file(string $filename): bool
+{
+    $override = FunctionOverrides::get('is_file');
+
+    if ($override !== null) {
+        return (bool) $override($filename);
+    }
+
+    return \is_file($filename);
+}

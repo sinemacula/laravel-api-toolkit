@@ -6,10 +6,12 @@ namespace Tests\Integration\Resources;
 
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\ApiServiceProvider;
 use SineMacula\ApiToolkit\Http\Resources\PolymorphicResource;
 use SineMacula\ApiToolkit\Http\Resources\ResourceDiscovery;
+use Tests\Fixtures\Discovery\Conflict\FirstUserResource;
 use Tests\Fixtures\Discovery\Primary\DiscoveredUserResource;
 use Tests\Fixtures\Discovery\Primary\Nested\DiscoveredPostResource;
 use Tests\Fixtures\Models\Post;
@@ -127,6 +129,51 @@ final class ResourceDiscoveryIntegrationTest extends TestCase
     }
 
     /**
+     * Test that boot discovers and merges the resource map when the cache store
+     * is unreachable, as route:cache and every request boot do.
+     *
+     * @return void
+     */
+    public function testBootSucceedsWithAnUnreachableCacheStore(): void
+    {
+        $this->useUnreachableCacheStore();
+        $this->assertCacheStoreIsUnreachable();
+
+        $this->configureDiscovery();
+        config()->set('api-toolkit.resources.validate_schemas', false);
+
+        $this->bootProvider();
+
+        self::assertSame([
+            User::class => DiscoveredUserResource::class,
+            Post::class => DiscoveredPostResource::class,
+        ], config('api-toolkit.resources.resource_map'));
+    }
+
+    /**
+     * Test that boot serves the compiled map when the cache store is
+     * unreachable.
+     *
+     * @return void
+     */
+    public function testBootServesTheCompiledMapWithAnUnreachableCacheStore(): void
+    {
+        $this->useUnreachableCacheStore();
+        $this->assertCacheStoreIsUnreachable();
+
+        $this->configureDiscovery();
+        config()->set('api-toolkit.resources.validate_schemas', false);
+        $this->useIsolatedBootstrapPath();
+        $this->writeCompiledMap([User::class => FirstUserResource::class]);
+
+        $this->bootProvider();
+
+        self::assertSame([
+            User::class => FirstUserResource::class,
+        ], config('api-toolkit.resources.resource_map'));
+    }
+
+    /**
      * Configure the discovery paths and resource map for the test.
      *
      * @param  array<int, string>|null  $paths
@@ -138,6 +185,25 @@ final class ResourceDiscoveryIntegrationTest extends TestCase
         config()->set('api-toolkit.resources.paths', $paths ?? [dirname(__DIR__, 2) . '/Fixtures/Discovery/Primary']);
         config()->set('api-toolkit.resources.resource_map', $map);
         config()->set('api-toolkit.resources.enable_dynamic_morph_mapping', true);
+    }
+
+    /**
+     * Assert the default cache store fails, so a boot that succeeds against it
+     * cannot have used it.
+     *
+     * @return void
+     */
+    private function assertCacheStoreIsUnreachable(): void
+    {
+        try {
+            Cache::get('probe');
+        } catch (\RuntimeException $exception) {
+            self::assertSame('The cache store is unreachable.', $exception->getMessage());
+
+            return;
+        }
+
+        self::fail('The cache store was reachable.');
     }
 
     /**

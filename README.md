@@ -275,6 +275,15 @@ resource, or to bind resources living outside the scanned paths. When two discov
 explicit entry resolves it, the first (in sorted file order) wins and a warning is logged; with
 `validate_schemas` enabled the conflict fails the boot instead.
 
+Without a compiled map the scan runs on every runtime boot, which is meant for development. In production, run
+`php artisan optimize` (or `php artisan api-toolkit:resources:cache`) on every deploy: it compiles the map to
+`bootstrap/cache/api-toolkit-resources.php`, and `php artisan optimize:clear` (or
+`php artisan api-toolkit:resources:clear`) removes it. While the file exists it is served as-is, so rebuild or
+clear it after adding, moving, or re-binding a resource, or after changing `paths` (including to an empty
+array). With `validate_schemas` enabled the file is ignored and the scan runs on every boot, so every
+diagnostic fires. Discovery never uses the cache store, so boot and `route:cache` work without a reachable
+store.
+
 **Eager-load planning** - the resource builds `with()`/`withCount()`/`withSum()`/`withAvg()` maps from the
 resolved field set, so relations are loaded precisely and automatically:
 
@@ -624,6 +633,10 @@ php artisan api-toolkit:invalidate-metadata
 ```
 
 It exits with a failure if the cache store rejects the new generation.
+
+The build itself should run `php artisan optimize`, which compiles the discovered resource map along with the
+framework's own caches. Reload PHP workers after a rebuild, as with those caches, since OPcache with
+`validate_timestamps=0` keeps serving the previous file.
 
 Entries written under a retired generation are no longer read but stay in the store until it evicts or
 clears them. Each invalidation leaves at most one copy of the metadata behind.
