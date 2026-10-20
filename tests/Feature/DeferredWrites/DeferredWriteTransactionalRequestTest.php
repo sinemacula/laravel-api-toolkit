@@ -8,11 +8,12 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
-use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Exceptions;
 use Illuminate\Support\Facades\Route;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\CoversTrait;
 use SineMacula\ApiToolkit\Events\WritePoolFlushFailed;
+use SineMacula\ApiToolkit\Exceptions\WritePoolFlushException;
 use SineMacula\ApiToolkit\Listeners\WritePoolFlushSubscriber;
 use SineMacula\ApiToolkit\Repositories\Concerns\Deferrable;
 use SineMacula\ApiToolkit\Repositories\Concerns\WritePool;
@@ -71,12 +72,14 @@ final class DeferredWriteTransactionalRequestTest extends TestCase
     {
         Event::fake([WritePoolFlushFailed::class]);
 
-        Log::spy();
+        Exceptions::fake();
 
         $this->postJson('/transactional-users')->assertStatus(202);
 
         self::assertSame(0, DB::table('users')->count());
 
+        Exceptions::assertReportedCount(1);
+        Exceptions::assertReported(WritePoolFlushException::class);
         Event::assertDispatched(WritePoolFlushFailed::class);
     }
 }

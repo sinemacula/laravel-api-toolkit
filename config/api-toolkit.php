@@ -521,17 +521,18 @@ return [
     |   - 'throw': throw WritePoolFlushException on the first failure, carrying
     |     the partial result, and preserve the failed and unprocessed records
     |     in the buffer. Best for callers that own an explicit flush site.
-    |   - 'log' (opt-in best-effort): catch, log error, continue, and clear the
-    |     buffer. Failed records are dropped, so use this only for genuinely
+    |   - 'log' (opt-in best-effort): catch, log a warning, continue, and clear
+    |     the buffer. Failed records are dropped, so use this only for genuinely
     |     disposable writes such as audit, analytics, or telemetry.
     |
     | `transactional` wraps each table's chunk set in a database transaction so
     | that table's inserts are applied all-or-nothing. Disabled by default to
     | preserve per-chunk performance and the existing partial-persist behavior.
     |
-    | `rethrow_at_boundary` re-throws a WritePoolFlushException after escalating
-    | it at the lifecycle boundary. Only applies under the 'throw' strategy and
-    | is disabled by default so the boundary is never hard-crashed.
+    | `rethrow_at_boundary` re-throws a WritePoolFlushException at the
+    | lifecycle boundary, which then reports it, instead of the subscriber
+    | reporting it. Only applies under the 'throw' strategy and is disabled by
+    | default so the boundary is never hard-crashed.
     |
     | `invalidate_query_cache` invalidates the per-query repository cache for
     | every table the boundary flush touched, so a deferred insert never leaves

@@ -11,11 +11,10 @@ use Illuminate\Foundation\Http\Events\RequestHandled;
 use Illuminate\Queue\Events\JobFailed;
 use Illuminate\Queue\Events\JobProcessed;
 use Illuminate\Support\Facades\Config;
-use Illuminate\Support\Facades\Log;
 use SineMacula\ApiToolkit\Events\WritePoolFlushFailed;
+use SineMacula\ApiToolkit\Exceptions\FailureReporter;
 use SineMacula\ApiToolkit\Exceptions\WritePoolFlushException;
 use SineMacula\ApiToolkit\Repositories\Concerns\WritePool;
-use SineMacula\ApiToolkit\Repositories\Concerns\WritePoolFlushResult;
 
 /**
  * Flushes the deferred write pool at lifecycle boundaries.
@@ -62,11 +61,13 @@ final readonly class WritePoolFlushSubscriber
      * invalidates the per-query cache for the tables it persists, so this
      * subscriber only escalates failures: when the flush returns a result with
      * failures, or raises a WritePoolFlushException under the throw strategy,
-     * the failure is escalated loudly - a warning is logged and a
-     * WritePoolFlushFailed event is dispatched. The exception is only re-thrown
-     * when the rethrow_at_boundary config flag is enabled, so the lifecycle
-     * boundary is never hard-crashed by default. Any other throwable is
-     * unexpected and logged at error level.
+     * the failure is reported as a WritePoolFlushException and a
+     * WritePoolFlushFailed event is dispatched. Under the log strategy the
+     * failed writes are disposable and each chunk is already logged, so only
+     * the event is dispatched. A raised exception is only re-thrown when the
+     * rethrow_at_boundary config flag is enabled, in which case reporting is
+     * left to the boundary that catches it. Any other throwable is unexpected
+     * and is reported.
      *
      * @return void
      *
@@ -75,42 +76,65 @@ final readonly class WritePoolFlushSubscriber
     public function handleFlush(): void
     {
         try {
-
             $flushResult = $this->container->make(WritePool::class)->flush();
-
-            if ($flushResult->isSuccessful()) {
-                return;
-            }
-
-            $this->escalate($flushResult);
         } catch (WritePoolFlushException $exception) {
+            $this->escalateThrown($exception);
 
-            $this->escalate($exception->flushResult());
-
-            if (Config::get('api-toolkit.deferred_writes.rethrow_at_boundary', false)) {
-                throw $exception;
-            }
+            return;
         } catch (\Throwable $e) {
+            FailureReporter::report($e, 'WritePool flush subscriber failed');
 
-            Log::error('WritePool flush subscriber failed', ['error' => $e->getMessage(), 'exception' => $e]);
+            return;
+        }
+
+        if ($flushResult->isSuccessful()) {
+            return;
+        }
+
+        $this->escalate(new WritePoolFlushException($flushResult, $flushResult->firstException()), $flushResult->droppedRecordCount() === 0);
+    }
+
+    /**
+     * Escalate a WritePoolFlushException raised by the throw strategy,
+     * re-throwing it when the rethrow_at_boundary config flag is enabled.
+     *
+     * @param  \SineMacula\ApiToolkit\Exceptions\WritePoolFlushException  $exception
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\WritePoolFlushException
+     */
+    private function escalateThrown(WritePoolFlushException $exception): void
+    {
+        $rethrow = (bool) Config::get('api-toolkit.deferred_writes.rethrow_at_boundary', false);
+
+        $this->escalate($exception, !$rethrow);
+
+        if ($rethrow) {
+            throw $exception;
         }
     }
 
     /**
-     * Escalate a flush failure with a warning log and a dispatched
+     * Escalate a flush failure by optionally reporting it and dispatching a
      * WritePoolFlushFailed event.
      *
-     * @param  \SineMacula\ApiToolkit\Repositories\Concerns\WritePoolFlushResult  $flushResult
+     * Neither step can escape: a reporting failure falls back to a log line and
+     * still lets the event dispatch, and a dispatch failure is reported.
+     *
+     * @param  \SineMacula\ApiToolkit\Exceptions\WritePoolFlushException  $exception
+     * @param  bool  $report
      * @return void
      */
-    private function escalate(WritePoolFlushResult $flushResult): void
+    private function escalate(WritePoolFlushException $exception, bool $report): void
     {
-        Log::warning('WritePool flush completed with failures: ' . $flushResult->failureCount() . ' chunk(s) failed out of ' . $flushResult->totalCount() . ' total.', [
-            'failure_count' => $flushResult->failureCount(),
-            'total_count'   => $flushResult->totalCount(),
-            'tables'        => array_keys($flushResult->failures()),
-        ]);
+        if ($report) {
+            FailureReporter::report($exception, 'WritePool boundary flush failed');
+        }
 
-        event(new WritePoolFlushFailed($flushResult));
+        try {
+            event(new WritePoolFlushFailed($exception->flushResult()));
+        } catch (\Throwable $e) { // @phpstan-ignore catch.neverThrown
+            FailureReporter::report($e, 'WritePool flush subscriber failed');
+        }
     }
 }

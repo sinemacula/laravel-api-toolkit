@@ -7,6 +7,7 @@ namespace Tests\Feature\DeferredWrites;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Exceptions;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Route;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -23,10 +24,10 @@ use Tests\TestCase;
  * requests.
  *
  * Proves each config-wired on_failure posture behaves as documented when a
- * flush fails: throw escalates a boundary flush failure loudly (and surfaces
- * the exception only when rethrow_at_boundary is set), log drops the failed
- * records after logging, and an in-handler auto-flush failure under throw
- * reaches the client as a server error rather than the accepted response.
+ * flush fails: throw reports a boundary flush failure (and surfaces the
+ * exception instead only when rethrow_at_boundary is set), log drops the failed
+ * records after logging a warning, and an in-handler auto-flush failure under
+ * throw reaches the client as a server error rather than the accepted response.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -72,8 +73,8 @@ final class DeferredWriteFailureStrategyRequestTest extends TestCase
     }
 
     /**
-     * Test that the throw strategy escalates a boundary flush failure while the
-     * request still returns its accepted response.
+     * Test that the throw strategy reports a boundary flush failure once while
+     * the request still returns its accepted response.
      *
      * @return void
      */
@@ -82,11 +83,12 @@ final class DeferredWriteFailureStrategyRequestTest extends TestCase
         Config::set('api-toolkit.deferred_writes.on_failure', 'throw');
 
         Event::fake([WritePoolFlushFailed::class]);
-
-        Log::spy();
+        Exceptions::fake();
 
         $this->postJson('/deferred-invalid-boundary')->assertStatus(202);
 
+        Exceptions::assertReportedCount(1);
+        Exceptions::assertReported(WritePoolFlushException::class);
         Event::assertDispatched(WritePoolFlushFailed::class, fn (WritePoolFlushFailed $event): bool => $event->flushResult->failureCount() === 1);
     }
 
@@ -101,19 +103,24 @@ final class DeferredWriteFailureStrategyRequestTest extends TestCase
         Config::set('api-toolkit.deferred_writes.on_failure', 'throw');
         Config::set('api-toolkit.deferred_writes.rethrow_at_boundary', true);
 
-        Log::spy();
+        Exceptions::fake();
 
         // The boundary flush runs after the response is produced, so the
         // re-thrown exception surfaces out of the test kernel rather than as a
-        // rendered response.
+        // rendered response, and its reporting is left to the boundary.
         $this->expectException(WritePoolFlushException::class);
 
-        $this->postJson('/deferred-invalid-boundary');
+        try {
+            $this->postJson('/deferred-invalid-boundary');
+        } finally {
+            Exceptions::assertNothingReported();
+        }
     }
 
     /**
-     * Test that the log strategy drops the failed records after logging while
-     * the request returns its accepted response.
+     * Test that the log strategy drops the failed records after logging a
+     * warning, without reporting, while the request returns its accepted
+     * response.
      *
      * @return void
      */
@@ -122,10 +129,13 @@ final class DeferredWriteFailureStrategyRequestTest extends TestCase
         Config::set('api-toolkit.deferred_writes.on_failure', 'log');
 
         Log::spy();
+        Exceptions::fake();
 
         $this->postJson('/deferred-invalid-boundary')->assertStatus(202);
 
-        Log::shouldHaveReceived('error')->once(); // @phpstan-ignore staticMethod.notFound
+        Log::shouldHaveReceived('warning')->once(); // @phpstan-ignore staticMethod.notFound
+        Log::shouldNotHaveReceived('error'); // @phpstan-ignore staticMethod.notFound
+        Exceptions::assertNothingReported();
 
         /** @var \SineMacula\ApiToolkit\Repositories\Concerns\WritePool $pool */
         $pool = $this->app->make(WritePool::class); // @phpstan-ignore method.nonObject
@@ -144,8 +154,10 @@ final class DeferredWriteFailureStrategyRequestTest extends TestCase
         Config::set('api-toolkit.deferred_writes.on_failure', 'throw');
         Config::set('api-toolkit.deferred_writes.pool_limit', 1);
 
-        Log::spy();
+        Exceptions::fake();
 
         $this->postJson('/deferred-invalid-handler')->assertStatus(500);
+
+        Exceptions::assertReported(WritePoolFlushException::class);
     }
 }

@@ -217,10 +217,10 @@ The hooks a subclass may override (all `protected`, all no-ops by default except
 - `handle(): mixed` - abstract; runs inside the transaction and **returns** the typed output. Signal
   failure only by throwing (in 1.x `handle()` returned `bool`).
 - `afterCommit(mixed $output): void` - replaces the 1.x `success()` hook; runs after the transaction has
-  committed. An exception thrown here is captured as a side-effect error on the result and logged; the
+  committed. An exception thrown here is captured as a side-effect error on the result and reported; the
   committed outcome stands.
 - `onFailure(\Throwable $exception): void` - replaces the 1.x `failed()` hook; runs after rollback and
-  lock release. An exception thrown here is caught and logged.
+  lock release. An exception thrown here is caught and reported.
 
 ### Services: cross-cutting concerns implement ServiceConcern
 
@@ -1061,6 +1061,33 @@ These changes are largely additive but include behavioral fixes worth noting:
 - `ApiException` exposes a new instance-level `getStatusCode()` method, which the handler now uses when
   rendering; the static `getHttpStatusCode()` remains available.
 
+### Changed: caught failures are reported rather than logged
+
+Failures the toolkit catches so that a boundary or a committed outcome survives are now passed to the
+application's exception handler with `report()` instead of being written straight to the log, so they
+reach the error tracker and follow the handler's `dontReport`, throttling and `reportable` rules. This
+covers:
+
+- an exception thrown by a service's `afterCommit()` or `onFailure()` hook;
+- an Octane or queue worker cache flush failure;
+- an unexpected failure inside the deferred-write boundary subscriber;
+- a boundary flush that fails to persist writes not marked disposable (the `collect` strategy, or
+  `throw` without `rethrow_at_boundary`), reported as a `WritePoolFlushException` whose report context
+  carries the chunk and record counts and the failing table names, never the buffered records. Its
+  previous exception is the first underlying database failure.
+
+The handler's rules apply to the reported exception itself, not to its previous exception. To silence
+the boundary flush report, add `$exceptions->dontReport(WritePoolFlushException::class)`; a
+`dontReport(QueryException::class)` rule does not suppress the wrapper. The chained database exception
+keeps its own message, which log formatters and error trackers print alongside the wrapper, so the
+report can carry record values from the failed chunk. Setting `mask_bindings_in_exception_messages` on
+the connection only stops the bindings being substituted into the quoted SQL; the database driver's
+own error text, such as a duplicate-key message, can still quote the offending value.
+
+If reporting itself fails, the original exception falls back to an error log line, and the failure
+never escapes. The `log` deferred-write strategy now writes its failure log lines at warning level instead
+of error, since those records are disposable by design.
+
 ### Changed: Deferred writes are safe-by-default
 
 The deferred-write pool (the `Deferrable` trait, backed by `WritePool`) no longer drops records
@@ -1075,12 +1102,12 @@ a log line, and a memory-pressure auto-flush silently switched `throw` to `colle
 
 - `collect` (new default, safe): catch every chunk failure, accumulate it in the returned
   `WritePoolFlushResult`, and **retain the failed records in the buffer** for the next flush attempt.
-  No record is dropped and no exception escapes. The boundary subscriber logs a warning and dispatches
-  the `WritePoolFlushFailed` event.
+  No record is dropped and no exception escapes. The boundary subscriber reports a
+  `WritePoolFlushException` and dispatches the `WritePoolFlushFailed` event.
 - `throw` (safe, explicit): raise `WritePoolFlushException` on the first failure, carrying the partial
   result, and preserve the failed and unprocessed records. The memory-pressure auto-flush now honours
   this -- `defer()` / `add()` may raise when the pool limit is crossed.
-- `log` (opt-in best-effort): catch, log at error level, continue, and **clear the buffer** (the old
+- `log` (opt-in best-effort): catch, log a warning, continue, and **clear the buffer** (the old
   default behaviour). Failed records are dropped; use this only for genuinely disposable writes such
   as audit, analytics, or telemetry.
 
@@ -1093,15 +1120,20 @@ a log line, and a memory-pressure auto-flush silently switched `throw` to `colle
     # Wrap each table's chunk set in a transaction (all-or-nothing per table).
     DEFERRED_WRITES_TRANSACTIONAL=true
 
-    # Re-throw a WritePoolFlushException at the lifecycle boundary after
-    # escalating it (only applies under the 'throw' strategy).
+    # Re-throw a WritePoolFlushException at the lifecycle boundary instead of
+    # reporting it; the boundary's own handler reports it (only applies under
+    # the 'throw' strategy).
     DEFERRED_WRITES_RETHROW_AT_BOUNDARY=true
 
-**Boundary 500s.** The default was deliberately set to `collect` rather than `throw`: the boundary
-flush runs on `RequestHandled` *after* the response is built, so a default-throw would turn a single
-constraint violation in a buffered batch into a 500 for an already-completed request. Consumers that
-want a raised exception should call `flushWrites()` explicitly under the `throw` strategy, or enable
-`DEFERRED_WRITES_RETHROW_AT_BOUNDARY` in a context (such as a queue job) that can absorb it.
+**Boundary 500s.** The boundary flush runs on `RequestHandled` *after* the response is built. Under
+`throw` the boundary subscriber catches the raised exception and reports it, so the request keeps its
+response. Only with `DEFERRED_WRITES_RETHROW_AT_BOUNDARY` enabled does the exception escape, turning a
+single constraint violation in a buffered batch into a 500 for an already-completed request.
+Consumers that want a raised exception should call `flushWrites()` explicitly under the `throw`
+strategy, where the caller can handle it. Do not rely on the rethrow in queue workers: a rethrow from
+`JobProcessed` marks a job that completed as failed, so it is released for a retry or failed, and a
+rethrow from `JobFailed` replaces the job's own exception, which is then never reported. Call
+`flushWrites()` before the job returns instead.
 
 **Crash window.** Buffered writes live only in PHP memory until the boundary flush. A crash,
 out-of-memory condition, or SIGKILL before the flush loses any unflushed records. This is inherent to
@@ -1112,7 +1144,9 @@ use `log` for fire-and-forget writes that must never be retained.
 **New observability on `WritePoolFlushResult`.** The result now exposes record-level counts --
 `flushedRecordCount()`, `failedRecordCount()`, `retainedRecordCount()`, and `droppedRecordCount()` --
 alongside the existing chunk counters, plus `flushedTables()` listing every table the flush attempted
-to persist. Subscribe to the `WritePoolFlushFailed` event to escalate retained failures to a
+to persist, and `firstException()` returning the first underlying failure. `firstException()` is not
+kept when the result is serialized, so a queued `WritePoolFlushFailed` listener always gets `null`
+from it. Subscribe to the `WritePoolFlushFailed` event to escalate retained failures to a
 dead-letter sink, alerting, or metrics.
 
 **Per-query cache invalidation at the boundary (on by default).** A deferred insert is persisted

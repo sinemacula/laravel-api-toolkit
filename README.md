@@ -442,6 +442,10 @@ dropping them. The `'throw'` strategy raises a `WritePoolFlushException` for cal
 site. The `'log'` strategy is best-effort only - use it solely for genuinely disposable writes such as
 telemetry.
 
+When a boundary flush fails under `'collect'` or `'throw'`, the failure is reported through the exception handler
+as a `WritePoolFlushException` and a `WritePoolFlushFailed` event is dispatched. Under `'log'` the failure is
+written as a warning rather than reported, and the event is still dispatched.
+
 The `WritePool` is a scoped singleton, so after a deferred write you can call
 `app(WritePool::class)->lastAutoFlushResult()` to observe the outcome of the most recent automatic flush
 (`null` if none has occurred). Under the non-throwing `'collect'` and `'log'` strategies this accessor is the

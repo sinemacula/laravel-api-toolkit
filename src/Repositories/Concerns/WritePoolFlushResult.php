@@ -8,6 +8,21 @@ namespace SineMacula\ApiToolkit\Repositories\Concerns;
  * Immutable value object encapsulating the outcome of a WritePool flush
  * operation.
  *
+ * @phpstan-type SerializedFlushResult array{
+ *     successCount: int,
+ *     failureCount: int,
+ *     failures: array<string, list<array{
+ *         records: list<array<string, mixed>>,
+ *         exception: string,
+ *         exception_class: string,
+ *     }>>,
+ *     flushedRecordCount: int,
+ *     failedRecordCount: int,
+ *     retainedRecordCount: int,
+ *     droppedRecordCount: int,
+ *     flushedTables: array<int, string>,
+ * }
+ *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
@@ -24,6 +39,7 @@ final readonly class WritePoolFlushResult
      * @param  int  $retainedRecordCount
      * @param  int  $droppedRecordCount
      * @param  array<int, string>  $flushedTables
+     * @param  \Throwable|null  $firstException
      * @return void
      */
     public function __construct(
@@ -51,7 +67,53 @@ final readonly class WritePoolFlushResult
 
         /** The distinct tables this flush attempted to persist. */
         private array $flushedTables = [],
+
+        /** The first underlying failure, if any chunk failed. */
+        private ?\Throwable $firstException = null,
     ) {}
+
+    /**
+     * Serialize the result without the underlying exception, whose trace may
+     * hold values that cannot be serialized.
+     *
+     * @return SerializedFlushResult
+     *
+     * @SuppressWarnings("php:S100")
+     */
+    public function __serialize(): array
+    {
+        return [
+            'successCount'        => $this->successCount,
+            'failureCount'        => $this->failureCount,
+            'failures'            => $this->failures,
+            'flushedRecordCount'  => $this->flushedRecordCount,
+            'failedRecordCount'   => $this->failedRecordCount,
+            'retainedRecordCount' => $this->retainedRecordCount,
+            'droppedRecordCount'  => $this->droppedRecordCount,
+            'flushedTables'       => $this->flushedTables,
+        ];
+    }
+
+    /**
+     * Restore a serialized result; the underlying exception is not restored.
+     *
+     * @param  SerializedFlushResult  $data
+     * @return void
+     *
+     * @SuppressWarnings("php:S100")
+     */
+    public function __unserialize(array $data): void
+    {
+        $this->successCount        = $data['successCount'];
+        $this->failureCount        = $data['failureCount'];
+        $this->failures            = $data['failures'];
+        $this->flushedRecordCount  = $data['flushedRecordCount'];
+        $this->failedRecordCount   = $data['failedRecordCount'];
+        $this->retainedRecordCount = $data['retainedRecordCount'];
+        $this->droppedRecordCount  = $data['droppedRecordCount'];
+        $this->flushedTables       = $data['flushedTables'];
+        $this->firstException      = null;
+    }
 
     /**
      * Get the distinct tables whose buffered records this flush attempted to
@@ -152,5 +214,17 @@ final readonly class WritePoolFlushResult
     public function droppedRecordCount(): int
     {
         return $this->droppedRecordCount;
+    }
+
+    /**
+     * Get the first underlying failure raised during the flush, if any.
+     *
+     * Not retained when the result is serialized.
+     *
+     * @return \Throwable|null
+     */
+    public function firstException(): ?\Throwable
+    {
+        return $this->firstException;
     }
 }

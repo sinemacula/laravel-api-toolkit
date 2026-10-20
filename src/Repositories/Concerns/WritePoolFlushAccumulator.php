@@ -36,6 +36,9 @@ final class WritePoolFlushAccumulator
     /** @var array<string, list<array<string, mixed>>> Records retained in the buffer for retry, keyed by table name. */
     private array $retainedRecords = [];
 
+    /** @var \Throwable|null The first underlying failure, kept as the cause of a reported flush failure. */
+    private ?\Throwable $firstException = null;
+
     /**
      * Record a successfully inserted chunk.
      *
@@ -60,6 +63,7 @@ final class WritePoolFlushAccumulator
     {
         $this->failureCount++;
         $this->failedRecordCount += count($chunk);
+        $this->firstException ??= $exception;
 
         $this->failures[$table][] = [
             'records'         => $chunk,
@@ -141,6 +145,7 @@ final class WritePoolFlushAccumulator
             retainedRecordCount: $retainedRecordCount,
             droppedRecordCount: $droppedRecordCount,
             flushedTables: $flushedTables,
+            firstException: $this->firstException,
         );
     }
 }
