@@ -329,39 +329,109 @@ final class ValidatesCallableListsTest extends TestCase
     }
 
     /**
-     * Build a compiled count definition with the given guards.
+     * Test that a rule selecting the transformer list reports every
+     * non-callable transformer on fields, counts and aggregates under the
+     * transformer label.
+     *
+     * @return void
+     */
+    public function testReportsTransformerDefectsAcrossDefinitionsWhenTransformersSelected(): void
+    {
+        $field = new CompiledFieldDefinition(
+            accessor: 'name',
+            compute: null,
+            relation: null,
+            resource: null,
+            fields: null,
+            constraint: null,
+            extras: [],
+            needs: [],
+            guards: [],
+            transformers: ['not_a_function'],
+        );
+
+        $schema = new CompiledSchema(
+            fields: ['name' => $field],
+            counts: [
+                'comments_count' => $this->makeCount('comments_count', [], [fn ($value, $model) => $value, 'not_a_function']),
+            ],
+            aggregates: [
+                'sum:reviews_rating' => $this->makeAggregate('reviews_rating', [], ['not_a_function']),
+            ],
+        );
+
+        $errors = $this->makeRule(CallableList::TRANSFORMERS)->validate('App\Http\Resources\PostResource', null, $schema);
+
+        self::assertSame(
+            ['name', 'comments_count', 'reviews_rating'],
+            array_map(static fn ($error) => $error->fieldKey, $errors),
+        );
+        self::assertSame(
+            [
+                'Transformer at index 0 is not callable',
+                'Transformer at index 1 is not callable',
+                'Transformer at index 0 is not callable',
+            ],
+            array_map(static fn ($error) => $error->defect, $errors),
+        );
+    }
+
+    /**
+     * Build a compiled count definition with the given callable lists.
      *
      * @param  string  $presentKey
      * @param  array<int, mixed>  $guards
+     * @param  array<int, mixed>  $transformers
      * @return \SineMacula\ApiToolkit\Schema\CompiledCountDefinition
      */
-    private function makeCount(string $presentKey, array $guards): CompiledCountDefinition
+    private function makeCount(string $presentKey, array $guards, array $transformers = []): CompiledCountDefinition
     {
-        // @phpstan-ignore argument.type
-        return new CompiledCountDefinition(presentKey: $presentKey, relation: 'comments', constraint: null, isDefault: false, guards: $guards);
+        return new CompiledCountDefinition(presentKey: $presentKey, relation: 'comments', constraint: null, isDefault: false, guards: $guards, transformers: $transformers);
     }
 
     /**
-     * Build a compiled sum aggregate definition with the given guards.
+     * Build a compiled sum aggregate definition with the given callable lists.
      *
      * @param  string  $presentKey
      * @param  array<int, mixed>  $guards
+     * @param  array<int, mixed>  $transformers
      * @return \SineMacula\ApiToolkit\Schema\CompiledAggregateDefinition
      */
-    private function makeAggregate(string $presentKey, array $guards): CompiledAggregateDefinition
+    private function makeAggregate(string $presentKey, array $guards, array $transformers = []): CompiledAggregateDefinition
     {
-        // @phpstan-ignore argument.type
-        return new CompiledAggregateDefinition(presentKey: $presentKey, relation: 'reviews', column: 'rating', metric: 'sum', constraint: null, isDefault: false, guards: $guards);
+        return new CompiledAggregateDefinition(
+            presentKey: $presentKey,
+            relation: 'reviews',
+            column: 'rating',
+            metric: 'sum',
+            constraint: null,
+            isDefault: false,
+            guards: $guards,
+            transformers: $transformers,
+        );
     }
 
     /**
-     * Build a concrete rule that validates each definition's guard list.
+     * Build a concrete rule that validates the given callable list on each
+     * definition.
      *
+     * @param  \SineMacula\ApiToolkit\Enums\CallableList  $list
      * @return \SineMacula\ApiToolkit\Schema\Validation\Rules\ValidatesCallableLists
      */
-    private function makeRule(): ValidatesCallableLists
+    private function makeRule(CallableList $list = CallableList::GUARDS): ValidatesCallableLists
     {
-        return new class extends ValidatesCallableLists {
+        return new class ($list) extends ValidatesCallableLists {
+            /**
+             * Create a new rule validating the given callable list.
+             *
+             * @param  \SineMacula\ApiToolkit\Enums\CallableList  $list
+             */
+            public function __construct(
+
+                /** The callable list this rule validates */
+                private readonly CallableList $list,
+            ) {}
+
             /**
              * Return the callable list this rule validates.
              *
@@ -370,7 +440,7 @@ final class ValidatesCallableListsTest extends TestCase
             #[\Override]
             protected function getCallableList(): CallableList
             {
-                return CallableList::GUARDS;
+                return $this->list;
             }
         };
     }
