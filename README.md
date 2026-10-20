@@ -48,8 +48,8 @@ php artisan vendor:publish --provider="SineMacula\ApiToolkit\ApiServiceProvider"
 ```
 
 This publishes `config/api-toolkit.php` to your application's config directory. The file is documented inline
-and covers exception rendering strategy, sensitive-key redaction, sensitive columns, query parser limits,
-deferred write behaviour, middleware toggles, and more. Per-query repository caching is configured in the
+and covers exception rendering strategy, sensitive columns, query parser limits, deferred write behaviour,
+middleware toggles, and more. Per-query repository caching is configured in the
 `sinemacula/laravel-repositories` package under `repositories.cache`.
 
 ## Usage
@@ -495,7 +495,8 @@ the matrix, so replacing the `$contains` handler leaves it served from document 
 
 ### Exception Handling
 
-Register the exception handler once in `bootstrap/app.php`:
+Register the exception handler once in `bootstrap/app.php`. The call is required: it registers both the JSON
+rendering and the reporting filter, and without it handled exceptions reach every reporter:
 
 ```php
 use SineMacula\ApiToolkit\Exceptions\ApiExceptionHandler;
@@ -513,10 +514,28 @@ with appropriate HTTP status codes. The rendering strategy is configurable:
 - `'json_when_expected'` - renders JSON only when the request expects a JSON response (Laravel's
   `expectsJson()`, e.g. `Accept: application/json`).
 
-**Sensitive-key redaction** - request data written to the exception log is automatically scanned and values
-whose keys match any substring in `api-toolkit.exceptions.sensitive_keys` (default: `password`, `token`,
-`secret`, `authorization`) are replaced with `[redacted]` before being written to the log. Add application-specific
-keys to that array in your published config to extend coverage.
+**Handled and unhandled exceptions** - an `ApiException` is a deliberate, handled response and is never
+reported or logged, whatever reporters (error trackers included) are registered and in whatever order. This
+matches Laravel's treatment of its own HTTP exceptions; the response status remains the signal for
+request-level error rates.
+
+- A deliberately thrown 5xx such as `ServiceUnavailableException` is handled too, so report its underlying
+  cause where you catch it.
+- An `UnhandledException` thrown by hand is still reported.
+- Laravel's `Illuminate\Validation\UnauthorizedException` (rendered as `403`) is not reported.
+- `LockUnavailableException` (lock contention, rendered as `429`) is never reported, with or without
+  `handles()`.
+
+Anything else is unhandled. Laravel reports the original exception, with its own class and trace and subject
+to Laravel's own don't-report list, before the toolkit renders a generic `500` body, so internals never reach
+the client.
+
+The filter applies wherever Laravel reports, queued jobs and console commands included. It does not change
+retries, failed-job storage or console output. Reporting is decided on the exception after any
+`$exceptions->map()` has been applied.
+
+The toolkit does not attach request input to exception reports. Add the fields you want with your own
+`$exceptions->context()` callback.
 
 ---
 
