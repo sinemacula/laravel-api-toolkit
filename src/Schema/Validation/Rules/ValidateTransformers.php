@@ -4,8 +4,7 @@ declare(strict_types = 1);
 
 namespace SineMacula\ApiToolkit\Schema\Validation\Rules;
 
-use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
-use SineMacula\ApiToolkit\Schema\CompiledSchema;
+use SineMacula\ApiToolkit\Enums\CallableList;
 
 /**
  * Validate that all transformer entries in the compiled schema are callable.
@@ -16,49 +15,13 @@ use SineMacula\ApiToolkit\Schema\CompiledSchema;
 final class ValidateTransformers extends ValidatesCallableLists
 {
     /**
-     * Validate the compiled schema for the given resource class.
+     * Return the callable list this rule validates.
      *
-     * @param  string  $resourceClass
-     * @param  string|null  $modelClass
-     * @param  \SineMacula\ApiToolkit\Schema\CompiledSchema  $schema
-     * @return array<int, \SineMacula\ApiToolkit\Schema\Validation\SchemaValidationError>
+     * @return \SineMacula\ApiToolkit\Enums\CallableList
      */
     #[\Override]
-    public function validate(string $resourceClass, ?string $modelClass, CompiledSchema $schema): array
+    protected function getCallableList(): CallableList
     {
-        $errors = parent::validate($resourceClass, $modelClass, $schema);
-
-        foreach ($schema->getCountDefinitions() as $count) {
-            $errors = array_merge($errors, $this->collectCallableErrors($resourceClass, $count->presentKey, $count->transformers));
-        }
-
-        foreach ($schema->getAggregateDefinitions() as $aggregate) {
-            $errors = array_merge($errors, $this->collectCallableErrors($resourceClass, $aggregate->presentKey, $aggregate->transformers));
-        }
-
-        return $errors;
-    }
-
-    /**
-     * Return the callable list to validate for the given field definition.
-     *
-     * @param  \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition  $field
-     * @return array<int, callable(mixed, mixed): mixed>
-     */
-    #[\Override]
-    protected function getCallables(CompiledFieldDefinition $field): array
-    {
-        return $field->transformers;
-    }
-
-    /**
-     * Return the human-readable label used in defect messages.
-     *
-     * @return string
-     */
-    #[\Override]
-    protected function getLabel(): string
-    {
-        return 'Transformer';
+        return CallableList::TRANSFORMERS;
     }
 }

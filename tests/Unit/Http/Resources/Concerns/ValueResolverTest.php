@@ -400,8 +400,16 @@ final class ValueResolverTest extends TestCase
         $resource   = new JsonResource($model);
         $definition = $this->makeFieldDefinition(
             transformers: [
-                fn ($resource, $value) => $value * 2,
-                fn ($resource, $value) => $value + 1,
+                static function ($resource, $value): int {
+                    self::assertIsInt($value);
+
+                    return $value * 2;
+                },
+                static function ($resource, $value): int {
+                    self::assertIsInt($value);
+
+                    return $value + 1;
+                },
             ],
         );
 
@@ -518,7 +526,11 @@ final class ValueResolverTest extends TestCase
         $resource = new JsonResource($model);
         $schema   = new CompiledSchema([], [
             'posts' => new CompiledCountDefinition('posts', 'posts', null, true, [], [
-                static fn ($resource, $value) => $value * 10,
+                static function ($resource, $value): int {
+                    self::assertIsInt($value);
+
+                    return $value * 10;
+                },
             ]),
         ]);
 
@@ -1081,7 +1093,11 @@ final class ValueResolverTest extends TestCase
         $resource = new JsonResource($model);
         $schema   = new CompiledSchema([], [], [
             'posts_id' => new CompiledAggregateDefinition('posts_id', 'posts', 'id', 'sum', null, true, [], [
-                static fn ($resource, $value) => $value + 1.0,
+                static function ($resource, $value): float {
+                    self::assertIsFloat($value);
+
+                    return $value + 1.0;
+                },
             ]),
         ]);
 

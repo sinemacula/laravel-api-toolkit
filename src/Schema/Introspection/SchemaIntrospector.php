@@ -78,34 +78,7 @@ final class SchemaIntrospector implements SchemaIntrospectionProvider
             return [];
         }
 
-        $memoKey = $this->memoKey($connection, $model);
-
-        if (isset($this->columns[$memoKey])) {
-            return $this->columns[$memoKey];
-        }
-
-        $cacheKey = CacheKeys::MODEL_SCHEMA_COLUMNS->resolveKey([SchemaIdentity::of($connection), $model::class]);
-
-        /** @var array<int, string> $cached */
-        $cached = $this->metadataCacheWriter->readMetadata($cacheKey, []);
-
-        if ($cached !== []) {
-            return $this->columns[$memoKey] = $cached;
-        }
-
-        try {
-            $columns = $connection->getSchemaBuilder()->getColumnListing($model->getTable());
-        } catch (\Throwable) { // @phpstan-ignore catch.neverThrown
-
-            // No live connection: degrade to an empty listing.
-            $columns = [];
-        }
-
-        if ($columns !== []) {
-            $this->metadataCacheWriter->rememberMetadataForever($cacheKey, fn () => $columns);
-        }
-
-        return $this->columns[$memoKey] = $columns;
+        return $this->columns[$this->memoKey($connection, $model)] ??= $this->resolveColumns($model, $connection);
     }
 
     /**
@@ -127,34 +100,7 @@ final class SchemaIntrospector implements SchemaIntrospectionProvider
             return [];
         }
 
-        $memoKey = $this->memoKey($connection, $model);
-
-        if (isset($this->columnDefinitions[$memoKey])) {
-            return $this->columnDefinitions[$memoKey];
-        }
-
-        $cacheKey = CacheKeys::MODEL_SCHEMA_COLUMN_DEFINITIONS->resolveKey([SchemaIdentity::of($connection), $model::class]);
-
-        /** @var array<string, \SineMacula\ApiToolkit\Schema\Introspection\ColumnDefinition> $cached */
-        $cached = $this->metadataCacheWriter->readMetadata($cacheKey, []);
-
-        if ($cached !== []) {
-            return $this->columnDefinitions[$memoKey] = $cached;
-        }
-
-        try {
-            $definitions = $this->mapColumnDefinitions($connection->getSchemaBuilder()->getColumns($model->getTable()));
-        } catch (\Throwable) { // @phpstan-ignore catch.neverThrown
-
-            // No live connection: degrade to an empty set.
-            $definitions = [];
-        }
-
-        if ($definitions !== []) {
-            $this->metadataCacheWriter->rememberMetadataForever($cacheKey, fn () => $definitions);
-        }
-
-        return $this->columnDefinitions[$memoKey] = $definitions;
+        return $this->columnDefinitions[$this->memoKey($connection, $model)] ??= $this->resolveColumnDefinitions($model, $connection);
     }
 
     /**
@@ -321,6 +267,74 @@ final class SchemaIntrospector implements SchemaIntrospectionProvider
                 typeName: strtolower($typeName),
                 nullable: (bool) $column['nullable'],
             );
+        }
+
+        return $definitions;
+    }
+
+    /**
+     * Read the column listing behind the model's table, serving the persistent
+     * cache where it is warm and storing only a non-empty listing.
+     *
+     * @param  \Illuminate\Database\Eloquent\Model  $model
+     * @param  \Illuminate\Database\Connection  $connection
+     * @return array<int, string>
+     */
+    private function resolveColumns(Model $model, Connection $connection): array
+    {
+        $cacheKey = CacheKeys::MODEL_SCHEMA_COLUMNS->resolveKey([SchemaIdentity::of($connection), $model::class]);
+
+        /** @var array<int, string> $cached */
+        $cached = $this->metadataCacheWriter->readMetadata($cacheKey, []);
+
+        if ($cached !== []) {
+            return $cached;
+        }
+
+        try {
+            $columns = $connection->getSchemaBuilder()->getColumnListing($model->getTable());
+        } catch (\Throwable) { // @phpstan-ignore catch.neverThrown
+
+            // No live connection: degrade to an empty listing.
+            $columns = [];
+        }
+
+        if ($columns !== []) {
+            $this->metadataCacheWriter->rememberMetadataForever($cacheKey, fn () => $columns);
+        }
+
+        return $columns;
+    }
+
+    /**
+     * Read the column definitions behind the model's table, serving the
+     * persistent cache where it is warm and storing only a non-empty set.
+     *
+     * @param  \Illuminate\Database\Eloquent\Model  $model
+     * @param  \Illuminate\Database\Connection  $connection
+     * @return array<string, \SineMacula\ApiToolkit\Schema\Introspection\ColumnDefinition>
+     */
+    private function resolveColumnDefinitions(Model $model, Connection $connection): array
+    {
+        $cacheKey = CacheKeys::MODEL_SCHEMA_COLUMN_DEFINITIONS->resolveKey([SchemaIdentity::of($connection), $model::class]);
+
+        /** @var array<string, \SineMacula\ApiToolkit\Schema\Introspection\ColumnDefinition> $cached */
+        $cached = $this->metadataCacheWriter->readMetadata($cacheKey, []);
+
+        if ($cached !== []) {
+            return $cached;
+        }
+
+        try {
+            $definitions = $this->mapColumnDefinitions($connection->getSchemaBuilder()->getColumns($model->getTable()));
+        } catch (\Throwable) { // @phpstan-ignore catch.neverThrown
+
+            // No live connection: degrade to an empty set.
+            $definitions = [];
+        }
+
+        if ($definitions !== []) {
+            $this->metadataCacheWriter->rememberMetadataForever($cacheKey, fn () => $definitions);
         }
 
         return $definitions;

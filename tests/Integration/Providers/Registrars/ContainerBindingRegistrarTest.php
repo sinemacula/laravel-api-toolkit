@@ -4,6 +4,7 @@ declare(strict_types = 1);
 
 namespace Tests\Integration\Providers\Registrars;
 
+use Illuminate\Container\Container;
 use Illuminate\Foundation\Application;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
@@ -368,6 +369,49 @@ final class ContainerBindingRegistrarTest extends TestCase
         (new ContainerBindingRegistrar($app))->register();
 
         self::assertSame($bound, $app->make(StorePayload::class));
+    }
+
+    /**
+     * Test that the hook skips a non-namespaced abstract before any class
+     * lookup, so resolving a plain service key costs no more autoloader calls
+     * than it does on a container without the hook.
+     *
+     * @return void
+     */
+    public function testPayloadResolutionAddsNoClassLookupForNonNamespacedAbstract(): void
+    {
+        $hooked = new Container;
+
+        (new ContainerBindingRegistrar($hooked))->register();
+
+        self::assertSame($this->countClassLookups(new Container, 'payload_probe'), $this->countClassLookups($hooked, 'payload_probe'));
+    }
+
+    /**
+     * Resolve a plain service key and count the autoloader calls made for it.
+     *
+     * @param  \Illuminate\Container\Container  $container
+     * @param  string  $abstract
+     * @return int
+     */
+    private function countClassLookups(Container $container, string $abstract): int
+    {
+        $container->bind($abstract, static fn (): string => 'resolved');
+
+        $lookups  = 0;
+        $recorder = static function (string $class) use ($abstract, &$lookups): void {
+            $lookups += $class === $abstract ? 1 : 0;
+        };
+
+        spl_autoload_register($recorder);
+
+        try {
+            self::assertSame('resolved', $container->make($abstract));
+        } finally {
+            spl_autoload_unregister($recorder);
+        }
+
+        return $lookups;
     }
 
     /**
