@@ -1077,8 +1077,10 @@ covers:
 The handler's rules apply to the reported exception itself, not to its previous exception. To silence
 the boundary flush report, add `$exceptions->dontReport(WritePoolFlushException::class)`; a
 `dontReport(QueryException::class)` rule does not suppress the wrapper. The chained database exception
-keeps its own message, which includes the query bindings unless the connection sets
-`mask_bindings_in_exception_messages`.
+keeps its own message, which log formatters and error trackers print alongside the wrapper, so the
+report can carry record values from the failed chunk. Setting `mask_bindings_in_exception_messages` on
+the connection only stops the bindings being substituted into the quoted SQL; the database driver's
+own error text, such as a duplicate-key message, can still quote the offending value.
 
 If reporting itself fails, the original exception falls back to an error log line, and the failure
 never escapes. The `log` deferred-write strategy now writes its failure log lines at warning level instead
@@ -1121,11 +1123,15 @@ a log line, and a memory-pressure auto-flush silently switched `throw` to `colle
     # the 'throw' strategy).
     DEFERRED_WRITES_RETHROW_AT_BOUNDARY=true
 
-**Boundary 500s.** The default was deliberately set to `collect` rather than `throw`: the boundary
-flush runs on `RequestHandled` *after* the response is built, so a default-throw would turn a single
-constraint violation in a buffered batch into a 500 for an already-completed request. Consumers that
-want a raised exception should call `flushWrites()` explicitly under the `throw` strategy, or enable
-`DEFERRED_WRITES_RETHROW_AT_BOUNDARY` in a context (such as a queue job) that can absorb it.
+**Boundary 500s.** The boundary flush runs on `RequestHandled` *after* the response is built. Under
+`throw` the boundary subscriber catches the raised exception and reports it, so the request keeps its
+response. Only with `DEFERRED_WRITES_RETHROW_AT_BOUNDARY` enabled does the exception escape, turning a
+single constraint violation in a buffered batch into a 500 for an already-completed request.
+Consumers that want a raised exception should call `flushWrites()` explicitly under the `throw`
+strategy, where the caller can handle it. Do not rely on the rethrow in queue workers: a rethrow from
+`JobProcessed` marks a job that completed as failed, so it is released for a retry or failed, and a
+rethrow from `JobFailed` replaces the job's own exception, which is then never reported. Call
+`flushWrites()` before the job returns instead.
 
 **Crash window.** Buffered writes live only in PHP memory until the boundary flush. A crash,
 out-of-memory condition, or SIGKILL before the flush loses any unflushed records. This is inherent to
@@ -1136,7 +1142,9 @@ use `log` for fire-and-forget writes that must never be retained.
 **New observability on `WritePoolFlushResult`.** The result now exposes record-level counts --
 `flushedRecordCount()`, `failedRecordCount()`, `retainedRecordCount()`, and `droppedRecordCount()` --
 alongside the existing chunk counters, plus `flushedTables()` listing every table the flush attempted
-to persist. Subscribe to the `WritePoolFlushFailed` event to escalate retained failures to a
+to persist, and `firstException()` returning the first underlying failure. `firstException()` is not
+kept when the result is serialized, so a queued `WritePoolFlushFailed` listener always gets `null`
+from it. Subscribe to the `WritePoolFlushFailed` event to escalate retained failures to a
 dead-letter sink, alerting, or metrics.
 
 **Per-query cache invalidation at the boundary (on by default).** A deferred insert is persisted
