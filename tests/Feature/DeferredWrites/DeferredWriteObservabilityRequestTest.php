@@ -6,7 +6,7 @@ namespace Tests\Feature\DeferredWrites;
 
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Config;
-use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Exceptions;
 use Illuminate\Support\Facades\Route;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Listeners\WritePoolFlushSubscriber;
@@ -70,7 +70,7 @@ final class DeferredWriteObservabilityRequestTest extends TestCase
      */
     public function testLastAutoFlushResultReportsFailureCount(): void
     {
-        Log::spy();
+        Exceptions::fake();
 
         $response = $this->postJson('/observable-flush');
 

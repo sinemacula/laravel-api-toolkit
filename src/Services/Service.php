@@ -240,8 +240,8 @@ abstract class Service implements LockKeyProvider
      * React to a successful outcome after the transaction has committed.
      *
      * Runs outside the lock and transaction. Exceptions thrown here are
-     * captured as side-effect errors on the result and logged, leaving the
-     * committed outcome intact. Default: no-op.
+     * captured as side-effect errors on the result and reported through the
+     * exception handler, leaving the committed outcome intact. Default: no-op.
      *
      * @param  TOutput  $output
      * @return void
@@ -252,7 +252,7 @@ abstract class Service implements LockKeyProvider
      * React to a failed outcome after the transaction has rolled back.
      *
      * Runs after rollback and lock release. Exceptions thrown here are caught
-     * and logged. Default: no-op.
+     * and reported through the exception handler. Default: no-op.
      *
      * @param  \Throwable  $exception
      * @return void

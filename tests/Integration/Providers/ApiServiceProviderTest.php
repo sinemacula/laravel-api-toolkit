@@ -90,7 +90,6 @@ final class ApiServiceProviderTest extends TestCase
         $channels = $this->getConfig()->get('logging.channels');
 
         self::assertArrayHasKey('notifications', $channels);
-        self::assertArrayHasKey('api-exceptions', $channels);
     }
 
     /**

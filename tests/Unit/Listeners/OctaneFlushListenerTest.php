@@ -6,6 +6,7 @@ namespace Tests\Unit\Listeners;
 
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Exceptions;
 use Illuminate\Support\Facades\Log;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Cache\CacheManager;
@@ -13,6 +14,7 @@ use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Events\CacheFlushed;
 use SineMacula\ApiToolkit\Listeners\OctaneFlushListener;
 use SineMacula\ApiToolkit\Runtime\RuntimeContext;
+use Tests\Concerns\SwapsExceptionHandler;
 use Tests\TestCase;
 
 /**
@@ -26,6 +28,8 @@ use Tests\TestCase;
 #[CoversClass(OctaneFlushListener::class)]
 final class OctaneFlushListenerTest extends TestCase
 {
+    use SwapsExceptionHandler;
+
     /** @var bool Whether LARAVEL_OCTANE was set before each test. */
     private bool $octaneWasSet;
 
@@ -156,17 +160,46 @@ final class OctaneFlushListenerTest extends TestCase
     }
 
     /**
-     * Test that a CacheManager flush failure is caught and logged with the full
-     * throwable rather than propagating into Octane's event dispatch and
-     * crashing the worker.
+     * Test that a CacheManager flush failure is caught and reported through the
+     * exception handler rather than propagating and crashing the worker.
      *
      * @return void
      */
-    public function testHandleSwallowsAndLogsCacheFlushFailure(): void
+    public function testHandleReportsCacheFlushFailure(): void
     {
         $_SERVER['LARAVEL_OCTANE'] = 1;
 
         Event::fake();
+        Exceptions::fake();
+
+        $this->mock(SchemaIntrospectionProvider::class)
+            ->shouldReceive('flush')
+            ->once()
+            ->andThrow(new \RuntimeException('flush boom'));
+
+        Log::shouldReceive('error')->never();
+
+        $cacheManager = $this->app->make(CacheManager::class); // @phpstan-ignore method.nonObject
+        $listener     = new OctaneFlushListener($cacheManager, new RuntimeContext);
+
+        $listener->handle(new \stdClass);
+
+        Exceptions::assertReportedCount(1);
+        Exceptions::assertReported(static fn (\RuntimeException $e): bool => $e->getMessage() === 'flush boom');
+    }
+
+    /**
+     * Test that when reporting the flush failure itself fails, the original
+     * failure falls back to the error log and the worker is not crashed.
+     *
+     * @return void
+     */
+    public function testHandleFallsBackToLogWhenReportingFails(): void
+    {
+        $_SERVER['LARAVEL_OCTANE'] = 1;
+
+        Event::fake();
+        $handler = $this->useThrowingExceptionHandler();
 
         $this->mock(SchemaIntrospectionProvider::class)
             ->shouldReceive('flush')
@@ -184,5 +217,7 @@ final class OctaneFlushListenerTest extends TestCase
         $listener     = new OctaneFlushListener($cacheManager, new RuntimeContext);
 
         $listener->handle(new \stdClass);
+
+        self::assertCount(1, $handler->reported);
     }
 }

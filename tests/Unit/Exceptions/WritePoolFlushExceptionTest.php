@@ -122,4 +122,63 @@ final class WritePoolFlushExceptionTest extends TestCase
 
         self::assertInstanceOf(\RuntimeException::class, $exception);
     }
+
+    /**
+     * Test that the exception can be built without a previous exception.
+     *
+     * @return void
+     */
+    public function testPreviousExceptionIsOptional(): void
+    {
+        $result = new WritePoolFlushResult(successCount: 0, failureCount: 1);
+
+        $exception = new WritePoolFlushException($result);
+
+        self::assertNull($exception->getPrevious());
+    }
+
+    /**
+     * Test that the report context carries the flush counts and failing table
+     * names only, never the buffered records.
+     *
+     * @return void
+     */
+    public function testContextCarriesCountsAndTableNamesOnly(): void
+    {
+        $result = new WritePoolFlushResult(
+            successCount: 3,
+            failureCount: 2,
+            failures: [
+                'orders' => [
+                    [
+                        'records'         => [['name' => 'a']],
+                        'exception'       => 'Insert failed',
+                        'exception_class' => \RuntimeException::class,
+                    ],
+                ],
+                'payments' => [
+                    [
+                        'records'         => [['name' => 'b']],
+                        'exception'       => 'Insert failed',
+                        'exception_class' => \RuntimeException::class,
+                    ],
+                ],
+            ],
+            flushedRecordCount: 6,
+            failedRecordCount: 4,
+            retainedRecordCount: 5,
+            droppedRecordCount: 7,
+        );
+
+        $exception = new WritePoolFlushException($result);
+
+        self::assertSame([
+            'failure_count'         => 2,
+            'total_count'           => 5,
+            'failed_record_count'   => 4,
+            'retained_record_count' => 5,
+            'dropped_record_count'  => 7,
+            'tables'                => ['orders', 'payments'],
+        ], $exception->context());
+    }
 }

@@ -21,11 +21,5 @@ return [
             'level'  => env('LOG_LEVEL', 'debug'),
         ],
 
-        'api-exceptions' => [
-            'driver' => 'daily',
-            'path'   => storage_path('logs/api-exceptions.log'),
-            'level'  => env('LOG_LEVEL', 'debug'),
-        ],
-
     ],
 ];

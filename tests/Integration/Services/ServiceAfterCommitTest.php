@@ -5,7 +5,7 @@ declare(strict_types = 1);
 namespace Tests\Integration\Services;
 
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Exceptions;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Services\Input\ArrayInput;
 use SineMacula\ApiToolkit\Services\Service;
@@ -28,7 +28,7 @@ use Tests\TestCase;
 final class ServiceAfterCommitTest extends TestCase
 {
     /**
-     * Set up each test with a silent log channel for the captured error.
+     * Set up each test with a fake exception handler for the reported error.
      *
      * @return void
      */
@@ -37,7 +37,7 @@ final class ServiceAfterCommitTest extends TestCase
     {
         parent::setUp();
 
-        Log::spy();
+        Exceptions::fake();
     }
 
     /**
@@ -95,6 +95,9 @@ final class ServiceAfterCommitTest extends TestCase
         self::assertCount(1, $errors);
         self::assertInstanceOf(\RuntimeException::class, $errors[0]);
         self::assertSame('after commit failed', $errors[0]->getMessage());
+
+        Exceptions::assertReportedCount(1);
+        Exceptions::assertReported(static fn (\RuntimeException $e): bool => $e === $errors[0]);
 
         $this->assertDatabaseHas('users', ['email' => 'after-commit@service.test']);
     }

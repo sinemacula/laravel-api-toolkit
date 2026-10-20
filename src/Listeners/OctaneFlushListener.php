@@ -4,8 +4,8 @@ declare(strict_types = 1);
 
 namespace SineMacula\ApiToolkit\Listeners;
 
-use Illuminate\Support\Facades\Log;
 use SineMacula\ApiToolkit\Cache\CacheManager;
+use SineMacula\ApiToolkit\Exceptions\FailureReporter;
 use SineMacula\ApiToolkit\Runtime\RuntimeContext;
 
 /**
@@ -58,9 +58,8 @@ final readonly class OctaneFlushListener
         try {
             $this->cacheManager->flush();
         } catch (\Throwable $exception) { // @phpstan-ignore catch.neverThrown
-            // A flush failure must not crash the Octane worker at the request
-            // boundary; container resolution can throw at runtime.
-            Log::error('Octane cache flush failed', ['exception' => $exception]);
+            // Container resolution can throw; never crash the worker.
+            FailureReporter::report($exception, 'Octane cache flush failed');
         }
     }
 }
