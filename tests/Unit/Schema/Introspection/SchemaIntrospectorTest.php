@@ -1412,9 +1412,14 @@ final class SchemaIntrospectorTest extends TestCase
     {
         $key = $this->metadataStorageKey(CacheKeys::MODEL_SCHEMA_COLUMN_DEFINITIONS->resolveKey([SchemaIdentity::of(DB::connection('testing')), User::class]));
 
-        Cache::memo()->rememberForever($key, fn (): array => ['name' => new ColumnDefinition('name', 'varchar', true)]);
+        $definitions = [
+            'id'   => new ColumnDefinition('id', 'integer', false),
+            'name' => new ColumnDefinition('name', 'varchar', true),
+        ];
 
-        self::assertArrayHasKey('name', $this->makeIntrospector()->getColumnDefinitions(new User));
+        Cache::memo()->rememberForever($key, fn (): array => $definitions);
+
+        self::assertEquals($definitions, $this->makeIntrospector()->getColumnDefinitions(new User));
     }
 
     /**
