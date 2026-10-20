@@ -686,7 +686,7 @@ final class ServiceRunnerTest extends TestCase
     public function testCommittedOutcomeSurvivesWhenAfterCommitReportingFails(): void
     {
         Event::fake();
-        $this->useThrowingExceptionHandler();
+        $handler = $this->useThrowingExceptionHandler();
 
         Log::shouldReceive('error')
             ->once()
@@ -744,6 +744,8 @@ final class ServiceRunnerTest extends TestCase
         self::assertFalse($service->onFailureCalled);
         Event::assertDispatched(ServiceCompleted::class);
         Event::assertNotDispatched(ServiceFailed::class);
+        self::assertCount(1, $handler->reported);
+        self::assertSame($result->sideEffectErrors()[0], $handler->reported[0]);
     }
 
     /**
@@ -824,7 +826,7 @@ final class ServiceRunnerTest extends TestCase
     public function testEventDispatchedEvenWhenFailureHandlingThrows(): void
     {
         Event::fake();
-        $this->useThrowingExceptionHandler();
+        $handler = $this->useThrowingExceptionHandler();
 
         Log::shouldReceive('error')
             ->once()
@@ -867,5 +869,7 @@ final class ServiceRunnerTest extends TestCase
         self::assertTrue($result->failed());
         self::assertSame('domain error', $result->exception?->getMessage());
         Event::assertDispatched(ServiceFailed::class);
+        self::assertCount(1, $handler->reported);
+        self::assertSame('on-failure-error', $handler->reported[0]->getMessage());
     }
 }
