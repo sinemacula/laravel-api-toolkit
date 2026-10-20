@@ -142,15 +142,18 @@ final class ApiServiceProvider extends ServiceProvider
      * discovered bindings into the cached config would make them
      * indistinguishable from explicit entries and mask later discovery changes.
      * The optimize command builds the config cache in a fresh application
-     * within the same process, whose arguments still read optimize, so it is
-     * skipped too. Only the command itself is matched, never an argument value.
-     * Runtime boots always merge fresh discoveries on top.
+     * within the same process, whose arguments still read optimize, so the
+     * whole optimize process is skipped, including the fresh applications that
+     * build the route, event and view caches. The resource cache command is
+     * skipped so a stale compiled map never counts as explicit and silences a
+     * conflict warning in the rebuild. Runtime boots always merge fresh
+     * discoveries on top.
      *
      * @return void
      */
     private function mergeDiscoveredResources(): void
     {
-        if (in_array($_SERVER['argv'][1] ?? null, ['config:cache', 'optimize'], true)) {
+        if (in_array($this->consoleCommand(), ['config:cache', 'optimize', 'api-toolkit:resources:cache'], true)) {
             return;
         }
 
@@ -164,6 +167,35 @@ final class ApiServiceProvider extends ServiceProvider
         $map = is_array($map) ? $map : [];
 
         Config::set('api-toolkit.resources.resource_map', $map + $discovered);
+    }
+
+    /**
+     * The name of the console command being run, or null when there is none.
+     *
+     * The name is the first argument that is not an option, so global options
+     * placed before it are skipped, along with the value of a space-separated
+     * --env option. An argument value after the name is never matched.
+     *
+     * @return string|null
+     */
+    private function consoleCommand(): ?string
+    {
+        /** @var array<int, string> $argv */
+        $argv      = $_SERVER['argv'] ?? [];
+        $arguments = array_slice($argv, 1);
+
+        while ($arguments !== []) {
+
+            $argument = array_shift($arguments);
+
+            if ($argument === '--env') {
+                array_shift($arguments);
+            } elseif (!str_starts_with($argument, '-')) {
+                return $argument;
+            }
+        }
+
+        return null;
     }
 
     /**

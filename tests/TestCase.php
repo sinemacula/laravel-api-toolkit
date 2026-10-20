@@ -4,13 +4,10 @@ declare(strict_types = 1);
 
 namespace Tests;
 
-use Illuminate\Cache\Repository;
-use Illuminate\Contracts\Cache\Store;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Filesystem\Filesystem;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -25,6 +22,7 @@ use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 use SineMacula\ApiToolkit\Search\IndexProof;
 use SineMacula\ApiToolkit\Search\SearchPlan;
 use Tests\Fixtures\Support\FunctionOverrides;
+use Tests\Fixtures\Support\UnreachableCacheStore;
 
 /**
  * Base test case for the API toolkit package.
@@ -154,16 +152,9 @@ abstract class TestCase extends OrchestraTestCase
      */
     protected function useUnreachableCacheStore(): void
     {
-        $store = \Mockery::mock(Store::class);
+        assert($this->app !== null);
 
-        $store->shouldReceive('getPrefix')->andReturn('');
-        $store->shouldReceive('get', 'many', 'put', 'putMany', 'increment', 'decrement', 'forever', 'touch', 'forget', 'flush')
-            ->andThrow(new \RuntimeException('The cache store is unreachable.'));
-
-        Cache::extend('unreachable', static fn (): Repository => new Repository($store));
-
-        Config::set('cache.stores.unreachable', ['driver' => 'unreachable']);
-        Config::set('cache.default', 'unreachable');
+        UnreachableCacheStore::install($this->app);
     }
 
     /**

@@ -18,9 +18,11 @@ use Illuminate\Queue\Events\JobProcessed;
 use Illuminate\Routing\Router;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\ServiceProvider;
 use Laravel\Octane\Contracts\OperationTerminated;
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 use SineMacula\ApiToolkit\ApiQueryParser;
 use SineMacula\ApiToolkit\ApiServiceProvider;
 use SineMacula\ApiToolkit\Cache\CacheManager;
@@ -45,6 +47,8 @@ use SineMacula\ApiToolkit\Repositories\Concerns\WritePool;
 use SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry;
 use SineMacula\ApiToolkit\Schema\Introspection\SchemaIntrospector;
 use SineMacula\ApiToolkit\Schema\Validation\SchemaValidator;
+use Tests\Fixtures\Discovery\Conflict\FirstUserResource;
+use Tests\Fixtures\Discovery\Conflict\SecondUserResource;
 use Tests\Fixtures\Discovery\Primary\DiscoveredUserResource;
 use Tests\Fixtures\Discovery\Primary\Nested\DiscoveredPostResource;
 use Tests\Fixtures\Models\Post;
@@ -299,31 +303,38 @@ final class ApiServiceProviderTest extends TestCase
     }
 
     /**
+     * Provide the arguments of the commands that build a cache.
+     *
+     * @return iterable<string, array{0: array<int, string>}>
+     */
+    public static function cacheBuildArgvProvider(): iterable
+    {
+        yield 'config:cache' => [['artisan', 'config:cache']];
+        yield 'optimize' => [['artisan', 'optimize']];
+        yield 'resource cache' => [['artisan', 'api-toolkit:resources:cache']];
+        yield 'leading inline option' => [['artisan', '--env=production', 'config:cache']];
+        yield 'leading flags' => [['artisan', '-q', '--no-interaction', 'optimize']];
+        yield 'leading separate env value' => [['artisan', '--env', 'production', 'config:cache']];
+    }
+
+    /**
      * Test that the discovery merge is skipped while the config cache is being
-     * built, so discovered bindings are never baked into the cached config as
-     * pseudo-explicit entries.
+     * built, directly or by optimize, so discovered bindings are never baked
+     * into the cached config as pseudo-explicit entries, and while the resource
+     * map is rebuilt.
      *
+     * @param  array<int, string>  $argv
      * @return void
      */
-    public function testConfigCacheBuildSkipsTheDiscoveryMerge(): void
+    #[DataProvider('cacheBuildArgvProvider')]
+    public function testCacheBuildSkipsTheDiscoveryMerge(array $argv): void
     {
-        $app = $this->getApplication();
-
         $this->getConfig()->set('api-toolkit.resources.paths', [dirname(__DIR__, 2) . '/Fixtures/Discovery/Primary']);
         $this->getConfig()->set('api-toolkit.resources.resource_map', [
             User::class => UserResource::class,
         ]);
 
-        $argv = $_SERVER['argv'] ?? null;
-
-        $_SERVER['argv'] = ['artisan', 'config:cache'];
-
-        try {
-            $provider = new ApiServiceProvider($app);
-            $provider->boot();
-        } finally {
-            $_SERVER['argv'] = $argv;
-        }
+        $this->bootWithArgv($argv);
 
         self::assertSame([
             User::class => UserResource::class,
@@ -331,65 +342,62 @@ final class ApiServiceProviderTest extends TestCase
     }
 
     /**
-     * Test that the discovery merge is skipped while optimize builds the config
-     * cache, which it does in a fresh application whose arguments still read
-     * optimize.
+     * Provide the arguments of invocations that keep the discovery merge.
      *
-     * @return void
+     * @return iterable<string, array{0: array<int, string>|null}>
      */
-    public function testOptimizeBuildSkipsTheDiscoveryMerge(): void
+    public static function mergingArgvProvider(): iterable
     {
-        $app = $this->getApplication();
-
-        $this->getConfig()->set('api-toolkit.resources.paths', [dirname(__DIR__, 2) . '/Fixtures/Discovery/Primary']);
-        $this->getConfig()->set('api-toolkit.resources.resource_map', [
-            User::class => UserResource::class,
-        ]);
-
-        $argv = $_SERVER['argv'] ?? null;
-
-        $_SERVER['argv'] = ['artisan', 'optimize'];
-
-        try {
-            $provider = new ApiServiceProvider($app);
-            $provider->boot();
-        } finally {
-            $_SERVER['argv'] = $argv;
-        }
-
-        self::assertSame([
-            User::class => UserResource::class,
-        ], $this->getConfig()->get('api-toolkit.resources.resource_map'));
+        yield 'no arguments' => [null];
+        yield 'no command' => [['artisan']];
+        yield 'options only' => [['artisan', '-q', '--env', 'production']];
+        yield 'another command' => [['artisan', 'route:cache']];
+        yield 'argument value' => [['artisan', 'queue:work', '--queue', 'optimize']];
+        yield 'env value' => [['artisan', '--env', 'optimize', 'route:cache']];
     }
 
     /**
-     * Test that a command argument that merely reads optimize does not skip the
-     * discovery merge.
+     * Test that every other invocation keeps the discovery merge, including one
+     * whose argument value merely reads a cache build command.
      *
+     * @param  array<int, string>|null  $argv
      * @return void
      */
-    public function testOptimizeAsAnArgumentValueKeepsTheDiscoveryMerge(): void
+    #[DataProvider('mergingArgvProvider')]
+    public function testOtherInvocationsKeepTheDiscoveryMerge(?array $argv): void
     {
-        $app = $this->getApplication();
-
         $this->getConfig()->set('api-toolkit.resources.paths', [dirname(__DIR__, 2) . '/Fixtures/Discovery/Primary']);
         $this->getConfig()->set('api-toolkit.resources.resource_map', []);
 
-        $argv = $_SERVER['argv'] ?? null;
-
-        $_SERVER['argv'] = ['artisan', 'queue:work', '--queue', 'optimize'];
-
-        try {
-            $provider = new ApiServiceProvider($app);
-            $provider->boot();
-        } finally {
-            $_SERVER['argv'] = $argv;
-        }
+        $this->bootWithArgv($argv);
 
         self::assertSame([
             User::class => DiscoveredUserResource::class,
             Post::class => DiscoveredPostResource::class,
         ], $this->getConfig()->get('api-toolkit.resources.resource_map'));
+    }
+
+    /**
+     * Test that rebuilding the resource map reports a conflict even when a
+     * stale compiled map already binds the contested model.
+     *
+     * @return void
+     */
+    public function testResourceCacheRebuildReportsConflictsDespiteAStaleCompiledMap(): void
+    {
+        $this->getConfig()->set('api-toolkit.resources.paths', [dirname(__DIR__, 2) . '/Fixtures/Discovery/Conflict']);
+        $this->getConfig()->set('api-toolkit.resources.resource_map', []);
+
+        $this->useIsolatedBootstrapPath();
+        $this->writeCompiledMap([User::class => FirstUserResource::class]);
+
+        $this->bootWithArgv(['artisan', 'api-toolkit:resources:cache']);
+
+        Log::shouldReceive('warning')
+            ->once()
+            ->withArgs(static fn (string $message): bool => str_contains($message, 'ignoring [' . SecondUserResource::class . ']'));
+
+        $this->pendingArtisan('api-toolkit:resources:cache')->assertExitCode(0)->run();
     }
 
     /**
@@ -1268,6 +1276,30 @@ final class ApiServiceProviderTest extends TestCase
 
         $config->set('api-toolkit.parser.register_middleware', true);
         $config->set('api-toolkit.notifications.enable_logging', true);
+    }
+
+    /**
+     * Boot a fresh provider with the given console arguments, restoring the
+     * original arguments afterwards.
+     *
+     * @param  array<int, string>|null  $argv
+     * @return void
+     */
+    private function bootWithArgv(?array $argv): void
+    {
+        $original = $_SERVER['argv'] ?? null;
+
+        $_SERVER['argv'] = $argv;
+
+        if ($argv === null) {
+            unset($_SERVER['argv']);
+        }
+
+        try {
+            (new ApiServiceProvider($this->getApplication()))->boot();
+        } finally {
+            $_SERVER['argv'] = $original;
+        }
     }
 
     /**

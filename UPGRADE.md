@@ -558,7 +558,8 @@ is a PHP file at `bootstrap/cache/api-toolkit-resources.php`, written by
 `php artisan api-toolkit:resources:cache` and removed by `php artisan api-toolkit:resources:clear`. Both are
 hooked into `php artisan optimize` and `php artisan optimize:clear`. While the file exists it is served as-is,
 and with `validate_schemas` enabled it is ignored so every diagnostic fires. Discovery never uses the cache
-store, so boot and `route:cache` work without a reachable store.
+store, so with `validate_schemas` disabled boot and `route:cache` work without a reachable store; schema
+validation reads its metadata through the store.
 
 **Action required.** Run `php artisan optimize` (or `php artisan api-toolkit:resources:cache`) on every deploy.
 Rebuild or clear the compiled map after adding, moving, or re-binding a resource, or after changing `paths`.
