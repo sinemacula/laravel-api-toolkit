@@ -65,7 +65,26 @@ final class ApiExceptionHandler
     private static function isHandled(\Throwable $exception): bool
     {
         return ($exception instanceof ApiException && !$exception instanceof UnhandledException)
-            || $exception instanceof LaravelUnauthorizedException;
+            || $exception instanceof LaravelUnauthorizedException
+            || self::isClientHttpException($exception);
+    }
+
+    /**
+     * Determine whether the given exception is an HTTP-layer exception that is
+     * rendered as a client error.
+     *
+     * @param  \Throwable  $exception
+     * @return bool
+     */
+    private static function isClientHttpException(\Throwable $exception): bool
+    {
+        if (!$exception instanceof SymfonyHttpExceptionInterface) {
+            return false;
+        }
+
+        $status = $exception->getStatusCode();
+
+        return $status === 419 || HttpStatus::tryFrom($status)?->isClientError() === true;
     }
 
     /**

@@ -523,12 +523,17 @@ request-level error rates.
   cause where you catch it.
 - An `UnhandledException` thrown by hand is still reported.
 - Laravel's `Illuminate\Validation\UnauthorizedException` (rendered as `403`) is not reported.
+- An exception implementing Symfony's `HttpExceptionInterface` with a `4xx` status is not reported, even
+  when it does not extend Symfony's `HttpException`.
 - `LockUnavailableException` (lock contention, rendered as `429`) is never reported, with or without
   `handles()`.
 
-Anything else is unhandled. Laravel reports the original exception, with its own class and trace and subject
-to Laravel's own don't-report list, before the toolkit renders a generic `500` body, so internals never reach
-the client.
+Other framework exceptions the handler maps, such as `ModelNotFoundException` (`404`) or `ValidationException`
+(`422`), render as their mapped status and are kept out of reports by Laravel's own don't-report list.
+
+An exception the handler does not map is unhandled. Laravel reports the original exception, with its own class
+and trace, before the toolkit renders a generic `500` body, so with debug info disabled its internals never
+reach the client.
 
 The filter applies wherever Laravel reports, queued jobs and console commands included. It does not change
 retries, failed-job storage or console output. Reporting is decided on the exception after any

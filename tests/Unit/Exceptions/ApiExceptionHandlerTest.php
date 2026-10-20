@@ -940,6 +940,52 @@ final class ApiExceptionHandlerTest extends TestCase
     }
 
     /**
+     * Provide statuses carried by an HTTP exception that does not extend the
+     * Symfony base class, with whether the toolkit reports it.
+     *
+     * @return iterable<string, array{int, int, bool}>
+     */
+    public static function httpExceptionImplementorProvider(): iterable
+    {
+        yield 'client error' => [409, 409, false];
+
+        yield 'session token mismatch' => [419, 419, false];
+
+        yield 'server error' => [503, 503, true];
+
+        yield 'unknown status' => [499, 500, true];
+    }
+
+    /**
+     * Test that an HTTP exception implementing the Symfony interface without
+     * extending its base class is reported only when it renders as a server
+     * error.
+     *
+     * @param  int  $status
+     * @param  int  $expectedStatus
+     * @param  bool  $expectedReported
+     * @return void
+     */
+    #[DataProvider('httpExceptionImplementorProvider')]
+    public function testHttpExceptionImplementorIsReportedOnlyAsServerError(int $status, int $expectedStatus, bool $expectedReported): void
+    {
+        $exception = self::httpExceptionImplementor($status);
+
+        $mapped = (new \ReflectionMethod(ApiExceptionHandler::class, 'mapApiException'))->invoke(null, $exception);
+
+        self::assertInstanceOf(ApiException::class, $mapped);
+        self::assertSame($expectedStatus, $mapped->getStatusCode());
+
+        [$handler, $exceptions] = $this->exceptionHandler();
+
+        self::assertTrue($handler->shouldReport($exception));
+
+        ApiExceptionHandler::handles($exceptions);
+
+        self::assertSame($expectedReported, $handler->shouldReport($exception));
+    }
+
+    /**
      * Provide a sample of every source type in the handler's exception map,
      * with the status the map resolves it to.
      *
@@ -1057,7 +1103,7 @@ final class ApiExceptionHandlerTest extends TestCase
 
         yield 'symfony http exception' => [
             SymfonyHttpExceptionInterface::class,
-            static fn (): \Throwable => new SymfonyHttpException(409),
+            static fn (): \Throwable => self::httpExceptionImplementor(409),
             409,
         ];
     }
@@ -1128,5 +1174,52 @@ final class ApiExceptionHandlerTest extends TestCase
         assert($handler instanceof Handler);
 
         return [$handler, new Exceptions($handler)];
+    }
+
+    /**
+     * Build an HTTP exception that implements the Symfony interface without
+     * extending its base class, so Laravel's own don't-report list misses it.
+     *
+     * @param  int  $status
+     * @return \Symfony\Component\HttpKernel\Exception\HttpExceptionInterface
+     */
+    private static function httpExceptionImplementor(int $status): SymfonyHttpExceptionInterface
+    {
+        return new class ($status) extends \RuntimeException implements SymfonyHttpExceptionInterface {
+            /**
+             * Create a new HTTP exception with the given status.
+             *
+             * @param  int  $status
+             */
+            public function __construct(
+
+                /** The HTTP status code */
+                private readonly int $status,
+            ) {
+                parent::__construct();
+            }
+
+            /**
+             * Get the HTTP status code.
+             *
+             * @return int
+             */
+            #[\Override]
+            public function getStatusCode(): int
+            {
+                return $this->status;
+            }
+
+            /**
+             * Get the response headers.
+             *
+             * @return array<string, string>
+             */
+            #[\Override]
+            public function getHeaders(): array
+            {
+                return [];
+            }
+        };
     }
 }

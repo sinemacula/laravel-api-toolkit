@@ -1091,19 +1091,25 @@ of error, since those records are disposable by design.
 ### Changed: handled exceptions are no longer reported or logged
 
 In 1.x every `ApiException` was written at `error` level to the `api-exceptions` channel (and to
-`cloudwatch-api-exceptions`), with the request method, path, user id and full request input. In 2.x a handled
-exception is neither logged nor reported.
+`cloudwatch-api-exceptions` when CloudWatch logging was enabled), with the request method, path, user id and full
+request input. In 2.x a handled exception is neither logged nor reported.
 
 - The toolkit no longer defines the `api-exceptions` log channel. If a log stack or a `Log::channel()` call
   in your application references it, define the channel yourself.
 - In 1.x the suppression came from `->stop()` in the report chain and depended on registration order, so a
   reportable (an error tracker, for example) registered before `ApiExceptionHandler::handles()` still received
   every handled exception. 2.x registers a don't-report filter instead, which applies whatever the order.
-- An `UnhandledException` thrown by hand, and every exception that is not an `ApiException`, is still
+- An `UnhandledException` thrown by hand is now reported. In 1.x it extended `ApiException` too, so the report
+  callback wrote it to `api-exceptions` and stopped it reaching the default logger and any reporter registered
+  after `handles()`. In 2.x Laravel's default reporting and every error tracker receive it as that same instance.
+- Every other exception that is not an `ApiException` is still reported as itself, subject to Laravel's own
+  don't-report list and the exclusions below.
+- `Illuminate\Validation\UnauthorizedException`, and any exception implementing Symfony's
+  `HttpExceptionInterface` with a `4xx` status that does not extend Symfony's `HttpException`, are no longer
   reported.
-- `Illuminate\Validation\UnauthorizedException` and `LockUnavailableException` are no longer reported. Lock
-  contention remains visible as the rate of `429` responses.
-- Request input is no longer written to any log. To add fields to exception reports, register your own
+- `LockUnavailableException` is new in 2.x and is never reported. Lock contention is visible as the rate of
+  `429` responses.
+- Exception reports no longer carry request input. To add fields to them, register your own
   `$exceptions->context()` callback.
 
 ### Changed: Deferred writes are safe-by-default
