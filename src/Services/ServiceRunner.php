@@ -4,7 +4,7 @@ declare(strict_types = 1);
 
 namespace SineMacula\ApiToolkit\Services;
 
-use Illuminate\Support\Facades\Log;
+use SineMacula\ApiToolkit\Exceptions\FailureReporter;
 use SineMacula\ApiToolkit\Exceptions\LockOperationException;
 use SineMacula\ApiToolkit\Services\Actors\SystemActor;
 use SineMacula\ApiToolkit\Services\Contracts\ServiceConcern;
@@ -225,7 +225,7 @@ final class ServiceRunner
 
             return [];
         } catch (\Throwable $exception) {
-            Log::error('Service afterCommit threw an exception.', ['exception' => $exception]);
+            FailureReporter::report($exception, 'Service afterCommit threw an exception.');
 
             return [$exception];
         }
@@ -243,7 +243,7 @@ final class ServiceRunner
         try {
             ($hooks['onFailure'])($exception);
         } catch (\Throwable $e) {
-            Log::error('Service onFailure threw an exception.', ['exception' => $e]);
+            FailureReporter::report($e, 'Service onFailure threw an exception.');
         }
     }
 

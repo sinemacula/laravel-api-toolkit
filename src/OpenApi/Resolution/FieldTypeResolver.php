@@ -83,11 +83,33 @@ final readonly class FieldTypeResolver
      */
     private function isOpaque(CompiledFieldDefinition $field): bool
     {
-        return $field->accessor     !== null
-            || $field->compute      !== null
-            || $field->relation     !== null
-            || $field->guards       !== []
-            || $field->transformers !== [];
+        return $this->hasAlternateSource($field) || $this->hasInterceptors($field);
+    }
+
+    /**
+     * Determine whether a field draws its value from an accessor, a computed
+     * callback, or a relation rather than its backing column.
+     *
+     * @param  \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition  $field
+     * @return bool
+     */
+    private function hasAlternateSource(CompiledFieldDefinition $field): bool
+    {
+        return $field->accessor !== null
+            || $field->compute  !== null
+            || $field->relation !== null;
+    }
+
+    /**
+     * Determine whether a guard or transformer intervenes between the column
+     * and the emitted value.
+     *
+     * @param  \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition  $field
+     * @return bool
+     */
+    private function hasInterceptors(CompiledFieldDefinition $field): bool
+    {
+        return $field->guards !== [] || $field->transformers !== [];
     }
 
     /**

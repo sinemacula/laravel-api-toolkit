@@ -6,6 +6,9 @@ namespace Tests\Unit\Schema\Validation\Rules;
 
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
+use SineMacula\ApiToolkit\Enums\CallableList;
+use SineMacula\ApiToolkit\Schema\CompiledAggregateDefinition;
+use SineMacula\ApiToolkit\Schema\CompiledCountDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledSchema;
 use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidatesCallableLists;
@@ -48,7 +51,8 @@ final class ValidatesCallableListsTest extends TestCase
     }
 
     /**
-     * Test that a non-callable entry is reported using the concrete label.
+     * Test that a non-callable entry is reported under the selected list's
+     * label.
      *
      * @return void
      */
@@ -73,7 +77,7 @@ final class ValidatesCallableListsTest extends TestCase
 
         self::assertCount(1, $errors);
         self::assertSame('name', $errors[0]->fieldKey);
-        self::assertSame('Item at index 0 is not callable', $errors[0]->defect);
+        self::assertSame('Guard at index 0 is not callable', $errors[0]->defect);
     }
 
     /**
@@ -91,6 +95,7 @@ final class ValidatesCallableListsTest extends TestCase
 
         $reflection->getProperty('fields')->setValue($schema, ['ghost' => null]);
         $reflection->getProperty('counts')->setValue($schema, []);
+        $reflection->getProperty('aggregates')->setValue($schema, []);
 
         self::assertSame([], $this->makeRule()->validate('App\Http\Resources\UserResource', null, $schema));
     }
@@ -123,6 +128,7 @@ final class ValidatesCallableListsTest extends TestCase
 
         $reflection->getProperty('fields')->setValue($schema, ['ghost' => null, 'name' => $bad]);
         $reflection->getProperty('counts')->setValue($schema, []);
+        $reflection->getProperty('aggregates')->setValue($schema, []);
 
         $errors = $this->makeRule()->validate('App\Http\Resources\UserResource', null, $schema);
 
@@ -199,8 +205,8 @@ final class ValidatesCallableListsTest extends TestCase
         $errors = $this->makeRule()->validate('App\Http\Resources\UserResource', null, $schema);
 
         self::assertCount(2, $errors);
-        self::assertSame('Item at index 0 is not callable', $errors[0]->defect);
-        self::assertSame('Item at index 1 is not callable', $errors[1]->defect);
+        self::assertSame('Guard at index 0 is not callable', $errors[0]->defect);
+        self::assertSame('Guard at index 1 is not callable', $errors[1]->defect);
     }
 
     /**
@@ -230,38 +236,211 @@ final class ValidatesCallableListsTest extends TestCase
 
         self::assertCount(1, $errors);
         self::assertSame('name', $errors[0]->fieldKey);
-        self::assertSame('Item at index 1 is not callable', $errors[0]->defect);
+        self::assertSame('Guard at index 1 is not callable', $errors[0]->defect);
     }
 
     /**
-     * Build a concrete rule that validates each field's guard list.
+     * Test that count and aggregate definitions are validated after the fields,
+     * accumulating every error in field, count, then aggregate order.
      *
+     * @return void
+     */
+    public function testAccumulatesCountAndAggregateErrorsAfterFieldErrors(): void
+    {
+        $field = new CompiledFieldDefinition(
+            accessor: 'name',
+            compute: null,
+            relation: null,
+            resource: null,
+            fields: null,
+            constraint: null,
+            extras: [],
+            needs: [],
+            guards: ['not_a_function'],
+            transformers: [],
+        );
+
+        $schema = new CompiledSchema(
+            fields: ['name' => $field],
+            counts: [
+                'comments_count' => $this->makeCount('comments_count', ['not_a_function']),
+                'likes_count'    => $this->makeCount('likes_count', [fn ($value, $model) => true, 'not_a_function']),
+            ],
+            aggregates: [
+                'sum:reviews_rating' => $this->makeAggregate('reviews_rating', ['not_a_function']),
+                'sum:orders_total'   => $this->makeAggregate('orders_total', ['not_a_function']),
+            ],
+        );
+
+        $errors = $this->makeRule()->validate('App\Http\Resources\PostResource', null, $schema);
+
+        self::assertSame(
+            ['name', 'comments_count', 'likes_count', 'reviews_rating', 'orders_total'],
+            array_map(static fn ($error) => $error->fieldKey, $errors),
+        );
+        self::assertSame(
+            [
+                'Guard at index 0 is not callable',
+                'Guard at index 0 is not callable',
+                'Guard at index 1 is not callable',
+                'Guard at index 0 is not callable',
+                'Guard at index 0 is not callable',
+            ],
+            array_map(static fn ($error) => $error->defect, $errors),
+        );
+        self::assertSame(['App\Http\Resources\PostResource'], array_values(array_unique(array_map(static fn ($error) => $error->resourceClass, $errors))));
+    }
+
+    /**
+     * Test that count and aggregate definitions are validated against the list
+     * the concrete rule selects, so the other list is never reported.
+     *
+     * @return void
+     */
+    public function testValidatesCountAndAggregateListsSelectedByHook(): void
+    {
+        $count = new CompiledCountDefinition(
+            presentKey: 'comments_count',
+            relation: 'comments',
+            constraint: null,
+            isDefault: false,
+            guards: [],
+            transformers: ['not_a_function'],
+        );
+
+        $aggregate = new CompiledAggregateDefinition(
+            presentKey: 'reviews_rating',
+            relation: 'reviews',
+            column: 'rating',
+            metric: 'sum',
+            constraint: null,
+            isDefault: false,
+            guards: [],
+            transformers: ['not_a_function'],
+        );
+
+        $schema = new CompiledSchema(
+            fields: [],
+            counts: ['comments_count' => $count],
+            aggregates: ['sum:reviews_rating' => $aggregate],
+        );
+
+        self::assertSame([], $this->makeRule()->validate('App\Http\Resources\PostResource', null, $schema));
+    }
+
+    /**
+     * Test that a rule selecting the transformer list reports every
+     * non-callable transformer on fields, counts and aggregates under the
+     * transformer label.
+     *
+     * @return void
+     */
+    public function testReportsTransformerDefectsAcrossDefinitionsWhenTransformersSelected(): void
+    {
+        $field = new CompiledFieldDefinition(
+            accessor: 'name',
+            compute: null,
+            relation: null,
+            resource: null,
+            fields: null,
+            constraint: null,
+            extras: [],
+            needs: [],
+            guards: [],
+            transformers: ['not_a_function'],
+        );
+
+        $schema = new CompiledSchema(
+            fields: ['name' => $field],
+            counts: [
+                'comments_count' => $this->makeCount('comments_count', [], [fn ($value, $model) => $value, 'not_a_function']),
+            ],
+            aggregates: [
+                'sum:reviews_rating' => $this->makeAggregate('reviews_rating', [], ['not_a_function']),
+            ],
+        );
+
+        $errors = $this->makeRule(CallableList::TRANSFORMERS)->validate('App\Http\Resources\PostResource', null, $schema);
+
+        self::assertSame(
+            ['name', 'comments_count', 'reviews_rating'],
+            array_map(static fn ($error) => $error->fieldKey, $errors),
+        );
+        self::assertSame(
+            [
+                'Transformer at index 0 is not callable',
+                'Transformer at index 1 is not callable',
+                'Transformer at index 0 is not callable',
+            ],
+            array_map(static fn ($error) => $error->defect, $errors),
+        );
+    }
+
+    /**
+     * Build a compiled count definition with the given callable lists.
+     *
+     * @param  string  $presentKey
+     * @param  array<int, mixed>  $guards
+     * @param  array<int, mixed>  $transformers
+     * @return \SineMacula\ApiToolkit\Schema\CompiledCountDefinition
+     */
+    private function makeCount(string $presentKey, array $guards, array $transformers = []): CompiledCountDefinition
+    {
+        return new CompiledCountDefinition(presentKey: $presentKey, relation: 'comments', constraint: null, isDefault: false, guards: $guards, transformers: $transformers);
+    }
+
+    /**
+     * Build a compiled sum aggregate definition with the given callable lists.
+     *
+     * @param  string  $presentKey
+     * @param  array<int, mixed>  $guards
+     * @param  array<int, mixed>  $transformers
+     * @return \SineMacula\ApiToolkit\Schema\CompiledAggregateDefinition
+     */
+    private function makeAggregate(string $presentKey, array $guards, array $transformers = []): CompiledAggregateDefinition
+    {
+        return new CompiledAggregateDefinition(
+            presentKey: $presentKey,
+            relation: 'reviews',
+            column: 'rating',
+            metric: 'sum',
+            constraint: null,
+            isDefault: false,
+            guards: $guards,
+            transformers: $transformers,
+        );
+    }
+
+    /**
+     * Build a concrete rule that validates the given callable list on each
+     * definition.
+     *
+     * @param  \SineMacula\ApiToolkit\Enums\CallableList  $list
      * @return \SineMacula\ApiToolkit\Schema\Validation\Rules\ValidatesCallableLists
      */
-    private function makeRule(): ValidatesCallableLists
+    private function makeRule(CallableList $list = CallableList::GUARDS): ValidatesCallableLists
     {
-        return new class extends ValidatesCallableLists {
+        return new class ($list) extends ValidatesCallableLists {
             /**
-             * Return the callable list to validate for the given field.
+             * Create a new rule validating the given callable list.
              *
-             * @param  \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition  $field
-             * @return array<int, callable(mixed, mixed): mixed>
+             * @param  \SineMacula\ApiToolkit\Enums\CallableList  $list
              */
-            #[\Override]
-            protected function getCallables(CompiledFieldDefinition $field): array
-            {
-                return $field->guards;
-            }
+            public function __construct(
+
+                /** The callable list this rule validates */
+                private readonly CallableList $list,
+            ) {}
 
             /**
-             * Return the human-readable label used in defect messages.
+             * Return the callable list this rule validates.
              *
-             * @return string
+             * @return \SineMacula\ApiToolkit\Enums\CallableList
              */
             #[\Override]
-            protected function getLabel(): string
+            protected function getCallableList(): CallableList
             {
-                return 'Item';
+                return $this->list;
             }
         };
     }

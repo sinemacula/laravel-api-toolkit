@@ -2,7 +2,6 @@
 
 declare(strict_types = 1);
 
-use SineMacula\ApiToolkit\Exceptions\ApiExceptionHandler;
 use SineMacula\ApiToolkit\OpenApi\Resolution\DocumentableRouteFilter;
 
 return [
@@ -52,14 +51,6 @@ return [
         'render_strategy' => env('API_EXCEPTION_RENDER_STRATEGY', 'auto'),
 
         'include_debug_info' => null,
-
-        // Lower-case substrings used to redact matching request keys (e.g.
-        // password, *_token, *secret*) from the request data written to the
-        // exception log context, preventing credentials from leaking to logs.
-        // The handler's DEFAULT_SENSITIVE_KEYS is the single source of truth,
-        // reused here so the shipped default and the hard fallback cannot
-        // drift.
-        'sensitive_keys' => ApiExceptionHandler::DEFAULT_SENSITIVE_KEYS,
 
     ],
 
@@ -523,17 +514,18 @@ return [
     |   - 'throw': throw WritePoolFlushException on the first failure, carrying
     |     the partial result, and preserve the failed and unprocessed records
     |     in the buffer. Best for callers that own an explicit flush site.
-    |   - 'log' (opt-in best-effort): catch, log error, continue, and clear the
-    |     buffer. Failed records are dropped, so use this only for genuinely
+    |   - 'log' (opt-in best-effort): catch, log a warning, continue, and clear
+    |     the buffer. Failed records are dropped, so use this only for genuinely
     |     disposable writes such as audit, analytics, or telemetry.
     |
     | `transactional` wraps each table's chunk set in a database transaction so
     | that table's inserts are applied all-or-nothing. Disabled by default to
     | preserve per-chunk performance and the existing partial-persist behavior.
     |
-    | `rethrow_at_boundary` re-throws a WritePoolFlushException after escalating
-    | it at the lifecycle boundary. Only applies under the 'throw' strategy and
-    | is disabled by default so the boundary is never hard-crashed.
+    | `rethrow_at_boundary` re-throws a WritePoolFlushException at the
+    | lifecycle boundary, which then reports it, instead of the subscriber
+    | reporting it. Only applies under the 'throw' strategy and is disabled by
+    | default so the boundary is never hard-crashed.
     |
     | `invalidate_query_cache` invalidates the per-query repository cache for
     | every table the boundary flush touched, so a deferred insert never leaves
@@ -617,6 +609,10 @@ return [
     | 'excluded_classes' is an array of fully-qualified notification class
     | names that should be excluded from the notification audit log.
     |
+    | 'log_channel' is the log channel the notification audit log is written to.
+    | Leave it null to use the application's default log channel, or name a
+    | channel defined in the application's logging configuration.
+    |
     */
 
     'notifications' => [
@@ -626,6 +622,8 @@ return [
         'excluded_classes' => [
             // Add notification class-strings to exclude from logging.
         ],
+
+        'log_channel' => env('NOTIFICATION_LOG_CHANNEL'),
 
     ],
 

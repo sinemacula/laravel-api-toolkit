@@ -364,7 +364,7 @@ final class WritePool
      */
     private function logChunkFailure(string $table, array $chunk, \Throwable $exception): void
     {
-        Log::error("WritePool flush failed for table [{$table}]", [
+        Log::warning("WritePool flush failed for table [{$table}]", [
             'table'      => $table,
             'chunk_size' => count($chunk),
             'error'      => $exception->getMessage(),

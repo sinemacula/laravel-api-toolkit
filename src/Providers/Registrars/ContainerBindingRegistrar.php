@@ -316,7 +316,11 @@ final readonly class ContainerBindingRegistrar
     {
         $this->container->beforeResolving(static function (callable|string $abstract, array $parameters, Container $app): void {
 
-            if (!is_string($abstract) || !str_contains($abstract, '\\') || $parameters !== [] || !is_subclass_of($abstract, Payload::class) || $app->bound($abstract)) {
+            if (!is_string($abstract) || !str_contains($abstract, '\\') || $parameters !== []) {
+                return;
+            }
+
+            if (!is_subclass_of($abstract, Payload::class) || $app->bound($abstract)) {
                 return;
             }
 

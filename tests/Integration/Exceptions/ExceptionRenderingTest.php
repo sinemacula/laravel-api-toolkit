@@ -9,7 +9,6 @@ use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Http\Request;
 use Illuminate\Session\TokenMismatchException;
 use Illuminate\Support\Facades\Route;
-use Monolog\Handler\NullHandler;
 use Opis\JsonSchema\Helper;
 use Opis\JsonSchema\Validator;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -56,10 +55,6 @@ final class ExceptionRenderingTest extends TestCase
         ApiExceptionHandler::handles(new Exceptions($handler));
 
         config()->set('app.debug', false);
-        config()->set('logging.channels.api-exceptions', [
-            'driver'  => 'monolog',
-            'handler' => NullHandler::class,
-        ]);
 
         Route::get('/abort-conflict', static function (): never {
             abort(409);

@@ -15,10 +15,11 @@ use Illuminate\Queue\Events\JobProcessed;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
-use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Exceptions;
 use PHPUnit\Framework\Attributes\CoversTrait;
 use SineMacula\ApiToolkit\Enums\FlushStrategy;
 use SineMacula\ApiToolkit\Events\WritePoolFlushFailed;
+use SineMacula\ApiToolkit\Exceptions\WritePoolFlushException;
 use SineMacula\ApiToolkit\Repositories\Concerns\Deferrable;
 use SineMacula\ApiToolkit\Repositories\Concerns\WritePool;
 use SineMacula\ApiToolkit\Repositories\Concerns\WritePoolFlushResult;
@@ -329,10 +330,12 @@ final class DeferrableIntegrationTest extends TestCase
 
         Event::fake([WritePoolFlushFailed::class]);
 
-        Log::shouldReceive('error')->never();
-        Log::shouldReceive('warning')->once();
+        Exceptions::fake();
 
         Event::dispatch(new RequestHandled(new Request, new Response));
+
+        Exceptions::assertReportedCount(1);
+        Exceptions::assertReported(WritePoolFlushException::class);
 
         Event::assertDispatched(WritePoolFlushFailed::class, fn (WritePoolFlushFailed $event): bool => $event->flushResult->failureCount() === 1);
     }
@@ -352,10 +355,12 @@ final class DeferrableIntegrationTest extends TestCase
 
         Event::fake([WritePoolFlushFailed::class]);
 
-        Log::shouldReceive('error')->never();
-        Log::shouldReceive('warning')->once();
+        Exceptions::fake();
 
         Event::dispatch(new RequestHandled(new Request, new Response));
+
+        Exceptions::assertReportedCount(1);
+        Exceptions::assertReported(WritePoolFlushException::class);
 
         self::assertSame(1, $pool->count());
         self::assertFalse($pool->isEmpty());
@@ -377,10 +382,12 @@ final class DeferrableIntegrationTest extends TestCase
 
         Event::fake([WritePoolFlushFailed::class]);
 
-        Log::shouldReceive('error')->never();
-        Log::shouldReceive('warning')->once();
+        Exceptions::fake();
 
         Event::dispatch(new RequestHandled(new Request, new Response));
+
+        Exceptions::assertReportedCount(1);
+        Exceptions::assertReported(WritePoolFlushException::class);
 
         self::assertSame(0, DB::table('users')->count());
         self::assertSame(2, $pool->count());

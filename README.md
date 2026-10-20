@@ -48,9 +48,9 @@ php artisan vendor:publish --provider="SineMacula\ApiToolkit\ApiServiceProvider"
 ```
 
 This publishes `config/api-toolkit.php` to your application's config directory. The file is documented inline
-and covers exception rendering strategy, sensitive-key redaction, sensitive columns, query parser limits,
-deferred write behaviour, middleware toggles, and more. Per-query repository caching is configured in the
-`sinemacula/laravel-repositories` package under `repositories.cache`.
+and covers exception rendering strategy, sensitive columns, query parser limits, deferred write behaviour,
+middleware toggles, the notification audit log destination, and more. Per-query repository caching is configured
+in the `sinemacula/laravel-repositories` package under `repositories.cache`.
 
 ## Usage
 
@@ -453,6 +453,10 @@ dropping them. The `'throw'` strategy raises a `WritePoolFlushException` for cal
 site. The `'log'` strategy is best-effort only - use it solely for genuinely disposable writes such as
 telemetry.
 
+When a boundary flush fails under `'collect'` or `'throw'`, the failure is reported through the exception handler
+as a `WritePoolFlushException` and a `WritePoolFlushFailed` event is dispatched. Under `'log'` the failure is
+written as a warning rather than reported, and the event is still dispatched.
+
 The `WritePool` is a scoped singleton, so after a deferred write you can call
 `app(WritePool::class)->lastAutoFlushResult()` to observe the outcome of the most recent automatic flush
 (`null` if none has occurred). Under the non-throwing `'collect'` and `'log'` strategies this accessor is the
@@ -502,7 +506,8 @@ the matrix, so replacing the `$contains` handler leaves it served from document 
 
 ### Exception Handling
 
-Register the exception handler once in `bootstrap/app.php`:
+Register the exception handler once in `bootstrap/app.php`. The call is required: it registers both the JSON
+rendering and the reporting filter, and without it handled exceptions reach every reporter:
 
 ```php
 use SineMacula\ApiToolkit\Exceptions\ApiExceptionHandler;
@@ -520,10 +525,34 @@ with appropriate HTTP status codes. The rendering strategy is configurable:
 - `'json_when_expected'` - renders JSON only when the request expects a JSON response (Laravel's
   `expectsJson()`, e.g. `Accept: application/json`).
 
-**Sensitive-key redaction** - request data written to the exception log is automatically scanned and values
-whose keys match any substring in `api-toolkit.exceptions.sensitive_keys` (default: `password`, `token`,
-`secret`, `authorization`) are replaced with `[redacted]` before being written to the log. Add application-specific
-keys to that array in your published config to extend coverage.
+**Handled and unhandled exceptions** - an `ApiException` is a deliberate, handled response and is never
+reported or logged, whatever reporters (error trackers included) are registered and in whatever order. This
+matches Laravel's treatment of its own HTTP exceptions; the response status remains the signal for
+request-level error rates.
+
+- A deliberately thrown 5xx such as `ServiceUnavailableException` is handled too, so report its underlying
+  cause where you catch it.
+- An `UnhandledException` thrown by hand is still reported.
+- Laravel's `Illuminate\Validation\UnauthorizedException` (rendered as `403`) is not reported.
+- An exception implementing Symfony's `HttpExceptionInterface` is not reported when its status is a
+  recognised client error (one the handler renders as a `4xx`) or `419`, even when it does not extend
+  Symfony's `HttpException`. An unrecognised status such as `499` renders as a generic `500` and is reported.
+- `LockUnavailableException` (lock contention, rendered as `429`) is never reported, with or without
+  `handles()`.
+
+Other framework exceptions the handler renders as client errors, such as `ModelNotFoundException` (`404`) or
+`ValidationException` (`422`), are kept out of reports by Laravel's own don't-report list.
+
+An exception the handler does not map is unhandled. Laravel reports the original exception, with its own class
+and trace and subject to Laravel's own don't-report list, before the toolkit renders a generic `500` body, so
+with debug info disabled its internals never reach the client.
+
+The filter applies wherever Laravel reports, queued jobs and console commands included. It does not change
+retries, failed-job storage or console output. Reporting is decided on the exception after any
+`$exceptions->map()` has been applied.
+
+The toolkit does not attach request input to exception reports. Add the fields you want with your own
+`$exceptions->context()` callback.
 
 ---
 
@@ -532,7 +561,10 @@ keys to that array in your published config to extend coverage.
 The service provider registers the following middleware automatically. Each registration can be disabled
 independently in `api-toolkit.middleware`:
 
-- **`maintenance_mode_swap`** - JSON `503` maintenance responses with an `except` URI allowlist.
+- **`maintenance_mode_swap`** - JSON `503` maintenance responses with an `except` URI allowlist. `Retry-After` and
+  `Refresh` from `php artisan down --retry` / `--refresh` are forwarded; the JSON response is always `503`, so
+  `--status` is not honoured. Non-JSON requests that Laravel redirects (`--redirect`) or renders a template for
+  (`--render`) are left untouched.
 - **`json_pretty_print`** - opt-in pretty-printed JSON responses via a query parameter.
 - **`throttle`** - API-friendly rate-limit responses; auto-selects the Redis variant when Redis is the cache driver.
 
@@ -642,6 +674,36 @@ framework's own caches. Reload PHP workers after a rebuild, as with those caches
 
 Entries written under a retired generation are no longer read but stay in the store until it evicts or
 clears them. Each invalidation leaves at most one copy of the metadata behind.
+
+---
+
+### Notification Audit Log
+
+When `illuminate/notifications` is installed and `api-toolkit.notifications.enable_logging` is `true` (the
+default), the toolkit logs every `NotificationSending` event at `debug` and every `NotificationSent` event at
+`info`. Each line records the notification class, the notifiable type, the notifiable id (only when the notifiable
+is an Eloquent model with a key) and the delivery channel. List notification classes in
+`api-toolkit.notifications.excluded_classes` to leave them out.
+
+The lines are written to the application's default log channel, so they go wherever the rest of the application's
+logs go and keep any trace correlation applied to them. Whether the `debug` lines are kept depends on that
+channel's level. For a dedicated destination, define the channel in the application's `config/logging.php`:
+
+```php
+'channels' => [
+    'notifications' => [
+        'driver' => 'daily',
+        'path'   => storage_path('logs/notifications.log'),
+        'level'  => 'debug',
+    ],
+],
+```
+
+Then point `api-toolkit.notifications.log_channel` at it:
+
+```dotenv
+NOTIFICATION_LOG_CHANNEL=notifications
+```
 
 ---
 

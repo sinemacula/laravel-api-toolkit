@@ -7,8 +7,8 @@ namespace SineMacula\ApiToolkit\Listeners;
 use Illuminate\Events\Dispatcher;
 use Illuminate\Queue\Events\JobFailed;
 use Illuminate\Queue\Events\JobProcessed;
-use Illuminate\Support\Facades\Log;
 use SineMacula\ApiToolkit\Cache\CacheManager;
+use SineMacula\ApiToolkit\Exceptions\FailureReporter;
 use SineMacula\ApiToolkit\Runtime\RuntimeContext;
 
 /**
@@ -72,9 +72,8 @@ final readonly class QueueFlushSubscriber
         try {
             $this->cacheManager->flush();
         } catch (\Throwable $exception) { // @phpstan-ignore catch.neverThrown
-            // A flush failure must not crash the queue worker at the job
-            // boundary; container resolution can throw at runtime.
-            Log::error('Queue worker cache flush failed', ['exception' => $exception]);
+            // Container resolution can throw; never crash the worker.
+            FailureReporter::report($exception, 'Queue worker cache flush failed');
         }
     }
 }

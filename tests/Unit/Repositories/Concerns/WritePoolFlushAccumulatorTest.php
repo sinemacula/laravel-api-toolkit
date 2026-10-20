@@ -176,4 +176,50 @@ final class WritePoolFlushAccumulatorTest extends TestCase
         self::assertSame(0, $result->droppedRecordCount());
         self::assertSame(['orders', 'payments'], $result->flushedTables());
     }
+
+    /**
+     * Test that the result retains the first recorded failure as its underlying
+     * exception, ignoring later failures.
+     *
+     * @return void
+     */
+    public function testResultRetainsTheFirstRecordedFailure(): void
+    {
+        $accumulator = new WritePoolFlushAccumulator;
+        $first       = new \RuntimeException('first');
+
+        $accumulator->recordFailure('orders', [['id' => 1]], $first);
+        $accumulator->recordFailure('payments', [['id' => 2]], new \RuntimeException('second'));
+
+        self::assertSame($first, $accumulator->toResult(FlushStrategy::COLLECT)->firstException());
+    }
+
+    /**
+     * Test that the result carries no underlying exception when nothing failed.
+     *
+     * @return void
+     */
+    public function testResultHasNoFirstExceptionWithoutFailures(): void
+    {
+        $accumulator = new WritePoolFlushAccumulator;
+
+        $accumulator->recordSuccess([['id' => 1]]);
+
+        self::assertNull($accumulator->toResult(FlushStrategy::COLLECT)->firstException());
+    }
+
+    /**
+     * Test that the throw result also carries the first recorded failure.
+     *
+     * @return void
+     */
+    public function testToThrowResultCarriesTheFirstRecordedFailure(): void
+    {
+        $accumulator = new WritePoolFlushAccumulator;
+        $first       = new \RuntimeException('first');
+
+        $accumulator->recordFailure('orders', [['id' => 1]], $first);
+
+        self::assertSame($first, $accumulator->toThrowResult(1)->firstException());
+    }
 }
