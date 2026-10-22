@@ -329,6 +329,9 @@ abstract class ApiResource extends BaseResource implements ApiResourceInterface
     /**
      * Resolve a single field value using the schema (guards first).
      *
+     * Fields missing from the schema are never resolved, except fixed fields,
+     * so a request cannot select arbitrary model attributes.
+     *
      * @param  string  $field
      * @param  \Illuminate\Http\Request|null  $request
      * @return mixed
@@ -336,8 +339,10 @@ abstract class ApiResource extends BaseResource implements ApiResourceInterface
     protected function resolveFieldValue(string $field, ?Request $request): mixed
     {
         $definition = static::getCompiledSchema()[$field] ?? null;
+        $fixed      = $this->getFixedFields();
+        $is_unknown = $definition === null && !in_array($field, $fixed, true);
 
-        if (($definition['metric'] ?? null) !== null) {
+        if ($is_unknown || ($definition['metric'] ?? null) !== null) {
             return new MissingValue;
         }
 
