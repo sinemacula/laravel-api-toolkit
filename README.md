@@ -569,8 +569,10 @@ independently in `api-toolkit.middleware`:
 - **`throttle`** - API-friendly rate-limit responses; auto-selects the Redis variant when Redis is the cache driver.
 
 `json_pretty_print` accepts `'scope': 'global'` (default, pushed to the global stack) or `'scope': 'api'`
-(appended to the `api` middleware group only). `maintenance_mode_swap` is always prepended to the global
-stack when enabled, and `throttle` is registered as the router's `throttle` alias, so neither takes a scope.
+(appended to the `api` middleware group only). Neither `maintenance_mode_swap` nor `throttle` takes a scope:
+the maintenance middleware replaces Laravel's in its existing position in the global stack, after `HandleCors`, so
+maintenance `503` responses still carry CORS headers (nothing is added if Laravel's has been removed), and
+`throttle` is registered as the router's `throttle` alias.
 
 Soft-delete visibility is resolved from the request by the query parser rather than by a request macro:
 `ApiQuery::getTrashed()` returns a `TrashedState`, and the criteria layer applies it only where the model uses
