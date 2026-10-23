@@ -640,9 +640,11 @@ return [
     |
     | `maintenance_mode_swap`: Controls whether the toolkit replaces Laravel's
     | built-in PreventRequestsDuringMaintenance middleware with the toolkit's
-    | version. When enabled, the toolkit's middleware is prepended to the global
-    | middleware stack, taking precedence over Laravel's default. Disable this
-    | if you manage maintenance mode middleware in your own bootstrap/app.php.
+    | version. When enabled, the toolkit's middleware takes the place of
+    | Laravel's in the global middleware stack, after HandleCors, so maintenance
+    | responses still carry CORS headers. If Laravel's middleware is not in the
+    | global stack, nothing is added. Disable this if you manage maintenance
+    | mode middleware in your own bootstrap/app.php or HTTP kernel.
     |   - `enabled`: true to swap (default), false to skip.
     |
     | `json_pretty_print`: Controls the registration of the JsonPrettyPrint
