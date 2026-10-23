@@ -63,7 +63,11 @@ final class FieldResolverTest extends TestCase
         // inputs can only return the assembled list if it reads the memo.
         /** @var array<string, array<int, string>> $cache */
         $cache = $this->getStaticProperty(FieldResolver::class, 'resolvedCache');
-        $this->setStaticProperty(FieldResolver::class, 'resolvedCache', [array_key_first($cache) => ['sentinel']]);
+        $key   = array_key_first($cache);
+
+        self::assertNotNull($key);
+
+        $this->setStaticProperty(FieldResolver::class, 'resolvedCache', [$key => ['sentinel']]);
 
         $second = (new FieldResolver)->getFields($schema, 'users', ['name', 'email'], []);
 

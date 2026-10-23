@@ -11,6 +11,15 @@ parameters:
 
     checkUninitializedProperties: false
 
+    # Analyse against the supported PHP range (composer.json and the CI matrix)
+    # rather than the PHP running PHPStan. Version-gated rules are evaluated at
+    # the minimum, so features only valid on newer PHP, such as #[\Override] on
+    # properties (PHP 8.5+), are not demanded of code that must load on PHP 8.3;
+    # the trade-off is that PHP 8.4/8.5-only deprecation checks do not run.
+    phpVersion:
+        min: 80300
+        max: 80599
+
     # The env-outside-config rule resolves the application config directory; a
     # package's own config directory is not that, so its env() reads are
     # reported as though they were application code.

@@ -24,7 +24,8 @@ use Tests\TestCase;
  * renders the toolkit service-unavailable envelope rather than a raw HTML error
  * page, while a route named in the bypass list is served as normal - which only
  * holds because the swap removes the framework default so the toolkit except
- * list is authoritative.
+ * list is authoritative - and the 503 still carries the CORS headers a browser
+ * client needs to read it.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -59,6 +60,10 @@ final class MaintenanceModeTest extends TestCase
 
         Route::middleware(PreventRequestsDuringMaintenance::class)->get('/data', static fn (): array => ['ok' => true]);
         Route::middleware(PreventRequestsDuringMaintenance::class)->get('/health', static fn (): array => ['ok' => true]);
+
+        // Guarded only by the global stack, so its maintenance response can
+        // only come from where the swap placed the toolkit middleware
+        Route::get('/open', static fn (): array => ['ok' => true]);
         Route::get('/broken', static function (): never {
             throw new \RuntimeException('Broken');
         });
@@ -143,6 +148,46 @@ final class MaintenanceModeTest extends TestCase
     }
 
     /**
+     * Test that the maintenance response carries the CORS headers for an
+     * allowed origin, so a browser client can read the 503 rather than seeing a
+     * CORS failure. This holds only because the swap keeps the toolkit
+     * middleware after HandleCors in the global stack.
+     *
+     * @return void
+     */
+    public function testMaintenanceResponseCarriesCorsHeadersForAllowedOrigin(): void
+    {
+        $this->allowCorsOrigin('https://app.example.test');
+
+        $response = $this->duringMaintenance(fn () => $this->getJson('/open', ['Origin' => 'https://app.example.test']), ['retry' => 60]);
+
+        $response->assertStatus(503);
+        $response->assertJsonPath('error.code', 10200);
+        $response->assertHeader('Access-Control-Allow-Origin', 'https://app.example.test');
+        $response->assertHeader('Access-Control-Allow-Credentials', 'true');
+        $response->assertHeader('Retry-After', '60');
+    }
+
+    /**
+     * Test that a CORS preflight request is answered during maintenance mode
+     * rather than rejected with a 503 that carries no CORS headers.
+     *
+     * @return void
+     */
+    public function testCorsPreflightIsAnsweredDuringMaintenance(): void
+    {
+        $this->allowCorsOrigin('https://app.example.test');
+
+        $response = $this->duringMaintenance(fn () => $this->call('OPTIONS', '/open', [], [], [], [
+            'HTTP_ORIGIN'                        => 'https://app.example.test',
+            'HTTP_ACCESS_CONTROL_REQUEST_METHOD' => 'GET',
+        ]));
+
+        $response->assertNoContent();
+        $response->assertHeader('Access-Control-Allow-Origin', 'https://app.example.test');
+    }
+
+    /**
      * Test that a bypass-list route is served as normal during maintenance
      * mode.
      *
@@ -154,6 +199,22 @@ final class MaintenanceModeTest extends TestCase
 
         $response->assertOk();
         $response->assertJsonPath('ok', true);
+    }
+
+    /**
+     * Configure CORS to allow credentialed requests from the given origin on
+     * every path.
+     *
+     * @param  string  $origin
+     * @return void
+     */
+    private function allowCorsOrigin(string $origin): void
+    {
+        Config::set('cors.paths', ['*']);
+        Config::set('cors.allowed_origins', [$origin]);
+        Config::set('cors.allowed_methods', ['*']);
+        Config::set('cors.allowed_headers', ['*']);
+        Config::set('cors.supports_credentials', true);
     }
 
     /**

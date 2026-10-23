@@ -19,9 +19,10 @@ use SineMacula\ApiToolkit\Http\Middleware\ThrottleRequestsWithRedis;
 /**
  * Registers the toolkit middleware.
  *
- * Pushes the query parser, maintenance mode, and JSON pretty print middleware
- * onto the HTTP kernel, and aliases the throttle middleware on the router,
- * honouring the configured gates and scopes.
+ * Pushes the query parser and JSON pretty print middleware onto the HTTP
+ * kernel, swaps the framework's maintenance mode middleware for the toolkit's
+ * in place, and aliases the throttle middleware on the router, honouring the
+ * configured gates and scopes.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -64,11 +65,16 @@ final readonly class MiddlewareRegistrar
     /**
      * Register the maintenance mode middleware swap.
      *
-     * When enabled, the framework's built-in maintenance middleware is removed
-     * from the global stack and the toolkit's is prepended in its place. The
-     * toolkit middleware extends and fully supersedes the original, so leaving
-     * the original in place would re-throw a raw 503 for the paths the toolkit
-     * bypasses, defeating the configured maintenance exceptions.
+     * When enabled, the framework's built-in maintenance middleware is replaced
+     * in its existing position in the global stack by the toolkit's. Keeping
+     * that position matters: the framework places it after HandleCors, so the
+     * maintenance 503 still carries the CORS headers a browser needs to read
+     * it. The toolkit middleware extends and fully supersedes the original, so
+     * leaving the original in place would re-throw a raw 503 for the paths the
+     * toolkit bypasses, defeating the configured maintenance exceptions.
+     *
+     * When the framework middleware is not in the global stack, nothing is
+     * added: an application that removed it has opted out of the swap.
      *
      * @param  \Illuminate\Foundation\Http\Kernel  $kernel
      * @return void
@@ -79,12 +85,12 @@ final readonly class MiddlewareRegistrar
             return;
         }
 
-        $kernel->setGlobalMiddleware(array_filter(
+        $kernel->setGlobalMiddleware(array_values(array_unique(array_map(
+            static fn (string $middleware): string => $middleware === FrameworkMaintenance::class
+                ? PreventRequestsDuringMaintenance::class
+                : $middleware,
             $kernel->getGlobalMiddleware(),
-            static fn ($middleware): bool => $middleware !== FrameworkMaintenance::class,
-        ));
-
-        $kernel->prependMiddleware(PreventRequestsDuringMaintenance::class);
+        ))));
     }
 
     /**

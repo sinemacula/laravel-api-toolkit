@@ -11,6 +11,8 @@ use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Events\Dispatcher;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Http\Events\RequestHandled;
+use Illuminate\Foundation\Http\Middleware\PreventRequestsDuringMaintenance as FrameworkMaintenance;
+use Illuminate\Http\Middleware\HandleCors;
 use Illuminate\Notifications\Events\NotificationSending;
 use Illuminate\Notifications\Events\NotificationSent;
 use Illuminate\Queue\Events\JobFailed;
@@ -158,21 +160,28 @@ final class ApiServiceProviderTest extends TestCase
     }
 
     /**
-     * Test that the toolkit's PreventRequestsDuringMaintenance middleware is
-     * prepended to the global stack when enabled (default).
+     * Test that the toolkit's PreventRequestsDuringMaintenance middleware takes
+     * the framework middleware's place in the global stack when enabled
+     * (default), so it still runs after HandleCors.
      *
      * @return void
      */
-    public function testMaintenanceModeMiddlewareIsPrependedWhenEnabled(): void
+    public function testMaintenanceModeMiddlewareReplacesFrameworkMiddlewareInPlaceWhenEnabled(): void
     {
         /** @var \Orchestra\Testbench\Http\Kernel $kernel */
         $kernel     = $this->getApplication()->make(HttpKernel::class);
         $middleware = $kernel->getGlobalMiddleware();
 
         self::assertContains(PreventRequestsDuringMaintenance::class, $middleware);
+        self::assertNotContains(FrameworkMaintenance::class, $middleware);
 
-        // It should be the first middleware in the stack
-        self::assertSame(PreventRequestsDuringMaintenance::class, $middleware[0]);
+        $cors = array_search(HandleCors::class, $middleware, true);
+
+        self::assertIsInt($cors);
+
+        // It should sit directly after HandleCors, where the framework places
+        // its own maintenance middleware
+        self::assertSame(PreventRequestsDuringMaintenance::class, $middleware[$cors + 1] ?? null);
     }
 
     /**
@@ -220,8 +229,9 @@ final class ApiServiceProviderTest extends TestCase
         $kernel = $app->make(HttpKernel::class);
         $global = $kernel->getGlobalMiddleware();
 
-        // Maintenance mode middleware is prepended (first in the stack)
-        self::assertSame(PreventRequestsDuringMaintenance::class, $global[0]);
+        // Maintenance mode middleware replaces the framework's in its position
+        self::assertContains(PreventRequestsDuringMaintenance::class, $global);
+        self::assertNotContains(FrameworkMaintenance::class, $global);
 
         // JsonPrettyPrint is in the global stack
         self::assertContains(JsonPrettyPrint::class, $global);
