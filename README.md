@@ -649,6 +649,27 @@ every earlier entry unreachable in every process at once. A column listing or se
 reads empty, as one does before its table exists, is never stored, so the table's columns are read as soon as
 it exists, with no migration event or invalidation needed.
 
+The metadata cache is optional. If a cache store operation throws, the failure is reported as a
+`MetadataCacheUnavailableException` and the store is bypassed for `api-toolkit.cache.retry_after` seconds (env
+`API_TOOLKIT_CACHE_RETRY_AFTER`, default `30`), so metadata is computed without the cache and the request is still
+served. A write the store rejects is reported at most once a window but bypasses nothing, so a store that rejects
+writes keeps serving its warm entries; the `null` driver's rejections are not reported. The windows are held for
+the process, so an Octane or queue worker reports an outage once a window. Under PHP-FPM no state outlives a
+request, so there an outage is reported once per request; throttle it in the exception handler with a lottery,
+since a rate limit on the same unavailable store cannot throttle:
+
+```php
+use Illuminate\Support\Lottery;
+use SineMacula\ApiToolkit\Exceptions\MetadataCacheUnavailableException;
+
+$exceptions->throttle(fn (Throwable $e) => $e instanceof MetadataCacheUnavailableException
+    ? Lottery::odds(1, 100)
+    : null);
+```
+
+The bypass bounds how many store calls fail, not how long each takes, so give the cache's Redis connection a
+short `timeout` and `read_timeout`. With `retry_after` set to `0`, every failed call is retried and reported.
+
 Schema entries are keyed by the schema the connection actually reads - its name, database, table prefix,
 Postgres search path, database user, and configured server - so a tenancy switcher that repoints one connection
 name reads each tenant's schema apart, provided it purges the connection when it switches. Casts, relation

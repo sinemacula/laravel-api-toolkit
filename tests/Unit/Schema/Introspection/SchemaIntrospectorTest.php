@@ -1018,13 +1018,17 @@ final class SchemaIntrospectorTest extends TestCase
         $expectedKey = $this->metadataStorageKey(CacheKeys::MODEL_RELATIONS->resolveKey([User::class, 'posts']));
 
         $repository = \Mockery::mock(Repository::class);
-        $repository->shouldReceive('remember')
+        $repository->shouldReceive('get')
             ->once()
-            ->with($expectedKey, 4321, \Mockery::type(\Closure::class))
-            ->andReturn(true);
+            ->with($expectedKey)
+            ->andReturnNull();
+        $repository->shouldReceive('put')
+            ->once()
+            ->with($expectedKey, true, 4321)
+            ->andReturnTrue();
 
         Cache::shouldReceive('memo')
-            ->once()
+            ->twice()
             ->andReturn($repository);
 
         self::assertTrue($this->makeIntrospector()->isRelation('posts', new User));
@@ -1043,13 +1047,17 @@ final class SchemaIntrospectorTest extends TestCase
         $expectedKey = $this->metadataStorageKey(CacheKeys::MODEL_RELATIONS->resolveKey([User::class, 'posts']));
 
         $repository = \Mockery::mock(Repository::class);
-        $repository->shouldReceive('remember')
+        $repository->shouldReceive('get')
             ->once()
-            ->with($expectedKey, 86400, \Mockery::type(\Closure::class))
-            ->andReturn(true);
+            ->with($expectedKey)
+            ->andReturnNull();
+        $repository->shouldReceive('put')
+            ->once()
+            ->with($expectedKey, true, 86400)
+            ->andReturnTrue();
 
         Cache::shouldReceive('memo')
-            ->once()
+            ->twice()
             ->andReturn($repository);
 
         self::assertTrue($this->makeIntrospector()->isRelation('posts', new User));

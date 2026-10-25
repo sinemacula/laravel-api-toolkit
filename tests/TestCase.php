@@ -66,6 +66,7 @@ abstract class TestCase extends OrchestraTestCase
         SchemaCompiler::clearCache();
         SearchPlan::clearCache();
         IndexProof::clearCache();
+        MetadataCacheWriter::reset();
 
         Relation::morphMap([], false);
         Relation::requireMorphMap(false);
