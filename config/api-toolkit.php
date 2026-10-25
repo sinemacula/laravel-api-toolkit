@@ -16,10 +16,18 @@ return [
     | efficiency. The 'prefix' is used to namespace toolkit cache entries to
     | avoid key collisions with other parts of your application.
     |
+    | The metadata cache is optional. When a cache store operation throws, the
+    | failure is reported and the store is bypassed for 'retry_after' seconds,
+    | so metadata is computed without the cache rather than failing the
+    | request. A write the store rejects is reported at most once in the same
+    | window but bypasses nothing. Set it to 0 to retry, and report, on every
+    | failed call.
+    |
     */
 
     'cache' => [
-        'prefix' => 'api-toolkit',
+        'prefix'      => 'api-toolkit',
+        'retry_after' => env('API_TOOLKIT_CACHE_RETRY_AFTER', 30),
     ],
 
     /*

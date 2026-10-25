@@ -26,6 +26,13 @@ use SineMacula\ApiToolkit\Exceptions\MetadataInvalidationException;
  * The generation is read once and memoised for the life of the process, or
  * until {@see forget()} is called at a lifecycle boundary.
  *
+ * A store that throws while the generation is resolved propagates the failure
+ * to {@see MetadataCacheWriter}, which bypasses the store for its retry window
+ * and forgets the generation, so it is read from the store again afterwards. A
+ * store that fails without throwing leaves the freshly minted token in place
+ * for the process, retired at the next lifecycle boundary like any memoised
+ * generation.
+ *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */

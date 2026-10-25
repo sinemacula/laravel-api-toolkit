@@ -1370,6 +1370,62 @@ Or in a published `config/api-toolkit.php`:
 Entries written under a retired generation are no longer read but stay in the store until it evicts or clears
 them, so each invalidation leaves at most one copy of the metadata behind.
 
+### Changed: an unavailable cache store no longer fails the request
+
+Toolkit metadata is read and written through the cache store while resources and repositories are resolved.
+In 1.x, and in 2.x before this change, a store that threw, such as an unreachable Redis or Valkey server,
+failed the request for as long as the outage lasted, and a store that rejected a write dropped it silently.
+
+The metadata cache is now optional:
+
+- A store operation that throws while resolving the generation, reading, or writing is reported as a
+  `MetadataCacheUnavailableException`, whose previous exception is the store failure and whose report context
+  names the operation, the store, and the metadata key. The store is then bypassed for
+  `api-toolkit.cache.retry_after` seconds (env `API_TOOLKIT_CACHE_RETRY_AFTER`, default `30`), during which
+  metadata is computed without the cache, and the generation is read from the store again afterwards. With
+  `0`, every failed call is retried and reported.
+- A write the store rejects is reported at most once a window, without a previous exception, and bypasses
+  nothing, so a store that rejects writes keeps serving its warm entries. The `null` driver rejects every
+  write by design, so its rejections are not reported.
+- A time-to-live of zero or less, such as `relation_cache_ttl` set to `0`, stores nothing.
+- An exception from the code computing a value is not a store failure and still propagates. Invalidating the
+  metadata still writes through the store directly, so `api-toolkit:invalidate-metadata` still fails if the
+  store cannot be written.
+
+The windows are held for the process, so an Octane or queue worker reports an outage once a window. Under
+PHP-FPM no state outlives a request, so each request reports it once; throttle it in the exception handler
+with a lottery, since a rate limit on the same unavailable store cannot throttle (Laravel then reports every
+occurrence):
+
+    use Illuminate\Support\Lottery;
+    use SineMacula\ApiToolkit\Exceptions\MetadataCacheUnavailableException;
+
+    $exceptions->throttle(fn (Throwable $e) => $e instanceof MetadataCacheUnavailableException
+        ? Lottery::odds(1, 100)
+        : null);
+
+The bypass bounds how many store calls fail, not how long each takes. Laravel's default Redis configuration
+sets no timeout, so a blackholed host can hold a request for the client's socket timeout; give the cache's
+Redis connection a short `timeout` and `read_timeout`. With the `database` cache driver on the application's
+own connection, a failed cache query inside a transaction still aborts that transaction on PostgreSQL, so give
+the cache store its own connection.
+
+If you have published `config/api-toolkit.php`, add the new key inside its `cache` block, or the environment
+variable has no effect:
+
+    'cache' => [
+        'prefix'      => 'api-toolkit',
+        'retry_after' => env('API_TOOLKIT_CACHE_RETRY_AFTER', 30),
+    ],
+
+Metadata is now read and written with `get()` and `forever()` or `put()` on the memoised repository rather
+than `remember()` or `rememberForever()`, so a test that mocks `Cache::memo()` with those expectations needs
+updating; an unexpected call on such a mock is caught as a store failure.
+
+Service locks, the `throttle` middleware, and the query-cache invalidation that runs after deferred writes are
+flushed (`deferred_writes.invalidate_query_cache`) still use the cache store, or its Redis connection, directly
+and fail when it is unavailable.
+
 ### Removed: ProvidesExclusiveLock listener trait
 
 The `ProvidesExclusiveLock` listener trait has been removed. It had no internal consumers - the
