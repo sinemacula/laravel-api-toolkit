@@ -122,7 +122,7 @@ class ApiExceptionHandler
      */
     private static function renderApiExceptionWithJson(Request $request, ApiException $exception): JsonResponse
     {
-        $options = $request->get('pretty') ? JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES : JSON_UNESCAPED_SLASHES;
+        $options = $request->input('pretty') ? JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES : JSON_UNESCAPED_SLASHES;
 
         return Response::json(self::convertApiExceptionToArray($exception), $exception->getHttpStatusCode(), $exception->getHeaders(), $options);
     }

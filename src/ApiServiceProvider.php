@@ -139,8 +139,8 @@ class ApiServiceProvider extends ServiceProvider
      */
     private function registerTrashedMacros(): void
     {
-        Request::macro('includeTrashed', fn () => $this->get('include_trashed', false) === 'true');
-        Request::macro('onlyTrashed', fn () => $this->get('only_trashed', false) === 'true');
+        Request::macro('includeTrashed', fn () => $this->input('include_trashed', false) === 'true');
+        Request::macro('onlyTrashed', fn () => $this->input('only_trashed', false) === 'true');
     }
 
     /**
