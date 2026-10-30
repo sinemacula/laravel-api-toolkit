@@ -3,11 +3,14 @@
 <div align="center">
 
 [![Latest Stable Version](https://img.shields.io/packagist/v/sinemacula/laravel-api-toolkit.svg)](https://packagist.org/packages/sinemacula/laravel-api-toolkit)
+[![PHP Version](https://img.shields.io/packagist/dependency-v/sinemacula/laravel-api-toolkit/php.svg)](https://packagist.org/packages/sinemacula/laravel-api-toolkit)
+[![Laravel Version](https://img.shields.io/packagist/dependency-v/sinemacula/laravel-api-toolkit/laravel/framework.svg?label=laravel)](https://packagist.org/packages/sinemacula/laravel-api-toolkit)
 [![Build Status](https://github.com/sinemacula/laravel-api-toolkit/actions/workflows/tests.yml/badge.svg?branch=master)](https://github.com/sinemacula/laravel-api-toolkit/actions/workflows/tests.yml)
 [![Quality Gates](https://github.com/sinemacula/laravel-api-toolkit/actions/workflows/quality-gates.yml/badge.svg?branch=master)](https://github.com/sinemacula/laravel-api-toolkit/actions/workflows/quality-gates.yml)
 [![Maintainability](https://qlty.sh/gh/sinemacula/projects/laravel-api-toolkit/maintainability.svg)](https://qlty.sh/gh/sinemacula/projects/laravel-api-toolkit)
 [![Code Coverage](https://qlty.sh/gh/sinemacula/projects/laravel-api-toolkit/coverage.svg)](https://qlty.sh/gh/sinemacula/projects/laravel-api-toolkit)
 [![Total Downloads](https://img.shields.io/packagist/dt/sinemacula/laravel-api-toolkit.svg)](https://packagist.org/packages/sinemacula/laravel-api-toolkit)
+[![License](https://img.shields.io/github/license/sinemacula/laravel-api-toolkit.svg)](LICENSE)
 
 </div>
 
