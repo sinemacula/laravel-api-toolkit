@@ -60,38 +60,57 @@ class ApiServiceProviderTrashedMacrosTest extends TestCase
     }
 
     /**
-     * Query strings for the trashed macros.
+     * Requests carrying the trashed options in each supported position.
      *
-     * @return iterable<string, array{string, bool, bool}>
+     * @return iterable<string, array{\Illuminate\Http\Request, bool, bool}>
      */
-    public static function trashedQueries(): iterable
+    public static function trashedRequests(): iterable
     {
         yield from [
-            'absent'               => ['/', false, false],
-            'include true'         => ['/?include_trashed=true', true, false],
-            'include false'        => ['/?include_trashed=false', false, false],
-            'include other truthy' => ['/?include_trashed=1', false, false],
-            'only true'            => ['/?only_trashed=true', false, true],
-            'only false'           => ['/?only_trashed=false', false, false],
-            'both true'            => ['/?include_trashed=true&only_trashed=true', true, true],
+            'absent'               => [RequestWithoutGet::create('/'), false, false],
+            'include true'         => [RequestWithoutGet::create('/?include_trashed=true'), true, false],
+            'include false'        => [RequestWithoutGet::create('/?include_trashed=false'), false, false],
+            'include other truthy' => [RequestWithoutGet::create('/?include_trashed=1'), false, false],
+            'only true'            => [RequestWithoutGet::create('/?only_trashed=true'), false, true],
+            'only false'           => [RequestWithoutGet::create('/?only_trashed=false'), false, false],
+            'only other truthy'    => [RequestWithoutGet::create('/?only_trashed=1'), false, false],
+            'both true'            => [RequestWithoutGet::create('/?include_trashed=true&only_trashed=true'), true, true],
+            'form include true'    => [RequestWithoutGet::create('/', 'POST', ['include_trashed' => 'true']), true, false],
+            'form only true'       => [RequestWithoutGet::create('/', 'POST', ['only_trashed' => 'true']), false, true],
+            'json include true'    => [self::jsonRequest('{"include_trashed":"true"}'), true, false],
+            'json only true'       => [self::jsonRequest('{"only_trashed":"true"}'), false, true],
+            'json include boolean' => [self::jsonRequest('{"include_trashed":true}'), false, false],
+            'json only boolean'    => [self::jsonRequest('{"only_trashed":true}'), false, false],
         ];
     }
 
     /**
      * Only the literal string "true" switches a trashed macro on.
      *
-     * @param  string  $uri
+     * @param  \Illuminate\Http\Request  $request
      * @param  bool  $include_trashed
      * @param  bool  $only_trashed
      * @return void
      */
-    #[DataProvider('trashedQueries')]
+    #[DataProvider('trashedRequests')]
     #[Test]
-    public function trashedMacrosReadTheQueryString(string $uri, bool $include_trashed, bool $only_trashed): void
+    public function trashedMacrosReadTheRequestInput(Request $request, bool $include_trashed, bool $only_trashed): void
     {
-        $request = RequestWithoutGet::create($uri);
-
         static::assertSame($include_trashed, $request->includeTrashed());
         static::assertSame($only_trashed, $request->onlyTrashed());
+    }
+
+    /**
+     * Build a JSON request the way Laravel does, so the body lands in the
+     * request input bag.
+     *
+     * @param  string  $content
+     * @return \Illuminate\Http\Request
+     */
+    private static function jsonRequest(string $content): Request
+    {
+        return RequestWithoutGet::createFromBase(
+            RequestWithoutGet::create('/', 'POST', [], [], [], ['CONTENT_TYPE' => 'application/json'], $content),
+        );
     }
 }
