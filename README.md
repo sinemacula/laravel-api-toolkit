@@ -710,7 +710,8 @@ Each service run fires `ServiceCompleted` or `ServiceFailed`, and both events ca
 safe as that array.
 
 A `Payload` builds the summary from its public promoted properties. Mark a constructor parameter with PHP's built-in
-`#[\SensitiveParameter]` to leave it out. The same attribute already hides the value from stack traces:
+`#[\SensitiveParameter]` to leave it out. The same attribute also hides the value from the constructor's frame in
+stack traces:
 
 ```php
 final class SignInPayload extends Payload
@@ -727,7 +728,8 @@ SignInPayload::from(['email' => 'a@example.com', 'password' => 'secret'])->toArr
 ```
 
 The key is omitted rather than masked, and the value stays readable on the instance. A payload that overrides
-`toArray()` controls its summary entirely, and any other `ServiceInput` must scrub secrets in its own `toArray()`.
+`toArray()` controls its summary entirely. Any other `ServiceInput` must keep secrets out of its own `toArray()`; an
+`ArrayInput` returns its array as given, so leave secrets out of the array it wraps.
 
 ---
 

@@ -12,6 +12,7 @@ use SineMacula\ApiToolkit\Services\Input\Payload;
 use Tests\Fixtures\Input\SampleInput;
 use Tests\Fixtures\Services\Input\Enums\StubStatusEnum;
 use Tests\Fixtures\Services\Input\SensitiveBaseInput;
+use Tests\Fixtures\Services\Input\SensitiveCredentials;
 use Tests\Fixtures\Services\Input\SensitiveInput;
 use Tests\TestCase;
 
@@ -526,6 +527,51 @@ final class PayloadTest extends TestCase
                 public readonly string $note = '',
             ) {
                 parent::__construct(username: 'alice', password: 'super-secret');
+            }
+        };
+
+        self::assertSame(['note' => 'hello', 'username' => 'alice'], $input->toArray());
+    }
+
+    /**
+     * Test that a sensitive property promoted by a trait constructor is
+     * omitted.
+     *
+     * @return void
+     */
+    public function testToArrayOmitsSensitiveParameterFromTraitConstructor(): void
+    {
+        $input = new class (username: 'alice', password: 'super-secret') extends Payload {
+            use SensitiveCredentials;
+        };
+
+        self::assertSame(['username' => 'alice'], $input->toArray());
+    }
+
+    /**
+     * Test that a sensitive property promoted by an aliased trait constructor
+     * stays omitted when the payload declares its own constructor.
+     *
+     * @return void
+     */
+    public function testToArrayOmitsSensitiveParameterFromAliasedTraitConstructor(): void
+    {
+        $input = new class (note: 'hello') extends Payload {
+            use SensitiveCredentials {
+                __construct as private initCredentials;
+            }
+
+            /**
+             * Create a new instance that delegates to the trait constructor.
+             *
+             * @param  string  $note
+             */
+            public function __construct(
+
+                /** A note promoted by the payload constructor. */
+                public readonly string $note = '',
+            ) {
+                $this->initCredentials(username: 'alice', password: 'super-secret');
             }
         };
 

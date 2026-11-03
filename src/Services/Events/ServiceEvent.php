@@ -16,7 +16,7 @@ use SineMacula\ApiToolkit\Services\ServiceResult;
  *
  * The inputSummary is produced by the input's toArray() and flows verbatim to
  * every listener (audit, telemetry); it is not redacted here. A Payload leaves
- * out fields marked #[\SensitiveParameter]; other inputs scrub in toArray().
+ * out fields marked #[\SensitiveParameter]; other inputs must omit secrets.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.

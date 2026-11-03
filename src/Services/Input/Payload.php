@@ -163,23 +163,41 @@ abstract class Payload implements DefinesInputSchema, ServiceInput
     /**
      * Determine whether a promoted property's parameter is marked sensitive.
      *
-     * The attribute only targets parameters, so it is read from the declaring
-     * class's constructor rather than from the property itself.
+     * The attribute only targets parameters, so it is read from the
+     * constructors that can promote the property: the declaring class's own and
+     * those of the traits it uses, which still promote when aliased or shadowed.
      *
      * @param  \ReflectionProperty  $property
      * @return bool
      */
     private static function isSensitive(\ReflectionProperty $property): bool
     {
-        $parameters = $property->getDeclaringClass()->getConstructor()?->getParameters() ?? [];
-
-        foreach ($parameters as $parameter) {
-            if ($parameter->getName() === $property->getName()) {
-                return $parameter->getAttributes(\SensitiveParameter::class) !== [];
+        foreach (self::promotingClasses($property->getDeclaringClass()) as $class) {
+            foreach ($class->getConstructor()?->getParameters() ?? [] as $parameter) {
+                if ($parameter->getName() === $property->getName() && $parameter->getAttributes(\SensitiveParameter::class) !== []) {
+                    return true;
+                }
             }
         }
 
         return false;
+    }
+
+    /**
+     * Return a class and every trait it uses, recursively.
+     *
+     * @param  \ReflectionClass<object>  $class
+     * @return list<\ReflectionClass<object>>
+     */
+    private static function promotingClasses(\ReflectionClass $class): array
+    {
+        $classes = [$class];
+
+        foreach ($class->getTraits() as $trait) {
+            array_push($classes, ...self::promotingClasses($trait));
+        }
+
+        return $classes;
     }
 
     /**
