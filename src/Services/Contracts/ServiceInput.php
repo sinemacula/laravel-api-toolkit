@@ -21,8 +21,9 @@ interface ServiceInput
      * Return the input as an associative array.
      *
      * This snapshot is carried on the service lifecycle events as inputSummary
-     * and reaches event listeners verbatim. Override this method to scrub
-     * sensitive keys before they are exposed to those listeners.
+     * and reaches event listeners verbatim, so it must leave out secrets. A
+     * Payload omits fields marked #[\SensitiveParameter]; an ArrayInput returns
+     * its array as given.
      *
      * @return array<string, mixed>
      */
