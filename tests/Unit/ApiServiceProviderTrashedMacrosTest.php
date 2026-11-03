@@ -81,11 +81,17 @@ class ApiServiceProviderTrashedMacrosTest extends TestCase
             'json only true'       => [self::jsonRequest('{"only_trashed":"true"}'), false, true],
             'json include boolean' => [self::jsonRequest('{"include_trashed":true}'), false, false],
             'json only boolean'    => [self::jsonRequest('{"only_trashed":true}'), false, false],
+            'query over form'      => [RequestWithoutGet::create('/?only_trashed=false', 'POST', ['only_trashed' => 'true']), false, false],
+            'query over form true' => [RequestWithoutGet::create('/?only_trashed=true', 'POST', ['only_trashed' => 'false']), false, true],
+            'query over json'      => [self::jsonRequest('{"include_trashed":"true"}', '/?include_trashed=false'), false, false],
+            'attribute over query' => [self::withAttribute(RequestWithoutGet::create('/?include_trashed=true'), 'include_trashed', 'false'), false, false],
+            'attribute only'       => [self::withAttribute(RequestWithoutGet::create('/'), 'only_trashed', 'true'), false, true],
         ];
     }
 
     /**
-     * Only the literal string "true" switches a trashed macro on.
+     * Only the literal string "true" switches a trashed macro on, read from
+     * the request attributes, then the query string, then the body.
      *
      * @param  \Illuminate\Http\Request  $request
      * @param  bool  $include_trashed
@@ -105,12 +111,28 @@ class ApiServiceProviderTrashedMacrosTest extends TestCase
      * request input bag.
      *
      * @param  string  $content
+     * @param  string  $uri
      * @return \Illuminate\Http\Request
      */
-    private static function jsonRequest(string $content): Request
+    private static function jsonRequest(string $content, string $uri = '/'): Request
     {
         return RequestWithoutGet::createFromBase(
-            RequestWithoutGet::create('/', 'POST', [], [], [], ['CONTENT_TYPE' => 'application/json'], $content),
+            RequestWithoutGet::create($uri, 'POST', [], [], [], ['CONTENT_TYPE' => 'application/json'], $content),
         );
+    }
+
+    /**
+     * Set a request attribute, as middleware or the router would.
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @param  string  $key
+     * @param  string  $value
+     * @return \Illuminate\Http\Request
+     */
+    private static function withAttribute(Request $request, string $key, string $value): Request
+    {
+        $request->attributes->set($key, $value);
+
+        return $request;
     }
 }

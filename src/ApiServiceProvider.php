@@ -5,6 +5,7 @@ namespace SineMacula\ApiToolkit;
 use Illuminate\Contracts\Http\Kernel;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Foundation\Http\Middleware\PreventRequestsDuringMaintenance as LaravelPreventRequestsDuringMaintenance;
+use Illuminate\Http\Request as HttpRequest;
 use Illuminate\Log\LogManager;
 use Illuminate\Notifications\Events\NotificationSending;
 use Illuminate\Notifications\Events\NotificationSent;
@@ -142,8 +143,29 @@ class ApiServiceProvider extends ServiceProvider
      */
     private function registerTrashedMacros(): void
     {
-        Request::macro('includeTrashed', fn () => $this->input('include_trashed', false) === 'true');
-        Request::macro('onlyTrashed', fn () => $this->input('only_trashed', false) === 'true');
+        $enabled = static fn (HttpRequest $request, string $key): bool => self::requestValue($request, $key) === 'true';
+
+        Request::macro('includeTrashed', fn () => $enabled($this, 'include_trashed'));
+        Request::macro('onlyTrashed', fn () => $enabled($this, 'only_trashed'));
+    }
+
+    /**
+     * Read a request value from the request attributes, then the query string,
+     * then the body, in the order the deprecated Request::get() used.
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @param  string  $key
+     * @return mixed
+     */
+    private static function requestValue(HttpRequest $request, string $key): mixed
+    {
+        foreach ([$request->attributes, $request->query, $request->request] as $bag) {
+            if ($bag->has($key)) {
+                return $bag->all()[$key];
+            }
+        }
+
+        return null;
     }
 
     /**
