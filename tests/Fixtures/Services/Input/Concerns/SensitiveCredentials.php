@@ -2,7 +2,7 @@
 
 declare(strict_types = 1);
 
-namespace Tests\Fixtures\Services\Input;
+namespace Tests\Fixtures\Services\Input\Concerns;
 
 /**
  * Trait fixture whose constructor promotes a sensitive field.

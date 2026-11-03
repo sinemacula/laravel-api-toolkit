@@ -165,7 +165,7 @@ abstract class Payload implements DefinesInputSchema, ServiceInput
      *
      * The attribute only targets parameters, so it is read from the
      * constructors that can promote the property: the declaring class's own and
-     * those of the traits it uses, which still promote when aliased or shadowed.
+     * those of its traits, which still promote when aliased or shadowed.
      *
      * @param  \ReflectionProperty  $property
      * @return bool

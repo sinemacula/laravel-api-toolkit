@@ -12,7 +12,8 @@ use SineMacula\ApiToolkit\Services\Input\Payload;
 use Tests\Fixtures\Input\SampleInput;
 use Tests\Fixtures\Services\Input\Enums\StubStatusEnum;
 use Tests\Fixtures\Services\Input\SensitiveBaseInput;
-use Tests\Fixtures\Services\Input\SensitiveCredentials;
+use Tests\Fixtures\Services\Input\Concerns\DescribesInput;
+use Tests\Fixtures\Services\Input\Concerns\SensitiveCredentials;
 use Tests\Fixtures\Services\Input\SensitiveInput;
 use Tests\TestCase;
 
@@ -576,6 +577,21 @@ final class PayloadTest extends TestCase
         };
 
         self::assertSame(['note' => 'hello', 'username' => 'alice'], $input->toArray());
+    }
+
+    /**
+     * Test that a trait without a constructor leaves the summary unchanged
+     * while a sibling trait's sensitive property is still omitted.
+     *
+     * @return void
+     */
+    public function testToArrayToleratesTraitWithoutConstructor(): void
+    {
+        $input = new class (username: 'alice', password: 'super-secret') extends Payload {
+            use DescribesInput, SensitiveCredentials;
+        };
+
+        self::assertSame(['username' => 'alice'], $input->toArray());
     }
 
     /**
