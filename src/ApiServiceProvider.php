@@ -5,6 +5,7 @@ namespace SineMacula\ApiToolkit;
 use Illuminate\Contracts\Http\Kernel;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Foundation\Http\Middleware\PreventRequestsDuringMaintenance as LaravelPreventRequestsDuringMaintenance;
+use Illuminate\Http\Request as HttpRequest;
 use Illuminate\Log\LogManager;
 use Illuminate\Notifications\Events\NotificationSending;
 use Illuminate\Notifications\Events\NotificationSent;
@@ -55,11 +56,13 @@ class ApiServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->mergeConfigFrom(
-            __DIR__ . '/../config/api-toolkit.php', 'api-toolkit'
+            __DIR__ . '/../config/api-toolkit.php',
+            'api-toolkit'
         );
 
         $this->replaceConfigRecursivelyFrom(
-            __DIR__ . '/../config/logging.php', 'logging'
+            __DIR__ . '/../config/logging.php',
+            'logging'
         );
 
         $this->registerQueryParser();
@@ -73,7 +76,8 @@ class ApiServiceProvider extends ServiceProvider
     private function loadTranslationFiles(): void
     {
         $this->loadTranslationsFrom(
-            __DIR__ . '/../resources/lang', 'api-toolkit'
+            __DIR__ . '/../resources/lang',
+            'api-toolkit'
         );
 
         $this->publishes([
@@ -139,8 +143,29 @@ class ApiServiceProvider extends ServiceProvider
      */
     private function registerTrashedMacros(): void
     {
-        Request::macro('includeTrashed', fn () => $this->get('include_trashed', false) === 'true');
-        Request::macro('onlyTrashed', fn () => $this->get('only_trashed', false) === 'true');
+        $enabled = static fn (HttpRequest $request, string $key): bool => self::requestValue($request, $key) === 'true';
+
+        Request::macro('includeTrashed', fn () => $enabled($this, 'include_trashed'));
+        Request::macro('onlyTrashed', fn () => $enabled($this, 'only_trashed'));
+    }
+
+    /**
+     * Read a request value from the request attributes, then the query string,
+     * then the body, in the order the deprecated Request::get() used.
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @param  string  $key
+     * @return mixed
+     */
+    private static function requestValue(HttpRequest $request, string $key): mixed
+    {
+        foreach ([$request->attributes, $request->query, $request->request] as $bag) {
+            if ($bag->has($key)) {
+                return $bag->all()[$key];
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -223,7 +248,7 @@ class ApiServiceProvider extends ServiceProvider
      */
     private function registerCloudwatchLogger(): void
     {
-        $this->app->make(LogManager::class)->extend('cloudwatch', fn ($app, array $config) => (new CloudWatchLogger)->__invoke($config));
+        $this->app->make(LogManager::class)->extend('cloudwatch', fn ($app, array $config) => (new CloudWatchLogger())->__invoke($config));
     }
 
     /**
@@ -248,6 +273,6 @@ class ApiServiceProvider extends ServiceProvider
      */
     private function registerQueryParser(): void
     {
-        $this->app->singleton(Config::get('api-toolkit.parser.alias'), fn ($app) => new ApiQueryParser);
+        $this->app->singleton(Config::get('api-toolkit.parser.alias'), fn ($app) => new ApiQueryParser());
     }
 }
