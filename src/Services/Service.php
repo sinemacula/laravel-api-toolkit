@@ -191,7 +191,7 @@ abstract class Service implements LockKeyProvider
             'transactional'       => $this->transactional,
             'transactionAttempts' => $this->transactionAttempts,
             'lockable'            => $this->lockable,
-            // Flows verbatim to lifecycle-event listeners; scrub via toArray()
+            // Flows verbatim to lifecycle-event listeners; see ServiceInput::toArray()
             'inputSummary' => $this->input->toArray(),
         ];
     }

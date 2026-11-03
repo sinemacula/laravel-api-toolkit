@@ -21,6 +21,7 @@ use SineMacula\ApiToolkit\Services\ServiceRunner;
 use Tests\Concerns\SwapsExceptionHandler;
 use Tests\Fixtures\Services\AuthorizingService;
 use Tests\Fixtures\Services\Input\ScrubbedInput;
+use Tests\Fixtures\Services\Input\SensitiveInput;
 use Tests\Fixtures\Services\OutputService;
 use Tests\TestCase;
 
@@ -501,6 +502,70 @@ final class ServiceRunnerTest extends TestCase
 
         self::assertTrue($result->failed());
         self::assertSame(['username' => 'alice', 'password' => '[redacted]'], $captured);
+    }
+
+    /**
+     * Test that the ServiceCompleted event's inputSummary leaves out a field
+     * marked #[\SensitiveParameter] on the success path.
+     *
+     * @return void
+     */
+    public function testCompletedEventOmitsSensitiveParameterFromInputSummary(): void
+    {
+        Event::fake();
+
+        $service = new class (new SensitiveInput(username: 'alice', password: 'super-secret')) extends Service {
+            /**
+             * Return null output.
+             *
+             * @return mixed
+             */
+            #[\Override]
+            protected function handle(): mixed
+            {
+                return null;
+            }
+        };
+
+        (new ServiceRunner)->run($service, ServiceContext::for(new AnonymousActor));
+
+        Event::assertDispatched(
+            ServiceCompleted::class,
+            static fn (ServiceCompleted $event): bool => $event->inputSummary === ['username' => 'alice'],
+        );
+    }
+
+    /**
+     * Test that the ServiceFailed event's inputSummary leaves out a field
+     * marked #[\SensitiveParameter] on the failure path.
+     *
+     * @return void
+     */
+    public function testFailedEventOmitsSensitiveParameterFromInputSummary(): void
+    {
+        Event::fake();
+
+        $service = new class (new SensitiveInput(username: 'alice', password: 'super-secret')) extends Service {
+            /**
+             * Always throw a domain exception.
+             *
+             * @return never
+             *
+             * @throws \RuntimeException
+             */
+            #[\Override]
+            protected function handle(): never
+            {
+                throw new \RuntimeException('boom');
+            }
+        };
+
+        (new ServiceRunner)->run($service, ServiceContext::for(new AnonymousActor));
+
+        Event::assertDispatched(
+            ServiceFailed::class,
+            static fn (ServiceFailed $event): bool => $event->inputSummary === ['username' => 'alice'],
+        );
     }
 
     /**

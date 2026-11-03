@@ -703,6 +703,34 @@ clears them. Each invalidation leaves at most one copy of the metadata behind.
 
 ---
 
+### Service Input Summaries
+
+Each service run fires `ServiceCompleted` or `ServiceFailed`, and both events carry the input's `toArray()` as
+`inputSummary`. Listeners receive it unchanged, so whatever an audit log or error tracker writes from it is only as
+safe as that array.
+
+A `Payload` builds the summary from its public promoted properties. Mark a constructor parameter with PHP's built-in
+`#[\SensitiveParameter]` to leave it out. The same attribute already hides the value from stack traces:
+
+```php
+final class SignInPayload extends Payload
+{
+    public function __construct(
+        public readonly string $email,
+        #[\SensitiveParameter]
+        public readonly string $password,
+    ) {}
+}
+
+SignInPayload::from(['email' => 'a@example.com', 'password' => 'secret'])->toArray();
+// ['email' => 'a@example.com']
+```
+
+The key is omitted rather than masked, and the value stays readable on the instance. A payload that overrides
+`toArray()` controls its summary entirely, and any other `ServiceInput` must scrub secrets in its own `toArray()`.
+
+---
+
 ### Notification Audit Log
 
 When `illuminate/notifications` is installed and `api-toolkit.notifications.enable_logging` is `true` (the

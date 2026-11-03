@@ -15,8 +15,8 @@ use SineMacula\ApiToolkit\Services\ServiceResult;
  * the success and failure cases so consumers can subscribe to each.
  *
  * The inputSummary is produced by the input's toArray() and flows verbatim to
- * every listener (audit, telemetry); it is not redacted here. Override the
- * input's toArray() to scrub sensitive keys before they reach listeners.
+ * every listener (audit, telemetry); it is not redacted here. A Payload leaves
+ * out fields marked #[\SensitiveParameter]; other inputs scrub in toArray().
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -52,7 +52,7 @@ abstract readonly class ServiceEvent
         /** Correlation identifier for request tracing */
         public string $correlationId,
 
-        /** Input snapshot; scrub sensitive keys via the input's toArray() */
+        /** Input snapshot, as produced by the input's toArray() */
         public array $inputSummary = [],
     ) {}
 }

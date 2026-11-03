@@ -11,6 +11,8 @@ use SineMacula\ApiToolkit\Services\Contracts\DefinesInputSchema;
 use SineMacula\ApiToolkit\Services\Input\Payload;
 use Tests\Fixtures\Input\SampleInput;
 use Tests\Fixtures\Services\Input\Enums\StubStatusEnum;
+use Tests\Fixtures\Services\Input\SensitiveBaseInput;
+use Tests\Fixtures\Services\Input\SensitiveInput;
 use Tests\TestCase;
 
 /**
@@ -462,5 +464,135 @@ final class PayloadTest extends TestCase
     public function testRulesAreReadableStaticallyWithoutInstance(): void
     {
         self::assertArrayHasKey('city', SampleInput::rules());
+    }
+
+    /**
+     * Test that toArray() omits a promoted parameter marked sensitive while
+     * keeping its unmarked siblings.
+     *
+     * @return void
+     */
+    public function testToArrayOmitsSensitiveParameters(): void
+    {
+        $input = new SensitiveInput(username: 'alice', password: 'super-secret');
+
+        self::assertSame(['username' => 'alice'], $input->toArray());
+    }
+
+    /**
+     * Test that a sensitive value hydrated by from() stays readable on the
+     * instance even though toArray() leaves it out.
+     *
+     * @return void
+     */
+    public function testFromKeepsSensitiveValueReadableOnInstance(): void
+    {
+        $input = SensitiveInput::from(['username' => 'alice', 'password' => 'super-secret']);
+
+        self::assertSame('super-secret', $input->password);
+        self::assertSame(['username' => 'alice'], $input->toArray());
+    }
+
+    /**
+     * Test that a sensitive property promoted by an inherited parent
+     * constructor is omitted.
+     *
+     * @return void
+     */
+    public function testToArrayOmitsSensitiveParameterFromInheritedConstructor(): void
+    {
+        $input = new class (username: 'alice', password: 'super-secret') extends SensitiveBaseInput {};
+
+        self::assertSame(['username' => 'alice'], $input->toArray());
+    }
+
+    /**
+     * Test that a sensitive property promoted by a parent constructor stays
+     * omitted when the subclass redeclares its own constructor.
+     *
+     * @return void
+     */
+    public function testToArrayOmitsSensitiveParameterWhenSubclassRedeclaresConstructor(): void
+    {
+        $input = new class (note: 'hello') extends SensitiveBaseInput {
+            /**
+             * Create a new instance promoting an extra field.
+             *
+             * @param  string  $note
+             */
+            public function __construct(
+
+                /** A note promoted by the subclass constructor. */
+                public readonly string $note = '',
+            ) {
+                parent::__construct(username: 'alice', password: 'super-secret');
+            }
+        };
+
+        self::assertSame(['note' => 'hello', 'username' => 'alice'], $input->toArray());
+    }
+
+    /**
+     * Test that a subclass overriding toArray() keeps full control of the
+     * summary, even for a parameter marked sensitive.
+     *
+     * @return void
+     */
+    public function testToArrayOverrideTakesPrecedenceOverSensitiveMarker(): void
+    {
+        $input = new class (password: 'super-secret') extends Payload {
+            /**
+             * Create a new instance with a sensitive promoted property.
+             *
+             * @param  string  $password
+             */
+            public function __construct(
+
+                /** The password; marked sensitive. */
+                #[\SensitiveParameter]
+                public readonly string $password = '',
+            ) {}
+
+            /**
+             * Return a summary that deliberately includes the password.
+             *
+             * @return array<string, mixed>
+             */
+            #[\Override]
+            public function toArray(): array
+            {
+                return ['password' => $this->password];
+            }
+        };
+
+        self::assertSame(['password' => 'super-secret'], $input->toArray());
+    }
+
+    /**
+     * Test that sensitivity is resolved per class, so a marked field on one
+     * payload does not hide a same-named unmarked field on another.
+     *
+     * @return void
+     */
+    public function testSensitivityIsResolvedPerPayloadClass(): void
+    {
+        $marked = new SensitiveInput(username: 'alice', password: 'super-secret');
+
+        $unmarked = new class (password: 'plain') extends Payload {
+            /**
+             * Create a new instance with an unmarked password property.
+             *
+             * @param  string  $password
+             */
+            public function __construct(
+
+                /** The password; not marked sensitive. */
+                public readonly string $password = '',
+            ) {}
+        };
+
+        self::assertSame(['username' => 'alice'], $marked->toArray());
+        self::assertSame(['password' => 'plain'], $unmarked->toArray());
+        self::assertSame(['username' => 'alice'], $marked->toArray());
     }
 }

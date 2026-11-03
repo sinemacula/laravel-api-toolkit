@@ -19,11 +19,19 @@ use SineMacula\ApiToolkit\Services\Contracts\ServiceInput;
  * Direct named-argument construction is also supported for tests and queue
  * deserialisers that already hold validated data.
  *
+ * The toArray() property list is reflected once per class and cached for the
+ * process; it derives only from the class definition, so it never goes stale.
+ *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
+ *
+ * @managed-static
  */
 abstract class Payload implements DefinesInputSchema, ServiceInput
 {
+    /** @var array<class-string, list<string>> Summary property names per class */
+    private static array $summaryProperties = [];
+
     /**
      * Validate the source and return a hydrated instance.
      *
@@ -75,25 +83,19 @@ abstract class Payload implements DefinesInputSchema, ServiceInput
      * unless they require custom serialisation.
      *
      * The returned map is carried on the service lifecycle events as
-     * inputSummary and reaches event listeners verbatim, so override this
-     * method to scrub sensitive keys before they are exposed.
+     * inputSummary and reaches event listeners verbatim. Mark a promoted
+     * constructor parameter with #[\SensitiveParameter] to leave it out of the
+     * map; the value stays readable on the instance.
      *
      * @return array<string, mixed>
      */
     #[\Override]
     public function toArray(): array
     {
-        $result     = [];
-        $allVars    = (array) $this;
-        $reflection = new \ReflectionClass($this);
+        $result  = [];
+        $allVars = (array) $this;
 
-        foreach ($reflection->getProperties(\ReflectionProperty::IS_PUBLIC) as $property) {
-            if (!$property->isPromoted()) {
-                continue;
-            }
-
-            $name = $property->getName();
-
+        foreach (self::summaryProperties(static::class) as $name) {
             if (!array_key_exists($name, $allVars)) {
                 continue;
             }
@@ -117,6 +119,67 @@ abstract class Payload implements DefinesInputSchema, ServiceInput
     public static function rules(): array
     {
         return [];
+    }
+
+    /**
+     * Return the names of the properties that toArray() exposes for a class.
+     *
+     * Resolved once per class: the public promoted properties, minus any whose
+     * constructor parameter carries #[\SensitiveParameter].
+     *
+     * @param  class-string<static>  $class
+     * @return list<string>
+     */
+    private static function summaryProperties(string $class): array
+    {
+        if (!isset(self::$summaryProperties[$class])) {
+            self::$summaryProperties[$class] = self::resolveSummaryProperties($class);
+        }
+
+        return self::$summaryProperties[$class];
+    }
+
+    /**
+     * Reflect the public promoted, non-sensitive property names of a class.
+     *
+     * @param  class-string<static>  $class
+     * @return list<string>
+     */
+    private static function resolveSummaryProperties(string $class): array
+    {
+        $names = [];
+
+        foreach ((new \ReflectionClass($class))->getProperties(\ReflectionProperty::IS_PUBLIC) as $property) {
+            if (!$property->isPromoted() || self::isSensitive($property)) {
+                continue;
+            }
+
+            $names[] = $property->getName();
+        }
+
+        return $names;
+    }
+
+    /**
+     * Determine whether a promoted property's parameter is marked sensitive.
+     *
+     * The attribute only targets parameters, so it is read from the declaring
+     * class's constructor rather than from the property itself.
+     *
+     * @param  \ReflectionProperty  $property
+     * @return bool
+     */
+    private static function isSensitive(\ReflectionProperty $property): bool
+    {
+        $parameters = $property->getDeclaringClass()->getConstructor()?->getParameters() ?? [];
+
+        foreach ($parameters as $parameter) {
+            if ($parameter->getName() === $property->getName()) {
+                return $parameter->getAttributes(\SensitiveParameter::class) !== [];
+            }
+        }
+
+        return false;
     }
 
     /**
