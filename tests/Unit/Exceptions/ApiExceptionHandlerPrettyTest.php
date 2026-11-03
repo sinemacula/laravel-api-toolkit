@@ -40,10 +40,10 @@ class ApiExceptionHandlerPrettyTest extends TestCase
     {
         parent::setUp();
 
-        $container = new Container;
+        $container = new Container();
 
         $container->instance('config', new Repository(['app' => ['debug' => false]]));
-        $container->instance('translator', new class {
+        $container->instance('translator', new class () {
             /**
              * Return the translation key untouched.
              *
@@ -107,7 +107,7 @@ class ApiExceptionHandlerPrettyTest extends TestCase
         $method = new ReflectionMethod(ApiExceptionHandler::class, 'renderApiExceptionWithJson');
 
         /** @var JsonResponse $response */
-        $response = $method->invoke(null, $request, new NotFoundException);
+        $response = $method->invoke(null, $request, new NotFoundException());
 
         static::assertSame($expected, (bool) ($response->getEncodingOptions() & JSON_PRETTY_PRINT));
         static::assertSame(404, $response->getStatusCode());

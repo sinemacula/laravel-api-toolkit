@@ -55,11 +55,13 @@ class ApiServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->mergeConfigFrom(
-            __DIR__ . '/../config/api-toolkit.php', 'api-toolkit'
+            __DIR__ . '/../config/api-toolkit.php',
+            'api-toolkit'
         );
 
         $this->replaceConfigRecursivelyFrom(
-            __DIR__ . '/../config/logging.php', 'logging'
+            __DIR__ . '/../config/logging.php',
+            'logging'
         );
 
         $this->registerQueryParser();
@@ -73,7 +75,8 @@ class ApiServiceProvider extends ServiceProvider
     private function loadTranslationFiles(): void
     {
         $this->loadTranslationsFrom(
-            __DIR__ . '/../resources/lang', 'api-toolkit'
+            __DIR__ . '/../resources/lang',
+            'api-toolkit'
         );
 
         $this->publishes([
@@ -223,7 +226,7 @@ class ApiServiceProvider extends ServiceProvider
      */
     private function registerCloudwatchLogger(): void
     {
-        $this->app->make(LogManager::class)->extend('cloudwatch', fn ($app, array $config) => (new CloudWatchLogger)->__invoke($config));
+        $this->app->make(LogManager::class)->extend('cloudwatch', fn ($app, array $config) => (new CloudWatchLogger())->__invoke($config));
     }
 
     /**
@@ -248,6 +251,6 @@ class ApiServiceProvider extends ServiceProvider
      */
     private function registerQueryParser(): void
     {
-        $this->app->singleton(Config::get('api-toolkit.parser.alias'), fn ($app) => new ApiQueryParser);
+        $this->app->singleton(Config::get('api-toolkit.parser.alias'), fn ($app) => new ApiQueryParser());
     }
 }

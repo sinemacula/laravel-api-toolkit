@@ -33,9 +33,9 @@ class ApiServiceProviderTrashedMacrosTest extends TestCase
     {
         parent::setUp();
 
-        $container = new Container;
+        $container = new Container();
 
-        $container->instance('request', new Request);
+        $container->instance('request', new Request());
 
         Facade::clearResolvedInstances();
         Facade::setFacadeApplication($container);
