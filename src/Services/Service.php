@@ -15,6 +15,8 @@ use Throwable;
 /**
  * Base API service.
  *
+ * @template TPayload of array<array-key, mixed>|\Illuminate\Support\Collection<array-key, mixed>|\stdClass = \Illuminate\Support\Collection<array-key, mixed>
+ *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2025 Sine Macula Limited.
  */
@@ -34,15 +36,20 @@ abstract class Service implements ServiceInterface
     /**
      * Constructor.
      *
-     * @param  array|\Illuminate\Support\Collection|stdClass  $payload
+     * @param  array<array-key, mixed>|\Illuminate\Support\Collection<array-key, mixed>|\stdClass  $payload
      */
     public function __construct(
 
-        /** The service input payload */
+        /** @var TPayload The service input payload */
         protected array|Collection|stdClass $payload = []
 
     ) {
-        $this->payload = (!$payload instanceof Collection && !$payload instanceof stdClass) ? collect($payload) : $payload;
+        if (!$payload instanceof Collection && !$payload instanceof stdClass) {
+            $payload = collect($payload);
+        }
+
+        /** @var TPayload $payload */
+        $this->payload = $payload;
 
         $this->initialize();
     }

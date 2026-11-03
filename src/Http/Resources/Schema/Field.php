@@ -142,8 +142,8 @@ final class Field extends BaseDefinition
      *
      * Later definitions overwrite earlier ones for the same field key.
      *
-     * @param  array<int, array<string, array>|Arrayable>  ...$definitions
-     * @return array<string, array>
+     * @param  array<string, array<string, mixed>>|\Illuminate\Contracts\Support\Arrayable<string, array<string, mixed>>  ...$definitions
+     * @return array<string, array<string, mixed>>
      */
     public static function set(array|Arrayable ...$definitions): array
     {

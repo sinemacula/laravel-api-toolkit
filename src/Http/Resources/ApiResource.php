@@ -32,13 +32,13 @@ abstract class ApiResource extends BaseResource implements ApiResourceInterface
 {
     use OrdersFields;
 
-    /** @var array Default fields to include if no specific fields are requested */
+    /** @var array<array-key, string> Default fields to include if no specific fields are requested */
     protected static array $default = [];
 
-    /** @var array Fixed fields to include in the response */
+    /** @var array<array-key, string> Fixed fields to include in the response */
     protected array $fixed = [];
 
-    /** @var array<class-string, array<string, array>> Compiled schema cache keyed by resource class */
+    /** @var array<class-string, array<string, array<string, mixed>>> Compiled schema cache keyed by resource class */
     private static array $schemaCache = [];
 
     /**
@@ -220,7 +220,7 @@ abstract class ApiResource extends BaseResource implements ApiResourceInterface
     /**
      * Return the resource schema.
      *
-     * @return array<string, array>
+     * @return array<string, array<string, mixed>>
      */
     abstract public static function schema(): array;
 

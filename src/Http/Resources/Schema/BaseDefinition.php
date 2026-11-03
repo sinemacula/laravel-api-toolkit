@@ -9,6 +9,8 @@ use SineMacula\ApiToolkit\Http\Resources\ApiResource;
 /**
  * Base class for schema definitions.
  *
+ * @implements \Illuminate\Contracts\Support\Arrayable<string, array<string, mixed>>
+ *
  * @author      Ben Carey
  * @copyright   2025 Sine Macula
  */
@@ -73,7 +75,7 @@ abstract class BaseDefinition implements Arrayable
      * Provide additional eager-load paths required by this field.
      *
      * @param  string  ...$paths
-     * @return self
+     * @return static
      */
     public function extras(string ...$paths): self
     {

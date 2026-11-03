@@ -13,6 +13,8 @@ use Illuminate\Contracts\Support\Arrayable;
  *  Relation::to('organization', 'name')
  *  Relation::to('organization', 'name', 'organization_name')
  *
+ * @implements \Illuminate\Contracts\Support\Arrayable<string, array<string, mixed>>
+ *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2025 Sine Macula Limited.
  */
