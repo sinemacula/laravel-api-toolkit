@@ -6,7 +6,9 @@ namespace Tests\Unit\OpenApi\Security;
 
 use Illuminate\Contracts\Config\Repository as ConfigRepository;
 use Illuminate\Routing\Route;
+use Illuminate\Routing\Router;
 use PHPUnit\Framework\Attributes\CoversClass;
+use SineMacula\ApiToolkit\OpenApi\Resolution\RouteMiddlewareResolver;
 use SineMacula\ApiToolkit\OpenApi\Security\SecuritySchemeMapper;
 use SineMacula\ApiToolkit\OpenApi\Security\SecuritySchemeResolver;
 use Tests\Fixtures\OpenApi\UnresolvableMiddlewareController;
@@ -248,6 +250,31 @@ final class SecuritySchemeResolverTest extends TestCase
     }
 
     /**
+     * Test that a guard applied through a middleware group yields its scheme.
+     *
+     * @return void
+     */
+    public function testGroupAppliedGuardYieldsItsScheme(): void
+    {
+        assert($this->app !== null);
+
+        $this->app->make(Router::class)->middlewareGroup('secured', ['auth:api']);
+
+        self::assertSame([['bearerAuth' => []]], $this->resolver()->securityFor($this->route('secured')));
+    }
+
+    /**
+     * Test that a guard removed with withoutMiddleware() leaves the route
+     * public.
+     *
+     * @return void
+     */
+    public function testExcludedGuardLeavesRoutePublic(): void
+    {
+        self::assertSame([], $this->resolver()->securityFor($this->route('auth:api')->withoutMiddleware('auth')));
+    }
+
+    /**
      * Test that definitionFor delegates to the mapper for a referenced scheme.
      *
      * @return void
@@ -267,7 +294,9 @@ final class SecuritySchemeResolverTest extends TestCase
      */
     private function resolver(): SecuritySchemeResolver
     {
-        return new SecuritySchemeResolver(new SecuritySchemeMapper);
+        assert($this->app !== null);
+
+        return new SecuritySchemeResolver(new SecuritySchemeMapper, new RouteMiddlewareResolver($this->app->make(Router::class)));
     }
 
     /**

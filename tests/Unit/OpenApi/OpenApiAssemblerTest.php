@@ -23,6 +23,7 @@ use SineMacula\ApiToolkit\OpenApi\Resolution\DocumentableRouteFilter;
 use SineMacula\ApiToolkit\OpenApi\Resolution\FieldTypeResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\RequestBodyResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ResponseSchemaResolver;
+use SineMacula\ApiToolkit\OpenApi\Resolution\RouteMiddlewareResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\TagResolver;
 use SineMacula\ApiToolkit\OpenApi\Schema\EnumSchemaRegistry;
 use SineMacula\ApiToolkit\OpenApi\Schema\FieldSchemaBuilder;
@@ -558,10 +559,11 @@ final class OpenApiAssemblerTest extends TestCase
                 new TagResolver,
                 new ResponseSchemaResolver($catalogue, new EnvelopeBuilder),
                 new RequestBodyResolver(new RulesToSchemaTranslator(new RuleNormaliser, new FieldSchemaBuilder($enums))),
-                new SecuritySchemeResolver(new SecuritySchemeMapper),
+                new SecuritySchemeResolver(new SecuritySchemeMapper, new RouteMiddlewareResolver($this->router())),
                 new QueryParameterBuilder($catalogue),
+                new RouteMiddlewareResolver($this->router()),
             ),
-            new SecuritySchemeResolver(new SecuritySchemeMapper),
+            new SecuritySchemeResolver(new SecuritySchemeMapper, new RouteMiddlewareResolver($this->router())),
             new EnumSchemaBuilder,
             $enums,
             new DocManualAssembler,

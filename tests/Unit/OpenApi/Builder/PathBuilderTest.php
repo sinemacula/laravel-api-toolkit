@@ -17,6 +17,7 @@ use SineMacula\ApiToolkit\OpenApi\Resolution\AudienceResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\DocumentableRouteFilter;
 use SineMacula\ApiToolkit\OpenApi\Resolution\RequestBodyResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ResponseSchemaResolver;
+use SineMacula\ApiToolkit\OpenApi\Resolution\RouteMiddlewareResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\TagResolver;
 use SineMacula\ApiToolkit\OpenApi\Schema\FieldSchemaBuilder;
 use SineMacula\ApiToolkit\OpenApi\Schema\RuleNormaliser;
@@ -36,6 +37,7 @@ use Tests\Fixtures\OpenApi\PathPlainController;
 use Tests\Fixtures\OpenApi\PathReflectionGapController;
 use Tests\Fixtures\OpenApi\PathRequestBodyController;
 use Tests\Fixtures\OpenApi\PathResponseSchemaController;
+use Tests\Fixtures\OpenApi\PathRouteFactsController;
 use Tests\Fixtures\OpenApi\PathTaggedController;
 use Tests\Fixtures\OpenApi\PathUnmappedController;
 use Tests\Fixtures\OpenApi\Vendor\PathVendorController;
@@ -204,7 +206,7 @@ final class PathBuilderTest extends TestCase
      */
     public function testIndexCarriesCollectionBaselineErrors(): void
     {
-        $this->registerRestRoutes();
+        $this->registerRestRoutes('auth');
 
         $responses = $this->build()['/users']['get']['responses'];
 
@@ -224,7 +226,7 @@ final class PathBuilderTest extends TestCase
      */
     public function testShowCarriesResourceBaselineWithNotFound(): void
     {
-        $this->registerRestRoutes();
+        $this->registerRestRoutes('auth');
 
         $responses = $this->build()['/users/{user}']['get']['responses'];
 
@@ -243,7 +245,7 @@ final class PathBuilderTest extends TestCase
      */
     public function testStoreCarriesValidationBaseline(): void
     {
-        $this->registerRestRoutes();
+        $this->registerRestRoutes('auth');
 
         $responses = $this->build()['/users']['post']['responses'];
 
@@ -262,7 +264,7 @@ final class PathBuilderTest extends TestCase
      */
     public function testDestroyCarriesBaselineErrorsAlongsideNoContent(): void
     {
-        $this->registerRestRoutes();
+        $this->registerRestRoutes('auth');
 
         $responses = $this->build()['/users/{user}']['delete']['responses'];
 
@@ -281,7 +283,7 @@ final class PathBuilderTest extends TestCase
      */
     public function testBaselineErrorReferencesSharedEnvelopeSchema(): void
     {
-        $this->registerRestRoutes();
+        $this->registerRestRoutes('auth');
 
         $response = $this->build()['/users']['get']['responses']['401'];
 
@@ -346,7 +348,7 @@ final class PathBuilderTest extends TestCase
      */
     public function testResponsesHaveExactlyOneEntryPerStatus(): void
     {
-        $this->registerRestRoutes();
+        $this->registerRestRoutes('auth');
 
         $statuses = array_keys($this->build()['/users']['post']['responses']);
 
@@ -1116,7 +1118,7 @@ final class PathBuilderTest extends TestCase
      */
     public function testMergedResponsesAreOrderedByStatus(): void
     {
-        $this->registerRestRoutes();
+        $this->registerRestRoutes('auth');
 
         self::assertSame(
             [201, 401, 403, 409, 422, 500],
@@ -1168,7 +1170,7 @@ final class PathBuilderTest extends TestCase
      */
     public function testNonApiThrowsAreIgnored(): void
     {
-        $this->router()->put('errors/{error}', [PathErrorController::class, 'update']);
+        $this->router()->put('errors/{error}', [PathErrorController::class, 'update'])->middleware('auth');
 
         $statuses = array_keys($this->build()['/errors/{error}']['put']['responses']);
 
@@ -1233,7 +1235,7 @@ final class PathBuilderTest extends TestCase
     /**
      * Test that an authorized controller declaring no resource attribute, whose
      * model resolution fails, still emits an operation carrying the
-     * undocumented success envelope and no error responses.
+     * undocumented success envelope and only the unconditional 500.
      *
      * @return void
      */
@@ -1243,7 +1245,7 @@ final class PathBuilderTest extends TestCase
 
         $operation = $this->build()['/drafts']['get'];
 
-        self::assertSame([200], array_keys($operation['responses']));
+        self::assertSame([200, 500], array_keys($operation['responses']));
         self::assertSame('The request succeeded.', $operation['responses'][200]['description']);
         self::assertSame(
             $this->undocumentedEnvelope(),
@@ -1260,7 +1262,7 @@ final class PathBuilderTest extends TestCase
      */
     public function testRoutedActionAbsentFromControllerCarriesBaselineErrorsOnly(): void
     {
-        $this->router()->delete('gaps/{gap}', [PathReflectionGapController::class, 'destroy']);
+        $this->router()->delete('gaps/{gap}', [PathReflectionGapController::class, 'destroy'])->middleware('auth');
 
         $responses = $this->build()['/gaps/{gap}']['delete']['responses'];
 
@@ -1276,7 +1278,7 @@ final class PathBuilderTest extends TestCase
      */
     public function testActionWithoutDocCommentCarriesBaselineErrorsOnly(): void
     {
-        $this->router()->get('gaps', [PathReflectionGapController::class, 'index']);
+        $this->router()->get('gaps', [PathReflectionGapController::class, 'index'])->middleware('auth');
 
         $responses = $this->build()['/gaps']['get']['responses'];
 
@@ -1302,19 +1304,21 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
-     * Register the full REST route set on the application router.
+     * Register the full REST route set on the application router, applying the
+     * given middleware to every route.
      *
+     * @param  string  ...$middleware
      * @return void
      */
-    private function registerRestRoutes(): void
+    private function registerRestRoutes(string ...$middleware): void
     {
         $router = $this->router();
 
-        $router->get('users', [PathFixtureController::class, 'index']);
-        $router->post('users', [PathFixtureController::class, 'store']);
-        $router->get('users/{user}', [PathFixtureController::class, 'show']);
-        $router->match(['PUT', 'PATCH'], 'users/{user}', [PathFixtureController::class, 'update']);
-        $router->delete('users/{user}', [PathFixtureController::class, 'destroy']);
+        $router->get('users', [PathFixtureController::class, 'index'])->middleware($middleware);
+        $router->post('users', [PathFixtureController::class, 'store'])->middleware($middleware);
+        $router->get('users/{user}', [PathFixtureController::class, 'show'])->middleware($middleware);
+        $router->match(['PUT', 'PATCH'], 'users/{user}', [PathFixtureController::class, 'update'])->middleware($middleware);
+        $router->delete('users/{user}', [PathFixtureController::class, 'destroy'])->middleware($middleware);
     }
 
     /**
@@ -1329,6 +1333,148 @@ final class PathBuilderTest extends TestCase
 
         $router->get('articles', [PathArticleController::class, 'index']);
         $router->get('articles/{article}', [PathArticleController::class, 'show']);
+    }
+
+    /**
+     * Test that a resource route without auth middleware omits the
+     * unauthenticated status while its authorization check keeps forbidden.
+     *
+     * @return void
+     */
+    public function testResourceRouteWithoutAuthOmitsUnauthenticated(): void
+    {
+        $this->registerRestRoutes();
+
+        self::assertSame([200, 403, 500], array_keys($this->build()['/users']['get']['responses']));
+    }
+
+    /**
+     * Test that a non-resource route documents the unauthenticated status only
+     * behind auth middleware.
+     *
+     * @return void
+     */
+    public function testNonResourceRouteDocumentsUnauthenticatedOnlyBehindAuth(): void
+    {
+        $this->router()->get('private', [PathPlainController::class, 'report'])->middleware('auth');
+        $this->router()->get('public', [PathPlainController::class, 'index']);
+
+        $paths = $this->build();
+
+        self::assertSame([200, 401, 500], array_keys($paths['/private']['get']['responses']));
+        self::assertSame('Unauthenticated.', $paths['/private']['get']['responses'][401]['description']);
+        self::assertSame([200, 500], array_keys($paths['/public']['get']['responses']));
+    }
+
+    /**
+     * Test that a throttled route documents the too-many-requests status under
+     * its baseline phrase.
+     *
+     * @return void
+     */
+    public function testThrottledRouteDocumentsTooManyRequests(): void
+    {
+        $this->router()->get('limited', [PathPlainController::class, 'report'])->middleware('throttle:60,1');
+
+        $responses = $this->build()['/limited']['get']['responses'];
+
+        self::assertSame([200, 429, 500], array_keys($responses));
+        self::assertSame('Too many requests.', $responses[429]['description']);
+        self::assertSame(
+            ['$ref' => '#/components/schemas/ErrorEnvelope'],
+            $responses[429]['content']['application/json']['schema'],
+        );
+    }
+
+    /**
+     * Test that an authorization attribute on a non-resource action documents
+     * the forbidden status.
+     *
+     * @return void
+     */
+    public function testAuthorizeAttributeDocumentsForbidden(): void
+    {
+        $this->router()->get('report', [PathRouteFactsController::class, 'report']);
+
+        self::assertSame([200, 403, 500], array_keys($this->build()['/report']['get']['responses']));
+    }
+
+    /**
+     * Test that a non-resource POST declaring a request schema documents the
+     * validation status, while one declaring no rules omits it.
+     *
+     * @return void
+     */
+    public function testNonResourceRequestBodyDocumentsValidationError(): void
+    {
+        $this->router()->post('articles', [PathRequestBodyController::class, 'store']);
+        $this->router()->post('reports', [PathPlainController::class, 'report']);
+
+        $paths = $this->build();
+
+        self::assertSame([201, 422, 500], array_keys($paths['/articles']['post']['responses']));
+        self::assertSame([200, 500], array_keys($paths['/reports']['post']['responses']));
+    }
+
+    /**
+     * Test that a non-resource action documents the ApiException subclasses its
+     * throws tags name under their statuses with code examples, ignoring the
+     * Throwable and LogicException tags beside them.
+     *
+     * @return void
+     */
+    public function testNonResourceActionDocumentsThrownApiExceptions(): void
+    {
+        $this->router()->post('sign-in', [PathRouteFactsController::class, 'signIn']);
+
+        $responses = $this->build()['/sign-in']['post']['responses'];
+
+        self::assertSame([200, 401, 403, 429, 500], array_keys($responses));
+        self::assertSame('Unauthenticated.', $responses[401]['description']);
+        self::assertSame(
+            ['UnauthenticatedException' => ['value' => ['error' => ['status' => 401, 'code' => 10101]]]],
+            $responses[401]['content']['application/json']['examples'],
+        );
+        self::assertSame(
+            ['ForbiddenException' => ['value' => ['error' => ['status' => 403, 'code' => 10102]]]],
+            $responses[403]['content']['application/json']['examples'],
+        );
+        self::assertSame(
+            ['TooManyRequestsException' => ['value' => ['error' => ['status' => 429, 'code' => 10107]]]],
+            $responses[429]['content']['application/json']['examples'],
+        );
+        self::assertArrayNotHasKey('examples', $responses[500]['content']['application/json']);
+    }
+
+    /**
+     * Test that facts applied through a middleware group are resolved, and that
+     * a group member removed with withoutMiddleware() is not documented.
+     *
+     * @return void
+     */
+    public function testMiddlewareGroupFactsAreResolved(): void
+    {
+        $this->router()->middlewareGroup('facts', ['auth', 'throttle:60,1']);
+        $this->router()->get('grouped', [PathPlainController::class, 'report'])->middleware('facts');
+        $this->router()->get('unthrottled', [PathPlainController::class, 'index'])->middleware('facts')->withoutMiddleware('throttle');
+
+        $paths = $this->build();
+
+        self::assertSame([200, 401, 429, 500], array_keys($paths['/grouped']['get']['responses']));
+        self::assertSame([200, 401, 500], array_keys($paths['/unthrottled']['get']['responses']));
+    }
+
+    /**
+     * Test that a closure route documents the route-fact statuses without any
+     * throws-derived ones.
+     *
+     * @return void
+     */
+    public function testClosureRouteDocumentsRouteFactErrors(): void
+    {
+        $this->router()->get('items/{item}', static fn (): null => null)->middleware('auth');
+
+        self::assertSame([200, 401, 404, 500], array_keys($this->build()['/items/{item}']['get']['responses']));
     }
 
     /**
@@ -1410,8 +1556,9 @@ final class PathBuilderTest extends TestCase
             new TagResolver,
             new ResponseSchemaResolver($catalogue, new EnvelopeBuilder),
             new RequestBodyResolver(new RulesToSchemaTranslator(new RuleNormaliser, new FieldSchemaBuilder)),
-            new SecuritySchemeResolver(new SecuritySchemeMapper),
+            new SecuritySchemeResolver(new SecuritySchemeMapper, new RouteMiddlewareResolver($this->router())),
             new QueryParameterBuilder($catalogue),
+            new RouteMiddlewareResolver($this->router()),
         );
     }
 
