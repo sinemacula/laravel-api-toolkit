@@ -5,6 +5,7 @@ declare(strict_types = 1);
 namespace SineMacula\ApiToolkit\OpenApi\Schema;
 
 use Illuminate\Validation\Rules\Enum;
+use Illuminate\Validation\Rules\In;
 use Illuminate\Validation\Rules\Password;
 
 /**
@@ -15,9 +16,10 @@ use Illuminate\Validation\Rules\Password;
  * single flat list of string tokens so the field-schema builder has one shape
  * to interpret. Rule objects are expanded best-effort: an Enum contributes an
  * `enum-class:` token naming the enum class so the builder can reference its
- * named component, and a Password contributes `string` plus its minimum length;
- * any other object is dropped, keeping the field while discarding the
- * constraint it could not translate.
+ * named component, an In contributes the same `in:` token its string form
+ * renders, and a Password contributes `string` plus its minimum length; any
+ * other object, NotIn included, is dropped, keeping the field while discarding
+ * the constraint it could not translate.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -83,6 +85,7 @@ final readonly class RuleNormaliser
     {
         return match (true) {
             $rule instanceof Enum     => $this->enumTokens($rule),
+            $rule instanceof In       => [(string) $rule],
             $rule instanceof Password => $this->passwordTokens($rule),
             default                   => [],
         };

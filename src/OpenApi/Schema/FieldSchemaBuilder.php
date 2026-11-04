@@ -76,7 +76,7 @@ final readonly class FieldSchemaBuilder
         $type   = $this->resolveType($tokens);
         $schema = $type === null ? [] : ['type' => $type];
 
-        $this->applyEnum($schema, $tokens);
+        $this->applyEnum($schema, $tokens, $type);
         $this->applyFormat($schema, $tokens);
         $this->applyPattern($schema, $tokens);
         $this->applyBinary($schema, $tokens);
@@ -151,13 +151,16 @@ final readonly class FieldSchemaBuilder
     }
 
     /**
-     * Apply an `in:` token's comma-separated values as the field's enum.
+     * Apply an `in:` token's values as the field's enum, parsing the argument
+     * as the validator does so quoted values keep their commas and quotes, and
+     * emitting numeric values on a numeric field so the enum matches its type.
      *
      * @param  array<string, mixed>  $schema
      * @param  list<string>  $tokens
+     * @param  string|null  $type
      * @return void
      */
-    private function applyEnum(array &$schema, array $tokens): void
+    private function applyEnum(array &$schema, array $tokens, ?string $type): void
     {
         $values = $this->argument($tokens, 'in');
 
@@ -165,7 +168,27 @@ final readonly class FieldSchemaBuilder
             return;
         }
 
-        $schema['enum'] = explode(',', $values);
+        $schema['enum'] = array_map(
+            fn (string $value): float|int|string => $this->enumValue($value, $type),
+            str_getcsv($values, escape: '\\'),
+        );
+    }
+
+    /**
+     * Cast an enum value to a number when the field is numeric and the value
+     * reads as one, otherwise keep it as the string the validator compares.
+     *
+     * @param  string  $value
+     * @param  string|null  $type
+     * @return float|int|string
+     */
+    private function enumValue(string $value, ?string $type): float|int|string
+    {
+        if (!in_array($type, ['integer', 'number'], true) || !is_numeric($value)) {
+            return $value;
+        }
+
+        return $this->numericValue($value);
     }
 
     /**
