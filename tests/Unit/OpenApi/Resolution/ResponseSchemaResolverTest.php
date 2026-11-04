@@ -10,6 +10,8 @@ use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ResponseSchemaResolver;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\OpenApi\PathResponseSchemaController;
+use Tests\Fixtures\OpenApi\PendingSignInShape;
+use Tests\Fixtures\OpenApi\SignedInShape;
 use Tests\Fixtures\OpenApi\WidgetShape;
 use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
@@ -91,6 +93,110 @@ final class ResponseSchemaResolverTest extends TestCase
     public function testUnregisteredResourceResolvesToNull(): void
     {
         self::assertNull($this->resolver()->resolve(PathResponseSchemaController::class, 'unregistered'));
+    }
+
+    /**
+     * Test that an action naming two self-describing classes inlines both
+     * fragments as a oneOf under the single envelope's data property, in the
+     * order they were declared.
+     *
+     * @return void
+     */
+    public function testUnionOfFragmentsResolvesToOneOfInDeclaredOrder(): void
+    {
+        $schema = $this->resolver()->resolve(PathResponseSchemaController::class, 'union');
+
+        self::assertSame(
+            (new EnvelopeBuilder)->singleEnvelopeFor(['oneOf' => [SignedInShape::schema(), PendingSignInShape::schema()]]),
+            $schema,
+        );
+    }
+
+    /**
+     * Test that a union of a registered resource and a self-describing class
+     * references the resource's component beside the inlined fragment.
+     *
+     * @return void
+     */
+    public function testUnionOfResourceAndFragmentMixesReferenceAndInlineSchema(): void
+    {
+        $schema = $this->resolver()->resolve(PathResponseSchemaController::class, 'mixed');
+
+        self::assertSame(
+            (new EnvelopeBuilder)->singleEnvelopeFor(['oneOf' => [['$ref' => '#/components/schemas/User'], SignedInShape::schema()]]),
+            $schema,
+        );
+    }
+
+    /**
+     * Test that a union declared as a collection describes each item of the
+     * list as one of the shapes, rather than the list as a whole.
+     *
+     * @return void
+     */
+    public function testCollectionUnionResolvesToItemOneOf(): void
+    {
+        $schema = $this->resolver()->resolve(PathResponseSchemaController::class, 'unionList');
+
+        self::assertSame(
+            (new EnvelopeBuilder)->collectionEnvelopeFor(['oneOf' => [SignedInShape::schema(), PendingSignInShape::schema()]]),
+            $schema,
+        );
+    }
+
+    /**
+     * Test that a union naming one class twice collapses to the bare node, so
+     * it documents exactly what naming the class once does.
+     *
+     * @return void
+     */
+    public function testDuplicatedMemberCollapsesToBareNode(): void
+    {
+        $schema = $this->resolver()->resolve(PathResponseSchemaController::class, 'duplicated');
+
+        self::assertSame(
+            (new EnvelopeBuilder)->singleEnvelope('#/components/schemas/User'),
+            $schema,
+        );
+    }
+
+    /**
+     * Test that a member repeated later in a union is dropped, keeping each
+     * distinct shape once at the position it was first declared.
+     *
+     * @return void
+     */
+    public function testRepeatedMemberKeepsItsFirstPosition(): void
+    {
+        $schema = $this->resolver()->resolve(PathResponseSchemaController::class, 'repeated');
+
+        self::assertSame(
+            (new EnvelopeBuilder)->singleEnvelopeFor(['oneOf' => [SignedInShape::schema(), PendingSignInShape::schema()]]),
+            $schema,
+        );
+    }
+
+    /**
+     * Test that a union holding a plain class resolves to null as a whole,
+     * rather than documenting only the members it can describe.
+     *
+     * @return void
+     */
+    public function testUnionHoldingPlainClassResolvesToNull(): void
+    {
+        self::assertNull($this->resolver()->resolve(PathResponseSchemaController::class, 'partlyPlain'));
+    }
+
+    /**
+     * Test that a union holding a resource absent from the resource map
+     * resolves to null as a whole, rather than documenting only the members it
+     * can describe.
+     *
+     * @return void
+     */
+    public function testUnionHoldingUnregisteredResourceResolvesToNull(): void
+    {
+        self::assertNull($this->resolver()->resolve(PathResponseSchemaController::class, 'partlyUnregistered'));
     }
 
     /**

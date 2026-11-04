@@ -33,7 +33,8 @@ use SineMacula\ApiToolkit\OpenApi\Security\SecuritySchemeResolver;
  * carrying the path template, verbs, path parameters, and a resolved tag, with
  * a single success response whose body is the shape a #[ResponseSchema]
  * directive on the action declares - a reference to a registered resource's
- * component or an inlined self-describing fragment, single or wrapped in the
+ * component or an inlined self-describing fragment, or a oneOf of several such
+ * shapes where it names more than one class, single or wrapped in the
  * collection envelope - and the shared data envelope wrapping an x-undocumented
  * marker otherwise; that success is 201 for a store action, 204 for a destroy,
  * and 200 otherwise. Every operation, resource or not, carries the error
