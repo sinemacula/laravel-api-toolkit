@@ -73,11 +73,12 @@ return [
     | types based on model instances. This ensures flexibility and
     | maintainability of your API's.
     |
-    | `enable_dynamic_morph_mapping`: When set to true, this option enables
-    | automatic resolution of morph mappings for polymorphic relations. This
-    | means the system will dynamically determine the resource mappings at
-    | runtime based on the configured resource classes, allowing for a flexible,
-    | type-safe API design.
+    | `enable_dynamic_morph_mapping`: When set to true, each resource's
+    | RESOURCE_TYPE is registered as its model's morph alias. The aliases merge
+    | with the application's own morph map and never override an alias the
+    | application registers. A morph map is never required, so models without a
+    | resource keep morphing to their class name. An alias claimed by more than
+    | one model is withheld for all of them.
     |
     | `paths`: The filesystem paths scanned at boot for resources carrying the
     | ForModel attribute. Null (the default) resolves at runtime to the

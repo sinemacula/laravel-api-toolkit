@@ -82,9 +82,9 @@ final readonly class EnvelopeBuilder
      * Build the single-resource envelope wrapping the given data schema node in
      * the inherited `data` wrapper.
      *
-     * The node is either a reference to a registered component or an inline
-     * JSON-Schema fragment, so a declared non-resource body wraps in the same
-     * envelope as a resource reference.
+     * The node is a reference to a registered component, an inline JSON-Schema
+     * fragment, or a oneOf of such nodes, so a declared non-resource body wraps
+     * in the same envelope as a resource reference.
      *
      * @param  array<string, mixed>  $data
      * @return array<string, mixed>
@@ -137,9 +137,10 @@ final readonly class EnvelopeBuilder
      * Build the length-aware collection envelope wrapping an array of the given
      * item schema node alongside the pagination meta and links components.
      *
-     * The item node is either a reference to a registered component or an
-     * inline JSON-Schema fragment, so a declared non-resource collection wraps
-     * in the same envelope as a resource reference.
+     * The item node is a reference to a registered component, an inline
+     * JSON-Schema fragment, or a oneOf of such nodes, so a declared
+     * non-resource collection wraps in the same envelope as a resource
+     * reference.
      *
      * @param  array<string, mixed>  $items
      * @return array<string, mixed>

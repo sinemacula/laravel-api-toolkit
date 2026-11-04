@@ -27,9 +27,10 @@ final class StorePayloadController
     public function __invoke(StorePayload $payload): JsonResponse
     {
         return new JsonResponse([
-            'title'    => $payload->title,
-            'quantity' => $payload->quantity,
-            'status'   => $payload->status?->value,
+            'title'      => $payload->title,
+            'quantity'   => $payload->quantity,
+            'status'     => $payload->status?->value,
+            'unit_price' => $payload->unitPrice,
         ]);
     }
 }

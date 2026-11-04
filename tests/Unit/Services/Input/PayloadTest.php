@@ -657,4 +657,549 @@ final class PayloadTest extends TestCase
         self::assertSame(['password' => 'plain'], $unmarked->toArray());
         self::assertSame(['username' => 'alice'], $marked->toArray());
     }
+
+    /**
+     * Test that a snake_case body key hydrates its camelCase property.
+     *
+     * @return void
+     */
+    public function testFromHydratesCamelCasePropertyFromSnakeCaseKey(): void
+    {
+        $definition = new class extends Payload {
+            /**
+             * Create a new instance with a camelCase promoted property.
+             *
+             * @param  string  $clientName
+             */
+            public function __construct(
+
+                /** The client name, read from the client_name body key. */
+                public readonly string $clientName = '',
+            ) {}
+
+            /**
+             * Validate the client name under its snake_case body key.
+             *
+             * @return array<string, mixed>
+             */
+            #[\Override]
+            public static function rules(): array
+            {
+                return ['client_name' => ['required', 'string']];
+            }
+        };
+
+        self::assertSame('Acme', $definition::from(['client_name' => 'Acme'])->clientName);
+    }
+
+    /**
+     * Test that a body key ending in a digit hydrates its camelCase property.
+     *
+     * @return void
+     */
+    public function testFromHydratesCamelCasePropertyFromKeyEndingInDigit(): void
+    {
+        $definition = new class extends Payload {
+            /**
+             * Create a new instance with a property whose name ends in a digit.
+             *
+             * @param  string  $addressLine1
+             */
+            public function __construct(
+
+                /** The first address line, read from address_line_1. */
+                public readonly string $addressLine1 = '',
+            ) {}
+
+            /**
+             * Validate the first address line under its snake_case body key.
+             *
+             * @return array<string, mixed>
+             */
+            #[\Override]
+            public static function rules(): array
+            {
+                return ['address_line_1' => ['required', 'string']];
+            }
+        };
+
+        self::assertSame('1 High Street', $definition::from(['address_line_1' => '1 High Street'])->addressLine1);
+    }
+
+    /**
+     * Test that a property named exactly after its rule key still hydrates,
+     * including a snake_case property.
+     *
+     * @return void
+     */
+    public function testFromHydratesExactNameProperties(): void
+    {
+        $definition = new class extends Payload {
+            /**
+             * Create a new instance with exact-name promoted properties.
+             *
+             * @param  string  $city
+             * @param  string  $postal_code
+             */
+            public function __construct(
+
+                /** The city, named exactly after its rule key. */
+                public readonly string $city = '',
+
+                /** The postal code, a snake_case property named after its key. */
+                // phpcs:ignore Squiz.NamingConventions.ValidVariableName.NotCamelCaps
+                public readonly string $postal_code = '',
+            ) {}
+
+            /**
+             * Validate the city and the postal code.
+             *
+             * @return array<string, mixed>
+             */
+            #[\Override]
+            public static function rules(): array
+            {
+                return [
+                    'city'        => ['required', 'string'],
+                    'postal_code' => ['required', 'string'],
+                ];
+            }
+        };
+
+        $body  = ['city' => 'London', 'postal_code' => 'SW1A 1AA'];
+        $input = $definition::from($body);
+
+        self::assertSame('London', $input->city);
+        self::assertSame('SW1A 1AA', $input->postal_code);
+        self::assertSame($body, $input->toArray());
+    }
+
+    /**
+     * Test that a rule key matching a property exactly wins over another key
+     * whose camelCase form is the same name, whichever is declared first.
+     *
+     * @return void
+     */
+    public function testExactRuleKeyWinsOverCamelCaseMatch(): void
+    {
+        $definition = new class extends Payload {
+            /**
+             * Create a new instance with a camelCase promoted property.
+             *
+             * @param  string  $clientName
+             */
+            public function __construct(
+
+                /** The client name, read from the exact clientName body key. */
+                public readonly string $clientName = '',
+            ) {}
+
+            /**
+             * Validate the snake_case key before the exact-name key.
+             *
+             * @return array<string, mixed>
+             */
+            #[\Override]
+            public static function rules(): array
+            {
+                return [
+                    'client_name' => ['required', 'string'],
+                    'clientName'  => ['required', 'string'],
+                ];
+            }
+        };
+
+        $input = $definition::from(['client_name' => 'Snake', 'clientName' => 'Exact']);
+
+        self::assertSame('Exact', $input->clientName);
+        self::assertSame(['clientName' => 'Exact'], $input->toArray());
+    }
+
+    /**
+     * Test that the first declared of two keys camelCasing to the same name
+     * hydrates the property.
+     *
+     * @return void
+     */
+    public function testFirstDeclaredKeyWinsWhenKeysCamelCaseToSameName(): void
+    {
+        $definition = new class extends Payload {
+            /**
+             * Create a new instance with a camelCase promoted property.
+             *
+             * @param  string  $clientName
+             */
+            public function __construct(
+
+                /** The client name, read from the first declared matching key. */
+                public readonly string $clientName = '',
+            ) {}
+
+            /**
+             * Validate two keys that both camelCase to clientName.
+             *
+             * @return array<string, mixed>
+             */
+            #[\Override]
+            public static function rules(): array
+            {
+                return [
+                    'client_name' => ['required', 'string'],
+                    'client-name' => ['required', 'string'],
+                ];
+            }
+        };
+
+        $input = $definition::from(['client_name' => 'First', 'client-name' => 'Second']);
+
+        self::assertSame('First', $input->clientName);
+        self::assertSame(['client_name' => 'First'], $input->toArray());
+    }
+
+    /**
+     * Test that dotted rule keys map by their first segment, hydrating the
+     * property with the nested data unchanged.
+     *
+     * @return void
+     */
+    public function testFromHydratesPropertyFromFirstSegmentOfDottedRule(): void
+    {
+        $definition = new class extends Payload {
+            /**
+             * Create a new instance with array-typed promoted properties.
+             *
+             * @param  array<string, string>  $billingAddress
+             * @param  list<array<string, string>>  $items
+             */
+            public function __construct(
+
+                /** The billing address, read whole from billing_address. */
+                public readonly array $billingAddress = [],
+
+                /** The line items, read whole from items. */
+                public readonly array $items = [],
+            ) {}
+
+            /**
+             * Validate only nested fields, with no rule on either parent.
+             *
+             * @return array<string, mixed>
+             */
+            #[\Override]
+            public static function rules(): array
+            {
+                return [
+                    'billing_address.line_1' => ['required', 'string'],
+                    'items.*.sku'            => ['required', 'string'],
+                ];
+            }
+        };
+
+        $input = $definition::from([
+            'billing_address' => ['line_1' => '1 High Street'],
+            'items'           => [['sku' => 'A1'], ['sku' => 'B2']],
+        ]);
+
+        self::assertSame(['line_1' => '1 High Street'], $input->billingAddress);
+        self::assertSame([['sku' => 'A1'], ['sku' => 'B2']], $input->items);
+    }
+
+    /**
+     * Test that a rule key with no parameter is only validated, and that a
+     * parameter with no rule keeps its default even when the body sends it.
+     *
+     * @return void
+     */
+    public function testUnmatchedRuleKeysAndParametersAreIgnored(): void
+    {
+        $definition = new class extends Payload {
+            /**
+             * Create a new instance with a ruled and an unruled property.
+             *
+             * @param  string  $city
+             * @param  string  $countryCode
+             */
+            public function __construct(
+
+                /** The city, validated and hydrated. */
+                public readonly string $city = '',
+
+                /** The country code, which no rule validates. */
+                public readonly string $countryCode = 'GB',
+            ) {}
+
+            /**
+             * Validate the city and a key that no parameter reads.
+             *
+             * @return array<string, mixed>
+             */
+            #[\Override]
+            public static function rules(): array
+            {
+                return [
+                    'city'       => ['required', 'string'],
+                    'terms_seen' => ['required', 'accepted'],
+                ];
+            }
+        };
+
+        $input = $definition::from(['city' => 'Paris', 'terms_seen' => 'yes', 'country_code' => 'FR']);
+
+        self::assertSame('Paris', $input->city);
+        self::assertSame('GB', $input->countryCode);
+        self::assertSame(['city' => 'Paris', 'countryCode' => 'GB'], $input->toArray());
+
+        $this->expectException(ValidationException::class);
+
+        $definition::from(['city' => 'Paris']);
+    }
+
+    /**
+     * Test that toArray() keys each mapped property by its rule key, so the
+     * summary of a hydrated payload has the body's keys.
+     *
+     * @return void
+     */
+    public function testToArrayReturnsRuleKeyForm(): void
+    {
+        $definition = new class extends Payload {
+            /**
+             * Create a new instance with camelCase promoted properties.
+             *
+             * @param  string  $clientName
+             * @param  int|null  $unitPrice
+             */
+            public function __construct(
+
+                /** The client name, keyed as client_name in the summary. */
+                public readonly string $clientName = '',
+
+                /** The unit price, keyed as unit_price in the summary. */
+                public readonly ?int $unitPrice = null,
+            ) {}
+
+            /**
+             * Validate both fields under their snake_case body keys.
+             *
+             * @return array<string, mixed>
+             */
+            #[\Override]
+            public static function rules(): array
+            {
+                return [
+                    'client_name' => ['required', 'string'],
+                    'unit_price'  => ['required', 'integer'],
+                ];
+            }
+        };
+
+        $body = ['client_name' => 'Acme', 'unit_price' => 250];
+
+        self::assertSame($body, $definition::from($body)->toArray());
+        self::assertSame(['client_name' => 'Direct', 'unit_price' => null], (new $definition(clientName: 'Direct'))->toArray());
+    }
+
+    /**
+     * Test that toArray() keeps a property's own name when no rule key maps to
+     * it.
+     *
+     * @return void
+     */
+    public function testToArrayKeepsPropertyNameWhenNoRuleMapsIt(): void
+    {
+        $input = new class (nickName: 'Ace') extends Payload {
+            /**
+             * Create a new instance with a property no rule validates.
+             *
+             * @param  string  $nickName
+             */
+            public function __construct(
+
+                /** The nickname, which no rule key maps. */
+                public readonly string $nickName = '',
+            ) {}
+        };
+
+        self::assertSame(['nickName' => 'Ace'], $input->toArray());
+    }
+
+    /**
+     * Test that a backed enum on a mapped property is cast, and that an invalid
+     * value without Rule::enum fails under the body key.
+     *
+     * @return void
+     */
+    public function testFromCastsEnumOnMappedPropertyAndFailsUnderBodyKey(): void
+    {
+        $definition = new class extends Payload {
+            /**
+             * Create a new instance with a camelCase enum property.
+             *
+             * @param  \Tests\Fixtures\Services\Input\Enums\StubStatusEnum|null  $clientStatus
+             */
+            public function __construct(
+
+                /** The client status, read from client_status. */
+                public readonly ?StubStatusEnum $clientStatus = null,
+            ) {}
+
+            /**
+             * Validate the status as a plain string, without an enum rule.
+             *
+             * @return array<string, mixed>
+             */
+            #[\Override]
+            public static function rules(): array
+            {
+                return ['client_status' => ['sometimes', 'nullable', 'string']];
+            }
+        };
+
+        self::assertSame(StubStatusEnum::ACTIVE, $definition::from(['client_status' => 'active'])->clientStatus);
+
+        try {
+            $definition::from(['client_status' => 'not_a_valid_status']);
+
+            self::fail('Expected a ValidationException for the invalid enum value.');
+        } catch (ValidationException $exception) {
+            self::assertSame(['client_status' => ['The selected client status is invalid.']], $exception->errors());
+        }
+    }
+
+    /**
+     * Test that an invalid enum under a camelCase body key names the field in
+     * the validator's display form.
+     *
+     * @return void
+     */
+    public function testEnumCastFailureNamesCamelCaseKeyInDisplayForm(): void
+    {
+        $definition = new class extends Payload {
+            /**
+             * Create a new instance with an exact-name enum property.
+             *
+             * @param  \Tests\Fixtures\Services\Input\Enums\StubStatusEnum|null  $clientStatus
+             */
+            public function __construct(
+
+                /** The client status, read from the exact clientStatus key. */
+                public readonly ?StubStatusEnum $clientStatus = null,
+            ) {}
+
+            /**
+             * Validate the status as a plain string, without an enum rule.
+             *
+             * @return array<string, mixed>
+             */
+            #[\Override]
+            public static function rules(): array
+            {
+                return ['clientStatus' => ['sometimes', 'nullable', 'string']];
+            }
+        };
+
+        try {
+            $definition::from(['clientStatus' => 'not_a_valid_status']);
+
+            self::fail('Expected a ValidationException for the invalid enum value.');
+        } catch (ValidationException $exception) {
+            self::assertSame(['clientStatus' => ['The selected client status is invalid.']], $exception->errors());
+        }
+    }
+
+    /**
+     * Test that a sensitive camelCase property hydrated from its snake_case key
+     * is readable but omitted from toArray().
+     *
+     * @return void
+     */
+    public function testSensitiveMappedPropertyIsReadableButOmitted(): void
+    {
+        $definition = new class extends Payload {
+            /**
+             * Create a new instance with a sensitive camelCase property.
+             *
+             * @param  string  $username
+             * @param  string  $apiSecret
+             */
+            public function __construct(
+
+                /** The username; exposed in the summary. */
+                public readonly string $username = '',
+
+                /** The API secret, read from api_secret; left out of the summary. */
+                #[\SensitiveParameter]
+                public readonly string $apiSecret = '',
+            ) {}
+
+            /**
+             * Validate the username and the API secret.
+             *
+             * @return array<string, mixed>
+             */
+            #[\Override]
+            public static function rules(): array
+            {
+                return [
+                    'username'   => ['required', 'string'],
+                    'api_secret' => ['required', 'string'],
+                ];
+            }
+        };
+
+        $input = $definition::from(['username' => 'alice', 'api_secret' => 'super-secret']);
+
+        self::assertSame('super-secret', $input->apiSecret);
+        self::assertSame(['username' => 'alice'], $input->toArray());
+    }
+
+    /**
+     * Test that key maps are resolved per class, so one payload's rule keys do
+     * not rename a same-named property on another.
+     *
+     * @return void
+     */
+    public function testKeyMapsAreResolvedPerPayloadClass(): void
+    {
+        $mapped = new class (clientName: 'Mapped') extends Payload {
+            /**
+             * Create a new instance whose property a rule key maps.
+             *
+             * @param  string  $clientName
+             */
+            public function __construct(
+
+                /** The client name, keyed as client_name. */
+                public readonly string $clientName = '',
+            ) {}
+
+            /**
+             * Validate the client name under its snake_case body key.
+             *
+             * @return array<string, mixed>
+             */
+            #[\Override]
+            public static function rules(): array
+            {
+                return ['client_name' => ['required', 'string']];
+            }
+        };
+
+        $unmapped = new class (clientName: 'Unmapped') extends Payload {
+            /**
+             * Create a new instance whose property no rule key maps.
+             *
+             * @param  string  $clientName
+             */
+            public function __construct(
+
+                /** The client name, keyed by its own name. */
+                public readonly string $clientName = '',
+            ) {}
+        };
+
+        self::assertSame(['client_name' => 'Mapped'], $mapped->toArray());
+        self::assertSame(['clientName' => 'Unmapped'], $unmapped->toArray());
+        self::assertSame(['client_name' => 'Mapped'], $mapped->toArray());
+    }
 }

@@ -45,6 +45,7 @@ use SineMacula\ApiToolkit\Providers\Registrars\ContainerBindingRegistrar;
 use SineMacula\ApiToolkit\Providers\Registrars\LifecycleRegistrar;
 use SineMacula\ApiToolkit\Providers\Registrars\LoggingRegistrar;
 use SineMacula\ApiToolkit\Providers\Registrars\MiddlewareRegistrar;
+use SineMacula\ApiToolkit\Providers\Registrars\MorphMapRegistrar;
 use SineMacula\ApiToolkit\Repositories\Concerns\WritePool;
 use SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry;
 use SineMacula\ApiToolkit\Schema\Introspection\SchemaIntrospector;
@@ -73,6 +74,7 @@ use Tests\TestCase;
 #[CoversClass(LifecycleRegistrar::class)]
 #[CoversClass(LoggingRegistrar::class)]
 #[CoversClass(MiddlewareRegistrar::class)]
+#[CoversClass(MorphMapRegistrar::class)]
 final class ApiServiceProviderTest extends TestCase
 {
     /**
@@ -495,12 +497,12 @@ final class ApiServiceProviderTest extends TestCase
     }
 
     /**
-     * Test that registerMorphMap builds the map when dynamic mapping is enabled
-     * and a valid resource map is configured.
+     * Test that boot registers the derived morph aliases when dynamic mapping
+     * is enabled, without requiring a morph map.
      *
      * @return void
      */
-    public function testRegisterMorphMapBuildsMapWhenEnabled(): void
+    public function testBootRegistersDerivedMorphAliasesWhenEnabled(): void
     {
         $app = $this->getApplication();
 
@@ -512,18 +514,16 @@ final class ApiServiceProviderTest extends TestCase
         $provider = new ApiServiceProvider($app);
         $provider->boot();
 
-        $morphMap = Relation::morphMap();
-
-        self::assertArrayHasKey('users', $morphMap);
+        self::assertSame(['users' => User::class], Relation::morphMap());
+        self::assertFalse(Relation::requiresMorphMap());
     }
 
     /**
-     * Test that registerMorphMap skips resources that lack getResourceType,
-     * exercising the `return []` branch inside the mapWithKeys callback.
+     * Test that boot skips resources that lack getResourceType.
      *
      * @return void
      */
-    public function testRegisterMorphMapSkipsResourcesWithoutGetResourceType(): void
+    public function testBootSkipsMorphAliasesForResourcesWithoutGetResourceType(): void
     {
         $app = $this->getApplication();
 
@@ -535,13 +535,30 @@ final class ApiServiceProviderTest extends TestCase
         $provider = new ApiServiceProvider($app);
         $provider->boot();
 
-        // A stdClass has no getResourceType; boot() must complete without
-        // error. The morph map may contain entries from earlier tests in the
-        // suite -- we assert only that stdClass did not produce a morph-map
-        // key.
-        $morphMap = Relation::morphMap();
+        self::assertSame([], Relation::morphMap());
+        self::assertFalse(Relation::requiresMorphMap());
+    }
 
-        self::assertArrayNotHasKey(\stdClass::class, $morphMap);
+    /**
+     * Test that boot registers the morph aliases after the discovery merge, so
+     * discovered resources are aliased too.
+     *
+     * @return void
+     */
+    public function testBootRegistersMorphAliasesForDiscoveredResources(): void
+    {
+        $this->getConfig()->set('api-toolkit.resources.enable_dynamic_morph_mapping', true);
+        $this->getConfig()->set('api-toolkit.resources.paths', [dirname(__DIR__, 2) . '/Fixtures/Discovery/Primary']);
+        $this->getConfig()->set('api-toolkit.resources.resource_map', []);
+
+        $this->useIsolatedBootstrapPath();
+
+        $this->bootWithArgv(['artisan', 'deploy']);
+
+        self::assertSame([
+            'discovered_users' => User::class,
+            'discovered_posts' => Post::class,
+        ], Relation::morphMap());
     }
 
     /**
@@ -1082,12 +1099,12 @@ final class ApiServiceProviderTest extends TestCase
     }
 
     /**
-     * Test that no morph map is enforced when dynamic morph mapping is
+     * Test that no morph alias is registered when dynamic morph mapping is
      * disabled, even when a valid resource map is configured.
      *
      * @return void
      */
-    public function testMorphMapIsNotEnforcedWhenDynamicMorphMappingIsDisabled(): void
+    public function testNoMorphAliasIsRegisteredWhenDynamicMorphMappingIsDisabled(): void
     {
         $app = $this->getApplication();
 
@@ -1099,7 +1116,8 @@ final class ApiServiceProviderTest extends TestCase
         $provider = new ApiServiceProvider($app);
         $provider->boot();
 
-        self::assertArrayNotHasKey('users', Relation::morphMap());
+        self::assertSame([], Relation::morphMap());
+        self::assertFalse(Relation::requiresMorphMap());
     }
 
     /**

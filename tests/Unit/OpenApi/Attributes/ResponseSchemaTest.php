@@ -7,6 +7,9 @@ namespace Tests\Unit\OpenApi\Attributes;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 use SineMacula\ApiToolkit\OpenApi\Attributes\ResponseSchema;
+use Tests\Fixtures\OpenApi\PendingSignInShape;
+use Tests\Fixtures\OpenApi\SignedInShape;
+use Tests\Fixtures\Resources\UserResource;
 
 /**
  * Tests for the ResponseSchema attribute.
@@ -27,9 +30,9 @@ final class ResponseSchemaTest extends TestCase
      */
     public function testDescribesASingleItemUnlessToldOtherwise(): void
     {
-        $directive = new ResponseSchema('App\Http\Resources\UserResource');
+        $directive = new ResponseSchema(UserResource::class);
 
-        self::assertSame('App\Http\Resources\UserResource', $directive->schema);
+        self::assertSame([UserResource::class], $directive->schemas);
         self::assertFalse($directive->collection);
     }
 
@@ -40,7 +43,60 @@ final class ResponseSchemaTest extends TestCase
      */
     public function testCarriesTheCollectionFlag(): void
     {
-        self::assertTrue((new ResponseSchema('App\Http\Resources\UserResource', true))->collection);
+        self::assertTrue((new ResponseSchema(UserResource::class, true))->collection);
+    }
+
+    /**
+     * Test that a list of classes is kept in the order it was declared, since
+     * that order is the order the union documents its shapes in.
+     *
+     * @return void
+     */
+    public function testKeepsAListOfClassesInDeclaredOrder(): void
+    {
+        $directive = new ResponseSchema([SignedInShape::class, PendingSignInShape::class]);
+
+        self::assertSame([SignedInShape::class, PendingSignInShape::class], $directive->schemas);
+    }
+
+    /**
+     * Test that a keyed array of classes is re-indexed into a list, so the keys
+     * a caller happened to use never leak into the documented union.
+     *
+     * @return void
+     */
+    public function testReindexesAKeyedArrayOfClasses(): void
+    {
+        $directive = new ResponseSchema(['signed' => SignedInShape::class, 'pending' => PendingSignInShape::class]);
+
+        self::assertSame([SignedInShape::class, PendingSignInShape::class], $directive->schemas);
+    }
+
+    /**
+     * Test that an empty list of classes is rejected, since it describes no
+     * response body at all.
+     *
+     * @return void
+     */
+    public function testRejectsAnEmptyListOfClasses(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('A response schema must name at least one class');
+
+        new ResponseSchema([]);
+    }
+
+    /**
+     * Test that a list holding anything other than a class name is rejected.
+     *
+     * @return void
+     */
+    public function testRejectsAListHoldingANonStringElement(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('A response schema must name each class as a string');
+
+        new ResponseSchema([SignedInShape::class, 42]);
     }
 
     /**
@@ -57,13 +113,13 @@ final class ResponseSchemaTest extends TestCase
              *
              * @return void
              */
-            #[ResponseSchema('App\Http\Resources\UserResource', true)]
+            #[ResponseSchema([UserResource::class, PendingSignInShape::class], true)]
             public function index(): void {}
         };
 
         $directive = (new \ReflectionMethod($subject, 'index'))->getAttributes(ResponseSchema::class)[0]->newInstance();
 
-        self::assertSame('App\Http\Resources\UserResource', $directive->schema);
+        self::assertSame([UserResource::class, PendingSignInShape::class], $directive->schemas);
         self::assertTrue($directive->collection);
     }
 }
