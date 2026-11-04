@@ -20,7 +20,7 @@ final class ClosureMiddlewareController implements HasMiddleware
     /**
      * Declare the controller middleware.
      *
-     * @return list<\Closure|string>
+     * @return list<(\Closure(mixed, \Closure(mixed): mixed): mixed)|string>
      */
     #[\Override]
     public static function middleware(): array

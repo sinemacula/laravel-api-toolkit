@@ -11,9 +11,9 @@ use SineMacula\ApiToolkit\Services\ServiceResult;
  * Fixture controller outside the authorized controller hierarchy whose actions
  * carry the facts the error derivation reads.
  *
- * Used to prove that a non-resource action documents the ApiException subclasses
- * its throws tags name, ignoring any other throwable, and that an authorization
- * attribute alone implies the forbidden status.
+ * Used to prove that a non-resource action documents the ApiException
+ * subclasses its throws tags name, ignoring any other throwable, and that an
+ * authorization attribute alone implies the forbidden status.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.

@@ -185,8 +185,8 @@ final class RouteMiddlewareResolverTest extends TestCase
     }
 
     /**
-     * Test that a closure middleware is skipped while the string entries
-     * beside it are still read.
+     * Test that a closure middleware is skipped while the string entries beside
+     * it are still read.
      *
      * @return void
      */

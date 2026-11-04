@@ -219,8 +219,10 @@ final readonly class PathBuilder
             default   => ['200' => ['description' => 'The request succeeded.', ...$body]],
         };
 
-        $requestBody = $this->resolveRequestBody($controllerClass, $action, $route);
-        $responses  += $this->errorResponses($controllerClass, $action, $route, $requestBody !== []);
+        $requestBody = array_intersect($this->verbs($route), self::BODY_VERBS) === []
+            ? []
+            : $this->requestBody->resolve($controllerClass, $action) ?? [];
+        $responses += $this->errorResponses($controllerClass, $action, $route, $requestBody !== []);
 
         return $this->assembleOperation(
             $this->tags->resolve($controllerClass, $action, $route, null),
@@ -257,8 +259,10 @@ final readonly class PathBuilder
             return null;
         }
 
-        $requestBody = $this->resolveRequestBody($controllerClass, $action, $route);
-        $responses  += $this->errorResponses($controllerClass, $action, $route, $requestBody !== [] || in_array($action, ['store', 'update'], true));
+        $requestBody = array_intersect($this->verbs($route), self::BODY_VERBS) === []
+            ? []
+            : $this->requestBody->resolve($controllerClass, $action) ?? [];
+        $responses += $this->errorResponses($controllerClass, $action, $route, $requestBody !== [] || in_array($action, ['store', 'update'], true));
 
         return $this->assembleOperation(
             $this->tags->resolve($controllerClass, $action, $route, $schemaName),
@@ -267,25 +271,6 @@ final readonly class PathBuilder
             $requestBody,
             $this->queryParameters->referencesFor($action, $modelClass),
         );
-    }
-
-    /**
-     * Resolve the request body for a route whose verbs include a body-bearing
-     * method, or an empty array for a read-only route or an action declaring
-     * no rules.
-     *
-     * @param  class-string|null  $controllerClass
-     * @param  string  $action
-     * @param  \Illuminate\Routing\Route  $route
-     * @return array<string, mixed>
-     */
-    private function resolveRequestBody(?string $controllerClass, string $action, Route $route): array
-    {
-        if (array_intersect($this->verbs($route), self::BODY_VERBS) === []) {
-            return [];
-        }
-
-        return $this->requestBody->resolve($controllerClass, $action) ?? [];
     }
 
     /**

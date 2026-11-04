@@ -1290,52 +1290,6 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
-     * The expected shared data envelope wrapping the x-undocumented marker.
-     *
-     * @return array<string, mixed>
-     */
-    private function undocumentedEnvelope(): array
-    {
-        return [
-            'type'       => 'object',
-            'properties' => ['data' => ['x-undocumented' => true]],
-            'required'   => ['data'],
-        ];
-    }
-
-    /**
-     * Register the full REST route set on the application router, applying the
-     * given middleware to every route.
-     *
-     * @param  string  ...$middleware
-     * @return void
-     */
-    private function registerRestRoutes(string ...$middleware): void
-    {
-        $router = $this->router();
-
-        $router->get('users', [PathFixtureController::class, 'index'])->middleware($middleware);
-        $router->post('users', [PathFixtureController::class, 'store'])->middleware($middleware);
-        $router->get('users/{user}', [PathFixtureController::class, 'show'])->middleware($middleware);
-        $router->match(['PUT', 'PATCH'], 'users/{user}', [PathFixtureController::class, 'update'])->middleware($middleware);
-        $router->delete('users/{user}', [PathFixtureController::class, 'destroy'])->middleware($middleware);
-    }
-
-    /**
-     * Register the read routes of a controller reading a model that soft
-     * deletes.
-     *
-     * @return void
-     */
-    private function registerSoftDeletingRoutes(): void
-    {
-        $router = $this->router();
-
-        $router->get('articles', [PathArticleController::class, 'index']);
-        $router->get('articles/{article}', [PathArticleController::class, 'show']);
-    }
-
-    /**
      * Test that a resource route without auth middleware omits the
      * unauthenticated status while its authorization check keeps forbidden.
      *
@@ -1475,6 +1429,52 @@ final class PathBuilderTest extends TestCase
         $this->router()->get('items/{item}', static fn (): null => null)->middleware('auth');
 
         self::assertSame([200, 401, 404, 500], array_keys($this->build()['/items/{item}']['get']['responses']));
+    }
+
+    /**
+     * The expected shared data envelope wrapping the x-undocumented marker.
+     *
+     * @return array<string, mixed>
+     */
+    private function undocumentedEnvelope(): array
+    {
+        return [
+            'type'       => 'object',
+            'properties' => ['data' => ['x-undocumented' => true]],
+            'required'   => ['data'],
+        ];
+    }
+
+    /**
+     * Register the full REST route set on the application router, applying the
+     * given middleware to every route.
+     *
+     * @param  string  ...$middleware
+     * @return void
+     */
+    private function registerRestRoutes(string ...$middleware): void
+    {
+        $router = $this->router();
+
+        $router->get('users', [PathFixtureController::class, 'index'])->middleware($middleware);
+        $router->post('users', [PathFixtureController::class, 'store'])->middleware($middleware);
+        $router->get('users/{user}', [PathFixtureController::class, 'show'])->middleware($middleware);
+        $router->match(['PUT', 'PATCH'], 'users/{user}', [PathFixtureController::class, 'update'])->middleware($middleware);
+        $router->delete('users/{user}', [PathFixtureController::class, 'destroy'])->middleware($middleware);
+    }
+
+    /**
+     * Register the read routes of a controller reading a model that soft
+     * deletes.
+     *
+     * @return void
+     */
+    private function registerSoftDeletingRoutes(): void
+    {
+        $router = $this->router();
+
+        $router->get('articles', [PathArticleController::class, 'index']);
+        $router->get('articles/{article}', [PathArticleController::class, 'show']);
     }
 
     /**

@@ -17,11 +17,12 @@ use Illuminate\Support\Facades\Config;
  * The route's middleware is resolved the way the router dispatches it: groups
  * and aliases expand to classes and withoutMiddleware() exclusions apply, so a
  * guard or limit applied through a group is seen and a removed one is not. Each
- * resolved entry is classified by class: Laravel's Authenticate (an auth guard),
- * Authorize (a `can:` check or an #[Authorize] attribute), and ThrottleRequests
- * (a rate limit), subclasses included. Anything else - an unknown alias, a
- * closure, an unrelated class - is ignored, and a controller whose middleware
- * cannot be resolved degrades to none rather than aborting the export.
+ * resolved entry is classified by class: Laravel's Authenticate (an auth
+ * guard), Authorize (a `can:` check or an #[Authorize] attribute), and
+ * ThrottleRequests (a rate limit), subclasses included. Anything else - an
+ * unknown alias, a closure, an unrelated class - is ignored, and a controller
+ * whose middleware cannot be resolved degrades to none rather than aborting the
+ * export.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.

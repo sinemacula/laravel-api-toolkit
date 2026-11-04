@@ -980,7 +980,7 @@ final class OpenApiExporterValidityTest extends TestCase
      */
     public function testBaselineErrorStatusesAttachPerAction(): void
     {
-        $this->router()->middleware('auth')->group(function (): void {
+        $this->router()->group(['middleware' => 'auth'], function (): void {
             $this->registerUserRoutes();
         });
 
