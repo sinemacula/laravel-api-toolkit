@@ -5,14 +5,15 @@ declare(strict_types = 1);
 namespace Tests\Unit\Services\Input;
 
 use Illuminate\Http\Request;
-use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 use SineMacula\ApiToolkit\Services\Contracts\DefinesInputSchema;
 use SineMacula\ApiToolkit\Services\Input\Payload;
+use Tests\Fixtures\Enums\Magnitude;
 use Tests\Fixtures\Enums\Platform;
-use Tests\Fixtures\Enums\UserLevel;
 use Tests\Fixtures\Input\SampleInput;
+use Tests\Fixtures\Services\Input\BackedEnumInput;
 use Tests\Fixtures\Services\Input\Concerns\DescribesInput;
 use Tests\Fixtures\Services\Input\Concerns\SensitiveCredentials;
 use Tests\Fixtures\Services\Input\Enums\StubStatusEnum;
@@ -265,82 +266,98 @@ final class PayloadTest extends TestCase
     }
 
     /**
-     * Test that a value of the wrong type for a string-backed enum parameter
-     * fails as a validation error naming the body key, rather than a type error
-     * from the enum lookup.
+     * Provide the canonical forms of an int-backed enum value.
      *
+     * @return iterable<string, array{mixed, \Tests\Fixtures\Enums\Magnitude}>
+     */
+    public static function canonicalIntBackingProvider(): iterable
+    {
+        yield 'integer' => [1, Magnitude::ONE];
+        yield 'zero' => [0, Magnitude::ZERO];
+        yield 'integer string' => ['1', Magnitude::ONE];
+        yield 'zero string' => ['0', Magnitude::ZERO];
+        yield 'negative integer string' => ['-3', Magnitude::NEGATIVE];
+    }
+
+    /**
+     * Test that an int-backed enum parameter hydrates from an integer or the
+     * canonical decimal string of one.
+     *
+     * @param  mixed  $value
+     * @param  \Tests\Fixtures\Enums\Magnitude  $expected
      * @return void
      */
-    public function testFromRefusesWrongTypeForBackedEnumWithoutEnumRule(): void
+    #[DataProvider('canonicalIntBackingProvider')]
+    public function testFromHydratesIntBackedEnumFromCanonicalForm(mixed $value, Magnitude $expected): void
     {
-        $definition = new class extends Payload {
-            /**
-             * Create a new instance with a backed enum promoted property.
-             *
-             * @param  \Tests\Fixtures\Services\Input\Enums\StubStatusEnum|null  $status
-             */
-            public function __construct(
+        self::assertSame($expected, BackedEnumInput::from(['magnitude' => $value])->magnitude);
+    }
 
-                /** A backed enum property whose rules admit any value. */
-                public readonly ?StubStatusEnum $status = null,
-            ) {}
+    /**
+     * Provide values that are not the canonical form of an int-backed enum
+     * value.
+     *
+     * @return iterable<string, array{mixed}>
+     */
+    public static function nonCanonicalIntBackingProvider(): iterable
+    {
+        yield 'zero-padded string' => ['01'];
+        yield 'leading whitespace' => [' 1'];
+        yield 'trailing whitespace' => ['1 '];
+        yield 'integral decimal string' => ['1.0'];
+        yield 'fractional decimal string' => ['1.9'];
+        yield 'exponent string' => ['1e0'];
+        yield 'explicit plus sign' => ['+1'];
+        yield 'negative zero string' => ['-0'];
+        yield 'empty string' => [''];
+        yield 'word' => ['one'];
+        yield 'integer string above the range' => ['9223372036854775808'];
+        yield 'true' => [true];
+        yield 'false' => [false];
+        yield 'integral float' => [1.0];
+        yield 'fractional float' => [1.5];
+        yield 'unknown integer' => [2];
+    }
 
-            /**
-             * Require the status without constraining its type.
-             *
-             * @return array<string, mixed>
-             */
-            #[\Override]
-            public static function rules(): array
-            {
-                return ['status' => ['required']];
-            }
-        };
-
+    /**
+     * Test that a value that is not the canonical form of an int-backed enum
+     * value fails as a validation error naming the body key, even where
+     * Laravel's enum rule would coerce it to a case.
+     *
+     * @param  mixed  $value
+     * @return void
+     */
+    #[DataProvider('nonCanonicalIntBackingProvider')]
+    public function testFromRefusesNonCanonicalIntBackedEnumValue(mixed $value): void
+    {
         try {
-            $definition::from(['status' => 42]);
+            BackedEnumInput::from(['magnitude' => $value]);
 
-            self::fail('Expected a ValidationException for the wrongly typed enum value.');
+            self::fail('Expected a ValidationException for the non-canonical enum value.');
         } catch (ValidationException $exception) {
-            self::assertSame(['status' => ['The selected status is invalid.']], $exception->errors());
+            self::assertSame(['magnitude' => ['The selected magnitude is invalid.']], $exception->errors());
         }
     }
 
     /**
-     * Test that an int-backed enum parameter is cast from an integer body
-     * value, and from the numeric string a form body sends, both of which
-     * Laravel's enum rule accepts.
+     * Test that a string-backed enum parameter hydrates from its string value
+     * and refuses any other type, even one naming a case once coerced.
      *
      * @return void
      */
-    public function testFromHydratesIntBackedEnumFromInteger(): void
+    public function testFromHydratesStringBackedEnumOnlyFromAString(): void
     {
-        $definition = new class extends Payload {
-            /**
-             * Create a new instance with an int-backed enum promoted property.
-             *
-             * @param  \Tests\Fixtures\Enums\UserLevel|null  $level
-             */
-            public function __construct(
+        self::assertSame(StubStatusEnum::ACTIVE, BackedEnumInput::from(['status' => 'active'])->status);
 
-                /** An int-backed enum property. */
-                public readonly ?UserLevel $level = null,
-            ) {}
+        foreach ([42, true, 1.5, ['active']] as $value) {
+            try {
+                BackedEnumInput::from(['status' => $value]);
 
-            /**
-             * Validate the level against its enum.
-             *
-             * @return array<string, mixed>
-             */
-            #[\Override]
-            public static function rules(): array
-            {
-                return ['level' => ['required', Rule::enum(UserLevel::class)]];
+                self::fail('Expected a ValidationException for the non-string enum value.');
+            } catch (ValidationException $exception) {
+                self::assertSame(['status' => ['The selected status is invalid.']], $exception->errors());
             }
-        };
-
-        self::assertSame(UserLevel::SILVER, $definition::from(['level' => 2])->level);
-        self::assertSame(UserLevel::SILVER, $definition::from(['level' => '2'])->level);
+        }
     }
 
     /**

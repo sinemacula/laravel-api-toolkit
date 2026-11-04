@@ -949,10 +949,12 @@ final class StartSessionPayload extends Payload
 StartSessionPayload::from(['application' => 'console'])->application; // Application::CONSOLE
 ```
 
-A value that matches no case fails as a `422` keyed by its body key, even when `rules()` leaves the enum rule out. A
-resource field holding a pure enum case is serialised as the same lowercase name, so a value read from a response can
-be sent back unchanged. An enum whose case names collide once lowercased, such as `case Web` and `case WEB`, has no
-single wire form and throws a `LogicException`.
+A backed enum is read only from its canonical form: a string for a string-backed enum, and an integer or its plain
+decimal string for an int-backed one, so `"3"` and `"-3"` from a form body are read while `"03"`, `"+3"` and `"3.0"`
+are refused even where `Rule::enum()` passes them. A value that matches no case in that form fails as a `422` keyed by
+its body key, even when `rules()` leaves the enum rule out. A resource field holding a pure enum case is serialised as
+the same lowercase name, so a value read from a response can be sent back unchanged. An enum whose case names collide
+once lowercased, such as `case Web` and `case WEB`, has no single wire form and throws a `LogicException`.
 
 ---
 

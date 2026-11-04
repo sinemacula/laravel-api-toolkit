@@ -10,7 +10,6 @@ use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use SineMacula\ApiToolkit\Services\Contracts\DefinesInputSchema;
 use SineMacula\ApiToolkit\Services\Contracts\ServiceInput;
-use SineMacula\ApiToolkit\Support\BackedEnumValue;
 use SineMacula\ApiToolkit\Support\PureEnumName;
 
 /**
@@ -263,10 +262,12 @@ abstract class Payload implements DefinesInputSchema, ServiceInput
      * Only enum parameters require casting: a backed enum from its value and a
      * pure enum from its lowercase case name, while a value that is already a
      * case passes through. All other types are returned as-is because Laravel's
-     * validator already yields the correct scalar representation. When a
-     * subclass omits the enum rule, an invalid value still reaches this cast;
-     * it degrades to a validation failure so the caller sees a 422 rather than
-     * an unhandled error, keyed by the body key the value was read from.
+     * validator already yields the correct scalar representation. A value that
+     * names no case in canonical form reaches this cast when a subclass omits
+     * the enum rule, or when Laravel's looser enum rule passed it, as it does
+     * "01" or "1.0" for an int-backed enum; it degrades to a validation failure
+     * so the caller sees a 422 rather than an unhandled error or a silently
+     * coerced case, keyed by the body key the value was read from.
      *
      * @param  \ReflectionParameter  $parameter
      * @param  mixed  $value
@@ -294,11 +295,7 @@ abstract class Payload implements DefinesInputSchema, ServiceInput
 
     /**
      * Resolve the enum case a validated value names, or null when it names none
-     * or is not of a type the enum is read from.
-     *
-     * A backed enum is coerced as Laravel's enum rule coerces it, so a value
-     * the rule accepted, such as the string "1" for an int-backed enum sent in
-     * a form body, resolves to the same case.
+     * or is not in the enum's canonical form.
      *
      * @param  class-string<\UnitEnum>  $enum
      * @param  mixed  $value
@@ -306,11 +303,36 @@ abstract class Payload implements DefinesInputSchema, ServiceInput
      */
     private static function enumCase(string $enum, mixed $value): ?\UnitEnum
     {
-        if (is_a($enum, \BackedEnum::class, true)) {
-            return BackedEnumValue::tryFrom($enum, $value);
+        if (!is_a($enum, \BackedEnum::class, true)) {
+            return is_string($value) ? PureEnumName::tryFrom($enum, $value) : null;
         }
 
-        return is_string($value) ? PureEnumName::tryFrom($enum, $value) : null;
+        $backing = self::backingValue($enum, $value);
+
+        return $backing === null ? null : $enum::tryFrom($backing);
+    }
+
+    /**
+     * Read a value as a backed enum's backing value, accepting only canonical
+     * forms: a string for a string-backed enum, and an integer or the decimal
+     * string of one, such as "-3" but not "03", "+3" or "3.0", for an
+     * int-backed enum.
+     *
+     * @param  class-string<\BackedEnum>  $enum
+     * @param  mixed  $value
+     * @return int|string|null
+     */
+    private static function backingValue(string $enum, mixed $value): int|string|null
+    {
+        if ((string) (new \ReflectionEnum($enum))->getBackingType() !== 'int') {
+            return is_string($value) ? $value : null;
+        }
+
+        return match (true) {
+            is_int($value)                                        => $value,
+            is_string($value) && (string) (int) $value === $value => (int) $value,
+            default                                               => null,
+        };
     }
 
     /**
