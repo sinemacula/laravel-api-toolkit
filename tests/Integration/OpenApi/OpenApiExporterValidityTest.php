@@ -542,7 +542,7 @@ final class OpenApiExporterValidityTest extends TestCase
 
     /**
      * Test that the artisan command writes a non-empty 3.1-valid document and
-     * reports a non-zero resource count, exit 0.
+     * reports its operation and resource counts, exit 0.
      *
      * @return void
      */
@@ -557,7 +557,7 @@ final class OpenApiExporterValidityTest extends TestCase
             $exitCode = Artisan::call(ExportOpenApiCommand::class, ['--output' => $path]);
 
             self::assertSame(0, $exitCode);
-            self::assertStringContainsString('Exported 4 resource schema(s)', Artisan::output());
+            self::assertStringContainsString('Exported 6 operation(s), 4 resource schema(s)', Artisan::output());
             self::assertFileExists($path);
 
             $contents = file_get_contents($path);

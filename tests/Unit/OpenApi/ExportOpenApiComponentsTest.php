@@ -39,6 +39,7 @@ use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 use Tests\Concerns\InteractsWithNonPublicMembers;
 use Tests\Fixtures\Models\Organization;
 use Tests\Fixtures\Models\User;
+use Tests\Fixtures\OpenApi\PathResponseSchemaController;
 use Tests\Fixtures\Resources\OrganizationResource;
 use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
@@ -115,6 +116,63 @@ final class ExportOpenApiComponentsTest extends TestCase
             $result->responseCount,
         );
         self::assertSame(1, $result->responseCount);
+    }
+
+    /**
+     * Test that the summary operation count sums every verb across every path,
+     * so a route matching two verbs counts twice.
+     *
+     * @return void
+     */
+    public function testSummaryOperationCountSumsAcrossPathsAndVerbs(): void
+    {
+        assert($this->app !== null);
+
+        $router = $this->app->make(Router::class);
+        $router->get('widget', [PathResponseSchemaController::class, 'widget']);
+        $router->match(['PUT', 'PATCH'], 'widgets/{widget}', [PathResponseSchemaController::class, 'widget']);
+
+        self::assertSame(3, $this->export()->operationCount);
+    }
+
+    /**
+     * Test that the summary operation count is zero when no route is
+     * documented.
+     *
+     * @return void
+     */
+    public function testSummaryOperationCountIsZeroWithoutRoutes(): void
+    {
+        self::assertSame(0, $this->export()->operationCount);
+    }
+
+    /**
+     * Provide documents whose paths object is absent or not an array, or holds
+     * a path item that is not an array, with the operation count expected.
+     *
+     * @return iterable<string, array{array<string, mixed>, int}>
+     */
+    public static function malformedPathsProvider(): iterable
+    {
+        yield 'paths is absent' => [[], 0];
+        yield 'paths is an empty object' => [['paths' => (object) []], 0];
+        yield 'path item is not an array' => [['paths' => ['/a' => 'nope', '/b' => ['get' => [], 'post' => []]]], 2];
+    }
+
+    /**
+     * Test that a paths object or path item that is not an array counts as no
+     * operations rather than raising a type error.
+     *
+     * @param  array<string, mixed>  $document
+     * @param  int  $expected
+     * @return void
+     */
+    #[DataProvider('malformedPathsProvider')]
+    public function testCountOperationsToleratesMalformedPaths(array $document, int $expected): void
+    {
+        $useCase = (new \ReflectionClass(ExportOpenApiComponents::class))->newInstanceWithoutConstructor();
+
+        self::assertSame($expected, $this->invokeMethod($useCase, 'countOperations', $document));
     }
 
     /**
