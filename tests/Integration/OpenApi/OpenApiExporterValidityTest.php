@@ -971,15 +971,18 @@ final class OpenApiExporterValidityTest extends TestCase
     }
 
     /**
-     * Test that the honest baseline error statuses attach per REST action end
-     * to end: every action carries 401/403/500, an item read or write also 404,
-     * and a write also 422, merged with the throws-derived codes.
+     * Test that the baseline error statuses attach per REST action end to end:
+     * every authenticated, authorized action carries 401/403/500, an item read
+     * or write also 404, and a write also 422, merged with the throws-derived
+     * codes.
      *
      * @return void
      */
     public function testBaselineErrorStatusesAttachPerAction(): void
     {
-        $this->registerUserRoutes();
+        $this->router()->group(['middleware' => 'auth'], function (): void {
+            $this->registerUserRoutes();
+        });
 
         $paths = $this->export()->document['paths'];
 

@@ -6,7 +6,6 @@ namespace SineMacula\ApiToolkit\OpenApi\Builder;
 
 use Illuminate\Routing\Route;
 use Illuminate\Routing\Router;
-use SineMacula\ApiToolkit\Exceptions\ApiException;
 use SineMacula\ApiToolkit\Http\Routing\AuthorizedController;
 use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
 use SineMacula\ApiToolkit\OpenApi\Naming\SchemaComponentName;
@@ -14,7 +13,9 @@ use SineMacula\ApiToolkit\OpenApi\Resolution\AudienceResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\DocumentableRouteFilter;
 use SineMacula\ApiToolkit\OpenApi\Resolution\RequestBodyResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ResponseSchemaResolver;
+use SineMacula\ApiToolkit\OpenApi\Resolution\RouteMiddlewareResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\TagResolver;
+use SineMacula\ApiToolkit\OpenApi\Resolution\ThrowsErrorResolver;
 use SineMacula\ApiToolkit\OpenApi\Security\SecuritySchemeResolver;
 
 /**
@@ -27,31 +28,33 @@ use SineMacula\ApiToolkit\OpenApi\Security\SecuritySchemeResolver;
  * response shape through the shared envelope builder - index emits a oneOf of
  * the length-aware and cursor collection envelopes with the total-count header,
  * show and update a single envelope, store a single envelope under 201, and
- * destroy an empty 204 - alongside the honest baseline error statuses merged
- * with any ApiException the action documents. Every other route - a plain or
- * invokable controller, a non-REST action, an unmapped model, or a closure -
- * still emits an operation carrying the path template, verbs, path parameters,
- * and a resolved tag, with a single success response whose body is the shape a
- * #[ResponseSchema] directive on the action declares - a reference to a
- * registered resource's component or an inlined self-describing fragment,
- * single or wrapped in the collection envelope - and the shared data envelope
- * wrapping an x-undocumented marker otherwise; that success is 201 for a store
- * action, 204 for a destroy, and 200 otherwise, and it carries no error
- * responses. A route whose verbs include a body-bearing method - POST, PUT, or
- * PATCH - also carries a requestBody translated from the rules a
- * #[RequestSchema] directive or a type-hinted rules-source parameter reaches; a
- * read-only route carries none. A resource operation also references the query
- * parameters its action honours: an index the whole grammar, a show what shapes
- * and scopes a single record, a store and an update what shapes the resource
- * they return, and a destroy none. A non-resource operation references none,
- * there being no knowing whether such an action consults the query parser.
- * Audience membership is checked for every route regardless of its handler, so
- * a closure scoped out by a route macro is omitted exactly as an
- * attribute-scoped controller is. A route whose handler is defined under a
- * blocklisted namespace - the framework and common tooling by default - is
- * dropped before any operation is built, so framework noise never reaches the
- * document while the organisation's own packages stay documented. HEAD and
- * OPTIONS are always excluded.
+ * destroy an empty 204. Every other route - a plain or invokable controller, a
+ * non-REST action, an unmapped model, or a closure - still emits an operation
+ * carrying the path template, verbs, path parameters, and a resolved tag, with
+ * a single success response whose body is the shape a #[ResponseSchema]
+ * directive on the action declares - a reference to a registered resource's
+ * component or an inlined self-describing fragment, single or wrapped in the
+ * collection envelope - and the shared data envelope wrapping an x-undocumented
+ * marker otherwise; that success is 201 for a store action, 204 for a destroy,
+ * and 200 otherwise. Every operation, resource or not, carries the error
+ * statuses its route facts imply - 401 behind auth middleware, 403 behind an
+ * authorization check, 404 with path parameters, 422 with a request body (or a
+ * resource store or update), 429 behind a rate limit, and 500 always - merged
+ * with any ApiException its action's @throws tags name. A route whose verbs
+ * include a body-bearing method - POST, PUT, or PATCH - also carries a
+ * requestBody translated from the rules a #[RequestSchema] directive or a
+ * type-hinted rules-source parameter reaches; a read-only route carries none. A
+ * resource operation also references the query parameters its action honours:
+ * an index the whole grammar, a show what shapes and scopes a single record, a
+ * store and an update what shapes the resource they return, and a destroy none.
+ * A non-resource operation references none, there being no knowing whether such
+ * an action consults the query parser. Audience membership is checked for every
+ * route regardless of its handler, so a closure scoped out by a route macro is
+ * omitted exactly as an attribute-scoped controller is. A route whose handler
+ * is defined under a blocklisted namespace - the framework and common tooling
+ * by default - is dropped before any operation is built, so framework noise
+ * never reaches the document while the organisation's own packages stay
+ * documented. HEAD and OPTIONS are always excluded.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -73,6 +76,7 @@ final readonly class PathBuilder
         403 => 'Forbidden.',
         404 => 'The requested resource does not exist.',
         422 => 'The request payload failed validation.',
+        429 => 'Too many requests.',
         500 => 'An unexpected server error occurred.',
     ];
 
@@ -98,6 +102,8 @@ final readonly class PathBuilder
      * @param  \SineMacula\ApiToolkit\OpenApi\Resolution\RequestBodyResolver  $requestBody
      * @param  \SineMacula\ApiToolkit\OpenApi\Security\SecuritySchemeResolver  $security
      * @param  \SineMacula\ApiToolkit\OpenApi\Builder\QueryParameterBuilder  $queryParameters
+     * @param  \SineMacula\ApiToolkit\OpenApi\Resolution\RouteMiddlewareResolver  $middleware
+     * @param  \SineMacula\ApiToolkit\OpenApi\Resolution\ThrowsErrorResolver  $throws
      */
     public function __construct(
 
@@ -130,6 +136,12 @@ final readonly class PathBuilder
 
         /** The builder naming the query parameters each action accepts. */
         private QueryParameterBuilder $queryParameters,
+
+        /** The resolver reading a route's auth, authorization, and limits. */
+        private RouteMiddlewareResolver $middleware,
+
+        /** The resolver of the ApiExceptions an action's throws tags name. */
+        private ThrowsErrorResolver $throws,
     ) {}
 
     /**
@@ -214,6 +226,7 @@ final readonly class PathBuilder
         $requestBody = array_intersect($this->verbs($route), self::BODY_VERBS) === []
             ? []
             : $this->requestBody->resolve($controllerClass, $action) ?? [];
+        $responses += $this->errorResponses($controllerClass, $action, $route, $requestBody !== []);
 
         return $this->assembleOperation(
             $this->tags->resolve($controllerClass, $action, $route, null),
@@ -250,11 +263,10 @@ final readonly class PathBuilder
             return null;
         }
 
-        $responses += $this->errorResponses($action, $route, $controllerClass);
-
         $requestBody = array_intersect($this->verbs($route), self::BODY_VERBS) === []
             ? []
             : $this->requestBody->resolve($controllerClass, $action) ?? [];
+        $responses += $this->errorResponses($controllerClass, $action, $route, $requestBody !== [] || in_array($action, ['store', 'update'], true));
 
         return $this->assembleOperation(
             $this->tags->resolve($controllerClass, $action, $route, $schemaName),
@@ -447,23 +459,24 @@ final readonly class PathBuilder
      * status coincides with a baseline status, the two collapse into a single
      * response carrying the shared envelope schema plus a per-code example.
      *
+     * @param  class-string|null  $controllerClass
      * @param  string  $action
      * @param  \Illuminate\Routing\Route  $route
-     * @param  class-string<\SineMacula\ApiToolkit\Http\Routing\AuthorizedController>  $controllerClass
+     * @param  bool  $acceptsBody
      * @return array<int, array<string, mixed>>
      */
-    private function errorResponses(string $action, Route $route, string $controllerClass): array
+    private function errorResponses(?string $controllerClass, string $action, Route $route, bool $acceptsBody): array
     {
-        $throws    = $this->throwsErrorsFor($controllerClass, $action);
+        $throws    = $controllerClass === null ? [] : $this->throws->resolve($controllerClass, $action);
         $responses = [];
 
-        foreach ($this->baselineErrorsFor($action, $route->parameterNames() !== []) as $status) {
+        foreach ($this->baselineErrorsFor($route, $acceptsBody) as $status) {
             $responses[$status] = $this->errorResponse(self::BASELINE_PHRASES[$status], $throws[$status]['examples'] ?? []);
             unset($throws[$status]);
         }
 
         foreach ($throws as $status => $descriptor) {
-            $responses[$status] = $this->errorResponse($descriptor['phrase'], $descriptor['examples']);
+            $responses[$status] = $this->errorResponse(self::BASELINE_PHRASES[$status] ?? $descriptor['phrase'], $descriptor['examples']);
         }
 
         ksort($responses);
@@ -472,91 +485,28 @@ final readonly class PathBuilder
     }
 
     /**
-     * List the baseline error statuses that honestly apply to the action.
+     * List the baseline error statuses the route's facts imply.
      *
-     * Every documented operation carries 401, 403, and 500; an operation for an
-     * existing resource (any route with path parameters) also carries 404, and
-     * an operation with a request body (store, update) also carries 422.
+     * A route behind auth middleware carries 401, one behind an authorization
+     * check 403, one with path parameters 404, one accepting a request body
+     * 422, and one behind a rate limit 429; every route carries 500.
      *
-     * @param  string  $action
-     * @param  bool  $hasPathParameters
+     * @param  \Illuminate\Routing\Route  $route
+     * @param  bool  $acceptsBody
      * @return array<int, int>
      */
-    private function baselineErrorsFor(string $action, bool $hasPathParameters): array
+    private function baselineErrorsFor(Route $route, bool $acceptsBody): array
     {
-        $statuses = [401, 403, 500];
+        $facts = [
+            401 => $this->middleware->authenticates($route),
+            403 => $this->middleware->authorizes($route),
+            404 => $route->parameterNames() !== [],
+            422 => $acceptsBody,
+            429 => $this->middleware->throttles($route),
+            500 => true,
+        ];
 
-        if ($hasPathParameters) {
-            $statuses[] = 404;
-        }
-
-        if (in_array($action, ['store', 'update'], true)) {
-            $statuses[] = 422;
-        }
-
-        return $statuses;
-    }
-
-    /**
-     * Reflect the action's documented throws into a status-keyed map of
-     * concrete ApiException error descriptors.
-     *
-     * Each @throws tag is normalised to a class name, kept only when it
-     * resolves to an ApiException subclass, then grouped by its resolved HTTP
-     * status. The example name is the exception's short class name, and a
-     * non-baseline status derives its phrase from the status enum case name.
-     *
-     * @param  class-string<\SineMacula\ApiToolkit\Http\Routing\AuthorizedController>  $controllerClass
-     * @param  string  $action
-     * @return array<int, array{phrase: string, examples: array<string, array<string, mixed>>}>
-     */
-    private function throwsErrorsFor(string $controllerClass, string $action): array
-    {
-        try {
-            $docComment = (new \ReflectionMethod($controllerClass, $action))->getDocComment();
-        } catch (\ReflectionException) {
-            return [];
-        }
-
-        if ($docComment === false) {
-            return [];
-        }
-
-        preg_match_all('/@throws\s+([\\\\\w]+)/', $docComment, $matches);
-
-        $errors = [];
-
-        foreach ($matches[1] as $class) {
-
-            $exceptionClass = ltrim($class, '\\');
-
-            if (!is_subclass_of($exceptionClass, ApiException::class) || !defined($exceptionClass . '::HTTP_STATUS')) {
-                continue;
-            }
-
-            $status = $exceptionClass::getHttpStatusCode();
-
-            /** @var \SineMacula\Http\Enums\HttpStatus $enum */
-            $enum = constant($exceptionClass . '::HTTP_STATUS');
-
-            $errors[$status] ??= [
-                'phrase'   => self::BASELINE_PHRASES[$status] ?? ucfirst(strtolower(str_replace('_', ' ', $enum->name))) . '.',
-                'examples' => [],
-            ];
-
-            $short = substr((string) strrchr('\\' . $exceptionClass, '\\'), 1);
-            $error = ['status' => $status];
-
-            if (defined($exceptionClass . '::CODE')) {
-                /** @var \SineMacula\ApiToolkit\Contracts\ErrorCodeInterface $code */
-                $code          = constant($exceptionClass . '::CODE');
-                $error['code'] = $code->getCode();
-            }
-
-            $errors[$status]['examples'][$short] = ['value' => ['error' => $error]];
-        }
-
-        return $errors;
+        return array_keys(array_filter($facts));
     }
 
     /**

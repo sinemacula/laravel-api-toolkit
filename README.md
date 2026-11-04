@@ -629,6 +629,14 @@ operator registry, so the document cannot offer a column the request would rejec
 package no longer ships. A column whose every operator has left the registry is documented as answering no
 filter at all.
 
+Every operation also lists the errors it can return, derived from the route itself: `401` behind auth middleware,
+`403` behind an authorization check (a `can:` gate, an `#[Authorize]` attribute, or an `AuthorizedController`
+action), `404` when the path has parameters, `422` when the operation accepts a request body, `429` behind a rate
+limit, and `500` always. Middleware is read as the router resolves it, so a guard or limit applied through a group
+counts and one removed with `withoutMiddleware()` does not. Each `ApiException` subclass named, fully qualified, in
+the action's `@throws` tags is added under its status with its error code as an example; any other throwable in those
+tags is ignored.
+
 A second command writes the generated reference sections - the error catalogue, the enum reference, and the
 query surface reference, which tables the queryable columns of the resources an audience documents beside
 the bounds a request is held to - into the Markdown docs directory assembled into the document's
