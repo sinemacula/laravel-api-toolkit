@@ -38,19 +38,51 @@ final class MorphMapRegistrar
             return;
         }
 
-        Relation::morphMap($this->withoutApplicationAliases($this->unambiguousAliases($map)));
+        Relation::morphMap($this->derivedAliases($map, Relation::morphMap()));
     }
 
     /**
-     * Derive the morph aliases claimed by exactly one model, reporting any type
-     * shared by distinct resources.
+     * Derive the morph aliases the application has left unclaimed, withholding
+     * any alias claimed by more than one model.
      *
      * @param  array<class-string<\Illuminate\Database\Eloquent\Model>, class-string>  $map
+     * @param  array<string, class-string>  $existing
      * @return array<string, class-string<\Illuminate\Database\Eloquent\Model>>
      *
      * @throws \LogicException
      */
-    private function unambiguousAliases(array $map): array
+    private function derivedAliases(array $map, array $existing): array
+    {
+        $aliases = [];
+
+        foreach ($this->claims($map) as $alias => $claimants) {
+
+            if (array_key_exists($alias, $existing)) {
+                continue;
+            }
+
+            $this->reportSharedType($alias, $claimants);
+
+            $model = array_key_first($claimants);
+
+            if (count($claimants) !== 1 || in_array($model, $existing, true)) {
+                continue;
+            }
+
+            $aliases[$alias] = $model;
+        }
+
+        return $aliases;
+    }
+
+    /**
+     * Group the mapped models by the type of their resource, skipping any
+     * resource without one.
+     *
+     * @param  array<class-string<\Illuminate\Database\Eloquent\Model>, class-string>  $map
+     * @return array<string, non-empty-array<class-string<\Illuminate\Database\Eloquent\Model>, class-string>>
+     */
+    private function claims(array $map): array
     {
         $claims = [];
 
@@ -63,20 +95,7 @@ final class MorphMapRegistrar
             $claims[$resource::getResourceType()][$model] = $resource;
         }
 
-        $aliases = [];
-
-        foreach ($claims as $alias => $claimants) {
-
-            $this->reportSharedType($alias, $claimants);
-
-            if (count($claimants) !== 1) {
-                continue;
-            }
-
-            $aliases[$alias] = array_key_first($claimants);
-        }
-
-        return $aliases;
+        return $claims;
     }
 
     /**
@@ -84,13 +103,13 @@ final class MorphMapRegistrar
      * validation is enabled. A type claimed by a single resource, whether for
      * one model or several, is not reported.
      *
-     * @param  string  $alias
+     * @param  int|string  $alias
      * @param  array<class-string<\Illuminate\Database\Eloquent\Model>, class-string>  $claimants
      * @return void
      *
      * @throws \LogicException
      */
-    private function reportSharedType(string $alias, array $claimants): void
+    private function reportSharedType(int|string $alias, array $claimants): void
     {
         $resources = array_unique($claimants);
 
@@ -100,8 +119,8 @@ final class MorphMapRegistrar
 
         $message = sprintf(
             'Dynamic morph mapping found multiple resources with the type [%s]: [%s]. '
-            . 'No morph alias is registered for it; give each resource a distinct RESOURCE_TYPE '
-            . 'or register the alias in the application morph map.',
+            . 'No morph alias is registered for it; give each resource a distinct RESOURCE_TYPE, '
+            . 'or register the alias in the application morph map from the register method of a service provider.',
             $alias,
             implode('], [', $resources),
         );
@@ -111,23 +130,5 @@ final class MorphMapRegistrar
         }
 
         Log::warning($message);
-    }
-
-    /**
-     * Drop each derived alias the application has already registered, and each
-     * one for a model the application has already mapped.
-     *
-     * @param  array<string, class-string<\Illuminate\Database\Eloquent\Model>>  $aliases
-     * @return array<string, class-string<\Illuminate\Database\Eloquent\Model>>
-     */
-    private function withoutApplicationAliases(array $aliases): array
-    {
-        $existing = Relation::morphMap();
-
-        return array_filter(
-            $aliases,
-            static fn (string $model, string $alias): bool => !array_key_exists($alias, $existing) && !in_array($model, $existing, true),
-            ARRAY_FILTER_USE_BOTH,
-        );
     }
 }

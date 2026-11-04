@@ -579,6 +579,11 @@ warning, or fail the boot when `validate_schemas` is enabled.
 `Relation::requireMorphMap()` in your own service provider, and map any morphable model that has no resource.
 If a resource is bound to several models, or shares its `RESOURCE_TYPE` with another resource, register the
 aliases those models already store in your own `Relation::morphMap()`, or their stored rows no longer resolve.
+Register a shared `RESOURCE_TYPE` from the `register()` method of a service provider, which also clears the
+warning or boot failure. If your application maps a model that has a resource before the toolkit boots (from a
+`register()` method, or a provider that boots earlier), 1.x stored the resource's `RESOURCE_TYPE` for it, while
+the toolkit now leaves that model on your alias: add the `RESOURCE_TYPE` alias for it to your own morph map so the
+rows already stored under it still resolve.
 
 ### Changed: ApiCriteria decomposed; filter operators are extensible
 

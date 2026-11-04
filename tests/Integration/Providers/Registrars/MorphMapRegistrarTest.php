@@ -230,6 +230,52 @@ final class MorphMapRegistrarTest extends TestCase
     }
 
     /**
+     * Test that a type shared by distinct resources is not reported once the
+     * application has registered the alias itself.
+     *
+     * @return void
+     */
+    public function testDoesNotReportASharedTypeTheApplicationAliased(): void
+    {
+        Config::set('api-toolkit.resources.validate_schemas', true);
+        Log::shouldReceive('warning')->never();
+
+        Relation::morphMap(['users' => User::class]);
+
+        $this->registerFor([
+            User::class         => UserResource::class,
+            Post::class         => V1UserResource::class,
+            Organization::class => OrganizationResource::class,
+        ]);
+
+        self::assertSame(['organizations' => Organization::class, 'users' => User::class], Relation::morphMap());
+    }
+
+    /**
+     * Test that a numeric resource type is registered as its model's alias.
+     *
+     * @return void
+     */
+    public function testRegistersANumericResourceType(): void
+    {
+        $resource = new class {
+            /**
+             * Get the resource type.
+             *
+             * @return string
+             */
+            public static function getResourceType(): string
+            {
+                return '123';
+            }
+        };
+
+        $this->registerFor([User::class => $resource::class]);
+
+        self::assertSame(User::class, Relation::getMorphedModel('123'));
+    }
+
+    /**
      * Test that a resource without a resource type is skipped.
      *
      * @return void
@@ -267,7 +313,7 @@ final class MorphMapRegistrarTest extends TestCase
     {
         return 'Dynamic morph mapping found multiple resources with the type [users]: ['
             . UserResource::class . '], [' . V1UserResource::class . ']. '
-            . 'No morph alias is registered for it; give each resource a distinct RESOURCE_TYPE '
-            . 'or register the alias in the application morph map.';
+            . 'No morph alias is registered for it; give each resource a distinct RESOURCE_TYPE, '
+            . 'or register the alias in the application morph map from the register method of a service provider.';
     }
 }
