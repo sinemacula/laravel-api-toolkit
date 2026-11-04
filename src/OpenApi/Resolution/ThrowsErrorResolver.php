@@ -4,6 +4,7 @@ declare(strict_types = 1);
 
 namespace SineMacula\ApiToolkit\OpenApi\Resolution;
 
+use Illuminate\Support\Str;
 use SineMacula\ApiToolkit\Exceptions\ApiException;
 use SineMacula\Http\Enums\HttpStatus;
 
@@ -12,13 +13,12 @@ use SineMacula\Http\Enums\HttpStatus;
  *
  * Each fully qualified @throws tag on the action is kept only when it names an
  * ApiException subclass reporting an HTTP status, whether through its
- * HTTP_STATUS constant or a status override, and is grouped by that status.
- * Any other throwable, and an ApiException reporting no status, is ignored.
- * Each kept exception contributes an example named by its short class name
- * and carrying its status and error code. A status's phrase comes from the
- * status enum case name, or from the exception's name for a status the enum
- * lacks. An action that cannot be reflected or carries no doc comment yields
- * none.
+ * HTTP_STATUS constant or a status override, and is grouped by that status. Any
+ * other throwable, and an ApiException reporting no status, is ignored. Each
+ * kept exception contributes an example named by its short class name and
+ * carrying its status and error code. A status's phrase comes from the status
+ * enum case name, or from the exception's name for a status the enum lacks. An
+ * action that cannot be reflected or carries no doc comment yields none.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -38,7 +38,7 @@ final readonly class ThrowsErrorResolver
 
         foreach ($this->documentedThrows($controllerClass, $action) as $class) {
 
-            $error = $this->describe(ltrim($class, '\\'));
+            $error = $this->describe($class);
 
             if ($error === null) {
                 continue;
@@ -97,7 +97,7 @@ final readonly class ThrowsErrorResolver
             return null;
         }
 
-        $name  = substr((string) strrchr('\\' . $exceptionClass, '\\'), 1);
+        $name  = class_basename($exceptionClass);
         $error = ['status' => $status];
 
         if (defined($exceptionClass . '::CODE')) {
@@ -119,8 +119,7 @@ final readonly class ThrowsErrorResolver
      */
     private function phraseFor(int $status, string $exceptionName): string
     {
-        $words = HttpStatus::tryFrom($status)->name
-            ?? (string) preg_replace('/(?<!^)[A-Z]/', '_$0', (string) preg_replace('/Exception$/', '', $exceptionName));
+        $words = HttpStatus::tryFrom($status)->name ?? Str::snake(Str::beforeLast($exceptionName, 'Exception'));
 
         return ucfirst(strtolower(str_replace('_', ' ', $words))) . '.';
     }
