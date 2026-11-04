@@ -57,15 +57,17 @@ final class PayloadContainerResolutionTest extends TestCase
     public function testValidRequestInjectsHydratedPayload(): void
     {
         $response = $this->postJson('/store-payload', [
-            'title'    => 'Widget',
-            'quantity' => 5,
-            'status'   => 'active',
+            'title'      => 'Widget',
+            'quantity'   => 5,
+            'status'     => 'active',
+            'unit_price' => 1250,
         ]);
 
         $response->assertStatus(200);
         $response->assertJsonPath('title', 'Widget');
         $response->assertJsonPath('quantity', 5);
         $response->assertJsonPath('status', 'active');
+        $response->assertJsonPath('unit_price', 1250);
     }
 
     /**
@@ -99,10 +101,16 @@ final class PayloadContainerResolutionTest extends TestCase
         self::assertSame('Gadget', $fromArray->title);
         self::assertNull($fromArray->quantity);
         self::assertSame(StubStatusEnum::INACTIVE, $fromArray->status);
+        self::assertNull($fromArray->unitPrice);
 
-        $fromRequest = StorePayload::from(Request::create('/', 'GET', ['title' => 'Gizmo']));
+        $fromRequest = StorePayload::from(Request::create('/', 'GET', ['title' => 'Gizmo', 'unit_price' => 499]));
 
         self::assertSame('Gizmo', $fromRequest->title);
+        self::assertSame(499, $fromRequest->unitPrice);
+        self::assertSame(
+            ['title' => 'Gizmo', 'quantity' => null, 'status' => null, 'unit_price' => 499],
+            $fromRequest->toArray(),
+        );
     }
 
     /**

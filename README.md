@@ -778,6 +778,28 @@ The key is omitted rather than masked, and the value stays readable on the insta
 `toArray()` controls its summary entirely. Any other `ServiceInput` must keep secrets out of its own `toArray()`; an
 `ArrayInput` returns its array as given, so leave secrets out of the array it wraps.
 
+Body keys map to properties by their camelCase form: a `client_name` rule hydrates `$clientName`, and `toArray()`
+returns it as `client_name`, so the summary uses the same names as the body and the request schema. A property named
+exactly after a rule key takes precedence, and a property no rule maps keeps its own name. The map is read from the
+`rules()` keys once per class, so those keys must be static:
+
+```php
+final class StoreClientPayload extends Payload
+{
+    public function __construct(
+        public readonly string $clientName,
+    ) {}
+
+    public static function rules(): array
+    {
+        return ['client_name' => ['required', 'string']];
+    }
+}
+
+StoreClientPayload::from(['client_name' => 'Acme'])->clientName; // 'Acme'
+StoreClientPayload::from(['client_name' => 'Acme'])->toArray();  // ['client_name' => 'Acme']
+```
+
 ---
 
 ### Notification Audit Log

@@ -22,8 +22,9 @@ interface ServiceInput
      *
      * This snapshot is carried on the service lifecycle events as inputSummary
      * and reaches event listeners verbatim, so it must leave out secrets. A
-     * Payload omits fields marked #[\SensitiveParameter]; an ArrayInput returns
-     * its array as given.
+     * Payload omits fields marked #[\SensitiveParameter] and keys the rest in
+     * the body's form, as its rules() declare them; an ArrayInput returns its
+     * array as given.
      *
      * @return array<string, mixed>
      */
