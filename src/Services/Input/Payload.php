@@ -10,6 +10,7 @@ use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use SineMacula\ApiToolkit\Services\Contracts\DefinesInputSchema;
 use SineMacula\ApiToolkit\Services\Contracts\ServiceInput;
+use SineMacula\ApiToolkit\Support\BackedEnumValue;
 use SineMacula\ApiToolkit\Support\PureEnumName;
 
 /**
@@ -295,32 +296,21 @@ abstract class Payload implements DefinesInputSchema, ServiceInput
      * Resolve the enum case a validated value names, or null when it names none
      * or is not of a type the enum is read from.
      *
+     * A backed enum is coerced as Laravel's enum rule coerces it, so a value
+     * the rule accepted, such as the string "1" for an int-backed enum sent in
+     * a form body, resolves to the same case.
+     *
      * @param  class-string<\UnitEnum>  $enum
      * @param  mixed  $value
      * @return \UnitEnum|null
      */
     private static function enumCase(string $enum, mixed $value): ?\UnitEnum
     {
-        if (!is_a($enum, \BackedEnum::class, true)) {
-            return is_string($value) ? PureEnumName::tryFrom($enum, $value) : null;
+        if (is_a($enum, \BackedEnum::class, true)) {
+            return BackedEnumValue::tryFrom($enum, $value);
         }
 
-        return self::matchesBackingType($enum, $value) ? $enum::tryFrom($value) : null;
-    }
-
-    /**
-     * Determine whether the value has the backed enum's backing type, the only
-     * type its tryFrom() accepts.
-     *
-     * @param  class-string<\BackedEnum>  $enum
-     * @param  mixed  $value
-     * @return bool
-     *
-     * @phpstan-assert-if-true int|string $value
-     */
-    private static function matchesBackingType(string $enum, mixed $value): bool
-    {
-        return (string) (new \ReflectionEnum($enum))->getBackingType() === 'int' ? is_int($value) : is_string($value);
+        return is_string($value) ? PureEnumName::tryFrom($enum, $value) : null;
     }
 
     /**

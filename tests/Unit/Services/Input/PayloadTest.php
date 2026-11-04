@@ -308,7 +308,8 @@ final class PayloadTest extends TestCase
 
     /**
      * Test that an int-backed enum parameter is cast from an integer body
-     * value.
+     * value, and from the numeric string a form body sends, both of which
+     * Laravel's enum rule accepts.
      *
      * @return void
      */
@@ -339,6 +340,7 @@ final class PayloadTest extends TestCase
         };
 
         self::assertSame(UserLevel::SILVER, $definition::from(['level' => 2])->level);
+        self::assertSame(UserLevel::SILVER, $definition::from(['level' => '2'])->level);
     }
 
     /**
