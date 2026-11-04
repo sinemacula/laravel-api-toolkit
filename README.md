@@ -52,7 +52,8 @@ php artisan vendor:publish --provider="SineMacula\ApiToolkit\ApiServiceProvider"
 
 This publishes `config/api-toolkit.php` to your application's config directory. The file is documented inline
 and covers exception rendering strategy, sensitive columns, query parser limits, deferred write behaviour,
-middleware toggles, the notification audit log destination, and more. Per-query repository caching is configured
+middleware toggles, the notification audit log destination, the header a service's correlation id is read from, and
+more. Per-query repository caching is configured
 in the `sinemacula/laravel-repositories` package under `repositories.cache`.
 
 ## Usage
@@ -755,6 +756,47 @@ $user = $result->output();
 
 `runOrFail()` is `run()->throw()->output()` in one call. Both use the context given through `withContext()`, and
 fire the same lifecycle events.
+
+#### Reading the Run Context
+
+While a service runs, `$this->context()` returns the `ServiceContext` it runs with: the one given through
+`withContext()`, the `INTERNAL` context `run()` builds when none was given, or the `QUEUE` context a queued run
+rebuilds on the worker. Every hook sees the same instance, as do `concerns()` and `lockId()`, and it is the context the
+`ServiceCompleted` and `ServiceFailed` events report. While the run is in progress `actor()` returns the context's
+actor, so the service and its events never disagree about who acted. Calling `context()` outside a run throws a
+`LogicException`.
+
+At an HTTP edge, `ServiceContext::fromRequest()` builds an `HTTP` context, so the service reads where a call came
+from without seeing the request:
+
+```php
+$order = PlaceOrder::make(OrderPayload::from($request))
+    ->withContext(ServiceContext::fromRequest($request, EloquentActor::for($request->user())))
+    ->runOrFail();
+
+// Inside PlaceOrder
+$ip = $this->context()->metadata[ServiceContext::METADATA_IP];
+```
+
+The client IP address is captured under `ServiceContext::METADATA_IP` and the user agent under
+`ServiceContext::METADATA_USER_AGENT`; both keys are always present and either may be `null`. Metadata passed as the
+third argument is merged over them. The correlation id is read from the `X-Request-Id` header when it holds 1 to 128
+printable ASCII characters with no whitespace, and generated otherwise. Set `services.correlation_header` in the config
+(or `API_TOOLKIT_SERVICES_CORRELATION_HEADER`) to read another header, or to `null` to always generate one.
+
+The context is bound only for the duration of the run, so work that runs later must capture it first:
+
+```php
+protected function afterCommit(mixed $output): void
+{
+    $context = $this->context();
+
+    defer(static fn () => logger()->info('Order placed.', ['correlation_id' => $context->correlationId]));
+}
+```
+
+The context is held on the service instance, so one instance must not run concurrently. Build a fresh instance for
+each call, as `make()` does, rather than sharing one.
 
 #### Input Summaries
 
