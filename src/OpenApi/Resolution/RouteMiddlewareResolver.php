@@ -74,7 +74,7 @@ final readonly class RouteMiddlewareResolver
      */
     public function authenticates(Route $route): bool
     {
-        return $this->parametersOf($route, Authenticate::class) !== []
+        return $this->parametersOf($route, Authenticate::class)              !== []
             || $this->parametersOf($route, AuthenticateWithBasicAuth::class) !== [];
     }
 

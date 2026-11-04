@@ -6,7 +6,6 @@ namespace SineMacula\ApiToolkit\OpenApi\Builder;
 
 use Illuminate\Routing\Route;
 use Illuminate\Routing\Router;
-use SineMacula\ApiToolkit\Exceptions\ApiException;
 use SineMacula\ApiToolkit\Http\Routing\AuthorizedController;
 use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
 use SineMacula\ApiToolkit\OpenApi\Naming\SchemaComponentName;
@@ -16,8 +15,8 @@ use SineMacula\ApiToolkit\OpenApi\Resolution\RequestBodyResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ResponseSchemaResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\RouteMiddlewareResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\TagResolver;
+use SineMacula\ApiToolkit\OpenApi\Resolution\ThrowsErrorResolver;
 use SineMacula\ApiToolkit\OpenApi\Security\SecuritySchemeResolver;
-use SineMacula\Http\Enums\HttpStatus;
 
 /**
  * Builds the OpenAPI paths object for a single audience.
@@ -104,6 +103,7 @@ final readonly class PathBuilder
      * @param  \SineMacula\ApiToolkit\OpenApi\Security\SecuritySchemeResolver  $security
      * @param  \SineMacula\ApiToolkit\OpenApi\Builder\QueryParameterBuilder  $queryParameters
      * @param  \SineMacula\ApiToolkit\OpenApi\Resolution\RouteMiddlewareResolver  $middleware
+     * @param  \SineMacula\ApiToolkit\OpenApi\Resolution\ThrowsErrorResolver  $throws
      */
     public function __construct(
 
@@ -139,6 +139,9 @@ final readonly class PathBuilder
 
         /** The resolver reading a route's auth, authorization, and limits. */
         private RouteMiddlewareResolver $middleware,
+
+        /** The resolver of the ApiExceptions an action's throws tags name. */
+        private ThrowsErrorResolver $throws,
     ) {}
 
     /**
@@ -464,7 +467,7 @@ final readonly class PathBuilder
      */
     private function errorResponses(?string $controllerClass, string $action, Route $route, bool $acceptsBody): array
     {
-        $throws    = $controllerClass === null ? [] : $this->throwsErrorsFor($controllerClass, $action);
+        $throws    = $controllerClass === null ? [] : $this->throws->resolve($controllerClass, $action);
         $responses = [];
 
         foreach ($this->baselineErrorsFor($route, $acceptsBody) as $status) {
@@ -473,7 +476,7 @@ final readonly class PathBuilder
         }
 
         foreach ($throws as $status => $descriptor) {
-            $responses[$status] = $this->errorResponse($descriptor['phrase'], $descriptor['examples']);
+            $responses[$status] = $this->errorResponse(self::BASELINE_PHRASES[$status] ?? $descriptor['phrase'], $descriptor['examples']);
         }
 
         ksort($responses);
@@ -504,72 +507,6 @@ final readonly class PathBuilder
         ];
 
         return array_keys(array_filter($facts));
-    }
-
-    /**
-     * Reflect the action's documented throws into a status-keyed map of
-     * concrete ApiException error descriptors.
-     *
-     * Each @throws tag is normalised to a class name, kept only when it
-     * resolves to an ApiException subclass reporting an HTTP status, then
-     * grouped by that status. The example name is the exception's short class
-     * name, and a non-baseline status derives its phrase from the status enum
-     * case name, or from the exception's name for a status the enum lacks.
-     *
-     * @param  class-string  $controllerClass
-     * @param  string  $action
-     * @return array<int, array{phrase: string, examples: array<string, array<string, mixed>>}>
-     */
-    private function throwsErrorsFor(string $controllerClass, string $action): array
-    {
-        try {
-            $docComment = (new \ReflectionMethod($controllerClass, $action))->getDocComment();
-        } catch (\ReflectionException) {
-            return [];
-        }
-
-        if ($docComment === false) {
-            return [];
-        }
-
-        preg_match_all('/@throws\s+([\\\\\w]+)/', $docComment, $matches);
-
-        $errors = [];
-
-        foreach ($matches[1] as $class) {
-
-            $exceptionClass = ltrim($class, '\\');
-
-            if (!is_subclass_of($exceptionClass, ApiException::class)) {
-                continue;
-            }
-
-            try {
-                $status = $exceptionClass::getHttpStatusCode();
-            } catch (\LogicException) {
-                continue;
-            }
-
-            $short = substr((string) strrchr('\\' . $exceptionClass, '\\'), 1);
-            $name  = HttpStatus::tryFrom($status)?->name ?? strtoupper((string) preg_replace('/(?<!^)[A-Z]/', '_$0', (string) preg_replace('/Exception$/', '', $short)));
-
-            $errors[$status] ??= [
-                'phrase'   => self::BASELINE_PHRASES[$status] ?? ucfirst(strtolower(str_replace('_', ' ', $name))) . '.',
-                'examples' => [],
-            ];
-
-            $error = ['status' => $status];
-
-            if (defined($exceptionClass . '::CODE')) {
-                /** @var \SineMacula\ApiToolkit\Contracts\ErrorCodeInterface $code */
-                $code          = constant($exceptionClass . '::CODE');
-                $error['code'] = $code->getCode();
-            }
-
-            $errors[$status]['examples'][$short] = ['value' => ['error' => $error]];
-        }
-
-        return $errors;
     }
 
     /**
