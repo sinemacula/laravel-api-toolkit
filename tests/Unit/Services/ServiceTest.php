@@ -13,12 +13,15 @@ use SineMacula\ApiToolkit\Services\Contracts\Actor;
 use SineMacula\ApiToolkit\Services\Contracts\ServiceInput;
 use SineMacula\ApiToolkit\Services\Enums\ServiceSource;
 use SineMacula\ApiToolkit\Services\Events\ServiceCompleted;
+use SineMacula\ApiToolkit\Services\Events\ServiceFailed;
 use SineMacula\ApiToolkit\Services\Input\ArrayInput;
 use SineMacula\ApiToolkit\Services\Jobs\ServiceJob;
 use SineMacula\ApiToolkit\Services\Service;
 use SineMacula\ApiToolkit\Services\ServiceContext;
 use SineMacula\ApiToolkit\Services\ServiceResult;
+use Tests\Fixtures\Exceptions\ServiceExecutionException;
 use Tests\Fixtures\Input\SampleInput;
+use Tests\Fixtures\Services\FailingService;
 use Tests\Fixtures\Services\OutputService;
 use Tests\Fixtures\Services\StubActor;
 use Tests\Fixtures\Services\TypedInputService;
@@ -28,7 +31,8 @@ use Tests\TestCase;
  * Tests for the Service base class.
  *
  * Covers the typed input skeleton, actor API, make/by/withContext fluent
- * methods, run() totality, getLockKey(), and the serviceHooks() seam.
+ * methods, run() totality, runOrFail(), getLockKey(), and the serviceHooks()
+ * seam.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -136,6 +140,107 @@ final class ServiceTest extends TestCase
         self::assertTrue($result->failed());
         self::assertInstanceOf(\RuntimeException::class, $result->exception);
         self::assertSame('domain failure', $result->exception->getMessage());
+    }
+
+    /**
+     * Test that runOrFail() returns the output of a succeeding service.
+     *
+     * @return void
+     *
+     * @throws \Throwable
+     */
+    public function testRunOrFailReturnsTheOutput(): void
+    {
+        $service = new OutputService(new ArrayInput(['message' => 'hello']));
+
+        self::assertSame(['message' => 'hello'], $service->runOrFail());
+    }
+
+    /**
+     * Test that runOrFail() fires ServiceCompleted and not ServiceFailed when
+     * the service succeeds.
+     *
+     * @return void
+     *
+     * @throws \Throwable
+     */
+    public function testRunOrFailDispatchesServiceCompletedOnSuccess(): void
+    {
+        Event::fake();
+
+        (new OutputService(new ArrayInput(['message' => 'hello'])))->runOrFail();
+
+        Event::assertDispatched(
+            ServiceCompleted::class,
+            static fn (ServiceCompleted $event): bool => $event->service === OutputService::class,
+        );
+        Event::assertNotDispatched(ServiceFailed::class);
+    }
+
+    /**
+     * Test that runOrFail() rethrows the exception thrown by handle() after
+     * running onFailure() and dispatching ServiceFailed.
+     *
+     * @return void
+     *
+     * @throws \Throwable
+     */
+    public function testRunOrFailRethrowsTheExceptionFromHandle(): void
+    {
+        Event::fake();
+
+        $service = new FailingService;
+
+        try {
+            $service->runOrFail();
+        } catch (ServiceExecutionException $exception) {
+            self::assertTrue($service->onFailureCalled);
+            self::assertSame($exception, $service->onFailureException);
+
+            Event::assertDispatched(
+                ServiceFailed::class,
+                static fn (ServiceFailed $event): bool => $event->result->exception === $exception,
+            );
+            Event::assertNotDispatched(ServiceCompleted::class);
+
+            return;
+        }
+
+        self::fail('runOrFail() must rethrow the exception thrown by handle().');
+    }
+
+    /**
+     * Test that runOrFail() runs with the context supplied via withContext().
+     *
+     * @return void
+     *
+     * @throws \Throwable
+     */
+    public function testRunOrFailUsesContextSuppliedByWithContext(): void
+    {
+        Event::fake();
+
+        $context = ServiceContext::for(new StubActor, ServiceSource::HTTP, [], 'fixed-correlation');
+
+        (new OutputService(new ArrayInput(['message' => 'hello'])))->withContext($context)->runOrFail();
+
+        Event::assertDispatched(
+            ServiceCompleted::class,
+            static fn (ServiceCompleted $event): bool => $event->correlationId === 'fixed-correlation',
+        );
+    }
+
+    /**
+     * Test that runOrFail() returns the output typed as the service's declared
+     * output template.
+     *
+     * @return void
+     *
+     * @throws \Throwable
+     */
+    public function testRunOrFailReturnsTheDeclaredOutputType(): void
+    {
+        self::assertSame('London', $this->runTypedInputService('London'));
     }
 
     /**
@@ -484,5 +589,20 @@ final class ServiceTest extends TestCase
                 $hook . '() must remain protected so subclasses can override it',
             );
         }
+    }
+
+    /**
+     * Run the typed input service and return its output through a native string
+     * return type, which holds only if runOrFail() returns the service's
+     * declared output type.
+     *
+     * @param  string  $city
+     * @return string
+     *
+     * @throws \Throwable
+     */
+    private function runTypedInputService(string $city): string
+    {
+        return TypedInputService::make(new SampleInput(city: $city))->runOrFail();
     }
 }

@@ -18,7 +18,8 @@ use SineMacula\ApiToolkit\Services\Jobs\ServiceJob;
  *
  * Holds a typed input and an explicit actor. Subclasses implement the six
  * lifecycle hooks; the runner sequences them in a fixed, transaction-aware
- * order and returns a total ServiceResult.
+ * order. run() returns a total ServiceResult for a caller that branches on it,
+ * and runOrFail() returns the output or throws the failure.
  *
  * @template TInput of \SineMacula\ApiToolkit\Services\Contracts\ServiceInput
  * @template TOutput
@@ -120,11 +121,13 @@ abstract class Service implements LockKeyProvider
      * Execute the service synchronously and return a total result.
      *
      * Builds or reuses a ServiceContext, then delegates lifecycle sequencing to
-     * ServiceRunner. Never throws for business failures.
+     * ServiceRunner. Never throws for business failures, so it suits a caller
+     * that branches on the result; runOrFail() suits one that only wants the
+     * output.
      *
      * @return \SineMacula\ApiToolkit\Services\ServiceResult<TOutput>
      */
-    public function run(): ServiceResult
+    final public function run(): ServiceResult
     {
         $context = $this->context ?? ServiceContext::for($this->actor(), ServiceSource::INTERNAL);
         $class   = ServiceRunner::class;
@@ -135,11 +138,27 @@ abstract class Service implements LockKeyProvider
     }
 
     /**
+     * Execute the service synchronously and return its output, or throw.
+     *
+     * Runs exactly as run() does, then throws the failure instead of returning
+     * it: the captured exception, or a ServiceFailedException when the failed
+     * result captured none.
+     *
+     * @return TOutput
+     *
+     * @throws \Throwable
+     */
+    final public function runOrFail(): mixed
+    {
+        return $this->run()->throw()->output();
+    }
+
+    /**
      * Push the service onto the queue via ServiceJob.
      *
      * @return mixed
      */
-    public function dispatch(): mixed
+    final public function dispatch(): mixed
     {
         $context = $this->context ?? ServiceContext::for($this->actor());
 
