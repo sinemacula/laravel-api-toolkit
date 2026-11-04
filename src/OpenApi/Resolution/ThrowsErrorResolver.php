@@ -119,7 +119,7 @@ final readonly class ThrowsErrorResolver
      */
     private function phraseFor(int $status, string $exceptionName): string
     {
-        $words = HttpStatus::tryFrom($status)->name ?? Str::snake(Str::beforeLast($exceptionName, 'Exception'));
+        $words = HttpStatus::tryFrom($status)->name ?? Str::snake(Str::beforeLast($exceptionName, \Exception::class));
 
         return ucfirst(strtolower(str_replace('_', ' ', $words))) . '.';
     }
