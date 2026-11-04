@@ -52,11 +52,15 @@ final readonly class FieldSchemaBuilder
      * Constructor.
      *
      * @param  \SineMacula\ApiToolkit\OpenApi\Schema\EnumSchemaRegistry  $enums
+     * @param  \SineMacula\ApiToolkit\OpenApi\Schema\InRuleValues  $inValues
      */
     public function __construct(
 
         /** The registry collecting enum classes referenced by a $ref. */
         private EnumSchemaRegistry $enums = new EnumSchemaRegistry,
+
+        /** The reader resolving an `in:` argument into enum values. */
+        private InRuleValues $inValues = new InRuleValues,
     ) {}
 
     /**
@@ -151,11 +155,8 @@ final readonly class FieldSchemaBuilder
     }
 
     /**
-     * Apply an `in:` token's values as the field's enum, parsing the argument
-     * as the validator does so quoted values keep their commas and quotes, and
-     * emitting numeric values on a numeric field so the enum matches its type.
-     * On an array field the values constrain each item, as the validator checks
-     * every element against them.
+     * Apply an `in:` token's values as the field's enum, or as its items' enum
+     * on an array field, since the validator checks every element against them.
      *
      * @param  array<string, mixed>  $schema
      * @param  list<string>  $tokens
@@ -170,38 +171,13 @@ final readonly class FieldSchemaBuilder
             return;
         }
 
-        $enum = array_map(
-            fn (string $value): float|int|string => $this->enumValue($value, $type),
-            str_getcsv($values, escape: '\\'),
-        );
-
         if ($type === 'array') {
-            $schema['items'] = ['enum' => $enum];
+            $schema['items'] = ['enum' => $this->inValues->forItems($values)];
 
             return;
         }
 
-        $schema['enum'] = $enum;
-    }
-
-    /**
-     * Cast an enum value to a number on a numeric field when that number reads
-     * back as the same string, since the validator compares the input's string
-     * form; any other value stays the string the validator compares.
-     *
-     * @param  string  $value
-     * @param  string|null  $type
-     * @return float|int|string
-     */
-    private function enumValue(string $value, ?string $type): float|int|string
-    {
-        if (!in_array($type, ['integer', 'number'], true)) {
-            return $value;
-        }
-
-        $number = $this->numericValue($value);
-
-        return (string) $number === $value ? $number : $value;
+        $schema['enum'] = $this->inValues->forField($values, $type);
     }
 
     /**

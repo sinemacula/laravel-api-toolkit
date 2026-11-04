@@ -157,8 +157,8 @@ final readonly class RulesToSchemaTranslator
     }
 
     /**
-     * Fold the `field.*` subtree into an array schema's items node, keeping any
-     * item constraint the array's own rules already set.
+     * Fold the `field.*` subtree into an array schema's items node, requiring
+     * both it and any item constraint the array's own rules already set.
      *
      * @param  array<string, mixed>  $schema
      * @param  array<string, list<string>>  $starMap
@@ -170,7 +170,7 @@ final readonly class RulesToSchemaTranslator
         $items = $this->buildNode($starMap)['schema'];
 
         $schema['type']  = 'array';
-        $schema['items'] = is_array($own) ? [...$own, ...$items] : $items;
+        $schema['items'] = is_array($own) ? ['allOf' => [$own, $items]] : $items;
 
         return $schema;
     }

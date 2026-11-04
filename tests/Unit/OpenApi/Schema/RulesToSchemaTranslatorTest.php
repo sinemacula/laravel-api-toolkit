@@ -127,15 +127,38 @@ final class RulesToSchemaTranslatorTest extends TestCase
 
     /**
      * Test that an In object on an array field constrains its items, and that a
-     * `field.*` sibling merges into those items rather than replacing them.
+     * `field.*` sibling is required alongside that constraint rather than
+     * replacing it.
      *
      * @return void
      */
     public function testInObjectOnArrayFieldConstrainsItsItems(): void
     {
-        $schema = $this->translator()->translate(['tags' => ['array', Rule::in(['a', 'b'])], 'tags.*' => 'string']);
+        $schema = $this->translator()->translate([
+            'tags'   => ['array', Rule::in(['a', 'b'])],
+            'tags.*' => ['string', Rule::in(['b', 'c'])],
+        ]);
 
-        self::assertSame(['type' => 'array', 'items' => ['enum' => ['a', 'b'], 'type' => 'string']], $schema['properties']['tags']);
+        self::assertSame([
+            'type'  => 'array',
+            'items' => ['allOf' => [['enum' => ['a', 'b']], ['type' => 'string', 'enum' => ['b', 'c']]]],
+        ], $schema['properties']['tags']);
+    }
+
+    /**
+     * Test that numeric values on an array field stay satisfiable when its
+     * items are typed as integers, as the validator accepts either form.
+     *
+     * @return void
+     */
+    public function testNumericInObjectOnArrayFieldAdmitsTypedItems(): void
+    {
+        $schema = $this->translator()->translate(['ids' => ['array', Rule::in([1, 2])], 'ids.*' => 'integer']);
+
+        self::assertSame([
+            'type'  => 'array',
+            'items' => ['allOf' => [['enum' => ['1', 1, '2', 2]], ['type' => 'integer']]],
+        ], $schema['properties']['ids']);
     }
 
     /**

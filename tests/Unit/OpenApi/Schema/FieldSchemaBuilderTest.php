@@ -57,7 +57,7 @@ final class FieldSchemaBuilderTest extends TestCase
             'number in exponent'   => [['numeric', 'in:1e-2,1.0e999'], ['type' => 'number', 'enum' => ['1e-2', '1.0e999']]],
             'number in trailing 0' => [['numeric', 'in:1.0,0.5'], ['type' => 'number', 'enum' => ['1.0', 0.5]]],
             'integer in padded'    => [['integer', 'in:01,-0,-3'], ['type' => 'integer', 'enum' => ['01', '-0', -3]]],
-            'array in items enum'  => [['array', 'in:a,b'], ['type' => 'array', 'items' => ['enum' => ['a', 'b']]]],
+            'array in items enum'  => [['array', 'in:a,1,1.0'], ['type' => 'array', 'items' => ['enum' => ['a', '1', 1, '1.0']]]],
             'nullable array in'    => [['nullable', 'array', 'in:a'], ['type' => ['array', 'null'], 'items' => ['enum' => ['a']]]],
             'string numeric in'    => [['string', 'in:1,2'], ['type' => 'string', 'enum' => ['1', '2']]],
             'untyped numeric in'   => [['in:1,2'], ['enum' => ['1', '2']]],
