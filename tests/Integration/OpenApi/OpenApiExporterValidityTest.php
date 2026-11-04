@@ -40,6 +40,7 @@ use Tests\Fixtures\OpenApi\PathOrganizationController;
 use Tests\Fixtures\OpenApi\PathRequestBodyController;
 use Tests\Fixtures\OpenApi\PathResponseSchemaController;
 use Tests\Fixtures\OpenApi\PathTagInternalController;
+use Tests\Fixtures\OpenApi\SignedInShape;
 use Tests\Fixtures\Resources\ArticleResource;
 use Tests\Fixtures\Resources\OrganizationResource;
 use Tests\Fixtures\Resources\PostResource;
@@ -768,6 +769,33 @@ final class OpenApiExporterValidityTest extends TestCase
         self::assertTrue(
             $this->validateAgainstMetaSchema($document)->isValid(),
             'A document referencing a declared response resource must validate as OpenAPI 3.1: ' . $this->formatErrors($this->validateAgainstMetaSchema($document)),
+        );
+    }
+
+    /**
+     * Test that a non-resource route declaring a union of a resource and a
+     * self-describing shape documents both in a oneOf, that the referenced
+     * resource component survives reachability filtering from inside the union,
+     * and that the document stays valid OpenAPI 3.1.
+     *
+     * @return void
+     */
+    public function testDeclaredResponseUnionKeepsReferencedResource(): void
+    {
+        $this->router()->get('session', [PathResponseSchemaController::class, 'mixed']);
+
+        $document = $this->export()->document;
+        $schema   = $document['paths']['/session']['get']['responses']['200']['content']['application/json']['schema'];
+
+        self::assertSame(
+            [['$ref' => '#/components/schemas/User'], SignedInShape::schema()],
+            $schema['properties']['data']['oneOf'],
+        );
+        self::assertArrayHasKey('User', $document['components']['schemas']);
+
+        self::assertTrue(
+            $this->validateAgainstMetaSchema($document)->isValid(),
+            'A document declaring a response union must validate as OpenAPI 3.1: ' . $this->formatErrors($this->validateAgainstMetaSchema($document)),
         );
     }
 

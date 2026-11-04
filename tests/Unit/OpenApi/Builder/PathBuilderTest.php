@@ -41,6 +41,8 @@ use Tests\Fixtures\OpenApi\PathResponseSchemaController;
 use Tests\Fixtures\OpenApi\PathRouteFactsController;
 use Tests\Fixtures\OpenApi\PathTaggedController;
 use Tests\Fixtures\OpenApi\PathUnmappedController;
+use Tests\Fixtures\OpenApi\PendingSignInShape;
+use Tests\Fixtures\OpenApi\SignedInShape;
 use Tests\Fixtures\OpenApi\Vendor\PathVendorController;
 use Tests\Fixtures\OpenApi\WidgetShape;
 use Tests\Fixtures\Resources\ArticleResource;
@@ -812,6 +814,24 @@ final class PathBuilderTest extends TestCase
         );
         self::assertSame(WidgetShape::schema(), $schema['properties']['data']['items']);
         self::assertSame(['data', 'meta', 'links'], $schema['required']);
+    }
+
+    /**
+     * Test that a non-resource action declaring several shapes embeds their
+     * oneOf under the single envelope's data property.
+     *
+     * @return void
+     */
+    public function testResponseSchemaUnionActionEmbedsOneOf(): void
+    {
+        $this->router()->get('session', [PathResponseSchemaController::class, 'union']);
+
+        $schema = $this->build()['/session']['get']['responses']['200']['content']['application/json']['schema'];
+
+        self::assertSame(
+            (new EnvelopeBuilder)->singleEnvelopeFor(['oneOf' => [SignedInShape::schema(), PendingSignInShape::schema()]]),
+            $schema,
+        );
     }
 
     /**

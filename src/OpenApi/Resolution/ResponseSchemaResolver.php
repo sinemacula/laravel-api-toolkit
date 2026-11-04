@@ -15,15 +15,21 @@ use SineMacula\ApiToolkit\OpenApi\Naming\SchemaComponentName;
  * Resolves the declared success body of a non-resource action.
  *
  * A non-resource route names its response body with a #[ResponseSchema]
- * directive on the action. The named class is resolved to the inner `data`
- * schema wrapped by the shared envelope: a registered resource emits a
+ * directive on the action. Each named class is resolved to an inner `data`
+ * schema node wrapped by the shared envelope: a registered resource emits a
  * reference to its component schema, and a self-describing class inlines its
  * own JSON-Schema fragment. A reference is emitted only when the resource is a
  * value of the catalogue's resource map, so the referenced component is always
- * built by the resource pipeline and never dangles. Any other class - a plain
- * class that is neither a registered resource nor self-describing, or an action
- * carrying no directive - resolves to null, so the caller falls through to the
- * undocumented marker rather than asserting a body it cannot describe.
+ * built by the resource pipeline and never dangles. A directive naming several
+ * classes documents a `oneOf` of their nodes, in declared order, with nodes
+ * that resolve identically collapsed into one; when a single distinct node
+ * remains it is emitted bare, exactly as a directive naming one class. Any
+ * other class - a plain class that is neither a registered resource nor
+ * self-describing - resolves to null, and resolution is all or nothing: a
+ * single such class in a union, or an action carrying no directive, resolves
+ * the whole body to null, so the caller falls through to the undocumented
+ * marker rather than publishing a partial union or asserting a body it cannot
+ * describe.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -64,15 +70,15 @@ final readonly class ResponseSchemaResolver
             return null;
         }
 
-        $item = $this->itemSchema($directive->schema);
+        $data = $this->dataSchema($directive->schemas);
 
-        if ($item === null) {
+        if ($data === null) {
             return null;
         }
 
         return $directive->collection
-            ? $this->envelope->collectionEnvelopeFor($item)
-            : $this->envelope->singleEnvelopeFor($item);
+            ? $this->envelope->collectionEnvelopeFor($data)
+            : $this->envelope->singleEnvelopeFor($data);
     }
 
     /**
@@ -92,6 +98,35 @@ final readonly class ResponseSchemaResolver
         $attributes = (new \ReflectionMethod($controllerClass, $action))->getAttributes(ResponseSchema::class);
 
         return $attributes === [] ? null : $attributes[0]->newInstance();
+    }
+
+    /**
+     * Resolve the data schema node for the declared classes: the bare node when
+     * they describe one distinct shape, a `oneOf` of each distinct node in
+     * declared order otherwise, or null when any class cannot be described.
+     *
+     * @param  non-empty-list<class-string>  $classes
+     * @return array<string, mixed>|null
+     */
+    private function dataSchema(array $classes): ?array
+    {
+        $nodes = [];
+
+        foreach ($classes as $class) {
+            $node = $this->itemSchema($class);
+
+            if ($node === null) {
+                return null;
+            }
+
+            if (in_array($node, $nodes, true)) {
+                continue;
+            }
+
+            $nodes[] = $node;
+        }
+
+        return count($nodes) === 1 ? $nodes[0] : ['oneOf' => $nodes];
     }
 
     /**
