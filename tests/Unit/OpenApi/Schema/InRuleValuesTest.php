@@ -23,7 +23,7 @@ final class InRuleValuesTest extends TestCase
     /**
      * Provide the argument, field type, and expected field enum.
      *
-     * @return iterable<string, array{0: string, 1: string|null, 2: list<float|int|string>}>
+     * @return iterable<string, array{0: string, 1: string|null, 2: array<int, float|int|string>}>
      */
     public static function fieldProvider(): iterable
     {
@@ -50,7 +50,7 @@ final class InRuleValuesTest extends TestCase
      *
      * @param  string  $argument
      * @param  string|null  $type
-     * @param  list<float|int|string>  $expected
+     * @param  array<int, float|int|string>  $expected
      * @return void
      */
     #[DataProvider('fieldProvider')]

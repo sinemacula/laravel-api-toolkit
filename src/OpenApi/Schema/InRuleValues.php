@@ -25,7 +25,7 @@ final readonly class InRuleValues
      *
      * @param  string  $argument
      * @param  string|null  $type
-     * @return list<float|int|string>
+     * @return array<int, float|int|string>
      */
     public function forField(string $argument, ?string $type): array
     {
@@ -68,21 +68,11 @@ final readonly class InRuleValues
      * argument yielding none.
      *
      * @param  string  $argument
-     * @return list<string>
+     * @return array<int, string>
      */
     private function parse(string $argument): array
     {
-        $values = [];
-
-        foreach (str_getcsv($argument, escape: '\\') as $value) {
-            if ($value === null) {
-                continue;
-            }
-
-            $values[] = $value;
-        }
-
-        return $values;
+        return array_filter(str_getcsv($argument, escape: '\\'), is_string(...));
     }
 
     /**
