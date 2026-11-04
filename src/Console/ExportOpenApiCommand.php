@@ -115,9 +115,11 @@ final class ExportOpenApiCommand extends Command
         $empty = [];
 
         foreach ($exports as [$audience, $result]) {
-            if ($result->operationCount === 0) {
-                $empty[] = $audience;
+            if ($result->operationCount !== 0) {
+                continue;
             }
+
+            $empty[] = $audience;
         }
 
         return $empty;
