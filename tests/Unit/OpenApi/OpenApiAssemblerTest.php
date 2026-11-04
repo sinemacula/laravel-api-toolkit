@@ -310,7 +310,7 @@ final class OpenApiAssemblerTest extends TestCase
     }
 
     /**
-     * Test that an index operation offers both pagination shapes as a oneOf of
+     * Test that an index operation offers both pagination shapes as an anyOf of
      * the length-aware and cursor collection envelopes, and that the cursor
      * envelope's schemas survive the reachability filtering now a path
      * references them.
@@ -327,7 +327,7 @@ final class OpenApiAssemblerTest extends TestCase
 
         self::assertSame(
             [
-                'oneOf' => [
+                'anyOf' => [
                     $envelope->collectionEnvelope('#/components/schemas/User'),
                     $envelope->cursorCollectionEnvelope('#/components/schemas/User'),
                 ],
