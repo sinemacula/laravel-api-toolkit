@@ -55,9 +55,12 @@ final class MorphMapRegistrar
         $claims = [];
 
         foreach ($map as $model => $resource) {
-            if (method_exists($resource, 'getResourceType')) {
-                $claims[$resource::getResourceType()][$model] = $resource;
+
+            if (!method_exists($resource, 'getResourceType')) {
+                continue;
             }
+
+            $claims[$resource::getResourceType()][$model] = $resource;
         }
 
         $aliases = [];
@@ -66,9 +69,11 @@ final class MorphMapRegistrar
 
             $this->reportSharedType($alias, $claimants);
 
-            if (count($claimants) === 1) {
-                $aliases[$alias] = array_key_first($claimants);
+            if (count($claimants) !== 1) {
+                continue;
             }
+
+            $aliases[$alias] = array_key_first($claimants);
         }
 
         return $aliases;
