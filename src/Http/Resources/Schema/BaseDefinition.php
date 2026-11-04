@@ -28,7 +28,9 @@ abstract class BaseDefinition implements Arrayable
     /**
      * Add a guard condition — return false to suppress the field.
      *
-     * @param  callable(ApiResource, ?Request): bool  $guard
+     * @template TResource of \SineMacula\ApiToolkit\Http\Resources\ApiResource
+     *
+     * @param  callable(TResource, ?Request): bool  $guard
      * @return static
      */
     public function guard(callable $guard): static
@@ -51,7 +53,10 @@ abstract class BaseDefinition implements Arrayable
     /**
      * Add a transformer to modify the resolved value.
      *
-     * @param  callable(ApiResource, mixed): mixed  $transformer
+     * @template TResource of \SineMacula\ApiToolkit\Http\Resources\ApiResource
+     * @template TValue
+     *
+     * @param  callable(TResource, TValue): mixed  $transformer
      * @return static
      */
     public function transform(callable $transformer): static
