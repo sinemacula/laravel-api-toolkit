@@ -29,30 +29,32 @@ final readonly class ResponseSchema
     /**
      * Create a new response-schema directive.
      *
-     * @param  string|array<array-key, mixed>  $schema
+     * @param  array<array-key, mixed>|string  $schema
      * @param  bool  $collection
      *
      * @throws \InvalidArgumentException
      */
     public function __construct(
-        string|array $schema,
+        array|string $schema,
 
         /** Whether the data shape is a collection rather than a single item. */
         public bool $collection = false,
     ) {
-        $schemas = is_array($schema) ? array_values($schema) : [$schema];
+        $classes = is_array($schema) ? $schema : [$schema];
 
-        if ($schemas === []) {
+        if ($classes === []) {
             throw new \InvalidArgumentException('A response schema must name at least one class');
         }
 
-        foreach ($schemas as $class) {
+        foreach ($classes as $class) {
             if (!is_string($class)) {
                 throw new \InvalidArgumentException('A response schema must name each class as a string');
             }
         }
 
         /** @var non-empty-list<class-string> $schemas */
+        $schemas = array_values($classes);
+
         $this->schemas = $schemas;
     }
 }
