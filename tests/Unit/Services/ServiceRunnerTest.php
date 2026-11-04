@@ -997,8 +997,6 @@ final class ServiceRunnerTest extends TestCase
      * out of the run.
      *
      * @return void
-     *
-     * @throws \Throwable
      */
     public function testRunUnbindsTheContextWhenAnEventListenerThrows(): void
     {
@@ -1008,16 +1006,13 @@ final class ServiceRunnerTest extends TestCase
 
         $service = new ContextRecordingService(new ArrayInput([]));
 
-        $this->expectException(\RuntimeException::class);
-        $this->expectExceptionMessage('listener-error');
+        $this->assertThrows(
+            static fn () => (new ServiceRunner)->run($service, ServiceContext::for(new StubActor)),
+            \RuntimeException::class,
+            'listener-error',
+        );
 
-        try {
-            (new ServiceRunner)->run($service, ServiceContext::for(new StubActor));
-        } catch (\Throwable $exception) {
-            self::assertNull($service->bindRunContext(null));
-
-            throw $exception;
-        }
+        self::assertNull($service->bindRunContext(null));
     }
 
     /**

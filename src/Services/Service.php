@@ -123,7 +123,7 @@ abstract class Service implements LockKeyProvider
      */
     public function actor(): Actor
     {
-        return $this->runContext?->actor ?? $this->actor ?? new AnonymousActor;
+        return $this->runContext->actor ?? $this->actor ?? new AnonymousActor;
     }
 
     /**
