@@ -82,6 +82,9 @@ final class OpenApiExporterValidityTest extends TestCase
     /** @var string The identifier of the JSON Schema 2020-12 dialect document. */
     private const string DIALECT_ID = 'https://json-schema.org/draft/2020-12/schema';
 
+    /** @var string The identifier under which an exported document is registered as a schema. */
+    private const string EXPORTED_DOCUMENT_ID = 'https://api.example.com/openapi.json';
+
     /** @var list<string> The temporary docs directories to clean up. */
     private array $docsDirs = [];
 
@@ -636,18 +639,18 @@ final class OpenApiExporterValidityTest extends TestCase
             $paths['/users']['get']['responses']['200']['headers'],
         );
 
-        // The index 200 offers both pagination shapes as a oneOf, and the whole
-        // document (validated below) proves that oneOf is valid OpenAPI 3.1.
+        // The index 200 offers both pagination shapes as an anyOf; the whole
+        // document (validated below) proves that anyOf is valid OpenAPI 3.1.
         $indexSchema = $paths['/users']['get']['responses']['200']['content']['application/json']['schema'];
 
-        self::assertCount(2, $indexSchema['oneOf']);
+        self::assertCount(2, $indexSchema['anyOf']);
         self::assertSame(
             '#/components/schemas/PaginationMeta',
-            $indexSchema['oneOf'][0]['properties']['meta']['$ref'],
+            $indexSchema['anyOf'][0]['properties']['meta']['$ref'],
         );
         self::assertSame(
             '#/components/schemas/CursorPaginationMeta',
-            $indexSchema['oneOf'][1]['properties']['meta']['$ref'],
+            $indexSchema['anyOf'][1]['properties']['meta']['$ref'],
         );
         self::assertArrayHasKey('201', $paths['/users']['post']['responses']);
         self::assertArrayHasKey('204', $paths['/users/{user}']['delete']['responses']);
@@ -655,6 +658,70 @@ final class OpenApiExporterValidityTest extends TestCase
         self::assertTrue(
             $this->validateAgainstMetaSchema($document)->isValid(),
             'A document with path operations must validate as OpenAPI 3.1: ' . $this->formatErrors($this->validateAgainstMetaSchema($document)),
+        );
+    }
+
+    /**
+     * Test that both a length-aware and a cursor page validate against the
+     * exported index 200 schema with its component references resolved, even
+     * though the length-aware page also satisfies the cursor envelope, while a
+     * page matching neither shape is rejected.
+     *
+     * @return void
+     */
+    public function testIndexSchemaAcceptsBothPaginationShapes(): void
+    {
+        $this->registerUserRoutes();
+
+        $document = $this->export()->document;
+        $user     = [
+            '_type'           => 'users',
+            'id'              => 1,
+            'name'            => 'Ada',
+            'email'           => 'ada@example.com',
+            'status'          => 'active',
+            'organization_id' => null,
+            'created_at'      => '2026-01-01T09:00:00Z',
+            'updated_at'      => '2026-01-02T09:00:00Z',
+            'full_label'      => 'Ada <ada@example.com>',
+            'display_label'   => 'Ada <ada@example.com>',
+        ];
+
+        $lengthAware = [
+            'data'  => [$user],
+            'meta'  => ['total' => 30, 'count' => 1, 'continue' => true],
+            'links' => [
+                'self'  => 'https://api.example.com/users?page=2',
+                'first' => 'https://api.example.com/users?page=1',
+                'prev'  => 'https://api.example.com/users?page=1',
+                'next'  => 'https://api.example.com/users?page=3',
+                'last'  => 'https://api.example.com/users?page=30',
+            ],
+        ];
+
+        $cursor = [
+            'data'  => [$user],
+            'meta'  => ['continue' => false],
+            'links' => [
+                'self' => 'https://api.example.com/users?cursor=eyJpZCI6MX0',
+                'prev' => null,
+                'next' => null,
+            ],
+        ];
+
+        foreach (['length-aware' => $lengthAware, 'cursor' => $cursor] as $shape => $page) {
+
+            $result = $this->validateIndexPage($document, $page);
+
+            self::assertTrue(
+                $result->isValid(),
+                sprintf('A %s page must validate against the index 200 schema: %s', $shape, $this->formatErrors($result)),
+            );
+        }
+
+        self::assertFalse(
+            $this->validateIndexPage($document, ['data' => [$user], 'meta' => ['total' => 30]])->isValid(),
+            'A page matching neither pagination shape must be rejected.',
         );
     }
 
@@ -1147,6 +1214,29 @@ final class OpenApiExporterValidityTest extends TestCase
     private function validateAgainstMetaSchema(array $document): ValidationResult
     {
         return $this->validator()->validate(Helper::toJSON($document), self::META_SCHEMA_ID);
+    }
+
+    /**
+     * Validate a response payload against the exported /users index 200
+     * schema, resolving its component references within the document.
+     *
+     * @param  array<string, mixed>  $document
+     * @param  array<string, mixed>  $page
+     * @return \Opis\JsonSchema\ValidationResult
+     */
+    private function validateIndexPage(array $document, array $page): ValidationResult
+    {
+        $validator = new Validator;
+        $resolver  = $validator->resolver();
+
+        assert($resolver instanceof SchemaResolver);
+
+        $resolver->registerRaw(Helper::toJSON($document), self::EXPORTED_DOCUMENT_ID);
+
+        return $validator->validate(
+            Helper::toJSON($page),
+            self::EXPORTED_DOCUMENT_ID . '#/paths/~1users/get/responses/200/content/application~1json/schema',
+        );
     }
 
     /**

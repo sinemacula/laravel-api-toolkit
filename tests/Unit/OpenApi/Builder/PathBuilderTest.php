@@ -92,7 +92,7 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
-     * Test that the index action offers both pagination shapes as a oneOf of
+     * Test that the index action offers both pagination shapes as an anyOf of
      * the length-aware and cursor collection envelopes and still references the
      * shared total-count header.
      *
@@ -111,7 +111,7 @@ final class PathBuilderTest extends TestCase
         );
         self::assertSame(
             [
-                'oneOf' => [
+                'anyOf' => [
                     $envelope->collectionEnvelope('#/components/schemas/User'),
                     $envelope->cursorCollectionEnvelope('#/components/schemas/User'),
                 ],
@@ -1088,7 +1088,7 @@ final class PathBuilderTest extends TestCase
         self::assertArrayNotHasKey('requestBody', $operation);
         self::assertSame(
             (new EnvelopeBuilder)->collectionEnvelope('#/components/schemas/User'),
-            $operation['responses']['200']['content']['application/json']['schema']['oneOf'][0],
+            $operation['responses']['200']['content']['application/json']['schema']['anyOf'][0],
         );
     }
 
@@ -1286,7 +1286,7 @@ final class PathBuilderTest extends TestCase
         self::assertSame([200, 401, 403, 500], array_keys($responses));
         self::assertSame(
             (new EnvelopeBuilder)->collectionEnvelope('#/components/schemas/User'),
-            $responses[200]['content']['application/json']['schema']['oneOf'][0],
+            $responses[200]['content']['application/json']['schema']['anyOf'][0],
         );
     }
 
