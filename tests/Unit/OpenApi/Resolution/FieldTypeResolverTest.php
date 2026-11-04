@@ -4,6 +4,7 @@ declare(strict_types = 1);
 
 namespace Tests\Unit\OpenApi\Resolution;
 
+use Illuminate\Database\Eloquent\Model;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
@@ -13,6 +14,7 @@ use SineMacula\ApiToolkit\OpenApi\Schema\EnumSchemaRegistry;
 use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
 use SineMacula\ApiToolkit\Schema\Introspection\ColumnDefinition;
 use SineMacula\ApiToolkit\Schema\OpenApiFieldSchema;
+use Tests\Fixtures\Enums\Platform;
 use Tests\Fixtures\Enums\UserStatus;
 use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\Tag;
@@ -125,6 +127,38 @@ final class FieldTypeResolverTest extends TestCase
         self::assertFalse($schema->undocumented);
         self::assertSame(['$ref' => '#/components/schemas/UserStatus'], $schema->toArray());
         self::assertSame([UserStatus::class], $enums->classes());
+    }
+
+    /**
+     * Test that a pure-enum cast resolves to a reference to the enum's named
+     * component, as a backed-enum cast does, registering the enum.
+     *
+     * @return void
+     */
+    public function testPureEnumCastResolvesToComponentReference(): void
+    {
+        $model = new class extends Model {
+            /**
+             * Get the attributes that should be cast.
+             *
+             * @return array<string, string>
+             */
+            #[\Override]
+            protected function casts(): array
+            {
+                return ['platform' => Platform::class];
+            }
+        };
+
+        $enums    = new EnumSchemaRegistry;
+        $resolver = $this->makeResolver([
+            'platform' => new ColumnDefinition(name: 'platform', typeName: 'varchar', nullable: false),
+        ], $enums);
+
+        $schema = $resolver->resolve('platform', $this->field(), $model::class);
+
+        self::assertSame(['$ref' => '#/components/schemas/Platform'], $schema->toArray());
+        self::assertSame([Platform::class], $enums->classes());
     }
 
     /**

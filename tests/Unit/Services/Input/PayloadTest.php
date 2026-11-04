@@ -5,14 +5,18 @@ declare(strict_types = 1);
 namespace Tests\Unit\Services\Input;
 
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Services\Contracts\DefinesInputSchema;
 use SineMacula\ApiToolkit\Services\Input\Payload;
+use Tests\Fixtures\Enums\Platform;
+use Tests\Fixtures\Enums\UserLevel;
 use Tests\Fixtures\Input\SampleInput;
 use Tests\Fixtures\Services\Input\Concerns\DescribesInput;
 use Tests\Fixtures\Services\Input\Concerns\SensitiveCredentials;
 use Tests\Fixtures\Services\Input\Enums\StubStatusEnum;
+use Tests\Fixtures\Services\Input\PlatformInput;
 use Tests\Fixtures\Services\Input\SensitiveBaseInput;
 use Tests\Fixtures\Services\Input\SensitiveInput;
 use Tests\TestCase;
@@ -146,6 +150,195 @@ final class PayloadTest extends TestCase
         $input = SampleInput::from(['city' => 'Rome', 'status' => 'active']);
 
         self::assertSame(StubStatusEnum::ACTIVE, $input->status);
+    }
+
+    /**
+     * Test that a pure enum parameter is cast from the lowercase case name
+     * under its snake_case body key.
+     *
+     * @return void
+     */
+    public function testFromHydratesPureEnumTypedFieldFromLowercaseName(): void
+    {
+        $input = PlatformInput::from(['primary_platform' => 'mobile_app']);
+
+        self::assertSame(Platform::MOBILE_APP, $input->primaryPlatform);
+    }
+
+    /**
+     * Test that a nullable pure enum parameter hydrates as null when the body
+     * sends null or omits the key.
+     *
+     * @return void
+     */
+    public function testFromHydratesNullablePureEnumFieldAsNull(): void
+    {
+        self::assertNull(PlatformInput::from(['primary_platform' => null])->primaryPlatform);
+        self::assertNull(PlatformInput::from([])->primaryPlatform);
+    }
+
+    /**
+     * Test that a pure enum value in any form other than the exact lowercase
+     * case name fails validation, keyed by the body key.
+     *
+     * @return void
+     */
+    public function testFromRefusesPureEnumValueNotInLowercaseForm(): void
+    {
+        try {
+            PlatformInput::from(['primary_platform' => 'MOBILE_APP']);
+
+            self::fail('Expected a ValidationException for the upper-case enum value.');
+        } catch (ValidationException $exception) {
+            self::assertSame(['primary_platform' => ['The selected primary platform is invalid.']], $exception->errors());
+        }
+    }
+
+    /**
+     * Test that a pure enum parameter whose rules omit the enum rule is still
+     * cast from its lowercase case name.
+     *
+     * @return void
+     */
+    public function testFromCastsPureEnumFieldWithoutEnumRule(): void
+    {
+        self::assertSame(Platform::DESKTOP, PlatformInput::from(['fallback_platform' => 'desktop'])->fallbackPlatform);
+    }
+
+    /**
+     * Test that an unknown pure enum value whose rules omit the enum rule fails
+     * as a validation error naming the body key, rather than a fatal error.
+     *
+     * @return void
+     */
+    public function testFromDegradesUnknownPureEnumWithoutRuleToValidationFailure(): void
+    {
+        try {
+            PlatformInput::from(['fallback_platform' => 'console']);
+
+            self::fail('Expected a ValidationException for the unknown enum value.');
+        } catch (ValidationException $exception) {
+            self::assertSame(['fallback_platform' => ['The selected fallback platform is invalid.']], $exception->errors());
+        }
+    }
+
+    /**
+     * Test that a non-string value for a pure enum parameter whose rules admit
+     * it fails as a validation error naming the body key, rather than a type
+     * error from the constructor.
+     *
+     * @return void
+     */
+    public function testFromRefusesNonStringPureEnumValueWithoutEnumRule(): void
+    {
+        $definition = new class extends Payload {
+            /**
+             * Create a new instance with a pure enum promoted property.
+             *
+             * @param  \Tests\Fixtures\Enums\Platform|null  $platform
+             */
+            public function __construct(
+
+                /** A pure enum property whose rules admit any value. */
+                public readonly ?Platform $platform = null,
+            ) {}
+
+            /**
+             * Require the platform without constraining its type.
+             *
+             * @return array<string, mixed>
+             */
+            #[\Override]
+            public static function rules(): array
+            {
+                return ['platform' => ['required']];
+            }
+        };
+
+        try {
+            $definition::from(['platform' => 42]);
+
+            self::fail('Expected a ValidationException for the non-string enum value.');
+        } catch (ValidationException $exception) {
+            self::assertSame(['platform' => ['The selected platform is invalid.']], $exception->errors());
+        }
+    }
+
+    /**
+     * Test that a value of the wrong type for a string-backed enum parameter
+     * fails as a validation error naming the body key, rather than a type error
+     * from the enum lookup.
+     *
+     * @return void
+     */
+    public function testFromRefusesWrongTypeForBackedEnumWithoutEnumRule(): void
+    {
+        $definition = new class extends Payload {
+            /**
+             * Create a new instance with a backed enum promoted property.
+             *
+             * @param  \Tests\Fixtures\Services\Input\Enums\StubStatusEnum|null  $status
+             */
+            public function __construct(
+
+                /** A backed enum property whose rules admit any value. */
+                public readonly ?StubStatusEnum $status = null,
+            ) {}
+
+            /**
+             * Require the status without constraining its type.
+             *
+             * @return array<string, mixed>
+             */
+            #[\Override]
+            public static function rules(): array
+            {
+                return ['status' => ['required']];
+            }
+        };
+
+        try {
+            $definition::from(['status' => 42]);
+
+            self::fail('Expected a ValidationException for the wrongly typed enum value.');
+        } catch (ValidationException $exception) {
+            self::assertSame(['status' => ['The selected status is invalid.']], $exception->errors());
+        }
+    }
+
+    /**
+     * Test that an int-backed enum parameter is cast from an integer body
+     * value.
+     *
+     * @return void
+     */
+    public function testFromHydratesIntBackedEnumFromInteger(): void
+    {
+        $definition = new class extends Payload {
+            /**
+             * Create a new instance with an int-backed enum promoted property.
+             *
+             * @param  \Tests\Fixtures\Enums\UserLevel|null  $level
+             */
+            public function __construct(
+
+                /** An int-backed enum property. */
+                public readonly ?UserLevel $level = null,
+            ) {}
+
+            /**
+             * Validate the level against its enum.
+             *
+             * @return array<string, mixed>
+             */
+            #[\Override]
+            public static function rules(): array
+            {
+                return ['level' => ['required', Rule::enum(UserLevel::class)]];
+            }
+        };
+
+        self::assertSame(UserLevel::SILVER, $definition::from(['level' => 2])->level);
     }
 
     /**

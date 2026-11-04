@@ -290,7 +290,7 @@ final class OpenApiAssemblerTest extends TestCase
                 'sort'   => ['key' => 'status', 'indexed' => true],
             ],
         ], $schemas['User']['properties']['status']);
-        self::assertSame(['type' => 'string'], $schemas['UserStatus']);
+        self::assertSame(['type' => 'string', 'enum' => ['active', 'inactive', 'banned']], $schemas['UserStatus']);
     }
 
     /**

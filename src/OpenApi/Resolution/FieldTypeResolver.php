@@ -119,7 +119,9 @@ final readonly class FieldTypeResolver
      * When no database connection is available the column definition is absent,
      * so inference degrades to the declared cast alone; a field with neither a
      * matching column nor a mappable cast is flagged undocumented rather than
-     * guessed, and the path never fails.
+     * guessed, and the path never fails. An enum cast, backed or pure,
+     * documents as a reference to the enum's named component, which lists the
+     * values the resource emits.
      *
      * @param  string  $fieldKey
      * @param  class-string<\Illuminate\Database\Eloquent\Model>  $modelClass
@@ -131,7 +133,7 @@ final readonly class FieldTypeResolver
         $column = $this->introspector->getColumnDefinitions($model)[$fieldKey] ?? null;
         $cast   = $this->resolveCast($model, $fieldKey);
 
-        if ($cast !== null && $this->isBackedEnum($cast)) {
+        if ($cast !== null && enum_exists($cast)) {
             return $this->enumReference($cast, $column !== null && $column->nullable);
         }
 
@@ -140,20 +142,6 @@ final readonly class FieldTypeResolver
         }
 
         return $this->mapper->map($column, $cast);
-    }
-
-    /**
-     * Determine whether the cast names a backed-enum class, which documents as
-     * a reference to a named component rather than an inline type.
-     *
-     * @param  string  $cast
-     * @return bool
-     *
-     * @phpstan-assert-if-true class-string<\BackedEnum> $cast
-     */
-    private function isBackedEnum(string $cast): bool
-    {
-        return enum_exists($cast) && is_a($cast, \BackedEnum::class, true);
     }
 
     /**

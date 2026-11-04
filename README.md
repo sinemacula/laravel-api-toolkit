@@ -665,6 +665,11 @@ counts and one removed with `withoutMiddleware()` does not. Each `ApiException` 
 the action's `@throws` tags is added under its status with its error code as an example; any other throwable in those
 tags is ignored.
 
+Every enum the document references, through a model cast or a request field validated by `Rule::enum()` or
+`PureEnum`, becomes one named component listing its values under `enum`: the backing values of a backed enum, and the
+lowercase case names of a pure enum. Each field references the component rather than repeating the list, except a
+field whose `PureEnum` is narrowed by `only()` or `except()`, which lists the names it accepts inline.
+
 A route outside the resource pipeline documents its success body with `#[ResponseSchema]` on the action. Name a
 registered resource to reference its component, or a class implementing `DefinesSchema` to inline the JSON-Schema
 fragment its `schema()` returns; `collection: true` wraps the shape in the collection envelope instead. Name several
@@ -911,6 +916,43 @@ final class StoreClientPayload extends Payload
 StoreClientPayload::from(['client_name' => 'Acme'])->clientName; // 'Acme'
 StoreClientPayload::from(['client_name' => 'Acme'])->toArray();  // ['client_name' => 'Acme']
 ```
+
+#### Enum Input
+
+A promoted property typed as an enum is cast from the body. A backed enum is read from its value, so validate it
+with Laravel's `Rule::enum()`. A pure enum has no value, so the API reads and writes each case by its name in
+lowercase, matched exactly: `CONSOLE` and `Console` are refused. Validate it with `PureEnum`, which accepts only those
+names, narrows with `only()` and `except()` as `Rule::enum()` does, and fails with the same `validation.enum` message:
+
+```php
+use SineMacula\ApiToolkit\Validation\Rules\PureEnum;
+
+enum Application
+{
+    case PLATFORM;
+    case CONSOLE;
+    case WORKFORCE;
+}
+
+final class StartSessionPayload extends Payload
+{
+    public function __construct(
+        public readonly Application $application,
+    ) {}
+
+    public static function rules(): array
+    {
+        return ['application' => ['required', (new PureEnum(Application::class))->except(Application::WORKFORCE)]];
+    }
+}
+
+StartSessionPayload::from(['application' => 'console'])->application; // Application::CONSOLE
+```
+
+A value that matches no case fails as a `422` keyed by its body key, even when `rules()` leaves the enum rule out. A
+resource field holding a pure enum case is serialised as the same lowercase name, so a value read from a response can
+be sent back unchanged. An enum whose case names collide once lowercased, such as `case Web` and `case WEB`, has no
+single wire form and throws a `LogicException`.
 
 ---
 

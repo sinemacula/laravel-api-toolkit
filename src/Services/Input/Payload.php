@@ -10,6 +10,7 @@ use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use SineMacula\ApiToolkit\Services\Contracts\DefinesInputSchema;
 use SineMacula\ApiToolkit\Services\Contracts\ServiceInput;
+use SineMacula\ApiToolkit\Support\PureEnumName;
 
 /**
  * Self-validating input base for typed service inputs.
@@ -52,8 +53,8 @@ abstract class Payload implements DefinesInputSchema, ServiceInput
      * from the validated data subset. Each promoted parameter reads the body
      * key mapped to its name, so client_name hydrates $clientName; only the
      * first segment of a dotted rule maps, leaving its nested data untouched.
-     * Backed enum parameters are cast from their string representation
-     * automatically.
+     * Enum parameters are cast from their string representation automatically:
+     * a backed enum from its value, a pure enum from its lowercase case name.
      *
      * @param  array<string, mixed>|\Illuminate\Http\Request  $source
      * @return static
@@ -258,12 +259,13 @@ abstract class Payload implements DefinesInputSchema, ServiceInput
     /**
      * Cast a validated value to the parameter's declared PHP type.
      *
-     * Only backed enum parameters require casting from string; all other types
-     * are returned as-is because Laravel's validator already yields the correct
-     * scalar representation. When a subclass omits Rule::enum, an invalid
-     * string still reaches this cast; tryFrom degrades that to a validation
-     * failure so the caller sees a 422 rather than an unhandled ValueError,
-     * keyed by the body key the value was read from.
+     * Only enum parameters require casting: a backed enum from its value and a
+     * pure enum from its lowercase case name, while a value that is already a
+     * case passes through. All other types are returned as-is because Laravel's
+     * validator already yields the correct scalar representation. When a
+     * subclass omits the enum rule, an invalid value still reaches this cast;
+     * it degrades to a validation failure so the caller sees a 422 rather than
+     * an unhandled error, keyed by the body key the value was read from.
      *
      * @param  \ReflectionParameter  $parameter
      * @param  mixed  $value
@@ -282,20 +284,51 @@ abstract class Payload implements DefinesInputSchema, ServiceInput
 
         $typeName = $type->getName();
 
-        if (!is_string($value) || !class_exists($typeName) || !is_a($typeName, \BackedEnum::class, true)) {
+        if (!enum_exists($typeName) || $value instanceof $typeName) {
             return $value;
         }
 
-        /** @var class-string<\BackedEnum> $typeName */
-        return $typeName::tryFrom($value) ?? self::failEnumCast($key);
+        return self::enumCase($typeName, $value) ?? self::failEnumCast($key);
+    }
+
+    /**
+     * Resolve the enum case a validated value names, or null when it names none
+     * or is not of a type the enum is read from.
+     *
+     * @param  class-string<\UnitEnum>  $enum
+     * @param  mixed  $value
+     * @return \UnitEnum|null
+     */
+    private static function enumCase(string $enum, mixed $value): ?\UnitEnum
+    {
+        if (!is_a($enum, \BackedEnum::class, true)) {
+            return is_string($value) ? PureEnumName::tryFrom($enum, $value) : null;
+        }
+
+        return self::matchesBackingType($enum, $value) ? $enum::tryFrom($value) : null;
+    }
+
+    /**
+     * Determine whether the value has the backed enum's backing type, the only
+     * type its tryFrom() accepts.
+     *
+     * @param  class-string<\BackedEnum>  $enum
+     * @param  mixed  $value
+     * @return bool
+     *
+     * @phpstan-assert-if-true int|string $value
+     */
+    private static function matchesBackingType(string $enum, mixed $value): bool
+    {
+        return (string) (new \ReflectionEnum($enum))->getBackingType() === 'int' ? is_int($value) : is_string($value);
     }
 
     /**
      * Fail an unmatched enum value as a validation error.
      *
      * Mirrors Laravel's enum-rule message, naming the body key in the
-     * validator's display form, so a missing Rule::enum degrades to the same
-     * 422 contract instead of a fatal ValueError from ::from().
+     * validator's display form, so a missing enum rule degrades to the same 422
+     * contract instead of a fatal error.
      *
      * @param  string  $key
      * @return never
