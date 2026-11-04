@@ -1217,8 +1217,8 @@ final class OpenApiExporterValidityTest extends TestCase
     }
 
     /**
-     * Validate a response payload against the exported /users index 200
-     * schema, resolving its component references within the document.
+     * Validate a response payload against the exported /users index 200 schema,
+     * resolving its component references within the document.
      *
      * @param  array<string, mixed>  $document
      * @param  array<string, mixed>  $page
