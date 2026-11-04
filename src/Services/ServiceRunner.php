@@ -21,6 +21,10 @@ use SineMacula\ApiToolkit\Services\Pipeline\TransactionStage;
  * -> commit -> release -> afterCommit; onFailure after rollback + release;
  * finally emits ServiceCompleted or ServiceFailed.
  *
+ * Binds the run's context to the service before resolving its hooks, so
+ * Service::context() returns it throughout, and restores the previous binding
+ * when the run ends, however it ends. The events report the context's actor.
+ *
  * Never throws for business failures; captures them in the result.
  *
  * @phpstan-type ServiceHooks array{
@@ -57,6 +61,29 @@ final class ServiceRunner
      * @phpstan-ignore return.type
      */
     public function run(Service $service, ServiceContext $context): ServiceResult
+    {
+        $previous = $service->bindRunContext($context);
+
+        try {
+            return $this->execute($service, $context);
+        } finally {
+            $service->bindRunContext($previous);
+        }
+    }
+
+    /**
+     * Sequence the lifecycle with the context already bound to the service.
+     *
+     * @template TInput of \SineMacula\ApiToolkit\Services\Contracts\ServiceInput
+     * @template TOutput
+     *
+     * @param  \SineMacula\ApiToolkit\Services\Service<TInput, TOutput>  $service
+     * @param  \SineMacula\ApiToolkit\Services\ServiceContext  $context
+     * @return \SineMacula\ApiToolkit\Services\ServiceResult<TOutput>
+     *
+     * @phpstan-ignore return.type
+     */
+    private function execute(Service $service, ServiceContext $context): ServiceResult
     {
         $start  = microtime(true);
         $hooks  = $service->serviceHooks();
@@ -262,7 +289,7 @@ final class ServiceRunner
     private function dispatchEvent(Service $service, ServiceContext $context, ServiceResult $result, float $startTime, array $inputSummary): void
     {
         $duration      = microtime(true) - $startTime;
-        $actor         = $service->actor();
+        $actor         = $context->actor;
         $serviceClass  = $service::class;
         $correlationId = $context->correlationId;
 

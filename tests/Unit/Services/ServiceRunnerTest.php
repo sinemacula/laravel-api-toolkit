@@ -19,18 +19,21 @@ use SineMacula\ApiToolkit\Services\Service;
 use SineMacula\ApiToolkit\Services\ServiceContext;
 use SineMacula\ApiToolkit\Services\ServiceRunner;
 use Tests\Concerns\SwapsExceptionHandler;
+use Tests\Fixtures\Exceptions\ServiceExecutionException;
 use Tests\Fixtures\Services\AuthorizingService;
+use Tests\Fixtures\Services\ContextRecordingService;
 use Tests\Fixtures\Services\Input\ScrubbedInput;
 use Tests\Fixtures\Services\Input\SensitiveInput;
 use Tests\Fixtures\Services\OutputService;
+use Tests\Fixtures\Services\StubActor;
 use Tests\TestCase;
 
 /**
  * Tests for the ServiceRunner lifecycle orchestrator.
  *
  * Covers execution order, failure totality, afterCommit/onFailure edge cases,
- * SystemActor authorization short-circuit, empty-lockId guard, and event
- * dispatch.
+ * SystemActor authorization short-circuit, empty-lockId guard, event dispatch,
+ * and binding the run context to the service.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -936,5 +939,143 @@ final class ServiceRunnerTest extends TestCase
         Event::assertDispatched(ServiceFailed::class);
         self::assertCount(1, $handler->reported);
         self::assertSame('on-failure-error', $handler->reported[0]->getMessage());
+    }
+
+    /**
+     * Test that the run context is bound before the hooks are resolved, so
+     * concerns() and lockId() can read it.
+     *
+     * @return void
+     */
+    public function testRunBindsTheContextBeforeResolvingHooks(): void
+    {
+        $context = ServiceContext::for(new StubActor);
+        $service = new ContextRecordingService(new ArrayInput([]));
+
+        $result = (new ServiceRunner)->run($service, $context);
+
+        self::assertTrue($result->succeeded());
+        self::assertSame($context, $service->seen['concerns']);
+        self::assertSame($context, $service->seen['lockId']);
+    }
+
+    /**
+     * Test that the run context is bound on the failure path, so onFailure()
+     * reads it.
+     *
+     * @return void
+     */
+    public function testRunBindsTheContextOnTheFailurePath(): void
+    {
+        $context        = ServiceContext::for(new StubActor);
+        $service        = new ContextRecordingService(new ArrayInput([]));
+        $service->fails = true;
+
+        $result = (new ServiceRunner)->run($service, $context);
+
+        self::assertTrue($result->failed());
+        self::assertInstanceOf(ServiceExecutionException::class, $result->exception);
+        self::assertSame($context, $service->seen['onFailure']);
+    }
+
+    /**
+     * Test that the run context is unbound once the run ends.
+     *
+     * @return void
+     */
+    public function testRunUnbindsTheContextWhenItEnds(): void
+    {
+        $service = new ContextRecordingService(new ArrayInput([]));
+
+        (new ServiceRunner)->run($service, ServiceContext::for(new StubActor));
+
+        self::assertNull($service->bindRunContext(null));
+    }
+
+    /**
+     * Test that the run context is unbound even when an event listener throws
+     * out of the run.
+     *
+     * @return void
+     *
+     * @throws \Throwable
+     */
+    public function testRunUnbindsTheContextWhenAnEventListenerThrows(): void
+    {
+        Event::listen(ServiceCompleted::class, static function (): never {
+            throw new \RuntimeException('listener-error');
+        });
+
+        $service = new ContextRecordingService(new ArrayInput([]));
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('listener-error');
+
+        try {
+            (new ServiceRunner)->run($service, ServiceContext::for(new StubActor));
+        } catch (\Throwable $exception) {
+            self::assertNull($service->bindRunContext(null));
+
+            throw $exception;
+        }
+    }
+
+    /**
+     * Test that a run restores the context that was bound before it started.
+     *
+     * @return void
+     */
+    public function testRunRestoresThePreviouslyBoundContext(): void
+    {
+        $outer   = ServiceContext::for(new StubActor);
+        $service = new ContextRecordingService(new ArrayInput([]));
+        $service->bindRunContext($outer);
+
+        (new ServiceRunner)->run($service, ServiceContext::for(new StubActor));
+
+        self::assertSame($outer, $service->currentContext());
+    }
+
+    /**
+     * Test that the completed event reports the run context's actor rather than
+     * the actor given to the service.
+     *
+     * @return void
+     */
+    public function testCompletedEventReportsTheContextActor(): void
+    {
+        Event::fake([ServiceCompleted::class]);
+
+        $context = ServiceContext::for(new StubActor);
+        $service = (new OutputService(new ArrayInput([])))->by(new AnonymousActor);
+
+        (new ServiceRunner)->run($service, $context);
+
+        Event::assertDispatched(
+            ServiceCompleted::class,
+            static fn (ServiceCompleted $event): bool => $event->actor === $context->actor,
+        );
+    }
+
+    /**
+     * Test that the failed event reports the run context's actor rather than
+     * the actor given to the service.
+     *
+     * @return void
+     */
+    public function testFailedEventReportsTheContextActor(): void
+    {
+        Event::fake([ServiceFailed::class]);
+
+        $context        = ServiceContext::for(new StubActor);
+        $service        = (new ContextRecordingService(new ArrayInput([])))->by(new AnonymousActor);
+        $service->fails = true;
+
+        (new ServiceRunner)->run($service, $context);
+
+        Event::assertDispatched(
+            ServiceFailed::class,
+            static fn (ServiceFailed $event): bool => $event->actor === $context->actor,
+        );
     }
 }

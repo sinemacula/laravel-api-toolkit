@@ -60,7 +60,9 @@ final class ServiceJob implements ShouldQueue
      *
      * Builds the service from the serialised class-string and input, attaches
      * the dispatched actor, then runs it through ServiceRunner with a fresh
-     * context whose source is forced to QUEUE.
+     * context whose source is forced to QUEUE. That context, carrying the
+     * dispatched correlation id and metadata, is what the service reads through
+     * context().
      *
      * @param  \SineMacula\ApiToolkit\Services\ServiceRunner  $runner
      * @return void

@@ -19,7 +19,9 @@ use SineMacula\ApiToolkit\Services\Jobs\ServiceJob;
  * Holds a typed input and an explicit actor. Subclasses implement the six
  * lifecycle hooks; the runner sequences them in a fixed, transaction-aware
  * order. run() returns a total ServiceResult for a caller that branches on it,
- * and runOrFail() returns the output or throws the failure.
+ * and runOrFail() returns the output or throws the failure. While a run is in
+ * progress, context() returns the ServiceContext it runs with. One instance
+ * must not run concurrently.
  *
  * @template TInput of \SineMacula\ApiToolkit\Services\Contracts\ServiceInput
  * @template TOutput
@@ -46,7 +48,10 @@ abstract class Service implements LockKeyProvider
     private ?Actor $actor = null;
 
     /** @var \SineMacula\ApiToolkit\Services\ServiceContext|null Fully-built execution context; null until set by withContext() */
-    private ?ServiceContext $context = null;
+    private ?ServiceContext $attachedContext = null;
+
+    /** @var \SineMacula\ApiToolkit\Services\ServiceContext|null The context of the run in progress; null outside a run */
+    private ?ServiceContext $runContext = null;
 
     /**
      * Constructor.
@@ -91,15 +96,17 @@ abstract class Service implements LockKeyProvider
      * Attach a prebuilt execution context (actor, correlation id, source, and
      * metadata) to a synchronous run, taking the actor from it. This is the
      * entry point for a caller that needs to tag a run with its own source or
-     * metadata; run() otherwise builds an INTERNAL context of its own.
+     * metadata; run() otherwise builds an INTERNAL context of its own. A later
+     * by() changes actor() outside a run but not the attached context, so the
+     * run still uses the context's actor.
      *
      * @param  \SineMacula\ApiToolkit\Services\ServiceContext  $context
      * @return static
      */
     public function withContext(ServiceContext $context): static
     {
-        $this->context = $context;
-        $this->actor   = $context->actor;
+        $this->attachedContext = $context;
+        $this->actor           = $context->actor;
 
         return $this;
     }
@@ -107,29 +114,32 @@ abstract class Service implements LockKeyProvider
     /**
      * Return the actor for this invocation.
      *
-     * Defaults to an AnonymousActor when no actor has been supplied. Never
-     * reads Auth or any ambient state.
+     * While a run is in progress this is the actor of the run's context, so it
+     * matches the actor the lifecycle events report. Outside a run it is the
+     * actor given to by() or withContext(), or an AnonymousActor when none has
+     * been supplied. Never reads Auth or any ambient state.
      *
      * @return \SineMacula\ApiToolkit\Services\Contracts\Actor
      */
     public function actor(): Actor
     {
-        return $this->actor ?? new AnonymousActor;
+        return $this->runContext?->actor ?? $this->actor ?? new AnonymousActor;
     }
 
     /**
      * Execute the service synchronously and return a total result.
      *
-     * Builds or reuses a ServiceContext, then delegates lifecycle sequencing to
-     * ServiceRunner. Never throws for business failures, so it suits a caller
-     * that branches on the result; runOrFail() suits one that only wants the
-     * output.
+     * Reuses the context given through withContext(), or builds an INTERNAL
+     * one, then delegates lifecycle sequencing to ServiceRunner, which makes
+     * that context available through context() for the duration of the run.
+     * Never throws for business failures, so it suits a caller that branches on
+     * the result; runOrFail() suits one that only wants the output.
      *
      * @return \SineMacula\ApiToolkit\Services\ServiceResult<TOutput>
      */
     final public function run(): ServiceResult
     {
-        $context = $this->context ?? ServiceContext::for($this->actor(), ServiceSource::INTERNAL);
+        $context = $this->attachedContext ?? ServiceContext::for($this->actor(), ServiceSource::INTERNAL);
         $class   = ServiceRunner::class;
         $runner  = App::make($class);
         assert($runner instanceof ServiceRunner);
@@ -160,7 +170,7 @@ abstract class Service implements LockKeyProvider
      */
     final public function dispatch(): mixed
     {
-        $context = $this->context ?? ServiceContext::for($this->actor());
+        $context = $this->attachedContext ?? ServiceContext::for($this->actor());
 
         return ServiceJob::dispatch(static::class, $this->input, $context);
     }
@@ -174,6 +184,26 @@ abstract class Service implements LockKeyProvider
     public function getLockKey(): string
     {
         return sha1(static::class . '|' . $this->lockId());
+    }
+
+    /**
+     * Bind the context of the run in progress, returning the one it replaces.
+     *
+     * Package-internal seam: called exclusively by ServiceRunner, which binds
+     * the run's context before resolving the hooks and restores the previous
+     * one when the run ends.
+     *
+     * @internal
+     *
+     * @param  \SineMacula\ApiToolkit\Services\ServiceContext|null  $context
+     * @return \SineMacula\ApiToolkit\Services\ServiceContext|null
+     */
+    final public function bindRunContext(?ServiceContext $context): ?ServiceContext
+    {
+        $previous         = $this->runContext;
+        $this->runContext = $context;
+
+        return $previous;
     }
 
     /**
@@ -213,6 +243,23 @@ abstract class Service implements LockKeyProvider
             // Flows verbatim to lifecycle-event listeners; see ServiceInput::toArray()
             'inputSummary' => $this->input->toArray(),
         ];
+    }
+
+    /**
+     * Return the execution context of the run in progress.
+     *
+     * Available in every lifecycle hook, concerns() and lockId(): the context
+     * given through withContext(), the INTERNAL one run() built, or the QUEUE
+     * one a queued run rebuilt. Work deferred beyond the run must capture it
+     * first.
+     *
+     * @return \SineMacula\ApiToolkit\Services\ServiceContext
+     *
+     * @throws \LogicException
+     */
+    final protected function context(): ServiceContext
+    {
+        return $this->runContext ?? throw new \LogicException('The service context is only available while the service is running.');
     }
 
     /**

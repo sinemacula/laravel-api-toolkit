@@ -604,6 +604,28 @@ return [
 
     /*
     |---------------------------------------------------------------------------
+    | Service Configuration
+    |---------------------------------------------------------------------------
+    |
+    | This section configures how the toolkit builds a service's execution
+    | context at the HTTP edge.
+    |
+    | 'correlation_header' names the request header that
+    | ServiceContext::fromRequest() reads the correlation id from. A value of 1
+    | to 128 printable ASCII characters with no whitespace is used as given;
+    | any other value, or a missing header, gets a generated id instead. Set it
+    | to null or an empty string to always generate one.
+    |
+    */
+
+    'services' => [
+
+        'correlation_header' => env('API_TOOLKIT_SERVICES_CORRELATION_HEADER', 'X-Request-Id'),
+
+    ],
+
+    /*
+    |---------------------------------------------------------------------------
     | API Notification Configuration
     |---------------------------------------------------------------------------
     |

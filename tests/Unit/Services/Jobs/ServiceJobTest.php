@@ -13,6 +13,7 @@ use SineMacula\ApiToolkit\Services\ServiceContext;
 use SineMacula\ApiToolkit\Services\ServiceRunner;
 use Tests\Fixtures\Services\Jobs\ConcernCapturingService;
 use Tests\Fixtures\Services\Jobs\ContextCapturingConcern;
+use Tests\Fixtures\Services\Jobs\ContextReadingService;
 use Tests\Fixtures\Services\StubActor;
 use Tests\TestCase;
 
@@ -20,8 +21,9 @@ use Tests\TestCase;
  * Tests for the ServiceJob queue bridge.
  *
  * Covers payload serialisation, worker-side re-hydration and execution via
- * ServiceRunner, QUEUE source enforcement, and the absence of Auth or Request
- * consultation on the worker.
+ * ServiceRunner, QUEUE source enforcement, the QUEUE context a queued service
+ * reads through context(), and the absence of Auth or Request consultation on
+ * the worker.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -32,7 +34,7 @@ use Tests\TestCase;
 final class ServiceJobTest extends TestCase
 {
     /**
-     * Reset the context-capturing concern before each test.
+     * Reset the context-capturing fixtures before each test.
      *
      * @return void
      */
@@ -42,6 +44,7 @@ final class ServiceJobTest extends TestCase
         parent::setUp();
 
         ContextCapturingConcern::reset();
+        ContextReadingService::reset();
         app()->instance(ContextCapturingConcern::class, new ContextCapturingConcern);
     }
 
@@ -115,5 +118,28 @@ final class ServiceJobTest extends TestCase
         self::assertNotNull(ContextCapturingConcern::$captured);
         self::assertSame(ServiceSource::QUEUE, ContextCapturingConcern::$captured->source);
         self::assertSame('stub-id', ContextCapturingConcern::$captured->actor->actorIdentifier());
+    }
+
+    /**
+     * Test that a queued service reads the QUEUE context through context(),
+     * carrying the dispatched actor, correlation id and metadata.
+     *
+     * @return void
+     */
+    public function testQueuedServiceReadsTheQueueContext(): void
+    {
+        $metadata = ['ip' => '203.0.113.7', 'user_agent' => 'client/1.0'];
+        $context  = ServiceContext::for(new StubActor, ServiceSource::HTTP, $metadata, 'queued-corr');
+        $job      = new ServiceJob(ContextReadingService::class, new ArrayInput([]), $context);
+
+        $job->handle(new ServiceRunner);
+
+        $seen = ContextReadingService::$seen;
+
+        self::assertNotNull($seen);
+        self::assertSame(ServiceSource::QUEUE, $seen->source);
+        self::assertSame('stub-id', $seen->actor->actorIdentifier());
+        self::assertSame('queued-corr', $seen->correlationId);
+        self::assertSame($metadata, $seen->metadata);
     }
 }

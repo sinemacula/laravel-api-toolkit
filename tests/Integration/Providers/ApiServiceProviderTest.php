@@ -216,6 +216,17 @@ final class ApiServiceProviderTest extends TestCase
     }
 
     /**
+     * Test that the services config section reads the correlation id from the
+     * X-Request-Id header by default.
+     *
+     * @return void
+     */
+    public function testServicesConfigSectionHasCorrectDefaults(): void
+    {
+        self::assertSame('X-Request-Id', $this->getConfig()->get('api-toolkit.services.correlation_header'));
+    }
+
+    /**
      * Test backward compatibility: default config produces the same behavior as
      * the previous version.
      *
