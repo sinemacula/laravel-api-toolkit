@@ -35,6 +35,8 @@ final readonly class ResponseSchema
      * @throws \InvalidArgumentException
      */
     public function __construct(
+
+        // The class, or list of classes, describing the inner data shape
         array|string $schema,
 
         /** Whether the data shape is a collection rather than a single item. */

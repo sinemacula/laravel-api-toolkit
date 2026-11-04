@@ -119,9 +119,11 @@ final readonly class ResponseSchemaResolver
                 return null;
             }
 
-            if (!in_array($node, $nodes, true)) {
-                $nodes[] = $node;
+            if (in_array($node, $nodes, true)) {
+                continue;
             }
+
+            $nodes[] = $node;
         }
 
         return count($nodes) === 1 ? $nodes[0] : ['oneOf' => $nodes];
