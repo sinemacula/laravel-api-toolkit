@@ -154,6 +154,8 @@ final readonly class FieldSchemaBuilder
      * Apply an `in:` token's values as the field's enum, parsing the argument
      * as the validator does so quoted values keep their commas and quotes, and
      * emitting numeric values on a numeric field so the enum matches its type.
+     * On an array field the values constrain each item, as the validator checks
+     * every element against them.
      *
      * @param  array<string, mixed>  $schema
      * @param  list<string>  $tokens
@@ -168,15 +170,24 @@ final readonly class FieldSchemaBuilder
             return;
         }
 
-        $schema['enum'] = array_map(
+        $enum = array_map(
             fn (string $value): float|int|string => $this->enumValue($value, $type),
             str_getcsv($values, escape: '\\'),
         );
+
+        if ($type === 'array') {
+            $schema['items'] = ['enum' => $enum];
+
+            return;
+        }
+
+        $schema['enum'] = $enum;
     }
 
     /**
-     * Cast an enum value to a number when the field is numeric and the value
-     * reads as one, otherwise keep it as the string the validator compares.
+     * Cast an enum value to a number on a numeric field when that number reads
+     * back as the same string, since the validator compares the input's string
+     * form; any other value stays the string the validator compares.
      *
      * @param  string  $value
      * @param  string|null  $type
@@ -184,11 +195,13 @@ final readonly class FieldSchemaBuilder
      */
     private function enumValue(string $value, ?string $type): float|int|string
     {
-        if (!in_array($type, ['integer', 'number'], true) || !is_numeric($value)) {
+        if (!in_array($type, ['integer', 'number'], true)) {
             return $value;
         }
 
-        return $this->numericValue($value);
+        $number = $this->numericValue($value);
+
+        return (string) $number === $value ? $number : $value;
     }
 
     /**

@@ -126,6 +126,19 @@ final class RulesToSchemaTranslatorTest extends TestCase
     }
 
     /**
+     * Test that an In object on an array field constrains its items, and that a
+     * `field.*` sibling merges into those items rather than replacing them.
+     *
+     * @return void
+     */
+    public function testInObjectOnArrayFieldConstrainsItsItems(): void
+    {
+        $schema = $this->translator()->translate(['tags' => ['array', Rule::in(['a', 'b'])], 'tags.*' => 'string']);
+
+        self::assertSame(['type' => 'array', 'items' => ['enum' => ['a', 'b'], 'type' => 'string']], $schema['properties']['tags']);
+    }
+
+    /**
      * Test that a NotIn rule object, which has no schema translation,
      * contributes nothing while the field's other rules survive.
      *
