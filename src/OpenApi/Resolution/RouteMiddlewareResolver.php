@@ -102,7 +102,7 @@ final readonly class RouteMiddlewareResolver
      *
      * @param  \Illuminate\Routing\Route  $route
      * @param  class-string  $class
-     * @return list<list<string>>
+     * @return list<array<int, string>>
      */
     private function parametersOf(Route $route, string $class): array
     {
@@ -116,10 +116,10 @@ final readonly class RouteMiddlewareResolver
                 continue;
             }
 
-            $matches[] = array_values(array_filter(
+            $matches[] = array_filter(
                 array_map('trim', explode(',', $parts[1] ?? '')),
                 static fn (string $parameter): bool => $parameter !== '',
-            ));
+            );
         }
 
         return $matches;
@@ -131,7 +131,7 @@ final readonly class RouteMiddlewareResolver
      * makes the middleware unresolvable.
      *
      * @param  \Illuminate\Routing\Route  $route
-     * @return list<string>
+     * @return array<int, string>
      */
     private function resolvedMiddleware(Route $route): array
     {
@@ -141,7 +141,7 @@ final readonly class RouteMiddlewareResolver
             return [];
         }
 
-        return array_values(array_filter($middleware, 'is_string'));
+        return array_filter($middleware, 'is_string');
     }
 
     /**

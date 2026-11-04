@@ -60,6 +60,17 @@ final class RouteMiddlewareResolverTest extends TestCase
     }
 
     /**
+     * Test that everything after the first colon is the parameter list, as the
+     * router itself parses it.
+     *
+     * @return void
+     */
+    public function testParametersKeepLaterColons(): void
+    {
+        self::assertSame(['scope:admin'], $this->resolver()->guards($this->route(Authenticate::class . ':scope:admin')));
+    }
+
+    /**
      * Test that guards accumulate across several Authenticate entries.
      *
      * @return void
