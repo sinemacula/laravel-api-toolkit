@@ -67,6 +67,39 @@ final class RuleNormaliserTest extends TestCase
     }
 
     /**
+     * Test that an In rule object expands to the quoted in token its string
+     * form renders.
+     *
+     * @return void
+     */
+    public function testInObjectExpandsToQuotedInToken(): void
+    {
+        self::assertSame(['required', 'in:"a","b"'], (new RuleNormaliser)->normalise(['required', Rule::in(['a', 'b'])]));
+    }
+
+    /**
+     * Test that an In rule object's token is not split on a pipe inside one of
+     * its values, as the validator does not split it either.
+     *
+     * @return void
+     */
+    public function testInObjectTokenIsNotSplitOnPipes(): void
+    {
+        self::assertSame(['in:"a|b"'], (new RuleNormaliser)->normalise(Rule::in(['a|b'])));
+    }
+
+    /**
+     * Test that a NotIn rule object, which has no schema translation, yields no
+     * tokens.
+     *
+     * @return void
+     */
+    public function testNotInObjectYieldsNoTokens(): void
+    {
+        self::assertSame([], (new RuleNormaliser)->normalise(Rule::notIn(['a'])));
+    }
+
+    /**
      * Test that a PureEnum rule object expands to the same enum-class token as
      * an Enum rule, so both reference the enum's named component.
      *

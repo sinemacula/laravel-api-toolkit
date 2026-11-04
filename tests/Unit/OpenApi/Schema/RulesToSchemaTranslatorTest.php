@@ -4,12 +4,15 @@ declare(strict_types = 1);
 
 namespace Tests\Unit\OpenApi\Schema;
 
+use Illuminate\Validation\Rule;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\OpenApi\Schema\FieldSchemaBuilder;
 use SineMacula\ApiToolkit\OpenApi\Schema\RuleNormaliser;
 use SineMacula\ApiToolkit\OpenApi\Schema\RulesToSchemaTranslator;
 use SineMacula\ApiToolkit\Validation\Rules\PureEnum;
 use Tests\Fixtures\Enums\Platform;
+use Tests\Fixtures\Enums\UserLevel;
+use Tests\Fixtures\Enums\UserStatus;
 use Tests\Fixtures\OpenApi\ArticleRequestInput;
 use Tests\TestCase;
 
@@ -43,6 +46,8 @@ final class RulesToSchemaTranslatorTest extends TestCase
                 'tags'                  => ['type' => 'array', 'items' => ['type' => 'string']],
                 'status'                => ['$ref' => '#/components/schemas/UserStatus'],
                 'platform'              => ['anyOf' => [['$ref' => '#/components/schemas/Platform'], ['type' => 'null']]],
+                'visibility'            => ['type' => 'string', 'enum' => ['draft', 'published']],
+                'level'                 => ['type' => 'integer', 'enum' => [1, 2, 3]],
                 'email'                 => ['type' => 'string', 'format' => 'email'],
                 'password'              => ['type' => 'string', 'minLength' => 8],
                 'password_confirmation' => ['type' => 'string'],
@@ -77,6 +82,112 @@ final class RulesToSchemaTranslatorTest extends TestCase
             $translator->translate(['f' => 'required|string']),
             $translator->translate(['f' => ['required', 'string']]),
         );
+    }
+
+    /**
+     * Test that an In rule object exports the same enum as the equivalent
+     * value-list string.
+     *
+     * @return void
+     */
+    public function testInObjectAndValueListStringAgree(): void
+    {
+        $translator = $this->translator();
+        $schema     = $translator->translate(['f' => [Rule::in(['a', 'b'])]]);
+
+        self::assertSame(['type' => 'object', 'properties' => ['f' => ['enum' => ['a', 'b']]]], $schema);
+        self::assertSame($translator->translate(['f' => 'in:a,b']), $schema);
+    }
+
+    /**
+     * Test that values carrying commas and quotes round-trip exactly through
+     * both the In object and its quoted string form.
+     *
+     * @return void
+     */
+    public function testInValuesWithCommasAndQuotesRoundTrip(): void
+    {
+        $translator = $this->translator();
+        $values     = ['a,b', 'say "hi"'];
+        $expected   = ['type' => 'object', 'properties' => ['f' => ['type' => 'string', 'enum' => $values]]];
+
+        self::assertSame($expected, $translator->translate(['f' => ['string', Rule::in($values)]]));
+        self::assertSame($expected, $translator->translate(['f' => ['string', 'in:"a,b","say ""hi"""']]));
+    }
+
+    /**
+     * Test that an In object built from a string-backed enum's cases exports
+     * the backing values as strings.
+     *
+     * @return void
+     */
+    public function testInObjectFromStringBackedEnumCasesExportsTheirValues(): void
+    {
+        $schema = $this->translator()->translate(['f' => ['string', Rule::in(array_column(UserStatus::cases(), 'value'))]]);
+
+        self::assertSame(['type' => 'string', 'enum' => ['active', 'inactive', 'banned']], $schema['properties']['f']);
+    }
+
+    /**
+     * Test that an In object built from an int-backed enum's cases on an
+     * integer field exports the backing values as integers.
+     *
+     * @return void
+     */
+    public function testInObjectFromIntBackedEnumCasesExportsIntegers(): void
+    {
+        $schema = $this->translator()->translate(['f' => ['integer', Rule::in(array_column(UserLevel::cases(), 'value'))]]);
+
+        self::assertSame(['type' => 'integer', 'enum' => [1, 2, 3]], $schema['properties']['f']);
+    }
+
+    /**
+     * Test that an In object on an array field constrains its items, and that a
+     * `field.*` sibling is required alongside that constraint rather than
+     * replacing it.
+     *
+     * @return void
+     */
+    public function testInObjectOnArrayFieldConstrainsItsItems(): void
+    {
+        $schema = $this->translator()->translate([
+            'tags'   => ['array', Rule::in(['a', 'b'])],
+            'tags.*' => ['string', Rule::in(['b', 'c'])],
+        ]);
+
+        self::assertSame([
+            'type'  => 'array',
+            'items' => ['allOf' => [['enum' => ['a', 'b']], ['type' => 'string', 'enum' => ['b', 'c']]]],
+        ], $schema['properties']['tags']);
+    }
+
+    /**
+     * Test that numeric values on an array field stay satisfiable when its
+     * items are typed as integers, as the validator accepts either form.
+     *
+     * @return void
+     */
+    public function testNumericInObjectOnArrayFieldAdmitsTypedItems(): void
+    {
+        $schema = $this->translator()->translate(['ids' => ['array', Rule::in([1, 2])], 'ids.*' => 'integer']);
+
+        self::assertSame([
+            'type'  => 'array',
+            'items' => ['allOf' => [['enum' => ['1', 1, '2', 2]], ['type' => 'integer']]],
+        ], $schema['properties']['ids']);
+    }
+
+    /**
+     * Test that a NotIn rule object, which has no schema translation,
+     * contributes nothing while the field's other rules survive.
+     *
+     * @return void
+     */
+    public function testNotInObjectContributesNothing(): void
+    {
+        $schema = $this->translator()->translate(['f' => ['string', Rule::notIn(['a'])]]);
+
+        self::assertSame(['type' => 'string'], $schema['properties']['f']);
     }
 
     /**

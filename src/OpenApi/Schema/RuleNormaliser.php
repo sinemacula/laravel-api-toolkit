@@ -5,6 +5,7 @@ declare(strict_types = 1);
 namespace SineMacula\ApiToolkit\OpenApi\Schema;
 
 use Illuminate\Validation\Rules\Enum;
+use Illuminate\Validation\Rules\In;
 use Illuminate\Validation\Rules\Password;
 use SineMacula\ApiToolkit\Validation\Rules\PureEnum;
 
@@ -17,8 +18,9 @@ use SineMacula\ApiToolkit\Validation\Rules\PureEnum;
  * to interpret. Rule objects are expanded best-effort: an Enum or PureEnum
  * contributes an `enum-class:` token naming the enum class so the builder can
  * reference its named component, a PureEnum narrowed by only() or except()
- * contributes the names it accepts as an `in:` list, and a Password contributes
- * `string` plus its minimum length; any other object is dropped, keeping the
+ * contributes the names it accepts as an `in:` list, an In contributes the same
+ * `in:` token its string form renders, and a Password contributes `string` plus
+ * its minimum length; any other object, NotIn included, is dropped, keeping the
  * field while discarding the constraint it could not translate.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
@@ -85,6 +87,7 @@ final readonly class RuleNormaliser
     {
         return match (true) {
             $rule instanceof Enum     => $this->enumTokens($rule),
+            $rule instanceof In       => [(string) $rule],
             $rule instanceof PureEnum => $this->pureEnumTokens($rule),
             $rule instanceof Password => $this->passwordTokens($rule),
             default                   => [],
