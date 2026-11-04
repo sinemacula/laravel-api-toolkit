@@ -49,10 +49,35 @@ final readonly class ExportOpenApiComponents
 
         return new ExportResult(
             document      : $document,
+            operationCount: $this->countOperations($document),
             resourceCount : count($this->catalogue->getResourceMap()),
             parameterCount: $this->countComponents($document, 'parameters'),
             responseCount : $this->countComponents($document, 'responses'),
         );
+    }
+
+    /**
+     * Count the operations across every path item of the assembled document,
+     * tolerating a non-array paths object or path item.
+     *
+     * @param  array<string, mixed>  $document
+     * @return int
+     */
+    private function countOperations(array $document): int
+    {
+        $paths = $document['paths'] ?? null;
+
+        if (!is_array($paths)) {
+            return 0;
+        }
+
+        $count = 0;
+
+        foreach ($paths as $operations) {
+            $count += is_array($operations) ? count($operations) : 0;
+        }
+
+        return $count;
     }
 
     /**
