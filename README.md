@@ -746,7 +746,8 @@ never comes back as output.
 $result = SignIn::make(SignInPayload::from($request))->run();
 
 if ($result->failed()) {
-    // $result->exception is the captured failure
+    // $result->exception is the captured failure, or null when none was thrown
+    return response()->json(['message' => 'The credentials are invalid.'], 401);
 }
 
 $user = $result->output();

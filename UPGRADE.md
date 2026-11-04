@@ -299,6 +299,7 @@ Exceptions thrown by the core lifecycle are no longer rethrown from `run()`; the
     if ($result->failed()) {
         // $result->exception is the captured Throwable, or null when
         // handle() signalled failure without throwing
+        return $fallback;
     }
 
     $value = $result->output();
