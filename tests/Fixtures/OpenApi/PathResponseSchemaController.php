@@ -17,8 +17,9 @@ use Tests\Fixtures\Resources\UserResource;
  * plain class that resolves to nothing, an unregistered resource whose
  * reference would dangle, and a bare action carrying no directive at all. The
  * union actions name several classes: two fragments, a resource beside a
- * fragment, a union of collection items, repeated members, and unions holding a
- * plain class or an unregistered resource that leave the body undocumented.
+ * fragment, a union of collection items, repeated members, distinct classes
+ * describing one shape, and unions holding a plain class or an unregistered
+ * resource that leave the body undocumented.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -121,6 +122,14 @@ final class PathResponseSchemaController
      */
     #[ResponseSchema([SignedInShape::class, SignedInShape::class, PendingSignInShape::class])]
     public function repeatedBeforeAnother(): void {}
+
+    /**
+     * Respond with a union of two distinct classes describing the same shape.
+     *
+     * @return void
+     */
+    #[ResponseSchema([SignedInShape::class, SessionStartedShape::class])]
+    public function equivalent(): void {}
 
     /**
      * Respond with a union whose second member is a plain class.

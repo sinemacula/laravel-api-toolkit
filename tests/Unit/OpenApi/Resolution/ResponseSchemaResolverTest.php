@@ -193,6 +193,22 @@ final class ResponseSchemaResolverTest extends TestCase
     }
 
     /**
+     * Test that distinct classes resolving to the same fragment collapse to the
+     * bare node, so no response can match more than one branch of the union.
+     *
+     * @return void
+     */
+    public function testDistinctClassesWithEqualFragmentsCollapseToBareNode(): void
+    {
+        $schema = $this->resolver()->resolve(PathResponseSchemaController::class, 'equivalent');
+
+        self::assertSame(
+            (new EnvelopeBuilder)->singleEnvelopeFor(SignedInShape::schema()),
+            $schema,
+        );
+    }
+
+    /**
      * Test that a union holding a plain class resolves to null as a whole,
      * rather than documenting only the members it can describe.
      *
