@@ -616,6 +616,23 @@ and the live operator grammar:
 ```bash
 php artisan api-toolkit:export-openapi
 php artisan api-toolkit:export-openapi --output=openapi.json
+php artisan api-toolkit:export-openapi --audience=internal
+php artisan api-toolkit:export-openapi --all
+```
+
+Without options the configured default audience is written to `api-toolkit.openapi.output`. `--audience` exports
+one named audience, and `--all` exports every configured audience, each to its own file named by injecting the
+audience before the extension, so `openapi.json` becomes `openapi.public.json` and `openapi.internal.json`.
+
+Resources are not required: a route documented through `#[RequestSchema]` and `#[ResponseSchema]` alone is exported
+with an empty resource map. What the export does require is an operation. Every target audience is exported before
+anything is written, and if any of them documents no operations - because no route reaches it after the framework
+namespace exclusions and its posture - the command names each empty audience, writes nothing, not even the
+audiences that do document operations, and exits non-zero, so a CI step cannot pass without producing its file.
+Pass `--allow-empty` to write the empty documents anyway and exit successfully:
+
+```bash
+php artisan api-toolkit:export-openapi --all --allow-empty
 ```
 
 Each resource becomes a component schema and each documented route an operation carrying the query
