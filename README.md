@@ -728,7 +728,29 @@ clears them. Each invalidation leaves at most one copy of the metadata behind.
 
 ---
 
-### Service Input Summaries
+### Services
+
+A service is generic over its input and output. Declare both with `@extends Service<TInput, TOutput>`, and
+`$this->input` is typed as `TInput` in every hook, so a subclass reads its payload's properties directly with no `@var`
+narrowing. The input is readonly for the lifetime of the service, so a subclass with its own constructor passes it to
+`parent::__construct($input)` rather than redeclaring or assigning `$input`.
+
+```php
+/**
+ * @extends Service<SignInPayload, User>
+ */
+final class SignIn extends Service
+{
+    protected function handle(): mixed
+    {
+        return User::query()->where('email', $this->input->email)->firstOrFail();
+    }
+}
+
+$result = SignIn::make(SignInPayload::from($request))->run();
+```
+
+#### Input Summaries
 
 Each service run fires `ServiceCompleted` or `ServiceFailed`, and both events carry the input's `toArray()` as
 `inputSummary`. Listeners receive it unchanged, so whatever an audit log or error tracker writes from it is only as
