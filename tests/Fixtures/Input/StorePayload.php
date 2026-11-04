@@ -11,9 +11,10 @@ use Tests\Fixtures\Services\Input\Enums\StubStatusEnum;
 /**
  * Concrete Payload fixture used to prove container resolution end to end.
  *
- * A required string, an optional nullable integer, and an optional backed enum
- * exercise the hydration, defaulting, and enum-casting paths a type-hinted
- * controller argument must survive.
+ * A required string, an optional nullable integer, an optional backed enum, and
+ * a multi-word field read from its snake_case body key exercise the hydration,
+ * defaulting, enum-casting, and key-mapping paths a type-hinted controller
+ * argument must survive.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -26,6 +27,7 @@ final class StorePayload extends Payload
      * @param  string  $title
      * @param  int|null  $quantity
      * @param  \Tests\Fixtures\Services\Input\Enums\StubStatusEnum|null  $status
+     * @param  int|null  $unitPrice
      */
     public function __construct(
 
@@ -37,6 +39,9 @@ final class StorePayload extends Payload
 
         /** The status; optional, nullable, backed enum. */
         public readonly ?StubStatusEnum $status = null,
+
+        /** The unit price; optional, nullable integer, read from unit_price. */
+        public readonly ?int $unitPrice = null,
     ) {}
 
     /**
@@ -48,9 +53,10 @@ final class StorePayload extends Payload
     public static function rules(): array
     {
         return [
-            'title'    => ['required', 'string'],
-            'quantity' => ['sometimes', 'nullable', 'integer'],
-            'status'   => ['sometimes', 'nullable', Rule::enum(StubStatusEnum::class)],
+            'title'      => ['required', 'string'],
+            'quantity'   => ['sometimes', 'nullable', 'integer'],
+            'status'     => ['sometimes', 'nullable', Rule::enum(StubStatusEnum::class)],
+            'unit_price' => ['sometimes', 'nullable', 'integer'],
         ];
     }
 }
