@@ -5,13 +5,16 @@ declare(strict_types = 1);
 namespace Tests\Integration\Services;
 
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Route;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Services\Enums\ServiceSource;
+use SineMacula\ApiToolkit\Services\Events\ServiceCompleted;
 use SineMacula\ApiToolkit\Services\Input\ArrayInput;
 use SineMacula\ApiToolkit\Services\Jobs\ServiceJob;
 use SineMacula\ApiToolkit\Services\Service;
+use SineMacula\ApiToolkit\Services\ServiceContext;
 use SineMacula\ApiToolkit\Services\ServiceRunner;
 use Tests\Concerns\RegistersApiExceptionHandler;
 use Tests\Fixtures\Models\User;
@@ -27,8 +30,10 @@ use Tests\TestCase;
  * service inside the real request lifecycle and returns the created subject
  * through the toolkit resource response, and Service::dispatch() pushes a
  * ServiceJob carrying the service class and the explicit actor context onto a
- * faked queue. The queue re-hydration path itself is covered elsewhere; this
- * suite proves only the HTTP and dispatch entry points.
+ * faked queue. An HTTP route also builds the context from the request, and the
+ * service reads the captured metadata through context(). The queue re-hydration
+ * path itself is covered elsewhere; this suite proves only the HTTP and
+ * dispatch entry points.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -38,6 +43,7 @@ use Tests\TestCase;
 #[CoversClass(Service::class)]
 #[CoversClass(ServiceRunner::class)]
 #[CoversClass(ServiceJob::class)]
+#[CoversClass(ServiceContext::class)]
 final class ServiceHttpAndDispatchTest extends TestCase
 {
     use RegistersApiExceptionHandler;
@@ -81,6 +87,28 @@ final class ServiceHttpAndDispatchTest extends TestCase
 
             return UserResource::make($user);
         });
+
+        Route::get('/service-context', static function (Request $request): array {
+
+            $service = new class (new ArrayInput([])) extends Service {
+                /**
+                 * Return the client IP address read from the run context.
+                 *
+                 * @return array{ip: mixed}
+                 */
+                #[\Override]
+                protected function handle(): array
+                {
+                    return ['ip' => $this->context()->metadata[ServiceContext::METADATA_IP]];
+                }
+            };
+
+            $output = $service->withContext(ServiceContext::fromRequest($request, new StubActor))->runOrFail();
+
+            assert(is_array($output));
+
+            return $output;
+        });
     }
 
     /**
@@ -123,5 +151,29 @@ final class ServiceHttpAndDispatchTest extends TestCase
                 && $job->context->actor instanceof StubActor
                 && $job->context->actor->actorIdentifier() === 'stub-id'
                 && $job->context->source                   === ServiceSource::INTERNAL);
+    }
+
+    /**
+     * Test that a service run with the context built from the request reads the
+     * client IP address through context(), and that the request's X-Request-Id
+     * header reaches the completion event as the correlation id.
+     *
+     * @return void
+     */
+    public function testHttpActionReadsTheContextBuiltFromTheRequest(): void
+    {
+        Event::fake([ServiceCompleted::class]);
+
+        $response = $this->withServerVariables(['REMOTE_ADDR' => '198.51.100.4'])
+            ->getJson('/service-context', ['X-Request-Id' => 'edge-request-id']);
+
+        $response->assertOk();
+        $response->assertExactJson(['ip' => '198.51.100.4']);
+
+        Event::assertDispatched(
+            ServiceCompleted::class,
+            static fn (ServiceCompleted $event): bool => $event->correlationId === 'edge-request-id'
+                && $event->actor instanceof StubActor,
+        );
     }
 }

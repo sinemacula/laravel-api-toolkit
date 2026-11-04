@@ -15,9 +15,10 @@ use SineMacula\ApiToolkit\Exceptions\LockUnavailableException;
  *
  * Provides lock acquisition and release using Laravel's cache lock system.
  * Classes using this trait should implement the LockKeyProvider contract to
- * supply a lock key. Override the $lockExpiration property to customize the
- * lock duration (default 60 seconds). This trait has no dependency on the
- * Service base class or any other base class.
+ * supply a lock key, which lock() resolves afresh on every call. Override the
+ * $lockExpiration property to customize the lock duration (default 60 seconds).
+ * This trait has no dependency on the Service base class or any other base
+ * class.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -33,7 +34,7 @@ trait Lockable
     /** @var \Illuminate\Contracts\Cache\Lock|null The atomic cache lock */
     private ?Lock $lock = null;
 
-    /** @var string The key used for locking the task execution */
+    /** @var string A preset lock key, used in place of the LockKeyProvider one */
     private string $lockKey;
 
     /**
@@ -83,7 +84,7 @@ trait Lockable
      */
     private function resolveLockKey(): string
     {
-        return $this->lockKey ??= ($this instanceof LockKeyProvider
+        return $this->lockKey ?? ($this instanceof LockKeyProvider
             ? $this->getLockKey()
             : throw new LockOperationException('The lock key must be provided via the LockKeyProvider contract or by setting the $lockKey property'));
     }

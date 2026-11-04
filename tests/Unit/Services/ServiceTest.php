@@ -4,10 +4,12 @@ declare(strict_types = 1);
 
 namespace Tests\Unit\Services;
 
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Queue;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Contracts\LockKeyProvider;
+use SineMacula\ApiToolkit\Exceptions\LockUnavailableException;
 use SineMacula\ApiToolkit\Services\Actors\AnonymousActor;
 use SineMacula\ApiToolkit\Services\Contracts\Actor;
 use SineMacula\ApiToolkit\Services\Contracts\ServiceInput;
@@ -19,8 +21,10 @@ use SineMacula\ApiToolkit\Services\Jobs\ServiceJob;
 use SineMacula\ApiToolkit\Services\Service;
 use SineMacula\ApiToolkit\Services\ServiceContext;
 use SineMacula\ApiToolkit\Services\ServiceResult;
+use SineMacula\ApiToolkit\Services\ServiceRunner;
 use Tests\Fixtures\Exceptions\ServiceExecutionException;
 use Tests\Fixtures\Input\SampleInput;
+use Tests\Fixtures\Services\ContextRecordingService;
 use Tests\Fixtures\Services\FailingService;
 use Tests\Fixtures\Services\OutputService;
 use Tests\Fixtures\Services\StubActor;
@@ -31,8 +35,8 @@ use Tests\TestCase;
  * Tests for the Service base class.
  *
  * Covers the typed input skeleton, actor API, make/by/withContext fluent
- * methods, run() totality, runOrFail(), getLockKey(), and the serviceHooks()
- * seam.
+ * methods, run() totality, runOrFail(), getLockKey(), the run context read
+ * through context(), and the serviceHooks() and bindRunContext() seams.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -589,6 +593,324 @@ final class ServiceTest extends TestCase
                 $hook . '() must remain protected so subclasses can override it',
             );
         }
+    }
+
+    /**
+     * Test that context() inside handle() returns the context given through
+     * withContext().
+     *
+     * @return void
+     */
+    public function testContextReturnsTheAttachedContextDuringHandle(): void
+    {
+        $context = ServiceContext::for(new StubActor, ServiceSource::HTTP, ['ip' => '10.0.0.1'], 'attached-correlation');
+        $service = new ContextRecordingService(new ArrayInput([]));
+
+        $service->withContext($context)->run();
+
+        self::assertSame($context, $service->seen['handle']);
+    }
+
+    /**
+     * Test that with no context attached, context() returns the INTERNAL
+     * context run() built, which is the one the completion event reports.
+     *
+     * @return void
+     */
+    public function testContextWithoutAnAttachedContextIsTheInternalContextTheEventReports(): void
+    {
+        Event::fake([ServiceCompleted::class]);
+
+        $actor   = new StubActor;
+        $service = new ContextRecordingService(new ArrayInput([]));
+
+        $service->by($actor)->run();
+
+        $context = $service->seen['handle'];
+
+        self::assertSame(ServiceSource::INTERNAL, $context->source);
+        self::assertSame($actor, $context->actor);
+        self::assertSame([], $context->metadata);
+
+        Event::assertDispatched(
+            ServiceCompleted::class,
+            static fn (ServiceCompleted $event): bool => $event->correlationId === $context->correlationId
+                && $event->actor                                               === $actor,
+        );
+    }
+
+    /**
+     * Test that context() throws before the service has run.
+     *
+     * @return void
+     */
+    public function testContextThrowsBeforeARun(): void
+    {
+        $service = new ContextRecordingService(new ArrayInput([]));
+
+        $this->expectException(\LogicException::class);
+        $this->expectExceptionMessage('The service context is only available while the service is running.');
+
+        $service->currentContext();
+    }
+
+    /**
+     * Test that context() throws once the run has ended.
+     *
+     * @return void
+     */
+    public function testContextThrowsAfterARun(): void
+    {
+        $service = new ContextRecordingService(new ArrayInput([]));
+        $service->withContext(ServiceContext::for(new StubActor))->run();
+
+        $this->expectException(\LogicException::class);
+        $this->expectExceptionMessage('The service context is only available while the service is running.');
+
+        $service->currentContext();
+    }
+
+    /**
+     * Test that two runs of one instance without an attached context each get
+     * their own correlation id.
+     *
+     * @return void
+     */
+    public function testEachRunWithoutAnAttachedContextGetsItsOwnCorrelationId(): void
+    {
+        $service = new ContextRecordingService(new ArrayInput([]));
+
+        $service->run();
+        $first = $service->seen['handle'];
+
+        $service->run();
+        $second = $service->seen['handle'];
+
+        self::assertNotSame($first->correlationId, $second->correlationId);
+    }
+
+    /**
+     * Test that a run nested inside another run of the same instance sees its
+     * own context and restores the outer one when it ends.
+     *
+     * @return void
+     */
+    public function testNestedRunRestoresTheOuterContext(): void
+    {
+        $outer = ServiceContext::for(new StubActor, correlationId: 'outer-correlation');
+
+        $service = new class (new ArrayInput([])) extends Service {
+            /** @var \SineMacula\ApiToolkit\Services\ServiceContext|null The context the nested run was given */
+            public ?ServiceContext $nested = null;
+
+            /** @var \SineMacula\ApiToolkit\Services\ServiceContext|null The context read inside the nested run */
+            public ?ServiceContext $insideNested = null;
+
+            /** @var \SineMacula\ApiToolkit\Services\ServiceContext|null The context read after the nested run ended */
+            public ?ServiceContext $afterNested = null;
+
+            /**
+             * Run once more with an inner context on the first call, recording
+             * the context before and after.
+             *
+             * @return mixed
+             */
+            #[\Override]
+            protected function handle(): mixed
+            {
+                if ($this->nested !== null) {
+                    $this->insideNested = $this->context();
+
+                    return null;
+                }
+
+                $this->nested = ServiceContext::for(new AnonymousActor, correlationId: 'inner-correlation');
+
+                (new ServiceRunner)->run($this, $this->nested);
+
+                $this->afterNested = $this->context();
+
+                return null;
+            }
+        };
+
+        $service->withContext($outer)->run();
+
+        self::assertNotNull($service->nested);
+        self::assertSame($service->nested, $service->insideNested);
+        self::assertSame($outer, $service->afterNested);
+    }
+
+    /**
+     * Test that every lifecycle hook, concerns() and lockId() on the success
+     * path read the same context instance.
+     *
+     * @return void
+     */
+    public function testContextIsTheSameInstanceInEveryHookOnSuccess(): void
+    {
+        $context = ServiceContext::for(new StubActor);
+        $service = new ContextRecordingService(new ArrayInput([]));
+
+        $service->withContext($context)->run();
+
+        $hooks = ['concerns', 'lockId', 'authorize', 'validate', 'prepare', 'handle', 'afterCommit'];
+
+        self::assertSame($hooks, array_keys($service->seen));
+
+        foreach ($service->seen as $seen) {
+            self::assertSame($context, $seen);
+        }
+    }
+
+    /**
+     * Test that onFailure() reads the same context instance as the hooks that
+     * ran before the failure.
+     *
+     * @return void
+     */
+    public function testContextIsTheSameInstanceInOnFailure(): void
+    {
+        $context        = ServiceContext::for(new StubActor);
+        $service        = new ContextRecordingService(new ArrayInput([]));
+        $service->fails = true;
+
+        $service->withContext($context)->run();
+
+        self::assertArrayNotHasKey('afterCommit', $service->seen);
+        self::assertSame($context, $service->seen['handle']);
+        self::assertSame($context, $service->seen['onFailure']);
+    }
+
+    /**
+     * Test that while a run is in progress actor() returns the run context's
+     * actor, and the actor given to by() again once the run ends.
+     *
+     * @return void
+     */
+    public function testActorIsTheRunContextActorWhileRunning(): void
+    {
+        $given   = new StubActor;
+        $running = new AnonymousActor;
+
+        $service = new class (new ArrayInput([])) extends Service {
+            /** @var \SineMacula\ApiToolkit\Services\Contracts\Actor|null The actor read inside handle() */
+            public ?Actor $seenActor = null;
+
+            /**
+             * Record the actor read during the run.
+             *
+             * @return mixed
+             */
+            #[\Override]
+            protected function handle(): mixed
+            {
+                $this->seenActor = $this->actor();
+
+                return null;
+            }
+        };
+
+        $service->by($given);
+
+        (new ServiceRunner)->run($service, ServiceContext::for($running));
+
+        self::assertSame($running, $service->seenActor);
+        self::assertSame($given, $service->actor());
+    }
+
+    /**
+     * Test that by() after withContext() changes actor() outside a run but
+     * leaves the attached context, and so the run's actor, unchanged.
+     *
+     * @return void
+     */
+    public function testByAfterWithContextLeavesTheAttachedContextUnchanged(): void
+    {
+        Event::fake([ServiceCompleted::class]);
+
+        $attached = new StubActor;
+        $later    = new AnonymousActor;
+        $service  = new ContextRecordingService(new ArrayInput([]));
+
+        $service->withContext(ServiceContext::for($attached))->by($later)->run();
+
+        self::assertSame($attached, $service->seen['handle']->actor);
+        self::assertSame($later, $service->actor());
+        Event::assertDispatched(
+            ServiceCompleted::class,
+            static fn (ServiceCompleted $event): bool => $event->actor === $attached,
+        );
+    }
+
+    /**
+     * Test that a later run of a lockable instance whose lockId() reads the
+     * context locks on the key its own context derives, not the first run's.
+     *
+     * @return void
+     */
+    public function testLockableRunLocksOnTheKeyOfItsOwnContext(): void
+    {
+        $service = new class (new ArrayInput([])) extends Service {
+            /** @var bool Whether this service acquires a cache lock */
+            protected bool $lockable = true;
+
+            /**
+             * Return nothing.
+             *
+             * @return mixed
+             */
+            #[\Override]
+            protected function handle(): mixed
+            {
+                return null;
+            }
+
+            /**
+             * Derive the lock identity from the run's correlation id.
+             *
+             * @return string
+             */
+            #[\Override]
+            protected function lockId(): string
+            {
+                return $this->context()->correlationId;
+            }
+        };
+
+        $first  = ServiceContext::for(new StubActor, correlationId: 'first-run');
+        $second = ServiceContext::for(new StubActor, correlationId: 'second-run');
+
+        self::assertTrue($service->withContext($first)->run()->succeeded());
+
+        $held = Cache::lock(sha1($service::class . '|second-run'), 60);
+        $held->get();
+
+        try {
+            $result = $service->withContext($second)->run();
+        } finally {
+            $held->release();
+        }
+
+        self::assertInstanceOf(LockUnavailableException::class, $result->exception);
+    }
+
+    /**
+     * Test that bindRunContext() binds the given context and returns the one it
+     * replaced.
+     *
+     * @return void
+     */
+    public function testBindRunContextReturnsThePreviousContext(): void
+    {
+        $first   = ServiceContext::for(new StubActor);
+        $second  = ServiceContext::for(new StubActor);
+        $service = new ContextRecordingService(new ArrayInput([]));
+
+        self::assertNull($service->bindRunContext($first));
+        self::assertSame($first, $service->bindRunContext($second));
+        self::assertSame($second, $service->currentContext());
+        self::assertSame($second, $service->bindRunContext(null));
     }
 
     /**

@@ -205,6 +205,37 @@ so it may declare its own constructor dependencies. `withContext()` attaches a p
 (actor, correlation id, source, and metadata). `dispatch()` pushes the service onto the queue via
 `ServiceJob`, which re-runs it identically on the worker with the source set to `QUEUE`.
 
+### Services: a service reads its run context
+
+**Context.** Inside a run, `$this->context()` returns the `ServiceContext` the run uses: the one given through
+`withContext()`, the `INTERNAL` context `run()` builds when none was given, or the `QUEUE` context a queued run
+rebuilds on the worker. Every hook, `concerns()` and `lockId()` see the same instance, and calling it outside a run
+throws a `LogicException`. A closure that runs after the service returns must capture `$this->context()` first. Read
+ambient metadata from the context rather than injecting the `Request` into a service.
+
+**HTTP edge.** `ServiceContext::fromRequest($request, $actor, $metadata = [])` builds an `HTTP` context carrying the
+client IP address and user agent under `ServiceContext::METADATA_IP` and `ServiceContext::METADATA_USER_AGENT`, with
+`$metadata` merged over them. The correlation id comes from the header named by the new
+`api-toolkit.services.correlation_header` config (default `X-Request-Id`) when it holds a usable value, and is
+generated otherwise. Replace hand-built HTTP contexts with it:
+
+    // Before
+    ->withContext(ServiceContext::for($actor, ServiceSource::HTTP, [
+        'ip'         => $request->ip(),
+        'user_agent' => $request->userAgent(),
+    ]))
+
+    // After
+    ->withContext(ServiceContext::fromRequest($request, $actor))
+
+A published config file picks up the `services` section through the package defaults; copy it in only to change the
+header.
+
+**Actor consistency.** While a run is in progress `actor()` returns the run context's actor, and the
+`ServiceCompleted` and `ServiceFailed` events report that actor rather than the one given to `by()`. Calling `by()`
+after `withContext()` changes `actor()` outside a run but not the attached context, so the run still uses the
+context's actor.
+
 ### Services: the fixed lifecycle and its hooks
 
 `ServiceRunner` sequences the lifecycle in a single fixed, transaction-aware order:

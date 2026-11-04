@@ -8,6 +8,7 @@ use Illuminate\Contracts\Cache\Lock;
 use Illuminate\Support\Facades\Cache;
 use PHPUnit\Framework\Attributes\CoversTrait;
 use SineMacula\ApiToolkit\Concerns\Lockable;
+use SineMacula\ApiToolkit\Contracts\LockKeyProvider;
 use SineMacula\ApiToolkit\Exceptions\LockOperationException;
 use SineMacula\ApiToolkit\Exceptions\LockUnavailableException;
 use Tests\Fixtures\Traits\StandaloneLockableFixture;
@@ -260,6 +261,48 @@ final class LockableTest extends TestCase
 
         self::assertFalse($verificationLock->get());
 
+        $consumer->unlock();
+    }
+
+    /**
+     * Test that each lock() call resolves the provider's current key rather
+     * than reusing the key of an earlier call.
+     *
+     * @return void
+     */
+    public function testLockResolvesTheProviderKeyOnEveryCall(): void
+    {
+        $consumer = new class implements LockKeyProvider {
+            use Lockable;
+
+            /** @var string The identifier the next lock key is derived from */
+            public string $lockId = 'first-lock-id';
+
+            /**
+             * Generate the cache lock key from the current identifier.
+             *
+             * @return string
+             */
+            #[\Override]
+            public function getLockKey(): string
+            {
+                return 'rotating|' . $this->lockId;
+            }
+        };
+
+        $consumer->lock();
+        $consumer->unlock();
+
+        $consumer->lockId = 'second-lock-id';
+        $consumer->lock();
+
+        $first  = Cache::lock('rotating|first-lock-id', 60);
+        $second = Cache::lock('rotating|second-lock-id', 60);
+
+        self::assertTrue($first->get());
+        self::assertFalse($second->get());
+
+        $first->release();
         $consumer->unlock();
     }
 
