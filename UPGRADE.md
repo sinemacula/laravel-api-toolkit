@@ -1096,6 +1096,17 @@ itself is unaffected. Re-run `api-toolkit:docs:generate` and delete any `60-quer
 at the root of the docs directory by an earlier run; a shared file of that name is shadowed by the
 per-audience one where both exist, but is read by any audience the generator has not written a file for.
 
+### Changed: enum components list their values
+
+An enum component in the exported document carried only its `type`, so a client could not tell which values were
+valid. Each enum component now lists them under `enum`: the backing values of a backed enum, and the lowercase case
+names of a pure enum, which is the form a pure enum is now read from a request and written to a response in. A model
+attribute cast to a pure enum now references its enum component, as a backed-enum cast already did. The enum
+reference written by `api-toolkit:docs:generate` shows the same lowercase name in a pure enum's value cell, which
+held a hyphen.
+
+**Action required.** Regenerate any client built from the exported document, and re-run `api-toolkit:docs:generate`.
+
 ### Removed: Request macros in favour of the parsed query
 
 The request macros the toolkit used to register - `includeTrashed()` and `onlyTrashed()` - have been removed.

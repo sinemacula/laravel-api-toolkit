@@ -6,6 +6,7 @@ namespace SineMacula\ApiToolkit\OpenApi\Schema;
 
 use Illuminate\Validation\Rules\Enum;
 use Illuminate\Validation\Rules\Password;
+use SineMacula\ApiToolkit\Validation\Rules\PureEnum;
 
 /**
  * Flattens a Laravel rule definition into a list of string tokens.
@@ -16,10 +17,11 @@ use Illuminate\Validation\Rules\Password;
  * to interpret. Only a whole-string definition is split on pipes: an array
  * element is one rule, as the validator reads it, so a pattern or value
  * carrying a pipe survives intact. Rule objects are expanded best-effort: an
- * Enum contributes an `enum-class:` token naming the enum class so the builder
- * can reference its named component, and a Password contributes `string` plus
- * its minimum length; any other object is dropped, keeping the field while
- * discarding the constraint it could not translate.
+ * Enum or PureEnum contributes an `enum-class:` token naming the enum class so
+ * the builder can reference its named component, a PureEnum narrowed by only()
+ * or except() contributes the names it accepts as an `in:` list, and a Password
+ * contributes `string` plus its minimum length; any other object is dropped,
+ * keeping the field while discarding the constraint it could not translate.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -86,6 +88,7 @@ final readonly class RuleNormaliser
     {
         return match (true) {
             $rule instanceof Enum     => $this->enumTokens($rule),
+            $rule instanceof PureEnum => $this->pureEnumTokens($rule),
             $rule instanceof Password => $this->passwordTokens($rule),
             default                   => [],
         };
@@ -113,6 +116,23 @@ final readonly class RuleNormaliser
         }
 
         return ['enum-class:' . $type];
+    }
+
+    /**
+     * Expand a PureEnum rule into an `enum-class:` token naming the enum, or,
+     * when only() or except() narrows it, into a string token and an `in:` list
+     * of the names it accepts, since the enum's component lists every case.
+     *
+     * @param  \SineMacula\ApiToolkit\Validation\Rules\PureEnum  $rule
+     * @return list<string>
+     */
+    private function pureEnumTokens(PureEnum $rule): array
+    {
+        $names = $rule->names();
+
+        return count($names) === count($rule->enum::cases())
+            ? ['enum-class:' . $rule->enum]
+            : ['string', 'in:' . implode(',', $names)];
     }
 
     /**

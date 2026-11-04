@@ -13,9 +13,11 @@ use SineMacula\ApiToolkit\OpenApi\Builder\EnvelopeBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\PathBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\QueryParameterBuilder;
 use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
+use SineMacula\ApiToolkit\OpenApi\Exceptions\ResponseHeaderCollisionException;
 use SineMacula\ApiToolkit\OpenApi\Resolution\AudienceResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\DocumentableRouteFilter;
 use SineMacula\ApiToolkit\OpenApi\Resolution\RequestBodyResolver;
+use SineMacula\ApiToolkit\OpenApi\Resolution\ResponseHeaderResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ResponseSchemaResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\RouteMiddlewareResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\TagResolver;
@@ -33,10 +35,13 @@ use Tests\Fixtures\OpenApi\PathAttributelessController;
 use Tests\Fixtures\OpenApi\PathErrorController;
 use Tests\Fixtures\OpenApi\PathExcludedController;
 use Tests\Fixtures\OpenApi\PathFixtureController;
+use Tests\Fixtures\OpenApi\PathHeaderCollisionController;
+use Tests\Fixtures\OpenApi\PathHeaderedUserController;
 use Tests\Fixtures\OpenApi\PathInvokableController;
 use Tests\Fixtures\OpenApi\PathPlainController;
 use Tests\Fixtures\OpenApi\PathReflectionGapController;
 use Tests\Fixtures\OpenApi\PathRequestBodyController;
+use Tests\Fixtures\OpenApi\PathResponseHeaderController;
 use Tests\Fixtures\OpenApi\PathResponseSchemaController;
 use Tests\Fixtures\OpenApi\PathRouteFactsController;
 use Tests\Fixtures\OpenApi\PathTaggedController;
@@ -1477,6 +1482,148 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
+     * Test that the headers an action declares are documented under its success
+     * response, between its description and its content.
+     *
+     * @return void
+     */
+    public function testDeclaredHeadersAreDocumentedOnTheSuccessResponse(): void
+    {
+        $this->router()->post('sign-in', [PathResponseHeaderController::class, 'signIn']);
+
+        $success = $this->build()['/sign-in']['post']['responses'][200];
+
+        self::assertSame(['description', 'headers', 'content'], array_keys($success));
+        self::assertSame('The request succeeded.', $success['description']);
+        self::assertSame([
+            'Set-Cookie' => [
+                'description' => 'The refresh token, HttpOnly, Secure, SameSite=Strict.',
+                'schema'      => ['type' => 'string', 'pattern' => '^refresh_token='],
+            ],
+            'X-Session-Id' => ['schema' => ['type' => 'string']],
+        ], $success['headers']);
+        self::assertSame(['schema' => $this->undocumentedEnvelope()], $success['content']['application/json']);
+    }
+
+    /**
+     * Test that the headers a resource action declares follow the total-count
+     * header the exporter emits on a collection.
+     *
+     * @return void
+     */
+    public function testDeclaredHeadersFollowTheExporterHeadersOnAResource(): void
+    {
+        $this->router()->get('users', [PathHeaderedUserController::class, 'index']);
+
+        $success = $this->build()['/users']['get']['responses']['200'];
+
+        self::assertSame(['description', 'headers', 'content'], array_keys($success));
+        self::assertSame(
+            [
+                'Total-Count' => ['$ref' => '#/components/headers/Total-Count'],
+                'Link'        => ['description' => 'The links to the neighbouring pages.', 'schema' => ['type' => 'string']],
+            ],
+            $success['headers'],
+        );
+    }
+
+    /**
+     * Test that a resource action answering with no content still documents the
+     * headers it declares.
+     *
+     * @return void
+     */
+    public function testDeclaredHeadersAreDocumentedOnAnEmptyResourceResponse(): void
+    {
+        $this->router()->delete('users/{user}', [PathHeaderedUserController::class, 'destroy']);
+
+        self::assertSame([
+            'description' => 'The resource was deleted.',
+            'headers'     => [
+                'X-Deleted-At' => ['description' => 'When the resource was deleted.', 'schema' => ['type' => 'string', 'format' => 'date-time']],
+            ],
+        ], $this->build()['/users/{user}']['delete']['responses']['204']);
+    }
+
+    /**
+     * Test that declaring a header the exporter emits itself, under any case,
+     * fails the build rather than silently replacing it.
+     *
+     * @return void
+     */
+    public function testDeclaringAnExporterHeaderFailsTheBuild(): void
+    {
+        $this->router()->get('users', [PathHeaderCollisionController::class, 'index']);
+
+        $this->expectException(ResponseHeaderCollisionException::class);
+        $this->expectExceptionMessage(sprintf(
+            'The TOTAL-COUNT header declared for %s::index is emitted by the exporter and cannot be redeclared',
+            PathHeaderCollisionController::class,
+        ));
+
+        $this->build();
+    }
+
+    /**
+     * Test that an exception's declared headers, including those inherited from
+     * its parent, are documented on its status's error response, while a status
+     * whose exceptions declare none carries no headers.
+     *
+     * @return void
+     */
+    public function testThrownExceptionHeadersAreDocumentedOnTheErrorResponse(): void
+    {
+        $this->router()->post('sign-in', [PathResponseHeaderController::class, 'signIn']);
+
+        $responses = $this->build()['/sign-in']['post']['responses'];
+
+        self::assertSame(['description', 'headers', 'content'], array_keys($responses[429]));
+        self::assertSame(
+            ['Retry-After' => ['description' => 'The number of seconds to wait before retrying.', 'schema' => ['type' => 'integer']]],
+            $responses[429]['headers'],
+        );
+        self::assertSame(['BurstLimitedException'], array_keys($responses[429]['content']['application/json']['examples']));
+        self::assertSame(['description', 'content'], array_keys($responses[409]));
+        self::assertSame(['description', 'content'], array_keys($responses[500]));
+    }
+
+    /**
+     * Test that exceptions sharing a baseline status merge their declared
+     * headers onto that status's response.
+     *
+     * @return void
+     */
+    public function testThrownExceptionHeadersMergeOntoABaselineStatus(): void
+    {
+        $this->router()->post('quota', [PathResponseHeaderController::class, 'quota'])->middleware('throttle:60,1');
+
+        $response = $this->build()['/quota']['post']['responses'][429];
+
+        self::assertSame('Too many requests.', $response['description']);
+        self::assertSame(
+            ['retry-after', 'X-Quota-Reset', 'X-RateLimit-Limit', 'X-RateLimit-Remaining', 'X-RateLimit-Reset'],
+            array_keys($response['headers']),
+        );
+    }
+
+    /**
+     * Test that an operation declaring nothing, whose exceptions declare
+     * nothing, documents no header anywhere.
+     *
+     * @return void
+     */
+    public function testUndeclaredOperationDocumentsNoHeader(): void
+    {
+        $this->router()->get('bare', [PathResponseHeaderController::class, 'bare']);
+
+        $responses = $this->build()['/bare']['get']['responses'];
+
+        self::assertSame([200, 409, 500], array_keys($responses));
+        self::assertSame(['description' => 'The request succeeded.', 'content' => ['application/json' => ['schema' => $this->undocumentedEnvelope()]]], $responses[200]);
+        self::assertStringNotContainsString('"headers"', (string) json_encode($responses));
+    }
+
+    /**
      * The expected shared data envelope wrapping the x-undocumented marker.
      *
      * @return array<string, mixed>
@@ -1604,7 +1751,8 @@ final class PathBuilderTest extends TestCase
             new SecuritySchemeResolver(new SecuritySchemeMapper, new RouteMiddlewareResolver($this->router())),
             new QueryParameterBuilder($catalogue),
             new RouteMiddlewareResolver($this->router()),
-            new ThrowsErrorResolver,
+            new ThrowsErrorResolver(new ResponseHeaderResolver),
+            new ResponseHeaderResolver,
         );
     }
 

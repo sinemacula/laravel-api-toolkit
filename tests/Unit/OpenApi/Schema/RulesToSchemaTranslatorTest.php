@@ -8,6 +8,8 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\OpenApi\Schema\FieldSchemaBuilder;
 use SineMacula\ApiToolkit\OpenApi\Schema\RuleNormaliser;
 use SineMacula\ApiToolkit\OpenApi\Schema\RulesToSchemaTranslator;
+use SineMacula\ApiToolkit\Validation\Rules\PureEnum;
+use Tests\Fixtures\Enums\Platform;
 use Tests\Fixtures\OpenApi\ArticleRequestInput;
 use Tests\TestCase;
 
@@ -40,12 +42,26 @@ final class RulesToSchemaTranslatorTest extends TestCase
                 'summary'               => ['type' => ['string', 'null']],
                 'tags'                  => ['type' => 'array', 'items' => ['type' => 'string']],
                 'status'                => ['$ref' => '#/components/schemas/UserStatus'],
+                'platform'              => ['anyOf' => [['$ref' => '#/components/schemas/Platform'], ['type' => 'null']]],
                 'email'                 => ['type' => 'string', 'format' => 'email'],
                 'password'              => ['type' => 'string', 'minLength' => 8],
                 'password_confirmation' => ['type' => 'string'],
             ],
             'required' => ['title', 'email', 'password'],
         ], $schema);
+    }
+
+    /**
+     * Test that a narrowed pure enum field documents only the names it accepts
+     * inline, rather than referencing a component that lists every case.
+     *
+     * @return void
+     */
+    public function testNarrowedPureEnumFieldListsOnlyTheNamesItAccepts(): void
+    {
+        $schema = $this->translator()->translate(['platform' => [(new PureEnum(Platform::class))->except(Platform::WEB)]]);
+
+        self::assertSame(['type' => 'string', 'enum' => ['mobile_app', 'desktop']], $schema['properties']['platform']);
     }
 
     /**

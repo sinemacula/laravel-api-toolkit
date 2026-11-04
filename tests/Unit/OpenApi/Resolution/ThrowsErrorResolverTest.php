@@ -5,9 +5,11 @@ declare(strict_types = 1);
 namespace Tests\Unit\OpenApi\Resolution;
 
 use PHPUnit\Framework\Attributes\CoversClass;
+use SineMacula\ApiToolkit\OpenApi\Resolution\ResponseHeaderResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ThrowsErrorResolver;
 use Tests\Fixtures\OpenApi\PathErrorController;
 use Tests\Fixtures\OpenApi\PathReflectionGapController;
+use Tests\Fixtures\OpenApi\PathResponseHeaderController;
 use Tests\Fixtures\OpenApi\PathRouteFactsController;
 use Tests\TestCase;
 
@@ -30,12 +32,51 @@ final class ThrowsErrorResolverTest extends TestCase
      */
     public function testNamedApiExceptionsAreDescribedByStatus(): void
     {
-        self::assertSame([
-            401 => ['phrase' => 'Unauthorized.', 'examples' => ['UnauthenticatedException' => ['value' => ['error' => ['status' => 401, 'code' => 10101]]]]],
-            429 => ['phrase' => 'Too many requests.', 'examples' => ['TooManyRequestsException' => ['value' => ['error' => ['status' => 429, 'code' => 10107]]]]],
-            403 => ['phrase' => 'Forbidden.', 'examples' => ['ForbiddenException' => ['value' => ['error' => ['status' => 403, 'code' => 10102]]]]],
-            419 => ['phrase' => 'Token mismatch.', 'examples' => ['TokenMismatchException' => ['value' => ['error' => ['status' => 419, 'code' => 10105]]]]],
-        ], (new ThrowsErrorResolver)->resolve(PathRouteFactsController::class, 'signIn'));
+        $errors = (new ThrowsErrorResolver(new ResponseHeaderResolver))->resolve(PathRouteFactsController::class, 'signIn');
+
+        self::assertSame([401, 429, 403, 419], array_keys($errors));
+        self::assertSame($this->descriptor('Unauthorized.', 'UnauthenticatedException', 401, 10101), $errors[401]);
+        self::assertSame($this->descriptor('Forbidden.', 'ForbiddenException', 403, 10102), $errors[403]);
+        self::assertSame($this->descriptor('Token mismatch.', 'TokenMismatchException', 419, 10105), $errors[419]);
+        self::assertSame('Too many requests.', $errors[429]['phrase']);
+        self::assertSame(['TooManyRequestsException' => ['value' => ['error' => ['status' => 429, 'code' => 10107]]]], $errors[429]['examples']);
+    }
+
+    /**
+     * Test that an exception's declared headers, including those inherited from
+     * its parent, are carried under its status, while an exception declaring
+     * none carries no header.
+     *
+     * @return void
+     */
+    public function testDeclaredExceptionHeadersAreCarriedByStatus(): void
+    {
+        $errors = (new ThrowsErrorResolver(new ResponseHeaderResolver))->resolve(PathResponseHeaderController::class, 'signIn');
+
+        self::assertSame(
+            ['Retry-After' => ['description' => 'The number of seconds to wait before retrying.', 'schema' => ['type' => 'integer']]],
+            $errors[429]['headers'],
+        );
+        self::assertSame([], $errors[409]['headers']);
+    }
+
+    /**
+     * Test that exceptions sharing a status merge their headers in @throws
+     * order, the first declaration of a name winning.
+     *
+     * @return void
+     */
+    public function testExceptionsSharingStatusMergeHeaders(): void
+    {
+        $errors = (new ThrowsErrorResolver(new ResponseHeaderResolver))->resolve(PathResponseHeaderController::class, 'quota');
+
+        self::assertSame([429], array_keys($errors));
+        self::assertSame(['QuotaExceededException', 'TooManyRequestsException'], array_keys($errors[429]['examples']));
+        self::assertSame(
+            ['retry-after', 'X-Quota-Reset', 'X-RateLimit-Limit', 'X-RateLimit-Remaining', 'X-RateLimit-Reset'],
+            array_keys($errors[429]['headers']),
+        );
+        self::assertSame('The number of seconds until the quota resets.', $errors[429]['headers']['retry-after']['description']);
     }
 
     /**
@@ -46,7 +87,7 @@ final class ThrowsErrorResolverTest extends TestCase
      */
     public function testExceptionsSharingStatusMergeExamples(): void
     {
-        $errors = (new ThrowsErrorResolver)->resolve(PathErrorController::class, 'show');
+        $errors = (new ThrowsErrorResolver(new ResponseHeaderResolver))->resolve(PathErrorController::class, 'show');
 
         self::assertSame([422, 503], array_keys($errors));
         self::assertSame('Unprocessable content.', $errors[422]['phrase']);
@@ -58,6 +99,7 @@ final class ThrowsErrorResolverTest extends TestCase
             ],
             $errors[503]['examples'],
         );
+        self::assertSame(['Retry-After', 'Refresh'], array_keys($errors[503]['headers']));
     }
 
     /**
@@ -67,7 +109,7 @@ final class ThrowsErrorResolverTest extends TestCase
      */
     public function testNonApiThrowablesYieldNone(): void
     {
-        self::assertSame([], (new ThrowsErrorResolver)->resolve(PathErrorController::class, 'update'));
+        self::assertSame([], (new ThrowsErrorResolver(new ResponseHeaderResolver))->resolve(PathErrorController::class, 'update'));
     }
 
     /**
@@ -77,7 +119,7 @@ final class ThrowsErrorResolverTest extends TestCase
      */
     public function testActionWithoutDocCommentYieldsNone(): void
     {
-        self::assertSame([], (new ThrowsErrorResolver)->resolve(PathReflectionGapController::class, 'index'));
+        self::assertSame([], (new ThrowsErrorResolver(new ResponseHeaderResolver))->resolve(PathReflectionGapController::class, 'index'));
     }
 
     /**
@@ -88,6 +130,25 @@ final class ThrowsErrorResolverTest extends TestCase
      */
     public function testUndeclaredActionYieldsNone(): void
     {
-        self::assertSame([], (new ThrowsErrorResolver)->resolve(PathReflectionGapController::class, 'destroy'));
+        self::assertSame([], (new ThrowsErrorResolver(new ResponseHeaderResolver))->resolve(PathReflectionGapController::class, 'destroy'));
+    }
+
+    /**
+     * Build the descriptor expected for a status whose single exception
+     * declares no header.
+     *
+     * @param  string  $phrase
+     * @param  string  $name
+     * @param  int  $status
+     * @param  int  $code
+     * @return array<string, mixed>
+     */
+    private function descriptor(string $phrase, string $name, int $status, int $code): array
+    {
+        return [
+            'phrase'   => $phrase,
+            'examples' => [$name => ['value' => ['error' => ['status' => $status, 'code' => $code]]]],
+            'headers'  => [],
+        ];
     }
 }

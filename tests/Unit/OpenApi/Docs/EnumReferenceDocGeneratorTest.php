@@ -70,16 +70,17 @@ final class EnumReferenceDocGeneratorTest extends TestCase
     }
 
     /**
-     * Test that a pure enum renders a hyphen placeholder in the value cell.
+     * Test that a pure enum renders each case's lowercase name in the value
+     * cell, the form the API accepts it in.
      *
      * @return void
      */
-    public function testPureEnumRendersPlaceholderValue(): void
+    public function testPureEnumRendersLowercaseNameAsValue(): void
     {
         $markdown = $this->combinedGenerator()->generate([DocumentFormat::class]);
 
-        self::assertStringContainsString('| PDF | - |', $markdown);
-        self::assertStringContainsString('| HTML | - |', $markdown);
+        self::assertStringContainsString('| PDF | pdf |', $markdown);
+        self::assertStringContainsString('| HTML | html |', $markdown);
     }
 
     /**

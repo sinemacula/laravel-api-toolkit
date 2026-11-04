@@ -8,10 +8,12 @@ use Illuminate\Routing\Route;
 use Illuminate\Routing\Router;
 use SineMacula\ApiToolkit\Http\Routing\AuthorizedController;
 use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
+use SineMacula\ApiToolkit\OpenApi\Exceptions\ResponseHeaderCollisionException;
 use SineMacula\ApiToolkit\OpenApi\Naming\SchemaComponentName;
 use SineMacula\ApiToolkit\OpenApi\Resolution\AudienceResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\DocumentableRouteFilter;
 use SineMacula\ApiToolkit\OpenApi\Resolution\RequestBodyResolver;
+use SineMacula\ApiToolkit\OpenApi\Resolution\ResponseHeaderResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ResponseSchemaResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\RouteMiddlewareResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\TagResolver;
@@ -41,7 +43,11 @@ use SineMacula\ApiToolkit\OpenApi\Security\SecuritySchemeResolver;
  * statuses its route facts imply - 401 behind auth middleware, 403 behind an
  * authorization check, 404 with path parameters, 422 with a request body (or a
  * resource store or update), 429 behind a rate limit, and 500 always - merged
- * with any ApiException its action's @throws tags name. A route whose verbs
+ * with any ApiException its action's @throws tags name, each such error
+ * response carrying the headers its exceptions declare. The success response
+ * carries the headers a #[ResponseHeader] directive on the action or its
+ * controller declares, after any header the exporter emits itself; declaring a
+ * header the exporter already emits fails the build. A route whose verbs
  * include a body-bearing method - POST, PUT, or PATCH - also carries a
  * requestBody translated from the rules a #[RequestSchema] directive or a
  * type-hinted rules-source parameter reaches; a read-only route carries none. A
@@ -81,6 +87,9 @@ final readonly class PathBuilder
         500 => 'An unexpected server error occurred.',
     ];
 
+    /** The message thrown when an action redeclares an exporter-emitted header */
+    private const string HEADER_COLLISION_MESSAGE = 'The %s header declared for %s::%s is emitted by the exporter and cannot be redeclared';
+
     /** The media type every documented response body is served under */
     private const string MEDIA_TYPE = 'application/json';
 
@@ -105,6 +114,7 @@ final readonly class PathBuilder
      * @param  \SineMacula\ApiToolkit\OpenApi\Builder\QueryParameterBuilder  $queryParameters
      * @param  \SineMacula\ApiToolkit\OpenApi\Resolution\RouteMiddlewareResolver  $middleware
      * @param  \SineMacula\ApiToolkit\OpenApi\Resolution\ThrowsErrorResolver  $throws
+     * @param  \SineMacula\ApiToolkit\OpenApi\Resolution\ResponseHeaderResolver  $responseHeaders
      */
     public function __construct(
 
@@ -143,6 +153,9 @@ final readonly class PathBuilder
 
         /** The resolver of the ApiExceptions an action's throws tags name. */
         private ThrowsErrorResolver $throws,
+
+        /** The resolver of the headers an action declares it responds with. */
+        private ResponseHeaderResolver $responseHeaders,
     ) {}
 
     /**
@@ -218,11 +231,12 @@ final readonly class PathBuilder
         $schema = $this->responseSchema->resolve($controllerClass, $action) ?? $this->envelope->undocumentedEnvelope();
         $body   = ['content' => [self::MEDIA_TYPE => ['schema' => $schema]]];
 
-        $responses = match ($action) {
+        $declared  = $this->responseHeaders->forAction($controllerClass, $action);
+        $responses = array_map(fn (array $response): array => $this->withHeaders($response, $declared, $controllerClass, $action), match ($action) {
             'store'   => ['201' => ['description' => 'The request succeeded and a resource was created.', ...$body]],
             'destroy' => ['204' => ['description' => 'The request succeeded with no content.']],
             default   => ['200' => ['description' => 'The request succeeded.', ...$body]],
-        };
+        });
 
         $requestBody = array_intersect($this->verbs($route), self::BODY_VERBS) === []
             ? []
@@ -264,6 +278,8 @@ final readonly class PathBuilder
             return null;
         }
 
+        $declared    = $this->responseHeaders->forAction($controllerClass, $action);
+        $responses   = array_map(fn (array $response): array => $this->withHeaders($response, $declared, $controllerClass, $action), $responses);
         $requestBody = array_intersect($this->verbs($route), self::BODY_VERBS) === []
             ? []
             : $this->requestBody->resolve($controllerClass, $action) ?? [];
@@ -369,7 +385,7 @@ final readonly class PathBuilder
      *
      * @param  string  $method
      * @param  string  $ref
-     * @return array<int|string, mixed>|null
+     * @return array<int|string, array<string, mixed>>|null
      */
     private function responsesForAction(string $method, string $ref): ?array
     {
@@ -395,7 +411,7 @@ final readonly class PathBuilder
      * length-aware shape only.
      *
      * @param  string  $ref
-     * @return array<int|string, mixed>
+     * @return array<int|string, array<string, mixed>>
      */
     private function collectionResponse(string $ref): array
     {
@@ -428,7 +444,7 @@ final readonly class PathBuilder
      * @param  string  $status
      * @param  string  $ref
      * @param  string  $description
-     * @return array<int|string, mixed>
+     * @return array<int|string, array<string, mixed>>
      */
     private function singleResponse(string $status, string $ref, string $description): array
     {
@@ -445,7 +461,7 @@ final readonly class PathBuilder
     /**
      * Build the empty no-content response emitted by a destroy action.
      *
-     * @return array<int|string, mixed>
+     * @return array<int|string, array<string, mixed>>
      */
     private function noContentResponse(): array
     {
@@ -474,12 +490,12 @@ final readonly class PathBuilder
         $responses = [];
 
         foreach ($this->baselineErrorsFor($route, $acceptsBody) as $status) {
-            $responses[$status] = $this->errorResponse(self::BASELINE_PHRASES[$status], $throws[$status]['examples'] ?? []);
+            $responses[$status] = $this->errorResponse(self::BASELINE_PHRASES[$status], $throws[$status]['examples'] ?? [], $throws[$status]['headers'] ?? []);
             unset($throws[$status]);
         }
 
         foreach ($throws as $status => $descriptor) {
-            $responses[$status] = $this->errorResponse(self::BASELINE_PHRASES[$status] ?? $descriptor['phrase'], $descriptor['examples']);
+            $responses[$status] = $this->errorResponse(self::BASELINE_PHRASES[$status] ?? $descriptor['phrase'], $descriptor['examples'], $descriptor['headers']);
         }
 
         ksort($responses);
@@ -514,24 +530,60 @@ final readonly class PathBuilder
 
     /**
      * Build a single error response referencing the shared error-envelope
-     * schema, attaching a per-code examples map when concrete examples exist.
+     * schema, attaching the headers its exceptions declare and a per-code
+     * examples map when either exists.
      *
      * @param  string  $description
      * @param  array<string, array<string, mixed>>  $examples
+     * @param  array<string, array<string, mixed>>  $headers
      * @return array<string, mixed>
      */
-    private function errorResponse(string $description, array $examples): array
+    private function errorResponse(string $description, array $examples, array $headers): array
     {
-        $media = ['schema' => ['$ref' => self::ERROR_ENVELOPE_REF]];
+        $media    = ['schema' => ['$ref' => self::ERROR_ENVELOPE_REF]];
+        $response = ['description' => $description];
 
         if ($examples !== []) {
             $media['examples'] = $examples;
         }
 
-        return [
-            'description' => $description,
-            'content'     => [self::MEDIA_TYPE => $media],
-        ];
+        if ($headers !== []) {
+            $response['headers'] = $headers;
+        }
+
+        return [...$response, 'content' => [self::MEDIA_TYPE => $media]];
+    }
+
+    /**
+     * Attach the declared headers to a single success response, after any
+     * header the exporter emits there itself, leaving the response untouched
+     * when none is declared.
+     *
+     * @param  array<string, mixed>  $response
+     * @param  array<string, array<string, mixed>>  $declared
+     * @param  class-string|null  $controllerClass
+     * @param  string  $action
+     * @return array<string, mixed>
+     *
+     * @throws \SineMacula\ApiToolkit\OpenApi\Exceptions\ResponseHeaderCollisionException
+     */
+    private function withHeaders(array $response, array $declared, ?string $controllerClass, string $action): array
+    {
+        if ($declared === []) {
+            return $response;
+        }
+
+        /** @var array<string, array<string, mixed>> $emitted */
+        $emitted = $response['headers'] ?? [];
+        $owned   = array_change_key_case($emitted);
+
+        foreach (array_keys($declared) as $name) {
+            if (array_key_exists(strtolower($name), $owned)) {
+                throw new ResponseHeaderCollisionException(sprintf(self::HEADER_COLLISION_MESSAGE, $name, $controllerClass, $action));
+            }
+        }
+
+        return ['description' => $response['description'], 'headers' => [...$emitted, ...$declared]] + $response;
     }
 
     /**
