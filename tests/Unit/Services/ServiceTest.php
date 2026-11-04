@@ -18,8 +18,10 @@ use SineMacula\ApiToolkit\Services\Jobs\ServiceJob;
 use SineMacula\ApiToolkit\Services\Service;
 use SineMacula\ApiToolkit\Services\ServiceContext;
 use SineMacula\ApiToolkit\Services\ServiceResult;
+use Tests\Fixtures\Input\SampleInput;
 use Tests\Fixtures\Services\OutputService;
 use Tests\Fixtures\Services\StubActor;
+use Tests\Fixtures\Services\TypedInputService;
 use Tests\TestCase;
 
 /**
@@ -247,17 +249,30 @@ final class ServiceTest extends TestCase
     }
 
     /**
-     * Test that the typed input is accessible via $this->input.
+     * Test that handle() reads a typed property straight off $this->input.
      *
      * @return void
      */
-    public function testTypedInputIsAccessibleViaInputProperty(): void
+    public function testHandleReadsTypedPropertyFromInput(): void
     {
-        $input   = new ArrayInput(['key' => 'value']);
-        $service = new OutputService($input);
+        $service = new TypedInputService(new SampleInput(city: 'London'));
         $result  = $service->run();
 
         self::assertTrue($result->succeeded());
+        self::assertSame('London', $result->output());
+    }
+
+    /**
+     * Test that the input property is readonly.
+     *
+     * @return void
+     */
+    public function testInputPropertyIsReadonly(): void
+    {
+        $property = new \ReflectionProperty(Service::class, 'input');
+
+        self::assertTrue($property->isReadOnly());
+        self::assertTrue($property->isProtected());
     }
 
     /**
