@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Attributes\Table;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 use SineMacula\ApiToolkit\Services\Actors\EloquentActor;
 use Tests\Fixtures\Actors\ActorUser;
 use Tests\TestCase;
@@ -131,6 +132,61 @@ final class EloquentActorTest extends TestCase
         self::assertNotNull($resolved);
         self::assertInstanceOf(ActorUser::class, $resolved);
         self::assertSame($user->id, $resolved->getKey());
+    }
+
+    /**
+     * Test that a serialize()/unserialize() round trip re-resolves a model that
+     * has no morph alias from the class name it morphs to.
+     *
+     * @return void
+     */
+    public function testReResolvesUnmappedModelOnUnserialize(): void
+    {
+        Relation::morphMap([], false);
+
+        $user  = ActorUser::create(['name' => 'Ivy', 'email' => 'ivy@example.com', 'password' => 'secret']);
+        $actor = new EloquentActor($user);
+
+        /** @var \SineMacula\ApiToolkit\Services\Actors\EloquentActor $restored */
+        $restored = unserialize(serialize($actor));
+
+        self::assertSame(ActorUser::class, $restored->actorType());
+
+        $resolved = $restored->toAuthenticatable();
+
+        self::assertInstanceOf(ActorUser::class, $resolved);
+        self::assertSame($user->id, $resolved->getKey());
+    }
+
+    /**
+     * Test that a morph type naming neither a mapped alias nor a model resolves
+     * to no model.
+     *
+     * @param  string  $morphType
+     * @return void
+     */
+    #[DataProvider('unresolvableMorphTypeProvider')]
+    public function testUnresolvableMorphTypeResolvesToNull(string $morphType): void
+    {
+        $actor = new EloquentActor(ActorUser::create(['name' => 'Jack', 'email' => 'jack@example.com', 'password' => 'secret']));
+
+        $payload               = $actor->__serialize();
+        $payload['morph_type'] = $morphType;
+
+        $actor->__unserialize($payload);
+
+        self::assertNull($actor->toAuthenticatable());
+    }
+
+    /**
+     * Provide morph types that resolve to no model.
+     *
+     * @return iterable<string, array{string}>
+     */
+    public static function unresolvableMorphTypeProvider(): iterable
+    {
+        yield 'unknown alias' => ['unknown_alias'];
+        yield 'class that is not a model' => [\stdClass::class];
     }
 
     /**
