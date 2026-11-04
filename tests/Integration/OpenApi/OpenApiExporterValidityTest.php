@@ -35,9 +35,11 @@ use Tests\Fixtures\Models\User;
 use Tests\Fixtures\OpenApi\ColumnlessIntrospectionProvider;
 use Tests\Fixtures\OpenApi\PathArticleController;
 use Tests\Fixtures\OpenApi\PathFixtureController;
+use Tests\Fixtures\OpenApi\PathHeaderedUserController;
 use Tests\Fixtures\OpenApi\PathInvokableController;
 use Tests\Fixtures\OpenApi\PathOrganizationController;
 use Tests\Fixtures\OpenApi\PathRequestBodyController;
+use Tests\Fixtures\OpenApi\PathResponseHeaderController;
 use Tests\Fixtures\OpenApi\PathResponseSchemaController;
 use Tests\Fixtures\OpenApi\PathTagInternalController;
 use Tests\Fixtures\OpenApi\SignedInShape;
@@ -1063,6 +1065,39 @@ final class OpenApiExporterValidityTest extends TestCase
             ['ConflictException' => ['value' => ['error' => ['status' => 409, 'code' => 10108]]]],
             $conflict['examples'],
         );
+    }
+
+    /**
+     * Test that declared success headers and the headers thrown exceptions
+     * declare survive assembly, and the document carrying them still validates
+     * as OpenAPI 3.1.
+     *
+     * @return void
+     */
+    public function testDeclaredResponseHeadersSurviveAssemblyAndStayValid(): void
+    {
+        $this->router()->post('sign-in', [PathResponseHeaderController::class, 'signIn']);
+        $this->router()->post('quota', [PathResponseHeaderController::class, 'quota'])->middleware('throttle:60,1');
+        $this->router()->get('headered-users', [PathHeaderedUserController::class, 'index']);
+        $this->router()->delete('headered-users/{user}', [PathHeaderedUserController::class, 'destroy']);
+
+        $document = $this->export()->document;
+        $paths    = $document['paths'];
+
+        self::assertSame(['Set-Cookie', 'X-Session-Id'], array_keys($paths['/sign-in']['post']['responses']['200']['headers']));
+        self::assertSame(['Retry-After'], array_keys($paths['/sign-in']['post']['responses']['429']['headers']));
+        self::assertSame(
+            ['retry-after', 'X-Quota-Reset', 'X-RateLimit-Limit', 'X-RateLimit-Remaining', 'X-RateLimit-Reset'],
+            array_keys($paths['/quota']['post']['responses']['429']['headers']),
+        );
+        self::assertSame(['Total-Count', 'Link'], array_keys($paths['/headered-users']['get']['responses']['200']['headers']));
+        self::assertSame(['X-Deleted-At'], array_keys($paths['/headered-users/{user}']['delete']['responses']['204']['headers']));
+        self::assertArrayNotHasKey('headers', $paths['/sign-in']['post']['responses']['409']);
+
+        $result = $this->validateAgainstMetaSchema($document);
+
+        self::assertTrue($result->isValid(), 'A document carrying declared headers must validate as OpenAPI 3.1: ' . $this->formatErrors($result));
+        $this->assertReferencesResolve($document);
     }
 
     /**

@@ -702,6 +702,34 @@ public function team(): JsonResponse {}
 public function signIn(): JsonResponse {}
 ```
 
+Document the headers a response carries with `#[ResponseHeader]`, repeated once per header. On an action it adds the
+header to the success response; on a controller class it adds it to the success response of every action the
+controller handles, and an action's own declaration wins over its controller's. The schema defaults to a string and
+the description is optional. A header the export already emits, such as the `Total-Count` of a collection, cannot be
+declared again: the export fails rather than replace it. On an `ApiException` subclass it documents a header the
+exception may set, added to the error response of every action whose `@throws` tags name it. A subclass inherits the
+headers its parent classes declare, and exceptions sharing a status contribute every header they declare, the first
+declaration of a name winning. The toolkit's `TooManyRequestsException` documents the `Retry-After` and
+`X-RateLimit-*` headers the rate limiter sets, and its `MaintenanceModeException` the `Retry-After` and `Refresh`
+headers maintenance mode sets:
+
+```php
+use SineMacula\ApiToolkit\Exceptions\ApiException;
+use SineMacula\ApiToolkit\OpenApi\Attributes\ResponseHeader;
+
+#[ResponseSchema(SignedIn::class)]
+#[ResponseHeader('Set-Cookie', 'The refresh token, HttpOnly, Secure, SameSite=Strict.')]
+public function signIn(): JsonResponse {}
+
+#[ResponseHeader('Retry-After', 'The number of seconds to wait before retrying.', ['type' => 'integer'])]
+final class QuotaExceededException extends ApiException
+{
+    public const ErrorCodeInterface CODE = AppErrorCode::QUOTA_EXCEEDED;
+
+    public const HttpStatus HTTP_STATUS = HttpStatus::TOO_MANY_REQUESTS;
+}
+```
+
 A second command writes the generated reference sections - the error catalogue, the enum reference, and the
 query surface reference, which tables the queryable columns of the resources an audience documents beside
 the bounds a request is held to - into the Markdown docs directory assembled into the document's
