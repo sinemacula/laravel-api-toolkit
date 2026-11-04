@@ -33,17 +33,16 @@ abstract class Service implements ServiceInterface
     /** @var bool Indicate whether to lock the task execution */
     protected bool $useLock = false;
 
+    /** @var TPayload The service input payload */
+    protected array|Collection|stdClass $payload;
+
     /**
      * Constructor.
      *
      * @param  array<array-key, mixed>|\Illuminate\Support\Collection<array-key, mixed>|\stdClass  $payload
      */
-    public function __construct(
-
-        /** @var TPayload The service input payload */
-        protected array|Collection|stdClass $payload = []
-
-    ) {
+    public function __construct(array|Collection|stdClass $payload = [])
+    {
         if (!$payload instanceof Collection && !$payload instanceof stdClass) {
             $payload = collect($payload);
         }

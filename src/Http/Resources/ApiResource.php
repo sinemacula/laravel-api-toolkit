@@ -220,7 +220,7 @@ abstract class ApiResource extends BaseResource implements ApiResourceInterface
     /**
      * Return the resource schema.
      *
-     * @return array<string, array<string, mixed>>
+     * @return array<string, array<mixed>>
      */
     abstract public static function schema(): array;
 
