@@ -191,9 +191,11 @@ final class ServiceTest extends TestCase
 
         $service = new FailingService;
 
+        $this->expectException(ServiceExecutionException::class);
+
         try {
             $service->runOrFail();
-        } catch (ServiceExecutionException $exception) {
+        } catch (\Throwable $exception) {
             self::assertTrue($service->onFailureCalled);
             self::assertSame($exception, $service->onFailureException);
 
@@ -203,10 +205,8 @@ final class ServiceTest extends TestCase
             );
             Event::assertNotDispatched(ServiceCompleted::class);
 
-            return;
+            throw $exception;
         }
-
-        self::fail('runOrFail() must rethrow the exception thrown by handle().');
     }
 
     /**
