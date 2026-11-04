@@ -5,6 +5,7 @@ declare(strict_types = 1);
 namespace SineMacula\ApiToolkit\OpenApi\Resolution;
 
 use Illuminate\Auth\Middleware\Authenticate;
+use Illuminate\Auth\Middleware\AuthenticateWithBasicAuth;
 use Illuminate\Auth\Middleware\Authorize;
 use Illuminate\Routing\Middleware\ThrottleRequests;
 use Illuminate\Routing\Route;
@@ -17,7 +18,8 @@ use Illuminate\Support\Facades\Config;
  * The route's middleware is resolved the way the router dispatches it: groups
  * and aliases expand to classes and withoutMiddleware() exclusions apply, so a
  * guard or limit applied through a group is seen and a removed one is not. Each
- * resolved entry is classified by class: Laravel's Authenticate (an auth
+ * resolved entry is classified by class: Laravel's Authenticate (an auth guard)
+ * or AuthenticateWithBasicAuth (HTTP basic authentication, which names no
  * guard), Authorize (a `can:` check or an #[Authorize] attribute), and
  * ThrottleRequests (a rate limit), subclasses included. Anything else - an
  * unknown alias, a closure, an unrelated class - is ignored, and a controller
@@ -64,14 +66,16 @@ final readonly class RouteMiddlewareResolver
     }
 
     /**
-     * Determine whether the route requires an authenticated caller.
+     * Determine whether the route requires an authenticated caller, through an
+     * Authenticate guard or HTTP basic authentication.
      *
      * @param  \Illuminate\Routing\Route  $route
      * @return bool
      */
     public function authenticates(Route $route): bool
     {
-        return $this->parametersOf($route, Authenticate::class) !== [];
+        return $this->parametersOf($route, Authenticate::class) !== []
+            || $this->parametersOf($route, AuthenticateWithBasicAuth::class) !== [];
     }
 
     /**

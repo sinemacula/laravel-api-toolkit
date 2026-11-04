@@ -1371,9 +1371,28 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
+     * Test that a non-resource validation status follows the resolved request
+     * body rather than the action name: a body-bearing action of another name
+     * documents it, and a store declaring no rules does not.
+     *
+     * @return void
+     */
+    public function testNonResourceValidationErrorFollowsRequestBodyNotActionName(): void
+    {
+        $this->router()->post('imports', [PathRequestBodyController::class, 'both']);
+        $this->router()->post('posts', [PathUnmappedController::class, 'store']);
+
+        $paths = $this->build();
+
+        self::assertSame([200, 422, 500], array_keys($paths['/imports']['post']['responses']));
+        self::assertSame([201, 403, 500], array_keys($paths['/posts']['post']['responses']));
+    }
+
+    /**
      * Test that a non-resource action documents the ApiException subclasses its
-     * throws tags name under their statuses with code examples, ignoring the
-     * Throwable and LogicException tags beside them.
+     * throws tags name under their statuses with code examples, including a
+     * status the enum lacks, while ignoring the Throwable and LogicException
+     * tags beside them and an ApiException that reports no status.
      *
      * @return void
      */
@@ -1383,8 +1402,13 @@ final class PathBuilderTest extends TestCase
 
         $responses = $this->build()['/sign-in']['post']['responses'];
 
-        self::assertSame([200, 401, 403, 429, 500], array_keys($responses));
+        self::assertSame([200, 401, 403, 419, 429, 500], array_keys($responses));
         self::assertSame('Unauthenticated.', $responses[401]['description']);
+        self::assertSame('Token mismatch.', $responses[419]['description']);
+        self::assertSame(
+            ['TokenMismatchException' => ['value' => ['error' => ['status' => 419, 'code' => 10105]]]],
+            $responses[419]['content']['application/json']['examples'],
+        );
         self::assertSame(
             ['UnauthenticatedException' => ['value' => ['error' => ['status' => 401, 'code' => 10101]]]],
             $responses[401]['content']['application/json']['examples'],

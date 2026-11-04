@@ -17,6 +17,7 @@ use SineMacula\ApiToolkit\OpenApi\Resolution\ResponseSchemaResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\RouteMiddlewareResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\TagResolver;
 use SineMacula\ApiToolkit\OpenApi\Security\SecuritySchemeResolver;
+use SineMacula\Http\Enums\HttpStatus;
 
 /**
  * Builds the OpenAPI paths object for a single audience.
@@ -510,9 +511,10 @@ final readonly class PathBuilder
      * concrete ApiException error descriptors.
      *
      * Each @throws tag is normalised to a class name, kept only when it
-     * resolves to an ApiException subclass, then grouped by its resolved HTTP
-     * status. The example name is the exception's short class name, and a
-     * non-baseline status derives its phrase from the status enum case name.
+     * resolves to an ApiException subclass reporting an HTTP status, then
+     * grouped by that status. The example name is the exception's short class
+     * name, and a non-baseline status derives its phrase from the status enum
+     * case name, or from the exception's name for a status the enum lacks.
      *
      * @param  class-string  $controllerClass
      * @param  string  $action
@@ -538,21 +540,24 @@ final readonly class PathBuilder
 
             $exceptionClass = ltrim($class, '\\');
 
-            if (!is_subclass_of($exceptionClass, ApiException::class) || !defined($exceptionClass . '::HTTP_STATUS')) {
+            if (!is_subclass_of($exceptionClass, ApiException::class)) {
                 continue;
             }
 
-            $status = $exceptionClass::getHttpStatusCode();
+            try {
+                $status = $exceptionClass::getHttpStatusCode();
+            } catch (\LogicException) {
+                continue;
+            }
 
-            /** @var \SineMacula\Http\Enums\HttpStatus $enum */
-            $enum = constant($exceptionClass . '::HTTP_STATUS');
+            $short = substr((string) strrchr('\\' . $exceptionClass, '\\'), 1);
+            $name  = HttpStatus::tryFrom($status)?->name ?? strtoupper((string) preg_replace('/(?<!^)[A-Z]/', '_$0', (string) preg_replace('/Exception$/', '', $short)));
 
             $errors[$status] ??= [
-                'phrase'   => self::BASELINE_PHRASES[$status] ?? ucfirst(strtolower(str_replace('_', ' ', $enum->name))) . '.',
+                'phrase'   => self::BASELINE_PHRASES[$status] ?? ucfirst(strtolower(str_replace('_', ' ', $name))) . '.',
                 'examples' => [],
             ];
 
-            $short = substr((string) strrchr('\\' . $exceptionClass, '\\'), 1);
             $error = ['status' => $status];
 
             if (defined($exceptionClass . '::CODE')) {

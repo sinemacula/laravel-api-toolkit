@@ -633,9 +633,9 @@ Every operation also lists the errors it can return, derived from the route itse
 `403` behind an authorization check (a `can:` gate, an `#[Authorize]` attribute, or an `AuthorizedController`
 action), `404` when the path has parameters, `422` when the operation accepts a request body, `429` behind a rate
 limit, and `500` always. Middleware is read as the router resolves it, so a guard or limit applied through a group
-counts and one removed with `withoutMiddleware()` does not. Each `ApiException` subclass named in the action's
-`@throws` tags is added under its status with its error code as an example; any other throwable in those tags is
-ignored.
+counts and one removed with `withoutMiddleware()` does not. Each `ApiException` subclass named, fully qualified, in
+the action's `@throws` tags is added under its status with its error code as an example; any other throwable in those
+tags is ignored.
 
 A second command writes the generated reference sections - the error catalogue, the enum reference, and the
 query surface reference, which tables the queryable columns of the resources an audience documents beside

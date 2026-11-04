@@ -31,6 +31,8 @@ final class PathRouteFactsController
      * @throws \SineMacula\ApiToolkit\Exceptions\UnauthenticatedException
      * @throws \SineMacula\ApiToolkit\Exceptions\TooManyRequestsException
      * @throws \SineMacula\ApiToolkit\Exceptions\ForbiddenException
+     * @throws \SineMacula\ApiToolkit\Exceptions\TokenMismatchException
+     * @throws \Tests\Fixtures\OpenApi\StatuslessApiException
      */
     public function signIn(ServiceResult $result): mixed
     {

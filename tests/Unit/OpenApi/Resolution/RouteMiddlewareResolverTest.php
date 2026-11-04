@@ -60,6 +60,20 @@ final class RouteMiddlewareResolverTest extends TestCase
     }
 
     /**
+     * Test that HTTP basic authentication counts as authentication without
+     * contributing a guard.
+     *
+     * @return void
+     */
+    public function testBasicAuthAuthenticatesWithoutGuards(): void
+    {
+        $route = $this->route('auth.basic');
+
+        self::assertTrue($this->resolver()->authenticates($route));
+        self::assertSame([], $this->resolver()->guards($route));
+    }
+
+    /**
      * Test that everything after the first colon is the parameter list, as the
      * router itself parses it.
      *
