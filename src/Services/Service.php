@@ -54,8 +54,8 @@ abstract class Service implements LockKeyProvider
      */
     public function __construct(
 
-        /** The typed input for this service action */
-        protected ServiceInput $input,
+        /** @var TInput The typed input for this service action */
+        protected readonly ServiceInput $input,
     ) {}
 
     /**

@@ -616,6 +616,23 @@ and the live operator grammar:
 ```bash
 php artisan api-toolkit:export-openapi
 php artisan api-toolkit:export-openapi --output=openapi.json
+php artisan api-toolkit:export-openapi --audience=internal
+php artisan api-toolkit:export-openapi --all
+```
+
+Without options the configured default audience is written to `api-toolkit.openapi.output`. `--audience` exports
+one named audience, and `--all` exports every configured audience, each to its own file named by injecting the
+audience before the extension, so `openapi.json` becomes `openapi.public.json` and `openapi.internal.json`.
+
+Resources are not required: a route documented through `#[RequestSchema]` and `#[ResponseSchema]` alone is exported
+with an empty resource map. What the export does require is an operation. Every target audience is exported before
+anything is written, and if any of them documents no operations - because no route reaches it after the framework
+namespace exclusions and its posture - the command names each empty audience, writes nothing, not even the
+audiences that do document operations, and exits non-zero, so a CI step cannot pass without producing its file.
+Pass `--allow-empty` to write the empty documents anyway and exit successfully:
+
+```bash
+php artisan api-toolkit:export-openapi --all --allow-empty
 ```
 
 Each resource becomes a component schema and each documented route an operation carrying the query
@@ -748,7 +765,29 @@ clears them. Each invalidation leaves at most one copy of the metadata behind.
 
 ---
 
-### Service Input Summaries
+### Services
+
+A service is generic over its input and output. Declare both with `@extends Service<TInput, TOutput>`, and
+`$this->input` is typed as `TInput` in every hook, so a subclass reads its payload's properties directly with no `@var`
+narrowing. The input is readonly for the lifetime of the service, so a subclass with its own constructor passes it to
+`parent::__construct($input)` rather than redeclaring or assigning `$input`.
+
+```php
+/**
+ * @extends Service<SignInPayload, User>
+ */
+final class SignIn extends Service
+{
+    protected function handle(): mixed
+    {
+        return User::query()->where('email', $this->input->email)->firstOrFail();
+    }
+}
+
+$result = SignIn::make(SignInPayload::from($request))->run();
+```
+
+#### Input Summaries
 
 Each service run fires `ServiceCompleted` or `ServiceFailed`, and both events carry the input's `toArray()` as
 `inputSummary`. Listeners receive it unchanged, so whatever an audit log or error tracker writes from it is only as
@@ -775,6 +814,28 @@ SignInPayload::from(['email' => 'a@example.com', 'password' => 'secret'])->toArr
 The key is omitted rather than masked, and the value stays readable on the instance. A payload that overrides
 `toArray()` controls its summary entirely. Any other `ServiceInput` must keep secrets out of its own `toArray()`; an
 `ArrayInput` returns its array as given, so leave secrets out of the array it wraps.
+
+Body keys map to properties by their camelCase form: a `client_name` rule hydrates `$clientName`, and `toArray()`
+returns it as `client_name`, so the summary uses the same names as the body and the request schema. A property named
+exactly after a rule key takes precedence, and a property no rule maps keeps its own name. The map is read from the
+`rules()` keys once per class, so those keys must be static:
+
+```php
+final class StoreClientPayload extends Payload
+{
+    public function __construct(
+        public readonly string $clientName,
+    ) {}
+
+    public static function rules(): array
+    {
+        return ['client_name' => ['required', 'string']];
+    }
+}
+
+StoreClientPayload::from(['client_name' => 'Acme'])->clientName; // 'Acme'
+StoreClientPayload::from(['client_name' => 'Acme'])->toArray();  // ['client_name' => 'Acme']
+```
 
 ---
 
