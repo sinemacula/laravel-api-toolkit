@@ -8,6 +8,8 @@ use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Password;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\OpenApi\Schema\RuleNormaliser;
+use SineMacula\ApiToolkit\Validation\Rules\PureEnum;
+use Tests\Fixtures\Enums\Platform;
 use Tests\Fixtures\Enums\UserStatus;
 use Tests\TestCase;
 
@@ -95,6 +97,43 @@ final class RuleNormaliserTest extends TestCase
     public function testNotInObjectYieldsNoTokens(): void
     {
         self::assertSame([], (new RuleNormaliser)->normalise(Rule::notIn(['a'])));
+    }
+
+    /**
+     * Test that a PureEnum rule object expands to the same enum-class token as
+     * an Enum rule, so both reference the enum's named component.
+     *
+     * @return void
+     */
+    public function testPureEnumObjectExpandsToEnumClassToken(): void
+    {
+        self::assertSame(['nullable', 'enum-class:' . Platform::class], (new RuleNormaliser)->normalise(['nullable', new PureEnum(Platform::class)]));
+    }
+
+    /**
+     * Test that a PureEnum narrowed by only() or except() expands to a string
+     * token and an in: list of the names it accepts, since the enum's component
+     * lists every case.
+     *
+     * @return void
+     */
+    public function testNarrowedPureEnumExpandsToTheNamesItAccepts(): void
+    {
+        $normaliser = new RuleNormaliser;
+
+        self::assertSame(['string', 'in:web,desktop'], $normaliser->normalise((new PureEnum(Platform::class))->only([Platform::DESKTOP, Platform::WEB])));
+        self::assertSame(['string', 'in:mobile_app,desktop'], $normaliser->normalise((new PureEnum(Platform::class))->except(Platform::WEB)));
+    }
+
+    /**
+     * Test that a PureEnum whose only() list names every case still references
+     * the enum's component.
+     *
+     * @return void
+     */
+    public function testPureEnumOnlyNamingEveryCaseExpandsToEnumClassToken(): void
+    {
+        self::assertSame(['enum-class:' . Platform::class], (new RuleNormaliser)->normalise((new PureEnum(Platform::class))->only(Platform::cases())));
     }
 
     /**

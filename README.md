@@ -665,6 +665,11 @@ counts and one removed with `withoutMiddleware()` does not. Each `ApiException` 
 the action's `@throws` tags is added under its status with its error code as an example; any other throwable in those
 tags is ignored.
 
+Every enum the document references, through a model cast or a request field validated by `Rule::enum()` or
+`PureEnum`, becomes one named component listing its values under `enum`: the backing values of a backed enum, and the
+lowercase case names of a pure enum. Each field references the component rather than repeating the list, except a
+field whose `PureEnum` is narrowed by `only()` or `except()`, which lists the names it accepts inline.
+
 A route outside the resource pipeline documents its success body with `#[ResponseSchema]` on the action. Name a
 registered resource to reference its component, or a class implementing `DefinesSchema` to inline the JSON-Schema
 fragment its `schema()` returns; `collection: true` wraps the shape in the collection envelope instead. Name several
@@ -700,6 +705,34 @@ public function team(): JsonResponse {}
 
 #[ResponseSchema([SignedIn::class, PendingSignIn::class])]
 public function signIn(): JsonResponse {}
+```
+
+Document the headers a response carries with `#[ResponseHeader]`, repeated once per header. On an action it adds the
+header to the success response; on a controller class it adds it to the success response of every action the
+controller handles, and an action's own declaration wins over its controller's. The schema defaults to a string and
+the description is optional. A header the export already emits, such as the `Total-Count` of a collection, cannot be
+declared again: the export fails rather than replace it. On an `ApiException` subclass it documents a header the
+exception may set, added to the error response of every action whose `@throws` tags name it. A subclass inherits the
+headers its parent classes declare, and exceptions sharing a status contribute every header they declare, the first
+declaration of a name winning. The toolkit's `TooManyRequestsException` documents the `Retry-After` and
+`X-RateLimit-*` headers the rate limiter sets, and its `MaintenanceModeException` the `Retry-After` and `Refresh`
+headers maintenance mode sets:
+
+```php
+use SineMacula\ApiToolkit\Exceptions\ApiException;
+use SineMacula\ApiToolkit\OpenApi\Attributes\ResponseHeader;
+
+#[ResponseSchema(SignedIn::class)]
+#[ResponseHeader('Set-Cookie', 'The refresh token, HttpOnly, Secure, SameSite=Strict.')]
+public function signIn(): JsonResponse {}
+
+#[ResponseHeader('Retry-After', 'The number of seconds to wait before retrying.', ['type' => 'integer'])]
+final class QuotaExceededException extends ApiException
+{
+    public const ErrorCodeInterface CODE = AppErrorCode::QUOTA_EXCEEDED;
+
+    public const HttpStatus HTTP_STATUS = HttpStatus::TOO_MANY_REQUESTS;
+}
 ```
 
 A second command writes the generated reference sections - the error catalogue, the enum reference, and the
@@ -911,6 +944,45 @@ final class StoreClientPayload extends Payload
 StoreClientPayload::from(['client_name' => 'Acme'])->clientName; // 'Acme'
 StoreClientPayload::from(['client_name' => 'Acme'])->toArray();  // ['client_name' => 'Acme']
 ```
+
+#### Enum Input
+
+A promoted property typed as an enum is cast from the body. A backed enum is read from its value, so validate it
+with Laravel's `Rule::enum()`. A pure enum has no value, so the API reads and writes each case by its name in
+lowercase, matched exactly: `CONSOLE` and `Console` are refused. Validate it with `PureEnum`, which accepts only those
+names, narrows with `only()` and `except()` as `Rule::enum()` does, and fails with the same `validation.enum` message:
+
+```php
+use SineMacula\ApiToolkit\Validation\Rules\PureEnum;
+
+enum Application
+{
+    case PLATFORM;
+    case CONSOLE;
+    case WORKFORCE;
+}
+
+final class StartSessionPayload extends Payload
+{
+    public function __construct(
+        public readonly Application $application,
+    ) {}
+
+    public static function rules(): array
+    {
+        return ['application' => ['required', (new PureEnum(Application::class))->except(Application::WORKFORCE)]];
+    }
+}
+
+StartSessionPayload::from(['application' => 'console'])->application; // Application::CONSOLE
+```
+
+A backed enum is read only from its canonical form: a string for a string-backed enum, and an integer or its plain
+decimal string for an int-backed one, so `"3"` and `"-3"` from a form body are read while `"03"`, `"+3"` and `"3.0"`
+are refused even where `Rule::enum()` passes them. A value that matches no case in that form fails as a `422` keyed by
+its body key, even when `rules()` leaves the enum rule out. A resource field holding a pure enum case is serialised as
+the same lowercase name, so a value read from a response can be sent back unchanged. An enum whose case names collide
+once lowercased, such as `case Web` and `case WEB`, has no single wire form and throws a `LogicException`.
 
 ---
 

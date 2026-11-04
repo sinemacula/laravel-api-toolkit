@@ -5,6 +5,7 @@ declare(strict_types = 1);
 namespace SineMacula\ApiToolkit\OpenApi\Docs;
 
 use SineMacula\ApiToolkit\OpenApi\Naming\SchemaComponentName;
+use SineMacula\ApiToolkit\Support\PureEnumName;
 
 /**
  * Renders the referenced enums as an auto-generated Markdown section.
@@ -30,9 +31,6 @@ final readonly class EnumReferenceDocGenerator
 
     /** The fixed introduction printed beneath the heading. */
     private const string INTRO = 'The enumerations the API references, each listing its permitted cases.';
-
-    /** The value cell shown for a case with no backing value. */
-    private const string NO_VALUE = '-';
 
     /**
      * Create a new enum reference documentation generator.
@@ -129,7 +127,7 @@ final readonly class EnumReferenceDocGenerator
     {
         $value = $case instanceof \ReflectionEnumBackedCase
             ? (string) $case->getBackingValue()
-            : self::NO_VALUE;
+            : PureEnumName::of($case->getValue());
 
         return sprintf('| %s | %s |', $this->escape($case->getName()), $this->escape($value));
     }

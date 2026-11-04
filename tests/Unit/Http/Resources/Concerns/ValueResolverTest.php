@@ -18,6 +18,8 @@ use SineMacula\ApiToolkit\Schema\CompiledCountDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledSchema;
 use Tests\Concerns\InteractsWithNonPublicMembers;
+use Tests\Fixtures\Enums\Platform;
+use Tests\Fixtures\Enums\UserStatus;
 use Tests\Fixtures\Models\Organization;
 use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\User;
@@ -416,6 +418,70 @@ final class ValueResolverTest extends TestCase
         $result = $this->resolver->resolveFieldValue('count', $definition, $resource, null);
 
         self::assertSame(11, $result);
+    }
+
+    /**
+     * Test that a property holding a pure enum case resolves to its lowercase
+     * case name, the form the API accepts it in.
+     *
+     * @return void
+     */
+    public function testResolveFieldValueReturnsPureEnumAsLowercaseName(): void
+    {
+        $model = new class {
+            /** @var \Tests\Fixtures\Enums\Platform */
+            public Platform $platform = Platform::MOBILE_APP;
+        };
+
+        $result = $this->resolver->resolveFieldValue('platform', $this->makeFieldDefinition(), new JsonResource($model), null);
+
+        self::assertSame('mobile_app', $result);
+    }
+
+    /**
+     * Test that a property holding a backed enum case is left as the case, so
+     * it serialises as its backing value.
+     *
+     * @return void
+     */
+    public function testResolveFieldValueLeavesBackedEnumUnchanged(): void
+    {
+        $model = new class {
+            /** @var \Tests\Fixtures\Enums\UserStatus */
+            public UserStatus $status = UserStatus::BANNED;
+        };
+
+        $result = $this->resolver->resolveFieldValue('status', $this->makeFieldDefinition(), new JsonResource($model), null);
+
+        self::assertSame(UserStatus::BANNED, $result);
+    }
+
+    /**
+     * Test that a pure enum case returned by a transformer resolves to its
+     * lowercase case name, while the transformer itself receives the case.
+     *
+     * @return void
+     */
+    public function testResolveFieldValueReturnsTransformedPureEnumAsLowercaseName(): void
+    {
+        $model = new class {
+            /** @var \Tests\Fixtures\Enums\Platform */
+            public Platform $platform = Platform::WEB;
+        };
+
+        $definition = $this->makeFieldDefinition(
+            transformers: [
+                static function ($resource, $value): Platform {
+                    self::assertSame(Platform::WEB, $value);
+
+                    return Platform::DESKTOP;
+                },
+            ],
+        );
+
+        $result = $this->resolver->resolveFieldValue('platform', $definition, new JsonResource($model), null);
+
+        self::assertSame('desktop', $result);
     }
 
     /**

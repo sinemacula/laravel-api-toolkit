@@ -12,6 +12,7 @@ use Illuminate\Support\Collection;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
 use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledSchema;
+use SineMacula\ApiToolkit\Support\PureEnumName;
 
 /**
  * Resolves individual field values and counts payload from compiled schema
@@ -66,7 +67,9 @@ final class ValueResolver
      *
      * Uses a match expression to dispatch to the appropriate resolution
      * strategy: compute, relation, accessor, or simple property. Guards are
-     * evaluated first, and transformers are applied to the resolved value.
+     * evaluated first, and transformers are applied to the resolved value. A
+     * pure enum case resolves to its lowercase case name, the form the API
+     * accepts it in, since it has no backing value to serialise.
      *
      * @param  string  $field
      * @param  \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition  $definition
@@ -91,7 +94,7 @@ final class ValueResolver
             $value = $this->applyTransformers($definition->transformers, $resource, $value);
         }
 
-        return $value;
+        return $value instanceof \UnitEnum && !$value instanceof \BackedEnum ? PureEnumName::of($value) : $value;
     }
 
     /**

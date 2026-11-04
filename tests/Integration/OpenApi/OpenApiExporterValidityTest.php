@@ -35,9 +35,11 @@ use Tests\Fixtures\Models\User;
 use Tests\Fixtures\OpenApi\ColumnlessIntrospectionProvider;
 use Tests\Fixtures\OpenApi\PathArticleController;
 use Tests\Fixtures\OpenApi\PathFixtureController;
+use Tests\Fixtures\OpenApi\PathHeaderedUserController;
 use Tests\Fixtures\OpenApi\PathInvokableController;
 use Tests\Fixtures\OpenApi\PathOrganizationController;
 use Tests\Fixtures\OpenApi\PathRequestBodyController;
+use Tests\Fixtures\OpenApi\PathResponseHeaderController;
 use Tests\Fixtures\OpenApi\PathResponseSchemaController;
 use Tests\Fixtures\OpenApi\PathTagInternalController;
 use Tests\Fixtures\OpenApi\SignedInShape;
@@ -827,6 +829,32 @@ final class OpenApiExporterValidityTest extends TestCase
     }
 
     /**
+     * Test that a request field validated by the backed or the pure enum rule
+     * references an enum component listing the values the field accepts, and
+     * the document stays valid OpenAPI 3.1.
+     *
+     * @return void
+     */
+    public function testRequestEnumFieldsReferenceComponentsListingTheirValues(): void
+    {
+        $this->router()->post('articles', [PathRequestBodyController::class, 'store']);
+
+        $document   = $this->export()->document;
+        $properties = $document['paths']['/articles']['post']['requestBody']['content']['application/json']['schema']['properties'];
+        $schemas    = $document['components']['schemas'];
+
+        self::assertSame(['$ref' => '#/components/schemas/UserStatus'], $properties['status']);
+        self::assertSame(['anyOf' => [['$ref' => '#/components/schemas/Platform'], ['type' => 'null']]], $properties['platform']);
+        self::assertSame(['type' => 'string', 'enum' => ['active', 'inactive', 'banned']], $schemas['UserStatus']);
+        self::assertSame(['type' => 'string', 'enum' => ['web', 'mobile_app', 'desktop']], $schemas['Platform']);
+
+        self::assertTrue(
+            $this->validateAgainstMetaSchema($document)->isValid(),
+            'A document with enum components must validate as OpenAPI 3.1: ' . $this->formatErrors($this->validateAgainstMetaSchema($document)),
+        );
+    }
+
+    /**
      * Test that a route excluded from an audience is absent from that
      * audience's paths while remaining present in an audience documenting it.
      *
@@ -1071,6 +1099,39 @@ final class OpenApiExporterValidityTest extends TestCase
     }
 
     /**
+     * Test that declared success headers and the headers thrown exceptions
+     * declare survive assembly, and the document carrying them still validates
+     * as OpenAPI 3.1.
+     *
+     * @return void
+     */
+    public function testDeclaredResponseHeadersSurviveAssemblyAndStayValid(): void
+    {
+        $this->router()->post('sign-in', [PathResponseHeaderController::class, 'signIn']);
+        $this->router()->post('quota', [PathResponseHeaderController::class, 'quota'])->middleware('throttle:60,1');
+        $this->router()->get('headered-users', [PathHeaderedUserController::class, 'index']);
+        $this->router()->delete('headered-users/{user}', [PathHeaderedUserController::class, 'destroy']);
+
+        $document = $this->export()->document;
+        $paths    = $document['paths'];
+
+        self::assertSame(['Set-Cookie', 'X-Session-Id'], array_keys($paths['/sign-in']['post']['responses']['200']['headers']));
+        self::assertSame(['Retry-After'], array_keys($paths['/sign-in']['post']['responses']['429']['headers']));
+        self::assertSame(
+            ['retry-after', 'X-Quota-Reset', 'X-RateLimit-Limit', 'X-RateLimit-Remaining', 'X-RateLimit-Reset'],
+            array_keys($paths['/quota']['post']['responses']['429']['headers']),
+        );
+        self::assertSame(['Total-Count', 'Link'], array_keys($paths['/headered-users']['get']['responses']['200']['headers']));
+        self::assertSame(['X-Deleted-At'], array_keys($paths['/headered-users/{user}']['delete']['responses']['204']['headers']));
+        self::assertArrayNotHasKey('headers', $paths['/sign-in']['post']['responses']['409']);
+
+        $result = $this->validateAgainstMetaSchema($document);
+
+        self::assertTrue($result->isValid(), 'A document carrying declared headers must validate as OpenAPI 3.1: ' . $this->formatErrors($result));
+        $this->assertReferencesResolve($document);
+    }
+
+    /**
      * Test that the baseline error statuses attach per REST action end to end:
      * every authenticated, authorized action carries 401/403/500, an item read
      * or write also 404, and a write also 422, merged with the throws-derived
@@ -1179,7 +1240,7 @@ final class OpenApiExporterValidityTest extends TestCase
                 'sort' => ['key' => 'status', 'indexed' => true],
             ],
         ], $schemas['User']['properties']['status']);
-        self::assertSame(['type' => 'string'], $schemas['UserStatus']);
+        self::assertSame(['type' => 'string', 'enum' => ['active', 'inactive', 'banned']], $schemas['UserStatus']);
 
         self::assertTrue(
             $this->validateAgainstMetaSchema($document)->isValid(),
