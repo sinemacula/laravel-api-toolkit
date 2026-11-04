@@ -15,8 +15,9 @@ use SineMacula\ApiToolkit\Services\ServiceResult;
  * the success and failure cases so consumers can subscribe to each.
  *
  * The inputSummary is produced by the input's toArray() and flows verbatim to
- * every listener (audit, telemetry); it is not redacted here. A Payload leaves
- * out fields marked #[\SensitiveParameter]; other inputs must omit secrets.
+ * every listener (audit, telemetry); it is not redacted here. A Payload keys it
+ * in the body's form, so $clientName appears as client_name, and leaves out
+ * fields marked #[\SensitiveParameter]; other inputs must omit secrets.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.

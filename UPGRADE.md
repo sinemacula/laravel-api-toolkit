@@ -179,7 +179,9 @@ explicitly - the action layer never reads `Auth` or the current `Request` ambien
 implementations ship: extend `Payload` to declare promoted readonly properties plus Laravel `rules()`
 and build a validated instance with `Payload::from($request)` (or `from($array)`), or wrap an
 already-validated array in `ArrayInput` for the no-class case. A `Payload` leaves any promoted parameter
-marked `#[\SensitiveParameter]` out of the `inputSummary` the lifecycle events carry.
+marked `#[\SensitiveParameter]` out of the `inputSummary` the lifecycle events carry. Body keys map to
+camelCase properties (`client_name` hydrates `$clientName`, and `toArray()` returns `client_name`), with
+an exact-name property taking precedence.
 
     use SineMacula\ApiToolkit\Services\Input\ArrayInput;
 
