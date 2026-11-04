@@ -565,6 +565,21 @@ validation reads its metadata through the store.
 **Action required.** Run `php artisan optimize` (or `php artisan api-toolkit:resources:cache`) on every deploy.
 Rebuild or clear the compiled map after adding, moving, or re-binding a resource, or after changing `paths`.
 
+### Changed: dynamic morph mapping no longer requires a morph map
+
+In 1.x, `api-toolkit.resources.enable_dynamic_morph_mapping` called `Relation::enforceMorphMap()` with the
+aliases derived from the resource map, which required a morph map: a polymorphic write for any model without a
+resource, including a vendor model, threw `ClassMorphViolationException`. The derived aliases are now merged
+with `Relation::morphMap()` and a morph map is never required, so a model without a resource morphs to its class
+name. An alias or model your application has already mapped is left alone, and an alias claimed by more than
+one model is registered for none of them. Two distinct resources sharing a `RESOURCE_TYPE` are reported with a
+warning, or fail the boot when `validate_schemas` is enabled.
+
+**Action required.** If your application relied on the toolkit enforcing the morph map, call
+`Relation::requireMorphMap()` in your own service provider, and map any morphable model that has no resource.
+If a resource is bound to several models, or shares its `RESOURCE_TYPE` with another resource, register the
+aliases those models already store in your own `Relation::morphMap()`, or their stored rows no longer resolve.
+
 ### Changed: ApiCriteria decomposed; filter operators are extensible
 
 The protected `applyFilters()`, `applyEagerLoading()`, `applyLimit()`, and `applyOrder()` hooks have been

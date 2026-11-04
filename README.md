@@ -289,6 +289,16 @@ and the scan runs on every boot, so every diagnostic fires. Discovery never uses
 `validate_schemas` disabled boot and `route:cache` work without a reachable store; schema validation reads its
 metadata through the store.
 
+**Polymorphic aliases** - with `api-toolkit.resources.enable_dynamic_morph_mapping` on (the default), each
+resource's `RESOURCE_TYPE` is registered as its model's morph alias. The aliases merge with your own
+`Relation::morphMap()`, and your aliases always win: an alias you register, or a model you have already mapped,
+is left alone whatever the boot order. An alias claimed by more than one model is registered for none of them.
+The toolkit never requires a morph map, so a model without a resource (including a vendor model) keeps morphing
+to its class name; to make mapping strict, call `Relation::requireMorphMap()` in your own service provider. A
+later `Relation::morphMap([...], merge: false)` replaces the whole map, derived aliases included. The alias is
+what polymorphic rows store, so renaming a `RESOURCE_TYPE`, or binding a second model to a resource (which
+withholds its alias), orphans the rows already stored under the old alias.
+
 **Eager-load planning** - the resource builds `with()`/`withCount()`/`withSum()`/`withAvg()` maps from the
 resolved field set, so relations are loaded precisely and automatically:
 
