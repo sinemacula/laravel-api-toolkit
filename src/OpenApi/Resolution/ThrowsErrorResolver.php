@@ -16,9 +16,13 @@ use SineMacula\Http\Enums\HttpStatus;
  * HTTP_STATUS constant or a status override, and is grouped by that status. Any
  * other throwable, and an ApiException reporting no status, is ignored. Each
  * kept exception contributes an example named by its short class name and
- * carrying its status and error code. A status's phrase comes from the status
- * enum case name, or from the exception's name for a status the enum lacks. An
- * action that cannot be reflected or carries no doc comment yields none.
+ * carrying its status and error code, and the headers its #[ResponseHeader]
+ * directives declare it may set, read from the exception class and its parents.
+ * Exceptions sharing a status merge their headers by name, compared
+ * case-insensitively, keeping the first declaration in @throws order. A
+ * status's phrase comes from the status enum case name, or from the exception's
+ * name for a status the enum lacks. An action that cannot be reflected or
+ * carries no doc comment yields none.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -26,11 +30,22 @@ use SineMacula\Http\Enums\HttpStatus;
 final readonly class ThrowsErrorResolver
 {
     /**
+     * Constructor.
+     *
+     * @param  \SineMacula\ApiToolkit\OpenApi\Resolution\ResponseHeaderResolver  $headers
+     */
+    public function __construct(
+
+        /** The resolver of the headers each exception declares. */
+        private ResponseHeaderResolver $headers,
+    ) {}
+
+    /**
      * Resolve the status-keyed error descriptors for the action.
      *
      * @param  class-string  $controllerClass
      * @param  string  $action
-     * @return array<int, array{phrase: string, examples: array<string, array<string, mixed>>}>
+     * @return array<int, array{phrase: string, examples: array<string, array<string, mixed>>, headers: array<string, array<string, mixed>>}>
      */
     public function resolve(string $controllerClass, string $action): array
     {
@@ -44,11 +59,12 @@ final readonly class ThrowsErrorResolver
                 continue;
             }
 
-            [$status, $phrase, $name, $example] = $error;
+            [$status, $phrase, $name, $example, $headers] = $error;
 
-            $errors[$status] ??= ['phrase' => $phrase, 'examples' => []];
+            $errors[$status] ??= ['phrase' => $phrase, 'examples' => [], 'headers' => []];
 
             $errors[$status]['examples'][$name] = $example;
+            $errors[$status]['headers']         = $this->headers->merge($errors[$status]['headers'], $headers);
         }
 
         return $errors;
@@ -79,11 +95,12 @@ final readonly class ThrowsErrorResolver
     }
 
     /**
-     * Describe an exception class as its status, phrase, example name, and
-     * example, or null when it is not an ApiException reporting a status.
+     * Describe an exception class as its status, phrase, example name, example,
+     * and declared headers, or null when it is not an ApiException reporting a
+     * status.
      *
      * @param  string  $exceptionClass
-     * @return array{0: int, 1: string, 2: string, 3: array<string, mixed>}|null
+     * @return array{0: int, 1: string, 2: string, 3: array<string, mixed>, 4: array<string, array<string, mixed>>}|null
      */
     private function describe(string $exceptionClass): ?array
     {
@@ -106,7 +123,7 @@ final readonly class ThrowsErrorResolver
             $error['code'] = $code->getCode();
         }
 
-        return [$status, $this->phraseFor($status, $name), $name, ['value' => ['error' => $error]]];
+        return [$status, $this->phraseFor($status, $name), $name, ['value' => ['error' => $error]], $this->headers->forException($exceptionClass)];
     }
 
     /**
