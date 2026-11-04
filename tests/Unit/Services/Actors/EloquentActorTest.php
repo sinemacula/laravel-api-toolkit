@@ -159,6 +159,17 @@ final class EloquentActorTest extends TestCase
     }
 
     /**
+     * Provide morph types that resolve to no model.
+     *
+     * @return iterable<string, array{string}>
+     */
+    public static function unresolvableMorphTypeProvider(): iterable
+    {
+        yield 'unknown alias' => ['unknown_alias'];
+        yield 'class that is not a model' => [\stdClass::class];
+    }
+
+    /**
      * Test that a morph type naming neither a mapped alias nor a model resolves
      * to no model.
      *
@@ -176,17 +187,6 @@ final class EloquentActorTest extends TestCase
         $actor->__unserialize($payload);
 
         self::assertNull($actor->toAuthenticatable());
-    }
-
-    /**
-     * Provide morph types that resolve to no model.
-     *
-     * @return iterable<string, array{string}>
-     */
-    public static function unresolvableMorphTypeProvider(): iterable
-    {
-        yield 'unknown alias' => ['unknown_alias'];
-        yield 'class that is not a model' => [\stdClass::class];
     }
 
     /**
