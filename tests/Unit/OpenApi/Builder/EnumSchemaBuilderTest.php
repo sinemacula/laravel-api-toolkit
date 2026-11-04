@@ -9,8 +9,10 @@ use PHPUnit\Framework\TestCase;
 use SineMacula\ApiToolkit\OpenApi\Builder\EnumSchemaBuilder;
 use SineMacula\ApiToolkit\OpenApi\Exceptions\SchemaNameCollisionException;
 use Tests\Fixtures\Enums\Alternate\Tier as AlternateTier;
+use Tests\Fixtures\Enums\CollidingPlatform;
 use Tests\Fixtures\Enums\DocumentFormat;
 use Tests\Fixtures\Enums\Naming\Tier;
+use Tests\Fixtures\Enums\Platform;
 use Tests\Fixtures\Enums\Ranking\Tier as RankingTier;
 use Tests\Fixtures\Enums\UserLevel;
 use Tests\Fixtures\Enums\UserStatus;
@@ -28,7 +30,7 @@ final class EnumSchemaBuilderTest extends TestCase
 {
     /**
      * Test that a string-backed enum emits a string-typed component keyed by
-     * its basename.
+     * its basename, listing each case's backing value.
      *
      * @return void
      */
@@ -36,11 +38,12 @@ final class EnumSchemaBuilderTest extends TestCase
     {
         $schemas = (new EnumSchemaBuilder)->build([UserStatus::class]);
 
-        self::assertSame(['UserStatus' => ['type' => 'string']], $schemas);
+        self::assertSame(['UserStatus' => ['type' => 'string', 'enum' => ['active', 'inactive', 'banned']]], $schemas);
     }
 
     /**
-     * Test that an int-backed enum emits an integer-typed component.
+     * Test that an int-backed enum emits an integer-typed component listing
+     * each case's backing value.
      *
      * @return void
      */
@@ -48,19 +51,47 @@ final class EnumSchemaBuilderTest extends TestCase
     {
         $schemas = (new EnumSchemaBuilder)->build([UserLevel::class]);
 
-        self::assertSame(['UserLevel' => ['type' => 'integer']], $schemas);
+        self::assertSame(['UserLevel' => ['type' => 'integer', 'enum' => [1, 2, 3]]], $schemas);
     }
 
     /**
-     * Test that a non-backed enum falls back to a string-typed component.
+     * Test that a non-backed enum emits a string-typed component listing each
+     * case's lowercase name.
      *
      * @return void
      */
-    public function testNonBackedEnumEmitsStringComponent(): void
+    public function testNonBackedEnumEmitsLowercaseNameComponent(): void
     {
         $schemas = (new EnumSchemaBuilder)->build([DocumentFormat::class]);
 
-        self::assertSame(['DocumentFormat' => ['type' => 'string']], $schemas);
+        self::assertSame(['DocumentFormat' => ['type' => 'string', 'enum' => ['pdf', 'html']]], $schemas);
+    }
+
+    /**
+     * Test that a pure enum's component lists each multi-word case name
+     * lowercased with its underscore kept, in declaration order.
+     *
+     * @return void
+     */
+    public function testPureEnumComponentListsLowercaseNamesInDeclarationOrder(): void
+    {
+        $schemas = (new EnumSchemaBuilder)->build([Platform::class]);
+
+        self::assertSame(['Platform' => ['type' => 'string', 'enum' => ['web', 'mobile_app', 'desktop']]], $schemas);
+    }
+
+    /**
+     * Test that a pure enum whose case names collide once lowercased fails loud
+     * rather than documenting an ambiguous value.
+     *
+     * @return void
+     */
+    public function testPureEnumWithCollidingCaseNamesThrows(): void
+    {
+        $this->expectException(\LogicException::class);
+        $this->expectExceptionMessage(CollidingPlatform::class);
+
+        (new EnumSchemaBuilder)->build([CollidingPlatform::class]);
     }
 
     /**

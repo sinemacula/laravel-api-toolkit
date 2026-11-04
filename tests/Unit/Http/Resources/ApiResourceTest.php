@@ -18,6 +18,7 @@ use SineMacula\ApiToolkit\Schema\Field;
 use SineMacula\ApiToolkit\Schema\Relation;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 use SineMacula\Http\Enums\HttpMethod;
+use Tests\Fixtures\Enums\Platform;
 use Tests\Fixtures\Models\AggregateCapturingModel;
 use Tests\Fixtures\Models\Organization;
 use Tests\Fixtures\Models\Post;
@@ -482,6 +483,57 @@ final class ApiResourceTest extends TestCase
         $result = $resource->resolve();
 
         self::assertSame('LOWERCASE', $result['name']);
+    }
+
+    /**
+     * Test that a field cast to a pure enum serialises as the lowercase case
+     * name, the form the API accepts it in.
+     *
+     * @return void
+     */
+    public function testPureEnumCastFieldSerialisesAsLowercaseName(): void
+    {
+        $resourceClass = new class (null) extends ApiResource {
+            /** @var string */
+            public const string RESOURCE_TYPE = 'pure_enum_test';
+
+            /** @var array<int, string> */
+            protected static array $default = ['platform'];
+
+            /**
+             * Get the resource schema.
+             *
+             * @return array<string, array<string, mixed>>
+             */
+            #[\Override]
+            public static function schema(): array
+            {
+                return Field::set(Field::scalar('platform'));
+            }
+        };
+
+        $model = new class extends Model {
+            /**
+             * Get the attributes that should be cast.
+             *
+             * @return array<string, string>
+             */
+            #[\Override]
+            protected function casts(): array
+            {
+                return ['platform' => Platform::class];
+            }
+        };
+
+        $model->forceFill(['platform' => Platform::MOBILE_APP]);
+
+        $resource = new $resourceClass($model);
+        $resource->withFields(['platform']);
+
+        $result = $resource->resolve();
+
+        self::assertSame('mobile_app', $result['platform']);
+        self::assertStringContainsString('"platform":"mobile_app"', json_encode($result, JSON_THROW_ON_ERROR));
     }
 
     /**
