@@ -715,7 +715,8 @@ clears them. Each invalidation leaves at most one copy of the metadata behind.
 
 A service is generic over its input and output. Declare both with `@extends Service<TInput, TOutput>`, and
 `$this->input` is typed as `TInput` in every hook, so a subclass reads its payload's properties directly with no `@var`
-narrowing. The input is readonly for the lifetime of the service.
+narrowing. The input is readonly for the lifetime of the service, so a subclass with its own constructor passes it to
+`parent::__construct($input)` rather than redeclaring or assigning `$input`.
 
 ```php
 /**

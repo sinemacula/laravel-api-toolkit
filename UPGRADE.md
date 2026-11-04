@@ -182,7 +182,8 @@ already-validated array in `ArrayInput` for the no-class case. A `Payload` leave
 marked `#[\SensitiveParameter]` out of the `inputSummary` the lifecycle events carry. Declare the input
 and output types with `@extends Service<TInput, TOutput>`: `$this->input` is then typed as `TInput` in
 every hook, so drop any `@var` narrowing of it. The property is readonly, so a hook can no longer
-reassign `$this->input`.
+reassign `$this->input`, and a subclass constructor must pass the input to `parent::__construct($input)`
+rather than redeclaring `$input` as a promoted property or assigning `$this->input` itself.
 
     use SineMacula\ApiToolkit\Services\Input\ArrayInput;
 
