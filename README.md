@@ -637,6 +637,43 @@ counts and one removed with `withoutMiddleware()` does not. Each `ApiException` 
 the action's `@throws` tags is added under its status with its error code as an example; any other throwable in those
 tags is ignored.
 
+A route outside the resource pipeline documents its success body with `#[ResponseSchema]` on the action. Name a
+registered resource to reference its component, or a class implementing `DefinesSchema` to inline the JSON-Schema
+fragment its `schema()` returns; `collection: true` wraps the shape in the collection envelope instead. Name several
+classes to document a response that answers with any one of them, exported as a `oneOf` under `data` (or under each
+item of a collection). Give each member of a union a required property holding a constant of its own, such as a
+`status`, so a client can tell the shapes apart. If any named class is neither a registered resource nor a
+`DefinesSchema`, the body is left undocumented rather than documented in part:
+
+```php
+use SineMacula\ApiToolkit\OpenApi\Attributes\ResponseSchema;
+use SineMacula\ApiToolkit\OpenApi\Contracts\DefinesSchema;
+
+final class PendingSignIn implements DefinesSchema
+{
+    public static function schema(): array
+    {
+        return [
+            'type'       => 'object',
+            'properties' => [
+                'status'  => ['const' => 'pending'],
+                'choices' => ['type' => 'array', 'items' => ['type' => 'string']],
+            ],
+            'required' => ['status', 'choices'],
+        ];
+    }
+}
+
+#[ResponseSchema(UserResource::class)]
+public function me(): JsonResponse {}
+
+#[ResponseSchema(UserResource::class, collection: true)]
+public function team(): JsonResponse {}
+
+#[ResponseSchema([SignedIn::class, PendingSignIn::class])]
+public function signIn(): JsonResponse {}
+```
+
 A second command writes the generated reference sections - the error catalogue, the enum reference, and the
 query surface reference, which tables the queryable columns of the resources an audience documents beside
 the bounds a request is held to - into the Markdown docs directory assembled into the document's
