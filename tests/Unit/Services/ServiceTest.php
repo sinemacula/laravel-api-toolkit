@@ -4,10 +4,12 @@ declare(strict_types = 1);
 
 namespace Tests\Unit\Services;
 
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Queue;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Contracts\LockKeyProvider;
+use SineMacula\ApiToolkit\Exceptions\LockUnavailableException;
 use SineMacula\ApiToolkit\Services\Actors\AnonymousActor;
 use SineMacula\ApiToolkit\Services\Contracts\Actor;
 use SineMacula\ApiToolkit\Services\Contracts\ServiceInput;
@@ -839,6 +841,58 @@ final class ServiceTest extends TestCase
             ServiceCompleted::class,
             static fn (ServiceCompleted $event): bool => $event->actor === $attached,
         );
+    }
+
+    /**
+     * Test that a later run of a lockable instance whose lockId() reads the
+     * context locks on the key its own context derives, not the first run's.
+     *
+     * @return void
+     */
+    public function testLockableRunLocksOnTheKeyOfItsOwnContext(): void
+    {
+        $service = new class (new ArrayInput([])) extends Service {
+            /** @var bool Whether this service acquires a cache lock */
+            protected bool $lockable = true;
+
+            /**
+             * Return nothing.
+             *
+             * @return mixed
+             */
+            #[\Override]
+            protected function handle(): mixed
+            {
+                return null;
+            }
+
+            /**
+             * Derive the lock identity from the run's correlation id.
+             *
+             * @return string
+             */
+            #[\Override]
+            protected function lockId(): string
+            {
+                return $this->context()->correlationId;
+            }
+        };
+
+        $first  = ServiceContext::for(new StubActor, correlationId: 'first-run');
+        $second = ServiceContext::for(new StubActor, correlationId: 'second-run');
+
+        self::assertTrue($service->withContext($first)->run()->succeeded());
+
+        $held = Cache::lock(sha1($service::class . '|second-run'), 60);
+        $held->get();
+
+        try {
+            $result = $service->withContext($second)->run();
+        } finally {
+            $held->release();
+        }
+
+        self::assertInstanceOf(LockUnavailableException::class, $result->exception);
     }
 
     /**
