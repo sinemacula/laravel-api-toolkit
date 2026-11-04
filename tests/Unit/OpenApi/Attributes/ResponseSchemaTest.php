@@ -7,6 +7,9 @@ namespace Tests\Unit\OpenApi\Attributes;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 use SineMacula\ApiToolkit\OpenApi\Attributes\ResponseSchema;
+use Tests\Fixtures\OpenApi\PendingSignInShape;
+use Tests\Fixtures\OpenApi\SignedInShape;
+use Tests\Fixtures\Resources\UserResource;
 
 /**
  * Tests for the ResponseSchema attribute.
@@ -27,9 +30,9 @@ final class ResponseSchemaTest extends TestCase
      */
     public function testDescribesASingleItemUnlessToldOtherwise(): void
     {
-        $directive = new ResponseSchema('App\Http\Resources\UserResource');
+        $directive = new ResponseSchema(UserResource::class);
 
-        self::assertSame(['App\Http\Resources\UserResource'], $directive->schemas);
+        self::assertSame([UserResource::class], $directive->schemas);
         self::assertFalse($directive->collection);
     }
 
@@ -40,7 +43,7 @@ final class ResponseSchemaTest extends TestCase
      */
     public function testCarriesTheCollectionFlag(): void
     {
-        self::assertTrue((new ResponseSchema('App\Http\Resources\UserResource', true))->collection);
+        self::assertTrue((new ResponseSchema(UserResource::class, true))->collection);
     }
 
     /**
@@ -51,9 +54,9 @@ final class ResponseSchemaTest extends TestCase
      */
     public function testKeepsAListOfClassesInDeclaredOrder(): void
     {
-        $directive = new ResponseSchema(['App\Data\SignedIn', 'App\Data\PendingSignIn']);
+        $directive = new ResponseSchema([SignedInShape::class, PendingSignInShape::class]);
 
-        self::assertSame(['App\Data\SignedIn', 'App\Data\PendingSignIn'], $directive->schemas);
+        self::assertSame([SignedInShape::class, PendingSignInShape::class], $directive->schemas);
     }
 
     /**
@@ -64,9 +67,9 @@ final class ResponseSchemaTest extends TestCase
      */
     public function testReindexesAKeyedArrayOfClasses(): void
     {
-        $directive = new ResponseSchema(['signed' => 'App\Data\SignedIn', 'pending' => 'App\Data\PendingSignIn']);
+        $directive = new ResponseSchema(['signed' => SignedInShape::class, 'pending' => PendingSignInShape::class]);
 
-        self::assertSame(['App\Data\SignedIn', 'App\Data\PendingSignIn'], $directive->schemas);
+        self::assertSame([SignedInShape::class, PendingSignInShape::class], $directive->schemas);
     }
 
     /**
@@ -93,7 +96,7 @@ final class ResponseSchemaTest extends TestCase
         $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionMessage('A response schema must name each class as a string');
 
-        new ResponseSchema(['App\Data\SignedIn', 42]);
+        new ResponseSchema([SignedInShape::class, 42]);
     }
 
     /**
@@ -110,13 +113,13 @@ final class ResponseSchemaTest extends TestCase
              *
              * @return void
              */
-            #[ResponseSchema(['App\Http\Resources\UserResource', 'App\Data\PendingSignIn'], true)]
+            #[ResponseSchema([UserResource::class, PendingSignInShape::class], true)]
             public function index(): void {}
         };
 
         $directive = (new \ReflectionMethod($subject, 'index'))->getAttributes(ResponseSchema::class)[0]->newInstance();
 
-        self::assertSame(['App\Http\Resources\UserResource', 'App\Data\PendingSignIn'], $directive->schemas);
+        self::assertSame([UserResource::class, PendingSignInShape::class], $directive->schemas);
         self::assertTrue($directive->collection);
     }
 }
