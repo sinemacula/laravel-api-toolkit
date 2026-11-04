@@ -633,7 +633,7 @@ final class ServiceTest extends TestCase
         Event::assertDispatched(
             ServiceCompleted::class,
             static fn (ServiceCompleted $event): bool => $event->correlationId === $context->correlationId
-                && $event->actor                                             === $actor,
+                && $event->actor                                               === $actor,
         );
     }
 

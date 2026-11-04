@@ -279,6 +279,17 @@ final class ServiceContextTest extends TestCase
     }
 
     /**
+     * Provide the configured header values that disable header reading.
+     *
+     * @return iterable<string, array{string|null}>
+     */
+    public static function disabledHeaderProvider(): iterable
+    {
+        yield 'null' => [null];
+        yield 'empty string' => [''];
+    }
+
+    /**
      * Test that fromRequest() generates a correlation id when header reading is
      * disabled.
      *
@@ -291,32 +302,6 @@ final class ServiceContextTest extends TestCase
         Config::set(ServiceContext::CORRELATION_HEADER_KEY, $header);
 
         $context = ServiceContext::fromRequest($this->makeRequest(['HTTP_X_REQUEST_ID' => 'req-42']), $this->makeActor());
-
-        self::assertTrue(Str::isUuid($context->correlationId));
-    }
-
-    /**
-     * Provide the configured header values that disable header reading.
-     *
-     * @return iterable<string, array{string|null}>
-     */
-    public static function disabledHeaderProvider(): iterable
-    {
-        yield 'null' => [null];
-        yield 'empty string' => [''];
-    }
-
-    /**
-     * Test that fromRequest() generates a correlation id when the header value
-     * is not a usable one.
-     *
-     * @param  string  $value
-     * @return void
-     */
-    #[DataProvider('invalidCorrelationIdProvider')]
-    public function testFromRequestGeneratesACorrelationIdForAnInvalidHeaderValue(string $value): void
-    {
-        $context = ServiceContext::fromRequest($this->makeRequest(['HTTP_X_REQUEST_ID' => $value]), $this->makeActor());
 
         self::assertTrue(Str::isUuid($context->correlationId));
     }
@@ -336,6 +321,21 @@ final class ServiceContextTest extends TestCase
         yield 'trailing control character' => ["req-42\x01"];
         yield 'delete character' => ["req-42\x7F"];
         yield 'non-ASCII character' => ['req-42-é'];
+    }
+
+    /**
+     * Test that fromRequest() generates a correlation id when the header value
+     * is not a usable one.
+     *
+     * @param  string  $value
+     * @return void
+     */
+    #[DataProvider('invalidCorrelationIdProvider')]
+    public function testFromRequestGeneratesACorrelationIdForAnInvalidHeaderValue(string $value): void
+    {
+        $context = ServiceContext::fromRequest($this->makeRequest(['HTTP_X_REQUEST_ID' => $value]), $this->makeActor());
+
+        self::assertTrue(Str::isUuid($context->correlationId));
     }
 
     /**
