@@ -6,6 +6,7 @@ namespace Tests\Unit\Services;
 
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
+use SineMacula\ApiToolkit\Exceptions\ServiceFailedException;
 use SineMacula\ApiToolkit\Services\Enums\ServiceStatus;
 use SineMacula\ApiToolkit\Services\ServiceResult;
 
@@ -146,17 +147,26 @@ final class ServiceResultTest extends TestCase
     }
 
     /**
-     * Test that throw() returns $this when failed with a null exception.
+     * Test that throw() raises a ServiceFailedException carrying the result
+     * when the result failed without capturing an exception.
      *
      * @return void
      *
      * @throws \Throwable
      */
-    public function testThrowReturnsSelfWhenFailedWithNullException(): void
+    public function testThrowRaisesServiceFailedExceptionWhenFailedWithNullException(): void
     {
-        $result = ServiceResult::failure();
+        $result = ServiceResult::failure(null, 'partial');
 
-        self::assertSame($result, $result->throw());
+        try {
+            $result->throw();
+        } catch (ServiceFailedException $exception) {
+            self::assertSame($result, $exception->result());
+
+            return;
+        }
+
+        self::fail('A failed result without an exception must throw.');
     }
 
     /**

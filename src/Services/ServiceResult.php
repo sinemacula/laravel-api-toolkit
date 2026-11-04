@@ -4,6 +4,7 @@ declare(strict_types = 1);
 
 namespace SineMacula\ApiToolkit\Services;
 
+use SineMacula\ApiToolkit\Exceptions\ServiceFailedException;
 use SineMacula\ApiToolkit\Services\Enums\ServiceStatus;
 
 /**
@@ -13,7 +14,8 @@ use SineMacula\ApiToolkit\Services\Enums\ServiceStatus;
  * successful result carries the typed output and any side-effect errors
  * collected during afterCommit processing. A failed result carries the
  * exception that caused the failure, or null when failure was signalled without
- * throwing. Failed results never carry side-effect errors.
+ * throwing. Failed results never carry side-effect errors, and throw() raises
+ * every failed result, so a failure never reaches the caller as output.
  *
  * @template TOutput
  *
@@ -121,11 +123,11 @@ final readonly class ServiceResult
     }
 
     /**
-     * Rethrow the captured exception when failed; otherwise return $this to
-     * allow fluent chaining.
+     * Throw when failed; otherwise return $this to allow fluent chaining.
      *
-     * When the result failed but no exception was captured, this method returns
-     * $this without throwing.
+     * A failed result always throws: the captured exception when there is one,
+     * or a ServiceFailedException carrying this result when failure was
+     * signalled without one, so a failure never comes back as output.
      *
      * @return $this
      *
@@ -133,8 +135,8 @@ final readonly class ServiceResult
      */
     public function throw(): self
     {
-        if ($this->failed() && $this->exception !== null) {
-            throw $this->exception;
+        if ($this->failed()) {
+            throw $this->exception ?? new ServiceFailedException($this);
         }
 
         return $this;

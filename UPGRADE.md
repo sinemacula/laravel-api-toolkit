@@ -279,8 +279,9 @@ been removed. The result carries:
 - `exception` - the captured `Throwable` on failure, or `null` when failure was signalled without
   throwing.
 - `sideEffectErrors` - any `Throwable`s caught from `afterCommit()`, via `sideEffectErrors()`.
-- `throw()` - rethrows the captured exception when the result failed, otherwise returns the result for
-  chaining.
+- `throw()` - throws when the result failed, otherwise returns the result for chaining. It rethrows the
+  captured exception, or throws a `ServiceFailedException` (whose `result()` returns the failed result) when
+  failure was signalled without one, so a failed result never comes back as output.
 
 Exceptions thrown by the core lifecycle are no longer rethrown from `run()`; they are passed to
 `onFailure()` and captured on the result, and the transaction still rolls back.
@@ -300,14 +301,19 @@ Exceptions thrown by the core lifecycle are no longer rethrown from `run()`; the
     if ($result->failed()) {
         // $result->exception is the captured Throwable, or null when
         // handle() signalled failure without throwing
+        return $fallback;
     }
 
     $value = $result->output();
 
 `handle()` returns the output directly - there is no `$data` property and no `$result->data`. Code that
-relied on `run()` throwing should rethrow from the result instead:
+relied on `run()` throwing should call `runOrFail()` instead, which returns the output typed as the service's
+`TOutput` or throws the failure:
 
-    $value = (new MyService($input))->run()->throw()->output();
+    $value = (new MyService($input))->runOrFail();
+
+`runOrFail()` is the same as `run()->throw()->output()`, with the same context handling and lifecycle events
+as `run()`.
 
 ### Removed: Implicit trait lifecycle hooks on services
 
