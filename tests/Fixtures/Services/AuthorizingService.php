@@ -14,7 +14,7 @@ use SineMacula\ApiToolkit\Services\Service;
  *
  * The authorize() hook runs before the lock and transaction and throws an
  * AuthorizationException, which the runner captures as a failure so handle()
- * never runs. Over HTTP, run()->throw() rethrows it and the exception handler
+ * never runs. Over HTTP, runOrFail() rethrows it and the exception handler
  * renders the forbidden envelope.
  *
  * @extends \SineMacula\ApiToolkit\Services\Service<\SineMacula\ApiToolkit\Services\Input\ArrayInput, true>

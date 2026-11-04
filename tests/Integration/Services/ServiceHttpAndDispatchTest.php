@@ -75,7 +75,7 @@ final class ServiceHttpAndDispatchTest extends TestCase
                 }
             };
 
-            $user = $service->run()->throw()->output();
+            $user = $service->runOrFail();
 
             assert($user instanceof User);
 
