@@ -45,14 +45,26 @@ final class RuleNormaliserTest extends TestCase
     }
 
     /**
-     * Test that an array of tokens is returned flat, re-splitting any element
-     * that itself carries pipes.
+     * Test that an array element carrying a pipe stays one rule, as the
+     * validator does not split array elements, so a regex alternation survives
+     * intact.
      *
      * @return void
      */
-    public function testArrayFormFlattensAndResplits(): void
+    public function testArrayElementIsNotSplitOnPipes(): void
     {
-        self::assertSame(['required', 'string'], (new RuleNormaliser)->normalise(['required|string']));
+        self::assertSame(['required', 'regex:/^(a|b)$/'], (new RuleNormaliser)->normalise(['required', 'regex:/^(a|b)$/']));
+    }
+
+    /**
+     * Test that an empty string array element is dropped, as the validator
+     * skips an empty rule.
+     *
+     * @return void
+     */
+    public function testEmptyArrayElementIsDropped(): void
+    {
+        self::assertSame(['required', 'string'], (new RuleNormaliser)->normalise(['required', '', 'string']));
     }
 
     /**
