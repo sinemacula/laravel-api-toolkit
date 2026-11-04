@@ -730,8 +730,30 @@ final class SignIn extends Service
     }
 }
 
-$result = SignIn::make(SignInPayload::from($request))->run();
+$user = SignIn::make(SignInPayload::from($request))->runOrFail();
 ```
+
+#### Running a Service
+
+`runOrFail()` returns the output or throws, and is the default from a controller: the failure reaches the
+application's exception handler, which renders it. The return type is the service's `TOutput`, so static analysis
+sees the concrete output. A failed result that captured no exception throws a `ServiceFailedException`, so a failure
+never comes back as output.
+
+`run()` never throws for a business failure. It returns a `ServiceResult` for a caller that branches on the outcome:
+
+```php
+$result = SignIn::make(SignInPayload::from($request))->run();
+
+if ($result->failed()) {
+    // $result->exception is the captured failure
+}
+
+$user = $result->output();
+```
+
+`runOrFail()` is `run()->throw()->output()` in one call. Both use the context given through `withContext()`, and
+fire the same lifecycle events.
 
 #### Input Summaries
 
