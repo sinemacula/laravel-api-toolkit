@@ -115,6 +115,14 @@ final class PathResponseSchemaController
     public function repeated(): void {}
 
     /**
+     * Respond with a union repeating its first member before naming another.
+     *
+     * @return void
+     */
+    #[ResponseSchema([SignedInShape::class, SignedInShape::class, PendingSignInShape::class])]
+    public function repeatedBeforeAnother(): void {}
+
+    /**
      * Respond with a union whose second member is a plain class.
      *
      * @return void

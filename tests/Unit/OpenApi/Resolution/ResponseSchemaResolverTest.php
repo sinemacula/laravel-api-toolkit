@@ -177,6 +177,22 @@ final class ResponseSchemaResolverTest extends TestCase
     }
 
     /**
+     * Test that a repeated member does not end the union, so the shapes named
+     * after it are still documented.
+     *
+     * @return void
+     */
+    public function testRepeatedMemberStillDocumentsTheMembersAfterIt(): void
+    {
+        $schema = $this->resolver()->resolve(PathResponseSchemaController::class, 'repeatedBeforeAnother');
+
+        self::assertSame(
+            (new EnvelopeBuilder)->singleEnvelopeFor(['oneOf' => [SignedInShape::schema(), PendingSignInShape::schema()]]),
+            $schema,
+        );
+    }
+
+    /**
      * Test that a union holding a plain class resolves to null as a whole,
      * rather than documenting only the members it can describe.
      *
