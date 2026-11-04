@@ -4,7 +4,6 @@ declare(strict_types = 1);
 
 namespace SineMacula\ApiToolkit;
 
-use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\ServiceProvider;
 use SineMacula\ApiToolkit\Console\CacheResourcesCommand;
@@ -18,6 +17,7 @@ use SineMacula\ApiToolkit\Providers\Registrars\ContainerBindingRegistrar;
 use SineMacula\ApiToolkit\Providers\Registrars\LifecycleRegistrar;
 use SineMacula\ApiToolkit\Providers\Registrars\LoggingRegistrar;
 use SineMacula\ApiToolkit\Providers\Registrars\MiddlewareRegistrar;
+use SineMacula\ApiToolkit\Providers\Registrars\MorphMapRegistrar;
 use SineMacula\ApiToolkit\Providers\Registrars\RouteMacroRegistrar;
 use SineMacula\ApiToolkit\Schema\Validation\SchemaValidator;
 
@@ -25,9 +25,9 @@ use SineMacula\ApiToolkit\Schema\Validation\SchemaValidator;
  * API service provider.
  *
  * Thin coordinator that merges the package configuration, handles publishing
- * and schema validation, and delegates registration of middleware, logging,
- * lifecycle listeners, and container bindings to single-responsibility
- * registrars.
+ * and schema validation, and delegates registration of the morph aliases,
+ * middleware, logging, lifecycle listeners, route macros, and container
+ * bindings to single-responsibility registrars.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -53,7 +53,7 @@ final class ApiServiceProvider extends ServiceProvider
         $this->mergeDiscoveredResources();
         $this->loadTranslationFiles();
         $this->offerPublishing();
-        $this->registerMorphMap();
+        (new MorphMapRegistrar)->register();
         $this->validateSchemas();
 
         (new MiddlewareRegistrar($this->app))->register();
@@ -192,33 +192,6 @@ final class ApiServiceProvider extends ServiceProvider
         }
 
         return null;
-    }
-
-    /**
-     * Register the morph map dynamically based on the configuration.
-     *
-     * @return void
-     */
-    private function registerMorphMap(): void
-    {
-        $map = Config::get('api-toolkit.resources.resource_map', []);
-
-        if (!Config::get('api-toolkit.resources.enable_dynamic_morph_mapping') || !is_array($map)) {
-            return;
-        }
-
-        $map = collect($map)
-            ->mapWithKeys(function ($resource, $model): array {
-
-                if (method_exists($resource, 'getResourceType')) {
-                    return [$resource::getResourceType() => $model];
-                }
-
-                return [];
-            })
-            ->all();
-
-        Relation::enforceMorphMap($map);
     }
 
     /**

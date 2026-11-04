@@ -46,9 +46,8 @@ abstract class TestCase extends OrchestraTestCase
     /**
      * Clean up the testing environment before the next test.
      *
-     * Resets the morph map enforcement that registerMorphMap() applies as
-     * process-global static state, so tests remain order-independent, and
-     * removes the per-test file-cache directory.
+     * Resets the morph map, which is process-global static state, so tests
+     * remain order-independent, and removes the per-test file-cache directory.
      *
      * @return void
      */

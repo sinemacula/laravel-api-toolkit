@@ -179,11 +179,13 @@ explicitly - the action layer never reads `Auth` or the current `Request` ambien
 implementations ship: extend `Payload` to declare promoted readonly properties plus Laravel `rules()`
 and build a validated instance with `Payload::from($request)` (or `from($array)`), or wrap an
 already-validated array in `ArrayInput` for the no-class case. A `Payload` leaves any promoted parameter
-marked `#[\SensitiveParameter]` out of the `inputSummary` the lifecycle events carry. Declare the input
-and output types with `@extends Service<TInput, TOutput>`: `$this->input` is then typed as `TInput` in
-every hook, so drop any `@var` narrowing of it. The property is readonly, so a hook can no longer
-reassign `$this->input`, and a subclass constructor must pass the input to `parent::__construct($input)`
-rather than redeclaring `$input` as a promoted property or assigning `$this->input` itself.
+marked `#[\SensitiveParameter]` out of the `inputSummary` the lifecycle events carry. Body keys map to
+camelCase properties (`client_name` hydrates `$clientName`, and `toArray()` returns `client_name`), with
+an exact-name property taking precedence. Declare the input and output types with
+`@extends Service<TInput, TOutput>`: `$this->input` is then typed as `TInput` in every hook, so drop any
+`@var` narrowing of it. The property is readonly, so a hook can no longer reassign `$this->input`, and a
+subclass constructor must pass the input to `parent::__construct($input)` rather than redeclaring `$input`
+as a promoted property or assigning `$this->input` itself.
 
     use SineMacula\ApiToolkit\Services\Input\ArrayInput;
 
@@ -574,6 +576,26 @@ validation reads its metadata through the store.
 
 **Action required.** Run `php artisan optimize` (or `php artisan api-toolkit:resources:cache`) on every deploy.
 Rebuild or clear the compiled map after adding, moving, or re-binding a resource, or after changing `paths`.
+
+### Changed: dynamic morph mapping no longer requires a morph map
+
+In 1.x, `api-toolkit.resources.enable_dynamic_morph_mapping` called `Relation::enforceMorphMap()` with the
+aliases derived from the resource map, which required a morph map: a polymorphic write for any model without a
+resource, including a vendor model, threw `ClassMorphViolationException`. The derived aliases are now merged
+with `Relation::morphMap()` and a morph map is never required, so a model without a resource morphs to its class
+name. An alias or model your application has already mapped is left alone, and an alias claimed by more than
+one model is registered for none of them. Two distinct resources sharing a `RESOURCE_TYPE` are reported with a
+warning, or fail the boot when `validate_schemas` is enabled.
+
+**Action required.** If your application relied on the toolkit enforcing the morph map, call
+`Relation::requireMorphMap()` in your own service provider, and map any morphable model that has no resource.
+If a resource is bound to several models, or shares its `RESOURCE_TYPE` with another resource, register the
+aliases those models already store in your own `Relation::morphMap()`, or their stored rows no longer resolve.
+Register a shared `RESOURCE_TYPE` from the `register()` method of a service provider, which also clears the
+warning or boot failure. If your application maps a model that has a resource before the toolkit boots (from a
+`register()` method, or a provider that boots earlier), 1.x stored the resource's `RESOURCE_TYPE` for it, while
+the toolkit now leaves that model on your alias: add the `RESOURCE_TYPE` alias for it to your own morph map so the
+rows already stored under it still resolve.
 
 ### Changed: ApiCriteria decomposed; filter operators are extensible
 

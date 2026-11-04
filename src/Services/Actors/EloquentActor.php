@@ -15,7 +15,7 @@ use SineMacula\ApiToolkit\Services\Contracts\Actor;
  * Wraps any Eloquent model that also implements Authenticatable (the standard
  * Laravel user) and exposes the Actor contract. Serialises as a morph-type +
  * identifier pair plus a snapshot of the label taken at construction time. On a
- * queue worker the model is re-resolved from the morph map via a fresh DB
+ * queue worker the model is re-resolved from its morph type via a fresh DB
  * query; the label and identifier scalars survive even when the underlying
  * record is later changed or deleted.
  *
@@ -80,7 +80,7 @@ final class EloquentActor implements Actor
     /**
      * Restore scalar state from the serialised payload.
      *
-     * The model is left null and will be re-resolved from the morph map on the
+     * The model is left null and will be re-resolved from its morph type on the
      * first toAuthenticatable() call.
      *
      * @param  array<string, int|string>  $data
@@ -149,9 +149,9 @@ final class EloquentActor implements Actor
     /**
      * Return the live Authenticatable model.
      *
-     * After unserialisation the model is re-resolved lazily from the morph map
-     * on the first call. Returns null when the record cannot be found (e.g.
-     * after deletion).
+     * After unserialisation the model is re-resolved lazily on the first call,
+     * from the morph map or, for an unmapped model, its class name. Returns
+     * null when the record cannot be found (e.g. after deletion).
      *
      * @return \Illuminate\Contracts\Auth\Authenticatable|null
      */
@@ -160,10 +160,9 @@ final class EloquentActor implements Actor
     {
         if (!$this->resolved) {
             $this->resolved = true;
-            $class          = Relation::getMorphedModel($this->morphType);
+            $class          = Relation::getMorphedModel($this->morphType) ?? $this->morphType;
 
-            if ($class !== null) {
-                /** @var class-string<\Illuminate\Database\Eloquent\Model> $class */
+            if (is_a($class, Model::class, true)) {
                 $found = $class::query()->find($this->identifier);
 
                 if ($found instanceof Authenticatable) {

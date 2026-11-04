@@ -289,6 +289,16 @@ and the scan runs on every boot, so every diagnostic fires. Discovery never uses
 `validate_schemas` disabled boot and `route:cache` work without a reachable store; schema validation reads its
 metadata through the store.
 
+**Polymorphic aliases** - with `api-toolkit.resources.enable_dynamic_morph_mapping` on (the default), each
+resource's `RESOURCE_TYPE` is registered as its model's morph alias. The aliases merge with your own
+`Relation::morphMap()`, and your aliases always win: an alias you register, or a model you have already mapped,
+is left alone whatever the boot order. An alias claimed by more than one model is registered for none of them.
+The toolkit never requires a morph map, so a model without a resource (including a vendor model) keeps morphing
+to its class name; to make mapping strict, call `Relation::requireMorphMap()` in your own service provider. A
+later `Relation::morphMap([...], merge: false)` replaces the whole map, derived aliases included. The alias is
+what polymorphic rows store, so renaming a `RESOURCE_TYPE`, or binding a second model to a resource (which
+withholds its alias), orphans the rows already stored under the old alias.
+
 **Eager-load planning** - the resource builds `with()`/`withCount()`/`withSum()`/`withAvg()` maps from the
 resolved field set, so relations are loaded precisely and automatically:
 
@@ -616,6 +626,23 @@ and the live operator grammar:
 ```bash
 php artisan api-toolkit:export-openapi
 php artisan api-toolkit:export-openapi --output=openapi.json
+php artisan api-toolkit:export-openapi --audience=internal
+php artisan api-toolkit:export-openapi --all
+```
+
+Without options the configured default audience is written to `api-toolkit.openapi.output`. `--audience` exports
+one named audience, and `--all` exports every configured audience, each to its own file named by injecting the
+audience before the extension, so `openapi.json` becomes `openapi.public.json` and `openapi.internal.json`.
+
+Resources are not required: a route documented through `#[RequestSchema]` and `#[ResponseSchema]` alone is exported
+with an empty resource map. What the export does require is an operation. Every target audience is exported before
+anything is written, and if any of them documents no operations - because no route reaches it after the framework
+namespace exclusions and its posture - the command names each empty audience, writes nothing, not even the
+audiences that do document operations, and exits non-zero, so a CI step cannot pass without producing its file.
+Pass `--allow-empty` to write the empty documents anyway and exit successfully:
+
+```bash
+php artisan api-toolkit:export-openapi --all --allow-empty
 ```
 
 Each resource becomes a component schema and each documented route an operation carrying the query
@@ -636,6 +663,43 @@ limit, and `500` always. Middleware is read as the router resolves it, so a guar
 counts and one removed with `withoutMiddleware()` does not. Each `ApiException` subclass named, fully qualified, in
 the action's `@throws` tags is added under its status with its error code as an example; any other throwable in those
 tags is ignored.
+
+A route outside the resource pipeline documents its success body with `#[ResponseSchema]` on the action. Name a
+registered resource to reference its component, or a class implementing `DefinesSchema` to inline the JSON-Schema
+fragment its `schema()` returns; `collection: true` wraps the shape in the collection envelope instead. Name several
+classes to document a response that answers with any one of them, exported as a `oneOf` under `data` (or under each
+item of a collection). Give each member of a union a required property holding a constant of its own, such as a
+`status`, so a client can tell the shapes apart. If any named class is neither a registered resource nor a
+`DefinesSchema`, the body is left undocumented rather than documented in part:
+
+```php
+use SineMacula\ApiToolkit\OpenApi\Attributes\ResponseSchema;
+use SineMacula\ApiToolkit\OpenApi\Contracts\DefinesSchema;
+
+final class PendingSignIn implements DefinesSchema
+{
+    public static function schema(): array
+    {
+        return [
+            'type'       => 'object',
+            'properties' => [
+                'status'  => ['const' => 'pending'],
+                'choices' => ['type' => 'array', 'items' => ['type' => 'string']],
+            ],
+            'required' => ['status', 'choices'],
+        ];
+    }
+}
+
+#[ResponseSchema(UserResource::class)]
+public function me(): JsonResponse {}
+
+#[ResponseSchema(UserResource::class, collection: true)]
+public function team(): JsonResponse {}
+
+#[ResponseSchema([SignedIn::class, PendingSignIn::class])]
+public function signIn(): JsonResponse {}
+```
 
 A second command writes the generated reference sections - the error catalogue, the enum reference, and the
 query surface reference, which tables the queryable columns of the resources an audience documents beside
@@ -783,6 +847,28 @@ SignInPayload::from(['email' => 'a@example.com', 'password' => 'secret'])->toArr
 The key is omitted rather than masked, and the value stays readable on the instance. A payload that overrides
 `toArray()` controls its summary entirely. Any other `ServiceInput` must keep secrets out of its own `toArray()`; an
 `ArrayInput` returns its array as given, so leave secrets out of the array it wraps.
+
+Body keys map to properties by their camelCase form: a `client_name` rule hydrates `$clientName`, and `toArray()`
+returns it as `client_name`, so the summary uses the same names as the body and the request schema. A property named
+exactly after a rule key takes precedence, and a property no rule maps keeps its own name. The map is read from the
+`rules()` keys once per class, so those keys must be static:
+
+```php
+final class StoreClientPayload extends Payload
+{
+    public function __construct(
+        public readonly string $clientName,
+    ) {}
+
+    public static function rules(): array
+    {
+        return ['client_name' => ['required', 'string']];
+    }
+}
+
+StoreClientPayload::from(['client_name' => 'Acme'])->clientName; // 'Acme'
+StoreClientPayload::from(['client_name' => 'Acme'])->toArray();  // ['client_name' => 'Acme']
+```
 
 ---
 

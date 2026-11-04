@@ -6,15 +6,19 @@ namespace Tests\Unit\Console;
 
 use Illuminate\Contracts\Config\Repository as ConfigRepository;
 use Illuminate\Foundation\Application;
+use Illuminate\Routing\Router;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Testing\PendingCommand;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Console\ExportOpenApiCommand;
 use SineMacula\ApiToolkit\OpenApi\Contracts\DocumentWriter;
 use SineMacula\ApiToolkit\OpenApi\ExportOpenApiComponents;
+use SineMacula\ApiToolkit\OpenApi\Resolution\AudienceResolver;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 use Tests\Fixtures\Models\Organization;
 use Tests\Fixtures\Models\User;
+use Tests\Fixtures\OpenApi\PathRequestBodyController;
+use Tests\Fixtures\OpenApi\PathResponseSchemaController;
 use Tests\Fixtures\Resources\OrganizationResource;
 use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
@@ -33,6 +37,10 @@ final class ExportOpenApiCommandTest extends TestCase
 {
     /** @var string The console command signature. */
     private const string COMMAND = 'api-toolkit:export-openapi';
+
+    /** @var string The error printed once nothing was written for an empty audience. */
+    private const string NOTHING_WRITTEN_ERROR = 'Nothing was written. Document a route for every exported audience,'
+        . ' or pass --allow-empty to write empty documents.';
 
     /** @var string The temporary output path used for export assertions. */
     private string $outputPath;
@@ -67,16 +75,17 @@ final class ExportOpenApiCommandTest extends TestCase
 
     /**
      * Test that the command exports a non-empty document and reports the
-     * resource count, exit 0.
+     * operation and resource counts, exit 0.
      *
      * @return void
      */
     public function testCommandExportsResourcesWithExitZero(): void
     {
         $this->registerResourceMap();
+        $this->registerDocumentedRoute();
 
         $this->runCommand(['--output' => $this->outputPath])
-            ->expectsOutputToContain('Exported 2 resource schema(s)')
+            ->expectsOutputToContain('Exported 1 operation(s), 2 resource schema(s)')
             ->assertExitCode(0);
 
         self::assertFileExists($this->outputPath);
@@ -96,6 +105,7 @@ final class ExportOpenApiCommandTest extends TestCase
     public function testCommandWritesPrettyPrintedJson(): void
     {
         $this->registerResourceMap();
+        $this->registerDocumentedRoute();
 
         $this->runCommand(['--output' => $this->outputPath])
             ->assertExitCode(0);
@@ -109,20 +119,86 @@ final class ExportOpenApiCommandTest extends TestCase
     }
 
     /**
-     * Test that the command warns and writes nothing when no resources are
-     * registered, exit 0.
+     * Test that the command fails and writes nothing when the audience
+     * documents no operations.
      *
      * @return void
      */
-    public function testCommandWarnsWhenNoResourcesRegistered(): void
+    public function testCommandFailsWhenTheAudienceDocumentsNoOperations(): void
+    {
+        $this->registerResourceMap();
+
+        $this->runCommand(['--output' => $this->outputPath])
+            ->expectsOutputToContain(self::emptyAudienceError('public'))
+            ->expectsOutputToContain(self::NOTHING_WRITTEN_ERROR)
+            ->assertExitCode(1);
+
+        self::assertFileDoesNotExist($this->outputPath);
+    }
+
+    /**
+     * Test that an empty resource map does not block the export of documented
+     * non-resource operations.
+     *
+     * @return void
+     */
+    public function testCommandExportsNonResourceOperationsWithoutResources(): void
     {
         $this->getConfig()->set('api-toolkit.resources.resource_map', []);
 
+        $router = $this->router();
+        $router->post('articles', [PathRequestBodyController::class, 'store']);
+        $router->get('widget', [PathResponseSchemaController::class, 'widget']);
+
         $this->runCommand(['--output' => $this->outputPath])
-            ->expectsOutputToContain('No resources registered in the resource map')
+            ->expectsOutputToContain('Exported 2 operation(s), 0 resource schema(s)')
             ->assertExitCode(0);
 
-        self::assertFileDoesNotExist($this->outputPath);
+        $paths = $this->decodePaths($this->outputPath);
+
+        self::assertArrayHasKey('requestBody', $paths['/articles']['post']);
+        self::assertArrayHasKey('get', $paths['/widget']);
+    }
+
+    /**
+     * Test that --allow-empty writes a document with an empty paths object and
+     * warns, exit 0, when the audience documents no operations.
+     *
+     * @return void
+     */
+    public function testCommandAllowEmptyWritesAnEmptyDocument(): void
+    {
+        $this->registerResourceMap();
+
+        $this->runCommand(['--output' => $this->outputPath, '--allow-empty' => true])
+            ->expectsOutputToContain(sprintf(
+                'The [public] audience documents no operations; wrote an empty document to %s.',
+                $this->outputPath,
+            ))
+            ->doesntExpectOutputToContain('Nothing was written')
+            ->doesntExpectOutputToContain('Exported')
+            ->assertExitCode(0);
+
+        self::assertSame([], $this->decodePaths($this->outputPath));
+    }
+
+    /**
+     * Test that --allow-empty leaves an export that documents operations
+     * unchanged.
+     *
+     * @return void
+     */
+    public function testCommandAllowEmptyLeavesANonEmptyExportUnchanged(): void
+    {
+        $this->registerResourceMap();
+        $this->registerDocumentedRoute();
+
+        $this->runCommand(['--output' => $this->outputPath, '--allow-empty' => true])
+            ->expectsOutputToContain('Exported 1 operation(s), 2 resource schema(s)')
+            ->doesntExpectOutputToContain('documents no operations')
+            ->assertExitCode(0);
+
+        self::assertArrayHasKey('/widget', $this->decodePaths($this->outputPath));
     }
 
     /**
@@ -134,6 +210,7 @@ final class ExportOpenApiCommandTest extends TestCase
     public function testCommandUsesConfiguredDefaultOutputPath(): void
     {
         $this->registerResourceMap();
+        $this->registerDocumentedRoute();
 
         $this->getConfig()->set('api-toolkit.openapi.output', $this->outputPath);
 
@@ -152,6 +229,7 @@ final class ExportOpenApiCommandTest extends TestCase
     public function testCommandFallsBackToDefaultPathWhenConfiguredOutputIsEmpty(): void
     {
         $this->registerResourceMap();
+        $this->registerDocumentedRoute();
 
         $this->getConfig()->set('api-toolkit.openapi.output', '');
 
@@ -177,6 +255,7 @@ final class ExportOpenApiCommandTest extends TestCase
     public function testCommandSurfacesDocumentWriteFailure(): void
     {
         $this->registerResourceMap();
+        $this->registerDocumentedRoute();
 
         assert($this->app instanceof Application);
 
@@ -212,6 +291,7 @@ final class ExportOpenApiCommandTest extends TestCase
     public function testCommandPrintsNoticeAndExportsWhenNoDatabaseConnection(): void
     {
         $this->registerResourceMap();
+        $this->registerDocumentedRoute();
 
         // Point the default connection at an unconfigured name so the PDO probe
         // fails, then restore it before teardown so the transactional refresh
@@ -240,6 +320,7 @@ final class ExportOpenApiCommandTest extends TestCase
     public function testCommandDoesNotPrintNoticeWhenDatabaseConnectionIsAvailable(): void
     {
         $this->registerResourceMap();
+        $this->registerDocumentedRoute();
 
         $this->runCommand(['--output' => $this->outputPath])
             ->doesntExpectOutputToContain('No database connection')
@@ -255,6 +336,7 @@ final class ExportOpenApiCommandTest extends TestCase
     public function testCommandFailsOnUnknownAudience(): void
     {
         $this->registerResourceMap();
+        $this->registerDocumentedRoute();
 
         $this->runCommand(['--output' => $this->outputPath, '--audience' => 'nonexistent'])
             ->expectsOutputToContain('Unknown audience [nonexistent]')
@@ -272,6 +354,7 @@ final class ExportOpenApiCommandTest extends TestCase
     public function testCommandExportsNamedAudience(): void
     {
         $this->registerResourceMap();
+        $this->registerDocumentedRoute();
 
         $this->runCommand(['--output' => $this->outputPath, '--audience' => 'public'])
             ->expectsOutputToContain('for the public audience')
@@ -289,6 +372,7 @@ final class ExportOpenApiCommandTest extends TestCase
     public function testCommandAllFlagWritesOneFilePerAudience(): void
     {
         $this->registerResourceMap();
+        $this->registerDocumentedRoute();
         $this->getConfig()->set('api-toolkit.openapi.audiences', [
             'public'   => [],
             'internal' => [],
@@ -322,6 +406,7 @@ final class ExportOpenApiCommandTest extends TestCase
     public function testCommandAllFlagSuffixesAnExtensionlessOutputPath(): void
     {
         $this->registerResourceMap();
+        $this->registerDocumentedRoute();
         $this->getConfig()->set('api-toolkit.openapi.audiences', [
             'public'   => [],
             'internal' => [],
@@ -339,6 +424,93 @@ final class ExportOpenApiCommandTest extends TestCase
             self::assertFileExists($public);
             self::assertFileExists($internal);
             self::assertFileDoesNotExist($base);
+
+        } finally {
+            @unlink($public);
+            @unlink($internal);
+        }
+    }
+
+    /**
+     * Test that --all fails and writes no document, not even for the audiences
+     * that document operations, when any audience documents none.
+     *
+     * @return void
+     */
+    public function testCommandAllFlagFailsAndWritesNothingWhenAnAudienceIsEmpty(): void
+    {
+        $this->registerResourceMap();
+        $this->registerDocumentedRoute();
+        $this->registerPublicAndAllowlistAudiences();
+
+        $base     = sys_get_temp_dir() . '/api-toolkit-all-' . uniqid('', true) . '.json';
+        $public   = substr($base, 0, -strlen('.json')) . '.public.json';
+        $internal = substr($base, 0, -strlen('.json')) . '.internal.json';
+
+        try {
+
+            $this->runCommand(['--output' => $base, '--all' => true])
+                ->expectsOutputToContain(self::emptyAudienceError('internal'))
+                ->doesntExpectOutputToContain(self::emptyAudienceError('public'))
+                ->expectsOutputToContain(self::NOTHING_WRITTEN_ERROR)
+                ->assertExitCode(1);
+
+            self::assertFileDoesNotExist($public);
+            self::assertFileDoesNotExist($internal);
+
+        } finally {
+            @unlink($public);
+            @unlink($internal);
+        }
+    }
+
+    /**
+     * Test that --all reports every audience that documents no operations.
+     *
+     * @return void
+     */
+    public function testCommandAllFlagReportsEveryEmptyAudience(): void
+    {
+        $this->registerResourceMap();
+        $this->registerPublicAndAllowlistAudiences();
+
+        $base = sys_get_temp_dir() . '/api-toolkit-all-' . uniqid('', true) . '.json';
+
+        $this->runCommand(['--output' => $base, '--all' => true])
+            ->expectsOutputToContain(self::emptyAudienceError('public'))
+            ->expectsOutputToContain(self::emptyAudienceError('internal'))
+            ->assertExitCode(1);
+
+        self::assertFileDoesNotExist(substr($base, 0, -strlen('.json')) . '.public.json');
+        self::assertFileDoesNotExist(substr($base, 0, -strlen('.json')) . '.internal.json');
+    }
+
+    /**
+     * Test that --all with --allow-empty writes every audience, warning for the
+     * empty one and reporting the counts for the other.
+     *
+     * @return void
+     */
+    public function testCommandAllFlagWithAllowEmptyWritesEveryAudience(): void
+    {
+        $this->registerResourceMap();
+        $this->registerDocumentedRoute();
+        $this->registerPublicAndAllowlistAudiences();
+
+        $base     = sys_get_temp_dir() . '/api-toolkit-all-' . uniqid('', true) . '.json';
+        $public   = substr($base, 0, -strlen('.json')) . '.public.json';
+        $internal = substr($base, 0, -strlen('.json')) . '.internal.json';
+
+        try {
+
+            $this->runCommand(['--output' => $base, '--all' => true, '--allow-empty' => true])
+                ->expectsOutputToContain('Exported 1 operation(s), 2 resource schema(s)')
+                ->expectsOutputToContain('The [internal] audience documents no operations; wrote an empty document')
+                ->doesntExpectOutputToContain('The [public] audience documents no operations')
+                ->assertExitCode(0);
+
+            self::assertArrayHasKey('/widget', $this->decodePaths($public));
+            self::assertSame([], $this->decodePaths($internal));
 
         } finally {
             @unlink($public);
@@ -372,6 +544,74 @@ final class ExportOpenApiCommandTest extends TestCase
             User::class         => UserResource::class,
             Organization::class => OrganizationResource::class,
         ]);
+    }
+
+    /**
+     * Register a documented non-resource route on the application router.
+     *
+     * @return void
+     */
+    private function registerDocumentedRoute(): void
+    {
+        $this->router()->get('widget', [PathResponseSchemaController::class, 'widget']);
+    }
+
+    /**
+     * Declare a blocklist public audience and an allowlist internal audience
+     * that no route opts into.
+     *
+     * @return void
+     */
+    private function registerPublicAndAllowlistAudiences(): void
+    {
+        $this->getConfig()->set('api-toolkit.openapi.audiences', [
+            'public'   => [],
+            'internal' => ['posture' => AudienceResolver::POSTURE_ALLOWLIST],
+        ]);
+    }
+
+    /**
+     * Build the error printed for an audience that documents no operations.
+     *
+     * @param  string  $audience
+     * @return string
+     */
+    private static function emptyAudienceError(string $audience): string
+    {
+        return sprintf(
+            'The [%s] audience documents no operations; no route reaches it after the namespace exclusions and its posture.',
+            $audience,
+        );
+    }
+
+    /**
+     * Decode the paths object of a written document.
+     *
+     * @param  string  $path
+     * @return array<string, array<string, array<string, mixed>>>
+     */
+    private function decodePaths(string $path): array
+    {
+        $contents = file_get_contents($path);
+
+        self::assertIsString($contents);
+
+        /** @var array{paths: array<string, array<string, array<string, mixed>>>} $document */
+        $document = json_decode($contents, true, 512, JSON_THROW_ON_ERROR);
+
+        return $document['paths'];
+    }
+
+    /**
+     * Resolve the application router.
+     *
+     * @return \Illuminate\Routing\Router
+     */
+    private function router(): Router
+    {
+        assert($this->app instanceof Application);
+
+        return $this->app->make(Router::class);
     }
 
     /**
