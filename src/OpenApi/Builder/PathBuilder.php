@@ -15,6 +15,7 @@ use SineMacula\ApiToolkit\OpenApi\Resolution\DocumentableRouteFilter;
 use SineMacula\ApiToolkit\OpenApi\Resolution\RequestBodyResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ResponseHeaderResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ResponseSchemaResolver;
+use SineMacula\ApiToolkit\OpenApi\Resolution\ResponseStatusResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\RouteMiddlewareResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\TagResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ThrowsErrorResolver;
@@ -39,29 +40,34 @@ use SineMacula\ApiToolkit\OpenApi\Security\SecuritySchemeResolver;
  * shapes where it names more than one class, single or wrapped in the
  * collection envelope - and the shared data envelope wrapping an x-undocumented
  * marker otherwise; that success is 201 for a store action, 204 for a destroy,
- * and 200 otherwise. Every operation, resource or not, carries the error
- * statuses its route facts imply - 401 behind auth middleware, 403 behind an
- * authorization check, 404 with path parameters, 422 with a request body (or a
- * resource store or update), 429 behind a rate limit, and 500 always - merged
- * with any ApiException its action's @throws tags name, each such error
- * response carrying the headers its exceptions declare. The success response
- * carries the headers a #[ResponseHeader] directive on the action or its
- * controller declares, after any header the exporter emits itself; declaring a
- * header the exporter already emits fails the build. A route whose verbs
- * include a body-bearing method - POST, PUT, or PATCH - also carries a
- * requestBody translated from the rules a #[RequestSchema] directive or a
- * type-hinted rules-source parameter reaches; a read-only route carries none. A
- * resource operation also references the query parameters its action honours:
- * an index the whole grammar, a show what shapes and scopes a single record, a
- * store and an update what shapes the resource they return, and a destroy none.
- * A non-resource operation references none, there being no knowing whether such
- * an action consults the query parser. Audience membership is checked for every
- * route regardless of its handler, so a closure scoped out by a route macro is
- * omitted exactly as an attribute-scoped controller is. A route whose handler
- * is defined under a blocklisted namespace - the framework and common tooling
- * by default - is dropped before any operation is built, so framework noise
- * never reaches the document while the organisation's own packages stay
- * documented. HEAD and OPTIONS are always excluded.
+ * and 200 otherwise. An action carrying a #[ResponseStatus] directive, on a
+ * resource route or not, answers under the status it declares instead: a
+ * no-content status with no body and no header the exporter would emit beside
+ * one, and any other status with the body the action would otherwise carry, or
+ * its declared or undocumented body where it would carry none; declaring the
+ * action's default status changes nothing. Every operation, resource or not,
+ * carries the error statuses its route facts imply - 401 behind auth
+ * middleware, 403 behind an authorization check, 404 with path parameters, 422
+ * with a request body (or a resource store or update), 429 behind a rate limit,
+ * and 500 always - merged with any ApiException its action's @throws tags name,
+ * each such error response carrying the headers its exceptions declare. The
+ * success response carries the headers a #[ResponseHeader] directive on the
+ * action or its controller declares, after any header the exporter emits
+ * itself; declaring a header the exporter already emits fails the build. A
+ * route whose verbs include a body-bearing method - POST, PUT, or PATCH - also
+ * carries a requestBody translated from the rules a #[RequestSchema] directive
+ * or a type-hinted rules-source parameter reaches; a read-only route carries
+ * none. A resource operation also references the query parameters its action
+ * honours: an index the whole grammar, a show what shapes and scopes a single
+ * record, a store and an update what shapes the resource they return, and a
+ * destroy none. A non-resource operation references none, there being no
+ * knowing whether such an action consults the query parser. Audience membership
+ * is checked for every route regardless of its handler, so a closure scoped out
+ * by a route macro is omitted exactly as an attribute-scoped controller is. A
+ * route whose handler is defined under a blocklisted namespace - the framework
+ * and common tooling by default - is dropped before any operation is built, so
+ * framework noise never reaches the document while the organisation's own
+ * packages stay documented. HEAD and OPTIONS are always excluded.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -115,6 +121,7 @@ final readonly class PathBuilder
      * @param  \SineMacula\ApiToolkit\OpenApi\Resolution\RouteMiddlewareResolver  $middleware
      * @param  \SineMacula\ApiToolkit\OpenApi\Resolution\ThrowsErrorResolver  $throws
      * @param  \SineMacula\ApiToolkit\OpenApi\Resolution\ResponseHeaderResolver  $responseHeaders
+     * @param  \SineMacula\ApiToolkit\OpenApi\Resolution\ResponseStatusResolver  $responseStatus
      */
     public function __construct(
 
@@ -156,6 +163,9 @@ final readonly class PathBuilder
 
         /** The resolver of the headers an action declares it responds with. */
         private ResponseHeaderResolver $responseHeaders,
+
+        /** The resolver of the success status an action declares. */
+        private ResponseStatusResolver $responseStatus,
     ) {}
 
     /**
@@ -228,15 +238,11 @@ final readonly class PathBuilder
             return $resource;
         }
 
-        $schema = $this->responseSchema->resolve($controllerClass, $action) ?? $this->envelope->undocumentedEnvelope();
-        $body   = ['content' => [self::MEDIA_TYPE => ['schema' => $schema]]];
-
-        $declared  = $this->responseHeaders->forAction($controllerClass, $action);
-        $responses = array_map(fn (array $response): array => $this->withHeaders($response, $declared, $controllerClass, $action), match ($action) {
-            'store'   => ['201' => ['description' => 'The request succeeded and a resource was created.', ...$body]],
+        $responses = $this->successResponses(match ($action) {
+            'store'   => ['201' => ['description' => 'The request succeeded and a resource was created.', ...$this->successBody($controllerClass, $action)]],
             'destroy' => ['204' => ['description' => 'The request succeeded with no content.']],
-            default   => ['200' => ['description' => 'The request succeeded.', ...$body]],
-        });
+            default   => ['200' => ['description' => 'The request succeeded.', ...$this->successBody($controllerClass, $action)]],
+        }, $controllerClass, $action);
 
         $requestBody = array_intersect($this->verbs($route), self::BODY_VERBS) === []
             ? []
@@ -278,8 +284,7 @@ final readonly class PathBuilder
             return null;
         }
 
-        $declared    = $this->responseHeaders->forAction($controllerClass, $action);
-        $responses   = array_map(fn (array $response): array => $this->withHeaders($response, $declared, $controllerClass, $action), $responses);
+        $responses   = $this->successResponses($responses, $controllerClass, $action);
         $requestBody = array_intersect($this->verbs($route), self::BODY_VERBS) === []
             ? []
             : $this->requestBody->resolve($controllerClass, $action) ?? [];
@@ -552,6 +557,75 @@ final readonly class PathBuilder
         }
 
         return [...$response, 'content' => [self::MEDIA_TYPE => $media]];
+    }
+
+    /**
+     * Apply the action's declared status and headers to its success responses.
+     *
+     * @param  array<int|string, array<string, mixed>>  $responses
+     * @param  class-string|null  $controllerClass
+     * @param  string  $action
+     * @return array<int|string, array<string, mixed>>
+     *
+     * @throws \SineMacula\ApiToolkit\OpenApi\Exceptions\ResponseHeaderCollisionException
+     * @throws \SineMacula\ApiToolkit\OpenApi\Exceptions\ResponseStatusConflictException
+     */
+    private function successResponses(array $responses, ?string $controllerClass, string $action): array
+    {
+        $declared = $this->responseHeaders->forAction($controllerClass, $action);
+
+        return array_map(
+            fn (array $response): array => $this->withHeaders($response, $declared, $controllerClass, $action),
+            $this->withStatus($responses, $controllerClass, $action),
+        );
+    }
+
+    /**
+     * Move the success response under the status the action declares, leaving
+     * it untouched when the action declares none or its default status.
+     *
+     * A no-content status drops the body and every header the exporter emits
+     * with it. Any other status keeps the response, giving one that carried no
+     * body the action's declared or undocumented body.
+     *
+     * @param  array<int|string, array<string, mixed>>  $responses
+     * @param  class-string|null  $controllerClass
+     * @param  string  $action
+     * @return array<int|string, array<string, mixed>>
+     *
+     * @throws \SineMacula\ApiToolkit\OpenApi\Exceptions\ResponseStatusConflictException
+     */
+    private function withStatus(array $responses, ?string $controllerClass, string $action): array
+    {
+        $directive = $this->responseStatus->resolve($controllerClass, $action);
+        $default   = (int) array_key_first($responses);
+
+        if ($directive === null || $directive->status->value === $default) {
+            return $responses;
+        }
+
+        $response = ['description' => $directive->status->getReasonPhrase() . '.'];
+
+        if ($directive->hasNoContent()) {
+            return [$directive->status->value => $response];
+        }
+
+        return [$directive->status->value => $response + $responses[$default] + $this->successBody($controllerClass, $action)];
+    }
+
+    /**
+     * Build the success body of an action outside the resource contract: the
+     * shape its #[ResponseSchema] declares, or the undocumented envelope.
+     *
+     * @param  class-string|null  $controllerClass
+     * @param  string  $action
+     * @return array{content: array<string, array{schema: array<string, mixed>}>}
+     */
+    private function successBody(?string $controllerClass, string $action): array
+    {
+        $schema = $this->responseSchema->resolve($controllerClass, $action) ?? $this->envelope->undocumentedEnvelope();
+
+        return ['content' => [self::MEDIA_TYPE => ['schema' => $schema]]];
     }
 
     /**

@@ -735,6 +735,25 @@ final class QuotaExceededException extends ApiException
 }
 ```
 
+The success status is derived from the action's name: `201` for a `store`, `204` with no body for a `destroy`, and
+`200` otherwise. Declare `#[ResponseStatus]` on an action that answers otherwise, on a resource route or not. It
+accepts a success status only. `204` and `205` are documented with no body, so declaring a `#[ResponseSchema]` beside
+either fails the export. Any other status keeps the body the action would otherwise document, and a `destroy`
+declaring one gains its `#[ResponseSchema]` body or the undocumented envelope. Declared headers attach to whichever
+status is declared:
+
+```php
+use SineMacula\ApiToolkit\OpenApi\Attributes\ResponseStatus;
+use SineMacula\Http\Enums\HttpStatus;
+
+#[ResponseStatus(HttpStatus::NO_CONTENT)]
+public function update(ChangePasswordRequest $request): Response {}
+
+#[ResponseStatus(HttpStatus::ACCEPTED)]
+#[ResponseSchema(ExportQueued::class)]
+public function export(): JsonResponse {}
+```
+
 A second command writes the generated reference sections - the error catalogue, the enum reference, and the
 query surface reference, which tables the queryable columns of the resources an audience documents beside
 the bounds a request is held to - into the Markdown docs directory assembled into the document's

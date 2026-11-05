@@ -24,6 +24,7 @@ use SineMacula\ApiToolkit\OpenApi\Resolution\FieldTypeResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\RequestBodyResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ResponseHeaderResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ResponseSchemaResolver;
+use SineMacula\ApiToolkit\OpenApi\Resolution\ResponseStatusResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\RouteMiddlewareResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\TagResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ThrowsErrorResolver;
@@ -566,6 +567,7 @@ final class OpenApiAssemblerTest extends TestCase
                 new RouteMiddlewareResolver($this->router()),
                 new ThrowsErrorResolver(new ResponseHeaderResolver),
                 new ResponseHeaderResolver,
+                new ResponseStatusResolver,
             ),
             new SecuritySchemeResolver(new SecuritySchemeMapper, new RouteMiddlewareResolver($this->router())),
             new EnumSchemaBuilder,

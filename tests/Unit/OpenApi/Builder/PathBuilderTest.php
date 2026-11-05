@@ -14,11 +14,13 @@ use SineMacula\ApiToolkit\OpenApi\Builder\PathBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\QueryParameterBuilder;
 use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
 use SineMacula\ApiToolkit\OpenApi\Exceptions\ResponseHeaderCollisionException;
+use SineMacula\ApiToolkit\OpenApi\Exceptions\ResponseStatusConflictException;
 use SineMacula\ApiToolkit\OpenApi\Resolution\AudienceResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\DocumentableRouteFilter;
 use SineMacula\ApiToolkit\OpenApi\Resolution\RequestBodyResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ResponseHeaderResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ResponseSchemaResolver;
+use SineMacula\ApiToolkit\OpenApi\Resolution\ResponseStatusResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\RouteMiddlewareResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\TagResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ThrowsErrorResolver;
@@ -43,7 +45,10 @@ use Tests\Fixtures\OpenApi\PathReflectionGapController;
 use Tests\Fixtures\OpenApi\PathRequestBodyController;
 use Tests\Fixtures\OpenApi\PathResponseHeaderController;
 use Tests\Fixtures\OpenApi\PathResponseSchemaController;
+use Tests\Fixtures\OpenApi\PathResponseStatusController;
 use Tests\Fixtures\OpenApi\PathRouteFactsController;
+use Tests\Fixtures\OpenApi\PathStatusConflictController;
+use Tests\Fixtures\OpenApi\PathStatusUserController;
 use Tests\Fixtures\OpenApi\PathTaggedController;
 use Tests\Fixtures\OpenApi\PathUnmappedController;
 use Tests\Fixtures\OpenApi\PendingSignInShape;
@@ -1624,6 +1629,207 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
+     * Test that a resource update declaring 204 documents a 204 with no body in
+     * place of its 200, carrying the header its controller declares.
+     *
+     * @return void
+     */
+    public function testResourceUpdateDeclaringNoContentDocumentsNoBody(): void
+    {
+        $this->router()->put('users/{user}', [PathStatusUserController::class, 'update']);
+
+        $responses = $this->build()['/users/{user}']['put']['responses'];
+
+        self::assertSame([204, 403, 404, 422, 500], array_keys($responses));
+        self::assertSame([
+            'description' => 'No Content.',
+            'headers'     => ['X-Request-Id' => ['schema' => ['type' => 'string']]],
+        ], $responses[204]);
+    }
+
+    /**
+     * Test that a non-REST action declaring 204 documents a 204 with no body in
+     * place of its 200, carrying its own header before its controller's.
+     *
+     * @return void
+     */
+    public function testNonRestActionDeclaringNoContentDocumentsNoBody(): void
+    {
+        $this->router()->delete('sessions', [PathResponseStatusController::class, 'destroyAll']);
+
+        $responses = $this->build()['/sessions']['delete']['responses'];
+
+        self::assertSame([204, 500], array_keys($responses));
+        self::assertSame([
+            'description' => 'No Content.',
+            'headers'     => [
+                'Clear-Site-Data' => ['description' => 'The browsing data to clear.', 'schema' => ['type' => 'string']],
+                'X-Request-Id'    => ['schema' => ['type' => 'string']],
+            ],
+        ], $responses[204]);
+    }
+
+    /**
+     * Test that an action declaring 205 documents it with no body.
+     *
+     * @return void
+     */
+    public function testActionDeclaringResetContentDocumentsNoBody(): void
+    {
+        $this->router()->post('reset', [PathResponseStatusController::class, 'reset']);
+
+        $responses = $this->build()['/reset']['post']['responses'];
+
+        self::assertSame([205, 500], array_keys($responses));
+        self::assertSame('Reset Content.', $responses[205]['description']);
+        self::assertArrayNotHasKey('content', $responses[205]);
+    }
+
+    /**
+     * Test that an action declaring 202 beside a response schema documents that
+     * body under 202.
+     *
+     * @return void
+     */
+    public function testActionDeclaringAcceptedKeepsItsDeclaredBody(): void
+    {
+        $this->router()->post('jobs', [PathResponseStatusController::class, 'queue']);
+
+        $responses = $this->build()['/jobs']['post']['responses'];
+
+        self::assertSame([202, 500], array_keys($responses));
+        self::assertSame([
+            'description' => 'Accepted.',
+            'headers'     => ['X-Request-Id' => ['schema' => ['type' => 'string']]],
+            'content'     => ['application/json' => ['schema' => (new EnvelopeBuilder)->singleEnvelopeFor(WidgetShape::schema())]],
+        ], $responses[202]);
+    }
+
+    /**
+     * Test that a non-resource store declaring 200 documents the undocumented
+     * body under 200 in place of 201.
+     *
+     * @return void
+     */
+    public function testNonResourceStoreDeclaringOkKeepsTheUndocumentedBody(): void
+    {
+        $this->router()->post('items', [PathResponseStatusController::class, 'store']);
+
+        $responses = $this->build()['/items']['post']['responses'];
+
+        self::assertSame([200, 500], array_keys($responses));
+        self::assertSame('OK.', $responses[200]['description']);
+        self::assertSame(['schema' => $this->undocumentedEnvelope()], $responses[200]['content']['application/json']);
+    }
+
+    /**
+     * Test that a destroy declaring 200 gains the body its response schema
+     * declares, or the undocumented envelope on a resource route.
+     *
+     * @return void
+     */
+    public function testDestroyDeclaringOkGainsABody(): void
+    {
+        $this->router()->delete('items/{item}', [PathResponseStatusController::class, 'destroy']);
+        $this->router()->delete('users/{user}', [PathStatusUserController::class, 'destroy']);
+
+        $paths = $this->build();
+        $item  = $paths['/items/{item}']['delete']['responses'];
+        $user  = $paths['/users/{user}']['delete']['responses'];
+
+        self::assertSame([200, 404, 500], array_keys($item));
+        self::assertSame(
+            (new EnvelopeBuilder)->singleEnvelopeFor(WidgetShape::schema()),
+            $item[200]['content']['application/json']['schema'],
+        );
+        self::assertSame([200, 403, 404, 500], array_keys($user));
+        self::assertSame([
+            'description' => 'OK.',
+            'headers'     => ['X-Request-Id' => ['schema' => ['type' => 'string']]],
+            'content'     => ['application/json' => ['schema' => $this->undocumentedEnvelope()]],
+        ], $user[200]);
+    }
+
+    /**
+     * Test that a resource index declaring 206 keeps its collection body and
+     * the total-count header the exporter emits, before its declared header.
+     *
+     * @return void
+     */
+    public function testResourceIndexDeclaringPartialContentKeepsTheCollection(): void
+    {
+        $this->router()->get('users', [PathStatusUserController::class, 'index']);
+
+        $responses = $this->build()['/users']['get']['responses'];
+        $envelope  = new EnvelopeBuilder;
+
+        self::assertSame([206, 403, 500], array_keys($responses));
+        self::assertSame('Partial Content.', $responses[206]['description']);
+        self::assertSame(['Total-Count', 'X-Request-Id'], array_keys($responses[206]['headers']));
+        self::assertSame(
+            [
+                'anyOf' => [
+                    $envelope->collectionEnvelope('#/components/schemas/User'),
+                    $envelope->cursorCollectionEnvelope('#/components/schemas/User'),
+                ],
+            ],
+            $responses[206]['content']['application/json']['schema'],
+        );
+    }
+
+    /**
+     * Test that declaring the status an action answers with by default, or no
+     * status at all, documents the action exactly as before.
+     *
+     * @return void
+     */
+    public function testDeclaringTheDefaultStatusOrNoneChangesNothing(): void
+    {
+        $this->router()->get('users/{user}', [PathStatusUserController::class, 'show']);
+        $this->router()->post('users', [PathStatusUserController::class, 'store']);
+        $this->router()->get('bare', [PathResponseStatusController::class, 'bare']);
+
+        $paths    = $this->build();
+        $header   = ['X-Request-Id' => ['schema' => ['type' => 'string']]];
+        $envelope = (new EnvelopeBuilder)->singleEnvelope('#/components/schemas/User');
+
+        self::assertSame([
+            'description' => 'The requested resource.',
+            'headers'     => $header,
+            'content'     => ['application/json' => ['schema' => $envelope]],
+        ], $paths['/users/{user}']['get']['responses'][200]);
+        self::assertSame([
+            'description' => 'The newly created resource.',
+            'headers'     => $header,
+            'content'     => ['application/json' => ['schema' => $envelope]],
+        ], $paths['/users']['post']['responses'][201]);
+        self::assertSame([
+            'description' => 'The request succeeded.',
+            'headers'     => $header,
+            'content'     => ['application/json' => ['schema' => $this->undocumentedEnvelope()]],
+        ], $paths['/bare']['get']['responses'][200]);
+    }
+
+    /**
+     * Test that a body declared beside a no-content status fails the build on
+     * a resource route.
+     *
+     * @return void
+     */
+    public function testNoContentStatusBesideABodyFailsTheBuild(): void
+    {
+        $this->router()->put('users/{user}', [PathStatusConflictController::class, 'update']);
+
+        $this->expectException(ResponseStatusConflictException::class);
+        $this->expectExceptionMessage(sprintf(
+            'The 204 status declared for %s::update answers with no content and cannot carry a #[ResponseSchema] body',
+            PathStatusConflictController::class,
+        ));
+
+        $this->build();
+    }
+
+    /**
      * The expected shared data envelope wrapping the x-undocumented marker.
      *
      * @return array<string, mixed>
@@ -1753,6 +1959,7 @@ final class PathBuilderTest extends TestCase
             new RouteMiddlewareResolver($this->router()),
             new ThrowsErrorResolver(new ResponseHeaderResolver),
             new ResponseHeaderResolver,
+            new ResponseStatusResolver,
         );
     }
 
