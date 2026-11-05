@@ -79,11 +79,27 @@ use Tests\TestCase;
 #[CoversClass(DocManualAssembler::class)]
 final class OpenApiExporterValidityTest extends TestCase
 {
-    /** @var string The identifier under which the OpenAPI 3.1 meta-schema is registered. */
-    private const string META_SCHEMA_ID = 'https://spec.openapis.org/oas/3.1/schema/2022-10-07';
+    /** @var string The identifier of the OpenAPI 3.1 meta-schema that also validates every embedded schema. */
+    private const string META_SCHEMA_ID = 'https://spec.openapis.org/oas/3.1/schema-base/2022-10-07';
 
-    /** @var string The identifier of the JSON Schema 2020-12 dialect document. */
-    private const string DIALECT_ID = 'https://json-schema.org/draft/2020-12/schema';
+    /** @var string The schema a Schema Object's dynamic `#meta` reference resolves to under that meta-schema. */
+    private const string SCHEMA_OBJECT_REF = self::META_SCHEMA_ID . '#/$defs/schema';
+
+    /** @var list<string> The bundled meta-schema fixtures, each registered under its own `$id`. */
+    private const array META_SCHEMA_FIXTURES = [
+        'json-schema-2020-12.json',
+        'json-schema-2020-12-meta-core.json',
+        'json-schema-2020-12-meta-applicator.json',
+        'json-schema-2020-12-meta-unevaluated.json',
+        'json-schema-2020-12-meta-validation.json',
+        'json-schema-2020-12-meta-meta-data.json',
+        'json-schema-2020-12-meta-format-annotation.json',
+        'json-schema-2020-12-meta-content.json',
+        'openapi-3.1-dialect-base.json',
+        'openapi-3.1-meta-base.json',
+        'openapi-3.1-schema.json',
+        'openapi-3.1-schema-base.json',
+    ];
 
     /** @var string The identifier under which an exported document is registered as a schema. */
     private const string EXPORTED_DOCUMENT_ID = 'https://api.example.com/openapi.json';
@@ -616,6 +632,14 @@ final class OpenApiExporterValidityTest extends TestCase
         self::assertFalse(
             $this->validateAgainstMetaSchema($malformedParameter)->isValid(),
             'A parameter missing its required name/in must be rejected.',
+        );
+
+        $arraySchema                                    = $valid;
+        $arraySchema['components']['schemas']['Broken'] = ['type' => 'object', 'properties' => ['field' => []]];
+
+        self::assertFalse(
+            $this->validateAgainstMetaSchema($arraySchema)->isValid(),
+            'An embedded schema encoded as an array must be rejected.',
         );
     }
 
@@ -1349,7 +1373,8 @@ final class OpenApiExporterValidityTest extends TestCase
     }
 
     /**
-     * Build a validator with the dialect and meta-schema registered.
+     * Build a validator with every bundled meta-schema registered, each adapted
+     * for opis.
      *
      * @return \Opis\JsonSchema\Validator
      */
@@ -1360,44 +1385,27 @@ final class OpenApiExporterValidityTest extends TestCase
 
         assert($resolver instanceof SchemaResolver);
 
-        $resolver->registerRaw($this->dialectSchema(), self::DIALECT_ID);
-        $resolver->registerRaw($this->metaSchema(), self::META_SCHEMA_ID);
+        foreach (self::META_SCHEMA_FIXTURES as $fixture) {
+            /** @var array<string, mixed> $schema */
+            $schema = json_decode($this->fixture($fixture), true, 512, JSON_THROW_ON_ERROR);
+
+            $this->adaptForOpis($schema);
+
+            assert(is_string($schema['$id']));
+
+            $resolver->registerRaw(json_encode($schema, JSON_THROW_ON_ERROR), $schema['$id']);
+        }
 
         return $validator;
     }
 
     /**
-     * Load the OpenAPI 3.1 meta-schema, applying the documented opis
-     * compatibility transform.
-     *
-     * @return string
-     */
-    private function metaSchema(): string
-    {
-        /** @var array<string, mixed> $schema */
-        $schema = json_decode($this->fixture('openapi-3.1-schema.json'), true, 512, JSON_THROW_ON_ERROR);
-
-        $this->adaptForOpis($schema);
-
-        return json_encode($schema, JSON_THROW_ON_ERROR);
-    }
-
-    /**
-     * Load the JSON Schema 2020-12 dialect document.
-     *
-     * @return string
-     */
-    private function dialectSchema(): string
-    {
-        return $this->fixture('json-schema-2020-12.json');
-    }
-
-    /**
      * Apply the two opis/json-schema compatibility transforms in place: rewrite
-     * the Schema Object's `$dynamicRef: "#meta"` to the equivalent static
-     * `$ref: "#/$defs/schema"`, and relax every `unevaluatedProperties: false`
-     * to `true`. Both work around opis annotation/reference gaps without
-     * weakening any validity-bearing constraint; see the fixtures README.
+     * every `$dynamicRef: "#meta"` to a static `$ref` to the schema it resolves
+     * to under the schema-validating meta-schema, and relax every
+     * `unevaluatedProperties: false` to `true`. Both work around opis
+     * annotation/reference gaps without weakening any validity-bearing
+     * constraint; see the fixtures README.
      *
      * @param  array<string, mixed>  $node
      * @return void
@@ -1406,7 +1414,7 @@ final class OpenApiExporterValidityTest extends TestCase
     {
         if (($node['$dynamicRef'] ?? null) === '#meta') {
             unset($node['$dynamicRef']);
-            $node['$ref'] = '#/$defs/schema';
+            $node['$ref'] = self::SCHEMA_OBJECT_REF;
         }
 
         if (($node['unevaluatedProperties'] ?? null) === false) {
