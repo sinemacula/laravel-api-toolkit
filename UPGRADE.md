@@ -1107,6 +1107,18 @@ held a hyphen.
 
 **Action required.** Regenerate any client built from the exported document, and re-run `api-toolkit:docs:generate`.
 
+### Changed: a pure-enum attribute is filtered and written by its lowercase name
+
+A filter on an attribute cast to a pure enum compared the value as given with the case name Eloquent stores, so the
+lowercase name the document lists matched nothing on a case-sensitive database. The filter now reads that lowercase
+name, on the root model and through relations, and a value in any other spelling, the declared case name included,
+matches nothing. `ApiRepository::persist()` likewise resolves a string for such an attribute from its lowercase name
+and throws a `ValueError` for one that names no case, where Eloquent accepted the declared name and failed on anything
+else. An enum case is written as before.
+
+**Action required.** Send the lowercase name in filters, and pass a pure-enum attribute to `persist()` as its case or
+its lowercase name rather than its declared name.
+
 ### Removed: Request macros in favour of the parsed query
 
 The request macros the toolkit used to register - `includeTrashed()` and `onlyTrashed()` - have been removed.
