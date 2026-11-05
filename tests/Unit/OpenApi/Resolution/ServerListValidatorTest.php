@@ -153,10 +153,11 @@ final class ServerListValidatorTest extends TestCase
         yield 'keyed enum' => [['url' => $url, 'variables' => ['region' => ['default' => 'eu', 'enum' => ['a' => 'eu']]]], $variables];
         yield 'non-string enum value' => [['url' => $url, 'variables' => ['region' => ['default' => 'eu', 'enum' => ['eu', 1]]]], $variables];
         yield 'default outside the enum' => [['url' => $url, 'variables' => ['region' => ['default' => 'ap', 'enum' => ['eu', 'us']]]], $variables];
-        yield 'default only loosely in the enum' => [['url' => 'https://api.example.com:{port}', 'variables' => ['port' => ['default' => '8443', 'enum' => ['8443.0']]]], $variables];
+        yield 'default only loosely in the enum' => [['url' => $url, 'variables' => ['region' => ['default' => '1', 'enum' => ['1.0']]]], $variables];
         yield 'non-string variable description' => [['url' => $url, 'variables' => ['region' => ['default' => 'eu', 'description' => 1]]], $variables];
         yield 'unsupported variable key' => [['url' => $url, 'variables' => ['region' => ['default' => 'eu', 'example' => 'us']]], $variables];
         yield 'second variable invalid' => [['url' => $url, 'variables' => ['region' => ['default' => 'eu'], 'version' => []]], $variables];
+        yield 'invalid field before unsupported key' => [['url' => $url, 'name' => 'Production', 'description' => 1], 'must declare its description as a string'];
         yield 'unsupported key' => [['url' => $url, 'name' => 'Production'], 'declares the unsupported key [name]'];
         yield 'integer key' => [['url' => $url, 0 => 'Production'], 'declares the unsupported key [0]'];
     }
