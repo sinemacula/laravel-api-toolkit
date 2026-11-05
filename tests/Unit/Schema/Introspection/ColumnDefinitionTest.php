@@ -76,6 +76,7 @@ final class ColumnDefinitionTest extends TestCase
     public static function unreadableRowProvider(): iterable
     {
         yield 'not an array' => ['email'];
+        yield 'an object answering every offset' => [new \ArrayObject(['name' => 'email', 'type_name' => 'varchar', 'nullable' => true])];
         yield 'no name' => [['type_name' => 'varchar', 'nullable' => true]];
         yield 'a name that is not a string' => [['name' => 1, 'type_name' => 'varchar', 'nullable' => true]];
         yield 'no type name' => [['name' => 'email', 'nullable' => true]];
