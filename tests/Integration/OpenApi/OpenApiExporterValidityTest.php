@@ -853,6 +853,34 @@ final class OpenApiExporterValidityTest extends TestCase
     }
 
     /**
+     * Test that a write route whose rules refuse some fields documents a
+     * prohibited field as the false schema left out of the required list, keeps
+     * a conditionally prohibited field's other rules, encodes an unconstrained
+     * schema as an empty object rather than an array, and the emitted document
+     * stays valid OpenAPI 3.1.
+     *
+     * @return void
+     */
+    public function testProhibitedAndUnconstrainedFieldsEmitValidSchemas(): void
+    {
+        $this->router()->post('accounts', [PathRequestBodyController::class, 'restricted']);
+
+        $document = $this->export()->document;
+        $schema   = $document['paths']['/accounts']['post']['requestBody']['content']['application/json']['schema'];
+
+        self::assertSame(['role'], $schema['required']);
+        self::assertSame(
+            '{"name":{"type":"string","maxLength":255},"email":false,"role":{"type":"string"},"nickname":{"type":"string"},"terms":{},"labels":{"type":"array","items":{}}}',
+            json_encode($schema['properties'], JSON_THROW_ON_ERROR),
+        );
+
+        self::assertTrue(
+            $this->validateAgainstMetaSchema($document)->isValid(),
+            'A document with prohibited and unconstrained fields must validate as OpenAPI 3.1: ' . $this->formatErrors($this->validateAgainstMetaSchema($document)),
+        );
+    }
+
+    /**
      * Test that a request field validated by the backed or the pure enum rule
      * references an enum component listing the values the field accepts, and
      * the document stays valid OpenAPI 3.1.

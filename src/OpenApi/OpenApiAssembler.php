@@ -14,6 +14,7 @@ use SineMacula\ApiToolkit\OpenApi\Docs\DocManualAssembler;
 use SineMacula\ApiToolkit\OpenApi\Resolution\AudienceConfiguration;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ReachableSchemaResolver;
 use SineMacula\ApiToolkit\OpenApi\Schema\EnumSchemaRegistry;
+use SineMacula\ApiToolkit\OpenApi\Schema\SchemaObjectNormaliser;
 use SineMacula\ApiToolkit\OpenApi\Security\SecuritySchemeResolver;
 
 /**
@@ -27,8 +28,8 @@ use SineMacula\ApiToolkit\OpenApi\Security\SecuritySchemeResolver;
  * the audience's paths (via the transitive reference closure) plus the
  * always-shared pagination and error-envelope schemas, so an internal-only
  * resource never leaks into another audience's document. When no route is
- * documented the paths object is emitted empty, keeping the document
- * schema-valid.
+ * documented the paths object is emitted empty, and an empty schema anywhere is
+ * emitted as an empty object, keeping the document schema-valid.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -46,6 +47,9 @@ final readonly class OpenApiAssembler
 
     /** @var \SineMacula\ApiToolkit\OpenApi\Resolution\AudienceConfiguration */
     private AudienceConfiguration $audiences;
+
+    /** @var \SineMacula\ApiToolkit\OpenApi\Schema\SchemaObjectNormaliser */
+    private SchemaObjectNormaliser $schemaObjects;
 
     /**
      * Constructor.
@@ -88,6 +92,7 @@ final readonly class OpenApiAssembler
         $this->envelopeBuilder = new EnvelopeBuilder;
         $this->reachability    = new ReachableSchemaResolver;
         $this->audiences       = new AudienceConfiguration;
+        $this->schemaObjects   = new SchemaObjectNormaliser;
     }
 
     /**
@@ -105,12 +110,12 @@ final readonly class OpenApiAssembler
         $posture  = $this->audiences->postureFor($audience);
         $paths    = $this->pathBuilder->build($audience, $posture);
 
-        return [
+        return $this->schemaObjects->normalise([
             'openapi'    => self::OPENAPI_VERSION,
             'info'       => $this->buildInfo($audience),
             'paths'      => $paths === [] ? (object) [] : $paths,
             'components' => $this->buildComponents($paths),
-        ];
+        ]);
     }
 
     /**
