@@ -17,7 +17,8 @@ use SineMacula\ApiToolkit\OpenApi\Naming\SchemaComponentName;
  * bare `in:` value list stays an inline enum. Size tokens are mapped to the
  * keyword pair matching the resolved type - lengths for strings, bounds for
  * numbers, item counts for arrays - and any token it does not recognise is
- * skipped so the field survives even when a constraint cannot be expressed.
+ * skipped so the field survives even when a constraint cannot be expressed. A
+ * prohibited or missing field becomes the false schema: it may never be sent.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -66,11 +67,18 @@ final readonly class FieldSchemaBuilder
     /**
      * Build the field schema and presence flag from the field's tokens.
      *
+     * A field that may never be sent is documented as the false schema, which
+     * no value satisfies, and is never required whatever its other rules say.
+     *
      * @param  list<string>  $tokens
-     * @return array{schema: array<string, mixed>, required: bool}
+     * @return array{schema: array<string, mixed>|false, required: bool}
      */
     public function build(array $tokens): array
     {
+        if ($this->hasToken($tokens, 'prohibited') || $this->hasToken($tokens, 'missing')) {
+            return ['schema' => false, 'required' => false];
+        }
+
         $enumClass = $this->argument($tokens, 'enum-class');
 
         if ($enumClass !== null && $enumClass !== '') {
