@@ -20,10 +20,11 @@ use SineMacula\ApiToolkit\Validation\Rules\PureEnum;
  * carrying a pipe survives intact. Rule objects are expanded best-effort: an
  * Enum or PureEnum contributes an `enum-class:` token naming the enum class so
  * the builder can reference its named component, either narrowed by only() or
- * except() contributes what it accepts as an `in:` list, an In contributes the
- * same `in:` token its string form renders, and a Password contributes `string`
- * plus its minimum length; any other object, NotIn included, is dropped,
- * keeping the field while discarding the constraint it could not translate.
+ * except() contributes an `enum-values:` token listing exactly what it accepts,
+ * an In contributes the same `in:` token its string form renders, and a
+ * Password contributes `string` plus its minimum length; any other object,
+ * NotIn included, is dropped, keeping the field while discarding the constraint
+ * it could not translate.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -138,10 +139,9 @@ final readonly class RuleNormaliser
 
     /**
      * Expand a backed Enum rule narrowed by only() or except() into its backing
-     * type token and an `in:` list of the values it accepts, since the enum's
+     * type token and an exact list of the values it accepts, since the enum's
      * component lists every case, or null when the rule admits every case, its
-     * enum is not backed, its narrowing cannot be read, or the list would not
-     * read back as those values.
+     * enum is not backed, or its narrowing cannot be read.
      *
      * @param  \Illuminate\Validation\Rules\Enum  $rule
      * @param  class-string<\UnitEnum>  $type
@@ -155,25 +155,9 @@ final readonly class RuleNormaliser
             return null;
         }
 
-        $token = (string) new In($accepted);
+        $values = array_map(static fn (\BackedEnum $case): int|string => $case->value, $accepted);
 
-        return $this->readsBackAs($token, $accepted) ? [$this->backingTypeToken($type), $token] : null;
-    }
-
-    /**
-     * Determine whether an `in:` token reads back as exactly the given cases'
-     * values, which a value with a backslash before a quote or at its end does
-     * not.
-     *
-     * @param  string  $token
-     * @param  list<\BackedEnum>  $cases
-     * @return bool
-     */
-    private function readsBackAs(string $token, array $cases): bool
-    {
-        $values = array_map(static fn (\BackedEnum $case): string => (string) $case->value, $cases);
-
-        return (new InRuleValues)->forField(substr($token, 3), null) === $values;
+        return [$this->backingTypeToken($type), (new EnumValuesToken)->token($values)];
     }
 
     /**
@@ -219,7 +203,7 @@ final readonly class RuleNormaliser
 
     /**
      * Expand a PureEnum rule into an `enum-class:` token naming the enum, or,
-     * when only() or except() narrows it, into a string token and an `in:` list
+     * when only() or except() narrows it, into a string token and an exact list
      * of the names it accepts, since the enum's component lists every case.
      *
      * @param  \SineMacula\ApiToolkit\Validation\Rules\PureEnum  $rule
@@ -231,7 +215,7 @@ final readonly class RuleNormaliser
 
         return count($names) === count($rule->enum::cases())
             ? ['enum-class:' . $rule->enum]
-            : ['string', 'in:' . implode(',', $names)];
+            : ['string', (new EnumValuesToken)->token($names)];
     }
 
     /**

@@ -668,7 +668,8 @@ tags is ignored.
 Every enum the document references, through a model cast or a request field validated by `Rule::enum()` or
 `PureEnum`, becomes one named component listing its values under `enum`: the backing values of a backed enum, and the
 lowercase case names of a pure enum. Each field references the component rather than repeating the list, except a
-field whose rule is narrowed by `only()` or `except()`, which lists the values it accepts inline.
+field whose rule is narrowed by `only()` or `except()`, which lists the values it accepts inline, an empty list when it
+accepts none.
 
 A route outside the resource pipeline documents its success body with `#[ResponseSchema]` on the action. Name a
 registered resource to reference its component, or a class implementing `DefinesSchema` to inline the JSON-Schema

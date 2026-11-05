@@ -13,6 +13,7 @@ use SineMacula\ApiToolkit\OpenApi\Schema\FieldSchemaBuilder;
 use SineMacula\ApiToolkit\OpenApi\Schema\RuleNormaliser;
 use SineMacula\ApiToolkit\OpenApi\Schema\RulesToSchemaTranslator;
 use SineMacula\ApiToolkit\Validation\Rules\PureEnum;
+use Tests\Fixtures\Enums\Escaped;
 use Tests\Fixtures\Enums\Magnitude;
 use Tests\Fixtures\Enums\Platform;
 use Tests\Fixtures\Enums\Punctuation;
@@ -55,6 +56,7 @@ final class RulesToSchemaTranslatorTest extends TestCase
                 'level'                 => ['type' => 'integer', 'enum' => [1, 2, 3]],
                 'rank'                  => ['type' => 'integer', 'enum' => [2, 3]],
                 'standing'              => ['type' => ['string', 'null'], 'enum' => ['active', 'banned', null]],
+                'retired'               => ['type' => 'string', 'enum' => []],
                 'email'                 => ['type' => 'string', 'format' => 'email'],
                 'password'              => ['type' => 'string', 'minLength' => 8],
                 'password_confirmation' => ['type' => 'string'],
@@ -90,6 +92,7 @@ final class RulesToSchemaTranslatorTest extends TestCase
         yield 'int-backed except' => [Rule::enum(Magnitude::class)->except(Magnitude::ONE), Magnitude::class];
         yield 'only and except' => [Rule::enum(UserLevel::class)->only([UserLevel::BRONZE, UserLevel::GOLD])->except(UserLevel::GOLD), UserLevel::class];
         yield 'commas and quotes' => [Rule::enum(Punctuation::class)->except(Punctuation::PLAIN), Punctuation::class];
+        yield 'trailing backslash' => [Rule::enum(Escaped::class)->only(Escaped::TRAILING), Escaped::class];
     }
 
     /**
@@ -113,6 +116,31 @@ final class RulesToSchemaTranslatorTest extends TestCase
         self::assertNotSame([], $accepted);
         self::assertArrayNotHasKey('$ref', $schema);
         self::assertSame($accepted, $schema['enum']);
+    }
+
+    /**
+     * Test that a field whose enum rule is narrowed to no case documents an
+     * empty enum, which no value satisfies, as the rule accepts none, keeping
+     * only null on a nullable field.
+     *
+     * @return void
+     */
+    public function testEnumFieldNarrowedToNoCaseAcceptsNothing(): void
+    {
+        $rule   = Rule::enum(UserLevel::class)->except(UserLevel::cases());
+        $schema = $this->translator()->translate([
+            'level'    => [$rule],
+            'optional' => ['nullable', $rule],
+            'platform' => [(new PureEnum(Platform::class))->except(Platform::cases())],
+        ])['properties'];
+
+        foreach (UserLevel::cases() as $case) {
+            self::assertFalse(Validator::make(['level' => $case->value], ['level' => [$rule]])->passes());
+        }
+
+        self::assertSame(['type' => 'integer', 'enum' => []], $schema['level']);
+        self::assertSame(['type' => ['integer', 'null'], 'enum' => [null]], $schema['optional']);
+        self::assertSame(['type' => 'string', 'enum' => []], $schema['platform']);
     }
 
     /**

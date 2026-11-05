@@ -85,8 +85,8 @@ final class RuleNormaliserTest extends TestCase
 
     /**
      * Test that an Enum narrowed by only() or except() on a string-backed enum
-     * expands to a string token and a quoted in: list of the values it accepts,
-     * in case declaration order.
+     * expands to a string token and an enum-values token listing the values it
+     * accepts, in case declaration order.
      *
      * @return void
      */
@@ -94,13 +94,14 @@ final class RuleNormaliserTest extends TestCase
     {
         $normaliser = new RuleNormaliser;
 
-        self::assertSame(['string', 'in:"active","banned"'], $normaliser->normalise(Rule::enum(UserStatus::class)->only([UserStatus::BANNED, UserStatus::ACTIVE])));
-        self::assertSame(['string', 'in:"active","inactive"'], $normaliser->normalise(Rule::enum(UserStatus::class)->except(UserStatus::BANNED)));
+        self::assertSame(['string', 'enum-values:["active","banned"]'], $normaliser->normalise(Rule::enum(UserStatus::class)->only([UserStatus::BANNED, UserStatus::ACTIVE])));
+        self::assertSame(['string', 'enum-values:["active","inactive"]'], $normaliser->normalise(Rule::enum(UserStatus::class)->except(UserStatus::BANNED)));
     }
 
     /**
      * Test that an Enum narrowed by only() or except() on an int-backed enum
-     * expands to an integer token and an in: list of the values it accepts.
+     * expands to an integer token and an enum-values token listing the values
+     * it accepts as integers.
      *
      * @return void
      */
@@ -108,30 +109,37 @@ final class RuleNormaliserTest extends TestCase
     {
         $normaliser = new RuleNormaliser;
 
-        self::assertSame(['integer', 'in:"3"'], $normaliser->normalise(Rule::enum(UserLevel::class)->only(UserLevel::GOLD)));
-        self::assertSame(['integer', 'in:"1","-3"'], $normaliser->normalise(Rule::enum(Magnitude::class)->except(Magnitude::ZERO)));
+        self::assertSame(['integer', 'enum-values:[3]'], $normaliser->normalise(Rule::enum(UserLevel::class)->only(UserLevel::GOLD)));
+        self::assertSame(['integer', 'enum-values:[1,-3]'], $normaliser->normalise(Rule::enum(Magnitude::class)->except(Magnitude::ZERO)));
     }
 
     /**
-     * Test that a narrowed Enum quotes values carrying commas and quotes the
-     * way an In rule renders them.
+     * Test that a narrowed Enum lists values carrying commas, quotes, or a
+     * trailing backslash exactly.
      *
      * @return void
      */
-    public function testNarrowedEnumQuotesValuesLikeAnInRule(): void
+    public function testNarrowedEnumListsValuesExactly(): void
     {
-        self::assertSame(['string', 'in:"a,b","say ""hi"""'], (new RuleNormaliser)->normalise(Rule::enum(Punctuation::class)->except(Punctuation::PLAIN)));
+        $normaliser = new RuleNormaliser;
+
+        self::assertSame(['string', 'enum-values:["a,b","say \\"hi\\""]'], $normaliser->normalise(Rule::enum(Punctuation::class)->except(Punctuation::PLAIN)));
+        self::assertSame(['string', 'enum-values:["dir\\\\"]'], $normaliser->normalise(Rule::enum(Escaped::class)->only(Escaped::TRAILING)));
     }
 
     /**
-     * Test that a narrowed Enum whose values would not read back from an in:
-     * list, such as one ending in a backslash, references the enum's component.
+     * Test that an Enum or PureEnum narrowed to no case expands to an empty
+     * enum-values list, since the rule accepts nothing.
      *
      * @return void
      */
-    public function testNarrowedEnumWithUnlistableValueExpandsToEnumClassToken(): void
+    public function testEnumNarrowedToNoCaseExpandsToAnEmptyList(): void
     {
-        self::assertSame(['enum-class:' . Escaped::class], (new RuleNormaliser)->normalise(Rule::enum(Escaped::class)->only(Escaped::TRAILING)));
+        $normaliser = new RuleNormaliser;
+
+        self::assertSame(['string', 'enum-values:[]'], $normaliser->normalise(Rule::enum(UserStatus::class)->except(UserStatus::cases())));
+        self::assertSame(['integer', 'enum-values:[]'], $normaliser->normalise(Rule::enum(UserLevel::class)->only('3')));
+        self::assertSame(['string', 'enum-values:[]'], $normaliser->normalise((new PureEnum(Platform::class))->except(Platform::cases())));
     }
 
     /**
@@ -144,7 +152,7 @@ final class RuleNormaliserTest extends TestCase
     {
         $rule = Rule::enum(UserStatus::class)->only([UserStatus::ACTIVE, UserStatus::BANNED])->except(UserStatus::ACTIVE);
 
-        self::assertSame(['string', 'in:"active","banned"'], (new RuleNormaliser)->normalise($rule));
+        self::assertSame(['string', 'enum-values:["active","banned"]'], (new RuleNormaliser)->normalise($rule));
     }
 
     /**
@@ -240,8 +248,8 @@ final class RuleNormaliserTest extends TestCase
 
     /**
      * Test that a PureEnum narrowed by only() or except() expands to a string
-     * token and an in: list of the names it accepts, since the enum's component
-     * lists every case.
+     * token and an enum-values token listing the names it accepts, since the
+     * enum's component lists every case.
      *
      * @return void
      */
@@ -249,8 +257,8 @@ final class RuleNormaliserTest extends TestCase
     {
         $normaliser = new RuleNormaliser;
 
-        self::assertSame(['string', 'in:web,desktop'], $normaliser->normalise((new PureEnum(Platform::class))->only([Platform::DESKTOP, Platform::WEB])));
-        self::assertSame(['string', 'in:mobile_app,desktop'], $normaliser->normalise((new PureEnum(Platform::class))->except(Platform::WEB)));
+        self::assertSame(['string', 'enum-values:["web","desktop"]'], $normaliser->normalise((new PureEnum(Platform::class))->only([Platform::DESKTOP, Platform::WEB])));
+        self::assertSame(['string', 'enum-values:["mobile_app","desktop"]'], $normaliser->normalise((new PureEnum(Platform::class))->except(Platform::WEB)));
     }
 
     /**

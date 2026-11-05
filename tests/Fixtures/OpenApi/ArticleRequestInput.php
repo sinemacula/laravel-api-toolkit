@@ -17,10 +17,10 @@ use Tests\Fixtures\Enums\UserStatus;
  *
  * Declares a required bounded string, a nullable string, an array with typed
  * items, an enum-object field, a nullable pure enum field, two value-list
- * object fields, two enum-object fields narrowed by only() or except(), an
- * email field, and a confirmed password so the translator can be exercised
- * against presence, size, nesting, enum, format, and cross-field rules through
- * one representative source.
+ * object fields, three enum-object fields narrowed by only() or except(), one
+ * to no case, an email field, and a confirmed password so the translator can be
+ * exercised against presence, size, nesting, enum, format, and cross-field
+ * rules through one representative source.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -46,6 +46,7 @@ final class ArticleRequestInput implements DefinesInputSchema
             'level'      => ['integer', Rule::in(array_column(UserLevel::cases(), 'value'))],
             'rank'       => [Rule::enum(UserLevel::class)->except(UserLevel::BRONZE)],
             'standing'   => ['nullable', Rule::enum(UserStatus::class)->only([UserStatus::ACTIVE, UserStatus::BANNED])],
+            'retired'    => [Rule::enum(UserStatus::class)->except(UserStatus::cases())],
             'email'      => 'required|string|email',
             'password'   => ['required', Password::defaults(), 'confirmed'],
         ];
