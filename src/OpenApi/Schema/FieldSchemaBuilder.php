@@ -13,12 +13,13 @@ use SineMacula\ApiToolkit\OpenApi\Naming\SchemaComponentName;
  * type, then layers on the enum, format, pattern, binary, size, and nullability
  * constraints that token list expresses. An `enum-class:` token short-circuits
  * to a reference to the enum's named component - widened to an anyOf with null
- * when nullable - registering the enum so its component is emitted, while a
- * bare `in:` value list stays an inline enum. Size tokens are mapped to the
- * keyword pair matching the resolved type - lengths for strings, bounds for
- * numbers, item counts for arrays - and any token it does not recognise is
- * skipped so the field survives even when a constraint cannot be expressed. A
- * prohibited or missing field becomes the false schema: it may never be sent.
+ * when nullable - registering the enum so its component is emitted, while an
+ * `enum-values:` list or a bare `in:` value list stays an inline enum. Size
+ * tokens are mapped to the keyword pair matching the resolved type - lengths
+ * for strings, bounds for numbers, item counts for arrays - and any token it
+ * does not recognise is skipped so the field survives even when a constraint
+ * cannot be expressed. A prohibited or missing field becomes the false schema:
+ * it may never be sent.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -54,6 +55,7 @@ final readonly class FieldSchemaBuilder
      *
      * @param  \SineMacula\ApiToolkit\OpenApi\Schema\EnumSchemaRegistry  $enums
      * @param  \SineMacula\ApiToolkit\OpenApi\Schema\InRuleValues  $inValues
+     * @param  \SineMacula\ApiToolkit\OpenApi\Schema\EnumValuesToken  $exactValues
      */
     public function __construct(
 
@@ -62,6 +64,9 @@ final readonly class FieldSchemaBuilder
 
         /** The reader resolving an `in:` argument into enum values. */
         private InRuleValues $inValues = new InRuleValues,
+
+        /** The reader resolving an `enum-values:` argument into enum values. */
+        private EnumValuesToken $exactValues = new EnumValuesToken,
     ) {}
 
     /**
@@ -163,8 +168,10 @@ final readonly class FieldSchemaBuilder
     }
 
     /**
-     * Apply an `in:` token's values as the field's enum, or as its items' enum
-     * on an array field, since the validator checks every element against them.
+     * Apply an `enum-values:` token's exact values as the field's enum, even an
+     * empty list, and as strings on a string field, or else an `in:` token's
+     * values as the field's enum, or as its items' enum on an array field,
+     * since the validator checks every element against them.
      *
      * @param  array<string, mixed>  $schema
      * @param  list<string>  $tokens
@@ -173,6 +180,14 @@ final readonly class FieldSchemaBuilder
      */
     private function applyEnum(array &$schema, array $tokens, ?string $type): void
     {
+        $exact = $this->exactValues->values($this->argument($tokens, EnumValuesToken::NAME) ?? '');
+
+        if ($exact !== null) {
+            $schema['enum'] = $type === 'string' ? array_map(strval(...), $exact) : $exact;
+
+            return;
+        }
+
         $values = $this->argument($tokens, 'in');
 
         if ($values === null || $values === '') {
