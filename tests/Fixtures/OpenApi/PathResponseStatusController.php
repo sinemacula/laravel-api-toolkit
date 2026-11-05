@@ -28,8 +28,8 @@ final class PathResponseStatusController
      *
      * @return void
      */
-    #[ResponseStatus(HttpStatus::NO_CONTENT)]
     #[ResponseHeader('Clear-Site-Data', 'The browsing data to clear.')]
+    #[ResponseStatus(HttpStatus::NO_CONTENT)]
     public function destroyAll(): void {}
 
     /**
@@ -37,8 +37,8 @@ final class PathResponseStatusController
      *
      * @return void
      */
-    #[ResponseStatus(HttpStatus::ACCEPTED)]
     #[ResponseSchema(WidgetShape::class)]
+    #[ResponseStatus(HttpStatus::ACCEPTED)]
     public function queue(): void {}
 
     /**
@@ -62,8 +62,8 @@ final class PathResponseStatusController
      *
      * @return void
      */
-    #[ResponseStatus(HttpStatus::OK)]
     #[ResponseSchema(WidgetShape::class)]
+    #[ResponseStatus(HttpStatus::OK)]
     public function destroy(): void {}
 
     /**

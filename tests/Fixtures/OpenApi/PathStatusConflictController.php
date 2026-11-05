@@ -25,8 +25,8 @@ final class PathStatusConflictController extends AuthorizedController
      *
      * @return void
      */
-    #[ResponseStatus(HttpStatus::NO_CONTENT)]
     #[ResponseSchema(WidgetShape::class)]
+    #[ResponseStatus(HttpStatus::NO_CONTENT)]
     public function update(): void {}
 
     /**
@@ -34,7 +34,7 @@ final class PathStatusConflictController extends AuthorizedController
      *
      * @return void
      */
-    #[ResponseStatus(HttpStatus::RESET_CONTENT)]
     #[ResponseSchema(WidgetShape::class)]
+    #[ResponseStatus(HttpStatus::RESET_CONTENT)]
     public function reset(): void {}
 }

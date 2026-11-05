@@ -8,14 +8,10 @@ use Illuminate\Routing\Route;
 use Illuminate\Routing\Router;
 use SineMacula\ApiToolkit\Http\Routing\AuthorizedController;
 use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
-use SineMacula\ApiToolkit\OpenApi\Exceptions\ResponseHeaderCollisionException;
 use SineMacula\ApiToolkit\OpenApi\Naming\SchemaComponentName;
 use SineMacula\ApiToolkit\OpenApi\Resolution\AudienceResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\DocumentableRouteFilter;
 use SineMacula\ApiToolkit\OpenApi\Resolution\RequestBodyResolver;
-use SineMacula\ApiToolkit\OpenApi\Resolution\ResponseHeaderResolver;
-use SineMacula\ApiToolkit\OpenApi\Resolution\ResponseSchemaResolver;
-use SineMacula\ApiToolkit\OpenApi\Resolution\ResponseStatusResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\RouteMiddlewareResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\TagResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ThrowsErrorResolver;
@@ -93,11 +89,8 @@ final readonly class PathBuilder
         500 => 'An unexpected server error occurred.',
     ];
 
-    /** The message thrown when an action redeclares an exporter-emitted header */
-    private const string HEADER_COLLISION_MESSAGE = 'The %s header declared for %s::%s is emitted by the exporter and cannot be redeclared';
-
     /** The media type every documented response body is served under */
-    private const string MEDIA_TYPE = 'application/json';
+    private const string MEDIA_TYPE = SuccessResponseBuilder::MEDIA_TYPE;
 
     /** The HTTP verbs excluded from the emitted path item */
     private const array EXCLUDED_VERBS = ['HEAD', 'OPTIONS'];
@@ -114,14 +107,12 @@ final readonly class PathBuilder
      * @param  \SineMacula\ApiToolkit\OpenApi\Resolution\DocumentableRouteFilter  $routeFilter
      * @param  \SineMacula\ApiToolkit\OpenApi\Builder\EnvelopeBuilder  $envelope
      * @param  \SineMacula\ApiToolkit\OpenApi\Resolution\TagResolver  $tags
-     * @param  \SineMacula\ApiToolkit\OpenApi\Resolution\ResponseSchemaResolver  $responseSchema
      * @param  \SineMacula\ApiToolkit\OpenApi\Resolution\RequestBodyResolver  $requestBody
      * @param  \SineMacula\ApiToolkit\OpenApi\Security\SecuritySchemeResolver  $security
      * @param  \SineMacula\ApiToolkit\OpenApi\Builder\QueryParameterBuilder  $queryParameters
      * @param  \SineMacula\ApiToolkit\OpenApi\Resolution\RouteMiddlewareResolver  $middleware
      * @param  \SineMacula\ApiToolkit\OpenApi\Resolution\ThrowsErrorResolver  $throws
-     * @param  \SineMacula\ApiToolkit\OpenApi\Resolution\ResponseHeaderResolver  $responseHeaders
-     * @param  \SineMacula\ApiToolkit\OpenApi\Resolution\ResponseStatusResolver  $responseStatus
+     * @param  \SineMacula\ApiToolkit\OpenApi\Builder\SuccessResponseBuilder  $successResponse
      */
     public function __construct(
 
@@ -143,9 +134,6 @@ final readonly class PathBuilder
         /** The resolver naming the tag each operation is grouped under. */
         private TagResolver $tags,
 
-        /** The resolver of a non-resource action's declared response body. */
-        private ResponseSchemaResolver $responseSchema,
-
         /** The resolver of a write action's request body. */
         private RequestBodyResolver $requestBody,
 
@@ -161,11 +149,8 @@ final readonly class PathBuilder
         /** The resolver of the ApiExceptions an action's throws tags name. */
         private ThrowsErrorResolver $throws,
 
-        /** The resolver of the headers an action declares it responds with. */
-        private ResponseHeaderResolver $responseHeaders,
-
-        /** The resolver of the success status an action declares. */
-        private ResponseStatusResolver $responseStatus,
+        /** The builder applying what an action declares about its success. */
+        private SuccessResponseBuilder $successResponse,
     ) {}
 
     /**
@@ -238,10 +223,10 @@ final readonly class PathBuilder
             return $resource;
         }
 
-        $responses = $this->successResponses(match ($action) {
-            'store'   => ['201' => ['description' => 'The request succeeded and a resource was created.', ...$this->successBody($controllerClass, $action)]],
+        $responses = $this->successResponse->declare(match ($action) {
+            'store'   => ['201' => ['description' => 'The request succeeded and a resource was created.', ...$this->successResponse->body($controllerClass, $action)]],
             'destroy' => ['204' => ['description' => 'The request succeeded with no content.']],
-            default   => ['200' => ['description' => 'The request succeeded.', ...$this->successBody($controllerClass, $action)]],
+            default   => ['200' => ['description' => 'The request succeeded.', ...$this->successResponse->body($controllerClass, $action)]],
         }, $controllerClass, $action);
 
         $requestBody = array_intersect($this->verbs($route), self::BODY_VERBS) === []
@@ -284,7 +269,7 @@ final readonly class PathBuilder
             return null;
         }
 
-        $responses   = $this->successResponses($responses, $controllerClass, $action);
+        $responses   = $this->successResponse->declare($responses, $controllerClass, $action);
         $requestBody = array_intersect($this->verbs($route), self::BODY_VERBS) === []
             ? []
             : $this->requestBody->resolve($controllerClass, $action) ?? [];
@@ -557,107 +542,6 @@ final readonly class PathBuilder
         }
 
         return [...$response, 'content' => [self::MEDIA_TYPE => $media]];
-    }
-
-    /**
-     * Apply the action's declared status and headers to its success responses.
-     *
-     * @param  array<int|string, array<string, mixed>>  $responses
-     * @param  class-string|null  $controllerClass
-     * @param  string  $action
-     * @return array<int|string, array<string, mixed>>
-     *
-     * @throws \SineMacula\ApiToolkit\OpenApi\Exceptions\ResponseHeaderCollisionException
-     * @throws \SineMacula\ApiToolkit\OpenApi\Exceptions\ResponseStatusConflictException
-     */
-    private function successResponses(array $responses, ?string $controllerClass, string $action): array
-    {
-        $declared = $this->responseHeaders->forAction($controllerClass, $action);
-
-        return array_map(
-            fn (array $response): array => $this->withHeaders($response, $declared, $controllerClass, $action),
-            $this->withStatus($responses, $controllerClass, $action),
-        );
-    }
-
-    /**
-     * Move the success response under the status the action declares, leaving
-     * it untouched when the action declares none or its default status.
-     *
-     * A no-content status drops the body and every header the exporter emits
-     * with it. Any other status keeps the response, giving one that carried no
-     * body the action's declared or undocumented body.
-     *
-     * @param  array<int|string, array<string, mixed>>  $responses
-     * @param  class-string|null  $controllerClass
-     * @param  string  $action
-     * @return array<int|string, array<string, mixed>>
-     *
-     * @throws \SineMacula\ApiToolkit\OpenApi\Exceptions\ResponseStatusConflictException
-     */
-    private function withStatus(array $responses, ?string $controllerClass, string $action): array
-    {
-        $directive = $this->responseStatus->resolve($controllerClass, $action);
-        $default   = (int) array_key_first($responses);
-
-        if ($directive === null || $directive->status->value === $default) {
-            return $responses;
-        }
-
-        $response = ['description' => $directive->status->getReasonPhrase() . '.'];
-
-        if ($directive->hasNoContent()) {
-            return [$directive->status->value => $response];
-        }
-
-        return [$directive->status->value => $response + $responses[$default] + $this->successBody($controllerClass, $action)];
-    }
-
-    /**
-     * Build the success body of an action outside the resource contract: the
-     * shape its #[ResponseSchema] declares, or the undocumented envelope.
-     *
-     * @param  class-string|null  $controllerClass
-     * @param  string  $action
-     * @return array{content: array<string, array{schema: array<string, mixed>}>}
-     */
-    private function successBody(?string $controllerClass, string $action): array
-    {
-        $schema = $this->responseSchema->resolve($controllerClass, $action) ?? $this->envelope->undocumentedEnvelope();
-
-        return ['content' => [self::MEDIA_TYPE => ['schema' => $schema]]];
-    }
-
-    /**
-     * Attach the declared headers to a single success response, after any
-     * header the exporter emits there itself, leaving the response untouched
-     * when none is declared.
-     *
-     * @param  array<string, mixed>  $response
-     * @param  array<string, array<string, mixed>>  $declared
-     * @param  class-string|null  $controllerClass
-     * @param  string  $action
-     * @return array<string, mixed>
-     *
-     * @throws \SineMacula\ApiToolkit\OpenApi\Exceptions\ResponseHeaderCollisionException
-     */
-    private function withHeaders(array $response, array $declared, ?string $controllerClass, string $action): array
-    {
-        if ($declared === []) {
-            return $response;
-        }
-
-        /** @var array<string, array<string, mixed>> $emitted */
-        $emitted = $response['headers'] ?? [];
-        $owned   = array_change_key_case($emitted);
-
-        foreach (array_keys($declared) as $name) {
-            if (array_key_exists(strtolower($name), $owned)) {
-                throw new ResponseHeaderCollisionException(sprintf(self::HEADER_COLLISION_MESSAGE, $name, $controllerClass, $action));
-            }
-        }
-
-        return ['description' => $response['description'], 'headers' => [...$emitted, ...$declared]] + $response;
     }
 
     /**

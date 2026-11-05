@@ -749,8 +749,8 @@ use SineMacula\Http\Enums\HttpStatus;
 #[ResponseStatus(HttpStatus::NO_CONTENT)]
 public function update(ChangePasswordRequest $request): Response {}
 
-#[ResponseStatus(HttpStatus::ACCEPTED)]
 #[ResponseSchema(ExportQueued::class)]
+#[ResponseStatus(HttpStatus::ACCEPTED)]
 public function export(): JsonResponse {}
 ```
 

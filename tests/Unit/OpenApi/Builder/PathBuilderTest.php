@@ -12,6 +12,7 @@ use SineMacula\ApiToolkit\Http\Resources\ApiResourceCollection;
 use SineMacula\ApiToolkit\OpenApi\Builder\EnvelopeBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\PathBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\QueryParameterBuilder;
+use SineMacula\ApiToolkit\OpenApi\Builder\SuccessResponseBuilder;
 use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
 use SineMacula\ApiToolkit\OpenApi\Exceptions\ResponseHeaderCollisionException;
 use SineMacula\ApiToolkit\OpenApi\Exceptions\ResponseStatusConflictException;
@@ -1811,8 +1812,8 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
-     * Test that a body declared beside a no-content status fails the build on
-     * a resource route.
+     * Test that a body declared beside a no-content status fails the build on a
+     * resource route.
      *
      * @return void
      */
@@ -1952,14 +1953,17 @@ final class PathBuilderTest extends TestCase
             new DocumentableRouteFilter,
             new EnvelopeBuilder,
             new TagResolver,
-            new ResponseSchemaResolver($catalogue, new EnvelopeBuilder),
             new RequestBodyResolver(new RulesToSchemaTranslator(new RuleNormaliser, new FieldSchemaBuilder)),
             new SecuritySchemeResolver(new SecuritySchemeMapper, new RouteMiddlewareResolver($this->router())),
             new QueryParameterBuilder($catalogue),
             new RouteMiddlewareResolver($this->router()),
             new ThrowsErrorResolver(new ResponseHeaderResolver),
-            new ResponseHeaderResolver,
-            new ResponseStatusResolver,
+            new SuccessResponseBuilder(
+                new EnvelopeBuilder,
+                new ResponseSchemaResolver($catalogue, new EnvelopeBuilder),
+                new ResponseHeaderResolver,
+                new ResponseStatusResolver,
+            ),
         );
     }
 

@@ -13,6 +13,7 @@ use SineMacula\ApiToolkit\OpenApi\Builder\ErrorResponseBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\PathBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\QueryParameterBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\ResourceSchemaBuilder;
+use SineMacula\ApiToolkit\OpenApi\Builder\SuccessResponseBuilder;
 use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
 use SineMacula\ApiToolkit\OpenApi\Docs\DocManualAssembler;
 use SineMacula\ApiToolkit\OpenApi\ExportOpenApiComponents;
@@ -232,14 +233,17 @@ final class ExportOpenApiComponentsTest extends TestCase
                 new DocumentableRouteFilter,
                 new EnvelopeBuilder,
                 new TagResolver,
-                new ResponseSchemaResolver($catalogue, new EnvelopeBuilder),
                 new RequestBodyResolver(new RulesToSchemaTranslator(new RuleNormaliser, new FieldSchemaBuilder($enums))),
                 new SecuritySchemeResolver(new SecuritySchemeMapper, new RouteMiddlewareResolver($router)),
                 new QueryParameterBuilder($catalogue),
                 new RouteMiddlewareResolver($router),
                 new ThrowsErrorResolver(new ResponseHeaderResolver),
-                new ResponseHeaderResolver,
-                new ResponseStatusResolver,
+                new SuccessResponseBuilder(
+                    new EnvelopeBuilder,
+                    new ResponseSchemaResolver($catalogue, new EnvelopeBuilder),
+                    new ResponseHeaderResolver,
+                    new ResponseStatusResolver,
+                ),
             ),
             new SecuritySchemeResolver(new SecuritySchemeMapper, new RouteMiddlewareResolver($router)),
             new EnumSchemaBuilder,
