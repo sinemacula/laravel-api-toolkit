@@ -759,6 +759,11 @@ every earlier entry unreachable in every process at once. A column listing or se
 reads empty, as one does before its table exists, is never stored, so the table's columns are read as soon as
 it exists, with no migration event or invalidation needed.
 
+Every entry is stored as arrays and scalars, never as objects, so the cache works under Laravel's default
+`cache.serializable_classes => false` without allowing any toolkit class. A stored set of column definitions or
+index catalogue that does not read back in the expected shape, such as one an earlier version stored as objects,
+is treated as a miss, then recomputed and overwritten.
+
 The metadata cache is optional. If a cache store operation throws, the failure is reported as a
 `MetadataCacheUnavailableException` and the store is bypassed for `api-toolkit.cache.retry_after` seconds (env
 `API_TOOLKIT_CACHE_RETRY_AFTER`, default `30`), so metadata is computed without the cache and the request is still

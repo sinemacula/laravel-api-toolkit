@@ -4,13 +4,16 @@ declare(strict_types = 1);
 
 namespace Tests;
 
+use Illuminate\Cache\Events\KeyWritten;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Filesystem\Filesystem;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Testing\Fakes\EventFake;
 use Illuminate\Testing\PendingCommand;
 use Orchestra\Testbench\TestCase as OrchestraTestCase;
 use SineMacula\ApiToolkit\ApiServiceProvider;
@@ -42,6 +45,37 @@ abstract class TestCase extends OrchestraTestCase
 
     /** @var string|null The per-test isolated bootstrap directory, if one was provisioned. */
     private ?string $bootstrapPath = null;
+
+    /** @var array<int, string> The toolkit cache keys written with a value that does not read back without its classes. */
+    private array $unreadableCacheWrites = [];
+
+    /**
+     * Fail the test when it wrote a toolkit cache entry that would not read
+     * back with every class refused, as Laravel's serializable_classes setting
+     * refuses them by default.
+     *
+     * A test that fakes every event keeps the cache's writes from the listener,
+     * so the writes the fake recorded are checked here instead.
+     *
+     * @return void
+     */
+    #[\Override]
+    protected function assertPostConditions(): void
+    {
+        parent::assertPostConditions();
+
+        $events = Event::getFacadeRoot();
+
+        if ($events instanceof EventFake) {
+            $events->dispatched(KeyWritten::class)->each(fn (array $arguments) => $this->recordUnreadableCacheWrite($arguments[0]));
+        }
+
+        if ($this->unreadableCacheWrites === []) {
+            return;
+        }
+
+        static::fail('These cache entries do not read back with serializable classes disabled: ' . implode(', ', array_unique($this->unreadableCacheWrites)));
+    }
 
     /**
      * Clean up the testing environment before the next test.
@@ -174,6 +208,20 @@ abstract class TestCase extends OrchestraTestCase
     }
 
     /**
+     * Point the default cache store at one that serializes every value and, as
+     * Laravel's serializable_classes setting does by default, unserializes no
+     * class.
+     *
+     * @return void
+     */
+    protected function useClassRefusingCacheStore(): void
+    {
+        Config::set('cache.serializable_classes', false);
+        Config::set('cache.stores.class-refusing', ['driver' => 'array', 'serialize' => true]);
+        Config::set('cache.default', 'class-refusing');
+    }
+
+    /**
      * Point the default cache store at one that keeps nothing and rejects every
      * write.
      *
@@ -218,6 +266,11 @@ abstract class TestCase extends OrchestraTestCase
         $this->fileCachePath = sys_get_temp_dir() . '/api-toolkit-test-cache-' . getmypid() . '-' . uniqid('', true);
         $config->set('cache.stores.file.path', $this->fileCachePath);
 
+        /** @var \Illuminate\Contracts\Events\Dispatcher $events */
+        $events = $app['events'];
+
+        $events->listen(KeyWritten::class, $this->recordUnreadableCacheWrite(...));
+
         $config->set('database.default', 'testing');
         $config->set('database.connections.testing', $this->getDatabaseConnection());
 
@@ -250,6 +303,35 @@ abstract class TestCase extends OrchestraTestCase
         $this->createDevicesTable();
         $this->createImportRowsTable();
         $this->createSearchIndexes();
+    }
+
+    /**
+     * Record a toolkit cache write whose value does not read back unchanged
+     * once serialized and unserialized with every class refused.
+     *
+     * The write is recorded rather than failed here, since the metadata cache
+     * writer reports and absorbs any exception the store raises. It is recorded
+     * before the value is serialized, so a value that cannot be serialized at
+     * all stays recorded when serializing it throws.
+     *
+     * @param  \Illuminate\Cache\Events\KeyWritten  $event
+     * @return void
+     */
+    private function recordUnreadableCacheWrite(KeyWritten $event): void
+    {
+        $prefix = Config::get('api-toolkit.cache.prefix', 'api-toolkit');
+
+        if (!is_string($prefix) || !str_starts_with($event->key, $prefix . ':')) {
+            return;
+        }
+
+        $this->unreadableCacheWrites[] = $event->key;
+
+        if (unserialize(serialize($event->value), ['allowed_classes' => false]) !== $event->value) {
+            return;
+        }
+
+        array_pop($this->unreadableCacheWrites);
     }
 
     /**
