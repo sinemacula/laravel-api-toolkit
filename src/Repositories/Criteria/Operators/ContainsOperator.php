@@ -90,7 +90,7 @@ final class ContainsOperator implements ExpandsValueList, FilterOperator
             return true;
         }
 
-        return is_string($value) && !empty($value) && json_validate($value);
+        return is_string($value) && json_validate($value);
     }
 
     /**

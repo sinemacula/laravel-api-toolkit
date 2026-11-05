@@ -1559,6 +1559,64 @@ final class FilterApplierTest extends TestCase
     }
 
     /**
+     * Provide filters on a falsy value with the users each matches.
+     *
+     * @return iterable<string, array{array<string, mixed>, array<int, string>}>
+     */
+    public static function falsyValueFilterProvider(): iterable
+    {
+        yield 'bare "0"' => [['name' => '0'], ['0']];
+        yield '$eq "0"' => [['name' => ['$eq' => '0']], ['0']];
+        yield 'bare empty string' => [['name' => ''], ['']];
+        yield '$eq empty string' => [['name' => ['$eq' => '']], ['']];
+        yield 'bare 0' => [['organization_id' => 0], ['0']];
+        yield '$eq 0' => [['organization_id' => ['$eq' => 0]], ['0']];
+        yield 'bare false' => [['organization_id' => false], ['0']];
+        yield '$eq false' => [['organization_id' => ['$eq' => false]], ['0']];
+        yield 'bare null' => [['organization_id' => null], ['Alice']];
+        yield '$eq null' => [['organization_id' => ['$eq' => null]], ['Alice']];
+        yield 'bare "0" in an $or' => [['$or' => ['name' => '0', 'organization_id' => 1]], ['0', '']];
+        yield 'bare 0 in an $and' => [['$and' => ['organization_id' => 0]], ['0']];
+        yield 'bare "0" in a relation' => [['posts' => ['title' => '0']], ['']];
+        yield 'bare "0" in a relation $or' => [['posts' => ['$or' => ['title' => '0']]], ['']];
+        yield 'bare "0" under $has' => [['$has' => ['posts' => ['title' => '0']]], ['']];
+        yield 'field with no conditions' => [['name' => []], ['0', '', 'Alice']];
+    }
+
+    /**
+     * Test that a falsy value filters the rows that hold it, under the bare
+     * shorthand and $eq alike, rather than being read as no filter at all.
+     *
+     * @param  array<string, mixed>  $filters
+     * @param  array<int, string>  $expected
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    #[DataProvider('falsyValueFilterProvider')]
+    public function testFalsyValueFiltersTheRowsHoldingIt(array $filters, array $expected): void
+    {
+        $this->seedFalsyValueUsers();
+
+        self::assertSame($expected, $this->matchedUserNames($filters));
+    }
+
+    /**
+     * Test that a null or empty filter document matches every row.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testNullOrEmptyFilterDocumentMatchesEveryRow(): void
+    {
+        $this->seedFalsyValueUsers();
+
+        self::assertSame(['0', '', 'Alice'], $this->matchedUserNames(null));
+        self::assertSame(['0', '', 'Alice'], $this->matchedUserNames([]));
+    }
+
+    /**
      * Assert that the given filters are rejected on cost, carrying the cap that
      * rejected them, the position within the document, and both sides of the
      * comparison.
@@ -1601,6 +1659,39 @@ final class FilterApplierTest extends TestCase
         Device::create(['user_id' => $bob->id, 'name' => 'Phone', 'platform' => Platform::MOBILE_APP, 'status' => UserStatus::INACTIVE]);
         Device::create(['name' => 'Workstation', 'platform' => Platform::DESKTOP]);
         Device::create(['name' => 'Unregistered']);
+    }
+
+    /**
+     * Seed users holding falsy names and organisations, the user whose name is
+     * empty owning the only post titled "0".
+     *
+     * @return void
+     */
+    private function seedFalsyValueUsers(): void
+    {
+        $zero  = User::create(['name' => '0', 'email' => 'zero@example.com', 'organization_id' => 0]);
+        $empty = User::create(['name' => '', 'email' => 'empty@example.com', 'organization_id' => 1]);
+
+        User::create(['name' => 'Alice', 'email' => 'alice@example.com']);
+
+        Post::create(['user_id' => $zero->id, 'title' => 'Hello', 'body' => 'B']);
+        Post::create(['user_id' => $empty->id, 'title' => '0', 'body' => 'B']);
+    }
+
+    /**
+     * Apply the filters to the users and return the names matched, in the
+     * order the users were created.
+     *
+     * @param  array<string, mixed>|null  $filters
+     * @return array<int, string>
+     *
+     * @throws \Illuminate\Validation\ValidationException
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    private function matchedUserNames(?array $filters): array
+    {
+        /** @var array<int, string> */
+        return $this->applyFilters($filters)->orderBy('id')->pluck('name')->all();
     }
 
     /**

@@ -7,6 +7,7 @@ namespace Tests\Integration\Query;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Config;
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
 use SineMacula\ApiToolkit\Repositories\Criteria\ApiCriteria;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\EagerLoadApplier;
@@ -357,6 +358,45 @@ final class ApiCriteriaIntegrationTest extends TestCase
         $results = $this->makeCriteria()->apply(new User)->get();
 
         self::assertSame(['Alice', 'Charlie'], $results->pluck('name')->sort()->values()->all());
+    }
+
+    /**
+     * Provide falsy-value filter documents with the users each request reads.
+     *
+     * @return iterable<string, array{string, array<int, string>}>
+     */
+    public static function falsyValueFilterProvider(): iterable
+    {
+        yield 'bare "0"' => ['{"name":"0"}', ['0']];
+        yield '$eq "0"' => ['{"name":{"$eq":"0"}}', ['0']];
+        yield 'bare 0' => ['{"organization_id":0}', ['0']];
+        yield '$eq 0' => ['{"organization_id":{"$eq":0}}', ['0']];
+        yield 'bare empty string' => ['{"email":""}', ['']];
+        yield '$eq empty string' => ['{"email":{"$eq":""}}', ['']];
+        yield 'empty document' => ['{}', ['Alice', 'Bob', 'Charlie', '0', '']];
+    }
+
+    /**
+     * Test that a request filtering on a falsy value reads only the rows that
+     * hold it, while an empty filter document reads every row.
+     *
+     * @param  string  $filters
+     * @param  array<int, string>  $expected
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    #[DataProvider('falsyValueFilterProvider')]
+    public function testFilteringOnAFalsyValueReadsOnlyTheRowsHoldingIt(string $filters, array $expected): void
+    {
+        User::create(['name' => '0', 'email' => 'zero@example.com', 'organization_id' => 0]);
+        User::create(['name' => '', 'email' => '', 'organization_id' => 1]);
+
+        $this->parseQuery(['filters' => $filters]);
+
+        $results = $this->makeCriteria()->apply(new User)->orderBy('id')->get();
+
+        self::assertSame($expected, $results->pluck('name')->all());
     }
 
     /**
