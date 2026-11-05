@@ -423,6 +423,83 @@ final class RulesToSchemaTranslatorTest extends TestCase
     }
 
     /**
+     * Test that a prohibited field is the false schema, left out of the
+     * required list whatever its other rules say, and loses its children and
+     * its confirmation sibling.
+     *
+     * @return void
+     */
+    public function testProhibitedFieldIsTheFalseSchemaAndNeverRequired(): void
+    {
+        $schema = $this->translator()->translate([
+            'name'        => 'required|string',
+            'email'       => ['required', 'prohibited', 'confirmed'],
+            'meta'        => 'prohibited',
+            'meta.source' => 'required|string',
+            'tags'        => ['array', Rule::in(['a'])],
+            'tags.*'      => 'prohibited',
+            'kind'        => 'required|string|prohibited_if:name,x',
+            'notes'       => 'string|prohibited_unless:name,y',
+        ]);
+
+        self::assertSame([
+            'type'       => 'object',
+            'properties' => [
+                'name'  => ['type' => 'string'],
+                'email' => false,
+                'meta'  => false,
+                'tags'  => ['type' => 'array', 'items' => ['allOf' => [['enum' => ['a']], false]]],
+                'kind'  => ['type' => 'string'],
+                'notes' => ['type' => 'string'],
+            ],
+            'required' => ['name', 'kind'],
+        ], $schema);
+    }
+
+    /**
+     * Test that a body whose root rules prohibit it translates to an empty
+     * schema, documenting no body.
+     *
+     * @return void
+     */
+    public function testProhibitedRootTranslatesToAnEmptySchema(): void
+    {
+        self::assertSame([], $this->translator()->translate(['' => 'prohibited', 'name' => 'string']));
+    }
+
+    /**
+     * Test that an array's own item constraint stands alone when its `field.*`
+     * sibling adds none, rather than being combined with an empty schema.
+     *
+     * @return void
+     */
+    public function testUnconstrainedStarSiblingKeepsTheOwnItemConstraint(): void
+    {
+        $schema = $this->translator()->translate(['tags' => ['array', Rule::in(['a', 'b'])], 'tags.*' => 'sometimes']);
+
+        self::assertSame(['type' => 'array', 'items' => ['enum' => ['a', 'b']]], $schema['properties']['tags']);
+    }
+
+    /**
+     * Test that a field validated only by untranslatable rules is kept with an
+     * empty schema, as is an unconstrained `field.*` sibling.
+     *
+     * @return void
+     */
+    public function testUntranslatableFieldsKeepAnEmptySchema(): void
+    {
+        $schema = $this->translator()->translate(['flag' => 'accepted', 'list' => 'array', 'list.*' => 'nullable']);
+
+        self::assertSame([
+            'type'       => 'object',
+            'properties' => [
+                'flag' => [],
+                'list' => ['type' => 'array', 'items' => []],
+            ],
+        ], $schema);
+    }
+
+    /**
      * Build a translator over the real normaliser and field builder.
      *
      * @return \SineMacula\ApiToolkit\OpenApi\Schema\RulesToSchemaTranslator
