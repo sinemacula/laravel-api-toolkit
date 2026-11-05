@@ -21,6 +21,7 @@ use SineMacula\ApiToolkit\OpenApi\Exceptions\ServerConfigurationException;
 use SineMacula\ApiToolkit\OpenApi\Metadata\ErrorDescriptor;
 use SineMacula\ApiToolkit\OpenApi\OpenApiAssembler;
 use SineMacula\ApiToolkit\OpenApi\Resolution\AudienceResolver;
+use SineMacula\ApiToolkit\OpenApi\Resolution\ClassNameResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ColumnTypeMapper;
 use SineMacula\ApiToolkit\OpenApi\Resolution\DocumentableRouteFilter;
 use SineMacula\ApiToolkit\OpenApi\Resolution\FieldTypeResolver;
@@ -694,7 +695,7 @@ final class OpenApiAssemblerTest extends TestCase
                 new SecuritySchemeResolver(new SecuritySchemeMapper, new RouteMiddlewareResolver($this->router())),
                 new QueryParameterBuilder($catalogue),
                 new RouteMiddlewareResolver($this->router()),
-                new ThrowsErrorResolver(new ResponseHeaderResolver),
+                new ThrowsErrorResolver(new ResponseHeaderResolver, new ClassNameResolver),
                 new SuccessResponseBuilder(
                     new EnvelopeBuilder,
                     new ResponseSchemaResolver($catalogue, new EnvelopeBuilder),

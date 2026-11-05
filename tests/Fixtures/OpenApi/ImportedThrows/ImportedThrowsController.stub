@@ -1,0 +1,122 @@
+<?php
+
+declare(strict_types = 1);
+
+namespace Tests\Fixtures\OpenApi;
+
+use SineMacula\ApiToolkit\Exceptions;
+use SineMacula\ApiToolkit\Exceptions\{ConflictException, GoneException as ExpiredException};
+use SineMacula\ApiToolkit\Exceptions\ForbiddenException;
+use SineMacula\ApiToolkit\Exceptions\NotFoundException;
+use SineMacula\ApiToolkit\Exceptions\TokenMismatchException as CsrfMismatchException;
+use Tests\Fixtures\OpenApi\ImportedThrows\Base\ImportedThrowsBaseController;
+use Tests\Fixtures\OpenApi\ImportedThrows\Concerns\ThrowsPayloadTooLarge;
+
+require_once __DIR__ . '/ImportedThrowsBaseController.stub';
+require_once __DIR__ . '/ThrowsPayloadTooLarge.stub';
+
+/**
+ * Fixture controller naming its exceptions in every form a class name takes.
+ *
+ * The house standard writes every @throws class fully qualified, so this
+ * fixture is kept out of the linted sources and loaded directly.
+ *
+ * Each action names its exceptions through a plain, aliased, or grouped import,
+ * an imported namespace, its own namespace, or a fully qualified name, and one
+ * names classes that resolve to nothing. The lock action is inherited from a
+ * parent in another namespace and the upload action comes from a trait, each
+ * naming an exception only its own file imports.
+ */
+final class ImportedThrowsController extends ImportedThrowsBaseController
+{
+    use ThrowsPayloadTooLarge;
+
+    /**
+     * Show a resource, naming an imported exception by its short name.
+     *
+     * @return never
+     *
+     * @throws ForbiddenException
+     */
+    public function show(): never
+    {
+        throw new ForbiddenException;
+    }
+
+    /**
+     * Store a resource, naming an exception by its import alias.
+     *
+     * @return never
+     *
+     * @throws CsrfMismatchException
+     */
+    public function store(): never
+    {
+        throw new CsrfMismatchException;
+    }
+
+    /**
+     * Update a resource, naming exceptions imported by a group use.
+     *
+     * @param  bool  $expired
+     * @return never
+     *
+     * @throws ConflictException
+     * @throws ExpiredException
+     */
+    public function update(bool $expired): never
+    {
+        throw $expired ? new ExpiredException : new ConflictException;
+    }
+
+    /**
+     * Restore a resource, naming a union of an imported name and a name
+     * qualified by an imported namespace.
+     *
+     * @param  bool  $unauthenticated
+     * @return never
+     *
+     * @throws ForbiddenException|Exceptions\UnauthenticatedException
+     */
+    public function restore(bool $unauthenticated): never
+    {
+        throw $unauthenticated ? new Exceptions\UnauthenticatedException : new ForbiddenException;
+    }
+
+    /**
+     * Throttle a request, naming an exception in this namespace without an
+     * import.
+     *
+     * @return never
+     *
+     * @throws QuotaExceededException
+     */
+    public function throttle(): never
+    {
+        throw new QuotaExceededException;
+    }
+
+    /**
+     * Destroy a resource, naming an exception fully qualified.
+     *
+     * @return never
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\NotFoundException
+     */
+    public function destroy(): never
+    {
+        throw new NotFoundException;
+    }
+
+    /**
+     * Purge a resource, naming classes that resolve to nothing beside one that
+     * resolves: an unknown name, and the short name of an exception imported
+     * only under an alias.
+     *
+     * @return void
+     *
+     * @throws UnknownException
+     * @throws GoneException|ConflictException
+     */
+    public function purge(): void {}
+}

@@ -1,0 +1,28 @@
+<?php
+
+declare(strict_types = 1);
+
+namespace Tests\Fixtures\OpenApi\ImportedThrows\Concerns;
+
+use SineMacula\ApiToolkit\Exceptions\PayloadTooLargeException;
+
+/**
+ * Fixture trait naming an exception through its own import.
+ *
+ * The controller using it does not import the exception, so the action
+ * documents it only when the name is resolved against this file.
+ */
+trait ThrowsPayloadTooLarge
+{
+    /**
+     * Upload a file, throwing an exception imported by this file.
+     *
+     * @return never
+     *
+     * @throws PayloadTooLargeException
+     */
+    public function upload(): never
+    {
+        throw new PayloadTooLargeException;
+    }
+}

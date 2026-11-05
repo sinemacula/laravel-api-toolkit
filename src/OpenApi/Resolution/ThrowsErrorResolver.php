@@ -11,18 +11,20 @@ use SineMacula\Http\Enums\HttpStatus;
 /**
  * Reflects an action's documented throws into its error descriptors.
  *
- * Each fully qualified @throws tag on the action is kept only when it names an
- * ApiException subclass reporting an HTTP status, whether through its
- * HTTP_STATUS constant or a status override, and is grouped by that status. Any
- * other throwable, and an ApiException reporting no status, is ignored. Each
- * kept exception contributes an example named by its short class name and
- * carrying its status and error code, and the headers its #[ResponseHeader]
- * directives declare it may set, read from the exception class and its parents.
- * Exceptions sharing a status merge their headers by name, compared
- * case-insensitively, keeping the first declaration in @throws order. A
- * status's phrase comes from the status enum case name, or from the exception's
- * name for a status the enum lacks. An action that cannot be reflected or
- * carries no doc comment yields none.
+ * Each class an @throws tag on the action names, alone or in a union, is
+ * resolved as PHP resolves a class name in the file declaring the action:
+ * through its imports, then its namespace, unless written fully qualified. The
+ * class is kept only when it names an ApiException subclass reporting an HTTP
+ * status, whether through its HTTP_STATUS constant or a status override, and is
+ * grouped by that status. A name resolving to no class, any other throwable,
+ * and an ApiException reporting no status, are ignored. Each kept exception
+ * contributes an example named by its short class name and carrying its status
+ * and error code, and the headers its #[ResponseHeader] directives declare it
+ * may set, read from the exception class and its parents. Exceptions sharing a
+ * status merge their headers by name, compared case-insensitively, keeping the
+ * first declaration in @throws order. A status's phrase comes from the status
+ * enum case name, or from the exception's name for a status the enum lacks. An
+ * action that cannot be reflected or carries no doc comment yields none.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -33,11 +35,15 @@ final readonly class ThrowsErrorResolver
      * Constructor.
      *
      * @param  \SineMacula\ApiToolkit\OpenApi\Resolution\ResponseHeaderResolver  $headers
+     * @param  \SineMacula\ApiToolkit\OpenApi\Resolution\ClassNameResolver  $classNames
      */
     public function __construct(
 
         /** The resolver of the headers each exception declares. */
         private ResponseHeaderResolver $headers,
+
+        /** The resolver of the class names the @throws tags write. */
+        private ClassNameResolver $classNames,
     ) {}
 
     /**
@@ -71,7 +77,7 @@ final readonly class ThrowsErrorResolver
     }
 
     /**
-     * List the class names the action's @throws tags name, as written.
+     * List the fully qualified class names the action's @throws tags name.
      *
      * @param  class-string  $controllerClass
      * @param  string  $action
@@ -80,18 +86,23 @@ final readonly class ThrowsErrorResolver
     private function documentedThrows(string $controllerClass, string $action): array
     {
         try {
-            $docComment = (new \ReflectionMethod($controllerClass, $action))->getDocComment();
+            $method = new \ReflectionMethod($controllerClass, $action);
         } catch (\ReflectionException) {
             return [];
         }
+
+        $docComment = $method->getDocComment();
 
         if ($docComment === false) {
             return [];
         }
 
-        preg_match_all('/@throws\s+([\\\\\w]+)/', $docComment, $matches);
+        preg_match_all('/@throws\s+([\\\\\w|]+)/', $docComment, $matches);
 
-        return $matches[1];
+        return array_map(
+            fn (string $name): string => $this->classNames->resolve($name, $method),
+            preg_split('/\|/', implode('|', $matches[1]), flags: PREG_SPLIT_NO_EMPTY),
+        );
     }
 
     /**
