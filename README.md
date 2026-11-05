@@ -646,6 +646,19 @@ Pass `--allow-empty` to write the empty documents anyway and exit successfully:
 php artisan api-toolkit:export-openapi --all --allow-empty
 ```
 
+List the hosts the API is served from under `api-toolkit.openapi.servers`, so interactive viewers send requests to
+the API rather than the docs host and generated clients get a default base URL. Each entry is an OpenAPI Server Object
+with a `url`, an optional `description` and optional `variables`, exported in the order listed. An audience may set
+its own `servers` to replace the list in its document, or an empty list to export none. With no servers configured
+the document carries no `servers`, and an entry that is not a valid Server Object fails the export, naming it:
+
+```php
+'servers' => [
+    ['url' => 'https://api.example.com', 'description' => 'Production'],
+    ['url' => 'https://api.staging.example.com', 'description' => 'Staging'],
+],
+```
+
 Each resource becomes a component schema and each documented route an operation carrying the query
 parameters that action honours, so a generated client sends the grammar instead of discovering it from a
 422. Every property answering a query carries an `x-query-surface` extension naming the key to send it

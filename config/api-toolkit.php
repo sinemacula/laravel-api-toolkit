@@ -198,6 +198,16 @@ return [
         // Empty by default.
         'info' => [],
 
+        // The OpenAPI servers exported as the document's top-level 'servers',
+        // telling interactive viewers and generated clients where to send
+        // requests. Each entry is an OpenAPI Server Object with a 'url', an
+        // optional 'description' and optional 'variables', exported in the
+        // order listed, e.g.
+        // ['url' => 'https://api.example.com', 'description' => 'Production'].
+        // An audience may set its own 'servers' to replace this list for its
+        // document. Empty by default, which exports no servers.
+        'servers' => [],
+
         // The audiences the exporter can produce a document for. One codebase
         // yields multiple documents, each tailored to who it is for (e.g.
         // 'public', 'internal', 'partner'). An audience is keyed by name and
@@ -212,6 +222,8 @@ return [
         // An audience may also carry an 'info' block that overrides the
         // top-level 'info' defaults above, per key, for that audience's
         // document, e.g. a distinct title or description for the internal one.
+        // Likewise its own 'servers' list replaces the top-level 'servers'
+        // above; an empty list exports none for that audience.
         //
         // The shipped zero-config 'public' audience is a blocklist with no
         // exclusions, so it documents everything. Routes marked #[Undocumented]

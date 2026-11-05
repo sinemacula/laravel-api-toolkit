@@ -9,7 +9,9 @@ use Illuminate\Foundation\Application;
 use Illuminate\Routing\Router;
 use Illuminate\Support\Facades\Artisan;
 use Opis\JsonSchema\Errors\ErrorFormatter;
+use Opis\JsonSchema\Formats\UriFormats;
 use Opis\JsonSchema\Helper;
+use Opis\JsonSchema\Resolvers\FormatResolver;
 use Opis\JsonSchema\Resolvers\SchemaResolver;
 use Opis\JsonSchema\ValidationResult;
 use Opis\JsonSchema\Validator;
@@ -26,6 +28,7 @@ use SineMacula\ApiToolkit\OpenApi\ExportResult;
 use SineMacula\ApiToolkit\OpenApi\OpenApiAssembler;
 use SineMacula\ApiToolkit\OpenApi\Resolution\AudienceConfiguration;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ReachableSchemaResolver;
+use SineMacula\ApiToolkit\OpenApi\Resolution\ServerListValidator;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 use Tests\Fixtures\Enums\AppErrorCode;
 use Tests\Fixtures\Models\Article;
@@ -82,6 +85,7 @@ use Tests\TestCase;
 #[CoversClass(ReachableSchemaResolver::class)]
 #[CoversClass(AudienceConfiguration::class)]
 #[CoversClass(DocManualAssembler::class)]
+#[CoversClass(ServerListValidator::class)]
 final class OpenApiExporterValidityTest extends TestCase
 {
     /** @var string The identifier of the OpenAPI 3.1 meta-schema that also validates every embedded schema. */
@@ -196,6 +200,45 @@ final class OpenApiExporterValidityTest extends TestCase
             $result->isValid(),
             'Emitted document is not valid OpenAPI 3.1: ' . $this->formatErrors($result),
         );
+    }
+
+    /**
+     * Test that a document carrying configured servers, including templated
+     * variables, an empty variables map, and an audience's own list, still
+     * validates as OpenAPI 3.1.
+     *
+     * @return void
+     */
+    public function testDocumentWithServersValidatesAsOpenApiThreeOne(): void
+    {
+        $this->registerUserRoutes();
+
+        $this->getConfig()->set('api-toolkit.openapi.servers', [
+            ['url' => 'https://api.example.com', 'description' => 'Production'],
+            [
+                'url'         => 'https://{region}.api.example.com/{version}',
+                'description' => 'Regional',
+                'variables'   => [
+                    'region'  => ['default' => 'eu', 'enum' => ['eu', 'us'], 'description' => 'The hosting region.'],
+                    'version' => ['default' => 'v1'],
+                ],
+            ],
+            ['url' => 'http://localhost:{port}', 'variables' => ['port' => ['default' => '8000']]],
+            ['url' => '/', 'variables' => [], 'x-environment' => 'local'],
+        ]);
+        $this->getConfig()->set('api-toolkit.openapi.audiences', [
+            'public'  => [],
+            'partner' => ['servers' => [['url' => 'https://partners.example.com']]],
+        ]);
+
+        foreach (['public' => 4, 'partner' => 1] as $audience => $count) {
+
+            $document = $this->export($audience)->document;
+            $result   = $this->validateAgainstMetaSchema($document);
+
+            self::assertCount($count, $document['servers']);
+            self::assertTrue($result->isValid(), 'A document carrying servers must validate as OpenAPI 3.1: ' . $this->formatErrors($result));
+        }
     }
 
     /**
@@ -645,6 +688,14 @@ final class OpenApiExporterValidityTest extends TestCase
         self::assertFalse(
             $this->validateAgainstMetaSchema($arraySchema)->isValid(),
             'An embedded schema encoded as an array must be rejected.',
+        );
+
+        $malformedServer            = $valid;
+        $malformedServer['servers'] = [['url' => 'https://{region}.api.example.com/a path']];
+
+        self::assertFalse(
+            $this->validateAgainstMetaSchema($malformedServer)->isValid(),
+            'A templated server url that is not a uri-reference must be rejected.',
         );
     }
 
@@ -1486,7 +1537,9 @@ final class OpenApiExporterValidityTest extends TestCase
 
     /**
      * Build a validator with every bundled meta-schema registered, each adapted
-     * for opis.
+     * for opis, checking a uri-reference after substituting any server variable
+     * template in it with a name, or with a digit so a templated port also
+     * holds.
      *
      * @return \Opis\JsonSchema\Validator
      */
@@ -1494,8 +1547,10 @@ final class OpenApiExporterValidityTest extends TestCase
     {
         $validator = new Validator;
         $resolver  = $validator->resolver();
+        $formats   = $validator->parser()->getFormatResolver();
 
         assert($resolver instanceof SchemaResolver);
+        assert($formats instanceof FormatResolver);
 
         foreach (self::META_SCHEMA_FIXTURES as $fixture) {
             /** @var array<string, mixed> $schema */
@@ -1507,6 +1562,16 @@ final class OpenApiExporterValidityTest extends TestCase
 
             $resolver->registerRaw(json_encode($schema, JSON_THROW_ON_ERROR), $schema['$id']);
         }
+
+        $formats->registerCallable('string', 'uri-reference', static function (string $value): bool {
+            foreach (['variable', '0'] as $substitute) {
+                if (UriFormats::uriReference((string) preg_replace('/\{[^{}]+\}/', $substitute, $value))) {
+                    return true;
+                }
+            }
+
+            return false;
+        });
 
         return $validator;
     }

@@ -29,7 +29,9 @@ use SineMacula\ApiToolkit\OpenApi\Security\SecuritySchemeResolver;
  * always-shared pagination and error-envelope schemas, so an internal-only
  * resource never leaks into another audience's document. When no route is
  * documented the paths object is emitted empty, and an empty schema anywhere is
- * emitted as an empty object, keeping the document schema-valid.
+ * emitted as an empty object, keeping the document schema-valid. The servers
+ * configured for the audience are emitted in order, and omitted when there are
+ * none.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -110,12 +112,21 @@ final readonly class OpenApiAssembler
         $posture  = $this->audiences->postureFor($audience);
         $paths    = $this->pathBuilder->build($audience, $posture);
 
-        return $this->schemaObjects->normalise([
-            'openapi'    => self::OPENAPI_VERSION,
-            'info'       => $this->buildInfo($audience),
-            'paths'      => $paths === [] ? (object) [] : $paths,
-            'components' => $this->buildComponents($paths),
-        ]);
+        $document = [
+            'openapi' => self::OPENAPI_VERSION,
+            'info'    => $this->buildInfo($audience),
+        ];
+
+        $servers = $this->audiences->serversFor($audience);
+
+        if ($servers !== []) {
+            $document['servers'] = $servers;
+        }
+
+        $document['paths']      = $paths === [] ? (object) [] : $paths;
+        $document['components'] = $this->buildComponents($paths);
+
+        return $this->schemaObjects->normalise($document);
     }
 
     /**

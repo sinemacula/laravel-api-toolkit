@@ -12,10 +12,10 @@ use Illuminate\Support\Facades\Config;
  * Audiences are declared as config, each keyed by name and optionally carrying
  * a posture controlling how routes join it. This reader is the single place the
  * exporter resolves the configured audience names, the default audience, a
- * named audience's posture, and its OpenAPI info block, so the command and the
- * assembler agree on the same registry regardless of config-cache state. An
- * audience with no explicit posture, or one absent from the registry, resolves
- * to the blocklist posture.
+ * named audience's posture, its OpenAPI info block, and its servers, so the
+ * command and the assembler agree on the same registry regardless of
+ * config-cache state. An audience with no explicit posture, or one absent from
+ * the registry, resolves to the blocklist posture.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -105,6 +105,32 @@ final readonly class AudienceConfiguration
         }
 
         return $info;
+    }
+
+    /**
+     * Resolve the OpenAPI servers for the given audience.
+     *
+     * An audience that declares its own servers replaces the global list, even
+     * with an empty list; one that does not, or sets them to null, inherits the
+     * global list. Either list is validated before it is returned, in the order
+     * configured.
+     *
+     * @param  string  $audience
+     * @return list<array<string, mixed>>
+     *
+     * @throws \SineMacula\ApiToolkit\OpenApi\Exceptions\ServerConfigurationException
+     */
+    public function serversFor(string $audience): array
+    {
+        $definition = $this->audiences()[$audience] ?? [];
+        $servers    = is_array($definition) ? ($definition['servers'] ?? null) : null;
+        $validator  = new ServerListValidator;
+
+        if ($servers !== null) {
+            return $validator->validate($servers, $audience);
+        }
+
+        return $validator->validate(Config::get('api-toolkit.openapi.servers'));
     }
 
     /**

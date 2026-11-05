@@ -6,6 +6,7 @@ namespace Tests\Unit\OpenApi\Resolution;
 
 use Illuminate\Contracts\Config\Repository as ConfigRepository;
 use PHPUnit\Framework\Attributes\CoversClass;
+use SineMacula\ApiToolkit\OpenApi\Exceptions\ServerConfigurationException;
 use SineMacula\ApiToolkit\OpenApi\Resolution\AudienceConfiguration;
 use SineMacula\ApiToolkit\OpenApi\Resolution\AudienceResolver;
 use Tests\TestCase;
@@ -197,6 +198,117 @@ final class AudienceConfigurationTest extends TestCase
             'title'   => 'API Components',
             'version' => '1.0.0',
         ], (new AudienceConfiguration)->infoFor('public'));
+    }
+
+    /**
+     * Test that an audience without its own servers inherits the global list,
+     * in the order configured.
+     *
+     * @return void
+     */
+    public function testServersInheritTheGlobalList(): void
+    {
+        $servers = [
+            ['url' => 'https://api.example.com', 'description' => 'Production'],
+            ['url' => 'https://api.staging.example.com', 'description' => 'Staging'],
+        ];
+
+        $this->config()->set('api-toolkit.openapi.servers', $servers);
+        $this->config()->set('api-toolkit.openapi.audiences', [
+            'public'  => [],
+            'partner' => ['servers' => null],
+        ]);
+
+        $configuration = new AudienceConfiguration;
+
+        self::assertSame($servers, $configuration->serversFor('public'));
+        self::assertSame($servers, $configuration->serversFor('partner'));
+        self::assertSame($servers, $configuration->serversFor('unconfigured'));
+    }
+
+    /**
+     * Test that an audience's own servers replace the global list for that
+     * audience only.
+     *
+     * @return void
+     */
+    public function testAudienceServersReplaceTheGlobalList(): void
+    {
+        $global = [['url' => 'https://api.example.com'], ['url' => 'https://internal.example.com']];
+        $public = [['url' => 'https://api.example.com', 'description' => 'Public']];
+
+        $this->config()->set('api-toolkit.openapi.servers', $global);
+        $this->config()->set('api-toolkit.openapi.audiences', [
+            'public'   => ['servers' => $public],
+            'internal' => [],
+        ]);
+
+        $configuration = new AudienceConfiguration;
+
+        self::assertSame($public, $configuration->serversFor('public'));
+        self::assertSame($global, $configuration->serversFor('internal'));
+    }
+
+    /**
+     * Test that an audience setting an empty servers list exports none, even
+     * when a global list is configured.
+     *
+     * @return void
+     */
+    public function testAudienceEmptyServersOverrideTheGlobalList(): void
+    {
+        $this->config()->set('api-toolkit.openapi.servers', [['url' => 'https://api.example.com']]);
+        $this->config()->set('api-toolkit.openapi.audiences', ['public' => ['servers' => []]]);
+
+        self::assertSame([], (new AudienceConfiguration)->serversFor('public'));
+    }
+
+    /**
+     * Test that no servers are resolved when none are configured, and that a
+     * malformed audience definition falls back to the global list.
+     *
+     * @return void
+     */
+    public function testServersDefaultToNone(): void
+    {
+        $this->config()->set('api-toolkit.openapi.servers', null);
+        $this->config()->set('api-toolkit.openapi.audiences', ['public' => 'not-an-array']);
+
+        self::assertSame([], (new AudienceConfiguration)->serversFor('public'));
+    }
+
+    /**
+     * Test that an invalid entry in the global list fails, naming the entry and
+     * the global list.
+     *
+     * @return void
+     */
+    public function testInvalidGlobalServerFailsNamingGlobal(): void
+    {
+        $this->config()->set('api-toolkit.openapi.servers', [['url' => 'https://api.example.com'], ['url' => 42]]);
+        $this->config()->set('api-toolkit.openapi.audiences', ['public' => []]);
+
+        $this->expectException(ServerConfigurationException::class);
+        $this->expectExceptionMessage('Unable to export the global OpenAPI servers: server [1] must declare a non-empty string url.');
+
+        (new AudienceConfiguration)->serversFor('public');
+    }
+
+    /**
+     * Test that an invalid entry in an audience's own list fails, naming the
+     * entry and the audience.
+     *
+     * @return void
+     */
+    public function testInvalidAudienceServerFailsNamingTheAudience(): void
+    {
+        $this->config()->set('api-toolkit.openapi.servers', [['url' => 'https://api.example.com']]);
+        $this->config()->set('api-toolkit.openapi.audiences', ['partner' => ['servers' => [['description' => 'Partner']]]]);
+
+        $this->expectException(ServerConfigurationException::class);
+        $this->expectExceptionMessage('Unable to export the OpenAPI servers of audience [partner]: server [0] must declare a non-empty string url.');
+
+        (new AudienceConfiguration)->serversFor('partner');
     }
 
     /**
