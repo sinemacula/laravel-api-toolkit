@@ -467,7 +467,8 @@ final class SchemaIntrospectorTest extends TestCase
 
     /**
      * Test that getColumnDefinitions stores the result in the memo cache under
-     * a key scoped to the model class and the connection it was read from.
+     * a key scoped to the model class and the connection it was read from, as
+     * rows rather than objects.
      *
      * @return void
      */
@@ -480,7 +481,7 @@ final class SchemaIntrospectorTest extends TestCase
 
         $key = $this->metadataStorageKey(CacheKeys::MODEL_SCHEMA_COLUMN_DEFINITIONS->resolveKey([SchemaIdentity::of(DB::connection('testing')), User::class]));
 
-        self::assertSame($definitions, Cache::memo()->get($key));
+        self::assertSame(array_map(static fn (ColumnDefinition $definition): array => $definition->toArray(), array_values($definitions)), Cache::memo()->get($key));
     }
 
     /**
@@ -646,9 +647,11 @@ final class SchemaIntrospectorTest extends TestCase
     {
         $indexes = ($this->makeIntrospector())->getIndexes(new User);
 
+        self::assertIsArray($indexes);
+
         $key = $this->metadataStorageKey(CacheKeys::MODEL_SCHEMA_INDEXES->resolveKey([SchemaIdentity::of(DB::connection('testing')), User::class]));
 
-        self::assertEquals($indexes, Cache::memo()->get($key));
+        self::assertSame(array_map(static fn (IndexDefinition $index): array => $index->toArray(), $indexes), Cache::memo()->get($key));
     }
 
     /**
@@ -1420,14 +1423,15 @@ final class SchemaIntrospectorTest extends TestCase
     {
         $key = $this->metadataStorageKey(CacheKeys::MODEL_SCHEMA_COLUMN_DEFINITIONS->resolveKey([SchemaIdentity::of(DB::connection('testing')), User::class]));
 
-        $definitions = [
+        Cache::memo()->rememberForever($key, fn (): array => [
+            ['name' => 'id', 'type_name' => 'integer', 'nullable' => false],
+            ['name' => 'name', 'type_name' => 'varchar', 'nullable' => true],
+        ]);
+
+        self::assertEquals([
             'id'   => new ColumnDefinition('id', 'integer', false),
             'name' => new ColumnDefinition('name', 'varchar', true),
-        ];
-
-        Cache::memo()->rememberForever($key, fn (): array => $definitions);
-
-        self::assertEquals($definitions, $this->makeIntrospector()->getColumnDefinitions(new User));
+        ], $this->makeIntrospector()->getColumnDefinitions(new User));
     }
 
     /**
@@ -1439,9 +1443,172 @@ final class SchemaIntrospectorTest extends TestCase
     {
         $key = $this->metadataStorageKey(CacheKeys::MODEL_SCHEMA_INDEXES->resolveKey([SchemaIdentity::of(DB::connection('testing')), User::class]));
 
-        Cache::memo()->rememberForever($key, fn (): array => [new IndexDefinition('users_name_index', ['name'], 'btree')]);
+        Cache::memo()->rememberForever($key, fn (): array => [['name' => 'users_name_index', 'columns' => ['name'], 'type' => 'btree']]);
 
-        self::assertCount(1, (array) $this->makeIntrospector()->getIndexes(new User));
+        self::assertEquals([new IndexDefinition('users_name_index', ['name'], 'btree')], $this->makeIntrospector()->getIndexes(new User));
+    }
+
+    /**
+     * Test that column definitions written by one process read back as equal
+     * definitions in the next, from a store that unserializes no class, without
+     * the schema being read again.
+     *
+     * @return void
+     */
+    public function testColumnDefinitionsReadBackFromAStoreRefusingEveryClass(): void
+    {
+        $this->useClassRefusingCacheStore();
+
+        $builder = self::createMock(SchemaBuilder::class);
+
+        $builder->expects(self::once())
+            ->method('getColumns')
+            ->willReturn([
+                ['name' => 'id', 'type_name' => 'integer', 'nullable' => false],
+                ['name' => 'bio', 'type_name' => 'text', 'nullable' => true],
+            ]);
+
+        $model = $this->modelReadingFrom($builder);
+        $first = $this->makeIntrospector()->getColumnDefinitions($model);
+
+        $this->startAnotherProcess();
+
+        self::assertEquals($first, $this->makeIntrospector()->getColumnDefinitions($model));
+        self::assertSame(['id', 'bio'], array_keys($first));
+    }
+
+    /**
+     * Test that an index catalogue written by one process reads back as equal
+     * definitions in the next, from a store that unserializes no class, without
+     * the catalogue being read again.
+     *
+     * @return void
+     */
+    public function testIndexesReadBackFromAStoreRefusingEveryClass(): void
+    {
+        $this->useClassRefusingCacheStore();
+
+        $builder = self::createMock(SchemaBuilder::class);
+
+        $builder->expects(self::once())
+            ->method('getIndexes')
+            ->willReturn([
+                ['name' => 'widgets_status_name_index', 'columns' => ['status', 'name'], 'type' => 'btree'],
+                ['name' => 'widgets_body_fulltext', 'columns' => ['body'], 'type' => null],
+            ]);
+
+        $model = $this->modelReadingFrom($builder);
+        $first = $this->makeIntrospector()->getIndexes($model);
+
+        $this->startAnotherProcess();
+
+        self::assertEquals([
+            new IndexDefinition('widgets_status_name_index', ['status', 'name'], 'btree'),
+            new IndexDefinition('widgets_body_fulltext', ['body'], null),
+        ], $first);
+        self::assertEquals($first, $this->makeIntrospector()->getIndexes($model));
+    }
+
+    /**
+     * Provide stored column definitions this version cannot read.
+     *
+     * @return iterable<string, array{0: mixed}>
+     */
+    public static function unreadableColumnDefinitionsProvider(): iterable
+    {
+        yield 'objects written by an earlier version' => [['id' => self::incompleteObject(new ColumnDefinition('id', 'integer', false))]];
+        yield 'a value that is not a list' => ['stale'];
+        yield 'a row missing its type' => [[['name' => 'id', 'nullable' => false]]];
+        yield 'a readable row beside an unreadable one' => [[['name' => 'id', 'type_name' => 'integer', 'nullable' => false], ['name' => 'name']]];
+    }
+
+    /**
+     * Test that stored column definitions this version cannot read are read
+     * again from the connection and replaced, rather than served.
+     *
+     * @param  mixed  $stale
+     * @return void
+     */
+    #[DataProvider('unreadableColumnDefinitionsProvider')]
+    public function testUnreadableStoredColumnDefinitionsAreRecomputedAndReplaced(mixed $stale): void
+    {
+        $builder = self::createMock(SchemaBuilder::class);
+
+        $builder->expects(self::once())
+            ->method('getColumns')
+            ->willReturn([['name' => 'id', 'type_name' => 'integer', 'nullable' => false]]);
+
+        $model = $this->modelReadingFrom($builder);
+        $key   = $this->metadataStorageKey(CacheKeys::MODEL_SCHEMA_COLUMN_DEFINITIONS->resolveKey([SchemaIdentity::of($model->getConnection()), $model::class]));
+
+        $this->storeWithoutEvents($key, $stale);
+
+        self::assertEquals(['id' => new ColumnDefinition('id', 'integer', false)], $this->makeIntrospector()->getColumnDefinitions($model));
+
+        $this->startAnotherProcess();
+
+        self::assertSame([['name' => 'id', 'type_name' => 'integer', 'nullable' => false]], Cache::memo()->get($key));
+    }
+
+    /**
+     * Provide stored index catalogues this version cannot read.
+     *
+     * @return iterable<string, array{0: mixed}>
+     */
+    public static function unreadableIndexesProvider(): iterable
+    {
+        yield 'objects written by an earlier version' => [[self::incompleteObject(new IndexDefinition('widgets_name_index', ['name'], 'btree'))]];
+        yield 'a value that is not a list' => ['stale'];
+        yield 'an entry missing its columns' => [[['name' => 'widgets_name_index', 'type' => 'btree']]];
+        yield 'a readable entry beside an unreadable one' => [[['name' => 'widgets_name_index', 'columns' => ['name'], 'type' => 'btree'], ['name' => 'widgets_title_index']]];
+    }
+
+    /**
+     * Test that a stored index catalogue this version cannot read is read again
+     * from the connection and replaced, rather than served.
+     *
+     * @param  mixed  $stale
+     * @return void
+     */
+    #[DataProvider('unreadableIndexesProvider')]
+    public function testUnreadableStoredIndexesAreRecomputedAndReplaced(mixed $stale): void
+    {
+        $builder = self::createMock(SchemaBuilder::class);
+
+        $builder->expects(self::once())
+            ->method('getIndexes')
+            ->willReturn([['name' => 'widgets_name_index', 'columns' => ['name'], 'type' => 'btree']]);
+
+        $model = $this->modelReadingFrom($builder);
+        $key   = $this->metadataStorageKey(CacheKeys::MODEL_SCHEMA_INDEXES->resolveKey([SchemaIdentity::of($model->getConnection()), $model::class]));
+
+        $this->storeWithoutEvents($key, $stale);
+
+        self::assertEquals([new IndexDefinition('widgets_name_index', ['name'], 'btree')], $this->makeIntrospector()->getIndexes($model));
+
+        $this->startAnotherProcess();
+
+        self::assertSame([['name' => 'widgets_name_index', 'columns' => ['name'], 'type' => 'btree']], Cache::memo()->get($key));
+    }
+
+    /**
+     * Test that a column row the connection reports in a shape that cannot be
+     * read is passed over, leaving the readable rows behind it.
+     *
+     * @return void
+     */
+    public function testGetColumnDefinitionsPassesOverAnUnreadableRow(): void
+    {
+        $builder = self::createMock(SchemaBuilder::class);
+
+        $builder->expects(self::once())
+            ->method('getColumns')
+            ->willReturn([
+                ['name' => 'id', 'type_name' => null, 'nullable' => false],
+                ['name' => 'title', 'type_name' => 'varchar', 'nullable' => false],
+            ]);
+
+        self::assertEquals(['title' => new ColumnDefinition('title', 'varchar', false)], $this->makeIntrospector()->getColumnDefinitions($this->modelReadingFrom($builder)));
     }
 
     /**
@@ -1813,6 +1980,47 @@ final class SchemaIntrospectorTest extends TestCase
     private function standaloneTenantConnection(string $database): Connection
     {
         return new SQLiteConnection(static fn (): \PDO => new \PDO('sqlite:' . $database), $database, '', ['name' => 'tenant', 'database' => $database]);
+    }
+
+    /**
+     * Drop this process's memoised store, so the next read is served from the
+     * shared store as another process would see it.
+     *
+     * @return void
+     */
+    private function startAnotherProcess(): void
+    {
+        assert($this->app !== null);
+
+        $this->app->forgetScopedInstances();
+    }
+
+    /**
+     * Write a value straight to the default store, as an earlier version of the
+     * toolkit left it, without announcing the write.
+     *
+     * @param  string  $key
+     * @param  mixed  $value
+     * @return void
+     */
+    private function storeWithoutEvents(string $key, mixed $value): void
+    {
+        Cache::store()->getStore()->forever($key, $value);
+    }
+
+    /**
+     * Return the object as a process refusing its class reads it back.
+     *
+     * @param  object  $object
+     * @return object
+     */
+    private static function incompleteObject(object $object): object
+    {
+        $incomplete = unserialize(serialize($object), ['allowed_classes' => false]);
+
+        assert(is_object($incomplete));
+
+        return $incomplete;
     }
 
     /**

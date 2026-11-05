@@ -1119,6 +1119,17 @@ else. An enum case is written as before.
 **Action required.** Send the lowercase name in filters, and pass a pure-enum attribute to `persist()` as its case or
 its lowercase name rather than its declared name.
 
+### Changed: a falsy filter value is matched rather than dropped
+
+The bare shorthand dropped a field whose value was falsy, so `{"name":"0"}` and `{"email":""}` answered with the
+unfiltered table, and a number or boolean such as `{"organization_id":0}` failed the request with a type error. The
+shorthand now compiles to `$eq` for every value it can carry: `"0"`, `0`, `false` and `""` each match the rows holding
+that value, and `null` matches the rows where the column is null, as `$eq` already did. An empty document, `{}`, and a
+field given no conditions, `{"name":{}}`, still apply no filter.
+
+**Action required.** Leave a field out of the document, rather than sending `""` or `null` for it, to apply no filter
+on it.
+
 ### Removed: Request macros in favour of the parsed query
 
 The request macros the toolkit used to register - `includeTrashed()` and `onlyTrashed()` - have been removed.

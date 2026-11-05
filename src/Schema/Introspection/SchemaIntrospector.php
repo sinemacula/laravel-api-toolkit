@@ -245,9 +245,10 @@ final class SchemaIntrospector implements SchemaIntrospectionProvider
 
     /**
      * Map the raw Schema::getColumns() rows into column definitions keyed by
-     * column name.
+     * column name, passing over any row the connection reported in a shape that
+     * cannot be read.
      *
-     * @param  array<int, array<string, mixed>>  $columns
+     * @param  array<int, mixed>  $columns
      * @return array<string, \SineMacula\ApiToolkit\Schema\Introspection\ColumnDefinition>
      */
     private function mapColumnDefinitions(array $columns): array
@@ -256,17 +257,13 @@ final class SchemaIntrospector implements SchemaIntrospectionProvider
 
         foreach ($columns as $column) {
 
-            /** @var string $name */
-            $name = $column['name'];
+            $definition = ColumnDefinition::fromCatalogueEntry($column);
 
-            /** @var string $typeName */
-            $typeName = $column['type_name'];
+            if ($definition === null) {
+                continue;
+            }
 
-            $definitions[$name] = new ColumnDefinition(
-                name    : $name,
-                typeName: strtolower($typeName),
-                nullable: (bool) $column['nullable'],
-            );
+            $definitions[$definition->name] = $definition;
         }
 
         return $definitions;
@@ -300,7 +297,7 @@ final class SchemaIntrospector implements SchemaIntrospectionProvider
         }
 
         if ($columns !== []) {
-            $this->metadataCacheWriter->rememberMetadataForever($cacheKey, fn () => $columns);
+            $this->metadataCacheWriter->storeMetadataForever($cacheKey, $columns);
         }
 
         return $columns;
@@ -319,7 +316,7 @@ final class SchemaIntrospector implements SchemaIntrospectionProvider
         $cacheKey = CacheKeys::MODEL_SCHEMA_COLUMN_DEFINITIONS->resolveKey([SchemaIdentity::of($connection), $model::class]);
 
         /** @var array<string, \SineMacula\ApiToolkit\Schema\Introspection\ColumnDefinition> $cached */
-        $cached = $this->metadataCacheWriter->readMetadata($cacheKey, []);
+        $cached = $this->metadataCacheWriter->readMetadata($cacheKey, [], StoredSchema::toColumnDefinitions(...));
 
         if ($cached !== []) {
             return $cached;
@@ -334,7 +331,7 @@ final class SchemaIntrospector implements SchemaIntrospectionProvider
         }
 
         if ($definitions !== []) {
-            $this->metadataCacheWriter->rememberMetadataForever($cacheKey, fn () => $definitions);
+            $this->metadataCacheWriter->storeMetadataForever($cacheKey, StoredSchema::fromColumnDefinitions($definitions));
         }
 
         return $definitions;
@@ -358,7 +355,7 @@ final class SchemaIntrospector implements SchemaIntrospectionProvider
         $cacheKey = CacheKeys::MODEL_SCHEMA_INDEXES->resolveKey([SchemaIdentity::of($connection), $model::class]);
 
         /** @var array<int, \SineMacula\ApiToolkit\Schema\Introspection\IndexDefinition>|null $cached */
-        $cached = $this->metadataCacheWriter->readMetadata($cacheKey);
+        $cached = $this->metadataCacheWriter->readMetadata($cacheKey, null, StoredSchema::toIndexes(...));
 
         if ($cached !== null) {
             return $cached;
@@ -367,7 +364,7 @@ final class SchemaIntrospector implements SchemaIntrospectionProvider
         $indexes = $this->readIndexes($model, $connection);
 
         if ($indexes !== null) {
-            $this->metadataCacheWriter->rememberMetadataForever($cacheKey, fn (): array => $indexes);
+            $this->metadataCacheWriter->storeMetadataForever($cacheKey, StoredSchema::fromIndexes($indexes));
         }
 
         return $indexes;
