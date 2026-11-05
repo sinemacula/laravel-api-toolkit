@@ -1,0 +1,29 @@
+<?php
+
+declare(strict_types = 1);
+
+namespace Tests\Fixtures\OpenApi\ImportedThrows\Base;
+
+use SineMacula\ApiToolkit\Exceptions\LockedException;
+
+/**
+ * Fixture base controller naming an exception through its own import.
+ *
+ * Its subclass lives in another namespace and does not import the exception, so
+ * the inherited action documents it only when the name is resolved against this
+ * file.
+ */
+abstract class ImportedThrowsBaseController
+{
+    /**
+     * Lock a resource, throwing an exception imported by this file.
+     *
+     * @return never
+     *
+     * @throws LockedException
+     */
+    public function lock(): never
+    {
+        throw new LockedException;
+    }
+}

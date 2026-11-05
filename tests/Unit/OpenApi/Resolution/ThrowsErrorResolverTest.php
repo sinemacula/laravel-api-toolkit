@@ -5,6 +5,7 @@ declare(strict_types = 1);
 namespace Tests\Unit\OpenApi\Resolution;
 
 use PHPUnit\Framework\Attributes\CoversClass;
+use SineMacula\ApiToolkit\OpenApi\Resolution\ClassNameResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ResponseHeaderResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ThrowsErrorResolver;
 use Tests\Fixtures\OpenApi\PathErrorController;
@@ -24,6 +25,9 @@ use Tests\TestCase;
 #[CoversClass(ThrowsErrorResolver::class)]
 final class ThrowsErrorResolverTest extends TestCase
 {
+    /** @var string The fixture controller naming its exceptions in every form a class name takes */
+    private const string IMPORTED = 'Tests\Fixtures\OpenApi\ImportedThrowsController';
+
     /**
      * Test that each named ApiException is described under its status with a
      * code example, ignoring other throwables and a status-less ApiException.
@@ -32,7 +36,7 @@ final class ThrowsErrorResolverTest extends TestCase
      */
     public function testNamedApiExceptionsAreDescribedByStatus(): void
     {
-        $errors = (new ThrowsErrorResolver(new ResponseHeaderResolver))->resolve(PathRouteFactsController::class, 'signIn');
+        $errors = (new ThrowsErrorResolver(new ResponseHeaderResolver, new ClassNameResolver))->resolve(PathRouteFactsController::class, 'signIn');
 
         self::assertSame([401, 429, 403, 419], array_keys($errors));
         self::assertSame($this->descriptor('Unauthorized.', 'UnauthenticatedException', 401, 10101), $errors[401]);
@@ -51,7 +55,7 @@ final class ThrowsErrorResolverTest extends TestCase
      */
     public function testDeclaredExceptionHeadersAreCarriedByStatus(): void
     {
-        $errors = (new ThrowsErrorResolver(new ResponseHeaderResolver))->resolve(PathResponseHeaderController::class, 'signIn');
+        $errors = (new ThrowsErrorResolver(new ResponseHeaderResolver, new ClassNameResolver))->resolve(PathResponseHeaderController::class, 'signIn');
 
         self::assertSame(
             ['Retry-After' => ['description' => 'The number of seconds to wait before retrying.', 'schema' => ['type' => 'integer']]],
@@ -68,7 +72,7 @@ final class ThrowsErrorResolverTest extends TestCase
      */
     public function testExceptionsSharingStatusMergeHeaders(): void
     {
-        $errors = (new ThrowsErrorResolver(new ResponseHeaderResolver))->resolve(PathResponseHeaderController::class, 'quota');
+        $errors = (new ThrowsErrorResolver(new ResponseHeaderResolver, new ClassNameResolver))->resolve(PathResponseHeaderController::class, 'quota');
 
         self::assertSame([429], array_keys($errors));
         self::assertSame(['QuotaExceededException', 'TooManyRequestsException'], array_keys($errors[429]['examples']));
@@ -87,7 +91,7 @@ final class ThrowsErrorResolverTest extends TestCase
      */
     public function testExceptionsSharingStatusMergeExamples(): void
     {
-        $errors = (new ThrowsErrorResolver(new ResponseHeaderResolver))->resolve(PathErrorController::class, 'show');
+        $errors = (new ThrowsErrorResolver(new ResponseHeaderResolver, new ClassNameResolver))->resolve(PathErrorController::class, 'show');
 
         self::assertSame([422, 503], array_keys($errors));
         self::assertSame('Unprocessable content.', $errors[422]['phrase']);
@@ -109,7 +113,7 @@ final class ThrowsErrorResolverTest extends TestCase
      */
     public function testNonApiThrowablesYieldNone(): void
     {
-        self::assertSame([], (new ThrowsErrorResolver(new ResponseHeaderResolver))->resolve(PathErrorController::class, 'update'));
+        self::assertSame([], (new ThrowsErrorResolver(new ResponseHeaderResolver, new ClassNameResolver))->resolve(PathErrorController::class, 'update'));
     }
 
     /**
@@ -119,7 +123,7 @@ final class ThrowsErrorResolverTest extends TestCase
      */
     public function testActionWithoutDocCommentYieldsNone(): void
     {
-        self::assertSame([], (new ThrowsErrorResolver(new ResponseHeaderResolver))->resolve(PathReflectionGapController::class, 'index'));
+        self::assertSame([], (new ThrowsErrorResolver(new ResponseHeaderResolver, new ClassNameResolver))->resolve(PathReflectionGapController::class, 'index'));
     }
 
     /**
@@ -130,7 +134,134 @@ final class ThrowsErrorResolverTest extends TestCase
      */
     public function testUndeclaredActionYieldsNone(): void
     {
-        self::assertSame([], (new ThrowsErrorResolver(new ResponseHeaderResolver))->resolve(PathReflectionGapController::class, 'destroy'));
+        self::assertSame([], (new ThrowsErrorResolver(new ResponseHeaderResolver, new ClassNameResolver))->resolve(PathReflectionGapController::class, 'destroy'));
+    }
+
+    /**
+     * Test that an exception named by the short name it is imported under is
+     * documented.
+     *
+     * @return void
+     */
+    public function testImportedShortNameIsDocumented(): void
+    {
+        self::assertSame([403 => $this->descriptor('Forbidden.', 'ForbiddenException', 403, 10102)], $this->resolve(self::IMPORTED, 'show'));
+    }
+
+    /**
+     * Test that an exception named by its import alias is documented under its
+     * own class name.
+     *
+     * @return void
+     */
+    public function testAliasedImportIsDocumented(): void
+    {
+        self::assertSame([419 => $this->descriptor('Token mismatch.', 'TokenMismatchException', 419, 10105)], $this->resolve(self::IMPORTED, 'store'));
+    }
+
+    /**
+     * Test that exceptions imported by a group use, one of them aliased, are
+     * documented.
+     *
+     * @return void
+     */
+    public function testGroupUseIsDocumented(): void
+    {
+        $errors = $this->resolve(self::IMPORTED, 'update');
+
+        self::assertSame([409, 410], array_keys($errors));
+        self::assertSame(['ConflictException'], array_keys($errors[409]['examples']));
+        self::assertSame(['GoneException'], array_keys($errors[410]['examples']));
+    }
+
+    /**
+     * Test that each member of a union is documented, including a name
+     * qualified by an imported namespace.
+     *
+     * @return void
+     */
+    public function testUnionMembersAreDocumented(): void
+    {
+        $errors = $this->resolve(self::IMPORTED, 'restore');
+
+        self::assertSame([403, 401], array_keys($errors));
+        self::assertSame(['UnauthenticatedException'], array_keys($errors[401]['examples']));
+    }
+
+    /**
+     * Test that an exception in the controller's own namespace is documented
+     * without an import.
+     *
+     * @return void
+     */
+    public function testSameNamespaceNameIsDocumented(): void
+    {
+        $errors = $this->resolve(self::IMPORTED, 'throttle');
+
+        self::assertSame([429], array_keys($errors));
+        self::assertSame(['QuotaExceededException'], array_keys($errors[429]['examples']));
+    }
+
+    /**
+     * Test that an exception named fully qualified is still documented.
+     *
+     * @return void
+     */
+    public function testFullyQualifiedNameIsDocumented(): void
+    {
+        self::assertSame([404], array_keys($this->resolve(self::IMPORTED, 'destroy')));
+    }
+
+    /**
+     * Test that an inherited action resolves its names against the imports of
+     * the parent declaring it.
+     *
+     * @return void
+     */
+    public function testInheritedActionResolvesAgainstParentImports(): void
+    {
+        $errors = $this->resolve(self::IMPORTED, 'lock');
+
+        self::assertSame([423], array_keys($errors));
+        self::assertSame(['LockedException'], array_keys($errors[423]['examples']));
+    }
+
+    /**
+     * Test that an action from a trait resolves its names against the imports
+     * of the trait.
+     *
+     * @return void
+     */
+    public function testTraitActionResolvesAgainstTraitImports(): void
+    {
+        self::assertSame([413], array_keys($this->resolve(self::IMPORTED, 'upload')));
+    }
+
+    /**
+     * Test that names resolving to no class are skipped, including the short
+     * name of an exception imported only under an alias, while a resolvable
+     * name is kept.
+     *
+     * @return void
+     */
+    public function testUnresolvableNamesAreSkipped(): void
+    {
+        self::assertSame([409], array_keys($this->resolve(self::IMPORTED, 'purge')));
+    }
+
+    /**
+     * Resolve the error descriptors of the given action.
+     *
+     * @param  string  $controllerClass
+     * @param  string  $action
+     * @return array<int, array{phrase: string, examples: array<string, array<string, mixed>>, headers: array<string, array<string, mixed>>}>
+     */
+    private function resolve(string $controllerClass, string $action): array
+    {
+        require_once dirname(__DIR__, 3) . '/Fixtures/OpenApi/ImportedThrows/ImportedThrowsController.stub';
+
+        /** @var class-string $controllerClass */
+        return (new ThrowsErrorResolver(new ResponseHeaderResolver, new ClassNameResolver))->resolve($controllerClass, $action);
     }
 
     /**

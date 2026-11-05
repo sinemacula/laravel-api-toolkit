@@ -17,6 +17,7 @@ use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
 use SineMacula\ApiToolkit\OpenApi\Exceptions\ResponseHeaderCollisionException;
 use SineMacula\ApiToolkit\OpenApi\Exceptions\ResponseStatusConflictException;
 use SineMacula\ApiToolkit\OpenApi\Resolution\AudienceResolver;
+use SineMacula\ApiToolkit\OpenApi\Resolution\ClassNameResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\DocumentableRouteFilter;
 use SineMacula\ApiToolkit\OpenApi\Resolution\RequestBodyResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ResponseHeaderResolver;
@@ -1957,7 +1958,7 @@ final class PathBuilderTest extends TestCase
             new SecuritySchemeResolver(new SecuritySchemeMapper, new RouteMiddlewareResolver($this->router())),
             new QueryParameterBuilder($catalogue),
             new RouteMiddlewareResolver($this->router()),
-            new ThrowsErrorResolver(new ResponseHeaderResolver),
+            new ThrowsErrorResolver(new ResponseHeaderResolver, new ClassNameResolver),
             new SuccessResponseBuilder(
                 new EnvelopeBuilder,
                 new ResponseSchemaResolver($catalogue, new EnvelopeBuilder),
