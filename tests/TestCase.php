@@ -208,20 +208,6 @@ abstract class TestCase extends OrchestraTestCase
     }
 
     /**
-     * Point the default cache store at one that serializes every value and, as
-     * Laravel's serializable_classes setting does by default, unserializes no
-     * class.
-     *
-     * @return void
-     */
-    protected function useClassRefusingCacheStore(): void
-    {
-        Config::set('cache.serializable_classes', false);
-        Config::set('cache.stores.class-refusing', ['driver' => 'array', 'serialize' => true]);
-        Config::set('cache.default', 'class-refusing');
-    }
-
-    /**
      * Point the default cache store at one that keeps nothing and rejects every
      * write.
      *
@@ -265,6 +251,10 @@ abstract class TestCase extends OrchestraTestCase
         // assertions flap and the mutation score non-deterministic.
         $this->fileCachePath = sys_get_temp_dir() . '/api-toolkit-test-cache-' . getmypid() . '-' . uniqid('', true);
         $config->set('cache.stores.file.path', $this->fileCachePath);
+
+        // Refuse cached classes on a serializing store, as production does.
+        $config->set('cache.serializable_classes', false);
+        $config->set('cache.stores.array.serialize', true);
 
         /** @var \Illuminate\Contracts\Events\Dispatcher $events */
         $events = $app['events'];
