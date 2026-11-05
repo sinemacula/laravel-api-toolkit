@@ -15,13 +15,15 @@ use SineMacula\ApiToolkit\Validation\Rules\PureEnum;
  * A field's rules may be a pipe-delimited string, an array of tokens, or a
  * mixture of tokens and rule objects. This normaliser reduces every form to a
  * single flat list of string tokens so the field-schema builder has one shape
- * to interpret. Rule objects are expanded best-effort: an Enum or PureEnum
- * contributes an `enum-class:` token naming the enum class so the builder can
- * reference its named component, either narrowed by only() or except()
- * contributes what it accepts as an `in:` list, an In contributes the same
- * `in:` token its string form renders, and a Password contributes `string` plus
- * its minimum length; any other object, NotIn included, is dropped, keeping the
- * field while discarding the constraint it could not translate.
+ * to interpret. Only a whole-string definition is split on pipes: an array
+ * element is one rule, as the validator reads it, so a pattern or value
+ * carrying a pipe survives intact. Rule objects are expanded best-effort: an
+ * Enum or PureEnum contributes an `enum-class:` token naming the enum class so
+ * the builder can reference its named component, either narrowed by only() or
+ * except() contributes what it accepts as an `in:` list, an In contributes the
+ * same `in:` token its string form renders, and a Password contributes `string`
+ * plus its minimum length; any other object, NotIn included, is dropped,
+ * keeping the field while discarding the constraint it could not translate.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -45,7 +47,8 @@ final readonly class RuleNormaliser
     }
 
     /**
-     * Normalise an array rule definition, expanding each element in turn.
+     * Normalise an array rule definition, keeping each non-empty string element
+     * whole as one rule and expanding each rule object in turn.
      *
      * @param  array<array-key, mixed>  $definition
      * @return list<string>
@@ -55,8 +58,8 @@ final readonly class RuleNormaliser
         $tokens = [];
 
         foreach ($definition as $element) {
-            if (is_string($element)) {
-                $tokens = array_merge($tokens, $this->splitPipes($element));
+            if (is_string($element) && $element !== '') {
+                $tokens[] = $element;
             } elseif (is_object($element)) {
                 $tokens = array_merge($tokens, $this->expandObject($element));
             }

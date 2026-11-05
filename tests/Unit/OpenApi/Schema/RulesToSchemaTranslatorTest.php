@@ -131,6 +131,23 @@ final class RulesToSchemaTranslatorTest extends TestCase
     }
 
     /**
+     * Test that a regex array element carrying an alternation exports its whole
+     * pattern rather than being split on the pipe.
+     *
+     * @return void
+     */
+    public function testRegexArrayElementWithAlternationKeepsItsPattern(): void
+    {
+        $schema = $this->translator()->translate(['f' => ['required', 'string', 'regex:/^(a|b)$/']]);
+
+        self::assertSame([
+            'type'       => 'object',
+            'properties' => ['f' => ['type' => 'string', 'pattern' => '^(a|b)$']],
+            'required'   => ['f'],
+        ], $schema);
+    }
+
+    /**
      * Test that an In rule object exports the same enum as the equivalent
      * value-list string.
      *
