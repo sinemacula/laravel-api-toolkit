@@ -9,7 +9,12 @@ use Illuminate\Validation\Rules\Password;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\OpenApi\Schema\RuleNormaliser;
 use SineMacula\ApiToolkit\Validation\Rules\PureEnum;
+use Tests\Fixtures\Enums\DocumentFormat;
+use Tests\Fixtures\Enums\Escaped;
+use Tests\Fixtures\Enums\Magnitude;
 use Tests\Fixtures\Enums\Platform;
+use Tests\Fixtures\Enums\Punctuation;
+use Tests\Fixtures\Enums\UserLevel;
 use Tests\Fixtures\Enums\UserStatus;
 use Tests\TestCase;
 
@@ -64,6 +69,117 @@ final class RuleNormaliserTest extends TestCase
     public function testEnumObjectExpandsToEnumClassToken(): void
     {
         self::assertSame(['enum-class:' . UserStatus::class], (new RuleNormaliser)->normalise([Rule::enum(UserStatus::class)]));
+    }
+
+    /**
+     * Test that an Enum narrowed by only() or except() on a string-backed enum
+     * expands to a string token and a quoted in: list of the values it accepts,
+     * in case declaration order.
+     *
+     * @return void
+     */
+    public function testNarrowedStringBackedEnumExpandsToTheValuesItAccepts(): void
+    {
+        $normaliser = new RuleNormaliser;
+
+        self::assertSame(['string', 'in:"active","banned"'], $normaliser->normalise(Rule::enum(UserStatus::class)->only([UserStatus::BANNED, UserStatus::ACTIVE])));
+        self::assertSame(['string', 'in:"active","inactive"'], $normaliser->normalise(Rule::enum(UserStatus::class)->except(UserStatus::BANNED)));
+    }
+
+    /**
+     * Test that an Enum narrowed by only() or except() on an int-backed enum
+     * expands to an integer token and an in: list of the values it accepts.
+     *
+     * @return void
+     */
+    public function testNarrowedIntBackedEnumExpandsToTheValuesItAccepts(): void
+    {
+        $normaliser = new RuleNormaliser;
+
+        self::assertSame(['integer', 'in:"3"'], $normaliser->normalise(Rule::enum(UserLevel::class)->only(UserLevel::GOLD)));
+        self::assertSame(['integer', 'in:"1","-3"'], $normaliser->normalise(Rule::enum(Magnitude::class)->except(Magnitude::ZERO)));
+    }
+
+    /**
+     * Test that a narrowed Enum quotes values carrying commas and quotes the
+     * way an In rule renders them.
+     *
+     * @return void
+     */
+    public function testNarrowedEnumQuotesValuesLikeAnInRule(): void
+    {
+        self::assertSame(['string', 'in:"a,b","say ""hi"""'], (new RuleNormaliser)->normalise(Rule::enum(Punctuation::class)->except(Punctuation::PLAIN)));
+    }
+
+    /**
+     * Test that a narrowed Enum whose values would not read back from an in:
+     * list, such as one ending in a backslash, references the enum's component.
+     *
+     * @return void
+     */
+    public function testNarrowedEnumWithUnlistableValueExpandsToEnumClassToken(): void
+    {
+        self::assertSame(['enum-class:' . Escaped::class], (new RuleNormaliser)->normalise(Rule::enum(Escaped::class)->only(Escaped::TRAILING)));
+    }
+
+    /**
+     * Test that an Enum given both only() and except() accepts what only()
+     * names, ignoring except() as the rule does.
+     *
+     * @return void
+     */
+    public function testEnumOnlyTakesPrecedenceOverExcept(): void
+    {
+        $rule = Rule::enum(UserStatus::class)->only([UserStatus::ACTIVE, UserStatus::BANNED])->except(UserStatus::ACTIVE);
+
+        self::assertSame(['string', 'in:"active","banned"'], (new RuleNormaliser)->normalise($rule));
+    }
+
+    /**
+     * Test that an Enum whose narrowing still admits every case references the
+     * enum's component.
+     *
+     * @return void
+     */
+    public function testEnumNarrowingAdmittingEveryCaseExpandsToEnumClassToken(): void
+    {
+        $normaliser = new RuleNormaliser;
+        $expected   = ['enum-class:' . UserStatus::class];
+
+        self::assertSame($expected, $normaliser->normalise(Rule::enum(UserStatus::class)->only(UserStatus::cases())));
+        self::assertSame($expected, $normaliser->normalise(Rule::enum(UserStatus::class)->except([])));
+        self::assertSame($expected, $normaliser->normalise(Rule::enum(UserStatus::class)->except(UserLevel::GOLD)));
+    }
+
+    /**
+     * Test that an Enum rule over a pure enum references the enum's component
+     * even when narrowed, since its cases have no backing values to list.
+     *
+     * @return void
+     */
+    public function testNarrowedEnumOverPureEnumExpandsToEnumClassToken(): void
+    {
+        self::assertSame(['enum-class:' . DocumentFormat::class], (new RuleNormaliser)->normalise(Rule::enum(DocumentFormat::class)->only(DocumentFormat::PDF)));
+    }
+
+    /**
+     * Test that an Enum whose only() or except() list cannot be read as an
+     * array references the enum's component.
+     *
+     * @return void
+     */
+    public function testEnumWithUnreadableNarrowingExpandsToEnumClassToken(): void
+    {
+        $normaliser = new RuleNormaliser;
+        $expected   = ['enum-class:' . UserStatus::class];
+
+        foreach (['only', 'except'] as $property) {
+            $rule = Rule::enum(UserStatus::class);
+
+            (new \ReflectionProperty($rule, $property))->setValue($rule, UserStatus::ACTIVE);
+
+            self::assertSame($expected, $normaliser->normalise($rule));
+        }
     }
 
     /**
