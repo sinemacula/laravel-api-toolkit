@@ -134,7 +134,7 @@ final class ServerListValidatorTest extends TestCase
     {
         $url        = 'https://{region}.api.example.com';
         $urlMessage = 'must declare a non-empty string url';
-        $variables  = 'must declare its variables as a map of names to server variables, each with a string default';
+        $variables  = 'must declare its variables as a map of names to server variables, each with a string default, listed in its enum when it has one';
 
         yield 'not an array' => ['https://api.example.com', 'must be an array'];
         yield 'missing url' => [['description' => 'Production'], $urlMessage];
@@ -152,6 +152,8 @@ final class ServerListValidatorTest extends TestCase
         yield 'empty enum' => [['url' => $url, 'variables' => ['region' => ['default' => 'eu', 'enum' => []]]], $variables];
         yield 'keyed enum' => [['url' => $url, 'variables' => ['region' => ['default' => 'eu', 'enum' => ['a' => 'eu']]]], $variables];
         yield 'non-string enum value' => [['url' => $url, 'variables' => ['region' => ['default' => 'eu', 'enum' => ['eu', 1]]]], $variables];
+        yield 'default outside the enum' => [['url' => $url, 'variables' => ['region' => ['default' => 'ap', 'enum' => ['eu', 'us']]]], $variables];
+        yield 'default only loosely in the enum' => [['url' => 'https://api.example.com:{port}', 'variables' => ['port' => ['default' => '8443', 'enum' => ['8443.0']]]], $variables];
         yield 'non-string variable description' => [['url' => $url, 'variables' => ['region' => ['default' => 'eu', 'description' => 1]]], $variables];
         yield 'unsupported variable key' => [['url' => $url, 'variables' => ['region' => ['default' => 'eu', 'example' => 'us']]], $variables];
         yield 'second variable invalid' => [['url' => $url, 'variables' => ['region' => ['default' => 'eu'], 'version' => []]], $variables];

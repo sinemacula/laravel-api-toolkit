@@ -12,9 +12,10 @@ use SineMacula\ApiToolkit\OpenApi\Exceptions\ServerConfigurationException;
  * Each entry is passed through as configured once it is shown to be a valid
  * Server Object: an array with a non-empty string url, an optional string
  * description, optional variables mapping each name to a Server Variable Object
- * with a string default, and no other key besides specification extensions.
- * Anything else fails the export with a message naming the entry and the list
- * it belongs to, rather than exporting an invalid document.
+ * with a string default from its enum, if any, and no other key besides
+ * specification extensions. Anything else fails the export with a message
+ * naming the entry and the list it belongs to, rather than exporting an invalid
+ * document.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -110,7 +111,7 @@ final readonly class ServerListValidator
         }
 
         if (array_key_exists('variables', $server) && !$this->isVariableMap($server['variables'])) {
-            return 'must declare its variables as a map of names to server variables, each with a string default';
+            return 'must declare its variables as a map of names to server variables, each with a string default, listed in its enum when it has one';
         }
 
         return null;
@@ -162,8 +163,9 @@ final readonly class ServerListValidator
 
     /**
      * Determine whether the value is a Server Variable Object: a string
-     * default, an optional non-empty list of string enum values, an optional
-     * string description, and no other key besides specification extensions.
+     * default, an optional non-empty list of string enum values including the
+     * default, an optional string description, and no other key besides
+     * specification extensions.
      *
      * @param  mixed  $variable
      * @return bool
@@ -187,10 +189,23 @@ final readonly class ServerListValidator
      */
     private function hasValidOptionalVariableFields(array $variable): bool
     {
-        $enumValid        = !array_key_exists('enum', $variable)        || $this->isStringList($variable['enum']);
+        $enumValid        = !array_key_exists('enum', $variable)        || $this->isEnumOf($variable['enum'], $variable['default']);
         $descriptionValid = !array_key_exists('description', $variable) || is_string($variable['description']);
 
         return $enumValid && $descriptionValid;
+    }
+
+    /**
+     * Determine whether the value is a non-empty list of strings that includes
+     * the variable's default.
+     *
+     * @param  mixed  $enum
+     * @param  mixed  $default
+     * @return bool
+     */
+    private function isEnumOf(mixed $enum, mixed $default): bool
+    {
+        return $this->isStringList($enum) && in_array($default, $enum, true);
     }
 
     /**

@@ -202,6 +202,7 @@ final class OpenApiExporterValidityTest extends TestCase
                     'version' => ['default' => 'v1'],
                 ],
             ],
+            ['url' => 'http://localhost:{port}', 'variables' => ['port' => ['default' => '8000']]],
             ['url' => '/', 'variables' => [], 'x-environment' => 'local'],
         ]);
         $this->getConfig()->set('api-toolkit.openapi.audiences', [
@@ -209,7 +210,7 @@ final class OpenApiExporterValidityTest extends TestCase
             'partner' => ['servers' => [['url' => 'https://partners.example.com']]],
         ]);
 
-        foreach (['public' => 3, 'partner' => 1] as $audience => $count) {
+        foreach (['public' => 4, 'partner' => 1] as $audience => $count) {
 
             $document = $this->export($audience)->document;
             $result   = $this->validateAgainstMetaSchema($document);
@@ -1400,7 +1401,8 @@ final class OpenApiExporterValidityTest extends TestCase
 
     /**
      * Build a validator with the dialect and meta-schema registered, checking a
-     * uri-reference after substituting any server variable template in it.
+     * uri-reference after substituting any server variable template in it with
+     * a name, or with a digit so a templated port also holds.
      *
      * @return \Opis\JsonSchema\Validator
      */
@@ -1416,11 +1418,15 @@ final class OpenApiExporterValidityTest extends TestCase
         $resolver->registerRaw($this->dialectSchema(), self::DIALECT_ID);
         $resolver->registerRaw($this->metaSchema(), self::META_SCHEMA_ID);
 
-        $formats->registerCallable(
-            'string',
-            'uri-reference',
-            static fn (string $value): bool => UriFormats::uriReference((string) preg_replace('/\{[^{}]+\}/', 'variable', $value)),
-        );
+        $formats->registerCallable('string', 'uri-reference', static function (string $value): bool {
+            foreach (['variable', '0'] as $substitute) {
+                if (UriFormats::uriReference((string) preg_replace('/\{[^{}]+\}/', $substitute, $value))) {
+                    return true;
+                }
+            }
+
+            return false;
+        });
 
         return $validator;
     }

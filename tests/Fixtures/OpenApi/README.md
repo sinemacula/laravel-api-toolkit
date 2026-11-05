@@ -51,8 +51,9 @@ meta-schema as published:
    `format` as an annotation by default, but opis asserts it, so a Server Object
    `url` carrying a server variable template (`https://{region}.example.com`),
    which OpenAPI 3.1 explicitly allows, fails the meta-schema's `uri-reference`
-   format. The test's `uri-reference` check substitutes each `{variable}` before
-   applying opis's own check, so every other value is still held to the format.
+   format. The test's `uri-reference` check substitutes each `{variable}`, with
+   a name and then with a digit so a templated port also holds, before applying
+   opis's own check, so every other value is still held to the format.
 
 None of the transforms weakens a constraint the emitter must satisfy: the test
 proves below that the relaxed schema still rejects a 3.0 version string, a
