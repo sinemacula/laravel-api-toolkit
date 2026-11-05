@@ -855,6 +855,29 @@ final class OpenApiExporterValidityTest extends TestCase
     }
 
     /**
+     * Test that a request field validated by an enum rule narrowed with only()
+     * or except() lists the values it accepts inline, and the document stays
+     * valid OpenAPI 3.1.
+     *
+     * @return void
+     */
+    public function testNarrowedEnumRequestFieldsListTheValuesTheyAccept(): void
+    {
+        $this->router()->post('articles', [PathRequestBodyController::class, 'store']);
+
+        $document   = $this->export()->document;
+        $properties = $document['paths']['/articles']['post']['requestBody']['content']['application/json']['schema']['properties'];
+
+        self::assertSame(['type' => 'integer', 'enum' => [2, 3]], $properties['rank']);
+        self::assertSame(['type' => ['string', 'null'], 'enum' => ['active', 'banned', null]], $properties['standing']);
+
+        self::assertTrue(
+            $this->validateAgainstMetaSchema($document)->isValid(),
+            'A document with narrowed enum fields must validate as OpenAPI 3.1: ' . $this->formatErrors($this->validateAgainstMetaSchema($document)),
+        );
+    }
+
+    /**
      * Test that a route excluded from an audience is absent from that
      * audience's paths while remaining present in an audience documenting it.
      *

@@ -4,13 +4,18 @@ declare(strict_types = 1);
 
 namespace Tests\Unit\OpenApi\Schema;
 
+use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Rules\Enum;
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 use SineMacula\ApiToolkit\OpenApi\Schema\FieldSchemaBuilder;
 use SineMacula\ApiToolkit\OpenApi\Schema\RuleNormaliser;
 use SineMacula\ApiToolkit\OpenApi\Schema\RulesToSchemaTranslator;
 use SineMacula\ApiToolkit\Validation\Rules\PureEnum;
+use Tests\Fixtures\Enums\Magnitude;
 use Tests\Fixtures\Enums\Platform;
+use Tests\Fixtures\Enums\Punctuation;
 use Tests\Fixtures\Enums\UserLevel;
 use Tests\Fixtures\Enums\UserStatus;
 use Tests\Fixtures\OpenApi\ArticleRequestInput;
@@ -48,6 +53,8 @@ final class RulesToSchemaTranslatorTest extends TestCase
                 'platform'              => ['anyOf' => [['$ref' => '#/components/schemas/Platform'], ['type' => 'null']]],
                 'visibility'            => ['type' => 'string', 'enum' => ['draft', 'published']],
                 'level'                 => ['type' => 'integer', 'enum' => [1, 2, 3]],
+                'rank'                  => ['type' => 'integer', 'enum' => [2, 3]],
+                'standing'              => ['type' => ['string', 'null'], 'enum' => ['active', 'banned', null]],
                 'email'                 => ['type' => 'string', 'format' => 'email'],
                 'password'              => ['type' => 'string', 'minLength' => 8],
                 'password_confirmation' => ['type' => 'string'],
@@ -67,6 +74,45 @@ final class RulesToSchemaTranslatorTest extends TestCase
         $schema = $this->translator()->translate(['platform' => [(new PureEnum(Platform::class))->except(Platform::WEB)]]);
 
         self::assertSame(['type' => 'string', 'enum' => ['mobile_app', 'desktop']], $schema['properties']['platform']);
+    }
+
+    /**
+     * Provide narrowed Enum rules over string- and int-backed enums, values
+     * carrying commas and quotes included.
+     *
+     * @return iterable<string, array{0: \Illuminate\Validation\Rules\Enum, 1: class-string<\BackedEnum>}>
+     */
+    public static function narrowedEnumRules(): iterable
+    {
+        yield 'string-backed only' => [Rule::enum(UserStatus::class)->only([UserStatus::BANNED, UserStatus::INACTIVE]), UserStatus::class];
+        yield 'string-backed except' => [Rule::enum(UserStatus::class)->except(UserStatus::ACTIVE), UserStatus::class];
+        yield 'int-backed only' => [Rule::enum(UserLevel::class)->only(UserLevel::SILVER), UserLevel::class];
+        yield 'int-backed except' => [Rule::enum(Magnitude::class)->except(Magnitude::ONE), Magnitude::class];
+        yield 'only and except' => [Rule::enum(UserLevel::class)->only([UserLevel::BRONZE, UserLevel::GOLD])->except(UserLevel::GOLD), UserLevel::class];
+        yield 'commas and quotes' => [Rule::enum(Punctuation::class)->except(Punctuation::PLAIN), Punctuation::class];
+    }
+
+    /**
+     * Test that a narrowed Enum field's exported enum lists exactly the case
+     * values the validator accepts under that rule.
+     *
+     * @param  \Illuminate\Validation\Rules\Enum  $rule
+     * @param  class-string<\BackedEnum>  $enum
+     * @return void
+     */
+    #[DataProvider('narrowedEnumRules')]
+    public function testNarrowedEnumFieldListsExactlyTheValuesTheValidatorAccepts(Enum $rule, string $enum): void
+    {
+        $schema = $this->translator()->translate(['f' => [$rule]])['properties']['f'];
+
+        $accepted = array_values(array_filter(
+            array_column($enum::cases(), 'value'),
+            static fn (int|string $value): bool => Validator::make(['f' => $value], ['f' => [$rule]])->passes(),
+        ));
+
+        self::assertNotSame([], $accepted);
+        self::assertArrayNotHasKey('$ref', $schema);
+        self::assertSame($accepted, $schema['enum']);
     }
 
     /**
