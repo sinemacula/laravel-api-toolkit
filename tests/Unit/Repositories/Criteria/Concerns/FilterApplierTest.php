@@ -9,6 +9,7 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Validation\ValidationException;
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 use SineMacula\ApiToolkit\Enums\Capability;
 use SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException;
 use SineMacula\ApiToolkit\Query\QueryCostLimits;
@@ -27,9 +28,13 @@ use SineMacula\ApiToolkit\Repositories\Criteria\Operators\NotNullOperator;
 use SineMacula\ApiToolkit\Repositories\Criteria\Operators\NullOperator;
 use SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface;
 use Tests\Concerns\InteractsWithNonPublicMembers;
+use Tests\Fixtures\Enums\Platform;
+use Tests\Fixtures\Enums\UserStatus;
+use Tests\Fixtures\Models\Device;
 use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Resources\DeepTraversalPostResource;
+use Tests\Fixtures\Resources\DeviceResource;
 use Tests\TestCase;
 
 /**
@@ -50,6 +55,13 @@ final class FilterApplierTest extends TestCase
 
     /** @var string */
     private const string OPERATOR_CONTAINS = '$contains';
+
+    /** @var array<string, \SineMacula\ApiToolkit\Enums\Capability> */
+    private const array DEVICE_FILTERABLE = [
+        'name'     => Capability::EXACT,
+        'platform' => Capability::ENUM,
+        'status'   => Capability::ENUM,
+    ];
 
     /** @var \SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry */
     private OperatorRegistry $operatorRegistry;
@@ -1472,6 +1484,81 @@ final class FilterApplierTest extends TestCase
     }
 
     /**
+     * Provide filters on a pure-enum column with the devices each matches.
+     *
+     * @return iterable<string, array{array<string, mixed>, array<int, string>}>
+     */
+    public static function pureEnumFilterProvider(): iterable
+    {
+        yield '$eq wire name' => [['platform' => ['$eq' => 'mobile_app']], ['Phone']];
+        yield 'bare wire name' => [['platform' => 'mobile_app'], ['Phone']];
+        yield '$in wire names' => [['platform' => ['$in' => ['web', 'mobile_app']]], ['Browser', 'Phone']];
+        yield '$neq wire name' => [['platform' => ['$neq' => 'web']], ['Phone', 'Workstation']];
+        yield '$eq declared name' => [['platform' => ['$eq' => 'MOBILE_APP']], []];
+        yield 'bare declared name' => [['platform' => 'MOBILE_APP'], []];
+        yield '$eq unknown name' => [['platform' => ['$eq' => 'console']], []];
+        yield '$in mixed names' => [['platform' => ['$in' => ['MOBILE_APP', 'console', 'desktop']]], ['Workstation']];
+        yield '$neq declared name' => [['platform' => ['$neq' => 'WEB']], ['Browser', 'Phone', 'Workstation']];
+        yield '$null' => [['platform' => ['$null' => true]], ['Unregistered']];
+        yield '$or wire names' => [['$or' => ['platform' => ['$eq' => 'web'], 'name' => ['$eq' => 'Workstation']]], ['Browser', 'Workstation']];
+        yield 'backed enum value' => [['status' => ['$eq' => 'inactive']], ['Phone']];
+        yield 'backed enum $in' => [['status' => ['$in' => ['active', 'banned']]], ['Browser']];
+        yield 'plain column' => [['name' => ['$eq' => 'Phone']], ['Phone']];
+    }
+
+    /**
+     * Test that a pure-enum column is filtered by the lowercase wire name the
+     * document lists, matching the rows that store its case, while any other
+     * spelling matches nothing and the backed-enum and plain columns are
+     * filtered by their values as before.
+     *
+     * @param  array<string, mixed>  $filters
+     * @param  array<int, string>  $expected
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    #[DataProvider('pureEnumFilterProvider')]
+    public function testPureEnumColumnIsFilteredByItsWireName(array $filters, array $expected): void
+    {
+        $this->seedDevices();
+
+        $surface = new QuerySurface(self::DEVICE_FILTERABLE, [], [], new Device);
+
+        $names = $this->applier->apply((new Device)->newQuery(), $filters, $this->operatorRegistry, $surface)
+            ->orderBy('id')
+            ->pluck('name')
+            ->all();
+
+        self::assertSame($expected, $names);
+    }
+
+    /**
+     * Test that a pure-enum column on a related model is filtered by its wire
+     * name, the cast resolved on the model the relation reaches.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testPureEnumColumnOnARelatedModelIsFilteredByItsWireName(): void
+    {
+        $this->seedDevices();
+
+        $surface = $this->declaredSurface(relations: ['devices'], resourceMap: [Device::class => DeviceResource::class]);
+
+        $matched = fn (array $filters): array => $this->applier->apply((new User)->newQuery(), $filters, $this->operatorRegistry, $surface)
+            ->orderBy('id')
+            ->pluck('name')
+            ->all();
+
+        self::assertSame(['Bob'], $matched(['devices' => ['platform' => ['$eq' => 'mobile_app']]]));
+        self::assertSame(['Alice', 'Bob'], $matched(['devices' => ['platform' => ['$in' => ['web', 'mobile_app']]]]));
+        self::assertSame([], $matched(['devices' => ['platform' => ['$eq' => 'MOBILE_APP']]]));
+        self::assertSame(['Alice'], $matched(['$has' => ['devices' => ['platform' => 'web']]]));
+    }
+
+    /**
      * Assert that the given filters are rejected on cost, carrying the cap that
      * rejected them, the position within the document, and both sides of the
      * comparison.
@@ -1498,6 +1585,22 @@ final class FilterApplierTest extends TestCase
                 'actual'    => $actual,
             ], $exception->getCustomMeta());
         }
+    }
+
+    /**
+     * Seed users owning devices on each platform, one device registering none.
+     *
+     * @return void
+     */
+    private function seedDevices(): void
+    {
+        $alice = User::create(['name' => 'Alice', 'email' => 'alice@example.com']);
+        $bob   = User::create(['name' => 'Bob', 'email' => 'bob@example.com']);
+
+        Device::create(['user_id' => $alice->id, 'name' => 'Browser', 'platform' => Platform::WEB, 'status' => UserStatus::ACTIVE]);
+        Device::create(['user_id' => $bob->id, 'name' => 'Phone', 'platform' => Platform::MOBILE_APP, 'status' => UserStatus::INACTIVE]);
+        Device::create(['name' => 'Workstation', 'platform' => Platform::DESKTOP]);
+        Device::create(['name' => 'Unregistered']);
     }
 
     /**

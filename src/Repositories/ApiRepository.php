@@ -133,6 +133,7 @@ abstract class ApiRepository extends Repository
      * @return bool
      *
      * @throws \SineMacula\Repositories\Exceptions\RepositoryException
+     * @throws \ValueError
      */
     public function persist(Model $model, array|Collection $attributes): bool
     {
