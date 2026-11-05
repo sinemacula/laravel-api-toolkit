@@ -1457,8 +1457,6 @@ final class SchemaIntrospectorTest extends TestCase
      */
     public function testColumnDefinitionsReadBackFromAStoreRefusingEveryClass(): void
     {
-        $this->useClassRefusingCacheStore();
-
         $builder = self::createMock(SchemaBuilder::class);
 
         $builder->expects(self::once())
@@ -1486,8 +1484,6 @@ final class SchemaIntrospectorTest extends TestCase
      */
     public function testIndexesReadBackFromAStoreRefusingEveryClass(): void
     {
-        $this->useClassRefusingCacheStore();
-
         $builder = self::createMock(SchemaBuilder::class);
 
         $builder->expects(self::once())

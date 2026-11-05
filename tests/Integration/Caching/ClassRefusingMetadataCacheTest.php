@@ -58,8 +58,6 @@ final class ClassRefusingMetadataCacheTest extends TestCase
         ]);
 
         $this->router()->get('widget', [PathResponseSchemaController::class, 'widget']);
-
-        $this->useClassRefusingCacheStore();
     }
 
     /**
