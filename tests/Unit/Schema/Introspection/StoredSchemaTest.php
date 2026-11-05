@@ -142,6 +142,7 @@ final class StoredSchemaTest extends TestCase
     {
         yield 'not an array' => ['stale'];
         yield 'an incomplete object' => [[unserialize(serialize(new IndexDefinition('users_name_index', ['name'], 'btree')), ['allowed_classes' => false])]];
+        yield 'an entry without its kind' => [[['name' => 'users_name_index', 'columns' => ['name']]]];
         yield 'an unreadable entry after a readable one' => [[['name' => 'users_name_index', 'columns' => ['name'], 'type' => 'btree'], ['name' => 'users_bio_index']]];
     }
 

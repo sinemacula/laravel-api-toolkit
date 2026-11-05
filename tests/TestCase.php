@@ -11,7 +11,9 @@ use Illuminate\Filesystem\Filesystem;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Testing\Fakes\EventFake;
 use Illuminate\Testing\PendingCommand;
 use Orchestra\Testbench\TestCase as OrchestraTestCase;
 use SineMacula\ApiToolkit\ApiServiceProvider;
@@ -52,12 +54,21 @@ abstract class TestCase extends OrchestraTestCase
      * back with every class refused, as Laravel's serializable_classes setting
      * refuses them by default.
      *
+     * A test that fakes every event keeps the cache's writes from the listener,
+     * so the writes the fake recorded are checked here instead.
+     *
      * @return void
      */
     #[\Override]
     protected function assertPostConditions(): void
     {
         parent::assertPostConditions();
+
+        $events = Event::getFacadeRoot();
+
+        if ($events instanceof EventFake) {
+            $events->dispatched(KeyWritten::class)->each(fn (array $arguments) => $this->recordUnreadableCacheWrite($arguments[0]));
+        }
 
         if ($this->unreadableCacheWrites === []) {
             return;

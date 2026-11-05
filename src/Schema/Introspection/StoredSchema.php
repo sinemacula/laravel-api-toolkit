@@ -67,12 +67,16 @@ final class StoredSchema
      * Rebuild the index definitions from their stored form, or return null when
      * the stored value cannot be read.
      *
+     * A connection may report an index without a kind, but a stored entry
+     * always carries one, null included, so an entry without it is unreadable
+     * rather than an index of no known kind.
+     *
      * @param  mixed  $stored
      * @return array<int, \SineMacula\ApiToolkit\Schema\Introspection\IndexDefinition>|null
      */
     public static function toIndexes(mixed $stored): ?array
     {
-        return self::rebuild($stored, IndexDefinition::fromCatalogueEntry(...));
+        return self::rebuild($stored, static fn (mixed $entry): ?IndexDefinition => is_array($entry) && array_key_exists('type', $entry) ? IndexDefinition::fromCatalogueEntry($entry) : null);
     }
 
     /**
