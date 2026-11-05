@@ -64,7 +64,7 @@ final class FieldSchemaBuilderTest extends TestCase
             'boolean numeric in'   => [['boolean', 'in:0,1'], ['type' => 'boolean', 'enum' => ['0', '1']]],
             'nullable integer in'  => [['nullable', 'integer', 'in:1,2'], ['type' => ['integer', 'null'], 'enum' => [1, 2, null]]],
             'exact enum values'    => [['integer', 'enum-values:[2,3]'], ['type' => 'integer', 'enum' => [2, 3]]],
-            'exact verbatim'       => [['string', 'enum-values:["a,b","dir\\\\"]'], ['type' => 'string', 'enum' => ['a,b', 'dir\\']]],
+            'exact verbatim'       => [['string', 'enum-values:["a,b","dir\\\"]'], ['type' => 'string', 'enum' => ['a,b', 'dir\\']]],
             'exact empty values'   => [['string', 'enum-values:[]'], ['type' => 'string', 'enum' => []]],
             'nullable exact empty' => [['nullable', 'string', 'enum-values:[]'], ['type' => ['string', 'null'], 'enum' => [null]]],
             'exact values over in' => [['string', 'in:a', 'enum-values:["b"]'], ['type' => 'string', 'enum' => ['b']]],

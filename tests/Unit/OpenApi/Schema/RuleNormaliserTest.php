@@ -123,8 +123,8 @@ final class RuleNormaliserTest extends TestCase
     {
         $normaliser = new RuleNormaliser;
 
-        self::assertSame(['string', 'enum-values:["a,b","say \\"hi\\""]'], $normaliser->normalise(Rule::enum(Punctuation::class)->except(Punctuation::PLAIN)));
-        self::assertSame(['string', 'enum-values:["dir\\\\"]'], $normaliser->normalise(Rule::enum(Escaped::class)->only(Escaped::TRAILING)));
+        self::assertSame(['string', 'enum-values:["a,b","say \"hi\""]'], $normaliser->normalise(Rule::enum(Punctuation::class)->except(Punctuation::PLAIN)));
+        self::assertSame(['string', 'enum-values:["dir\\\"]'], $normaliser->normalise(Rule::enum(Escaped::class)->only(Escaped::TRAILING)));
     }
 
     /**

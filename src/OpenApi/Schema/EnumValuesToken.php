@@ -21,9 +21,10 @@ final readonly class EnumValuesToken
     public const string NAME = 'enum-values';
 
     /**
-     * Build the token listing the given values.
+     * Build the token listing the given values, a backed enum case as its
+     * backing value.
      *
-     * @param  list<int|string>  $values
+     * @param  list<\BackedEnum|int|string>  $values
      * @return string
      */
     public function token(array $values): string
