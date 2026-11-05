@@ -18,9 +18,9 @@ Both files are committed **byte-for-byte as published** — they are not hand-ed
 ## opis/json-schema compatibility transform (applied at runtime in the test)
 
 `opis/json-schema` (`^2.4`, the test-only validator chosen in ADR 0003) is a
-maintained JSON Schema 2020-12 validator, but version 2.6 has two annotation /
-reference gaps that prevent it from evaluating the OpenAPI 3.1 meta-schema as
-published:
+maintained JSON Schema 2020-12 validator, but version 2.6 has annotation,
+reference, and format gaps that prevent it from evaluating the OpenAPI 3.1
+meta-schema as published:
 
 1. **`$dynamicRef: "#meta"` resolution.** The meta-schema's Schema Object uses
    `$dynamicRef: "#meta"`, which should resolve to the permissive
@@ -47,12 +47,19 @@ published:
    checks, the parameter `name`/`in` requirement, the `schema`-xor-`content`
    `oneOf`, and so on).
 
-Neither transform weakens a constraint the emitter must satisfy: the test
+3. **`format` assertion on templated server URLs.** JSON Schema 2020-12 treats
+   `format` as an annotation by default, but opis asserts it, so a Server Object
+   `url` carrying a server variable template (`https://{region}.example.com`),
+   which OpenAPI 3.1 explicitly allows, fails the meta-schema's `uri-reference`
+   format. The test's `uri-reference` check substitutes each `{variable}` before
+   applying opis's own check, so every other value is still held to the format.
+
+None of the transforms weakens a constraint the emitter must satisfy: the test
 proves below that the relaxed schema still rejects a 3.0 version string, a
 document missing `info`, a parameter missing `name`/`in`, and other malformed
 shapes. The transform is performed in code (visible, reviewable) rather than by
 committing a hand-edited schema, so the vendored fixtures stay verifiably
 identical to the upstream publications and cannot silently drift.
 
-If a future opis release closes both gaps, the transform can be deleted and the
+If a future opis release closes these gaps, the transforms can be deleted and the
 pristine meta-schema validated directly.

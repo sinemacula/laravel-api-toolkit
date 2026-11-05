@@ -15,6 +15,7 @@ use SineMacula\ApiToolkit\OpenApi\Builder\QueryParameterBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\ResourceSchemaBuilder;
 use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
 use SineMacula\ApiToolkit\OpenApi\Docs\DocManualAssembler;
+use SineMacula\ApiToolkit\OpenApi\Exceptions\ServerConfigurationException;
 use SineMacula\ApiToolkit\OpenApi\Metadata\ErrorDescriptor;
 use SineMacula\ApiToolkit\OpenApi\OpenApiAssembler;
 use SineMacula\ApiToolkit\OpenApi\Resolution\AudienceResolver;
@@ -484,6 +485,86 @@ final class OpenApiAssemblerTest extends TestCase
         $schemas = $this->assembleEmptyAudience()['components']['schemas'];
 
         self::assertArrayHasKey(ErrorResponseBuilder::ENVELOPE_SCHEMA_NAME, $schemas);
+    }
+
+    /**
+     * Test that the configured servers are exported in order, with their
+     * descriptions and variables intact, between the info block and the paths.
+     *
+     * @return void
+     */
+    public function testConfiguredServersAreExportedInOrder(): void
+    {
+        $servers = [
+            ['url' => 'https://api.example.com', 'description' => 'Production'],
+            [
+                'url'         => 'https://{region}.api.example.com',
+                'description' => 'Regional',
+                'variables'   => ['region' => ['default' => 'eu', 'enum' => ['eu', 'us']]],
+            ],
+        ];
+
+        $this->config()->set('api-toolkit.openapi.servers', $servers);
+
+        $document = $this->assemble();
+
+        self::assertSame($servers, $document['servers']);
+        self::assertSame(['openapi', 'info', 'servers', 'paths', 'components'], array_keys($document));
+    }
+
+    /**
+     * Test that an audience's own servers replace the global list for that
+     * audience's document only.
+     *
+     * @return void
+     */
+    public function testAudienceServersReplaceTheGlobalListForThatAudienceOnly(): void
+    {
+        $global  = [['url' => 'https://api.example.com'], ['url' => 'https://internal.example.com']];
+        $partner = [['url' => 'https://partners.example.com', 'description' => 'Partners']];
+
+        $this->config()->set('api-toolkit.openapi.servers', $global);
+        $this->config()->set('api-toolkit.openapi.audiences', [
+            'public'  => [],
+            'partner' => ['servers' => $partner],
+        ]);
+
+        $assembler = $this->makeAssembler();
+
+        self::assertSame($partner, $assembler->assemble('partner')['servers']);
+        self::assertSame($global, $assembler->assemble('public')['servers']);
+    }
+
+    /**
+     * Test that no servers key is exported when none are configured, nor when
+     * the audience overrides the global list with an empty one.
+     *
+     * @return void
+     */
+    public function testNoServersKeyWithoutConfiguredServers(): void
+    {
+        self::assertArrayNotHasKey('servers', $this->assemble());
+
+        $this->config()->set('api-toolkit.openapi.servers', [['url' => 'https://api.example.com']]);
+        $this->config()->set('api-toolkit.openapi.audiences', ['public' => ['servers' => []]]);
+
+        self::assertArrayNotHasKey('servers', $this->makeAssembler()->assemble('public'));
+    }
+
+    /**
+     * Test that a server without a string url fails the export with a message
+     * naming the entry.
+     *
+     * @return void
+     */
+    public function testServerWithoutAStringUrlFailsTheExport(): void
+    {
+        $this->config()->set('api-toolkit.openapi.servers', [['description' => 'Production']]);
+
+        $this->expectException(ServerConfigurationException::class);
+        $this->expectExceptionMessage('Unable to export the global OpenAPI servers: server [0] must declare a non-empty string url.');
+
+        $this->assemble();
     }
 
     /**
