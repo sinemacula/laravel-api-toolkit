@@ -108,7 +108,7 @@ final readonly class SuccessResponseBuilder
     private function withStatus(array $responses, ?string $controllerClass, string $action): array
     {
         $directive = $this->responseStatus->resolve($controllerClass, $action);
-        $default   = (int) array_key_first($responses);
+        $default   = array_key_first($responses);
 
         if ($directive === null || $directive->status->value === $default) {
             return $responses;
