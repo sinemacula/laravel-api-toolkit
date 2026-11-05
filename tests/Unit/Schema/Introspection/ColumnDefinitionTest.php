@@ -5,6 +5,7 @@ declare(strict_types = 1);
 namespace Tests\Unit\Schema\Introspection;
 
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use SineMacula\ApiToolkit\Schema\Introspection\ColumnDefinition;
 
@@ -51,5 +52,62 @@ final class ColumnDefinitionTest extends TestCase
         );
 
         self::assertFalse($definition->nullable);
+    }
+
+    /**
+     * Test that a catalogue row is read into a definition, with its type name
+     * lower-cased so a comparison against it does not turn on the engine's own
+     * folding.
+     *
+     * @return void
+     */
+    public function testReadsACatalogueRow(): void
+    {
+        $definition = ColumnDefinition::fromCatalogueEntry(['name' => 'email', 'type_name' => 'VARCHAR', 'nullable' => true]);
+
+        self::assertEquals(new ColumnDefinition('email', 'varchar', true), $definition);
+    }
+
+    /**
+     * Provide rows a definition cannot be read from.
+     *
+     * @return iterable<string, array{0: mixed}>
+     */
+    public static function unreadableRowProvider(): iterable
+    {
+        yield 'not an array' => ['email'];
+        yield 'no name' => [['type_name' => 'varchar', 'nullable' => true]];
+        yield 'a name that is not a string' => [['name' => 1, 'type_name' => 'varchar', 'nullable' => true]];
+        yield 'no type name' => [['name' => 'email', 'nullable' => true]];
+        yield 'a type name that is not a string' => [['name' => 'email', 'type_name' => 1, 'nullable' => true]];
+        yield 'no nullability flag' => [['name' => 'email', 'type_name' => 'varchar']];
+        yield 'a nullability flag that is not a boolean' => [['name' => 'email', 'type_name' => 'varchar', 'nullable' => 1]];
+    }
+
+    /**
+     * Test that a row in any shape but a name, a type name, and a nullability
+     * flag is passed over.
+     *
+     * @param  mixed  $entry
+     * @return void
+     */
+    #[DataProvider('unreadableRowProvider')]
+    public function testPassesOverAnUnreadableRow(mixed $entry): void
+    {
+        self::assertNull(ColumnDefinition::fromCatalogueEntry($entry));
+    }
+
+    /**
+     * Test that a definition is returned as the catalogue row it is read from,
+     * and that the row reads back as an equal definition.
+     *
+     * @return void
+     */
+    public function testRoundTripsThroughItsCatalogueRow(): void
+    {
+        $definition = new ColumnDefinition('email', 'varchar', true);
+
+        self::assertSame(['name' => 'email', 'type_name' => 'varchar', 'nullable' => true], $definition->toArray());
+        self::assertEquals($definition, ColumnDefinition::fromCatalogueEntry($definition->toArray()));
     }
 }

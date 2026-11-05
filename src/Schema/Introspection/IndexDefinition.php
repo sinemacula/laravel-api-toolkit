@@ -48,7 +48,8 @@ final readonly class IndexDefinition
      *
      * The entry is read as unknown rather than as the shape the schema builder
      * promises, because what the connection actually returned is what decides
-     * whether it can be read at all.
+     * whether it can be read at all. The same reader rebuilds a definition from
+     * its stored form, which another version of the toolkit may have written.
      *
      * @param  mixed  $entry
      * @return self|null
@@ -69,6 +70,17 @@ final readonly class IndexDefinition
         }
 
         return new self($name, $names, $type === null ? null : strtolower($type));
+    }
+
+    /**
+     * Return the definition as the catalogue entry it is read from, so it can
+     * be cached without its class.
+     *
+     * @return array{name: string, columns: array<int, string>, type: string|null}
+     */
+    public function toArray(): array
+    {
+        return ['name' => $this->name, 'columns' => $this->columns, 'type' => $this->type];
     }
 
     /**
