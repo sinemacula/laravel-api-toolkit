@@ -76,7 +76,14 @@ final class StoredSchema
      */
     public static function toIndexes(mixed $stored): ?array
     {
-        return self::rebuild($stored, static fn (mixed $entry): ?IndexDefinition => is_array($entry) && array_key_exists('type', $entry) ? IndexDefinition::fromCatalogueEntry($entry) : null);
+        return self::rebuild($stored, static function (mixed $entry): ?IndexDefinition {
+
+            if (!is_array($entry) || !array_key_exists('type', $entry)) {
+                return null;
+            }
+
+            return IndexDefinition::fromCatalogueEntry($entry);
+        });
     }
 
     /**
