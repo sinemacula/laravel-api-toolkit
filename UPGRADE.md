@@ -203,7 +203,11 @@ short-circuits the `authorize()` hook, and `AnonymousActor` represents an unauth
 **Resolution, context and queueing.** `Service::make($input)` resolves the service through the container,
 so it may declare its own constructor dependencies. `withContext()` attaches a prebuilt `ServiceContext`
 (actor, correlation id, source, and metadata). `dispatch()` pushes the service onto the queue via
-`ServiceJob`, which re-runs it identically on the worker with the source set to `QUEUE`.
+`ServiceJob`, which re-runs it identically on the worker with the source set to `QUEUE`. Where `run()`
+returns a failure as its result, a queued run fails the job with the exception the run captured, so the worker
+retries it per its `--tries` and `--backoff` and records it in the configured failed job store. Each failed attempt
+runs `onFailure()` and fires `ServiceFailed` again. On the `sync` connection the failure is thrown to the code that
+dispatched it.
 
 ### Services: a service reads its run context
 

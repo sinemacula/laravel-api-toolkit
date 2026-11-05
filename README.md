@@ -892,6 +892,12 @@ $user = $result->output();
 `runOrFail()` is `run()->throw()->output()` in one call. Both use the context given through `withContext()`, and
 fire the same lifecycle events.
 
+`dispatch()` queues the service instead, and the worker runs it with a `QUEUE` context. A failed run fails the job
+with the exception the run captured, so the worker retries it per its `--tries` and `--backoff` and, once the
+attempts run out, records it in the configured failed job store. Each attempt runs the whole lifecycle again, firing
+`onFailure()` and `ServiceFailed` every time it fails. On the `sync` connection there is no worker to retry, so the
+failure is thrown to the code that dispatched it.
+
 #### Reading the Run Context
 
 While a service runs, `$this->context()` returns the `ServiceContext` it runs with: the one given through
