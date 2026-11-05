@@ -8,14 +8,18 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Illuminate\Support\Facades\Cache;
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\MockObject\Stub;
 use SineMacula\ApiToolkit\Cache\MetadataCacheWriter;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Enums\CacheKeys;
 use SineMacula\ApiToolkit\Repositories\Concerns\AttributeSetter;
 use Tests\Concerns\InteractsWithNonPublicMembers;
+use Tests\Fixtures\Enums\CastablePlatform;
+use Tests\Fixtures\Enums\Platform;
 use Tests\Fixtures\Enums\UserStatus;
 use Tests\Fixtures\Models\Country;
+use Tests\Fixtures\Models\Device;
 use Tests\Fixtures\Models\Organization;
 use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\Tag;
@@ -632,6 +636,86 @@ final class AttributeSetterTest extends TestCase
         self::assertSame('string', $this->invokeMethod($this->attributeSetter, 'resolveCastForAttribute', 'field', 'custom_type', null));
         self::assertSame('string', $this->invokeMethod($this->attributeSetter, 'resolveCastForAttribute', 'field', 'datetime', null));
         self::assertSame('string', $this->invokeMethod($this->attributeSetter, 'resolveCastForAttribute', 'status', UserStatus::class, null));
+    }
+
+    /**
+     * Test that resolveCastForAttribute labels a pure-enum cast so its value is
+     * resolved from wire form, leaving a castable enum to its caster.
+     *
+     * @return void
+     */
+    public function testResolveCastForAttributeLabelsPureEnumCasts(): void
+    {
+        self::assertSame('pure_enum', $this->invokeMethod($this->attributeSetter, 'resolveCastForAttribute', 'platform', Platform::class, null));
+        self::assertSame('string', $this->invokeMethod($this->attributeSetter, 'resolveCastForAttribute', 'platform', CastablePlatform::class, null));
+    }
+
+    /**
+     * Provide values a pure-enum attribute accepts, with the case each stores.
+     *
+     * @return iterable<string, array{mixed, \Tests\Fixtures\Enums\Platform|null}>
+     */
+    public static function pureEnumValueProvider(): iterable
+    {
+        yield 'wire name' => ['mobile_app', Platform::MOBILE_APP];
+        yield 'enum case' => [Platform::DESKTOP, Platform::DESKTOP];
+        yield 'null' => [null, null];
+    }
+
+    /**
+     * Test that persist writes a pure-enum attribute from its lowercase wire
+     * name or its case, storing the case name as Eloquent declares it.
+     *
+     * @param  mixed  $value
+     * @param  \Tests\Fixtures\Enums\Platform|null  $expected
+     * @return void
+     */
+    #[DataProvider('pureEnumValueProvider')]
+    public function testPersistWritesAPureEnumFromItsWireNameOrCase(mixed $value, ?Platform $expected): void
+    {
+        $device = Device::create(['name' => 'Phone', 'platform' => Platform::WEB]);
+
+        self::assertTrue($this->attributeSetter->persist($device, ['platform' => $value, 'status' => 'inactive'], Device::class));
+
+        $fresh = $device->fresh();
+
+        self::assertSame($expected, $fresh?->platform);
+        self::assertSame($expected?->name, $fresh?->getRawOriginal('platform'));
+        self::assertSame(UserStatus::INACTIVE, $fresh?->status);
+    }
+
+    /**
+     * Provide strings that name no case of the pure enum in wire form.
+     *
+     * @return iterable<string, array{string}>
+     */
+    public static function unmatchedPureEnumNameProvider(): iterable
+    {
+        yield 'declared name' => ['MOBILE_APP'];
+        yield 'unknown' => ['console'];
+    }
+
+    /**
+     * Test that persist refuses a string naming no case of a pure enum the way
+     * an unknown backed-enum value is refused, leaving the row unchanged.
+     *
+     * @param  string  $value
+     * @return void
+     */
+    #[DataProvider('unmatchedPureEnumNameProvider')]
+    public function testPersistRefusesAStringNamingNoPureEnumCase(string $value): void
+    {
+        $device = Device::create(['name' => 'Phone', 'platform' => Platform::WEB]);
+
+        try {
+            $this->attributeSetter->persist($device, ['platform' => $value], Device::class);
+
+            self::fail('A string naming no case must be refused.');
+        } catch (\ValueError $exception) {
+            self::assertSame(sprintf('"%s" is not a valid wire name for enum %s', $value, Platform::class), $exception->getMessage());
+        }
+
+        self::assertSame('WEB', $device->fresh()?->getRawOriginal('platform'));
     }
 
     /**
