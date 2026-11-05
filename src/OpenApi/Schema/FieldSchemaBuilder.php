@@ -169,9 +169,9 @@ final readonly class FieldSchemaBuilder
 
     /**
      * Apply an `enum-values:` token's exact values as the field's enum, even an
-     * empty list, or else an `in:` token's values as the field's enum, or as
-     * its items' enum on an array field, since the validator checks every
-     * element against them.
+     * empty list, and as strings on a string field, or else an `in:` token's
+     * values as the field's enum, or as its items' enum on an array field,
+     * since the validator checks every element against them.
      *
      * @param  array<string, mixed>  $schema
      * @param  list<string>  $tokens
@@ -183,7 +183,7 @@ final readonly class FieldSchemaBuilder
         $exact = $this->exactValues->values($this->argument($tokens, EnumValuesToken::NAME) ?? '');
 
         if ($exact !== null) {
-            $schema['enum'] = $exact;
+            $schema['enum'] = $type === 'string' ? array_map(strval(...), $exact) : $exact;
 
             return;
         }

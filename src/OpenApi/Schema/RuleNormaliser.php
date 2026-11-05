@@ -155,7 +155,9 @@ final readonly class RuleNormaliser
             return null;
         }
 
-        return [$this->backingTypeToken($type), (new EnumValuesToken)->token($accepted)];
+        $values = array_map(static fn (\BackedEnum $case): int|string => $case->value, $accepted);
+
+        return [$this->backingTypeToken($type), (new EnumValuesToken)->token($values)];
     }
 
     /**

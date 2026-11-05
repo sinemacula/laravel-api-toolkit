@@ -17,6 +17,7 @@ use Tests\Fixtures\Enums\Escaped;
 use Tests\Fixtures\Enums\Magnitude;
 use Tests\Fixtures\Enums\Platform;
 use Tests\Fixtures\Enums\Punctuation;
+use Tests\Fixtures\Enums\SerialisedStatus;
 use Tests\Fixtures\Enums\UserLevel;
 use Tests\Fixtures\Enums\UserStatus;
 use Tests\Fixtures\OpenApi\ArticleRequestInput;
@@ -93,6 +94,7 @@ final class RulesToSchemaTranslatorTest extends TestCase
         yield 'only and except' => [Rule::enum(UserLevel::class)->only([UserLevel::BRONZE, UserLevel::GOLD])->except(UserLevel::GOLD), UserLevel::class];
         yield 'commas and quotes' => [Rule::enum(Punctuation::class)->except(Punctuation::PLAIN), Punctuation::class];
         yield 'trailing backslash' => [Rule::enum(Escaped::class)->only(Escaped::TRAILING), Escaped::class];
+        yield 'serialised enum' => [Rule::enum(SerialisedStatus::class)->only(SerialisedStatus::ACTIVE), SerialisedStatus::class];
     }
 
     /**
@@ -116,6 +118,22 @@ final class RulesToSchemaTranslatorTest extends TestCase
         self::assertNotSame([], $accepted);
         self::assertArrayNotHasKey('$ref', $schema);
         self::assertSame($accepted, $schema['enum']);
+    }
+
+    /**
+     * Test that a narrowed int-backed Enum on a field the rules also declare a
+     * string lists its values as the strings the validator accepts there.
+     *
+     * @return void
+     */
+    public function testNarrowedIntBackedEnumOnAStringFieldListsStrings(): void
+    {
+        $rules  = ['level' => ['string', Rule::enum(UserLevel::class)->only(UserLevel::SILVER)]];
+        $schema = $this->translator()->translate($rules)['properties']['level'];
+
+        self::assertTrue(Validator::make(['level' => '2'], $rules)->passes());
+        self::assertFalse(Validator::make(['level' => 2], $rules)->passes());
+        self::assertSame(['type' => 'string', 'enum' => ['2']], $schema);
     }
 
     /**

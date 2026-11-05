@@ -7,8 +7,6 @@ namespace Tests\Unit\OpenApi\Schema;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use SineMacula\ApiToolkit\OpenApi\Schema\EnumValuesToken;
-use Tests\Fixtures\Enums\UserLevel;
-use Tests\Fixtures\Enums\UserStatus;
 use Tests\TestCase;
 
 /**
@@ -23,14 +21,13 @@ use Tests\TestCase;
 final class EnumValuesTokenTest extends TestCase
 {
     /**
-     * Test that a token names the rule and lists its values as JSON, a backed
-     * enum case as its backing value.
+     * Test that a token names the rule and lists its values as JSON.
      *
      * @return void
      */
     public function testTokenListsTheValuesAsJson(): void
     {
-        self::assertSame('enum-values:["a,b",3,"active",2]', (new EnumValuesToken)->token(['a,b', 3, UserStatus::ACTIVE, UserLevel::SILVER]));
+        self::assertSame('enum-values:["a,b",3]', (new EnumValuesToken)->token(['a,b', 3]));
         self::assertSame('enum-values:[]', (new EnumValuesToken)->token([]));
     }
 

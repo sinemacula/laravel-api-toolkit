@@ -14,6 +14,7 @@ use Tests\Fixtures\Enums\Escaped;
 use Tests\Fixtures\Enums\Magnitude;
 use Tests\Fixtures\Enums\Platform;
 use Tests\Fixtures\Enums\Punctuation;
+use Tests\Fixtures\Enums\SerialisedStatus;
 use Tests\Fixtures\Enums\UserLevel;
 use Tests\Fixtures\Enums\UserStatus;
 use Tests\TestCase;
@@ -125,6 +126,17 @@ final class RuleNormaliserTest extends TestCase
 
         self::assertSame(['string', 'enum-values:["a,b","say \"hi\""]'], $normaliser->normalise(Rule::enum(Punctuation::class)->except(Punctuation::PLAIN)));
         self::assertSame(['string', 'enum-values:["dir\\\"]'], $normaliser->normalise(Rule::enum(Escaped::class)->only(Escaped::TRAILING)));
+    }
+
+    /**
+     * Test that a narrowed Enum lists its backing values even when the enum
+     * serialises its cases to something else.
+     *
+     * @return void
+     */
+    public function testNarrowedEnumListsBackingValuesNotItsSerialisedForm(): void
+    {
+        self::assertSame(['string', 'enum-values:["active"]'], (new RuleNormaliser)->normalise(Rule::enum(SerialisedStatus::class)->only(SerialisedStatus::ACTIVE)));
     }
 
     /**
