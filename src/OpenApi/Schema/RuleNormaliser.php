@@ -19,12 +19,11 @@ use SineMacula\ApiToolkit\Validation\Rules\PureEnum;
  * element is one rule, as the validator reads it, so a pattern or value
  * carrying a pipe survives intact. Rule objects are expanded best-effort: an
  * Enum or PureEnum contributes an `enum-class:` token naming the enum class so
- * the builder can reference its named component, a PureEnum narrowed by only()
- * or except() contributes the names it accepts as an `in:` list, an In
- * contributes the same `in:` token its string form renders, and a Password
- * contributes `string` plus its minimum length; any other object, NotIn
- * included, is dropped, keeping the field while discarding the constraint it
- * could not translate.
+ * the builder can reference its named component, either narrowed by only() or
+ * except() contributes what it accepts as an `in:` list, an In contributes the
+ * same `in:` token its string form renders, and a Password contributes `string`
+ * plus its minimum length; any other object, NotIn included, is dropped,
+ * keeping the field while discarding the constraint it could not translate.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -99,27 +98,123 @@ final readonly class RuleNormaliser
     }
 
     /**
-     * Expand an Enum rule into a single `enum-class:` token naming the enum
-     * class, or nothing when the class cannot be read or is not an enum.
+     * Expand an Enum rule into an `enum-class:` token naming the enum class, or
+     * into the values it accepts when only() or except() narrows it, or nothing
+     * when the class cannot be read or is not an enum.
      *
      * @param  \Illuminate\Validation\Rules\Enum  $rule
      * @return list<string>
+     */
+    private function enumTokens(Enum $rule): array
+    {
+        $type = $this->enumType($rule);
+
+        if ($type === null) {
+            return [];
+        }
+
+        return $this->narrowedEnumTokens($rule, $type) ?? ['enum-class:' . $type];
+    }
+
+    /**
+     * Resolve the enum class an Enum rule validates against, or null when the
+     * class cannot be read or is not an enum.
+     *
+     * @param  \Illuminate\Validation\Rules\Enum  $rule
+     * @return class-string<\UnitEnum>|null
      *
      * @SuppressWarnings("php:S3011")
      */
-    private function enumTokens(Enum $rule): array
+    private function enumType(Enum $rule): ?string
     {
         try {
             $type = (new \ReflectionProperty($rule, 'type'))->getValue($rule);
         } catch (\Throwable) {
-            return [];
+            return null;
         }
 
-        if (!is_string($type) || !enum_exists($type)) {
-            return [];
+        return is_string($type) && enum_exists($type) ? $type : null;
+    }
+
+    /**
+     * Expand a backed Enum rule narrowed by only() or except() into its backing
+     * type token and an `in:` list of the values it accepts, since the enum's
+     * component lists every case, or null when the rule admits every case, its
+     * enum is not backed, its narrowing cannot be read, or the list would not
+     * read back as those values.
+     *
+     * @param  \Illuminate\Validation\Rules\Enum  $rule
+     * @param  class-string<\UnitEnum>  $type
+     * @return list<string>|null
+     */
+    private function narrowedEnumTokens(Enum $rule, string $type): ?array
+    {
+        $accepted = is_subclass_of($type, \BackedEnum::class) ? $this->acceptedCases($rule, $type) : null;
+
+        if ($accepted === null || count($accepted) === count($type::cases())) {
+            return null;
         }
 
-        return ['enum-class:' . $type];
+        $token = (string) new In($accepted);
+
+        return $this->readsBackAs($token, $accepted) ? [$this->backingTypeToken($type), $token] : null;
+    }
+
+    /**
+     * Determine whether an `in:` token reads back as exactly the given cases'
+     * values, which a value with a backslash before a quote or at its end does
+     * not.
+     *
+     * @param  string  $token
+     * @param  list<\BackedEnum>  $cases
+     * @return bool
+     */
+    private function readsBackAs(string $token, array $cases): bool
+    {
+        $values = array_map(static fn (\BackedEnum $case): string => (string) $case->value, $cases);
+
+        return (new InRuleValues)->forField(substr($token, 3), null) === $values;
+    }
+
+    /**
+     * Resolve the cases an Enum rule accepts, applying only() in preference to
+     * except() as the rule does, or null when neither list can be read.
+     *
+     * @param  \Illuminate\Validation\Rules\Enum  $rule
+     * @param  class-string<\BackedEnum>  $type
+     * @return list<\BackedEnum>|null
+     *
+     * @SuppressWarnings("php:S3011")
+     */
+    private function acceptedCases(Enum $rule, string $type): ?array
+    {
+        try {
+            $only   = (new \ReflectionProperty($rule, 'only'))->getValue($rule);
+            $except = (new \ReflectionProperty($rule, 'except'))->getValue($rule);
+        } catch (\Throwable) {
+            return null;
+        }
+
+        if (!is_array($only) || !is_array($except)) {
+            return null;
+        }
+
+        return array_values(array_filter(
+            $type::cases(),
+            static fn (\BackedEnum $case): bool => $only !== [] ? in_array($case, $only, true) : !in_array($case, $except, true),
+        ));
+    }
+
+    /**
+     * Resolve the type token for a backed enum's values: integer for an
+     * int-backed enum, string otherwise.
+     *
+     * @param  class-string<\BackedEnum>  $type
+     * @return string
+     */
+    private function backingTypeToken(string $type): string
+    {
+        return (string) (new \ReflectionEnum($type))->getBackingType() === 'int' ? 'integer' : 'string';
     }
 
     /**

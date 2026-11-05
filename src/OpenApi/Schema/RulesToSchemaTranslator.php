@@ -11,10 +11,12 @@ namespace SineMacula\ApiToolkit\OpenApi\Schema;
  * from. Each field's rules are normalised to tokens and turned into a property
  * schema, while dotted keys weave the properties into nested objects and a
  * `field.*` sibling supplies the items schema of an array field. A confirmed
- * field gains a matching `<field>_confirmation` sibling of the same base type.
- * The result is a `{type: object, properties, required}` fragment inlined by
- * the caller, never a registered component; nothing here throws, so an
- * unrecognised rule degrades to a skipped constraint rather than a failure.
+ * field gains a matching `<field>_confirmation` sibling of the same base type,
+ * while a field that may never be sent is the false schema, with no children
+ * and no sibling. The result is a `{type: object, properties, required}`
+ * fragment inlined by the caller, never a registered component; nothing here
+ * throws, so an unrecognised rule degrades to a skipped constraint rather than
+ * a failure.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -50,7 +52,9 @@ final readonly class RulesToSchemaTranslator
             $normalised[(string) $field] = $this->normaliser->normalise($definition);
         }
 
-        return $this->buildNode($normalised)['schema'];
+        $schema = $this->buildNode($normalised)['schema'];
+
+        return $schema === false ? [] : $schema;
     }
 
     /**
@@ -58,7 +62,7 @@ final readonly class RulesToSchemaTranslator
      * properties or array items when the subtree carries children.
      *
      * @param  array<string, list<string>>  $map
-     * @return array{schema: array<string, mixed>, required: bool}
+     * @return array{schema: array<string, mixed>|false, required: bool}
      */
     private function buildNode(array $map): array
     {
@@ -66,7 +70,7 @@ final readonly class RulesToSchemaTranslator
         $schema  = $field['schema'];
         $grouped = $this->groupChildren($map);
 
-        if ($grouped !== []) {
+        if ($schema !== false && $grouped !== []) {
             $schema = isset($grouped['*'])
                 ? $this->arrayNode($schema, $grouped['*'])
                 : $this->objectNode($schema, $grouped);
@@ -118,7 +122,7 @@ final readonly class RulesToSchemaTranslator
 
     /**
      * Fold the grouped children into an object schema's properties, appending a
-     * confirmation sibling for each confirmed field.
+     * confirmation sibling for each confirmed field that may be sent.
      *
      * @param  array<string, mixed>  $schema
      * @param  array<string, array<string, list<string>>>  $grouped
@@ -139,7 +143,7 @@ final readonly class RulesToSchemaTranslator
                 $required[] = $name;
             }
 
-            if (!in_array('confirmed', $childMap[''] ?? [], true)) {
+            if ($child['schema'] === false || !in_array('confirmed', $childMap[''] ?? [], true)) {
                 continue;
             }
 
@@ -170,7 +174,11 @@ final readonly class RulesToSchemaTranslator
         $items = $this->buildNode($starMap)['schema'];
 
         $schema['type']  = 'array';
-        $schema['items'] = is_array($own) ? ['allOf' => [$own, $items]] : $items;
+        $schema['items'] = match (true) {
+            !is_array($own) => $items,
+            $items === []   => $own,
+            default         => ['allOf' => [$own, $items]],
+        };
 
         return $schema;
     }
