@@ -9,13 +9,14 @@ use SineMacula\ApiToolkit\OpenApi\Exceptions\SchemaNameCollisionException;
 /**
  * Guards a component schema name map against two sources claiming one name.
  *
- * Resource schemas and enum schemas share a single components.schemas map, so a
- * name derived by two different sources - two resources, two enums, or a
- * resource and an enum - would silently overwrite one schema with another. The
- * guard records each claim by name and fails loud when a name is re-claimed by
- * a different source, naming both so the collision can be disambiguated with
- * the #[SchemaName] attribute. Re-claiming a name with the same source is a
- * no-op, so a resource shared across models stays a single schema.
+ * Resource, envelope, and enum schemas share a single components.schemas map,
+ * so a name derived by two different sources - two resources, two enums, or a
+ * resource and an envelope or enum - would silently overwrite one schema with
+ * another. The guard records each claim by name and fails loud when a name is
+ * re-claimed by a different source, naming both so the collision can be
+ * disambiguated with the #[SchemaName] attribute. Re-claiming a name with the
+ * same source is a no-op, so a resource shared across models stays a single
+ * schema.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.

@@ -288,7 +288,8 @@ final class OpenApiExporterValidityTest extends TestCase
 
     /**
      * Test that exactly one component schema is emitted per registered resource
-     * and the summary count matches the registry size.
+     * and, with every resource reached, the summary count matches the registry
+     * size.
      *
      * @return void
      */

@@ -8,10 +8,10 @@ namespace SineMacula\ApiToolkit\OpenApi;
  * Immutable result of an OpenAPI components export.
  *
  * Carries the assembled document array together with a summary of what the
- * emission walked: the number of operations, resources, query parameters, and
- * error responses emitted. The command reads the summary to report progress,
- * and fails the export when the operation count is zero, since a document with
- * no operations means no route reaches the audience.
+ * document contains: the number of operations, resource schemas, query
+ * parameters, and error responses it emits. The command reads the summary to
+ * report progress, and fails the export when the operation count is zero, since
+ * a document with no operations means no route reaches the audience.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -35,7 +35,7 @@ final readonly class ExportResult
         /** The number of path operations emitted across every path item */
         public int $operationCount,
 
-        /** The number of resource component schemas emitted */
+        /** The number of resource component schemas the document contains */
         public int $resourceCount,
 
         /** The number of shared query-parameter components emitted */

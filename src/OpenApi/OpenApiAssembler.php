@@ -11,6 +11,7 @@ use SineMacula\ApiToolkit\OpenApi\Builder\PathBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\QueryParameterBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\ResourceSchemaBuilder;
 use SineMacula\ApiToolkit\OpenApi\Docs\DocManualAssembler;
+use SineMacula\ApiToolkit\OpenApi\Naming\SchemaNameCollisionGuard;
 use SineMacula\ApiToolkit\OpenApi\Resolution\AudienceConfiguration;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ReachableSchemaResolver;
 use SineMacula\ApiToolkit\OpenApi\Schema\EnumSchemaRegistry;
@@ -298,9 +299,10 @@ final readonly class OpenApiAssembler
      * schemas.
      *
      * The resource schemas are built first so response-side enum references are
-     * registered, then the enum components are built against the names already
-     * reserved by the resource and envelope schemas so a cross-source collision
-     * fails loud rather than silently overwriting a schema.
+     * registered. The envelope schemas then claim their names against the
+     * resource names, and the enum components are built against both, so a
+     * cross-source collision fails loud rather than silently overwriting a
+     * schema.
      *
      * @param  array<string, array<string, mixed>>  $paths
      * @return array<string, array<string, mixed>>
@@ -314,9 +316,10 @@ final readonly class OpenApiAssembler
         );
 
         $reserved = $this->schemaBuilder->claims();
+        $guard    = new SchemaNameCollisionGuard;
 
         foreach (array_keys($envelopeSchemas) as $name) {
-            $reserved[$name] = EnvelopeBuilder::class;
+            $guard->claim($reserved, $name, EnvelopeBuilder::class);
         }
 
         $schemas = array_merge(
