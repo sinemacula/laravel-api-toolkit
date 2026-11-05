@@ -12,10 +12,10 @@ use Tests\Fixtures\Input\StorePayload;
  *
  * Carries one action per discovery branch: a directive-named source, a
  * type-hinted rules source, a directive winning over a competing type-hint, a
- * binary upload source, a throwing FormRequest, a plainly readable FormRequest,
- * a FormRequest that also declares static rules, a FormRequest yielding a
- * non-array, a non-named-type parameter, and read-only actions that must never
- * carry a body.
+ * source refusing some of its fields, a binary upload source, a throwing
+ * FormRequest, a plainly readable FormRequest, a FormRequest that also declares
+ * static rules, a FormRequest yielding a non-array, a non-named-type parameter,
+ * and read-only actions that must never carry a body.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -46,6 +46,14 @@ final class PathRequestBodyController
      */
     #[RequestSchema(ArticleRequestInput::class)]
     public function both(StorePayload $input): void {}
+
+    /**
+     * Create a resource from a source refusing some of its fields.
+     *
+     * @return void
+     */
+    #[RequestSchema(RestrictedRequestInput::class)]
+    public function restricted(): void {}
 
     /**
      * Create a resource from a binary upload source.

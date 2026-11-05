@@ -37,6 +37,7 @@ use SineMacula\ApiToolkit\Schema\Introspection\SchemaIntrospector;
 use Tests\Fixtures\Models\Organization;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\OpenApi\PathFixtureController;
+use Tests\Fixtures\OpenApi\PathRequestBodyController;
 use Tests\Fixtures\Resources\OrganizationResource;
 use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
@@ -237,6 +238,23 @@ final class OpenApiAssemblerTest extends TestCase
         $document = $this->assembleEmptyAudience();
 
         self::assertSame('{}', json_encode($document['paths']));
+    }
+
+    /**
+     * Test that a request field whose rules give no constraint serialises to an
+     * empty JSON object rather than an array, keeping the document
+     * schema-valid.
+     *
+     * @return void
+     */
+    public function testUnconstrainedSchemasSerialiseToEmptyObjects(): void
+    {
+        $this->router()->post('accounts', [PathRequestBodyController::class, 'restricted']);
+
+        $properties = $this->assemble()['paths']['/accounts']['post']['requestBody']['content']['application/json']['schema']['properties'];
+
+        self::assertSame('{}', json_encode($properties['terms']));
+        self::assertSame('{"type":"array","items":{}}', json_encode($properties['labels']));
     }
 
     /**
