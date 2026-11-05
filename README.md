@@ -997,6 +997,12 @@ its body key, even when `rules()` leaves the enum rule out. A resource field hol
 the same lowercase name, so a value read from a response can be sent back unchanged. An enum whose case names collide
 once lowercased, such as `case Web` and `case WEB`, has no single wire form and throws a `LogicException`.
 
+A model attribute cast to a pure enum takes the same lowercase name in `filters` and in repository writes, though
+Eloquent stores the case name as declared. `{"platform": {"$in": ["web", "mobile_app"]}}` matches the rows storing `WEB`
+and `MOBILE_APP`, on the root model or through a relation, and a value that names no case in that form, `MOBILE_APP`
+included, matches nothing. `persist()` accepts the lowercase name or the case itself, and throws a `ValueError` for a
+string that names no case, as Eloquent does for an unknown backed-enum value.
+
 ---
 
 ### Notification Audit Log
