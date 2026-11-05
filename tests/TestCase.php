@@ -247,6 +247,7 @@ abstract class TestCase extends OrchestraTestCase
         $this->createLogsTable();
         $this->createArticlesTable();
         $this->createCommentsTable();
+        $this->createDevicesTable();
         $this->createImportRowsTable();
         $this->createSearchIndexes();
     }
@@ -496,6 +497,29 @@ abstract class TestCase extends OrchestraTestCase
             $table->string('body');
             $table->timestamps();
             $table->softDeletes();
+
+            $table->index('user_id');
+        });
+    }
+
+    /**
+     * Create the devices table.
+     *
+     * The platform column holds a pure enum and the status column a backed one,
+     * each stored as Eloquent writes it.
+     *
+     * @return void
+     */
+    private function createDevicesTable(): void
+    {
+        Schema::dropIfExists('devices');
+        Schema::create('devices', function (Blueprint $table): void {
+            $table->id();
+            $table->unsignedBigInteger('user_id')->nullable();
+            $table->string('name');
+            $table->string('platform')->nullable();
+            $table->string('status')->nullable();
+            $table->timestamps();
 
             $table->index('user_id');
         });

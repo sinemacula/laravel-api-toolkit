@@ -230,10 +230,12 @@ final class FilterApplier
 
             $this->querySurface->guardFilterOperator($column, self::OPERATOR_EQUAL, $query->getModel());
 
+            $stored = PureEnumFilterValue::resolve($query->getModel(), $column, $value);
+
             if ($context->isOr()) {
-                $query->orWhere($column, $value);
+                $query->orWhere($column, $stored);
             } else {
-                $query->where($column, $value);
+                $query->where($column, $stored);
             }
         }
 
@@ -275,7 +277,7 @@ final class FilterApplier
             return;
         }
 
-        $handler->apply($query, $field, $value, $context);
+        $handler->apply($query, $field, PureEnumFilterValue::resolve($query->getModel(), $field, $value), $context);
     }
 
     /**
