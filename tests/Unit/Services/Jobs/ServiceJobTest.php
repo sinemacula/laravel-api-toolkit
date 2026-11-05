@@ -4,16 +4,20 @@ declare(strict_types = 1);
 
 namespace Tests\Unit\Services\Jobs;
 
+use Illuminate\Queue\Events\JobFailed;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Queue;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Services\Enums\ServiceSource;
 use SineMacula\ApiToolkit\Services\Input\ArrayInput;
 use SineMacula\ApiToolkit\Services\Jobs\ServiceJob;
 use SineMacula\ApiToolkit\Services\ServiceContext;
 use SineMacula\ApiToolkit\Services\ServiceRunner;
+use Tests\Fixtures\Exceptions\ServiceExecutionException;
 use Tests\Fixtures\Services\Jobs\ConcernCapturingService;
 use Tests\Fixtures\Services\Jobs\ContextCapturingConcern;
 use Tests\Fixtures\Services\Jobs\ContextReadingService;
+use Tests\Fixtures\Services\Jobs\CountingFailingService;
 use Tests\Fixtures\Services\StubActor;
 use Tests\TestCase;
 
@@ -22,8 +26,8 @@ use Tests\TestCase;
  *
  * Covers payload serialisation, worker-side re-hydration and execution via
  * ServiceRunner, QUEUE source enforcement, the QUEUE context a queued service
- * reads through context(), and the absence of Auth or Request consultation on
- * the worker.
+ * reads through context(), the absence of Auth or Request consultation on the
+ * worker, and a failed run failing the job with the exception it captured.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -45,6 +49,7 @@ final class ServiceJobTest extends TestCase
 
         ContextCapturingConcern::reset();
         ContextReadingService::reset();
+        CountingFailingService::reset();
         app()->instance(ContextCapturingConcern::class, new ContextCapturingConcern);
     }
 
@@ -141,5 +146,74 @@ final class ServiceJobTest extends TestCase
         self::assertSame('stub-id', $seen->actor->actorIdentifier());
         self::assertSame('queued-corr', $seen->correlationId);
         self::assertSame($metadata, $seen->metadata);
+    }
+
+    /**
+     * Test that handle() throws the exception the failed run captured, rather
+     * than one wrapping it, so the worker fails the job with the real cause.
+     *
+     * @return void
+     *
+     * @throws \Throwable
+     */
+    public function testHandleThrowsTheExceptionTheFailedRunCaptured(): void
+    {
+        $context = ServiceContext::for(new StubActor, ServiceSource::HTTP);
+        $job     = new ServiceJob(CountingFailingService::class, new ArrayInput([]), $context);
+
+        try {
+            $job->handle(new ServiceRunner);
+            self::fail('A failed run must fail the job.');
+        } catch (ServiceExecutionException $exception) {
+            self::assertSame(CountingFailingService::MESSAGE, $exception->getMessage());
+            self::assertSame(1, CountingFailingService::$runs);
+        }
+    }
+
+    /**
+     * Test that a failing service fails the job on the sync queue, which marks
+     * the job failed and rethrows the exception the run captured.
+     *
+     * @return void
+     */
+    public function testSyncQueueFailsTheJobWhenTheServiceFails(): void
+    {
+        $failures = [];
+
+        Queue::failing(static function (JobFailed $event) use (&$failures): void {
+            $failures[] = $event->exception;
+        });
+
+        $context = ServiceContext::for(new StubActor);
+
+        try {
+            Queue::connection('sync')->push(new ServiceJob(CountingFailingService::class, new ArrayInput([]), $context));
+            self::fail('A failed run must fail the job.');
+        } catch (ServiceExecutionException $exception) {
+            self::assertSame([$exception], $failures);
+            self::assertSame(CountingFailingService::MESSAGE, $exception->getMessage());
+        }
+    }
+
+    /**
+     * Test that a succeeding service completes the job on the sync queue
+     * without failing it.
+     *
+     * @return void
+     */
+    public function testSyncQueueCompletesTheJobWhenTheServiceSucceeds(): void
+    {
+        $failures = 0;
+
+        Queue::failing(static function () use (&$failures): void {
+            $failures++;
+        });
+
+        $context = ServiceContext::for(new StubActor);
+
+        Queue::connection('sync')->push(new ServiceJob(ConcernCapturingService::class, new ArrayInput([]), $context));
+
+        self::assertSame(0, $failures);
+        self::assertNotNull(ContextCapturingConcern::$captured);
     }
 }
