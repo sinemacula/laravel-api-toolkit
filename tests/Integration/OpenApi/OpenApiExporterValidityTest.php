@@ -20,6 +20,7 @@ use SineMacula\ApiToolkit\Enums\ErrorCode;
 use SineMacula\ApiToolkit\OpenApi\Builder\EnvelopeBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\PathBuilder;
 use SineMacula\ApiToolkit\OpenApi\Docs\DocManualAssembler;
+use SineMacula\ApiToolkit\OpenApi\Exceptions\ResponseStatusConflictException;
 use SineMacula\ApiToolkit\OpenApi\ExportOpenApiComponents;
 use SineMacula\ApiToolkit\OpenApi\ExportResult;
 use SineMacula\ApiToolkit\OpenApi\OpenApiAssembler;
@@ -41,8 +42,12 @@ use Tests\Fixtures\OpenApi\PathOrganizationController;
 use Tests\Fixtures\OpenApi\PathRequestBodyController;
 use Tests\Fixtures\OpenApi\PathResponseHeaderController;
 use Tests\Fixtures\OpenApi\PathResponseSchemaController;
+use Tests\Fixtures\OpenApi\PathResponseStatusController;
+use Tests\Fixtures\OpenApi\PathStatusConflictController;
+use Tests\Fixtures\OpenApi\PathStatusUserController;
 use Tests\Fixtures\OpenApi\PathTagInternalController;
 use Tests\Fixtures\OpenApi\SignedInShape;
+use Tests\Fixtures\OpenApi\WidgetShape;
 use Tests\Fixtures\Resources\ArticleResource;
 use Tests\Fixtures\Resources\OrganizationResource;
 use Tests\Fixtures\Resources\PostResource;
@@ -1205,6 +1210,61 @@ final class OpenApiExporterValidityTest extends TestCase
 
         self::assertTrue($result->isValid(), 'A document carrying declared headers must validate as OpenAPI 3.1: ' . $this->formatErrors($result));
         $this->assertReferencesResolve($document);
+    }
+
+    /**
+     * Test that declared success statuses survive assembly, a no-content status
+     * with no body, and the document carrying them still validates as OpenAPI
+     * 3.1.
+     *
+     * @return void
+     */
+    public function testDeclaredResponseStatusesSurviveAssemblyAndStayValid(): void
+    {
+        $this->router()->get('status-users', [PathStatusUserController::class, 'index']);
+        $this->router()->put('status-users/{user}', [PathStatusUserController::class, 'update']);
+        $this->router()->delete('status-users/{user}', [PathStatusUserController::class, 'destroy']);
+        $this->router()->delete('sessions', [PathResponseStatusController::class, 'destroyAll']);
+        $this->router()->post('jobs', [PathResponseStatusController::class, 'queue']);
+        $this->router()->post('reset', [PathResponseStatusController::class, 'reset']);
+
+        $document = $this->export()->document;
+        $paths    = $document['paths'];
+
+        self::assertSame(['description', 'headers'], array_keys($paths['/status-users/{user}']['put']['responses']['204']));
+        self::assertArrayNotHasKey('200', $paths['/status-users/{user}']['put']['responses']);
+        self::assertSame(['description', 'headers'], array_keys($paths['/sessions']['delete']['responses']['204']));
+        self::assertArrayNotHasKey('200', $paths['/sessions']['delete']['responses']);
+        self::assertSame(['description', 'headers'], array_keys($paths['/reset']['post']['responses']['205']));
+        self::assertSame(
+            WidgetShape::schema(),
+            $paths['/jobs']['post']['responses']['202']['content']['application/json']['schema']['properties']['data'],
+        );
+        self::assertSame(['Total-Count', 'X-Request-Id'], array_keys($paths['/status-users']['get']['responses']['206']['headers']));
+        self::assertArrayHasKey('content', $paths['/status-users/{user}']['delete']['responses']['200']);
+
+        $result = $this->validateAgainstMetaSchema($document);
+
+        self::assertTrue($result->isValid(), 'A document carrying declared statuses must validate as OpenAPI 3.1: ' . $this->formatErrors($result));
+        $this->assertReferencesResolve($document);
+    }
+
+    /**
+     * Test that a body declared beside a no-content status fails the export.
+     *
+     * @return void
+     */
+    public function testNoContentStatusBesideABodyFailsTheExport(): void
+    {
+        $this->router()->put('status-users/{user}', [PathStatusConflictController::class, 'update']);
+
+        $this->expectException(ResponseStatusConflictException::class);
+        $this->expectExceptionMessage(sprintf(
+            'The 204 status declared for %s::update answers with no content and cannot carry a #[ResponseSchema] body',
+            PathStatusConflictController::class,
+        ));
+
+        $this->export();
     }
 
     /**
