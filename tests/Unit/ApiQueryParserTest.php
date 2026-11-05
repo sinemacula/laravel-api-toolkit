@@ -267,6 +267,27 @@ final class ApiQueryParserTest extends TestCase
     }
 
     /**
+     * Test that getFilters keeps every falsy value the filter document carries
+     * and reads an empty document as no filters.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testGetFiltersKeepsFalsyValues(): void
+    {
+        $filters = ['name' => '0', 'email' => '', 'organization_id' => 0, 'active' => false, 'status' => ['$eq' => '0']];
+
+        $this->parser->parse(Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['filters' => json_encode($filters)]));
+
+        self::assertSame($filters, $this->parser->getFilters());
+
+        $this->parser->parse(Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['filters' => '{}']));
+
+        self::assertSame([], $this->parser->getFilters());
+    }
+
+    /**
      * Provide filter values that are valid JSON but not a filter map.
      *
      * @return iterable<string, array{string}>

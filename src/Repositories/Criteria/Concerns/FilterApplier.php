@@ -78,16 +78,41 @@ final class FilterApplier
         $this->querySurface     = $querySurface;
         $this->limits           = QueryCostLimits::fromConfig();
 
-        $this->applyFilters($query, $filters, null, FilterContext::root(new FilterCostBudget($this->limits)));
+        $this->applyEntries($query, $filters ?? [], null, FilterContext::root(new FilterCostBudget($this->limits)));
 
         return $query;
     }
 
     /**
-     * Apply filters recursively to the query.
+     * Apply the value given for a field to the query.
+     *
+     * Any value other than a document of conditions is the bare shorthand, so a
+     * falsy value such as "0", 0, false or "" is matched like any other rather
+     * than read as the absence of a filter.
      *
      * @param  \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>  $query
-     * @param  array<string, mixed>|string|null  $filters
+     * @param  mixed  $value
+     * @param  string  $field
+     * @param  \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext  $context
+     * @return \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>
+     *
+     * @throws \Illuminate\Validation\ValidationException
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    private function applyFilters(Builder $query, mixed $value, string $field, FilterContext $context): Builder
+    {
+        if (!is_array($value)) {
+            return $this->applySimpleFilter($query, $field, $value, $context);
+        }
+
+        return $this->applyEntries($query, $value, $field, $context);
+    }
+
+    /**
+     * Apply each entry of a filter document to the query.
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>  $query
+     * @param  array<array-key, mixed>  $filters
      * @param  string|null  $field
      * @param  \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext  $context
      * @return \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>
@@ -95,16 +120,8 @@ final class FilterApplier
      * @throws \Illuminate\Validation\ValidationException
      * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
-    private function applyFilters(Builder $query, array|string|null $filters, ?string $field, FilterContext $context): Builder
+    private function applyEntries(Builder $query, array $filters, ?string $field, FilterContext $context): Builder
     {
-        if (empty($filters)) {
-            return $query;
-        }
-
-        if (is_string($filters)) {
-            return $this->applySimpleFilter($query, $field, $filters, $context);
-        }
-
         foreach ($filters as $key => $value) {
             $this->applyFilterEntry($query, $this->assertNamedKey($key, $field ?? 'filters'), $value, $field, $context);
         }
@@ -217,26 +234,23 @@ final class FilterApplier
      * Apply a simple equality filter.
      *
      * @param  \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>  $query
-     * @param  string|null  $column
-     * @param  string  $value
+     * @param  string  $column
+     * @param  mixed  $value
      * @param  \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext  $context
      * @return \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>
      *
      * @throws \Illuminate\Validation\ValidationException
      */
-    private function applySimpleFilter(Builder $query, ?string $column, string $value, FilterContext $context): Builder
+    private function applySimpleFilter(Builder $query, string $column, mixed $value, FilterContext $context): Builder
     {
-        if ($column) {
+        $this->querySurface->guardFilterOperator($column, self::OPERATOR_EQUAL, $query->getModel());
 
-            $this->querySurface->guardFilterOperator($column, self::OPERATOR_EQUAL, $query->getModel());
+        $stored = PureEnumFilterValue::resolve($query->getModel(), $column, $value);
 
-            $stored = PureEnumFilterValue::resolve($query->getModel(), $column, $value);
-
-            if ($context->isOr()) {
-                $query->orWhere($column, $stored);
-            } else {
-                $query->where($column, $stored);
-            }
+        if ($context->isOr()) {
+            $query->orWhere($column, '=', $stored);
+        } else {
+            $query->where($column, '=', $stored);
         }
 
         return $query;
@@ -263,7 +277,7 @@ final class FilterApplier
             return;
         }
 
-        if (!$field) {
+        if ($field === null) {
             return;
         }
 
