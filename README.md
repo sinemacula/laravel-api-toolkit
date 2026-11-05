@@ -668,7 +668,7 @@ tags is ignored.
 Every enum the document references, through a model cast or a request field validated by `Rule::enum()` or
 `PureEnum`, becomes one named component listing its values under `enum`: the backing values of a backed enum, and the
 lowercase case names of a pure enum. Each field references the component rather than repeating the list, except a
-field whose `PureEnum` is narrowed by `only()` or `except()`, which lists the names it accepts inline.
+field whose rule is narrowed by `only()` or `except()`, which lists the values it accepts inline.
 
 A route outside the resource pipeline documents its success body with `#[ResponseSchema]` on the action. Name a
 registered resource to reference its component, or a class implementing `DefinesSchema` to inline the JSON-Schema
@@ -988,6 +988,12 @@ are refused even where `Rule::enum()` passes them. A value that matches no case 
 its body key, even when `rules()` leaves the enum rule out. A resource field holding a pure enum case is serialised as
 the same lowercase name, so a value read from a response can be sent back unchanged. An enum whose case names collide
 once lowercased, such as `case Web` and `case WEB`, has no single wire form and throws a `LogicException`.
+
+A model attribute cast to a pure enum takes the same lowercase name in `filters` and in repository writes, though
+Eloquent stores the case name as declared. `{"platform": {"$in": ["web", "mobile_app"]}}` matches the rows storing `WEB`
+and `MOBILE_APP`, on the root model or through a relation, and a value that names no case in that form, `MOBILE_APP`
+included, matches nothing. `persist()` accepts the lowercase name or the case itself, and throws a `ValueError` for a
+string that names no case, as Eloquent does for an unknown backed-enum value.
 
 ---
 

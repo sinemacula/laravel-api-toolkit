@@ -14,6 +14,8 @@ use Illuminate\Support\Str;
 use SineMacula\ApiToolkit\Cache\MetadataCacheWriter;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Enums\CacheKeys;
+use SineMacula\ApiToolkit\Support\PureEnumCast;
+use SineMacula\ApiToolkit\Support\PureEnumName;
 
 /**
  * Encapsulates cast resolution and attribute setting for repository models.
@@ -51,6 +53,8 @@ final class AttributeSetter
      * @param  array<string, mixed>  $attributes
      * @param  string  $modelClass
      * @return bool
+     *
+     * @throws \ValueError
      */
     public function persist(Model $model, array $attributes, string $modelClass): bool
     {
@@ -108,9 +112,9 @@ final class AttributeSetter
      * Resolve the native cast key for the given attribute.
      *
      * An attribute with no cast is treated as a possible relation. A declared
-     * object cast is the only cast the setter normalises before assignment;
-     * everything else is assigned as-is and left to the model's own cast to
-     * convert.
+     * object cast and a pure-enum cast are the only casts the setter normalises
+     * before assignment; everything else is assigned as-is and left to the
+     * model's own cast to convert.
      *
      * @param  string  $attribute
      * @param  string|null  $cast
@@ -123,6 +127,10 @@ final class AttributeSetter
 
         if (!$cast) {
             return $this->resolveCastForRelation($attribute, $model);
+        }
+
+        if (PureEnumCast::enumOf($cast) !== null) {
+            return 'pure_enum';
         }
 
         return $this->isObjectCast($cast) ? 'object' : 'string';
@@ -160,9 +168,8 @@ final class AttributeSetter
     /**
      * Determine whether the given model cast is one of Laravel's object casts.
      *
-     * The object cast is the only cast the setter normalises before assignment
-     * - a falsy value becomes null and a truthy value is wrapped in stdClass;
-     * every other cast is assigned as-is.
+     * The setter normalises an object cast before assignment: a falsy value
+     * becomes null and a truthy value is wrapped in stdClass.
      *
      * @param  string  $cast
      * @return bool
@@ -180,15 +187,46 @@ final class AttributeSetter
      * @param  mixed  $value
      * @param  string  $cast
      * @return void
+     *
+     * @throws \ValueError
      */
     private function setAttribute(Model $model, string $attribute, mixed $value, string $cast): void
     {
         match ($cast) {
             'object'    => $model->setAttribute($attribute, $value ? (object) $value : null),
+            'pure_enum' => $model->setAttribute($attribute, $this->resolvePureEnumCase($model, $attribute, $value)),
             'associate' => $this->setAssociateAttribute($model, $attribute, $value),
             'sync'      => $this->setSyncAttribute($model, $attribute, $value),
             default     => $model->setAttribute($attribute, $value),
         };
+    }
+
+    /**
+     * Resolve a string written to a pure-enum attribute as the case it names in
+     * wire form, leaving any other value for the model's cast to judge.
+     *
+     * A string that names no case fails the way an unknown value for a backed
+     * enum does, rather than as the undefined constant the model's cast would
+     * look up.
+     *
+     * @param  \Illuminate\Database\Eloquent\Model  $model
+     * @param  string  $attribute
+     * @param  mixed  $value
+     * @return mixed
+     *
+     * @throws \ValueError
+     */
+    private function resolvePureEnumCase(Model $model, string $attribute, mixed $value): mixed
+    {
+        if (!is_string($value)) {
+            return $value;
+        }
+
+        /** @var class-string<\UnitEnum> $enum */
+        $enum = $model->getCasts()[$attribute];
+
+        return PureEnumName::tryFrom($enum, $value)
+            ?? throw new \ValueError(sprintf('"%s" is not a valid wire name for enum %s', $value, $enum));
     }
 
     /**
