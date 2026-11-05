@@ -13,6 +13,7 @@ use SineMacula\ApiToolkit\OpenApi\Builder\ErrorResponseBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\PathBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\QueryParameterBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\ResourceSchemaBuilder;
+use SineMacula\ApiToolkit\OpenApi\Builder\SuccessResponseBuilder;
 use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
 use SineMacula\ApiToolkit\OpenApi\Docs\DocManualAssembler;
 use SineMacula\ApiToolkit\OpenApi\Exceptions\ServerConfigurationException;
@@ -25,6 +26,7 @@ use SineMacula\ApiToolkit\OpenApi\Resolution\FieldTypeResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\RequestBodyResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ResponseHeaderResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ResponseSchemaResolver;
+use SineMacula\ApiToolkit\OpenApi\Resolution\ResponseStatusResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\RouteMiddlewareResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\TagResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ThrowsErrorResolver;
@@ -38,6 +40,7 @@ use SineMacula\ApiToolkit\Schema\Introspection\SchemaIntrospector;
 use Tests\Fixtures\Models\Organization;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\OpenApi\PathFixtureController;
+use Tests\Fixtures\OpenApi\PathRequestBodyController;
 use Tests\Fixtures\Resources\OrganizationResource;
 use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
@@ -238,6 +241,23 @@ final class OpenApiAssemblerTest extends TestCase
         $document = $this->assembleEmptyAudience();
 
         self::assertSame('{}', json_encode($document['paths']));
+    }
+
+    /**
+     * Test that a request field whose rules give no constraint serialises to an
+     * empty JSON object rather than an array, keeping the document
+     * schema-valid.
+     *
+     * @return void
+     */
+    public function testUnconstrainedSchemasSerialiseToEmptyObjects(): void
+    {
+        $this->router()->post('accounts', [PathRequestBodyController::class, 'restricted']);
+
+        $properties = $this->assemble()['paths']['/accounts']['post']['requestBody']['content']['application/json']['schema']['properties'];
+
+        self::assertSame('{}', json_encode($properties['terms']));
+        self::assertSame('{"type":"array","items":{}}', json_encode($properties['labels']));
     }
 
     /**
@@ -640,13 +660,17 @@ final class OpenApiAssemblerTest extends TestCase
                 new DocumentableRouteFilter,
                 new EnvelopeBuilder,
                 new TagResolver,
-                new ResponseSchemaResolver($catalogue, new EnvelopeBuilder),
                 new RequestBodyResolver(new RulesToSchemaTranslator(new RuleNormaliser, new FieldSchemaBuilder($enums))),
                 new SecuritySchemeResolver(new SecuritySchemeMapper, new RouteMiddlewareResolver($this->router())),
                 new QueryParameterBuilder($catalogue),
                 new RouteMiddlewareResolver($this->router()),
                 new ThrowsErrorResolver(new ResponseHeaderResolver),
-                new ResponseHeaderResolver,
+                new SuccessResponseBuilder(
+                    new EnvelopeBuilder,
+                    new ResponseSchemaResolver($catalogue, new EnvelopeBuilder),
+                    new ResponseHeaderResolver,
+                    new ResponseStatusResolver,
+                ),
             ),
             new SecuritySchemeResolver(new SecuritySchemeMapper, new RouteMiddlewareResolver($this->router())),
             new EnumSchemaBuilder,

@@ -8,13 +8,10 @@ use Illuminate\Routing\Route;
 use Illuminate\Routing\Router;
 use SineMacula\ApiToolkit\Http\Routing\AuthorizedController;
 use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
-use SineMacula\ApiToolkit\OpenApi\Exceptions\ResponseHeaderCollisionException;
 use SineMacula\ApiToolkit\OpenApi\Naming\SchemaComponentName;
 use SineMacula\ApiToolkit\OpenApi\Resolution\AudienceResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\DocumentableRouteFilter;
 use SineMacula\ApiToolkit\OpenApi\Resolution\RequestBodyResolver;
-use SineMacula\ApiToolkit\OpenApi\Resolution\ResponseHeaderResolver;
-use SineMacula\ApiToolkit\OpenApi\Resolution\ResponseSchemaResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\RouteMiddlewareResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\TagResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ThrowsErrorResolver;
@@ -39,29 +36,34 @@ use SineMacula\ApiToolkit\OpenApi\Security\SecuritySchemeResolver;
  * shapes where it names more than one class, single or wrapped in the
  * collection envelope - and the shared data envelope wrapping an x-undocumented
  * marker otherwise; that success is 201 for a store action, 204 for a destroy,
- * and 200 otherwise. Every operation, resource or not, carries the error
- * statuses its route facts imply - 401 behind auth middleware, 403 behind an
- * authorization check, 404 with path parameters, 422 with a request body (or a
- * resource store or update), 429 behind a rate limit, and 500 always - merged
- * with any ApiException its action's @throws tags name, each such error
- * response carrying the headers its exceptions declare. The success response
- * carries the headers a #[ResponseHeader] directive on the action or its
- * controller declares, after any header the exporter emits itself; declaring a
- * header the exporter already emits fails the build. A route whose verbs
- * include a body-bearing method - POST, PUT, or PATCH - also carries a
- * requestBody translated from the rules a #[RequestSchema] directive or a
- * type-hinted rules-source parameter reaches; a read-only route carries none. A
- * resource operation also references the query parameters its action honours:
- * an index the whole grammar, a show what shapes and scopes a single record, a
- * store and an update what shapes the resource they return, and a destroy none.
- * A non-resource operation references none, there being no knowing whether such
- * an action consults the query parser. Audience membership is checked for every
- * route regardless of its handler, so a closure scoped out by a route macro is
- * omitted exactly as an attribute-scoped controller is. A route whose handler
- * is defined under a blocklisted namespace - the framework and common tooling
- * by default - is dropped before any operation is built, so framework noise
- * never reaches the document while the organisation's own packages stay
- * documented. HEAD and OPTIONS are always excluded.
+ * and 200 otherwise. An action carrying a #[ResponseStatus] directive, on a
+ * resource route or not, answers under the status it declares instead: a
+ * no-content status with no body and no header the exporter would emit beside
+ * one, and any other status with the body the action would otherwise carry, or
+ * its declared or undocumented body where it would carry none; declaring the
+ * action's default status changes nothing. Every operation, resource or not,
+ * carries the error statuses its route facts imply - 401 behind auth
+ * middleware, 403 behind an authorization check, 404 with path parameters, 422
+ * with a request body (or a resource store or update), 429 behind a rate limit,
+ * and 500 always - merged with any ApiException its action's @throws tags name,
+ * each such error response carrying the headers its exceptions declare. The
+ * success response carries the headers a #[ResponseHeader] directive on the
+ * action or its controller declares, after any header the exporter emits
+ * itself; declaring a header the exporter already emits fails the build. A
+ * route whose verbs include a body-bearing method - POST, PUT, or PATCH - also
+ * carries a requestBody translated from the rules a #[RequestSchema] directive
+ * or a type-hinted rules-source parameter reaches; a read-only route carries
+ * none. A resource operation also references the query parameters its action
+ * honours: an index the whole grammar, a show what shapes and scopes a single
+ * record, a store and an update what shapes the resource they return, and a
+ * destroy none. A non-resource operation references none, there being no
+ * knowing whether such an action consults the query parser. Audience membership
+ * is checked for every route regardless of its handler, so a closure scoped out
+ * by a route macro is omitted exactly as an attribute-scoped controller is. A
+ * route whose handler is defined under a blocklisted namespace - the framework
+ * and common tooling by default - is dropped before any operation is built, so
+ * framework noise never reaches the document while the organisation's own
+ * packages stay documented. HEAD and OPTIONS are always excluded.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -87,11 +89,8 @@ final readonly class PathBuilder
         500 => 'An unexpected server error occurred.',
     ];
 
-    /** The message thrown when an action redeclares an exporter-emitted header */
-    private const string HEADER_COLLISION_MESSAGE = 'The %s header declared for %s::%s is emitted by the exporter and cannot be redeclared';
-
     /** The media type every documented response body is served under */
-    private const string MEDIA_TYPE = 'application/json';
+    private const string MEDIA_TYPE = SuccessResponseBuilder::MEDIA_TYPE;
 
     /** The HTTP verbs excluded from the emitted path item */
     private const array EXCLUDED_VERBS = ['HEAD', 'OPTIONS'];
@@ -108,13 +107,12 @@ final readonly class PathBuilder
      * @param  \SineMacula\ApiToolkit\OpenApi\Resolution\DocumentableRouteFilter  $routeFilter
      * @param  \SineMacula\ApiToolkit\OpenApi\Builder\EnvelopeBuilder  $envelope
      * @param  \SineMacula\ApiToolkit\OpenApi\Resolution\TagResolver  $tags
-     * @param  \SineMacula\ApiToolkit\OpenApi\Resolution\ResponseSchemaResolver  $responseSchema
      * @param  \SineMacula\ApiToolkit\OpenApi\Resolution\RequestBodyResolver  $requestBody
      * @param  \SineMacula\ApiToolkit\OpenApi\Security\SecuritySchemeResolver  $security
      * @param  \SineMacula\ApiToolkit\OpenApi\Builder\QueryParameterBuilder  $queryParameters
      * @param  \SineMacula\ApiToolkit\OpenApi\Resolution\RouteMiddlewareResolver  $middleware
      * @param  \SineMacula\ApiToolkit\OpenApi\Resolution\ThrowsErrorResolver  $throws
-     * @param  \SineMacula\ApiToolkit\OpenApi\Resolution\ResponseHeaderResolver  $responseHeaders
+     * @param  \SineMacula\ApiToolkit\OpenApi\Builder\SuccessResponseBuilder  $successResponse
      */
     public function __construct(
 
@@ -136,9 +134,6 @@ final readonly class PathBuilder
         /** The resolver naming the tag each operation is grouped under. */
         private TagResolver $tags,
 
-        /** The resolver of a non-resource action's declared response body. */
-        private ResponseSchemaResolver $responseSchema,
-
         /** The resolver of a write action's request body. */
         private RequestBodyResolver $requestBody,
 
@@ -154,8 +149,8 @@ final readonly class PathBuilder
         /** The resolver of the ApiExceptions an action's throws tags name. */
         private ThrowsErrorResolver $throws,
 
-        /** The resolver of the headers an action declares it responds with. */
-        private ResponseHeaderResolver $responseHeaders,
+        /** The builder applying what an action declares about its success. */
+        private SuccessResponseBuilder $successResponse,
     ) {}
 
     /**
@@ -228,15 +223,11 @@ final readonly class PathBuilder
             return $resource;
         }
 
-        $schema = $this->responseSchema->resolve($controllerClass, $action) ?? $this->envelope->undocumentedEnvelope();
-        $body   = ['content' => [self::MEDIA_TYPE => ['schema' => $schema]]];
-
-        $declared  = $this->responseHeaders->forAction($controllerClass, $action);
-        $responses = array_map(fn (array $response): array => $this->withHeaders($response, $declared, $controllerClass, $action), match ($action) {
-            'store'   => ['201' => ['description' => 'The request succeeded and a resource was created.', ...$body]],
+        $responses = $this->successResponse->declare(match ($action) {
+            'store'   => ['201' => ['description' => 'The request succeeded and a resource was created.', ...$this->successResponse->body($controllerClass, $action)]],
             'destroy' => ['204' => ['description' => 'The request succeeded with no content.']],
-            default   => ['200' => ['description' => 'The request succeeded.', ...$body]],
-        });
+            default   => ['200' => ['description' => 'The request succeeded.', ...$this->successResponse->body($controllerClass, $action)]],
+        }, $controllerClass, $action);
 
         $requestBody = array_intersect($this->verbs($route), self::BODY_VERBS) === []
             ? []
@@ -278,8 +269,7 @@ final readonly class PathBuilder
             return null;
         }
 
-        $declared    = $this->responseHeaders->forAction($controllerClass, $action);
-        $responses   = array_map(fn (array $response): array => $this->withHeaders($response, $declared, $controllerClass, $action), $responses);
+        $responses   = $this->successResponse->declare($responses, $controllerClass, $action);
         $requestBody = array_intersect($this->verbs($route), self::BODY_VERBS) === []
             ? []
             : $this->requestBody->resolve($controllerClass, $action) ?? [];
@@ -552,38 +542,6 @@ final readonly class PathBuilder
         }
 
         return [...$response, 'content' => [self::MEDIA_TYPE => $media]];
-    }
-
-    /**
-     * Attach the declared headers to a single success response, after any
-     * header the exporter emits there itself, leaving the response untouched
-     * when none is declared.
-     *
-     * @param  array<string, mixed>  $response
-     * @param  array<string, array<string, mixed>>  $declared
-     * @param  class-string|null  $controllerClass
-     * @param  string  $action
-     * @return array<string, mixed>
-     *
-     * @throws \SineMacula\ApiToolkit\OpenApi\Exceptions\ResponseHeaderCollisionException
-     */
-    private function withHeaders(array $response, array $declared, ?string $controllerClass, string $action): array
-    {
-        if ($declared === []) {
-            return $response;
-        }
-
-        /** @var array<string, array<string, mixed>> $emitted */
-        $emitted = $response['headers'] ?? [];
-        $owned   = array_change_key_case($emitted);
-
-        foreach (array_keys($declared) as $name) {
-            if (array_key_exists(strtolower($name), $owned)) {
-                throw new ResponseHeaderCollisionException(sprintf(self::HEADER_COLLISION_MESSAGE, $name, $controllerClass, $action));
-            }
-        }
-
-        return ['description' => $response['description'], 'headers' => [...$emitted, ...$declared]] + $response;
     }
 
     /**

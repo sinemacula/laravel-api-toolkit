@@ -157,4 +157,63 @@ final class FieldSchemaBuilderTest extends TestCase
 
         self::assertSame([], $schema);
     }
+
+    /**
+     * Provide the token lists of fields that may never be sent.
+     *
+     * @return iterable<string, array{0: list<string>}>
+     */
+    public static function neverSentProvider(): iterable
+    {
+        yield from [
+            'prohibited'          => [['prohibited']],
+            'required prohibited' => [['required', 'string', 'prohibited']],
+            'missing'             => [['missing']],
+            'required missing'    => [['required', 'string', 'missing']],
+        ];
+    }
+
+    /**
+     * Test that a field that may never be sent is the false schema and is not
+     * required, even when another of its rules says required.
+     *
+     * @param  list<string>  $tokens
+     * @return void
+     */
+    #[DataProvider('neverSentProvider')]
+    public function testAFieldThatMayNeverBeSentIsTheFalseSchemaAndNotRequired(array $tokens): void
+    {
+        self::assertSame(['schema' => false, 'required' => false], (new FieldSchemaBuilder)->build($tokens));
+    }
+
+    /**
+     * Test that a conditional prohibition, which cannot be expressed
+     * statically, leaves the field documented by its other rules.
+     *
+     * @return void
+     */
+    public function testAConditionalProhibitionKeepsTheSchemaOfTheOtherRules(): void
+    {
+        $builder = new FieldSchemaBuilder;
+
+        self::assertSame(
+            ['schema' => ['type' => 'string', 'maxLength' => 9], 'required' => true],
+            $builder->build(['required', 'string', 'max:9', 'prohibited_if:kind,a']),
+        );
+        self::assertSame(
+            ['schema' => ['type' => 'integer'], 'required' => false],
+            $builder->build(['integer', 'prohibited_unless:kind,b', 'missing_if:kind,c']),
+        );
+    }
+
+    /**
+     * Test that a field validated only by rules with no schema translation
+     * builds an empty schema.
+     *
+     * @return void
+     */
+    public function testAFieldWithOnlyUntranslatableRulesBuildsAnEmptySchema(): void
+    {
+        self::assertSame(['schema' => [], 'required' => false], (new FieldSchemaBuilder)->build(['sometimes', 'nullable', 'accepted']));
+    }
 }

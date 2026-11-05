@@ -681,7 +681,7 @@ tags is ignored.
 Every enum the document references, through a model cast or a request field validated by `Rule::enum()` or
 `PureEnum`, becomes one named component listing its values under `enum`: the backing values of a backed enum, and the
 lowercase case names of a pure enum. Each field references the component rather than repeating the list, except a
-field whose `PureEnum` is narrowed by `only()` or `except()`, which lists the names it accepts inline.
+field whose rule is narrowed by `only()` or `except()`, which lists the values it accepts inline.
 
 A route outside the resource pipeline documents its success body with `#[ResponseSchema]` on the action. Name a
 registered resource to reference its component, or a class implementing `DefinesSchema` to inline the JSON-Schema
@@ -748,6 +748,25 @@ final class QuotaExceededException extends ApiException
 }
 ```
 
+The success status is derived from the action's name: `201` for a `store`, `204` with no body for a `destroy`, and
+`200` otherwise. Declare `#[ResponseStatus]` on an action that answers otherwise, on a resource route or not. It
+accepts a success status only. `204` and `205` are documented with no body, so declaring a `#[ResponseSchema]` beside
+either fails the export. Any other status keeps the body the action would otherwise document, and a `destroy`
+declaring one gains its `#[ResponseSchema]` body or the undocumented envelope. Declared headers attach to whichever
+status is declared:
+
+```php
+use SineMacula\ApiToolkit\OpenApi\Attributes\ResponseStatus;
+use SineMacula\Http\Enums\HttpStatus;
+
+#[ResponseStatus(HttpStatus::NO_CONTENT)]
+public function update(ChangePasswordRequest $request): Response {}
+
+#[ResponseSchema(ExportQueued::class)]
+#[ResponseStatus(HttpStatus::ACCEPTED)]
+public function export(): JsonResponse {}
+```
+
 A second command writes the generated reference sections - the error catalogue, the enum reference, and the
 query surface reference, which tables the queryable columns of the resources an audience documents beside
 the bounds a request is held to - into the Markdown docs directory assembled into the document's
@@ -770,6 +789,11 @@ Every metadata key is stored under a generation held in the same store, and repl
 every earlier entry unreachable in every process at once. A column listing or set of column definitions that
 reads empty, as one does before its table exists, is never stored, so the table's columns are read as soon as
 it exists, with no migration event or invalidation needed.
+
+Every entry is stored as arrays and scalars, never as objects, so the cache works under Laravel's default
+`cache.serializable_classes => false` without allowing any toolkit class. A stored set of column definitions or
+index catalogue that does not read back in the expected shape, such as one an earlier version stored as objects,
+is treated as a miss, then recomputed and overwritten.
 
 The metadata cache is optional. If a cache store operation throws, the failure is reported as a
 `MetadataCacheUnavailableException` and the store is bypassed for `api-toolkit.cache.retry_after` seconds (env

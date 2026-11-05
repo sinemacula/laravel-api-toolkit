@@ -185,6 +185,120 @@ final class MetadataCacheWriterTest extends TestCase
     }
 
     /**
+     * Test that storeMetadataForever writes the value under the current
+     * generation, replacing whatever the store held under the key.
+     *
+     * @return void
+     */
+    public function testStoreMetadataForeverReplacesTheStoredValue(): void
+    {
+        $writer = $this->writer();
+
+        Cache::memo()->forever($writer->storageKey('stored-key'), 'stale'); // @phpstan-ignore method.notFound
+
+        $writer->storeMetadataForever('stored-key', ['fresh']);
+
+        self::assertSame(['fresh'], Cache::memo()->get($writer->storageKey('stored-key')));
+        self::assertSame(['fresh'], $writer->readMetadata('stored-key'));
+    }
+
+    /**
+     * Test that storeMetadataForever stores the value with no expiry.
+     *
+     * @return void
+     */
+    public function testStoreMetadataForeverWritesWithoutAnExpiry(): void
+    {
+        $writer     = $this->writer();
+        $storageKey = $writer->storageKey('forever-key');
+
+        $repository = \Mockery::mock(Repository::class);
+        $repository->shouldReceive('forever')->once()->with($storageKey, 'value')->andReturnTrue();
+
+        Cache::shouldReceive('memo')->andReturn($repository);
+
+        $writer->storeMetadataForever('forever-key', 'value');
+
+        Exceptions::assertNothingReported();
+    }
+
+    /**
+     * Test that storeMetadataForever reports a write the store rejects.
+     *
+     * @return void
+     */
+    public function testStoreMetadataForeverReportsARejectedWrite(): void
+    {
+        $writer     = $this->writer();
+        $storageKey = $writer->storageKey('rejected-store-key');
+
+        $repository = \Mockery::mock(Repository::class);
+        $repository->shouldReceive('forever')->once()->with($storageKey, 'value')->andReturnFalse();
+
+        Cache::shouldReceive('memo')->andReturn($repository);
+
+        $writer->storeMetadataForever('rejected-store-key', 'value');
+
+        Exceptions::assertReportedCount(1);
+        Exceptions::assertReported(static fn (MetadataCacheUnavailableException $exception): bool => $exception->context()['key'] === 'rejected-store-key');
+    }
+
+    /**
+     * Test that storeMetadataForever touches nothing further and reports once
+     * when the generation cannot be read from an unreachable store.
+     *
+     * @return void
+     */
+    public function testStoreMetadataForeverReportsAnUnreachableStore(): void
+    {
+        $this->useUnreachableCacheStore();
+
+        $this->writer()->storeMetadataForever('outage-key', 'value');
+
+        Exceptions::assertReportedCount(1);
+        Exceptions::assertReported(static fn (MetadataCacheUnavailableException $exception): bool => $exception->context()['operation'] === 'generation');
+    }
+
+    /**
+     * Test that readMetadata serves a stored value through the decoder.
+     *
+     * @return void
+     */
+    public function testReadMetadataServesTheDecodedValue(): void
+    {
+        $writer = $this->writer();
+
+        $writer->storeMetadataForever('decoded-key', 'stored');
+
+        self::assertSame('decoded stored', $writer->readMetadata('decoded-key', 'missing', static fn (mixed $stored): string => 'decoded ' . (is_string($stored) ? $stored : '')));
+    }
+
+    /**
+     * Test that a stored value the decoder rejects reads as a miss.
+     *
+     * @return void
+     */
+    public function testReadMetadataReadsAValueTheDecoderRejectsAsAMiss(): void
+    {
+        $writer = $this->writer();
+
+        $writer->storeMetadataForever('rejected-shape-key', 'unreadable');
+
+        self::assertSame('missing', $writer->readMetadata('rejected-shape-key', 'missing', static fn (mixed $stored): mixed => null));
+    }
+
+    /**
+     * Test that the decoder is not given an absent value, so absence reads as
+     * the caller's own answer whatever the decoder would make of nothing.
+     *
+     * @return void
+     */
+    public function testReadMetadataDoesNotDecodeAnAbsentValue(): void
+    {
+        self::assertSame('missing', $this->writer()->readMetadata('absent-key', 'missing', static fn (mixed $stored): string => 'decoded'));
+    }
+
+    /**
      * Test that rememberMetadata returns the value produced by the callback.
      *
      * @return void

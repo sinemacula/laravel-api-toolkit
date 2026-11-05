@@ -22,6 +22,7 @@ use SineMacula\ApiToolkit\Enums\ErrorCode;
 use SineMacula\ApiToolkit\OpenApi\Builder\EnvelopeBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\PathBuilder;
 use SineMacula\ApiToolkit\OpenApi\Docs\DocManualAssembler;
+use SineMacula\ApiToolkit\OpenApi\Exceptions\ResponseStatusConflictException;
 use SineMacula\ApiToolkit\OpenApi\ExportOpenApiComponents;
 use SineMacula\ApiToolkit\OpenApi\ExportResult;
 use SineMacula\ApiToolkit\OpenApi\OpenApiAssembler;
@@ -44,8 +45,12 @@ use Tests\Fixtures\OpenApi\PathOrganizationController;
 use Tests\Fixtures\OpenApi\PathRequestBodyController;
 use Tests\Fixtures\OpenApi\PathResponseHeaderController;
 use Tests\Fixtures\OpenApi\PathResponseSchemaController;
+use Tests\Fixtures\OpenApi\PathResponseStatusController;
+use Tests\Fixtures\OpenApi\PathStatusConflictController;
+use Tests\Fixtures\OpenApi\PathStatusUserController;
 use Tests\Fixtures\OpenApi\PathTagInternalController;
 use Tests\Fixtures\OpenApi\SignedInShape;
+use Tests\Fixtures\OpenApi\WidgetShape;
 use Tests\Fixtures\Resources\ArticleResource;
 use Tests\Fixtures\Resources\OrganizationResource;
 use Tests\Fixtures\Resources\PostResource;
@@ -83,11 +88,27 @@ use Tests\TestCase;
 #[CoversClass(ServerListValidator::class)]
 final class OpenApiExporterValidityTest extends TestCase
 {
-    /** @var string The identifier under which the OpenAPI 3.1 meta-schema is registered. */
-    private const string META_SCHEMA_ID = 'https://spec.openapis.org/oas/3.1/schema/2022-10-07';
+    /** @var string The identifier of the OpenAPI 3.1 meta-schema that also validates every embedded schema. */
+    private const string META_SCHEMA_ID = 'https://spec.openapis.org/oas/3.1/schema-base/2022-10-07';
 
-    /** @var string The identifier of the JSON Schema 2020-12 dialect document. */
-    private const string DIALECT_ID = 'https://json-schema.org/draft/2020-12/schema';
+    /** @var string The schema a Schema Object's dynamic `#meta` reference resolves to under that meta-schema. */
+    private const string SCHEMA_OBJECT_REF = self::META_SCHEMA_ID . '#/$defs/schema';
+
+    /** @var list<string> The bundled meta-schema fixtures, each registered under its own `$id`. */
+    private const array META_SCHEMA_FIXTURES = [
+        'json-schema-2020-12.json',
+        'json-schema-2020-12-meta-core.json',
+        'json-schema-2020-12-meta-applicator.json',
+        'json-schema-2020-12-meta-unevaluated.json',
+        'json-schema-2020-12-meta-validation.json',
+        'json-schema-2020-12-meta-meta-data.json',
+        'json-schema-2020-12-meta-format-annotation.json',
+        'json-schema-2020-12-meta-content.json',
+        'openapi-3.1-dialect-base.json',
+        'openapi-3.1-meta-base.json',
+        'openapi-3.1-schema.json',
+        'openapi-3.1-schema-base.json',
+    ];
 
     /** @var string The identifier under which an exported document is registered as a schema. */
     private const string EXPORTED_DOCUMENT_ID = 'https://api.example.com/openapi.json';
@@ -661,6 +682,14 @@ final class OpenApiExporterValidityTest extends TestCase
             'A parameter missing its required name/in must be rejected.',
         );
 
+        $arraySchema                                    = $valid;
+        $arraySchema['components']['schemas']['Broken'] = ['type' => 'object', 'properties' => ['field' => []]];
+
+        self::assertFalse(
+            $this->validateAgainstMetaSchema($arraySchema)->isValid(),
+            'An embedded schema encoded as an array must be rejected.',
+        );
+
         $malformedServer            = $valid;
         $malformedServer['servers'] = [['url' => 'https://{region}.api.example.com/a path']];
 
@@ -880,6 +909,34 @@ final class OpenApiExporterValidityTest extends TestCase
     }
 
     /**
+     * Test that a write route whose rules refuse some fields documents a
+     * prohibited field as the false schema left out of the required list, keeps
+     * a conditionally prohibited field's other rules, encodes an unconstrained
+     * schema as an empty object rather than an array, and the emitted document
+     * stays valid OpenAPI 3.1.
+     *
+     * @return void
+     */
+    public function testProhibitedAndUnconstrainedFieldsEmitValidSchemas(): void
+    {
+        $this->router()->post('accounts', [PathRequestBodyController::class, 'restricted']);
+
+        $document = $this->export()->document;
+        $schema   = $document['paths']['/accounts']['post']['requestBody']['content']['application/json']['schema'];
+
+        self::assertSame(['role'], $schema['required']);
+        self::assertSame(
+            '{"name":{"type":"string","maxLength":255},"email":false,"role":{"type":"string"},"nickname":{"type":"string"},"terms":{},"labels":{"type":"array","items":{}}}',
+            json_encode($schema['properties'], JSON_THROW_ON_ERROR),
+        );
+
+        self::assertTrue(
+            $this->validateAgainstMetaSchema($document)->isValid(),
+            'A document with prohibited and unconstrained fields must validate as OpenAPI 3.1: ' . $this->formatErrors($this->validateAgainstMetaSchema($document)),
+        );
+    }
+
+    /**
      * Test that a request field validated by the backed or the pure enum rule
      * references an enum component listing the values the field accepts, and
      * the document stays valid OpenAPI 3.1.
@@ -902,6 +959,29 @@ final class OpenApiExporterValidityTest extends TestCase
         self::assertTrue(
             $this->validateAgainstMetaSchema($document)->isValid(),
             'A document with enum components must validate as OpenAPI 3.1: ' . $this->formatErrors($this->validateAgainstMetaSchema($document)),
+        );
+    }
+
+    /**
+     * Test that a request field validated by an enum rule narrowed with only()
+     * or except() lists the values it accepts inline, and the document stays
+     * valid OpenAPI 3.1.
+     *
+     * @return void
+     */
+    public function testNarrowedEnumRequestFieldsListTheValuesTheyAccept(): void
+    {
+        $this->router()->post('articles', [PathRequestBodyController::class, 'store']);
+
+        $document   = $this->export()->document;
+        $properties = $document['paths']['/articles']['post']['requestBody']['content']['application/json']['schema']['properties'];
+
+        self::assertSame(['type' => 'integer', 'enum' => [2, 3]], $properties['rank']);
+        self::assertSame(['type' => ['string', 'null'], 'enum' => ['active', 'banned', null]], $properties['standing']);
+
+        self::assertTrue(
+            $this->validateAgainstMetaSchema($document)->isValid(),
+            'A document with narrowed enum fields must validate as OpenAPI 3.1: ' . $this->formatErrors($this->validateAgainstMetaSchema($document)),
         );
     }
 
@@ -1183,6 +1263,61 @@ final class OpenApiExporterValidityTest extends TestCase
     }
 
     /**
+     * Test that declared success statuses survive assembly, a no-content status
+     * with no body, and the document carrying them still validates as OpenAPI
+     * 3.1.
+     *
+     * @return void
+     */
+    public function testDeclaredResponseStatusesSurviveAssemblyAndStayValid(): void
+    {
+        $this->router()->get('status-users', [PathStatusUserController::class, 'index']);
+        $this->router()->put('status-users/{user}', [PathStatusUserController::class, 'update']);
+        $this->router()->delete('status-users/{user}', [PathStatusUserController::class, 'destroy']);
+        $this->router()->delete('sessions', [PathResponseStatusController::class, 'destroyAll']);
+        $this->router()->post('jobs', [PathResponseStatusController::class, 'queue']);
+        $this->router()->post('reset', [PathResponseStatusController::class, 'reset']);
+
+        $document = $this->export()->document;
+        $paths    = $document['paths'];
+
+        self::assertSame(['description', 'headers'], array_keys($paths['/status-users/{user}']['put']['responses']['204']));
+        self::assertArrayNotHasKey('200', $paths['/status-users/{user}']['put']['responses']);
+        self::assertSame(['description', 'headers'], array_keys($paths['/sessions']['delete']['responses']['204']));
+        self::assertArrayNotHasKey('200', $paths['/sessions']['delete']['responses']);
+        self::assertSame(['description', 'headers'], array_keys($paths['/reset']['post']['responses']['205']));
+        self::assertSame(
+            WidgetShape::schema(),
+            $paths['/jobs']['post']['responses']['202']['content']['application/json']['schema']['properties']['data'],
+        );
+        self::assertSame(['Total-Count', 'X-Request-Id'], array_keys($paths['/status-users']['get']['responses']['206']['headers']));
+        self::assertArrayHasKey('content', $paths['/status-users/{user}']['delete']['responses']['200']);
+
+        $result = $this->validateAgainstMetaSchema($document);
+
+        self::assertTrue($result->isValid(), 'A document carrying declared statuses must validate as OpenAPI 3.1: ' . $this->formatErrors($result));
+        $this->assertReferencesResolve($document);
+    }
+
+    /**
+     * Test that a body declared beside a no-content status fails the export.
+     *
+     * @return void
+     */
+    public function testNoContentStatusBesideABodyFailsTheExport(): void
+    {
+        $this->router()->put('status-users/{user}', [PathStatusConflictController::class, 'update']);
+
+        $this->expectException(ResponseStatusConflictException::class);
+        $this->expectExceptionMessage(sprintf(
+            'The 204 status declared for %s::update answers with no content and cannot carry a #[ResponseSchema] body',
+            PathStatusConflictController::class,
+        ));
+
+        $this->export();
+    }
+
+    /**
      * Test that the baseline error statuses attach per REST action end to end:
      * every authenticated, authorized action carries 401/403/500, an item read
      * or write also 404, and a write also 422, merged with the throws-derived
@@ -1400,9 +1535,10 @@ final class OpenApiExporterValidityTest extends TestCase
     }
 
     /**
-     * Build a validator with the dialect and meta-schema registered, checking a
-     * uri-reference after substituting any server variable template in it with
-     * a name, or with a digit so a templated port also holds.
+     * Build a validator with every bundled meta-schema registered, each adapted
+     * for opis, checking a uri-reference after substituting any server variable
+     * template in it with a name, or with a digit so a templated port also
+     * holds.
      *
      * @return \Opis\JsonSchema\Validator
      */
@@ -1415,8 +1551,16 @@ final class OpenApiExporterValidityTest extends TestCase
         assert($resolver instanceof SchemaResolver);
         assert($formats instanceof FormatResolver);
 
-        $resolver->registerRaw($this->dialectSchema(), self::DIALECT_ID);
-        $resolver->registerRaw($this->metaSchema(), self::META_SCHEMA_ID);
+        foreach (self::META_SCHEMA_FIXTURES as $fixture) {
+            /** @var array<string, mixed> $schema */
+            $schema = json_decode($this->fixture($fixture), true, 512, JSON_THROW_ON_ERROR);
+
+            $this->adaptForOpis($schema);
+
+            assert(is_string($schema['$id']));
+
+            $resolver->registerRaw(json_encode($schema, JSON_THROW_ON_ERROR), $schema['$id']);
+        }
 
         $formats->registerCallable('string', 'uri-reference', static function (string $value): bool {
             foreach (['variable', '0'] as $substitute) {
@@ -1432,37 +1576,12 @@ final class OpenApiExporterValidityTest extends TestCase
     }
 
     /**
-     * Load the OpenAPI 3.1 meta-schema, applying the documented opis
-     * compatibility transform.
-     *
-     * @return string
-     */
-    private function metaSchema(): string
-    {
-        /** @var array<string, mixed> $schema */
-        $schema = json_decode($this->fixture('openapi-3.1-schema.json'), true, 512, JSON_THROW_ON_ERROR);
-
-        $this->adaptForOpis($schema);
-
-        return json_encode($schema, JSON_THROW_ON_ERROR);
-    }
-
-    /**
-     * Load the JSON Schema 2020-12 dialect document.
-     *
-     * @return string
-     */
-    private function dialectSchema(): string
-    {
-        return $this->fixture('json-schema-2020-12.json');
-    }
-
-    /**
      * Apply the two opis/json-schema compatibility transforms in place: rewrite
-     * the Schema Object's `$dynamicRef: "#meta"` to the equivalent static
-     * `$ref: "#/$defs/schema"`, and relax every `unevaluatedProperties: false`
-     * to `true`. Both work around opis annotation/reference gaps without
-     * weakening any validity-bearing constraint; see the fixtures README.
+     * every `$dynamicRef: "#meta"` to a static `$ref` to the schema it resolves
+     * to under the schema-validating meta-schema, and relax every
+     * `unevaluatedProperties: false` to `true`. Both work around opis
+     * annotation/reference gaps without weakening any validity-bearing
+     * constraint; see the fixtures README.
      *
      * @param  array<string, mixed>  $node
      * @return void
@@ -1471,7 +1590,7 @@ final class OpenApiExporterValidityTest extends TestCase
     {
         if (($node['$dynamicRef'] ?? null) === '#meta') {
             unset($node['$dynamicRef']);
-            $node['$ref'] = '#/$defs/schema';
+            $node['$ref'] = self::SCHEMA_OBJECT_REF;
         }
 
         if (($node['unevaluatedProperties'] ?? null) === false) {
