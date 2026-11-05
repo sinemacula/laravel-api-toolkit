@@ -16,6 +16,7 @@ use SineMacula\ApiToolkit\OpenApi\Builder\ResourceSchemaBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\SuccessResponseBuilder;
 use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
 use SineMacula\ApiToolkit\OpenApi\Docs\DocManualAssembler;
+use SineMacula\ApiToolkit\OpenApi\Exceptions\SchemaNameCollisionException;
 use SineMacula\ApiToolkit\OpenApi\Exceptions\ServerConfigurationException;
 use SineMacula\ApiToolkit\OpenApi\Metadata\ErrorDescriptor;
 use SineMacula\ApiToolkit\OpenApi\OpenApiAssembler;
@@ -41,6 +42,7 @@ use Tests\Fixtures\Models\Organization;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\OpenApi\PathFixtureController;
 use Tests\Fixtures\OpenApi\PathRequestBodyController;
+use Tests\Fixtures\Resources\EnvelopeNamedResource;
 use Tests\Fixtures\Resources\OrganizationResource;
 use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
@@ -56,6 +58,12 @@ use Tests\TestCase;
 #[CoversClass(OpenApiAssembler::class)]
 final class OpenApiAssemblerTest extends TestCase
 {
+    /** @var array<class-string, class-string> The default resource map. */
+    private const array RESOURCE_MAP = [
+        User::class         => UserResource::class,
+        Organization::class => OrganizationResource::class,
+    ];
+
     /** @var list<string> The temporary docs directories to clean up. */
     private array $docsDirs = [];
 
@@ -588,6 +596,26 @@ final class OpenApiAssemblerTest extends TestCase
     }
 
     /**
+     * Test that a resource whose component name is also a shared envelope
+     * schema's name fails the export, naming both sources, rather than having
+     * its schema silently replaced by the envelope.
+     *
+     * @return void
+     */
+    public function testResourceNamedLikeASharedEnvelopeFailsTheExport(): void
+    {
+        $this->expectException(SchemaNameCollisionException::class);
+        $this->expectExceptionMessage(sprintf(
+            'The OpenAPI component schema name "PaginationMeta" is derived by both [%s] and [%s].'
+                . ' Disambiguate one with the #[SchemaName] attribute.',
+            EnvelopeNamedResource::class,
+            EnvelopeBuilder::class,
+        ));
+
+        $this->makeAssembler([Organization::class => EnvelopeNamedResource::class])->assemble();
+    }
+
+    /**
      * Create a temporary docs directory seeded with the given files, registered
      * for teardown, and return its path.
      *
@@ -637,13 +665,15 @@ final class OpenApiAssemblerTest extends TestCase
     }
 
     /**
-     * Build an assembler from the three real builders.
+     * Build an assembler from the real builders over a catalogue exposing the
+     * resource map.
      *
+     * @param  array<class-string, class-string>  $resourceMap
      * @return \SineMacula\ApiToolkit\OpenApi\OpenApiAssembler
      */
-    private function makeAssembler(): OpenApiAssembler
+    private function makeAssembler(array $resourceMap = self::RESOURCE_MAP): OpenApiAssembler
     {
-        $catalogue = $this->makeCatalogue();
+        $catalogue = $this->makeCatalogue($resourceMap);
 
         assert($this->app !== null);
 
@@ -737,18 +767,16 @@ final class OpenApiAssemblerTest extends TestCase
     }
 
     /**
-     * Build a stubbed catalogue exposing a resource map, the operator
+     * Build a stubbed catalogue exposing the resource map, the operator
      * vocabulary, and a single error descriptor.
      *
+     * @param  array<class-string, class-string>  $resourceMap
      * @return \SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue
      */
-    private function makeCatalogue(): MetadataCatalogue
+    private function makeCatalogue(array $resourceMap): MetadataCatalogue
     {
         $catalogue = self::createStub(MetadataCatalogue::class);
-        $catalogue->method('getResourceMap')->willReturn([
-            User::class         => UserResource::class,
-            Organization::class => OrganizationResource::class,
-        ]);
+        $catalogue->method('getResourceMap')->willReturn($resourceMap);
         $catalogue->method('getOperatorTokens')->willReturn(['$eq', '$neq']);
         $catalogue->method('getStructuralOperators')->willReturn(['$and', '$or']);
         $catalogue->method('getErrorCatalogue')->willReturn([

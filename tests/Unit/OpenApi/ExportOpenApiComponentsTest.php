@@ -4,6 +4,7 @@ declare(strict_types = 1);
 
 namespace Tests\Unit\OpenApi;
 
+use Illuminate\Contracts\Config\Repository as ConfigRepository;
 use Illuminate\Routing\Router;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -41,9 +42,13 @@ use SineMacula\ApiToolkit\Schema\Introspection\SchemaIntrospector;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 use Tests\Concerns\InteractsWithNonPublicMembers;
 use Tests\Fixtures\Models\Organization;
+use Tests\Fixtures\Models\Tag;
 use Tests\Fixtures\Models\User;
+use Tests\Fixtures\OpenApi\InternalOnlyTagController;
+use Tests\Fixtures\OpenApi\PathOrganizationController;
 use Tests\Fixtures\OpenApi\PathResponseSchemaController;
 use Tests\Fixtures\Resources\OrganizationResource;
+use Tests\Fixtures\Resources\QueryableTagResource;
 use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
 
@@ -60,6 +65,12 @@ use Tests\TestCase;
 final class ExportOpenApiComponentsTest extends TestCase
 {
     use InteractsWithNonPublicMembers;
+
+    /** @var array<class-string, class-string> The default resource map. */
+    private const array RESOURCE_MAP = [
+        User::class         => UserResource::class,
+        Organization::class => OrganizationResource::class,
+    ];
 
     /**
      * Set up each test.
@@ -88,16 +99,63 @@ final class ExportOpenApiComponentsTest extends TestCase
     }
 
     /**
-     * Test that the summary resource count equals the registered resource
-     * count.
+     * Test that the summary resource count equals the registered resource count
+     * when the document's paths reach every registered resource, so nothing is
+     * pruned.
      *
      * @return void
      */
-    public function testSummaryResourceCountMatchesTheRegistry(): void
+    public function testSummaryResourceCountMatchesTheRegistryWhenNothingIsPruned(): void
     {
+        $this->router()->get('users/{user}', [PathResponseSchemaController::class, 'single']);
+
         $result = $this->export();
 
+        self::assertArrayHasKey('User', $result->document['components']['schemas']);
+        self::assertArrayHasKey('Organization', $result->document['components']['schemas']);
         self::assertSame(2, $result->resourceCount);
+    }
+
+    /**
+     * Test that the summary resource count leaves out the envelope schemas the
+     * document always carries, so a document reaching no resource counts none.
+     *
+     * @return void
+     */
+    public function testSummaryResourceCountExcludesTheSharedEnvelopeSchemas(): void
+    {
+        $this->router()->get('widget', [PathResponseSchemaController::class, 'widget']);
+
+        $result = $this->export();
+
+        self::assertNotSame([], $result->document['components']['schemas']);
+        self::assertSame(0, $result->resourceCount);
+    }
+
+    /**
+     * Test that each audience's summary resource count is the number of
+     * resource schemas its own pruned document contains, not the registry size.
+     *
+     * @return void
+     */
+    public function testSummaryResourceCountMatchesThePrunedAudienceDocument(): void
+    {
+        $this->registerPublicAndInternalAudiences();
+
+        $resourceMap = [
+            User::class         => UserResource::class,
+            Organization::class => OrganizationResource::class,
+            Tag::class          => QueryableTagResource::class,
+        ];
+
+        $public   = $this->export('public', $resourceMap);
+        $internal = $this->export('internal', $resourceMap);
+
+        self::assertArrayNotHasKey('QueryableTag', $public->document['components']['schemas']);
+        self::assertSame(1, $public->resourceCount);
+
+        self::assertArrayHasKey('QueryableTag', $internal->document['components']['schemas']);
+        self::assertSame(2, $internal->resourceCount);
     }
 
     /**
@@ -129,9 +187,7 @@ final class ExportOpenApiComponentsTest extends TestCase
      */
     public function testSummaryOperationCountSumsAcrossPathsAndVerbs(): void
     {
-        assert($this->app !== null);
-
-        $router = $this->app->make(Router::class);
+        $router = $this->router();
         $router->get('widget', [PathResponseSchemaController::class, 'widget']);
         $router->match(['PUT', 'PATCH'], 'widgets/{widget}', [PathResponseSchemaController::class, 'widget']);
 
@@ -207,19 +263,53 @@ final class ExportOpenApiComponentsTest extends TestCase
     }
 
     /**
-     * Run the use case against real builders, a real resolver, and a stubbed
-     * catalogue.
+     * Declare a public and an internal audience, routing an organization
+     * listing to both and a tag listing documented in the internal audience
+     * alone.
      *
+     * @return void
+     */
+    private function registerPublicAndInternalAudiences(): void
+    {
+        assert($this->app !== null);
+
+        $this->app->make(ConfigRepository::class)->set('api-toolkit.openapi.audiences', [
+            'public'   => [],
+            'internal' => [],
+        ]);
+
+        $this->router()->get('organizations', [PathOrganizationController::class, 'index']);
+        $this->router()->get('tags', [InternalOnlyTagController::class, 'index']);
+    }
+
+    /**
+     * Resolve the application router.
+     *
+     * @return \Illuminate\Routing\Router
+     */
+    private function router(): Router
+    {
+        assert($this->app !== null);
+
+        return $this->app->make(Router::class);
+    }
+
+    /**
+     * Run the use case for the audience against real builders, a real resolver,
+     * and a stubbed catalogue exposing the resource map.
+     *
+     * @param  string|null  $audience
+     * @param  array<class-string, class-string>  $resourceMap
      * @return \SineMacula\ApiToolkit\OpenApi\ExportResult
      */
-    private function export(): ExportResult
+    private function export(?string $audience = null, array $resourceMap = self::RESOURCE_MAP): ExportResult
     {
-        $catalogue = $this->makeCatalogue();
+        $catalogue = $this->makeCatalogue($resourceMap);
 
         assert($this->app !== null);
 
         $introspector = $this->app->make(SchemaIntrospector::class);
-        $router       = $this->app->make(Router::class);
+        $router       = $this->router();
         $enums        = new EnumSchemaRegistry;
 
         $assembler = new OpenApiAssembler(
@@ -251,22 +341,20 @@ final class ExportOpenApiComponentsTest extends TestCase
             new DocManualAssembler,
         );
 
-        return (new ExportOpenApiComponents($assembler, $catalogue))->export();
+        return (new ExportOpenApiComponents($assembler, $catalogue))->export($audience);
     }
 
     /**
-     * Build a stubbed catalogue exposing two resources and a single error
+     * Build a stubbed catalogue exposing the resource map and a single error
      * descriptor.
      *
+     * @param  array<class-string, class-string>  $resourceMap
      * @return \SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue
      */
-    private function makeCatalogue(): MetadataCatalogue
+    private function makeCatalogue(array $resourceMap): MetadataCatalogue
     {
         $catalogue = self::createStub(MetadataCatalogue::class);
-        $catalogue->method('getResourceMap')->willReturn([
-            User::class         => UserResource::class,
-            Organization::class => OrganizationResource::class,
-        ]);
+        $catalogue->method('getResourceMap')->willReturn($resourceMap);
         $catalogue->method('getOperatorTokens')->willReturn(['$eq', '$neq']);
         $catalogue->method('getStructuralOperators')->willReturn(['$and', '$or']);
         $catalogue->method('getErrorCatalogue')->willReturn([

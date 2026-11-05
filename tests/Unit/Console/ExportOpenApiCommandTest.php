@@ -16,10 +16,14 @@ use SineMacula\ApiToolkit\OpenApi\ExportOpenApiComponents;
 use SineMacula\ApiToolkit\OpenApi\Resolution\AudienceResolver;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 use Tests\Fixtures\Models\Organization;
+use Tests\Fixtures\Models\Tag;
 use Tests\Fixtures\Models\User;
+use Tests\Fixtures\OpenApi\InternalOnlyTagController;
+use Tests\Fixtures\OpenApi\PathOrganizationController;
 use Tests\Fixtures\OpenApi\PathRequestBodyController;
 use Tests\Fixtures\OpenApi\PathResponseSchemaController;
 use Tests\Fixtures\Resources\OrganizationResource;
+use Tests\Fixtures\Resources\QueryableTagResource;
 use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
 
@@ -82,7 +86,7 @@ final class ExportOpenApiCommandTest extends TestCase
     public function testCommandExportsResourcesWithExitZero(): void
     {
         $this->registerResourceMap();
-        $this->registerDocumentedRoute();
+        $this->router()->get('users/{user}', [PathResponseSchemaController::class, 'single']);
 
         $this->runCommand(['--output' => $this->outputPath])
             ->expectsOutputToContain('Exported 1 operation(s), 2 resource schema(s)')
@@ -194,7 +198,7 @@ final class ExportOpenApiCommandTest extends TestCase
         $this->registerDocumentedRoute();
 
         $this->runCommand(['--output' => $this->outputPath, '--allow-empty' => true])
-            ->expectsOutputToContain('Exported 1 operation(s), 2 resource schema(s)')
+            ->expectsOutputToContain('Exported 1 operation(s), 0 resource schema(s)')
             ->doesntExpectOutputToContain('documents no operations')
             ->assertExitCode(0);
 
@@ -398,6 +402,45 @@ final class ExportOpenApiCommandTest extends TestCase
     }
 
     /**
+     * Test that --all reports each audience's counts from its own written
+     * document, so a resource pruned from an audience is not counted for it.
+     *
+     * @return void
+     */
+    public function testCommandAllFlagReportsTheCountsOfEachWrittenDocument(): void
+    {
+        $this->getConfig()->set('api-toolkit.resources.resource_map', [
+            User::class         => UserResource::class,
+            Organization::class => OrganizationResource::class,
+            Tag::class          => QueryableTagResource::class,
+        ]);
+        $this->getConfig()->set('api-toolkit.openapi.audiences', [
+            'public'   => [],
+            'internal' => [],
+        ]);
+
+        $this->router()->get('organizations', [PathOrganizationController::class, 'index']);
+        $this->router()->get('tags', [InternalOnlyTagController::class, 'index']);
+
+        $base     = sys_get_temp_dir() . '/api-toolkit-all-' . uniqid('', true) . '.json';
+        $public   = substr($base, 0, -strlen('.json')) . '.public.json';
+        $internal = substr($base, 0, -strlen('.json')) . '.internal.json';
+
+        try {
+
+            $this->runCommand(['--output' => $base, '--all' => true])
+                ->expectsOutputToContain('Exported 1 operation(s), 1 resource schema(s)')
+                ->expectsOutputToContain('Exported 2 operation(s), 2 resource schema(s)')
+                ->doesntExpectOutputToContain('3 resource schema(s)')
+                ->assertExitCode(0);
+
+        } finally {
+            @unlink($public);
+            @unlink($internal);
+        }
+    }
+
+    /**
      * Test that an output path carrying no extension takes the audience name as
      * a trailing suffix, so --all still writes one distinct file per audience.
      *
@@ -504,7 +547,7 @@ final class ExportOpenApiCommandTest extends TestCase
         try {
 
             $this->runCommand(['--output' => $base, '--all' => true, '--allow-empty' => true])
-                ->expectsOutputToContain('Exported 1 operation(s), 2 resource schema(s)')
+                ->expectsOutputToContain('Exported 1 operation(s), 0 resource schema(s)')
                 ->expectsOutputToContain('The [internal] audience documents no operations; wrote an empty document')
                 ->doesntExpectOutputToContain('The [public] audience documents no operations')
                 ->assertExitCode(0);
