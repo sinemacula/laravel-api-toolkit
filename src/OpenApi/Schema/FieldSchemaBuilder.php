@@ -52,11 +52,15 @@ final readonly class FieldSchemaBuilder
      * Constructor.
      *
      * @param  \SineMacula\ApiToolkit\OpenApi\Schema\EnumSchemaRegistry  $enums
+     * @param  \SineMacula\ApiToolkit\OpenApi\Schema\InRuleValues  $inValues
      */
     public function __construct(
 
         /** The registry collecting enum classes referenced by a $ref. */
         private EnumSchemaRegistry $enums = new EnumSchemaRegistry,
+
+        /** The reader resolving an `in:` argument into enum values. */
+        private InRuleValues $inValues = new InRuleValues,
     ) {}
 
     /**
@@ -76,7 +80,7 @@ final readonly class FieldSchemaBuilder
         $type   = $this->resolveType($tokens);
         $schema = $type === null ? [] : ['type' => $type];
 
-        $this->applyEnum($schema, $tokens);
+        $this->applyEnum($schema, $tokens, $type);
         $this->applyFormat($schema, $tokens);
         $this->applyPattern($schema, $tokens);
         $this->applyBinary($schema, $tokens);
@@ -151,13 +155,15 @@ final readonly class FieldSchemaBuilder
     }
 
     /**
-     * Apply an `in:` token's comma-separated values as the field's enum.
+     * Apply an `in:` token's values as the field's enum, or as its items' enum
+     * on an array field, since the validator checks every element against them.
      *
      * @param  array<string, mixed>  $schema
      * @param  list<string>  $tokens
+     * @param  string|null  $type
      * @return void
      */
-    private function applyEnum(array &$schema, array $tokens): void
+    private function applyEnum(array &$schema, array $tokens, ?string $type): void
     {
         $values = $this->argument($tokens, 'in');
 
@@ -165,7 +171,13 @@ final readonly class FieldSchemaBuilder
             return;
         }
 
-        $schema['enum'] = explode(',', $values);
+        if ($type === 'array') {
+            $schema['items'] = ['enum' => $this->inValues->forItems($values)];
+
+            return;
+        }
+
+        $schema['enum'] = $this->inValues->forField($values, $type);
     }
 
     /**

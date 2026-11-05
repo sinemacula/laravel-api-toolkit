@@ -803,7 +803,8 @@ final class OpenApiExporterValidityTest extends TestCase
 
     /**
      * Test that a write route emits a requestBody translated from its rules
-     * source and the emitted document stays valid OpenAPI 3.1.
+     * source, value-list rule objects included, and the emitted document stays
+     * valid OpenAPI 3.1.
      *
      * @return void
      */
@@ -814,8 +815,12 @@ final class OpenApiExporterValidityTest extends TestCase
         $document = $this->export()->document;
         $body     = $document['paths']['/articles']['post']['requestBody'];
 
+        $properties = $body['content']['application/json']['schema']['properties'];
+
         self::assertTrue($body['required']);
-        self::assertArrayHasKey('title', $body['content']['application/json']['schema']['properties']);
+        self::assertArrayHasKey('title', $properties);
+        self::assertSame(['type' => 'string', 'enum' => ['draft', 'published']], $properties['visibility']);
+        self::assertSame(['type' => 'integer', 'enum' => [1, 2, 3]], $properties['level']);
 
         self::assertTrue(
             $this->validateAgainstMetaSchema($document)->isValid(),
