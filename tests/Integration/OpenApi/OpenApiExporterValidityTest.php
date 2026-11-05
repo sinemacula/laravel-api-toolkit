@@ -913,8 +913,8 @@ final class OpenApiExporterValidityTest extends TestCase
 
     /**
      * Test that a request field validated by an enum rule narrowed with only()
-     * or except() lists the values it accepts inline, and the document stays
-     * valid OpenAPI 3.1.
+     * or except() lists the values it accepts inline, an empty list when it
+     * accepts none, and the document stays valid OpenAPI 3.1.
      *
      * @return void
      */
@@ -927,6 +927,7 @@ final class OpenApiExporterValidityTest extends TestCase
 
         self::assertSame(['type' => 'integer', 'enum' => [2, 3]], $properties['rank']);
         self::assertSame(['type' => ['string', 'null'], 'enum' => ['active', 'banned', null]], $properties['standing']);
+        self::assertSame(['type' => 'string', 'enum' => []], $properties['retired']);
 
         self::assertTrue(
             $this->validateAgainstMetaSchema($document)->isValid(),
