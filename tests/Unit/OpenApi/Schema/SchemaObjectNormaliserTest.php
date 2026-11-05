@@ -158,6 +158,70 @@ final class SchemaObjectNormaliserTest extends TestCase
     }
 
     /**
+     * Test that a value that is not an array is passed over without ending the
+     * walk, at the document root and in the components block alike.
+     *
+     * @return void
+     */
+    public function testScalarValuesDoNotEndTheWalk(): void
+    {
+        $document = [
+            'openapi'    => '3.1.0',
+            'components' => [
+                'version'    => 1,
+                'parameters' => ['q' => ['schema' => []]],
+            ],
+            'paths' => ['/a' => ['get' => ['parameters' => [['schema' => []]]]]],
+        ];
+
+        self::assertSame(
+            '{"openapi":"3.1.0","components":{"version":1,"parameters":{"q":{"schema":{}}}},"paths":{"/a":{"get":{"parameters":[{"schema":{}}]}}}}',
+            $this->encode($document),
+        );
+    }
+
+    /**
+     * Test that an entry of a named map is read by its structure, so a header,
+     * media type, response, component, or webhook named like a keyword still
+     * has its schema normalised.
+     *
+     * @return void
+     */
+    public function testNamedMapEntriesNamedLikeKeywordsAreReadByStructure(): void
+    {
+        $document = [
+            'webhooks' => ['schema' => ['post' => ['requestBody' => ['content' => ['example' => ['schema' => []]]]]]],
+            'paths'    => [
+                '/a' => [
+                    'get' => [
+                        'responses' => ['examples' => ['headers' => ['schema' => ['schema' => ['not' => []]], 'example' => ['schema' => []]]]],
+                    ],
+                ],
+            ],
+            'components' => ['parameters' => ['schema' => ['schema' => []], 'flag' => true]],
+        ];
+
+        self::assertSame(
+            '{"webhooks":{"schema":{"post":{"requestBody":{"content":{"example":{"schema":{}}}}}}},'
+            . '"paths":{"/a":{"get":{"responses":{"examples":{"headers":{"schema":{"schema":{"not":{}}},"example":{"schema":{}}}}}}}},'
+            . '"components":{"parameters":{"schema":{"schema":{}},"flag":true}}}',
+            $this->encode($document),
+        );
+    }
+
+    /**
+     * Test that example components are left untouched as example data.
+     *
+     * @return void
+     */
+    public function testExampleComponentsAreLeftUntouched(): void
+    {
+        $document = ['components' => ['examples' => ['a' => ['value' => ['schema' => []]]], 'headers' => ['X' => ['schema' => []]]]];
+
+        self::assertSame('{"components":{"examples":{"a":{"value":{"schema":[]}}},"headers":{"X":{"schema":{}}}}}', $this->encode($document));
+    }
+
+    /**
      * Normalise the document and encode it as JSON.
      *
      * @param  array<string, mixed>  $document

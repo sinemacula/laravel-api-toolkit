@@ -34,6 +34,11 @@ final readonly class SchemaObjectNormaliser
     /** The keywords holding example data rather than document structure */
     private const array EXAMPLE_KEYWORDS = ['example', 'examples'];
 
+    /** The keywords whose value maps names, never keywords, to objects */
+    private const array NAMED_MAP_KEYWORDS = [
+        'paths', 'webhooks', 'responses', 'headers', 'content', 'encoding', 'callbacks', 'links',
+    ];
+
     /**
      * Normalise every schema the document carries.
      *
@@ -42,19 +47,12 @@ final readonly class SchemaObjectNormaliser
      */
     public function normalise(array $document): array
     {
-        foreach ($document as $key => $value) {
-            if (!is_array($value)) {
-                continue;
-            }
-
-            $document[$key] = $key === 'components' ? $this->components($value) : $this->walk($value);
-        }
-
-        return $document;
+        return $this->walk($document);
     }
 
     /**
-     * Normalise the components block, whose schemas entry is a map of schemas.
+     * Normalise the components block, each entry of which is a map of named
+     * components, its schemas a map of schemas.
      *
      * @param  array<array-key, mixed>  $components
      * @return array<array-key, mixed>
@@ -62,18 +60,20 @@ final readonly class SchemaObjectNormaliser
     private function components(array $components): array
     {
         foreach ($components as $key => $value) {
-            if (!is_array($value)) {
+            if (!is_array($value) || in_array($key, self::EXAMPLE_KEYWORDS, true)) {
                 continue;
             }
 
-            $components[$key] = $key === 'schemas' ? $this->schemaMap($value) : $this->walk($value);
+            $components[$key] = $key === 'schemas' ? $this->schemaMap($value) : array_map($this->entry(...), $value);
         }
 
         return $components;
     }
 
     /**
-     * Walk a non-schema node, normalising the schema under each `schema` key.
+     * Walk a non-schema node, normalising the schema under each `schema` key
+     * and the components block, and reading the entries of a named map by their
+     * structure, never their name.
      *
      * @param  array<array-key, mixed>  $node
      * @return array<array-key, mixed>
@@ -85,10 +85,26 @@ final readonly class SchemaObjectNormaliser
                 continue;
             }
 
-            $node[$key] = $key === 'schema' ? $this->schema($value) : $this->walk($value);
+            $node[$key] = match (true) {
+                $key === 'schema'                              => $this->schema($value),
+                $key === 'components'                          => $this->components($value),
+                in_array($key, self::NAMED_MAP_KEYWORDS, true) => array_map($this->entry(...), $value),
+                default                                        => $this->walk($value),
+            };
         }
 
         return $node;
+    }
+
+    /**
+     * Walk an entry of a named map, leaving a non-array value as is.
+     *
+     * @param  mixed  $value
+     * @return mixed
+     */
+    private function entry(mixed $value): mixed
+    {
+        return is_array($value) ? $this->walk($value) : $value;
     }
 
     /**
