@@ -1679,8 +1679,8 @@ final class FilterApplierTest extends TestCase
     }
 
     /**
-     * Apply the filters to the users and return the names matched, in the
-     * order the users were created.
+     * Apply the filters to the users and return the names matched, in the order
+     * the users were created.
      *
      * @param  array<string, mixed>|null  $filters
      * @return array<int, string>
