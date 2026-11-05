@@ -216,4 +216,22 @@ final class IndexDefinitionTest extends TestCase
 
         self::assertFalse($definition->leadsWith('name'));
     }
+
+    /**
+     * Test that a definition is returned as the catalogue entry it is read
+     * from, and that the entry reads back as an equal definition.
+     *
+     * @return void
+     */
+    public function testRoundTripsThroughItsCatalogueEntry(): void
+    {
+        $definition = new IndexDefinition('users_status_name_index', ['status', 'name'], 'btree');
+
+        self::assertSame(['name' => 'users_status_name_index', 'columns' => ['status', 'name'], 'type' => 'btree'], $definition->toArray());
+        self::assertEquals($definition, IndexDefinition::fromCatalogueEntry($definition->toArray()));
+
+        $unkinded = new IndexDefinition('users_body_index', ['body'], null);
+
+        self::assertEquals($unkinded, IndexDefinition::fromCatalogueEntry($unkinded->toArray()));
+    }
 }

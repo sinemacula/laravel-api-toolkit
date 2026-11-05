@@ -25,6 +25,14 @@ use SineMacula\ApiToolkit\Exceptions\MetadataCacheUnavailableException;
  * change unless it bounds that answer with an expiry, and never one such as the
  * empty column listing of a table that has not been created yet.
  *
+ * Entries hold arrays and scalars only. An application may refuse to
+ * unserialize any class from its cache, as Laravel's serializable_classes
+ * setting does by default, and an object stored here would then read back in
+ * every other process as an incomplete class. A caller with a value object
+ * stores its array form and rebuilds the object through a decoder on read, and
+ * a stored value the decoder rejects is a miss, so an entry written in a shape
+ * this version cannot read is recomputed and replaced rather than served.
+ *
  * The store is optional. When a store operation throws, the failure is reported
  * and the store is bypassed for the configured retry window: reads miss and
  * values are computed without being stored, so an outage costs performance
@@ -96,22 +104,42 @@ final class MetadataCacheWriter
     }
 
     /**
+     * Store a metadata value forever under the current generation, replacing
+     * whatever the store held under the key.
+     *
+     * @param  string  $key
+     * @param  mixed  $value
+     * @return void
+     */
+    public function storeMetadataForever(string $key, mixed $value): void
+    {
+        $this->persist($key, $this->attempt('generation', $key, fn (): string => $this->storageKey($key)), $value, null);
+    }
+
+    /**
      * Read a metadata value stored under the current generation.
      *
-     * The missing value is resolved outside the store guard, so a closure given
-     * for it runs on every miss, a failed read included, and an exception it
-     * throws is the caller's own.
+     * A decoder rebuilds the stored value, and a stored value it rejects by
+     * returning null is a miss. The missing value and the decoder are resolved
+     * outside the store guard, so a closure given for the missing value runs on
+     * every miss, a failed read included, and an exception either throws is the
+     * caller's own.
      *
      * @template TMissing
      *
      * @param  string  $key
      * @param  TMissing  $missing
+     * @param  (callable(mixed): mixed)|null  $decode
      * @return mixed
      */
-    public function readMetadata(string $key, mixed $missing = null): mixed
+    public function readMetadata(string $key, mixed $missing = null, ?callable $decode = null): mixed
     {
         $storageKey = $this->attempt('generation', $key, fn (): string => $this->storageKey($key));
         $stored     = $storageKey === null ? null : $this->attempt('get', $key, static fn (): mixed => Cache::memo()->get($storageKey)); // @phpstan-ignore method.notFound
+
+        if ($stored !== null && $decode !== null) {
+            $stored = $decode($stored);
+        }
 
         return $stored ?? value($missing);
     }
@@ -181,11 +209,28 @@ final class MetadataCacheWriter
 
         $value = $callback();
 
-        if ($storageKey !== null && $this->attempt('write', $key, static fn (): bool => self::write($storageKey, $value, $ttl)) === false) {
-            self::reportRejectedWrite($key);
-        }
+        $this->persist($key, $storageKey, $value, $ttl);
 
         return $value;
+    }
+
+    /**
+     * Write the value under the storage key, reporting a write the store
+     * rejects, or write nothing when the generation could not be resolved.
+     *
+     * @param  string  $key
+     * @param  string|null  $storageKey
+     * @param  mixed  $value
+     * @param  int|null  $ttl
+     * @return void
+     */
+    private function persist(string $key, ?string $storageKey, mixed $value, ?int $ttl): void
+    {
+        if ($storageKey === null || $this->attempt('write', $key, static fn (): bool => self::write($storageKey, $value, $ttl)) !== false) {
+            return;
+        }
+
+        self::reportRejectedWrite($key);
     }
 
     /**
