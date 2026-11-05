@@ -3,7 +3,7 @@
 namespace SineMacula\ApiToolkit\Repositories\Traits;
 
 use BadMethodCallException;
-use Exception;
+use ReflectionMethod;
 use SensitiveParameter;
 use SineMacula\ApiToolkit\Repositories\RepositoryResolver;
 use SineMacula\Repositories\Contracts\RepositoryInterface;
@@ -29,7 +29,8 @@ trait HasRepositories
      * @param  array  $arguments
      * @return mixed
      *
-     * @throws Exception
+     * @throws \Illuminate\Contracts\Container\BindingResolutionException
+     * @throws \SineMacula\Repositories\Exceptions\RepositoryException
      */
     public function __call(#[SensitiveParameter] $method, #[SensitiveParameter] $arguments): mixed
     {
@@ -42,10 +43,8 @@ trait HasRepositories
             return parent::__call($method, $arguments);
         }
 
-        foreach (class_uses($this) as $trait) {
-            if ($trait !== self::class && method_exists($trait, '__call')) {
-                return call_user_func_array([$this, '__call'], [$method, $arguments]);
-            }
+        if (!$this->handlesCallsHere()) {
+            return $this->__call($method, $arguments);
         }
 
         throw new BadMethodCallException("Method {$method} does not exist.");
@@ -55,9 +54,11 @@ trait HasRepositories
      * Resolve the repository dynamically based on the method name.
      *
      * @param  string  $repository
-     * @return mixed
+     * @return \SineMacula\Repositories\Contracts\RepositoryInterface
      *
-     * @throws Exception
+     * @throws \RuntimeException
+     * @throws \Illuminate\Contracts\Container\BindingResolutionException
+     * @throws \SineMacula\Repositories\Exceptions\RepositoryException
      */
     protected function resolveRepository(string $repository): RepositoryInterface
     {
@@ -66,5 +67,16 @@ trait HasRepositories
         }
 
         return $this->repositories[$repository];
+    }
+
+    /**
+     * Determine whether the class resolves `__call` to this trait, in which
+     * case calling it again could only recurse.
+     *
+     * @return bool
+     */
+    private function handlesCallsHere(): bool
+    {
+        return (new ReflectionMethod($this, '__call'))->getFileName() === __FILE__;
     }
 }
