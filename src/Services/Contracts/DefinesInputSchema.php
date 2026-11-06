@@ -22,7 +22,7 @@ interface DefinesInputSchema
     /**
      * Return the Laravel validation rules for the request.
      *
-     * @return array<string, mixed>
+     * @return array<array-key, mixed>
      */
     public static function rules(): array;
 }

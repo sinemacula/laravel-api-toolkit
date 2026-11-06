@@ -735,6 +735,89 @@ final class RulesToSchemaTranslatorTest extends TestCase
     }
 
     /**
+     * Test that a top-level rules key PHP casts to an integer documents an
+     * object property named by the index, required by its string name.
+     *
+     * @return void
+     */
+    public function testNumericTopLevelKeyIsAnObjectProperty(): void
+    {
+        $schema = $this->translator()->translate(['0' => ['required', 'string'], '1' => 'integer']);
+
+        self::assertSame([
+            'type'       => 'object',
+            'properties' => [0 => ['type' => 'string'], 1 => ['type' => 'integer']],
+            'required'   => ['0'],
+        ], $schema);
+    }
+
+    /**
+     * Provide array fields whose rules constrain an element by its list index.
+     *
+     * @return iterable<string, array{0: array<string, mixed>, 1: array<string, mixed>}>
+     */
+    public static function indexedArrayProvider(): iterable
+    {
+        yield 'array' => [
+            ['tags' => ['required', 'array'], 'tags.0' => ['required', 'string']],
+            ['type' => 'array'],
+        ];
+
+        yield 'nullable array' => [
+            ['tags' => ['nullable', 'array', 'max:3'], 'tags.0' => 'string', 'tags.1.name' => 'string'],
+            ['type' => ['array', 'null'], 'maxItems' => 3],
+        ];
+
+        yield 'array with items' => [
+            ['tags' => 'array', 'tags.*' => 'string', 'tags.0' => ['required', 'string', 'max:5']],
+            ['type' => 'array', 'items' => ['type' => 'string']],
+        ];
+
+        yield 'array with named keys' => [
+            ['tags' => 'array', 'tags.0' => 'string', 'tags.name' => ['required', 'string']],
+            ['type' => 'object', 'properties' => ['name' => ['type' => 'string']], 'required' => ['name']],
+        ];
+    }
+
+    /**
+     * Test that a child keying an array field by a list index is left out of
+     * the array's schema, so a list the rules accept is never documented as an
+     * object.
+     *
+     * @param  array<string, mixed>  $rules
+     * @param  array<string, mixed>  $expected
+     * @return void
+     */
+    #[DataProvider('indexedArrayProvider')]
+    public function testIndexChildOfAnArrayFieldIsLeftOut(array $rules, array $expected): void
+    {
+        self::assertSame($expected, $this->translator()->translate($rules)['properties']['tags']);
+    }
+
+    /**
+     * Test that an index child of a field declaring no array type documents an
+     * object property named by the index, required by its string name.
+     *
+     * @return void
+     */
+    public function testIndexChildOfAnUntypedFieldIsAnObjectProperty(): void
+    {
+        $schema = $this->translator()->translate(['meta' => 'required', 'meta.0' => ['required', 'string'], 'meta.1' => 'integer']);
+
+        self::assertSame([
+            'type'       => 'object',
+            'properties' => [
+                'meta' => [
+                    'type'       => 'object',
+                    'properties' => [0 => ['type' => 'string'], 1 => ['type' => 'integer']],
+                    'required'   => ['0'],
+                ],
+            ],
+            'required' => ['meta'],
+        ], $schema);
+    }
+
+    /**
      * Build a translator over the real normaliser and field builder.
      *
      * @return \SineMacula\ApiToolkit\OpenApi\Schema\RulesToSchemaTranslator
