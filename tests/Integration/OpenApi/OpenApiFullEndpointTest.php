@@ -97,7 +97,7 @@ final class OpenApiFullEndpointTest extends TestCase
 
         self::assertTrue($body['required']);
         self::assertSame(['type' => 'string', 'maxLength' => 255], $schema['properties']['title']);
-        self::assertSame(['title', 'email', 'password'], $schema['required']);
+        self::assertSame(['title', 'email', 'password', 'password_confirmation'], $schema['required']);
 
         // Facet 2: the 201 created response wrapping the mapped resource.
         self::assertSame(

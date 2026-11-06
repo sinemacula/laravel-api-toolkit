@@ -12,7 +12,10 @@ namespace SineMacula\ApiToolkit\OpenApi\Schema;
  * finds every schema position - a `schema` value, a `components.schemas` entry,
  * and every subschema a schema nests - and replaces an empty one, or an empty
  * map of named subschemas such as `properties`, with an empty object, so it
- * encodes as `{}`. Boolean schemas and example values are left untouched.
+ * encodes as `{}`. A map keyed by names, such as `properties` or
+ * `dependentRequired`, whose names are all consecutive integers from zero is
+ * made an object too, so it does not encode as a JSON array. Boolean schemas
+ * and example values are left untouched.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -30,6 +33,9 @@ final readonly class SchemaObjectNormaliser
 
     /** The keywords whose value is a map of named subschemas */
     private const array SCHEMA_MAP_KEYWORDS = ['properties', 'patternProperties', 'dependentSchemas', '$defs'];
+
+    /** The keywords whose value maps property names to lists of names */
+    private const array NAME_MAP_KEYWORDS = ['dependentRequired'];
 
     /** The keywords holding example data rather than document structure */
     private const array EXAMPLE_KEYWORDS = ['example', 'examples'];
@@ -129,6 +135,7 @@ final readonly class SchemaObjectNormaliser
                 in_array($keyword, self::SCHEMA_KEYWORDS, true)      => $this->schema($value),
                 in_array($keyword, self::SCHEMA_LIST_KEYWORDS, true) => array_map($this->subschema(...), $value),
                 in_array($keyword, self::SCHEMA_MAP_KEYWORDS, true)  => $this->schemaMap($value),
+                in_array($keyword, self::NAME_MAP_KEYWORDS, true)    => $this->nameMap($value),
                 default                                              => $value,
             };
         }
@@ -137,15 +144,27 @@ final readonly class SchemaObjectNormaliser
     }
 
     /**
-     * Normalise a map of named schemas, returning an empty object for an empty
-     * map.
+     * Normalise a map of named schemas, returning an object for a map that
+     * would otherwise encode as a JSON array.
      *
      * @param  array<array-key, mixed>  $map
      * @return array<array-key, mixed>|\stdClass
      */
     private function schemaMap(array $map): array|\stdClass
     {
-        return $map === [] ? new \stdClass : array_map($this->subschema(...), $map);
+        return $this->nameMap(array_map($this->subschema(...), $map));
+    }
+
+    /**
+     * Return a map keyed by names as an object when it is empty or its names
+     * are all consecutive integers from zero, so it encodes as a JSON object.
+     *
+     * @param  array<array-key, mixed>  $map
+     * @return array<array-key, mixed>|\stdClass
+     */
+    private function nameMap(array $map): array|\stdClass
+    {
+        return array_is_list($map) ? (object) $map : $map;
     }
 
     /**

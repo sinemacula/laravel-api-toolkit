@@ -7,11 +7,14 @@ namespace Tests\Unit\OpenApi\Schema;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Enum;
+use Opis\JsonSchema\Helper;
+use Opis\JsonSchema\Validator as SchemaValidator;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use SineMacula\ApiToolkit\OpenApi\Schema\FieldSchemaBuilder;
 use SineMacula\ApiToolkit\OpenApi\Schema\RuleNormaliser;
 use SineMacula\ApiToolkit\OpenApi\Schema\RulesToSchemaTranslator;
+use SineMacula\ApiToolkit\OpenApi\Schema\SchemaObjectNormaliser;
 use SineMacula\ApiToolkit\Validation\Rules\PureEnum;
 use Tests\Fixtures\Enums\Escaped;
 use Tests\Fixtures\Enums\Magnitude;
@@ -62,7 +65,7 @@ final class RulesToSchemaTranslatorTest extends TestCase
                 'password'              => ['type' => 'string', 'minLength' => 8],
                 'password_confirmation' => ['type' => 'string'],
             ],
-            'required' => ['title', 'email', 'password'],
+            'required' => ['title', 'email', 'password', 'password_confirmation'],
         ], $schema);
     }
 
@@ -371,12 +374,12 @@ final class RulesToSchemaTranslatorTest extends TestCase
     }
 
     /**
-     * Test that a confirmed field gains a confirmation sibling of the same base
-     * type.
+     * Test that a required confirmed field gains a confirmation sibling of the
+     * same base type, required alongside it.
      *
      * @return void
      */
-    public function testConfirmedFieldGainsSibling(): void
+    public function testRequiredConfirmedFieldRequiresItsSibling(): void
     {
         $schema = $this->translator()->translate(['password' => ['required', 'string', 'confirmed']]);
 
@@ -386,7 +389,50 @@ final class RulesToSchemaTranslatorTest extends TestCase
                 'password'              => ['type' => 'string'],
                 'password_confirmation' => ['type' => 'string'],
             ],
-            'required' => ['password'],
+            'required' => ['password', 'password_confirmation'],
+        ], $schema);
+    }
+
+    /**
+     * Test that an optional confirmed field requires its confirmation sibling
+     * only when the field itself is sent.
+     *
+     * @return void
+     */
+    public function testOptionalConfirmedFieldRequiresItsSiblingWhenSent(): void
+    {
+        $schema = $this->translator()->translate(['password' => ['sometimes', 'required', 'string', 'confirmed']]);
+
+        self::assertSame([
+            'type'       => 'object',
+            'properties' => [
+                'password'              => ['type' => 'string'],
+                'password_confirmation' => ['type' => 'string'],
+            ],
+            'dependentRequired' => ['password' => ['password_confirmation']],
+        ], $schema);
+    }
+
+    /**
+     * Test that a confirmed rule naming its confirmation field documents and
+     * requires that field rather than the default sibling.
+     *
+     * @return void
+     */
+    public function testConfirmedRuleNamingItsFieldRequiresThatField(): void
+    {
+        $schema = $this->translator()->translate([
+            'password'        => ['required', 'string', 'confirmed:repeat_password'],
+            'repeat_password' => ['string', 'max:64'],
+        ]);
+
+        self::assertSame([
+            'type'       => 'object',
+            'properties' => [
+                'password'        => ['type' => 'string'],
+                'repeat_password' => ['type' => 'string', 'maxLength' => 64],
+            ],
+            'required' => ['password', 'repeat_password'],
         ], $schema);
     }
 
@@ -406,6 +452,7 @@ final class RulesToSchemaTranslatorTest extends TestCase
                 'status'              => ['enum' => ['active', 'inactive']],
                 'status_confirmation' => ['type' => 'string'],
             ],
+            'dependentRequired' => ['status' => ['status_confirmation']],
         ], $schema);
     }
 
@@ -425,6 +472,7 @@ final class RulesToSchemaTranslatorTest extends TestCase
                 'count'              => ['type' => 'integer'],
                 'count_confirmation' => ['type' => 'integer'],
             ],
+            'dependentRequired' => ['count' => ['count_confirmation']],
         ], $schema);
     }
 
@@ -546,6 +594,147 @@ final class RulesToSchemaTranslatorTest extends TestCase
     }
 
     /**
+     * Test that the conditional presence rules of the request example document
+     * which field one field requires and that one of two fields must be sent.
+     *
+     * @return void
+     */
+    public function testConditionalPresenceRulesRelateTheFieldsTheyName(): void
+    {
+        $schema = $this->translator()->translate([
+            'credential' => ['sometimes', 'required', 'string'],
+            'member_id'  => ['required_with:credential', 'required_without:group_id', 'nullable', 'uuid'],
+            'group_id'   => ['nullable', 'uuid'],
+        ]);
+
+        self::assertSame(['credential' => ['member_id']], $schema['dependentRequired']);
+        self::assertSame([['required' => ['member_id']], ['required' => ['group_id']]], $schema['anyOf']);
+        self::assertArrayNotHasKey('required', $schema);
+    }
+
+    /**
+     * Provide rules carrying confirmed and conditional presence rules, each
+     * with request bodies the validator accepts and refuses on presence alone.
+     *
+     * @return iterable<string, array{0: array<string, mixed>, 1: list<array<string, mixed>>}>
+     */
+    public static function presenceRules(): iterable
+    {
+        $uuid = '7b6f0c1e-5d3a-4c2b-9a8e-1f2d3c4b5a69';
+
+        yield 'with and without' => [
+            [
+                'credential' => ['sometimes', 'required', 'string'],
+                'member_id'  => ['required_with:credential', 'required_without:group_id', 'nullable', 'uuid'],
+                'group_id'   => ['nullable', 'uuid'],
+            ],
+            [[], ['credential' => 'x'], ['credential' => 'x', 'member_id' => $uuid], ['group_id' => $uuid], ['member_id' => $uuid], ['credential' => 'x', 'group_id' => $uuid]],
+        ];
+
+        yield 'with all and without all' => [
+            ['a' => 'string', 'b' => 'string', 'f' => 'required_with_all:a,b|string', 'g' => 'required_without_all:a,b|string'],
+            [[], ['a' => 'x'], ['b' => 'x'], ['g' => 'x'], ['a' => 'x', 'b' => 'x'], ['a' => 'x', 'b' => 'x', 'f' => 'x'], ['g' => 'x', 'a' => 'x', 'b' => 'x', 'f' => 'x']],
+        ];
+
+        yield 'confirmed' => [
+            ['password' => 'required|string|confirmed', 'pin' => 'sometimes|string|confirmed:pin_repeat'],
+            [
+                ['password' => 'x'],
+                ['password' => 'x', 'password_confirmation' => 'x'],
+                ['password' => 'x', 'password_confirmation' => 'x', 'pin' => 'y'],
+                ['password' => 'x', 'password_confirmation' => 'x', 'pin' => 'y', 'pin_repeat' => 'y'],
+            ],
+        ];
+
+        yield 'exclude and prohibited' => [
+            ['a' => 'string', 'f' => 'exclude_if:a,x|required_with:a|string', 'g' => 'prohibited|required_without:a'],
+            [[], ['a' => 'x'], ['a' => 'y', 'f' => 'z'], ['g' => 'z', 'a' => 'x']],
+        ];
+
+        yield 'array items' => [
+            ['items' => 'required|array', 'items.*.a' => 'required_without:items.*.b|string', 'items.*.b' => 'string'],
+            [['items' => [['a' => 'x'], ['b' => 'x']]], ['items' => [['a' => 'x', 'b' => 'y']]], ['items' => [['b' => 'x'], ['c' => 'x']]]],
+        ];
+    }
+
+    /**
+     * Test that the request schema accepts exactly the bodies the validator
+     * accepts under confirmed and conditional presence rules.
+     *
+     * @param  array<string, mixed>  $rules
+     * @param  list<array<string, mixed>>  $bodies
+     * @return void
+     */
+    #[DataProvider('presenceRules')]
+    public function testPresenceRulesAcceptWhatTheValidatorAccepts(array $rules, array $bodies): void
+    {
+        $schema = $this->translator()->translate($rules);
+
+        foreach ($bodies as $body) {
+            self::assertSame(
+                Validator::make($body, $rules)->passes(),
+                $this->isAcceptedBySchema($schema, $body),
+                sprintf('The schema and the validator disagree on %s.', json_encode($body, JSON_THROW_ON_ERROR)),
+            );
+        }
+    }
+
+    /**
+     * Test that the confirmed and conditional presence rules of a nested object
+     * or an array item reference that object's own fields.
+     *
+     * @return void
+     */
+    public function testNestedPresenceRulesReferenceTheirOwnObject(): void
+    {
+        $schema = $this->translator()->translate([
+            'user.password' => ['required', 'string', 'confirmed:user.repeat'],
+            'user.a'        => 'required_with:user.b',
+            'user.b'        => 'string',
+            'items'         => 'array',
+            'items.*.a'     => 'required_without:items.*.b',
+            'items.*.b'     => 'string',
+            'slots.1.a'     => 'required_with:slots.1.b',
+            'slots.1.b'     => 'string',
+        ])['properties'];
+
+        self::assertSame(['password', 'repeat'], $schema['user']['required']);
+        self::assertSame(['type' => 'string'], $schema['user']['properties']['repeat']);
+        self::assertSame(['b' => ['a']], $schema['user']['dependentRequired']);
+        self::assertSame([['required' => ['a']], ['required' => ['b']]], $schema['items']['items']['anyOf']);
+        self::assertSame(['b' => ['a']], $schema['slots']['properties']['1']['dependentRequired']);
+    }
+
+    /**
+     * Test that a presence rule referencing a field outside its object, or one
+     * the rules never declare, is skipped rather than invented.
+     *
+     * @return void
+     */
+    public function testPresenceRuleReferenceOutsideItsObjectIsSkipped(): void
+    {
+        $schema = $this->translator()->translate([
+            'b'         => 'string',
+            'c'         => 'required_with:missing',
+            'd'         => 'required_with_all:b,missing',
+            'user.a'    => ['required_with:b', 'required_without:user.missing'],
+            'user.p'    => ['string', 'confirmed:repeat'],
+            'items.*.a' => 'required_with:b',
+        ]);
+
+        self::assertSame([
+            'type'       => 'object',
+            'properties' => [
+                'b'     => ['type' => 'string'],
+                'c'     => [],
+                'd'     => [],
+                'user'  => ['type' => 'object', 'properties' => ['a' => [], 'p' => ['type' => 'string']]],
+                'items' => ['type' => 'array', 'items' => ['type' => 'object', 'properties' => ['a' => []]]],
+            ],
+        ], $schema);
+    }
+
+    /**
      * Build a translator over the real normaliser and field builder.
      *
      * @return \SineMacula\ApiToolkit\OpenApi\Schema\RulesToSchemaTranslator
@@ -553,5 +742,19 @@ final class RulesToSchemaTranslatorTest extends TestCase
     private function translator(): RulesToSchemaTranslator
     {
         return new RulesToSchemaTranslator(new RuleNormaliser, new FieldSchemaBuilder);
+    }
+
+    /**
+     * Determine whether a translated schema accepts a request body.
+     *
+     * @param  array<string, mixed>  $schema
+     * @param  array<string, mixed>  $body
+     * @return bool
+     */
+    private function isAcceptedBySchema(array $schema, array $body): bool
+    {
+        $document = (new SchemaObjectNormaliser)->normalise(['schema' => ['$schema' => 'https://json-schema.org/draft/2020-12/schema', ...$schema]]);
+
+        return (new SchemaValidator)->validate(Helper::toJSON((object) $body), Helper::toJSON($document['schema']))->isValid();
     }
 }

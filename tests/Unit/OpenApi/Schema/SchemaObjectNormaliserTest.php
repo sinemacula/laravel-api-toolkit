@@ -79,6 +79,26 @@ final class SchemaObjectNormaliserTest extends TestCase
     }
 
     /**
+     * Test that a map keyed by names that are all consecutive integers from
+     * zero encodes as an object rather than a JSON array.
+     *
+     * @return void
+     */
+    public function testAMapOfNumericNamesEncodesAsAnObject(): void
+    {
+        $document = ['components' => ['schemas' => ['A' => [
+            'properties'        => [['type' => 'string'], []],
+            'dependentRequired' => [['1'], []],
+            'required'          => ['0', '1'],
+        ]]]];
+
+        self::assertSame(
+            '{"components":{"schemas":{"A":{"properties":{"0":{"type":"string"},"1":{}},"dependentRequired":{"0":["1"],"1":[]},"required":["0","1"]}}}}',
+            $this->encode($document),
+        );
+    }
+
+    /**
      * Test that an empty schema anywhere a `schema` key holds one encodes as an
      * empty object, in the paths and in the components alike.
      *
