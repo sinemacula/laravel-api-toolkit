@@ -137,15 +137,27 @@ final readonly class SchemaObjectNormaliser
     }
 
     /**
-     * Normalise a map of named schemas, returning an empty object for an empty
-     * map.
+     * Normalise a map of named schemas, returning an object for a map that
+     * would otherwise encode as a JSON array.
      *
      * @param  array<array-key, mixed>  $map
      * @return array<array-key, mixed>|\stdClass
      */
     private function schemaMap(array $map): array|\stdClass
     {
-        return $map === [] ? new \stdClass : array_map($this->subschema(...), $map);
+        return $this->nameMap(array_map($this->subschema(...), $map));
+    }
+
+    /**
+     * Return a map keyed by names as an object when it is empty or its names
+     * are all consecutive integers from zero, so it encodes as a JSON object.
+     *
+     * @param  array<array-key, mixed>  $map
+     * @return array<array-key, mixed>|\stdClass
+     */
+    private function nameMap(array $map): array|\stdClass
+    {
+        return array_is_list($map) ? (object) $map : $map;
     }
 
     /**

@@ -8,6 +8,7 @@ use Illuminate\Contracts\Config\Repository as ConfigRepository;
 use Illuminate\Foundation\Application;
 use Illuminate\Routing\Router;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Validator as RequestValidator;
 use Opis\JsonSchema\Errors\ErrorFormatter;
 use Opis\JsonSchema\Formats\UriFormats;
 use Opis\JsonSchema\Helper;
@@ -37,10 +38,12 @@ use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\Tag;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\OpenApi\ColumnlessIntrospectionProvider;
+use Tests\Fixtures\OpenApi\NumericKeyRequestInput;
 use Tests\Fixtures\OpenApi\PathArticleController;
 use Tests\Fixtures\OpenApi\PathFixtureController;
 use Tests\Fixtures\OpenApi\PathHeaderedUserController;
 use Tests\Fixtures\OpenApi\PathInvokableController;
+use Tests\Fixtures\OpenApi\PathNumericKeyController;
 use Tests\Fixtures\OpenApi\PathOrganizationController;
 use Tests\Fixtures\OpenApi\PathRequestBodyController;
 use Tests\Fixtures\OpenApi\PathResponseHeaderController;
@@ -988,6 +991,45 @@ final class OpenApiExporterValidityTest extends TestCase
     }
 
     /**
+     * Test that write routes whose rules key fields by list indices export them
+     * as object properties named by the index, leave an array's index child out
+     * of the array, accept a payload the rules accept and reject one missing a
+     * required index, and the document stays valid OpenAPI 3.1.
+     *
+     * @return void
+     */
+    public function testNumericRuleKeysEmitValidRequestBodies(): void
+    {
+        $this->router()->post('numbered', [PathNumericKeyController::class, 'store']);
+        $this->router()->post('indexed', [PathNumericKeyController::class, 'indexed']);
+
+        $document = $this->export()->document;
+        $numbered = $document['paths']['/numbered']['post']['requestBody']['content']['application/json']['schema'];
+        $indexed  = $document['paths']['/indexed']['post']['requestBody']['content']['application/json']['schema'];
+
+        self::assertSame(
+            '{"type":"object","properties":{"0":{"type":"string"},"tags":{"type":"array"},'
+            . '"meta":{"type":"object","properties":{"0":{"type":"string"}},"required":["0"]}},"required":["0","tags"]}',
+            json_encode($numbered, JSON_THROW_ON_ERROR),
+        );
+        self::assertSame(
+            '{"type":"object","properties":{"0":{"type":"string"},"1":{"type":"integer"}},"required":["0"]}',
+            json_encode($indexed, JSON_THROW_ON_ERROR),
+        );
+
+        $payload = '{"0":"first","tags":["a",1],"meta":{"0":"x"}}';
+
+        self::assertTrue(RequestValidator::make(json_decode($payload, true, 512, JSON_THROW_ON_ERROR), NumericKeyRequestInput::rules())->passes());
+        self::assertTrue($this->validateRequestBody($document, '/numbered', $payload)->isValid());
+        self::assertFalse($this->validateRequestBody($document, '/numbered', '{"tags":["a"]}')->isValid());
+
+        self::assertTrue(
+            $this->validateAgainstMetaSchema($document)->isValid(),
+            'A document with numeric rule keys must validate as OpenAPI 3.1: ' . $this->formatErrors($this->validateAgainstMetaSchema($document)),
+        );
+    }
+
+    /**
      * Test that a route excluded from an audience is absent from that
      * audience's paths while remaining present in an audience documenting it.
      *
@@ -1518,6 +1560,30 @@ final class OpenApiExporterValidityTest extends TestCase
         return $validator->validate(
             Helper::toJSON($page),
             self::EXPORTED_DOCUMENT_ID . '#/paths/~1users/get/responses/200/content/application~1json/schema',
+        );
+    }
+
+    /**
+     * Validate a JSON request payload against the exported JSON body schema of
+     * the path's POST operation.
+     *
+     * @param  array<string, mixed>  $document
+     * @param  string  $path
+     * @param  string  $payload
+     * @return \Opis\JsonSchema\ValidationResult
+     */
+    private function validateRequestBody(array $document, string $path, string $payload): ValidationResult
+    {
+        $validator = new Validator;
+        $resolver  = $validator->resolver();
+
+        assert($resolver instanceof SchemaResolver);
+
+        $resolver->registerRaw(Helper::toJSON($document), self::EXPORTED_DOCUMENT_ID);
+
+        return $validator->validate(
+            json_decode($payload, false, 512, JSON_THROW_ON_ERROR),
+            self::EXPORTED_DOCUMENT_ID . '#/paths/' . str_replace('/', '~1', $path) . '/post/requestBody/content/application~1json/schema',
         );
     }
 

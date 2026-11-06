@@ -61,7 +61,7 @@ final readonly class RulesToSchemaTranslator
      * Build the schema node for a path subtree, folding in nested object
      * properties or array items when the subtree carries children.
      *
-     * @param  array<string, list<string>>  $map
+     * @param  array<array-key, list<string>>  $map
      * @return array{schema: array<string, mixed>|false, required: bool}
      */
     private function buildNode(array $map): array
@@ -69,6 +69,10 @@ final readonly class RulesToSchemaTranslator
         $field   = $this->builder->build($map[''] ?? []);
         $schema  = $field['schema'];
         $grouped = $this->groupChildren($map);
+
+        if (is_array($schema) && in_array('array', (array) ($schema['type'] ?? []), true)) {
+            $grouped = $this->withoutIndices($grouped);
+        }
 
         if ($schema !== false && $grouped !== []) {
             $schema = isset($grouped['*'])
@@ -83,8 +87,8 @@ final readonly class RulesToSchemaTranslator
      * Group a path map's children by their leading segment, dropping the node's
      * own entry.
      *
-     * @param  array<string, list<string>>  $map
-     * @return array<string, array<string, list<string>>>
+     * @param  array<array-key, list<string>>  $map
+     * @return array<array-key, array<array-key, list<string>>>
      */
     private function groupChildren(array $map): array
     {
@@ -95,12 +99,25 @@ final readonly class RulesToSchemaTranslator
                 continue;
             }
 
-            [$segment, $rest] = $this->splitFirst($path);
+            [$segment, $rest] = $this->splitFirst((string) $path);
 
             $grouped[$segment][$rest] = $tokens;
         }
 
         return $grouped;
+    }
+
+    /**
+     * Drop the children an array field keys by a list index, which constrain a
+     * single element rather than name a property, so a list the rules accept is
+     * never documented as an object.
+     *
+     * @param  array<array-key, array<array-key, list<string>>>  $grouped
+     * @return array<array-key, array<array-key, list<string>>>
+     */
+    private function withoutIndices(array $grouped): array
+    {
+        return array_filter($grouped, is_string(...), ARRAY_FILTER_USE_KEY);
     }
 
     /**
@@ -125,7 +142,7 @@ final readonly class RulesToSchemaTranslator
      * confirmation sibling for each confirmed field that may be sent.
      *
      * @param  array<string, mixed>  $schema
-     * @param  array<string, array<string, list<string>>>  $grouped
+     * @param  array<array-key, array<array-key, list<string>>>  $grouped
      * @return array<string, mixed>
      */
     private function objectNode(array $schema, array $grouped): array
@@ -134,7 +151,7 @@ final readonly class RulesToSchemaTranslator
         $required   = [];
 
         foreach ($grouped as $segment => $childMap) {
-            $name  = $segment;
+            $name  = (string) $segment;
             $child = $this->buildNode($childMap);
 
             $properties[$name] = $child['schema'];
@@ -165,7 +182,7 @@ final readonly class RulesToSchemaTranslator
      * both it and any item constraint the array's own rules already set.
      *
      * @param  array<string, mixed>  $schema
-     * @param  array<string, list<string>>  $starMap
+     * @param  array<array-key, list<string>>  $starMap
      * @return array<string, mixed>
      */
     private function arrayNode(array $schema, array $starMap): array

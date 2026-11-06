@@ -125,6 +125,20 @@ final class SchemaObjectNormaliserTest extends TestCase
     }
 
     /**
+     * Test that a properties map whose names are all list indices encodes as an
+     * object keyed by those names, as does one whose indices leave a gap.
+     *
+     * @return void
+     */
+    public function testPropertiesNamedByListIndicesEncodeAsAnObject(): void
+    {
+        self::assertSame(
+            '{"components":{"schemas":{"A":{"properties":{"0":{"type":"string"},"1":{}}},"B":{"properties":{"1":{}}}}}}',
+            $this->encode(['components' => ['schemas' => ['A' => ['properties' => [['type' => 'string'], []]], 'B' => ['properties' => [1 => []]]]]]),
+        );
+    }
+
+    /**
      * Test that values that are not schemas keep their empty arrays: keywords
      * carrying data, examples, and maps named like schema keywords outside a
      * schema.
