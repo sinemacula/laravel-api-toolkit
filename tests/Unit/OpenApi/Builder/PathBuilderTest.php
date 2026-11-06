@@ -36,6 +36,7 @@ use Tests\Fixtures\Models\User;
 use Tests\Fixtures\OpenApi\ArticleRequestInput;
 use Tests\Fixtures\OpenApi\PathArticleController;
 use Tests\Fixtures\OpenApi\PathAttributelessController;
+use Tests\Fixtures\OpenApi\PathDeclaredBodyUserController;
 use Tests\Fixtures\OpenApi\PathErrorController;
 use Tests\Fixtures\OpenApi\PathExcludedController;
 use Tests\Fixtures\OpenApi\PathFixtureController;
@@ -844,6 +845,125 @@ final class PathBuilderTest extends TestCase
             (new EnvelopeBuilder)->singleEnvelopeFor(['oneOf' => [SignedInShape::schema(), PendingSignInShape::schema()]]),
             $schema,
         );
+    }
+
+    /**
+     * Test that a resource store declaring a union documents it under 201 with
+     * its declared header, request body, resource tag, and error responses, and
+     * no resource query parameter.
+     *
+     * @return void
+     */
+    public function testResourceStoreDeclaringAUnionDocumentsIt(): void
+    {
+        $this->router()->post('users', [PathDeclaredBodyUserController::class, 'store']);
+
+        $operation = $this->build()['/users']['post'];
+
+        self::assertSame(['User'], $operation['tags']);
+        self::assertArrayNotHasKey('parameters', $operation);
+        self::assertArrayHasKey('requestBody', $operation);
+        self::assertSame([201, 403, 422, 429, 500], array_keys($operation['responses']));
+        self::assertSame([
+            'description' => 'The request succeeded and a resource was created.',
+            'headers'     => ['Set-Cookie' => ['description' => 'The refresh token.', 'schema' => ['type' => 'string']]],
+            'content'     => ['application/json' => ['schema' => (new EnvelopeBuilder)->singleEnvelopeFor(['oneOf' => [SignedInShape::schema(), PendingSignInShape::schema()]])]],
+        ], $operation['responses'][201]);
+    }
+
+    /**
+     * Test that a resource update declaring a single shape documents it under
+     * 200, keeping the validation and not-found statuses of a resource update
+     * and its path parameter alone.
+     *
+     * @return void
+     */
+    public function testResourceUpdateDeclaringAShapeDocumentsIt(): void
+    {
+        $this->router()->put('users/{user}', [PathDeclaredBodyUserController::class, 'update']);
+
+        $operation = $this->build()['/users/{user}']['put'];
+
+        self::assertSame(['User'], $operation['tags']);
+        self::assertSame([['name' => 'user', 'in' => 'path', 'required' => true, 'schema' => ['type' => 'string']]], $operation['parameters']);
+        self::assertArrayNotHasKey('requestBody', $operation);
+        self::assertSame([200, 403, 404, 422, 500], array_keys($operation['responses']));
+        self::assertSame([
+            'description' => 'The request succeeded.',
+            'content'     => ['application/json' => ['schema' => (new EnvelopeBuilder)->singleEnvelopeFor(SignedInShape::schema())]],
+        ], $operation['responses'][200]);
+    }
+
+    /**
+     * Test that a resource show declaring a shape documents it under 200 with
+     * no resource query parameter.
+     *
+     * @return void
+     */
+    public function testResourceShowDeclaringAShapeDocumentsIt(): void
+    {
+        $this->router()->get('users/{user}', [PathDeclaredBodyUserController::class, 'show']);
+
+        $operation = $this->build()['/users/{user}']['get'];
+
+        self::assertSame([], $this->referencedParameterNames($operation));
+        self::assertSame([200, 403, 404, 500], array_keys($operation['responses']));
+        self::assertSame(
+            (new EnvelopeBuilder)->singleEnvelopeFor(WidgetShape::schema()),
+            $operation['responses'][200]['content']['application/json']['schema'],
+        );
+    }
+
+    /**
+     * Test that a resource index and destroy declaring a shape and a status
+     * document the shape under that status, the index with no total-count
+     * header and no resource query parameter.
+     *
+     * @return void
+     */
+    public function testResourceActionsDeclaringAShapeAndAStatusAnswerUnderIt(): void
+    {
+        $this->router()->get('users', [PathDeclaredBodyUserController::class, 'index']);
+        $this->router()->delete('users/{user}', [PathDeclaredBodyUserController::class, 'destroy']);
+
+        $paths    = $this->build();
+        $envelope = new EnvelopeBuilder;
+
+        self::assertArrayNotHasKey('parameters', $paths['/users']['get']);
+        self::assertSame([206, 403, 500], array_keys($paths['/users']['get']['responses']));
+        self::assertSame([
+            'description' => 'Partial Content.',
+            'content'     => ['application/json' => ['schema' => $envelope->collectionEnvelopeFor(WidgetShape::schema())]],
+        ], $paths['/users']['get']['responses'][206]);
+        self::assertSame([200, 403, 404, 500], array_keys($paths['/users/{user}']['delete']['responses']));
+        self::assertSame([
+            'description' => 'OK.',
+            'content'     => ['application/json' => ['schema' => $envelope->singleEnvelopeFor(WidgetShape::schema())]],
+        ], $paths['/users/{user}']['delete']['responses'][200]);
+    }
+
+    /**
+     * Test that a resource action declaring no response schema keeps the
+     * resource body and query parameters beside one that declares its own.
+     *
+     * @return void
+     */
+    public function testResourceActionWithoutAResponseSchemaKeepsTheResource(): void
+    {
+        $this->router()->post('users', [PathFixtureController::class, 'store']);
+        $this->router()->put('users/{user}', [PathDeclaredBodyUserController::class, 'update']);
+
+        $paths     = $this->build();
+        $operation = $paths['/users']['post'];
+
+        self::assertSame(['User'], $operation['tags']);
+        self::assertSame(['Fields', 'Counts', 'Sums', 'Averages'], $this->referencedParameterNames($operation));
+        self::assertSame([201, 403, 409, 422, 500], array_keys($operation['responses']));
+        self::assertSame([
+            'description' => 'The newly created resource.',
+            'content'     => ['application/json' => ['schema' => (new EnvelopeBuilder)->singleEnvelope('#/components/schemas/User')]],
+        ], $operation['responses'][201]);
+        self::assertSame([], $this->referencedParameterNames($paths['/users/{user}']['put']));
     }
 
     /**

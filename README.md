@@ -686,13 +686,25 @@ lowercase case names of a pure enum. Each field references the component rather 
 field whose rule is narrowed by `only()` or `except()`, which lists the values it accepts inline, an empty list when it
 accepts none.
 
+A request field's presence rules shape its object's schema. A `confirmed` field documents its confirmation field,
+`<field>_confirmation` or the one `confirmed:` names, required always when the field is required and through
+`dependentRequired` when it is optional. `required_with` and `required_with_all` require the field when any or all of
+the fields they name are sent, and `required_without` and `required_without_all` when any or all of them are missing,
+expressed with `dependentRequired`, `if`/`then` and `anyOf`. These rules reference only fields declared in the same
+object or array item: any other name is left out, and a `_all` rule naming one is dropped. A field carrying an
+`exclude` rule requires nothing, as the validator may skip it. A present but empty value, such as `null`, `""` or `[]`,
+counts as missing to these rules but as sent to the schema.
+
 A route outside the resource pipeline documents its success body with `#[ResponseSchema]` on the action. Name a
 registered resource to reference its component, or a class implementing `DefinesSchema` to inline the JSON-Schema
 fragment its `schema()` returns; `collection: true` wraps the shape in the collection envelope instead. Name several
 classes to document a response that answers with any one of them, exported as a `oneOf` under `data` (or under each
 item of a collection). Give each member of a union a required property holding a constant of its own, such as a
 `status`, so a client can tell the shapes apart. If any named class is neither a registered resource nor a
-`DefinesSchema`, the body is left undocumented rather than documented in part:
+`DefinesSchema`, the body is left undocumented rather than documented in part. On a resource controller's `index`,
+`show`, `store`, `update`, or `destroy` the declared body replaces the resource body, so an action answering with
+something other than its resource documents what it returns. Such an action keeps its status, headers, request body,
+tag, and error responses, but lists none of the resource's query parameters, since its body is not the resource:
 
 ```php
 use SineMacula\ApiToolkit\OpenApi\Attributes\ResponseSchema;

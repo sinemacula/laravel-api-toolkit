@@ -56,6 +56,14 @@ final class PathRequestBodyController
     public function restricted(): void {}
 
     /**
+     * Create a resource from a source relating its fields by presence.
+     *
+     * @return void
+     */
+    #[RequestSchema(PresenceRequestInput::class)]
+    public function presence(): void {}
+
+    /**
      * Create a resource from a binary upload source.
      *
      * @return void

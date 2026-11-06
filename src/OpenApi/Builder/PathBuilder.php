@@ -23,47 +23,51 @@ use SineMacula\ApiToolkit\OpenApi\Security\SecuritySchemeResolver;
  * Walks the application's route table and emits one operation per documentable
  * route, grouping every verb of the same URI under a shared path template. A
  * route handled by an AuthorizedController whose model maps to a registered
- * resource keeps the full resource contract: the REST action drives the
- * response shape through the shared envelope builder - index emits an anyOf of
- * the length-aware and cursor collection envelopes with the total-count header,
+ * resource keeps the full resource contract unless the action declares a
+ * #[ResponseSchema] of its own: the REST action drives the response shape
+ * through the shared envelope builder - index emits an anyOf of the
+ * length-aware and cursor collection envelopes with the total-count header,
  * show and update a single envelope, store a single envelope under 201, and
  * destroy an empty 204. Every other route - a plain or invokable controller, a
- * non-REST action, an unmapped model, or a closure - still emits an operation
- * carrying the path template, verbs, path parameters, and a resolved tag, with
- * a single success response whose body is the shape a #[ResponseSchema]
- * directive on the action declares - a reference to a registered resource's
- * component or an inlined self-describing fragment, or a oneOf of several such
- * shapes where it names more than one class, single or wrapped in the
- * collection envelope - and the shared data envelope wrapping an x-undocumented
- * marker otherwise; that success is 201 for a store action, 204 for a destroy,
- * and 200 otherwise. An action carrying a #[ResponseStatus] directive, on a
- * resource route or not, answers under the status it declares instead: a
- * no-content status with no body and no header the exporter would emit beside
- * one, and any other status with the body the action would otherwise carry, or
- * its declared or undocumented body where it would carry none; declaring the
- * action's default status changes nothing. Every operation, resource or not,
- * carries the error statuses its route facts imply - 401 behind auth
- * middleware, 403 behind an authorization check, 404 with path parameters, 422
- * with a request body (or a resource store or update), 429 behind a rate limit,
- * and 500 always - merged with any ApiException its action's @throws tags name,
- * each such error response carrying the headers its exceptions declare. The
- * success response carries the headers a #[ResponseHeader] directive on the
- * action or its controller declares, after any header the exporter emits
- * itself; declaring a header the exporter already emits fails the build. A
- * route whose verbs include a body-bearing method - POST, PUT, or PATCH - also
- * carries a requestBody translated from the rules a #[RequestSchema] directive
- * or a type-hinted rules-source parameter reaches; a read-only route carries
- * none. A resource operation also references the query parameters its action
- * honours: an index the whole grammar, a show what shapes and scopes a single
- * record, a store and an update what shapes the resource they return, and a
- * destroy none. A non-resource operation references none, there being no
- * knowing whether such an action consults the query parser. Audience membership
- * is checked for every route regardless of its handler, so a closure scoped out
- * by a route macro is omitted exactly as an attribute-scoped controller is. A
- * route whose handler is defined under a blocklisted namespace - the framework
- * and common tooling by default - is dropped before any operation is built, so
- * framework noise never reaches the document while the organisation's own
- * packages stay documented. HEAD and OPTIONS are always excluded.
+ * non-REST action, an unmapped model, a closure, or a resource action declaring
+ * its own body - still emits an operation carrying the path template, verbs,
+ * path parameters, and a resolved tag, with a single success response whose
+ * body is the shape a #[ResponseSchema] directive on the action declares - a
+ * reference to a registered resource's component or an inlined self-describing
+ * fragment, or a oneOf of several such shapes where it names more than one
+ * class, single or wrapped in the collection envelope - and the shared data
+ * envelope wrapping an x-undocumented marker otherwise; that success is 201 for
+ * a store action, 204 for a destroy, and 200 otherwise. An action carrying a
+ * #[ResponseStatus] directive, on a resource route or not, answers under the
+ * status it declares instead: a no-content status with no body and no header
+ * the exporter would emit beside one, and any other status with the body the
+ * action would otherwise carry, or its declared or undocumented body where it
+ * would carry none; declaring the action's default status changes nothing.
+ * Every operation, resource or not, carries the error statuses its route facts
+ * imply - 401 behind auth middleware, 403 behind an authorization check, 404
+ * with path parameters, 422 with a request body (or a resource store or
+ * update), 429 behind a rate limit, and 500 always - merged with any
+ * ApiException its action's @throws tags name, each such error response
+ * carrying the headers its exceptions declare. The success response carries the
+ * headers a #[ResponseHeader] directive on the action or its controller
+ * declares, after any header the exporter emits itself; declaring a header the
+ * exporter already emits fails the build. A route whose verbs include a
+ * body-bearing method - POST, PUT, or PATCH - also carries a requestBody
+ * translated from the rules a #[RequestSchema] directive or a type-hinted
+ * rules-source parameter reaches; a read-only route carries none. A resource
+ * operation also references the query parameters its action honours: an index
+ * the whole grammar, a show what shapes and scopes a single record, a store and
+ * an update what shapes the resource they return, and a destroy none. Any other
+ * operation references none, there being no knowing whether such an action
+ * consults the query parser. A resource action declaring its own body keeps the
+ * resource's tag and the 422 a resource store or update carries. Audience
+ * membership is checked for every route regardless of its handler, so a closure
+ * scoped out by a route macro is omitted exactly as an attribute-scoped
+ * controller is. A route whose handler is defined under a blocklisted
+ * namespace, the framework and common tooling by default, is dropped before any
+ * operation is built, so framework noise never reaches the document while the
+ * organisation's own packages stay documented. HEAD and OPTIONS are always
+ * excluded.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -97,6 +101,9 @@ final readonly class PathBuilder
 
     /** The lowercased HTTP verbs that carry a documented request body */
     private const array BODY_VERBS = ['post', 'put', 'patch'];
+
+    /** The REST actions documented from the resource contract */
+    private const array RESOURCE_ACTIONS = ['index', 'show', 'store', 'update', 'destroy'];
 
     /**
      * Constructor.
@@ -206,9 +213,10 @@ final readonly class PathBuilder
     }
 
     /**
-     * Resolve the operation object for the route, preferring the full resource
-     * contract, then a non-resource action's declared response body, and
-     * finally the shared undocumented success envelope.
+     * Resolve the operation object for the route: the full resource contract
+     * for a resource action, or the success the action declares - its
+     * #[ResponseSchema] body or the shared undocumented envelope - for any
+     * other route and for a resource action declaring its own body.
      *
      * @param  class-string|null  $controllerClass
      * @param  string  $action
@@ -217,71 +225,66 @@ final readonly class PathBuilder
      */
     private function resolveOperation(?string $controllerClass, string $action, Route $route): array
     {
-        $resource = $this->resourceOperation($controllerClass, $action, $route);
+        $resource = $this->resourceFor($controllerClass, $action);
+        $contract = $resource === null || $this->successResponse->declaresBody($controllerClass, $action)
+            ? null
+            : $this->responsesForAction($action, self::SCHEMA_REF_PREFIX . $resource['schema']);
 
-        if ($resource !== null) {
-            return $resource;
-        }
-
-        $responses = $this->successResponse->declare(match ($action) {
-            'store'   => ['201' => ['description' => 'The request succeeded and a resource was created.', ...$this->successResponse->body($controllerClass, $action)]],
-            'destroy' => ['204' => ['description' => 'The request succeeded with no content.']],
-            default   => ['200' => ['description' => 'The request succeeded.', ...$this->successResponse->body($controllerClass, $action)]],
-        }, $controllerClass, $action);
-
+        $responses   = $this->successResponse->declare($contract ?? $this->declaredResponses($controllerClass, $action), $controllerClass, $action);
         $requestBody = array_intersect($this->verbs($route), self::BODY_VERBS) === []
             ? []
             : $this->requestBody->resolve($controllerClass, $action) ?? [];
-        $responses += $this->errorResponses($controllerClass, $action, $route, $requestBody !== []);
+        $responses += $this->errorResponses($controllerClass, $action, $route, $requestBody !== [] || ($resource !== null && in_array($action, ['store', 'update'], true)));
 
         return $this->assembleOperation(
-            $this->tags->resolve($controllerClass, $action, $route, null),
+            $this->tags->resolve($controllerClass, $action, $route, $resource['schema'] ?? null),
             $responses,
             $route,
             $requestBody,
+            $contract === null ? [] : $this->queryParameters->referencesFor($action, $resource['model']),
         );
     }
 
     /**
-     * Resolve the full resource operation for the route, or null when the route
-     * is not a resource route: a non-authorized handler, an unmapped model, or
-     * an action outside the supported REST verbs.
+     * Resolve the model and component schema name of the resource the action
+     * serves, or null when the route is not a resource route: a non-authorized
+     * handler, an unmapped model, or an action outside the supported REST
+     * verbs.
      *
      * @param  class-string|null  $controllerClass
      * @param  string  $action
-     * @param  \Illuminate\Routing\Route  $route
-     * @return array<string, mixed>|null
+     * @return array{model: class-string<\Illuminate\Database\Eloquent\Model>, schema: string}|null
      */
-    private function resourceOperation(?string $controllerClass, string $action, Route $route): ?array
+    private function resourceFor(?string $controllerClass, string $action): ?array
     {
-        if ($controllerClass === null || !is_subclass_of($controllerClass, AuthorizedController::class)) {
+        if ($controllerClass === null || !is_subclass_of($controllerClass, AuthorizedController::class) || !in_array($action, self::RESOURCE_ACTIONS, true)) {
             return null;
         }
 
         $modelClass    = $this->resolveModelClass($controllerClass);
-        $resourceClass = $modelClass    === null ? null : ($this->catalogue->getResourceMap()[$modelClass] ?? null);
-        $schemaName    = $resourceClass === null ? null : SchemaComponentName::fromResource($resourceClass);
-        $responses     = $schemaName    === null
+        $resourceClass = $modelClass === null ? null : ($this->catalogue->getResourceMap()[$modelClass] ?? null);
+
+        return $modelClass === null || $resourceClass === null
             ? null
-            : $this->responsesForAction($action, self::SCHEMA_REF_PREFIX . $schemaName);
+            : ['model' => $modelClass, 'schema' => SchemaComponentName::fromResource($resourceClass)];
+    }
 
-        if ($schemaName === null || $responses === null) {
-            return null;
-        }
-
-        $responses   = $this->successResponse->declare($responses, $controllerClass, $action);
-        $requestBody = array_intersect($this->verbs($route), self::BODY_VERBS) === []
-            ? []
-            : $this->requestBody->resolve($controllerClass, $action) ?? [];
-        $responses += $this->errorResponses($controllerClass, $action, $route, $requestBody !== [] || in_array($action, ['store', 'update'], true));
-
-        return $this->assembleOperation(
-            $this->tags->resolve($controllerClass, $action, $route, $schemaName),
-            $responses,
-            $route,
-            $requestBody,
-            $this->queryParameters->referencesFor($action, $modelClass),
-        );
+    /**
+     * Build the success response an action documented outside the resource
+     * contract answers with by default: 201 for a store, an empty 204 for a
+     * destroy, and 200 otherwise, each body the one the action declares.
+     *
+     * @param  class-string|null  $controllerClass
+     * @param  string  $action
+     * @return array<int|string, array<string, mixed>>
+     */
+    private function declaredResponses(?string $controllerClass, string $action): array
+    {
+        return match ($action) {
+            'store'   => ['201' => ['description' => 'The request succeeded and a resource was created.', ...$this->successResponse->body($controllerClass, $action)]],
+            'destroy' => ['204' => ['description' => 'The request succeeded with no content.']],
+            default   => ['200' => ['description' => 'The request succeeded.', ...$this->successResponse->body($controllerClass, $action)]],
+        };
     }
 
     /**
@@ -370,22 +373,20 @@ final readonly class PathBuilder
     }
 
     /**
-     * Map a REST action name to its response set, or null for any action name
-     * outside the supported REST verbs.
+     * Map a REST action name to its resource response set.
      *
      * @param  string  $method
      * @param  string  $ref
-     * @return array<int|string, array<string, mixed>>|null
+     * @return array<int|string, array<string, mixed>>
      */
-    private function responsesForAction(string $method, string $ref): ?array
+    private function responsesForAction(string $method, string $ref): array
     {
         return match ($method) {
-            'index'   => $this->collectionResponse($ref),
-            'show'    => $this->singleResponse('200', $ref, 'The requested resource.'),
-            'store'   => $this->singleResponse('201', $ref, 'The newly created resource.'),
-            'update'  => $this->singleResponse('200', $ref, 'The updated resource.'),
-            'destroy' => $this->noContentResponse(),
-            default   => null,
+            'index'  => $this->collectionResponse($ref),
+            'show'   => $this->singleResponse('200', $ref, 'The requested resource.'),
+            'store'  => $this->singleResponse('201', $ref, 'The newly created resource.'),
+            'update' => $this->singleResponse('200', $ref, 'The updated resource.'),
+            default  => $this->noContentResponse(),
         };
     }
 

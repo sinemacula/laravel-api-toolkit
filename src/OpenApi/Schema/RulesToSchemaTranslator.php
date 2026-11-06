@@ -10,13 +10,13 @@ namespace SineMacula\ApiToolkit\OpenApi\Schema;
  * The rules array is the single source the request-body documentation is built
  * from. Each field's rules are normalised to tokens and turned into a property
  * schema, while dotted keys weave the properties into nested objects and a
- * `field.*` sibling supplies the items schema of an array field. A confirmed
- * field gains a matching `<field>_confirmation` sibling of the same base type,
- * while a field that may never be sent is the false schema, with no children
- * and no sibling. The result is a `{type: object, properties, required}`
- * fragment inlined by the caller, never a registered component; nothing here
- * throws, so an unrecognised rule degrades to a skipped constraint rather than
- * a failure.
+ * `field.*` sibling supplies the items schema of an array field. Each object
+ * then gains the confirmation siblings and presence constraints its fields'
+ * confirmed and conditional presence rules express, while a field that may
+ * never be sent is the false schema, with no children and no constraint. The
+ * result is a `{type: object, properties, required}` fragment inlined by the
+ * caller, never a registered component; nothing here throws, so an unrecognised
+ * rule degrades to a skipped constraint rather than a failure.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -28,6 +28,7 @@ final readonly class RulesToSchemaTranslator
      *
      * @param  \SineMacula\ApiToolkit\OpenApi\Schema\RuleNormaliser  $normaliser
      * @param  \SineMacula\ApiToolkit\OpenApi\Schema\FieldSchemaBuilder  $builder
+     * @param  \SineMacula\ApiToolkit\OpenApi\Schema\PresenceConstraintBuilder  $presence
      */
     public function __construct(
 
@@ -36,6 +37,9 @@ final readonly class RulesToSchemaTranslator
 
         /** The builder turning a field's tokens into a schema fragment. */
         private FieldSchemaBuilder $builder,
+
+        /** The builder adding an object's confirmation and presence rules. */
+        private PresenceConstraintBuilder $presence = new PresenceConstraintBuilder,
     ) {}
 
     /**
@@ -52,7 +56,7 @@ final readonly class RulesToSchemaTranslator
             $normalised[(string) $field] = $this->normaliser->normalise($definition);
         }
 
-        $schema = $this->buildNode($normalised)['schema'];
+        $schema = $this->buildNode($normalised, '')['schema'];
 
         return $schema === false ? [] : $schema;
     }
@@ -62,9 +66,10 @@ final readonly class RulesToSchemaTranslator
      * properties or array items when the subtree carries children.
      *
      * @param  array<array-key, list<string>>  $map
+     * @param  string  $path
      * @return array{schema: array<string, mixed>|false, required: bool}
      */
-    private function buildNode(array $map): array
+    private function buildNode(array $map, string $path): array
     {
         $field   = $this->builder->build($map[''] ?? []);
         $schema  = $field['schema'];
@@ -76,8 +81,8 @@ final readonly class RulesToSchemaTranslator
 
         if ($schema !== false && $grouped !== []) {
             $schema = isset($grouped['*'])
-                ? $this->arrayNode($schema, $grouped['*'])
-                : $this->objectNode($schema, $grouped);
+                ? $this->arrayNode($schema, $grouped['*'], $path)
+                : $this->objectNode($schema, $grouped, $path);
         }
 
         return ['schema' => $schema, 'required' => $field['required']];
@@ -138,33 +143,44 @@ final readonly class RulesToSchemaTranslator
     }
 
     /**
-     * Fold the grouped children into an object schema's properties, appending a
-     * confirmation sibling for each confirmed field that may be sent.
+     * Join a child segment onto its parent's dotted path.
+     *
+     * @param  string  $path
+     * @param  string  $segment
+     * @return string
+     */
+    private function childPath(string $path, string $segment): string
+    {
+        return $path === '' ? $segment : $path . '.' . $segment;
+    }
+
+    /**
+     * Fold the grouped children into an object schema's properties, then add
+     * the confirmation siblings and presence constraints their rules express.
      *
      * @param  array<string, mixed>  $schema
      * @param  array<array-key, array<array-key, list<string>>>  $grouped
+     * @param  string  $path
      * @return array<string, mixed>
      */
-    private function objectNode(array $schema, array $grouped): array
+    private function objectNode(array $schema, array $grouped, string $path): array
     {
         $properties = [];
         $required   = [];
+        $tokens     = [];
 
         foreach ($grouped as $segment => $childMap) {
             $name  = (string) $segment;
-            $child = $this->buildNode($childMap);
+            $child = $this->buildNode($childMap, $this->childPath($path, $name));
 
             $properties[$name] = $child['schema'];
+            $tokens[$name]     = $childMap[''] ?? [];
 
-            if ($child['required']) {
-                $required[] = $name;
-            }
-
-            if ($child['schema'] === false || !in_array('confirmed', $childMap[''] ?? [], true)) {
+            if (!$child['required']) {
                 continue;
             }
 
-            $properties[$name . '_confirmation'] = $this->confirmationSchema($child['schema']);
+            $required[] = $name;
         }
 
         $schema['type']       = 'object';
@@ -174,7 +190,7 @@ final readonly class RulesToSchemaTranslator
             $schema['required'] = $required;
         }
 
-        return $schema;
+        return $this->presence->build($schema, $path, $tokens);
     }
 
     /**
@@ -183,12 +199,13 @@ final readonly class RulesToSchemaTranslator
      *
      * @param  array<string, mixed>  $schema
      * @param  array<array-key, list<string>>  $starMap
+     * @param  string  $path
      * @return array<string, mixed>
      */
-    private function arrayNode(array $schema, array $starMap): array
+    private function arrayNode(array $schema, array $starMap, string $path): array
     {
         $own   = $schema['items'] ?? null;
-        $items = $this->buildNode($starMap)['schema'];
+        $items = $this->buildNode($starMap, $this->childPath($path, '*'))['schema'];
 
         $schema['type']  = 'array';
         $schema['items'] = match (true) {
@@ -198,19 +215,5 @@ final readonly class RulesToSchemaTranslator
         };
 
         return $schema;
-    }
-
-    /**
-     * Build the schema for a confirmation sibling, mirroring the base type of
-     * the confirmed field.
-     *
-     * @param  array<string, mixed>  $schema
-     * @return array<string, string>
-     */
-    private function confirmationSchema(array $schema): array
-    {
-        $type = $schema['type'] ?? null;
-
-        return is_string($type) ? ['type' => $type] : ['type' => 'string'];
     }
 }

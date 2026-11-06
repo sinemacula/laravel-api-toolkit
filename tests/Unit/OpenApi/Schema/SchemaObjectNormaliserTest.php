@@ -79,6 +79,26 @@ final class SchemaObjectNormaliserTest extends TestCase
     }
 
     /**
+     * Test that a map keyed by names that are all consecutive integers from
+     * zero encodes as an object rather than a JSON array.
+     *
+     * @return void
+     */
+    public function testAMapOfNumericNamesEncodesAsAnObject(): void
+    {
+        $document = ['components' => ['schemas' => ['A' => [
+            'properties'        => [['type' => 'string'], []],
+            'dependentRequired' => [['1'], []],
+            'required'          => ['0', '1'],
+        ]]]];
+
+        self::assertSame(
+            '{"components":{"schemas":{"A":{"properties":{"0":{"type":"string"},"1":{}},"dependentRequired":{"0":["1"],"1":[]},"required":["0","1"]}}}}',
+            $this->encode($document),
+        );
+    }
+
+    /**
      * Test that an empty schema anywhere a `schema` key holds one encodes as an
      * empty object, in the paths and in the components alike.
      *
@@ -121,20 +141,6 @@ final class SchemaObjectNormaliserTest extends TestCase
         self::assertSame(
             '{"components":{"schemas":{"Any":{},"Never":false,"Ref":{"anyOf":[{"$ref":"#/x"},{}]}}}}',
             $this->encode(['components' => ['schemas' => ['Any' => [], 'Never' => false, 'Ref' => ['anyOf' => [['$ref' => '#/x'], []]]]]]),
-        );
-    }
-
-    /**
-     * Test that a properties map whose names are all list indices encodes as an
-     * object keyed by those names, as does one whose indices leave a gap.
-     *
-     * @return void
-     */
-    public function testPropertiesNamedByListIndicesEncodeAsAnObject(): void
-    {
-        self::assertSame(
-            '{"components":{"schemas":{"A":{"properties":{"0":{"type":"string"},"1":{}}},"B":{"properties":{"1":{}}}}}}',
-            $this->encode(['components' => ['schemas' => ['A' => ['properties' => [['type' => 'string'], []]], 'B' => ['properties' => [1 => []]]]]]),
         );
     }
 

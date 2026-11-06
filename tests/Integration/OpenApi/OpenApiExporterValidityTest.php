@@ -941,6 +941,42 @@ final class OpenApiExporterValidityTest extends TestCase
     }
 
     /**
+     * Test that a write route whose rules relate fields by presence documents
+     * the confirmation and conditional requirements those rules express, the
+     * exported body schema enforces them, and the document stays valid OpenAPI
+     * 3.1.
+     *
+     * @return void
+     */
+    public function testPresenceRulesEmitValidRequestBodyConstraints(): void
+    {
+        $this->router()->post('members', [PathRequestBodyController::class, 'presence']);
+
+        $document = $this->export()->document;
+        $schema   = $document['paths']['/members']['post']['requestBody']['content']['application/json']['schema'];
+        $pointer  = '/paths/~1members/post/requestBody/content/application~1json/schema';
+        $uuid     = '7b6f0c1e-5d3a-4c2b-9a8e-1f2d3c4b5a69';
+
+        self::assertSame(['password', 'password_confirmation'], $schema['required']);
+        self::assertSame(['pin' => ['pin_repeat'], 'credential' => ['member_id']], $schema['dependentRequired']);
+        self::assertSame([
+            ['anyOf' => [['required' => ['member_id']], ['required' => ['group_id']]]],
+            ['if' => ['required' => ['credential', 'group_id']], 'then' => ['required' => ['address']]],
+            ['anyOf' => [['required' => ['email']], ['required' => ['member_id']], ['required' => ['group_id']]]],
+        ], $schema['allOf']);
+        self::assertSame([['required' => ['id']], ['required' => ['name']]], $schema['properties']['contacts']['items']['anyOf']);
+
+        self::assertTrue($this->validateAgainstExported($document, $pointer, ['password' => 'x', 'password_confirmation' => 'x', 'member_id' => $uuid])->isValid());
+        self::assertFalse($this->validateAgainstExported($document, $pointer, ['password' => 'x', 'password_confirmation' => 'x'])->isValid());
+        self::assertFalse($this->validateAgainstExported($document, $pointer, ['password' => 'x', 'member_id' => $uuid])->isValid());
+
+        self::assertTrue(
+            $this->validateAgainstMetaSchema($document)->isValid(),
+            'A document with presence constraints must validate as OpenAPI 3.1: ' . $this->formatErrors($this->validateAgainstMetaSchema($document)),
+        );
+    }
+
+    /**
      * Test that a request field validated by the backed or the pure enum rule
      * references an enum component listing the values the field accepts, and
      * the document stays valid OpenAPI 3.1.
@@ -1550,6 +1586,20 @@ final class OpenApiExporterValidityTest extends TestCase
      */
     private function validateIndexPage(array $document, array $page): ValidationResult
     {
+        return $this->validateAgainstExported($document, '/paths/~1users/get/responses/200/content/application~1json/schema', $page);
+    }
+
+    /**
+     * Validate a payload against the schema at a JSON pointer of the exported
+     * document, resolving its component references within the document.
+     *
+     * @param  array<string, mixed>  $document
+     * @param  string  $pointer
+     * @param  array<string, mixed>  $payload
+     * @return \Opis\JsonSchema\ValidationResult
+     */
+    private function validateAgainstExported(array $document, string $pointer, array $payload): ValidationResult
+    {
         $validator = new Validator;
         $resolver  = $validator->resolver();
 
@@ -1557,10 +1607,7 @@ final class OpenApiExporterValidityTest extends TestCase
 
         $resolver->registerRaw(Helper::toJSON($document), self::EXPORTED_DOCUMENT_ID);
 
-        return $validator->validate(
-            Helper::toJSON($page),
-            self::EXPORTED_DOCUMENT_ID . '#/paths/~1users/get/responses/200/content/application~1json/schema',
-        );
+        return $validator->validate(Helper::toJSON((object) $payload), self::EXPORTED_DOCUMENT_ID . '#' . $pointer);
     }
 
     /**
