@@ -17,8 +17,10 @@ namespace SineMacula\ApiToolkit\OpenApi\Schema;
  * unless any of them is. Only a reference to a sibling property of the same
  * object is expressed: an unplaceable reference is dropped from a rule needing
  * any one of its fields, and drops a rule needing all of them, since keeping
- * part of that rule would demand fields the validator does not. A condition
- * stated more than once is emitted once, and several combine under allOf.
+ * part of that rule would demand fields the validator does not. A field an
+ * exclude rule may drop from validation requires nothing, as the validator may
+ * never run its rules. A condition stated more than once is emitted once, and
+ * several combine under allOf.
  *
  * @phpstan-type Constraints array{
  *     properties: array<string, mixed>,
@@ -72,7 +74,7 @@ final readonly class PresenceConstraintBuilder
             $name = (string) $key;
             $own  = $tokens[$key] ?? [];
 
-            if ($schema === false || in_array($name, $required, true) || $this->arguments($own, 'sometimes') !== []) {
+            if (in_array($name, $required, true) || $this->arguments($own, 'sometimes') !== [] || $this->isExcludable($own)) {
                 continue;
             }
 
@@ -104,6 +106,10 @@ final readonly class PresenceConstraintBuilder
 
             if (!array_key_exists($target, $declared)) {
                 $constraints['properties'][$target] = $this->confirmationSchema($declared[$name]);
+            }
+
+            if ($this->isExcludable($tokens)) {
+                continue;
             }
 
             $constraints = in_array($name, $constraints['required'], true)
@@ -350,16 +356,35 @@ final readonly class PresenceConstraintBuilder
     }
 
     /**
-     * Split a rule token into its rule name and comma-separated arguments.
+     * Determine whether any exclude rule may drop the field from validation.
+     *
+     * @param  list<string>  $tokens
+     * @return bool
+     */
+    private function isExcludable(array $tokens): bool
+    {
+        foreach ($tokens as $token) {
+            if (str_starts_with($this->parse($token)[0], 'exclude')) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Split a rule token into its rule name and arguments, read as the
+     * validator reads them: comma-separated values that may be quoted.
      *
      * @param  string  $token
      * @return array{0: string, 1: non-empty-list<string>}
      */
     private function parse(string $token): array
     {
-        $parts = explode(':', $token, 2);
+        $parts     = explode(':', $token, 2);
+        $arguments = str_getcsv($parts[1] ?? '', ',', '"', '\\');
 
-        return [$parts[0], explode(',', $parts[1] ?? '')];
+        return [$parts[0], array_map(static fn (?string $argument): string => (string) $argument, $arguments)];
     }
 
     /**

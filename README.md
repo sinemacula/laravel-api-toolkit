@@ -691,8 +691,9 @@ A request field's presence rules shape its object's schema. A `confirmed` field 
 `dependentRequired` when it is optional. `required_with` and `required_with_all` require the field when any or all of
 the fields they name are sent, and `required_without` and `required_without_all` when any or all of them are missing,
 expressed with `dependentRequired`, `if`/`then` and `anyOf`. These rules reference only fields declared in the same
-object or array item: any other name is left out, and a `_all` rule naming one is dropped. A present but empty value,
-such as `null` or `""`, counts as missing to these rules but as sent to the schema.
+object or array item: any other name is left out, and a `_all` rule naming one is dropped. A field carrying an
+`exclude` rule requires nothing, as the validator may skip it. A present but empty value, such as `null`, `""` or `[]`,
+counts as missing to these rules but as sent to the schema.
 
 A route outside the resource pipeline documents its success body with `#[ResponseSchema]` on the action. Name a
 registered resource to reference its component, or a class implementing `DefinesSchema` to inline the JSON-Schema

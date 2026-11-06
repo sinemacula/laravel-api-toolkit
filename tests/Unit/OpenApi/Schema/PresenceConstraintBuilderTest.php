@@ -162,13 +162,13 @@ final class PresenceConstraintBuilderTest extends TestCase
     }
 
     /**
-     * Test that a field that may never be sent gains no confirmation sibling
-     * and expresses none of its conditional presence rules, while the fields
-     * after it still do.
+     * Test that a field that may never be sent gains no confirmation sibling,
+     * while its conditional presence rules still constrain the fields they
+     * name, as the validator then refuses the body whichever way it is sent.
      *
      * @return void
      */
-    public function testFieldThatMayNeverBeSentAddsNoConstraint(): void
+    public function testFieldThatMayNeverBeSentStillConstrainsTheFieldsItNames(): void
     {
         $schema = $this->builder()->build(
             ['type' => 'object', 'properties' => ['f' => false, 'a' => [], 'p' => []]],
@@ -179,7 +179,30 @@ final class PresenceConstraintBuilderTest extends TestCase
         self::assertSame([
             'type'              => 'object',
             'properties'        => ['f' => false, 'a' => [], 'p' => [], 'p_confirmation' => ['type' => 'string']],
-            'dependentRequired' => ['p' => ['p_confirmation'], 'a' => ['p']],
+            'dependentRequired' => ['p' => ['p_confirmation'], 'a' => ['f', 'p']],
+            'anyOf'             => [['required' => ['f']], ['required' => ['a']]],
+        ], $schema);
+    }
+
+    /**
+     * Test that a field an exclude rule may drop from validation requires
+     * neither its confirmation nor itself, while its confirmation is still
+     * documented.
+     *
+     * @return void
+     */
+    public function testExcludableFieldRequiresNothing(): void
+    {
+        $schema = $this->builder()->build(
+            ['type' => 'object', 'properties' => ['a' => [], 'f' => [], 'p' => ['type' => 'string']], 'required' => ['p']],
+            '',
+            ['a' => [], 'f' => ['exclude_if:a,1', 'required_with:a'], 'p' => ['required', 'exclude', 'confirmed']],
+        );
+
+        self::assertSame([
+            'type'       => 'object',
+            'properties' => ['a' => [], 'f' => [], 'p' => ['type' => 'string'], 'p_confirmation' => ['type' => 'string']],
+            'required'   => ['p'],
         ], $schema);
     }
 
@@ -375,6 +398,19 @@ final class PresenceConstraintBuilderTest extends TestCase
         $schema = $this->build(['a' => [], 'a:b' => [], 'f' => ['required_with:a:b']]);
 
         self::assertSame(['a:b' => ['f']], $schema['dependentRequired']);
+    }
+
+    /**
+     * Test that a quoted reference is read as one field name, commas included,
+     * as the validator reads it.
+     *
+     * @return void
+     */
+    public function testQuotedReferenceIsReadAsOneFieldName(): void
+    {
+        $schema = $this->build(['a' => [], 'a,b' => [], 'f' => ['required_with:"a,b"']]);
+
+        self::assertSame(['a,b' => ['f']], $schema['dependentRequired']);
     }
 
     /**

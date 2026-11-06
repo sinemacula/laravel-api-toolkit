@@ -646,6 +646,11 @@ final class RulesToSchemaTranslatorTest extends TestCase
             ],
         ];
 
+        yield 'exclude and prohibited' => [
+            ['a' => 'string', 'f' => 'exclude_if:a,x|required_with:a|string', 'g' => 'prohibited|required_without:a'],
+            [[], ['a' => 'x'], ['a' => 'y', 'f' => 'z'], ['g' => 'z', 'a' => 'x']],
+        ];
+
         yield 'array items' => [
             ['items' => 'required|array', 'items.*.a' => 'required_without:items.*.b|string', 'items.*.b' => 'string'],
             [['items' => [['a' => 'x'], ['b' => 'x']]], ['items' => [['a' => 'x', 'b' => 'y']]], ['items' => [['b' => 'x'], ['c' => 'x']]]],
