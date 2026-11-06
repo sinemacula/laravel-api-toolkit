@@ -5,17 +5,19 @@ declare(strict_types = 1);
 namespace SineMacula\ApiToolkit\OpenApi\Attributes;
 
 /**
- * Declare the response body of a non-resource action.
+ * Declare the response body of an action.
  *
  * Placed on an action method, this directive names the class describing the
  * inner `data` shape of the success response, so a route that does not go
  * through the resource pipeline can still document a concrete body rather than
- * the opaque undocumented marker. Each named class is either a resource whose
- * registered component schema is referenced, or a self-describing class
- * declaring its own JSON-Schema fragment. Naming a list of classes documents a
- * response that answers with any one of their shapes, exported as a `oneOf`.
- * The collection flag wraps the shape in the collection envelope instead of the
- * single envelope, so a union then describes each item of the list.
+ * the opaque undocumented marker, and a resource action answering with
+ * something other than its resource documents that body in place of the
+ * resource's. Each named class is either a resource whose registered component
+ * schema is referenced, or a self-describing class declaring its own
+ * JSON-Schema fragment. Naming a list of classes documents a response that
+ * answers with any one of their shapes, exported as a `oneOf`. The collection
+ * flag wraps the shape in the collection envelope instead of the single
+ * envelope, so a union then describes each item of the list.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
