@@ -85,8 +85,9 @@ final readonly class PresenceConstraintBuilder
     }
 
     /**
-     * Add the confirmation sibling each confirmed rule of a field names, and
-     * require it alongside the field.
+     * Add the confirmation sibling each confirmed rule of a field names, left
+     * unconstrained when fields of different types share it, and require it
+     * alongside the field.
      *
      * @param  Constraints  $constraints
      * @param  array<array-key, mixed>  $declared
@@ -101,7 +102,9 @@ final readonly class PresenceConstraintBuilder
 
         foreach ($this->confirmationTargets($prefix, $name, $tokens) as $target) {
             if (!array_key_exists($target, $declared)) {
-                $constraints['properties'][$target] = $this->confirmationSchema($declared[$name]);
+                $schema = $this->confirmationSchema($declared[$name]);
+
+                $constraints['properties'][$target] = ($constraints['properties'][$target] ?? $schema) === $schema ? $schema : [];
             }
 
             $constraints = match (true) {

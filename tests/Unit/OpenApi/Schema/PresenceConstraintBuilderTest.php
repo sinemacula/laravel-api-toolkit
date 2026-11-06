@@ -113,6 +113,26 @@ final class PresenceConstraintBuilderTest extends TestCase
     }
 
     /**
+     * Test that a confirmation field shared by confirmed fields of different
+     * types is left unconstrained, while one shared by fields of the same type
+     * keeps that type.
+     *
+     * @return void
+     */
+    public function testSharedConfirmationFieldAcceptsEachSourceType(): void
+    {
+        $schema = $this->builder()->build(
+            ['type' => 'object', 'properties' => ['a' => ['type' => 'integer'], 'b' => ['type' => 'string'], 'c' => ['type' => 'string']]],
+            '',
+            ['a' => ['confirmed:repeat'], 'b' => ['confirmed:repeat', 'confirmed:again'], 'c' => ['confirmed:again']],
+        );
+
+        self::assertSame([], $schema['properties']['repeat']);
+        self::assertSame(['type' => 'string'], $schema['properties']['again']);
+        self::assertSame(['a' => ['repeat'], 'b' => ['repeat', 'again'], 'c' => ['again']], $schema['dependentRequired']);
+    }
+
+    /**
      * Test that a declared confirmation field keeps its own schema and place
      * while still being required alongside the confirmed field, once.
      *
