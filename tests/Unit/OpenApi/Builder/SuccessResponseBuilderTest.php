@@ -69,6 +69,18 @@ final class SuccessResponseBuilderTest extends TestCase
     }
 
     /**
+     * Test that an action declares its own body exactly when it carries a
+     * response schema.
+     *
+     * @return void
+     */
+    public function testDeclaresBodyFollowsTheResponseSchema(): void
+    {
+        self::assertTrue($this->builder()->declaresBody(PathResponseStatusController::class, 'queue'));
+        self::assertFalse($this->builder()->declaresBody(PathResponseStatusController::class, 'bare'));
+    }
+
+    /**
      * Test that a response is left untouched when the action declares neither a
      * status nor a header, or is a closure.
      *

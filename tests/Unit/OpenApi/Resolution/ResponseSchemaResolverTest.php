@@ -253,6 +253,30 @@ final class ResponseSchemaResolverTest extends TestCase
     }
 
     /**
+     * Test that an action carrying a directive declares a body even when a
+     * class it names cannot be described.
+     *
+     * @return void
+     */
+    public function testDirectiveDeclaresABodyWhetherOrNotItResolves(): void
+    {
+        self::assertTrue($this->resolver()->declares(PathResponseSchemaController::class, 'widget'));
+        self::assertTrue($this->resolver()->declares(PathResponseSchemaController::class, 'plain'));
+    }
+
+    /**
+     * Test that an action carrying no directive, or a closure route, declares
+     * no body.
+     *
+     * @return void
+     */
+    public function testUndeclaredActionDeclaresNoBody(): void
+    {
+        self::assertFalse($this->resolver()->declares(PathResponseSchemaController::class, 'bare'));
+        self::assertFalse($this->resolver()->declares(null, 'widget'));
+    }
+
+    /**
      * Build a resolver backed by a catalogue mapping the user model to its
      * resource.
      *
