@@ -97,27 +97,41 @@ final readonly class PresenceConstraintBuilder
      */
     private function confirm(array $constraints, array $declared, string $prefix, string $name, array $tokens): array
     {
-        foreach ($this->arguments($tokens, 'confirmed') as $arguments) {
-            $target = $arguments[0] === '' ? $name . '_confirmation' : $this->sibling($prefix, $arguments[0]);
+        $excludable = $this->isExcludable($tokens);
 
-            if ($target === null) {
-                continue;
-            }
-
+        foreach ($this->confirmationTargets($prefix, $name, $tokens) as $target) {
             if (!array_key_exists($target, $declared)) {
                 $constraints['properties'][$target] = $this->confirmationSchema($declared[$name]);
             }
 
-            if ($this->isExcludable($tokens)) {
-                continue;
-            }
-
-            $constraints = in_array($name, $constraints['required'], true)
-                ? $this->requireAlways($constraints, $target)
-                : $this->requireWith($constraints, $name, $target);
+            $constraints = match (true) {
+                $excludable                                     => $constraints,
+                in_array($name, $constraints['required'], true) => $this->requireAlways($constraints, $target),
+                default                                         => $this->requireWith($constraints, $name, $target),
+            };
         }
 
         return $constraints;
+    }
+
+    /**
+     * Resolve the confirmation field each confirmed rule of a field names,
+     * leaving out any that lies outside the object.
+     *
+     * @param  string  $prefix
+     * @param  string  $name
+     * @param  list<string>  $tokens
+     * @return array<int, string>
+     */
+    private function confirmationTargets(string $prefix, string $name, array $tokens): array
+    {
+        $targets = [];
+
+        foreach ($this->arguments($tokens, 'confirmed') as $arguments) {
+            $targets[] = $arguments[0] === '' ? $name . '_confirmation' : $this->sibling($prefix, $arguments[0]);
+        }
+
+        return array_filter($targets, static fn (?string $target): bool => $target !== null);
     }
 
     /**
