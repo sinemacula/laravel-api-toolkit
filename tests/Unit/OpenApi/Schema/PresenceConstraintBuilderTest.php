@@ -163,15 +163,24 @@ final class PresenceConstraintBuilderTest extends TestCase
 
     /**
      * Test that a field that may never be sent gains no confirmation sibling
-     * and expresses none of its conditional presence rules.
+     * and expresses none of its conditional presence rules, while the fields
+     * after it still do.
      *
      * @return void
      */
     public function testFieldThatMayNeverBeSentAddsNoConstraint(): void
     {
-        $object = ['type' => 'object', 'properties' => ['a' => [], 'f' => false]];
+        $schema = $this->builder()->build(
+            ['type' => 'object', 'properties' => ['f' => false, 'a' => [], 'p' => []]],
+            '',
+            ['f' => ['confirmed', 'required_with:a', 'required_without:a'], 'a' => [], 'p' => ['confirmed', 'required_with:a']],
+        );
 
-        self::assertSame($object, $this->builder()->build($object, '', ['a' => [], 'f' => ['confirmed', 'required_with:a', 'required_without:a']]));
+        self::assertSame([
+            'type'              => 'object',
+            'properties'        => ['f' => false, 'a' => [], 'p' => [], 'p_confirmation' => ['type' => 'string']],
+            'dependentRequired' => ['p' => ['p_confirmation'], 'a' => ['p']],
+        ], $schema);
     }
 
     /**
@@ -216,9 +225,17 @@ final class PresenceConstraintBuilderTest extends TestCase
      */
     public function testRequiredOrSometimesFieldAddsNoConditionalConstraint(): void
     {
-        $schema = $this->build(['a' => [], 'f' => ['required', 'required_without:a'], 'g' => ['sometimes', 'required_with:a']], ['f']);
+        $schema = $this->build(
+            ['a' => [], 'f' => ['required', 'required_without:a'], 'g' => ['sometimes', 'required_with:a'], 'h' => ['string', 'required_with:a']],
+            ['f'],
+        );
 
-        self::assertSame(['type' => 'object', 'properties' => ['a' => [], 'f' => [], 'g' => []], 'required' => ['f']], $schema);
+        self::assertSame([
+            'type'              => 'object',
+            'properties'        => ['a' => [], 'f' => [], 'g' => [], 'h' => []],
+            'required'          => ['f'],
+            'dependentRequired' => ['a' => ['h']],
+        ], $schema);
     }
 
     /**
@@ -258,13 +275,14 @@ final class PresenceConstraintBuilderTest extends TestCase
             'b'     => [],
             'email' => ['required_without:phone'],
             'phone' => ['required_without:email'],
-            'f'     => ['required_without:a,b', 'required_without:b,a', 'required_with_all:a,b', 'required_with_all:b,a'],
+            'f'     => ['required_without:a,b', 'required_without:b,a', 'required_with_all:a,b', 'required_with_all:b,a', 'required_without:a'],
         ]);
 
         self::assertSame([
             ['anyOf' => [['required' => ['email']], ['required' => ['phone']]]],
             ['anyOf' => [['required' => ['f']], ['required' => ['a', 'b']]]],
             ['if' => ['required' => ['a', 'b']], 'then' => ['required' => ['f']]],
+            ['anyOf' => [['required' => ['f']], ['required' => ['a']]]],
         ], $schema['allOf']);
     }
 
@@ -318,8 +336,8 @@ final class PresenceConstraintBuilderTest extends TestCase
     {
         $schema = $this->build([
             'a' => [],
-            'f' => ['required_with:a,missing', 'required_with:other.a,'],
-            'g' => ['required_without:a,missing', 'required_without:missing'],
+            'f' => ['required_with:other.a,', 'required_with:missing,a'],
+            'g' => ['required_without:missing', 'required_without:a,missing'],
             'h' => ['required_with_all:a,missing', 'required_without_all:a,missing', 'required_with_all:a,'],
             'i' => ['required_with_all:a,a'],
         ]);
@@ -344,6 +362,19 @@ final class PresenceConstraintBuilderTest extends TestCase
 
         self::assertSame(['b' => ['a']], $schema['dependentRequired']);
         self::assertArrayNotHasKey('anyOf', $schema);
+    }
+
+    /**
+     * Test that a referenced field name carrying a colon is read whole, as the
+     * validator reads a rule's arguments after its first colon.
+     *
+     * @return void
+     */
+    public function testReferenceCarryingAColonIsReadWhole(): void
+    {
+        $schema = $this->build(['a' => [], 'a:b' => [], 'f' => ['required_with:a:b']]);
+
+        self::assertSame(['a:b' => ['f']], $schema['dependentRequired']);
     }
 
     /**
