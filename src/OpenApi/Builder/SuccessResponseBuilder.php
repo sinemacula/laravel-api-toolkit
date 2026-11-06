@@ -20,8 +20,10 @@ use SineMacula\ApiToolkit\OpenApi\Resolution\ResponseStatusResolver;
  * carried no body the action's declared or undocumented body. Declaring the
  * action's default status changes nothing. Declared headers follow any header
  * the exporter emits itself, and redeclaring one of those fails the build. It
- * also builds the success body of an action outside the resource contract: the
- * shape its #[ResponseSchema] declares, or the undocumented envelope.
+ * also builds the success body of an action documented outside the resource
+ * contract: the shape its #[ResponseSchema] declares, or the undocumented
+ * envelope. An action declaring a #[ResponseSchema] is documented outside the
+ * resource contract even on a resource route.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -47,7 +49,7 @@ final readonly class SuccessResponseBuilder
         /** The builder assembling the shared response envelopes. */
         private EnvelopeBuilder $envelope,
 
-        /** The resolver of a non-resource action's declared response body. */
+        /** The resolver of an action's declared response body. */
         private ResponseSchemaResolver $responseSchema,
 
         /** The resolver of the headers an action declares it responds with. */
@@ -77,6 +79,19 @@ final readonly class SuccessResponseBuilder
             fn (array $response): array => $this->withHeaders($response, $declared, $controllerClass, $action),
             $this->withStatus($responses, $controllerClass, $action),
         );
+    }
+
+    /**
+     * Determine whether the action declares its own success body through a
+     * #[ResponseSchema] directive, replacing any resource body.
+     *
+     * @param  class-string|null  $controllerClass
+     * @param  string  $action
+     * @return bool
+     */
+    public function declaresBody(?string $controllerClass, string $action): bool
+    {
+        return $this->responseSchema->declares($controllerClass, $action);
     }
 
     /**

@@ -12,24 +12,24 @@ use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
 use SineMacula\ApiToolkit\OpenApi\Naming\SchemaComponentName;
 
 /**
- * Resolves the declared success body of a non-resource action.
+ * Resolves the declared success body of an action.
  *
- * A non-resource route names its response body with a #[ResponseSchema]
- * directive on the action. Each named class is resolved to an inner `data`
- * schema node wrapped by the shared envelope: a registered resource emits a
- * reference to its component schema, and a self-describing class inlines its
- * own JSON-Schema fragment. A reference is emitted only when the resource is a
- * value of the catalogue's resource map, so the referenced component is always
- * built by the resource pipeline and never dangles. A directive naming several
- * classes documents a `oneOf` of their nodes, in declared order, with nodes
- * that resolve identically collapsed into one; when a single distinct node
- * remains it is emitted bare, exactly as a directive naming one class. Any
- * other class - a plain class that is neither a registered resource nor
- * self-describing - resolves to null, and resolution is all or nothing: a
- * single such class in a union, or an action carrying no directive, resolves
- * the whole body to null, so the caller falls through to the undocumented
- * marker rather than publishing a partial union or asserting a body it cannot
- * describe.
+ * An action names its response body with a #[ResponseSchema] directive, which
+ * on a resource route replaces the resource body. Each named class is resolved
+ * to an inner `data` schema node wrapped by the shared envelope: a registered
+ * resource emits a reference to its component schema, and a self-describing
+ * class inlines its own JSON-Schema fragment. A reference is emitted only when
+ * the resource is a value of the catalogue's resource map, so the referenced
+ * component is always built by the resource pipeline and never dangles. A
+ * directive naming several classes documents a `oneOf` of their nodes, in
+ * declared order, with nodes that resolve identically collapsed into one; when
+ * a single distinct node remains it is emitted bare, exactly as a directive
+ * naming one class. Any other class - a plain class that is neither a
+ * registered resource nor self-describing - resolves to null, and resolution is
+ * all or nothing: a single such class in a union, or an action carrying no
+ * directive, resolves the whole body to null, so the caller falls through to
+ * the undocumented marker rather than publishing a partial union or asserting a
+ * body it cannot describe.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -53,6 +53,19 @@ final readonly class ResponseSchemaResolver
         /** The builder assembling the shared response envelopes. */
         private EnvelopeBuilder $envelope,
     ) {}
+
+    /**
+     * Determine whether the action carries a #[ResponseSchema] directive,
+     * whether or not every class it names can be described.
+     *
+     * @param  class-string|null  $controllerClass
+     * @param  string  $action
+     * @return bool
+     */
+    public function declares(?string $controllerClass, string $action): bool
+    {
+        return $this->directive($controllerClass, $action) !== null;
+    }
 
     /**
      * Resolve the success-body schema declared by the action, or null when the
