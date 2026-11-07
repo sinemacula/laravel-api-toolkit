@@ -14,6 +14,8 @@ interface ServiceInterface
      * Run the service.
      *
      * @return bool
+     *
+     * @throws \Throwable
      */
     public function run(): bool;
 

@@ -2,29 +2,22 @@
 
 namespace Tests\Unit\Services;
 
-use Illuminate\Cache\ArrayStore;
-use Illuminate\Cache\Repository as CacheRepository;
 use Illuminate\Container\Container;
 use Illuminate\Contracts\Container\BindingResolutionException;
 use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\Facade;
 use LogicException;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
-use PHPUnit\Framework\TestCase;
 use RuntimeException;
 use SineMacula\ApiToolkit\Services\Service;
-use Tests\Fixtures\Services\FakeDatabaseManager;
 use Tests\Fixtures\Services\HandlerlessService;
 use Tests\Fixtures\Services\InjectedService;
 use Tests\Fixtures\Services\OptionalDependencyService;
 use Tests\Fixtures\Services\PrivateHandlerService;
 use Tests\Fixtures\Services\RecordingService;
-use Tests\Fixtures\Services\ServiceLog;
 use Tests\Fixtures\Services\ServiceProbe;
 use Tests\Fixtures\Services\UnresolvableService;
-use Throwable;
 
 /**
  * Service run tests.
@@ -35,49 +28,8 @@ use Throwable;
  * @internal
  */
 #[CoversClass(Service::class)]
-class ServiceRunTest extends TestCase
+class ServiceRunTest extends ServiceTestCase
 {
-    /** @var \Tests\Fixtures\Services\ServiceLog The log shared by the services and the database */
-    private ServiceLog $log;
-
-    /** @var \Tests\Fixtures\Services\FakeDatabaseManager The database the transactions run on */
-    private FakeDatabaseManager $db;
-
-    /**
-     * Bind a fresh container with a logging database and an array cache.
-     *
-     * @return void
-     */
-    protected function setUp(): void
-    {
-        parent::setUp();
-
-        $this->log = new ServiceLog();
-        $this->db  = new FakeDatabaseManager($this->log);
-
-        $container = new Container();
-        $container->instance(ServiceLog::class, $this->log);
-        $container->instance('db', $this->db);
-        $container->instance('cache', new CacheRepository(new ArrayStore()));
-
-        Container::setInstance($container);
-        Facade::setFacadeApplication($container);
-    }
-
-    /**
-     * Drop the container and the resolved facades.
-     *
-     * @return void
-     */
-    protected function tearDown(): void
-    {
-        Facade::clearResolvedInstances();
-        Facade::setFacadeApplication(null);
-        Container::setInstance(null);
-
-        parent::tearDown();
-    }
-
     /**
      * A parameterless handler runs inside a transaction given three attempts.
      *
@@ -320,25 +272,8 @@ class ServiceRunTest extends TestCase
     public function privateHandlerIsRejected(): void
     {
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('Service [' . PrivateHandlerService::class . '] must define a protected handle() method');
+        $this->expectExceptionMessage('Service [' . PrivateHandlerService::class . '] must not define handle() as private');
 
         (new PrivateHandlerService())->run();
-    }
-
-    /**
-     * Run the service and return the exception it throws.
-     *
-     * @param  \SineMacula\ApiToolkit\Services\Service  $service
-     * @return \Throwable
-     */
-    private function runExpectingFailure(Service $service): Throwable
-    {
-        try {
-            $service->run();
-        } catch (Throwable $exception) {
-            return $exception;
-        }
-
-        static::fail('The service did not throw');
     }
 }

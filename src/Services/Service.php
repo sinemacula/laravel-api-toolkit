@@ -3,7 +3,7 @@
 namespace SineMacula\ApiToolkit\Services;
 
 use Closure;
-use Exception;
+use Error;
 use Illuminate\Container\BoundMethod;
 use Illuminate\Container\Container;
 use Illuminate\Support\Collection;
@@ -11,6 +11,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use LogicException;
 use ReflectionFunction;
+use ReflectionMethod;
 use RuntimeException;
 use SineMacula\ApiToolkit\Services\Contracts\ServiceInterface;
 use SineMacula\ApiToolkit\Traits\Lockable;
@@ -20,9 +21,12 @@ use Throwable;
 /**
  * Base API service.
  *
- * Subclasses must define a protected handle() method that returns a boolean.
- * When handle() declares required parameters, the container resolves its
- * parameters as the service runs.
+ * Subclasses must define a protected handle() method that returns a boolean,
+ * and may define a public prepare() method that runs before it. When either
+ * declares required parameters, the container resolves its parameters as the
+ * service runs.
+ *
+ * @method void prepare()
  *
  * @template TPayload of array<array-key, mixed>|\Illuminate\Support\Collection<array-key, mixed>|\stdClass = \Illuminate\Support\Collection<array-key, mixed>
  *
@@ -128,13 +132,23 @@ abstract class Service implements ServiceInterface
     }
 
     /**
-     * Prepare the service for execution.
+     * Treat prepare() as a no-op on a service that does not define it, so it
+     * can still be called directly.
      *
-     * @return void
+     * @param  string  $method
+     * @param  array<int, mixed>  $arguments
+     * @return mixed
      *
-     * @throws Exception
+     * @throws \Error
      */
-    public function prepare(): void {}
+    public function __call(string $method, array $arguments)
+    {
+        if (strtolower($method) === 'prepare') {
+            return null;
+        }
+
+        throw new Error(sprintf('Call to undefined method %s::%s()', static::class, $method));
+    }
 
     /**
      * Method is triggered if the handle method ran successfully.
@@ -160,7 +174,8 @@ abstract class Service implements ServiceInterface
      */
     public function run(): bool
     {
-        $handler = $this->resolveHandler();
+        $handler  = $this->resolveHandler();
+        $preparer = $this->resolveHook('prepare');
 
         if ($this->useLock) {
             $this->lock();
@@ -169,7 +184,9 @@ abstract class Service implements ServiceInterface
         try {
 
             // Prepare the service for execution
-            $this->prepare();
+            if ($preparer !== null) {
+                $this->callHook($preparer);
+            }
 
             // Execute the service handler
             $this->status = $this->useTransaction
@@ -254,18 +271,34 @@ abstract class Service implements ServiceInterface
      */
     private function resolveHandler(): Closure
     {
-        $handler = [$this, 'handle'];
-
-        if (!is_callable($handler)) {
-            throw new LogicException(sprintf('Service [%s] must define a protected handle() method', static::class));
-        }
-
-        return Closure::fromCallable($handler);
+        return $this->resolveHook('handle')
+            ?? throw new LogicException(sprintf('Service [%s] must define a protected handle() method', static::class));
     }
 
     /**
-     * Call the service handler, resolving its parameters from the container
-     * when it declares required parameters.
+     * Resolve a hook the service defines as a closure, or null if it does not
+     * define one.
+     *
+     * @param  string  $method
+     * @return \Closure|null
+     *
+     * @throws \LogicException
+     */
+    private function resolveHook(string $method): ?Closure
+    {
+        if (!method_exists($this, $method)) {
+            return null;
+        }
+
+        if ((new ReflectionMethod($this, $method))->isPrivate()) {
+            throw new LogicException(sprintf('Service [%s] must not define %s() as private', static::class, $method));
+        }
+
+        return Closure::fromCallable([$this, $method]);
+    }
+
+    /**
+     * Call the service handler.
      *
      * @param  \Closure  $handler
      * @return bool
@@ -275,12 +308,27 @@ abstract class Service implements ServiceInterface
      */
     private function callHandler(Closure $handler): bool
     {
-        if ((new ReflectionFunction($handler))->getNumberOfRequiredParameters() === 0) {
-            return $handler();
+        return $this->callHook($handler);
+    }
+
+    /**
+     * Call a hook, resolving its parameters from the container when it
+     * declares required parameters.
+     *
+     * @param  \Closure  $hook
+     * @return mixed
+     *
+     * @throws \Illuminate\Contracts\Container\BindingResolutionException
+     * @throws \ReflectionException
+     */
+    private function callHook(Closure $hook): mixed
+    {
+        if ((new ReflectionFunction($hook))->getNumberOfRequiredParameters() === 0) {
+            return $hook();
         }
 
-        // Container::call() leaves the service on its build stack if handle() throws
-        return BoundMethod::call(Container::getInstance(), $handler);
+        // Container::call() leaves the service on its build stack if the hook throws
+        return BoundMethod::call(Container::getInstance(), $hook);
     }
 
     /**
