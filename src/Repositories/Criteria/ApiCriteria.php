@@ -117,7 +117,7 @@ class ApiCriteria implements CriteriaInterface
      *
      * This appends the supplied query with the requested filters.
      *
-     * @param  \Illuminate\Database\Eloquent\Builder  $query
+     * @param  \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>  $query
      * @param  array|string|null  $filters
      * @param  string|null  $field
      * @param  string|null  $last_logical_operator
