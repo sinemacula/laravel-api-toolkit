@@ -2,10 +2,15 @@
 
 namespace SineMacula\ApiToolkit\Services;
 
+use Closure;
 use Exception;
+use Illuminate\Container\BoundMethod;
+use Illuminate\Container\Container;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use LogicException;
+use ReflectionFunction;
 use RuntimeException;
 use SineMacula\ApiToolkit\Services\Contracts\ServiceInterface;
 use SineMacula\ApiToolkit\Traits\Lockable;
@@ -14,6 +19,10 @@ use Throwable;
 
 /**
  * Base API service.
+ *
+ * Subclasses must define a protected handle() method that returns a boolean.
+ * When handle() declares required parameters, the container resolves its
+ * parameters as the service runs.
  *
  * @template TPayload of array<array-key, mixed>|\Illuminate\Support\Collection<array-key, mixed>|\stdClass = \Illuminate\Support\Collection<array-key, mixed>
  *
@@ -151,6 +160,8 @@ abstract class Service implements ServiceInterface
      */
     public function run(): bool
     {
+        $handler = $this->resolveHandler();
+
         if ($this->useLock) {
             $this->lock();
         }
@@ -162,8 +173,8 @@ abstract class Service implements ServiceInterface
 
             // Execute the service handler
             $this->status = $this->useTransaction
-                ? DB::transaction(fn () => $this->handle(), 3)
-                : $this->handle();
+                ? DB::transaction(fn () => $this->callHandler($handler), 3)
+                : $this->callHandler($handler);
 
         } catch (Throwable $exception) {
             $this->failed($exception);
@@ -215,13 +226,6 @@ abstract class Service implements ServiceInterface
     }
 
     /**
-     * Handles the main execution of the service.
-     *
-     * @return bool
-     */
-    abstract protected function handle(): bool;
-
-    /**
      * Generate the key used for locking the task execution.
      *
      * @return string
@@ -239,6 +243,44 @@ abstract class Service implements ServiceInterface
     protected function getLockId(): string
     {
         return '';
+    }
+
+    /**
+     * Resolve the service handler as a closure the container can call.
+     *
+     * @return \Closure
+     *
+     * @throws \LogicException
+     */
+    private function resolveHandler(): Closure
+    {
+        $handler = [$this, 'handle'];
+
+        if (!is_callable($handler)) {
+            throw new LogicException(sprintf('Service [%s] must define a protected handle() method', static::class));
+        }
+
+        return Closure::fromCallable($handler);
+    }
+
+    /**
+     * Call the service handler, resolving its parameters from the container
+     * when it declares required parameters.
+     *
+     * @param  \Closure  $handler
+     * @return bool
+     *
+     * @throws \Illuminate\Contracts\Container\BindingResolutionException
+     * @throws \ReflectionException
+     */
+    private function callHandler(Closure $handler): bool
+    {
+        if ((new ReflectionFunction($handler))->getNumberOfRequiredParameters() === 0) {
+            return $handler();
+        }
+
+        // Container::call() leaves the service on its build stack if handle() throws
+        return BoundMethod::call(Container::getInstance(), $handler);
     }
 
     /**
